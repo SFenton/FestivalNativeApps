@@ -1,8 +1,6 @@
 package com.festivalscoretracker.android.core.rankings
 
 import com.festivalscoretracker.android.core.bands.BandType
-import com.festivalscoretracker.android.core.bands.SongBandLeaderboardEntry
-import com.festivalscoretracker.android.core.bands.SongBandLeaderboardResponse
 import com.festivalscoretracker.android.core.model.LeaderboardEntry
 import com.festivalscoretracker.android.core.model.ProfileSearchText
 import com.festivalscoretracker.android.core.model.SelectedPlayer
@@ -35,15 +33,15 @@ object RankingNavigation {
     /**
      * TalkBack click label for a player row, named after where it actually leads (iOS
      * `SongPreviewSpotlightPolicy.hint`, issue #63): the selected player's in-place row opens
-     * Statistics, their appended row past the preview opens their page of the full board.
+     * Statistics; their appended row past the preview jumps to their position in the full
+     * board ([SelectedRowLabels], issue #307).
      *
      * @param route Row destination from [playerRoute] or the spotlight row's board page.
      * @return Action label.
      */
     fun actionLabel(route: AppRoute): String = when (route) {
-        StatisticsRoute -> "Open your statistics"
-        is SongLeaderboardRoute -> "Open your page of the full leaderboard"
-        is BandRoute -> "Open band"
+        StatisticsRoute -> SelectedRowLabels.OPEN_STATISTICS
+        is SongLeaderboardRoute -> SelectedRowLabels.JUMP_TO_PLAYER
         else -> "Open profile"
     }
 
@@ -116,14 +114,14 @@ object SongScoreSpotlight {
      * Build the pinned footer row from the selected player's score index.
      *
      * Only projects a score observed under the same publication as the board
-     * (never a newer score index onto an older page, or the reverse), and only when
-     * the player's row is not already on the page.
+     * (never a newer score index onto an older page, or the reverse). Like the web
+     * footer it stays pinned while the player's row is also on the page; its action then
+     * opens Statistics instead of jumping ([SelectedRowAction.footer], issue #307).
      *
      * @param player Selected player, or null.
      * @param score Their score on this song and chart, or null.
      * @param scorePublicationId Publication the score index was observed under.
      * @param boardPublicationId Publication the page was read under.
-     * @param visible Rows on the current page.
      * @return Footer row, or null when nothing should be pinned.
      */
     fun footer(
@@ -131,10 +129,8 @@ object SongScoreSpotlight {
         score: PlayerScore?,
         scorePublicationId: Int?,
         boardPublicationId: Int,
-        visible: List<LeaderboardEntry>,
     ): LeaderboardEntry? {
         if (player == null || score == null || scorePublicationId != boardPublicationId) return null
-        if (visible.any { RankingSpotlight.isSelected(player.accountId, it.accountId) }) return null
         return LeaderboardEntry(
             accountId = player.accountId,
             displayName = player.displayName,
@@ -147,101 +143,6 @@ object SongScoreSpotlight {
             difficulty = score.difficulty,
         )
     }
-}
-
-// endregion
-
-// region Song band leaderboard footer
-
-/**
- * The selected player's band pinned above the pager on a song's full Duos/Trios/Quads board
- * (web `SongBandLeaderboardPage` `FixedLeaderboardPlayerFooter`, issue #306). Like the web
- * (`hasSelectedFooter = !!selectedEntry`), it is pinned on every page while the response
- * carries the selected band; on the band's own page its row is also highlighted in place.
- */
-object SongBandSpotlight {
-    /**
-     * The selected player's band row from a page read with their `accountId`.
-     *
-     * @param response Page.
-     * @param selectedAccountId Selected player, or null.
-     * @return Their band row (on or off this page), or null when no player is selected, the
-     *   response is for another player or band size, or they have no score at this size.
-     */
-    fun selected(response: SongBandLeaderboardResponse, selectedAccountId: String?): SongBandLeaderboardEntry? {
-        val band = response.selectedPlayerEntry ?: return null
-        if (selectedAccountId.isNullOrBlank() || band.bandType != response.bandType) return null
-        val ids = band.members.map { it.accountId } + band.teamKey.split(':')
-        return band.takeIf { ids.any { it.equals(selectedAccountId, ignoreCase = true) } }
-    }
-
-    /**
-     * Whether a page row is the selected player's band (purple in-place highlight).
-     *
-     * @param entry Page row.
-     * @param selected [selected] for the page, or null.
-     * @return True for the same band.
-     */
-    fun isSelected(entry: SongBandLeaderboardEntry, selected: SongBandLeaderboardEntry?): Boolean =
-        selected != null && entry.sameBand(selected)
-
-    /**
-     * The pinned footer row, shaped like the solo footer's row (web passes the band to the
-     * solo `LeaderboardEntry`: rank, joined member names, score, season, accuracy, FC, stars).
-     *
-     * @param response Page.
-     * @param selectedAccountId Selected player, or null.
-     * @return Footer row (whether or not the band is on this page), or null when there is
-     *   nothing to pin.
-     */
-    fun footer(response: SongBandLeaderboardResponse, selectedAccountId: String?): LeaderboardEntry? {
-        val band = selected(response, selectedAccountId) ?: return null
-        return scoreRow(band, selectedAccountId.orEmpty())
-    }
-
-    /**
-     * The rows the pinned footer's score columns are fitted to: every row on the page, shaped
-     * like the footer, plus the footer itself (web `widthEntries = [...entries, selectedEntry]`;
-     * the solo board fits its footer the same way). Empty when nothing is pinned.
-     *
-     * @param response Page.
-     * @param footer [footer] for the page, or null.
-     * @return Section rows, or an empty list without a footer.
-     */
-    fun columnRows(response: SongBandLeaderboardResponse, footer: LeaderboardEntry?): List<LeaderboardEntry> =
-        if (footer == null) emptyList() else response.entries.map { scoreRow(it) } + footer
-
-    /**
-     * A band row shaped like a solo score row (rank, joined member names, score, season,
-     * accuracy, FC, stars), as the web passes a band to the solo `LeaderboardEntry`.
-     *
-     * @param band Band row.
-     * @param fallbackId Identity used when the band has neither ID nor team key.
-     * @return Score row.
-     */
-    fun scoreRow(band: SongBandLeaderboardEntry, fallbackId: String = ""): LeaderboardEntry =
-        LeaderboardEntry(
-            // Non-empty, so the row shows the names rather than "Unknown User".
-            accountId = band.bandId.ifEmpty { band.teamKey }.ifEmpty { fallbackId },
-            displayName = band.membersLabel,
-            score = band.score.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt(),
-            rank = band.rank,
-            // A band's 0 accuracy is "not recorded" (BandScoreRow reads it the same way).
-            accuracy = band.accuracy?.takeIf { it > 0 },
-            isFullCombo = band.isFullCombo,
-            stars = band.stars?.takeIf { it > 0 },
-            season = band.season,
-        )
-
-    /**
-     * Band Detail for a band row (web `getBandProfileRoute`): carries size and team key so the
-     * page resolves through the safe `?teamKey=` rankings read.
-     *
-     * @param entry Band row.
-     * @return Route.
-     */
-    fun route(entry: SongBandLeaderboardEntry): BandRoute =
-        BandRoute(entry.bandId.ifEmpty { entry.teamKey }, entry.membersLabel, entry.bandType, entry.teamKey)
 }
 
 // endregion

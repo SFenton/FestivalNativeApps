@@ -16,18 +16,21 @@ enum AppRoute: Hashable {
     // MARK: Songs
     /// `/songs/:songId`
     case songDetail(Song)
-    /// `/songs/:songId/:instrument` (1-based page)
-    case songLeaderboard(Song, Instrument, Int)
-    /// `/songs/:songId/bands/:bandType`
-    case songBandLeaderboard(Song, bandType: String)
+    /// `/songs/:songId/:instrument` (1-based page). `focusSelected` is the web's
+    /// `navToPlayer`: bring the selected player's row on that page into view (issue #307).
+    case songLeaderboard(Song, Instrument, Int, focusSelected: Bool = false)
+    /// `/songs/:songId/bands/:bandType` (1-based page). `focus` is the band row to
+    /// highlight and bring into view, like `navToPlayer` for a band (issue #307).
+    case songBandLeaderboard(Song, bandType: String, page: Int = 1, focus: SongBandRowFocus? = nil)
     /// `/songs/:songId/:instrument/history`
     case playerHistory(Song, Instrument)
 
     // MARK: Players and bands
     /// `/player/:accountId`
     case player(accountId: String, displayName: String?)
-    /// `/bands/player/:accountId`
-    case playerBands(accountId: String, displayName: String?)
+    /// `/bands/player/:accountId?group=`: `group` is the band size the list opens on
+    /// (the profile's per-group View All, issue #312).
+    case playerBands(accountId: String, displayName: String?, group: PlayerBandGroup = .all)
     /// `/bands`
     case bands
     /// `/bands/:bandId`.

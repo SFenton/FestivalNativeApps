@@ -248,9 +248,20 @@ public sealed record SongBandRow
     /// Song Band Leaderboard row name in visual order (rank, each member's name, instruments and per-song score, then the
     /// team footer), so the single Narrator stop carries everything the card shows.
     /// </summary>
-    public string PageAnnouncement =>
+    public string PageAnnouncement => Spoken(memberScores: true);
+
+    /// <summary>
+    /// Song Detail band preview row name in visual order (rank, each member's name and instruments, then the team footer).
+    /// The preview shows no per-member scores, so none are read (issue #264).
+    /// </summary>
+    public string PreviewAnnouncement => Spoken(memberScores: false);
+
+    /// <summary>Row name in visual order: rank, members (name, instruments, optionally their score), team footer.</summary>
+    /// <param name="memberScores">Whether each member's per-song score is read (shown on the full board only).</param>
+    /// <returns>Screen-reader text.</returns>
+    private string Spoken(bool memberScores) =>
         $"Rank {Entry.Rank}. " +
-        string.Concat(Members.Select(m => $"{m.Name}, {m.InstrumentsText}" + (m.HasScore ? $", {m.ScoreText} points" : "") + ". ")) +
+        string.Concat(Members.Select(m => $"{m.Name}, {m.InstrumentsText}" + (memberScores && m.HasScore ? $", {m.ScoreText} points" : "") + ". ")) +
         $"Team score {Score} points" + (IsFullCombo ? ", full combo" : "") + (HasAccuracy ? $", {Accuracy} accuracy" : "") +
         (StarRating.From(Entry.Stars) is { } stars ? $", {stars.Announcement}" : "");
 }

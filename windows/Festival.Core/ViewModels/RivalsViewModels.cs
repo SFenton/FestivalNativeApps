@@ -51,10 +51,10 @@ public sealed record RivalRowItem(
     public bool IsWinning => Direction == RivalDirection.Below;
 
     /// <summary><c>{n} songs ahead</c>.</summary>
-    public string AheadText => string.Create(CultureInfo.CurrentCulture, $"{SongsAhead:N0} songs ahead");
+    public string AheadText => RivalRowText.Ahead(SongsAhead);
 
     /// <summary><c>{n} songs behind</c>.</summary>
-    public string BehindText => string.Create(CultureInfo.CurrentCulture, $"{SongsBehind:N0} songs behind");
+    public string BehindText => RivalRowText.Behind(SongsBehind);
 
     /// <summary><c>#rank</c> for leaderboard rivals, else empty.</summary>
     public string RankText => LeaderboardRank is { } rank ? string.Create(CultureInfo.CurrentCulture, $"#{rank:N0}") : "";
@@ -138,8 +138,15 @@ public sealed partial class RivalSectionViewModel : ObservableObject
     /// <summary>Accessible name of the See All link.</summary>
     public string SeeAllName => "See All " + Title;
 
-    /// <summary>Accessible name of the View All Rivals button below the rows (distinct from the header link).</summary>
-    public string ViewAllName => "View All " + Title;
+    /// <summary>Visible text of the accent button below the rows (web <c>rivals.viewAllRivals</c>).</summary>
+    public string ViewAllText => ViewAllCta.RivalsLabel;
+
+    /// <summary>Accessible name of the View All Rivals button: the visible label, then the card (WCAG 2.5.3), e.g.
+    /// "View All Rivals, Lead Rivals"; distinct from the header's "See All Lead Rivals" link.</summary>
+    public string ViewAllName => ViewAllCta.Name(ViewAllText, Title);
+
+    /// <summary>UIA automation ID of the View All Rivals button, unique per card like Song Detail's and Leaderboards'.</summary>
+    public string ViewAllAutomationId => AutomationId + ".view-all";
 
     /// <summary>All Rivals route for this scope.</summary>
     public AppRoute.AllRivals ViewAllRoute { get; }

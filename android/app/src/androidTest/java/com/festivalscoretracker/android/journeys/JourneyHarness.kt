@@ -127,7 +127,38 @@ class JourneyHarness(private val rule: JourneyRule) {
         if (parts.getOrNull(1) != "TouchTargetSizeCheck") return false
         val min = with(rule.density) { 48.dp.toPx() } - 1
         val nodes = rule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes()
-        return nodes.isNotEmpty() && nodes.all { it.size.height >= min && it.size.width >= min }
+        if (nodes.isNotEmpty() && nodes.all { it.size.height >= min && it.size.width >= min }) return true
+        // A Material icon button draws 40 dp and extends its touch bounds to 48 dp; partly
+        // scrolled off (the hide-on-scroll floating toolbar) ATF measures the cut-off part. Its
+        // accessibility node, once fully shown, reports the real touch bounds (issue #171).
+        if (nodes.isEmpty()) return false
+        fun fullSize() = visibleAccessibilityNodes(tag).let { shown ->
+            shown.isNotEmpty() && shown.all { n ->
+                val box = android.graphics.Rect().also(n::getBoundsInScreen)
+                box.height() >= min && box.width() >= min
+            }
+        }
+        return runCatching { rule.waitUntil(5_000) { fullSize() } }.isSuccess
+    }
+
+    /**
+     * Visible nodes in the window's accessibility tree whose resource id is [tag].
+     *
+     * @param tag Test tag (exposed as the resource id).
+     * @return Matching nodes.
+     */
+    private fun visibleAccessibilityNodes(tag: String): List<AccessibilityNodeInfo> {
+        val out = mutableListOf<AccessibilityNodeInfo>()
+        fun walk(n: AccessibilityNodeInfo?) {
+            n ?: return
+            if (n.viewIdResourceName == tag && n.isVisibleToUser) out += n
+            for (i in 0 until n.childCount) walk(n.getChild(i))
+        }
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        // The cache can keep bounds from before the toolbar slid back in.
+        if (android.os.Build.VERSION.SDK_INT >= 34) automation.clearCache()
+        walk(automation.rootInActiveWindow)
+        return out
     }
 
     /** Checks the current window when accessibility checks are on. */

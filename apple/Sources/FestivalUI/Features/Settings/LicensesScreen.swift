@@ -56,7 +56,7 @@ struct LicensesScreen: View {
             .modifier(ReadableWidthContainer(isRegularWidth: layout.widthClass == .regular))
         }
         .festivalBackground(.carousel, session: session)
-        .navigationTitle("Licenses")
+        .festivalNavigationTitle("Licenses")
         .sheet(item: $selected) { entry in
             LicenseDetailSheet(entry: entry)
         }

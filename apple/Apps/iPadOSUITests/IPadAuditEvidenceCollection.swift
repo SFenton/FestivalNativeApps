@@ -27,6 +27,11 @@ extension IPadAccessibilityAuditTests {
         app: XCUIApplication, proof: String
     ) throws -> [String: CGRect] {
         let name = "\(mode.rawValue)-\(page.name)"
+        if mode.isDuo, IPadAuditRenderedContrast.duoClockwise == nil, let root = try? app.snapshot() {
+            IPadAuditRenderedContrast.duoReferences = IPadAuditPageEvidence.flatten(root)
+                .filter { $0.elementType == .staticText && $0.label.count >= 6 && $0.frame.height > 10 }
+                .prefix(12).map { ($0.label, $0.frame) }
+        }
         let capture = IPadAuditRenderedContrast.Capture.screen()
         write(capture, tree: app, name: name)
         var containers: [String: CGRect] = [:]
@@ -41,6 +46,22 @@ extension IPadAccessibilityAuditTests {
             let predictions = app.otherElements["Typing Predictions"]
             if predictions.exists { frame = frame.union(predictions.frame) }
             containers[IPadAuditWaivers.keyboardContainer] = frame
+        }
+        // The top navigation bars (one per split pane): the system caps the text size of
+        // what a bar hosts (``IPadAuditWaivers`` `system-bar-title-size`).
+        let window = app.windows.firstMatch.frame
+        let bars = app.navigationBars.allElementsBoundByIndex
+            .map(\.frame).filter { $0.height > 0 && $0.maxY < window.midY }
+        if let first = bars.first {
+            containers[IPadAuditWaivers.navigationBarContainer] = bars.dropFirst().reduce(first) { $0.union($1) }
+        }
+        // Elements the audit enumerates but the snapshot assistive technologies read leaves
+        // out (behind a modal drawer, hidden decoration).
+        if !findings.isEmpty, let root = try? app.snapshot() {
+            let present = Set(IPadAuditPageEvidence.flatten(root).map { "\($0.label)|\(NSCoder.string(for: $0.frame))" })
+            for index in findings.indices where !findings[index].frame.isEmpty {
+                findings[index].outsideTree = !present.contains("\(findings[index].label)|\(findings[index].frame)")
+            }
         }
         let content = IPadAuditPageEvidence.contentRect(app)
         // The comparison launch is AX5 (the claims are about larger sizes), or the default
@@ -66,7 +87,7 @@ extension IPadAccessibilityAuditTests {
         if !unattributed.isEmpty, let capture {
             visible = IPadAuditPageEvidence.measure(
                 app, capture: capture, lines: lines, content: content,
-                sheetProof: page.sheet ? proof : nil, systemRegions: Array(containers.values)
+                sheetProof: page.sheet ? proof : nil, systemRegions: containers.filter { $0.key != IPadAuditWaivers.drawerContainer }.map(\.value)
             )
         }
 
@@ -159,7 +180,11 @@ extension IPadAccessibilityAuditTests {
                 // both; otherwise frame heights (never one of each).
                 let otherLines = otherShot.map(IPadAuditPageEvidence.recognizedLines(in:)) ?? []
                 let sizeRatio = { (audited: CGRect, compared: CGRect, label: String) -> Double? in
-                    if let a = IPadAuditPageEvidence.textHeight(in: audited, label: label, lines: lines),
+                    // Vision's box for a one- or two-letter lowercase word is not a glyph
+                    // height (Rival Detail's "vs": 24 → 48 pt frames, 2.0×, read as 1.2×
+                    // from the boxes); such labels compare their own frames.
+                    let short = label.trimmingCharacters(in: .whitespaces).count < 3
+                    if !short, let a = IPadAuditPageEvidence.textHeight(in: audited, label: label, lines: lines),
                        let c = IPadAuditPageEvidence.textHeight(in: compared, label: label, lines: otherLines), a > 0 {
                         return growth(a, c)
                     }
@@ -193,7 +218,8 @@ extension IPadAccessibilityAuditTests {
                 }
                 for index in heuristic where findings[index].text?.growth == nil
                     || (comparisonSize == .accessibilityExtraExtraExtraLarge && isClipped(index)) {
-                    guard let locator = locators[index], let element = locator.resolve(in: other, within: otherContent) else {
+                    guard let locator = locators[index],
+                          let element = locator.resolve(in: other, within: otherContent, fallbackX: frames[index].midX) else {
                         findings[index].text?.missing = "element not found in the comparison launch"
                         continue
                     }

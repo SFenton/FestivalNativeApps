@@ -61,8 +61,9 @@ internal static class PostedInput
     /// </summary>
     /// <param name="topLevel">Target top-level window.</param>
     /// <param name="keys">Chord, e.g. <c>SHIFT, TAB</c>.</param>
+    /// <param name="settle">Wait 120 ms for the app to read the messages; a key sequence settles only after its last chord.</param>
     /// <exception cref="InvalidOperationException">The window has no XAML input site.</exception>
-    public static void Press(IntPtr topLevel, IReadOnlyList<VirtualKeyShort> keys)
+    public static void Press(IntPtr topLevel, IReadOnlyList<VirtualKeyShort> keys, bool settle = true)
     {
         var site = InputSite(topLevel) ?? throw new InvalidOperationException("no InputSiteWindowClass child to post keys to");
         var modifiers = keys.Where(IsModifier).ToList();
@@ -88,7 +89,7 @@ internal static class PostedInput
                 PostKey(site, key, down: false, alt);
             }
             foreach (var modifier in Enumerable.Reverse(modifiers)) PostKey(site, modifier, down: false, alt && modifier != VirtualKeyShort.ALT);
-            Thread.Sleep(120); // let the app read the messages while the shared key state still holds the modifiers
+            if (settle) Thread.Sleep(120); // let the app read the messages while the shared key state still holds the modifiers
         }
         finally
         {
@@ -124,6 +125,15 @@ internal static class PostedInput
         or VirtualKeyShort.UP or VirtualKeyShort.DOWN or VirtualKeyShort.HOME or VirtualKeyShort.END
         or VirtualKeyShort.PRIOR or VirtualKeyShort.NEXT or VirtualKeyShort.INSERT or VirtualKeyShort.DELETE;
 
+    /// <summary>
+    /// Sends <c>WM_ACTIVATE</c> to a top-level window, so WinUI raises <c>Window.Activated</c> with
+    /// <c>CodeActivated</c> or <c>Deactivated</c> while a locked console refuses real foreground changes.
+    /// </summary>
+    /// <param name="topLevel">App window.</param>
+    /// <param name="active">Activate (<see langword="true"/>) or deactivate it.</param>
+    public static void Activate(IntPtr topLevel, bool active) =>
+        SendMessageW(topLevel, WmActivate, (IntPtr)(active ? WaActive : WaInactive), IntPtr.Zero);
+
     /// <summary>The first XAML input-site child of a top-level window.</summary>
     private static IntPtr? InputSite(IntPtr topLevel)
     {
@@ -147,6 +157,9 @@ internal static class PostedInput
     private const int UoiName = 2;
     private const uint WmKeyDown = 0x0100, WmKeyUp = 0x0101, WmChar = 0x0102, WmSysKeyDown = 0x0104, WmSysKeyUp = 0x0105;
 
+    private const uint WmActivate = 0x0006;
+    private const int WaInactive = 0, WaActive = 1;
+
     private const int WtsSessionInfoEx = 25, WtsSessionStateLock = 0;
 
     private delegate bool EnumProc(IntPtr hwnd, IntPtr data);
@@ -162,6 +175,7 @@ internal static class PostedInput
     [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr parent, EnumProc callback, IntPtr data);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassNameW(IntPtr hwnd, StringBuilder name, int max);
     [DllImport("user32.dll")] private static extern bool PostMessageW(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll")] private static extern IntPtr SendMessageW(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll")] private static extern uint MapVirtualKeyW(uint code, uint mapType);
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
     [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint attach, uint to, bool doAttach);

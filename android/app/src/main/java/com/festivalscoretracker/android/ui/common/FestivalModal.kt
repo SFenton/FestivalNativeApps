@@ -28,7 +28,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -63,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.festivalscoretracker.android.core.nav.DialogHinge
+import com.festivalscoretracker.android.core.nav.HingeSide
 import com.festivalscoretracker.android.presentation.ModalCoverage
 import com.festivalscoretracker.android.ui.design.popupTestTags
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -218,8 +218,12 @@ val MODAL_DIALOG_MAX_WIDTH: Dp = 560.dp
 
 /**
  * Shared modal dialog for wider windows and the first-run guide: an M3 dialog surface
- * (28 dp corners, card colour, at most [MODAL_DIALOG_MAX_WIDTH]) headed by
- * [FestivalModalHeader]. An outside tap, back and Close all call [onDismissRequest].
+ * (28 dp corners, card colour) headed by [FestivalModalHeader]. An outside tap, back and
+ * Close all call [onDismissRequest].
+ *
+ * The surface always takes the window width less 16 dp margins, capped at
+ * [MODAL_DIALOG_MAX_WIDTH] (M3 "Centered dialog (max 560dp wide)"), never the platform's
+ * preferred dialog width, which measured about 320 dp on a landscape phone (issues #139, #183).
  *
  * @param title Header and pane title.
  * @param closeTag Close button test tag.
@@ -227,11 +231,11 @@ val MODAL_DIALOG_MAX_WIDTH: Dp = 560.dp
  * @param modifier Surface modifier (test tags).
  * @param titleTag Optional heading test tag.
  * @param paneTitle TalkBack pane title (defaults to [title]).
- * @param compact Compact window: nearly full width with a 16 dp margin.
  * @param maxHeight Height cap ([Dp.Unspecified] for none).
  * @param titleStyle Header title style.
  * @param avoidHinge Keep the dialog on one side of a separating fold or hinge
- *   ([DialogHinge]) instead of centring it across the hinge.
+ *   ([DialogHinge]) instead of centring it across the hinge (default; M3: never place
+ *   interactive content across the hinge, issue #146).
  * @param content Dialog body below the header.
  */
 @Composable
@@ -242,10 +246,9 @@ fun FestivalModalDialog(
     modifier: Modifier = Modifier,
     titleTag: String? = null,
     paneTitle: String = title,
-    compact: Boolean = false,
     maxHeight: Dp = Dp.Unspecified,
     titleStyle: TextStyle = MaterialTheme.typography.titleLarge,
-    avoidHinge: Boolean = false,
+    avoidHinge: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     CoversBackdrop()
@@ -255,7 +258,7 @@ fun FestivalModalDialog(
             shape = RoundedCornerShape(28.dp),
             color = BrandTokens.cardBackground,
             modifier = Modifier
-                .padding(if (compact || hingeArea != null) 16.dp else 0.dp)
+                .padding(16.dp)
                 .widthIn(max = MODAL_DIALOG_MAX_WIDTH)
                 .heightIn(max = maxHeight)
                 .fillMaxWidth()
@@ -275,7 +278,7 @@ fun FestivalModalDialog(
     // invisible modal (issue #139); a fresh window per density keeps it on screen.
     key(LocalConfiguration.current.densityDpi) {
         if (hingeArea == null) {
-            Dialog(onDismissRequest = onDismissRequest, properties = DialogProperties(usePlatformDefaultWidth = !compact)) {
+            Dialog(onDismissRequest = onDismissRequest, properties = DialogProperties(usePlatformDefaultWidth = false)) {
                 surface(Modifier)
             }
         } else {
@@ -296,8 +299,8 @@ fun FestivalModalDialog(
  * @return The [DialogHinge] area, or null.
  */
 @Composable
-private fun dialogHingeArea(): DialogHinge.Area? {
-    val posture = LocalShellPosture.current ?: currentWindowAdaptiveInfo().windowPosture
+internal fun dialogHingeArea(): HingeSide.Rect? {
+    val posture = shellPosture()
     val hinge = posture.hingeList.firstOrNull { it.isSeparating } ?: return null
     val root = LocalView.current.rootView
     val density = LocalDensity.current
@@ -306,7 +309,7 @@ private fun dialogHingeArea(): DialogHinge.Area? {
     val x = origin[0].toFloat()
     val y = origin[1].toFloat()
     val safe = WindowInsets.safeDrawing
-    val safeArea = DialogHinge.Area(
+    val safeArea = HingeSide.Rect(
         left = x + safe.getLeft(density, direction),
         top = y + safe.getTop(density),
         right = x + root.width - safe.getRight(density, direction),
@@ -315,7 +318,7 @@ private fun dialogHingeArea(): DialogHinge.Area? {
     val bounds = hinge.bounds
     return DialogHinge.area(
         safe = safeArea,
-        hinge = DialogHinge.Area(x + bounds.left, y + bounds.top, x + bounds.right, y + bounds.bottom),
+        hinge = HingeSide.Rect(x + bounds.left, y + bounds.top, x + bounds.right, y + bounds.bottom),
         vertical = hinge.isVertical,
         separating = true,
         rtl = direction == LayoutDirection.Rtl,
@@ -331,8 +334,8 @@ private fun dialogHingeArea(): DialogHinge.Area? {
  * @param surface The dialog surface; apply the given modifier after its outer margin.
  */
 @Composable
-private fun HingeSideDialogLayout(
-    area: DialogHinge.Area,
+internal fun HingeSideDialogLayout(
+    area: HingeSide.Rect,
     onDismissRequest: () -> Unit,
     surface: @Composable (Modifier) -> Unit,
 ) {
@@ -347,7 +350,7 @@ private fun HingeSideDialogLayout(
                 detectTapGestures { if (!surfaceBounds.contains(it)) onDismissRequest() }
             },
     ) { measurables, constraints ->
-        val local = DialogHinge.Area(area.left - origin.x, area.top - origin.y, area.right - origin.x, area.bottom - origin.y)
+        val local = HingeSide.Rect(area.left - origin.x, area.top - origin.y, area.right - origin.x, area.bottom - origin.y)
         val placeable = measurables.single().measure(
             Constraints(
                 maxWidth = local.width.roundToInt().coerceIn(0, constraints.maxWidth),

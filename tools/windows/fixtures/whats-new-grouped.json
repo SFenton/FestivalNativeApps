@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "platform": "windows",
+  "version": "2610.09.01",
+  "baseline": "2610.08.01",
+  "entries": [
+    {
+      "version": "2610.09.01",
+      "released": false,
+      "items": [
+        "Songs: Fixture release note one stays in page order.",
+        "Item Shop: Fixture release note two follows Songs.",
+        "Settings: Fixture release note three follows the Item Shop.",
+        "Fixture release note without a category comes last."
+      ],
+      "groups": [
+        {"category": "Songs", "items": ["Fixture release note one stays in page order."]},
+        {"category": "Item Shop", "items": ["Fixture release note two follows Songs."]},
+        {"category": "Settings", "items": ["Fixture release note three follows the Item Shop."]},
+        {"category": null, "items": ["Fixture release note without a category comes last."]}
+      ],
+      "testflight": {
+        "since": "2610.08.02",
+        "new": ["Songs: Fixture tester note one is new in this build."],
+        "release": "2610.08.01",
+        "vs_release": [
+          "Songs: Fixture tester note one is new in this build.",
+          "Songs: Fixture tester note two shares the Songs heading.",
+          "Song Details: Fixture tester note three follows Songs.",
+          "Rivals: Fixture tester note four follows Song Details.",
+          "Navigation: Fixture tester note five follows Rivals.",
+          "General: Fixture tester note six is the last category.",
+          "Fixture tester note seven has no category and comes last."
+        ],
+        "groups": [
+          {"category": "Songs", "items": ["Fixture tester note one is new in this build.", "Fixture tester note two shares the Songs heading."]},
+          {"category": "Song Details", "items": ["Fixture tester note three follows Songs."]},
+          {"category": "Rivals", "items": ["Fixture tester note four follows Song Details."]},
+          {"category": "Navigation", "items": ["Fixture tester note five follows Rivals."]},
+          {"category": "General", "items": ["Fixture tester note six is the last category."]},
+          {"category": null, "items": ["Fixture tester note seven has no category and comes last."]}
+        ]
+      }
+    },
+    {
+      "version": "2610.08.01",
+      "released": true,
+      "items": ["Leaderboards: Fixture released note.", "Fixture released note without a category."],
+      "groups": [
+        {"category": "Leaderboards", "items": ["Fixture released note."]},
+        {"category": null, "items": ["Fixture released note without a category."]}
+      ]
+    },
+    {
+      "version": "2610.07.01",
+      "released": true,
+      "items": ["Fixture note from a document without groups."]
+    }
+  ]
+}

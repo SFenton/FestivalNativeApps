@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.core.bands
 
 import com.festivalscoretracker.android.core.model.FestivalApiException
 import com.festivalscoretracker.android.core.model.Instrument
+import com.festivalscoretracker.android.core.model.LeaderboardEntry
 import kotlinx.serialization.Serializable
 
 // region Members
@@ -278,7 +279,6 @@ data class SongBandLeaderboardEntry(
     val accuracy: Double? = null,
     val isFullCombo: Boolean? = null,
     val stars: Int? = null,
-    val season: Int? = null,
 ) {
     /** Stable row key. */
     val key: String get() = "${bandId.ifEmpty { teamKey }}:$rank"
@@ -294,6 +294,23 @@ data class SongBandLeaderboardEntry(
      */
     fun sameBand(other: SongBandLeaderboardEntry): Boolean =
         (bandId.isNotEmpty() && bandId == other.bandId) || (bandType == other.bandType && teamKey == other.teamKey)
+
+    /**
+     * This band as one solo-style score row for the band board's pinned footer (web
+     * `SongBandLeaderboardPage` footer; Apple `footerLeaderboardEntry`, issue #307): the
+     * members as its name, the team score, accuracy (0 is "not recorded"), FC and stars.
+     */
+    val footerLeaderboardEntry: LeaderboardEntry
+        get() = LeaderboardEntry(
+            // A non-empty ID, so the row shows the members rather than "Unknown User".
+            accountId = "band-${bandId.ifEmpty { teamKey }}",
+            displayName = membersLabel,
+            score = score.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt(),
+            rank = rank,
+            accuracy = accuracy?.takeIf { it > 0 },
+            isFullCombo = isFullCombo,
+            stars = stars,
+        )
 }
 
 /** Page from `GET /api/leaderboard/{songId}/bands/{bandType}?top=&offset=`. */

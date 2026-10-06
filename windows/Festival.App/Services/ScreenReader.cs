@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using Festival.Core.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation.Peers;
+using Microsoft.UI.Xaml.Media;
 
 namespace Festival.App.Services;
 
@@ -15,16 +16,33 @@ public static class ScreenReader
 {
     private static readonly ConditionalWeakTable<FrameworkElement, LoadAnnouncer> Attached = [];
 
-    /// <summary>Speaks an announcement through <paramref name="element"/>'s automation peer.</summary>
-    /// <param name="element">Element whose peer raises the notification (must be in the live tree).</param>
+    /// <summary>Speaks an announcement through the automation peer of <paramref name="element"/> or its nearest ancestor.</summary>
+    /// <param name="element">Element the announcement is about (must be in the live tree).</param>
     /// <param name="announcement">Text, kind and activity ID.</param>
     public static void Announce(UIElement element, Announcement announcement)
     {
-        var peer = FrameworkElementAutomationPeer.FromElement(element) ?? FrameworkElementAutomationPeer.CreatePeerForElement(element);
-        peer?.RaiseNotificationEvent(
+        PeerFor(element)?.RaiseNotificationEvent(
             announcement.Kind == AnnouncementKind.Progress ? AutomationNotificationKind.ActionCompleted : AutomationNotificationKind.Other,
             announcement.Kind == AnnouncementKind.Error ? AutomationNotificationProcessing.ImportantAll : AutomationNotificationProcessing.MostRecent,
             announcement.Text, announcement.ActivityId);
+    }
+
+    /// <summary>
+    /// The peer that raises an announcement for <paramref name="element"/>: its own, else its nearest visual ancestor's.
+    /// Pages, user controls and panels have no automation peer (<c>CreatePeerForElement</c> returns
+    /// <see langword="null"/>), so announcing from one raised nothing and Narrator stayed silent (issue #269).
+    /// </summary>
+    /// <param name="element">Element the announcement is about.</param>
+    /// <returns>The nearest peer, or <see langword="null"/> when no ancestor has one.</returns>
+    private static AutomationPeer? PeerFor(UIElement element)
+    {
+        for (DependencyObject? node = element; node is not null; node = VisualTreeHelper.GetParent(node))
+        {
+            if (node is UIElement candidate &&
+                (FrameworkElementAutomationPeer.FromElement(candidate) ?? FrameworkElementAutomationPeer.CreatePeerForElement(candidate)) is { } peer)
+                return peer;
+        }
+        return null;
     }
 
     /// <summary>

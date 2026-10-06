@@ -191,7 +191,7 @@ class BandsViewModelTest {
 
     @Test
     fun songBoardSwitchesSizeAndPages() = runTest(main.dispatcher) {
-        val viewModel = SongBandLeaderboardViewModel("s-alpha", BandType.Duets, { api.catalog(it) }, { s, t, p, n, a -> api.songBandLeaderboard(s, t, p, n, a) }, backoff)
+        val viewModel = SongBandLeaderboardViewModel("s-alpha", BandType.Duets, { api.catalog(it) }, api::songBandLeaderboard, backoff)
         advanceUntilIdle()
         assertEquals("Alpha Tune", viewModel.song.value.valueOrNull!!.title)
         assertEquals(25, viewModel.board.value.valueOrNull!!.entries.size)
@@ -214,41 +214,6 @@ class BandsViewModelTest {
         viewModel.retrySong()
         advanceUntilIdle()
         assertTrue(viewModel.board.value is LoadState.Loaded)
-    }
-
-    @Test
-    fun songBoardReadsTheSelectedPlayersBandAndFollowsSelection() = runTest(main.dispatcher) {
-        val accounts = mutableListOf<String?>()
-        val viewModel = SongBandLeaderboardViewModel(
-            "s-alpha",
-            BandType.Duets,
-            { api.catalog(it) },
-            { s, t, p, n, a -> accounts += a; api.songBandLeaderboard(s, t, p, n, a) },
-            backoff,
-            BandFixtures.PLAYER,
-        )
-        advanceUntilIdle()
-        assertEquals(BandFixtures.PLAYER, viewModel.accountId.value)
-        assertEquals(listOf<String?>(BandFixtures.PLAYER), accounts)
-        assertEquals(12, viewModel.board.value.valueOrNull!!.selectedPlayerEntry!!.rank)
-        viewModel.goTo(2)
-        advanceUntilIdle()
-        // Same player: no extra read.
-        viewModel.selectAccount(BandFixtures.PLAYER)
-        advanceUntilIdle()
-        assertEquals(2, accounts.size)
-        // Deselecting keeps the size and page and re-reads without the account.
-        viewModel.selectAccount(" ")
-        advanceUntilIdle()
-        assertEquals(listOf(BandFixtures.PLAYER, BandFixtures.PLAYER, null), accounts)
-        assertEquals(2, viewModel.page.value)
-        assertEquals(BandType.Duets, viewModel.bandType.value)
-        assertNull(viewModel.board.value.valueOrNull!!.selectedPlayerEntry)
-        viewModel.selectAccount(BandFixtures.PLAYER)
-        viewModel.selectBandType(BandType.Trios)
-        advanceUntilIdle()
-        assertEquals(BandFixtures.PLAYER, accounts.last())
-        assertEquals(2, viewModel.board.value.valueOrNull!!.selectedPlayerEntry!!.rank)
     }
 
     // endregion

@@ -5,19 +5,113 @@ import com.festivalscoretracker.android.core.model.Instrument
 import java.text.NumberFormat
 import java.time.Instant
 import java.util.Locale
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.descriptors.nullable
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
 
 // region Wire
 
 /**
- * One coalesced sub-event (web `NotificationTextEvent`, typed subset).
+ * Web `numberValue`: a finite JSON number or numeric string, else null (never a decode failure).
+ */
+internal object LenientDoubleSerializer : KSerializer<Double?> {
+    override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("LenientDouble", PrimitiveKind.DOUBLE).nullable
+
+    override fun deserialize(decoder: Decoder): Double? {
+        val element = (decoder as? JsonDecoder)?.decodeJsonElement() ?: return decoder.decodeDouble()
+        val primitive = element as? JsonPrimitive ?: return null
+        if (primitive is JsonNull) return null
+        return primitive.content.trim().toDoubleOrNull()?.takeIf { it.isFinite() }
+    }
+
+    override fun serialize(encoder: Encoder, value: Double?) {
+        if (value == null) encoder.encodeNull() else encoder.encodeDouble(value)
+    }
+}
+
+/**
+ * Web `booleanValue`: a JSON boolean or "true"/"false" string, else null (never a decode failure).
+ */
+internal object LenientBooleanSerializer : KSerializer<Boolean?> {
+    override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("LenientBoolean", PrimitiveKind.BOOLEAN).nullable
+
+    override fun deserialize(decoder: Decoder): Boolean? {
+        val element = (decoder as? JsonDecoder)?.decodeJsonElement() ?: return decoder.decodeBoolean()
+        val primitive = element as? JsonPrimitive ?: return null
+        if (primitive is JsonNull) return null
+        return when (primitive.content.trim().lowercase()) {
+            "true" -> true
+            "false" -> false
+            else -> null
+        }
+    }
+
+    override fun serialize(encoder: Encoder, value: Boolean?) {
+        if (value == null) encoder.encodeNull() else encoder.encodeBoolean(value)
+    }
+}
+
+/**
+ * Web `stringValue`: a non-blank JSON string, trimmed, else null (never a decode failure).
+ */
+internal object LenientStringSerializer : KSerializer<String?> {
+    override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("LenientString", PrimitiveKind.STRING).nullable
+
+    override fun deserialize(decoder: Decoder): String? {
+        val element = (decoder as? JsonDecoder)?.decodeJsonElement() ?: return decoder.decodeString()
+        val primitive = element as? JsonPrimitive ?: return null
+        if (!primitive.isString) return null
+        return primitive.content.trim().takeIf { it.isNotEmpty() }
+    }
+
+    override fun serialize(encoder: Encoder, value: String?) {
+        if (value == null) encoder.encodeNull() else encoder.encodeString(value)
+    }
+}
+
+/**
+ * One coalesced sub-event (web `ImprovementNotificationEventPayload`, player fields). Fields
+ * decode leniently like the web's `normalizePayloadEvent`, so one malformed event never fails
+ * the feed.
  *
  * @property eventKind Event kind.
- * @property instrument Service instrument key.
+ * @property instrument Service instrument key (live events usually omit it: the row's chart).
  * @property metric Raw metric.
+ * @property oldNumeric Previous value.
+ * @property newNumeric New value.
+ * @property oldRank Previous rank.
+ * @property newRank New rank.
+ * @property oldLabel Previous value's display label (difficulty).
+ * @property newLabel New value's display label (difficulty).
+ * @property oldFullCombo Previous Full Combo state.
+ * @property newFullCombo New Full Combo state.
+ * @property oldStars Previous stars.
+ * @property newStars New stars (6 = gold).
  */
 @Serializable
-data class NotificationEventPayload(val eventKind: String? = null, val instrument: String? = null, val metric: String? = null)
+data class NotificationEventPayload(
+    @Serializable(with = LenientStringSerializer::class) val eventKind: String? = null,
+    @Serializable(with = LenientStringSerializer::class) val instrument: String? = null,
+    @Serializable(with = LenientStringSerializer::class) val metric: String? = null,
+    @Serializable(with = LenientDoubleSerializer::class) val oldNumeric: Double? = null,
+    @Serializable(with = LenientDoubleSerializer::class) val newNumeric: Double? = null,
+    @Serializable(with = LenientDoubleSerializer::class) val oldRank: Double? = null,
+    @Serializable(with = LenientDoubleSerializer::class) val newRank: Double? = null,
+    @Serializable(with = LenientStringSerializer::class) val oldLabel: String? = null,
+    @Serializable(with = LenientStringSerializer::class) val newLabel: String? = null,
+    @Serializable(with = LenientBooleanSerializer::class) val oldFullCombo: Boolean? = null,
+    @Serializable(with = LenientBooleanSerializer::class) val newFullCombo: Boolean? = null,
+    @Serializable(with = LenientDoubleSerializer::class) val oldStars: Double? = null,
+    @Serializable(with = LenientDoubleSerializer::class) val newStars: Double? = null,
+)
 
 /**
  * Typed subset of the notification `payload` object.
@@ -27,6 +121,10 @@ data class NotificationEventPayload(val eventKind: String? = null, val instrumen
  * @property songTitle Shop song title (`service_new_shop_song` has no account).
  * @property artist Shop song artist.
  * @property albumArt Shop song art reference.
+ * @property oldFullCombo Previous Full Combo state of the row's score event.
+ * @property newFullCombo New Full Combo state of the row's score event.
+ * @property oldStars Previous stars of the row's score event.
+ * @property newStars New stars of the row's score event (6 = gold).
  */
 @Serializable
 data class NotificationPayload(
@@ -35,6 +133,10 @@ data class NotificationPayload(
     val songTitle: String? = null,
     val artist: String? = null,
     val albumArt: String? = null,
+    @Serializable(with = LenientBooleanSerializer::class) val oldFullCombo: Boolean? = null,
+    @Serializable(with = LenientBooleanSerializer::class) val newFullCombo: Boolean? = null,
+    @Serializable(with = LenientDoubleSerializer::class) val oldStars: Double? = null,
+    @Serializable(with = LenientDoubleSerializer::class) val newStars: Double? = null,
 )
 
 /**
@@ -309,6 +411,39 @@ enum class NotificationFlagKind(val label: String) {
     StarsUp("Stars Up"),
     DifficultyUp("Difficulty Up"),
     Progress("Progress"),
+    ;
+
+    companion object {
+        /**
+         * Flag kind for an event kind (web `flagKind`, player kinds).
+         *
+         * @param eventKind Event kind.
+         * @return Kind.
+         */
+        fun forEventKind(eventKind: String): NotificationFlagKind = when {
+            eventKind == "player_first_score" -> FirstPlay
+            eventKind == "player_score_pb" -> NewHighScore
+            eventKind == "player_fc_achieved" -> FullCombo
+            "rank_improved" in eventKind -> RankUp
+            eventKind == "player_gold_stars_achieved" -> GoldStars
+            eventKind == "player_stars_improved" -> StarsUp
+            eventKind == "player_difficulty_bumped" -> DifficultyUp
+            eventKind == "player_total_score_improved" || eventKind == "player_fc_count_improved" -> Progress
+            else -> Improvement
+        }
+    }
+}
+
+/**
+ * The flags of one chart in a multi-chart song row (web `NotificationFlagGroup`).
+ *
+ * @property instrument Chart.
+ * @property label Chart label.
+ * @property flags Unique flags for that chart, in event priority order.
+ */
+data class NotificationFlagGroup(val instrument: Instrument, val label: String, val flags: List<NotificationFlagKind>) {
+    /** TalkBack text ("Lead: First Play, Full Combo"). */
+    val spoken: String get() = "$label: " + flags.joinToString(", ") { it.label }
 }
 
 /**
@@ -324,68 +459,42 @@ data class NotificationMessagePart(val text: String, val emphasis: Boolean = fal
  *
  * @property id Notification GUID.
  * @property title Title, e.g. "Song · Lead".
- * @property message Sentence.
- * @property flag Title Case flag label, or null for shop songs.
+ * @property message Message; statement-style rows separate their statements with a blank line.
+ * @property flags Flags in event priority order (empty for shop songs).
  * @property detectedAt Detection time.
  * @property destination Navigation target, if any.
  * @property messageParts [message] split into plain and emphasized runs.
- * @property flagKind Kind behind [flag] (drives the pill colour), or null for shop songs.
+ * @property flagGroups Per-chart flags for multi-chart song rows; when present they replace [flags] on screen.
  * @property media Leading media.
  */
 data class NotificationPresentation(
     val id: String,
     val title: String,
     val message: String,
-    val flag: String?,
+    val flags: List<NotificationFlagKind>,
     val detectedAt: Instant,
     val destination: NotificationDestination?,
     val messageParts: List<NotificationMessagePart> = listOf(NotificationMessagePart(message)),
-    val flagKind: NotificationFlagKind? = null,
+    val flagGroups: List<NotificationFlagGroup> = emptyList(),
     val media: NotificationMedia = NotificationMedia.SoloInstrument(Instrument.Lead),
-)
+) {
+    /** TalkBack text for the flags: one "Chart: flags." sentence per group, else the labels joined. */
+    val spokenFlags: String
+        get() = if (flagGroups.isNotEmpty()) flagGroups.joinToString(" ") { it.spoken + "." } else flags.joinToString(", ") { it.label }
+}
 
 /**
- * The player-scoped single-event subset of the web `notificationText.ts` /
- * `en.json` copy engine (as on iPhone and Windows). Band copy, multi-event
- * clause joining and flag groups are not ported; unknown kinds fall back to
- * "New improvement detected.".
+ * The player-scoped web `notificationText.ts` / `en.json` copy engine (see
+ * [NotificationTextEngine]; the same port as Apple's, issue #76): coalesced events become one
+ * sentence or statement-style paragraphs with bold values, every event's flag and per-chart flag
+ * groups. Band and combo copy is not ported; unknown kinds fall back to "New improvement detected.".
  */
 object NotificationText {
-    private val templates = mapOf(
-        "player_first_score" to "Your first {instrument} play on {song} scored {newScore} points",
-        "player_score_pb" to "You set a new personal best on {instrument} for {song} with {newScore} points",
-        "player_song_rank_improved" to "You climbed from {oldRank} to {newRank} on {instrument} for {song}",
-        "player_stars_improved" to "You improved from {oldStars} to {newStars} stars on {instrument} for {song}",
-        "player_gold_stars_achieved" to "You earned gold stars on {instrument} for {song}",
-        "player_fc_achieved" to "You got a Full Combo on {instrument} for {song}",
-        "player_difficulty_bumped" to "You improved your difficulty on {instrument} for {song} from {oldDifficulty} to {newDifficulty}",
-        "player_weighted_rank_improved" to "You moved up from {oldRank} to {newRank} in {instrument} percentile rankings, weighted by number of entries",
-        "player_skill_rank_improved" to "You moved up from {oldRank} to {newRank} in {instrument} adjusted percentile rankings",
-        "player_total_score_rank_improved" to "You moved up from {oldRank} to {newRank} in {instrument} total score rankings",
-        "player_fc_rate_rank_improved" to "You moved up from {oldRank} to {newRank} in {instrument} Full Combo rankings",
-        "player_max_score_rank_improved" to "You moved up from {oldRank} to {newRank} in {instrument} max score rankings",
-        "player_total_score_improved" to "Your {instrument} total score increased to {newScore} points",
-        "player_fc_count_improved" to "Your {instrument} Full Combo count increased to {newCount}",
-    )
-
-    private val rankNames = mapOf(
-        "player_weighted_rank_improved" to "Weighted Percentile Rank",
-        "player_skill_rank_improved" to "Adjusted Percentile Rank",
-        "player_total_score_rank_improved" to "Total Score Rank",
-        "player_fc_rate_rank_improved" to "Full Combo Rank",
-        "player_max_score_rank_improved" to "Max Score % Rank",
-    )
-
-    private val playerSongKinds = setOf(
-        "player_first_score", "player_score_pb", "player_song_rank_improved", "player_stars_improved",
-        "player_gold_stars_achieved", "player_fc_achieved", "player_difficulty_bumped",
-    )
-
-    /** Fallback wording never emphasized (web `FALLBACK_EMPHASIS_TERMS`). */
-    private val fallbackTerms = setOf("this song", "a new score", "your new rank", "more", "a higher difficulty", "this instrument")
-
     /**
      * Format a row.
+     *
+     * Deliberate deviation from the web: a song the catalogue doesn't resolve reads "this song"
+     * and titles fall back to "Notification", never the raw song ID.
      *
      * @param item Notification.
      * @param songTitle Catalogue title for the song, when resolved.
@@ -406,37 +515,64 @@ object NotificationText {
             )
             return NotificationPresentation(
                 item.notificationGuid, "New Song · $shopTitle - $artist", parts.joinToString("") { it.text },
-                null, item.detectedInstant, destination, parts, null, media,
+                emptyList(), item.detectedInstant, destination, parts, emptyList(), media,
             )
         }
-        val instrumentLabel = item.parsedInstrument?.label
-        val song = trimmed(songTitle) ?: "this song"
-        var message = templates[item.eventKind]?.let { fill(it, item, song, instrumentLabel ?: "this instrument") + "." }
-            ?: "New improvement detected."
-        if (item.eventKind == "player_first_score") message = message.dropLast(1) + " and started at ${rank(item.newRank)}."
-        val kind = flagKind(item.eventKind)
+        val result = NotificationTextEngine.present(input(item, trimmed(songTitle)))
         return NotificationPresentation(
-            item.notificationGuid, title(item, songTitle, instrumentLabel), message, kind.label, item.detectedInstant, destination,
-            emphasize(message, emphasisTerms(item, song, instrumentLabel)), kind, media,
+            item.notificationGuid, result.title, result.message, result.flags, item.detectedInstant, destination,
+            result.messageParts, result.flagGroups, media,
         )
     }
 
     /**
-     * Words bolded in a player message (web `emphasisTermsForEvent`): the substituted values,
-     * the song for song events, and the achievement wording.
+     * Normalize a row like the web feed (`useProfileNotificationsFeed`): coalesced events take
+     * the row's chart when they name none; a row without events is its own event, carrying the
+     * payload's Full Combo / star state.
      */
-    private fun emphasisTerms(item: ImprovementNotification, song: String, instrument: String?): List<String> = buildList {
-        add(number(item.newNumeric, "a new score"))
-        add(rank(item.oldRank))
-        add(rank(item.newRank))
-        instrument?.let(::add)
-        if (item.eventKind in playerSongKinds) add(song)
-        when (item.eventKind) {
-            "player_gold_stars_achieved" -> add("gold stars")
-            "player_fc_achieved" -> add("Full Combo")
-            "player_stars_improved" -> add("${number(item.oldNumeric, "more")} to ${number(item.newNumeric, "more")} stars")
-            "player_difficulty_bumped" -> add(number(item.oldNumeric, "a higher difficulty"))
+    internal fun input(item: ImprovementNotification, songTitle: String?): NotificationTextInput {
+        val instrument = item.parsedInstrument
+        val label = instrument?.label
+        val payload = item.payload
+        val payloadState = NotificationScoreResult(payload?.oldFullCombo, payload?.newFullCombo, payload?.oldStars, payload?.newStars)
+        val coalesced = payload?.coalescedEvents.orEmpty().mapNotNull { event ->
+            val kind = event.eventKind?.trim()?.takeIf(String::isNotEmpty) ?: return@mapNotNull null
+            NotificationTextEvent(
+                eventKind = kind,
+                instrument = Instrument.fromWireId(event.instrument) ?: instrument,
+                metric = event.metric,
+                oldNumeric = event.oldNumeric,
+                newNumeric = event.newNumeric,
+                oldRank = event.oldRank,
+                newRank = event.newRank,
+                oldLabel = trimmed(event.oldLabel),
+                newLabel = trimmed(event.newLabel),
+                state = NotificationScoreResult(event.oldFullCombo, event.newFullCombo, event.oldStars, event.newStars),
+            )
         }
+        val events = coalesced.ifEmpty {
+            listOf(
+                NotificationTextEvent(
+                    item.eventKind, instrument, item.metric, item.oldNumeric, item.newNumeric,
+                    item.oldRank?.toDouble(), item.newRank?.toDouble(), state = payloadState,
+                ),
+            )
+        }
+        return NotificationTextInput(
+            eventKind = item.eventKind,
+            instrument = instrument,
+            instrumentLabel = label,
+            scopeLabel = label,
+            metric = item.metric,
+            oldNumeric = item.oldNumeric,
+            newNumeric = item.newNumeric,
+            oldRank = item.oldRank?.toDouble(),
+            newRank = item.newRank?.toDouble(),
+            songTitle = songTitle,
+            title = songTitle ?: label.takeIf { item.songId.isNullOrEmpty() },
+            payloadState = payloadState,
+            events = events,
+        )
     }
 
     /**
@@ -446,40 +582,7 @@ object NotificationText {
      * @param terms Candidate terms; blanks and fallback wording are ignored.
      * @return Runs, adjacent runs of the same weight merged.
      */
-    fun emphasize(text: String, terms: List<String>): List<NotificationMessagePart> {
-        val candidates = terms.map(String::trim).filter { it.isNotEmpty() && it !in fallbackTerms && it in text }
-            .distinct().sortedByDescending(String::length)
-        if (candidates.isEmpty()) return listOf(NotificationMessagePart(text))
-        val parts = mutableListOf<NotificationMessagePart>()
-        fun append(chunk: String, emphasis: Boolean) {
-            val last = parts.lastOrNull()
-            if (last != null && last.emphasis == emphasis) parts[parts.lastIndex] = last.copy(text = last.text + chunk)
-            else parts += NotificationMessagePart(chunk, emphasis)
-        }
-        var index = 0
-        while (index < text.length) {
-            val term = candidates.firstOrNull { text.startsWith(it, index) }
-            if (term != null) {
-                append(term, true)
-                index += term.length
-            } else {
-                append(text[index].toString(), false)
-                index += 1
-            }
-        }
-        return parts
-    }
-
-    private fun title(item: ImprovementNotification, songTitle: String?, instrumentLabel: String?): String {
-        val base = trimmed(songTitle)
-        if (base != null && instrumentLabel != null && item.eventKind in playerSongKinds) return "$base · $instrumentLabel"
-        rankNames[item.eventKind]?.let { return "$it Improved" }
-        return when (item.eventKind) {
-            "player_total_score_improved" -> "Total Score Improved"
-            "player_fc_count_improved" -> "Full Combo Count Improved"
-            else -> base ?: "Notification"
-        }
-    }
+    fun emphasize(text: String, terms: List<String>): List<NotificationMessagePart> = NotificationTextEngine.emphasize(text, terms)
 
     /**
      * Flag label (web `flagKind` + `notifications.flags.*`).
@@ -495,29 +598,7 @@ object NotificationText {
      * @param eventKind Event kind.
      * @return Kind.
      */
-    fun flagKind(eventKind: String): NotificationFlagKind = when {
-        eventKind == "player_first_score" -> NotificationFlagKind.FirstPlay
-        eventKind == "player_score_pb" -> NotificationFlagKind.NewHighScore
-        eventKind == "player_fc_achieved" -> NotificationFlagKind.FullCombo
-        "rank_improved" in eventKind -> NotificationFlagKind.RankUp
-        eventKind == "player_gold_stars_achieved" -> NotificationFlagKind.GoldStars
-        eventKind == "player_stars_improved" -> NotificationFlagKind.StarsUp
-        eventKind == "player_difficulty_bumped" -> NotificationFlagKind.DifficultyUp
-        eventKind == "player_total_score_improved" || eventKind == "player_fc_count_improved" -> NotificationFlagKind.Progress
-        else -> NotificationFlagKind.Improvement
-    }
-
-    private fun fill(template: String, item: ImprovementNotification, song: String, instrument: String): String = template
-        .replace("{instrument}", instrument)
-        .replace("{song}", song)
-        .replace("{newScore}", number(item.newNumeric, "a new score"))
-        .replace("{oldRank}", rank(item.oldRank))
-        .replace("{newRank}", rank(item.newRank))
-        .replace("{oldStars}", number(item.oldNumeric, "more"))
-        .replace("{newStars}", number(item.newNumeric, "more"))
-        .replace("{oldDifficulty}", number(item.oldNumeric, "a higher difficulty"))
-        .replace("{newDifficulty}", number(item.newNumeric, "a higher difficulty"))
-        .replace("{newCount}", number(item.newNumeric, "more"))
+    fun flagKind(eventKind: String): NotificationFlagKind = NotificationFlagKind.forEventKind(eventKind)
 
     /**
      * JavaScript `toLocaleString()` for en-US (up to three fraction digits).

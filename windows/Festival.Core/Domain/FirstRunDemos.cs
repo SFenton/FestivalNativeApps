@@ -129,6 +129,99 @@ public static class FirstRunDemoTiming
 }
 #endregion
 
+#region Rotation status
+/// <summary>Whether a demo's data-swap clock runs (issue #58) and, if not, why.</summary>
+public enum FirstRunDemoRotationState
+{
+    /// <summary>The slide's web demo keeps its data still.</summary>
+    Static,
+
+    /// <summary>The visible slide in a visible window: swaps run.</summary>
+    Running,
+
+    /// <summary>A realized but unselected (or unloaded) slide: paused.</summary>
+    Inactive,
+
+    /// <summary>The window is minimized, covered, cloaked or otherwise hidden: paused.</summary>
+    Hidden,
+
+    /// <summary>The window is visible but not the foreground (activated) window, e.g. beside another app: paused.</summary>
+    Background,
+}
+
+/// <summary>
+/// The rotation gate and its UIA ItemStatus for UI tests (the demo is Raw, so Narrator never reads it).
+/// </summary>
+public static class FirstRunDemoRotationStatus
+{
+    /// <summary>The rotation state; only <see cref="FirstRunDemoRotationState.Running"/> runs the swap clock.</summary>
+    /// <param name="rotates">The slide is one of the twelve web-rotating demos.</param>
+    /// <param name="active">The slide is the carousel's selected one.</param>
+    /// <param name="loaded">The demo is in the live tree.</param>
+    /// <param name="hidden">The window can't be seen (<c>Motion.Paused</c>).</param>
+    /// <param name="foreground">The window is the activated foreground window (<c>Motion.Foreground</c>).</param>
+    /// <returns>State. Hidden wins over background (a minimized window is also deactivated), and both over unselected.</returns>
+    public static FirstRunDemoRotationState State(bool rotates, bool active, bool loaded, bool hidden, bool foreground) =>
+        !rotates ? FirstRunDemoRotationState.Static
+        : hidden ? FirstRunDemoRotationState.Hidden
+        : !foreground ? FirstRunDemoRotationState.Background
+        : active && loaded ? FirstRunDemoRotationState.Running
+        : FirstRunDemoRotationState.Inactive;
+
+    /// <summary>
+    /// UIA ItemStatus: a static demo reports only its data status (<see cref="FirstRunDemos.DataStatus"/>); a rotating
+    /// one appends <c>rotation=running|inactive|not-visible|background</c>, the swaps drawn since it was built and how the last swap
+    /// was drawn (<c>none</c>, <c>fade</c> or <c>instant</c> with animations off), e.g.
+    /// <c>catalogue rotation=running swaps=2 swap=fade</c> (space-separated: UI test steps split on semicolons).
+    /// <c>not-visible</c> matches the backdrop's hidden token. A demo with Shop pulses ends with <c>pulse=held</c> or
+    /// <c>pulse=running pulse-slides=N</c> (<see cref="PulseState"/>; N counts the realized demos whose pulses run, so a
+    /// UI test can prove that off-screen slides, which UI Automation can't reach, hold still: N is 1), e.g.
+    /// <c>catalogue pulse=running pulse-slides=1</c>.
+    /// </summary>
+    /// <param name="dataStatus">Data status.</param>
+    /// <param name="state">Rotation state.</param>
+    /// <param name="swaps">Rows or panels swapped since the demo was built (a tick with nothing to swap adds none).</param>
+    /// <param name="lastSwapFaded">Whether the last swap faded (ignored before the first swap).</param>
+    /// <param name="pulse">Shop pulse token from <see cref="PulseState"/>, or <see langword="null"/> without pulses.</param>
+    /// <param name="pulseSlides">Realized demos whose Shop pulses run (reported only with <c>pulse=running</c>).</param>
+    /// <returns>Status text.</returns>
+    public static string Format(string dataStatus, FirstRunDemoRotationState state, int swaps, bool lastSwapFaded, string? pulse = null, int pulseSlides = 0)
+    {
+        var suffix = pulse is null ? "" : pulse == PulseRunning ? $" pulse={pulse} pulse-slides={pulseSlides}" : $" pulse={pulse}";
+        if (state == FirstRunDemoRotationState.Static) return dataStatus + suffix;
+        var rotation = state switch
+        {
+            FirstRunDemoRotationState.Running => "running",
+            FirstRunDemoRotationState.Hidden => "not-visible",
+            FirstRunDemoRotationState.Background => "background",
+            _ => "inactive",
+        };
+        var swap = swaps == 0 ? "none" : lastSwapFaded ? "fade" : "instant";
+        return $"{dataStatus} rotation={rotation} swaps={swaps} swap={swap}{suffix}";
+    }
+
+    /// <summary>Pulse token while a demo's Shop pulses animate.</summary>
+    public const string PulseRunning = "running";
+
+    /// <summary>Pulse token while a demo's Shop pulses hold a still frame.</summary>
+    public const string PulseHeld = "held";
+
+    /// <summary>
+    /// Whether a demo's Shop pulse rings and breathing fills animate (issue #83): only on the selected, loaded slide
+    /// while motion is allowed and the window can be seen; otherwise they hold a still frame. Unlike data rotation it
+    /// ignores window activation (pulses follow visibility, like the backdrop).
+    /// </summary>
+    /// <param name="hasPulses">The demo hosts at least one Shop pulse ring or fill.</param>
+    /// <param name="active">The slide is the carousel's selected one.</param>
+    /// <param name="loaded">The demo is in the live tree.</param>
+    /// <param name="motionAllowed">Animations are allowed (Windows Animation effects and in-app Reduce Motion).</param>
+    /// <param name="hidden">The window can't be seen (<c>Motion.Paused</c>).</param>
+    /// <returns><see cref="PulseRunning"/>, <see cref="PulseHeld"/>, or <see langword="null"/> without pulses.</returns>
+    public static string? PulseState(bool hasPulses, bool active, bool loaded, bool motionAllowed, bool hidden) =>
+        !hasPulses ? null : active && loaded && motionAllowed && !hidden ? PulseRunning : PulseHeld;
+}
+#endregion
+
 #region Fit
 /// <summary>Fits a decorative demo into its fixed illustration frame (issue #241).</summary>
 public static class FirstRunDemoFit
@@ -303,6 +396,44 @@ public sealed class FirstRunWindowRotation<T>
         start = (start + Count) % Pool.Count;
     }
 }
+
+/// <summary>
+/// Statistics' "Highest and Lowest Rank Breakdown" demo (web <c>TopSongsDemo</c>): four song slots whose songs rotate
+/// while each slot keeps its pinned percentile pill (web <c>DEMO_PERCENTILES[i]</c>; issue #257).
+/// </summary>
+public sealed class FirstRunTopSongsDemo
+{
+    /// <summary>Visible slots (the web's four top-song rows).</summary>
+    public const int SlotCount = 4;
+
+    private readonly FirstRunRowRotation<FirstRunDemoSong> rotation;
+
+    /// <summary>Creates the demo with the pool's first songs in their slots.</summary>
+    /// <param name="pool">Demo song pool (<see cref="FirstRunDemos.SongPool"/>).</param>
+    public FirstRunTopSongsDemo(IReadOnlyList<FirstRunDemoSong> pool) => rotation = new(pool, SlotCount);
+
+    /// <summary>The song in each visible slot.</summary>
+    public IReadOnlyList<FirstRunDemoSong> Songs => rotation.Rows;
+
+    /// <summary>Rotations that replaced at least one slot's song.</summary>
+    public int Rotations { get; private set; }
+
+    /// <summary>A slot's pill text: fixed per slot, never derived from the slot's current song.</summary>
+    /// <param name="slot">Zero-based visible slot.</param>
+    /// <returns>For example "Top 1.2%".</returns>
+    public static string Pill(int slot) => string.Create(CultureInfo.InvariantCulture, $"Top {FirstRunDemos.TopSongPercentile(slot):0.#}%");
+
+    /// <summary>Replaces the next web-chosen slots' songs (nothing when the pool can't show a new song).</summary>
+    /// <returns>Sorted slots whose song changed.</returns>
+    public IReadOnlyList<int> Advance()
+    {
+        var slots = rotation.NextSwap();
+        if (slots.Count == 0) return slots;
+        rotation.Replace(slots);
+        Rotations++;
+        return slots;
+    }
+}
 #endregion
 
 #region Song icon pattern
@@ -359,11 +490,11 @@ public static class FirstRunDemoScorePattern
 /// <param name="IsPlayer">Whether this is the selected player.</param>
 public sealed record FirstRunDemoRanking(int Rank, string DisplayName, string RatingLabel, bool IsPlayer = false);
 
-/// <summary>One rival demo entry.</summary>
+/// <summary>One rival demo entry (web demo pool shape: counts are from the rival's perspective, like the wire).</summary>
 /// <param name="AccountId">Stable demo ID.</param>
 /// <param name="DisplayName">Rival name.</param>
 /// <param name="RivalScore">Rivalry score.</param>
-/// <param name="SharedSongCount">Shared song count.</param>
+/// <param name="SharedSongCount">Shared song count (kept for web pool parity; never shown, issues #40/#67/#267).</param>
 /// <param name="AheadCount">Songs where the rival is ahead.</param>
 /// <param name="BehindCount">Songs where the rival is behind.</param>
 /// <param name="AvgSignedDelta">Average signed score delta.</param>
@@ -371,6 +502,19 @@ public sealed record FirstRunDemoRival(string AccountId, string DisplayName, int
 {
     /// <summary>Stable pool identity.</summary>
     public string Id => AccountId;
+
+    /// <summary>
+    /// The real Rivals row's pills as one line ("{n} songs ahead · {m} songs behind", player's perspective), with no
+    /// shared-song count, so the demo matches the row it introduces (issue #267).
+    /// </summary>
+    public string CountsText => $"{RivalRowText.Ahead(BehindCount)} · {RivalRowText.Behind(AheadCount)}";
+
+    /// <summary>One-line group entry (<c>compete-rivals</c>, <c>rivals-overview</c>): name, then <see cref="CountsText"/>.</summary>
+    public string GroupLine => $"{DisplayName} · {CountsText}";
+
+    /// <summary>Card row (<c>rivals-instruments</c>): name, <see cref="CountsText"/> and the signed average delta.</summary>
+    public FirstRunDemoRow Row => new(DisplayName, CountsText,
+        AvgSignedDelta >= 0 ? $"▲ {AvgSignedDelta}" : $"▼ {Math.Abs(AvgSignedDelta)}");
 }
 
 /// <summary>One metadata sample row.</summary>
@@ -526,6 +670,12 @@ public static class FirstRunDemos
     /// <summary>Most songs a demo rotates through.</summary>
     public const int PoolSize = 12;
 
+    /// <summary>
+    /// Most song rows any demo shows at once (the Suggestions card lists five; Statistics' top songs and Rival detail
+    /// four). <see cref="SongPool"/> pads to this so a short catalogue shows placeholders, never a wrapped duplicate.
+    /// </summary>
+    public const int MaxVisibleSongs = 5;
+
     /// <summary>Whether a demo shows Item Shop songs, so it prefers the current Shop (web <c>useItemShopDemoSongs</c>).</summary>
     /// <param name="kind">Demo kind.</param>
     /// <returns><see langword="true"/> for the Shop pulse rows and Shop tiles.</returns>
@@ -562,6 +712,14 @@ public static class FirstRunDemos
 
     /// <summary>Top-songs percentile samples.</summary>
     public static IReadOnlyList<double> TopSongPercentiles { get; } = [1.2, 3.5, 7.8, 14.2, 22.6, 35.1, 48.9];
+
+    /// <summary>
+    /// The percentile pill of top-songs row <paramref name="row"/>: fixed per row, like the web's
+    /// <c>DEMO_PERCENTILES[i % length]</c>, so the pills stay in rank order while the songs rotate.
+    /// </summary>
+    /// <param name="row">Zero-based visible row.</param>
+    /// <returns>Percentile sample.</returns>
+    public static double TopSongPercentile(int row) => TopSongPercentiles[row % TopSongPercentiles.Count];
 
     /// <summary>Song Info bar-select samples.</summary>
     public static IReadOnlyList<FirstRunDemoBar> BarSelectBars { get; } =
@@ -696,17 +854,18 @@ public static class FirstRunDemos
 
     /// <summary>
     /// The songs a demo rotates through: real catalogue songs, padded with <see cref="FirstRunDemoSong.Placeholder"/>s to
-    /// <see cref="RowCount"/> (all placeholders while the catalogue loads or is unavailable). Never invents songs.
+    /// <see cref="MaxVisibleSongs"/> (all placeholders while the catalogue loads or is unavailable). Never invents songs,
+    /// and no visible row has to wrap around to repeat a song.
     /// </summary>
     /// <param name="catalog">Loaded catalogue songs, or <see langword="null"/>.</param>
     /// <param name="preferring">Song IDs to show first, or <see langword="null"/>.</param>
-    /// <returns>At least <see cref="RowCount"/> entries.</returns>
+    /// <returns>At least <see cref="MaxVisibleSongs"/> entries.</returns>
     public static IReadOnlyList<FirstRunDemoSong> SongPool(IEnumerable<Song>? catalog, IEnumerable<string>? preferring = null)
     {
         var pool = Pick(catalog, PoolSize, preferring)
             .Select(s => new FirstRunDemoSong(s.SongId, new FirstRunDemoRow(s.Title, s.Year is { } y ? $"{s.Artist} · {y}" : s.Artist), s.AlbumArt))
             .ToList();
-        while (pool.Count < RowCount) pool.Add(FirstRunDemoSong.Placeholder);
+        while (pool.Count < MaxVisibleSongs) pool.Add(FirstRunDemoSong.Placeholder);
         return pool;
     }
 

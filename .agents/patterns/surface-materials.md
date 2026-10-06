@@ -2,7 +2,7 @@
 
 > **What:** shared policy for translucent content cards, rows and floating controls over artwork. **Read when:** adding or changing a card, row, capsule, sheet fallback or custom glass effect.
 
-Status: **current**, 2026-10-05. Provenance: #291.
+Status: **current**, 2026-10-05. Provenance: #291, #319.
 
 ## Intent
 
@@ -18,6 +18,7 @@ Content must remain legible and cheap to scroll over animated artwork. Use one p
 ## Rules
 
 - **R1. Content uses the canonical material surface.** Cards, content rows and non-system floating controls use the shared card/capsule primitive; no feature creates its own frosted, blur or glass stack.
+  - Board pagers (arrow buttons and the page / total badge) float over rows and match them: the same fill, translucency, border and contrast fallback as the row cards, never a pager-only opaque plate or shadow (#319; web `Paginator` spreads `frostedCard`). Android: `RankingsPager` and `FrostedPagerButton` are `GlassCard`s, which also covers the Rank History and Song History chart pagers. The bottom-edge fade, not an opaque plate, keeps the pager legible over rows ([scroll-edge](scroll-edge.md)).
 - **R2. Apple Liquid Glass is navigation-only.** Content cards and custom controls do not call `glassEffect`; only `Design/GlassSurface.swift` may implement the drawer and Debug A/B glass. HIG Materials: "Don't use Liquid Glass in the content layer."
 - **R3. Raw standard material stays in the design layer.** Do not add `.ultraThinMaterial`, `.thinMaterial`, `.regularMaterial` or `.thickMaterial` backgrounds outside `Design/`; the explicit approved variants below retain their contrast and pre-26 behavior.
 - **R4. Accessibility replaces translucency.** Reduce Transparency or increased contrast yields an opaque surface with a visible border; text and status information do not rely on the artwork behind them. HIG Accessibility: "If the default does not meet these minimums, provide a higher-contrast scheme when Increase Contrast is on."

@@ -1,12 +1,8 @@
 package com.festivalscoretracker.android.rankings
 
 import com.festivalscoretracker.android.testing.RankingsFixtures
-import com.festivalscoretracker.android.core.bands.BandMember
 import com.festivalscoretracker.android.core.bands.BandRankingMetric
 import com.festivalscoretracker.android.core.bands.BandType
-import com.festivalscoretracker.android.core.bands.SongBandLeaderboardEntry
-import com.festivalscoretracker.android.core.bands.SongBandLeaderboardResponse
-import com.festivalscoretracker.android.core.rankings.SongBandSpotlight
 import com.festivalscoretracker.android.core.model.FestivalApiException
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.LeaderboardEntry
@@ -242,90 +238,26 @@ class RankingsCoreTest {
     fun rowActionLabelsNameTheDestination() {
         assertEquals("Open profile", RankingNavigation.actionLabel(PlayerRoute(RankingsFixtures.accountId(1), "Them")))
         assertEquals("Open your statistics", RankingNavigation.actionLabel(StatisticsRoute))
-        assertEquals("Open your page of the full leaderboard", RankingNavigation.actionLabel(SongLeaderboardRoute("s-alpha", "Solo_Guitar", 3)))
-        assertEquals("Open band", RankingNavigation.actionLabel(BandRoute("band-1", "A + B", "Band_Duets", "a:b")))
+        assertEquals("Jump to your position", RankingNavigation.actionLabel(SongLeaderboardRoute("s-alpha", "Solo_Guitar", 3, navToPlayer = true)))
     }
 
     @Test
-    fun songBandFooterPinsTheSelectedPlayersBandOnEveryPage() {
-        val me = RankingsFixtures.SELECTED
-        val friend = RankingsFixtures.accountId(2)
-        val mine = SongBandLeaderboardEntry(
-            bandId = "band-mine",
-            bandType = "Band_Duets",
-            teamKey = "$me:$friend",
-            members = listOf(BandMember(me, "Me"), BandMember(friend, "Friend"), BandMember(me, "Me")),
-            score = 412_691,
-            rank = 510,
-            accuracy = 995_000.0,
-            isFullCombo = false,
-            stars = 6,
-            season = 4,
-        )
-        val other = mine.copy(bandId = "band-other", teamKey = "x:y", members = listOf(BandMember("x", "X")), rank = 1)
-        val offPage = SongBandLeaderboardResponse(songId = "s", bandType = "Band_Duets", entries = listOf(other), selectedPlayerEntry = mine)
-
-        val footer = SongBandSpotlight.footer(offPage, me)!!
-        assertEquals("band-mine", footer.accountId)
-        assertEquals("Me + Friend", footer.displayName)
-        assertEquals(412_691, footer.score)
-        assertEquals(510, footer.rank)
-        assertEquals(995_000.0, footer.accuracy!!, 0.0)
-        assertEquals(false, footer.isFullCombo)
-        assertEquals(6, footer.stars)
-        assertEquals(4, footer.season)
-        assertEquals(mine, SongBandSpotlight.selected(offPage, me.uppercase()))
-        assertFalse(SongBandSpotlight.isSelected(other, mine))
-        assertFalse(SongBandSpotlight.isSelected(mine, null))
-
-        // On its page the band is still pinned (web hasSelectedFooter) and also highlighted in place.
-        val onPage = offPage.copy(entries = listOf(other, mine.copy()))
-        assertEquals(footer, SongBandSpotlight.footer(onPage, me))
-        assertTrue(SongBandSpotlight.isSelected(onPage.entries[1], SongBandSpotlight.selected(onPage, me)))
-
-        // Nothing selected, no band score, another player's or another size's response: no footer.
-        assertNull(SongBandSpotlight.footer(offPage, null))
-        assertNull(SongBandSpotlight.footer(offPage, " "))
-        assertNull(SongBandSpotlight.footer(offPage.copy(selectedPlayerEntry = null), me))
-        assertNull(SongBandSpotlight.footer(offPage, RankingsFixtures.accountId(3)))
-        assertNull(SongBandSpotlight.footer(offPage.copy(bandType = "Band_Trios"), me))
-
-        // Identity from the team key alone; empty band ID falls back to the team key; 0 accuracy/stars are unrecorded.
-        val bare = mine.copy(bandId = "", members = emptyList(), accuracy = 0.0, stars = 0, score = Long.MAX_VALUE)
-        val bareFooter = SongBandSpotlight.footer(offPage.copy(selectedPlayerEntry = bare), me)!!
-        assertEquals("$me:$friend", bareFooter.accountId)
-        assertEquals("Band", bareFooter.displayName)
-        assertNull(bareFooter.accuracy)
-        assertNull(bareFooter.stars)
-        assertEquals(Int.MAX_VALUE, bareFooter.score)
-        assertEquals(BandRoute("band-mine", "Me + Friend", "Band_Duets", "$me:$friend"), SongBandSpotlight.route(mine))
-        assertEquals("$me:$friend", SongBandSpotlight.route(bare).bandId)
-
-        // The footer's columns fit the whole page plus the footer (web widthEntries).
-        val rows = SongBandSpotlight.columnRows(onPage, footer)
-        assertEquals(listOf(SongBandSpotlight.scoreRow(other), SongBandSpotlight.scoreRow(mine), footer), rows)
-        assertEquals(listOf(1, 510, 510), rows.map { it.rank })
-        assertEquals("band-other", rows[0].accountId)
-        assertTrue(SongBandSpotlight.columnRows(onPage, null).isEmpty())
-    }
-
-    @Test
-    fun songFooterProjectsOnlySamePublicationScoresOffThePage() {
+    fun songFooterProjectsOnlySamePublicationScores() {
         val player = SelectedPlayer(RankingsFixtures.SELECTED, "Me")
         val score = FestivalApi.JSON.decodeFromString(PlayerScore.serializer(), ProfileFixtures.score("s-alpha", rank = 30, acc = 990, fc = true))
-        val other = LeaderboardEntry(accountId = RankingsFixtures.accountId(1), score = 1, rank = 1)
-        val footer = SongScoreSpotlight.footer(player, score, 7, 7, listOf(other))!!
+        val footer = SongScoreSpotlight.footer(player, score, 7, 7)!!
         assertEquals(RankingsFixtures.SELECTED, footer.accountId)
         assertEquals("Me", footer.displayName)
         assertEquals(30, footer.rank)
         assertEquals(990_000.0, footer.accuracy!!, 0.0)
         assertEquals(true, footer.isFullCombo)
-        assertNull(SongScoreSpotlight.footer(player, score, 8, 7, listOf(other)))
-        assertNull(SongScoreSpotlight.footer(player, score, null, 7, listOf(other)))
-        assertNull(SongScoreSpotlight.footer(player, score, 7, 7, listOf(other.copy(accountId = RankingsFixtures.SELECTED.uppercase()))))
-        assertNull(SongScoreSpotlight.footer(null, score, 7, 7, emptyList()))
-        assertNull(SongScoreSpotlight.footer(player, null, 7, 7, emptyList()))
-        assertEquals(0, SongScoreSpotlight.footer(player, score.copy(rank = null), 7, 7, emptyList())!!.rank)
+        assertNull(SongScoreSpotlight.footer(player, score, 8, 7))
+        assertNull(SongScoreSpotlight.footer(player, score, null, 7))
+        // Pinned even while the row is on the page (`leaderboard-row` R7, issue #307: web and Apple always pin it).
+        assertEquals(30, SongScoreSpotlight.footer(player, score, 7, 7)!!.rank)
+        assertNull(SongScoreSpotlight.footer(null, score, 7, 7))
+        assertNull(SongScoreSpotlight.footer(player, null, 7, 7))
+        assertEquals(0, SongScoreSpotlight.footer(player, score.copy(rank = null), 7, 7)!!.rank)
     }
 
     @Test

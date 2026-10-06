@@ -88,6 +88,9 @@ public sealed partial class SuggestionsViewModel : ObservableObject
     private string? sourceAccount;
     private IReadOnlyDictionary<string, IReadOnlyDictionary<Instrument, SuggestionScore>>? scores;
     private CancellationTokenSource? rivalsLoad;
+
+    /// <summary>Latest best-effort rivals read (the view awaits nothing; exposed so tests can wait deterministically).</summary>
+    internal Task? RivalsTask { get; private set; }
     private int loadVersion;
 
     /// <summary>Creates the page model.</summary>
@@ -118,6 +121,13 @@ public sealed partial class SuggestionsViewModel : ObservableObject
 
     /// <summary>Visible category cards.</summary>
     public ObservableCollection<SuggestionCardItem> Cards { get; } = [];
+
+    /// <summary>
+    /// Raised after cards were added with the index of the first new card (web <c>revealedCountRef</c>): the end of
+    /// the earlier cards for an appended batch, 0 when every card is new (first batch, new mix, filter change). The
+    /// page fades only cards from that index; earlier cards were already revealed.
+    /// </summary>
+    public event EventHandler<int>? CardsAdded;
 
     /// <summary>Page phase.</summary>
     [ObservableProperty]
@@ -253,7 +263,7 @@ public sealed partial class SuggestionsViewModel : ObservableObject
         generator.SetSource(catalog.Songs, scores);
         HasMore = true;
         Generate(InitialBatch);
-        _ = LoadRivalsAsync(accountId, generator);
+        RivalsTask = LoadRivalsAsync(accountId, generator);
     }
 
     /// <summary>Best-effort <c>/rivals/all</c> read; spliced into the running generator when it answers.</summary>
@@ -312,9 +322,12 @@ public sealed partial class SuggestionsViewModel : ObservableObject
     /// Pulls categories until <paramref name="count"/> new cards are visible (the filter may hide some) or the
     /// generator has nothing left even after a remix.
     /// </summary>
-    private void Generate(int count)
+    /// <param name="count">Cards wanted.</param>
+    /// <param name="announce">Whether to raise <see cref="CardsAdded"/> (a refilter announces its whole list itself).</param>
+    private void Generate(int count, bool announce = true)
     {
         var target = generator!;
+        var start = Cards.Count;
         var added = 0;
         // Every type switched off: nothing generated could ever show, so don't spin the generator.
         if (SuggestionCategoryTypeInfo.All.All(type => !Filter.IsGlobalEnabled(type)))
@@ -357,6 +370,7 @@ public sealed partial class SuggestionsViewModel : ObservableObject
             }
         }
         UpdateListPhase();
+        if (announce && added > 0) CardsAdded?.Invoke(this, start);
     }
 
     /// <summary>Filters and presents one category, or returns <see langword="null"/> when hidden.</summary>
@@ -384,8 +398,9 @@ public sealed partial class SuggestionsViewModel : ObservableObject
         Cards.Clear();
         foreach (var (category, mixNumber) in generated)
             if (Card(category, mixNumber) is { } card) Cards.Add(card);
-        if (Cards.Count < InitialBatch && HasMore) Generate(InitialBatch - Cards.Count);
+        if (Cards.Count < InitialBatch && HasMore) Generate(InitialBatch - Cards.Count, announce: false);
         else UpdateListPhase();
+        if (Cards.Count > 0) CardsAdded?.Invoke(this, 0);
     }
 
     private void UpdateListPhase()

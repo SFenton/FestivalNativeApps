@@ -102,10 +102,15 @@ class StepTests(unittest.TestCase):
         self.assertEqual((top["key"], top["value"], top["timeout"]), ("scroll", "0", 5.0))
         self.assertEqual(u.parse_step("assertstate:id=x|scroll=-1")["value"], "-1")
         self.assertEqual(u.parse_step("assertstate:id=x|scroll=100")["value"], "100")
+        role = u.parse_step("assertstate:id=fst.song-detail.preview-row.Solo_Guitar.rank-3|type=Text@5")
+        self.assertEqual((role["key"], role["value"], role["timeout"]), ("type", "text", 5.0))
+        self.assertEqual(u.parse_step("assertstate:id=x|invoke=False")["value"], "false")
+        self.assertEqual(u.parse_step("assertstate:id=x|focusable=true")["value"], "true")
         for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe",
                     "assertstate:id=x|enabled=yes", "assertstate:id=x|color=red", "assertstate:@1,2|toggle=on",
                     "assertstate:id=x|name=", "assertstate:id=x|selected=on", "assertstate:id=x|scroll=top",
-                    "assertstate:id=x|scroll=101", "assertstate:id=x|scroll=2.5", "assertstate:id=x|scroll=-2"):
+                    "assertstate:id=x|scroll=101", "assertstate:id=x|scroll=2.5", "assertstate:id=x|scroll=-2",
+                    "assertstate:id=x|type=", "assertstate:id=x|invoke=yes", "assertstate:id=x|focusable=1"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
     def test_assertstatus(self):
@@ -117,7 +122,43 @@ class StepTests(unittest.TestCase):
         plain = u.parse_step("assertstatus:name=Backdrop|no-art")
         self.assertEqual(plain["status"], "no-art")
         self.assertNotIn("timeout", plain)
+        # Issue #258: a `~` regex status passes through to FstUia unchanged.
+        regex = u.parse_step(r"assertstatus:id=fst.first-run.demo.songs-song-list|~^catalogue rotation=running swaps=[1-9]\d* swap=fade$@15")
+        self.assertEqual(regex["status"], r"~^catalogue rotation=running swaps=[1-9]\d* swap=fade$")
+        self.assertEqual(regex["timeout"], 15.0)
         for bad in ("assertstatus:id=x", "assertstatus:id=x|", "assertstatus:@1,2|on"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_foreground(self):
+        # Issue #258: deactivate the app without covering it, then reactivate it.
+        self.assertEqual(u.parse_step("foreground:off"), {"verb": "foreground", "arg": "off"})
+        self.assertEqual(u.parse_step("foreground: ON")["arg"], "on")
+        for bad in ("foreground:", "foreground:maybe", "foreground:id=x"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_listen_and_assertannounced(self):
+        # Issue #269: record the app's UIA notifications (what Narrator speaks), then wait for one.
+        self.assertEqual(u.parse_step("listen:Announcements"), {"verb": "listen", "arg": "announcements"})
+        step = u.parse_step("assertannounced:Loading Lead Hard path@5")
+        self.assertEqual((step["verb"], step["text"], step["timeout"]), ("assertannounced", "Loading Lead Hard path", 5.0))
+        self.assertNotIn("timeout", u.parse_step("assertannounced:Lead Hard path image loaded"))
+        regex = u.parse_step(r"assertannounced:~^Lead Expert path loaded, \d+ activations?$@2.5")
+        self.assertEqual((regex["text"], regex["timeout"]), (r"~^Lead Expert path loaded, \d+ activations?$", 2.5))
+        self.assertEqual(u.parse_step("assertannounced:mail@home")["text"], "mail@home")
+        for bad in ("listen:", "listen:focus", "assertannounced:", "assertannounced:@5"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_assertannouncedcount(self):
+        # Issue #275: a value announced once, not repeated by later reads.
+        step = u.parse_step("assertannouncedcount:1|Phase. 1,310 attempted this pass · 70 | x")
+        self.assertEqual((step["verb"], step["count"], step["text"]),
+                         ("assertannouncedcount", 1, "Phase. 1,310 attempted this pass · 70 | x"))
+        self.assertEqual(u.parse_step(r"assertannouncedcount:0|~^Loading")["count"], 0)
+        for bad in ("assertannouncedcount:", "assertannouncedcount:1", "assertannouncedcount:x|text",
+                    "assertannouncedcount:1|", "assertannouncedcount:-1|text"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
@@ -132,6 +173,32 @@ class StepTests(unittest.TestCase):
                     "assertgap:id=a|id=b|-4"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
+
+    def test_span(self):
+        step = u.parse_step("markspan:id=fst.history.instrument.group|id=fst.history.sort.open|card")
+        self.assertEqual(step["verb"], "markspan")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.history.instrument.group"})
+        self.assertEqual(step["other"], {"kind": "id", "value": "fst.history.sort.open"})
+        self.assertEqual(step["name"], "card")
+        self.assertEqual(u.parse_step("assertspan:name=A|name=B|card-2")["name"], "card-2")
+        for bad in ("assertspan:id=a|id=b", "assertspan:id=a|id=b|", "markspan:id=a|card", "assertspan:1,2|id=b|c",
+                    "markspan:id=a|id=b|bad name"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_film(self):
+        start, stop = u.parse_step("film:out/fade"), u.parse_step("filmstop:out/fade")
+        self.assertEqual((start["verb"], stop["verb"]), ("film", "filmstop"))
+        self.assertEqual(start["arg"], stop["arg"])
+        self.assertTrue(Path(start["arg"]).is_absolute())
+        with self.assertRaises(ValueError):
+            u.parse_step("filmstop:")
+
+    def test_keys_sequence(self):
+        step = u.parse_step("keys:left space shift+tab")
+        self.assertEqual(step["seq"], [[0x25], [0x20], [0x10, 0x09]])
+        with self.assertRaises(ValueError):
+            u.parse_step("keys:left nosuchkey")
 
     def test_pin_and_assertpinned(self):
         pin = u.parse_step("pin:id=fst.songs.sort@5")
@@ -152,6 +219,17 @@ class StepTests(unittest.TestCase):
         self.assertEqual(step["other"], {"kind": "id", "value": "fst.settings"})
         self.assertEqual(step["epx"], 40.0)
         for bad in ("assertinset:id=a|id=b", "assertinset:id=a|id=b|-2", "assertinset:id=a|1,2|32"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_scrollinset(self):
+        step = u.parse_step("scrollinset:id=fst.suggestions.category.x|id=fst.suggestions.list|8")
+        self.assertEqual(step["verb"], "scrollinset")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.suggestions.category.x"})
+        self.assertEqual(step["other"], {"kind": "id", "value": "fst.suggestions.list"})
+        self.assertEqual(step["epx"], 8.0)
+        for bad in ("scrollinset:id=a|id=b", "scrollinset:id=a|id=b|-8", "scrollinset:id=a|1,2|8",
+                    "scrollinset:id=a|id=b|0"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 

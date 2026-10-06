@@ -47,7 +47,9 @@ class MockServiceTests(unittest.TestCase):
             "metadataEdge": False,
             "largeRankings": False,
             "largeCatalogue": False,
+            "longTitles": False,
             "serviceInfoDiscovery": False,
+            "songLeaderboardPaging": False,
         })
         self.assertEqual(set(identity["sourceHashes"]), {
             "tools/mock_service.py",
@@ -150,10 +152,51 @@ class MockServiceTests(unittest.TestCase):
         with urlopen(self.base + "/api/leaderboard/fixture-pulse/bands/all?top=10"
                      "&accountId=fixture-player-1") as response:
             selected = json.load(response)["bands"][0]["selectedPlayerEntry"]
-        self.assertEqual(selected["rank"], 14)
+        self.assertEqual(selected["rank"], 29)
         self.assertEqual(selected["members"][0]["accountId"], "fixture-player-1")
         with self.assertRaises(HTTPError) as error:
             urlopen(self.base + "/api/leaderboard/fixture-pulse/bands/all?top=51")
+        self.assertEqual(error.exception.code, 400)
+
+    def test_song_band_board_holds_the_appended_band_at_its_rank(self):
+        """The full Duos board lists the rank-29 band Song Detail appends on page 2 and
+        returns it as `selectedPlayerEntry` for the pinned footer (issue #307)."""
+        board = "/api/leaderboard/fixture-pulse/bands/Band_Duets?top=25"
+        with urlopen(self.base + board + "&offset=0") as response:
+            first = json.load(response)
+        self.assertEqual(first["totalEntries"], 29)
+        self.assertEqual([e["rank"] for e in first["entries"]], list(range(1, 26)))
+        self.assertIsNone(first["selectedPlayerEntry"])
+        with urlopen(self.base + board + "&offset=25&accountId=fixture-player-1") as response:
+            second = json.load(response)
+        self.assertEqual([e["rank"] for e in second["entries"]], [26, 27, 28, 29])
+        self.assertEqual(second["entries"][-1]["bandId"], "fixture-band-fixture-player-1")
+        self.assertEqual(second["selectedPlayerEntry"], second["entries"][-1])
+        self.assertIsNone(second["selectedBandEntry"])
+        with urlopen(self.base + "/api/leaderboard/fixture-pulse/bands/all?top=10"
+                     "&accountId=fixture-player-1") as response:
+            duets = json.load(response)["bands"][0]
+        self.assertEqual(duets["selectedPlayerEntry"], second["entries"][-1])
+        with self.assertRaises(HTTPError) as error:
+            urlopen(self.base + board + "&offset=0&accountId=a&accountId=b")
+        self.assertEqual(error.exception.code, 400)
+
+    def test_song_band_page_returns_the_selected_players_band_for_the_footer(self):
+        """`/bands/{bandType}?accountId=` adds the player's band; no player or no rows adds none."""
+        path = "/api/leaderboard/fixture-pulse/bands/Band_Duets?top=25&offset=0"
+        with urlopen(self.base + path) as response:
+            self.assertIsNone(json.load(response)["selectedPlayerEntry"])
+        with urlopen(self.base + path + "&accountId=fixture-player-1") as response:
+            body = json.load(response)
+        selected = body["selectedPlayerEntry"]
+        self.assertEqual((selected["rank"], selected["bandType"]), (29, "Band_Duets"))
+        self.assertEqual(selected["members"][0]["accountId"], "fixture-player-1")
+        self.assertEqual(body["totalEntries"], 29)
+        with urlopen(self.base + "/api/leaderboard/fixture-pulse/bands/Band_Trios?top=25&offset=0"
+                     "&accountId=fixture-player-1") as response:
+            self.assertIsNone(json.load(response)["selectedPlayerEntry"])
+        with self.assertRaises(HTTPError) as error:
+            urlopen(self.base + path + "&accountId=fixture-player-1&accountId=fixture-player-2")
         self.assertEqual(error.exception.code, 400)
 
     def test_large_rankings_mode_pages_deep_and_keeps_default_small(self):
@@ -204,6 +247,62 @@ class MockServiceTests(unittest.TestCase):
         finally:
             large.shutdown()
             large.server_close()
+            thread.join(timeout=2)
+
+    def test_long_titles_mode_retitles_only_the_scrollable_song(self):
+        """`--long-titles` widens `fixture-pulse`'s title; its boards still scroll."""
+        with urlopen(self.base + "/api/songs") as response:
+            default = json.load(response)
+        server = FixtureServer(("127.0.0.1", 0), FixtureHandler, long_titles=True)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        base = f"http://127.0.0.1:{server.server_port}"
+        try:
+            with urlopen(base + "/api/songs") as response:
+                etag = response.headers["ETag"]
+                body = json.load(response)
+            self.assertNotEqual(etag, '"fst-fixture-songs-v1"')
+            titles = {song["songId"]: song["title"] for song in body["songs"]}
+            self.assertGreaterEqual(len(titles["fixture-pulse"]), 90)
+            for song in default["songs"]:
+                if song["songId"] != "fixture-pulse":
+                    self.assertEqual(titles[song["songId"]], song["title"])
+            with urlopen(base + "/api/leaderboard/fixture-pulse/Solo_Guitar?top=25") as response:
+                self.assertGreaterEqual(len(json.load(response)["entries"]), 20)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+    def test_song_leaderboard_paging_mode_slows_later_pages_and_fails_the_last(self):
+        """`--song-leaderboard-paging`: four Lead pages, later ones slow, page 4 fails (#316)."""
+        from tools import mock_service
+        with urlopen(self.base + "/api/leaderboard/fixture-pulse/Solo_Guitar?top=25") as response:
+            self.assertEqual(json.load(response)["totalEntries"], 26)
+        paging = FixtureServer(("127.0.0.1", 0), FixtureHandler, song_leaderboard_paging=True)
+        thread = threading.Thread(target=paging.serve_forever, daemon=True)
+        thread.start()
+        base = f"http://127.0.0.1:{paging.server_port}/api/leaderboard/fixture-pulse/Solo_Guitar"
+        try:
+            with patch.object(mock_service.time, "sleep") as sleep:
+                with urlopen(base + "?top=25") as response:
+                    first = json.load(response)
+                sleep.assert_not_called()
+                self.assertEqual(first["totalEntries"], 100)
+                self.assertEqual(len(first["entries"]), 25)
+                with urlopen(base + "?top=25&offset=50") as response:
+                    third = json.load(response)
+                self.assertEqual([e["rank"] for e in third["entries"]][:1], [51])
+                sleep.assert_called_with(mock_service.SLOW_SONG_LEADERBOARD_PAGE_SECONDS)
+                with self.assertRaises(HTTPError) as failure:
+                    urlopen(base + "?top=25&offset=75")
+                self.assertEqual(failure.exception.code, 500)
+            with urlopen(f"http://127.0.0.1:{paging.server_port}"
+                         "/api/leaderboard/fixture-pulse/Solo_Bass?top=25") as response:
+                self.assertEqual(json.load(response)["totalEntries"], 0)
+        finally:
+            paging.shutdown()
+            paging.server_close()
             thread.join(timeout=2)
 
     def test_multi_instrument_song_history_feeds_instrument_switching(self):

@@ -1,6 +1,13 @@
 package com.festivalscoretracker.android.ui.common
 
 import androidx.compose.material3.Text
+import androidx.compose.material3.adaptive.HingeInfo
+import androidx.compose.material3.adaptive.Posture
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -22,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -98,17 +106,31 @@ class FestivalModalTest {
     }
 
     @Test
-    fun compactDialogCloseDismisses() {
+    fun paneTitleDialogCloseDismisses() {
         var dismissed = 0
         rule.setContent {
             FestivalTheme {
-                FestivalModalDialog(title = "Songs", closeTag = "c.close", onDismissRequest = { dismissed++ }, compact = true, paneTitle = "Feature tour: Songs") {
+                FestivalModalDialog(title = "Songs", closeTag = "c.close", onDismissRequest = { dismissed++ }, paneTitle = "Feature tour: Songs") {
                     Text("Slide")
                 }
             }
         }
         rule.onNodeWithTag("c.close").performSemanticsAction(SemanticsActions.OnClick)
         assertEquals(1, dismissed)
+    }
+
+    /** Issue #183: a compact window gets the window width less the 16 dp margins. */
+    @Test
+    fun dialogTakesTheWindowWidthLessMargins() {
+        rule.setContent {
+            FestivalTheme {
+                FestivalModalDialog(title = "What's New", closeTag = "w.close", onDismissRequest = {}, modifier = Modifier.testTag("w.dialog")) {
+                    Text("Notes")
+                }
+            }
+        }
+        val width = with(rule.density) { rule.onNodeWithTag("w.dialog").fetchSemanticsNode().size.width.toDp() }
+        assertEquals(411f - 32f, width.value, 1f)
     }
 
     @Test
@@ -215,5 +237,49 @@ class FestivalModalTest {
         rule.onNodeWithText("Body").assertIsDisplayed()
         assertEquals(2, windows.size)
         assertEquals(0, dismissed)
+    }
+
+    /**
+     * Shows a wide-window dialog over a vertical book-posture hinge at 415–425 dp.
+     *
+     * @param separating Half-open (separating) or flat fold.
+     * @return Hinge and dialog bounds in root pixels.
+     */
+    private fun wideDialogOverHinge(separating: Boolean): Pair<Rect, Rect> {
+        var hinge = Rect.Zero
+        rule.setContent {
+            val density = LocalDensity.current.density
+            hinge = Rect(415 * density, 0f, 425 * density, 900 * density)
+            val posture = Posture(hingeList = listOf(HingeInfo(hinge, isFlat = !separating, isVertical = true, isSeparating = separating, isOccluding = false)))
+            CompositionLocalProvider(LocalShellPosture provides posture) {
+                FestivalTheme {
+                    FestivalModalDialog(title = "What's New", closeTag = "w.close", onDismissRequest = {}, modifier = Modifier.testTag("w.dialog")) {
+                        Text("Notes")
+                    }
+                }
+            }
+        }
+        settle()
+        return hinge to rule.onNodeWithTag("w.dialog").fetchSemanticsNode().boundsInRoot
+    }
+
+    /**
+     * Issue #146: a wide-window dialog (What's New, Privacy Policy) stays on one side of a
+     * separating hinge by default (M3 "Never place interactive content or critical information
+     * across the hinge area").
+     */
+    @Test
+    @Config(qualifiers = "w841dp-h900dp")
+    fun wideDialogAvoidsASeparatingHingeByDefault() {
+        val (hinge, dialog) = wideDialogOverHinge(separating = true)
+        assertTrue("dialog $dialog clears hinge $hinge", dialog.right <= hinge.left || dialog.left >= hinge.right)
+    }
+
+    /** Issue #146: an unfolded (flat) fold keeps the ordinary centred dialog. */
+    @Test
+    @Config(qualifiers = "w841dp-h900dp")
+    fun wideDialogStaysCentredAcrossAFlatFold() {
+        val (hinge, dialog) = wideDialogOverHinge(separating = false)
+        assertTrue("centred dialog $dialog spans the flat fold $hinge", dialog.left < hinge.left && dialog.right > hinge.right)
     }
 }

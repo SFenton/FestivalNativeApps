@@ -237,6 +237,7 @@ private fun HubContent(
                                 onRival = { entry -> navigate(RivalRoutes.detail(entry.rival.accountId, entry.rival.displayName, section.rowScope)) },
                                 onViewAll = seeAll,
                                 revealed = pageRevealed && sectionRevealed,
+                                cardName = section.title,
                             )
                         }
                     }

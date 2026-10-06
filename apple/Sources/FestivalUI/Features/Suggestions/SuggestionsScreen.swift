@@ -99,7 +99,7 @@ struct SuggestionsScreen: View {
                 }
             }
         }
-        .navigationTitle("Suggestions")
+        .festivalNavigationTitle("Suggestions")
         .festivalBackground(.carousel, session: session)
         .toolbar {
             if pageTools == nil, showsFilter {
@@ -149,7 +149,7 @@ struct SuggestionsScreen: View {
             Text("Select a player to see personalized suggestions.")
         } actions: {
             Button("Choose Profile") { openProfile() }
-                .buttonStyle(.borderedProminent)
+                .festivalProminentButton()
                 .accessibilityIdentifier("fst.suggestions.choose-profile")
         }
         .accessibilityIdentifier("fst.suggestions.empty")
@@ -280,7 +280,7 @@ struct SuggestionsScreen: View {
                     .font(.subheadline)
                     .foregroundStyle(FestivalText.primary)
                 Button("Start New Mix") { viewModel.startNewMix() }
-                    .buttonStyle(.borderedProminent)
+                    .festivalProminentButton()
                     .accessibilityIdentifier("fst.suggestions.start-new-mix")
             }
             .frame(maxWidth: .infinity)

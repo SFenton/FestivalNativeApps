@@ -35,6 +35,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.festivalscoretracker.android.core.shell.LoadSwapPhase
+import androidx.compose.runtime.withFrameNanos
+import com.festivalscoretracker.android.core.rankings.SelectedRowAction
+import com.festivalscoretracker.android.core.rankings.SelectedRowLabels
+import com.festivalscoretracker.android.core.rankings.SelectedRowSubject
+import com.festivalscoretracker.android.core.rankings.label
+import com.festivalscoretracker.android.ui.leaderboards.SelectedRowAnchor
+import com.festivalscoretracker.android.ui.leaderboards.revealSelectedRow
+import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
@@ -107,7 +117,12 @@ fun SongLeaderboardRouteScreen(container: AppContainer, settings: AppSettings, r
         val page by boardViewModel.page.collectAsStateWithLifecycle()
         SyncRouteArguments(routeState, "page" to page)
     }
-    SongLeaderboardScreen(boardViewModel, settings.selectedPlayer?.accountId, container.selectedProfile.state, leeway, settings.visibleInstruments, api::artworkUrl)
+    SongLeaderboardScreen(
+        boardViewModel, settings.selectedPlayer?.accountId, container.selectedProfile.state, leeway, settings.visibleInstruments, api::artworkUrl,
+        revealSelected = route.navToPlayer,
+        // Revealed once: Back or a recreated entry keeps the scroll position instead (web clears `navToPlayer`).
+        onRevealed = { routeState?.set("navToPlayer", false) },
+    )
 }
 
 /**
@@ -123,6 +138,8 @@ fun SongLeaderboardRouteScreen(container: AppContainer, settings: AppSettings, r
  * @param visibleInstruments Settings-visible charts (the header's instrument switcher).
  * @param leeway Filter Invalid Scores leeway (the page is read with it; the spotlight shows the next valid score), or null.
  * @param artworkUrl Artwork resolver for the song header.
+ * @param revealSelected Opened for the selected player's row (web `navToPlayer`): bring it into view once its page shows.
+ * @param onRevealed Called once that reveal has run (or found no row), so the route stops asking for it.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -133,6 +150,8 @@ fun SongLeaderboardScreen(
     leeway: Double? = null,
     visibleInstruments: Set<Instrument> = Instrument.entries.toSet(),
     artworkUrl: (String?) -> String? = { null },
+    revealSelected: Boolean = false,
+    onRevealed: () -> Unit = {},
 ) {
     val song by viewModel.song.collectAsStateWithLifecycle()
     val board by viewModel.board.collectAsStateWithLifecycle()
@@ -154,14 +173,36 @@ fun SongLeaderboardScreen(
             },
             scorePublicationId = profile?.observedPublicationId,
             boardPublicationId = it.publicationId,
-            visible = it.leaderboard.entries,
         )
     }
+    // The requested page's rows are on screen (not the previous page still showing over a fresh load, fading out or the spinner).
+    val pageShown = swap.phase == LoadSwapPhase.ContentIn && board is LoadState.Loaded && swap.shown === board && loaded != null
+    val selectedOnPage = pageShown && loaded.entries.any { RankingSpotlight.isSelected(selectedAccountId, it.accountId) }
+    // `leaderboard-row` R7 (issue #307): the footer jumps to the player's page while their row is
+    // elsewhere and opens Statistics once it is on screen. While a page loads, the rank decides.
+    val footerAction = footer?.let {
+        val visible = if (pageShown) selectedOnPage else it.rank > 0 && LeaderboardPaging.pageForRank(it.rank) == page
+        SelectedRowAction.footer(it.rank, visible, page)
+    }
+    var revealPending by rememberSaveable { mutableStateOf(revealSelected) }
+    val anchor = remember { SelectedRowAnchor() }
+    val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
 
     // The rows and the pinned footer share one column plan, fitted to the narrower of the two (issue #37, 7.9).
     val columns = rememberScoreColumns(loaded?.entries.orEmpty() + listOfNotNull(footer))
 
     LaunchedEffect(page) { listState.scrollToItem(0) }
+    // Opened (or jumped) to the selected row's page: centre the highlighted row once it shows.
+    LaunchedEffect(revealPending, pageShown, loaded) {
+        if (!revealPending || !pageShown) return@LaunchedEffect
+        if (selectedOnPage) {
+            withFrameNanos { }
+            val bounds = anchor.bounds()
+            if (bounds != null) listState.revealSelectedRow("rows", null, bounds.first, bounds.second, animate = !reduceMotion)
+        }
+        revealPending = false
+        onRevealed()
+    }
 
     // The song header (art, title, artist, instrument) scrolls with the rows; the top bar
     // takes the title once it has scrolled away (operator 7.8, like Song Detail).
@@ -170,6 +211,7 @@ fun SongLeaderboardScreen(
         title = if (headerGone) title else "",
         isRoot = false,
         scrolled = headerGone,
+        marqueeTitle = true,
         modifier = Modifier.semantics { testTagsAsResourceId = true },
     ) { padding ->
         val failed = board as? LoadState.Failed
@@ -190,8 +232,30 @@ fun SongLeaderboardScreen(
                 }
             },
             // The pinned score fades out with the page and staggers back in with its first row (issue #295);
-            // its slot and the pager stay in place while the next page loads (issue #93).
-            footer = { footer?.let { AnchoredRowCard(with(swap) { Modifier.staggered(0) }) { LeaderboardSectionMember(columns, "footer") { SelectedScoreFooter(it, navigate, columns.plan) } } } },
+            // its slot and the pager stay in place while the next page loads (issue #93), the stale row
+            // hidden, unread and untouchable under the spinner (issue #149).
+            footer = {
+                footer?.let { entry ->
+                    AnchoredRowCard(with(swap) { Modifier.staggered(0) }.then(swap.pinnedContentModifier)) {
+                        LeaderboardSectionMember(columns, "footer") {
+                            SelectedScoreFooterRow(
+                                entry = entry,
+                                columns = columns.plan,
+                                actionLabel = footerAction?.label(SelectedRowSubject.Player) ?: SelectedRowLabels.OPEN_STATISTICS,
+                                tag = "fst.song-leaderboard.spotlight-footer",
+                            ) {
+                                when (val action = footerAction) {
+                                    is SelectedRowAction.Jump -> {
+                                        revealPending = true
+                                        viewModel.goTo(action.page)
+                                    }
+                                    else -> navigate(StatisticsRoute)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
             pager = { RankingsPager(page, loaded?.pageCount() ?: page, "fst.song-leaderboard", viewModel::goTo) },
             // Rows fade out above the pinned score and pager, as on the web (issue #93).
             fadeAboveFooter = true,
@@ -199,18 +263,20 @@ fun SongLeaderboardScreen(
             if (swap.showsSpinner || loaded == null) {
                 loadSwapSpinnerItem(swap, "Loading leaderboard", "fst.song-leaderboard.loading")
             } else item(key = "rows") {
-                GlassCard(Modifier.fillMaxWidth().then(swap.contentModifier)) {
+                GlassCard(anchor.item.fillMaxWidth().then(swap.contentModifier)) {
                     // Same 8 dp horizontal inset as AnchoredRowCard, so the pinned row's columns line up (issue #37).
                     LeaderboardSectionMember(columns, "rows", Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
                         when {
                             loaded.entries.isEmpty() -> Text("No scores yet", color = BrandTokens.textPrimary, modifier = Modifier.padding(16.dp))
                             else -> {
                                 loaded.entries.forEachIndexed { index, entry ->
-                                    Column(Modifier.festivalFadeIn(swap.revealed, fadeInStagger(index))) {
+                                    val selected = RankingSpotlight.isSelected(selectedAccountId, entry.accountId)
+                                    // The reveal anchor sits outside the fade-in so it measures the settled row.
+                                    Column((if (selected) anchor.row else Modifier).festivalFadeIn(swap.revealed, fadeInStagger(index))) {
                                         if (index > 0) RowSeparator()
                                         SongLeaderboardRow(
                                             entry = entry,
-                                            isSelected = RankingSpotlight.isSelected(selectedAccountId, entry.accountId),
+                                            isSelected = selected,
                                             route = RankingNavigation.playerRoute(entry.accountId, entry.displayName, selectedAccountId),
                                             onOpen = navigate,
                                             columns = columns.plan,
@@ -227,17 +293,28 @@ fun SongLeaderboardScreen(
 }
 
 /**
- * The selected player's pinned score row (web `LeaderboardPage` footer: just the row,
- * which opens Statistics; no page-jump button, so its columns align with the board, 7.9).
+ * The selected profile's pinned footer row on a song board (web `LeaderboardPage` and
+ * `SongBandLeaderboardPage` fixed footers; Apple `SelectedScoreFooterRow`): the shared
+ * [ScoreRow] in the selected treatment, in the board's columns. Solo and band boards use
+ * this one row, and its click follows [SelectedRowAction.footer] (`leaderboard-row` R7,
+ * issue #307): jump to the row's page while it is elsewhere, otherwise open the profile.
  *
- * @param entry Footer row built from the score index.
- * @param navigate Push a route.
+ * @param entry Footer row (the band's members as its name on a band board).
  * @param columns The board's shared column plan.
+ * @param actionLabel TalkBack click label naming the destination ([SelectedRowLabels]).
+ * @param tag Test tag.
+ * @param onClick Jump or open.
  */
 @Composable
-private fun SelectedScoreFooter(entry: LeaderboardEntry, navigate: (AppRoute) -> Unit, columns: LeaderboardColumnPlan) {
-    Box(Modifier.fillMaxWidth().testTag("fst.song-leaderboard.spotlight-footer")) {
-        SongLeaderboardRow(entry, isSelected = true, route = StatisticsRoute, onOpen = navigate, columns = columns)
+internal fun SelectedScoreFooterRow(entry: LeaderboardEntry, columns: LeaderboardColumnPlan, actionLabel: String, tag: String, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .selectedRowHighlight(true)
+            .clickable(role = Role.Button, onClickLabel = actionLabel, onClick = onClick)
+            .testTag(tag),
+    ) {
+        ScoreRow(entry, isSelected = true, navigable = true, columns = columns)
     }
 }
 
@@ -249,6 +326,7 @@ private fun SelectedScoreFooter(entry: LeaderboardEntry, navigate: (AppRoute) ->
  * @param route Destination or null.
  * @param onOpen Navigation callback.
  * @param columns The board's shared column plan (season and stars by row width, issue #37).
+ * @param modifier Modifier (the reveal anchor on the selected row).
  */
 @Composable
 private fun SongLeaderboardRow(
@@ -257,15 +335,16 @@ private fun SongLeaderboardRow(
     route: AppRoute?,
     onOpen: (AppRoute) -> Unit,
     columns: LeaderboardColumnPlan,
+    modifier: Modifier = Modifier,
 ) {
-    var modifier = Modifier.fillMaxWidth().selectedRowHighlight(isSelected)
-    modifier = if (route != null) {
-        // "Open your statistics" for the selected player's row and footer, "Open profile" otherwise.
-        modifier.clickable(role = Role.Button, onClickLabel = RankingNavigation.actionLabel(route)) { onOpen(route) }
+    var rowModifier = modifier.fillMaxWidth().selectedRowHighlight(isSelected)
+    rowModifier = if (route != null) {
+        // "Open your statistics" for the selected player's row, "Open profile" otherwise.
+        rowModifier.clickable(role = Role.Button, onClickLabel = RankingNavigation.actionLabel(route)) { onOpen(route) }
     } else {
-        modifier.semantics(mergeDescendants = true) { stateDescription = "Profile unavailable" }
+        rowModifier.semantics(mergeDescendants = true) { stateDescription = "Profile unavailable" }
     }
-    Box(modifier.testTag("fst.song-leaderboard.row.${entry.accountId.ifEmpty { "rank-${entry.rank}" }}")) {
+    Box(rowModifier.testTag("fst.song-leaderboard.row.${entry.accountId.ifEmpty { "rank-${entry.rank}" }}")) {
         ScoreRow(entry, isSelected = isSelected, navigable = route != null, columns = columns)
     }
 }

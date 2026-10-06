@@ -19,16 +19,25 @@ public sealed partial class SettingsPage : Page
         const bool debugBuild = false;
 #endif
         ViewModel = new SettingsViewModel(App.Session, Festival.Core.Domain.AppVersionInfo.SettingsText(typeof(App).Assembly), debugBuild);
+        if (ServiceInfoTimeoutOverride is { } timeout) ViewModel.ServiceInfo.ReadTimeout = timeout;
         InitializeComponent();
         QuickLinksMenu.Model = ViewModel.QuickLinks;
         _ = new QuickLinksBinder(Scroller, ViewModel.QuickLinks, () => QuickLinksBinder.ReducedMotion(App.Session.Settings.ReduceMotion));
         ViewModel.ReplayRequested += (_, page) => MainWindow.Instance?.ShowFirstRunReplay(page);
+        ViewModel.ServiceInfo.ProgressAnnounced += OnServiceProgressAnnounced;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
 
     /// <summary>Text-size source for the Service Info state row.</summary>
     private readonly UISettings uiSettings = new();
+
+    /// <summary>
+    /// Debug/automation <c>FST_DEBUG_SERVICE_INFO_TIMEOUT_MS</c>: a longer Service Info timeout so UI Automation can check and
+    /// scan the Loading card while a fixture holds the first read (the 3 s default is shorter than that journey).
+    /// </summary>
+    private static readonly TimeSpan? ServiceInfoTimeoutOverride =
+        SettingsServiceInfoViewModel.ParseTimeoutOverride(App.LaunchEnvironment("FST_DEBUG_SERVICE_INFO_TIMEOUT_MS"));
 
     /// <summary>Page model.</summary>
     public SettingsViewModel ViewModel { get; }
@@ -82,6 +91,17 @@ public sealed partial class SettingsPage : Page
     /// <param name="sender">Unused.</param>
     /// <param name="e">Unused.</param>
     private void OnMotionChanged(object? sender, EventArgs e) => ViewModel.ServiceInfo.Background = Motion.Paused;
+
+    /// <summary>
+    /// Speaks a newly accepted Service Info attempt count (one polite UIA notification) from the attempt line, which has
+    /// an automation peer; kept-back lower counts raise nothing (issue #275).
+    /// </summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="announcement">Complete spoken progress.</param>
+    private void OnServiceProgressAnnounced(object? sender, Festival.Core.ViewModels.Announcement announcement)
+    {
+        if (IsLoaded) ScreenReader.Announce(ServiceAttemptText, announcement);
+    }
 
     /// <summary>A drag reorder finished: the list moved its rows in place, so save their new order.</summary>
     /// <param name="sender">Song-row or path-column list.</param>

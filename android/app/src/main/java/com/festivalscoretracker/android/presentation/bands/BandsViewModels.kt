@@ -228,29 +228,26 @@ class BandDetailViewModel(
  * @param songId Song.
  * @param initialBandType Starting size.
  * @param loadCatalog Catalogue read (header).
- * @param loadBoard Page read `(songId, bandType, page, top, accountId)`; `accountId` adds the
- *   selected player's band (`selectedPlayerEntry`, a pure read).
+ * @param loadBoard Page read `(songId, bandType, page, top)`.
  * @param backoff Shared retry backoff.
- * @param initialAccountId Selected player, or null.
+ * @param initialPage Starting one-based page (route `?page=`; Song Detail's band row jumps here, issue #307).
  */
 class SongBandLeaderboardViewModel(
     songId: String,
     initialBandType: BandType,
     loadCatalog: suspend (refresh: Boolean) -> CatalogPayload,
-    loadBoard: suspend (String, BandType, Int, Int, String?) -> SongBandLeaderboardResponse,
+    loadBoard: suspend (String, BandType, Int, Int) -> SongBandLeaderboardResponse,
     backoff: ServiceRetryBackoff,
-    initialAccountId: String? = null,
+    initialPage: Int = 1,
 ) : ViewModel() {
     private val typeFlow = MutableStateFlow(initialBandType)
-    private val pageFlow = MutableStateFlow(1)
-    private val accountFlow = MutableStateFlow(initialAccountId?.takeIf { it.isNotBlank() })
+    private val pageFlow = MutableStateFlow(initialPage.coerceAtLeast(1))
     private val songLoader = RetryingLoader(viewModelScope, "song:$songId", backoff) { refresh ->
         SongResolver.resolve(loadCatalog(refresh).catalog.songs, songId)
     }
     private val boardLoader = RetryingLoader(viewModelScope, "song-bands:$songId", backoff) {
         val type = typeFlow.value
-        val account = accountFlow.value
-        loadClampedPage(pageFlow.value, { loadBoard(songId, type, it, BandPaging.PAGE_SIZE, account) }, { it.pageCount(BandPaging.PAGE_SIZE) }) {
+        loadClampedPage(pageFlow.value, { loadBoard(songId, type, it, BandPaging.PAGE_SIZE) }, { it.pageCount(BandPaging.PAGE_SIZE) }) {
             pageFlow.value = it
         }
     }
@@ -296,22 +293,6 @@ class SongBandLeaderboardViewModel(
 
     /** Retry the current page. */
     fun retry() = boardLoader.retry()
-
-    /** Selected player the board is read for, or null. */
-    val accountId: StateFlow<String?> = accountFlow.asStateFlow()
-
-    /**
-     * Follow the selected player: a change re-reads the current page so its pinned band
-     * appears, changes or goes away (band size and page are kept).
-     *
-     * @param accountId Selected player, or null.
-     */
-    fun selectAccount(accountId: String?) {
-        val id = accountId?.takeIf { it.isNotBlank() }
-        if (id == accountFlow.value) return
-        accountFlow.value = id
-        boardLoader.retry()
-    }
 
     /** Retry the song header. */
     fun retrySong() = songLoader.retry()

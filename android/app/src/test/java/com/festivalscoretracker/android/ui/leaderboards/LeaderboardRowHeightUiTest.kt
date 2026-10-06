@@ -1,6 +1,9 @@
 package com.festivalscoretracker.android.ui.leaderboards
 
 import androidx.activity.ComponentActivity
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.view.ViewGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.width
@@ -105,5 +108,39 @@ class LeaderboardRowHeightUiTest {
         }
         assertTrue(height("ranking") > LEADERBOARD_ROW_MIN_HEIGHT)
         assertTrue(height("score") > LEADERBOARD_ROW_MIN_HEIGHT)
+    }
+
+    /**
+     * Issue #149: stacked (font 2.0) ranking rows keep the section's rank width, so a short
+     * rank (#9) and a long one (#1,234) indent their names alike.
+     */
+    @Test
+    fun largeTextRankingNamesLineUpWhateverTheRankWidth() {
+        val short = ranking.copy(totalScoreRank = 9)
+        val long = ranking.copy(accountId = "c".repeat(32), totalScoreRank = 1_234)
+        show(fontScale = 2f) {
+            CompositionLocalProvider(LocalRankingColumns provides rememberAccountColumns(listOf(short, long), RankingMetric.TotalScore)) {
+                AccountRankingRow(short, RankingMetric.TotalScore, isSelected = false, route = null, onOpen = {}, tag = "short")
+                AccountRankingRow(long, RankingMetric.TotalScore, isSelected = false, route = null, onOpen = {}, tag = "long")
+            }
+        }
+        rule.waitForIdle()
+        assertEquals(nameStart("short"), nameStart("long"))
+    }
+
+    /** Leftmost bright pixel of a stacked row's first (name) line, drawn in software. */
+    private fun nameStart(tag: String): Int {
+        val view = rule.activity.findViewById<ViewGroup>(android.R.id.content).getChildAt(0)
+        val whole = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+        view.draw(Canvas(whole))
+        val b = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        // The name line sits above the vertically centred rank.
+        val top = b.top.toInt() + 2
+        val bottom = (b.top + b.height / 4).toInt()
+        for (x in b.left.toInt() until b.right.toInt()) for (y in top until bottom) {
+            val p = whole.getPixel(x, y)
+            if (((p shr 16) and 0xFF) > 180 && ((p shr 8) and 0xFF) > 180 && (p and 0xFF) > 180) return x
+        }
+        error("no name pixels in $tag")
     }
 }
