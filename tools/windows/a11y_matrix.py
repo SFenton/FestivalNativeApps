@@ -411,6 +411,9 @@ def run_size(page: dict, mode: str, size: str, exe: Path, port: int | None, out:
                 record["focus"] = summarize_focus(result["focus"])
                 record["focus_raw"] = [e["line"] for e in result["focus"]]
             record["window"] = {k: result.get(k) for k in ("bounds_epx", "scale")}
+            for key in ("sizes", "apart", "hits"):
+                if key in result:
+                    record[key] = result[key]
         except RuntimeError as error:
             record["error"] = str(error)
             if pid:

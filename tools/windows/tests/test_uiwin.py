@@ -209,6 +209,34 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_assertsize(self):
+        step = u.parse_step("assertsize:id=fst.global-search.open|40x40")
+        self.assertEqual(step["verb"], "assertsize")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.global-search.open"})
+        self.assertEqual((step["width"], step["height"]), (40.0, 40.0))
+        self.assertEqual(u.parse_step("assertsize:id=fst.quick-links.open|0x40.5")["height"], 40.5)
+        for bad in ("assertsize:id=a", "assertsize:id=a|40", "assertsize:id=a|-1x40", "assertsize:10,20|40x40"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_assertat(self):
+        step = u.parse_step("assertat:id=fst.shell.profile|0,-18.5")
+        self.assertEqual(step["verb"], "assertat")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.shell.profile"})
+        self.assertEqual((step["dx"], step["dy"]), (0.0, -18.5))
+        self.assertEqual(u.parse_step("assertat:id=a| 12 , 3 ")["dx"], 12.0)
+        for bad in ("assertat:id=a", "assertat:id=a|1", "assertat:id=a|x,1", "assertat:10,20|0,0"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_assertapart(self):
+        step = u.parse_step("assertapart:id=fst.songs.sort|id=fst.songs.filter")
+        self.assertEqual(step["verb"], "assertapart")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.songs.sort"})
+        self.assertEqual(step["other"], {"kind": "id", "value": "fst.songs.filter"})
+        with self.assertRaises(ValueError):
+            u.parse_step("assertapart:id=fst.songs.sort")
+
     def test_window_state_presets(self):
         self.assertEqual(u.preset_op("minimized"), {"kind": "minimize"})
         self.assertEqual(u.preset_op("restored"), {"kind": "restore"})

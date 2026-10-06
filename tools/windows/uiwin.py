@@ -109,6 +109,7 @@ STEP_VERBS = {
     "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state",
     "markspan": "span", "assertspan": "span", "film": "path", "filmstop": "path", "pin": "selector",
     "assertpinned": "selector", "foreground": "onoff",
+    "assertsize": "size", "assertapart": "pair", "assertat": "offset",
 }
 
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text; ``scroll`` takes a rounded
@@ -228,6 +229,13 @@ def parse_step(step: str) -> dict:
     rounded: ``0`` is a list back at its top) or ``name`` equals ``<value>``;
     ``pin:<sel>`` records the element's window-relative rectangle and ``assertpinned:<sel>`` (same selector, later in
     the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls.
+    ``assertsize:<sel>|<w>x<h>`` fails unless the element's UIA bounds are at least ``<w>`` x ``<h>`` effective pixels
+    (0.5 epx rounding allowance; results in ``sizes``), e.g. Fluent's 40x40 epx touch target (issue #271);
+    ``assertapart:<sel>|<sel>`` fails if the two elements' bounds overlap (results in ``apart``, the gap in epx);
+    ``assertat:<sel>|<dx>,<dy>`` hit-tests the point ``<dx>``,``<dy>`` epx from the element's centre without input
+    (outside the title bar's non-client caption region, where a press drags the window, and UIA ``ElementFromPoint``
+    must return the element or one of its parts, or the point must be inside its bounds when another process covers
+    it, e.g. a locked console; results in ``hits``), so an off-centre tap's target is checked without input.
 
     Args:
         step: A step string.
@@ -284,6 +292,24 @@ def parse_step(step: str) -> dict:
         if "xy" in (result["selector"]["kind"], result["other"]["kind"]):
             raise ValueError(f"{verb} needs element selectors, not coordinates")
         result["name"] = name.strip()
+    elif shape == "size":
+        selector, sep, size = arg.rpartition("|")
+        match = re.fullmatch(r"(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)", size.strip())
+        if not sep or not match:
+            raise ValueError(f"bad {verb} {arg!r}; use <selector>|<width>x<height>")
+        result["selector"] = parse_selector(selector)
+        if result["selector"]["kind"] == "xy":
+            raise ValueError(f"{verb} needs an element selector, not coordinates")
+        result["width"], result["height"] = float(match.group(1)), float(match.group(2))
+    elif shape == "offset":
+        selector, sep, offset = arg.rpartition("|")
+        match = re.fullmatch(r"(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)", offset.replace(" ", ""))
+        if not sep or not match:
+            raise ValueError(f"bad {verb} {arg!r}; use <selector>|<dx>,<dy>")
+        result["selector"] = parse_selector(selector)
+        if result["selector"]["kind"] == "xy":
+            raise ValueError(f"{verb} needs an element selector, not coordinates")
+        result["dx"], result["dy"] = float(match.group(1)), float(match.group(2))
     elif shape == "status":
         body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
         selector, sep, status = body.partition("|")
