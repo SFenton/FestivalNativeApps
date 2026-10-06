@@ -101,7 +101,7 @@ Journeys (`uiwin` `assertstatus:id=fst.shell.artwork-background|<status>[@secs]`
 
 ## Validation (issue #277)
 
-2026-10-05, Debug x64 on the 3840×2160 300% host, re-checking #83 (work hidden behind dialogs) with `a11y_matrix.py --pages tools/windows/journeys/a11y-modal-motion.json --scan --tabs 12` (fixture) plus live launches without `--base-url`. Pages: `mm-first-run-backdrop` (Songs tour), `-static` (motion off or contrast), `-reduced` (in-app Reduce Motion), `mm-whats-new-backdrop`, `mm-first-run-shop-pulses` (Settings → Item Shop guide, Next twice, minimize and restore), `-static`/`-reduced`, and `mm-suggestions-scroll` (UIA `scrollto:` round trip). Axe.Windows reported 0 errors in every run (over 100 page × size × mode runs).
+2026-10-05, Debug x64 on the 3840×2160 300% host, re-checking #83 (work hidden behind dialogs) with `a11y_matrix.py --pages tools/windows/journeys/a11y-modal-motion.json --scan --tabs 12` (fixture) plus live launches without `--base-url`. Pages: `mm-first-run-backdrop` (Songs tour), `-static` (motion off or contrast), `-reduced` (in-app Reduce Motion), `mm-whats-new-backdrop`, `mm-first-run-shop-pulses` (Settings → Item Shop guide through all four slides, `shop-overview` to `shop-leaving-tomorrow`, each asserting `pulse=running pulse-slides=1`, then minimize (`held`) and restore (`running`) on the last), `-static`/`-reduced` (the same four slides `held`, still `held` after minimize and restore; added 2026-10-06 after design review), and `mm-suggestions-scroll` (UIA `scrollto:` round trip). Axe.Windows reported 0 errors in every run (over 100 page × size × mode runs).
 
 | Configuration | Result | Finding |
 |---|---|---|
