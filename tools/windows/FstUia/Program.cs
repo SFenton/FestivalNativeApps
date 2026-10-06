@@ -623,7 +623,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             Log($"ok {verb}:{arg}");
         }
         var result = Describe(window).AsObject();
-        foreach (var key in new[] { "focus", "scans", "aligned", "pinned" })
+        if (announcementHandler is not null)
+            response["announcements"] = new JsonArray([.. announcements.Select(a => (JsonNode)JsonValue.Create(a)!)]);
+        foreach (var key in new[] { "focus", "scans", "aligned", "pinned", "announcements" })
         {
             if (response[key] is not JsonArray collected) continue;
             response.Remove(key);
@@ -771,6 +773,15 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertpinned":
                 Pin(window, step, verb == "pin");
                 break;
+            case "listen":
+                Listen(window);
+                break;
+            case "assertannounced":
+                AssertAnnounced(step);
+                break;
+            case "assertannouncedcount":
+                AssertAnnouncedCount(step);
+                break;
             default:
                 throw new ArgumentException($"unknown step {verb}");
         }
@@ -856,7 +867,8 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>
     /// Waits until an element matching the selector reports the expected UIA <c>ItemStatus</c>. Off-screen and raw-view
     /// elements count (e.g. the decorative backdrop's state while the window is minimized). Unless the expected status is
-    /// <c>not-visible</c>, the window is brought to the front first (and every 2 s), since the backdrop pauses when covered.
+    /// <c>not-visible</c>, <c>=background</c> or a held Shop pulse (<c>pulse=held</c>), the window is brought to the front
+    /// first (and every 2 s), since the backdrop pauses when covered.
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector, the expected <c>status</c> and an optional timeout (default 5 s).</param>
@@ -875,9 +887,11 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         };
         rawView.Add(automation.PropertyLibrary.Element.ItemStatus);
         // The backdrop is occlusion-aware: asserting a visible state needs the window in front of other lanes' windows
-        // (a not-visible assertion, including a first-run demo's rotation=not-visible, must not restore a minimized window,
-        // and a rotation=background one must not reactivate a window that foreground:off deactivated).
-        var front = !expected.Contains("not-visible", StringComparison.Ordinal) && !expected.Contains("=background", StringComparison.Ordinal);
+        // (a not-visible assertion, including a first-run demo's rotation=not-visible or a held Shop pulse, must not
+        // restore a minimized window, and a rotation=background one must not reactivate a window that foreground:off
+        // deactivated).
+        var front = !expected.Contains("not-visible", StringComparison.Ordinal) && !expected.Contains("=background", StringComparison.Ordinal)
+            && !expected.Contains("pulse=held", StringComparison.Ordinal);
         var nextFront = DateTime.MinValue;
         while (true)
         {
@@ -924,6 +938,68 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             throw new InvalidOperationException("foreground:off could not move activation to the taskbar (locked console?)");
         if (Native.WindowsAbove(hwnd, window.Properties.ProcessId.Value) is { Count: > 0 } above)
             throw new InvalidOperationException("foreground:off left the window covered by " + string.Join(", ", above.Select(b => $"\"{b.Title}\"")));
+    }
+
+    /// <summary>UIA notification texts (what Narrator speaks) raised in the window since <c>listen:announcements</c>.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentQueue<string> announcements = new();
+
+    /// <summary>The window's notification subscription, or <see langword="null"/> before <c>listen</c>.</summary>
+    private FlaUI.Core.EventHandlers.NotificationEventHandlerBase? announcementHandler;
+
+    /// <summary>
+    /// Starts recording the window's UIA notification events (<c>RaiseNotificationEvent</c>: the app's screen-reader
+    /// announcements) for later <c>assertannounced</c> steps in the same <c>drive</c>.
+    /// </summary>
+    /// <param name="window">App window (its subtree includes dialogs hosted in the window's popups).</param>
+    private void Listen(Window window)
+    {
+        // WinUI raises notifications from peers whose UIA parent chain can stop short of the window (a UserControl's
+        // created peer inside a dialog popup), so a window-scoped subscription hears nothing: listen at the desktop and
+        // keep this process's notifications only.
+        if (announcementHandler is not null) return;
+        var processId = window.Properties.ProcessId.Value;
+        announcementHandler = automation.GetDesktop().RegisterNotificationEvent(FlaUI.Core.Definitions.TreeScope.Subtree,
+            (sender, _, _, text, _) =>
+            {
+                int? from = null;
+                try { from = sender?.Properties.ProcessId.ValueOrDefault; } catch (Exception) { /* sender gone */ }
+                if (from is null or 0 || from == processId) announcements.Enqueue(text ?? "");
+            });
+    }
+
+    /// <summary>
+    /// Waits until a recorded announcement equals the step's text (or matches it as a .NET regex when it starts with
+    /// <c>~</c>).
+    /// </summary>
+    /// <param name="step">Step with <c>text</c> and an optional timeout (default 5 s).</param>
+    /// <exception cref="InvalidOperationException">No <c>listen</c> step ran, or nothing matched by the timeout.</exception>
+    private void AssertAnnounced(JsonObject step)
+    {
+        if (announcementHandler is null) throw new InvalidOperationException("assertannounced needs an earlier listen:announcements step in the same drive");
+        var expected = (string)step["text"]!;
+        var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        while (!announcements.Any(a => StatusMatches(a, expected)))
+        {
+            if (DateTime.UtcNow > until)
+                throw new InvalidOperationException($"no announcement \"{expected}\"; heard [{string.Join(" | ", announcements)}]");
+            Thread.Sleep(100);
+        }
+    }
+
+    /// <summary>
+    /// Fails unless exactly the step's count of recorded announcements match its text (exact, or a <c>~</c> regex) so far,
+    /// e.g. a value spoken once and not repeated by later reads.
+    /// </summary>
+    /// <param name="step">Step with <c>count</c> and <c>text</c>.</param>
+    /// <exception cref="InvalidOperationException">No <c>listen</c> step ran, or the count differs.</exception>
+    private void AssertAnnouncedCount(JsonObject step)
+    {
+        if (announcementHandler is null) throw new InvalidOperationException("assertannouncedcount needs an earlier listen:announcements step in the same drive");
+        var expected = (string)step["text"]!;
+        var count = (int)step["count"]!;
+        var heard = announcements.Count(a => StatusMatches(a, expected));
+        if (heard != count)
+            throw new InvalidOperationException($"announcement \"{expected}\" heard {heard} time(s), expected {count}; heard [{string.Join(" | ", announcements)}]");
     }
 
     /// <summary>Whether an ItemStatus equals the expected text, or matches it as a regex when it starts with <c>~</c>.</summary>

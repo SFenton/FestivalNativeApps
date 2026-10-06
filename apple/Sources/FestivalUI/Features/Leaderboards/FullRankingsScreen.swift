@@ -42,6 +42,9 @@ struct FullRankingsScreen: View {
     /// Height of the rows' bottom fade: the full 36 pt until the last row arrives
     /// above the chrome, then shrinking to nothing (Song Leaderboard, issue #293).
     @State private var bottomFadeDistance = ScrollEdgeFade.distance
+    /// The pinned footer jumped to the player's page: bring their row into view once
+    /// that page is shown (leaderboard-row R7, issue #318).
+    @State private var focusPending = false
     @Environment(\.deviceLayout) private var layout
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
@@ -51,6 +54,13 @@ struct FullRankingsScreen: View {
     nonisolated private static let pageSpace = "fst.full-rankings.page"
     /// Space between two rows, and between the last row and the pinned chrome.
     nonisolated private static let rowGap: CGFloat = 6
+
+    /// Identity of a pending selected-row reveal: re-runs when the request or the
+    /// shown rows change.
+    private struct FocusRequest: Equatable {
+        let pending: Bool
+        let rows: String?
+    }
 
     private struct SpotlightKey: Equatable {
         let instrument: Instrument
@@ -140,6 +150,7 @@ struct FullRankingsScreen: View {
                     Task { await load() }
                 }
             case let .loaded(payload):
+                ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: Self.rowGap) {
                         RankingsPageTitle(instrument: instrument, title: Self.title(for: instrument), style: .header)
@@ -185,6 +196,21 @@ struct FullRankingsScreen: View {
                 .bottomChromeFade(
                     chromeTop: chromeTop, distance: $bottomFadeDistance, in: Self.pageSpace
                 )
+                // Jumped here from the pinned footer: scroll the player's row into view
+                // once the page is shown, as Song Leaderboard does (R7, issue #318).
+                .task(id: FocusRequest(pending: focusPending, rows: rowsKey(payload))) {
+                    guard focusPending else { return }
+                    guard let target = payload.rankings.entries.first(where: {
+                        isSelectedAccount($0.accountId)
+                    }) else {
+                        focusPending = false
+                        return
+                    }
+                    if await SelectedRowReveal.reveal(target.id, proxy: proxy, reduceMotion: reduceMotion) {
+                        focusPending = false
+                    }
+                }
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -205,7 +231,7 @@ struct FullRankingsScreen: View {
         )
         .coordinateSpace(.named(Self.pageSpace))
         .festivalBackground(.carousel, session: session)
-        .navigationTitle(Self.title(for: instrument))
+        .festivalNavigationTitle(Self.title(for: instrument))
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: showsPinnedTitle)
         // Mac: View › Rank By and View › Instrument mirror the toolbar menus.
         .macRankByCommands($rankBy)
@@ -268,6 +294,7 @@ struct FullRankingsScreen: View {
     /// Start a new board on page 1 without the previous board's counts or rows.
     private func resetBoard() {
         page = 1
+        focusPending = false
         board = nil
         shownEntries = nil
     }
@@ -334,7 +361,7 @@ struct FullRankingsScreen: View {
     /// Whether a spotlight placement draws a row in the pinned footer.
     ///
     /// - Parameter placement: The selected player's placement, nil without one.
-    /// - Returns: True for the pending, unranked and off-page footer rows.
+    /// - Returns: True for the pending, unranked and player footer rows.
     private static func showsFooter(_ placement: RankingSpotlightPlacement?) -> Bool {
         switch placement {
         case .pending, .unranked, .footer: return true
@@ -353,7 +380,7 @@ struct FullRankingsScreen: View {
         return selected.caseInsensitiveCompare(accountId) == .orderedSame
     }
 
-    /// Where the selected player's own row goes for the current page.
+    /// The selected player's pinned footer for the current page.
     ///
     /// - Parameter entries: Current page's loaded rows.
     /// - Returns: The spotlight placement, or nil without a selected player.
@@ -366,9 +393,18 @@ struct FullRankingsScreen: View {
             case .failed: return .notLoaded
             }
         }()
-        return RankingSpotlight.placement(
+        // Pinned on every page, the player's own page included (issue #318).
+        return RankingSpotlight.pinnedFooter(
             selectedAccountId: accountId, visibleEntries: entries, source: source
         )
+    }
+
+    /// Identity of a loaded page's rows (page and first row), for the reveal task.
+    ///
+    /// - Parameter payload: The loaded page.
+    /// - Returns: A key that changes when other rows are shown.
+    private func rowsKey(_ payload: RankingsPayload) -> String {
+        "\(page):\(payload.rankings.entries.first?.accountId ?? "")"
     }
 
     /// One rank and rating width for the page's rows and the pinned footer row (web
@@ -398,13 +434,16 @@ struct FullRankingsScreen: View {
         }
     }
 
-    /// Show the selected player's own row below the current page when they are not
-    /// visible on it, with a jump control that moves straight to their page — a
-    /// native addition beyond the web client, whose equivalent footer
-    /// (`FullRankingsPage.tsx:531-552`) only links to the player's profile, since a
-    /// paginated native `List` can usefully re-page itself instead.
+    /// The selected player's own row, pinned above the pager on every page, including
+    /// the page whose rows already show it, as on Song Leaderboard (web
+    /// `FullRankingsPage`'s player footer; leaderboard-row R5, issue #318).
     ///
-    /// - Parameter entries: Current page's loaded rows.
+    /// The row is drawn like the page's rows (same row component, highlight and
+    /// columns). Tapping it follows the shared selected-row rule (R7,
+    /// ``SelectedRowAction``): off this page it jumps to the player's page and brings
+    /// their row into view; on it, it opens Statistics (web `getPlayerProfileRoute`).
+    ///
+    /// - Parameter entries: Last loaded page's rows.
     @ViewBuilder
     private func spotlightFooter(entries: [AccountRankingEntry]) -> some View {
         if let placement = spotlightPlacement(entries: entries) {
@@ -434,26 +473,53 @@ struct FullRankingsScreen: View {
                     .padding(.horizontal, 16)
                     .accessibilityIdentifier("fst.full-rankings.spotlight-footer.unranked")
             case let .footer(entry):
-                HStack(spacing: 8) {
-                    AccountRankingRow(entry: entry, metric: rankBy, isSelected: true, cardSurface: true)
-                    Button {
-                        page = LeaderboardPaging.page(forRank: entry.rank(for: rankBy), pageSize: 25)
-                    } label: {
-                        Image(systemName: "arrow.forward.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(BrandTokens.accentPurple)
-                            .frame(minWidth: 44, minHeight: 44)
-                            .contentShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Jump to your page")
-                    .accessibilityIdentifier("fst.full-rankings.spotlight-jump")
-                }
-                .padding(.horizontal, 16)
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("fst.full-rankings.spotlight-footer")
+                selectedRowFooter(entry)
             }
         }
+    }
+
+    /// The pinned row as a button or link chosen by ``SelectedRowAction``.
+    ///
+    /// - Parameter entry: The selected player's row on this board.
+    private func selectedRowFooter(_ entry: AccountRankingEntry) -> some View {
+        let rank = entry.rank(for: rankBy)
+        // While the next page loads, its rank decides, so the footer keeps its
+        // place and action (issue #93).
+        let loadedRows: [String]? = if case let .loaded(payload) = state {
+            payload.rankings.entries.map(\.accountId)
+        } else {
+            nil
+        }
+        let isVisible = LeaderboardPaging.isSelectedOnPage(
+            accountId: entry.accountId, rank: rank, page: page, pageSize: 25, entries: loadedRows
+        )
+        let action = SelectedRowAction.footer(rank: rank, isVisible: isVisible, pageSize: 25)
+        let row = AccountRankingRow(
+            entry: entry, metric: rankBy, isSelected: true, cardSurface: true, opensProfile: false
+        )
+        .modifier(PinnedFooterBacking())
+        .contentShape(Rectangle())
+        return Group {
+            switch action {
+            case .openProfile:
+                NavigationLink(value: AppRoute.statistics) { row }
+                    .accessibilityLabel(action.footerLabel(for: .player, rank: rank))
+                    .accessibilityIdentifier("fst.full-rankings.spotlight-open")
+            case let .jump(destination):
+                Button {
+                    focusPending = true
+                    page = destination
+                } label: {
+                    row
+                }
+                .accessibilityLabel(action.footerLabel(for: .player, rank: rank))
+                .accessibilityIdentifier("fst.full-rankings.spotlight-jump")
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("fst.full-rankings.spotlight-footer")
     }
 
     /// Read the selected player's own row on this instrument's board.

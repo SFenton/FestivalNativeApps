@@ -270,6 +270,16 @@ enum IPadAuditWaivers {
             evidence: "Under the modal drawer panel and absent from the accessibility snapshot",
             anyMeasuredElement: true, excludedTypes: systemFields, requiresOutsideTree: true
         ),
+        // (b) "Element has no description" for an element absent from the accessibility
+        // snapshot: decoration hidden from assistive technologies that the audit still
+        // enumerates (the full-screen backdrop cover behind Song Detail, an unlabelled
+        // Image with `accessibilityHidden(true)` on it and its canvas; Lane A11Y3).
+        Waiver(
+            id: "description-outside-tree", kind: .falsePositive, auditType: .sufficientElementDescription,
+            reason: "no description", elementTypes: [.image],
+            evidence: "Unlabelled image absent from the accessibility snapshot (hidden decoration)",
+            requiresOutsideTree: true
+        ),
         // (c) The search field's own clear button (UIKit, 20.5 pt): the field itself is
         // the 44 pt target, and Clear is also reachable by selecting and deleting.
         Waiver(

@@ -13,7 +13,8 @@ Journey file shape::
       "preset": "medium", "steps": ["waitfor:id=fst.player-bands.title@10", "..."]}]
 
 ``{shots}`` in a step or an ``extra`` value expands to the ``--shots`` directory (Windows path), so journeys can
-share a ``FST_DEBUG_DATA_DIR`` across relaunches (e.g. a dismissal persisting). An optional
+share a ``FST_DEBUG_DATA_DIR`` across relaunches (e.g. a dismissal persisting); ``{repo}`` in an ``extra`` value
+expands to the repository root (e.g. ``FST_DEBUG_WHATS_NEW_FILE`` pointing at a checked-in fixture). An optional
 ``"extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Name"}`` passes launch environment hooks,
 ``"args": ["--reduce-motion"]`` extra app arguments, and an optional ``"fixture": ["--band-rankings", "empty"]``
 runs that journey against its own fixture service with those flags (``rivals_fixture.py`` unless ``--fixture``).
@@ -117,7 +118,20 @@ def launch_args(journey: dict, port: int, shots: Path) -> list[str]:
             "--arg=--base-url", f"--arg=http://127.0.0.1:{port}/",
             "--preset", journey.get("preset", "medium"),
             *(f"--arg={arg}" for arg in journey.get("args", [])),
-            *(f"--extra={key}={str(value).replace('{shots}', str(shots))}" for key, value in journey.get("extra", {}).items())]
+            *(f"--extra={key}={expand(str(value), shots)}" for key, value in journey.get("extra", {}).items())]
+
+
+def expand(value: str, shots: Path) -> str:
+    """Expands ``{shots}`` (the screenshot directory) and ``{repo}`` (the repository root) in a launch hook value.
+
+    Args:
+        value: ``extra`` value from a journey.
+        shots: Screenshot directory.
+
+    Returns:
+        The value with both placeholders replaced.
+    """
+    return value.replace("{shots}", str(shots)).replace("{repo}", str(REPO_ROOT))
 
 
 def run_journey(journey: dict, port: int, shots: Path) -> tuple[bool, str]:

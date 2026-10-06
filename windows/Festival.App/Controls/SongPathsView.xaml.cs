@@ -106,9 +106,10 @@ public sealed partial class SongPathsView : UserControl
             paths.DismissWarning(await FestivalDialog.ShowAsync(notice) == ContentDialogResult.Secondary);
         }
         // Near full-window at compact sizes (the chart fills the sheet); never wider than the window. The content gets
-        // the width explicitly: a dialog sizes to its content, and the layout picks its selectors from that width.
+        // the width explicitly: a dialog sizes to its content, and the layout picks its selectors from that width. The
+        // content box is the dialog less its padding and border; a view wider than it is clipped on the right (#269).
         var dialogWidth = Math.Max(320, Math.Min(1200, xamlRoot.Size.Width - 24));
-        var view = new SongPathsView(paths) { Width = dialogWidth - 48 };
+        var view = new SongPathsView(paths) { Width = dialogWidth - DialogChromeWidth() };
         var dialog = FestivalDialog.Create(xamlRoot, title, view, "fst.paths");
         dialog.FullSizeDesired = true;
         dialog.Resources["ContentDialogMaxWidth"] = dialogWidth;
@@ -125,6 +126,17 @@ public sealed partial class SongPathsView : UserControl
             view.Detach();
             paths.Close();
         }
+    }
+
+    /// <summary>The ContentDialog's horizontal chrome: its theme padding plus border, both sides (24 + 1 each by default).</summary>
+    /// <returns>The width, in epx, the dialog takes from its content box.</returns>
+    private static double DialogChromeWidth()
+    {
+        static Thickness Lookup(string key, double fallback) =>
+            Application.Current.Resources.TryGetValue(key, out var value) && value is Thickness thickness ? thickness : new Thickness(fallback);
+        var padding = Lookup("ContentDialogPadding", 24);
+        var border = Lookup("ContentDialogBorderWidth", 1);
+        return padding.Left + padding.Right + border.Left + border.Right;
     }
     #endregion
 

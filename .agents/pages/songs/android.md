@@ -33,7 +33,7 @@
 
 ## Tests
 
-`core/songs/SongsCoreTest` (filters, pipeline pauses, sort, drafts, chips, metadata, projection), `core/songs/SongsParityTest` (profile sorts, buckets, invalid-score variants, population tiers, warnings, pulses), `data/songs/SongsDataTest`, `presentation/songs/SongsViewModelTest`, `ui/ShellUiTest`, `ui/songs/SongsUiTest.anonymousFilterOffersOnlyGeneralFilters` (no-profile General-only sheet, Double Bass, Year, Duration), `ui/search/GlobalSearchUiTest.songsFilterIsPinnedInlineWhileSortAndFilterStayInTheBottomToolbar` (phone, issue #309: the filter sits outside the toolbar and the top bar, keeps its bounds while scrolled, filters as you type, the Search key dismisses the keyboard, Clear; global search stays in the top bar), `ui/songs/SongsParityUiTest` (Quick Links sheet/menu, profile sorts, invalid-score alert → Settings, Over CHOpt Threshold, leaderboard leeway, band links), `ui/songs/SongsDrawUiTest` (native-graphics pulses/badges/Paths image). Fixture screenshot: `android/reports/screenshots/songs-player-phone.png` (mock service, `fixture-player-1`).
+`core/songs/SongsCoreTest` (filters, pipeline pauses, sort, drafts, chips, metadata, projection), `core/songs/SongsParityTest` (profile sorts, buckets, invalid-score variants, population tiers, warnings, pulses), `data/songs/SongsDataTest`, `presentation/songs/SongsViewModelTest`, `ui/ShellUiTest`, `ui/songs/SongsUiTest.anonymousFilterOffersOnlyGeneralFilters` (no-profile General-only sheet, Double Bass, Year, Duration), `ui/search/GlobalSearchUiTest.songsFilterIsPinnedInlineWhileSortAndFilterStayInTheBottomToolbar` (phone, issue #309: the filter sits outside the toolbar and the top bar, keeps its bounds while scrolled, filters as you type, the Search key dismisses the keyboard, Clear; global search stays in the top bar), `ui/songs/SongsParityUiTest` (Quick Links sheet/menu, profile sorts, invalid-score alert → Settings, Over CHOpt Threshold, leaderboard leeway, band links), `ui/songs/SongsDrawUiTest` (native-graphics pulses/badges/Paths image), `ui/songs/SongsBucketHeaderDrawUiTest` (issue #189, native graphics: Duration/Year/Item Shop/Score/Percentile/Stars bucket headers draw no backing at rest or pinned, and no row shows behind a pinned title; fixture `testing/BucketHeaderFixtures`, shared with androidTest), connected `songs/SongsBucketHeaderDeviceTest` (the same check on a device, plus ATF, font scale 2.0 without overflow and a Quick Links jump). Fixture screenshot: `android/reports/screenshots/songs-player-phone.png` (mock service, `fixture-player-1`).
 
 Issue #101 large-text/inset tests (`settings/SettingsUiTest.kt`): `LargeTextNotificationsBadgeUiTest`, `LargeTextPermanentDrawerUiTest`, `LargeTextRailProfileUiTest`, `SongsSearchPlaceholderUiTest` (native graphics, so text really wraps), plus `ui/common/PaneInsetsTest` and `core/NavigationPolicyTest` (drawer width, cutout-aware list pane).
 
@@ -99,6 +99,28 @@ The pinned search field's node is 32–42 px shorter in the scrolled tree only b
 Tests: `ui/PinnedPageControlsUiTest` (compact Songs and Suggestions pinned/restored with sheets opened while scrolled, reduced motion, screen reader incl. `songsToolbarIsReadAfterTheTopBarAndBeforeTheRows`, medium and expanded top-bar tools with Quick Links jumping while scrolled, `OverflowPinnedPageControlsUiTest` for the narrow list pane's ⋮ path), `ui/TopBarActionsUiTest.overflowMenuClosesAfterTheActionsWindowCloses` and the connected `journeys/PinnedPageControlsDeviceTest` (`device.py test … --avd FST_Phone`, `--avd FST_Book_Fold --posture half`). Robolectric never moves window focus between popups, so overflow tests call `focusTopWindow()` after each popup or sheet opens and closes.
 
 **Superseded by issue #309:** the phone rows above that mention the toolbar search (minimizing to an icon, "Search songs" in the toolbar, `ReducedMotionPinnedToolbarUiTest`) describe the removed #84 placement. On phones the filter is now pinned inline like the tablet rows, and the toolbar holds Quick Links, Sort and Filter only. `PinnedPageControlsUiTest`, `GlobalSearchUiTest.songsFilterIsPinnedInlineWhileSortAndFilterStayInTheBottomToolbar` and `journeys/PinnedPageControlsDeviceTest` assert the new placement.
+
+## Validation (issue #189, 2026-10-06: transparent bucket headers from #91)
+
+Live public service, SFentonX selected, dark scheme, animator scale 0 (reduced motion) unless noted. Each configuration: pick the sort, screenshot at the top, swipe the list pane until a header pins, then screenshot and dump the UI tree. The check compares the trailing half of the pinned header's bounds between the two shots: the artwork background is static, so identical pixels mean no backing band and no row behind the title. On every configuration the max channel difference was 0–1. Material 3 skill guidance checked: typography "Title | L / M / S | Smaller headers, card titles" with "emphasized variants (higher weight)"; "Minimum touch target 48x48dp"; window size classes.
+
+| Configuration | Found | Result |
+|---|---|---|
+| FST_Phone portrait, fs 1.0 | Duration, Year, Item Shop: bare at rest and pinned; the dark area behind the header is the background artwork, identical at rest. Quick Links sheet jumps to a bucket | Pass |
+| FST_Phone portrait, fs 2.0 | Duration, Year: headers grow (48 dp → 66 dp) without clipping | Pass |
+| FST_Phone landscape | Year, Duration pinned in the list pane | Pass |
+| FST_Phone, animations on (scale 1) | Recording: the next header pushes the pinned one out with no band; rows fade under it | Pass |
+| FST_Phone, light system setting | App stays dark | Documented dark-only deviation |
+| FST_Tablet, fs 1.0/2.0 | Duration, Year, Item Shop pinned; Quick Links menu ("In Shop · Current", "Not In Shop"); one pane at 2.0 | Pass |
+| FST_Resizable compact / medium (800 dp) / expanded / desktop | Duration, Year pinned on every size | Pass |
+| FST_Book_Fold folded / half / unfolded | Sort sits behind ⋮ in the unfolded list pane; Duration, Year pinned | Pass |
+| FST_Passport_Fold folded / half / unfolded | As Book Fold. Half open: the Shop row's outline above the pinned header ends at its bottom edge (hard cut under Remove animations), never behind it | Pass |
+| FST_TriFold folded / partial / unfolded | Year, Item Shop pinned | Pass |
+| Score / Percentile / Stars (FST_Phone, Lead) | Score pins a bare "0+" header, Percentile "1%". SFentonX's Lead charts are all 6★, so Stars has one bucket and, as on the web, no headers. Multi-bucket Stars is covered by `SongsBucketHeaderDrawUiTest` | Pass |
+| TalkBack / semantics | Each bucket header is one 48 dp heading whose description is its label (the rows stay one stop each); ATF finds no errors | Pass |
+| Connected tests | `SongsBucketHeaderDeviceTest`, `PinnedHeaderEdgeFadeDeviceTest`, `SongsSectionIndexDeviceTest` on FST_Phone (11 tests); `SongsBucketHeaderDeviceTest` on FST_Tablet (3). The first tablet run sampled the background at the window edge, which is the permanent drawer there; the test now samples the list's own start padding, and still fails with the #91 band restored | All pass |
+
+No code change was needed. Deliberate deviations kept: dark scheme only; white bold Title Case bucket headers (repo rule, M3 emphasized Title) instead of a tonal surface subheader.
 
 ## Open
 

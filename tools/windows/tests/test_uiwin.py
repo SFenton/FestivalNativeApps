@@ -138,6 +138,30 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_listen_and_assertannounced(self):
+        # Issue #269: record the app's UIA notifications (what Narrator speaks), then wait for one.
+        self.assertEqual(u.parse_step("listen:Announcements"), {"verb": "listen", "arg": "announcements"})
+        step = u.parse_step("assertannounced:Loading Lead Hard path@5")
+        self.assertEqual((step["verb"], step["text"], step["timeout"]), ("assertannounced", "Loading Lead Hard path", 5.0))
+        self.assertNotIn("timeout", u.parse_step("assertannounced:Lead Hard path image loaded"))
+        regex = u.parse_step(r"assertannounced:~^Lead Expert path loaded, \d+ activations?$@2.5")
+        self.assertEqual((regex["text"], regex["timeout"]), (r"~^Lead Expert path loaded, \d+ activations?$", 2.5))
+        self.assertEqual(u.parse_step("assertannounced:mail@home")["text"], "mail@home")
+        for bad in ("listen:", "listen:focus", "assertannounced:", "assertannounced:@5"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_assertannouncedcount(self):
+        # Issue #275: a value announced once, not repeated by later reads.
+        step = u.parse_step("assertannouncedcount:1|Phase. 1,310 attempted this pass · 70 | x")
+        self.assertEqual((step["verb"], step["count"], step["text"]),
+                         ("assertannouncedcount", 1, "Phase. 1,310 attempted this pass · 70 | x"))
+        self.assertEqual(u.parse_step(r"assertannouncedcount:0|~^Loading")["count"], 0)
+        for bad in ("assertannouncedcount:", "assertannouncedcount:1", "assertannouncedcount:x|text",
+                    "assertannouncedcount:1|", "assertannouncedcount:-1|text"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_assertgap(self):
         step = u.parse_step("assertgap:id=fst.song-leaderboard.row.p-25|id=fst.song-leaderboard.page-first|4")
         self.assertEqual(step["verb"], "assertgap")

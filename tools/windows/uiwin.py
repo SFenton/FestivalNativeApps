@@ -108,7 +108,8 @@ STEP_VERBS = {
     "assertname": "setvalue", "assertaligned": "pair", "assertbelow": "pair", "assertlevel": "pair", "assertgap": "gap",
     "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state",
     "markspan": "span", "assertspan": "span", "film": "path", "filmstop": "path", "pin": "selector",
-    "assertpinned": "selector", "foreground": "onoff",
+    "assertpinned": "selector", "foreground": "onoff", "listen": "listen", "assertannounced": "announced",
+    "assertannouncedcount": "announcedcount",
 }
 
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text; ``scroll`` takes a rounded
@@ -218,7 +219,7 @@ def parse_step(step: str) -> dict:
     ``assertstatus:<sel>|<status>[@<seconds>]`` waits until the element's UIA ItemStatus equals
     ``<status>`` (or matches it as a .NET regex when it starts with ``~``; no ``;`` since steps split on it)
     (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``; a status containing
-    ``not-visible`` or ``=background`` is read without bringing the window to the front);
+    ``not-visible``, ``=background`` or ``pulse=held`` is read without bringing the window to the front);
     ``foreground:on`` activates the app window and ``foreground:off`` hands activation to the taskbar, leaving the window
     visible and uncovered but inactive (e.g. a first-run demo's ``rotation=background``; while the console is locked
     both send ``WM_ACTIVATE`` instead);
@@ -227,7 +228,12 @@ def parse_step(step: str) -> dict:
     ``IsSelected``: ``true``/``false``, e.g. a list's current item), ``scroll`` (UIA Scroll pattern vertical percent,
     rounded: ``0`` is a list back at its top) or ``name`` equals ``<value>``;
     ``pin:<sel>`` records the element's window-relative rectangle and ``assertpinned:<sel>`` (same selector, later in
-    the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls.
+    the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls;
+    ``listen:announcements`` starts recording the window's UIA notification events (the app's screen-reader
+    announcements, what Narrator speaks) and a later ``assertannounced:<text>[@<seconds>]`` in the same ``drive`` waits
+    (default 5 s) until one equals ``<text>`` (or matches it as a .NET regex when it starts with ``~``);
+    ``assertannouncedcount:<n>|<text>`` fails unless exactly ``<n>`` recorded announcements match ``<text>`` so far
+    (no wait), e.g. a value announced once and not repeated on later reads.
 
     Args:
         step: A step string.
@@ -348,6 +354,22 @@ def parse_step(step: str) -> dict:
         if arg.lower() not in ("on", "off"):
             raise ValueError(f"bad {verb} {arg!r}; use on or off")
         result["arg"] = arg.lower()
+    elif shape == "listen":
+        if arg.lower() != "announcements":
+            raise ValueError(f"bad listen {arg!r}; use listen:announcements")
+        result["arg"] = "announcements"
+    elif shape == "announced":
+        text, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
+        if not text.strip():
+            raise ValueError(f"bad assertannounced {arg!r}; use <text>[@<seconds>]")
+        result["text"] = text.strip()
+        if wait:
+            result["timeout"] = float(wait)
+    elif shape == "announcedcount":
+        count, _, text = arg.partition("|")
+        if not re.fullmatch(r"\d+", count.strip()) or not text.strip():
+            raise ValueError(f"bad assertannouncedcount {arg!r}; use <count>|<text>")
+        result["count"], result["text"] = int(count), text.strip()
     elif shape == "path" and verb == "shot" and arg.endswith("@screen"):
         result["arg"], result["mode"] = arg[: -len("@screen")], "screen"
     elif shape == "preset":

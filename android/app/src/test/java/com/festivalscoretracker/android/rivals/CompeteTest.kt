@@ -459,6 +459,68 @@ class CompeteUiTest {
         assertTrue("Compete moved on return: $before -> ${positions.distinct()}", positions.all { it == before })
     }
 
+    /**
+     * Web `CompetePage` has no Leaderboards Overview link (issue #66, revalidated in #174): Quick
+     * Links list only the two groups, no Compete card names an overview, and each
+     * single-instrument board's View Full Leaderboards opens that instrument's Full Rankings.
+     * Combo boards offer no full-board path.
+     */
+    @Test
+    fun competeHasNoOverviewButtonAndEachBoardOpensItsFullRankings() {
+        launch(DebugLaunch(section = FestivalSection.Compete, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true))
+        waitForTag("fst.compete.leaderboard-card.0f")
+        val overview = SemanticsMatcher("names an overview") { node ->
+            val config = node.config
+            val words = config.getOrElse(SemanticsProperties.Text) { emptyList() }.map { it.text } +
+                config.getOrElse(SemanticsProperties.ContentDescription) { emptyList() } +
+                config.getOrElse(SemanticsProperties.TestTag) { "" }
+            words.any { it.contains("overview", ignoreCase = true) }
+        }
+        fun assertNoOverview(where: String) =
+            assertTrue("Overview control on Compete ($where)", rule.onAllNodes(overview, useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+
+        rule.onNodeWithTag("fst.quick-links.open").performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.quick-links.item.leaderboards")
+        val quickLinkItems = rule.onAllNodes(SemanticsMatcher("quick link item") { node ->
+            node.config.getOrElse(SemanticsProperties.TestTag) { "" }.startsWith("fst.quick-links.item.")
+        }).fetchSemanticsNodes().map { it.config[SemanticsProperties.TestTag] }.toSet()
+        assertEquals(setOf("fst.quick-links.item.leaderboards", "fst.quick-links.item.rivals"), quickLinkItems)
+        assertNoOverview("Quick Links")
+        rule.onNodeWithTag("fst.quick-links.item.leaderboards").performSemanticsAction(SemanticsActions.OnClick)
+        repeat(5) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100)); rule.waitForIdle() }
+
+        CompeteScopes.resolve(Instrument.entries).forEach { scope ->
+            val card = "fst.compete.leaderboard-card.${scope.key}"
+            val button = hasTestTag("fst.compete.view-full-leaderboards").and(hasAnyAncestor(hasTestTag(card)))
+            val single = (scope as? CompeteScope.Single)?.instrument
+            if (single == null) {
+                // Combo boards stay previews: no native full combo board yet.
+                rule.waitUntil(10_000) {
+                    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
+                    rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag(card))
+                    rule.onAllNodesWithTag("$card.loading").fetchSemanticsNodes().isEmpty()
+                }
+                assertNoOverview(scope.key)
+                assertTrue("${scope.key} offers a full board", rule.onAllNodes(button).fetchSemanticsNodes().isEmpty())
+                assertTrue("${scope.key} offers See All", rule.onAllNodesWithTag("fst.compete.board.see-all.${scope.key}").fetchSemanticsNodes().isEmpty())
+                return@forEach
+            }
+            awaitInCard(card, button)
+            rule.onNodeWithTag("fst.compete.grid").performScrollToNode(button)
+            assertNoOverview(scope.key)
+            rule.onNode(button).performSemanticsAction(SemanticsActions.OnClick)
+            waitForTag("fst.full-rankings.title-icon.${single.wireId}")
+            rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
+            waitForTag("fst.compete.grid")
+        }
+
+        rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag("fst.compete.section.rivals"))
+        CompeteScopes.resolve(Instrument.entries).forEach { scope ->
+            rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag("fst.compete.rivals-card.${scope.key}"))
+            assertNoOverview("rivals ${scope.key}")
+        }
+    }
+
     @Test
     fun emptyRivalsCardShowsWebCopy() {
         launch(DebugLaunch(route = CompeteRoute, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true))
