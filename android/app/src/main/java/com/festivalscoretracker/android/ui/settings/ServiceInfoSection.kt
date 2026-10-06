@@ -42,12 +42,14 @@ import com.festivalscoretracker.android.core.serviceinfo.ServiceInfoText
 import com.festivalscoretracker.android.core.serviceinfo.ServiceProcessState
 import com.festivalscoretracker.android.presentation.settings.ServiceInfoPoller
 import com.festivalscoretracker.android.ui.common.FestivalLoading
-import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 
 // region Section
+
+/** Web `.progressTrack` height (0.65rem ≈ 10 px); iOS draws the same 10 pt capsule. */
+internal val SERVICE_PROGRESS_BAR_HEIGHT = 10.dp
 
 /**
  * Settings "Service Info" card (web `SettingsServiceProgressCard`, Apple
@@ -100,37 +102,17 @@ internal fun ServiceInfoSection(poller: ServiceInfoPoller) {
 // region Rows
 
 /**
- * "Leaderboard Service State" with its description and the trailing process state, like the
- * other Settings value rows. At large font scales ([isLargeText]) the process state stacks under
- * the label so the title is never squeezed into a narrow column beside "Updating" and the spinner.
+ * "Leaderboard Service State" with its description and the trailing process state: the shared
+ * Settings value row (pattern `settings-value-row`), so "Updating" stacks under the description
+ * by the same fit rule as the Version values (issue #184).
  */
 @Composable
 private fun StateRow(rows: ServiceInfoRows) {
-    val modifier = Modifier
-        .fillMaxWidth()
-        .heightIn(min = 56.dp)
-        .padding(horizontal = 16.dp, vertical = 8.dp)
-        .testTag("fst.settings.service-info.state")
-        .semantics(mergeDescendants = true) {}
-    if (isLargeText()) {
-        Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            StateLabel(rows)
-            ProcessState(rows)
-        }
-    } else {
-        Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.weight(1f)) { StateLabel(rows) }
-            ProcessState(rows)
-        }
-    }
-}
-
-@Composable
-private fun StateLabel(rows: ServiceInfoRows) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(ServiceInfoText.SERVICE_STATE_TITLE, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodyLarge)
-        Text(rows.stateDescription, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodyMedium)
-    }
+    SettingsValueRow(
+        ServiceInfoText.SERVICE_STATE_TITLE,
+        tag = "fst.settings.service-info.state",
+        supporting = rows.stateDescription,
+    ) { ProcessState(rows) }
 }
 
 @Composable
@@ -164,7 +146,13 @@ private fun PhaseRow(title: String, rows: ServiceInfoRows) {
             .clearAndSetSemantics {
                 contentDescription = title
                 if (spoken.isNotEmpty()) stateDescription = spoken
-                rows.barPercent?.let { progressBarRangeInfo = ProgressBarRangeInfo((it / 100).toFloat(), 0f..1f) }
+                // Like the web's role="progressbar", the row stays a progress bar for TalkBack
+                // even when the total is unknown.
+                if (rows.showBar) {
+                    progressBarRangeInfo = rows.barPercent
+                        ?.let { ProgressBarRangeInfo((it / 100).toFloat(), 0f..1f) }
+                        ?: ProgressBarRangeInfo.Indeterminate
+                }
             },
     ) {
         Text(title, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodyLarge)
@@ -183,13 +171,14 @@ private fun PhaseRow(title: String, rows: ServiceInfoRows) {
 }
 
 /**
- * Web-style capsule bar: purple fill on a muted track. An unknown total shows Material's
- * indeterminate sweep (the web's looping shimmer), or the still empty track under reduced motion.
+ * Web-style capsule bar: purple fill on a muted track, as thick as the web's 0.65rem track
+ * (iOS draws 10 pt). An unknown total shows Material's indeterminate sweep (the web's looping
+ * shimmer), or the still empty track under reduced motion.
  */
 @Composable
 private fun ProgressBar(percent: Double?) {
     val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
-    val modifier = Modifier.fillMaxWidth().height(8.dp).testTag("fst.settings.service-info.bar")
+    val modifier = Modifier.fillMaxWidth().height(SERVICE_PROGRESS_BAR_HEIGHT).testTag("fst.settings.service-info.bar")
     when {
         percent != null -> {
             val shown by animateFloatAsState((percent / 100).toFloat(), if (reduceMotion) tween(0) else tween(180), label = "service-progress")
