@@ -36,6 +36,13 @@ struct PublicationRefreshBoundary<Content: View>: View {
     /// Readies page state for a generation before the page is rebuilt (for example,
     /// re-reading a `Song` from the new catalogue); nil when nothing needs preparing.
     let prepare: ((Int) async -> Void)?
+    /// Called in the update that reveals the rebuilt content, before it is built (for
+    /// example, to reopen a row stagger window), like ``FestivalReloadGate``'s `onReveal`.
+    let onReveal: (() -> Void)?
+    /// Whether the faded-out page stays mounted under the spinner. A page whose rows are a
+    /// UIKit-backed `List` passes false: `accessibilityHidden` does not reach those rows, so
+    /// VoiceOver could still read the old publication's rows under the spinner.
+    let retainsHiddenContent: Bool
     @ViewBuilder let content: () -> Content
 
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
@@ -55,17 +62,29 @@ struct PublicationRefreshBoundary<Content: View>: View {
 
     /// - Parameters:
     ///   - session: Shared app session whose publication revision is watched.
+    ///   - title: The page title when the page sets it outside the boundary (a root whose
+    ///     search field and toolbar stay outside, like Songs); a title published from
+    ///     inside with ``festivalNavigationTitle(_:)`` wins.
     ///   - prepare: Called with the new revision while the spinner is up.
+    ///   - retainsHiddenContent: Whether the faded-out page stays mounted under the
+    ///     spinner; pass false for a page with outside chrome whose rows are a `List`.
+    ///   - onReveal: Called in the update that reveals the rebuilt content.
     ///   - content: The page.
     init(
         session: FestivalSession,
+        title: String? = nil,
+        retainsHiddenContent: Bool = true,
         prepare: ((Int) async -> Void)? = nil,
+        onReveal: (() -> Void)? = nil,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.session = session
         self.prepare = prepare
+        self.onReveal = onReveal
+        self.retainsHiddenContent = retainsHiddenContent
         self.content = content
         _transition = State(initialValue: PublicationRefreshTransition(revision: session.publicationRevision))
+        _pageTitle = State(initialValue: title)
     }
 
     /// Identifies the running wait so a phase change restarts it.
@@ -77,12 +96,18 @@ struct PublicationRefreshBoundary<Content: View>: View {
 
     var body: some View {
         ZStack {
-            content()
-                .id(transition.generation)
-                .opacity(transition.showsContent ? 1 : 0)
-                .allowsHitTesting(transition.showsContent)
-                .accessibilityHidden(!transition.showsContent)
-                .transition(.asymmetric(insertion: .opacity, removal: .identity))
+            if mountsContent {
+                content()
+                    .id(transition.generation)
+                    .opacity(transition.showsContent ? 1 : 0)
+                    .allowsHitTesting(transition.showsContent)
+                    .accessibilityHidden(!transition.showsContent)
+                    .transition(.asymmetric(insertion: .opacity, removal: .identity))
+            } else {
+                Color.clear
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityHidden(true)
+            }
             if transition.showsSpinner {
                 FestivalLoadingView(accessibilityLabel: Self.loadingLabel)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -205,6 +230,12 @@ struct PublicationRefreshBoundary<Content: View>: View {
     // MARK: Motion
 
     /// System or in-app Reduce Motion.
+    /// Whether the page is in the tree: always when hidden content is retained, otherwise
+    /// only until its fade-out completes (it is rebuilt for the new generation anyway).
+    private var mountsContent: Bool {
+        retainsHiddenContent || transition.phase == .content || transition.phase == .contentOut
+    }
+
     private var reduceMotion: Bool { systemReduceMotion || appReduceMotion }
 
     /// Whether fades play.
@@ -238,6 +269,7 @@ struct PublicationRefreshBoundary<Content: View>: View {
         var next = transition
         change(&next)
         guard next != transition else { return }
+        let reveals = next.generation != transition.generation
         if next.isRefreshing && !transition.isRefreshing {
             if anchorsFocus {
                 // Read focus before the content is hidden: hiding it moves VoiceOver.
@@ -245,12 +277,16 @@ struct PublicationRefreshBoundary<Content: View>: View {
                 focus.refreshStarted(focusInPage: inside)
                 if inside { PublicationRefreshAnnouncer.gate.focusClaimed(for: next.targetRevision) }
             }
-        } else if next.generation != transition.generation {
+        } else if reveals {
             focus.contentRevealed()
         }
         if next.phase != transition.phase, let animation = animation(to: next.phase) {
-            withAnimation(animation) { transition = next }
+            withAnimation(animation) {
+                if reveals { onReveal?() }
+                transition = next
+            }
         } else {
+            if reveals { onReveal?() }
             transition = next
         }
     }

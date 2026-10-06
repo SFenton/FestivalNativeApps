@@ -45,6 +45,8 @@ struct SongsScreen: View {
     @State private var debugPushedSong: Song?
     /// When the catalogue first arrived; rows fade in only shortly after it.
     @State private var fadeLoadedAt: Date?
+    /// The publication revision the list has been prepared for (``preparePublication(_:)``).
+    @State private var shownRevision: Int
     @State private var quickLinks = QuickLinksController()
     /// Scroll-driven chrome state (scrolled away, passed section titles, section bar
     /// edge). Never read in `body`: only the section bar and row mask observe it, so
@@ -322,6 +324,7 @@ struct SongsScreen: View {
         self.isVisible = isVisible
         self.openShop = openShop
         _state = State(initialValue: initialState)
+        _shownRevision = State(initialValue: session.publicationRevision)
         _refreshFailure = State(initialValue: initialRefreshError)
         _searchText = searchText
         _settledSearch = settledSearch
@@ -348,16 +351,22 @@ struct SongsScreen: View {
                 .accessibilityIdentifier("fst.songs.navigation-notice")
             }
 
+            // A new publication refreshes the list in place (issue #304, load-transition
+            // R3/R8): the list fades out, the spinner holds while the new catalogue is
+            // read, and the rebuilt list fades in. The search field, page tools and title
+            // stay outside so they stay put and usable.
+            PublicationRefreshBoundary(
+                session: session, title: "Songs", retainsHiddenContent: false,
+                prepare: { revision in await preparePublication(revision) },
+                onReveal: revealList
+            ) {
             // Sort, filter, instrument and search changes fade the list out, show the
             // spinner (also while a search is typed ahead of its debounce) and stagger the
             // new list in (web `SongsPage` `settingsKey`, issue #71).
             FestivalReloadGate(
                 key: reloadKey, isLoading: state.isLoading || searchText != settledSearch,
                 spinnerLabel: "Loading songs",
-                onReveal: {
-                    fadeLoadedAt = .now
-                    scrollChrome.resetHeaders()
-                }
+                onReveal: revealList
             ) {
             switch state {
             case .loading:
@@ -456,6 +465,7 @@ struct SongsScreen: View {
             }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
         .festivalBackground(.carousel, session: session, visible: isVisible)
         .navigationTitle("Songs")
@@ -543,15 +553,19 @@ struct SongsScreen: View {
             }
         }
         #endif
+        // Keyed on the generation the list has prepared for, not the session's: a new
+        // publication is read by the refresh boundary's `prepare`, once the old list has
+        // faded out, so the fading list never draws new rows.
         .task(id: CatalogueTaskKey(
-            publicationRevision: session.publicationRevision, visible: isVisible
+            publicationRevision: shownRevision, visible: isVisible
         )) {
             guard isVisible else { return }
             switch state {
             case .loading, .failed:
                 await reload()
             case let .loaded(payload):
-                if let current = session.publicationId,
+                if shownRevision == session.publicationRevision,
+                   let current = session.publicationId,
                    payload.observedPublicationId != current {
                     await reload()
                 }
@@ -1555,8 +1569,32 @@ struct SongsScreen: View {
     private static let artworkPrimeCount = 12
     private static let artworkPrimeTimeout = Duration.milliseconds(900)
 
+    /// Reopen the row stagger window and reset the section headers as a new list is
+    /// revealed (a reload or a publication refresh).
+    private func revealList() {
+        fadeLoadedAt = .now
+        scrollChrome.resetHeaders()
+    }
+
+    /// Ready the list for a new publication while the refresh boundary hides it (issue
+    /// #304): read the new catalogue. A failed read keeps the old rows with their paused
+    /// notices (never an error page in their place), and the catalogue task retries when
+    /// Songs is next shown. Shop and selected-player reads restart on their own; the
+    /// publication guards keep them off rows from another publication.
+    ///
+    /// - Parameter revision: The session publication revision being prepared for.
+    private func preparePublication(_ revision: Int) async {
+        await reload(publicationRefresh: true)
+        guard !Task.isCancelled else { return }
+        shownRevision = revision
+    }
+
     /// Refresh the public catalogue, preserving the last-viewed process cache.
-    private func reload() async {
+    ///
+    /// - Parameter publicationRefresh: The list is hidden behind the publication refresh
+    ///   spinner: prime the first rows' artwork (the publication cleared it) and swap
+    ///   without animation.
+    private func reload(publicationRefresh: Bool = false) async {
         let prior: CatalogPayload?
         if case let .loaded(payload) = state {
             prior = payload
@@ -1567,12 +1605,12 @@ struct SongsScreen: View {
         do {
             let updated = try await session.catalog()
             try Task.checkCancellation()
-            if prior == nil {
+            if prior == nil || publicationRefresh {
                 await primeFirstArtwork(for: updated)
                 try Task.checkCancellation()
             }
             if prior == nil { fadeLoadedAt = .now }
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(publicationRefresh ? nil : .easeInOut(duration: 0.2)) {
                 state = .loaded(updated)
             }
             refreshFailure = nil

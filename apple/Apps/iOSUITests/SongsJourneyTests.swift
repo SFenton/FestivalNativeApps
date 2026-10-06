@@ -1616,6 +1616,79 @@ final class SongsJourneyTests: XCTestCase {
         ).firstMatch.exists)
     }
 
+    /// A live publication refresh while the Songs list itself is on screen refreshes the
+    /// list in place through the shared publication boundary (issue #304, load-transition
+    /// R3/R8): the list is hidden from VoiceOver behind the spinner while a page anchor
+    /// named "Songs" holds focus, the search field and page tools stay put, and the
+    /// rebuilt list returns with focus still on the anchor. No notice, no navigation.
+    ///
+    /// `FST_UI_TEST_PAGE_ANCHOR=inside` simulates VoiceOver focus in the list.
+    ///
+    /// - Throws: A missing or misnamed anchor, old rows left readable, lost page tools or
+    ///   a list that never returns.
+    @MainActor
+    func testLiveRolloverRefreshesSongsListInPlace() async throws {
+        continueAfterFailure = false
+        let app = SongsUITestSupport.fixtureApp()
+        // A fresh `--unpinned --rollover-on-command` listener (spent after one advance).
+        let port = ProcessInfo.processInfo.environment["FST_SONGS_ROLLOVER_FIXTURE_PORT"]
+            .flatMap(Int.init) ?? (UIDevice.current.userInterfaceIdiom == .pad ? 8786 : 8785)
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:\(port)"
+        app.launchEnvironment["FST_LIVE_PUBLICATION_UPDATES"] = "1"
+        app.launchEnvironment["FST_UI_TEST_PAGE_ANCHOR"] = "inside"
+        app.launch()
+        let row = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+        let anchor = app.descendants(matching: .any)["fst.publication.page-anchor"]
+        XCTAssertFalse(anchor.exists, "No page anchor before a refresh")
+
+        try await SongsUITestSupport.advanceFixturePublication(port: port)
+
+        let refreshed = anchor.waitForExistence(timeout: 45)
+        if !refreshed {
+            SongsUITestSupport.record(app, name: "songs-list-live-rollover-no-anchor")
+        }
+        XCTAssertTrue(refreshed, "The live loop refreshes the Songs list with no user action")
+        XCTAssertEqual(anchor.label, "Songs", "The anchor names the Songs page")
+        // Poll atomic trees for the spinner phase: under the spinner the old List rows are
+        // out of the accessibility tree, the anchor reads the loading state, and the page
+        // tools outside the list stay usable.
+        var spinnerTree: XCUIElementSnapshot?
+        let deadline = Date().addingTimeInterval(10)
+        while spinnerTree == nil, Date() < deadline {
+            let tree = try app.snapshot()
+            if Self.firstNode(in: tree, where: { $0.identifier == "fst.publication.refreshing" }) != nil {
+                spinnerTree = tree
+            }
+        }
+        let tree = try XCTUnwrap(spinnerTree, "The refresh shows the loading spinner")
+        XCTAssertEqual(
+            Self.firstNode(in: tree) { $0.identifier == "fst.publication.page-anchor" }?.value as? String,
+            "Loading new scores"
+        )
+        XCTAssertNil(
+            Self.firstNode(in: tree) { $0.identifier == "fst.songs.row.fixture-pulse" },
+            "Old rows are hidden from VoiceOver during the refresh"
+        )
+        XCTAssertNotNil(
+            Self.firstNode(in: tree) { $0.identifier == "fst.songs.sort" },
+            "Sort stays put outside the refreshed list"
+        )
+        let spinner = app.descendants(matching: .any)["fst.publication.refreshing"]
+        XCTAssertTrue(spinner.waitForNonExistence(timeout: 15), "The refresh spinner fades out")
+
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "The Songs list is rebuilt in place")
+        XCTAssertTrue(anchor.exists, "Focus is restored to the page anchor after the rebuild")
+        XCTAssertEqual(anchor.label, "Songs")
+        XCTAssertTrue((anchor.value as? String ?? "").isEmpty, "The loading value clears")
+        XCTAssertTrue(app.buttons["fst.songs.sort"].exists, "Page tools stayed")
+        XCTAssertFalse(app.descendants(matching: .any)["fst.songs.navigation-notice"].exists)
+        XCTAssertFalse(app.staticTexts.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Published scores changed.")
+        ).firstMatch.exists)
+        SongsUITestSupport.record(app, name: "songs-list-live-rollover-in-place")
+    }
+
     /// Keep old Songs unfiltered and unbadged when only new Shop/profile reads succeed.
     ///
     /// - Throws: Mixed-publication rows, false No Results or an unowned fixture response.
