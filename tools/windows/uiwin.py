@@ -219,7 +219,7 @@ def parse_step(step: str) -> dict:
     ``assertstatus:<sel>|<status>[@<seconds>]`` waits until the element's UIA ItemStatus equals
     ``<status>`` (or matches it as a .NET regex when it starts with ``~``; no ``;`` since steps split on it)
     (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``; a status containing
-    ``not-visible`` or ``=background`` is read without bringing the window to the front);
+    ``not-visible``, ``=background`` or ``pulse=held`` is read without bringing the window to the front);
     ``foreground:on`` activates the app window and ``foreground:off`` hands activation to the taskbar, leaving the window
     visible and uncovered but inactive (e.g. a first-run demo's ``rotation=background``; while the console is locked
     both send ``WM_ACTIVATE`` instead);

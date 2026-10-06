@@ -75,6 +75,25 @@ public class FirstRunDemoTests
     public void RotationStatus_AppendsTheRotationOnlyForRotatingDemos(FirstRunDemoRotationState state, int swaps, bool faded, string expected) =>
         Assert.Equal(expected, FirstRunDemoRotationStatus.Format(FirstRunDemos.CatalogueStatus, state, swaps, faded));
 
+    [Theory]
+    [InlineData(false, true, true, true, false, null)]
+    [InlineData(true, true, true, true, false, "running")]
+    [InlineData(true, false, true, true, false, "held")]
+    [InlineData(true, true, false, true, false, "held")]
+    [InlineData(true, true, true, false, false, "held")]
+    [InlineData(true, true, true, true, true, "held")]
+    public void PulseState_RunsOnlyOnTheVisibleSlideWithMotionInAVisibleWindow(bool hasPulses, bool active, bool loaded, bool motion, bool hidden, string? expected) =>
+        Assert.Equal(expected, FirstRunDemoRotationStatus.PulseState(hasPulses, active, loaded, motion, hidden));
+
+    [Theory]
+    [InlineData(FirstRunDemoRotationState.Static, null, 0, "catalogue")]
+    [InlineData(FirstRunDemoRotationState.Static, "running", 1, "catalogue pulse=running pulse-slides=1")]
+    [InlineData(FirstRunDemoRotationState.Static, "running", 2, "catalogue pulse=running pulse-slides=2")]
+    [InlineData(FirstRunDemoRotationState.Static, "held", 1, "catalogue pulse=held")]
+    [InlineData(FirstRunDemoRotationState.Running, "held", 0, "catalogue rotation=running swaps=0 swap=none pulse=held")]
+    public void RotationStatus_EndsWithThePulseTokenForPulseDemos(FirstRunDemoRotationState state, string? pulse, int slides, string expected) =>
+        Assert.Equal(expected, FirstRunDemoRotationStatus.Format(FirstRunDemos.CatalogueStatus, state, 0, false, pulse, slides));
+
     [Fact]
     public void SongPool_UsesCatalogueSongsWithArt_EpicGamesFirst_ElsePlaceholders()
     {

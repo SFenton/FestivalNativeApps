@@ -28,6 +28,9 @@ public sealed partial class FirstRunDemo : UserControl
 
     private static readonly string[] Letters = ["#", "A", "B", "C", "D", "E", "F"];
 
+    /// <summary>Realized demos whose Shop pulses run now (UI thread only): the <c>pulse-slides</c> census for UI tests.</summary>
+    private static readonly HashSet<FirstRunDemo> PulseDemos = [];
+
     private readonly StackPanel root = new() { Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
     private readonly List<FrameworkElement> slots = [];
     private readonly List<Action<int>> slotSetters = [];
@@ -80,6 +83,8 @@ public sealed partial class FirstRunDemo : UserControl
             timer?.Stop();
             CompleteSwaps();
             artLoads?.Cancel();
+            // Unloaded: no longer counted as a running pulse demo.
+            PublishStatus();
         };
     }
 
@@ -1106,11 +1111,27 @@ public sealed partial class FirstRunDemo : UserControl
     private FirstRunDemoRotationState RotationState =>
         FirstRunDemoRotationStatus.State(advance is not null, active, IsLoaded, Motion.Paused, Motion.Foreground);
 
-    /// <summary>Publishes the data and rotation state as the raw-view peer's ItemStatus for UI tests.</summary>
+    /// <summary>Publishes the data, rotation and Shop pulse state as the raw-view peer's ItemStatus for UI tests.</summary>
     private void PublishStatus()
     {
         if (kind is null) return;
-        AutomationProperties.SetItemStatus(this, FirstRunDemoRotationStatus.Format(FirstRunDemos.DataStatus(songs), RotationState, swaps, lastSwapFaded));
+        var running = CurrentPulse() == FirstRunDemoRotationStatus.PulseRunning;
+        // A changed census republishes every running demo's pulse-slides count; this one is published either way.
+        if (running ? PulseDemos.Add(this) : PulseDemos.Remove(this))
+            foreach (var demo in PulseDemos.Where(d => d != this)) demo.PublishOwnStatus();
+        PublishOwnStatus();
+    }
+
+    /// <summary>This demo's Shop pulse token (<see cref="FirstRunDemoRotationStatus.PulseState"/>).</summary>
+    /// <returns>Token, or <see langword="null"/> without pulses.</returns>
+    private string? CurrentPulse() =>
+        FirstRunDemoRotationStatus.PulseState(pulseRings.Count + pulseFills.Count > 0, active, IsLoaded, Motion.Allowed, Motion.Paused);
+
+    /// <summary>Sets this demo's ItemStatus from its current state without touching the census.</summary>
+    private void PublishOwnStatus()
+    {
+        if (kind is null) return;
+        AutomationProperties.SetItemStatus(this, FirstRunDemoRotationStatus.Format(FirstRunDemos.DataStatus(songs), RotationState, swaps, lastSwapFaded, CurrentPulse(), PulseDemos.Count));
     }
 
     /// <summary>Records one drawn data swap (a tick whose pool can't replace rows draws none).</summary>
