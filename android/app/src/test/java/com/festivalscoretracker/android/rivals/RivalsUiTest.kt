@@ -31,6 +31,7 @@ import com.festivalscoretracker.android.core.nav.RivalsRoute
 import com.festivalscoretracker.android.core.rivals.RivalRoutes
 import com.festivalscoretracker.android.core.rivals.RivalScope
 import com.festivalscoretracker.android.core.rivals.RivalScopes
+import com.festivalscoretracker.android.core.rivals.RivalText
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
@@ -146,6 +147,30 @@ class RivalsUiTest {
         rule.onAllNodesWithTag("fst.rivals.row.${ids[0]}")[0].performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.rival-detail.title")
         assertEquals(1, transport.sent("/api/player/${RivalsFixtures.PLAYER}/leaderboard-rivals/Solo_Guitar/${ids[0]}").size)
+    }
+
+    @Test
+    fun viewAllRivalsOpensEachCardsScopeList() {
+        launch(DebugLaunch(route = RivalsRoute, profile = player, stillBackground = true))
+        waitForTag("fst.rivals.section.Solo_Guitar")
+        // Issues #68/#176: every hub card ends with the shared purple button, which opens its own list.
+        val leadViewAll = hasTestTag("fst.rivals.view-all") and hasAnyAncestor(hasTestTag("fst.rivals.section.Solo_Guitar"))
+        rule.onNodeWithTag("fst.rivals.grid").performScrollToNode(leadViewAll)
+        settle(100)
+        rule.onNode(leadViewAll).assertIsDisplayed().assertTextEquals(RivalText.VIEW_ALL_RIVALS)
+        rule.onNode(leadViewAll).performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.all-rivals.list")
+        rule.onNode(hasText("Lead Rivals") and hasAnyAncestor(hasTestTag("fst.nav.top-bar"))).assertIsDisplayed()
+        rule.onNodeWithTag("fst.nav.back").performClick()
+        waitForTag("fst.rivals.tab.leaderboard")
+        rule.onNodeWithTag("fst.rivals.tab.leaderboard").performClick()
+        waitForTag("fst.rivals.section.leaderboard.Solo_Guitar")
+        val boardViewAll = hasTestTag("fst.rivals.view-all") and hasAnyAncestor(hasTestTag("fst.rivals.section.leaderboard.Solo_Guitar"))
+        rule.onNodeWithTag("fst.rivals.grid").performScrollToNode(boardViewAll)
+        settle(100)
+        rule.onNode(boardViewAll).assertIsDisplayed().assertTextEquals(RivalText.VIEW_ALL_RIVALS)
+        rule.onNode(boardViewAll).performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.all-rivals.list")
     }
 
     @Test

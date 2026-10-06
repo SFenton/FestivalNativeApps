@@ -423,6 +423,29 @@ class CompeteUiTest {
     }
 
     @Test
+    fun viewAllRivalsMatchesViewFullLeaderboardsAndOpensTheList() {
+        launch(DebugLaunch(route = CompeteRoute, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true))
+        val boardButton = hasTestTag("fst.compete.view-full-leaderboards").and(hasAnyAncestor(hasTestTag("fst.compete.leaderboard-card.Solo_Guitar")))
+        awaitInCard("fst.compete.leaderboard-card.Solo_Guitar", boardButton)
+        rule.onNodeWithTag("fst.compete.grid").performScrollToNode(boardButton)
+        val board = rule.onNode(boardButton).fetchSemanticsNode()
+        // Read now: the board card leaves composition once the grid scrolls to the rivals card.
+        val boardSize = board.size
+        val boardLeft = board.boundsInRoot.left
+        // Issues #68/#176: Compete's View All Rivals is the same shared button as View Full Leaderboards.
+        val rivalsButton = hasTestTag("fst.rivals.view-all").and(hasAnyAncestor(hasTestTag("fst.compete.rivals-card.Solo_Guitar")))
+        awaitInCard("fst.compete.rivals-card.Solo_Guitar", rivalsButton)
+        rule.onNodeWithTag("fst.compete.grid").performScrollToNode(rivalsButton)
+        val rivals = rule.onNode(rivalsButton).fetchSemanticsNode()
+        assertEquals(boardSize, rivals.size)
+        assertEquals(boardLeft, rivals.boundsInRoot.left)
+        assertEquals(androidx.compose.ui.semantics.Role.Button, rivals.config[SemanticsProperties.Role])
+        assertEquals(CompeteText.VIEW_ALL_RIVALS, rivals.config[SemanticsProperties.Text].joinToString())
+        rule.onNode(rivalsButton).performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.all-rivals.list")
+    }
+
+    @Test
     fun emptyRivalsCardShowsWebCopy() {
         launch(DebugLaunch(route = CompeteRoute, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true))
         waitForTag("fst.compete.leaderboard-card.0f")

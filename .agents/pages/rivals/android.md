@@ -46,7 +46,7 @@ Native correction: the web sends the Settings combo for **every** Song Rivals ro
 
 ## Tests
 
-`src/test/.../rivals/`: `RivalsCoreTest` (scopes, combos, common rivals, categories, formatting, columns, routes), `RivalsDataTest` (URLs, 404/503, live-fallback flag, cache), `RivalsViewModelTest`, `RivalsUiTest` (Robolectric: hub → detail → rivalry → song, See All, leaderboard tab, Find Rival, deep link, no player, freeze, unresolvable list). Fixture screenshots: `android/reports/screenshots/rivals-*.png` from `tools/windows/rivals_fixture.py` (anonymized names) with `FST_DEBUG_PROFILE=fixture-player-1:Demo Player`.
+`src/test/.../rivals/`: `RivalsCoreTest` (scopes, combos, common rivals, categories, formatting, columns, routes), `RivalsDataTest` (URLs, 404/503, live-fallback flag, cache), `RivalsViewModelTest`, `RivalsUiTest` (Robolectric: hub → detail → rivalry → song, See All, View All Rivals on both tabs (`viewAllRivalsOpensEachCardsScopeList`), leaderboard tab, Find Rival, deep link, no player, freeze, unresolvable list), `ViewAllRivalsButtonUiTest` (issue #176: View All Rivals and View Full Leaderboards share size, ≥ 48 dp height, `Role.Button` and the sampled `accentPurple` fill; both grow alike at font 2.0 without clipping, also in a 260 dp lane; no button without an action). Fixture screenshots: `android/reports/screenshots/rivals-*.png` from `tools/windows/rivals_fixture.py` (anonymized names) with `FST_DEBUG_PROFILE=fixture-player-1:Demo Player`.
 
 ## Validation (issue #107, 2026-10, live service, `SFentonX`)
 
@@ -66,6 +66,25 @@ Each AVD was driven with `fst_android.py device drive` (dark/light system theme:
 - **Targets/contrast:** every clickable is ≥ 48 dp (tree bounds); pill text 6.2–6.7:1 on its tinted background.
 - **Shell findings (not Rivals):** at font 2.0 the bell's unread badge overlaps the profile avatar in the top bar.
 - **M3 review:** primary tabs for top-level content switching, scrollable at large text; 12 dp glass cards and the shared purple buttons follow the repo's design tokens (repo rules win over M3 colour roles).
+
+## Validation (issue #176, 2026-10-05, live service, `SFentonX`): View All Rivals vs View Full Leaderboards
+
+Checked that every View All Rivals button (hub cards on both tabs, Compete Rivals cards) is the shared `ViewFullLeaderboardButton` (6.29) via `RivalPreviewRows`, and matches Compete's View Full Leaderboards. No code change was needed. Each configuration ran with `fst_android.py device drive` (one per drive, ≤ 300 s lock hold) and the bounds of `fst.rivals.view-all` / `fst.compete.view-full-leaderboards` were read from the UI tree. In every configuration both buttons were clickable, had the same width and left edge in the same column, used the same purple fill, had a white label inside the bounds, and were ≥ 48 dp tall.
+
+| Configuration | Columns | Button width × height (px) | Finding |
+|---|---|---|---|
+| FST_Phone portrait 1.0 / 2.0 / light system theme | 1 | 996 × 126 / 996 × 140 / 996 × 126 | Pass (app is dark-only, so the light theme is identical) |
+| FST_Phone landscape 1.0 / 2.0 | 2 / 1 | 1078 × 126 / 2198 × 140 | Pass. `swipe:up` uses portrait coordinates after `wm user-rotation lock 1`, so landscape drives need explicit `swipe:x1,y1,x2,y2` |
+| FST_Tablet natural (landscape) / rotated, 1.0 / 2.0 | 2 / 1 | 952 × 96 / 1344 × 96 / 1344 × 107 | Pass |
+| FST_Resizable phone / foldable / tablet / desktop / tablet 2.0 | 1 / 1 / 2 / 3 / 1 | 996 / 1872 / 714 / 526 (mdpi, 48 px) / 1332 | Pass |
+| FST_Book_Fold folded / unfolded / half 2.0 | 1 / 1 / 1 | 1002 × 117 / 1764 × 117 / 1764 × 131 | Pass. Folded: the floating Quick Links FAB overlaps the button's right end until you scroll (shell FAB behaviour, not this button) |
+| FST_Passport_Fold folded / unfolded 1.0 / 2.0 | 1 | 996 × 126 / 1872 × 126 / 1872 × 140 | Pass |
+| FST_TriFold folded / unfolded / partial 2.0 | 1 / 2 / 1 | 656 × 96 / 936 × 96 / 1184 × 107 | Pass |
+
+- **TalkBack** (`talkback_walk.py`, phone, live): each card reads heading → "See All: <card>. Button" → rows → "View All Rivals. Button", then the next card.
+- **Contrast/motion:** white SemiBold on `accentPurple` `#7C3AED` ≈ 5.7:1. With animator scale 0 the tap navigates without motion; with animations on the press shows the M3 ripple, then the standard route transition.
+- **M3 review** (material-3 skill, component catalog → Filled Button: "Primary action, highest emphasis", "Minimum touch target 48x48dp"): it is a filled M3 `Button` with `Role.Button` and a ≥ 48 dp target. Two deliberate deviations follow operator decision 6.29 / web parity: a 12 dp corner instead of M3's full-pill shape, and the brand `accentPurple` instead of the `primary` colour role.
+- **Tests:** `ViewAllRivalsButtonUiTest` (Robolectric), `RivalsUiTest.viewAllRivalsOpensEachCardsScopeList`, `CompeteUiTest.viewAllRivalsMatchesViewFullLeaderboardsAndOpensTheList`, connected `RivalsDeviceJourneyTest.viewAllRivalsIsATargetOffTheHingeAndOpensTheList` / `viewAllRivalsMatchesViewFullLeaderboardsWithRealFonts` (passed on FST_Phone and on FST_Book_Fold half-open).
 
 ## Open
 
