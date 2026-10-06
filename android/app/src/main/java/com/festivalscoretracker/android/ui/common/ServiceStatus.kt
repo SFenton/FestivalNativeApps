@@ -1,7 +1,13 @@
 package com.festivalscoretracker.android.ui.common
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,6 +21,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.HourglassTop
+import androidx.compose.material.icons.outlined.SearchOff
+import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.WarningAmber
+import androidx.compose.material.icons.outlined.WifiOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -23,7 +33,23 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.absolutePadding
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.isSpecified
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -33,8 +59,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.festivalscoretracker.android.core.nav.HingeSide
 import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 
 // region Formatting
 
@@ -45,6 +73,101 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  * @return Formatted text.
  */
 fun formatCountdown(seconds: Int): String = "${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}"
+
+/**
+ * Spoken countdown label (spec: "Trying again automatically in N seconds"), shared by the
+ * full page and inline rows so screen readers never hear the `m:ss` clock.
+ *
+ * @param seconds Remaining seconds.
+ * @return Accessible label.
+ */
+fun countdownLabel(seconds: Int): String = "Trying again automatically in $seconds seconds"
+
+// endregion
+
+// region Presentation rules
+
+/** Font scale at which an inline row stacks Retry under its text instead of beside it. */
+const val INLINE_STACK_FONT_SCALE = 1.5f
+
+/**
+ * Decorative icon for an issue; mirrors the iOS symbol set (sync, cloud alert, hourglass,
+ * search miss, Wi-Fi off, warning).
+ *
+ * @param issue Classified failure.
+ * @return Material outlined icon.
+ */
+fun serviceStatusIcon(issue: ServiceIssue): ImageVector = when (issue) {
+    is ServiceIssue.ScrapeInProgress -> Icons.Outlined.Sync
+    is ServiceIssue.Unavailable -> Icons.Outlined.CloudOff
+    ServiceIssue.Syncing -> Icons.Outlined.HourglassTop
+    ServiceIssue.NotFound -> Icons.Outlined.SearchOff
+    ServiceIssue.Offline -> Icons.Outlined.WifiOff
+    is ServiceIssue.Other -> Icons.Outlined.WarningAmber
+}
+
+/**
+ * Icon tint: gold while the page retries by itself (matching the gold countdown), primary text otherwise.
+ *
+ * @param issue Classified failure.
+ * @return Tint color.
+ */
+fun serviceStatusIconTint(issue: ServiceIssue): Color = if (issue.retriesAutomatically) BrandTokens.gold else BrandTokens.textPrimary
+
+/**
+ * Whether the full-page icon pulses: only while retrying automatically and never under
+ * Reduce Motion (system animator scale 0 or the in-app toggle).
+ *
+ * @param issue Classified failure.
+ * @param reduceMotion Effective reduce-motion preference.
+ * @return True to pulse.
+ */
+fun serviceStatusPulses(issue: ServiceIssue, reduceMotion: Boolean): Boolean = issue.retriesAutomatically && !reduceMotion
+
+/**
+ * Whether an inline row stacks Retry under its text: beside it at 200% type, a phone-width
+ * card left the heading a word or two per line.
+ *
+ * @param fontScale System font scale.
+ * @return True to stack.
+ */
+fun inlineStacks(fontScale: Float): Boolean = fontScale >= INLINE_STACK_FONT_SCALE
+
+/** Viewport height below which the full page drops its decorative icon (phone landscape is ~220 dp). */
+val COMPACT_STATUS_HEIGHT = 320.dp
+
+/**
+ * Whether the full page is in a short viewport, where the icon would push Retry below the fold.
+ *
+ * @param height Viewport height inside the shell's padding.
+ * @return True for the compact layout.
+ */
+fun isCompactStatusHeight(height: Dp): Boolean = height < COMPACT_STATUS_HEIGHT
+
+/**
+ * Padding (px) that keeps a full page of [width] × [height] off a separating hinge given in page
+ * coordinates: the shared [HingeSide] rule (book posture keeps the wider or leading side,
+ * tabletop the lower half), applied to the page rectangle. The page's own 16/24 dp inner padding
+ * is the gap beside the hinge.
+ *
+ * @param width Page width.
+ * @param height Page height.
+ * @param left Hinge left edge.
+ * @param top Hinge top edge.
+ * @param right Hinge right edge.
+ * @param bottom Hinge bottom edge.
+ * @param vertical The hinge runs top to bottom.
+ * @param rtl Right-to-left layout (leading side is on the right).
+ * @return Side padding; [HingeSide.Padding.NONE] when the hinge misses the page.
+ */
+fun serviceStatusHingeSide(width: Float, height: Float, left: Float, top: Float, right: Float, bottom: Float, vertical: Boolean, rtl: Boolean): HingeSide.Padding =
+    HingeSide.padding(
+        page = HingeSide.Rect(0f, 0f, width, height),
+        hinge = HingeSide.Rect(left, top, right, bottom),
+        vertical = vertical,
+        separating = true,
+        rtl = rtl,
+    )
 
 // endregion
 
@@ -69,24 +192,76 @@ fun ServiceStatusView(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
 ) {
-    Box(
-        modifier
-            .fillMaxSize()
-            .padding(contentPadding)
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        contentAlignment = Alignment.Center,
-    ) {
+    var origin by remember { mutableStateOf(Offset.Unspecified) }
+    BoxWithConstraints(modifier.fillMaxSize().padding(contentPadding).onGloballyPositioned { origin = it.positionInWindow() }) {
+        val side = rememberHingeSide(origin, constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
+        val density = LocalDensity.current
+        val compact = isCompactStatusHeight(maxHeight - with(density) { (side.top + side.bottom).toDp() })
+        Box(
+            Modifier
+                .fillMaxSize()
+                .then(with(density) { Modifier.absolutePadding(side.left.toDp(), side.top.toDp(), side.right.toDp(), side.bottom.toDp()) })
+                .verticalScroll(rememberScrollState())
+                .padding(if (compact) 16.dp else 24.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            ServiceStatusContent(issue, fallbackTitle, countdown, onRetry, compact)
+        }
+    }
+}
+
+/**
+ * Padding (px) that keeps the full page on one side of the window's separating hinge, if it
+ * crosses this page: Material 3 "Never place interactive content or critical information across
+ * the hinge area". The side is the shared [HingeSide] rule, as for sheets and dialogs
+ * ([serviceStatusHingeSide]).
+ *
+ * @param origin Page's top-left in the window, or unspecified before the first layout.
+ * @param width Page width (px).
+ * @param height Page height (px).
+ * @return Side padding.
+ */
+@Composable
+private fun rememberHingeSide(origin: Offset, width: Float, height: Float): HingeSide.Padding {
+    if (!origin.isSpecified) return HingeSide.Padding.NONE
+    val posture = LocalShellPosture.current ?: currentWindowAdaptiveInfo().windowPosture
+    val hinge = posture.hingeList.firstOrNull { it.isSeparating } ?: return HingeSide.Padding.NONE
+    val b = hinge.bounds
+    return serviceStatusHingeSide(
+        width = width,
+        height = height,
+        left = b.left - origin.x,
+        top = b.top - origin.y,
+        right = b.right - origin.x,
+        bottom = b.bottom - origin.y,
+        vertical = hinge.isVertical,
+        rtl = LocalLayoutDirection.current == LayoutDirection.Rtl,
+    )
+}
+
+/**
+ * The full page's column: icon (unless [compact]), heading, message, countdown and Retry.
+ *
+ * Only the icon, heading and message form the polite live region, so TalkBack announces a new
+ * status once; the countdown and Retry are its non-live siblings, so a per-second tick (a
+ * content change inside a live region) never re-announces the page.
+ *
+ * @param issue Classified failure.
+ * @param fallbackTitle Screen's own "… unavailable" title.
+ * @param countdown Seconds until the automatic retry.
+ * @param onRetry Retry action.
+ * @param compact Short viewport: drop the decorative icon and tighten spacing.
+ */
+@Composable
+private fun ServiceStatusContent(issue: ServiceIssue, fallbackTitle: String, countdown: Int?, onRetry: () -> Unit, compact: Boolean) {
+    val spacing = Arrangement.spacedBy(if (compact) 8.dp else 12.dp)
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = spacing) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = spacing,
             modifier = Modifier.semantics(mergeDescendants = false) { liveRegion = LiveRegionMode.Polite },
         ) {
-            Icon(
-                if (issue is ServiceIssue.ScrapeInProgress) Icons.Outlined.HourglassTop else Icons.Outlined.CloudOff,
-                contentDescription = null,
-                tint = BrandTokens.textSecondary,
-            )
+            if (!compact) ServiceStatusIcon(issue)
             Text(
                 issue.title ?: fallbackTitle,
                 style = MaterialTheme.typography.titleLarge,
@@ -95,21 +270,43 @@ fun ServiceStatusView(
                 modifier = Modifier.testTag("fst.service-status.title").semantics { heading() },
             )
             Text(issue.message, color = BrandTokens.textSecondary, textAlign = TextAlign.Center)
-            if (countdown != null) {
-                Text(
-                    "Trying again in ${formatCountdown(countdown)}",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = BrandTokens.gold,
-                    modifier = Modifier
-                        .testTag("fst.service-status.countdown")
-                        .semantics { contentDescription = "Trying again automatically in $countdown seconds" },
-                )
-            }
-            FilledTonalButton(onClick = onRetry, modifier = Modifier.heightIn(min = 48.dp).testTag("fst.service-status.retry")) {
-                Text(if (countdown != null) "Retry Now" else "Retry")
-            }
+        }
+        if (countdown != null) {
+            Text(
+                "Trying again in ${formatCountdown(countdown)}",
+                style = MaterialTheme.typography.labelLarge,
+                color = BrandTokens.gold,
+                modifier = Modifier
+                    .testTag("fst.service-status.countdown")
+                    .semantics { contentDescription = countdownLabel(countdown) },
+            )
+        }
+        FilledTonalButton(onClick = onRetry, modifier = Modifier.heightIn(min = 48.dp).testTag("fst.service-status.retry")) {
+            Text(if (countdown != null) "Retry Now" else "Retry")
         }
     }
+}
+
+/**
+ * Decorative 40 dp issue icon; pulses (alpha 1 → 0.4, 1 s, reversing) while the page retries
+ * automatically unless Reduce Motion is on.
+ *
+ * @param issue Classified failure.
+ */
+@Composable
+private fun ServiceStatusIcon(issue: ServiceIssue) {
+    val iconModifier = if (serviceStatusPulses(issue, LocalFestivalAccessibility.current.reduceMotion)) {
+        val alpha = rememberInfiniteTransition(label = "service-status-pulse").animateFloat(
+            initialValue = 1f,
+            targetValue = 0.4f,
+            animationSpec = infiniteRepeatable(tween(durationMillis = 1000), RepeatMode.Reverse),
+            label = "service-status-pulse-alpha",
+        )
+        Modifier.graphicsLayer { this.alpha = alpha.value }
+    } else {
+        Modifier
+    }
+    Icon(serviceStatusIcon(issue), contentDescription = null, tint = serviceStatusIconTint(issue), modifier = iconModifier.size(40.dp))
 }
 
 // endregion
@@ -129,23 +326,39 @@ fun ServiceStatusView(
  */
 @Composable
 fun ServiceStatusInline(issue: ServiceIssue, fallbackTitle: String, countdown: Int?, onRetry: (() -> Unit)?, modifier: Modifier = Modifier, retryTag: String? = null) {
-    Row(
-        modifier.fillMaxWidth().testTag("fst.service-status.inline"),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(issue.title ?: fallbackTitle, style = MaterialTheme.typography.labelLarge, color = BrandTokens.textPrimary)
+    val text: @Composable () -> Unit = {
+        Text(issue.title ?: fallbackTitle, style = MaterialTheme.typography.labelLarge, color = BrandTokens.textPrimary)
+        if (countdown != null) {
             Text(
-                if (countdown != null) "Trying again in ${formatCountdown(countdown)}" else issue.message,
+                "Trying again in ${formatCountdown(countdown)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = BrandTokens.textSecondary,
+                modifier = Modifier.semantics { contentDescription = countdownLabel(countdown) },
             )
+        } else {
+            Text(issue.message, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
         }
+    }
+    val retry: @Composable () -> Unit = {
         if (onRetry != null) {
             TextButton(onClick = onRetry, modifier = Modifier.heightIn(min = 48.dp).then(if (retryTag != null) Modifier.testTag(retryTag) else Modifier)) {
                 Text(if (countdown != null) "Retry Now" else "Retry")
             }
+        }
+    }
+    if (inlineStacks(LocalDensity.current.fontScale)) {
+        Column(modifier.fillMaxWidth().testTag("fst.service-status.inline")) {
+            text()
+            retry()
+        }
+    } else {
+        Row(
+            modifier.fillMaxWidth().testTag("fst.service-status.inline"),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Column(Modifier.weight(1f)) { text() }
+            retry()
         }
     }
 }

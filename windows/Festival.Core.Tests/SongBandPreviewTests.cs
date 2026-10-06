@@ -142,7 +142,8 @@ public class SongBandPreviewTests
         Assert.Equal(("#1", "99,999", true, true, 5), (first.Rank, first.Score, first.IsFullCombo, first.HasAccuracy, first.StarCount));
         Assert.Equal(2, first.Members.Count);
         Assert.False(first.IsSelected);
-        Assert.StartsWith("Rank 1, ", first.Announcement);
+        Assert.Equal("Rank 1. Lead 1, Lead. Bass 1, Bass. Team score 99,999 points, full combo, 96.5% accuracy, 5 stars", first.Announcement);
+        Assert.Equal("Rank 2. Lead 2, Lead. Bass 2, Bass. Team score 99,998 points", duos.Rows[1].Announcement);
         Assert.Equal(new AppRoute.SongBandLeaderboard("s1", "Band_Duets"), duos.FullRoute);
         Assert.Equal(("fst.song-detail.band-view-all.Band_Duets", "View Full Leaderboard", "View Full Leaderboard, Duos"), (duos.ViewAllAutomationId, duos.ViewAllText, duos.ViewAllName));
         Assert.Equal(("fst.song-detail.band-header.Band_Duets", "band-Band_Duets"), (duos.HeaderAutomationId, duos.QuickLinkId));
@@ -153,6 +154,7 @@ public class SongBandPreviewTests
         Assert.Equal(SongBandPreviewViewModel.NoScoresText, quads.Subtitle);
         Assert.Equal("When Quads scores are submitted for this song, they will show up here on the next leaderboard update.", quads.EmptyText);
         Assert.Equal("fst.song-detail.band-empty.Band_Quad", quads.EmptyAutomationId);
+        Assert.Equal("fst.song-detail.band-loading.Band_Quad", quads.LoadingAutomationId);
         vm.Detach();
     }
 
@@ -175,7 +177,7 @@ public class SongBandPreviewTests
         var rows = vm.BandPreviews[0].Rows;
         Assert.Equal(2, rows.Count);
         Assert.Equal([false, true], rows.Select(r => r.IsSelected));
-        Assert.StartsWith("Your band, Rank 2", rows[1].Announcement);
+        Assert.Equal("Your band, Rank 2. Lead 2, Lead. Bass 2, Bass. Team score 99,998 points", rows[1].Announcement);
         Assert.DoesNotContain(rows, r => r.IsFooter);
     }
 

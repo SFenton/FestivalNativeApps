@@ -47,6 +47,9 @@ public sealed partial class SongBandPreviewViewModel : ObservableObject
     /// <summary>Automation ID of the empty-state text.</summary>
     public string EmptyAutomationId => "fst.song-detail.band-empty." + TypeId;
 
+    /// <summary>Automation ID of the loading ring (its UIA name gains WinUI's "Busy" prefix while active).</summary>
+    public string LoadingAutomationId => "fst.song-detail.band-loading." + TypeId;
+
     /// <summary>Automation ID of the inline Retry button.</summary>
     public string RetryAutomationId => "fst.song-detail.band-retry." + TypeId;
 
@@ -148,8 +151,11 @@ public sealed record SongBandPreviewRow(SongBandRow Band, string TypeId, int Ind
     /// <summary>UIA automation ID (<c>fst.song-detail.band-row.&lt;type&gt;.&lt;i&gt;</c> or <c>band-selected.&lt;type&gt;</c>, as Android).</summary>
     public string AutomationId => IsFooter ? "fst.song-detail.band-selected." + TypeId : $"fst.song-detail.band-row.{TypeId}.{Index}";
 
-    /// <summary>Screen-reader summary, prefixed "Your band, " for the selected player's band.</summary>
-    public string Announcement => (IsSelected ? "Your band, " : "") + Band.Announcement;
+    /// <summary>
+    /// Screen-reader summary in visual order (rank, members with their instruments, team score, FC, accuracy, stars),
+    /// prefixed "Your band, " for the selected player's band.
+    /// </summary>
+    public string Announcement => (IsSelected ? "Your band, " : "") + Band.PreviewAnnouncement;
 
     /// <summary>Band Detail route.</summary>
     public AppRoute Route => Band.Route;

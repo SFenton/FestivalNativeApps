@@ -355,7 +355,7 @@
          Song Detail's View Full Leaderboard, Leaderboards' View All Rankings and Rivals' View All Rivals. Consumers set no
          layout overrides, so every one has the same gap, height and fill (issue #268). Contrast themes draw the accent
          button as HighlightText on Highlight; without HighContrastAdjustment None WinUI paints a Window backplate box
-         behind the label (same as ServiceStatusView's Retry). -->
+         behind the label (same as ServiceStatusView's Retry; issues #264, #268). -->
     <Style x:Key="FSTViewAllButtonStyle" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
         <Setter Property="HighContrastAdjustment" Value="None" />
         <Setter Property="HorizontalAlignment" Value="Stretch" />

@@ -789,7 +789,7 @@ internal fun Modifier.selectedRowHighlight(selected: Boolean): Modifier {
 fun ScoreRow(entry: LeaderboardEntry, isSelected: Boolean = false, navigable: Boolean = false, columns: LeaderboardColumnPlan? = null) {
     val plan = columns ?: rememberScoreColumns(listOf(entry)).plan
     val weight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-    if (isLargeText()) {
+    if (isLargeText() || plan.stacked) {
         StackedScoreRow(entry, plan, weight, isSelected, navigable)
         return
     }
@@ -859,9 +859,10 @@ private fun SeasonCell(season: Int?, width: Float) {
 }
 
 /**
- * [ScoreRow] at large font scales: rank and the (wrapping) name on the first line, the
- * season, score, accuracy pill and stars on the next, indented under the name, so no
- * column is squeezed to an ellipsis.
+ * [ScoreRow] at large font scales, or when the section's one-line columns don't fit
+ * ([LeaderboardColumnPlan.stacked]): rank and the (wrapping) name on the first line, the
+ * score, accuracy pill, season and stars flowing on the next, indented under the name, so no
+ * column is squeezed to an ellipsis or dropped.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -870,7 +871,9 @@ private fun StackedScoreRow(entry: LeaderboardEntry, plan: LeaderboardColumnPlan
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().heightIn(min = LEADERBOARD_ROW_MIN_HEIGHT).padding(horizontal = 8.dp, vertical = 6.dp),
     ) {
-        Text(RankingFormatting.rankLabel(entry.rank), style = MaterialTheme.typography.labelLarge, fontWeight = weight, color = BrandTokens.textPrimary, modifier = Modifier.widthIn(min = plan.rankWidth.dp).padding(end = 8.dp))
+        // Padding outside the shared minimum, so every rank (bold pinned row, #10 after #9) gets the
+        // same slot and names line up down the section (issue #149).
+        Text(RankingFormatting.rankLabel(entry.rank), style = MaterialTheme.typography.labelLarge, fontWeight = weight, color = BrandTokens.textPrimary, modifier = Modifier.padding(end = 8.dp).widthIn(min = plan.rankWidth.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 entry.displayName?.takeIf { it.isNotBlank() && entry.accountId.isNotEmpty() } ?: "Unknown User",

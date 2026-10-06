@@ -3,11 +3,14 @@
 
 Wraps ``ui_journey.py``: the loopback fixture service additionally records each request
 *path* (no query string, so no search text) to ``<shots>/fixture-paths.log`` and answers the
-account search for ``slow`` after a few seconds (a deterministic loading state), every journey
+account search for ``slow`` and ``fixt`` after a few seconds (a deterministic loading state), every journey
 gets a fresh isolated settings file (``--settings-path``) so selecting a player never
 touches real settings, and after the run the path log must contain at least one
 ``/api/account/search`` and no ``/api/bands/search``. ``--axe`` also opens the Search page
 with results and runs an Axe.Windows scan (``tools/windows/axe_scan.ps1``) into ``<shots>/axe``.
+The last journey, ``fade-delayed-results`` (issue #260), runs with ``--perf-log`` and checks the
+``FadeIn`` lines (``fade_trace.py``): song rows that waited behind the spinner for the delayed
+players fade once, from the first row, when it clears, and nothing fades again afterwards.
 
 Usage::
 
@@ -27,6 +30,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import journey_exe  # noqa: E402  (sibling module)
+import fade_trace  # noqa: E402  (sibling module)
 import ui_journey  # noqa: E402  (sibling module)
 
 JOURNEYS = Path(__file__).resolve().parent / "journeys" / "search.json"
@@ -39,6 +43,10 @@ ACCOUNT_SEARCH = "/api/account/search"
 #: (issue #299: one spinner centred below the scope bar).
 SLOW_QUERY = "slow"
 SLOW_SECONDS = 4
+#: Account-search text answered after ``SLOW_SECONDS`` that also matches the fixture songs, so the song rows wait
+#: behind the spinner past their stagger window and must fade when it clears (issue #260).
+DELAYED_RESULTS_QUERY = "fixt"
+FADE_JOURNEY = "fade-delayed-results"
 
 # region Fixture service
 
@@ -65,7 +73,8 @@ def start_logging_mock(log: Path, paths: Path) -> tuple[subprocess.Popen, int]:
         "    with lock, open(target, 'a', encoding='utf-8') as f: f.write(self.path.split('?')[0] + '\\n')\n"
         "get = m.FixtureHandler.do_GET\n"
         "def slow_get(self):\n"
-        f"    if self.path.startswith('{ACCOUNT_SEARCH}?q={SLOW_QUERY}&'): t.sleep({SLOW_SECONDS})\n"
+        f"    if self.path.startswith(('{ACCOUNT_SEARCH}?q={SLOW_QUERY}&', '{ACCOUNT_SEARCH}?q={DELAYED_RESULTS_QUERY}&')):"
+        f" t.sleep({SLOW_SECONDS})\n"
         "    get(self)\n"
         "m.FixtureHandler.log_request = log_request; m.FixtureHandler.do_GET = slow_get; "
         "m.FixtureServer.request_queue_size = 128; "
@@ -157,6 +166,63 @@ def axe_scan(port: int, shots: Path) -> bool:
         ui_journey.uiwin("close")
 
 
+def fade_phases() -> list[fade_trace.Phase]:
+    """Phases of :data:`FADE_JOURNEY`: delayed results fade once as the spinner clears, then nothing replays."""
+    return [
+        fade_trace.Phase("delayed-results", [
+            "waitfor:id=fst.global-search.field@20",
+            f"setvalue:id=fst.global-search.field|{DELAYED_RESULTS_QUERY}",
+            "waitfor:id=fst.global-search.loading@5",
+            "waitgone:id=fst.global-search.loading@15",
+            "waitfor:id=fst.global-search.result.song@5",
+            "waitfor:id=fst.global-search.result.player@5",
+        ], lambda events: fade_trace.check_load(events, "SongsList") + fade_trace.check_load(events, "PlayersList")),
+        fade_trace.Phase("idle", ["wait:1", "waitfor:id=fst.global-search.result.song@5"], fade_trace.check_none),
+    ]
+
+
+def run_fade(port: int, shots: Path) -> tuple[bool, str]:
+    """Launch with ``--perf-log`` and judge the Search rows' fades per phase (issue #260).
+
+    Args:
+        port: Fixture service port.
+        shots: Screenshot directory.
+
+    Returns:
+        Pass flag and a short failure detail.
+    """
+    settings = Path(tempfile.gettempdir()) / f"fst-search-settings-{FADE_JOURNEY}.json"
+    settings.unlink(missing_ok=True)
+    log = fade_trace.perf_log(FADE_JOURNEY)
+    launch = ui_journey.uiwin("launch", str(EXE), "--arg=--route=/search",
+                              "--arg=--base-url", f"--arg=http://127.0.0.1:{port}/",
+                              "--arg=--settings-path", f"--arg={settings}", "--arg=--first-run=off",
+                              f"--arg=--perf-log={log}", "--preset", "medium")
+    if launch.returncode != 0:
+        return False, "launch: " + launch.stderr.strip()
+
+    def drive(steps: list[str]) -> None:
+        with tempfile.NamedTemporaryFile("w", suffix=".steps", delete=False, encoding="utf-8") as handle:
+            handle.write("\n".join(steps))
+        try:
+            result = ui_journey.uiwin("drive", "--steps-file", handle.name)
+        finally:
+            Path(handle.name).unlink(missing_ok=True)
+        if result.returncode != 0:
+            raise RuntimeError((result.stderr.strip() or result.stdout.strip() or "driver failed").splitlines()[-1])
+
+    try:
+        failures = fade_trace.run_phases(drive, log, fade_phases())
+        ui_journey.uiwin("shot", str(shots / f"{FADE_JOURNEY}.png"))
+    except RuntimeError as error:
+        ui_journey.uiwin("shot", str(shots / f"{FADE_JOURNEY}-failure.png"), "--mode", "screen")
+        failures = [str(error)]
+    finally:
+        ui_journey.uiwin("close")
+        settings.unlink(missing_ok=True)
+    return not failures, "; ".join(failures)
+
+
 def check_paths(paths: Path) -> list[str]:
     """Checks the request-path log.
 
@@ -201,18 +267,20 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     args.shots.mkdir(parents=True, exist_ok=True)
     shots = args.shots.resolve()
-    journeys = json.loads(args.journeys.read_text(encoding="utf-8"))
+    journeys = json.loads(args.journeys.read_text(encoding="utf-8")) + [{"name": FADE_JOURNEY}]
     selected = [j for j in journeys if not args.only or j["name"] in args.only]
     paths = shots / "fixture-paths.log"
     mock, port = start_logging_mock(shots / "fixture-service.log", paths)
     failures = 0
     try:
         for journey in selected:
-            ok, detail = run_journey(journey, port, shots)
+            def attempt(journey: dict = journey) -> tuple[bool, str]:
+                return run_fade(port, shots) if journey["name"] == FADE_JOURNEY else run_journey(journey, port, shots)
+            ok, detail = attempt()
             attempts = 1
             while not ok and attempts <= args.retries:
                 print(f"RETRY {journey['name']}: {detail}", flush=True)
-                ok, detail = run_journey(journey, port, shots)
+                ok, detail = attempt()
                 attempts += 1
             failures += not ok
             verdict = "FAIL" if not ok else "FLAKY" if attempts > 1 else "PASS"

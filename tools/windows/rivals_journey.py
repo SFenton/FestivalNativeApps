@@ -4,7 +4,8 @@ Starts ``rivals_fixture.py`` (anonymized mock service) on a private loopback por
 launches the Debug app with an in-memory debug profile, drives it by ``fst.*`` AutomationIds and fails on the
 first missing element (``waitfor:``). Scenarios cover every Rivals page state: populated hub (both tabs, Jump
 To), Rival Detail -> Rivalry (sort) -> All Rivals navigation, empty lists, a 503 scrape freeze (inline and
-page-level status), no selected player and the ``/compete`` deep link, plus the Rivalry page's own states
+page-level status), no selected player and the ``/compete`` deep link, the per-card loading rings and their
+replacement by rows or the inline freeze (a slow fixture account), plus the Rivalry page's own states
 (deep link with the labelled sort, keyboard row activation to Song Detail and back, unknown category, empty,
 freeze and no player). With ``--shots DIR`` it also captures compact/medium/wide screenshots of the populated
 journey.
@@ -145,6 +146,51 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
             "{shot:compete}",
         ],
     ),
+    # Per-card loading (issues #65/#265): the slow account holds every list read for SLOW_RIVALS_SECONDS, so each
+    # card shows its named ProgressRing (UIA ProgressBar; WinUI prefixes "Busy" to an active ring's name) until rows
+    # replace it, on both tabs.
+    "loading": (
+        {"FST_DEBUG_PROFILE": "fixture-player-slow:Demo Player"},
+        "/compete",
+        [
+            "waitfor:id=fst.rivals.section.common.loading@20",
+            "waitfor:id=fst.rivals.section.Solo_Guitar.loading@5",
+            "assertstate:id=fst.rivals.section.common.loading|name=Busy Loading Common Rivals",
+            "assertstate:id=fst.rivals.section.Solo_Guitar.loading|type=progressbar",
+            "assertstate:id=fst.rivals.section.Solo_Guitar.loading|focusable=false",
+            "assertstate:id=fst.rivals.section.Solo_Guitar.loading|name=Busy Loading Lead Rivals",
+            # assertstate also reads cards scrolled out of view.
+            "assertstate:id=fst.rivals.section.Solo_PeripheralDrums.loading|name=Busy Loading Pro Drums Rivals",
+            "waitgone:id=fst.rivals.section.common.view-all@2",
+            "{shot:loading}",
+            # Four reads run at a time, so Lead (first wave) settles while Common Rivals, which needs every list,
+            # keeps its ring: sections load independently.
+            "waitgone:id=fst.rivals.section.Solo_Guitar.loading@30",
+            f"waitfor:id=fst.rivals.row.{RIVAL}@5",
+            "waitfor:id=fst.rivals.section.common.loading@2",
+            "waitgone:id=fst.rivals.section.common.loading@45",
+            "waitgone:id=fst.service-status.inline@2",
+            "select:id=fst.rivals.tab.leaderboard",
+            "waitfor:id=fst.rivals.section.leaderboard.Solo_Guitar.loading@10",
+            "assertstate:id=fst.rivals.section.leaderboard.Solo_Guitar.loading|name=Busy Loading Lead Rivals",
+            "waitgone:id=fst.rivals.section.leaderboard.Solo_Guitar.loading@30",
+            f"waitfor:id=fst.rivals.row.{LEADERBOARD_RIVAL}@5",
+        ],
+    ),
+    # The ring gives way to the inline freeze status when the slow read finally answers 503.
+    "loading-freeze": (
+        {"FST_DEBUG_PROFILE": "fixture-player-slow-503:Demo Player"},
+        "/rivals",
+        [
+            "waitfor:id=fst.rivals.section.common.loading@20",
+            "waitgone:id=fst.service-status.inline@2",
+            "waitfor:name=Lead Rivals Unavailable@45",
+            "waitgone:id=fst.rivals.section.Solo_Guitar.loading@3",
+            "waitfor:name=Common Rivals Unavailable@45",
+            "waitgone:id=fst.rivals.section.common.loading@3",
+            "{shot:loading-freeze}",
+        ],
+    ),
     "compete-no-player": (
         {"FST_DEBUG_ANONYMOUS": "1"},
         "/compete",
@@ -238,6 +284,10 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
     ),
 }
 
+#: Timing-sensitive scenarios: their steps run in the launch's own desktop-lock hold, so another lane's queued GUI
+#: work can't outlast the slow fixture's loading window between launch and drive.
+IN_LAUNCH_HOLD = frozenset({"loading", "loading-freeze"})
+
 
 def uiwin(*args: str) -> None:
     """Runs one uiwin.py command, raising on failure.
@@ -294,12 +344,15 @@ def run(name: str, port: int, shots: Path | None, size: str, exe: Path = EXE) ->
     args.append(f"--arg=--settings-path={isolated}")
     if route:
         args.append(f"--arg=--route={route}")
-    uiwin(*args)
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as handle:
+        handle.write("\n".join(expand(steps, shots, size)))
     try:
-        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as handle:
-            handle.write("\n".join(expand(steps, shots, size)))
         try:
-            uiwin("drive", "--steps-file", handle.name)
+            if name in IN_LAUNCH_HOLD:
+                uiwin(*args, "--steps-file", handle.name)
+            else:
+                uiwin(*args)
+                uiwin("drive", "--steps-file", handle.name)
         except RuntimeError:
             evidence = shots or Path(tempfile.gettempdir())
             for command, suffix in (("shot", ".png"), ("tree", ".txt")):
