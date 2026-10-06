@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.compete
 
+import com.festivalscoretracker.android.ui.common.rememberPageFadeInWindow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -47,7 +48,6 @@ import com.festivalscoretracker.android.core.rankings.RankingNavigation
 import com.festivalscoretracker.android.core.rankings.RankingSpotlight
 import com.festivalscoretracker.android.core.rivals.RivalQuickLinks
 import com.festivalscoretracker.android.core.rivals.RivalRoutes
-import com.festivalscoretracker.android.core.rivals.RivalText
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.compete.CompeteBoard
 import com.festivalscoretracker.android.presentation.compete.CompeteSection
@@ -91,7 +91,9 @@ fun CompeteScreen(viewModel: CompeteViewModel, isRoot: Boolean) {
     val rivalsIndex = 1 + content.sections.size
     // Web: the two groups once the page has content (no full-page failure).
     val sections = if (content.fullPageIssue == null) RivalQuickLinks.compete() else emptyList()
-    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections) { id ->
+    // The page's fade window, here so Quick Links jumps rush it (load-transition R5).
+    val fadeIn = rememberPageFadeInWindow()
+    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections, fadeInWindow = fadeIn) { id ->
         when (id) {
             RivalQuickLinks.COMPETE_LEADERBOARDS -> 0
             RivalQuickLinks.COMPETE_RIVALS -> rivalsIndex
@@ -101,6 +103,7 @@ fun CompeteScreen(viewModel: CompeteViewModel, isRoot: Boolean) {
     FestivalScreen(
         title = CompeteText.TITLE,
         isRoot = isRoot,
+        fadeInWindow = fadeIn,
         actions = { QuickLinksAction(quickLinks, windowWidthDp().toInt()) },
     ) { padding ->
         val issue = content.fullPageIssue
@@ -162,8 +165,8 @@ private fun ScopeHeader(scope: CompeteScope, onSeeAll: (() -> Unit)?, tag: Strin
             color = BrandTokens.textPrimary,
             modifier = Modifier.weight(1f).semantics { heading() },
         )
-        // The shared "See All ›" link (white, bold, chevron; read once as "See All: <scope>").
-        if (onSeeAll != null) SeeAllButton(onClick = onSeeAll, modifier = Modifier.testTag(tag), spokenLabel = "${RivalText.SEE_ALL}: ${scope.label}")
+        // The shared "View All ›" link (white, bold, chevron; read once as "View All: <scope>").
+        if (onSeeAll != null) SeeAllButton(onClick = onSeeAll, section = scope.label, modifier = Modifier.testTag(tag))
     }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val stacked = CompeteHeaderLayout.stacks(maxWidth.value, scope.instruments.size, onSeeAll != null, isLargeText())

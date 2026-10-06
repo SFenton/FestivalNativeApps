@@ -101,7 +101,10 @@ struct PublicationRefreshBoundary<Content: View>: View {
                     .id(transition.generation)
                     .opacity(transition.showsContent ? 1 : 0)
                     .allowsHitTesting(transition.showsContent)
-                    .accessibilityHidden(!transition.showsContent)
+                    // Never `.accessibilityHidden(!showsContent)`: `false` on this ancestor
+                    // un-hid every decorative descendant of each pushed page (Song Detail's
+                    // full-screen cover backdrop audited as an unlabelled Image; Lane A11Y4).
+                    .accessibilityHidden(while: !transition.showsContent)
                     .transition(.asymmetric(insertion: .opacity, removal: .identity))
             } else {
                 Color.clear

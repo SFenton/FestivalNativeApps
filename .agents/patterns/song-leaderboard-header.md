@@ -28,10 +28,16 @@ Every leaderboard for one song looks like the same page: the song is named first
 
 | Sub-behavior | Apple | Android | Windows |
 |---|---|---|---|
-| Header, board line, bar title | `apple/Sources/FestivalUI/Common/SongHeaderText.swift` `SongHeaderRow`, `SongBarTitleToolbarItem` and `songHeaderScrollAway` ([song-header](song-header.md)), with `apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardHeader.swift` `SongLeaderboardBoardLine` | `android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt` `SongLeaderboardScreen` (Song Detail's `SongHeader`) | `windows/Festival.App/Controls/SongLeaderboardHeader.xaml.cs` `SongLeaderboardHeader` (no bar title; Variants) |
-| Song backdrop | `festivalBackground(.song(song.albumArt))` | the song's art pushed to the shared background (`background.pushFocus(song.albumArt)` on the band board) | the page implements `IBackdropPage` (`BackdropArt` = the song cover) and calls `MainWindow.RefreshBackdrop()` once the song resolves |
+| Header, board line, bar title | `apple/Sources/FestivalUI/Common/SongHeaderText.swift` `SongHeaderRow`, `SongBarTitleToolbarItem` and `songHeaderScrollAway` ([song-header](song-header.md)), with `apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardHeader.swift` `SongLeaderboardBoardLine` | `android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt` `SongLeaderboardScreen` (Song Detail's `SongHeader`) with `SongBoardSwitcher` for the board line | `windows/Festival.App/Controls/SongLeaderboardHeader.xaml.cs` `SongLeaderboardHeader` (no bar title; Variants) |
+| Song backdrop (R4) | `apple/Sources/FestivalUI/Background/FestivalBackground.swift` `festivalBackground` (`.song(albumArt)`) | `android/app/src/main/java/com/festivalscoretracker/android/ui/background/SongCoverBackdrop.kt` `SongCoverBackdrop` | the page implements `IBackdropPage` (`BackdropArt` = the song cover) and calls `MainWindow.RefreshBackdrop()` once the song resolves |
 
 Apple consumers: `SoloLeaderboardScreen` (instrument + icon) and `SongBandLeaderboardScreen` (band size), on iPhone, iPad, iPhone Duo and Mac. `SongBandLeaderboardContent` puts the header first in its `ScrollView` with the `FestivalReloadGate` below it, sized to the rest of the visible page so the spinner centres under the header (#317 review). `SoloLeaderboardScreen` keeps the header as the first row of the rows' `List` (it scrolls with them) and holds it through page changes with `FestivalReloadGate`'s retained-frame form: the header and banner render from the last loaded page while only the rows swap (#316; see [load-transition](load-transition.md) R4). While a page loads or after it failed, one result row as tall as the visible list stands in for the rows (empty under the spinner, or the `ServiceStatusView` with Retry), so the header stays and the List cannot clamp a collapsed header back into view. `SongBandLeaderboardContent` grows its gate to the whole visible page for the same case (`rowsAtTop`) until the new rows are revealed. Both use `LeaderboardPaging.reloadScroll` (R3). Both boards decide that the header is under the bar from their scroll view's offset alone (`songHeaderScrollAway(headerBottom:)`: offset ≥ space above the header + its height), never from the header's own geometry: a fling recycles a `List` header row before its geometry reports the hidden position, and a `List`'s `.scrollView` space starts at its frame under the bar, so the Solo bar stayed empty with the header gone (#315, #316 reviews). The bar title is iOS/iPadOS only and uses the bar's full title width ([song-header](song-header.md) R4); the Mac keeps the window title. Identifiers: `<page>.header` and `<page>.pinned-title` with `fst.song-leaderboard` / `fst.song-band-leaderboard`.
+
+Android consumers (#317): `SongLeaderboardScreen` (instrument) and `ui/bands/SongBandLeaderboardScreen.kt` (band size) share Song Detail's `SongHeader` (64 dp art; the band board adds `onTitleClick` → Song Detail, like the web). The board line is `SongBoardSwitcher` on both: the solo board's instrument drop-down, and on the band board the band size as text only ("Trios ▾"), no entry count because the Android solo header shows none (R2 is met by never showing one). The top bar stays empty until `firstVisibleItemIndex > 0`, then shows the song title through `FestivalScreen(scrolled, marqueeTitle = true)` (R3; [song-header](song-header.md) R4); in a hinge split the header stays in the leading pane, so the bar stays empty. Both, and Song Detail, call `SongCoverBackdrop` (R4): NavHost disposes the previous destination and pops its cover, so a page that relied on Song Detail's push fell back to the carousel.
+
+**Agent decision (#317, 2026-10-05; the owner may override):** on Android the band board's band size moved from M3 segmented buttons below the header into the header's board line as the solo board's drop-down (`SongBoardSwitcher`, "Switch band size"), and the `<Size> · N entries` third line went with it. The owner asked for the solo header "just saying Duos/Trios/Quads instead of {instrument name}", and the solo board switches its instrument from that spot. Material 3 skill (Menu): "In Jetpack Compose, prefer current Material3 menu APIs" (the switcher is an M3 `DropdownMenu`); (A11y) "Minimum touch target 48x48dp" (the anchor is 48 dp, `Role.DropdownList`).
+
+Android tests: `BandsUiTest.songBandLeaderboardUsesTheSoloSongHeaderAndScrollAwayTitle` (R1, R3), `SongHeaderTitleUiTest.songBandLeaderboardTitleScrollsAcrossTheHeaderAndTheBar`, and the cover tests `BandsUiTest.songBandLeaderboardShowsTheSongsStaticCover`, `LeaderboardsUiTest.songLeaderboardShowsTheSongsStaticCover` and `SongCoverBackdropTest` (R4).
 
 Windows consumers: `Pages/LeaderboardsSongPage` (instrument + icon) and `Pages/BandsSongLeaderboardPage` (band size).
 
@@ -51,9 +57,7 @@ Windows consumers: `Pages/LeaderboardsSongPage` (instrument + icon) and `Pages/B
 
 ## Known debt
 
-| Debt | Breaks | Plan |
-|---|---|---|
-| Android `ui/bands/SongBandLeaderboardScreen.kt` titles the bar "${type.label} Leaderboard" (its header wraps the shared `SongHeader` since #315) | R1, R3 | Android check filed from #317 |
+None open since #317 (Android and Windows boards now follow R1–R5).
 
 The song title inside the header and the bar title follows [song-header](song-header.md) (full-width one-line marquee, R2–R4).
 
@@ -61,5 +65,6 @@ The song title inside the header and the bar title follows [song-header](song-he
 
 - `song-leaderboard-header/apple-song-backdrop`
 - `song-leaderboard-header/apple-principal-title`
+- `song-leaderboard-header/android-cover-push`: only `SongCoverBackdrop` pushes the song cover; a page calls it instead of `BackgroundController.pushFocus` (R4).
 - `song-leaderboard-header/windows-board-title` — Windows song leaderboard view models never build a "{Board} Leaderboard" / "{Board} Scores" title.
 - `song-leaderboard-header/windows-page-title` — Windows song pages take their title from `SongLeaderboardHeader`, not a page-local `FSTPageTitleStyle` heading (Songs and Song Detail are allowed).

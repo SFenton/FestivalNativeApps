@@ -26,16 +26,34 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 internal val SeeAllVisibleLabelKey = SemanticsPropertyKey<String>("SeeAllVisibleLabel")
 
 /**
- * A section header's "See All" link (web `rivals.seeAll` / `player.seeAll`): bold white
- * text followed by a chevron, like the web's `seeAll` span and `IoChevronForward`.
+ * Copy for the title-row link (issue #321): the app says "View All", never "See All", so the
+ * link matches the purple View All buttons (`view-all-cta`).
+ */
+object ViewAllLinkText {
+    /** Visible label. */
+    const val LABEL = "View All"
+
+    /**
+     * Spoken label: the visible label first, then the list it opens (WCAG 2.5.3).
+     *
+     * @param section List or section name ("Common Rivals").
+     * @return "View All: Common Rivals".
+     */
+    fun spoken(section: String) = "$LABEL: $section"
+}
+
+/**
+ * A section header's "View All" link (web `rivals.seeAll` / `player.seeAll` header link):
+ * bold white text followed by a chevron, like the web's `seeAll` span and `IoChevronForward`.
  *
  * @param onClick Open the full list.
  * @param modifier Modifier (test tag).
- * @param label Visible text.
- * @param spokenLabel Screen-reader label naming the section ("See All: Common Rivals").
+ * @param section List or section the link opens, appended to the spoken label.
  */
 @Composable
-fun SeeAllButton(onClick: () -> Unit, modifier: Modifier = Modifier, label: String = "See All", spokenLabel: String = label) {
+fun SeeAllButton(onClick: () -> Unit, section: String, modifier: Modifier = Modifier) {
+    val label = ViewAllLinkText.LABEL
+    val spokenLabel = ViewAllLinkText.spoken(section)
     TextButton(
         onClick = onClick,
         colors = ButtonDefaults.textButtonColors(contentColor = BrandTokens.textPrimary),
@@ -44,7 +62,7 @@ fun SeeAllButton(onClick: () -> Unit, modifier: Modifier = Modifier, label: Stri
             set(SeeAllVisibleLabelKey, label)
         },
     ) {
-        // The button's description ("See All: <section>") is what TalkBack reads; the visible text would repeat it.
+        // The button's description ("View All: <section>") is what TalkBack reads; the visible text would repeat it.
         Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, modifier = Modifier.clearAndSetSemantics { })
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.padding(start = 2.dp).size(20.dp))
     }

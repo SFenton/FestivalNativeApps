@@ -89,10 +89,17 @@ public class NotificationsTests
         Assert.True(row.HasGrid);
         Assert.Equal(44, row.ArtSize);
         Assert.Equal(["instrument_guitar.png", "instrument_bass.png", "instrument_drums.png", "instrument_pro_guitar.png"], row.GridIconFiles);
+        // Narrator hears the grid's charts (web aria-label "Affected instruments: …"); the dot/chevron column shows for links.
+        Assert.Contains($". Affected instruments: {Instrument.Lead.Label()}, {Instrument.Bass.Label()}, {Instrument.Drums.Label()}, {Instrument.ProLead.Label()}. ", row.AccessibleName);
+        Assert.EndsWith("1h ago", row.AccessibleName);
+        Assert.Equal(row.HasDestination, row.HasTrailing);
+        row.IsUnread = true;
+        Assert.True(row.HasTrailing);
 
         var single = new NotificationRowViewModel(NotificationText.Format(Item("player_score_pb"), "Song", "art.jpg"), false, "1h ago");
         Assert.Equal((NotificationMediaKind.Song, 54d, false), (single.MediaKind, single.ArtSize, single.HasGrid));
         Assert.Empty(single.GridIconFiles);
+        Assert.Equal("", single.AffectedInstrumentsText);
 
         // Without art the rail shows the row's instrument (Lead when it names none), never a grid.
         var noArt = NotificationText.Format(coalesced, "Song");
@@ -112,7 +119,7 @@ public class NotificationsTests
         var bare = NotificationText.Format(shop with { Payload = null }, null);
         Assert.Equal((NotificationMediaKind.SoloInstrument, (Instrument?)Instrument.Lead), (bare.MediaKind, bare.MediaInstrument));
         Assert.Equal([new("Hit", true), new(" by "), new("Band", true), new(" has been added to the Item Shop.")], payloadArt.Parts);
-        Assert.Null(payloadArt.FlagKind);
+        Assert.Empty(payloadArt.Flags);
     }
 
     public static TheoryData<string, string[]> Emphasis => new()
@@ -149,7 +156,7 @@ public class NotificationsTests
         Assert.Equal([new("plain")], NotificationText.Emphasize("plain", ["", "  ", "absent"]));
         Assert.Equal([new("a "), new("bc", true), new(" "), new("b", true)], NotificationText.Emphasize("a bc b", ["b", "bc"]));
         Assert.Equal([new("ab", true)], NotificationText.Emphasize("ab", ["a", "b"]));
-        Assert.Equal("x", new NotificationPresentation("i", "t", "x", null, Now, null).Parts.Single().Text);
+        Assert.Equal("x", new NotificationPresentation("i", "t", "x", Now, null).Parts.Single().Text);
     }
 
     [Fact]
@@ -161,12 +168,314 @@ public class NotificationsTests
         Assert.Equal(0xFF0F766Eu, NotificationFlagKind.NewHighScore.Argb());
         Assert.Equal(0xFF4B5563u, NotificationFlagKind.Improvement.Argb());
         var pb = NotificationText.Format(Item("player_score_pb"), "Song");
-        Assert.Equal(NotificationFlagKind.NewHighScore, pb.FlagKind);
+        Assert.Equal([NotificationFlagKind.NewHighScore], pb.Flags);
+        Assert.Empty(pb.FlagGroups);
         var row = new NotificationRowViewModel(pb, true, "1h ago");
-        Assert.Equal(0xFF0F766Eu, row.FlagArgb);
+        Assert.Equal("New High Score", row.FlagsText);
         Assert.Equal("Unread. Song · Lead. You set a new personal best on Lead for Song with a new score points. New High Score. 1h ago", row.AccessibleName);
-        Assert.Equal(0xFF4B5563u, new NotificationRowViewModel(new NotificationPresentation("x", "T", "M.", "F", Now, null), false, "").FlagArgb);
     }
+
+    #region Coalesced events (web notificationText.test.ts)
+    private static NotificationEventPayload Ev(string kind, string? instrument = null, double? oldN = null, double? newN = null,
+        double? oldRank = null, double? newRank = null, string? metric = null) =>
+        new() { EventKind = kind, Instrument = instrument, OldNumeric = oldN, NewNumeric = newN, OldRank = oldRank, NewRank = newRank, Metric = metric };
+
+    private static string[] Bold(NotificationPresentation p) => p.Parts.Where(x => x.Emphasis).Select(x => x.Text).ToArray();
+
+    [Fact]
+    public void Coalesced_MultiChartRowsListEachChartWithGroupedFlags()
+    {
+        var item = Item("player_score_pb", instrument: "Solo_Guitar", oldN: 210000, newN: 230891, payload: new NotificationPayload
+        {
+            CoalescedEvents =
+            [
+                Ev("player_song_rank_improved", "Solo_Guitar", oldRank: 180, newRank: 160),
+                Ev("player_fc_achieved", "Solo_Drums", metric: "full_combo"),
+                Ev("player_score_pb", "Solo_Guitar", 210000, 230891),
+                Ev("player_gold_stars_achieved", "Solo_Drums", 5, 6),
+            ],
+        });
+        var p = NotificationText.Format(item, "Taxes", "art.jpg");
+        Assert.Equal("Taxes", p.Title);
+        Assert.Equal("For Lead, your play set a new personal best with 230,891 points and climbed from #180 to #160.\n\nFor Drums, got a Full Combo and earned gold stars.", p.Message);
+        Assert.Equal(["Lead", "230,891", "#180", "#160", "Drums", "Full Combo", "gold stars"], Bold(p));
+        Assert.Equal(p.Message, string.Concat(p.Parts.Select(x => x.Text)));
+        Assert.Equal([NotificationFlagKind.NewHighScore, NotificationFlagKind.FullCombo, NotificationFlagKind.GoldStars, NotificationFlagKind.RankUp], p.Flags);
+        Assert.Equal([Instrument.Lead, Instrument.Drums], p.FlagGroups.Select(g => g.Instrument));
+        Assert.Equal([NotificationFlagKind.NewHighScore, NotificationFlagKind.RankUp], p.FlagGroups[0].Flags);
+        Assert.Equal([NotificationFlagKind.FullCombo, NotificationFlagKind.GoldStars], p.FlagGroups[1].Flags);
+        Assert.Equal("Lead: New High Score, Rank Up. Drums: Full Combo, Gold Stars", p.FlagsText);
+        Assert.True(p.HasFlags);
+        var row = new NotificationRowViewModel(p, true, "1h ago");
+        Assert.Equal("Unread. Taxes. For Lead, your play set a new personal best with 230,891 points and climbed from #180 to #160. "
+            + "For Drums, got a Full Combo and earned gold stars. Affected instruments: Lead, Drums. "
+            + "Lead: New High Score, Rank Up. Drums: Full Combo, Gold Stars. 1h ago", row.AccessibleName);
+    }
+
+    [Fact]
+    public void Coalesced_WindowsMediaFixtureRows()
+    {
+        // The media rows of tools/windows/notifications_fixture.py, as the journey reads them (wire → text → row).
+        var json = Envelope("""
+            {"eventId":11,"notificationGuid":"fixture-notif-grid","eventKind":"player_score_pb","songId":"fixture-pulse","instrument":"Solo_Guitar","oldNumeric":180000,"newNumeric":201234,
+             "payload":{"coalescedInstruments":["Solo_Guitar","Solo_Bass","Solo_Drums"],"coalescedEvents":[
+               {"eventKind":"player_score_pb","instrument":"Solo_Guitar","oldNumeric":180000,"newNumeric":201234},
+               {"eventKind":"player_song_rank_improved","instrument":"Solo_Guitar","oldRank":180,"newRank":160},
+               {"eventKind":"player_fc_achieved","instrument":"Solo_Bass"},
+               {"eventKind":"player_gold_stars_achieved","instrument":"Solo_Bass","oldNumeric":5,"newNumeric":6},
+               {"eventKind":"player_first_score","instrument":"Solo_Drums","newNumeric":154321,"newRank":6}]},
+             "detectedAt":"2024-01-07T12:00:00Z","expiresAt":"2024-02-07T12:00:00Z"},
+            {"eventId":16,"notificationGuid":"fixture-notif-pb","eventKind":"player_score_pb","songId":"fixture-orbit","instrument":"Solo_Drums","oldNumeric":99000,"newNumeric":123456,
+             "payload":{"newFullCombo":true},"detectedAt":"2024-01-02T12:00:00Z","expiresAt":"2024-02-02T12:00:00Z"}
+            """);
+        var items = JsonSerializer.Deserialize(json, NotificationsJsonContext.Default.ImprovementNotificationsEnvelope)!.Items!;
+        var grid = NotificationText.Format(items[0], "Fixture Pulse", "art.jpg");
+        Assert.Equal("Fixture Pulse", grid.Title);
+        Assert.Equal("For Lead, your play set a new personal best with 201,234 points and climbed from #180 to #160.\n\n"
+            + "For Bass, got a Full Combo and earned gold stars.\n\nFor Drums, your first play scored 154,321 points and started at #6.", grid.Message);
+        Assert.Equal(["Lead", "201,234", "#180", "#160", "Bass", "Full Combo", "gold stars", "Drums", "154,321", "#6"], Bold(grid));
+        Assert.Equal("Lead: New High Score, Rank Up. Bass: Full Combo, Gold Stars. Drums: First Play", grid.FlagsText);
+        var row = new NotificationRowViewModel(grid, true, "Jan 7");
+        Assert.Equal("Unread. Fixture Pulse. For Lead, your play set a new personal best with 201,234 points and climbed from #180 to #160. "
+            + "For Bass, got a Full Combo and earned gold stars. For Drums, your first play scored 154,321 points and started at #6. "
+            + "Affected instruments: Lead, Bass, Drums. Lead: New High Score, Rank Up. Bass: Full Combo, Gold Stars. Drums: First Play. Jan 7",
+            row.AccessibleName);
+
+        var pb = NotificationText.Format(items[1], "Fixture Orbit", "art.jpg");
+        Assert.Equal("Fixture Orbit · Drums", pb.Title);
+        Assert.Equal("You set a new personal best on Drums for Fixture Orbit with 123,456 points and got a Full Combo.", pb.Message);
+        Assert.Equal(["Drums", "Fixture Orbit", "123,456", "Full Combo"], Bold(pb));
+        Assert.Equal([NotificationFlagKind.NewHighScore, NotificationFlagKind.FullCombo], pb.Flags);
+        Assert.Empty(pb.FlagGroups);
+        Assert.Equal("New High Score, Full Combo", pb.FlagsText);
+    }
+
+    [Fact]
+    public void Coalesced_SingleChartRowsJoinEveryEventIntoOneSentence()
+    {
+        var item = Item("player_score_pb", instrument: "Solo_Drums", oldN: 120000, newN: 137700, payload: new NotificationPayload
+        {
+            CoalescedEvents =
+            [
+                Ev("player_song_rank_improved", "Solo_Drums", oldRank: 1214, newRank: 982),
+                Ev("player_score_pb", "Solo_Drums", 120000, 137700),
+                Ev("player_fc_achieved", "Solo_Drums"),
+                Ev("player_stars_improved", "Solo_Drums", 5, 6),
+                Ev("player_gold_stars_achieved", "Solo_Drums", 5, 6),
+            ],
+        });
+        var p = NotificationText.Format(item, "Apple");
+        Assert.Equal("Apple · Drums", p.Title);
+        Assert.Equal("You set a new personal best on Drums for Apple with 137,700 points, got a Full Combo, earned gold stars, and climbed from #1,214 to #982.", p.Message);
+        Assert.Equal(["Drums", "Apple", "137,700", "Full Combo", "gold stars", "#1,214", "#982"], Bold(p));
+        Assert.Equal([NotificationFlagKind.NewHighScore, NotificationFlagKind.FullCombo, NotificationFlagKind.GoldStars, NotificationFlagKind.RankUp], p.Flags);
+        Assert.Empty(p.FlagGroups);
+        Assert.Equal("New High Score, Full Combo, Gold Stars, Rank Up", p.FlagsText);
+    }
+
+    [Fact]
+    public void Coalesced_DerivesFullComboAndGoldStarsFromTheScoreResult()
+    {
+        // The live feed's shape: aggregate rows carry the score's result on the payload, not as separate events.
+        var item = Item("player_score_pb", instrument: "Solo_Drums", oldN: 120000, newN: 137700, payload: new NotificationPayload
+        {
+            CoalescedEvents = [Ev("player_score_pb", "Solo_Drums", 120000, 137700), Ev("player_song_rank_improved", null, oldRank: 1214, newRank: 982)],
+            NewFullCombo = true, OldStars = 5, NewStars = 6,
+        });
+        var p = NotificationText.Format(item, "Apple");
+        Assert.Equal("You set a new personal best on Drums for Apple with 137,700 points, got a Full Combo, earned gold stars, and climbed from #1,214 to #982.", p.Message);
+        Assert.Equal([NotificationFlagKind.NewHighScore, NotificationFlagKind.FullCombo, NotificationFlagKind.GoldStars, NotificationFlagKind.RankUp], p.Flags);
+
+        // A single (uncoalesced) score row derives them too, and a gold result supersedes a stars bump.
+        var single = Item("player_first_score", instrument: "Solo_Bass", newN: 98765, newRank: 12, payload: new NotificationPayload { NewFullCombo = false, NewStars = 6 });
+        var first = NotificationText.Format(single, "Song");
+        Assert.Equal("Your first Bass play on Song scored 98,765 points, started at #12, and earned gold stars.", first.Message);
+        Assert.Equal([NotificationFlagKind.FirstPlay, NotificationFlagKind.GoldStars], first.Flags);
+        var superseded = NotificationText.Format(Item("player_score_pb", instrument: "Solo_Bass", newN: 5000, payload: new NotificationPayload
+        {
+            CoalescedEvents = [Ev("player_score_pb", "Solo_Bass", null, 5000), Ev("player_stars_improved", "Solo_Bass", 5, 6)],
+            NewStars = 6,
+        }), "Song");
+        Assert.Equal("You set a new personal best on Bass for Song with 5,000 points and earned gold stars.", superseded.Message);
+        Assert.DoesNotContain(NotificationFlagKind.StarsUp, superseded.Flags);
+    }
+
+    [Fact]
+    public void Coalesced_TopLevelResultOnlyBelongsToTheMatchingChart()
+    {
+        // Multi-chart: only the event that is the row's own top-level score takes the payload's result.
+        var item = Item("player_score_pb", instrument: "Solo_Guitar", oldN: 1, newN: 2000, payload: new NotificationPayload
+        {
+            CoalescedEvents = [Ev("player_score_pb", "Solo_Guitar", 1, 2000), Ev("player_score_pb", "Solo_Bass", 1, 3000)],
+            NewFullCombo = true,
+        });
+        var p = NotificationText.Format(item, "Inferno Island");
+        Assert.Equal("For Lead, your play set a new personal best with 2,000 points and got a Full Combo.\n\nFor Bass, your play set a new personal best with 3,000 points.", p.Message);
+        Assert.Equal([NotificationFlagKind.NewHighScore, NotificationFlagKind.FullCombo], p.FlagGroups[0].Flags);
+        Assert.Equal([NotificationFlagKind.NewHighScore], p.FlagGroups[1].Flags);
+
+        // Two score events on other charts than the row's: neither owns the payload.
+        var other = NotificationText.Format(Item("player_fc_achieved", instrument: "Solo_Guitar", payload: new NotificationPayload
+        {
+            CoalescedEvents = [Ev("player_score_pb", "Solo_Bass", null, 3000), Ev("player_first_score", "Solo_Bass", null, 4000, newRank: 5)],
+            NewStars = 6,
+        }), "Song");
+        Assert.DoesNotContain(NotificationFlagKind.GoldStars, other.Flags);
+        // One score event on another chart than the row's (single chart): the payload is not its result.
+        var mismatch = NotificationText.Format(Item("player_fc_achieved", instrument: "Solo_Guitar", payload: new NotificationPayload
+        {
+            CoalescedEvents = [Ev("player_score_pb", "Solo_Bass", null, 3000)],
+            NewStars = 6,
+        }), "Song");
+        Assert.Equal([NotificationFlagKind.NewHighScore], mismatch.Flags);
+        // An event's own result wins over the payload.
+        var own = NotificationText.Format(Item("player_score_pb", payload: new NotificationPayload
+        {
+            CoalescedEvents = [new() { EventKind = "player_score_pb", Instrument = "Solo_Guitar", NewNumeric = 10, NewFullCombo = true }],
+            NewStars = 6,
+        }), "Song");
+        Assert.Equal([NotificationFlagKind.NewHighScore, NotificationFlagKind.FullCombo], own.Flags);
+    }
+
+    [Fact]
+    public void Coalesced_FirstPlayKeepsOneStartedAtClause()
+    {
+        var item = Item("player_first_score", instrument: "Solo_Bass", newN: 154321, newRank: 6, payload: new NotificationPayload
+        {
+            CoalescedEvents = [Ev("player_first_score", "Solo_Bass", null, 154321, newRank: 6), Ev("player_song_rank_improved", "Solo_Bass", oldRank: 9, newRank: 6)],
+        });
+        var p = NotificationText.Format(item, "Orbit");
+        Assert.Equal("Your first Bass play on Orbit scored 154,321 points, started at #6, and climbed from #9 to #6.", p.Message);
+        Assert.Equal(2, p.Message.Split("started at").Length);
+    }
+
+    [Fact]
+    public void Coalesced_SeveralRanksBecomeRankUpdates()
+    {
+        var item = Item("player_total_score_rank_improved", song: null, instrument: "Solo_Drums", payload: new NotificationPayload
+        {
+            CoalescedEvents =
+            [
+                Ev("player_weighted_rank_improved", oldRank: 201, newRank: 163),
+                Ev("player_total_score_rank_improved", oldRank: 263, newRank: 189),
+            ],
+        });
+        var p = NotificationText.Format(item, null);
+        Assert.Equal("Rank Updates · Drums", p.Title);
+        Assert.Equal("For Total Score Rank, moved from #263 to #189.\n\nFor Weighted Percentile Rank, moved from #201 to #163.", p.Message);
+        Assert.Equal(["Total Score Rank", "#263", "#189", "Weighted Percentile Rank", "#201", "#163"], Bold(p));
+        Assert.Equal([NotificationFlagKind.RankUp], p.Flags);
+        Assert.Equal("Rank Updates", NotificationText.Format(item with { Instrument = null }, null).Title);
+    }
+
+    [Fact]
+    public void Coalesced_InstrumentAggregatesPairValuesWithRanks()
+    {
+        var item = Item("player_total_score_improved", song: null, instrument: "Solo_Vocals", payload: new NotificationPayload
+        {
+            CoalescedEvents =
+            [
+                Ev("player_total_score_improved", null, 100, 123456),
+                Ev("player_total_score_rank_improved", oldRank: 50, newRank: 40),
+                Ev("player_fc_count_improved", null, 10, 12),
+                Ev("player_fc_rate_rank_improved", oldRank: 30, newRank: 20),
+                Ev("player_skill_rank_improved", oldRank: 9, newRank: 8),
+                Ev("player_weighted_rank_improved", oldRank: 7, newRank: 6),
+                Ev("player_max_score_rank_improved", oldRank: 5, newRank: 4),
+            ],
+        });
+        var p = NotificationText.Format(item, null);
+        Assert.Equal("Tap Vocals · Improvements", p.Title);
+        Assert.Equal(string.Join("\n\n",
+            "Your total score increased to 123,456 points and your total score rank moved up from #50 to #40.",
+            "Your Full Combo count increased to 12 and your Full Combo percentage rank moved up from #30 to #20.",
+            "Your adjusted percentile rank moved up from #9 to #8.",
+            "Your percentile rank, weighted by number of entries, moved up from #7 to #6.",
+            "Your max score rank moved up from #5 to #4."), p.Message);
+        Assert.Contains("total score rank", Bold(p));
+        Assert.Contains("percentile rank, weighted by number of entries", Bold(p));
+        Assert.Equal([NotificationFlagKind.Progress, NotificationFlagKind.RankUp], p.Flags);
+        Assert.Equal("Instrument Updates", NotificationText.Format(item with { Instrument = null }, null).Title);
+
+        // Unpaired halves: a value alone, a rank alone.
+        var halves = NotificationText.Format(item with
+        {
+            Payload = new NotificationPayload
+            {
+                CoalescedEvents = [Ev("player_total_score_rank_improved", oldRank: 50, newRank: 40), Ev("player_fc_count_improved", null, 10, 12)],
+            },
+        }, null);
+        Assert.Equal("Your total score rank moved up from #50 to #40.\n\nYour Full Combo count increased to 12.", halves.Message);
+        var valueOnly = NotificationText.Format(item with
+        {
+            Payload = new NotificationPayload
+            {
+                CoalescedEvents = [Ev("player_total_score_improved", null, 1, 2), Ev("player_fc_rate_rank_improved", oldRank: 3, newRank: 2)],
+            },
+        }, null);
+        Assert.Equal("Your total score increased to 2 points.\n\nYour Full Combo percentage rank moved up from #3 to #2.", valueOnly.Message);
+    }
+
+    [Fact]
+    public void Coalesced_SingleKindsKeepTheirTitlesAndSkipBlankEvents()
+    {
+        var progress = Item("player_fc_count_improved", song: null, payload: new NotificationPayload
+        {
+            CoalescedEvents = [new(), Ev(" "), Ev("player_fc_count_improved", null, 1, 3)],
+        });
+        Assert.Equal("Full Combo Count Improved", NotificationText.Format(progress, null).Title);
+        Assert.Equal("Your Lead Full Combo count increased to 3.", NotificationText.Format(progress, null).Message);
+        var difficulty = NotificationText.Format(Item("player_score_pb", payload: new NotificationPayload
+        {
+            CoalescedEvents = [Ev("player_score_pb", "Solo_Guitar", null, 10), new() { EventKind = "player_difficulty_bumped", OldLabel = "Hard", NewLabel = "Expert" }],
+        }), "Song");
+        Assert.Equal("You set a new personal best on Lead for Song with 10 points and improved difficulty from Hard to Expert.", difficulty.Message);
+        Assert.Contains("Expert", Bold(difficulty));
+        // Unknown kinds sort last, have no copy and read as the generic Improvement flag.
+        var unknown = NotificationText.Format(Item("mystery", payload: new NotificationPayload
+        {
+            CoalescedEvents = [Ev("mystery"), Ev("player_fc_achieved", "Solo_Guitar")],
+        }), "Song");
+        Assert.Equal("Song · Lead", unknown.Title);
+        Assert.Equal("You got a Full Combo on Lead for Song.", unknown.Message);
+        Assert.Equal([NotificationFlagKind.FullCombo, NotificationFlagKind.Improvement], unknown.Flags);
+    }
+
+    [Fact]
+    public void Wire_DecodesEventValuesLeniently()
+    {
+        const string payload = """
+            {"newFullCombo":"true","oldStars":"5","newStars":6,"oldFullCombo":{"x":1},
+             "coalescedEvents":[{"eventKind":"player_score_pb","instrument":"Solo_Bass","oldNumeric":1,"newNumeric":"2.5","oldRank":null,"newRank":[1],
+               "oldLabel":" Hard ","newLabel":"  ","oldFullCombo":false,"newFullCombo":"FALSE","oldStars":"x","newStars":"Infinity"},
+              {"eventKind":"player_fc_achieved","oldNumeric":true,"newFullCombo":"maybe","newLabel":7}]}
+            """;
+        var json = Envelope($$"""{"eventId":1,"notificationGuid":"g","eventKind":"player_score_pb","payload":{{payload}},"detectedAt":"2026-09-28T11:00:00Z","expiresAt":"2026-10-01T00:00:00Z"}""");
+        var p = JsonSerializer.Deserialize(json, NotificationsJsonContext.Default.ImprovementNotificationsEnvelope)!.Items![0].Payload!;
+        Assert.Equal((true, (double?)5, (double?)6, (bool?)null), (p.NewFullCombo, p.OldStars, p.NewStars, p.OldFullCombo));
+        var e = p.CoalescedEvents![0];
+        Assert.Equal((1d, 2.5, (double?)null, (double?)null), (e.OldNumeric, e.NewNumeric, e.OldRank, e.NewRank));
+        Assert.Equal(("Hard", (string?)null), (e.OldLabel, e.NewLabel));
+        Assert.Equal(((bool?)false, (bool?)false, (double?)null, (double?)null), (e.OldFullCombo, e.NewFullCombo, e.OldStars, e.NewStars));
+        var f = p.CoalescedEvents[1];
+        Assert.Equal(((double?)null, (bool?)null, (string?)null), (f.OldNumeric, f.NewFullCombo, f.NewLabel));
+        var round = JsonSerializer.Serialize(e, NotificationsJsonContext.Default.NotificationEventPayload);
+        Assert.Equal(e, JsonSerializer.Deserialize(round, NotificationsJsonContext.Default.NotificationEventPayload));
+        var empty = JsonSerializer.Serialize(new NotificationEventPayload(), NotificationsJsonContext.Default.NotificationEventPayload);
+        Assert.Equal(new NotificationEventPayload(), JsonSerializer.Deserialize(empty, NotificationsJsonContext.Default.NotificationEventPayload));
+        // Null values write as JSON null when a caller keeps nulls.
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartArray();
+            new LenientNumberConverter().Write(writer, null, JsonSerializerOptions.Default);
+            new LenientBooleanConverter().Write(writer, null, JsonSerializerOptions.Default);
+            new LenientStringConverter().Write(writer, null, JsonSerializerOptions.Default);
+            writer.WriteEndArray();
+        }
+        Assert.Equal("[null,null,null]", System.Text.Encoding.UTF8.GetString(stream.ToArray()));
+    }
+    #endregion
 
     [Fact]
     public void Wire_DecodesCoalescedInstruments()
@@ -196,7 +505,7 @@ public class NotificationsTests
         var p = NotificationText.Format(shop, "Catalogue");
         Assert.Equal("New Song · Hit - Band", p.Title);
         Assert.Equal("Hit by Band has been added to the Item Shop.", p.Message);
-        Assert.Null(p.Flag);
+        Assert.Empty(p.Flags);
         var bare = NotificationText.Format(shop with { Payload = null }, null);
         Assert.Equal("New Song · New Song - Unknown Artist", bare.Title);
         Assert.Equal(new NotificationDestination.Song("s1", null), bare.Destination);
@@ -406,8 +715,8 @@ public class NotificationsTests
         Assert.Equal("Notification", first.Title);
         Assert.StartsWith("Unread. Notification.", first.AccessibleName);
         Assert.Equal("fst.notifications.row.g1", first.AutomationId);
-        Assert.True(first.HasDestination && first.HasFlag);
-        Assert.Equal("New High Score", first.Flag);
+        Assert.True(first.HasDestination && first.HasFlags);
+        Assert.Equal("New High Score", first.FlagsText);
 
         Assert.Equal(new NotificationDestination.Song("s1", Instrument.Lead), vm.Activate(first));
         Assert.False(first.IsUnread);
@@ -510,10 +819,10 @@ public class NotificationsTests
     [Fact]
     public void Row_NameWithoutUnread()
     {
-        var row = new NotificationRowViewModel(new NotificationPresentation("x", "T", "M.", null, Now, null), false, "1h ago");
+        var row = new NotificationRowViewModel(new NotificationPresentation("x", "T", "M.", Now, null), false, "1h ago");
         Assert.Equal("T. M. 1h ago", row.AccessibleName);
-        Assert.False(row.HasFlag);
-        Assert.Equal("", row.Flag);
+        Assert.False(row.HasFlags);
+        Assert.Equal("", row.FlagsText);
         Assert.False(row.HasDestination);
         Assert.Equal("x", row.Id);
         Assert.Equal("M.", row.Message);
