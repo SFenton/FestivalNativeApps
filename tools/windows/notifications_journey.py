@@ -45,6 +45,20 @@ RANK_ROW = "Fixture Pulse · Lead. You climbed from #9 to #4 on Lead for Fixture
 TOTAL_ROW = "Total Score Improved. Your Tap Vocals total score increased to 1,234,567 points. Progress."
 # Rows of the rich feed, newest first.
 RICH_ROWS = ("rank", "fc", "fcrate", "total", "shop")
+# Rows of the media feed (issue #272), newest first, and their Narrator names after "Unread. ".
+MEDIA_ROWS = ("grid", "first", "stars", "gold", "difficulty", "pb")
+MEDIA_NAMES = {
+    "grid": "Fixture Pulse · Lead. You set a new personal best on Lead for Fixture Pulse with 201,234 points. "
+            "Affected instruments: Lead, Bass, Drums. New High Score. Jan 7",
+    "first": "Fixture Orbit · Bass. Your first Bass play on Fixture Orbit scored 154,321 points and started at your "
+             "new rank. First Play. Jan 6",
+    "stars": "Fixture Pulse · Drums. You improved from 4 to 5 stars on Drums for Fixture Pulse. Stars Up. Jan 5",
+    "gold": "Fixture Orbit · Tap Vocals. You earned gold stars on Tap Vocals for Fixture Orbit. Gold Stars. Jan 4",
+    "difficulty": "Fixture Pulse · Lead. You improved your difficulty on Lead for Fixture Pulse from 2 to 3. "
+                  "Difficulty Up. Jan 3",
+    "pb": "Fixture Orbit · Drums. You set a new personal best on Drums for Fixture Orbit with 123,456 points. "
+          "New High Score. Jan 2",
+}
 
 
 def open_flyout() -> list[str]:
@@ -208,6 +222,25 @@ SCENARIOS: dict[str, tuple[dict[str, str], str, list[str], set[str] | None]] = {
             "waitgone:id=fst.notifications.failed",
         ],
         {"medium"},
+    ),
+    "media-rows": (
+        # Issue #272: the web NotificationRow media rail and flag chips. A multi-chart row (art above an instrument grid)
+        # names its charts like the web grid's aria-label; one row per remaining flag kind; the time is spoken only.
+        PLAYER, "/songs",
+        [
+            "@feed=media",
+            *open_flyout(),
+            "waitfor:id=fst.notifications.list@15",
+            *[f"waitfor:{ROW}fixture-notif-{row}@10" for row in MEDIA_ROWS[:3]],
+            "assertstate:" + BELL + f"|name=Notifications, {len(MEDIA_ROWS)} unread@5",
+            *[f"assertstate:{ROW}fixture-notif-{row}|name=Unread. {MEDIA_NAMES[row]}" for row in MEDIA_ROWS[:3]],
+            "{shot:notifications-media}",
+            f"scrollinto:{ROW}fixture-notif-{MEDIA_ROWS[-1]}",
+            *[f"waitfor:{ROW}fixture-notif-{row}@5" for row in MEDIA_ROWS[3:]],
+            *[f"assertstate:{ROW}fixture-notif-{row}|name=Unread. {MEDIA_NAMES[row]}" for row in MEDIA_ROWS[3:]],
+            "{shot:notifications-media-end}",
+        ],
+        None,
     ),
     "loading": (
         # The read is held only once the flyout is open (Retry from failed), so lock queuing cannot outrun the ring.

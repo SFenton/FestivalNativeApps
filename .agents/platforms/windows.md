@@ -68,6 +68,7 @@ App launch flags, all builds (environment equivalents in parentheses are read in
 - `coverage.runsettings` excludes only `GeneratedCode`/`ExcludeFromCodeCoverage` attributes and `*.g.cs` files. Do **not** exclude `CompilerGeneratedAttribute`: that also drops every `async` state machine and lambda body (until 2026-09-28 ~2,200 lines, e.g. all of `FestivalApiClient`'s async reads, were silently unmeasured and async-only partials failed as "missing coverage").
 - WinUI content is presented by DWM through DirectComposition: PresentMon attributes no presents to the app process, only to `dwm.exe`. Use app CPU, DWM CPU and GPU 3D engine counters; treat DWM present intervals as a system-wide signal.
 - Handling `ContainerContentChanging` with `args.Handled = true` suppresses x:Bind template updates.
+- The default `ListViewItem` template binds `Background` and `Padding` (as `ContentMargin`) to its `ListViewItemPresenter`, but not `BorderBrush`, `BorderThickness` or `CornerRadius`. The radius is the `ListViewItemCornerRadius` theme resource, and the rounded fill is inset 4,2 epx from the item bounds. So override the radius in the `ListView.Resources`, and draw a card stroke in the item template's root `Border` with `Margin="4,2"` (issue #272, notification rows).
 - Native `PackageReference` in a `.vcxproj` needs `ResolveNuGetPackages=false`.
 
 ## Host tooling on `sfenton-music`

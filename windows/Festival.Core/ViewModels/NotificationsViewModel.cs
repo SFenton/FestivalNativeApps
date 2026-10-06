@@ -310,9 +310,22 @@ public sealed partial class NotificationRowViewModel : ObservableObject
     /// <summary>Unread marker.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AccessibleName))]
+    [NotifyPropertyChangedFor(nameof(HasTrailing))]
     private bool isUnread;
 
-    /// <summary>Narrator name: unread state, title, message, flag and time (the art and icons are decorative).</summary>
-    public string AccessibleName => (IsUnread ? "Unread. " : "") + $"{Title}. {Message} " + (HasFlag ? $"{Flag}. " : "") + TimeText;
+    /// <summary>Whether the trailing column (unread dot and/or chevron) is shown (web <c>trailingAction</c>).</summary>
+    public bool HasTrailing => IsUnread || HasDestination;
+
+    /// <summary>Spoken chart list of a multi-chart row (web grid rail <c>aria-label</c>), else empty.</summary>
+    public string AffectedInstrumentsText => HasGrid
+        ? "Affected instruments: " + string.Join(", ", Presentation.GridInstruments.Select(i => i.Label())) + ". "
+        : "";
+
+    /// <summary>
+    /// Narrator name: unread state, title, message, the affected charts of a multi-chart row, flag and time (the art and
+    /// icons are decorative, and the time is spoken but not drawn, like Android and iOS).
+    /// </summary>
+    public string AccessibleName => (IsUnread ? "Unread. " : "") + $"{Title}. {Message} " + AffectedInstrumentsText
+        + (HasFlag ? $"{Flag}. " : "") + TimeText;
 }
 #endregion

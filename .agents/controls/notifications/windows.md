@@ -15,7 +15,16 @@
 
 ## Behavior
 
-- Rows follow the web `NotificationRow` (operator batch 6.34/7.20, issue #76): a 64 epx leading media rail (`NotificationPresentation.MediaKind`: 54 epx album art via `SongArt`; 44 epx art above a two-column grid of 18 epx instrument icons when the row touches several charts; else the row's 36 epx instrument icon, Lead when it names none), bold title, sentence with the web's bold values (scores, ranks, instrument, song, "Full Combo", "gold stars", "x to y stars"; fallback wording never bold), a colour-coded flag pill (web `FLAG_COLORS`, white SemiBold label, 2 epx 18%-white border; under a contrast theme an outlined ButtonFace/ButtonText system pill) + time, and on the trailing edge the unread dot beside the chevron. "New"/"Older" headers use `FSTSectionHeaderBrush` (white; WindowText under a contrast theme). Media is decorative (Raw); the row's `ListViewItem` carries the Narrator name "Unread. Title. Message Flag. Time" and the row ID (`ContainerContentChanging`), so Narrator reads one item (not an item plus a nested group) and the flag never relies on colour. A tapped row without a destination drops "Unread." at once. The two lists don't scroll or virtualize themselves inside the flyout's scroller (rows used to vanish and reappear when scrolling back up); this is a deliberate deviation from winui-design's "`ScrollViewer` wrapped around a `ListView`" rule, bounded by the 50-row read limit.
+- Rows follow the web `NotificationRow` (operator batch 6.34/7.20, issues #76, #272). Each row is a card. Its `ListViewItem` (`RowContainerStyle`) draws the web `surfaceSubtle` fill (`FSTNotificationRowSurfaceBrush`) with 8 epx between cards, so hover (web `surfaceElevated`), press and the focus rectangle follow the card. The default `ListViewItemPresenter` template ignores the item's `BorderBrush`, `BorderThickness` and `CornerRadius`. So each `ListView.Resources` overrides `ListViewItemCornerRadius` (10 epx). `RowTemplate`'s root `Border` draws the 1 epx `borderSubtle` stroke and the 10 epx padding, with a 4,2 epx margin matching the presenter's inset rounded fill. A 4 epx item margin leaves the web's 8 epx between cards (issue #272: the contrast-theme stroke never drew). Inside the card:
+  - a 64 epx leading media rail (`NotificationPresentation.MediaKind`): 54 epx album art via `SongArt`; 44 epx art above a two-column grid of 18 epx instrument icons when the row touches several charts; otherwise the row's 36 epx instrument icon, Lead when it names none;
+  - a one-line `MarqueeText` title (`FSTMarqueeTitleStyle`; ellipsis when motion is off);
+  - the sentence with the web's bold values (scores, ranks, instrument, song, "Full Combo", "gold stars", "x to y stars"; fallback wording is never bold);
+  - a colour-coded flag pill: web `FLAG_COLORS`, white SemiBold label, 4,2 epx padding, 8 epx radius and a 2 epx 18%-white border. Under a contrast theme it becomes an outlined ButtonFace/ButtonText system pill;
+  - a 20 epx trailing column with the centred chevron. The 9 epx gold `#FACC15` unread dot (`FSTNotificationUnreadDotBrush`) sits 24 epx above the chevron's centre.
+
+  The relative time isn't drawn; the web shows none, and Android and iOS only speak it. Under a contrast theme the card is Window with a WindowText stroke and a WindowText dot. Hover and press are Highlight, so the row's text (no explicit foreground) inherits HighlightText. The cards are flat opaque fills inside the flyout's own material ([surface-materials](../../patterns/surface-materials.md) R6). The chevron keeps the theme foreground (white, like Android) instead of the web's 72% white, so contrast-theme hover still recolours it.
+
+  "New"/"Older" headers use `FSTSectionHeaderBrush` (white; WindowText under a contrast theme). Media, dot and chevron are decorative (Raw). The row's `ListViewItem` carries the row ID (`ContainerContentChanging`) and the Narrator name "Unread. Title. Message [Affected instruments: A, B.] Flag. Time". Multi-chart rows name their charts like the web grid's `aria-label`. Narrator reads one item (not an item plus a nested group), and the flag never relies on colour. A tapped row without a destination drops "Unread." at once. The two lists don't scroll or virtualize themselves inside the flyout's scroller (rows used to vanish and reappear when scrolling back up). This deliberately deviates from winui-design's "`ScrollViewer` wrapped around a `ListView`" rule, bounded by the 50-row read limit.
 
 - Row activation marks it seen; a song destination opens Song Detail (with chart) on the Songs stack; a rank destination saves `LeaderboardRankBy` and shows Leaderboards (web `/leaderboards?rankBy=`). Closing the flyout marks every loaded row seen.
 - While loading, empty or not generated the flyout has nothing focusable, so WinUI focuses its `Popup`; `OnOpened` names that popup "Notifications" (UIA otherwise reports an unnamed "Popup" window, and `Flyout`'s own name only reaches the presenter).
@@ -27,7 +36,7 @@
 
 ## Validation (issue #229, 2026-10-04)
 
-Every reachable contract state runs in `python tools/windows/notifications_journey.py [--only NAME] [--sizes compact,medium,wide] [--shots DIR]`. `tools/windows/notifications_fixture.py` serves per-player feeds (`fixture-player-1` rich, `fixture-feed-empty`, `fixture-feed-new` not generated, `fixture-feed-error` 503) and switches them between phases through `GET /__notifications__/mode?feed=…`, which also returns the read count. The accessibility pages are in `journeys/a11y-notifications.json`. How each state shows on Windows:
+Every reachable contract state runs in `python tools/windows/notifications_journey.py [--only NAME] [--sizes compact,medium,wide] [--shots DIR]`. `tools/windows/notifications_fixture.py` serves per-player feeds (`fixture-player-1` rich, `fixture-feed-empty`, `fixture-feed-new` not generated, `fixture-feed-error` 503, `fixture-feed-media` media rail and flag kinds, issue #272) and switches them between phases through `GET /__notifications__/mode?feed=…`, which also returns the read count. The accessibility pages are in `journeys/a11y-notifications.json`. How each state shows on Windows:
 
 | State | Windows evidence |
 |---|---|
@@ -54,6 +63,21 @@ Per configuration (fixture runs use `notifications_journey` and `a11y_matrix --s
 Narrator: the heading "Notifications" (level 2), the "New"/"Older" headings (level 3), then one item per row. Fixed: each row read as an unnamed list item followed by a nested group, and the row IDs were missing from UIA, so the name and ID now sit on the `ListViewItem`. The empty-state popup also used to read "Popup", and the state IDs sat on panels, which have no UIA peer.
 
 Deliberate deviations from the winui-design/code-review skills: the dark-only theme; the `ScrollViewer` around the two non-scrolling `ListView`s (see Behavior); English literals (no `.resw` yet); a fixed 380 epx flyout width and raw icon sizes (web `NotificationRow` parity).
+
+## Validation (issue #272, 2026-10-06)
+
+Re-check of #76 against the web `NotificationRow` with the winui plugin. Media rail, bold values and colour-coded pills already matched. Fixed: rows were flat list items (no `surfaceSubtle` card, stroke or radius), and the gold unread dot sat beside the chevron instead of 24 epx above it. A visible relative time was shown that the web doesn't have. Multi-chart rows didn't name their charts to Narrator. Then, during this pass, the card stroke never drew, because `ListViewItemPresenter` ignores the item's border (see [windows.md](../../platforms/windows.md) Gotchas). `media-rows` (fixture `fixture-feed-media`) covers the grid row and five flag kinds; the live SFentonX feed has no multi-chart row.
+
+| Configuration | Findings |
+|---|---|
+| Compact, medium, wide, maximized, snap-left | cards fill the flyout width; the grid row keeps art above its two-column grid; the journey's 11 scenarios pass at C/M/W (`journey2`); 0 Axe errors on all 7 fixture pages at all 5 sizes |
+| Light / dark system theme | dark brand surface unchanged; 0 Axe errors |
+| Desert, Night sky | cards are Window with a WindowText stroke, the dot is WindowText, pills are outlined ButtonFace; hover/press are Highlight with HighlightText; 0 Axe errors |
+| Text 200% | the title stays one marquee line, the sentence wraps and the card grows; the dot stays above the chevron; the last row scrolls into view; 0 Axe errors |
+| Display 100% / 150% | identical epx geometry (stroke on the fill edge, 8 epx gaps); 0 Axe errors |
+| Keyboard | unchanged: Enter opens with focus on the first card (focus rectangle around the card), arrows move, Enter activates, Esc returns to the bell (`kb-notifications-*` at C/M/W) |
+
+Narrator: one item per card, named "Unread. Title. Message [Affected instruments: Lead, Bass, Drums.] Flag. Time". The time is spoken but not drawn, like Android and iOS. Deliberate deviations: the chevron uses the theme foreground (not the web's 72% white) so contrast-theme hover recolours it; the title/message/pill keep the Fluent type ramp (BodyStrong/Body/Caption) rather than web pixel sizes; the card radius and padding are web constants, not `ControlCornerRadius`.
 
 ## Open
 

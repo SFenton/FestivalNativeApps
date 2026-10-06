@@ -5,49 +5,68 @@
     xmlns:controls="using:Festival.App.Controls"
     xmlns:vm="using:Festival.Core.ViewModels">
     <UserControl.Resources>
-        <!-- Web NotificationRow (operator batch 6.34/7.20, issue #76): 64 epx leading media rail (54 epx song art; 44 epx art
-             above a two-column grid of 18 epx instrument icons when the row touches several charts; else a 36 epx instrument
-             icon), bold title, white sentence with the web's bold values, colour-coded flag pill + time, then the unread dot
-             beside the chevron on the trailing edge. Media is decorative (Raw); the row's ListViewItem carries the name and
-             AutomationId (OnContainerContentChanging), so Narrator reads one item instead of an item plus a nested group. -->
+        <!-- Web NotificationRow (operator batch 6.34/7.20, issues #76, #272). The ListViewItem is the card (container style
+             below): web surfaceSubtle fill, 1 epx borderSubtle stroke, 10 epx radius and padding, 8 epx apart, so hover, press
+             and the focus rectangle follow the card. Inside: a 64 epx media rail (54 epx song art; 44 epx art above a
+             two-column grid of 18 epx instrument icons when the row touches several charts; else a 36 epx instrument icon), a
+             one-line marquee title, the white sentence with the web's bold values and the colour-coded flag pill (no visible
+             time, like the web), then a 20 epx trailing column with the centred chevron and the 9 epx gold unread dot 24 epx
+             above its centre. Media, dot and chevron are decorative (Raw); the ListViewItem carries the name and AutomationId
+             (OnContainerContentChanging), so Narrator reads one item instead of an item plus a nested group. -->
         <DataTemplate x:Key="RowTemplate" x:DataType="vm:NotificationRowViewModel">
-            <Grid ColumnSpacing="12" Padding="0,8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="64" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <Grid Width="64" MinHeight="64" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
-                    <StackPanel Spacing="4" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{x:Bind HasArt}">
-                        <controls:SongArt Art="{x:Bind Art}" Width="{x:Bind ArtSize}" Height="{x:Bind ArtSize}" HorizontalAlignment="Center" />
-                        <Grid HorizontalAlignment="Center" Visibility="{x:Bind HasGrid}"
-                              controls:NotificationRowVisuals.IconFiles="{x:Bind GridIconFiles}" />
-                    </StackPanel>
-                    <controls:InstrumentIcon File="{x:Bind MediaIconFile}" Width="36" Height="36" HorizontalAlignment="Center"
-                                             VerticalAlignment="Center" Visibility="{x:Bind HasMediaIcon}"
-                                             AutomationProperties.AccessibilityView="Raw" />
-                </Grid>
-                <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                    <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis" />
-                    <TextBlock controls:NotificationRowVisuals.Parts="{x:Bind MessageParts}" TextWrapping="Wrap" />
-                    <StackPanel Orientation="Horizontal" Spacing="8">
+            <Border Margin="4,2" BorderBrush="{ThemeResource FSTNotificationRowStrokeBrush}" BorderThickness="1" CornerRadius="10" Padding="10">
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="64" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid Width="64" MinHeight="64" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+                        <StackPanel Spacing="4" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{x:Bind HasArt}">
+                            <controls:SongArt Art="{x:Bind Art}" Width="{x:Bind ArtSize}" Height="{x:Bind ArtSize}" HorizontalAlignment="Center" />
+                            <Grid HorizontalAlignment="Center" Visibility="{x:Bind HasGrid}"
+                                  controls:NotificationRowVisuals.IconFiles="{x:Bind GridIconFiles}" />
+                        </StackPanel>
+                        <controls:InstrumentIcon File="{x:Bind MediaIconFile}" Width="36" Height="36" HorizontalAlignment="Center"
+                                                 VerticalAlignment="Center" Visibility="{x:Bind HasMediaIcon}"
+                                                 AutomationProperties.AccessibilityView="Raw" />
+                    </Grid>
+                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                        <controls:MarqueeText Text="{x:Bind Title}" TextStyle="{StaticResource FSTMarqueeTitleStyle}" AutomationProperties.AccessibilityView="Raw" />
+                        <TextBlock controls:NotificationRowVisuals.Parts="{x:Bind MessageParts}" TextWrapping="Wrap" />
                         <Border Background="{x:Bind controls:NotificationRowVisuals.FlagBrush(FlagArgb)}" BorderBrush="{ThemeResource FSTNotificationFlagStrokeBrush}" BorderThickness="2"
-                                CornerRadius="4" Padding="6,1" Visibility="{x:Bind HasFlag}">
+                                CornerRadius="8" Padding="4,2" HorizontalAlignment="Left" Visibility="{x:Bind HasFlag}">
                             <TextBlock Text="{x:Bind Flag}" Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold"
                                        Foreground="{ThemeResource FSTNotificationFlagTextBrush}" />
                         </Border>
-                        <TextBlock Text="{x:Bind TimeText}" Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center"
-                                   Foreground="{ThemeResource FSTDeemphasisTextBrush}" />
                     </StackPanel>
-                </StackPanel>
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <Ellipse Width="8" Height="8" VerticalAlignment="Center" Fill="{ThemeResource SystemFillColorCautionBrush}"
-                             Visibility="{x:Bind IsUnread, Mode=OneWay}" AutomationProperties.AccessibilityView="Raw" />
-                    <FontIcon Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center" Visibility="{x:Bind HasDestination}"
-                              AutomationProperties.AccessibilityView="Raw" />
-                </StackPanel>
-            </Grid>
+                    <Grid Grid.Column="2" Width="20" Margin="2,0,0,0" AutomationProperties.AccessibilityView="Raw"
+                          Visibility="{x:Bind HasTrailing, Mode=OneWay}">
+                        <FontIcon Glyph="&#xE76C;" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  Visibility="{x:Bind HasDestination}" AutomationProperties.AccessibilityView="Raw" />
+                        <Ellipse Width="9" Height="9" HorizontalAlignment="Center" VerticalAlignment="Center" Fill="{ThemeResource FSTNotificationUnreadDotBrush}"
+                                 Visibility="{x:Bind IsUnread, Mode=OneWay}" AutomationProperties.AccessibilityView="Raw">
+                            <Ellipse.RenderTransform>
+                                <TranslateTransform Y="-24" />
+                            </Ellipse.RenderTransform>
+                        </Ellipse>
+                    </Grid>
+                </Grid>
+            </Border>
         </DataTemplate>
+
+        <!-- The row card (see RowTemplate): the ListViewItem's presenter draws the fill, so hover/press keep the card shape.
+             Its default template binds neither BorderBrush, BorderThickness nor CornerRadius (the radius is the
+             ListViewItemCornerRadius theme resource, overridden in each ListView), so the template's root Border draws the
+             stroke and padding. The presenter insets its rounded fill 4,2 epx, so the Border does too and the 4 epx item
+             margin leaves the web's 8 epx between cards. -->
+        <Style x:Key="RowContainerStyle" TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
+            <Setter Property="Background" Value="{ThemeResource FSTNotificationRowSurfaceBrush}" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
     </UserControl.Resources>
 
     <Button x:Name="BellButton" Padding="4" Margin="0,0,4,0" Background="Transparent" BorderThickness="0"
@@ -102,16 +121,28 @@
                         <StackPanel Spacing="4">
                             <TextBlock Text="New" Style="{StaticResource BodyStrongTextBlockStyle}" Foreground="{ThemeResource FSTSectionHeaderBrush}" Visibility="{x:Bind Model.HasNew, Mode=OneWay}"
                                        AutomationProperties.HeadingLevel="Level3" />
-                            <ListView ItemsSource="{x:Bind Model.NewItems, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="64" ItemTemplate="{StaticResource RowTemplate}"
+                            <ListView ItemsSource="{x:Bind Model.NewItems, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="94" ItemTemplate="{StaticResource RowTemplate}" ItemContainerStyle="{StaticResource RowContainerStyle}"
                                       SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnRowClick" ScrollViewer.VerticalScrollMode="Disabled"
                                       ContainerContentChanging="OnContainerContentChanging"
-                                      Visibility="{x:Bind Model.HasNew, Mode=OneWay}" AutomationProperties.Name="New notifications" />
+                                      Visibility="{x:Bind Model.HasNew, Mode=OneWay}" AutomationProperties.Name="New notifications">
+                                <ListView.Resources>
+                                    <StaticResource x:Key="ListViewItemBackgroundPointerOver" ResourceKey="FSTNotificationRowPointerOverBrush" />
+                                    <StaticResource x:Key="ListViewItemBackgroundPressed" ResourceKey="FSTNotificationRowPressedBrush" />
+                                    <CornerRadius x:Key="ListViewItemCornerRadius">10</CornerRadius>
+                                </ListView.Resources>
+                            </ListView>
                             <TextBlock Text="Older" Style="{StaticResource BodyStrongTextBlockStyle}" Foreground="{ThemeResource FSTSectionHeaderBrush}" Visibility="{x:Bind Model.HasOlder, Mode=OneWay}"
                                        AutomationProperties.HeadingLevel="Level3" />
-                            <ListView ItemsSource="{x:Bind Model.OlderItems, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="64" ItemTemplate="{StaticResource RowTemplate}"
+                            <ListView ItemsSource="{x:Bind Model.OlderItems, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="94" ItemTemplate="{StaticResource RowTemplate}" ItemContainerStyle="{StaticResource RowContainerStyle}"
                                       SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnRowClick" ScrollViewer.VerticalScrollMode="Disabled"
                                       ContainerContentChanging="OnContainerContentChanging"
-                                      Visibility="{x:Bind Model.HasOlder, Mode=OneWay}" AutomationProperties.Name="Older notifications" />
+                                      Visibility="{x:Bind Model.HasOlder, Mode=OneWay}" AutomationProperties.Name="Older notifications">
+                                <ListView.Resources>
+                                    <StaticResource x:Key="ListViewItemBackgroundPointerOver" ResourceKey="FSTNotificationRowPointerOverBrush" />
+                                    <StaticResource x:Key="ListViewItemBackgroundPressed" ResourceKey="FSTNotificationRowPressedBrush" />
+                                    <CornerRadius x:Key="ListViewItemCornerRadius">10</CornerRadius>
+                                </ListView.Resources>
+                            </ListView>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>

@@ -89,10 +89,17 @@ public class NotificationsTests
         Assert.True(row.HasGrid);
         Assert.Equal(44, row.ArtSize);
         Assert.Equal(["instrument_guitar.png", "instrument_bass.png", "instrument_drums.png", "instrument_pro_guitar.png"], row.GridIconFiles);
+        // Narrator hears the grid's charts (web aria-label "Affected instruments: …"); the dot/chevron column shows for links.
+        Assert.Contains($". Affected instruments: {Instrument.Lead.Label()}, {Instrument.Bass.Label()}, {Instrument.Drums.Label()}, {Instrument.ProLead.Label()}. ", row.AccessibleName);
+        Assert.EndsWith("1h ago", row.AccessibleName);
+        Assert.Equal(row.HasDestination, row.HasTrailing);
+        row.IsUnread = true;
+        Assert.True(row.HasTrailing);
 
         var single = new NotificationRowViewModel(NotificationText.Format(Item("player_score_pb"), "Song", "art.jpg"), false, "1h ago");
         Assert.Equal((NotificationMediaKind.Song, 54d, false), (single.MediaKind, single.ArtSize, single.HasGrid));
         Assert.Empty(single.GridIconFiles);
+        Assert.Equal("", single.AffectedInstrumentsText);
 
         // Without art the rail shows the row's instrument (Lead when it names none), never a grid.
         var noArt = NotificationText.Format(coalesced, "Song");

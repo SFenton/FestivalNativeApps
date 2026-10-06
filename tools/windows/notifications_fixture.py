@@ -5,11 +5,14 @@ account with a never-generated empty feed. That reaches neither "generated but e
 row without a destination nor a failed read, so this wrapper answers the notifications read for every ``fixture-*``
 account itself and lets a journey change the feed between phases through a loopback control route:
 
-``GET /__notifications__/mode?feed=<rich|mock|empty|not-generated|error|slow>[&reset=1]``
+``GET /__notifications__/mode?feed=<rich|media|mock|empty|not-generated|error|slow>[&reset=1]``
 
 * ``rich`` (default): five rows covering every Windows row shape and destination: a song rank climb (Song Detail on
   Lead), a Full Combo (Song Detail on Bass), an FC-rate rank climb (Leaderboards ranked by FC Rate), an aggregate
   total-score improvement (no destination) and an Item Shop song (art from the catalogue, no flag).
+* ``media`` (issue #272): six song rows covering the media rail and flag chips: a multi-chart personal best (art
+  above a three-instrument grid, "Affected instruments" in its name) and one row per remaining flag kind (First Play,
+  Stars Up, Gold Stars, Difficulty Up, New High Score).
 * ``mock``: the unchanged mock feed.
 * ``empty``: a generated feed with no rows (``notifications.empty.generatedBody``).
 * ``not-generated``: no detection run yet (``notifications.empty.notGeneratedBody``).
@@ -40,7 +43,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import mock_service  # noqa: E402  (path set above)
 
 #: Feeds this wrapper can serve.
-FEED_MODES = ("rich", "mock", "empty", "not-generated", "error", "slow")
+FEED_MODES = ("rich", "media", "mock", "empty", "not-generated", "error", "slow")
 #: Control route a journey calls between phases.
 CONTROL_PATH = "/__notifications__/mode"
 #: Notifications read for any fixture account.
@@ -50,6 +53,7 @@ ACCOUNT_FEEDS = {
     "fixture-feed-empty": "empty",
     "fixture-feed-new": "not-generated",
     "fixture-feed-error": "error",
+    "fixture-feed-media": "media",
 }
 
 
@@ -83,6 +87,42 @@ def rich_feed(account_id: str) -> dict:
             row(4, "fixture-notif-total", "player_total_score_improved", 2, instrument="Solo_Vocals",
                 oldNumeric=1200000, newNumeric=1234567),
             shop,
+        ],
+    }
+
+
+def media_feed(account_id: str) -> dict:
+    """Build the six-row media/flags feed, newest first (issue #272).
+
+    Args:
+        account_id: Fixture account the rows belong to.
+
+    Returns:
+        The notifications envelope.
+    """
+    def row(event_id: int, guid: str, kind: str, day: int, **fields) -> dict:
+        return {
+            "eventId": event_id, "notificationGuid": guid, "accountId": account_id, "eventKind": kind,
+            "detectedAt": f"2024-01-{day:02d}T12:00:00Z", "expiresAt": f"2024-02-{day:02d}T12:00:00Z", **fields,
+        }
+
+    return {
+        "generatedAt": "2024-01-07T00:00:00Z", "expiresAfterHours": 72,
+        "sourceRunId": 1, "sourceCompletedAt": "2024-01-07T00:00:00Z", "notificationsGenerated": True,
+        "items": [
+            row(11, "fixture-notif-grid", "player_score_pb", 7, songId="fixture-pulse", instrument="Solo_Guitar",
+                oldNumeric=180000, newNumeric=201234,
+                payload={"coalescedInstruments": ["Solo_Guitar", "Solo_Bass", "Solo_Drums"]}),
+            row(12, "fixture-notif-first", "player_first_score", 6, songId="fixture-orbit", instrument="Solo_Bass",
+                newNumeric=154321),
+            row(13, "fixture-notif-stars", "player_stars_improved", 5, songId="fixture-pulse", instrument="Solo_Drums",
+                oldNumeric=4, newNumeric=5),
+            row(14, "fixture-notif-gold", "player_gold_stars_achieved", 4, songId="fixture-orbit",
+                instrument="Solo_Vocals"),
+            row(15, "fixture-notif-difficulty", "player_difficulty_bumped", 3, songId="fixture-pulse",
+                instrument="Solo_Guitar", oldNumeric=2, newNumeric=3),
+            row(16, "fixture-notif-pb", "player_score_pb", 2, songId="fixture-orbit", instrument="Solo_Drums",
+                oldNumeric=99000, newNumeric=123456),
         ],
     }
 
@@ -199,6 +239,8 @@ def install(state: FeedState) -> None:
             self._json(503, {"status": "fixture_unavailable"})
         elif mode in ("empty", "not-generated"):
             self._json(200, empty_feed(mode == "empty"))
+        elif mode == "media":
+            self._json(200, media_feed(account))
         else:
             if mode == "slow":
                 state.released.wait(state.slow_seconds)

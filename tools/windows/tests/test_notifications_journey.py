@@ -82,6 +82,25 @@ class FeedShapeTests(unittest.TestCase):
         self.assertEqual(f.empty_feed(False)["sourceRunId"], None)
         self.assertFalse(f.empty_feed(False)["notificationsGenerated"])
 
+    def test_media_feed_rows(self):
+        feed = f.media_feed("fixture-feed-media")
+        guids = [item["notificationGuid"] for item in feed["items"]]
+        self.assertEqual(guids, [f"fixture-notif-{row}" for row in j.MEDIA_ROWS])
+        self.assertEqual(set(j.MEDIA_NAMES), set(j.MEDIA_ROWS))
+        self.assertEqual(len({item["eventId"] for item in feed["items"]}), len(guids))
+        days = [item["detectedAt"] for item in feed["items"]]
+        self.assertEqual(days, sorted(days, reverse=True))
+        self.assertTrue(all(item["songId"] and item["accountId"] == "fixture-feed-media" for item in feed["items"]))
+        # One multi-chart row (art above an instrument grid) and every remaining song flag kind.
+        self.assertEqual(len(feed["items"][0]["payload"]["coalescedInstruments"]), 3)
+        self.assertEqual({item["eventKind"] for item in feed["items"]},
+                         {"player_score_pb", "player_first_score", "player_stars_improved",
+                          "player_gold_stars_achieved", "player_difficulty_bumped"})
+        self.assertIn("Affected instruments: Lead, Bass, Drums.", j.MEDIA_NAMES["grid"])
+        state = f.FeedState()
+        state.update({"feed": ["media"]})
+        self.assertEqual(state.route(READ), ("media", "fixture-player-1"))
+
 
 class NotificationsJourneyPhaseTests(unittest.TestCase):
     """Scenario splitting, fixture checks and screenshot expansion."""
