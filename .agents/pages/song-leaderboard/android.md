@@ -85,3 +85,16 @@ The app is dark-only, so a light system theme renders the same. Reduce Transpare
 Material 3 notes: top app bar title on scroll follows the "collapses on scroll" bar behavior; the footer has no shadow band ("Shadows are only used when needed for additional protection"); pager buttons are 48 dp targets; foldables keep content off the hinge ("Never place interactive content or critical information across the hinge area"). Deliberate deviations: dark-only theme and 16 dp margins (existing cross-page choices).
 
 Tests: `SongLeaderboardJourneyTest` (connected; FST_Phone, FST_Book_Fold half), `BoardFooterFadeDrawUiTest` (Increase Contrast and Reduce Transparency hard cut, Robolectric).
+
+Evidence (live service, dark theme; captures on the tracker issue's Android resolution update):
+
+| Capture | AVD / posture | Font / accessibility | Shows |
+| --- | --- | --- | --- |
+| [unfolded, scrolled](https://github.com/user-attachments/assets/156fb924-909a-4e46-99f1-c3857f9ff33a) | FST_Book_Fold unfolded (expanded, rail) | 1.0, none | 36 dp linear ramp above the pinned row (after the #190 review) |
+| [folded, Increase Contrast](https://github.com/user-attachments/assets/ce1bfa3b-8f28-49c1-bb60-bfc315534b18) | FST_Book_Fold folded (compact) | 1.0, `contrast_level 1.0` | R7 hard cut at the pinned row (36 dp build) |
+| [paging motion](https://github.com/user-attachments/assets/0c8f29fb-f15e-425d-9d0c-32673e3a8df2) | FST_Book_Fold folded | 1.0, animations on | scroll under the footer, Next, Previous: pinned row and pager stay |
+| [phone, Increase Contrast](https://github.com/user-attachments/assets/4881a546-5f45-4291-b2b4-0652d042ce4c) | FST_Phone portrait | 1.0, `contrast_level 1.0` | R7 hard cut (40 dp build, first pass) |
+| [folded, scrolled](https://github.com/user-attachments/assets/d8325d10-bf20-4e2f-ac40-9b8349e99952) | FST_Book_Fold folded | 1.0, none | bar title after scroll (40 dp build, first pass) |
+| [phone paging motion](https://github.com/user-attachments/assets/5c8e9410-5809-4a6a-bcde-8c55f6bddffc) | FST_Phone portrait | 1.0, animations on | paging keeps the pager (first pass) |
+
+Other rows of the table above were checked by eye on device without uploaded captures.
