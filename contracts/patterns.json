@@ -1633,6 +1633,7 @@
       "issues": [
         93,
         293,
+        315,
         316,
         317
       ],
@@ -1649,16 +1650,16 @@
       "canonical": {
         "apple": [
           {
-            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardHeader.swift",
-            "symbol": "SongLeaderboardHeader"
+            "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
+            "symbol": "SongHeaderRow"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
+            "symbol": "SongBarTitleToolbarItem"
           },
           {
             "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardHeader.swift",
-            "symbol": "SongLeaderboardPinnedTitle"
-          },
-          {
-            "path": "apple/Sources/FestivalUI/Features/SongDetail/SongDetailScreen.swift",
-            "symbol": "SongDetailPinnedTitlePolicy"
+            "symbol": "SongLeaderboardBoardLine"
           }
         ],
         "android": [
@@ -1687,11 +1688,9 @@
           "id": "apple-principal-title",
           "glob": "apple/Sources/FestivalUI/Features/SongLeaderboard/**/*.swift",
           "regex": "ToolbarItem\\(\\s*placement:\\s*\\.principal",
-          "allow": [
-            "apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardHeader.swift"
-          ],
+          "allow": [],
           "debt": [],
-          "message": "Song leaderboard bar titles come from SongLeaderboardPinnedTitle (song-leaderboard-header R3, R5)."
+          "message": "Song leaderboard bar titles come from the shared SongBarTitleToolbarItem (song-leaderboard-header R3, R5; song-header R4)."
         }
       ],
       "related": {
@@ -1711,10 +1710,10 @@
     },
     {
       "id": "song-header",
-      "title": "Song header title",
+      "title": "Song header",
       "status": "current",
       "doc": ".agents/patterns/song-header.md",
-      "summary": "Song pages show the song through one shared header whose title fills the width beside the art on one line and marquees when it overflows (Reduce Motion truncates, large text wraps in-page); the pinned top-bar song title marquees on one line.",
+      "summary": "Song pages show the song through one shared header whose title and artist each fill the width beside the art on one line and marquee only on overflow (Reduce Motion truncates, accessibility sizes wrap in-page); one compact pinned bar title marquees on one line.",
       "keywords": [
         "song header",
         "song title",
@@ -1723,7 +1722,9 @@
         "title wraps",
         "SongInfoHeader",
         "pinned title",
-        "top bar title"
+        "top bar title",
+        "artist",
+        "hero"
       ],
       "web": [
         {
@@ -1733,6 +1734,10 @@
         {
           "path": "components/common/MarqueeText.tsx",
           "symbol": "MarqueeText"
+        },
+        {
+          "path": "hooks/ui/useMarqueeSync.ts",
+          "symbol": "useMarqueeSync"
         }
       ],
       "canonical": {
@@ -1742,8 +1747,20 @@
             "symbol": "MarqueeText"
           },
           {
-            "path": "apple/Sources/FestivalUI/Features/SongDetail/SongDetailScreen.swift",
-            "symbol": "SongDetailScreen"
+            "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
+            "symbol": "SongHeaderText"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
+            "symbol": "SongHeaderRow"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
+            "symbol": "SongBarTitle"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
+            "symbol": "SongBarTitleToolbarItem"
           }
         ],
         "android": [
@@ -1767,7 +1784,18 @@
           }
         ]
       },
-      "guards": [],
+      "guards": [
+        {
+          "id": "apple-wrapping-title",
+          "glob": "apple/Sources/FestivalUI/Features/**/*.swift",
+          "regex": "\\bText\\(song\\.title\\)",
+          "allow": [
+            "apple/Sources/FestivalUI/Features/Songs/SongRowView.swift"
+          ],
+          "debt": [],
+          "message": "Song headers show the title with the shared SongHeaderText / SongBarTitle (one full-width marqueeing line), not a page-local Text (song-header R1, R5)."
+        }
+      ],
       "related": {
         "patterns": [
           "leaderboard-row",
