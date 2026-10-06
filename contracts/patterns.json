@@ -1114,6 +1114,10 @@
           "symbol": "PathsModal"
         },
         {
+          "path": "pages/songinfo/components/path/PathDataTable.tsx",
+          "symbol": "PathDataTable"
+        },
+        {
           "path": "contexts/PublicationBoundary.tsx",
           "symbol": "PublicationBoundary"
         },
@@ -1328,6 +1332,7 @@
         71,
         149,
         169,
+        177,
         304,
         316
       ]

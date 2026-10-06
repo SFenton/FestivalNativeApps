@@ -3,7 +3,7 @@ package com.festivalscoretracker.android.ui.songdetail
 import android.graphics.BitmapFactory
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.AnimationSpec
-import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.Ease
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
@@ -113,6 +113,8 @@ import com.festivalscoretracker.android.presentation.songs.PathSwapTiming
 import com.festivalscoretracker.android.presentation.songs.SongPathsState
 import com.festivalscoretracker.android.presentation.songs.SongPathsViewModel
 import com.festivalscoretracker.android.ui.common.FestivalLoading
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
 import androidx.compose.ui.platform.LocalDensity
@@ -164,9 +166,13 @@ fun SongPathsSheet(
     var panel by rememberSaveable { mutableStateOf<PathPanel?>(null) }
     val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
     SideEffect { viewModel.reduceMotion = reduceMotion }
-    val fade: AnimationSpec<Float> = if (reduceMotion) snap() else tween(PathSwapTiming.FADE_MILLIS.toInt(), easing = LinearEasing)
-    val contentAlpha by animateFloatAsState(if (state.phase == PathSwapPhase.Content) 1f else 0f, fade, label = "paths-content")
+    // Web `PathsModal`: `opacity 300ms ease` for the image, message and spinner fades.
+    val fade: AnimationSpec<Float> = if (reduceMotion) snap() else tween(PathSwapTiming.FADE_MILLIS.toInt(), easing = Ease)
+    // The table reveals by its row stagger (web `textStagger`), not a container fade; it still fades out as a whole.
+    val revealsByRows = state.phase == PathSwapPhase.Content && state.load is PathLoad.Text
+    val contentAlpha by animateFloatAsState(if (state.phase == PathSwapPhase.Content) 1f else 0f, if (revealsByRows) snap() else fade, label = "paths-content")
     val spinnerAlpha by animateFloatAsState(if (state.phase == PathSwapPhase.Spinner) 1f else 0f, fade, label = "paths-spinner")
+    val rowsRevealed = rememberRevealed(state.load is PathLoad.Text)
     FestivalModalSheet(
         title = "Paths",
         closeTag = "fst.paths.close",
@@ -192,7 +198,7 @@ fun SongPathsSheet(
                             )
                             is PathLoad.Failed -> ServiceStatusInline(load.issue, "Path unavailable", null, viewModel::retry, Modifier.testTag("fst.paths.error"))
                             is PathLoad.Image -> PathImage(load, "${shown.instrument.label} ${shown.difficulty.label} CHOpt path")
-                            is PathLoad.Text -> Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { PathTable(load.data, columns, wide) }
+                            is PathLoad.Text -> Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { PathTable(load.data, columns, wide, rowsRevealed) }
                         }
                     }
                     if (state.spinnerVisible) {
@@ -470,16 +476,26 @@ private fun PathImage(load: PathLoad.Image, description: String) {
  * The web `PathDataTable` (operator 6.27): no path summary or max-score line; one
  * frosted card per activation. Phones use the web's mobile card (Activation fret
  * pills, then Beat / Time / Score, then the Overdrive bar); wide panes use the
- * desktop grid in the saved column order under [PathTableHeader].
+ * desktop grid in the saved column order under [PathTableHeader]. Each card enters
+ * with the shared `fadeInUp` ([festivalFadeIn]), [PathSwapTiming.rowStagger] apart
+ * (web `textStagger`); Reduce Motion shows them at once.
+ *
+ * @param payload Table.
+ * @param columns Saved column order.
+ * @param wide Desktop grid rather than mobile cards.
+ * @param revealed Whether the rows may show ([rememberRevealed] of the table load).
  */
 @Composable
-private fun PathTable(payload: SongPathDataPayload, columns: List<PathColumnKey>, wide: Boolean) {
+private fun PathTable(payload: SongPathDataPayload, columns: List<PathColumnKey>, wide: Boolean, revealed: Boolean) {
     Column(Modifier.fillMaxWidth().testTag("fst.paths.table"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (payload.rows.isEmpty()) {
             Text("Paths not available", color = BrandTokens.textMuted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(24.dp))
             return@Column
         }
-        payload.rows.forEach { row -> if (wide) PathGridRow(row, columns) else PathCardRow(row) }
+        payload.rows.forEachIndexed { index, row ->
+            val entrance = Modifier.festivalFadeIn(revealed, PathSwapTiming.rowStagger(index))
+            if (wide) PathGridRow(row, columns, entrance) else PathCardRow(row, entrance)
+        }
     }
 }
 
@@ -516,8 +532,8 @@ private fun spoken(row: PathActivationRow): String =
         (row.instruction?.let { ". $it" } ?: "")
 
 @Composable
-private fun PathCardRow(row: PathActivationRow) {
-    PathRowCard(row) {
+private fun PathCardRow(row: PathActivationRow, modifier: Modifier) {
+    PathRowCard(row, modifier) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Column {
                 MobileLabel("Activation")
@@ -546,8 +562,8 @@ private fun PathCardRow(row: PathActivationRow) {
 }
 
 @Composable
-private fun PathGridRow(row: PathActivationRow, columns: List<PathColumnKey>) {
-    PathRowCard(row) {
+private fun PathGridRow(row: PathActivationRow, columns: List<PathColumnKey>, modifier: Modifier) {
+    PathRowCard(row, modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             columns.forEach { column ->
                 Box(Modifier.weight(weight(column)).padding(horizontal = 6.dp), contentAlignment = Alignment.Center) {
@@ -564,12 +580,12 @@ private fun PathGridRow(row: PathActivationRow, columns: List<PathColumnKey>) {
     }
 }
 
-/** One frosted activation card (one TalkBack stop). */
+/** One frosted activation card (one TalkBack stop); [modifier] carries its entrance. */
 @Composable
-private fun PathRowCard(row: PathActivationRow, content: @Composable () -> Unit) {
+private fun PathRowCard(row: PathActivationRow, modifier: Modifier, content: @Composable () -> Unit) {
     val shape = RoundedCornerShape(12.dp)
     Column(
-        Modifier
+        modifier
             .fillMaxWidth()
             .clip(shape)
             .background(BrandTokens.surfaceFrosted)
