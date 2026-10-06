@@ -110,6 +110,12 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
             if (ViewModel.ShowSpotlight && ViewModel.PinnedGate.IsGated) FadeIn.Play(SpotlightPanel, PinnedRowReveal.RevealDelay);
         });
 
+    /// <summary>Opens Song Detail from the song header (web <c>onTitleClick={goToSongDetail}</c>).</summary>
+    /// <param name="sender">Header.</param>
+    /// <param name="e">Unused.</param>
+    private void OnSongTitle(object? sender, EventArgs e) =>
+        MainWindow.Instance?.Navigate(new AppRoute.SongDetail(ViewModel.SongId));
+
     /// <summary>Updates the backdrop and header art for the resolved song.</summary>
     private void ShowSong()
     {

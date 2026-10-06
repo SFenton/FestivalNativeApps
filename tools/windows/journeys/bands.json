@@ -108,7 +108,6 @@
       "assertbelow:id=fst.song-band-leaderboard.subtitle|id=fst.song-band-leaderboard.artist",
       "waitgone:id=fst.song-band-leaderboard.total@2",
       "waitgone:name=Duos Leaderboard@2",
-      "waitgone:id=fst.song-band-leaderboard.song@2",
       "waitfor:id=fst.song-band-leaderboard.row.fixture-band-1:1@10",
       "shot:{shots}\\song-band-leaderboard-rows.png",
       "select:id=fst.song-band-leaderboard.band-type.Band_Trios",
@@ -134,7 +133,13 @@
       "invoke:id=PART_BackButton",
       "waitfor:id=fst.song-band-leaderboard.title@10",
       "assertname:id=fst.song-band-leaderboard.title|Fixture Pulse",
-      "assertname:id=fst.song-band-leaderboard.subtitle|Duos"
+      "assertname:id=fst.song-band-leaderboard.subtitle|Duos",
+      "assertstate:id=fst.song-band-leaderboard.song|type=button",
+      "assertstate:id=fst.song-band-leaderboard.song|name=Fixture Pulse",
+      "assertstate:id=fst.song-band-leaderboard.song|invoke=true",
+      "invoke:id=fst.song-band-leaderboard.song",
+      "waitfor:id=fst.song-detail.title@10",
+      "waitgone:id=fst.song-band-leaderboard.screen@5"
     ]
   },
   {
@@ -152,6 +157,30 @@
       "waitfor:id=fst.song-band-leaderboard.empty@10",
       "assertname:id=fst.song-band-leaderboard.subtitle|Trios",
       "waitgone:id=fst.song-band-leaderboard.total@5",
+      "select:id=fst.song-band-leaderboard.band-type.Band_Duets",
+      "waitfor:id=fst.song-band-leaderboard.row.fixture-band-1:1@10",
+      "assertname:id=fst.song-band-leaderboard.total|29 Duos entries"
+    ]
+  },
+  {
+    "name": "song-band-leaderboard-slow-switch-total",
+    "route": "/songs/fixture-pulse/bands/Band_Duets",
+    "preset": "medium",
+    "fixture": ["--song-band-totals", "--song-band-slow", "Band_Quad"],
+    "steps": [
+      "waitfor:id=fst.song-band-leaderboard.row.fixture-band-1:1@15",
+      "assertname:id=fst.song-band-leaderboard.total|29 Duos entries",
+      "select:id=fst.song-band-leaderboard.band-type.Band_Quad",
+      "assertname:id=fst.song-band-leaderboard.subtitle|Quads",
+      "waitgone:id=fst.song-band-leaderboard.total@1",
+      "assertname:id=fst.song-band-leaderboard.title|Fixture Pulse",
+      "wait:2",
+      "waitgone:id=fst.song-band-leaderboard.total@0.5",
+      "waitgone:id=fst.song-band-leaderboard.empty@0.5",
+      "shot:{shots}\\song-band-leaderboard-slow-switch.png",
+      "waitfor:id=fst.song-band-leaderboard.empty@10",
+      "assertname:id=fst.song-band-leaderboard.subtitle|Quads",
+      "waitgone:id=fst.song-band-leaderboard.total@1",
       "select:id=fst.song-band-leaderboard.band-type.Band_Duets",
       "waitfor:id=fst.song-band-leaderboard.row.fixture-band-1:1@10",
       "assertname:id=fst.song-band-leaderboard.total|29 Duos entries"

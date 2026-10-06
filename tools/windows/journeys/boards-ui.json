@@ -11,7 +11,12 @@
       "assertname:id=fst.song-leaderboard.total|26 Lead entries",
       "assertbelow:id=fst.song-leaderboard.artist|id=fst.song-leaderboard.title",
       "assertbelow:id=fst.song-leaderboard.instrument|id=fst.song-leaderboard.artist",
-      "assertbelow:id=fst.song-leaderboard.total|id=fst.song-leaderboard.instrument"
+      "assertbelow:id=fst.song-leaderboard.total|id=fst.song-leaderboard.instrument",
+      "assertstate:id=fst.song-leaderboard.song|type=button",
+      "assertstate:id=fst.song-leaderboard.song|name=Fixture Pulse",
+      "invoke:id=fst.song-leaderboard.song",
+      "waitfor:id=fst.song-detail.title@10",
+      "waitgone:id=fst.song-leaderboard.title@5"
     ]
   },
   {

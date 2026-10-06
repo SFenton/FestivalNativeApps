@@ -1,5 +1,7 @@
 using Festival.App.Services;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 
 namespace Festival.App.Controls;
@@ -8,9 +10,10 @@ namespace Festival.App.Controls;
 /// <summary>
 /// The one song-first header of a song leaderboard (web <c>SongInfoHeader</c>; pattern <c>song-leaderboard-header</c>):
 /// the solo board names its instrument on the board line, the band board its band size (issue #317). Title and artist
-/// are one-line <see cref="MarqueeText"/>s (pattern <c>song-header</c> R2). Pages keep the song's static cover as the
-/// shell backdrop (<c>IBackdropPage</c>); this control only draws the header's own art tile, through the shared artwork
-/// caches.
+/// are one-line <see cref="MarqueeText"/>s (pattern <c>song-header</c> R2). The whole header is one flat button that
+/// raises <see cref="TitleInvoked"/> (web <c>onTitleClick</c>; pages open Song Detail, <c>song-header</c> R1). Pages keep
+/// the song's static cover as the shell backdrop (<c>IBackdropPage</c>); this control only draws the header's own art
+/// tile, through the shared artwork caches.
 /// </summary>
 public sealed partial class SongLeaderboardHeader : UserControl
 {
@@ -49,7 +52,13 @@ public sealed partial class SongLeaderboardHeader : UserControl
 
     /// <summary>Automation ID of the entry-total line.</summary>
     public static readonly DependencyProperty TotalAutomationIdProperty = Register(nameof(TotalAutomationId), null);
+
+    /// <summary>Automation ID of the header button that opens the song (e.g. <c>fst.song-leaderboard.song</c>).</summary>
+    public static readonly DependencyProperty SongAutomationIdProperty = Register(nameof(SongAutomationId), null);
     #endregion
+
+    /// <summary>Raised when the reader invokes the header (click, tap, Enter/Space or UIA Invoke) while it names a song.</summary>
+    public event EventHandler? TitleInvoked;
 
     /// <summary>Creates the header.</summary>
     public SongLeaderboardHeader()
@@ -90,6 +99,9 @@ public sealed partial class SongLeaderboardHeader : UserControl
 
     /// <inheritdoc cref="TotalAutomationIdProperty" />
     public string TotalAutomationId { get => (string?)GetValue(TotalAutomationIdProperty) ?? ""; set => SetValue(TotalAutomationIdProperty, value ?? ""); }
+
+    /// <inheritdoc cref="SongAutomationIdProperty" />
+    public string SongAutomationId { get => (string?)GetValue(SongAutomationIdProperty) ?? ""; set => SetValue(SongAutomationIdProperty, value ?? ""); }
     #endregion
 
     /// <summary>Registers a string property defaulting to empty (a null automation ID would throw).</summary>
@@ -102,15 +114,28 @@ public sealed partial class SongLeaderboardHeader : UserControl
 
     /// <summary>
     /// Collapses empty lines, so a board without icon or total leaves no gap; an unresolved song (no title) also hides the
-    /// art tile, leaving only the board line above the failure state.
+    /// art tile, leaving only the board line above the failure state, and stops the header acting as a button (there is no
+    /// song to open: no hit testing, tab stop or UIA button, while its lines stay readable).
     /// </summary>
     private void UpdateVisibility()
     {
-        TitleBlock.Visibility = Title.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        var hasSong = Title.Length > 0;
+        TitleBlock.Visibility = hasSong ? Visibility.Visible : Visibility.Collapsed;
         ArtHost.Visibility = TitleBlock.Visibility;
+        SongButton.IsHitTestVisible = hasSong;
+        SongButton.IsTabStop = hasSong;
+        AutomationProperties.SetAccessibilityView(SongButton, hasSong ? AccessibilityView.Content : AccessibilityView.Raw);
         ArtistBlock.Visibility = Artist.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         BoardIcon.Visibility = BoardIconFile.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         TotalBlock.Visibility = TotalText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>Forwards a header press to the page while it names a song.</summary>
+    /// <param name="sender">Header button.</param>
+    /// <param name="e">Unused.</param>
+    private void OnSongClick(object sender, RoutedEventArgs e)
+    {
+        if (Title.Length > 0) TitleInvoked?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>

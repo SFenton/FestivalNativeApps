@@ -15,13 +15,15 @@
         </Grid.RowDefinitions>
 
         <!-- The solo board's song-first header (issue #317): art, song title, artist, then the band size where the solo
-             board names its instrument. It stays above the band-size switcher while rows reload. -->
+             board names its instrument. It stays above the band-size switcher while rows reload; invoking it opens Song Detail
+             (web onTitleClick). -->
         <controls:SongLeaderboardHeader x:Name="Header" MaxWidth="1200" HorizontalAlignment="Stretch"
                                         Title="{x:Bind ViewModel.Title, Mode=OneWay}" Artist="{x:Bind ViewModel.Subtitle, Mode=OneWay}"
                                         BoardLabel="{x:Bind ViewModel.BoardLabel, Mode=OneWay}" TotalText="{x:Bind ViewModel.TotalText, Mode=OneWay}"
                                         TitleAutomationId="fst.song-band-leaderboard.title" ArtistAutomationId="fst.song-band-leaderboard.artist"
                                         BoardAutomationId="fst.song-band-leaderboard.subtitle"
-                                        TotalAutomationId="fst.song-band-leaderboard.total" />
+                                        TotalAutomationId="fst.song-band-leaderboard.total" SongAutomationId="fst.song-band-leaderboard.song"
+                                        TitleInvoked="OnSongTitle" />
 
         <SelectorBar x:Name="SizeBar" Grid.Row="1" SelectionChanged="OnSizeChanged"
                      AutomationProperties.Name="{x:Bind ViewModel.SwitcherName, Mode=OneWay}"

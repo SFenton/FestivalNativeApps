@@ -61,6 +61,12 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
         ViewModel.BandTypeIndex = sender.Items.IndexOf(sender.SelectedItem);
     }
 
+    /// <summary>Opens Song Detail from the song header (web <c>onTitleClick={goToSongDetail}</c>).</summary>
+    /// <param name="sender">Header.</param>
+    /// <param name="e">Unused.</param>
+    private void OnSongTitle(object? sender, EventArgs e) =>
+        MainWindow.Instance?.Navigate(new AppRoute.SongDetail(ViewModel.SongId));
+
     /// <summary>Opens Band Detail for a row.</summary>
     /// <param name="sender">List.</param>
     /// <param name="e">Clicked row.</param>
