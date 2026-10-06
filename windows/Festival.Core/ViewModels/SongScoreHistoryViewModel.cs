@@ -425,11 +425,22 @@ public sealed record ScoreHistoryListRow(ScoreHistoryPoint Point, bool IsBest) :
     /// <summary>Whether the season pill shows.</summary>
     public bool HasSeason => Season.Length > 0;
 
-    /// <summary>Screen-reader text.</summary>
-    public string Announcement => string.Join(", ", new[]
+    /// <summary>Screen-reader text while the season column is hidden (list rows under 520 epx, web <c>QUERY_SHOW_SEASON</c>).</summary>
+    public string Announcement => Announce(false);
+
+    /// <summary>
+    /// Screen-reader text with the season, read while the row shows it: list rows from 520 epx, the detail row always
+    /// (issue #262), and the chart bars, whose selection opens that detail row.
+    /// </summary>
+    public string SeasonShownAnnouncement => Announce(true);
+
+    /// <summary>Builds the screen-reader text.</summary>
+    /// <param name="season">Whether to read the season.</param>
+    /// <returns>Date, score, accuracy, full combo, season, then "personal best".</returns>
+    private string Announce(bool season) => string.Join(", ", new[]
     {
         Date, $"score {Score}", HasAccuracy ? $"accuracy {Accuracy}" : "", IsFullCombo ? ScoreFormatting.FullComboAnnouncement(HasAccuracy) : "",
-        Point.Entry.Season is { } s ? $"season {s}" : "", IsBest ? "personal best" : "",
+        season && Point.Entry.Season is { } s ? $"season {s}" : "", IsBest ? "personal best" : "",
     }.Where(p => p.Length > 0));
 }
 #endregion

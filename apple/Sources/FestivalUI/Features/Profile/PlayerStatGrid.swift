@@ -44,7 +44,9 @@ struct PlayerStatGrid: View {
         StatTileGridLayout(
             spacing: StatGridColumns.spacing,
             minimumTileWidth: dynamicTypeSize.isAccessibilitySize
-                ? StatGridColumns.accessibilityMinimumTileWidth : StatGridColumns.minimumTileWidth
+                ? StatGridColumns.accessibilityMinimumTileWidth : StatGridColumns.minimumTileWidth,
+            minimumColumns: dynamicTypeSize.isAccessibilitySize
+                ? StatGridColumns.accessibilityMinimumColumns : StatGridColumns.minimumColumns
         ) {
             ForEach(tiles) { tile in
                 PlayerStatTileView(tile: tile, scope: scope, onSelect: onSelect)
@@ -59,6 +61,8 @@ struct StatTileGridLayout: Layout {
     var spacing: CGFloat = StatGridColumns.spacing
     /// Narrowest tile before a column is dropped (wider at accessibility sizes).
     var minimumTileWidth: Double = StatGridColumns.minimumTileWidth
+    /// Fewest columns (one at accessibility sizes).
+    var minimumColumns: Int = StatGridColumns.minimumColumns
 
     /// Column count and tile width for a proposed width.
     ///
@@ -67,7 +71,8 @@ struct StatTileGridLayout: Layout {
     func metrics(for width: CGFloat?) -> (columns: Int, tileWidth: CGFloat) {
         let resolved = width ?? CGFloat(StatGridColumns.minimumTileWidth * 2) + spacing
         let columns = StatGridColumns.count(
-            forWidth: Double(resolved), minimumTileWidth: minimumTileWidth, spacing: Double(spacing)
+            forWidth: Double(resolved), minimumTileWidth: minimumTileWidth, spacing: Double(spacing),
+            minimumColumns: minimumColumns
         )
         let tileWidth = max(0, (resolved - spacing * CGFloat(columns - 1)) / CGFloat(columns))
         return (columns, tileWidth)
@@ -124,6 +129,9 @@ struct PlayerStatTileView: View {
     let scope: String
     let onSelect: (PlayerStatLink) -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// Side padding that clears the chevron at every text size: a fixed 22 pt let the
+    /// AX5 chevron (footnote, ≈ 2.5×) sit on "2 (66.6%)" (iPad audit capture, Lane A11Y3).
+    @ScaledMetric(relativeTo: .footnote) private var chevronInset: CGFloat = 22
 
     private var identifier: String { "fst.player.stat.\(scope).\(tile.id)" }
 
@@ -203,7 +211,7 @@ struct PlayerStatTileView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.vertical, 14)
-        .padding(.horizontal, 22)
+        .padding(.horizontal, chevronInset)
         .overlay(alignment: .trailing) {
             if showsChevron {
                 Image(systemName: "chevron.forward")

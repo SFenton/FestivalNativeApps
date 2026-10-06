@@ -102,6 +102,39 @@ private func fixtureURL(_ name: String) -> URL {
     #expect(first.members.first?.chartedInstruments == [.lead])
 }
 
+/// `accountId` adds the selected player's best band; it is the pinned footer's row and
+/// highlights the matching page row. A selected row of another size is rejected.
+@Test func songBandLeaderboardDecodesSelectedPlayerBand() throws {
+    let data = try Data(contentsOf: fixtureURL("song-band-leaderboard-demo.json"))
+    var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let entries = try #require(object["entries"] as? [[String: Any]])
+    var mine = try #require(entries.last)
+    mine["rank"] = 29
+    object["selectedPlayerEntry"] = mine
+    let response = try JSONDecoder().decode(
+        SongBandLeaderboardResponse.self, from: JSONSerialization.data(withJSONObject: object)
+    )
+    try response.validate(songId: "fixture-pulse", bandType: .duets)
+    let selected = try #require(response.selectedEntry)
+    #expect(selected.rank == 29)
+    #expect(response.selectedBandEntry == nil)
+    #expect(response.isSelected(try #require(response.entries.last)))
+    #expect(!response.isSelected(try #require(response.entries.first)))
+    // Without a selected row nothing is highlighted.
+    let plain = try JSONDecoder().decode(SongBandLeaderboardResponse.self, from: data)
+    #expect(plain.selectedEntry == nil)
+    #expect(!plain.isSelected(try #require(plain.entries.first)))
+    // A selected row from another band size does not belong on this board.
+    mine["bandType"] = "Band_Trios"
+    object["selectedPlayerEntry"] = mine
+    let mismatched = try JSONDecoder().decode(
+        SongBandLeaderboardResponse.self, from: JSONSerialization.data(withJSONObject: object)
+    )
+    #expect(throws: FestivalAPIError.invalidBandProfile) {
+        try mismatched.validate(songId: "fixture-pulse", bandType: .duets)
+    }
+}
+
 @Test func songBandLeaderboardRejectsMismatchedSongOrBandType() throws {
     let data = try Data(contentsOf: fixtureURL("song-band-leaderboard-demo.json"))
     let response = try JSONDecoder().decode(SongBandLeaderboardResponse.self, from: data)
@@ -124,6 +157,72 @@ private func fixtureURL(_ name: String) -> URL {
         localEntries: 0, entries: []
     )
     #expect(empty.pageCount == 1)
+}
+
+/// The demo page with `selectedPlayerEntry` set to the given JSON row (issue #306).
+private func songBandPageWithSelected(_ selectedJSON: String) throws -> SongBandLeaderboardResponse {
+    var text = try String(contentsOf: fixtureURL("song-band-leaderboard-demo.json"), encoding: .utf8)
+    text = text.replacingOccurrences(of: "\"selectedPlayerEntry\": null", with: "\"selectedPlayerEntry\": \(selectedJSON)")
+    return try JSONDecoder().decode(SongBandLeaderboardResponse.self, from: Data(text.utf8))
+}
+
+private let selectedDuoJSON = """
+{"bandId": "fixture-band-p", "bandType": "Band_Duets", "teamKey": "fixture-player-1:fixture-rank-9",
+ "comboId": null, "members": [
+  {"accountId": "fixture-player-1", "displayName": "Fixture Player One", "instruments": ["Solo_Guitar"],
+   "score": 300000, "accuracy": 970000, "isFullCombo": false, "stars": 5, "difficulty": 3, "season": 9},
+  {"accountId": "fixture-rank-9", "displayName": "A Very Long Bandmate Name", "instruments": ["Solo_Bass"],
+   "score": 290000, "accuracy": 960000, "isFullCombo": false, "stars": 5, "difficulty": 3, "season": 9}],
+ "score": 590000, "rank": 14, "accuracy": 965000, "isFullCombo": false, "stars": 5, "season": 9,
+ "difficulty": 3, "percentile": 0.5, "endTime": null}
+"""
+
+@Test func songBandLeaderboardDecodesTheSelectedPlayersBandForTheFooter() throws {
+    let page = try songBandPageWithSelected(selectedDuoJSON)
+    try page.validate(songId: "fixture-pulse", bandType: .duets)
+    let selected = try #require(page.selectedEntry)
+    #expect(selected.rank == 14)
+    #expect(page.selectedBandEntry == nil)
+    #expect(!page.entries.contains(where: page.isSelected))
+    #expect(page.isSelected(selected))
+
+    let row = selected.footerLeaderboardEntry
+    #expect(row.displayName == "Fixture Player One + A Very Long Bandmate Name")
+    #expect(row.rank == 14)
+    #expect(row.score == 590_000)
+    #expect(row.accuracy == 965_000)
+    #expect(row.isFullCombo == false)
+    #expect(row.stars == 5)
+    #expect(row.season == 9)
+    #expect(row.difficulty == 3)
+    #expect(row.accountId == "band-fixture-band-p")
+}
+
+@Test func songBandLeaderboardWithoutASelectedPlayerHasNoFooterOrHighlight() throws {
+    let data = try Data(contentsOf: fixtureURL("song-band-leaderboard-demo.json"))
+    let page = try JSONDecoder().decode(SongBandLeaderboardResponse.self, from: data)
+    #expect(page.selectedEntry == nil)
+    #expect(!page.entries.contains(where: page.isSelected))
+}
+
+@Test func songBandLeaderboardHighlightsTheSelectedBandWhenItIsOnThePage() throws {
+    let first = """
+    {"bandId": "fixture-band-1", "bandType": "Band_Duets", "teamKey": "fixture-rank-1:fixture-rank-2",
+     "comboId": null, "members": [], "score": 999999, "rank": 1, "accuracy": 990000, "isFullCombo": true,
+     "stars": 5, "season": 9, "difficulty": 3, "percentile": 0.0385, "endTime": null}
+    """
+    let page = try songBandPageWithSelected(first)
+    #expect(page.entries.map(page.isSelected) == [true, false])
+    // No members: the footer falls back to the team key, as web's `formatBandTeamName`.
+    #expect(page.selectedEntry?.footerLeaderboardEntry.displayName == "fixture-rank-1:fixture-rank-2")
+}
+
+@Test func songBandLeaderboardRejectsASelectedRowOfAnotherBandSize() throws {
+    let trio = selectedDuoJSON.replacingOccurrences(of: "\"Band_Duets\"", with: "\"Band_Trios\"")
+    let page = try songBandPageWithSelected(trio)
+    #expect(throws: FestivalAPIError.invalidBandProfile) {
+        try page.validate(songId: "fixture-pulse", bandType: .duets)
+    }
 }
 
 // MARK: - Endpoint URL construction
@@ -166,6 +265,32 @@ private func fixtureURL(_ name: String) -> URL {
         ).url(relativeTo: base).absoluteString
         == "https://example.com/api/leaderboard/fixture-pulse/bands/Band_Duets?top=25&offset=0"
     )
+    // The selected player is a query parameter only (their best band, issue #307).
+    let selected = PublicEndpoint.songBandLeaderboard(
+        songId: "fixture-pulse", bandType: "Band_Duets", top: 25, offset: 25, combo: nil,
+        accountId: "fixture-player-1"
+    )
+    #expect(
+        try selected.url(relativeTo: base).absoluteString
+        == "https://example.com/api/leaderboard/fixture-pulse/bands/Band_Duets?top=25&offset=25&accountId=fixture-player-1"
+    )
+    #expect(!selected.allowsSnapshotCache)
+    #expect(PublicEndpoint.songBandLeaderboard(
+        songId: "fixture-pulse", bandType: "Band_Duets", top: 25, offset: 0, combo: nil
+    ).allowsSnapshotCache)
+    #expect(throws: FestivalAPIError.invalidResource) {
+        try PublicEndpoint.songBandLeaderboard(
+            songId: "fixture-pulse", bandType: "Band_Duets", top: 25, offset: 0, combo: nil,
+            accountId: "not valid"
+        ).url(relativeTo: base)
+    }
+    #expect(
+        try PublicEndpoint.songBandLeaderboard(
+            songId: "fixture-pulse", bandType: "Band_Duets", top: 25, offset: 25, combo: nil,
+            accountId: "fixture-player-1"
+        ).url(relativeTo: base).query
+        == "top=25&offset=25&accountId=fixture-player-1"
+    )
 }
 
 @Test func bandEndpointsRejectInvalidParameters() throws {
@@ -195,6 +320,12 @@ private func fixtureURL(_ name: String) -> URL {
             songId: "a/b", bandType: "Band_Duets", top: 25, offset: 0, combo: nil
         ).url(relativeTo: base)
     }
+    #expect(throws: FestivalAPIError.invalidResource) {
+        try PublicEndpoint.songBandLeaderboard(
+            songId: "fixture-pulse", bandType: "Band_Duets", top: 25, offset: 0, combo: nil,
+            accountId: "not valid"
+        ).url(relativeTo: base)
+    }
 }
 
 @Test func accountScopedBandEndpointsAreExcludedFromSnapshotCache() {
@@ -205,6 +336,12 @@ private func fixtureURL(_ name: String) -> URL {
         accountId: "a", bandType: "Band_Duets", combo: nil
     ).allowsSnapshotCache)
     #expect(PublicEndpoint.bandProfile(bandType: "Band_Duets", teamKey: "a:b", combo: nil).allowsSnapshotCache)
+    #expect(PublicEndpoint.songBandLeaderboard(
+        songId: "s", bandType: "Band_Duets", top: 25, offset: 0, combo: nil
+    ).allowsSnapshotCache)
+    #expect(!PublicEndpoint.songBandLeaderboard(
+        songId: "s", bandType: "Band_Duets", top: 25, offset: 0, combo: nil, accountId: "a"
+    ).allowsSnapshotCache)
 }
 
 // MARK: - Player band group

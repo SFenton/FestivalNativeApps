@@ -153,6 +153,22 @@ public class HitTargetMarkupTests
     }
 
     [Fact]
+    public void ViewAllButtonsAndSelectedBandPreviewRow_HaveNoContrastBackplate()
+    {
+        // Issue #264: under a contrast theme the accent View Full Leaderboard / View All label and the selected band
+        // preview row's text (HighlightText on Highlight) drew Window backplate boxes inside the fill.
+        var style = Load(Path.Combine("Themes", "Styles.xaml")).Descendants()
+            .Single(e => e.Name.LocalName == "Style" && e.Attributes().Any(a => a.Name.LocalName == "Key" && a.Value == "FSTViewAllButtonStyle"));
+        Assert.Contains(style.Elements(), s => Attr(s, "Property") == "HighContrastAdjustment" && Attr(s, "Value") == "None");
+        var members = Load(Path.Combine("Controls", "SongBandPreviewRowView.xaml")).Descendants()
+            .Single(e => e.Name.LocalName == "ItemsRepeater" && e.Attributes().Any(a => a.Name.LocalName == "Name" && a.Value == "MembersRepeater"));
+        Assert.Equal("OnMemberPrepared", Attr(members, "ElementPrepared"));
+        var code = File.ReadAllText(Path.Combine(AppRoot, "Controls", "SongBandPreviewRowView.xaml.cs"));
+        Assert.Contains("ElementHighContrastAdjustment.None", code, StringComparison.Ordinal);
+        Assert.Contains("Chevron.HighContrastAdjustment = adjustment", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ServiceStatus_PagesUseTheSharedControls()
     {
         // Issue #233: nine hand-copied inline rows had drifted (missing countdowns, live regions, IDs on panels UIA skips).

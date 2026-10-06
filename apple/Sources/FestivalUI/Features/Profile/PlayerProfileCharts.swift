@@ -619,6 +619,9 @@ struct RankHistoryCharts: View {
                     .foregroundStyle(FestivalText.primary)
             }
         }
+        // Wrap instead of truncating: at AX5 in a two-column iPad page the card proposed
+        // one line and "Total Score 89,400,000" read "Total Score 89,4…" (Lane A11Y3).
+        .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             "Latest global rank \(latest.totalScoreRank.formatted())\(field)"

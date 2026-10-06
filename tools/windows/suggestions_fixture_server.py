@@ -150,7 +150,10 @@ def main() -> None:
     Handler.syncing = args.syncing
     Handler.rivals = not args.no_rivals
     Handler.slow_seconds = args.slow_seconds
-    ThreadingHTTPServer(("127.0.0.1", args.port), Handler).serve_forever()
+    server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    # --port 0 picks a free port; a11y_matrix.py reads it from this line.
+    print(f"serving http://127.0.0.1:{server.server_port}/", flush=True)
+    server.serve_forever()
 
 
 if __name__ == "__main__":
