@@ -253,6 +253,45 @@ func drawerCutoutSitsOnThePanel(layout: DeviceLayout) {
         == .symbol(title: "Profile: Fixture"))
 }
 
+/// Only the monogram hides its item's shared Liquid Glass, so no glass ring shows
+/// around it; the add-profile and rail symbols keep the system glass (issue #311).
+@Test func profileItemHidesGlassOnlyForMonogram() {
+    typealias Presentation = RootProfileButton.Presentation
+    #expect(Presentation.monogram("Fixture").sharedBackground == .hidden)
+    #expect(Presentation.choose.sharedBackground == .automatic)
+    #expect(Presentation.symbol(title: "Profile: Fixture").sharedBackground == .automatic)
+}
+
+/// With Liquid Glass the avatar fills a bar item's 44 pt glass circle with no rim and
+/// overhangs the hidden-glass padding, so it sits where the glass circle was; classic
+/// bars and the Mac toolbar keep the 30 pt outlined avatar (issue #311).
+@Test func profileMonogramFillsGlassItem() {
+    typealias Metrics = RootProfileButton.MonogramMetrics
+    #expect(Metrics.resolve(liquidGlassBar: true)
+        == Metrics(diameter: 44, outlined: false, overhang: Metrics.hiddenGlassPadding))
+    #expect(Metrics.hiddenGlassPadding == 10)
+    #expect(Metrics.resolve(liquidGlassBar: false) == Metrics(diameter: 30, outlined: true))
+    #expect(Metrics.resolve(liquidGlassBar: false).overhang == 0)
+    #if os(macOS)
+    #expect(Metrics.current == Metrics(diameter: 30, outlined: true))
+    #endif
+}
+
+/// The rim and overhang are part of the cached image's identity, so the
+/// drawer's outlined avatar and the bar's borderless one never share a cache entry.
+@Test func monogramImageKeyDistinguishesRim() {
+    let outlined = MonogramImageKey(name: "Fixture", size: 44, scale: 3)
+    let borderless = MonogramImageKey(name: "Fixture", size: 44, scale: 3, outlined: false)
+    #expect(outlined.outlined)
+    #expect(outlined != borderless)
+    #expect(borderless == MonogramImageKey(name: "Fable", size: 44, scale: 3, outlined: false))
+    let overhanging = MonogramImageKey(
+        name: "Fixture", size: 44, scale: 3, outlined: false, overhang: 10
+    )
+    #expect(overhanging != borderless)
+    #expect(MonogramImageKey(name: "F", size: 44, scale: 3, overhang: -4).overhang == 0)
+}
+
 /// Shelved dual-source path: inner portrait would keep the compact set (Compete).
 @Test func duoInnerPortraitKeepsCompeteWhenDualSourceEnabled() {
     let layout = DeviceLayout.resolve(LayoutSignals(
