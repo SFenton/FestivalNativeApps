@@ -1034,6 +1034,10 @@
             "symbol": "FadeIn"
           },
           {
+            "path": "windows/Festival.Core/Domain/MotionPolicy.cs",
+            "symbol": "StaggerArm"
+          },
+          {
             "path": "windows/Festival.Core/ViewModels/SongPathsViewModel.cs",
             "symbol": "PathSwapTiming"
           }

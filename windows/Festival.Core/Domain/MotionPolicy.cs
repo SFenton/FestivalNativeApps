@@ -78,6 +78,151 @@ public static class FadeInTiming
 }
 #endregion
 
+#region Stagger arm
+/// <summary>
+/// One list's stagger window (pattern <c>load-transition</c> R5, issue #260): which freshly realized rows still fade in.
+/// A load arm (a new or re-sorted list, <c>batchStart</c> 0) closes at the first scroll movement, so rows realized by
+/// scrolling (even within <see cref="FadeInTiming.ArmWindow"/>) just appear; an appended batch (Suggestions' incremental
+/// loading, <c>batchStart</c> &gt; 0) is revealed by scrolling and stays open for its window. The scroll position is
+/// anchored once the arm's first layout settles (<see cref="Settle"/>), so a page's own reset to the top as part of the
+/// reload doesn't count as the reader scrolling.
+/// </summary>
+public sealed class StaggerArm
+{
+    /// <summary>Scroll movement (epx) that counts as the reader scrolling; smaller changes are layout rounding.</summary>
+    public const double ScrollSlop = 1;
+
+    private TimeSpan armedAt;
+    private bool armed;
+    private bool closed;
+    private int timeOnlyStart;
+    private bool closesOnScroll;
+    private int? appendedStart;
+    private (double X, double Y)? anchor;
+
+    /// <summary>Creates a closed arm.</summary>
+    /// <param name="window">How long an arm stays open without scrolling (default <see cref="FadeInTiming.ArmWindow"/>;
+    /// UI journeys lengthen it with <see cref="ParseWindow"/> so a scripted scroll lands inside it).</param>
+    public StaggerArm(TimeSpan? window = null) => Window = window ?? FadeInTiming.ArmWindow;
+
+    /// <summary>How long an arm stays open without scrolling.</summary>
+    public TimeSpan Window { get; }
+
+    /// <summary>Parses a window override in milliseconds (Debug/automation <c>FST_DEBUG_FADE_WINDOW_MS</c>).</summary>
+    /// <param name="milliseconds">Raw value.</param>
+    /// <returns>Window between 1 ms and 60 s, else <see langword="null"/> (use the default).</returns>
+    public static TimeSpan? ParseWindow(string? milliseconds) =>
+        int.TryParse(milliseconds, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var ms)
+        && ms is > 0 and <= 60_000 ? TimeSpan.FromMilliseconds(ms) : null;
+
+    /// <summary>First row of the newest batch (rows before it never fade).</summary>
+    public int BatchStart { get; private set; }
+
+    /// <summary>Arms the window for a load (<paramref name="batchStart"/> 0) or an appended batch.</summary>
+    /// <param name="batchStart">Index of the batch's first row (0 when the whole list is new).</param>
+    /// <param name="now">Monotonic time.</param>
+    public void Arm(int batchStart, TimeSpan now)
+    {
+        var open = IsOpen(now);
+        // What a purely time-based window (no scroll close) would stagger from: kept only to trace R5's suppressions.
+        timeOnlyStart = armed && Within(now) ? Math.Min(timeOnlyStart, batchStart) : batchStart;
+        // Batches appended back to back form one reveal (FadeInTiming.MergeBatchStart within this arm's window).
+        BatchStart = open ? Math.Min(BatchStart, batchStart) : batchStart;
+        var appended = batchStart > 0;
+        if (open && closesOnScroll && appended)
+        {
+            // A batch that lands while the load arm is still open joins its reveal; a later scroll keeps only the batch.
+            appendedStart = Math.Min(appendedStart ?? batchStart, batchStart);
+        }
+        else
+        {
+            closesOnScroll = !appended;
+            appendedStart = null;
+            anchor = null;
+        }
+        armedAt = now;
+        armed = true;
+        closed = false;
+    }
+
+    /// <summary>Anchors the scroll position the load arm measures movement from, once its first layout settled.</summary>
+    /// <param name="x">Horizontal offset (epx).</param>
+    /// <param name="y">Vertical offset (epx).</param>
+    public void Settle(double x, double y)
+    {
+        if (closesOnScroll && anchor is null && double.IsFinite(x) && double.IsFinite(y)) anchor = (x, y);
+    }
+
+    /// <summary>Whether the arm still waits for <see cref="Settle"/> (its first layout after arming).</summary>
+    public bool NeedsSettle => armed && !closed && closesOnScroll && anchor is null;
+
+    /// <summary>
+    /// Records a scroll position: movement from the anchor closes the load arm (keeping only a batch appended into it).
+    /// </summary>
+    /// <param name="x">Horizontal offset (epx).</param>
+    /// <param name="y">Vertical offset (epx).</param>
+    /// <returns><see langword="true"/> when this movement closed the load arm (<see cref="BatchStart"/> is then the
+    /// kept batch's first row, or the load's 0 when nothing stays open).</returns>
+    public bool Scrolled(double x, double y)
+    {
+        if (!closesOnScroll || closed || anchor is not { } at) return false;
+        if (!(Math.Abs(x - at.X) >= ScrollSlop || Math.Abs(y - at.Y) >= ScrollSlop)) return false;
+        closesOnScroll = false;
+        if (appendedStart is { } start)
+        {
+            BatchStart = start;
+            appendedStart = null;
+        }
+        else
+        {
+            closed = true;
+        }
+        return true;
+    }
+
+    /// <summary>Whether rows realized now may still fade (armed, within the window and not closed by a scroll).</summary>
+    /// <param name="now">Monotonic time.</param>
+    /// <returns>Whether the window is open.</returns>
+    public bool IsOpen(TimeSpan now) => armed && !closed && Within(now);
+
+    /// <summary>Time since the last arm (for the fade trace).</summary>
+    /// <param name="now">Monotonic time.</param>
+    /// <returns>Elapsed time, or <see cref="TimeSpan.Zero"/> before the first arm.</returns>
+    public TimeSpan SinceArmed(TimeSpan now) => armed ? now - armedAt : TimeSpan.Zero;
+
+    /// <summary>
+    /// Whether a row realized now shows in place only because a scroll closed the load window (R5's case): a purely
+    /// time-based window would still have faded it.
+    /// </summary>
+    /// <param name="now">Monotonic time.</param>
+    /// <param name="index">Row index.</param>
+    /// <param name="visible">Rows that stagger (the visible count).</param>
+    /// <returns><see langword="true"/> for a row the scroll close kept from fading.</returns>
+    public bool SuppressedByScroll(TimeSpan now, int index, int visible) =>
+        armed && Within(now)
+        && FadeInTiming.BatchDelay(index, timeOnlyStart, visible) is not null
+        && !(IsOpen(now) && FadeInTiming.BatchDelay(index, BatchStart, visible) is not null);
+
+    /// <summary>Whether <paramref name="now"/> falls inside this arm's window.</summary>
+    /// <param name="now">Monotonic time.</param>
+    /// <returns>Whether the window has not run out.</returns>
+    private bool Within(TimeSpan now) => now - armedAt >= TimeSpan.Zero && now - armedAt < Window;
+
+    /// <summary>The fade delay of a row realized now, at the given scroll position.</summary>
+    /// <param name="index">Row index.</param>
+    /// <param name="visible">Rows that stagger (the visible count).</param>
+    /// <param name="now">Monotonic time.</param>
+    /// <param name="x">Horizontal offset (epx) of the list's scroller.</param>
+    /// <param name="y">Vertical offset (epx) of the list's scroller.</param>
+    /// <returns>Delay, or <see langword="null"/> when the row shows in place.</returns>
+    public TimeSpan? Delay(int index, int visible, TimeSpan now, double x, double y)
+    {
+        Scrolled(x, y);
+        return IsOpen(now) ? FadeInTiming.BatchDelay(index, BatchStart, visible) : null;
+    }
+}
+#endregion
+
 #region Pinned row reveal
 /// <summary>
 /// When the selected player's pinned leaderboard row (the footer "your score" row) fades in (issue #295). It shares the

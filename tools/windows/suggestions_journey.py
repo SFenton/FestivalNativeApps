@@ -9,8 +9,9 @@ Song Detail -> back, the redirect without a selected player, the loading, syncin
 an unreachable service with Retry. ``rival-rows`` (issue #259) checks the dumped UIA tree: single-rival spotlight rows
 draw no rival name pill and name the rival in their Narrator name, mixed-rival rows keep the pill. ``fade`` (issue
 #260) runs with ``--perf-log`` and checks the ``FadeIn`` lines per phase (``fade_trace.py``): the cards on screen at
-load fade, the next generated batch fades only its new cards, and scrolling back to the top and down again fades
-nothing. Steps are UIA patterns or posted keys, so the journeys also run while the console
+load fade, a scroll straight after the load (inside the 1 s window) realizes old cards without a fade, the next generated
+batch fades only its new cards, and scrolling back to the top and down again fades nothing. Steps are UIA patterns or
+posted keys, so the journeys also run while the console
 is locked (screenshots are then black: pass ``--shots`` only on an unlocked desktop). Axe scans must report 0 errors.
 
 Usage: ``python tools/windows/suggestions_journey.py [--port 18767] [--shots DIR] [--only NAME] [--sizes compact,medium,wide]``
@@ -208,17 +209,29 @@ SCENARIOS: dict[str, tuple[str | None, dict[str, str], list[str]]] = {
 
 
 CARD_LIST = "CardList"
+# UI Automation needs a second or more between the list appearing and its first scroll, so the fade scenario
+# lengthens the app's 1 s arm window (Debug/automation FST_DEBUG_FADE_WINDOW_MS): a scroll then lands inside the
+# window, where only the scroll-close rule (not the timeout) can keep the old rows it realizes from fading.
+FADE_WINDOW_MS = 4000
 FADE_PHASES = [
-    # The cards on screen at load fade in, staggered from the first.
-    fade_trace.Phase("load", LOADED, lambda events: fade_trace.check_load(events, CARD_LIST)),
+    # R5: the cards on screen at load fade in, staggered from the first; a scroll straight after the load closes the
+    # window, and the old cards it realizes appear without a fade. Reaching the end may generate the next batch,
+    # whose new cards alone may fade; back at the top, still inside the window, the first screen's recycled cards
+    # (which a time-only window would fade again) come back without a fade.
+    fade_trace.Phase("load-scroll", ["waitfor:id=fst.nav.suggestions@30", "select:id=fst.nav.suggestions",
+                                     f"waitfor:{ROW}@30", "scrollto:id=fst.suggestions.list,100",
+                                     "scrollto:id=fst.suggestions.list,0"],
+                     lambda events: fade_trace.check_load_then_scroll(events, CARD_LIST, FADE_WINDOW_MS)),
     # Scrolling to the end of the loaded cards generates the next batch: only its new cards fade, from their first.
-    # A batch's cards fade only when realized within 1 s of its arm, which a busy host can miss when the batch lands
-    # beyond the realization cache, so the phase jumps to the end a few times: each jump realizes the batch it loads.
-    fade_trace.Phase("load-more", [f"scrollinto:{TENTH_CARD}", f"scrollinto:{RIVAL_CARD}@15", f"waitfor:{RIVAL_CARD}@10",
+    # A batch's cards fade only when realized within its arm's window, which a busy host can miss when the batch
+    # lands beyond the realization cache, so the phase jumps to the end a few times: each jump realizes its batch.
+    fade_trace.Phase("load-more", ["scrollto:id=fst.suggestions.list,0", f"waitfor:{CARD}@10",
+                                   f"scrollinto:{TENTH_CARD}", f"scrollinto:{RIVAL_CARD}@15", f"waitfor:{RIVAL_CARD}@10",
                                    *["scrollto:id=fst.suggestions.list,100", "wait:0.4"] * 3],
                      lambda events: fade_trace.check_batch(events, CARD_LIST)),
-    # Back to the top and down again: cards already shown never fade again.
-    fade_trace.Phase("scroll-back", ["scrollto:id=fst.suggestions.list,0", f"waitfor:{CARD}@10", "wait:1.5",
+    # Back to the top (after the batch window ran out) and down again: cards already shown never fade again.
+    fade_trace.Phase("scroll-back", ["scrollto:id=fst.suggestions.list,0", f"waitfor:{CARD}@10",
+                                     f"wait:{FADE_WINDOW_MS / 1000 + 0.5}",
                                      f"scrollinto:{TENTH_CARD}", f"waitfor:{TENTH_CARD}@10"],
                      lambda events: fade_trace.check_only_new(events, CARD_LIST)),
 ]
@@ -285,12 +298,16 @@ def launch_args(name: str, port: int, size: str, exe: Path) -> list[str]:
     base = env.get("base-url", f"http://127.0.0.1:{port}/")
     # --first-run=off: the first-run carousel is modal and would swallow the scripted input. An isolated data
     # folder gives default settings (all nine charts) and an unfiltered mix on every run.
-    args = ["launch", str(exe), "--timeout", "60", "--wait", "1", "--preset", size, "--route", "/suggestions",
+    # The fade scenario starts on Songs and opens Suggestions inside its first drive, so the initial load and the
+    # scroll straight after it run in one drive (a launch can wait on the desktop lock for longer than the window).
+    route = "/songs" if name == "fade" else "/suggestions"
+    args = ["launch", str(exe), "--timeout", "60", "--wait", "1", "--preset", size, "--route", route,
             f"--arg=--base-url={base}", "--arg=--first-run=off", f"--arg=--settings-path={data / 'settings.json'}",
             "--extra", f"FST_DEBUG_DATA_DIR={data}", "--extra", "FST_DEBUG_SUGGESTIONS_SEED=1"]
     args += [f"--arg=--profile={profile}:Fixture Player"] if profile else ["--arg=--anonymous"]
     if name == "fade":
         args.append(f"--arg=--perf-log={data / 'perf.log'}")
+        args += ["--extra", f"FST_DEBUG_FADE_WINDOW_MS={FADE_WINDOW_MS}"]
     for key, value in env.items():
         if key.startswith("FST_"):
             args += ["--extra", f"{key}={value}"]

@@ -1,14 +1,19 @@
 """Load-transition fade checks for the Windows UI journeys (issue #260, pattern ``load-transition``).
 
 With ``--perf-log`` the app's ``FadeIn`` stagger (``windows/Festival.App/Controls/FadeIn.cs``) writes one line per
-re-arm and one per row it fades, never for a row that just appears::
+re-arm and one per row it fades, plus one when the first scroll closes a load arm and one per row realized inside the
+window that a purely time-based window would have faded but the scroll close kept still (pattern R5); never for a row
+that just appears otherwise::
 
     fade-arm list=CardList start=10
     fade-play list=CardList index=10 delay=125 motion=1
+    fade-close list=CardList start=0 since=420
+    fade-skip list=CardList index=6
 
 A journey drives the app in phases and judges only the lines each phase appended, so it can prove that a page fades
-the rows visible at load, that an appended batch fades only its own new rows, that scrolling away and back replays
-nothing, and that rows held behind a spinner fade once when it clears. :data:`WIRING` lists the page calls these
+the rows visible at load, that a scroll right after the load closes the window so old rows it realizes just appear,
+that an appended batch fades only its own new rows, that scrolling away and back replays nothing, and that rows held
+behind a spinner fade once when it clears. :data:`WIRING` lists the page calls these
 journeys exercise; ``tests/test_fade_trace.py`` checks them in CI, where WinUI journeys cannot run.
 
 Used by ``suggestions_journey.py`` (scenario ``fade``) and ``search_journey.py`` (journey ``fade-delayed-results``).
@@ -23,7 +28,9 @@ from pathlib import Path
 from typing import Callable
 
 ROOT = Path(__file__).resolve().parents[2]
-LINE = re.compile(r"^fade-(?P<kind>arm|play) list=(?P<list>\S+)(?P<rest>(?: \w+=-?\d+)*)\s*$")
+LINE = re.compile(r"^fade-(?P<kind>arm|play|close|skip) list=(?P<list>\S+)(?P<rest>(?: \w+=-?\d+)*)\s*$")
+ARM_WINDOW_MS = 1000
+"""``FadeInTiming.ArmWindow``: how long after an arm newly realized rows may still fade."""
 
 #: ``(file, regex, what breaks without it)``: the page wiring behind each fade journey assertion.
 WIRING: tuple[tuple[str, str, str], ...] = (
@@ -36,6 +43,15 @@ WIRING: tuple[tuple[str, str, str], ...] = (
     ("windows/Festival.App/Pages/SearchPage.xaml.cs",
      r"FadeIn\.Restagger\(section == SearchScope\.Songs \? SongsList : PlayersList\)",
      "Search rows held behind the spinner appear without a fade (journey fade-delayed-results)"),
+    ("windows/Festival.App/Controls/FadeIn.cs",
+     r"viewer\.ViewChanging\s*\+=\s*OnViewChanging",
+     "a scroll no longer closes a list's load arm, so old rows it realizes fade (journey suggestions fade: load-scroll)"),
+    ("windows/Festival.App/Controls/FadeIn.cs",
+     r"if\s*\(arm\.Scrolled\(x,\s*y\)\)",
+     "rows realized by a scroll the scroller hasn't reported yet fade (journey suggestions fade: load-scroll)"),
+    ("windows/Festival.App/Pages/SongDetailPage.xaml.cs",
+     r"boardArm\.Scrolled\(Scroller\.HorizontalOffset,\s*Scroller\.VerticalOffset\);\s*\n\s*if\s*\(boardArm\.IsOpen",
+     "Song Detail leaderboard cards realized by an early scroll fade in (load-transition R5)"),
 )
 
 # region Parsing
@@ -144,9 +160,52 @@ def check_only_new(events: list[FadeEvent], list_id: str) -> list[str]:
     for event in (e for e in events if e.list == list_id):
         if event.kind == "arm":
             start = event.values["start"]
-        elif start is None or event.values["index"] < start:
+        elif event.kind == "play" and (start is None or event.values["index"] < start):
             replayed.append(event.values["index"])
     return [f"{list_id}: rows already shown faded again while scrolling: {replayed}"] if replayed else []
+
+
+def check_load_then_scroll(events: list[FadeEvent], list_id: str, window_ms: int = ARM_WINDOW_MS) -> list[str]:
+    """R5: a scroll right after the load closes the window, so old rows it realizes appear without a fade.
+
+    The phase loads the list and scrolls it at once, with no wait in between. Before the first ``fade-close`` the
+    load must fade its first screen (:func:`check_load`). The close must land inside the arm's window (else the
+    run did not exercise R5), the scrolling must realize at least one row a time-based window would have faded
+    (``fade-skip``), and no
+    row may fade after the close except the rows of a batch the close kept (its ``start``: a batch appended while the
+    load window was open) or appended later (Suggestions' load-more re-arm).
+
+    Args:
+        events: Events of the phase that loaded the list and scrolled it immediately.
+        list_id: List name.
+        window_ms: The app's arm window (``FST_DEBUG_FADE_WINDOW_MS`` when a journey lengthens it).
+
+    Returns:
+        Failures.
+    """
+    own = [e for e in events if e.list == list_id]
+    close = next((i for i, e in enumerate(own) if e.kind == "close"), None)
+    if close is None:
+        return [f"{list_id}: no scroll closed the load arm (fade-close missing)"]
+    failures = check_load(own[:close], list_id)
+    since = own[close].values.get("since", window_ms)
+    if since >= window_ms:
+        failures.append(f"{list_id}: the scroll came {since} ms after the load arm, outside the "
+                        f"{window_ms} ms window, so R5 was not exercised")
+    start = own[close].values.get("start") or None
+    skipped, replayed = [], []
+    for event in own[close + 1:]:
+        if event.kind == "arm":
+            start = event.values["start"]
+        elif event.kind == "skip" and (start is None or event.values["index"] < start):
+            skipped.append(event.values["index"])
+        elif event.kind == "play" and (start is None or start == 0 or event.values["index"] < start):
+            replayed.append(event.values["index"])
+    if not skipped:
+        failures.append(f"{list_id}: the scroll realized no old row inside the window (no fade-skip), nothing proven")
+    if replayed:
+        failures.append(f"{list_id}: old rows realized by the scroll faded in: {replayed}")
+    return failures
 
 
 def check_none(events: list[FadeEvent]) -> list[str]:

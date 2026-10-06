@@ -5,6 +5,7 @@ using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
+using Microsoft.UI.Xaml.Media;
 
 namespace Festival.App.Controls;
 
@@ -13,8 +14,10 @@ namespace Festival.App.Controls;
 /// The web's <c>fadeInUp</c> for native content (<see cref="FadeInTiming"/>: 400 ms ease-out from opacity 0 and 12 epx
 /// lower). <c>FadeIn.OnShow</c> fades an element each time it becomes visible (page content bound to a loaded state);
 /// <c>FadeIn.Stagger</c> on an <see cref="ItemsRepeater"/> or <see cref="ListViewBase"/> fades the rows realized just
-/// after its items change, 125 ms apart, for the rows that fit the viewport (rows realized later by scrolling just
-/// appear, as on the web); <see cref="Restagger(UIElement, int)"/> re-arms it for an appended batch only. Both run on
+/// after its items change, 125 ms apart, for the rows that fit the viewport; the first scroll movement after a load closes
+/// that window (<see cref="StaggerArm"/>, pattern <c>load-transition</c> R5), so rows realized by scrolling just appear,
+/// as on the web. <see cref="Restagger(UIElement, int)"/> re-arms it for an appended batch only, which scrolling reveals
+/// (Suggestions). Both run on
 /// the compositor, leave nothing running when finished, and do nothing while motion is off (<see cref="Motion.Allowed"/>).
 /// </summary>
 public static class FadeIn
@@ -119,11 +122,11 @@ public static class FadeIn
     public static readonly DependencyProperty RowHeightProperty = DependencyProperty.RegisterAttached(
         "RowHeight", typeof(double), typeof(FadeIn), new PropertyMetadata(48.0));
 
-    private static readonly DependencyProperty ArmedAtProperty = DependencyProperty.RegisterAttached(
-        "ArmedAt", typeof(long), typeof(FadeIn), new PropertyMetadata(0L));
+    private static readonly DependencyProperty ArmProperty = DependencyProperty.RegisterAttached(
+        "Arm", typeof(object), typeof(FadeIn), new PropertyMetadata(null));
 
-    private static readonly DependencyProperty BatchStartProperty = DependencyProperty.RegisterAttached(
-        "BatchStart", typeof(int), typeof(FadeIn), new PropertyMetadata(0));
+    private static readonly DependencyProperty TrackerProperty = DependencyProperty.RegisterAttached(
+        "Tracker", typeof(object), typeof(FadeIn), new PropertyMetadata(null));
 
     private static readonly DependencyProperty AnimatedProperty = DependencyProperty.RegisterAttached(
         "Animated", typeof(bool), typeof(FadeIn), new PropertyMetadata(false));
@@ -160,14 +163,69 @@ public static class FadeIn
     /// <param name="batchStart">Index of the batch's first row (0 when the whole list is new).</param>
     public static void Restagger(UIElement list, int batchStart)
     {
-        var sinceArmed = Stopwatch.GetElapsedTime((long)list.GetValue(ArmedAtProperty));
-        var start = FadeInTiming.MergeBatchStart((int)list.GetValue(BatchStartProperty), batchStart, sinceArmed);
-        list.SetValue(BatchStartProperty, start);
-        list.SetValue(ArmedAtProperty, Stopwatch.GetTimestamp());
-        Trace("fade-arm", list, $"start={start}");
+        var arm = ArmOf(list);
+        arm.Arm(batchStart, Now);
+        Trace("fade-arm", list, $"start={arm.BatchStart}");
+        if (arm.NeedsSettle && list is FrameworkElement element) SettleAfterLayout(element, arm);
     }
 
-    /// <summary>Hooks element preparation and items-source changes once.</summary>
+    /// <summary>Monotonic time for the stagger window.</summary>
+    private static TimeSpan Now => Stopwatch.GetElapsedTime(0);
+
+    /// <summary>
+    /// A new stagger window: <see cref="FadeInTiming.ArmWindow"/>, or the Debug/automation <c>FST_DEBUG_FADE_WINDOW_MS</c>
+    /// override, which lets a UI journey's scripted scroll land inside the window (issue #260).
+    /// </summary>
+    /// <returns>Closed arm.</returns>
+    public static StaggerArm NewArm() => new(WindowOverride);
+
+    private static readonly TimeSpan? WindowOverride = StaggerArm.ParseWindow(App.LaunchEnvironment("FST_DEBUG_FADE_WINDOW_MS"));
+
+    /// <summary>The list's stagger window, created on first use.</summary>
+    /// <param name="list">Repeater or list view.</param>
+    /// <returns>Arm.</returns>
+    private static StaggerArm ArmOf(UIElement list)
+    {
+        if (list.GetValue(ArmProperty) is StaggerArm arm) return arm;
+        arm = NewArm();
+        list.SetValue(ArmProperty, arm);
+        return arm;
+    }
+
+    /// <summary>
+    /// Anchors a load arm's scroll position once the layout it triggered has settled, so a page that resets its list to
+    /// the top as part of the reload (Songs' new sort) still staggers the new first screen.
+    /// </summary>
+    /// <param name="list">List.</param>
+    /// <param name="arm">Its arm.</param>
+    private static void SettleAfterLayout(FrameworkElement list, StaggerArm arm)
+    {
+        var tracker = TrackerOf(list);
+        if (tracker.Settling) return;
+        tracker.Settling = true;
+        void OnLayout(object? sender, object e)
+        {
+            var (x, y) = tracker.Offset();
+            arm.Settle(x, y);
+            if (arm.NeedsSettle && arm.IsOpen(Now)) return;
+            tracker.Settling = false;
+            list.LayoutUpdated -= OnLayout;
+        }
+        list.LayoutUpdated += OnLayout;
+    }
+
+    /// <summary>The list's scroller tracker, created on first use.</summary>
+    /// <param name="list">List.</param>
+    /// <returns>Tracker.</returns>
+    private static ScrollTracker TrackerOf(FrameworkElement list)
+    {
+        if (list.GetValue(TrackerProperty) is ScrollTracker tracker) return tracker;
+        tracker = new ScrollTracker(list);
+        list.SetValue(TrackerProperty, tracker);
+        return tracker;
+    }
+
+    /// <summary>Hooks element preparation, items-source changes and the scroller once.</summary>
     /// <param name="d">List.</param>
     /// <param name="e">New value.</param>
     private static void OnStaggerChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -188,7 +246,12 @@ public static class FadeIn
                     if (args.Phase == 0 && !args.InRecycleQueue) Prepare(sender, args.ItemContainer, args.ItemIndex);
                 };
                 break;
+            default:
+                return;
         }
+        var element = (FrameworkElement)d;
+        element.Loaded += (_, _) => TrackerOf(element).Attach();
+        element.Unloaded += (_, _) => TrackerOf(element).Detach();
     }
 
     /// <summary>
@@ -199,6 +262,7 @@ public static class FadeIn
     public static void StaggerRealized(ListViewBase list)
     {
         Restagger(list);
+        SettleNow(list);
         var visible = FadeInTiming.VisibleCount(list.XamlRoot?.Size.Height ?? list.ActualHeight, GetRowHeight(list));
         for (var i = 0; i < FadeInTiming.MaxStaggered; i++)
         {
@@ -215,6 +279,7 @@ public static class FadeIn
     public static void StaggerRealized(ItemsRepeater repeater)
     {
         Restagger(repeater);
+        SettleNow(repeater);
         var visible = FadeInTiming.VisibleCount(repeater.XamlRoot?.Size.Height ?? repeater.ActualHeight, GetRowHeight(repeater));
         var count = repeater.ItemsSourceView?.Count ?? 0;
         for (var i = 0; i < Math.Min(count, FadeInTiming.MaxStaggered); i++)
@@ -224,23 +289,117 @@ public static class FadeIn
         }
     }
 
+    /// <summary>Anchors the arm at the current scroll position: the list's rows are already laid out and showing.</summary>
+    /// <param name="list">List.</param>
+    private static void SettleNow(FrameworkElement list)
+    {
+        var (x, y) = TrackerOf(list).Offset();
+        ArmOf(list).Settle(x, y);
+    }
+
     /// <summary>
-    /// Fades a freshly realized row when its list (or its newest batch) loaded moments ago and the row is within the
-    /// visible count of that batch; rows revealed before the batch show in place.
+    /// Fades a freshly realized row when its list (or its newest batch) loaded moments ago, the reader hasn't scrolled
+    /// since a load (R5), and the row is within the visible count of that batch; other rows show in place.
     /// </summary>
     /// <param name="list">Owning list.</param>
     /// <param name="element">Row element.</param>
     /// <param name="index">Row index.</param>
     private static void Prepare(FrameworkElement list, UIElement element, int index)
     {
-        var armedAt = (long)list.GetValue(ArmedAtProperty);
-        var batchStart = (int)list.GetValue(BatchStartProperty);
+        var arm = ArmOf(list);
+        var (x, y) = TrackerOf(list).Offset();
+        var now = Now;
+        if (arm.Scrolled(x, y)) Trace("fade-close", list, $"start={arm.BatchStart} since={arm.SinceArmed(now).TotalMilliseconds:F0}");
         var visible = FadeInTiming.VisibleCount(list.XamlRoot?.Size.Height ?? list.ActualHeight, GetRowHeight(list));
-        if (FadeInTiming.WithinWindow(Stopwatch.GetElapsedTime(armedAt))
-            && FadeInTiming.BatchDelay(index, batchStart, visible) is { } delay)
+        if (arm.Delay(index, visible, now, x, y) is { } delay)
+        {
             PlayRow(list, element, index, delay);
-        else
-            Reset(element);
+            return;
+        }
+        Reset(element);
+        if (arm.SuppressedByScroll(now, index, visible)) Trace("fade-skip", list, $"index={index}");
+    }
+
+    /// <summary>
+    /// A stagger list's scroller (a list view's own, else the nearest scrolling ancestor): its movement closes the
+    /// list's load arm. Attached while the list is loaded only, so a recycled inner list never outlives its page.
+    /// </summary>
+    private sealed class ScrollTracker(FrameworkElement list)
+    {
+        private ScrollViewer? viewer;
+
+        /// <summary>Whether a layout-settle hook is pending.</summary>
+        public bool Settling { get; set; }
+
+        /// <summary>Finds the scroller and listens to its view changes.</summary>
+        public void Attach()
+        {
+            Detach();
+            viewer = list is ListViewBase ? Descendant(list) : Ancestor(list);
+            if (viewer is null) return;
+            viewer.ViewChanging += OnViewChanging;
+            viewer.ViewChanged += OnViewChanged;
+        }
+
+        /// <summary>Stops listening.</summary>
+        public void Detach()
+        {
+            if (viewer is null) return;
+            viewer.ViewChanging -= OnViewChanging;
+            viewer.ViewChanged -= OnViewChanged;
+            viewer = null;
+        }
+
+        /// <summary>The scroller's offsets, or NaN while it is unknown (no movement is measured then).</summary>
+        /// <returns>Horizontal and vertical offsets (epx).</returns>
+        public (double X, double Y) Offset()
+        {
+            if (viewer is null && list.IsLoaded) Attach();
+            return viewer is null ? (double.NaN, double.NaN) : (viewer.HorizontalOffset, viewer.VerticalOffset);
+        }
+
+        private void OnViewChanging(object? sender, ScrollViewerViewChangingEventArgs e) =>
+            Moved(e.NextView.HorizontalOffset, e.NextView.VerticalOffset);
+
+        private void OnViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
+        {
+            if (viewer is not null) Moved(viewer.HorizontalOffset, viewer.VerticalOffset);
+        }
+
+        /// <summary>Closes the list's load arm on movement from its anchor.</summary>
+        /// <param name="x">Horizontal offset.</param>
+        /// <param name="y">Vertical offset.</param>
+        private void Moved(double x, double y)
+        {
+            if (list.GetValue(ArmProperty) is not StaggerArm arm || !arm.Scrolled(x, y)) return;
+            Trace("fade-close", list, $"start={arm.BatchStart} since={arm.SinceArmed(Now).TotalMilliseconds:F0}");
+        }
+
+        /// <summary>A list view's template scroller.</summary>
+        /// <param name="root">List.</param>
+        /// <returns>Scroller, if any.</returns>
+        private static ScrollViewer? Descendant(DependencyObject root)
+        {
+            var queue = new Queue<DependencyObject>();
+            queue.Enqueue(root);
+            while (queue.Count > 0)
+            {
+                var node = queue.Dequeue();
+                if (node is ScrollViewer found && !ReferenceEquals(node, root)) return found;
+                for (var i = 0; i < VisualTreeHelper.GetChildrenCount(node); i++) queue.Enqueue(VisualTreeHelper.GetChild(node, i));
+            }
+            return null;
+        }
+
+        /// <summary>The nearest scrolling ancestor.</summary>
+        /// <param name="element">Repeater.</param>
+        /// <returns>Scroller, if any.</returns>
+        private static ScrollViewer? Ancestor(DependencyObject element)
+        {
+            for (var node = VisualTreeHelper.GetParent(element); node is not null; node = VisualTreeHelper.GetParent(node))
+                if (node is ScrollViewer found) return found;
+            return null;
+        }
     }
 
     /// <summary>Plays a row's stagger fade and traces it.</summary>
@@ -256,9 +415,10 @@ public static class FadeIn
 
     /// <summary>
     /// Writes a stagger decision to the perf log (<c>--perf-log</c>) for the fade journeys (issue #260): one line per
-    /// re-arm and per row that fades, never per row that just appears, so scrolling writes nothing.
+    /// re-arm, per row that fades, per load arm a scroll closes and per row that scroll kept from fading inside the
+    /// closed window; never for rows that just appear otherwise, so steady scrolling writes nothing.
     /// </summary>
-    /// <param name="kind">Line kind (<c>fade-arm</c>, <c>fade-play</c>).</param>
+    /// <param name="kind">Line kind (<c>fade-arm</c>, <c>fade-play</c>, <c>fade-close</c>, <c>fade-skip</c>).</param>
     /// <param name="list">List (named by its x:Name, else its AutomationId).</param>
     /// <param name="detail">Space-separated <c>key=value</c> pairs.</param>
     private static void Trace(string kind, UIElement list, FormattableString detail)
