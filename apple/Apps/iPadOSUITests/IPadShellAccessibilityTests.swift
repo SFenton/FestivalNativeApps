@@ -101,7 +101,17 @@ final class IPadShellAccessibilityTests: XCTestCase {
     /// its title on open and back to the flyout button after Close or a scrim tap.
     @MainActor
     func testFlyoutIsModalAndReturnsFocus() throws {
-        if !IPadAccessibilityAuditTests.runningOnDuo { XCUIDevice.shared.orientation = .landscapeLeft }
+        let orientations: [UIDeviceOrientation] = IPadAccessibilityAuditTests.runningOnDuo
+            ? [.unknown] : [.landscapeLeft, .portrait]
+        for orientation in orientations {
+            if orientation != .unknown { XCUIDevice.shared.orientation = orientation }
+            try flyoutIsModalAndReturnsFocus()
+        }
+    }
+
+    /// One orientation of ``testFlyoutIsModalAndReturnsFocus()``.
+    @MainActor
+    private func flyoutIsModalAndReturnsFocus() throws {
         let app = makeApp()
         launch(app)
         XCTAssertTrue(element(app, "fst.songs.list").waitForExistence(timeout: 25))
@@ -127,6 +137,7 @@ final class IPadShellAccessibilityTests: XCTestCase {
             XCTAssertEqual(closed, "fst.shell.drawer.open: Open Navigation", "focus returns to the flyout button")
             XCTAssertTrue(element(app, "fst.songs.list").exists, "the page is back in the tree")
         }
+        app.terminate()
     }
 
     /// In a ⅓ window (phone tabs and drawer) the page behind the open drawer leaves the

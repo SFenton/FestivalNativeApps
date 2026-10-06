@@ -59,8 +59,8 @@ struct AppRouteDestination: View {
         case let .player(accountId, displayName):
             PlayerProfileScreen(session: session, accountId: accountId, displayName: displayName)
                 .id(accountId)
-        case let .playerBands(accountId, displayName):
-            PlayerBandsScreen(session: session, accountId: accountId, displayName: displayName)
+        case let .playerBands(accountId, displayName, group):
+            PlayerBandsScreen(session: session, accountId: accountId, displayName: displayName, group: group)
                 .id(accountId)
         case .bands:
             BandsScreen(session: session)
