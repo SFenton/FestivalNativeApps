@@ -107,7 +107,7 @@ STEP_VERBS = {
     "scrollto": "scrollto",
     "assertname": "setvalue", "assertaligned": "pair", "assertbelow": "pair", "assertlevel": "pair", "assertgap": "gap",
     "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state", "pin": "selector",
-    "assertpinned": "selector", "foreground": "onoff",
+    "assertpinned": "selector", "foreground": "onoff", "listen": "listen", "assertannounced": "announced",
 }
 
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text; ``scroll`` takes a rounded
@@ -217,7 +217,10 @@ def parse_step(step: str) -> dict:
     ``IsSelected``: ``true``/``false``, e.g. a list's current item), ``scroll`` (UIA Scroll pattern vertical percent,
     rounded: ``0`` is a list back at its top) or ``name`` equals ``<value>``;
     ``pin:<sel>`` records the element's window-relative rectangle and ``assertpinned:<sel>`` (same selector, later in
-    the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls.
+    the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls;
+    ``listen:announcements`` starts recording the window's UIA notification events (the app's screen-reader
+    announcements, what Narrator speaks) and a later ``assertannounced:<text>[@<seconds>]`` in the same ``drive`` waits
+    (default 5 s) until one equals ``<text>`` (or matches it as a .NET regex when it starts with ``~``).
 
     Args:
         step: A step string.
@@ -327,6 +330,17 @@ def parse_step(step: str) -> dict:
         if arg.lower() not in ("on", "off"):
             raise ValueError(f"bad {verb} {arg!r}; use on or off")
         result["arg"] = arg.lower()
+    elif shape == "listen":
+        if arg.lower() != "announcements":
+            raise ValueError(f"bad listen {arg!r}; use listen:announcements")
+        result["arg"] = "announcements"
+    elif shape == "announced":
+        text, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
+        if not text.strip():
+            raise ValueError(f"bad assertannounced {arg!r}; use <text>[@<seconds>]")
+        result["text"] = text.strip()
+        if wait:
+            result["timeout"] = float(wait)
     elif shape == "path" and verb == "shot" and arg.endswith("@screen"):
         result["arg"], result["mode"] = arg[: -len("@screen")], "screen"
     elif shape == "preset":
