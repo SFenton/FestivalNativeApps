@@ -6,8 +6,8 @@ extension AppRoute {
     /// The song a Songs route carries from the catalogue it was opened from, or nil.
     var song: Song? {
         switch self {
-        case let .songDetail(song), let .songLeaderboard(song, _, _),
-             let .songBandLeaderboard(song, _), let .playerHistory(song, _):
+        case let .songDetail(song), let .songLeaderboard(song, _, _, _),
+             let .songBandLeaderboard(song, _, _, _), let .playerHistory(song, _):
             song
         default:
             nil
@@ -22,8 +22,10 @@ extension AppRoute {
     func replacingSong(_ song: Song) -> AppRoute {
         switch self {
         case .songDetail: .songDetail(song)
-        case let .songLeaderboard(_, instrument, page): .songLeaderboard(song, instrument, page)
-        case let .songBandLeaderboard(_, bandType): .songBandLeaderboard(song, bandType: bandType)
+        case let .songLeaderboard(_, instrument, page, focusSelected):
+            .songLeaderboard(song, instrument, page, focusSelected: focusSelected)
+        case let .songBandLeaderboard(_, bandType, page, focus):
+            .songBandLeaderboard(song, bandType: bandType, page: page, focus: focus)
         case let .playerHistory(_, instrument): .playerHistory(song, instrument)
         default: self
         }

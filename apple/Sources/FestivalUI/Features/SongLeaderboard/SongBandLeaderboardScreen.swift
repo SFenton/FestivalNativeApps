@@ -14,16 +14,23 @@ import FestivalDesign
 ///
 /// With a selected player who has a band score here, the band's row is pinned above
 /// the pager like the Solo chart's player footer (web `FixedLeaderboardPlayerFooter`,
-/// issue #306).
+/// issue #306) and follows the Solo footer's rule (issue #307): off-page it jumps to
+/// the band's row, on-page it opens the band.
 struct SongBandLeaderboardScreen: View {
     let session: FestivalSession
     let song: Song
     @State private var bandType: BandType
-    @State private var page = 1
+    @State private var page: Int
     @State private var state: RankLoadState<SongBandLeaderboardPayload> = .loading
     /// The last loaded page and the request it answered: keeps the footer and pager in
     /// place while the next page loads, so only the rows reload (issue #93).
     @State private var shown: Shown?
+    /// The band whose row is highlighted and brought into view: Song Detail's selected
+    /// band row and the footer's jump open this board at its page (issue #307, web
+    /// `navToPlayer`).
+    @State private var focus: SongBandRowFocus?
+    /// The focused row still needs scrolling into view once its page loads.
+    @State private var focusPending: Bool
     /// Top edge of the pinned footer and pager in ``pageSpace``; nil without chrome.
     @State private var bottomChromeTop: CGFloat?
     /// Height of the rows' bottom fade, shrinking to 0 at the end of the list (#293).
@@ -31,10 +38,9 @@ struct SongBandLeaderboardScreen: View {
     /// The page's measured width, for the footer's fitted columns.
     @State private var chartWidth: CGFloat = 0
     @Environment(\.deviceLayout) private var layout
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
     @Environment(\.pageToolsRegistry) private var pageTools
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @Environment(\.colorSchemeContrast) private var contrast
 
     /// Space between two band cards, between the last card and the footer or pager,
     /// and below the last card in the list (issues #293, #305).
@@ -65,10 +71,52 @@ struct SongBandLeaderboardScreen: View {
     ///   - session: Shared app session (API client, selected profile, caches).
     ///   - song: Song whose band leaderboard to show.
     ///   - bandType: Band size key (`Band_Duets`, `Band_Trios`, `Band_Quad`).
-    init(session: FestivalSession, song: Song, bandType: String) {
+    ///   - initialPage: One-based page to open.
+    ///   - focus: Band row to highlight and bring into view on that page, if any.
+    init(
+        session: FestivalSession, song: Song, bandType: String,
+        initialPage: Int = 1, focus: SongBandRowFocus? = nil
+    ) {
         self.session = session
         self.song = song
         _bandType = State(initialValue: BandType(rawValue: bandType) ?? .duets)
+        _page = State(initialValue: max(1, initialPage))
+        _focus = State(initialValue: focus)
+        _focusPending = State(initialValue: focus != nil)
+    }
+
+    /// Whether a row is the focused band's: the band Song Detail or the footer opened
+    /// this page for.
+    ///
+    /// - Parameter entry: A page row.
+    /// - Returns: True for the band to bring into view.
+    private func isFocused(_ entry: SongBandLeaderboardEntry) -> Bool {
+        focus?.matches(entry) == true
+    }
+
+    /// Whether a row gets the selected purple highlight: the focused band, or the
+    /// selected player's band (web `isSameSongBandEntry` against `selectedEntry`).
+    ///
+    /// - Parameters:
+    ///   - entry: A page row.
+    ///   - leaderboard: The page's response.
+    /// - Returns: True for the selected or focused band's row.
+    private func isHighlighted(
+        _ entry: SongBandLeaderboardEntry, in leaderboard: SongBandLeaderboardResponse
+    ) -> Bool {
+        isFocused(entry) || leaderboard.isSelected(entry)
+    }
+
+    /// Open the page holding a band's row, then highlight it and bring it into view: the
+    /// selected-band footer's off-page action (``SongBandRowNavigation/footerAction(for:pageEntries:)``).
+    ///
+    /// - Parameters:
+    ///   - destination: One-based page containing the band's rank.
+    ///   - entry: The band's row.
+    private func jump(to destination: Int, focusing entry: SongBandLeaderboardEntry) {
+        focus = SongBandRowFocus(entry)
+        focusPending = true
+        page = max(1, destination)
     }
 
     var body: some View {
@@ -92,25 +140,39 @@ struct SongBandLeaderboardScreen: View {
                 // on both pages, issue #90), each row its own material card. A
                 // `ScrollView`, not a `List`: the cards are `NavigationLink`s, and a
                 // `List` would draw a second disclosure chevron outside each card.
-                ScrollView {
-                    LazyVStack(spacing: Self.rowGap) {
-                        if payload.leaderboard.entries.isEmpty {
-                            Text("No \(bandType.label.lowercased()) scores yet.")
-                                .foregroundStyle(FestivalText.primary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: Self.rowGap) {
+                            if payload.leaderboard.entries.isEmpty {
+                                Text("No \(bandType.label.lowercased()) scores yet.")
+                                    .foregroundStyle(FestivalText.primary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            ForEach(payload.leaderboard.entries) { entry in
+                                // The selected player's band, or the band this page was
+                                // opened for, gets the purple highlight (web `isSelected`).
+                                SongBandPreviewRow(
+                                    entry: entry, highlighted: isHighlighted(entry, in: payload.leaderboard)
+                                )
+                                .accessibilityIdentifier("fst.song-band-leaderboard.row.\(entry.id)")
+                            }
                         }
-                        ForEach(payload.leaderboard.entries) { entry in
-                            // The selected player's band gets the purple highlight
-                            // (web `isSelected`).
-                            SongBandPreviewRow(
-                                entry: entry, highlighted: payload.leaderboard.isSelected(entry)
-                            )
-                            .accessibilityIdentifier("fst.song-band-leaderboard.row.\(entry.id)")
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .padding(.bottom, Self.rowGap)
+                    }
+                    // Opened for one band's row: scroll it into view once (web
+                    // `navToPlayer`, issue #307).
+                    .task(id: focusPending) {
+                        guard focusPending,
+                              let target = payload.leaderboard.entries.first(where: isFocused) else {
+                            focusPending = false
+                            return
+                        }
+                        if await SelectedRowReveal.reveal(target.id, proxy: proxy, reduceMotion: reduceMotion) {
+                            focusPending = false
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                    .padding(.bottom, Self.rowGap)
                 }
                 .rankingsListRailClearance(layout)
                 // Cards fade out above the pinned footer and pager like the solo
@@ -155,6 +217,7 @@ struct SongBandLeaderboardScreen: View {
             bandTypeMenu
         }
         .onChange(of: bandType) { _, _ in
+            focusPending = false
             page = 1
         }
         .task(id: requestKey) { await load() }
@@ -222,49 +285,59 @@ struct SongBandLeaderboardScreen: View {
         )
     }
 
-    /// The selected player's band as one Solo-style footer row: rank, the members'
-    /// names (scrolling when long, still under Reduce Motion), score, stars on wide
-    /// layouts and the accuracy/full-combo badge. Tapping opens the band, like the
-    /// web's `getBandProfileRoute` for a selected player.
+    /// The footer's action. The loaded page's rows decide; while the next page loads,
+    /// the band's rank against the requested page does, so the footer keeps its place
+    /// and action (Solo board, issue #93).
     ///
     /// - Parameter entry: The selected player's band row.
-    /// - Returns: The pinned footer link.
+    /// - Returns: Open Band Detail when the row is on this page, otherwise jump to it.
+    private func footerAction(for entry: SongBandLeaderboardEntry) -> SelectedRowAction {
+        if case let .loaded(payload) = state {
+            return SongBandRowNavigation.footerAction(for: entry, pageEntries: payload.leaderboard.entries)
+        }
+        let pageSize = SongBandRowNavigation.pageSize
+        return SelectedRowAction.footer(
+            rank: entry.rank,
+            isVisible: entry.rank > 0 && LeaderboardPaging.page(forRank: entry.rank, pageSize: pageSize) == page,
+            pageSize: pageSize
+        )
+    }
+
+    /// The selected player's band as one Solo-style footer row (the shared
+    /// ``SelectedScoreFooterRow``: rank, the members' names scrolling when long, score,
+    /// stars on wide layouts and the accuracy/full-combo badge), following the Solo
+    /// footer's rule (issue #307, ``SongBandRowNavigation/footerAction(for:pageEntries:)``):
+    /// while the band's row is on this page it opens Band Detail (web
+    /// `getBandProfileRoute`); otherwise it jumps to the page holding the band's rank
+    /// and brings the highlighted row into view.
+    ///
+    /// - Parameter entry: The selected player's band row.
+    /// - Returns: The pinned footer button or link.
     private func selectedBandFooter(_ entry: SongBandLeaderboardEntry) -> some View {
-        NavigationLink(
-            value: AppRoute.band(
-                bandId: entry.bandId, name: entry.membersLabel,
-                bandType: entry.bandType, teamKey: entry.teamKey
-            )
-        ) {
-            HStack(spacing: 8) {
-                SongLeaderboardEntryRow(
-                    entry: entry.footerLeaderboardEntry, isPlayer: true,
-                    currentSeason: session.catalogCurrentSeason, starsAfterScore: true
-                )
-                Image(systemName: "chevron.forward")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(FestivalText.deemphasized)
-                    .accessibilityHidden(true)
-            }
-            .padding(.horizontal, 14)
-            .frame(minHeight: LeaderboardRowMetrics.minHeight)
-            .modifier(RankingRowSurface(isSelected: true))
-            // Floats over artwork with no band behind it: Reduce Transparency and
-            // Increase Contrast get an opaque backing, as on the Solo footer.
-            .background {
-                if reduceTransparency || contrast == .increased {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(BrandTokens.appBackground)
+        let action = footerAction(for: entry)
+        let row = SelectedScoreFooterRow(
+            entry: entry.footerLeaderboardEntry, currentSeason: session.catalogCurrentSeason,
+            starsAfterScore: true
+        )
+        return Group {
+            switch action {
+            case .openProfile:
+                NavigationLink(value: SongBandRowNavigation.bandRoute(entry)) { row }
+                    .accessibilityLabel(action.footerLabel(for: .band, rank: entry.rank))
+                    .accessibilityIdentifier("fst.song-band-leaderboard.spotlight-open")
+            case let .jump(destination):
+                Button {
+                    jump(to: destination, focusing: entry)
+                } label: {
+                    row
                 }
+                .accessibilityLabel(action.footerLabel(for: .band, rank: entry.rank))
+                .accessibilityIdentifier("fst.song-band-leaderboard.spotlight-jump")
             }
-            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 16)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(SongBandPreviewText.spokenLabel(entry, selected: true))
-        .accessibilityHint("Opens band")
-        .accessibilityAddTraits(.isButton)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.song-band-leaderboard.spotlight-footer")
     }
 

@@ -366,6 +366,33 @@ public struct SongBandLeaderboardResponse: Decodable, Sendable, Equatable {
     /// but decode it so a future selected-band identity needs no wire change.
     public var selectedBandEntry: SongBandLeaderboardEntry? = nil
 
+    /// Create a page, e.g. for tests.
+    ///
+    /// - Parameters:
+    ///   - songId: Song of the board.
+    ///   - bandType: Wire band-size key.
+    ///   - count: Rows on this page.
+    ///   - totalEntries: Ranked bands of this size on the song.
+    ///   - localEntries: Rankable bands, when the service reports them.
+    ///   - entries: Page rows.
+    ///   - selectedPlayerEntry: Selected player's best band row, if any.
+    ///   - selectedBandEntry: Selected band's row, if any.
+    public init(
+        songId: String, bandType: String, count: Int, totalEntries: Int, localEntries: Int?,
+        entries: [SongBandLeaderboardEntry],
+        selectedPlayerEntry: SongBandLeaderboardEntry? = nil,
+        selectedBandEntry: SongBandLeaderboardEntry? = nil
+    ) {
+        self.songId = songId
+        self.bandType = bandType
+        self.count = count
+        self.totalEntries = totalEntries
+        self.localEntries = localEntries
+        self.entries = entries
+        self.selectedPlayerEntry = selectedPlayerEntry
+        self.selectedBandEntry = selectedBandEntry
+    }
+
     /// The pinned footer's row: a selected band's row wins over the selected player's
     /// best band, like the web `SongBandLeaderboardPage` (`selectedBandEntry ??
     /// selectedPlayerEntry`).

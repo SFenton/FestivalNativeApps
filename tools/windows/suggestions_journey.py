@@ -6,7 +6,8 @@ it by ``fst.*`` AutomationIds and fails on the first missing element. Scenarios 
 window presets, keyboard navigation (Tab per card, Up/Down per row, Esc focus return), the filter flyout (Axe scan
 open), the filtered-empty state and its Reset, incremental loading, the end of a mix and Start New Mix, row ->
 Song Detail -> back, the redirect without a selected player, the loading, syncing (202) and denied (403) states and
-an unreachable service with Retry. Steps are UIA patterns or posted keys, so the journeys also run while the console
+an unreachable service with Retry. ``rival-rows`` (issue #259) checks the dumped UIA tree: single-rival spotlight rows
+draw no rival name pill and name the rival in their Narrator name, mixed-rival rows keep the pill. Steps are UIA patterns or posted keys, so the journeys also run while the console
 is locked (screenshots are then black: pass ``--shots`` only on an unlocked desktop). Axe scans must report 0 errors.
 
 Usage: ``python tools/windows/suggestions_journey.py [--port 18767] [--shots DIR] [--only NAME] [--sizes compact,medium,wide]``
@@ -25,6 +26,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import journey_exe  # noqa: E402  (sibling module)
+import songs_filter_journey  # noqa: E402  (sibling module: shared Axe response parsing)
 
 ROOT = Path(__file__).resolve().parents[2]
 UIWIN = ROOT / "tools" / "windows" / "uiwin.py"
@@ -38,6 +40,12 @@ NEXT_CARD_ROW = "id=fst.suggestions.row.s091"
 TENTH_CARD = "id=fst.suggestions.category.unplayed_Solo_PeripheralGuitar"
 RIVAL_CARD = "id=fst.suggestions.category.song_rival_gap_rival-below-0"
 TWELFTH_CARD = RIVAL_CARD
+# Seed 1 rival cards (issue #259): a single-rival spotlight (no name pill; Narrator names the rival in the delta) and a
+# mixed-rival cross-pollination card whose rows keep the pill because each can be about a different rival.
+SPOTLIGHT_CARD = "fst.suggestions.category.song_rival_spotlight_rival-below-1"
+SPOTLIGHT_ROW_NAME = "Track 41, Artist B · 1968, Pro Lead, 2 ranks behind Rival B1"
+MIXED_CARD = "fst.suggestions.category.song_rival_pct_push"
+MIXED_ROW_NAME = "Track 34, Artist O · 1999, Lead, rival Rival B4, behind by 2 ranks"
 TYPES = ("nearFC", "starProgress", "unplayed", "varietyPack", "artistEssentials", "artistDiscover", "sameName",
          "almostElite", "percentilePush", "stale", "pctImprove", "nearMax", "songRivals")
 LOADED = [f"waitfor:{ROW}@30", f"waitfor:{CARD}@5", "waitfor:id=fst.suggestions.filter-button@5"]
@@ -120,6 +128,19 @@ SCENARIOS: dict[str, tuple[str | None, dict[str, str], list[str]]] = {
         {},
         [*LOADED, f"scrollinto:{TENTH_CARD}", f"scrollinto:{RIVAL_CARD}@15", f"waitfor:{RIVAL_CARD}@10",
          "{shot:load-more}"],
+    ),
+    "rival-rows": (
+        PROFILE,
+        {},
+        [
+            *LOADED,
+            # The mixed card comes first in the seed 1 mix; scrolling on loads the batch with the spotlight card.
+            f"scrollinto:id={MIXED_CARD}@30", f"waitfor:id={MIXED_CARD}@10", f"waitfor:name={MIXED_ROW_NAME}@10",
+            "{shot:rival-mixed}", "tree:{scans}/rival-mixed.txt",
+            f"scrollinto:id={SPOTLIGHT_CARD}@30", f"waitfor:id={SPOTLIGHT_CARD}@10",
+            f"waitfor:name={SPOTLIGHT_ROW_NAME}@10",
+            "{shot:rival-spotlight}", "tree:{scans}/rival-spotlight.txt", "scan:{scans}/rival-rows",
+        ],
     ),
     "end-of-mix": (
         PROFILE,
@@ -250,6 +271,66 @@ def launch_args(name: str, port: int, size: str, exe: Path) -> list[str]:
     return args
 
 
+def card_subtree(tree: str, card_id: str) -> list[str]:
+    """Returns the first on-screen card with an AutomationId and its descendants from a ``uiwin.py tree`` dump.
+
+    Args:
+        tree: Tree dump text (one element per line, children indented below their parent).
+        card_id: The card's AutomationId.
+
+    Returns:
+        The card's line and its descendants' lines, stripped, or an empty list when no on-screen card matches.
+    """
+    lines = tree.splitlines()
+    for index, line in enumerate(lines):
+        if f" id={card_id} " in line and "[offscreen]" not in line:
+            depth = len(line) - len(line.lstrip())
+            card = [line.strip()]
+            for child in lines[index + 1:]:
+                if child.strip() and len(child) - len(child.lstrip()) <= depth:
+                    break
+                card.append(child.strip())
+            return card
+    return []
+
+
+def rival_card_problems(card: list[str], rival: str, pill: bool) -> list[str]:
+    """Checks a rival card's rows: the name pill (shown or hidden) and that every row's UIA name names the rival.
+
+    Args:
+        card: Lines from :func:`card_subtree`.
+        rival: A rival the card's rows are about.
+        pill: Whether rows should draw the rival name pill (mixed-rival cards) or not (single-rival cards).
+
+    Returns:
+        Readable problems; empty when the card is right.
+    """
+    if not card:
+        return ["card not on screen"]
+    rows = [line for line in card if line.startswith("Button ")]
+    if not rows:
+        return ["card has no rows"]
+    has_pill = any(line.startswith(f'Text "{rival}" ') for line in card)
+    problems = []
+    if has_pill != pill:
+        problems.append(f"name pill {rival!r} {'missing' if pill else 'still drawn'}")
+    if not pill:
+        problems += [f"row does not name {rival!r}: {row[:120]}" for row in rows if rival not in row]
+    elif not any(f"rival {rival}," in row or f'rival {rival}" ' in row for row in rows):
+        problems.append(f"no row is named 'rival {rival}'")
+    return problems
+
+
+RIVAL_CHECKS: dict[str, list[tuple[str, str, str, bool]]] = {
+    "rival-rows": [("rival-mixed.txt", MIXED_CARD, "Rival B4", True),
+                   ("rival-spotlight.txt", SPOTLIGHT_CARD, "Rival B1", False)],
+}
+"""Scenario -> (tree file in the scan folder, card AutomationId, rival, pill expected) checks run after the drive."""
+
+SIZED = {"loaded", "rival-rows"}
+"""Scenarios run at every ``--sizes`` preset; the rest run at medium."""
+
+
 def run(name: str, port: int, shots: Path | None, size: str, exe: Path) -> None:
     """Launches, drives and closes one scenario.
 
@@ -264,6 +345,7 @@ def run(name: str, port: int, shots: Path | None, size: str, exe: Path) -> None:
         RuntimeError: A step failed (a failure screenshot and UIA tree are saved).
     """
     scans = (shots or WORK) / "axe" / f"{name}-{size}"
+    scans.mkdir(parents=True, exist_ok=True)
     uiwin(*launch_args(name, port, size, exe))
     try:
         steps = expand(SCENARIOS[name][2], shots, size, scans)
@@ -281,9 +363,15 @@ def run(name: str, port: int, shots: Path | None, size: str, exe: Path) -> None:
             raise
         finally:
             Path(handle.name).unlink(missing_ok=True)
-        if " error(s)" in output and any(line.startswith("scan ") and not line.endswith(" 0 error(s)")
-                                         for line in output.splitlines()):
-            raise RuntimeError(f"Axe errors:\n{output}")
+        (scans / "drive.json").write_text(output, encoding="utf-8")
+        axe = songs_filter_journey.scan_errors(output)
+        if axe:
+            raise RuntimeError("Axe errors:\n" + "\n".join(axe))
+        problems = [f"{card}: {problem}" for file, card, rival, pill in RIVAL_CHECKS.get(name, [])
+                    for problem in rival_card_problems(
+                        card_subtree((scans / file).read_text(encoding="utf-8", errors="replace"), card), rival, pill)]
+        if problems:
+            raise RuntimeError("Rival rows:\n" + "\n".join(problems))
         print(f"PASS {name} [{size}]")
     finally:
         uiwin("close")
@@ -317,7 +405,7 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=18767)
     parser.add_argument("--shots", type=Path)
     parser.add_argument("--only", choices=sorted(SCENARIOS), action="append")
-    parser.add_argument("--sizes", default="medium", help="comma-separated presets for the loaded journey")
+    parser.add_argument("--sizes", default="medium", help="comma-separated presets for the loaded and rival-rows journeys")
     journey_exe.add_argument(parser)
     options = parser.parse_args()
     server = subprocess.Popen([sys.executable, str(ROOT / "tools" / "windows" / "suggestions_fixture_server.py"),
@@ -335,7 +423,7 @@ def main() -> int:
         if options.shots:
             options.shots.mkdir(parents=True, exist_ok=True)
         for name in options.only or list(SCENARIOS):
-            for size in options.sizes.split(",") if name == "loaded" else ["medium"]:
+            for size in options.sizes.split(",") if name in SIZED else ["medium"]:
                 for attempt in range(LOCK_RETRIES + 1):
                     try:
                         run(name, options.port, options.shots, size, options.exe)

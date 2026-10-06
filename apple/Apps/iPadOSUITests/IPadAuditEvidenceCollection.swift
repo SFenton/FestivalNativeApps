@@ -167,7 +167,11 @@ extension IPadAccessibilityAuditTests {
                 // both; otherwise frame heights (never one of each).
                 let otherLines = otherShot.map(IPadAuditPageEvidence.recognizedLines(in:)) ?? []
                 let sizeRatio = { (audited: CGRect, compared: CGRect, label: String) -> Double? in
-                    if let a = IPadAuditPageEvidence.textHeight(in: audited, label: label, lines: lines),
+                    // Vision's box for a one- or two-letter lowercase word is not a glyph
+                    // height (Rival Detail's "vs": 24 → 48 pt frames, 2.0×, read as 1.2×
+                    // from the boxes); such labels compare their own frames.
+                    let short = label.trimmingCharacters(in: .whitespaces).count < 3
+                    if !short, let a = IPadAuditPageEvidence.textHeight(in: audited, label: label, lines: lines),
                        let c = IPadAuditPageEvidence.textHeight(in: compared, label: label, lines: otherLines), a > 0 {
                         return growth(a, c)
                     }
