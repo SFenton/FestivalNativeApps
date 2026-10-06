@@ -16,6 +16,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -376,11 +377,12 @@ class CompeteUiTest {
     @Test
     fun spinnersGiveWayToEmptyCopyAndRivalsErrors() {
         val gate = CompletableDeferred<Unit>()
-        // Drums has no ranked accounts (empty copy); Bass rivals fail (inline error).
+        // Drums has no ranked accounts and no rivals (empty copy in both cards); Bass rivals fail (inline error).
         transport.onRaw("/api/rankings/Solo_Drums") {
             HttpResult(200, RankingsFixtures.rankings("Solo_Drums", "totalscore", 1, 10, total = 0).toByteArray(), mapOf("X-FST-Publication-Id" to "7"))
         }
         transport.onRaw("/api/rankings/Solo_Drums/${CompeteFixtures.PLAYER}") { HttpResult(404, "{}".toByteArray()) }
+        transport.on("/api/player/${CompeteFixtures.PLAYER}/rivals/Solo_Drums") { RivalsFixtures.list("Solo_Drums", emptyList(), emptyList()) }
         transport.beforeRespond = { request ->
             val path = request.url.substringBefore('?')
             if ("/api/rankings" in path || "/rivals/" in path) gate.await()
@@ -393,10 +395,16 @@ class CompeteUiTest {
         awaitInCard("fst.compete.rivals-card.Solo_Bass", hasTestTag("fst.compete.rivals-card.Solo_Bass.loading"))
         rule.onNodeWithContentDescription("Loading Bass rivals")
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo.Indeterminate))
+        awaitInCard("fst.compete.rivals-card.Solo_Drums", hasTestTag("fst.compete.rivals-card.Solo_Drums.loading"))
+        rule.onNodeWithContentDescription("Loading Drums rivals")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo.Indeterminate))
+        assertTrue(rule.onAllNodesWithText(CompeteText.noRivals("Drums")).fetchSemanticsNodes().isEmpty())
 
         gate.complete(Unit)
         awaitInCard("fst.compete.leaderboard-card.Solo_Drums", hasText(CompeteText.noRankings("Drums")))
         assertTrue(rule.onAllNodesWithTag("fst.compete.leaderboard-card.Solo_Drums.loading").fetchSemanticsNodes().isEmpty())
+        awaitInCard("fst.compete.rivals-card.Solo_Drums", hasText(CompeteText.noRivals("Drums")))
+        assertTrue(rule.onAllNodesWithTag("fst.compete.rivals-card.Solo_Drums.loading").fetchSemanticsNodes().isEmpty())
         awaitInCard("fst.compete.rivals-card.Solo_Bass", hasTestTag("fst.service-status.inline"))
         assertTrue(rule.onAllNodesWithTag("fst.compete.rivals-card.Solo_Bass.loading").fetchSemanticsNodes().isEmpty())
     }
