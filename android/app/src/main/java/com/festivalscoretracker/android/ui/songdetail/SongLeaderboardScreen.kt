@@ -211,6 +211,7 @@ fun SongLeaderboardScreen(
         title = if (headerGone) title else "",
         isRoot = false,
         scrolled = headerGone,
+        marqueeTitle = true,
         modifier = Modifier.semantics { testTagsAsResourceId = true },
     ) { padding ->
         val failed = board as? LoadState.Failed

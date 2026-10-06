@@ -161,7 +161,7 @@ private struct FirstRunPrimaryButton: ViewModifier {
         if #available(iOS 26.0, macOS 26.0, *) {
             content.buttonStyle(.glassProminent).tint(BrandTokens.accentBlue)
         } else {
-            content.buttonStyle(.borderedProminent).tint(BrandTokens.accentBlue)
+            content.buttonStyle(.borderedProminent).tint(AccentText.prominentFill)
         }
     }
 }
