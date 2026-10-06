@@ -22,6 +22,16 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
     /// <summary>Web <c>SERVICE_INFO_TIMEOUT_MS</c>.</summary>
     public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(3);
 
+    /// <summary>
+    /// Parses the Debug/automation <c>FST_DEBUG_SERVICE_INFO_TIMEOUT_MS</c> hook, which lengthens the request timeout so a UI
+    /// Automation journey can open Settings, scroll to the card and scan it while a held first read keeps it Loading.
+    /// </summary>
+    /// <param name="milliseconds">Hook value.</param>
+    /// <returns>The timeout, or <see langword="null"/> unless it is a whole number of milliseconds from 1 to 60,000.</returns>
+    public static TimeSpan? ParseTimeoutOverride(string? milliseconds) =>
+        int.TryParse(milliseconds, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var ms)
+        && ms is > 0 and <= 60_000 ? TimeSpan.FromMilliseconds(ms) : null;
+
     private readonly FestivalApiClient api;
     private readonly TimeProvider time;
     private readonly Func<TimeZoneInfo> zone;
@@ -117,6 +127,9 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
 
     /// <summary>Whether polling is running.</summary>
     public bool IsPolling => polling is not null;
+
+    /// <summary>Per-read timeout: <see cref="RequestTimeout"/> unless an automation hook lengthens it (<see cref="ParseTimeoutOverride"/>).</summary>
+    public TimeSpan ReadTimeout { get; set; } = RequestTimeout;
     #endregion
 
     #region Polling
@@ -173,12 +186,12 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
         }
     }
 
-    /// <summary>One read with the web's timeout.</summary>
+    /// <summary>One read with the web's timeout (<see cref="ReadTimeout"/>).</summary>
     /// <param name="token">Stop token.</param>
     /// <returns>Task.</returns>
     internal async Task PollOnceAsync(CancellationToken token)
     {
-        using var timeout = new CancellationTokenSource(RequestTimeout, time);
+        using var timeout = new CancellationTokenSource(ReadTimeout, time);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, timeout.Token);
         try
         {

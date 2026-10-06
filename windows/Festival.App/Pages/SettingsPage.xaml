@@ -532,7 +532,7 @@
                                                VerticalAlignment="Center" AutomationProperties.AutomationId="fst.settings.service-info.process" />
                                     <ProgressRing Width="16" Height="16" IsActive="{x:Bind ViewModel.ServiceInfo.ShowsSpinner, Mode=OneWay}"
                                                   Visibility="{x:Bind ViewModel.ServiceInfo.ShowsSpinner, Mode=OneWay}"
-                                                  AutomationProperties.AccessibilityView="Raw" />
+                                                  AutomationProperties.AccessibilityView="Raw" AutomationProperties.AutomationId="fst.settings.service-info.spinner" />
                                 </StackPanel>
                             </Grid>
                             <StackPanel Spacing="4" Padding="0,4,0,8" Visibility="{x:Bind ViewModel.ServiceInfo.HasPhase, Mode=OneWay}"

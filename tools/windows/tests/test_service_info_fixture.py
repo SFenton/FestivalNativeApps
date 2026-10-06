@@ -6,10 +6,12 @@ Run: ``python -m unittest discover -s tools/windows/tests`` from the repo root.
 import json
 import sys
 import threading
+import time
 import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -32,6 +34,13 @@ class ResponseTests(unittest.TestCase):
 
     def test_idle_is_the_mock_idle_body(self):
         self.assertEqual(f.response("idle", 0), (200, mock_service.SERVICE_INFO_IDLE))
+
+    def test_loading_holds_only_the_first_read_then_answers_idle(self):
+        self.assertEqual([f.response("loading", read) for read in range(3)], [(200, mock_service.SERVICE_INFO_IDLE)] * 3)
+        self.assertEqual([f.delay("loading", read) for read in range(3)], [f.LOADING_DELAY_SECONDS, 0.0, 0.0])
+        for state in f.STATES:
+            if state != "loading":
+                self.assertEqual(f.delay(state, 0), 0.0, state)
 
     def test_discovery_is_the_mock_discovery_body(self):
         status, body = f.response("discovery", 3)
@@ -121,6 +130,18 @@ class FixtureServerTests(unittest.TestCase):
         status, body = self.get(self.serve(f.ServiceInfoState("idle")) + f.ROUTE)
         self.assertEqual((status, body["currentUpdate"]["status"]), (200, "idle"))
 
+    def test_loading_holds_the_first_read_over_http(self):
+        base = self.serve(f.ServiceInfoState("loading"))
+        times = []
+        with mock.patch.object(f, "LOADING_DELAY_SECONDS", 0.5):
+            for _ in range(2):
+                start = time.monotonic()
+                status, body = self.get(base + f.ROUTE)
+                times.append(time.monotonic() - start)
+                self.assertEqual((status, body["currentUpdate"]["status"]), (200, "idle"))
+        self.assertGreaterEqual(times[0], 0.45)
+        self.assertLess(times[1], 0.4)
+
     def test_unavailable_and_other_routes(self):
         base = self.serve(f.ServiceInfoState("unavailable"))
         self.assertEqual(self.get(base + f.ROUTE)[0], 503)
@@ -153,6 +174,23 @@ class PagesTests(unittest.TestCase):
         monotonic = pages["settings-service-info-monotonic"]
         self.assertEqual(m.page_sizes(monotonic, ["compact", "medium", "wide"], "normal"), ["compact"])
         self.assertEqual(m.mode_pages([monotonic], "text-200"), [])
+
+    def test_loading_page_opens_settings_itself_once_per_run(self):
+        """Loading only precedes the first read after Settings opens, and the fixture holds only its first read."""
+        loading = {p["name"]: p for p in json.loads(PAGES.read_text(encoding="utf-8"))}["settings-service-info-loading"]
+        self.assertEqual(loading["tab"], "songs")
+        self.assertEqual(m.page_sizes(loading, ["compact", "medium", "wide"], "hc-desert"), ["compact"])
+        timeout_ms = int(loading["env"]["FST_DEBUG_SERVICE_INFO_TIMEOUT_MS"])
+        self.assertGreaterEqual(timeout_ms, f.LOADING_DELAY_SECONDS * 1000 + 3000,
+                                "the lengthened app timeout outlasts the held read with margin")
+        self.assertGreater(f.LOADING_DELAY_SECONDS, 3.0, "longer than the default timeout the page lengthens")
+        steps = loading["after_ready"]
+        self.assertEqual(steps[0], "key:ctrl+comma")
+        scan = next(i for i, s in enumerate(steps) if s.startswith("scan:"))
+        self.assertIn("assertname:id=fst.settings.service-info.state|Loading", steps[:scan])
+        self.assertIn("waitfor:raw=fst.settings.service-info.spinner", steps[:scan])
+        self.assertEqual(steps[scan + 1], "assertname:id=fst.settings.service-info.process@0|Loading",
+                         "the scan finished while the card was still Loading")
 
     def test_stacked_page_runs_only_at_large_text(self):
         pages = json.loads(PAGES.read_text(encoding="utf-8"))

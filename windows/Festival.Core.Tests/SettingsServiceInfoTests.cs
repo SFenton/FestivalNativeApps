@@ -400,6 +400,50 @@ public class SettingsServiceInfoTests
         Assert.Equal(ServiceProcessState.Loading, cancelled.ProcessState);
     }
 
+    [Fact]
+    public async Task Poll_StaysLoadingUntilTheReadTimeout()
+    {
+        var hang = new FakeService();
+        hang.Handler.Responder = async (request, token) =>
+        {
+            await Task.Delay(Timeout.Infinite, token);
+            return Wire.Ok("{}");
+        };
+        var time = new FakeTimeProvider();
+        var standard = new SettingsServiceInfoViewModel(hang.Client(), time);
+        Assert.Equal(SettingsServiceInfoViewModel.RequestTimeout, standard.ReadTimeout);
+        var pending = standard.PollOnceAsync(CancellationToken.None);
+        await Async.Advance(time, TimeSpan.FromSeconds(2.9), TimeSpan.FromSeconds(0.1));
+        Assert.Equal(("Loading", ServiceProcessState.Loading, true), (standard.StateDescription, standard.ProcessState, standard.ShowsSpinner));
+        await Async.Advance(time, TimeSpan.FromSeconds(0.2), TimeSpan.FromSeconds(0.1));
+        await pending;
+        Assert.Equal(("Failed to load data", false), (standard.StateDescription, standard.ShowsSpinner));
+
+        var lengthened = new SettingsServiceInfoViewModel(hang.Client(), time) { ReadTimeout = TimeSpan.FromSeconds(15) };
+        pending = lengthened.PollOnceAsync(CancellationToken.None);
+        await Async.Advance(time, TimeSpan.FromSeconds(10));
+        Assert.Equal(ServiceProcessState.Loading, lengthened.ProcessState);
+        await Async.Advance(time, TimeSpan.FromSeconds(6));
+        await pending;
+        Assert.Equal(ServiceProcessState.Stopped, lengthened.ProcessState);
+    }
+
+    [Theory]
+    [InlineData("15000", 15000)]
+    [InlineData("1", 1)]
+    [InlineData("60000", 60000)]
+    [InlineData(null, null)]
+    [InlineData("", null)]
+    [InlineData("0", null)]
+    [InlineData("60001", null)]
+    [InlineData("-5", null)]
+    [InlineData("1.5", null)]
+    [InlineData("abc", null)]
+    public void ParseTimeoutOverride_AcceptsWholeMillisecondsUpToAMinute(string? value, int? expected)
+    {
+        Assert.Equal(expected is { } ms ? TimeSpan.FromMilliseconds(ms) : null, SettingsServiceInfoViewModel.ParseTimeoutOverride(value));
+    }
+
     [Theory]
     [InlineData("""{"contractVersion":2}""")]
     [InlineData("""{"currentUpdate":{"status":""}}""")]

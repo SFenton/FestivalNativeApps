@@ -363,7 +363,7 @@ Evidence: `a11y_matrix.py --scan --pages journeys/a11y-settings-path-view.json` 
 
 ## Settings Service Info validation (issue #275, 2026-10-06)
 
-Evidence: `a11y_matrix.py --scan --pages journeys/a11y-settings-service-info.json`, with every card state on `service_info_fixture.py`:
+Evidence: `a11y_matrix.py --scan --pages journeys/a11y-settings-service-info.json`, with every card state on `service_info_fixture.py`, Loading included (it runs under an automation-only longer request timeout so the scan fits; users keep 3 s):
 
 - compact, medium, wide, maximized and both snaps;
 - Desert, Night sky, light and dark theme, display 100%, text 200%, and text 200% with display 100%;

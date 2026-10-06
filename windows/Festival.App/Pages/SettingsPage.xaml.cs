@@ -19,6 +19,7 @@ public sealed partial class SettingsPage : Page
         const bool debugBuild = false;
 #endif
         ViewModel = new SettingsViewModel(App.Session, Festival.Core.Domain.AppVersionInfo.SettingsText(typeof(App).Assembly), debugBuild);
+        if (ServiceInfoTimeoutOverride is { } timeout) ViewModel.ServiceInfo.ReadTimeout = timeout;
         InitializeComponent();
         QuickLinksMenu.Model = ViewModel.QuickLinks;
         _ = new QuickLinksBinder(Scroller, ViewModel.QuickLinks, () => QuickLinksBinder.ReducedMotion(App.Session.Settings.ReduceMotion));
@@ -29,6 +30,13 @@ public sealed partial class SettingsPage : Page
 
     /// <summary>Text-size source for the Service Info state row.</summary>
     private readonly UISettings uiSettings = new();
+
+    /// <summary>
+    /// Debug/automation <c>FST_DEBUG_SERVICE_INFO_TIMEOUT_MS</c>: a longer Service Info timeout so UI Automation can check and
+    /// scan the Loading card while a fixture holds the first read (the 3 s default is shorter than that journey).
+    /// </summary>
+    private static readonly TimeSpan? ServiceInfoTimeoutOverride =
+        SettingsServiceInfoViewModel.ParseTimeoutOverride(App.LaunchEnvironment("FST_DEBUG_SERVICE_INFO_TIMEOUT_MS"));
 
     /// <summary>Page model.</summary>
     public SettingsViewModel ViewModel { get; }
