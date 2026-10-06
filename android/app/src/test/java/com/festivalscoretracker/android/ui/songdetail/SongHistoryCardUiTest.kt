@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.height
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.profile.ScoreHistoryEntry
+import com.festivalscoretracker.android.core.shell.GraphListPhase
+import com.festivalscoretracker.android.ui.common.GraphListPhaseKey
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -281,6 +283,11 @@ class SongHistoryCardUiTest {
         rule.mainClock.advanceTimeBy(1_000)
         chartSays("Drums score history: 3 scores")
         assertEquals(before, cardHeight())
+        // The best scores end on the last choice too (Drums' three rows, settled).
+        rule.mainClock.advanceTimeBy(500)
+        assertEquals(GraphListPhase.Idle, listPhase())
+        assertTrue(exists("fst.song-detail.history.top.2"))
+        assertFalse(exists("fst.song-detail.history.top.3"))
         rule.mainClock.autoAdvance = true
     }
 
@@ -300,6 +307,90 @@ class SongHistoryCardUiTest {
         rule.mainClock.advanceTimeBy(50)
         chartSays("Bass score history: 2 scores")
         assertEquals(before, cardHeight())
+        rule.mainClock.autoAdvance = true
+    }
+
+    private fun topHeight() = rule.onNodeWithTag("fst.song-detail.history.top").getBoundsInRoot().height
+
+    private fun listPhase() = rule.onNodeWithTag("fst.song-detail.history.top").fetchSemanticsNode().config[GraphListPhaseKey]
+
+    @Test
+    fun theBestScoresListRunsTheWebGraphCardSequence() {
+        // Issue #169 (web useListAnimation): Lead's five rows fade out (200 + 4 × 40 = 360 ms), the
+        // list eases to Bass's height (300 ms) with the rows hidden, then Bass's two rows fade in
+        // (300 + 60 = 360 ms). View All follows the selection at once, as on the web.
+        show(mixed)
+        rule.waitForIdle()
+        val lead = topHeight()
+        assertTrue(exists("fst.song-detail.history.view-all"))
+        assertEquals(GraphListPhase.Idle, listPhase())
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithTag("fst.song-detail.history.instrument.Solo_Bass").performClick()
+        untilSelected("Solo_Bass")
+        rule.mainClock.advanceTimeBy(100)
+        // Old rows fading out at the old height; View All already gone with Lead's selection.
+        assertEquals(GraphListPhase.Out, listPhase())
+        assertTrue(exists("fst.song-detail.history.top.4"))
+        assertFalse(exists("fst.song-detail.history.view-all"))
+        assertEquals(lead, topHeight())
+        rule.mainClock.advanceTimeBy(150)
+        assertEquals(GraphListPhase.Out, listPhase())
+        assertEquals(lead, topHeight())
+        // Resize: Bass's rows are in place but hidden while the list eases to the shorter height.
+        rule.mainClock.advanceTimeBy(200)
+        assertEquals(GraphListPhase.Resize, listPhase())
+        assertTrue(exists("fst.song-detail.history.top.1"))
+        assertFalse(exists("fst.song-detail.history.top.2"))
+        val easing = topHeight()
+        // In: the new rows fade in at the new height.
+        rule.mainClock.advanceTimeBy(350)
+        assertEquals(GraphListPhase.In, listPhase())
+        val bass = topHeight()
+        assertTrue("easing $easing between $bass and $lead", easing < lead && easing > bass)
+        rule.mainClock.advanceTimeBy(500)
+        assertEquals(GraphListPhase.Idle, listPhase())
+        assertEquals(bass, topHeight())
+        rule.mainClock.autoAdvance = true
+    }
+
+    @Test
+    fun viewAllFollowsTheSelectionAndOpensIt() {
+        show(mixed, initial = Instrument.Bass)
+        rule.waitForIdle()
+        assertFalse(exists("fst.song-detail.history.view-all"))
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithTag("fst.song-detail.history.instrument.Solo_Guitar").performClick()
+        untilSelected("Solo_Guitar")
+        rule.mainClock.advanceTimeBy(50)
+        // Lead has eight scores: View All shows at once while Bass's rows are still fading out.
+        assertTrue(exists("fst.song-detail.history.view-all"))
+        assertFalse(exists("fst.song-detail.history.top.2"))
+        rule.mainClock.autoAdvance = true
+        rule.waitForIdle()
+        assertTrue(exists("fst.song-detail.history.top.4"))
+        rule.onNodeWithTag("fst.song-detail.history.view-all").performClick()
+        assertEquals(Instrument.Lead, viewAll)
+    }
+
+    @Test
+    fun reducedMotionResizesTheBestScoresListAtOnce() {
+        rule.setContent {
+            FestivalTheme(appReduceMotion = true) {
+                SongHistoryCard(mixed, visible = Instrument.entries.toSet(), keyboard = false, initialInstrument = null, onViewAll = {})
+            }
+        }
+        rule.waitForIdle()
+        val lead = topHeight()
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithTag("fst.song-detail.history.instrument.Solo_Bass").performClick()
+        untilSelected("Solo_Bass")
+        rule.mainClock.advanceTimeBy(50)
+        val swapped = topHeight()
+        assertEquals(GraphListPhase.Idle, listPhase())
+        assertFalse(exists("fst.song-detail.history.top.2"))
+        rule.mainClock.advanceTimeBy(1_000)
+        assertTrue(swapped < lead)
+        assertEquals(swapped, topHeight())
         rule.mainClock.autoAdvance = true
     }
 

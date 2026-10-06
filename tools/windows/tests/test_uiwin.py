@@ -102,10 +102,15 @@ class StepTests(unittest.TestCase):
         self.assertEqual((top["key"], top["value"], top["timeout"]), ("scroll", "0", 5.0))
         self.assertEqual(u.parse_step("assertstate:id=x|scroll=-1")["value"], "-1")
         self.assertEqual(u.parse_step("assertstate:id=x|scroll=100")["value"], "100")
+        role = u.parse_step("assertstate:id=fst.song-detail.preview-row.Solo_Guitar.rank-3|type=Text@5")
+        self.assertEqual((role["key"], role["value"], role["timeout"]), ("type", "text", 5.0))
+        self.assertEqual(u.parse_step("assertstate:id=x|invoke=False")["value"], "false")
+        self.assertEqual(u.parse_step("assertstate:id=x|focusable=true")["value"], "true")
         for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe",
                     "assertstate:id=x|enabled=yes", "assertstate:id=x|color=red", "assertstate:@1,2|toggle=on",
                     "assertstate:id=x|name=", "assertstate:id=x|selected=on", "assertstate:id=x|scroll=top",
-                    "assertstate:id=x|scroll=101", "assertstate:id=x|scroll=2.5", "assertstate:id=x|scroll=-2"):
+                    "assertstate:id=x|scroll=101", "assertstate:id=x|scroll=2.5", "assertstate:id=x|scroll=-2",
+                    "assertstate:id=x|type=", "assertstate:id=x|invoke=yes", "assertstate:id=x|focusable=1"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
     def test_assertstatus(self):
@@ -117,7 +122,19 @@ class StepTests(unittest.TestCase):
         plain = u.parse_step("assertstatus:name=Backdrop|no-art")
         self.assertEqual(plain["status"], "no-art")
         self.assertNotIn("timeout", plain)
+        # Issue #258: a `~` regex status passes through to FstUia unchanged.
+        regex = u.parse_step(r"assertstatus:id=fst.first-run.demo.songs-song-list|~^catalogue rotation=running swaps=[1-9]\d* swap=fade$@15")
+        self.assertEqual(regex["status"], r"~^catalogue rotation=running swaps=[1-9]\d* swap=fade$")
+        self.assertEqual(regex["timeout"], 15.0)
         for bad in ("assertstatus:id=x", "assertstatus:id=x|", "assertstatus:@1,2|on"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_foreground(self):
+        # Issue #258: deactivate the app without covering it, then reactivate it.
+        self.assertEqual(u.parse_step("foreground:off"), {"verb": "foreground", "arg": "off"})
+        self.assertEqual(u.parse_step("foreground: ON")["arg"], "on")
+        for bad in ("foreground:", "foreground:maybe", "foreground:id=x"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
@@ -152,6 +169,17 @@ class StepTests(unittest.TestCase):
         self.assertEqual(step["other"], {"kind": "id", "value": "fst.settings"})
         self.assertEqual(step["epx"], 40.0)
         for bad in ("assertinset:id=a|id=b", "assertinset:id=a|id=b|-2", "assertinset:id=a|1,2|32"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_scrollinset(self):
+        step = u.parse_step("scrollinset:id=fst.suggestions.category.x|id=fst.suggestions.list|8")
+        self.assertEqual(step["verb"], "scrollinset")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.suggestions.category.x"})
+        self.assertEqual(step["other"], {"kind": "id", "value": "fst.suggestions.list"})
+        self.assertEqual(step["epx"], 8.0)
+        for bad in ("scrollinset:id=a|id=b", "scrollinset:id=a|id=b|-8", "scrollinset:id=a|1,2|8",
+                    "scrollinset:id=a|id=b|0"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 

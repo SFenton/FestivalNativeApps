@@ -524,18 +524,58 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         waitForTag("fst.song-leaderboard.row.$mine")
         assertEquals("Open your statistics", clickLabel("fst.song-leaderboard.row.$mine"))
         assertEquals("Open profile", clickLabel("fst.song-leaderboard.row.${Fixtures.ACCOUNT_A.dropLast(2)}10"))
-        // Highlighted in place: no pinned copy below the board.
+        // No score index for this player: highlighted in place with nothing pinned.
         assertFalse(exists("fst.song-leaderboard.spotlight-footer"))
     }
 
-    @Test
-    fun songLeaderboardPinnedFooterOpensStatistics() {
+    /** Ranks [RankingsFixtures.SELECTED] 30th (page 2) on the Guitar board and in its score index. */
+    private fun selectedThirtieth() {
         transport.on("/api/player/${RankingsFixtures.SELECTED}", headers = mapOf("X-FST-Publication-Id" to "7")) {
             ProfileFixtures.profile(RankingsFixtures.SELECTED, "Selected Player", listOf(ProfileFixtures.score("s-alpha", "01", rank = 30, total = 60)))
         }
+        transport.on("/api/leaderboard/s-alpha/Solo_Guitar", headers = mapOf("X-FST-Publication-Id" to "7")) { request ->
+            val offset = Regex("offset=(\\d+)").find(request.url)?.groupValues?.get(1)?.toInt() ?: 0
+            val board = Fixtures.leaderboard("s-alpha", rows = minOf(25, 60 - offset), total = 60, startRank = offset + 1)
+            if (offset == 25) board.replace("\"accountId\":\"${Fixtures.ACCOUNT_A.dropLast(2)}14\"", "\"accountId\":\"${RankingsFixtures.SELECTED}\"") else board
+        }
+    }
+
+    /** Whether a row sits wholly between the list's top and the pinned footer/pager. */
+    private fun inView(tag: String): Boolean {
+        val row = node(tag).fetchSemanticsNode().boundsInRoot
+        return row.top >= node("fst.song-leaderboard.list").fetchSemanticsNode().boundsInRoot.top &&
+            row.bottom <= node("fst.song-leaderboard.bottom-bar").fetchSemanticsNode().boundsInRoot.top
+    }
+
+    @Test
+    fun songLeaderboardPinnedFooterJumpsToThePlayersPageThenOpensStatistics() {
+        selectedThirtieth()
         launch("songLeaderboard:s-alpha:Solo_Guitar", selected)
-        waitForTag("fst.song-leaderboard.row.${RankingsFixtures.SELECTED}")
-        assertEquals("Open your statistics", clickLabel("fst.song-leaderboard.row.${RankingsFixtures.SELECTED}"))
+        waitForDescription("Page 1 of 3")
+        waitForTag(footerTag)
+        // Leaderboard-row R7 (issue #307): off this page, the pinned row jumps to its page.
+        assertEquals("Jump to your position", clickLabel(footerTag))
+        click(footerTag)
+        waitForDescription("Page 2 of 3")
+        val row = "fst.song-leaderboard.row.${RankingsFixtures.SELECTED}"
+        waitForTag(row)
+        rule.waitUntil(10_000) { settle(100); inView(row) }
+        assertEquals("Open your statistics", clickLabel(row))
+        // Now on screen, the pinned copy opens Statistics like the row itself.
+        assertEquals("Open your statistics", clickLabel(footerTag))
+        click(footerTag)
+        rule.waitUntil(10_000) { settle(100); !exists("fst.song-leaderboard.list") }
+    }
+
+    @Test
+    fun songLeaderboardOpenedForThePlayerRevealsTheirRow() {
+        selectedThirtieth()
+        launch("songLeaderboard:s-alpha:Solo_Guitar:2:reveal", selected)
+        waitForDescription("Page 2 of 3")
+        val row = "fst.song-leaderboard.row.${RankingsFixtures.SELECTED}"
+        waitForTag(row)
+        rule.waitUntil(10_000) { settle(100); inView(row) }
+        assertEquals("Open your statistics", clickLabel(footerTag))
     }
 
     @Test

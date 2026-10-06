@@ -632,8 +632,14 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertinset":
                 AssertInset(window, step);
                 break;
+            case "scrollinset":
+                ScrollInset(window, step);
+                break;
             case "assertstatus":
                 AssertStatus(window, step);
+                break;
+            case "foreground":
+                SetForeground(window, arg == "on");
                 break;
             case "assertstate":
                 AssertState(window, step);
@@ -746,8 +752,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         };
         rawView.Add(automation.PropertyLibrary.Element.ItemStatus);
         // The backdrop is occlusion-aware: asserting a visible state needs the window in front of other lanes' windows
-        // (a not-visible assertion must not restore a minimized window).
-        var front = expected != "not-visible";
+        // (a not-visible assertion, including a first-run demo's rotation=not-visible, must not restore a minimized window,
+        // and a rotation=background one must not reactivate a window that foreground:off deactivated).
+        var front = !expected.Contains("not-visible", StringComparison.Ordinal) && !expected.Contains("=background", StringComparison.Ordinal);
         var nextFront = DateTime.MinValue;
         while (true)
         {
@@ -759,12 +766,51 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             string? seen;
             using (rawView.Activate())
                 seen = window.FindFirstDescendant(condition)?.Properties.ItemStatus.ValueOrDefault;
-            if (seen == expected) return;
+            if (StatusMatches(seen, expected)) return;
             if (DateTime.UtcNow > until)
                 throw new InvalidOperationException($"element {label} status is {(seen is null ? "missing" : $"\"{seen}\"")}, expected \"{expected}\"");
             Thread.Sleep(200);
         }
     }
+
+    /// <summary>
+    /// <c>foreground:on</c> activates the app window (as <see cref="EnsureForeground"/>); <c>foreground:off</c> hands
+    /// activation to the taskbar, which doesn't overlap the window, so the app stays visible and uncovered but is no longer
+    /// the foreground window (e.g. a first-run demo's <c>rotation=background</c>, issue #258). While the session is locked
+    /// (or <c>post_keys</c>), real activation is refused, so both send <c>WM_ACTIVATE</c> to the window instead, which
+    /// raises WinUI's <c>Window.Activated</c> the same way.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="on">Activate (<see langword="true"/>) or deactivate it.</param>
+    /// <exception cref="InvalidOperationException">The window's foreground state did not change as asked.</exception>
+    private void SetForeground(Window window, bool on)
+    {
+        var hwnd = window.Properties.NativeWindowHandle.Value;
+        if (postKeys)
+        {
+            PostedInput.Activate(hwnd, on);
+            Log($"foreground:{(on ? "on" : "off")} sent as WM_ACTIVATE (session locked or post_keys)");
+            return;
+        }
+        if (on)
+        {
+            if (!(bool)EnsureForeground(window)["foreground"]!) throw new InvalidOperationException("foreground:on could not activate the app window");
+            return;
+        }
+        if (!Native.Deactivate(hwnd, TimeSpan.FromSeconds(3)))
+            throw new InvalidOperationException("foreground:off could not move activation to the taskbar (locked console?)");
+        if (Native.WindowsAbove(hwnd, window.Properties.ProcessId.Value) is { Count: > 0 } above)
+            throw new InvalidOperationException("foreground:off left the window covered by " + string.Join(", ", above.Select(b => $"\"{b.Title}\"")));
+    }
+
+    /// <summary>Whether an ItemStatus equals the expected text, or matches it as a regex when it starts with <c>~</c>.</summary>
+    /// <param name="seen">ItemStatus, or <see langword="null"/> when the element is missing.</param>
+    /// <param name="expected">Exact status, or <c>~</c> followed by a .NET regular expression.</param>
+    /// <returns>Whether it matches.</returns>
+    internal static bool StatusMatches(string? seen, string expected) =>
+        seen is not null && (expected.StartsWith('~')
+            ? System.Text.RegularExpressions.Regex.IsMatch(seen, expected[1..])
+            : seen == expected);
 
     /// <summary>
     /// Waits until the selected element's toggle state (<c>on</c>/<c>off</c>/<c>indeterminate</c>), enabled flag
@@ -802,6 +848,10 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                     "scroll" => element.Patterns.Scroll.PatternOrDefault is { } scroll
                         ? Math.Round(scroll.VerticalScrollPercent.ValueOrDefault).ToString(System.Globalization.CultureInfo.InvariantCulture)
                         : null,
+                    // Role checks, e.g. a leaderboard row without a destination is Text with no Invoke and no Tab stop.
+                    "type" => element.Properties.ControlType.ValueOrDefault.ToString().ToLowerInvariant(),
+                    "invoke" => element.Patterns.Invoke.IsSupported ? "true" : "false",
+                    "focusable" => element.Properties.IsKeyboardFocusable.ValueOrDefault ? "true" : "false",
                     _ => element.Properties.Name.ValueOrDefault,
                 };
             }
@@ -971,11 +1021,13 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     private void AssertName(Window window, JsonObject step)
     {
         var expected = (string?)step["text"] ?? "";
+        // A leading '*' matches the name's end, for names that start with a local-time date (e.g. score-history rows).
+        var suffix = expected.StartsWith('*') ? expected[1..] : null;
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
         while (true)
         {
             var actual = Find(window, step).Properties.Name.ValueOrDefault ?? "";
-            if (actual == expected) return;
+            if (suffix is null ? actual == expected : actual.EndsWith(suffix, StringComparison.Ordinal)) return;
             if (DateTime.UtcNow > until)
                 throw new InvalidOperationException($"element {(string)step["arg"]!} is named {actual!}, expected {expected}");
             Thread.Sleep(200);
@@ -1105,6 +1157,51 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         }
     }
 
+    /// <summary>
+    /// Scrolls a scroller (UIA Scroll pattern, no input) until the target's top edge is <c>epx</c> effective pixels below
+    /// the scroller's top edge, within 1 epx: a fixed list position for scans, whatever the window size or scale. UIA
+    /// clips a partly scrolled-out element's rectangle to the viewport, so a target whose top reads as the viewport's top
+    /// is first scrolled half a viewport back; the remaining offset is then converted to a scroll percent from the
+    /// pattern's view size (re-measured each pass, as a virtualized list's extent estimate changes).
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c> (the target), <c>other</c> (its vertical scroller) and <c>epx</c> (&gt; 0).</param>
+    /// <exception cref="InvalidOperationException">No Scroll pattern, or the inset is out of the scroller's range.</exception>
+    private void ScrollInset(Window window, JsonObject step)
+    {
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        var expected = (double)step["epx"]!;
+        var scroller = Find(window, step, "other");
+        if (!scroller.Patterns.Scroll.IsSupported) throw new InvalidOperationException("scrollinset scroller has no Scroll pattern");
+        var scroll = scroller.Patterns.Scroll.Pattern;
+        Find(window, step); // the target must start on screen (e.g. after scrollinto), so an empty rectangle means "above"
+        var inset = double.NaN;
+        for (var pass = 0; pass < 12; pass++)
+        {
+            var viewport = scroller.BoundingRectangle;
+            var target = Find(window, step, onScreen: false).BoundingRectangle;
+            var percent = scroll.VerticalScrollPercent.ValueOrDefault;
+            var viewSize = scroll.VerticalViewSize.ValueOrDefault;
+            var scrollable = viewSize is > 0 and < 100 ? viewport.Height * 100 / viewSize - viewport.Height : 0;
+            if (scrollable <= 0) throw new InvalidOperationException($"scrollinset scroller cannot scroll ({(string)step["arg"]!})");
+            inset = (target.Top - viewport.Top) / scale;
+            if (!target.IsEmpty && target.Top > viewport.Top && Math.Abs(inset - expected) <= 1)
+            {
+                response["insets"] ??= new JsonArray();
+                response["insets"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["epx"] = Math.Round(inset, 1) });
+                return;
+            }
+            // A clipped (or unlaid) top gives no real offset: step back half a viewport so the top comes into view.
+            var deltaPx = target.IsEmpty || target.Top <= viewport.Top ? -viewport.Height / 2 : target.Top - viewport.Top - expected * scale;
+            var next = Math.Clamp(percent + deltaPx / scrollable * 100, 0, 100);
+            if (Math.Abs(next - percent) < 1e-6)
+                throw new InvalidOperationException($"scrollinset cannot reach a {expected:0.#} epx inset (now {inset:0.#} epx, scroll {percent:0.##}%) ({(string)step["arg"]!})");
+            scroll.SetScrollPercent(-1, next);
+            Thread.Sleep(300);
+        }
+        throw new InvalidOperationException($"scrollinset did not settle: inset {inset:0.#} epx, expected {expected:0.#} epx ({(string)step["arg"]!})");
+    }
+
     #endregion
 
     #region Close
@@ -1173,6 +1270,7 @@ internal static class Native
     [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(IntPtr hwnd, int attribute, out RECT value, int size);
     [DllImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")] private static extern int DwmGetWindowAttributeInt(IntPtr hwnd, int attribute, out int value, int size);
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr FindWindowW(string className, string? windowName);
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hwnd);
     [DllImport("user32.dll")] private static extern bool BringWindowToTop(IntPtr hwnd);
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
@@ -1229,6 +1327,39 @@ internal static class Native
             for (var i = 0; i < 10 && GetForegroundWindow() != hwnd; i++) Thread.Sleep(50);
         }
         return GetForegroundWindow() == hwnd;
+    }
+
+    /// <summary>
+    /// Deactivates a window without covering it: the taskbar (topmost, outside the work area) becomes the foreground
+    /// window, with the same input-attach workaround as <see cref="BringToForeground"/>.
+    /// </summary>
+    /// <param name="hwnd">Window to deactivate.</param>
+    /// <param name="timeout">How long to retry.</param>
+    /// <returns><see langword="true"/> when the taskbar is the foreground window within <paramref name="timeout"/>.</returns>
+    public static bool Deactivate(IntPtr hwnd, TimeSpan timeout)
+    {
+        var taskbar = FindWindowW("Shell_TrayWnd", null);
+        if (taskbar == IntPtr.Zero) return false;
+        var until = DateTime.UtcNow + timeout;
+        for (var attempt = 0; DateTime.UtcNow < until; attempt++)
+        {
+            if (GetForegroundWindow() == taskbar) return true;
+            if (attempt > 0) SendInput(1, [new INPUT { type = 0, mi = new MOUSEINPUT { dwFlags = 0x0001 } }], Marshal.SizeOf<INPUT>());
+            var current = GetForegroundWindow();
+            var foregroundThread = current == IntPtr.Zero ? 0 : GetWindowThreadProcessId(current, out _);
+            var me = GetCurrentThreadId();
+            var attached = foregroundThread != 0 && foregroundThread != me && AttachThreadInput(me, foregroundThread, true);
+            try
+            {
+                SetForegroundWindow(taskbar);
+            }
+            finally
+            {
+                if (attached) AttachThreadInput(me, foregroundThread, false);
+            }
+            for (var i = 0; i < 10 && GetForegroundWindow() != taskbar; i++) Thread.Sleep(50);
+        }
+        return GetForegroundWindow() == taskbar && GetForegroundWindow() != hwnd;
     }
 
     /// <summary>Visible, uncloaked, non-click-through windows of other processes above the target that overlap it.</summary>

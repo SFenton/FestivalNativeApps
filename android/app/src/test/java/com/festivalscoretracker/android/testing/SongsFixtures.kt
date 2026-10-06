@@ -48,6 +48,25 @@ object SongsFixtures {
         ]}
     """.trimIndent()
 
+    /**
+     * `/api/songs` JSON long enough to scroll: [count] songs over [count] years, so the Year sort has
+     * several Quick Links sections (issues #52/#160 pinned page controls).
+     *
+     * @param count Songs (`s-1` … `s-<count>`).
+     * @return Catalogue JSON.
+     */
+    fun scrollingCatalogueJson(count: Int = 40): String {
+        val songs = (1..count).joinToString(",") { i ->
+            """{"songId":"s-$i","title":"${'A' + (i - 1) / 2} Song ${"%02d".format(i)}","artist":"Band $i","year":${1980 + i},"durationSeconds":120,"difficulty":{"guitar":1}}"""
+        }
+        return """{"count":$count,"currentSeason":15,"songs":[$songs]}"""
+    }
+
+    /** Standard transport serving [scrollingCatalogueJson] at publication 7. */
+    fun scrollingCatalogueTransport(): FakeTransport = FakeTransport.standard().apply {
+        on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { scrollingCatalogueJson() }
+    }
+
     /** Schema-2 path JSON (Expert) with one note-anchored and one start-note activation. */
     val pathJson = """
         {"schemaVersion":2,"songName":"Alpha Tune","artist":"Band One","charter":"Synthetic","difficulty":"expert","totalScore":123456,

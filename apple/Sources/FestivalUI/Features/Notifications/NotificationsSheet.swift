@@ -28,7 +28,7 @@ struct NotificationsSheet: View {
     /// scrolling back up) appear without fading again (operator batch 7).
     @State private var fadeSettled = false
     /// Pinned header and scroll readings for the rows' fade under the headers (#301).
-    @State private var pinnedFade = ModalPinnedHeaderFadeState()
+    @State private var pinnedFade = PinnedHeaderEdgeFadeState()
     private var center: NotificationsCenter { session.notificationsCenter }
 
     var body: some View {
@@ -79,7 +79,7 @@ struct NotificationsSheet: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .modalPinnedHeaderList(pinnedFade, showsHeaders: !unread.isEmpty)
+        .pinnedHeaderEdgeFadeList(pinnedFade, showsHeaders: !unread.isEmpty)
         .task(id: center.notifications.count) {
             await FadeStagger.settle(afterRevealing: min(center.notifications.count, 12)) {
                 fadeSettled = true
@@ -95,7 +95,7 @@ struct NotificationsSheet: View {
             .foregroundStyle(FestivalText.primary)
             .textCase(nil)
             .accessibilityAddTraits(.isHeader)
-            .modalPinnedSectionHeader(pinnedFade, first: first)
+            .pinnedHeaderEdgeFadeHeader(pinnedFade, first: first)
     }
 
     @ViewBuilder
@@ -111,7 +111,7 @@ struct NotificationsSheet: View {
             }
             .festivalRowButtonStyle()
             .festivalFadeIn(isLoaded: true, index: FadeStagger.index(offset + index, settled: fadeSettled))
-            .modalPinnedHeaderRow(pinnedFade, first: offset == 0 && index == 0)
+            .pinnedHeaderEdgeFadeRow(pinnedFade, first: offset == 0 && index == 0)
             .accessibilityIdentifier("fst.notifications.row.\(notification.id)")
         }
     }
