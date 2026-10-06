@@ -72,7 +72,7 @@ public class ViewAllCtaTests
     public void Consumers_SetNoLayoutOrColourOverrides()
     {
         string[] styled = ["Margin", "Padding", "MinHeight", "Height", "HorizontalAlignment", "HorizontalContentAlignment",
-            "Background", "Foreground", "BorderBrush", "CornerRadius", "FontWeight", "FontSize"];
+            "Background", "Foreground", "BorderBrush", "CornerRadius", "FontWeight", "FontSize", "HighContrastAdjustment"];
         foreach (var (file, button) in Consumers())
         {
             foreach (var property in styled)
@@ -95,6 +95,7 @@ public class ViewAllCtaTests
         Assert.Equal("Stretch", setters["HorizontalAlignment"]);
         Assert.Equal("{StaticResource FSTMinTargetSize}", setters["MinHeight"]);
         Assert.Equal("0,4,0,0", setters["Margin"]);
+        Assert.Equal("None", setters["HighContrastAdjustment"]);
         Assert.False(setters.ContainsKey("Template"));
     }
 }

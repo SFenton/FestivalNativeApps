@@ -72,3 +72,17 @@ Checked against the `winui-design` skill (Fluent layout, theming, brushes, acces
 | Narrator / UIA | Each row is one stop with a full name; there are no unnamed `Image` peers |
 
 Host limits: at 300% the `wide` and `maximized` presets clamp to 1280 epx, so the Quick Links pane (≥ 1150 epx of page area) can't appear and the `quick-links` journey's `resize:wide` step fails on this host only.
+
+## Validation pass (issue #268, 2026-10)
+
+View All Rivals against View Full Leaderboard (#68), checked with the `winui-design` skill (`winapp find-ui`: Gallery `AccentButtonStyle`; `winapp find-api`: `AutomationProperties.Name`/`AutomationId`) and `winui-code-review`. Both already used `FSTViewAllButtonStyle`. Fixed: names read the card before the visible label (WCAG 2.5.3), per-page `Margin` overrides, a 36 epx height below Fluent's 40 epx target, one AutomationId shared by every card, and a contrast-theme backplate box behind the label ([design/windows](../../design/windows.md) "View all"). Fixture runs: `a11y_matrix.py --only rivals,compete,song-detail --scan --tabs 20`; live runs use SFentonX.
+
+| Configuration | Result |
+|---|---|
+| Compact / medium / wide, maximized, snap left/right | Full-width accent button under each card's rows on every size; `rivals_journey.py --only view-all --sizes compact,medium,wide` passes (Button, label-first name, Invoke → All Rivals on both tabs, Back). 0 Axe errors |
+| Light / dark | Dark-only app (`RequestedTheme="Dark"`); system Light changes nothing. 0 Axe errors |
+| High contrast (Desert, Night sky) | 0 Axe errors. **Fixed:** WinUI's automatic text backplate drew a Window box behind the label inside the Highlight fill (both CTAs, live); the style now sets `HighContrastAdjustment="None"`, so the label is clean HighlightText on Highlight |
+| Text 200% | Label fits the 40 epx minimum (it grows with text); 0 Axe errors at compact, medium, wide |
+| Display scaling 100% / 150% | `scale-100` / `scale-150` modes: 0 Axe errors |
+| Keyboard | Tab reaches each card's View All Rivals and each View Full Leaderboard after its rows (unique IDs now show per card); `kb-compete-order` passes at compact/medium/wide |
+| Narrator / UIA | Button, "View All Rivals, `<card>`" / "View Full Leaderboard, `<chart>`", invokable, focusable. Narrator itself not run; the UIA tree stands in |
