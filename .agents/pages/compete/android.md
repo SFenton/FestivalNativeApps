@@ -32,3 +32,24 @@ Deliberate deviations:
 - The lazy grid keeps its pixel offset after a font-scale change.
 - Combo boards hide the songs column when it doesn't fit (#38).
 - The M3 references are window size classes and foldable hinge avoidance (`references/layout-and-responsive.md`), list and card components (`references/component-catalog.md`), and the 48 dp targets / font-scale accessibility section of `SKILL.md`.
+
+## Validation (issue #174, 2026-10-05): no Leaderboards Overview button
+
+Rule: Compete has no Leaderboards Overview button or link, matching web `CompetePage`, which has only per-section See All, "View full leaderboards", View All Rivals and the two Quick Links. Each single-chart board reaches Full Rankings through its header See All and its "View Full Leaderboards" button. Combo boards have neither, because there is no native combo board yet. The Leaderboards overview (`LeaderboardsRoute`) is reached only from the drawer or rail, the notifications fallback and debug launch. Test: `CompeteUiTest.competeHasNoOverviewButtonAndEachBoardOpensItsFullRankings`. It requires that Quick Links are exactly {leaderboards, rivals}, that no node has text, a description or a tag containing "overview", and that every single-chart View Full opens its own Full Rankings while combo boards have no full-board path.
+
+Live service, `SFentonX`, no profile headers. Across 113 UIAutomator trees no node contains "overview".
+
+| Configuration | Findings |
+|---|---|
+| FST_Phone portrait (Compete tab), fs 1.0/2.0, light/dark | Quick Links show Leaderboards and Rivals only. View Full → Bass Full Rankings, Back → Compete in place. fs 2.0 uses stacked rows with no clipping. Light looks like dark (dark-only app). |
+| FST_Phone landscape | The pushed Compete route uses two columns. View Full → Full Rankings. |
+| FST_Tablet portrait (rail) / landscape (drawer), fs 2.0 | The Quick Links menu has Leaderboards (Current) and Rivals. View Full → Lead Full Rankings. |
+| FST_Resizable phone / foldable / tablet / desktop | One column, then two, then three. View Full opens the matching board in each. |
+| FST_Book_Fold folded / half / unfolded (fs 2.0) | View Full → Full Rankings. Half-opened columns stay off the hinge. |
+| FST_Passport_Fold folded / half / unfolded | View Full → Bass Full Rankings in each posture. |
+| FST_TriFold folded / partial / unfolded (fs 2.0) | One column when folded, two columns unfolded. View Full → Full Rankings. |
+| TalkBack, reduced motion, motion | TalkBack (phone tab) reads each board in this order: its rows, "View Full Leaderboards. Button", the next heading, then "See All: <chart>. Button". No overview is announced. With animator scale 0, every run settles with no stuck animation. A recording with animations on (Quick Links → Leaderboards → View Full → Lead Full Rankings) is smooth. Connected `CompeteDeviceJourneyTest` 3/3 on Book Fold half-opened. |
+
+Harness note: after `rotate:90`, `device.py` named swipes still use the portrait `wm size`, so a landscape run needs explicit `swipe:x1,y1,x2,y2,ms` coordinates.
+
+M3: the filled button is the page's one prominent action per board (`references/component-catalog.md`, "minimum 48×48dp touch target"). Navigation follows the window class: bar, then rail, then drawer (`references/navigation-patterns.md`). No overview control is added to the content, because global destinations belong in the navigation component.
