@@ -1500,6 +1500,79 @@
           "message": "Apple chart date axes come from the shared barChartDateAxis, which centres each date on its bar (chart-date-axis R1, R4)."
         }
       ]
+    },
+    {
+      "id": "song-header-title",
+      "title": "Song header title",
+      "status": "current",
+      "doc": ".agents/patterns/song-header-title.md",
+      "summary": "Every song header draws the song title and artist line on one line across the column beside the art through the platform's shared marquee: scrolling only on overflow, tail-truncated with motion off, read once by assistive technology.",
+      "keywords": [
+        "song title",
+        "song header",
+        "marquee",
+        "carousel",
+        "wrap",
+        "SongInfoHeader",
+        "artist line"
+      ],
+      "web": [
+        {
+          "path": "components/songs/headers/SongInfoHeader.tsx",
+          "symbol": "SongInfoHeader"
+        },
+        {
+          "path": "components/common/MarqueeText.tsx",
+          "symbol": "MarqueeText"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Design/MarqueeText.swift",
+            "symbol": "MarqueeText"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/MarqueeText.kt",
+            "symbol": "FestivalMarqueeText"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/MarqueeText.cs",
+            "symbol": "MarqueeText"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "windows-no-textblock-title",
+          "glob": "windows/Festival.App/**/*.xaml",
+          "regex": "<TextBlock\\b[^>]*Text=\"\\{x:Bind (?:ViewModel\\.)?(?:Song\\.Title|SongTitle)\\b",
+          "allow": [],
+          "debt": [],
+          "message": "Song header titles use the shared MarqueeText (one line, scrolling on overflow), never a wrapping TextBlock (song-header-title R1, R4)."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "leaderboard-row"
+        ],
+        "pages": [
+          "song-detail",
+          "song-leaderboard",
+          "song-band-leaderboard",
+          "player-history"
+        ],
+        "controls": []
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        315
+      ]
     }
   ]
 }
