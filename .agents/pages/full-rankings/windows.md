@@ -53,6 +53,21 @@ Checked 2026-10-03 with the winui-design and winui-code-review skills. Fixture s
 
 Deliberate deviations: a custom pager instead of `PagerControl` (web `Paginator` parity, Fluent circle buttons, keyboard arrows); in non-contrast themes rows scroll under the floating footer like the web backdrop; no scroll fade; the songs label below the name at large text differs from the web's single line. Axe reports `BoundingRectangleCompletelyObscuresContainer` on WinUI's own `PopupHost`/`InputSiteWindowClass` while a menu or the pager tooltip is open ([windows-accessibility.md](../../testing/windows-accessibility.md#open-issues) item 8); no app element is involved.
 
+## Validation (issue #270)
+
+Checked 2026-10-06 against the [load-transition](../../patterns/load-transition.md) sequence with the winui-design and winui-code-review skills. Fixture journeys `full-rankings.json` (11 states) and `full-rankings-keyboard.json`; live films with SFentonX selected (Lead, Rank By on page 2, instrument switch).
+
+| Configuration | Finding |
+|---|---|
+| Compact, medium, wide, maximized, snap-left/right | Rows, empty and failure states fade out → ring → fade in. **Fixed:** the pinned "your rank" row stayed outside the gate: Rank By kept the old metric's value beside the ring and popped at commit, and an instrument switch dropped it immediately. It is now gated with the rows (above). Tab stops 9–14 (empty 6–8, error 7–9), none outside the app, no repeats. |
+| High Contrast (Desert, Night sky), text 200%, display 100% / 150% | Same sequence; ring and pinned row visible in contrast themes; 0 Axe errors. |
+| Light and dark system theme | Same: the app is dark only. |
+| Reduce Motion (`--reduce-motion`) | Swaps without waits; the pinned row appears with no fade (`FadeIn.Play` resets it); 0 Axe errors. |
+| Keyboard only | Pager, menus + Esc, Your page and rows journeys pass at compact, medium and wide; focus stays on the pager while the board reloads. |
+| Narrator / UIA | The ring is named "Loading rankings"; the title, switchers and pager stay readable during a reload. |
+
+Deliberate deviation: winui-design's layout review asks for loading "progress text or skeleton; not just a spinner with no context". The ring follows web (R1); the context comes from the title, switchers and pager, which stay visible, and from the ring's name. Axe reports only the known WinUI `PopupHost` finding (item 8 above) while a menu or the pager tooltip is open.
+
 ## Open
 
 - Paging does not update the back-stack route (a restored page comes from the kept view model, not the route).
