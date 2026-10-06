@@ -2,7 +2,7 @@
 
 > **What:** first-load gates, reload swaps and row entrances for pages, boards and data-backed modal content. **Read when:** a load, refresh, selector, page or modal switch changes visible data.
 
-Status: **current**, 2026-10-05. Provenance: #30, #60, #70, #71.
+Status: **current**, 2026-10-05. Provenance: #30, #60, #70, #71, #260.
 
 ## Intent
 
@@ -45,3 +45,5 @@ Loading must communicate a deliberate state change rather than a hard cut: first
 - `load-transition/apple-reload-gate`
 - `load-transition/android-load-swap`
 - `load-transition/windows-load-swap`
+
+Windows R5 behavior check (#260): with `--perf-log`, `FadeIn` writes a `fade-arm` line per stagger arm and a `fade-play` line per played entrance (rows that simply appear write nothing). `tools/windows/suggestions_journey.py --only fade` asserts that only the first screen fades at load, that a generated batch fades only its new cards and that scrolling back replays nothing; `tools/windows/search_journey.py --only fade-delayed-results` asserts that results arriving after the spinner fade once. `tools/windows/tests/test_fade_trace.py` runs in CI and fails if the Suggestions `CardsAdded` or Search `SectionShown` restagger wiring is removed, since CI cannot run WinUI journeys.

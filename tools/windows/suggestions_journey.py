@@ -6,7 +6,9 @@ it by ``fst.*`` AutomationIds and fails on the first missing element. Scenarios 
 window presets, keyboard navigation (Tab per card, Up/Down per row, Esc focus return), the filter flyout (Axe scan
 open), the filtered-empty state and its Reset, incremental loading, the end of a mix and Start New Mix, row ->
 Song Detail -> back, the redirect without a selected player, the loading, syncing (202) and denied (403) states and
-an unreachable service with Retry. Steps are UIA patterns or posted keys, so the journeys also run while the console
+an unreachable service with Retry. ``fade`` (issue #260) runs with ``--perf-log`` and checks the ``FadeIn`` lines per
+phase (``fade_trace.py``): the cards on screen at load fade, the next generated batch fades only its new cards, and
+scrolling back to the top and down again fades nothing. Steps are UIA patterns or posted keys, so the journeys also run while the console
 is locked (screenshots are then black: pass ``--shots`` only on an unlocked desktop). Axe scans must report 0 errors.
 
 Usage: ``python tools/windows/suggestions_journey.py [--port 18767] [--shots DIR] [--only NAME] [--sizes compact,medium,wide]``
@@ -25,6 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import journey_exe  # noqa: E402  (sibling module)
+import fade_trace  # noqa: E402  (sibling module)
 
 ROOT = Path(__file__).resolve().parents[2]
 UIWIN = ROOT / "tools" / "windows" / "uiwin.py"
@@ -121,6 +124,8 @@ SCENARIOS: dict[str, tuple[str | None, dict[str, str], list[str]]] = {
         [*LOADED, f"scrollinto:{TENTH_CARD}", f"scrollinto:{RIVAL_CARD}@15", f"waitfor:{RIVAL_CARD}@10",
          "{shot:load-more}"],
     ),
+    # Load-only fades (issue #260): steps run in FADE_PHASES, each judged on the fade lines it appended.
+    "fade": (PROFILE, {}, []),
     "end-of-mix": (
         PROFILE,
         {"FST_DEBUG_SUGGESTIONS_LIMIT": "12"},
@@ -178,6 +183,21 @@ SCENARIOS: dict[str, tuple[str | None, dict[str, str], list[str]]] = {
          "waitfor:id=fst.service-status.retry@45"],
     ),
 }
+
+
+CARD_LIST = "CardList"
+FADE_PHASES = [
+    # The cards on screen at load fade in, staggered from the first.
+    fade_trace.Phase("load", LOADED, lambda events: fade_trace.check_load(events, CARD_LIST)),
+    # Scrolling to the end of the loaded cards generates the next batch: only its new cards fade, from their first.
+    fade_trace.Phase("load-more", [f"scrollinto:{TENTH_CARD}", f"scrollinto:{RIVAL_CARD}@15", f"waitfor:{RIVAL_CARD}@10"],
+                     lambda events: fade_trace.check_batch(events, CARD_LIST)),
+    # Back to the top and down again: cards already shown never fade again.
+    fade_trace.Phase("scroll-back", ["scrollto:id=fst.suggestions.list,0", f"waitfor:{CARD}@10", "wait:1.5",
+                                     f"scrollinto:{TENTH_CARD}", f"waitfor:{TENTH_CARD}@10"],
+                     lambda events: fade_trace.check_only_new(events, CARD_LIST)),
+]
+"""Phases of the ``fade`` scenario."""
 
 
 def uiwin(*args: str) -> str:
@@ -244,10 +264,46 @@ def launch_args(name: str, port: int, size: str, exe: Path) -> list[str]:
             f"--arg=--base-url={base}", "--arg=--first-run=off", f"--arg=--settings-path={data / 'settings.json'}",
             "--extra", f"FST_DEBUG_DATA_DIR={data}", "--extra", "FST_DEBUG_SUGGESTIONS_SEED=1"]
     args += [f"--arg=--profile={profile}:Fixture Player"] if profile else ["--arg=--anonymous"]
+    if name == "fade":
+        args.append(f"--arg=--perf-log={data / 'perf.log'}")
     for key, value in env.items():
         if key.startswith("FST_"):
             args += ["--extra", f"{key}={value}"]
     return args
+
+
+def drive(steps: list[str]) -> str:
+    """Drives the launched app through ``steps``.
+
+    Args:
+        steps: ``uiwin.py drive`` steps.
+
+    Returns:
+        The driver's output.
+    """
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as handle:
+        handle.write("\n".join(steps))
+    try:
+        return uiwin("drive", "--steps-file", handle.name)
+    finally:
+        Path(handle.name).unlink(missing_ok=True)
+
+
+def run_fade(shots: Path | None, size: str) -> None:
+    """Drives :data:`FADE_PHASES` against the launched ``fade`` scenario and judges each phase's fade lines.
+
+    Args:
+        shots: Screenshot directory, if any (a final screenshot is saved there).
+        size: Window preset name used in file names.
+
+    Raises:
+        RuntimeError: A step or a fade check failed.
+    """
+    failures = fade_trace.run_phases(drive, WORK / "fade" / "perf.log", FADE_PHASES)
+    if shots is not None:
+        uiwin("shot", str(shots / f"fade-{size}.png"))
+    if failures:
+        raise RuntimeError("fade checks failed:\n" + "\n".join(failures))
 
 
 def run(name: str, port: int, shots: Path | None, size: str, exe: Path) -> None:
@@ -266,6 +322,10 @@ def run(name: str, port: int, shots: Path | None, size: str, exe: Path) -> None:
     scans = (shots or WORK) / "axe" / f"{name}-{size}"
     uiwin(*launch_args(name, port, size, exe))
     try:
+        if name == "fade":
+            run_fade(shots, size)
+            print(f"PASS {name} [{size}]")
+            return
         steps = expand(SCENARIOS[name][2], shots, size, scans)
         with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as handle:
             handle.write("\n".join(steps))

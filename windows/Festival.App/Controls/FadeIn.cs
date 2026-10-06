@@ -161,8 +161,10 @@ public static class FadeIn
     public static void Restagger(UIElement list, int batchStart)
     {
         var sinceArmed = Stopwatch.GetElapsedTime((long)list.GetValue(ArmedAtProperty));
-        list.SetValue(BatchStartProperty, FadeInTiming.MergeBatchStart((int)list.GetValue(BatchStartProperty), batchStart, sinceArmed));
+        var start = FadeInTiming.MergeBatchStart((int)list.GetValue(BatchStartProperty), batchStart, sinceArmed);
+        list.SetValue(BatchStartProperty, start);
         list.SetValue(ArmedAtProperty, Stopwatch.GetTimestamp());
+        Trace("fade-arm", list, $"start={start}");
     }
 
     /// <summary>Hooks element preparation and items-source changes once.</summary>
@@ -201,7 +203,7 @@ public static class FadeIn
         for (var i = 0; i < FadeInTiming.MaxStaggered; i++)
         {
             if (list.ContainerFromIndex(i) is not UIElement container) break;
-            if (FadeInTiming.StaggerDelay(i, visible) is { } delay) Play(container, delay);
+            if (FadeInTiming.StaggerDelay(i, visible) is { } delay) PlayRow(list, container, i, delay);
         }
     }
 
@@ -218,7 +220,7 @@ public static class FadeIn
         for (var i = 0; i < Math.Min(count, FadeInTiming.MaxStaggered); i++)
         {
             if (repeater.TryGetElement(i) is not UIElement element) continue;
-            if (FadeInTiming.StaggerDelay(i, visible) is { } delay) Play(element, delay);
+            if (FadeInTiming.StaggerDelay(i, visible) is { } delay) PlayRow(repeater, element, i, delay);
         }
     }
 
@@ -236,9 +238,35 @@ public static class FadeIn
         var visible = FadeInTiming.VisibleCount(list.XamlRoot?.Size.Height ?? list.ActualHeight, GetRowHeight(list));
         if (FadeInTiming.WithinWindow(Stopwatch.GetElapsedTime(armedAt))
             && FadeInTiming.BatchDelay(index, batchStart, visible) is { } delay)
-            Play(element, delay);
+            PlayRow(list, element, index, delay);
         else
             Reset(element);
+    }
+
+    /// <summary>Plays a row's stagger fade and traces it.</summary>
+    /// <param name="list">Owning list.</param>
+    /// <param name="element">Row element.</param>
+    /// <param name="index">Row index.</param>
+    /// <param name="delay">Stagger delay.</param>
+    private static void PlayRow(FrameworkElement list, UIElement element, int index, TimeSpan delay)
+    {
+        Play(element, delay);
+        Trace("fade-play", list, $"index={index} delay={delay.TotalMilliseconds:F0} motion={(Motion.Allowed ? 1 : 0)}");
+    }
+
+    /// <summary>
+    /// Writes a stagger decision to the perf log (<c>--perf-log</c>) for the fade journeys (issue #260): one line per
+    /// re-arm and per row that fades, never per row that just appears, so scrolling writes nothing.
+    /// </summary>
+    /// <param name="kind">Line kind (<c>fade-arm</c>, <c>fade-play</c>).</param>
+    /// <param name="list">List (named by its x:Name, else its AutomationId).</param>
+    /// <param name="detail">Space-separated <c>key=value</c> pairs.</param>
+    private static void Trace(string kind, UIElement list, FormattableString detail)
+    {
+        if (!PerfLog.Enabled) return;
+        var id = (list as FrameworkElement)?.Name;
+        if (string.IsNullOrEmpty(id)) id = Microsoft.UI.Xaml.Automation.AutomationProperties.GetAutomationId(list);
+        PerfLog.Write($"{kind} list={(string.IsNullOrEmpty(id) ? "?" : id)} {FormattableString.Invariant(detail)}");
     }
     #endregion
 
