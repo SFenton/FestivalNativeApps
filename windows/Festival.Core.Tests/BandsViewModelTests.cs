@@ -513,4 +513,56 @@ public class SongBandLeaderboardViewModelTests
         await Async.Settle();
         Assert.True(vm.ShowRows);
     }
+
+    [Fact]
+    public async Task SizeSwitchDropsTheOldTotalUntilTheNewSizeCommits()
+    {
+        var bands = new BandService();
+        var quads = new TaskCompletionSource();
+        var quadsFail = false;
+        var route = bands.Service.Handler.Responder;
+        bands.Service.Handler.Responder = async (request, token) =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path.StartsWith("/api/leaderboard/", StringComparison.Ordinal) && path.Contains("/bands/", StringComparison.Ordinal))
+            {
+                var type = path.Split('/')[5];
+                if (type == "Band_Quad")
+                {
+                    await quads.Task;
+                    if (quadsFail) return Wire.Response(HttpStatusCode.InternalServerError);
+                }
+                return BandService.Ok(BandWire.SongBands("fixture-pulse", type, 2, type == "Band_Quad" ? 7 : 29, showTotals: true));
+            }
+            return await route(request, token);
+        };
+        var vm = new SongBandLeaderboardViewModel(bands.Service.Session(), new AppRoute.SongBandLeaderboard("fixture-pulse", "Band_Duets"));
+        await vm.LoadAsync();
+        Assert.Equal("29 Duos entries", vm.TotalText);
+
+        // Selecting Quads names Quads at once and never shows the Duos total under it while Quads loads (issue #317 review).
+        vm.BandTypeIndex = 2;
+        Assert.Equal("Quads", vm.BoardLabel);
+        Assert.Equal("", vm.TotalText);
+        Assert.False(vm.HasTotal);
+        await Async.Settle();
+        Assert.Equal("", vm.TotalText);
+        Assert.Equal("Pulse", vm.Title);
+        quads.SetResult();
+        await Async.Until(() => vm.ShowRows && vm.TotalText.Length > 0);
+        Assert.Equal("7 Quads entries", vm.TotalText);
+
+        // A failed read of the new size keeps the total empty.
+        vm.BandType = BandType.Duets;
+        await Async.Until(() => vm.ShowRows && vm.TotalText == "29 Duos entries");
+        quads = new TaskCompletionSource();
+        quadsFail = true;
+        vm.BandType = BandType.Quad;
+        Assert.Equal("", vm.TotalText);
+        quads.SetResult();
+        await Async.Until(() => vm.ShowError);
+        Assert.Equal("", vm.TotalText);
+        Assert.Equal("Quads", vm.BoardLabel);
+        Assert.Equal("Pulse", vm.Title);
+    }
 }

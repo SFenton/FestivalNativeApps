@@ -131,10 +131,14 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
     /// <summary>Whether the failure is shown.</summary>
     public bool ShowError => State == LoadState.Failed && LoadSwap.ContentVisible;
 
-    /// <summary>Switching size returns to page one.</summary>
+    /// <summary>
+    /// Switching size returns to page one and drops the old size's entry total at once: the board line names the new size
+    /// immediately, and its total appears only when that size's response commits (song-leaderboard-header R5).
+    /// </summary>
     /// <param name="value">New size.</param>
     partial void OnBandTypeChanged(BandType value)
     {
+        TotalText = "";
         Pager.Page = 1;
         _ = LoadAsync();
     }

@@ -19,6 +19,8 @@ Lead (``Solo_Guitar``) chart read, the production case of a top-ten row with no 
 
 ``--song-band-totals`` (issue #317) sets ``showLeaderboardEntryTotals`` on per-size song band board reads
 (``/api/leaderboard/{songId}/bands/{bandType}``), so the band board header's entry-total line is reachable.
+``--song-band-slow BANDTYPE`` (issue #317 review) answers that band size's per-size reads only after
+``SLOW_SONG_BAND_SECONDS``, so a size switch stays in its load gate long enough for UIA to check the header meanwhile.
 
 A selected account containing ``-slow`` (``fixture-player-slow``, ``fixture-player-slow-503``; issue #265) gets its
 song and leaderboard rivals lists only after ``SLOW_RIVALS_SECONDS``, so the Rivals hub's per-card loading rings stay
@@ -315,6 +317,65 @@ def install_song_band_totals() -> None:
 
     mock_service.FixtureHandler.do_GET = do_get
 
+
+#: Delay before a slowed band size's per-size song band board answers (``--song-band-slow``); under the 30 s timeout.
+SLOW_SONG_BAND_SECONDS = 5.0
+
+
+def take_song_band_slow(argv: list[str]) -> tuple[str | None, list[str]]:
+    """Split ``--song-band-slow <bandType>`` (or ``=<bandType>``) from the remaining arguments.
+
+    Args:
+        argv: Command-line arguments after the program name.
+
+    Returns:
+        The slowed band type (``None`` when absent) and the remaining arguments.
+
+    Raises:
+        SystemExit: Missing or malformed band type.
+    """
+    band, rest, items = None, [], iter(argv)
+    for arg in items:
+        if arg == "--song-band-slow":
+            value = next(items, None)
+        elif arg.startswith("--song-band-slow="):
+            value = arg.split("=", 1)[1]
+        else:
+            rest.append(arg)
+            continue
+        if not value or not re.fullmatch(r"Band_[A-Za-z]+", value):
+            raise SystemExit("--song-band-slow needs a band type such as Band_Quad")
+        band = value
+    return band, rest
+
+
+def song_band_delay(path: str, band: str | None) -> float:
+    """Delay for a per-size song band board read of the slowed band size.
+
+    Args:
+        path: Request path with query.
+        band: Slowed band type, or ``None``.
+
+    Returns:
+        :data:`SLOW_SONG_BAND_SECONDS` for a slowed read, else ``0``.
+    """
+    route = urlsplit(path).path
+    if band and SONG_BAND_BOARD.fullmatch(route) and route.rsplit("/", 1)[1] == band:
+        return SLOW_SONG_BAND_SECONDS
+    return 0.0
+
+
+def install_song_band_slow(band: str) -> None:
+    """Hold one band size's per-size song band board reads (``--song-band-slow``)."""
+    original = mock_service.FixtureHandler.do_GET
+
+    def do_get(self) -> None:  # noqa: ANN001 (stdlib handler signature)
+        if delay := song_band_delay(self.path, band):
+            time.sleep(delay)
+        original(self)
+
+    mock_service.FixtureHandler.do_GET = do_get
+
 # endregion
 
 # region Slow rivals lists
@@ -386,6 +447,7 @@ def main() -> None:
     scenario, rest = take_band_rankings(sys.argv[1:])
     songs_delay, rest = take_songs_delay(rest)
     song_board, rest = take_song_leaderboard(rest)
+    song_band_slow, rest = take_song_band_slow(rest)
     songs_unavailable = "--songs-unavailable" in rest
     song_band_totals_on = "--song-band-totals" in rest
     rest = [arg for arg in rest if arg not in ("--songs-unavailable", "--song-band-totals")]
@@ -400,6 +462,8 @@ def main() -> None:
         install_songs_unavailable()
     if song_band_totals_on:
         install_song_band_totals()
+    if song_band_slow:
+        install_song_band_slow(song_band_slow)
     install_slow_rivals()
     names: dict[str, str] = {}
     for payload in (

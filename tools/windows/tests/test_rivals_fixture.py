@@ -162,6 +162,47 @@ class SongBandTotalsTests(unittest.TestCase):
         self.assertNotIn("_json", vars(handler))
 
 
+class SongBandSlowTests(unittest.TestCase):
+    """``--song-band-slow`` holds only the chosen size's per-size song band board reads (issue #317 review)."""
+
+    def test_take_song_band_slow(self):
+        self.assertEqual(f.take_song_band_slow(["--port", "1", "--song-band-slow", "Band_Quad"]), ("Band_Quad", ["--port", "1"]))
+        self.assertEqual(f.take_song_band_slow(["--song-band-slow=Band_Trios", "--x"]), ("Band_Trios", ["--x"]))
+        self.assertEqual(f.take_song_band_slow(["--port", "1"]), (None, ["--port", "1"]))
+        for bad in (["--song-band-slow"], ["--song-band-slow", "Quads"], ["--song-band-slow="]):
+            with self.assertRaises(SystemExit):
+                f.take_song_band_slow(bad)
+
+    def test_delay_only_for_the_slowed_size(self):
+        slow = f.SLOW_SONG_BAND_SECONDS
+        self.assertEqual(f.song_band_delay("/api/leaderboard/fixture-pulse/bands/Band_Quad?top=25&offset=0", "Band_Quad"), slow)
+        for path in ("/api/leaderboard/fixture-pulse/bands/Band_Duets", "/api/leaderboard/fixture-pulse/bands/all",
+                     "/api/rankings/bands/Band_Quad"):
+            self.assertEqual(f.song_band_delay(path, "Band_Quad"), 0.0, path)
+        self.assertEqual(f.song_band_delay("/api/leaderboard/fixture-pulse/bands/Band_Quad", None), 0.0)
+
+    def test_install_sleeps_then_serves(self):
+        original = ms.FixtureHandler.do_GET
+        served, slept = [], []
+
+        class Handler:
+            path = "/api/leaderboard/fixture-pulse/bands/Band_Quad"
+
+        ms.FixtureHandler.do_GET = lambda handler: served.append(handler.path)
+        sleep = f.time.sleep
+        f.time.sleep = slept.append
+        try:
+            f.install_song_band_slow("Band_Quad")
+            ms.FixtureHandler.do_GET(Handler())
+            Handler.path = "/api/leaderboard/fixture-pulse/bands/Band_Duets"
+            ms.FixtureHandler.do_GET(Handler())
+        finally:
+            ms.FixtureHandler.do_GET = original
+            f.time.sleep = sleep
+        self.assertEqual(slept, [f.SLOW_SONG_BAND_SECONDS])
+        self.assertEqual(len(served), 2)
+
+
 class SlowRivalsTests(unittest.TestCase):
     """Slow accounts (issue #265) hold only their rivals list reads."""
 
