@@ -543,7 +543,8 @@ struct SongsScreen: View {
         .task(id: FestivalDebugLaunch.songTitleOrId) {
             guard debugPushedSong == nil, let target = FestivalDebugLaunch.songTitleOrId
             else { return }
-            for _ in 0..<200 {
+            // Up to 60 s: a live catalogue under screen recording can take longer than 10 s.
+            for _ in 0..<1200 {
                 if case let .loaded(payload) = state,
                    let match = payload.catalog.songs.first(where: {
                        $0.songId == target
