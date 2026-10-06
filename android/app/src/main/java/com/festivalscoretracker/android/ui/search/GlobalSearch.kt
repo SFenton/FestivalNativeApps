@@ -179,8 +179,8 @@ object GlobalSearchTags {
 // region Entry point
 
 /**
- * The one Search entry: a magnifier action in the top app bar (medium and wider windows) or in
- * the floating toolbar (compact windows). No persistent search field at any width.
+ * The one Search entry: a magnifier action in the top app bar at every window size (pattern
+ * page-tools-and-nav-chrome R4). No persistent search field at any width.
  *
  * @param chrome Shell search hooks.
  */
