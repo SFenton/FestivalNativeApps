@@ -211,8 +211,9 @@ internal sealed partial class Driver
     /// unit and no <c>FindAttribute</c>, and the range after <c>i</c> character units reports the combined weight of
     /// units <c>i-1</c> and <c>i</c> (mixed at a run boundary), so weights are decoded left to right: a uniform value
     /// is the unit's weight and a mixed value flips the previous unit's weight. A <c>LineBreak</c> is one character
-    /// unit but two characters of text (<c>\r\n</c>), so each unit is placed at the text length of the range before it
-    /// rather than at its unit index; skipped characters (the break's second half) are never bold.
+    /// unit but two characters of text (<c>\r\n</c>), so units are mapped to text offsets by
+    /// <see cref="NextTextIndex"/>; skipped characters (the break's second half) are never bold. The range advances one
+    /// unit per step: re-moving from the document start is quadratic and can exceed the UIA call timeout on long rows.
     /// </summary>
     /// <param name="element">Element offering the Text pattern.</param>
     /// <returns>Bold runs in document order, trimmed, empty runs dropped.</returns>
@@ -223,21 +224,24 @@ internal sealed partial class Driver
         var text = document.GetText(-1);
         var bold = new bool[text.Length];
         bool? previous = null;
-        for (var unit = 0; unit < text.Length; unit++)
+        var character = document.Clone();
+        character.MoveEndpointByRange(TextPatternRangeEndpoint.End, character, TextPatternRangeEndpoint.Start);
+        for (var index = 0; index < text.Length; index = NextTextIndex(text, index))
         {
-            var character = document.Clone();
-            character.MoveEndpointByRange(TextPatternRangeEndpoint.End, character, TextPatternRangeEndpoint.Start);
-            if (unit > 0 && character.Move(TextUnit.Character, unit) < unit) break;
-            var prefix = document.Clone();
-            prefix.MoveEndpointByRange(TextPatternRangeEndpoint.End, character, TextPatternRangeEndpoint.Start);
-            var index = unit == 0 ? 0 : prefix.GetText(-1).Length;
-            if (index >= text.Length) break;
+            if (index > 0 && character.Move(TextUnit.Character, 1) < 1) break;
             var on = DecodeWeight(character.GetAttributeValue(weight), previous);
             previous = on;
             bold[index] = on;
         }
         return Runs(text, bold);
     }
+
+    /// <summary>The text offset of the character unit after the one at <paramref name="index"/>.</summary>
+    /// <param name="text">Document text.</param>
+    /// <param name="index">Text offset of the current unit.</param>
+    /// <returns><paramref name="index"/> + 2 for a <c>\r\n</c> line break (one unit), otherwise + 1.</returns>
+    internal static int NextTextIndex(string text, int index) =>
+        index + (text[index] == '\r' && index + 1 < text.Length && text[index + 1] == '\n' ? 2 : 1);
 
     /// <summary>Decodes one TextPattern weight value given the previous character's boldness.</summary>
     /// <param name="value">Attribute value: a weight number when uniform, otherwise the mixed sentinel.</param>

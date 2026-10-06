@@ -167,7 +167,16 @@ class NotificationsJourneyPhaseTests(unittest.TestCase):
         for row in ("grid", "first", "stars"):
             for step in j.media_paint(row):
                 self.assertIn(step, exact["after_ready"])
-        self.assertIn(j.media_paint("grid")[0], text["after_ready"])
+        # At 200% text the grid card outgrows the flyout, so only its top edge is probed; the
+        # rail, pill and unread-dot probes run on the single-chart row once it is scrolled into view.
+        text_paint = [s for s in text["after_ready"] if s.startswith("assertpaint:")]
+        self.assertEqual(len(text_paint), 2)
+        self.assertIn("fixture-notif-grid|fill:L8,T", text_paint[0])
+        self.assertIn("fixture-notif-first|", text_paint[1])
+        self.assertIn("L100,B18=#6D28D9", text_paint[1])
+        self.assertIn("R23,M-26,R27,M-22=#FACC15", text_paint[1])
+        self.assertIn("scrollinto:id=fst.notifications.row.fixture-notif-first", text["after_ready"])
+        self.assertIn(j.media_paint("grid")[1], text["after_ready"])
         self.assertEqual(sum(s.startswith("assertbold:") for s in text["after_ready"]), 2)
         self.assertEqual(sum(s.startswith("assertpaint:") for s in hc["after_ready"]), 3)
         self.assertFalse(any("#" in s for s in hc["after_ready"] if s.startswith("assertpaint:")))
