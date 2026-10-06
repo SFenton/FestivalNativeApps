@@ -57,7 +57,7 @@ struct RivalDetailScreen: View {
                 content
             }
         }
-        .navigationTitle(displayName ?? "Rival")
+        .festivalNavigationTitle(displayName ?? "Rival")
         .festivalBackground(.carousel, session: session)
         .toolbar {
             if pageTools == nil {

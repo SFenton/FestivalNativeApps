@@ -189,7 +189,7 @@ struct SongDetailScreen: View {
         .quickLinks(quickLinks, title: "Quick Links", sections: quickLinkSections)
         .detailFadeTestSafe()
         .festivalBackground(.song(song.albumArt), session: session)
-        .navigationTitle(song.title)
+        .festivalNavigationTitle(song.title)
         .toolbar { detailToolbar }
         // iPhone tab-bar accessory (issue #92): Item Shop, then Paths, then Quick Links.
         .festivalPageTool(

@@ -248,9 +248,12 @@ fun AnchoredRowCard(modifier: Modifier = Modifier, content: @Composable ColumnSc
         modifier = modifier.fillMaxWidth(),
     ) {
         // Same inset as the rows' card, so the pinned row's columns line up with the list.
-        Column(Modifier.padding(8.dp), content = content)
+        Column(Modifier.padding(ANCHORED_ROW_CARD_PADDING), content = content)
     }
 }
+
+/** Inset inside [AnchoredRowCard] (the solo boards' row card inset; band boards start their ranks after it). */
+internal val ANCHORED_ROW_CARD_PADDING = 8.dp
 
 /** Space between list items, also left between the last item and the anchored footer. */
 private const val ROW_GAP_DP = 12

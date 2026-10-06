@@ -64,7 +64,7 @@ enum IPadAuditTextEvidence {
             let origin = app.coordinate(withNormalizedOffset: .zero)
             // Sixteen: an AX5 comparison launch in a ⅓ window puts a lazy card several
             // screens down (Song Detail's Pro Lead header was never reached in eight).
-            for _ in 0..<16 {
+            for attempt in 0..<16 {
                 let found = matches(in: app)
                 // A slow drag by about the distance needed: a flick's momentum overshot a
                 // Form's last header past the top and back again.
@@ -80,6 +80,15 @@ enum IPadAuditTextEvidence {
                     distance = frame.minY < top
                         ? -min(500, top - frame.minY + 60)
                         : min(500, frame.maxY - bottom + 60)
+                }
+                // Every other drag starts at the trailing margin of the element's pane: a
+                // drag that starts on a chart selects a bar instead of scrolling (Song
+                // Detail's score history under the leading pane's bar was never cleared).
+                // Split windows only: in one pane the trailing edge holds the scroll bar
+                // and page tools (a ⅓ window's Rival Detail "See All" was never reached).
+                if attempt % 2 == 1, area.topBars.count >= 2 {
+                    let pane = area.topBars.first { $0.minX <= x && x <= $0.maxX } ?? window
+                    x = pane.maxX - 12
                 }
                 let start = origin.withOffset(CGVector(dx: x, dy: window.midY + distance / 2))
                 let end = origin.withOffset(CGVector(dx: x, dy: window.midY - distance / 2))

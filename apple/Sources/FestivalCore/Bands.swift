@@ -7,7 +7,7 @@ import Foundation
 ///
 /// Distinct from `BandType`: this is the segmented-control value sent as
 /// `?group=`, while `BandType` is the server's `Band_Duets`/`Band_Trios`/`Band_Quad` key.
-public enum PlayerBandGroup: String, CaseIterable, Sendable, Identifiable, Equatable {
+public enum PlayerBandGroup: String, CaseIterable, Sendable, Identifiable, Hashable {
     case all
     case duos
     case trios
@@ -104,6 +104,62 @@ public struct PlayerBandListPayload: Sendable {
     public let publicationId: Int?
     public let observedPublicationId: Int
     public let isStale: Bool
+}
+
+// MARK: - Player bands preview (profile page)
+
+/// The player profile's inline bands section, porting the web client's
+/// `buildPlayerBandsItems` (`FortniteFestivalWeb/src/pages/player/components/PlayerBandsSection.tsx`):
+/// Duos, Trios and Quads, each with up to ``previewCount`` band cards and its total.
+///
+/// The web reads these previews from player stats, which native clients must not call
+/// (its GET may store tiers); each group here is instead the first page of the keyless
+/// `GET /api/player/{accountId}/bands?group=` list.
+public struct PlayerBandsPreview: Sendable, Equatable {
+    /// Band cards per group, the service's `GetPlayerBands(previewCount = 6)`.
+    public static let previewCount = 6
+    /// Groups shown, in the web's order (no "All" preview).
+    public static let groups: [PlayerBandGroup] = [.duos, .trios, .quads]
+
+    /// One band size's preview.
+    public struct Group: Sendable, Equatable, Identifiable {
+        public let group: PlayerBandGroup
+        /// At most ``PlayerBandsPreview/previewCount`` bands, in service order.
+        public let entries: [PlayerBandEntry]
+        /// Every band of this size the player has, not just the previewed ones.
+        public let totalCount: Int
+
+        public var id: PlayerBandGroup { group }
+
+        /// The web's `totalCount > entries.length`: the group has a "View all bands" card.
+        public var hasMore: Bool { totalCount > entries.count }
+
+        /// Build one group's preview, trimming the page to the preview size.
+        ///
+        /// - Parameters:
+        ///   - group: Band size the page was read for.
+        ///   - response: That group's first page.
+        public init(group: PlayerBandGroup, response: PlayerBandListResponse) {
+            self.group = group
+            entries = Array(response.entries.prefix(PlayerBandsPreview.previewCount))
+            totalCount = max(response.totalCount, entries.count)
+        }
+    }
+
+    /// Duos, Trios and Quads, always all three (an empty group shows "No Bands Yet").
+    public let groups: [Group]
+
+    /// Assemble the preview from each group's first page.
+    ///
+    /// - Parameter responses: First page per group; a missing group previews as empty.
+    public init(responses: [PlayerBandGroup: PlayerBandListResponse]) {
+        groups = Self.groups.map { group in
+            Group(
+                group: group,
+                response: responses[group] ?? PlayerBandListResponse(accountId: "", totalCount: 0, entries: [])
+            )
+        }
+    }
 }
 
 // MARK: - Band profile (safe read: rankings board filtered to one team)

@@ -34,6 +34,7 @@ class LeaderboardColumnLayoutTest {
     fun narrowRowTightensGapsAndKeepsOnlyCoreColumns() {
         val plan = LeaderboardColumnLayout.fit(scores, 360f)
         assertEquals(LeaderboardColumnLayout.COMPACT_GAP, plan.gap)
+        assertEquals(plan.gap, LeaderboardColumnLayout.gapFor(360f))
         assertTrue(plan.compact)
         assertEquals(40f, plan.rankWidth)
         assertEquals(70f, plan.valueWidth)
@@ -314,6 +315,14 @@ class LeaderboardColumnLayoutTest {
         )
         assertTrue(ScoreSectionTexts.of(rows, Locale.US).hasAccuracy)
         assertFalse(ScoreSectionTexts.of(rows.drop(1), Locale.US).hasAccuracy)
+    }
+
+    @Test
+    fun gapTightensOnlyForAKnownNarrowRow() {
+        assertEquals(LeaderboardColumnLayout.COMPACT_GAP, LeaderboardColumnLayout.gapFor(419f))
+        assertEquals(LeaderboardColumnLayout.WIDE_GAP, LeaderboardColumnLayout.gapFor(420f))
+        assertEquals(LeaderboardColumnLayout.WIDE_GAP, LeaderboardColumnLayout.gapFor(Float.NaN))
+        assertEquals(LeaderboardColumnLayout.WIDE_GAP, LeaderboardColumnLayout.gapFor(0f))
     }
 
     // endregion

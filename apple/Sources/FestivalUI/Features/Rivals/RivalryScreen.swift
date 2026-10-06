@@ -59,7 +59,7 @@ struct RivalryScreen: View {
                 content
             }
         }
-        .navigationTitle(Self.modeTitles[mode] ?? "Rivalry")
+        .festivalNavigationTitle(Self.modeTitles[mode] ?? "Rivalry")
         .festivalBackground(.carousel, session: session)
         .toolbar {
             if pageTools == nil {

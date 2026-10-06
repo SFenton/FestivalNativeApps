@@ -252,6 +252,7 @@
     "fst.dual.*": "app-navigation",
     "fst.split.*": "app-navigation",
     "fst.carousel.*": "app-navigation",
+    "fst.publication.*": "app-navigation",
     "fst.profile.*": "profile-selection",
     "fst.songs.instrument-status.*": "songs-instrument-status-chips",
     "fst.songs.metadata.*": "song-score-metadata",

@@ -90,6 +90,12 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>Other app windows minimized by <c>isolate</c>; restored when the request ends.</summary>
     private readonly List<IntPtr> isolated = [];
 
+    /// <summary>Top-to-top distances (epx) recorded by <c>markspan</c>, by name, for <c>assertspan</c>.</summary>
+    private readonly Dictionary<string, double> spans = [];
+
+    /// <summary>The two elements each <c>markspan</c> measured, so <c>assertspan</c> rereads their bounds without a tree search.</summary>
+    private readonly Dictionary<string, (AutomationElement Top, AutomationElement Other)> spanElements = [];
+
     /// <summary>Whether input steps minimize overlapping windows of other same-named processes (other lanes).</summary>
     private bool isolate;
 
@@ -402,6 +408,104 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         return bitmap;
     }
 
+    /// <summary>A background <c>PrintWindow</c> capture started by <c>film</c> and written by <c>filmstop</c>.</summary>
+    private sealed class Film
+    {
+        /// <summary>Most frames kept (about 15 s at the usual rate).</summary>
+        public const int MaxFrames = 300;
+
+        /// <summary>Widest stored frame, in pixels (frames are scaled down to it).</summary>
+        public const int MaxWidth = 1280;
+
+        /// <summary>Capture thread.</summary>
+        public required Thread Thread { get; init; }
+
+        /// <summary>Output folder.</summary>
+        public required string Folder { get; init; }
+
+        /// <summary>Captured JPEG frames with their offsets (ms) from the first one.</summary>
+        public List<(double Ms, byte[] Jpeg)> Frames { get; } = [];
+
+        /// <summary>Set to end the capture.</summary>
+        public volatile bool Stop;
+    }
+
+    private Film? film;
+
+    /// <summary>
+    /// <c>film:&lt;dir&gt;</c>: captures the window with <c>PrintWindow</c> as fast as it can (scaled to at most
+    /// <see cref="Film.MaxWidth"/> px, JPEG in memory) on a background thread while later steps run, so a short
+    /// transition such as a fade is sampled at a real frame rate. <c>filmstop</c> writes the frames.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="folder">Folder the frames are written to on <c>filmstop</c>.</param>
+    /// <exception cref="InvalidOperationException">A capture is already running.</exception>
+    private void StartFilm(Window window, string folder)
+    {
+        if (film is not null) throw new InvalidOperationException("film: a capture is already running; filmstop it first");
+        var hwnd = window.Properties.NativeWindowHandle.Value;
+        var bounds = Native.VisibleBounds(hwnd);
+        var encoder = ImageCodecInfo.GetImageEncoders().First(c => c.FormatID == ImageFormat.Jpeg.Guid);
+        Film? current = null;
+        var thread = new Thread(() =>
+        {
+            using var quality = new EncoderParameters(1);
+            quality.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 88L);
+            var clock = Stopwatch.StartNew();
+            while (!current!.Stop && current.Frames.Count < Film.MaxFrames)
+            {
+                var at = clock.Elapsed.TotalMilliseconds;
+                try
+                {
+                    using var full = Native.PrintWindow(hwnd, bounds);
+                    var factor = Math.Min(1.0, Film.MaxWidth / (double)full.Width);
+                    using var small = new Bitmap(full, (int)(full.Width * factor), (int)(full.Height * factor));
+                    using var stream = new MemoryStream();
+                    small.Save(stream, encoder, quality);
+                    lock (current.Frames) current.Frames.Add((at, stream.ToArray()));
+                }
+                catch (Exception error) when (error is InvalidOperationException or ExternalException or ArgumentException)
+                {
+                    break; // the window went away mid-capture: keep the frames so far rather than crash the driver
+                }
+            }
+        }) { IsBackground = true, Name = "film" };
+        current = new Film { Thread = thread, Folder = folder };
+        film = current;
+        thread.Start();
+    }
+
+    /// <summary>
+    /// <c>filmstop:&lt;dir&gt;</c>: ends the <c>film</c> capture and writes <c>f0000.jpg</c>… plus <c>frames.json</c>
+    /// (each frame's offset in ms) to its folder.
+    /// </summary>
+    /// <param name="folder">Must match the folder <c>film</c> was started with.</param>
+    /// <exception cref="InvalidOperationException">No capture is running, or it was started for another folder.</exception>
+    private void StopFilm(string folder)
+    {
+        if (film is not { } current) throw new InvalidOperationException("filmstop: no film capture is running");
+        if (!string.Equals(Path.GetFullPath(current.Folder), Path.GetFullPath(folder), StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"filmstop: the running capture writes to {current.Folder}, not {folder}");
+        current.Stop = true;
+        current.Thread.Join();
+        film = null;
+        Directory.CreateDirectory(folder);
+        var offsets = new JsonArray();
+        for (var i = 0; i < current.Frames.Count; i++)
+        {
+            File.WriteAllBytes(Path.Combine(folder, $"f{i:0000}.jpg"), current.Frames[i].Jpeg);
+            offsets.Add(Math.Round(current.Frames[i].Ms, 1));
+        }
+        File.WriteAllText(Path.Combine(folder, "frames.json"), new JsonObject { ["ms"] = offsets }.ToJsonString());
+        var seconds = current.Frames.Count > 1 ? current.Frames[^1].Ms / 1000 : 0;
+        response["film"] = new JsonObject
+        {
+            ["dir"] = folder,
+            ["frames"] = current.Frames.Count,
+            ["fps"] = seconds > 0 ? Math.Round((current.Frames.Count - 1) / seconds, 1) : 0,
+        };
+    }
+
     #endregion
 
     #region Tree
@@ -519,7 +623,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             Log($"ok {verb}:{arg}");
         }
         var result = Describe(window).AsObject();
-        foreach (var key in new[] { "focus", "scans", "aligned", "pinned" })
+        if (announcementHandler is not null)
+            response["announcements"] = new JsonArray([.. announcements.Select(a => (JsonNode)JsonValue.Create(a)!)]);
+        foreach (var key in new[] { "focus", "scans", "aligned", "pinned", "announcements" })
         {
             if (response[key] is not JsonArray collected) continue;
             response.Remove(key);
@@ -573,6 +679,15 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 if (postKeys) PostedInput.Press(window.Properties.NativeWindowHandle.Value, keys);
                 else Keyboard.TypeSimultaneously(keys);
                 break;
+            case "keys":
+                // Chords back to back with no settle between them, e.g. several picks inside one short transition.
+                var chords = step["seq"]!.AsArray().Select(c => c!.AsArray().Select(k => (VirtualKeyShort)(int)k!).ToArray()).ToArray();
+                for (var i = 0; i < chords.Length; i++)
+                {
+                    if (postKeys) PostedInput.Press(window.Properties.NativeWindowHandle.Value, chords[i], settle: i == chords.Length - 1);
+                    else Keyboard.TypeSimultaneously(chords[i]);
+                }
+                break;
             case "scroll":
                 var amount = (double?)step["amount"] ?? -3;
                 if (step["selector"] is not null) Mouse.MoveTo(Find(window, step).GetClickablePoint());
@@ -591,6 +706,12 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 break;
             case "shot":
                 Shot(window, arg, (string?)step["mode"] ?? "print");
+                break;
+            case "film":
+                StartFilm(window, arg);
+                break;
+            case "filmstop":
+                StopFilm(arg);
                 break;
             case "tree":
                 Tree(window, arg, 40);
@@ -632,6 +753,10 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertinset":
                 AssertInset(window, step);
                 break;
+            case "markspan":
+            case "assertspan":
+                Span(window, step, verb == "assertspan");
+                break;
             case "scrollinset":
                 ScrollInset(window, step);
                 break;
@@ -647,6 +772,12 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "pin":
             case "assertpinned":
                 Pin(window, step, verb == "pin");
+                break;
+            case "listen":
+                Listen(window);
+                break;
+            case "assertannounced":
+                AssertAnnounced(step);
                 break;
             default:
                 throw new ArgumentException($"unknown step {verb}");
@@ -801,6 +932,52 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             throw new InvalidOperationException("foreground:off could not move activation to the taskbar (locked console?)");
         if (Native.WindowsAbove(hwnd, window.Properties.ProcessId.Value) is { Count: > 0 } above)
             throw new InvalidOperationException("foreground:off left the window covered by " + string.Join(", ", above.Select(b => $"\"{b.Title}\"")));
+    }
+
+    /// <summary>UIA notification texts (what Narrator speaks) raised in the window since <c>listen:announcements</c>.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentQueue<string> announcements = new();
+
+    /// <summary>The window's notification subscription, or <see langword="null"/> before <c>listen</c>.</summary>
+    private FlaUI.Core.EventHandlers.NotificationEventHandlerBase? announcementHandler;
+
+    /// <summary>
+    /// Starts recording the window's UIA notification events (<c>RaiseNotificationEvent</c>: the app's screen-reader
+    /// announcements) for later <c>assertannounced</c> steps in the same <c>drive</c>.
+    /// </summary>
+    /// <param name="window">App window (its subtree includes dialogs hosted in the window's popups).</param>
+    private void Listen(Window window)
+    {
+        // WinUI raises notifications from peers whose UIA parent chain can stop short of the window (a UserControl's
+        // created peer inside a dialog popup), so a window-scoped subscription hears nothing: listen at the desktop and
+        // keep this process's notifications only.
+        if (announcementHandler is not null) return;
+        var processId = window.Properties.ProcessId.Value;
+        announcementHandler = automation.GetDesktop().RegisterNotificationEvent(FlaUI.Core.Definitions.TreeScope.Subtree,
+            (sender, _, _, text, _) =>
+            {
+                int? from = null;
+                try { from = sender?.Properties.ProcessId.ValueOrDefault; } catch (Exception) { /* sender gone */ }
+                if (from is null or 0 || from == processId) announcements.Enqueue(text ?? "");
+            });
+    }
+
+    /// <summary>
+    /// Waits until a recorded announcement equals the step's text (or matches it as a .NET regex when it starts with
+    /// <c>~</c>).
+    /// </summary>
+    /// <param name="step">Step with <c>text</c> and an optional timeout (default 5 s).</param>
+    /// <exception cref="InvalidOperationException">No <c>listen</c> step ran, or nothing matched by the timeout.</exception>
+    private void AssertAnnounced(JsonObject step)
+    {
+        if (announcementHandler is null) throw new InvalidOperationException("assertannounced needs an earlier listen:announcements step in the same drive");
+        var expected = (string)step["text"]!;
+        var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        while (!announcements.Any(a => StatusMatches(a, expected)))
+        {
+            if (DateTime.UtcNow > until)
+                throw new InvalidOperationException($"no announcement \"{expected}\"; heard [{string.Join(" | ", announcements)}]");
+            Thread.Sleep(100);
+        }
     }
 
     /// <summary>Whether an ItemStatus equals the expected text, or matches it as a regex when it starts with <c>~</c>.</summary>
@@ -1014,20 +1191,25 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         }
     }
 
-    /// <summary>Waits until the step's element is on screen with exactly the step's UIA Name.</summary>
+    /// <summary>
+    /// Waits until the step's element is on screen with exactly the step's UIA Name; each <c>*</c> in the text matches
+    /// any run of characters (e.g. a chart name whose visible page depends on the text size).
+    /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector, the expected <c>text</c> and an optional timeout (default 5 s).</param>
     /// <exception cref="InvalidOperationException">The name still differs at the timeout.</exception>
     private void AssertName(Window window, JsonObject step)
     {
         var expected = (string?)step["text"] ?? "";
-        // A leading '*' matches the name's end, for names that start with a local-time date (e.g. score-history rows).
-        var suffix = expected.StartsWith('*') ? expected[1..] : null;
+        // Each '*' matches any run of characters; a leading '*' covers names that start with a local-time date.
+        var pattern = expected.Contains('*')
+            ? new System.Text.RegularExpressions.Regex("^" + System.Text.RegularExpressions.Regex.Escape(expected).Replace(@"\*", ".*", StringComparison.Ordinal) + "$", System.Text.RegularExpressions.RegexOptions.Singleline)
+            : null;
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
         while (true)
         {
             var actual = Find(window, step).Properties.Name.ValueOrDefault ?? "";
-            if (suffix is null ? actual == expected : actual.EndsWith(suffix, StringComparison.Ordinal)) return;
+            if (pattern?.IsMatch(actual) ?? actual == expected) return;
             if (DateTime.UtcNow > until)
                 throw new InvalidOperationException($"element {(string)step["arg"]!} is named {actual!}, expected {expected}");
             Thread.Sleep(200);
@@ -1155,6 +1337,54 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 throw new InvalidOperationException($"top inset {inset:0.#} epx is not {expected:0.#} epx ({(string)step["arg"]!})");
             Thread.Sleep(200);
         }
+    }
+
+    /// <summary>
+    /// Records (<c>markspan</c>) or checks (<c>assertspan</c>) the distance from the first element's top edge to the
+    /// second's in effective pixels (window DPI): e.g. a card that must keep its height while its content swaps.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c>, <c>other</c> and <c>name</c>.</param>
+    /// <param name="check">Assert against the recorded span instead of recording it.</param>
+    /// <exception cref="InvalidOperationException">No span was recorded under the name, or it changed by more than 1 epx.</exception>
+    private void Span(Window window, JsonObject step, bool check)
+    {
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        var name = (string)step["name"]!;
+        // A mid-swap check must land within the app's fade (~400 ms): reread the marked elements instead of searching
+        // the tree twice, and search again only when they no longer exist or are off screen.
+        double? cached = null;
+        if (check && spanElements.TryGetValue(name, out var marks))
+        {
+            try
+            {
+                if (!marks.Top.Properties.IsOffscreen.ValueOrDefault && !marks.Other.Properties.IsOffscreen.ValueOrDefault)
+                    cached = marks.Other.BoundingRectangle.Top - marks.Top.BoundingRectangle.Top;
+            }
+            catch (Exception error) when (error is FlaUI.Core.Exceptions.ElementNotAvailableException or COMException)
+            {
+            }
+        }
+        double span;
+        if (cached is { } fast) span = fast / scale;
+        else
+        {
+            var top = Find(window, step);
+            var other = Find(window, step, "other");
+            span = (other.BoundingRectangle.Top - top.BoundingRectangle.Top) / scale;
+            if (!check) spanElements[name] = (top, other);
+        }
+        response["spans"] ??= new JsonArray();
+        response["spans"]!.AsArray().Add(new JsonObject { ["name"] = name, ["check"] = check, ["epx"] = Math.Round(span, 1) });
+        if (!check)
+        {
+            spans[name] = span;
+            return;
+        }
+        if (!spans.TryGetValue(name, out var marked))
+            throw new InvalidOperationException($"assertspan {name}: no markspan recorded it");
+        if (Math.Abs(span - marked) > 1)
+            throw new InvalidOperationException($"span {name} is {span:0.#} epx, not the marked {marked:0.#} epx ({(string)step["arg"]!})");
     }
 
     /// <summary>
