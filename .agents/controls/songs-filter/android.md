@@ -3,6 +3,7 @@
 > **What:** the Android Filter sheet, its draft model and persistence. **Read when:** changing `FilterSheet`, `SongFilterDraft`, `SongPlayerScoreFilter` or `SongsPreferences`. Behavior: [spec.md](spec.md).
 
 - Always available (issue #77; web `6415d3e3`); gold icon when a saved filter applies (`SongsUiState.filterActive` → `SongsPreferencesState.filterActive(hasPlayer, hideShop)`, web `isFilterActive`: General always, Item Shop only while shown, instrument/score/bucket filters only with a player).
+- The Filter button's `stateDescription` says what the gold tint shows (issue #181; same as Item Shop `ShopOfferFilter.stateDescription`, #145): "No filters", or "Filters on: " plus the active groups in sheet order (Year, Duration, Item Shop, Double Bass, then with a player Score & FC, Selected Instrument). `SongsPreferencesState.filterStateDescription` is empty exactly when `filterActive` is false; never signal the active state by colour alone.
 - Sheet structure follows the web `FilterModal` (operator 6.32; the old difficulty range slider is gone): **General** (`fst.songs.filter.general`: Year and Duration bucket switches with Select All / Clear All from `SongsUiState.availableDecades`/`durationBuckets`, Item Shop availability omitted while the Shop is hidden, Double Bass). With a player only: **Global Score & FC Toggles** group, **Individual Score & FC Toggles** with one collapsible group per visible chart (web labels such as "Missing Lead Scores" plus descriptions), then **Selected Instrument Filters**: the shared Instrument Selector (`deferSelection`, compact on phones) revealing **Season**, **Percentile**, **Stars** and **Song Intensity** groups of bucket switches with trailing **Select All / Clear All** text actions (7.17). Groups open by default when they hold a saved choice. Changes apply live; **Reset** is red (7.10), **Done** closes.
 - Model: `SongGeneralFilter` (`core/songs/SongFilters.kt`: hidden decades/durations, `shopAvailable`/`shopUnavailable`, `doubleBassSupported`/`doubleBassUnsupported`; `SongCatalogBuckets` keys and labels; `Song.doubleBassSupported` is the wire field); without a player the view model passes `SongFilter()` so a saved instrument never narrows the list. `SongFilter(instrument, excludedIntensities)` (intensity buckets 1–7 plus 0 = web `difficultyFilter` `false` keys, public, need an instrument); `SongPlayerScoreFilter` adds `excludedSeasons` / `excludedPercentiles` / `excludedStars` (`core/songs/SongBuckets.kt` keys, web `seasonFilter` / `percentileFilter` / `starsFilter`), applied only with a visible Songs instrument; percentile bucket = first threshold ≥ rank / total × 100 (0 = no score or rank). Profile presets use `onlyStars`, `onlyPercentile`, `cleanedFor`.
 - Semantics: AND within a chart, OR across active charts, then the buckets; uncharted parts never match; an available empty index still allows Missing Scores (spec correctness fix).
@@ -50,7 +51,7 @@ Emulator API 37, debug build, live public service with SFentonX selected (keyles
 | `publication-mismatch-paused` | `shopFromAnotherPublicationPausesFilterAndBadges`, plus the view-model copy test above |
 | `player-unavailable` | `unavailableScoresPauseScoreFilters` |
 | `deselected-paused` | `deselectionClearsScoreChecksAndKeepsGeneral`, plus `SongsDataTest.deselectionClearsOnlyPlayerPredicates` |
-| `anonymous-hidden` | `SongsUiTest.anonymousFilterOffersOnlyGeneralFilters` |
+| `anonymous-hidden` | `SongsUiTest.anonymousFilterOffersOnlyGeneralFilters`, `anonymousGeneralFilterSurvivesSelectionAndClearingAndSpeaksItsState`, plus connected `SongsAccessibilityJourneyTest.anonymousFilterShowsOnlyGeneralAndSpeaksItsState` |
 | `reset-draft` | `SongsUiTest.selectedPlayerRowsShowChipsShopAccentsAndFilter` |
 | `player-loading-shop-active` | `SongsViewModelTest.selectedPlayerChipsFiltersAndPauses` |
 | `normal-audit`, `focus-return`, hinge | connected `SongsAccessibilityJourneyTest` (FST_Phone; FST_Book_Fold `--posture half`) |
@@ -61,3 +62,21 @@ Emulator API 37, debug build, live public service with SFentonX selected (keyles
   - `discard-confirm`: live apply, with no Cancel/Apply.
   - `band-pending` and `band-member`: there is no selected band, and band search is a blocked endpoint.
   - `reselected-restored-native`: deselection clears the player predicates, so reselecting starts clean while General stays.
+
+## Validation without a profile (issue #181, 2026-10-06)
+
+Emulator API 37, debug build, live public service, launched with `FST_DEBUG_ANONYMOUS=1` (no player calls, no selected-profile headers). Each run turned on Double Bass → No Double Bass Support off, checked the sheet shows only **General** (Year, Duration, Item Shop, Double Bass) and the gold Filter icon on the list, then Reset.
+
+| Configuration | Result |
+|---|---|
+| FST_Phone portrait, font 1.0 and 2.0; system light and dark | OK. Labels and options match web `FilterModal` (decades 1970s–2020s, minute buckets, Available / Not Available in Item Shop, Double Bass Support / No Double Bass Support). At 2.0 rows wrap without clipping. |
+| FST_Phone landscape, font 1.0 and 2.0 | OK; Reset sits beside Close (compact height). |
+| FST_Tablet landscape (drawer) and portrait (rail), font 1.0 and 2.0 | OK; centred 640 dp sheet. |
+| FST_Resizable phone / foldable / tablet / desktop | OK. |
+| FST_Book_Fold unfolded / half / folded | OK; half-open keeps the sheet in the start pane. |
+| FST_Passport_Fold unfolded / half / folded | OK; half-open start pane. |
+| FST_TriFold unfolded / partial / folded | OK; flat hinges, sheet centred. |
+
+- **Fixed:** the Filter button showed an applied filter by its gold tint only, so TalkBack said just "Filter songs, Button". It now has a state description (see the rule at the top).
+- Connected `SongsAccessibilityJourneyTest.anonymousFilterShowsOnlyGeneralAndSpeaksItsState` passes on FST_Phone and FST_Book_Fold `--posture half` (ATF clean with every General group open, no player sections, nothing straddles the hinge, state "No filters" ⇄ "Filters on: Double Bass"; reading orders logged as `songs-filter-anonymous` / `songs-filtered-anonymous`).
+- Material 3 (`references/component-catalog.md`, icon buttons): "Toggle buttons should have descriptive labels for both states." The earlier deviations (dark only, centred bottom sheet on expanded widths, red Reset) still apply.

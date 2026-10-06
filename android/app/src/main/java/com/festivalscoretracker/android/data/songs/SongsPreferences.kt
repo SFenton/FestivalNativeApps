@@ -58,6 +58,28 @@ data class SongsPreferencesState(
      */
     fun filterActive(hasPlayer: Boolean, hideShop: Boolean): Boolean =
         general.isActive(shopVisible = !hideShop) || (hasPlayer && (filter.isActive || playerFilter?.appliesTo(filter.instrument) == true))
+
+    /**
+     * Spoken state of the Filter button (issue #181), so TalkBack hears what the gold tint shows:
+     * "No filters", or "Filters on: " and the applied groups in sheet order (Year, Duration,
+     * Item Shop, Double Bass, then with a player Score & FC and Selected Instrument). Same
+     * vocabulary as the Item Shop Filter (issue #145); empty exactly when [filterActive] is false.
+     *
+     * @param hasPlayer A player is selected.
+     * @param hideShop Item Shop hidden in Settings.
+     * @return The button's state description.
+     */
+    fun filterStateDescription(hasPlayer: Boolean, hideShop: Boolean): String {
+        val groups = listOfNotNull(
+            "Year".takeIf { general.excludedDecades.isNotEmpty() },
+            "Duration".takeIf { general.excludedDurations.isNotEmpty() },
+            "Item Shop".takeIf { !hideShop && general.shopActive },
+            "Double Bass".takeIf { !general.doubleBassSupported || !general.doubleBassUnsupported },
+            "Score & FC".takeIf { hasPlayer && playerFilter?.hasChecks == true },
+            "Selected Instrument".takeIf { hasPlayer && filter.isActive },
+        )
+        return if (groups.isEmpty()) "No filters" else "Filters on: " + groups.joinToString(", ")
+    }
 }
 
 // endregion

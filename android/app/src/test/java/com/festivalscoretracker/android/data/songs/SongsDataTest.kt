@@ -217,6 +217,43 @@ class SongsDataTest {
     }
 
     @Test
+    fun filterStateDescriptionSpeaksWhatTheGoldTintShows() {
+        val none = SongsPreferencesState()
+        assertEquals("No filters", none.filterStateDescription(hasPlayer = false, hideShop = false))
+        assertEquals("No filters", SongsPreferencesState(playerFilter = null).filterStateDescription(hasPlayer = true, hideShop = false))
+        val general = SongsPreferencesState(
+            general = SongGeneralFilter(
+                excludedDecades = setOf(1990),
+                excludedDurations = setOf(3),
+                shopUnavailable = false,
+                doubleBassUnsupported = false,
+            ),
+        )
+        assertEquals("Filters on: Year, Duration, Item Shop, Double Bass", general.filterStateDescription(hasPlayer = false, hideShop = false))
+        // Item Shop only while shown.
+        assertEquals("Filters on: Year, Duration, Double Bass", general.filterStateDescription(hasPlayer = false, hideShop = true))
+        val player = SongsPreferencesState(
+            filter = SongFilter(Instrument.Lead),
+            general = SongGeneralFilter(doubleBassSupported = false),
+            playerFilter = SongPlayerScoreFilter(hasScores = setOf(Instrument.Lead), excludedStars = setOf(6)),
+        )
+        assertEquals("Filters on: Double Bass, Score & FC, Selected Instrument", player.filterStateDescription(hasPlayer = true, hideShop = false))
+        // Without a player only General counts, like the gold tint.
+        assertEquals("Filters on: Double Bass", player.filterStateDescription(hasPlayer = false, hideShop = false))
+        // Spoken state and tint always agree.
+        listOf(none, general, player, SongsPreferencesState(general = SongGeneralFilter(shopAvailable = false))).forEach { state ->
+            listOf(true, false).forEach { hasPlayer ->
+                listOf(true, false).forEach { hideShop ->
+                    assertEquals(
+                        state.filterActive(hasPlayer, hideShop),
+                        state.filterStateDescription(hasPlayer, hideShop) != "No filters",
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
     fun generalFiltersMigrateAndSanitize() {
         // Retired Shop toggles become "Available in Item Shop" only (web `migrateShopAvailability`).
         assertEquals(SongGeneralFilter(shopUnavailable = false), SongsPreferences.decodePublic("""{"inShop":true}""").second)
