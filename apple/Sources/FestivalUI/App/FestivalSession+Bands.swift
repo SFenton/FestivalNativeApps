@@ -24,6 +24,23 @@ extension FestivalSession {
         return payload
     }
 
+    /// Load the profile page's bands preview: the first ``PlayerBandsPreview/previewCount``
+    /// Duos, Trios and Quads, read in parallel from the keyless player-bands list
+    /// (never player stats, whose GET may store tiers).
+    ///
+    /// - Parameter accountId: Public Epic account ID whose bands to preview.
+    /// - Returns: All three groups, each trimmed to the preview size with its total.
+    /// - Throws: The first group's client configuration, transport, decoding or
+    ///   validation failure.
+    func playerBandsPreview(accountId: String) async throws -> PlayerBandsPreview {
+        let size = PlayerBandsPreview.previewCount
+        async let duos = playerBands(accountId: accountId, group: .duos, page: 1, pageSize: size)
+        async let trios = playerBands(accountId: accountId, group: .trios, page: 1, pageSize: size)
+        async let quads = playerBands(accountId: accountId, group: .quads, page: 1, pageSize: size)
+        let pages = try await [duos, trios, quads]
+        return PlayerBandsPreview(responses: [.duos: pages[0].list, .trios: pages[1].list, .quads: pages[2].list])
+    }
+
     /// Load one band's public ranking row by its `bandType`/`teamKey`.
     ///
     /// - Parameters:

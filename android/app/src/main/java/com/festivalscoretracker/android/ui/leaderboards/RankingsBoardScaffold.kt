@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
@@ -199,6 +198,10 @@ internal fun RankingsBoardLayout(
  * The bottom-anchored "your rank" row and floating pager; also the band song board's
  * supporting-pane footer around a hinge.
  *
+ * The "your rank" row spans the same width as the rows' card (the web's player footer
+ * shares the list's max width), so its columns line up with the rows at every width
+ * (issue #149); the pager keeps its natural width, centred.
+ *
  * @param idPrefix Test-tag prefix (`<prefix>.bottom-bar`).
  * @param footer "Your rank" content.
  * @param pager Pager.
@@ -207,7 +210,7 @@ internal fun RankingsBoardLayout(
 @Composable
 internal fun AnchoredFooter(idPrefix: String, footer: @Composable ColumnScope.() -> Unit, pager: @Composable () -> Unit, modifier: Modifier = Modifier) {
     Column(
-        modifier.widthIn(max = MAX_FOOTER_WIDTH_DP.dp).fillMaxWidth().testTag("$idPrefix.bottom-bar"),
+        modifier.fillMaxWidth().testTag("$idPrefix.bottom-bar"),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Column(Modifier.fillMaxWidth().gapBelowIfShown(FOOTER_PAGER_GAP_DP.dp), content = footer)
@@ -245,12 +248,12 @@ fun AnchoredRowCard(modifier: Modifier = Modifier, content: @Composable ColumnSc
         modifier = modifier.fillMaxWidth(),
     ) {
         // Same inset as the rows' card, so the pinned row's columns line up with the list.
-        Column(Modifier.padding(8.dp), content = content)
+        Column(Modifier.padding(ANCHORED_ROW_CARD_PADDING), content = content)
     }
 }
 
-/** Widest the anchored footer grows on large windows (keeps the pager and row centred). */
-private const val MAX_FOOTER_WIDTH_DP = 720
+/** Inset inside [AnchoredRowCard] (the solo boards' row card inset; band boards start their ranks after it). */
+internal val ANCHORED_ROW_CARD_PADDING = 8.dp
 
 /** Space between list items, also left between the last item and the anchored footer. */
 private const val ROW_GAP_DP = 12

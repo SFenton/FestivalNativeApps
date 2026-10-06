@@ -31,7 +31,7 @@ Rivals reads are unpinned operational GETs through `RequestGate` (see [service-s
 - **Rivalry**: category title, "vs. name · description", native sort `ComboBox` (Default, Closest Gap, Your/Their Biggest Leads, Title; the web has none), virtualized full rows (You | rank & score gaps | Them). Rows open Song Detail on that chart.
 - `RivalSongRowView` collapses to the one-line layout below 380 epx and hides art/icons below 280 epx. Headers stack below 640 epx page width.
 - `/compete` and `/rivals` deep links show the Rivals section root (no Compete section on Windows; the Leaderboards section covers the rest).
-- **Loading (#65, 2026-10-02):** each hub card shows a centred 32 epx `ProgressRing` (white `FSTLoadingBrush`, Narrator name "Loading <Title>", e.g. "Loading Lead Rivals") in a 120 epx card until that section's rows, empty removal or inline `ServiceStatus` error replace it; headers render immediately. Previously a thin `ProgressBar` sat above three grey placeholder bars named generically "Loading rivals"; the in-card convention elsewhere is `ProgressRing` (Fluent progress controls: ring for indeterminate in-place waits). Test: `Hub_SectionsShowProgressUntilRowsOrInlineStatus`.
+- **Loading (#65, 2026-10-02):** each hub card shows a centred 32 epx `ProgressRing` (white `FSTLoadingBrush`, Narrator name "Loading <Title>", e.g. "Loading Lead Rivals") in a 120 epx card until that section's rows, empty removal or inline `ServiceStatus` error replace it; headers render immediately. Previously a thin `ProgressBar` sat above three grey placeholder bars named generically "Loading rivals"; the in-card convention elsewhere is `ProgressRing` (Fluent progress controls: ring for indeterminate in-place waits). Test: `Hub_SectionsShowProgressUntilRowsOrInlineStatus`. An active WinUI ring reads in UIA as "Busy Loading <Title>" (control type ProgressBar, not a Tab stop); collapsing the grid removes it from the tree. Sections settle independently: Rivals reads run four at a time (`FestivalSession.RivalsConcurrency`), so Common Rivals, which needs every chart's list, keeps its ring after the first per-chart cards fill (#265).
 - Brushes: `Controls/RivalsResources.xaml` (merged in `App.xaml`), lighter red text for contrast, High Contrast maps to system colours.
 
 ## Tests and tools
@@ -39,8 +39,9 @@ Rivals reads are unpinned operational GETs through `RequestGate` (see [service-s
 | Layer | Where |
 |---|---|
 | Core | `RivalsCoreTests` (models, endpoints, client, scope/combos/categories/formatting), `RivalsViewModelTests` (hub, Find Rival, pages, session merge, cache), route round-trips in `RoutingSettingsLaunchTests` |
-| UI journeys | `python tools/windows/rivals_journey.py [--shots DIR] [--sizes compact,medium,wide] [--exe aot]` (app args, not `FST_DEBUG_*`, so the NativeAOT ship build runs too; `--first-run=off` because the modal carousel swallows clicks): populated hub → both tabs → detail → rivalry sort → All Rivals, `quick-links` (menu at medium, pane at wide), empty (`fixture-player-empty`), scrape freeze (`fixture-player-503`), no player (`FST_DEBUG_ANONYMOUS`), `/compete`, the Rivalry deep links (#203): `rivalry` (Sort By → Their Biggest Leads → Enter on a row → Song Detail → Alt+Left), `rivalry-unknown-mode`, `rivalry-empty`, `rivalry-freeze`, `rivalry-no-player`, `detail-empty` (Rival Detail with no shared songs) and `detail-nav` (compact Rival Detail: Quick Links jump via UIA Toggle, song row → Song Detail, View Profile → Player, Back). Use `--port` when another lane's fixture holds 18743. In a locked shared session, mouse `click:` steps don't land (the `populated` row click, the `quick-links` pane click), and a 300% 4K host fits only 1280 epx, so `quick-links` never reaches the wide pane |
-| Fixture | `tools/windows/rivals_fixture.py` = `tools/mock_service.py` with anonymized rival names (committable screenshots) |
+| UI journeys | `python tools/windows/rivals_journey.py [--shots DIR] [--sizes compact,medium,wide] [--exe aot]` (app args, not `FST_DEBUG_*`, so the NativeAOT ship build runs too; `--first-run=off` because the modal carousel swallows clicks): populated hub → both tabs → detail → rivalry sort → All Rivals, `quick-links` (menu at medium, pane at wide), empty (`fixture-player-empty`), scrape freeze (`fixture-player-503`), no player (`FST_DEBUG_ANONYMOUS`), `/compete`, the Rivalry deep links (#203): `rivalry` (Sort By → Their Biggest Leads → Enter on a row → Song Detail → Alt+Left), `rivalry-unknown-mode`, `rivalry-empty`, `rivalry-freeze`, `rivalry-no-player`, `detail-empty` (Rival Detail with no shared songs), `detail-nav` (compact Rival Detail: Quick Links jump via UIA Toggle, song row → Song Detail, View Profile → Player, Back), and the per-card loading states (#265): `loading` (`fixture-player-slow` on `/compete`: every ring's name, role and focusability, Lead rows replace Lead's ring while Common keeps its ring, then the Leaderboard tab's rings) and `loading-freeze` (`fixture-player-slow-503`: rings give way to "<Title> Unavailable"). Both run inside the launch's desktop-lock hold (`IN_LAUNCH_HOLD`) so a queued lock can't eat the loading window. Use `--port` when another lane's fixture holds 18743. In a locked shared session, mouse `click:` steps don't land (the `populated` row click, the `quick-links` pane click), and a 300% 4K host fits only 1280 epx, so `quick-links` never reaches the wide pane |
+| Fixture | `tools/windows/rivals_fixture.py` = `tools/mock_service.py` with anonymized rival names (committable screenshots). Accounts containing `-slow` (e.g. `fixture-player-slow`, `fixture-player-slow-503`) hold every rivals list read for `SLOW_RIVALS_SECONDS` (12 s, under the 30 s request timeout) to reach the loading cards |
+| Accessibility | `a11y_matrix.py --only compete,compete-loading --scan` (`compete-loading`: the slow account, scanned while the rings show) |
 | Screenshots | `windows/reports/screenshots/rivals-*-{compact,medium,wide}.png` (fixture mode) |
 | Last measured | Idle hub, NativeAOT, wide, still background (`uiwin.py perf-sample --seconds 15`): 0.01% machine CPU (max 0.1%), 0% GPU, 72 MB private working set |
 
@@ -72,6 +73,24 @@ Checked against the `winui-design` skill (Fluent layout, theming, brushes, acces
 | Narrator / UIA | Each row is one stop with a full name; there are no unnamed `Image` peers |
 
 Host limits: at 300% the `wide` and `maximized` presets clamp to 1280 epx, so the Quick Links pane (≥ 1150 epx of page area) can't appear and the `quick-links` journey's `resize:wide` step fails on this host only.
+
+## Loading validation (issue #265, 2026-10)
+
+The #65 per-card `ProgressRing`, checked with the `winui-design` skill (`winapp find-ui ProgressRing`: the gallery's indeterminate ring, `<ProgressRing IsActive="True"/>`) and `winui-code-review` (the brush is a `{ThemeResource}`, and the HighContrast dictionary maps it to `SystemColorWindowTextColor`). The loading state is reachable only with the slow fixture accounts: live reads settle before the window's first frame, which already shows the rows' stagger fade-in. Live SFentonX runs therefore check the settled hub in each configuration.
+
+| Configuration | Result |
+|---|---|
+| Compact / medium / wide (fixture, 300% and 100% / 150% display scaling) | Every card shows a centred ring under its header: 1 column compact, 2 medium, 2 plus the Quick Links pane at a true 1440 epx wide (100% scaling). 0 Axe errors in the loading state and the settled state |
+| Maximized, snap left / right (live) | Settled cards with rows; 0 Axe errors |
+| Light / dark | Dark-only app (`RequestedTheme="Dark"`): the light-theme system mode renders the same white ring; 0 Axe errors |
+| High contrast (Desert, Night Sky) | The ring takes `WindowText` (dark on Desert, light on Night Sky) and is clearly visible; 0 Axe errors (fixture loading and live settled) |
+| Text 200% | Headers grow, and the ring stays centred in its 120 epx card; 0 Axe errors |
+| Display scaling 100% / 150% | `a11y_matrix --mode scale-100/scale-150` applies the scale (window scale 1 / 1.5); 0 Axe errors |
+| Keyboard | Tab walk while loading: search, shell, nav, tabs, Quick Links, then each card's See All. Rings are never Tab stops, and rows join the order as they arrive |
+| Narrator / UIA | Ring = ProgressBar control type, name "Busy Loading <Title>" (WinUI prefixes "Busy" to an active ring), not focusable. It leaves the tree when rows, an empty-section removal or "<Title> Unavailable" replace it |
+| Sequencing | Reads run four at a time, so per-chart cards fill in waves and Common Rivals (which needs every list) keeps its ring longest; the `loading` journey asserts this |
+
+Design note: `winui-design`'s layout review asks for loading that is "not just a spinner with no context". The card's visible section header and the ring's Narrator name supply that context, so the card body stays spinner-only, matching the web (agent decision, #265).
 
 ## Validation pass (issue #267, 2026-10)
 

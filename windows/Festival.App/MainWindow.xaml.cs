@@ -79,7 +79,12 @@ public sealed partial class MainWindow : Window
         AppWindow.Changed += OnAppWindowChanged;
         occlusion = new OcclusionTracker(WinRT.Interop.WindowNative.GetWindowHandle(this), DispatcherQueue);
         occlusion.Changed += (_, _) => UpdateBackdropPolicy();
-        Activated += (_, _) => occlusion?.Invalidate();
+        Activated += (_, e) =>
+        {
+            occlusion?.Invalidate();
+            // First-run demos rotate only while the app is in the foreground (issue #258).
+            Motion.UpdateForeground(e.WindowActivationState != WindowActivationState.Deactivated);
+        };
         Closed += (_, _) => { occlusion?.Dispose(); occlusion = null; };
         uiSettings.AdvancedEffectsEnabledChanged += (_, _) => DispatcherQueue.TryEnqueue(ApplyTransparency);
         if (ApiInformation.IsEventPresent("Windows.UI.ViewManagement.UISettings", "AnimationsEnabledChanged"))

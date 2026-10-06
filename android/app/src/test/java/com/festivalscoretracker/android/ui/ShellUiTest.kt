@@ -104,9 +104,9 @@ class ShellUiTest {
         launch()
         waitForTag("fst.songs.row.s-alpha")
         rule.onNodeWithTag("fst.songs.section-index").assertIsDisplayed()
-        // Phone: search lives in the bottom floating toolbar and opens a focused field (issue #84).
-        rule.onNodeWithTag("fst.songs.search.open").performClick()
+        // Phone: the list filter is pinned inline above the list, not in the floating toolbar (issue #309).
         waitForTag("fst.songs.search")
+        assertTrue(rule.onAllNodesWithTag("fst.songs.search.open").fetchSemanticsNodes().isEmpty())
         rule.onNodeWithTag("fst.songs.search").performTextInput("beta")
         rule.waitUntil(5_000) { settle(100); rule.onAllNodesWithTag("fst.songs.row.s-alpha").fetchSemanticsNodes().isEmpty() }
         rule.onNodeWithTag("fst.songs.row.s-beta").assertIsDisplayed()
@@ -117,8 +117,6 @@ class ShellUiTest {
         waitForTag("fst.songs.empty")
         rule.onNodeWithContentDescription("Clear search").performClick()
         settle(600)
-        rule.onNodeWithTag("fst.songs.search.close").performClick()
-        settle()
         rule.onNodeWithTag("fst.songs.sort.open").performClick()
         settle()
         rule.onNodeWithText("Sort Songs").assertIsDisplayed()

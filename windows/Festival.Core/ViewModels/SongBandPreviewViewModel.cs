@@ -47,14 +47,20 @@ public sealed partial class SongBandPreviewViewModel : ObservableObject
     /// <summary>Automation ID of the empty-state text.</summary>
     public string EmptyAutomationId => "fst.song-detail.band-empty." + TypeId;
 
+    /// <summary>Automation ID of the loading ring (its UIA name gains WinUI's "Busy" prefix while active).</summary>
+    public string LoadingAutomationId => "fst.song-detail.band-loading." + TypeId;
+
     /// <summary>Automation ID of the inline Retry button.</summary>
     public string RetryAutomationId => "fst.song-detail.band-retry." + TypeId;
 
     /// <summary>Automation ID of the full-leaderboard button.</summary>
     public string ViewAllAutomationId => "fst.song-detail.band-view-all." + TypeId;
 
-    /// <summary>Accessible name of the full-leaderboard button.</summary>
-    public string ViewAllName => $"View full {Title} leaderboard";
+    /// <summary>
+    /// Accessible name of the full-leaderboard button: the visible label first, then the band size (WCAG 2.5.3 label in
+    /// name, as the instrument cards): "View Full Leaderboard, Duos".
+    /// </summary>
+    public string ViewAllName => RankingViewAll.Name(LeaderboardPreviewViewModel.ViewAllText, Title);
 
     /// <summary>This song's full band leaderboard for the size.</summary>
     public AppRoute FullRoute => new AppRoute.SongBandLeaderboard(SongId, TypeId);
@@ -144,8 +150,11 @@ public sealed record SongBandPreviewRow(SongBandRow Band, string TypeId, int Ind
     /// <summary>UIA automation ID (<c>fst.song-detail.band-row.&lt;type&gt;.&lt;i&gt;</c> or <c>band-selected.&lt;type&gt;</c>, as Android).</summary>
     public string AutomationId => IsFooter ? "fst.song-detail.band-selected." + TypeId : $"fst.song-detail.band-row.{TypeId}.{Index}";
 
-    /// <summary>Screen-reader summary, prefixed "Your band, " for the selected player's band.</summary>
-    public string Announcement => (IsSelected ? "Your band, " : "") + Band.Announcement;
+    /// <summary>
+    /// Screen-reader summary in visual order (rank, members with their instruments, team score, FC, accuracy, stars),
+    /// prefixed "Your band, " for the selected player's band.
+    /// </summary>
+    public string Announcement => (IsSelected ? "Your band, " : "") + Band.PreviewAnnouncement;
 
     /// <summary>Band Detail route.</summary>
     public AppRoute Route => Band.Route;

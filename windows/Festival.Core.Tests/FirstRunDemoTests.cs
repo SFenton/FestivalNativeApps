@@ -50,6 +50,31 @@ public class FirstRunDemoTests
         Assert.Equal("placeholder", FirstRunDemos.PlaceholderStatus);
     }
 
+    [Theory]
+    [InlineData(false, true, true, false, true, FirstRunDemoRotationState.Static)]
+    [InlineData(false, false, false, true, false, FirstRunDemoRotationState.Static)]
+    [InlineData(true, true, true, false, true, FirstRunDemoRotationState.Running)]
+    [InlineData(true, false, true, false, true, FirstRunDemoRotationState.Inactive)]
+    [InlineData(true, true, false, false, true, FirstRunDemoRotationState.Inactive)]
+    [InlineData(true, true, true, true, true, FirstRunDemoRotationState.Hidden)]
+    [InlineData(true, false, true, true, true, FirstRunDemoRotationState.Hidden)]
+    [InlineData(true, true, true, true, false, FirstRunDemoRotationState.Hidden)]
+    [InlineData(true, true, true, false, false, FirstRunDemoRotationState.Background)]
+    [InlineData(true, false, true, false, false, FirstRunDemoRotationState.Background)]
+    public void RotationState_RunsOnlyForTheVisibleSlideInAVisibleForegroundWindow(bool rotates, bool active, bool loaded, bool hidden, bool foreground, FirstRunDemoRotationState expected) =>
+        Assert.Equal(expected, FirstRunDemoRotationStatus.State(rotates, active, loaded, hidden, foreground));
+
+    [Theory]
+    [InlineData(FirstRunDemoRotationState.Static, 3, true, "catalogue")]
+    [InlineData(FirstRunDemoRotationState.Running, 0, true, "catalogue rotation=running swaps=0 swap=none")]
+    [InlineData(FirstRunDemoRotationState.Running, 2, true, "catalogue rotation=running swaps=2 swap=fade")]
+    [InlineData(FirstRunDemoRotationState.Running, 4, false, "catalogue rotation=running swaps=4 swap=instant")]
+    [InlineData(FirstRunDemoRotationState.Inactive, 0, false, "catalogue rotation=inactive swaps=0 swap=none")]
+    [InlineData(FirstRunDemoRotationState.Hidden, 1, true, "catalogue rotation=not-visible swaps=1 swap=fade")]
+    [InlineData(FirstRunDemoRotationState.Background, 1, true, "catalogue rotation=background swaps=1 swap=fade")]
+    public void RotationStatus_AppendsTheRotationOnlyForRotatingDemos(FirstRunDemoRotationState state, int swaps, bool faded, string expected) =>
+        Assert.Equal(expected, FirstRunDemoRotationStatus.Format(FirstRunDemos.CatalogueStatus, state, swaps, faded));
+
     [Fact]
     public void SongPool_UsesCatalogueSongsWithArt_EpicGamesFirst_ElsePlaceholders()
     {

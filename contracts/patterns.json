@@ -47,8 +47,8 @@
           {
             "path": "apple/Sources/FestivalUI/Common/PlatformScrollObserver.swift",
             "symbol": "PlatformScrollObserver"
-        },
-        {
+          },
+          {
             "path": "apple/Sources/FestivalUI/Common/ScrollEdgeReader.swift",
             "symbol": "onScrollEdgeReading"
           },
@@ -312,7 +312,8 @@
         "sticky header",
         "pinned header",
         "card header",
-        "heading"
+        "heading",
+        "see all"
       ],
       "web": [
         {
@@ -322,6 +323,10 @@
         {
           "path": "pages/settings/SettingsPage.tsx",
           "symbol": "SettingsPage"
+        },
+        {
+          "path": "pages/player/components/PlayerBandsSection.tsx",
+          "symbol": "buildPlayerBandsItems"
         }
       ],
       "canonical": {
@@ -329,6 +334,10 @@
           {
             "path": "apple/Sources/FestivalUI/Design/SectionHeader.swift",
             "symbol": "FestivalSectionHeader"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/SectionHeader.swift",
+            "symbol": "SectionSeeAllLink"
           },
           {
             "path": "apple/Sources/FestivalUI/Design/GlassSection.swift",
@@ -343,6 +352,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt",
             "symbol": "SectionHeader"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/SeeAllButton.kt",
+            "symbol": "SeeAllButton"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsScreen.kt",
@@ -415,7 +428,8 @@
       "issues": [
         288,
         291,
-        297
+        297,
+        312
       ]
     },
     {
@@ -645,7 +659,8 @@
         84,
         92,
         160,
-        300
+        300,
+        309
       ]
     },
     {
@@ -697,6 +712,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
             "symbol": "FestivalAlertDialog"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/nav/HingeSide.kt",
+            "symbol": "HingeSide"
           }
         ],
         "windows": [
@@ -743,6 +762,18 @@
             "apple/Sources/FestivalUI/Design/**"
           ],
           "message": "Modal Close belongs to FestivalSheetCloseItem, not a hand-made toolbar control (modal-shell R4)."
+        },
+        {
+          "id": "android-hinge-side",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "fun\\s+(?:Modifier\\.)?\\w*[Hh]inge(?:Side|Insets|Area|Padding)\\w*\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/core/nav/**",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalSheet.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ServiceStatus.kt"
+          ],
+          "message": "Keep surfaces off a separating hinge through core/nav HingeSide; adapt its result, don't add another side rule (modal-shell R8)."
         }
       ],
       "related": {
@@ -771,7 +802,10 @@
         24,
         25,
         94,
-        96
+        96,
+        125,
+        139,
+        140
       ]
     },
     {
@@ -779,7 +813,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform, and one selected-row rule (jump off-page, open the profile on-page) for players and bands.",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform, one selected-row rule (jump off-page, open the profile on-page) for players and bands, and one measured section-wide score-footer stack plan that never truncates the score.",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -790,7 +824,12 @@
         "pager",
         "pinned player",
         "selected row",
-        "band footer"
+        "band footer",
+        "score footer",
+        "team score",
+        "badges wrap",
+        "large text",
+        "season column"
       ],
       "web": [
         {
@@ -808,6 +847,14 @@
         {
           "path": "components/common/MarqueeText.tsx",
           "symbol": "MarqueeText"
+        },
+        {
+          "path": "components/bands/SongBandScoreFooter.tsx",
+          "symbol": "SongBandScoreFooter"
+        },
+        {
+          "path": "components/bands/SongBandScoreFooter.tsx",
+          "symbol": "getSongBandScoreWidth"
         }
       ],
       "canonical": {
@@ -855,6 +902,14 @@
             "symbol": "ScoreRow"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/SongBandLeaderboardScreen.kt",
+            "symbol": "rememberBandRankWidth"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/SongBandLeaderboardScreen.kt",
+            "symbol": "bandBoardColumns"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt",
             "symbol": "SelectedScoreFooterRow"
           },
@@ -879,6 +934,18 @@
           {
             "path": "windows/Festival.App/Controls/LeaderboardsPager.xaml.cs",
             "symbol": "LeaderboardsPager"
+          },
+          {
+            "path": "windows/Festival.App/Controls/BandScoreFooterPanel.cs",
+            "symbol": "BandScoreFooterPanel"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/BandScoreFooterLayout.cs",
+            "symbol": "BandScoreFooterLayout"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/BandScoreFooterLayout.cs",
+            "symbol": "BandScoreFooterSection"
           }
         ]
       },
@@ -922,6 +989,17 @@
           ],
           "debt": [],
           "message": "Board pagination belongs to the shared pager (leaderboard-row R5)."
+        },
+        {
+          "id": "windows-score-footer-owner",
+          "glob": "windows/**/*.cs",
+          "regex": "class\\s+(?!\\w*Tests\\b)\\w*ScoreFooter\\w*",
+          "allow": [
+            "windows/Festival.App/Controls/BandScoreFooterPanel.cs",
+            "windows/Festival.Core/Domain/BandScoreFooterLayout.cs"
+          ],
+          "debt": [],
+          "message": "Score footers share one section-wide stack plan; extend BandScoreFooterPanel/BandScoreFooterSection instead (leaderboard-row R8)."
         }
       ],
       "related": {
@@ -944,6 +1022,7 @@
         37,
         38,
         90,
+        170,
         292,
         293,
         294,
@@ -955,7 +1034,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; graph card lists run the web out/height/in list sequence; entrances never replay while scrolling and reduced motion removes fades.",
+      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner; graph card lists run the web out/height/in list sequence and chart swaps keep the card's size; entrances never replay while scrolling and reduced motion removes fades.",
       "keywords": [
         "loading",
         "spinner",
@@ -1048,8 +1127,20 @@
             "symbol": "FadeIn"
           },
           {
+            "path": "windows/Festival.Core/Domain/MotionPolicy.cs",
+            "symbol": "StaggerArm"
+          },
+          {
             "path": "windows/Festival.Core/ViewModels/SongPathsViewModel.cs",
             "symbol": "PathSwapTiming"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/ScoreHistorySwap.cs",
+            "symbol": "ScoreHistorySwapper"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/SongScoreHistoryViewModel.cs",
+            "symbol": "ShowDetailSlot"
           }
         ]
       },
@@ -1137,6 +1228,7 @@
         60,
         70,
         71,
+        149,
         169
       ]
     },
@@ -1189,6 +1281,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ServiceStatus.kt",
             "symbol": "FestivalLoading"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ServiceStatus.kt",
+            "symbol": "ServiceStatusView"
           }
         ],
         "windows": [
@@ -1220,7 +1316,8 @@
       ],
       "related": {
         "patterns": [
-          "load-transition"
+          "load-transition",
+          "modal-shell"
         ],
         "controls": [
           "global-search",
@@ -1238,7 +1335,9 @@
         35,
         65,
         99,
-        299
+        140,
+        299,
+        312
       ]
     },
     {
@@ -1369,6 +1468,68 @@
         15,
         286,
         303
+      ]
+    },
+    {
+      "id": "chart-date-axis",
+      "title": "Chart date axis",
+      "status": "current",
+      "doc": ".agents/patterns/chart-date-axis.md",
+      "summary": "History bar charts centre each date label horizontally on its own bar on every page and text size, label only visible bars and keep tick text out of the accessibility tree.",
+      "keywords": [
+        "chart",
+        "x axis",
+        "date label",
+        "axis label",
+        "bar chart",
+        "score history",
+        "rank history"
+      ],
+      "web": [
+        {
+          "path": "pages/songinfo/components/chart/ScoreHistoryChart.tsx",
+          "symbol": "ScoreHistoryChart"
+        },
+        {
+          "path": "pages/leaderboards/components/RankHistoryChart.tsx",
+          "symbol": "RankHistoryChart"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Common/BarChartDateAxis.swift",
+            "symbol": "barChartDateAxis"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongHistoryCard.kt",
+            "symbol": "SongHistoryCard"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/RankHistoryGraph.cs",
+            "symbol": "RankHistoryGraph"
+          },
+          {
+            "path": "windows/Festival.App/Controls/SongScoreHistoryChart.xaml.cs",
+            "symbol": "SongScoreHistoryChart"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-x-axis",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\.chartXAxis\\s*\\{",
+          "allow": [
+            "apple/Sources/FestivalUI/Common/BarChartDateAxis.swift"
+          ],
+          "debt": [],
+          "message": "Apple chart date axes come from the shared barChartDateAxis, which centres each date on its bar (chart-date-axis R1, R4)."
+        }
       ]
     }
   ]

@@ -1,5 +1,6 @@
 import CoreGraphics
 import Testing
+@testable import FestivalCore
 @testable import FestivalUI
 
 /// The element an on-demand split or the flyout gives assistive-technology focus to
@@ -42,5 +43,21 @@ struct AccessibilityFocusMoveTests {
         #expect(AppRoute.player(accountId: "abc", displayName: "X").focusTraceName == "player:abc")
         #expect(AppRoute.rivalDetail(rivalId: "r1", name: nil, scope: nil).focusTraceName == "rivalDetail:r1")
         #expect(AppRoute.licenses.focusTraceName == "licenses")
+    }
+}
+
+/// Song Detail's eager card rows at accessibility sizes keep the lazy grid's columns.
+struct SongDetailCardColumnsTests {
+    @Test func columnsMatchTheAdaptiveGrid() {
+        #expect(SongDetailCardColumns.count(forWidth: 802) == 2)   // iPad portrait, 834 − 32
+        #expect(SongDetailCardColumns.count(forWidth: 343) == 1)   // ⅓ window / iPhone
+        #expect(SongDetailCardColumns.count(forWidth: 1178) == 3)  // iPad landscape
+        #expect(SongDetailCardColumns.count(forWidth: 0) == 1)
+    }
+
+    @Test func rowsKeepOrderAndCount() {
+        let rows = SongDetailCardColumns.rows([.lead, .bass, .drums], columns: 2)
+        #expect(rows == [[.lead, .bass], [.drums]])
+        #expect(SongDetailCardColumns.rows([], columns: 2).isEmpty)
     }
 }

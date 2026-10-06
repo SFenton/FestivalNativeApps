@@ -129,6 +129,73 @@ public static class FirstRunDemoTiming
 }
 #endregion
 
+#region Rotation status
+/// <summary>Whether a demo's data-swap clock runs (issue #58) and, if not, why.</summary>
+public enum FirstRunDemoRotationState
+{
+    /// <summary>The slide's web demo keeps its data still.</summary>
+    Static,
+
+    /// <summary>The visible slide in a visible window: swaps run.</summary>
+    Running,
+
+    /// <summary>A realized but unselected (or unloaded) slide: paused.</summary>
+    Inactive,
+
+    /// <summary>The window is minimized, covered, cloaked or otherwise hidden: paused.</summary>
+    Hidden,
+
+    /// <summary>The window is visible but not the foreground (activated) window, e.g. beside another app: paused.</summary>
+    Background,
+}
+
+/// <summary>
+/// The rotation gate and its UIA ItemStatus for UI tests (the demo is Raw, so Narrator never reads it).
+/// </summary>
+public static class FirstRunDemoRotationStatus
+{
+    /// <summary>The rotation state; only <see cref="FirstRunDemoRotationState.Running"/> runs the swap clock.</summary>
+    /// <param name="rotates">The slide is one of the twelve web-rotating demos.</param>
+    /// <param name="active">The slide is the carousel's selected one.</param>
+    /// <param name="loaded">The demo is in the live tree.</param>
+    /// <param name="hidden">The window can't be seen (<c>Motion.Paused</c>).</param>
+    /// <param name="foreground">The window is the activated foreground window (<c>Motion.Foreground</c>).</param>
+    /// <returns>State. Hidden wins over background (a minimized window is also deactivated), and both over unselected.</returns>
+    public static FirstRunDemoRotationState State(bool rotates, bool active, bool loaded, bool hidden, bool foreground) =>
+        !rotates ? FirstRunDemoRotationState.Static
+        : hidden ? FirstRunDemoRotationState.Hidden
+        : !foreground ? FirstRunDemoRotationState.Background
+        : active && loaded ? FirstRunDemoRotationState.Running
+        : FirstRunDemoRotationState.Inactive;
+
+    /// <summary>
+    /// UIA ItemStatus: a static demo reports only its data status (<see cref="FirstRunDemos.DataStatus"/>); a rotating
+    /// one appends <c>rotation=running|inactive|not-visible|background</c>, the swaps drawn since it was built and how the last swap
+    /// was drawn (<c>none</c>, <c>fade</c> or <c>instant</c> with animations off), e.g.
+    /// <c>catalogue rotation=running swaps=2 swap=fade</c> (space-separated: UI test steps split on semicolons).
+    /// <c>not-visible</c> matches the backdrop's hidden token.
+    /// </summary>
+    /// <param name="dataStatus">Data status.</param>
+    /// <param name="state">Rotation state.</param>
+    /// <param name="swaps">Rows or panels swapped since the demo was built (a tick with nothing to swap adds none).</param>
+    /// <param name="lastSwapFaded">Whether the last swap faded (ignored before the first swap).</param>
+    /// <returns>Status text.</returns>
+    public static string Format(string dataStatus, FirstRunDemoRotationState state, int swaps, bool lastSwapFaded)
+    {
+        if (state == FirstRunDemoRotationState.Static) return dataStatus;
+        var rotation = state switch
+        {
+            FirstRunDemoRotationState.Running => "running",
+            FirstRunDemoRotationState.Hidden => "not-visible",
+            FirstRunDemoRotationState.Background => "background",
+            _ => "inactive",
+        };
+        var swap = swaps == 0 ? "none" : lastSwapFaded ? "fade" : "instant";
+        return $"{dataStatus} rotation={rotation} swaps={swaps} swap={swap}";
+    }
+}
+#endregion
+
 #region Fit
 /// <summary>Fits a decorative demo into its fixed illustration frame (issue #241).</summary>
 public static class FirstRunDemoFit

@@ -231,10 +231,11 @@ fun SongLeaderboardScreen(
                 }
             },
             // The pinned score fades out with the page and staggers back in with its first row (issue #295);
-            // its slot and the pager stay in place while the next page loads (issue #93).
+            // its slot and the pager stay in place while the next page loads (issue #93), the stale row
+            // hidden, unread and untouchable under the spinner (issue #149).
             footer = {
                 footer?.let { entry ->
-                    AnchoredRowCard(with(swap) { Modifier.staggered(0) }) {
+                    AnchoredRowCard(with(swap) { Modifier.staggered(0) }.then(swap.pinnedContentModifier)) {
                         LeaderboardSectionMember(columns, "footer") {
                             SelectedScoreFooterRow(
                                 entry = entry,

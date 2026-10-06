@@ -26,6 +26,9 @@ enum IPadAuditWaivers {
         var page: IPadAuditPageEvidence.Evidence?
         /// ``containerIdentifiers`` whose frame contains the element's centre.
         var containers: Set<String> = []
+        /// The element is absent from `app.snapshot()` (what assistive technologies see):
+        /// hidden by a modal panel in front of it.
+        var outsideTree = false
 
         /// True when the audit named no element at all.
         var isUnattributed: Bool { identifier.isEmpty && label.isEmpty && elementType == nil }
@@ -89,6 +92,8 @@ enum IPadAuditWaivers {
         /// ellipsis whose full text the row's detail shows: HIG Typography "unless people
         /// can open a separate view for the rest"); that is recorded, not waived here.
         var requiresWholeText = false
+        /// Accept only an element absent from the accessibility snapshot.
+        var requiresOutsideTree = false
 
         /// True when the issue matches every condition.
         func matches(_ issue: Issue) -> Bool {
@@ -118,7 +123,7 @@ enum IPadAuditWaivers {
             let byIdentifier = identifiers.contains(issue.identifier)
                 || (!issue.identifier.isEmpty && identifierPrefixes.contains { issue.identifier.hasPrefix($0) })
             let byType = issue.elementType.map { elementTypes.contains($0) } ?? false
-            let measured = minimumRendered != nil || minimumGrowth != nil || requiresWholeText
+            let measured = minimumRendered != nil || minimumGrowth != nil || requiresWholeText || requiresOutsideTree
             let byProof = anyMeasuredElement && measured
                 && !(issue.elementType.map { excludedTypes.contains($0) } ?? false)
             guard byIdentifier || byType || byProof else { return false }
@@ -138,6 +143,9 @@ enum IPadAuditWaivers {
             if requiresWholeText {
                 guard issue.text?.wholeAtLargest == true else { return false }
             }
+            if requiresOutsideTree {
+                guard issue.outsideTree else { return false }
+            }
             return true
         }
     }
@@ -145,7 +153,10 @@ enum IPadAuditWaivers {
     // MARK: - Table
 
     /// App elements whose frames are checked as ``Waiver/containedIn`` scopes.
-    static let containerIdentifiers = ["fst.shell.notifications"]
+    static let containerIdentifiers = ["fst.shell.notifications", drawerContainer]
+
+    /// The open flyout or drawer panel (`fst.shell.drawer`, a modal container).
+    static let drawerContainer = "fst.shell.drawer"
 
     /// The ``Waiver/containedIn`` scope for the system keyboard (`app.keyboards`).
     static let keyboardContainer = "system-keyboard"
@@ -248,6 +259,16 @@ enum IPadAuditWaivers {
             id: "system-bar-title-size", kind: .systemControl, auditType: .dynamicType,
             reason: "partially unsupported", elementTypes: [.staticText], containedIn: navigationBarContainer,
             evidence: "Static text inside a top navigation bar (UIKit caps bar item text size; Large Content Viewer offered)"
+        ),
+        // (b) Page text under the open flyout/drawer panel: the audit enumerates it, but
+        // the panel is modal, so the element is not in the accessibility snapshot (what
+        // VoiceOver reaches; `IPadShellAccessibilityTests` asserts the page leaves it) and
+        // the panel covers it on screen (measured 1:1, no glyph pixels; Lane A11Y3).
+        Waiver(
+            id: "behind-modal-drawer", kind: .falsePositive, auditType: .contrast,
+            reason: "Contrast", containedIn: drawerContainer,
+            evidence: "Under the modal drawer panel and absent from the accessibility snapshot",
+            anyMeasuredElement: true, excludedTypes: systemFields, requiresOutsideTree: true
         ),
         // (c) The search field's own clear button (UIKit, 20.5 pt): the field itself is
         // the 44 pt target, and Clear is also reachable by selecting and deleting.

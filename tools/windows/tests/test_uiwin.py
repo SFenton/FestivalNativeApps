@@ -122,7 +122,19 @@ class StepTests(unittest.TestCase):
         plain = u.parse_step("assertstatus:name=Backdrop|no-art")
         self.assertEqual(plain["status"], "no-art")
         self.assertNotIn("timeout", plain)
+        # Issue #258: a `~` regex status passes through to FstUia unchanged.
+        regex = u.parse_step(r"assertstatus:id=fst.first-run.demo.songs-song-list|~^catalogue rotation=running swaps=[1-9]\d* swap=fade$@15")
+        self.assertEqual(regex["status"], r"~^catalogue rotation=running swaps=[1-9]\d* swap=fade$")
+        self.assertEqual(regex["timeout"], 15.0)
         for bad in ("assertstatus:id=x", "assertstatus:id=x|", "assertstatus:@1,2|on"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_foreground(self):
+        # Issue #258: deactivate the app without covering it, then reactivate it.
+        self.assertEqual(u.parse_step("foreground:off"), {"verb": "foreground", "arg": "off"})
+        self.assertEqual(u.parse_step("foreground: ON")["arg"], "on")
+        for bad in ("foreground:", "foreground:maybe", "foreground:id=x"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
@@ -137,6 +149,32 @@ class StepTests(unittest.TestCase):
                     "assertgap:id=a|id=b|-4"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
+
+    def test_span(self):
+        step = u.parse_step("markspan:id=fst.history.instrument.group|id=fst.history.sort.open|card")
+        self.assertEqual(step["verb"], "markspan")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.history.instrument.group"})
+        self.assertEqual(step["other"], {"kind": "id", "value": "fst.history.sort.open"})
+        self.assertEqual(step["name"], "card")
+        self.assertEqual(u.parse_step("assertspan:name=A|name=B|card-2")["name"], "card-2")
+        for bad in ("assertspan:id=a|id=b", "assertspan:id=a|id=b|", "markspan:id=a|card", "assertspan:1,2|id=b|c",
+                    "markspan:id=a|id=b|bad name"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_film(self):
+        start, stop = u.parse_step("film:out/fade"), u.parse_step("filmstop:out/fade")
+        self.assertEqual((start["verb"], stop["verb"]), ("film", "filmstop"))
+        self.assertEqual(start["arg"], stop["arg"])
+        self.assertTrue(Path(start["arg"]).is_absolute())
+        with self.assertRaises(ValueError):
+            u.parse_step("filmstop:")
+
+    def test_keys_sequence(self):
+        step = u.parse_step("keys:left space shift+tab")
+        self.assertEqual(step["seq"], [[0x25], [0x20], [0x10, 0x09]])
+        with self.assertRaises(ValueError):
+            u.parse_step("keys:left nosuchkey")
 
     def test_pin_and_assertpinned(self):
         pin = u.parse_step("pin:id=fst.songs.sort@5")

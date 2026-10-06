@@ -34,6 +34,32 @@ public sealed class MotionPolicyTests
         Assert.Null(FadeInTiming.StaggerDelay(index, max));
 
     [Theory]
+    [InlineData(0, 0, 3, 125.0)]
+    [InlineData(2, 0, 3, 375.0)]
+    [InlineData(10, 10, 3, 125.0)]
+    [InlineData(12, 10, 3, 375.0)]
+    [InlineData(1, -5, 3, 250.0)]
+    public void BatchDelay_StaggersANewBatchFromItsFirstRow(int index, int start, int max, double expectedMs) =>
+        Assert.Equal(expectedMs, FadeInTiming.BatchDelay(index, start, max)!.Value.TotalMilliseconds);
+
+    [Theory]
+    [InlineData(9, 10, 3)]
+    [InlineData(0, 10, 3)]
+    [InlineData(13, 10, 3)]
+    [InlineData(3, 0, 3)]
+    public void BatchDelay_AlreadyRevealedAndOffscreenRowsDoNotAnimate(int index, int start, int max) =>
+        Assert.Null(FadeInTiming.BatchDelay(index, start, max));
+
+    [Theory]
+    [InlineData(10, 16, 200, 10)]
+    [InlineData(0, 16, 999, 0)]
+    [InlineData(10, 16, 1000, 16)]
+    [InlineData(10, 16, -1, 16)]
+    [InlineData(16, 0, 200, 0)]
+    public void MergeBatchStart_KeepsTheEarliestUnrevealedRowWithinTheWindow(int current, int next, int sinceMs, int expected) =>
+        Assert.Equal(expected, FadeInTiming.MergeBatchStart(current, next, TimeSpan.FromMilliseconds(sinceMs)));
+
+    [Theory]
     [InlineData(800, 64, 14)]
     [InlineData(64, 64, 2)]
     [InlineData(5000, 64, 20)]

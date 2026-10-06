@@ -222,8 +222,10 @@ enum IPadAuditPageEvidence {
         let window = app.windows.firstMatch.frame
         var bottom = window.maxY
         // Only bars on screen: a sheet covering the tab bar leaves it in the tree but not hittable.
+        // An open drawer covers the bottom bars (they stay in the tree, behind it).
+        let drawerOpen = app.descendants(matching: .any)[IPadAuditWaivers.drawerContainer].exists
         for element in [app.tabBars.firstMatch, app.descendants(matching: .any)["fst.page-tools"]]
-            where element.exists && element.isHittable {
+            where !drawerOpen && element.exists && element.isHittable {
             let frame = element.frame
             if frame.minY > window.midY { bottom = min(bottom, frame.minY) }
         }
@@ -233,10 +235,18 @@ enum IPadAuditPageEvidence {
             let isBar = node.elementType == .navigationBar && node.frame.maxY < window.midY && node.frame.height > 0
             if isBar { area.topBars.append(node.frame) }
             if inBar || isBar { area.barElements.insert(NSCoder.string(for: node.frame)) }
-            if node.identifier.hasSuffix(".pager"), node.frame.minY > window.midY { area.pagers.append(node.frame) }
+            let isPager = node.identifier.hasSuffix(".pager") || node.identifier.contains(".page-")
+            if isPager, node.frame.minY > window.midY, node.frame.height > 0 { area.pagers.append(node.frame) }
             node.children.forEach { walk($0, inBar: inBar || isBar) }
         }
         walk(root, inBar: false)
+        // A pager's fade spans its whole pane (the pane's top bar), not just its buttons:
+        // Song Leaderboard's row 11 under the "1 / 2" pager read 1:1–3.7:1.
+        area.pagers = area.pagers.map { pager in
+            let pane = area.topBars.first { $0.minX <= pager.midX && pager.midX <= $0.maxX }
+                ?? CGRect(x: window.minX, y: 0, width: window.width, height: 0)
+            return CGRect(x: pane.minX, y: pager.minY, width: pane.width, height: pager.height)
+        }
         return area
     }
 
