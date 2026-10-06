@@ -255,17 +255,14 @@ public sealed partial class NotificationRowViewModel : ObservableObject
     /// <summary>Title.</summary>
     public string Title => Presentation.Title;
 
-    /// <summary>Sentence.</summary>
+    /// <summary>Message (statement-style clauses separated by a blank line).</summary>
     public string Message => Presentation.Message;
 
-    /// <summary>Flag label (empty for shop songs).</summary>
-    public string Flag => Presentation.Flag ?? "";
+    /// <summary>Whether any flag chip is shown (none for shop songs).</summary>
+    public bool HasFlags => Presentation.HasFlags;
 
-    /// <summary>Whether a flag is shown.</summary>
-    public bool HasFlag => Presentation.Flag is not null;
-
-    /// <summary>Flag pill background as <c>0xAARRGGBB</c> (web <c>FLAG_COLORS</c>).</summary>
-    public uint FlagArgb => (Presentation.FlagKind ?? NotificationFlagKind.Improvement).Argb();
+    /// <summary>The chips as spoken text (per-chart groups on multi-chart rows), "" for none.</summary>
+    public string FlagsText => Presentation.FlagsText;
 
     /// <summary>Message runs (bold values as on the web).</summary>
     public IReadOnlyList<NotificationMessagePart> MessageParts => Presentation.Parts;
@@ -322,10 +319,11 @@ public sealed partial class NotificationRowViewModel : ObservableObject
         : "";
 
     /// <summary>
-    /// Narrator name: unread state, title, message, the affected charts of a multi-chart row, flag and time (the art and
-    /// icons are decorative, and the time is spoken but not drawn, like Android and iOS).
+    /// Narrator name: unread state, title, message (paragraph breaks read as spaces), the affected charts of a multi-chart
+    /// row, the flags (grouped per chart like the web group <c>aria-label</c>s) and time (the art and icons are decorative,
+    /// and the time is spoken but not drawn, like Android and iOS).
     /// </summary>
-    public string AccessibleName => (IsUnread ? "Unread. " : "") + $"{Title}. {Message} " + AffectedInstrumentsText
-        + (HasFlag ? $"{Flag}. " : "") + TimeText;
+    public string AccessibleName => (IsUnread ? "Unread. " : "") + $"{Title}. {Message.Replace("\n\n", " ", StringComparison.Ordinal)} "
+        + AffectedInstrumentsText + (HasFlags ? $"{FlagsText}. " : "") + TimeText;
 }
 #endregion

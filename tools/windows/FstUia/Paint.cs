@@ -208,9 +208,11 @@ internal sealed partial class Driver
 
     /// <summary>
     /// The trimmed runs of text whose font weight is 700 (bold). A WinUI TextBlock's TextPattern has no <c>Format</c>
-    /// unit and no <c>FindAttribute</c>, and the character range at index <c>i</c> reports the combined weight of
-    /// characters <c>i-1</c> and <c>i</c> (mixed at a run boundary), so weights are decoded left to right: a uniform
-    /// value is the character's weight and a mixed value flips the previous character's weight.
+    /// unit and no <c>FindAttribute</c>, and the range after <c>i</c> character units reports the combined weight of
+    /// units <c>i-1</c> and <c>i</c> (mixed at a run boundary), so weights are decoded left to right: a uniform value
+    /// is the unit's weight and a mixed value flips the previous unit's weight. A <c>LineBreak</c> is one character
+    /// unit but two characters of text (<c>\r\n</c>), so each unit is placed at the text length of the range before it
+    /// rather than at its unit index; skipped characters (the break's second half) are never bold.
     /// </summary>
     /// <param name="element">Element offering the Text pattern.</param>
     /// <returns>Bold runs in document order, trimmed, empty runs dropped.</returns>
@@ -220,12 +222,19 @@ internal sealed partial class Driver
         var document = element.Patterns.Text.Pattern.DocumentRange;
         var text = document.GetText(-1);
         var bold = new bool[text.Length];
-        for (var i = 0; i < text.Length; i++)
+        bool? previous = null;
+        for (var unit = 0; unit < text.Length; unit++)
         {
             var character = document.Clone();
             character.MoveEndpointByRange(TextPatternRangeEndpoint.End, character, TextPatternRangeEndpoint.Start);
-            character.Move(TextUnit.Character, i);
-            bold[i] = DecodeWeight(character.GetAttributeValue(weight), i == 0 ? null : bold[i - 1]);
+            if (unit > 0 && character.Move(TextUnit.Character, unit) < unit) break;
+            var prefix = document.Clone();
+            prefix.MoveEndpointByRange(TextPatternRangeEndpoint.End, character, TextPatternRangeEndpoint.Start);
+            var index = unit == 0 ? 0 : prefix.GetText(-1).Length;
+            if (index >= text.Length) break;
+            var on = DecodeWeight(character.GetAttributeValue(weight), previous);
+            previous = on;
+            bold[index] = on;
         }
         return Runs(text, bold);
     }

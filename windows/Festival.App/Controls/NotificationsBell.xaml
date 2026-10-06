@@ -9,10 +9,12 @@
              below): web surfaceSubtle fill, 1 epx borderSubtle stroke, 10 epx radius and padding, 8 epx apart, so hover, press
              and the focus rectangle follow the card. Inside: a 64 epx media rail (54 epx song art; 44 epx art above a
              two-column grid of 18 epx instrument icons when the row touches several charts; else a 36 epx instrument icon), a
-             one-line marquee title, the white sentence with the web's bold values and the colour-coded flag pill (no visible
-             time, like the web), then a 20 epx trailing column with the centred chevron and the 9 epx gold unread dot 24 epx
-             above its centre. Media, dot and chevron are decorative (Raw); the ListViewItem carries the name and AutomationId
-             (OnContainerContentChanging), so Narrator reads one item instead of an item plus a nested group. -->
+             one-line marquee title, the white message with the web's bold values (statement-style clauses on their own
+             paragraphs) and the colour-coded flag pills (one wrapping line, or one line per chart behind a 20 epx icon on
+             multi-chart rows; no visible time, like the web), then a 20 epx trailing column with the centred chevron and
+             the 9 epx gold unread dot 24 epx above its centre. Media, dot and chevron are decorative (Raw); the ListViewItem
+             carries the name and AutomationId (OnContainerContentChanging), so Narrator reads one item instead of an item
+             plus a nested group. -->
         <DataTemplate x:Key="RowTemplate" x:DataType="vm:NotificationRowViewModel">
             <Border Margin="4,2" BorderBrush="{ThemeResource FSTNotificationRowStrokeBrush}" BorderThickness="1" CornerRadius="10" Padding="10">
                 <Grid ColumnSpacing="8">
@@ -34,11 +36,7 @@
                     <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                         <controls:MarqueeText Text="{x:Bind Title}" TextStyle="{StaticResource FSTMarqueeTitleStyle}" AutomationProperties.AccessibilityView="Raw" />
                         <TextBlock controls:NotificationRowVisuals.Parts="{x:Bind MessageParts}" TextWrapping="Wrap" />
-                        <Border Background="{x:Bind controls:NotificationRowVisuals.FlagBrush(FlagArgb)}" BorderBrush="{ThemeResource FSTNotificationFlagStrokeBrush}" BorderThickness="2"
-                                CornerRadius="8" Padding="4,2" HorizontalAlignment="Left" Visibility="{x:Bind HasFlag}">
-                            <TextBlock Text="{x:Bind Flag}" Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold"
-                                       Foreground="{ThemeResource FSTNotificationFlagTextBrush}" />
-                        </Border>
+                        <StackPanel controls:NotificationRowVisuals.Flags="{x:Bind Presentation}" Visibility="{x:Bind HasFlags}" />
                     </StackPanel>
                     <Grid Grid.Column="2" Width="20" Margin="2,0,0,0" AutomationProperties.AccessibilityView="Raw"
                           Visibility="{x:Bind HasTrailing, Mode=OneWay}">

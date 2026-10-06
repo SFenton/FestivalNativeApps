@@ -10,9 +10,10 @@ account itself and lets a journey change the feed between phases through a loopb
 * ``rich`` (default): five rows covering every Windows row shape and destination: a song rank climb (Song Detail on
   Lead), a Full Combo (Song Detail on Bass), an FC-rate rank climb (Leaderboards ranked by FC Rate), an aggregate
   total-score improvement (no destination) and an Item Shop song (art from the catalogue, no flag).
-* ``media`` (issue #272): six song rows covering the media rail and flag chips: a multi-chart personal best (art
-  above a three-instrument grid, "Affected instruments" in its name) and one row per remaining flag kind (First Play,
-  Stars Up, Gold Stars, Difficulty Up, New High Score).
+* ``media`` (issue #272): six song rows covering the media rail and flag chips: a multi-chart row with five
+  ``coalescedEvents`` (art above a three-instrument grid, one clause per chart, flag chips grouped by instrument,
+  "Affected instruments" in its name), one row per remaining flag kind (First Play, Stars Up, Gold Stars, Difficulty
+  Up) and a single-chart personal best whose payload Full Combo adds a derived second chip (New High Score, Full Combo).
 * ``mock``: the unchanged mock feed.
 * ``empty``: a generated feed with no rows (``notifications.empty.generatedBody``).
 * ``not-generated``: no detection run yet (``notifications.empty.notGeneratedBody``).
@@ -112,7 +113,17 @@ def media_feed(account_id: str) -> dict:
         "items": [
             row(11, "fixture-notif-grid", "player_score_pb", 7, songId="fixture-pulse", instrument="Solo_Guitar",
                 oldNumeric=180000, newNumeric=201234,
-                payload={"coalescedInstruments": ["Solo_Guitar", "Solo_Bass", "Solo_Drums"]}),
+                payload={"coalescedInstruments": ["Solo_Guitar", "Solo_Bass", "Solo_Drums"], "coalescedEvents": [
+                    {"eventKind": "player_score_pb", "instrument": "Solo_Guitar", "oldNumeric": 180000,
+                     "newNumeric": 201234},
+                    {"eventKind": "player_song_rank_improved", "instrument": "Solo_Guitar", "oldRank": 180,
+                     "newRank": 160},
+                    {"eventKind": "player_fc_achieved", "instrument": "Solo_Bass"},
+                    {"eventKind": "player_gold_stars_achieved", "instrument": "Solo_Bass", "oldNumeric": 5,
+                     "newNumeric": 6},
+                    {"eventKind": "player_first_score", "instrument": "Solo_Drums", "newNumeric": 154321,
+                     "newRank": 6},
+                ]}),
             row(12, "fixture-notif-first", "player_first_score", 6, songId="fixture-orbit", instrument="Solo_Bass",
                 newNumeric=154321),
             row(13, "fixture-notif-stars", "player_stars_improved", 5, songId="fixture-pulse", instrument="Solo_Drums",
@@ -122,7 +133,7 @@ def media_feed(account_id: str) -> dict:
             row(15, "fixture-notif-difficulty", "player_difficulty_bumped", 3, songId="fixture-pulse",
                 instrument="Solo_Guitar", oldNumeric=2, newNumeric=3),
             row(16, "fixture-notif-pb", "player_score_pb", 2, songId="fixture-orbit", instrument="Solo_Drums",
-                oldNumeric=99000, newNumeric=123456),
+                oldNumeric=99000, newNumeric=123456, payload={"newFullCombo": True}),
         ],
     }
 

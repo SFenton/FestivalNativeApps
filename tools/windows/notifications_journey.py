@@ -48,27 +48,29 @@ RICH_ROWS = ("rank", "fc", "fcrate", "total", "shop")
 # Rows of the media feed (issue #272), newest first, and their Narrator names after "Unread. ".
 MEDIA_ROWS = ("grid", "first", "stars", "gold", "difficulty", "pb")
 MEDIA_NAMES = {
-    "grid": "Fixture Pulse · Lead. You set a new personal best on Lead for Fixture Pulse with 201,234 points. "
-            "Affected instruments: Lead, Bass, Drums. New High Score. Jan 7",
+    "grid": "Fixture Pulse. For Lead, your play set a new personal best with 201,234 points and climbed from #180 to "
+            "#160. For Bass, got a Full Combo and earned gold stars. For Drums, your first play scored 154,321 points "
+            "and started at #6. Affected instruments: Lead, Bass, Drums. Lead: New High Score, Rank Up. Bass: Full "
+            "Combo, Gold Stars. Drums: First Play. Jan 7",
     "first": "Fixture Orbit · Bass. Your first Bass play on Fixture Orbit scored 154,321 points and started at your "
              "new rank. First Play. Jan 6",
     "stars": "Fixture Pulse · Drums. You improved from 4 to 5 stars on Drums for Fixture Pulse. Stars Up. Jan 5",
     "gold": "Fixture Orbit · Tap Vocals. You earned gold stars on Tap Vocals for Fixture Orbit. Gold Stars. Jan 4",
     "difficulty": "Fixture Pulse · Lead. You improved your difficulty on Lead for Fixture Pulse from 2 to 3. "
                   "Difficulty Up. Jan 3",
-    "pb": "Fixture Orbit · Drums. You set a new personal best on Drums for Fixture Orbit with 123,456 points. "
-          "New High Score. Jan 2",
+    "pb": "Fixture Orbit · Drums. You set a new personal best on Drums for Fixture Orbit with 123,456 points and got "
+          "a Full Combo. New High Score, Full Combo. Jan 2",
 }
 # Each media row's bold message runs (web emphasizeText) and flag pill colour (web FLAG_STYLES via NotificationFlagKind).
 MEDIA_BOLD = {
-    "grid": ("Lead", "Fixture Pulse", "201,234"),
+    "grid": ("Lead", "201,234", "#180", "#160", "Bass", "Full Combo", "gold stars", "Drums", "154,321", "#6"),
     "first": ("Bass", "Fixture Orbit", "154,321"),
     "stars": ("4 to 5 stars", "Drums", "Fixture Pulse"),
     "gold": ("gold stars", "Tap Vocals", "Fixture Orbit"),
     "difficulty": ("Lead", "Fixture Pulse", "2", "3"),
-    "pb": ("Drums", "Fixture Orbit", "123,456"),
+    "pb": ("Drums", "Fixture Orbit", "123,456", "Full Combo"),
 }
-MEDIA_FLAGS = {"grid": "#0F766E", "first": "#6D28D9", "stars": "#BE123C", "gold": "#92400E", "difficulty": "#047857",
+MEDIA_FLAGS = {"grid": "#6D28D9", "first": "#6D28D9", "stars": "#BE123C", "gold": "#92400E", "difficulty": "#047857",
                "pb": "#0F766E"}
 # Row card paint in the default (dark) theme: FSTNotificationRowSurfaceBrush / RowStrokeBrush / UnreadDotBrush.
 CARD_FILL, CARD_STROKE, UNREAD_DOT = "#162133", "#1E2A3A", "#FACC15"
@@ -93,10 +95,12 @@ def media_paint(row: str) -> list[str]:
         probes += ["L1,M0!=@fill~4", f"L4,M-10,L5,M10={CARD_STROKE}~4", f"C-20,B2.5,C20,B4={CARD_STROKE}~4",
                    "C-20,B1,C20,B-3!=@fill~4", f"C-20,B1,C20,B-3!={CARD_STROKE}~4"]
     if row == "grid":
-        probes += ["L40,M-20,L54,M-5!=@fill~6", "L30,M15,L64,M33=#FFFFFF~40"]
+        # Flag chips group per chart (web flag groups): the bottom line is the Drums icon, then its First Play pill.
+        probes += ["L40,M-20,L54,M-5!=@fill~6", "L30,M15,L64,M33=#FFFFFF~40", "L100,B18=#FFFFFF~40",
+                   f"L122,B18={MEDIA_FLAGS[row]}~8"]
     else:
-        probes += ["L40,M-6,L54,M6!=@fill~6", "L30,M28,L64,M33!=#FFFFFF~40"]
-    probes += [f"L100,B18={MEDIA_FLAGS[row]}~8", f"R23,M-26,R27,M-22={UNREAD_DOT}~40", f"R25,M0!={UNREAD_DOT}~40"]
+        probes += ["L40,M-6,L54,M6!=@fill~6", "L30,M28,L64,M33!=#FFFFFF~40", f"L100,B18={MEDIA_FLAGS[row]}~8"]
+    probes += [f"R23,M-26,R27,M-22={UNREAD_DOT}~40", f"R25,M0!={UNREAD_DOT}~40"]
     return [f"assertpaint:{ROW}fixture-notif-{row}|" + "|".join(probes),
             f"assertbold:{ROW}fixture-notif-{row}|" + "|".join(MEDIA_BOLD[row])]
 
@@ -276,13 +280,15 @@ SCENARIOS: dict[str, tuple[dict[str, str], str, list[str], set[str] | None]] = {
             *[f"waitfor:{ROW}fixture-notif-{row}@10" for row in MEDIA_ROWS[:3]],
             "assertstate:" + BELL + f"|name=Notifications, {len(MEDIA_ROWS)} unread@5",
             *[f"assertstate:{ROW}fixture-notif-{row}|name=Unread. {MEDIA_NAMES[row]}" for row in MEDIA_ROWS[:3]],
-            *[step for row in MEDIA_ROWS[:3] for step in media_paint(row)],
+            # The grid row's per-chart clauses and flag groups make it tall, so only the first two cards are whole on
+            # the opening screen; the rest are painted once the list is scrolled to its end.
+            *[step for row in MEDIA_ROWS[:2] for step in media_paint(row)],
             "{shot:notifications-media}",
             f"scrollinto:{ROW}fixture-notif-{MEDIA_ROWS[-1]}",
             *[f"waitfor:{ROW}fixture-notif-{row}@5" for row in MEDIA_ROWS[3:]],
             *[f"assertstate:{ROW}fixture-notif-{row}|name=Unread. {MEDIA_NAMES[row]}" for row in MEDIA_ROWS[3:]],
             "wait:0.5",
-            *[step for row in MEDIA_ROWS[3:] for step in media_paint(row)],
+            *[step for row in MEDIA_ROWS[2:] for step in media_paint(row)],
             "{shot:notifications-media-end}",
         ],
         None,

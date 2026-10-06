@@ -97,6 +97,13 @@ class FeedShapeTests(unittest.TestCase):
                          {"player_score_pb", "player_first_score", "player_stars_improved",
                           "player_gold_stars_achieved", "player_difficulty_bumped"})
         self.assertIn("Affected instruments: Lead, Bass, Drums.", j.MEDIA_NAMES["grid"])
+        # The multi-chart row carries populated coalescedEvents on three charts (web per-chart clauses and flag groups).
+        events = feed["items"][0]["payload"]["coalescedEvents"]
+        self.assertGreaterEqual(len(events), 2)
+        self.assertEqual({e["instrument"] for e in events}, set(feed["items"][0]["payload"]["coalescedInstruments"]))
+        self.assertIn("Lead: New High Score, Rank Up. Bass: Full Combo, Gold Stars. Drums: First Play.", j.MEDIA_NAMES["grid"])
+        self.assertTrue(feed["items"][-1]["payload"]["newFullCombo"])
+        self.assertIn("New High Score, Full Combo.", j.MEDIA_NAMES["pb"])
         state = f.FeedState()
         state.update({"feed": ["media"]})
         self.assertEqual(state.route(READ), ("media", "fixture-player-1"))
@@ -131,11 +138,13 @@ class NotificationsJourneyPhaseTests(unittest.TestCase):
         for row in j.MEDIA_ROWS:
             paint = next(s for s in steps if s.startswith(f"assertpaint:{j.ROW}fixture-notif-{row}|"))
             bold = next(s for s in steps if s.startswith(f"assertbold:{j.ROW}fixture-notif-{row}|"))
-            self.assertIn(f"L100,B18={j.MEDIA_FLAGS[row]}~8", paint)
+            self.assertIn(f",B18={j.MEDIA_FLAGS[row]}~8", paint)
             self.assertIn(j.UNREAD_DOT, paint)
             self.assertTrue(bold.endswith("|".join(j.MEDIA_BOLD[row])))
         grid, first = j.media_paint("grid")[0], j.media_paint("first")[0]
         self.assertIn("=#FFFFFF~40", grid)
+        self.assertIn(f"L122,B18={j.MEDIA_FLAGS['grid']}~8", grid)
+        self.assertIn("L100,B18=#FFFFFF~40", grid)
         self.assertIn("!=#FFFFFF~40", first)
         self.assertNotIn(j.CARD_STROKE, grid)
         self.assertIn(j.CARD_STROKE, first)
