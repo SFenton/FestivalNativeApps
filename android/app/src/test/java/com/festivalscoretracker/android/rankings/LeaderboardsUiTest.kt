@@ -71,6 +71,8 @@ abstract class LeaderboardsHarness {
     /** Holds a matching request until the returned deferred completes (null = answer at once). */
     protected var hold: (HttpRequest) -> CompletableDeferred<Unit>? = { null }
 
+    protected lateinit var container: AppContainer
+
     protected fun launch(route: String, profile: SelectedPlayer? = null) {
         val debug = DebugLaunch(route = DebugLaunch.parseRoute(route), profile = profile, stillBackground = true)
         val gated = object : HttpTransport {
@@ -79,7 +81,7 @@ abstract class LeaderboardsHarness {
                 return transport.send(request)
             }
         }
-        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = gated, settingsStore = store)
+        container = AppContainer(rule.activity, OkHttpClient(), debug, transport = gated, settingsStore = store)
         rule.setContent { FestivalApp(container, debug) }
         settle()
     }
@@ -555,6 +557,18 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         waitForDescription("Page 1 of 3")
         assertFalse(isClickable("fst.song-leaderboard.instrument"))
         assertEquals(null, node("fst.song-leaderboard.instrument").fetchSemanticsNode().config.getOrNull(SemanticsProperties.Role))
+    }
+
+    @Test
+    fun songLeaderboardShowsTheSongsStaticCover() {
+        // Issue #317: the solo board pushes its own static cover (Song Detail's push is popped
+        // when the destination changes), like the band board. The class default strips the art.
+        transport.on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson }
+        launch("songLeaderboard:s-alpha:Solo_Guitar")
+        waitForTag("fst.song-leaderboard.instrument")
+        val cover = container.api.artworkUrl("alpha-512.jpg")
+        assertTrue(cover != null)
+        rule.waitUntil(5_000) { settle(100); container.background.focus.value == cover }
     }
 
     @Test
