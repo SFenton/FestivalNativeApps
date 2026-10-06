@@ -167,12 +167,12 @@ struct PlayerBandsPreviewSection: View {
                 alignment: .leading, spacing: 6
             ) {
                 ForEach(entries) { entry in
-                    PlayerBandRow(entry: entry, card: true)
+                    PlayerBandRow(entry: entry)
                 }
             }
         } else {
             ForEach(entries) { entry in
-                PlayerBandRow(entry: entry, card: true)
+                PlayerBandRow(entry: entry)
             }
         }
     }

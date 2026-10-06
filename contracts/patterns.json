@@ -168,7 +168,8 @@
         298,
         301,
         305,
-        308
+        308,
+        319
       ]
     },
     {
@@ -520,6 +521,14 @@
           ],
           "debt": [],
           "message": "Raw standard-material backgrounds belong in Design or an approved exception (surface-materials R3)."
+        },
+        {
+          "id": "apple-feature-opaque-card",
+          "glob": "apple/Sources/FestivalUI/Features/**/*.swift",
+          "regex": "\\.background\\(\\s*BrandTokens\\.cardBackground\\s*,\\s*in:",
+          "allow": [],
+          "debt": [],
+          "message": "An opaque cardBackground plate is FestivalCardModifier's accessibility fallback, not a feature surface; draw cards, rows and custom floating controls with festivalCard / festivalCardCapsule (surface-materials R1, #319)."
         }
       ],
       "related": {
@@ -555,7 +564,8 @@
         "floating toolbar",
         "global search",
         "quick links",
-        "profile"
+        "profile",
+        "hit target"
       ],
       "web": [
         {
@@ -1065,7 +1075,8 @@
         293,
         294,
         295,
-        318
+        318,
+        319
       ]
     },
     {
@@ -1872,6 +1883,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/ViewFullLeaderboardButton.kt",
             "symbol": "ViewFullLeaderboardButton"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/ViewFullLeaderboardButton.kt",
+            "symbol": "viewAllSpokenName"
           }
         ],
         "windows": [
