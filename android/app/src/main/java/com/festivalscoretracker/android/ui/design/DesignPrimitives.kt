@@ -46,8 +46,14 @@ import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
  *
  * @param modifier Modifier.
  * @param shape Card shape.
+ * Floating controls over rows (the boards' pager, issue #319) use it too, so they share
+ * the rows' fill, translucency, border and contrast fallback.
+ *
+ * @param modifier Modifier.
+ * @param shape Card shape.
  * @param onClick Optional tap action; the whole card becomes the target.
  * @param accent Optional 2 dp accent border (e.g. Shop New/Leaving highlights).
+ * @param enabled Whether [onClick] can be pressed (the surface stays the same; dim the content).
  * @param content Card content.
  */
 @Composable
@@ -56,6 +62,7 @@ fun GlassCard(
     shape: Shape = RoundedCornerShape(12.dp),
     onClick: (() -> Unit)? = null,
     accent: Color? = null,
+    enabled: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val accessibility = LocalFestivalAccessibility.current
@@ -67,7 +74,7 @@ fun GlassCard(
         else -> BorderStroke(1.dp, BrandTokens.glassBorder)
     }
     if (onClick != null) {
-        Surface(onClick = onClick, modifier = modifier.readingGroup(), shape = shape, color = color, border = border) {
+        Surface(onClick = onClick, modifier = modifier.readingGroup(), enabled = enabled, shape = shape, color = color, border = border) {
             Column(content = content)
         }
     } else {

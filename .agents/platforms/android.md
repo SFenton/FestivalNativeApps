@@ -87,7 +87,7 @@ From Git Bash, pass Windows paths (`C:/…`) inside `--steps`: MSYS converts onl
 
 Compose `testTag`s appear as resource ids only when the app sets `testTagsAsResourceId`. Under TalkBack, `input tap` explores rather than activates.
 
-`rotate:` writes `user_rotation`, which did not rotate FST_Phone in issue #111 (2026-10-03). Use `shell:wm user-rotation lock 1` for landscape and `shell:wm user-rotation lock 0` to restore portrait.
+`rotate:` writes `user_rotation`, which did not rotate FST_Phone in issue #111 (2026-10-03). Use `shell:wm user-rotation lock 1` for landscape and `shell:wm user-rotation lock 0` to restore portrait. After that rotation, named `swipe:up|down` still uses portrait coordinates: on FST_Phone it starts at y = 1800, off the 1080 px landscape screen, and nothing scrolls (issue #176). Use explicit `swipe:x1,y1,x2,y2,ms` in landscape, e.g. `swipe:1000,660,1000,380,500` on FST_Phone.
 
 ## Emulator lock
 
@@ -125,6 +125,7 @@ Compose `testTag`s appear as resource ids only when the app sets `testTagsAsReso
 
 - Typed Navigation-Compose routes in `core/nav/AppRoute.kt` mirror Apple `AppRoute` (every web route except Manual). Songs are addressed by ID and resolved against the current catalogue. Unported routes render a placeholder.
 - One `NavHost`; tab roots (`*Tab`) switch with `popUpTo(start){saveState}` + `restoreState` (Statistics does not restore); re-tapping a tab pops to its root. Selected tab is derived from the back stack.
+- Measured layout survives Back (issues #82, #185). Navigation recomposes a destination when Back returns to it, and a plain `remember` loses what the page measured, so its first frame is drawn unmeasured. The Compete grid fell back to one column, and board rows dropped or restacked their songs column for a frame before snapping back. Keep any measurement that picks columns, a hinge split or a row plan (a container's window position or width, a card's row width) in the saved helpers in `ui/common/MeasuredLayout.kt` (`rememberMeasuredPx`, `rememberMeasuredBounds`, `rememberMeasuredOffset`). They already back `AdaptiveCardGrid`, `ProfileGrid`, both `rememberHingeSplit`s, `rememberRankingRowWidth`, the Bands and Suggestions hinge offsets and `ServiceStatus`. Never add a new `remember { mutableFloatStateOf(…) }` measurement for these. Read hinges through `shellPosture()` (`ui/common/FestivalSheet.kt`), which returns the shell's already-collected `LocalShellPosture`. Never call `currentWindowAdaptiveInfo().windowPosture` in a page: that collector starts with an empty hinge list, so a destination recomposed on Back draws one frame as if unfolded. On the half-open Book Fold, Compete then flashed full-width cards. `ShellPostureTest` covers this. Tests: `MeasuredLayoutTest` (restoration), and `CompeteReturnColumnsUiTest` and connected `CompeteDeviceJourneyTest`, which check that the card's bounds and songs cells stay the same on every frame of the return.
 
 ## Debug launch extras (debug builds only)
 
@@ -182,4 +183,5 @@ Measured 2026-09-29 (FST-and-a11y2) with `tools/android/frame_stats.py --animati
 - The sheet drag handle keeps a 48 dp actionable area (`Modifier.minimumInteractiveComponentSize()`). Material's handle is 32 dp wide and TalkBack-actionable, which fails ATF `TouchTargetSizeCheck`.
 - Scrolling content and folds (issue #131): full-width lists and grids flow around a separating vertical hinge rather than drawing over it. Item Shop does this with one `LazyVerticalGrid` whose custom `GridCells` + `Arrangement.Horizontal` leave a hinge-wide gap (pure `ShopColumnPolicy.resolve`). Like every hinge split, it is off under TalkBack or large text (`rememberSingleColumn`).
 - An M3 `IconButton` inside a row's trailing slot measured 40 dp wide in Robolectric (`minimumInteractiveComponentSize` did not widen it). Give row-trailing icon buttons an explicit `Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)` and assert the width in a UI test.
+- Bar and toolbar `IconButton`s (Quick Links, Sort, Filter, Search, bell, Profile, ⋮) draw 40 dp with a 48×48 dp touch target (`touchBoundsInRoot`): measure touch bounds, not `boundsInRoot`, and probe off-centre touches with the shared `testing/ShellHitTargets` ([page-tools-and-nav-chrome](../patterns/page-tools-and-nav-chrome.md) R9, issues #72, #179).
 - Host: Android SDK `C:/Users/sfent/AppData/Local/Android/Sdk`, JDK 17 (Temurin), Gradle 8.14.3 wrapper, AGP 8.11, Kotlin 2.2.10, compile/target SDK 36, min 26.

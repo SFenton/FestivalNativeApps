@@ -33,6 +33,14 @@ public static class LoadSwapVisual
     public static readonly DependencyProperty RoleProperty = DependencyProperty.RegisterAttached(
         "Role", typeof(LoadSwapVisualRole), typeof(LoadSwapVisual), new PropertyMetadata(LoadSwapVisualRole.Content, OnRoleChanged));
 
+    /// <summary>
+    /// Whether a content element follows the swap (default). A board's pinned row binds it to its
+    /// <see cref="PinnedRowGate.IsGated"/>: while ungated it stays shown, readable and hit-testable through a reload.
+    /// Put a gated pinned row in a <see cref="LoadSwapGate"/>, which also hides its children from UI Automation.
+    /// </summary>
+    public static readonly DependencyProperty IsGatedProperty = DependencyProperty.RegisterAttached(
+        "IsGated", typeof(bool), typeof(LoadSwapVisual), new PropertyMetadata(true, OnRoleChanged));
+
     private static readonly DependencyProperty HandlerProperty = DependencyProperty.RegisterAttached(
         "Handler", typeof(PropertyChangedEventHandler), typeof(LoadSwapVisual), new PropertyMetadata(null));
 
@@ -59,6 +67,16 @@ public static class LoadSwapVisual
     /// <param name="value">Role.</param>
     public static void SetRole(FrameworkElement element, LoadSwapVisualRole value) => element.SetValue(RoleProperty, value);
 
+    /// <summary>Gets whether the element follows the swap.</summary>
+    /// <param name="element">Element.</param>
+    /// <returns>Whether it is gated.</returns>
+    public static bool GetIsGated(FrameworkElement element) => (bool)element.GetValue(IsGatedProperty);
+
+    /// <summary>Sets whether the element follows the swap.</summary>
+    /// <param name="element">Element.</param>
+    /// <param name="value">Whether it is gated.</param>
+    public static void SetIsGated(FrameworkElement element, bool value) => element.SetValue(IsGatedProperty, value);
+
     /// <summary>Subscribes to a new swap and updates immediately.</summary>
     /// <param name="d">Element.</param>
     /// <param name="e">Changed swap.</param>
@@ -75,9 +93,9 @@ public static class LoadSwapVisual
         Attach(element, swap);
     }
 
-    /// <summary>Reapplies when the element role changes.</summary>
+    /// <summary>Reapplies when the element role or gating changes.</summary>
     /// <param name="d">Element.</param>
-    /// <param name="e">Changed role.</param>
+    /// <param name="e">Changed role or gating.</param>
     private static void OnRoleChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is FrameworkElement element && GetSwap(element) is { } swap) Apply(element, swap);
@@ -150,9 +168,17 @@ public static class LoadSwapVisual
         element.OpacityTransition = Motion.Allowed && swap.Phase == LoadSwapPhase.ContentOut
             ? new ScalarTransition { Duration = LoadSwapTiming.ContentOut }
             : null;
-        element.Opacity = swap.ContentOpacity;
-        element.IsHitTestVisible = swap.ContentHitTestVisible;
-        AutomationProperties.SetAccessibilityView(element, swap.ContentHitTestVisible ? AccessibilityView.Content : AccessibilityView.Raw);
+        // An ungated element (a pinned row on a page-only reload) keeps showing its still-current content.
+        var shown = !GetIsGated(element) || swap.ContentHitTestVisible;
+        element.Opacity = GetIsGated(element) ? swap.ContentOpacity : 1;
+        element.IsHitTestVisible = shown;
+        if (element is LoadSwapGate gate)
+        {
+            gate.ContentHidden = !shown;
+            gate.IsEnabled = shown || swap.Phase == LoadSwapPhase.ContentOut;
+            return;
+        }
+        AutomationProperties.SetAccessibilityView(element, shown ? AccessibilityView.Content : AccessibilityView.Raw);
     }
 }
 #endregion

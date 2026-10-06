@@ -319,6 +319,10 @@ private struct ScoreHistoryChart: View {
         .barChartDateAxis(values: visible.map(\.id)) { data.indices.contains($0) ? data[$0].label : nil }
         .chartPlotFrameReporter()
         .frame(height: 220)
+        // One element: unlabelled, its bars read their plotted ranges ("0 to 0.2") and,
+        // being selectable, were audited as 11–19 pt controls in an AX5 iPhone Duo pane
+        // (Lane A11Y3). The rows below read every score; the chart summarizes them.
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(instrument.label) score history chart")
         .accessibilityValue(
             "\(rows.count) scores, best \((rows.map(\.newScore).max() ?? 0).formatted())"

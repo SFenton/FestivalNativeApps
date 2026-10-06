@@ -5,7 +5,7 @@ import FestivalDesign
 // MARK: - RivalryScreen
 
 /// `/rivals/:rivalId/rivalry?mode=` — full song list for one `RivalCategorization`
-/// bucket (e.g. "Closest Battles"), reached from `RivalDetailScreen`'s "See All".
+/// bucket (e.g. "Closest Battles"), reached from a `RivalDetailScreen` category's "View All".
 ///
 /// `scope` is forwarded unchanged from the `.rivalDetail` push that reached this
 /// screen (native `AppRoute` carries it directly; there is no bridge to re-stash).
