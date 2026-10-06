@@ -32,4 +32,20 @@
 
 Cold launch against the live service takes 12–20 s on the emulator before the first cover (catalogue and first cover download); the brand surface shows meanwhile. This matches the pre-#124 baseline.
 
-- Open: on-device frame-time and power measurement of the 30 fps clock, Macrobenchmark/JankStats, publication-change cache clear.
+## Validated configurations (issue #186: idle work behind modals)
+
+Live service, debug or `benchmark` build. Frame counts from `tools/android/frame_stats.py --animations-on` (15 s idle unless noted).
+
+| Configuration | Finding |
+|---|---|
+| `FST_Phone` Settings idle | ~31 fps (155 frames / 5 s, 33 ms gaps) with the backdrop animating; 0 at animator scale 0 and with the still backdrop. A live scrape adds Service Info's every-vsync spinner (live progress, kept). |
+| `FST_Phone` first-run tour over Leaderboards | Before: 837 frames (clipped-name marquee kept scrolling under the tour). After: 0; names resume scrolling after the tour closes. |
+| `FST_Phone` first-run tour over Songs | Before: 812 + 80 frames (Shop pulse/breathe plus the tour). After: 141, the visible slide's own demo only. |
+| `FST_Phone` Suggestions scroll (SFentonX) | 508 frames, UI > 8.33 ms 12.8% (before 17%); covers reused from Coil's memory cache. |
+| `FST_Phone` font 2.0 portrait/landscape | Tour lays out side by side in landscape; its text column scrolls at font 2.0 instead of clipping. |
+| `FST_Tablet` landscape + font 2.0, `FST_Resizable` phone/foldable/tablet | Tour is a centered dialog on medium+ widths over the rail; page behind holds still. |
+| `FST_Book_Fold`, `FST_Passport_Fold`, `FST_TriFold` folded/unfolded | Folded: phone-width tour over the bottom-bar page. Unfolded: rail plus two leaderboard columns; the tour is centered across the flat fold (`dialogHingeArea` avoids only separating hinges). A posture change recreates the activity without a crash. |
+| Feedback form | Live `/api/features` has `feedback: false`, so it was checked in Robolectric only (`FeedbackUiTest.openFormCoversTheBackdropUntilItCloses`). |
+| Connected tests (`FST_Phone`) | `ArtworkBackgroundDeviceTest` 1, `FirstRunJourneyTest` 4, `FeedbackFormJourneyTest` 2, `ModalCloseJourneyTest` 11, `SuggestionsAccessibilityJourneyTest` 1, `ServiceStatusDeviceTest` 5, `LeaderboardsDeviceJourneyTest` 2: all pass. |
+
+- Open: power measurement of the 30 fps clock (frame time measured in #186), Macrobenchmark/JankStats, publication-change cache clear.
