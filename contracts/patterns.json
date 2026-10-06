@@ -1534,10 +1534,10 @@
     },
     {
       "id": "song-header",
-      "title": "Song header title",
+      "title": "Song header: title, board line, bar title and backdrop",
       "status": "current",
       "doc": ".agents/patterns/song-header.md",
-      "summary": "Song pages show the song through one shared header whose title fills the width beside the art on one line and marquees when it overflows (Reduce Motion truncates, large text wraps in-page); the pinned top-bar song title marquees on one line.",
+      "summary": "Song pages show the song through one shared header whose title fills the width beside the art on one line and marquees when it overflows (Reduce Motion truncates, large text wraps in-page); song leaderboards name their board (instrument or band size) in one line under it; the top bar stays empty until the header scrolls away, then shows the song title as a one-line marquee; and every song page requests its own static album-art backdrop.",
       "keywords": [
         "song header",
         "song title",
@@ -1546,7 +1546,14 @@
         "title wraps",
         "SongInfoHeader",
         "pinned title",
-        "top bar title"
+        "top bar title",
+        "band leaderboard header",
+        "band size",
+        "instrument switcher",
+        "board line",
+        "album art background",
+        "song backdrop",
+        "static cover"
       ],
       "web": [
         {
@@ -1556,6 +1563,14 @@
         {
           "path": "components/common/MarqueeText.tsx",
           "symbol": "MarqueeText"
+        },
+        {
+          "path": "pages/leaderboard/band/SongBandLeaderboardPage.tsx",
+          "symbol": "SongBandLeaderboardPage"
+        },
+        {
+          "path": "pages/Page.tsx",
+          "symbol": "PageBackground"
         }
       ],
       "canonical": {
@@ -1567,6 +1582,14 @@
           {
             "path": "apple/Sources/FestivalUI/Features/SongDetail/SongDetailScreen.swift",
             "symbol": "SongDetailScreen"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SoloLeaderboardScreen.swift",
+            "symbol": "scoreHeader"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Background/FestivalBackground.swift",
+            "symbol": "festivalBackground"
           }
         ],
         "android": [
@@ -1581,22 +1604,52 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
             "symbol": "marqueeTitle"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt",
+            "symbol": "SongBoardSwitcher"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/background/SongCoverBackdrop.kt",
+            "symbol": "SongCoverBackdrop"
           }
         ],
         "windows": [
           {
             "path": "windows/Festival.App/Controls/MarqueeText.cs",
             "symbol": "MarqueeText"
+          },
+          {
+            "path": "windows/Festival.App/Pages/LeaderboardsSongPage.xaml",
+            "symbol": "HeaderArt"
+          },
+          {
+            "path": "windows/Festival.App/MainWindow.xaml.cs",
+            "symbol": "IBackdropPage"
           }
         ]
       },
-      "guards": [],
+      "guards": [
+        {
+          "id": "android-cover-push",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "\\.pushFocus\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/background/SongCoverBackdrop.kt"
+          ],
+          "debt": [],
+          "message": "Song pages show their static cover through SongCoverBackdrop, each page for itself (song-header R7)."
+        }
+      ],
       "related": {
         "patterns": [
           "leaderboard-row",
           "page-tools-and-nav-chrome"
         ],
-        "controls": [],
+        "controls": [
+          "artwork-background",
+          "instrument-selector"
+        ],
         "pages": [
           "song-detail",
           "song-leaderboard",
@@ -1607,7 +1660,8 @@
       "supersedes": [],
       "supersededBy": null,
       "issues": [
-        315
+        315,
+        317
       ]
     }
   ]
