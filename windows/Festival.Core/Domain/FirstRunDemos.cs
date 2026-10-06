@@ -464,11 +464,11 @@ public static class FirstRunDemoScorePattern
 /// <param name="IsPlayer">Whether this is the selected player.</param>
 public sealed record FirstRunDemoRanking(int Rank, string DisplayName, string RatingLabel, bool IsPlayer = false);
 
-/// <summary>One rival demo entry.</summary>
+/// <summary>One rival demo entry (web demo pool shape: counts are from the rival's perspective, like the wire).</summary>
 /// <param name="AccountId">Stable demo ID.</param>
 /// <param name="DisplayName">Rival name.</param>
 /// <param name="RivalScore">Rivalry score.</param>
-/// <param name="SharedSongCount">Shared song count.</param>
+/// <param name="SharedSongCount">Shared song count (kept for web pool parity; never shown, issues #40/#67/#267).</param>
 /// <param name="AheadCount">Songs where the rival is ahead.</param>
 /// <param name="BehindCount">Songs where the rival is behind.</param>
 /// <param name="AvgSignedDelta">Average signed score delta.</param>
@@ -476,6 +476,19 @@ public sealed record FirstRunDemoRival(string AccountId, string DisplayName, int
 {
     /// <summary>Stable pool identity.</summary>
     public string Id => AccountId;
+
+    /// <summary>
+    /// The real Rivals row's pills as one line ("{n} songs ahead · {m} songs behind", player's perspective), with no
+    /// shared-song count, so the demo matches the row it introduces (issue #267).
+    /// </summary>
+    public string CountsText => $"{RivalRowText.Ahead(BehindCount)} · {RivalRowText.Behind(AheadCount)}";
+
+    /// <summary>One-line group entry (<c>compete-rivals</c>, <c>rivals-overview</c>): name, then <see cref="CountsText"/>.</summary>
+    public string GroupLine => $"{DisplayName} · {CountsText}";
+
+    /// <summary>Card row (<c>rivals-instruments</c>): name, <see cref="CountsText"/> and the signed average delta.</summary>
+    public FirstRunDemoRow Row => new(DisplayName, CountsText,
+        AvgSignedDelta >= 0 ? $"▲ {AvgSignedDelta}" : $"▼ {Math.Abs(AvgSignedDelta)}");
 }
 
 /// <summary>One metadata sample row.</summary>
