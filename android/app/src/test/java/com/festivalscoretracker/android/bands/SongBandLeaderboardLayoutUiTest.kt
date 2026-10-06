@@ -19,6 +19,8 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.performClick
 import com.festivalscoretracker.android.ui.bands.BandScoreRow
+import com.festivalscoretracker.android.ui.bands.BAND_RANK_MIN_WIDTH
+import com.festivalscoretracker.android.ui.bands.rememberBandRankWidth
 import com.festivalscoretracker.android.ui.bands.bandScoreAnnouncement
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -163,6 +165,24 @@ class SongBandLeaderboardLayoutUiTest {
         assertEquals("Open band", row.fetchSemanticsNode().config[SemanticsActions.OnClick].label)
         row.performClick()
         assertEquals(1, opened)
+    }
+
+    @Test
+    fun sectionRankColumnFitsAnAppendedFourDigitRankAtAnyTextSize() {
+        val widths = mutableMapOf<String, androidx.compose.ui.unit.Dp>()
+        val pinned = entry.copy(bandId = "p", rank = 9_968)
+        show(1f, 411) {
+            widths["top"] = rememberBandRankWidth(listOf(entry))
+            widths["pinned"] = rememberBandRankWidth(listOf(entry, pinned))
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, 2f)) {
+                widths["large"] = rememberBandRankWidth(listOf(entry, pinned))
+            }
+        }
+        rule.waitForIdle()
+        assertEquals(BAND_RANK_MIN_WIDTH, widths.getValue("top"))
+        assertTrue("pinned ${widths["pinned"]}", widths.getValue("pinned") > BAND_RANK_MIN_WIDTH)
+        assertTrue("large ${widths["large"]}", widths.getValue("large") > widths.getValue("pinned"))
     }
 
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.onAllNodesWithTagCount(tag: String) =

@@ -1,3 +1,4 @@
+import FestivalCore
 import SwiftUI
 
 // MARK: - Modal top-edge fade
@@ -12,8 +13,9 @@ import SwiftUI
 /// the header is dimmed; the fade grows with the first ``rampHeight`` points of scrolling
 /// instead of the web's on/off switch.
 enum ModalTopEdgeFade {
-    /// Height of the fade below the header: the web mask's `DEFAULT_SIZE` (40 px).
-    static let rampHeight: CGFloat = 40
+    /// Height of the fade below the header: ``ScrollEdgeFade/topDistance``, the web
+    /// mask's `DEFAULT_SIZE` (40 px).
+    static let rampHeight = CGFloat(ScrollEdgeFade.topDistance)
 
     /// Header height from the content's two readings.
     ///
@@ -89,8 +91,24 @@ struct ModalTopEdgeFadeModifier: ViewModifier {
     /// Ramp height the content asked for (``ModalTopEdgeFadeRampKey``); nil uses
     /// ``ModalTopEdgeFade/rampHeight``.
     @State private var rampOverride: CGFloat?
+    /// Reduce Transparency or Increase Contrast: a hard edge under the header
+    /// (scroll-edge R7, issue #308).
+    @ScrollEdgeHardEdge private var hardEdge
+    /// Read the scroll position from the platform scroll view (iOS 17 / macOS 14).
+    private let legacyScrollTracking: Bool
 
-    private var rampHeight: CGFloat { rampOverride ?? ModalTopEdgeFade.rampHeight }
+    /// The modal fade.
+    ///
+    /// - Parameter legacyScrollTracking: Read the scroll position from the content's
+    ///   platform scroll view (``ScrollEdgeTracking/usesLegacyPath``); tests set it to
+    ///   cover the iOS 17 / macOS 14 path on newer systems.
+    init(legacyScrollTracking: Bool = ScrollEdgeTracking.usesLegacyPath) {
+        self.legacyScrollTracking = legacyScrollTracking
+    }
+
+    private var rampHeight: CGFloat {
+        hardEdge ? 0 : rampOverride ?? ModalTopEdgeFade.rampHeight
+    }
 
     private var headerHeight: CGFloat {
         ModalTopEdgeFade.headerHeight(safeAreaInset: safeAreaInset, containerOffset: containerOffset)
@@ -98,7 +116,9 @@ struct ModalTopEdgeFadeModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .modifier(ModalScrollOffsetReader(offset: $scrollOffset))
+            // The scroll position on every supported system, so the ramp grows with the
+            // scroll on iOS 17 / macOS 14 too (scroll-edge R3, R4; #308 review).
+            .onScrollEdgeReading(legacy: legacyScrollTracking, \.offset) { scrollOffset = $0 }
             .modifier(ModalHeaderBackgroundHidden())
             .onPreferenceChange(ModalTopEdgeFadeRampKey.self) { rampOverride = $0 }
             .background {
@@ -140,26 +160,6 @@ struct ModalTopEdgeFadeModifier: ViewModifier {
                 .ignoresSafeArea()
             }
             .coordinateSpace(.named(Self.space))
-    }
-}
-
-/// Reads how far the content's scroll view has scrolled (iOS 18 / macOS 15 and later).
-///
-/// Earlier systems keep the fade at 0, so content is cut off cleanly at the header's
-/// bottom edge rather than dimmed at rest.
-private struct ModalScrollOffsetReader: ViewModifier {
-    @Binding var offset: CGFloat
-
-    func body(content: Content) -> some View {
-        if #available(iOS 18.0, macOS 15.0, *) {
-            content.onScrollGeometryChange(for: CGFloat.self) { geometry in
-                geometry.contentOffset.y + geometry.contentInsets.top
-            } action: { _, newValue in
-                offset = newValue
-            }
-        } else {
-            content
-        }
     }
 }
 

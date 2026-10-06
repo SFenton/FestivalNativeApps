@@ -145,10 +145,10 @@
                                                 </DataTemplate>
                                             </ItemsRepeater.ItemTemplate>
                                         </ItemsRepeater>
-                                        <Button Content="View All Rivals" Tag="{x:Bind ViewAllRoute}" Click="OnRouteClick"
+                                        <Button Content="{x:Bind ViewAllText}" Tag="{x:Bind ViewAllRoute}" Click="OnRouteClick"
                                                 Style="{StaticResource FSTViewAllButtonStyle}" Visibility="{x:Bind ShowRows, Mode=OneWay}"
                                                 AutomationProperties.Name="{x:Bind ViewAllName}"
-                                                AutomationProperties.AutomationId="fst.rivals.view-all" />
+                                                AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                     </StackPanel>
                                 </Border>
                                 </StackPanel>

@@ -428,16 +428,8 @@ struct RankHistoryCharts: View {
                 }
             }
         }
-        .chartXAxis {
-            AxisMarks(values: visible.map(\.index)) { value in
-                AxisValueLabel {
-                    if let index = value.as(Int.self), data.indices.contains(index) {
-                        Text(data[index].label)
-                            .foregroundStyle(FestivalText.primary)
-                    }
-                }
-            }
-        }
+        .barChartDateAxis(values: visible.map(\.index)) { data.indices.contains($0) ? data[$0].label : nil }
+        .chartPlotFrameReporter()
         .frame(height: Self.plotHeight)
         .accessibilityChartDescriptor(RankHistoryDescriptor(points: points, instrument: instrument))
         .accessibilityAdjustableAction { direction in
@@ -448,6 +440,13 @@ struct RankHistoryCharts: View {
             }
         }
         .accessibilityIdentifier("fst.player.rank-history.\(instrument.rawValue).chart")
+        .chartAxisElements(ChartAxisLabels(
+            leading: "Total Score scale, 0 to \(RankHistoryChartFormat.compactScore(scale.valueTop))",
+            trailing: "Rank scale, " + ChartAxisLabels.span(
+                scale.rankTicks.first.map { "#\($0.formatted())" }, scale.rankTicks.last.map { "#\($0.formatted())" }
+            ),
+            bottom: "Dates, " + ChartAxisLabels.span(visible.first?.label, visible.last?.label)
+        ))
 
         if paging.needsPagination {
             // Swipe a page at a time (web `SWIPE_THRESHOLD` 50 pt): left shows newer
@@ -611,6 +610,9 @@ struct RankHistoryCharts: View {
                     .foregroundStyle(FestivalText.primary)
             }
         }
+        // Wrap instead of truncating: at AX5 in a two-column iPad page the card proposed
+        // one line and "Total Score 89,400,000" read "Total Score 89,4…" (Lane A11Y3).
+        .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             "Latest global rank \(latest.totalScoreRank.formatted())\(field)"

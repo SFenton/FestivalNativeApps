@@ -7,7 +7,7 @@ import Foundation
 ///
 /// Distinct from `BandType`: this is the segmented-control value sent as
 /// `?group=`, while `BandType` is the server's `Band_Duets`/`Band_Trios`/`Band_Quad` key.
-public enum PlayerBandGroup: String, CaseIterable, Sendable, Identifiable, Equatable {
+public enum PlayerBandGroup: String, CaseIterable, Sendable, Identifiable, Hashable {
     case all
     case duos
     case trios
@@ -104,6 +104,62 @@ public struct PlayerBandListPayload: Sendable {
     public let publicationId: Int?
     public let observedPublicationId: Int
     public let isStale: Bool
+}
+
+// MARK: - Player bands preview (profile page)
+
+/// The player profile's inline bands section, porting the web client's
+/// `buildPlayerBandsItems` (`FortniteFestivalWeb/src/pages/player/components/PlayerBandsSection.tsx`):
+/// Duos, Trios and Quads, each with up to ``previewCount`` band cards and its total.
+///
+/// The web reads these previews from player stats, which native clients must not call
+/// (its GET may store tiers); each group here is instead the first page of the keyless
+/// `GET /api/player/{accountId}/bands?group=` list.
+public struct PlayerBandsPreview: Sendable, Equatable {
+    /// Band cards per group, the service's `GetPlayerBands(previewCount = 6)`.
+    public static let previewCount = 6
+    /// Groups shown, in the web's order (no "All" preview).
+    public static let groups: [PlayerBandGroup] = [.duos, .trios, .quads]
+
+    /// One band size's preview.
+    public struct Group: Sendable, Equatable, Identifiable {
+        public let group: PlayerBandGroup
+        /// At most ``PlayerBandsPreview/previewCount`` bands, in service order.
+        public let entries: [PlayerBandEntry]
+        /// Every band of this size the player has, not just the previewed ones.
+        public let totalCount: Int
+
+        public var id: PlayerBandGroup { group }
+
+        /// The web's `totalCount > entries.length`: the group has a "View all bands" card.
+        public var hasMore: Bool { totalCount > entries.count }
+
+        /// Build one group's preview, trimming the page to the preview size.
+        ///
+        /// - Parameters:
+        ///   - group: Band size the page was read for.
+        ///   - response: That group's first page.
+        public init(group: PlayerBandGroup, response: PlayerBandListResponse) {
+            self.group = group
+            entries = Array(response.entries.prefix(PlayerBandsPreview.previewCount))
+            totalCount = max(response.totalCount, entries.count)
+        }
+    }
+
+    /// Duos, Trios and Quads, always all three (an empty group shows "No Bands Yet").
+    public let groups: [Group]
+
+    /// Assemble the preview from each group's first page.
+    ///
+    /// - Parameter responses: First page per group; a missing group previews as empty.
+    public init(responses: [PlayerBandGroup: PlayerBandListResponse]) {
+        groups = Self.groups.map { group in
+            Group(
+                group: group,
+                response: responses[group] ?? PlayerBandListResponse(accountId: "", totalCount: 0, entries: [])
+            )
+        }
+    }
 }
 
 // MARK: - Band profile (safe read: rankings board filtered to one team)
@@ -333,6 +389,22 @@ public struct SongBandLeaderboardEntry: Decodable, Sendable, Equatable, Identifi
         let names = members.filter { seen.insert($0.accountId).inserted }.map(\.resolvedName)
         return names.joined(separator: " + ")
     }
+
+    /// This band score as a one-line leaderboard row, for the band leaderboard's pinned
+    /// footer: the web footer draws a `LeaderboardEntry` named `formatBandTeamName(...)`
+    /// (members joined with " + ", the team key when there are none) with the band's
+    /// rank, score, accuracy, full combo, stars and season (issue #306).
+    public var footerLeaderboardEntry: LeaderboardEntry {
+        let label = membersLabel
+        return LeaderboardEntry(
+            accountId: "band-\(bandId.isEmpty ? teamKey : bandId)",
+            displayName: label.isEmpty ? teamKey : label,
+            score: score, rank: rank, localRank: nil,
+            accuracy: Double(accuracy), isFullCombo: isFullCombo,
+            stars: stars, season: season > 0 ? season : nil,
+            difficulty: (0...3).contains(difficulty) ? Double(difficulty) : nil
+        )
+    }
 }
 
 /// Response for `/api/leaderboard/{songId}/bands/{bandType}`.
@@ -343,6 +415,61 @@ public struct SongBandLeaderboardResponse: Decodable, Sendable, Equatable {
     public let totalEntries: Int
     public let localEntries: Int?
     public let entries: [SongBandLeaderboardEntry]
+    /// Whether the header shows the entry total (web `songBandLeaderboard.subtitle`);
+    /// absent or false shows only the band size (issue #317).
+    public var showLeaderboardEntryTotals: Bool? = nil
+    /// The selected player's best band on this song and size, present when the request
+    /// carried `accountId` and that player has a band score here.
+    public var selectedPlayerEntry: SongBandLeaderboardEntry? = nil
+    /// A selected band's own row (`teamKey` query); natives do not send that query yet,
+    /// but decode it so a future selected-band identity needs no wire change.
+    public var selectedBandEntry: SongBandLeaderboardEntry? = nil
+
+    /// Create a page, e.g. for tests.
+    ///
+    /// - Parameters:
+    ///   - songId: Song of the board.
+    ///   - bandType: Wire band-size key.
+    ///   - count: Rows on this page.
+    ///   - totalEntries: Ranked bands of this size on the song.
+    ///   - localEntries: Rankable bands, when the service reports them.
+    ///   - entries: Page rows.
+    ///   - selectedPlayerEntry: Selected player's best band row, if any.
+    ///   - selectedBandEntry: Selected band's row, if any.
+    ///   - showLeaderboardEntryTotals: Whether the header shows the entry total.
+    public init(
+        songId: String, bandType: String, count: Int, totalEntries: Int, localEntries: Int?,
+        entries: [SongBandLeaderboardEntry],
+        selectedPlayerEntry: SongBandLeaderboardEntry? = nil,
+        selectedBandEntry: SongBandLeaderboardEntry? = nil,
+        showLeaderboardEntryTotals: Bool? = nil
+    ) {
+        self.songId = songId
+        self.bandType = bandType
+        self.count = count
+        self.totalEntries = totalEntries
+        self.localEntries = localEntries
+        self.entries = entries
+        self.selectedPlayerEntry = selectedPlayerEntry
+        self.selectedBandEntry = selectedBandEntry
+        self.showLeaderboardEntryTotals = showLeaderboardEntryTotals
+    }
+
+    /// The pinned footer's row: a selected band's row wins over the selected player's
+    /// best band, like the web `SongBandLeaderboardPage` (`selectedBandEntry ??
+    /// selectedPlayerEntry`).
+    public var selectedEntry: SongBandLeaderboardEntry? {
+        selectedBandEntry ?? selectedPlayerEntry
+    }
+
+    /// Whether a page row is the selected band, for the purple row highlight.
+    ///
+    /// - Parameter entry: A page row.
+    /// - Returns: True when it is the same band as ``selectedEntry``.
+    public func isSelected(_ entry: SongBandLeaderboardEntry) -> Bool {
+        guard let selected = selectedEntry else { return false }
+        return SongBandLeaderboardPreview.isSameBand(entry, selected)
+    }
 
     /// Pages of 25 rows, matching `LeaderboardResponse.pageCount`.
     public var pageCount: Int {
@@ -350,15 +477,18 @@ public struct SongBandLeaderboardResponse: Decodable, Sendable, Equatable {
         return total == 0 ? 1 : (total - 1) / 25 + 1
     }
 
-    /// Reject a response for the wrong song or band size, or an impossible row count.
+    /// Reject a response for the wrong song or band size, an impossible row count, or a
+    /// selected row filed under another band size.
     ///
     /// - Parameters:
     ///   - songId: Requested song.
     ///   - bandType: Requested band size.
     /// - Throws: `FestivalAPIError.invalidBandProfile` on a mismatched or corrupt response.
     public func validate(songId: String, bandType: BandType) throws {
+        let selectedRows = [selectedPlayerEntry, selectedBandEntry].compactMap { $0 }
         guard self.songId == songId, self.bandType == bandType.rawValue,
-              count == entries.count, count >= 0, totalEntries >= 0 else {
+              count == entries.count, count >= 0, totalEntries >= 0,
+              selectedRows.allSatisfy({ $0.bandType == bandType.rawValue && $0.rank > 0 }) else {
             throw FestivalAPIError.invalidBandProfile
         }
     }

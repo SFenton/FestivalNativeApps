@@ -1,0 +1,10 @@
+[
+  {"name": "fr-rotation-fade", "tab": "songs", "first_run": "force",
+   "ready": ["waitfor:id=fst.first-run.dialog@20"],
+   "after_ready": ["assertstatus:id=fst.first-run.demo.songs-song-list|~^catalogue rotation=running swaps=[1-9]\\d* swap=fade$@15"],
+   "tabs": 12},
+  {"name": "fr-rotation-instant", "tab": "songs", "first_run": "force",
+   "ready": ["waitfor:id=fst.first-run.dialog@20"],
+   "after_ready": ["assertstatus:id=fst.first-run.demo.songs-song-list|~^catalogue rotation=running swaps=[1-9]\\d* swap=instant$@15"],
+   "tabs": 12}
+]

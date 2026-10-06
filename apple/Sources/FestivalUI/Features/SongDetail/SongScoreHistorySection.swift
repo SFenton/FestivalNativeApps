@@ -316,21 +316,23 @@ private struct ScoreHistoryChart: View {
                 }
             }
         }
-        .chartXAxis {
-            AxisMarks(values: visible.map(\.id)) { value in
-                AxisValueLabel {
-                    if let index = value.as(Int.self), data.indices.contains(index) {
-                        Text(data[index].label).foregroundStyle(FestivalText.primary)
-                    }
-                }
-            }
-        }
+        .barChartDateAxis(values: visible.map(\.id)) { data.indices.contains($0) ? data[$0].label : nil }
+        .chartPlotFrameReporter()
         .frame(height: 220)
+        // One element: unlabelled, its bars read their plotted ranges ("0 to 0.2") and,
+        // being selectable, were audited as 11–19 pt controls in an AX5 iPhone Duo pane
+        // (Lane A11Y3). The rows below read every score; the chart summarizes them.
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(instrument.label) score history chart")
         .accessibilityValue(
             "\(rows.count) scores, best \((rows.map(\.newScore).max() ?? 0).formatted())"
         )
         .accessibilityIdentifier("fst.song-detail.history.chart")
+        .chartAxisElements(ChartAxisLabels(
+            leading: "Score scale, 0 to \(top >= 1000 ? "\(Int((top / 1000).rounded()))k" : "\(Int(top))")",
+            trailing: "Accuracy scale, 0% to 100%",
+            bottom: "Dates, " + ChartAxisLabels.span(visible.first?.label, visible.last?.label)
+        ))
         .simultaneousGesture(
             DragGesture(minimumDistance: 20).onEnded { drag in
                 let dx = drag.translation.width
@@ -504,7 +506,13 @@ struct ScoreHistoryListRow: View {
                 Text("\(ScoreFormatting.accuracy(accuracy))%")
                     .font(fullCombo ? .body.bold().italic() : .body)
                     .foregroundStyle(fullCombo ? BrandTokens.gold : FestivalText.primary)
-                    .frame(width: 76, height: 24)
+                    // A fixed 76 × 24 pt pill cut "95.5%" to "9…" at AX5 (iPad audit, Lane
+                    // A11Y3); accessibility sizes let it grow around the text.
+                    .lineLimit(1)
+                    .padding(.horizontal, stacked ? 8 : 0)
+                    .frame(width: stacked ? nil : 76, height: stacked ? nil : 24)
+                    .frame(minWidth: stacked ? 76 : nil, minHeight: stacked ? 24 : nil)
+                    .fixedSize(horizontal: stacked, vertical: stacked)
                     .background(fullCombo ? Color.clear : ScoreHistoryChart.accuracyColor(accuracy / 10_000).opacity(0.25),
                                 in: GoldSkewBadgeShape(skewed: fullCombo))
                     .overlay {

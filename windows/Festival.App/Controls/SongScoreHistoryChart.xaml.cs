@@ -227,7 +227,7 @@ public sealed partial class SongScoreHistoryChart : UserControl
                 Tag = bar.Index,
             };
             var row = new ScoreHistoryListRow(point, false);
-            AutomationProperties.SetName(button, row.Announcement);
+            AutomationProperties.SetName(button, row.SeasonShownAnnouncement);
             AutomationProperties.SetAutomationId(button, "fst.history.bar." + bar.Index.ToString(CultureInfo.InvariantCulture));
             ToolTipService.SetToolTip(button, $"{point.DateLabel} · {row.Score} · {row.Accuracy}");
             var index = bar.Index;

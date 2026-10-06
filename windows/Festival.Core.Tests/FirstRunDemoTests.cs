@@ -1,3 +1,6 @@
+using System.Globalization;
+using Festival.Core.ViewModels;
+
 namespace Festival.Core.Tests;
 
 public class FirstRunDemoTests
@@ -47,6 +50,50 @@ public class FirstRunDemoTests
         Assert.Equal("placeholder", FirstRunDemos.PlaceholderStatus);
     }
 
+    [Theory]
+    [InlineData(false, true, true, false, true, FirstRunDemoRotationState.Static)]
+    [InlineData(false, false, false, true, false, FirstRunDemoRotationState.Static)]
+    [InlineData(true, true, true, false, true, FirstRunDemoRotationState.Running)]
+    [InlineData(true, false, true, false, true, FirstRunDemoRotationState.Inactive)]
+    [InlineData(true, true, false, false, true, FirstRunDemoRotationState.Inactive)]
+    [InlineData(true, true, true, true, true, FirstRunDemoRotationState.Hidden)]
+    [InlineData(true, false, true, true, true, FirstRunDemoRotationState.Hidden)]
+    [InlineData(true, true, true, true, false, FirstRunDemoRotationState.Hidden)]
+    [InlineData(true, true, true, false, false, FirstRunDemoRotationState.Background)]
+    [InlineData(true, false, true, false, false, FirstRunDemoRotationState.Background)]
+    public void RotationState_RunsOnlyForTheVisibleSlideInAVisibleForegroundWindow(bool rotates, bool active, bool loaded, bool hidden, bool foreground, FirstRunDemoRotationState expected) =>
+        Assert.Equal(expected, FirstRunDemoRotationStatus.State(rotates, active, loaded, hidden, foreground));
+
+    [Theory]
+    [InlineData(FirstRunDemoRotationState.Static, 3, true, "catalogue")]
+    [InlineData(FirstRunDemoRotationState.Running, 0, true, "catalogue rotation=running swaps=0 swap=none")]
+    [InlineData(FirstRunDemoRotationState.Running, 2, true, "catalogue rotation=running swaps=2 swap=fade")]
+    [InlineData(FirstRunDemoRotationState.Running, 4, false, "catalogue rotation=running swaps=4 swap=instant")]
+    [InlineData(FirstRunDemoRotationState.Inactive, 0, false, "catalogue rotation=inactive swaps=0 swap=none")]
+    [InlineData(FirstRunDemoRotationState.Hidden, 1, true, "catalogue rotation=not-visible swaps=1 swap=fade")]
+    [InlineData(FirstRunDemoRotationState.Background, 1, true, "catalogue rotation=background swaps=1 swap=fade")]
+    public void RotationStatus_AppendsTheRotationOnlyForRotatingDemos(FirstRunDemoRotationState state, int swaps, bool faded, string expected) =>
+        Assert.Equal(expected, FirstRunDemoRotationStatus.Format(FirstRunDemos.CatalogueStatus, state, swaps, faded));
+
+    [Theory]
+    [InlineData(false, true, true, true, false, null)]
+    [InlineData(true, true, true, true, false, "running")]
+    [InlineData(true, false, true, true, false, "held")]
+    [InlineData(true, true, false, true, false, "held")]
+    [InlineData(true, true, true, false, false, "held")]
+    [InlineData(true, true, true, true, true, "held")]
+    public void PulseState_RunsOnlyOnTheVisibleSlideWithMotionInAVisibleWindow(bool hasPulses, bool active, bool loaded, bool motion, bool hidden, string? expected) =>
+        Assert.Equal(expected, FirstRunDemoRotationStatus.PulseState(hasPulses, active, loaded, motion, hidden));
+
+    [Theory]
+    [InlineData(FirstRunDemoRotationState.Static, null, 0, "catalogue")]
+    [InlineData(FirstRunDemoRotationState.Static, "running", 1, "catalogue pulse=running pulse-slides=1")]
+    [InlineData(FirstRunDemoRotationState.Static, "running", 2, "catalogue pulse=running pulse-slides=2")]
+    [InlineData(FirstRunDemoRotationState.Static, "held", 1, "catalogue pulse=held")]
+    [InlineData(FirstRunDemoRotationState.Running, "held", 0, "catalogue rotation=running swaps=0 swap=none pulse=held")]
+    public void RotationStatus_EndsWithThePulseTokenForPulseDemos(FirstRunDemoRotationState state, string? pulse, int slides, string expected) =>
+        Assert.Equal(expected, FirstRunDemoRotationStatus.Format(FirstRunDemos.CatalogueStatus, state, 0, false, pulse, slides));
+
     [Fact]
     public void SongPool_UsesCatalogueSongsWithArt_EpicGamesFirst_ElsePlaceholders()
     {
@@ -54,23 +101,45 @@ public class FirstRunDemoTests
         foreach (var empty in new[] { null, Array.Empty<Song>(), [S("x", "Epic Games", null), S("y", "Other", "")] })
         {
             var placeholders = FirstRunDemos.SongPool(empty);
-            Assert.Equal(FirstRunDemos.RowCount, placeholders.Count);
+            Assert.Equal(FirstRunDemos.MaxVisibleSongs, placeholders.Count);
             Assert.All(placeholders, p => Assert.True(p.IsPlaceholder && p.Row.Title == "" && p.Row.Detail == "" && p.Art is null));
         }
         // A short catalogue shows its real songs, padded with placeholders rather than invented rows.
         var few = FirstRunDemos.SongPool([S("b", "Other", "b.jpg")]);
-        Assert.Equal(["b", null, null], few.Select(p => p.SongId));
+        Assert.Equal(["b", null, null, null, null], few.Select(p => p.SongId));
         var many = new[] { S("c", "Epic Games", "c.jpg"), S("a", "Epic Games", "a.jpg", null), S("b", "Epic Games ft. X", "b.jpg"),
             S("d", "Epic Games", null), S("e", "Someone", "e.jpg") };
         var pool = FirstRunDemos.SongPool(many);
-        Assert.Equal(["Tc", "Ta", "Tb", "Te"], pool.Select(p => p.Row.Title));
-        Assert.All(pool, p => Assert.False(p.IsPlaceholder));
+        Assert.Equal(["Tc", "Ta", "Tb", "Te", ""], pool.Select(p => p.Row.Title));
+        Assert.All(pool.Take(4), p => Assert.False(p.IsPlaceholder));
+        Assert.True(pool[4].IsPlaceholder);
         Assert.Equal(("Epic Games", "a.jpg"), (pool[1].Row.Detail, pool[1].Art));
         Assert.Equal("Epic Games ft. X · 2024", pool[2].Row.Detail);
-        Assert.Equal(["e", "c", "a", "b"], FirstRunDemos.SongPool(many, ["e", "d", "missing", "e"]).Select(p => p.SongId));
+        Assert.Equal(["e", "c", "a", "b", null], FirstRunDemos.SongPool(many, ["e", "d", "missing", "e"]).Select(p => p.SongId));
         var lots = Enumerable.Range(0, 20).Select(i => S($"s{i:00}", "Epic Games", "x.jpg")).ToList();
         Assert.Equal(FirstRunDemos.PoolSize, FirstRunDemos.SongPool(lots).Count);
         Assert.Empty(FirstRunDemos.Pick(many, 0));
+    }
+
+    [Fact]
+    public void SongPool_ShortCatalogue_NeverRepeatsASongWithinTheVisibleRows()
+    {
+        // Issue #257: Statistics' top songs shows four rows, Rival detail four and the Suggestions card five; with a
+        // pool padded only to three rows, row four wrapped to the first song and showed it twice.
+        Assert.True(FirstRunDemos.MaxVisibleSongs >= FirstRunDemos.RowCount);
+        Assert.True(FirstRunDemos.PoolSize >= FirstRunDemos.MaxVisibleSongs);
+        for (var real = 0; real <= FirstRunDemos.MaxVisibleSongs; real++)
+        {
+            var catalog = Enumerable.Range(0, real).Select(i => new Song { SongId = $"s{i}", Title = $"T{i}", Artist = "A", AlbumArt = "x.jpg" }).ToList();
+            var pool = FirstRunDemos.SongPool(catalog);
+            Assert.True(pool.Count >= FirstRunDemos.MaxVisibleSongs);
+            for (var rows = 1; rows <= FirstRunDemos.MaxVisibleSongs; rows++)
+            {
+                var visible = Enumerable.Range(0, rows).Select(i => pool[i % pool.Count]).Where(s => !s.IsPlaceholder).Select(s => s.SongId).ToList();
+                Assert.Equal(visible.Distinct().Count(), visible.Count);
+                Assert.Equal(Math.Min(real, rows), visible.Count);
+            }
+        }
     }
 
     [Fact]
@@ -200,6 +269,48 @@ public class FirstRunDemoTests
     }
 
     [Fact]
+    public void TopSongsDemo_RotatesSongsUnderPinnedPills()
+    {
+        // Issue #257: each slot's pill is the web's DEMO_PERCENTILES[i]; a swap changes the song, never the pill.
+        var catalog = Enumerable.Range(0, 20).Select(i => new Song { SongId = $"s{i:00}", Title = $"T{i}", Artist = "A", AlbumArt = "x.jpg" });
+        var demo = new FirstRunTopSongsDemo(FirstRunDemos.SongPool(catalog));
+        string[] pills = ["Top 1.2%", "Top 3.5%", "Top 7.8%", "Top 14.2%"];
+        Assert.Equal(pills, Enumerable.Range(0, FirstRunTopSongsDemo.SlotCount).Select(FirstRunTopSongsDemo.Pill));
+        Assert.Equal(["s00", "s01", "s02", "s03"], demo.Songs.Select(s => s.SongId));
+        var everSwapped = new HashSet<int>();
+        int? firstFull = null;
+        for (var tick = 1; tick <= 6; tick++)
+        {
+            var before = demo.Songs.Select(s => s.SongId).ToList();
+            var swapped = demo.Advance();
+            Assert.Equal(2, swapped.Count);
+            Assert.Equal(tick, demo.Rotations);
+            everSwapped.UnionWith(swapped);
+            if (everSwapped.Count == FirstRunTopSongsDemo.SlotCount) firstFull ??= tick;
+            for (var slot = 0; slot < FirstRunTopSongsDemo.SlotCount; slot++)
+                Assert.Equal(swapped.Contains(slot), before[slot] != demo.Songs[slot].SongId);
+            Assert.Equal(FirstRunTopSongsDemo.SlotCount, demo.Songs.Select(s => s.SongId).Distinct().Count());
+            Assert.Equal(pills, Enumerable.Range(0, FirstRunTopSongsDemo.SlotCount).Select(FirstRunTopSongsDemo.Pill));
+        }
+        // tools/windows/first_run_journey.py (TOP_SONG_TICKS) waits for every slot's first swap: three ticks.
+        Assert.Equal(3, firstFull);
+    }
+
+    [Fact]
+    public void TopSongsDemo_ShortOrMissingCatalogue_DoesNotRotate()
+    {
+        foreach (var real in new[] { 0, 2 })
+        {
+            var catalog = Enumerable.Range(0, real).Select(i => new Song { SongId = $"s{i}", Title = $"T{i}", Artist = "A", AlbumArt = "x.jpg" });
+            var demo = new FirstRunTopSongsDemo(FirstRunDemos.SongPool(catalog));
+            Assert.Equal(FirstRunTopSongsDemo.SlotCount, demo.Songs.Count);
+            Assert.Equal(FirstRunTopSongsDemo.SlotCount - real, demo.Songs.Count(s => s.IsPlaceholder));
+            Assert.Empty(demo.Advance());
+            Assert.Equal(0, demo.Rotations);
+        }
+    }
+
+    [Fact]
     public void WebDataPools_AreAvailable()
     {
         Assert.Equal(10, FirstRunDemos.Rankings.Count);
@@ -208,11 +319,47 @@ public class FirstRunDemoTests
         Assert.Equal(10, FirstRunDemos.MetaData.Count);
         Assert.Equal(6, FirstRunDemos.MetadataLayouts.Count);
         Assert.Equal([1.2, 3.5, 7.8, 14.2, 22.6, 35.1, 48.9], FirstRunDemos.TopSongPercentiles);
+        // Issue #257: the web pins each row's pill (DEMO_PERCENTILES[i]); rotation must not reorder or repeat them.
+        Assert.Equal([1.2, 3.5, 7.8, 14.2], Enumerable.Range(0, 4).Select(FirstRunDemos.TopSongPercentile));
+        Assert.Equal(1.2, FirstRunDemos.TopSongPercentile(7));
         Assert.Equal(4, FirstRunDemos.SuggestionTemplates.Count);
         Assert.Equal(4, FirstRunDemos.ExperimentalMetrics.Count);
         Assert.Equal(6, FirstRunDemos.RivalsAbove.Count);
         Assert.Equal(6, FirstRunDemos.RivalsBelow.Count);
         Assert.Equal(3, FirstRunDemos.InstrumentRivals.Count);
         Assert.Equal(6, FirstRunDemos.RivalDetailCategories.Count);
+    }
+
+    [Fact]
+    public void RivalDemos_ShowTheRowsAheadAndBehindWithoutSharedCount()
+    {
+        // Issue #267 (Windows check of #67/#40): the Rivals/Compete demos repeat the real row's pills, never "shared".
+        var culture = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        try
+        {
+            var keyDrifter = FirstRunDemos.RivalsAbove[0];
+            Assert.Equal("66 songs ahead · 82 songs behind", keyDrifter.CountsText);
+            Assert.Equal("KeyDrifter · 66 songs ahead · 82 songs behind", keyDrifter.GroupLine);
+            Assert.Equal(new FirstRunDemoRow("KeyDrifter", "66 songs ahead · 82 songs behind", "▲ 12"), keyDrifter.Row);
+            Assert.Equal("▼ 10", FirstRunDemos.RivalsBelow[0].Row.Value);
+            var all = FirstRunDemos.RivalsAbove.Concat(FirstRunDemos.RivalsBelow)
+                .Concat(FirstRunDemos.InstrumentRivals.Values.SelectMany(p => p.Above.Concat(p.Below)));
+            foreach (var rival in all)
+            {
+                var row = new RivalRowItem(rival.AccountId, rival.DisplayName, RivalDirection.Above, rival.BehindCount, rival.AheadCount, null,
+                    new AppRoute.RivalDetail(rival.AccountId));
+                Assert.Equal($"{row.AheadText} · {row.BehindText}", rival.CountsText);
+                foreach (var text in new[] { rival.GroupLine, rival.Row.Title, rival.Row.Detail, rival.Row.Value })
+                {
+                    Assert.DoesNotContain("shared", text, StringComparison.OrdinalIgnoreCase);
+                    Assert.DoesNotContain(rival.SharedSongCount.ToString(CultureInfo.InvariantCulture), text, StringComparison.Ordinal);
+                }
+            }
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = culture;
+        }
     }
 }

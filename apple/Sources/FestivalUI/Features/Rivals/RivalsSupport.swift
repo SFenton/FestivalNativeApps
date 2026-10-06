@@ -57,7 +57,7 @@ struct RivalsChooseProfileState: View {
             Text("Choose a profile to see your rivals.")
         } actions: {
             Button("Choose Profile", action: action)
-                .buttonStyle(.borderedProminent)
+                .festivalProminentButton()
         }
         .accessibilityIdentifier("fst.rivals.chooseProfile")
     }
@@ -121,9 +121,10 @@ struct RivalRowContent<Rival: RivalRowDisplayable>: View {
     }
 }
 
-/// "View All Rivals" link below a rivals preview card (#41): the shared purple
-/// ``PurpleActionLabel`` that "View Full Leaderboard" uses, sitting under the card
-/// rather than inside it, like the web's shared `viewAllButton`.
+/// "View All Rivals" link below a rivals preview card (#41): the shared
+/// ``PurpleActionLink`` that Rival Detail's category cards and "View Full Leaderboard"
+/// also draw, sitting under the card rather than inside it, like the web's shared
+/// `viewAllButton`.
 struct RivalsViewAllButton: View {
     /// Full rivals list to push.
     let route: AppRoute
@@ -131,31 +132,7 @@ struct RivalsViewAllButton: View {
     let identifier: String
 
     var body: some View {
-        NavigationLink(value: route) {
-            PurpleActionLabel(title: "View All Rivals")
-        }
-        .festivalRowButtonStyle()
-        .accessibilityIdentifier(identifier)
-    }
-}
-
-/// In-card trailing "See All" row for Rival Detail's category cards.
-struct RivalViewAllRow: View {
-    let title: String
-
-    var body: some View {
-        HStack {
-            Spacer()
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(BrandTokens.textPrimary)
-            Spacer()
-        }
-        // HIG Accessibility: 44×44 pt default control size on iOS/iPadOS (the audit
-        // reported the 18 pt row as "Hit area is too small").
-        .frame(minHeight: 44)
-        .contentShape(Rectangle())
-        .accessibilityAddTraits(.isButton)
+        PurpleActionLink(title: "View All Rivals", route: route, identifier: identifier)
     }
 }
 

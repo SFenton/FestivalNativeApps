@@ -80,6 +80,7 @@ import com.festivalscoretracker.android.core.songs.SongHistoryChart
 import com.festivalscoretracker.android.core.songs.SongHistoryPaging
 import com.festivalscoretracker.android.core.songs.SongHistoryPoint
 import com.festivalscoretracker.android.core.songs.SongHistorySwap
+import com.festivalscoretracker.android.ui.common.GraphCardList
 import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentSelector
@@ -104,10 +105,12 @@ import kotlin.math.max
  * with history, accuracy bars (red→green, gold for a 100% FC) with the score line,
  * tap a bar for its detail row, « ‹ › » paging when bars don't fit, the five best
  * scores (best highlighted) and "View all scores" to the full history page when there
- * are more than five. Switching chart fades the graph and best scores out and the new
- * chart's back in ([SongHistorySwap]; instant with reduced motion) while the card keeps
- * its height: the pager row stays reserved when any chart pages and the height is held
- * during the swap.
+ * are more than five. Switching chart fades the graph out and the new chart's back in
+ * ([SongHistorySwap]; instant with reduced motion) while the card keeps its height: the
+ * pager row stays reserved when any chart pages and the height is held during the swap.
+ * The best scores below the card run the web GraphCard list sequence ([GraphCardList]:
+ * old rows out, 300 ms height ease, new rows in), so the page content under them glides
+ * rather than jumps; View All follows the selection at once, as on the web (issue #169).
  *
  * @param entries This song's history rows (every chart, invalid scores already dropped).
  * @param visible Settings-visible charted instruments.
@@ -191,27 +194,28 @@ fun SongHistoryCard(
                 )
             }
         }
-        val top = remember(points) { SongHistoryChart.top(points) }
+        // Issue #169: like the web GraphCard, the best scores and View All follow the selection at
+        // once (not the graph's fade); the list runs the web useListAnimation sequence.
+        val selectedPoints = remember(entries, selected) { SongHistoryChart.points(entries, selected) }
+        val top = remember(selectedPoints) { SongHistoryChart.top(selectedPoints) }
         // Issue #62: the list shows seasons only when its rows are at least 520 dp wide (web QUERY_SHOW_SEASON).
-        BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 8.dp).graphicsLayer { alpha = fade.value }) {
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 8.dp)) {
             val width = maxWidth.value
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                top.forEachIndexed { index, point ->
-                    HistoryRow(
-                        point,
-                        best = index == 0,
-                        tag = "fst.song-detail.history.top.$index",
-                        showSeason = ScoreRowSeasonPolicy.showsSeason(ScoreRowSeasonPolicy.Surface.HistoryList, width, point.season),
-                    )
-                }
+            GraphCardList(top, identity = { it.dateKey to it.score }, modifier = Modifier.fillMaxWidth().testTag("fst.song-detail.history.top")) { point, index ->
+                HistoryRow(
+                    point,
+                    best = index == 0,
+                    tag = "fst.song-detail.history.top.$index",
+                    showSeason = ScoreRowSeasonPolicy.showsSeason(ScoreRowSeasonPolicy.Surface.HistoryList, width, point.season),
+                )
             }
         }
-        if (points.size > SongHistoryChart.TOP_COUNT) {
+        if (selectedPoints.size > SongHistoryChart.TOP_COUNT) {
             ViewFullLeaderboardButton(
-                onClick = { onViewAll(chart) },
+                onClick = { onViewAll(selected) },
                 label = "View All Scores",
                 testTag = "fst.song-detail.history.view-all",
-                modifier = Modifier.padding(top = 8.dp).graphicsLayer { alpha = fade.value },
+                modifier = Modifier.padding(top = 8.dp),
             )
         }
     }

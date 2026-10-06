@@ -2,6 +2,35 @@ import Foundation
 import Testing
 @testable import FestivalCore
 
+// MARK: - Ramps (issue #308)
+
+/// The web ramps: `useScrollMask` 40 px at top edges, `useScrollFade` 36 px at bottom
+/// chrome.
+@Test func scrollEdgeRampsMatchTheWeb() {
+    #expect(ScrollEdgeFade.topDistance == 40)
+    #expect(ScrollEdgeFade.distance == 36)
+}
+
+/// Accessibility settings turn any ramp into a hard edge; bad input never fades.
+@Test func scrollEdgeRampBecomesAHardEdge() {
+    #expect(ScrollEdgeFade.ramp(ScrollEdgeFade.topDistance, hardEdge: false) == 40)
+    #expect(ScrollEdgeFade.ramp(ScrollEdgeFade.distance, hardEdge: false) == 36)
+    #expect(ScrollEdgeFade.ramp(ScrollEdgeFade.topDistance, hardEdge: true) == 0)
+    #expect(ScrollEdgeFade.ramp(ScrollEdgeFade.distance, hardEdge: true) == 0)
+    #expect(ScrollEdgeFade.ramp(-4, hardEdge: false) == 0)
+    #expect(ScrollEdgeFade.ramp(.nan, hardEdge: false) == 0)
+    #expect(ScrollEdgeFade.ramp(.infinity, hardEdge: false) == 0)
+}
+
+/// A hard edge cuts rows exactly at the chrome's top: no ramp, nothing beneath.
+@Test func bottomHardEdgeCutsAtChromeTop() {
+    let stops = ScrollEdgeFade.bottom(
+        height: 800, obscured: 200, distance: ScrollEdgeFade.ramp(ScrollEdgeFade.distance, hardEdge: true)
+    )
+    #expect(stops.fadeStart == 0.75)
+    #expect(stops.fadeEnd == 0.75)
+}
+
 // MARK: - Bottom scroll edge fade (issue #93)
 
 /// Rows fade over 36 pt above the chrome and are clear beneath it.
@@ -65,6 +94,21 @@ import Testing
     ) == nil)
 }
 
+/// Readings at the end of an iPhone 17 Pro board (issue #305): a `ScrollView`'s
+/// `containerSize` leaves out its 116 pt top and 135 pt bottom insets, so only the
+/// full `visibleRect` height reaches 0 there; a `List` reports both as the full height.
+@Test func contentOverflowReachesZeroWithFullScrollViewHeight() {
+    #expect(ScrollEdgeFade.contentOverflow(
+        contentHeight: 1441, offsetY: 702, containerHeight: 874, bottomInset: 135
+    ) == 0)
+    #expect(ScrollEdgeFade.contentOverflow(
+        contentHeight: 1441, offsetY: 702, containerHeight: 623, bottomInset: 135
+    ) == 251)
+    #expect(ScrollEdgeFade.contentOverflow(
+        contentHeight: 1520, offsetY: 785, containerHeight: 874, bottomInset: 139
+    ) == 0)
+}
+
 /// The last row rests one row gap above the footer, or above the pager when the
 /// player has no score; the footer rests one row gap above the pager.
 @Test func pinnedChromeKeepsRowGap() {
@@ -84,6 +128,39 @@ import Testing
         rowGap: 2, rowBottomInset: 6, edgePadding: -3, hasFooter: true, hasPager: false
     )
     #expect(degenerate == .init(footerTop: 0, footerBottom: 0, pagerTop: 2))
+}
+
+/// Band boards (issue #305) pad the card stack's bottom by a full row gap, so the
+/// pinned pager adds nothing and the last card rests one gap above it.
+@Test func pinnedPagerAddsNothingWhenCardsCarryTheGap() {
+    let band = PinnedChromeSpacing.resolve(
+        rowGap: 6, rowBottomInset: 6, edgePadding: 8, hasFooter: false, hasPager: true
+    )
+    #expect(band == .init(footerTop: 0, footerBottom: 0, pagerTop: 0))
+}
+
+// MARK: - Accessibility hard edge (scroll-edge R7, issue #305)
+
+/// Reduce Transparency or Increase Contrast turn the bottom ramp into a hard cut at
+/// the chrome's top edge; with neither the scroll-driven fade height is kept.
+@Test(arguments: [(false, false, 36.0), (true, false, 0.0), (false, true, 0.0), (true, true, 0.0)])
+func bottomFadeIsAHardEdgeForAccessibility(reduceTransparency: Bool, increaseContrast: Bool, expected: Double) {
+    #expect(ScrollEdgeFade.accessibleDistance(
+        36, reduceTransparency: reduceTransparency, increaseContrast: increaseContrast
+    ) == expected)
+    #expect(ScrollEdgeFade.accessibleDistance(
+        12.5, reduceTransparency: reduceTransparency, increaseContrast: increaseContrast
+    ) == (expected == 0 ? 0 : 12.5))
+}
+
+/// A zero-height fade puts the opaque and clear stops on the chrome's top edge: rows
+/// are fully drawn right up to it and still clear beneath it.
+@Test func hardEdgeStopsMeetAtChromeTop() {
+    let stops = ScrollEdgeFade.bottom(
+        height: 800, obscured: 200,
+        distance: ScrollEdgeFade.accessibleDistance(36, reduceTransparency: true, increaseContrast: false)
+    )
+    #expect(stops == .init(fadeStart: 0.75, fadeEnd: 0.75))
 }
 
 // MARK: - Selected player on page while paging (issue #93)

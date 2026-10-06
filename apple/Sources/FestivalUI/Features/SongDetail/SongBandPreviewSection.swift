@@ -67,6 +67,8 @@ struct SongBandPreviewSection: View {
                         .fixedSize(horizontal: false, vertical: true)
                     Button("Retry \(bandType.label) scores", action: onRetry)
                         .frame(minHeight: 44)
+                        // Readable accent text on the card (the fill tint is below 4.5:1).
+                        .tint(AccentText.blue)
                         .accessibilityIdentifier("fst.song-detail.band-retry.\(bandType.rawValue)")
                 }
                 .padding(14)
@@ -140,10 +142,17 @@ struct SongBandPreviewSection: View {
                     SongBandPreviewRow(entry: entry, highlighted: preview.isSelected(entry))
                         .accessibilityIdentifier("fst.song-detail.band-row.\(bandType.rawValue).\(index)")
                 }
+                // The selected band's row after the top ten jumps to its place in the
+                // full board, like the solo spotlight row (issue #307).
                 if let footer {
-                    SongBandPreviewRow(entry: footer, highlighted: true)
-                        .padding(.top, 4)
-                        .accessibilityIdentifier("fst.song-detail.band-selected.\(bandType.rawValue)")
+                    SongBandPreviewRow(
+                        entry: footer, highlighted: true,
+                        route: SongBandRowNavigation.previewRoute(
+                            for: footer, song: song, bandType: bandType, isAppended: true
+                        )
+                    )
+                    .padding(.top, 4)
+                    .accessibilityIdentifier("fst.song-detail.band-selected.\(bandType.rawValue)")
                 }
                 NavigationLink(value: AppRoute.songBandLeaderboard(song, bandType: bandType.rawValue)) {
                     PurpleActionLabel(title: "View full leaderboard")
@@ -161,21 +170,31 @@ struct SongBandPreviewSection: View {
 
 /// One band score card (web `PlayerBandCard` + `SongBandScoreFooter`): each member's
 /// name and instruments, then rank, team score, stars and accuracy. The whole card is
-/// one drill-down button to Band Detail with a disclosure chevron. Shared by the Song
+/// one drill-down button with a disclosure chevron: to Band Detail, or for the selected
+/// band's appended row to its place in the full board (issue #307). Shared by the Song
 /// Detail band previews and the full band song leaderboard, like the web (issue #90).
 struct SongBandPreviewRow: View {
     let entry: SongBandLeaderboardEntry
     /// The selected player's band: the web's purple highlight.
     let highlighted: Bool
+    /// Where tapping goes (``SongBandRowNavigation``).
+    let route: AppRoute
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
+    /// Create a band card.
+    ///
+    /// - Parameters:
+    ///   - entry: Band score row.
+    ///   - highlighted: Whether it is the selected player's band.
+    ///   - route: Tap destination; nil opens the band's page.
+    init(entry: SongBandLeaderboardEntry, highlighted: Bool, route: AppRoute? = nil) {
+        self.entry = entry
+        self.highlighted = highlighted
+        self.route = route ?? SongBandRowNavigation.bandRoute(entry)
+    }
+
     var body: some View {
-        NavigationLink(
-            value: AppRoute.band(
-                bandId: entry.bandId, name: entry.membersLabel,
-                bandType: entry.bandType, teamKey: entry.teamKey
-            )
-        ) {
+        NavigationLink(value: route) {
             HStack(spacing: 8) {
                 VStack(alignment: .leading, spacing: 8) {
                     members
@@ -195,7 +214,7 @@ struct SongBandPreviewRow: View {
         .festivalRowButtonStyle()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(SongBandPreviewText.spokenLabel(entry, selected: highlighted))
-        .accessibilityHint("Opens band")
+        .accessibilityHint(SongBandRowNavigation.hint(for: route))
         .accessibilityAddTraits(.isButton)
     }
 
@@ -236,6 +255,80 @@ struct SongBandPreviewRow: View {
             }
             SongBandAccuracyBadge(accuracy: entry.accuracy, fullCombo: entry.isFullCombo)
         }
+    }
+}
+
+// MARK: - Navigation
+
+/// Where a band score card goes: the web's `PlayerBandCard` link to the band page, or,
+/// for the selected band's row appended after Song Detail's top ten, the full board at
+/// the page containing its rank with the row highlighted and brought into view, the
+/// same rule as the solo spotlight row (``SelectedRowAction``, issue #307).
+enum SongBandRowNavigation {
+    /// Rows per page of the full band board.
+    static let pageSize = 25
+
+    /// The band's own page.
+    ///
+    /// - Parameter entry: Band score row.
+    /// - Returns: Band Detail for that band, carrying its size and roster key.
+    static func bandRoute(_ entry: SongBandLeaderboardEntry) -> AppRoute {
+        .band(
+            bandId: entry.bandId, name: entry.membersLabel,
+            bandType: entry.bandType, teamKey: entry.teamKey
+        )
+    }
+
+    /// Where a Song Detail band preview row goes.
+    ///
+    /// - Parameters:
+    ///   - entry: Band score row.
+    ///   - song: Song being shown.
+    ///   - bandType: Previewed band size.
+    ///   - isAppended: The row is the selected band's, appended after the top rows.
+    /// - Returns: The full board at the row's page for an appended row with a rank,
+    ///   otherwise the band's page.
+    static func previewRoute(
+        for entry: SongBandLeaderboardEntry, song: Song, bandType: BandType, isAppended: Bool
+    ) -> AppRoute {
+        switch SelectedRowAction.preview(rank: entry.rank, isAppended: isAppended, pageSize: pageSize) {
+        case let .jump(page):
+            .songBandLeaderboard(
+                song, bandType: bandType.rawValue, page: page, focus: SongBandRowFocus(entry)
+            )
+        case .openProfile:
+            bandRoute(entry)
+        }
+    }
+
+    /// Spoken hint naming where a band card goes.
+    ///
+    /// - Parameter route: The card's route.
+    /// - Returns: "Opens band", or the jump to the band's position.
+    static func hint(for route: AppRoute) -> String {
+        if case .songBandLeaderboard = route {
+            return "Jumps to your band's position in the full leaderboard"
+        }
+        return "Opens band"
+    }
+
+    // MARK: - Full-board footer
+
+    /// What the full band board's pinned selected-band footer does: the Solo chart's
+    /// footer rule (issue #307). While the band's row is on the shown page it opens the
+    /// Band page; otherwise it jumps to the page containing the band's rank, focused on it.
+    ///
+    /// - Parameters:
+    ///   - entry: The selected band's row (the response's `selectedEntry`).
+    ///   - pageEntries: Rows of the page on screen.
+    /// - Returns: The footer's action.
+    static func footerAction(
+        for entry: SongBandLeaderboardEntry, pageEntries: [SongBandLeaderboardEntry]
+    ) -> SelectedRowAction {
+        let focus = SongBandRowFocus(entry)
+        return SelectedRowAction.footer(
+            rank: entry.rank, isVisible: pageEntries.contains(where: focus.matches), pageSize: pageSize
+        )
     }
 }
 

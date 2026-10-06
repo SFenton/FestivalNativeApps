@@ -96,6 +96,34 @@ public interface ILeaderboardScoreRow : ILeaderboardEntryRow
     /// Other score rows show it from a 520 epx row (<see cref="LeaderboardColumnLayout.SeasonBreakpoint"/>).
     /// </summary>
     bool PinsSeason => false;
+
+    /// <summary>
+    /// UIA name while the row shows its season column: the season is on screen, so Narrator reads it too (issue #262).
+    /// <see cref="ILeaderboardEntryRow.Announcement"/> leaves the season out, so a hidden season is not read.
+    /// </summary>
+    string SeasonShownAnnouncement => Announcement;
+}
+
+/// <summary>
+/// UIA IDs of a score row's raw-view parts, which sit under the row's one stop so Narrator reads the row once but tests
+/// can still find them.
+/// </summary>
+public static class LeaderboardScoreRowIds
+{
+    /// <summary>Accuracy badge ID prefix (score-accuracy control).</summary>
+    public const string AccuracyPrefix = "fst.score.accuracy.";
+
+    /// <summary>Season text ID prefix (issue #262).</summary>
+    public const string SeasonPrefix = "fst.score.season.";
+
+    /// <summary>
+    /// The season text's ID, paired with the row's badge ID: <c>fst.score.accuracy.&lt;key&gt;</c> becomes
+    /// <c>fst.score.season.&lt;key&gt;</c>.
+    /// </summary>
+    /// <param name="badgeAutomationId">The row's badge ID.</param>
+    /// <returns>Season ID.</returns>
+    public static string Season(string badgeAutomationId) => SeasonPrefix +
+        (badgeAutomationId.StartsWith(AccuracyPrefix, StringComparison.Ordinal) ? badgeAutomationId[AccuracyPrefix.Length..] : badgeAutomationId);
 }
 
 /// <summary>A rankings row (web <c>RankingEntry</c>): songs label, then the rating with an optional Bayesian value.</summary>

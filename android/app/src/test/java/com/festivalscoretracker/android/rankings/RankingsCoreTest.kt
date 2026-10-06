@@ -238,26 +238,26 @@ class RankingsCoreTest {
     fun rowActionLabelsNameTheDestination() {
         assertEquals("Open profile", RankingNavigation.actionLabel(PlayerRoute(RankingsFixtures.accountId(1), "Them")))
         assertEquals("Open your statistics", RankingNavigation.actionLabel(StatisticsRoute))
-        assertEquals("Open your page of the full leaderboard", RankingNavigation.actionLabel(SongLeaderboardRoute("s-alpha", "Solo_Guitar", 3)))
+        assertEquals("Jump to your position", RankingNavigation.actionLabel(SongLeaderboardRoute("s-alpha", "Solo_Guitar", 3, navToPlayer = true)))
     }
 
     @Test
-    fun songFooterProjectsOnlySamePublicationScoresOffThePage() {
+    fun songFooterProjectsOnlySamePublicationScores() {
         val player = SelectedPlayer(RankingsFixtures.SELECTED, "Me")
         val score = FestivalApi.JSON.decodeFromString(PlayerScore.serializer(), ProfileFixtures.score("s-alpha", rank = 30, acc = 990, fc = true))
-        val other = LeaderboardEntry(accountId = RankingsFixtures.accountId(1), score = 1, rank = 1)
-        val footer = SongScoreSpotlight.footer(player, score, 7, 7, listOf(other))!!
+        val footer = SongScoreSpotlight.footer(player, score, 7, 7)!!
         assertEquals(RankingsFixtures.SELECTED, footer.accountId)
         assertEquals("Me", footer.displayName)
         assertEquals(30, footer.rank)
         assertEquals(990_000.0, footer.accuracy!!, 0.0)
         assertEquals(true, footer.isFullCombo)
-        assertNull(SongScoreSpotlight.footer(player, score, 8, 7, listOf(other)))
-        assertNull(SongScoreSpotlight.footer(player, score, null, 7, listOf(other)))
-        assertNull(SongScoreSpotlight.footer(player, score, 7, 7, listOf(other.copy(accountId = RankingsFixtures.SELECTED.uppercase()))))
-        assertNull(SongScoreSpotlight.footer(null, score, 7, 7, emptyList()))
-        assertNull(SongScoreSpotlight.footer(player, null, 7, 7, emptyList()))
-        assertEquals(0, SongScoreSpotlight.footer(player, score.copy(rank = null), 7, 7, emptyList())!!.rank)
+        assertNull(SongScoreSpotlight.footer(player, score, 8, 7))
+        assertNull(SongScoreSpotlight.footer(player, score, null, 7))
+        // Pinned even while the row is on the page (`leaderboard-row` R7, issue #307: web and Apple always pin it).
+        assertEquals(30, SongScoreSpotlight.footer(player, score, 7, 7)!!.rank)
+        assertNull(SongScoreSpotlight.footer(null, score, 7, 7))
+        assertNull(SongScoreSpotlight.footer(player, null, 7, 7))
+        assertEquals(0, SongScoreSpotlight.footer(player, score.copy(rank = null), 7, 7)!!.rank)
     }
 
     @Test

@@ -22,6 +22,8 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
     private const double SplitListWidth = 560;
 
     private int shownPage;
+    private bool spotlightShown;
+    private RankingSpotlightViewModel? watchedSpotlight;
     private FocusState jumpFocus = FocusState.Unfocused;
     private (int Index, FocusState Focus)? revealSelected;
     private bool split;
@@ -49,6 +51,7 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
         ViewModel.PropertyChanged += OnViewModelChanged;
         ViewModel.LoadSwap.ContentRevealed += OnContentRevealed;
         shownPage = ViewModel.Page;
+        WatchSpotlight();
         ScreenReader.Attach(this, [ViewModel, ViewModel.Pager], () => ViewModel.IsLoading,
             () => ViewModel.ShowRows ? $"{ViewModel.Title}, {ViewModel.Pager.InfoAnnouncement}" : ViewModel.ShowEmpty ? $"{ViewModel.Title}, no entries" : null,
             "Loading rankings");
@@ -62,8 +65,42 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
     {
         ViewModel.PropertyChanged -= OnViewModelChanged;
         ViewModel.LoadSwap.ContentRevealed -= OnContentRevealed;
+        if (watchedSpotlight is not null) watchedSpotlight.PropertyChanged -= OnSpotlightChanged;
+        watchedSpotlight = null;
         base.OnNavigatedFrom(e);
     }
+
+    #region Pinned row
+    /// <summary>Follows the current spotlight (rebuilt when another instrument's board commits) for late arrivals.</summary>
+    private void WatchSpotlight()
+    {
+        if (watchedSpotlight is not null) watchedSpotlight.PropertyChanged -= OnSpotlightChanged;
+        watchedSpotlight = ViewModel.Spotlight;
+        watchedSpotlight.PropertyChanged += OnSpotlightChanged;
+        PinnedRowChanged();
+    }
+
+    /// <summary>Re-evaluates the pinned row when its placement changes.</summary>
+    /// <param name="sender">Spotlight.</param>
+    /// <param name="e">Changed property.</param>
+    private void OnSpotlightChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(RankingSpotlightViewModel.IsVisible)) PinnedRowChanged();
+    }
+
+    /// <summary>
+    /// Fades in a pinned row that appears over an already revealed board (the own rank read finished after the rows),
+    /// as the song board does (<see cref="PinnedRowReveal"/>, issue #295); one that commits with a board enters with
+    /// the rows from <see cref="OnContentRevealed"/>.
+    /// </summary>
+    private void PinnedRowChanged()
+    {
+        var shown = ViewModel.Spotlight.IsVisible;
+        if (PinnedRowReveal.FadesOnArrival(spotlightShown, shown, ViewModel.LoadSwap.Phase))
+            DispatcherQueue.TryEnqueue(() => FadeIn.Play(FooterSpotlight, TimeSpan.Zero));
+        spotlightShown = shown;
+    }
+    #endregion
 
     /// <summary>
     /// When a new page of rows arrives, brings the selected player's row into view (after "Jump to your page"),
@@ -73,6 +110,7 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
     /// <param name="e">Changed property.</param>
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(FullRankingsViewModel.Spotlight)) WatchSpotlight();
         if (e.PropertyName is nameof(FullRankingsViewModel.Rows) or nameof(FullRankingsViewModel.ShowRows)) EnsureSplitSelection();
         if (e.PropertyName != nameof(FullRankingsViewModel.Rows) || ViewModel.Page == shownPage) return;
         shownPage = ViewModel.Page;
@@ -124,12 +162,19 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
     /// <param name="state">The jump button's focus kind.</param>
     private void OnFocusedJump(object? sender, FocusState state) => jumpFocus = state;
 
-    /// <summary>Replays the web row entrance after the shared load gate reveals a new page.</summary>
+    /// <summary>
+    /// Replays the web row entrance after the shared load gate reveals a new page, with the pinned "your rank" row
+    /// entering alongside the first row when it was gated (issue #270, as the song board's #295); paging keeps it in place.
+    /// </summary>
     /// <param name="sender">Swap.</param>
     /// <param name="e">Unused.</param>
     private void OnContentRevealed(object? sender, EventArgs e)
     {
-        DispatcherQueue.TryEnqueue(() => FadeIn.StaggerRealized(RowsRepeater));
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            FadeIn.StaggerRealized(RowsRepeater);
+            if (ViewModel.Spotlight.IsVisible && ViewModel.PinnedGate.IsGated) FadeIn.Play(FooterSpotlight, PinnedRowReveal.RevealDelay);
+        });
         RevealSelected();
     }
 

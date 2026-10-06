@@ -28,15 +28,17 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -63,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.festivalscoretracker.android.core.nav.DialogHinge
+import com.festivalscoretracker.android.core.nav.HingeSide
 import com.festivalscoretracker.android.presentation.ModalCoverage
 import com.festivalscoretracker.android.ui.design.popupTestTags
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -73,17 +76,55 @@ import kotlin.math.roundToInt
 // region Backdrop coverage
 
 /**
+ * How many Festival modals enclose the current content: 0 on a page, 1 inside a sheet or
+ * dialog, 2 inside an alert over a sheet. Decorative loops compare it with
+ * [ModalCoverage.covers] so a page behind a modal holds still while the top modal's own
+ * content keeps animating (issue #186).
+ */
+val LocalModalDepth = compositionLocalOf { 0 }
+
+/**
  * Registers the calling modal with [ModalCoverage] while it is in the composition, so the
- * shared backdrop holds its frame instead of animating unseen behind it (issue #83).
+ * shared backdrop holds its frame instead of animating unseen behind it (issue #83), and
+ * gives [content] (the modal's window) one more [LocalModalDepth].
  *
  * @param coverage Open-modal counter.
+ * @param content The modal (its `Dialog`/`ModalBottomSheet` call).
  */
 @Composable
-internal fun CoversBackdrop(coverage: ModalCoverage = ModalCoverage.shared) {
+internal fun CoversBackdrop(coverage: ModalCoverage = ModalCoverage.shared, content: @Composable () -> Unit) {
     DisposableEffect(coverage) {
         coverage.open()
         onDispose { coverage.close() }
     }
+    CompositionLocalProvider(LocalModalDepth provides LocalModalDepth.current + 1, content = content)
+}
+
+/**
+ * Whether a newer Festival modal covers the calling content (`modal-shell` R10). Continuous
+ * decorative motion (marquees, Shop pulses, status pulses) holds a still frame while it does,
+ * like the backdrop: the scrim hides it and the frames are wasted work.
+ *
+ * @param coverage Open-modal counter.
+ * @return `true` while a modal opened above this content is on screen.
+ */
+@Composable
+fun coveredByModal(coverage: ModalCoverage = ModalCoverage.shared): Boolean = coverage.covers(LocalModalDepth.current)
+
+/**
+ * Test seam for R10 loops whose motion is otherwise unobservable in Robolectric (a pulse's
+ * alpha): receives `(loop, value)` each time the loop's drawn value changes, and the still
+ * value (1) while it holds. `null` in the app, so production pays nothing.
+ */
+internal val LocalMotionProbe = staticCompositionLocalOf<((String, Float) -> Unit)?> { null }
+
+/** [LocalMotionProbe] loop names. */
+internal object MotionProbes {
+    /** The first-run demo highlight pulse. */
+    const val FIRST_RUN_DEMO_PULSE = "first-run.demo.pulse"
+
+    /** The retrying service-status icon pulse. */
+    const val SERVICE_STATUS_PULSE = "service-status.pulse"
 }
 
 // endregion
@@ -188,7 +229,6 @@ fun FestivalModalSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = skipPartiallyExpanded)
     val scope = rememberCoroutineScope()
     val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
-    CoversBackdrop()
     val close: () -> Unit = {
         if (reduceMotion) {
             onDismissRequest()
@@ -196,16 +236,18 @@ fun FestivalModalSheet(
             scope.launch { sheetState.hide() }.invokeOnCompletion { onDismissRequest() }
         }
     }
-    ModalBottomSheet(
-        onDismissRequest = onDismissRequest,
-        sheetState = sheetState,
-        containerColor = BrandTokens.cardBackground,
-        modifier = Modifier.festivalSheetTop().festivalSheetHingeSide().popupTestTags().then(modifier).semantics { paneTitle = title },
-        // Material's handle is 32 dp wide; once the sheet can collapse it is a 48 dp touch target.
-        dragHandle = { BottomSheetDefaults.DragHandle(Modifier.minimumInteractiveComponentSize()) },
-    ) {
-        FestivalModalHeader(title, closeTag, close, titleTag = titleTag, actions = headerActions)
-        content()
+    CoversBackdrop {
+        ModalBottomSheet(
+            onDismissRequest = onDismissRequest,
+            sheetState = sheetState,
+            containerColor = BrandTokens.cardBackground,
+            modifier = Modifier.festivalSheetTop().festivalSheetHingeSide().popupTestTags().then(modifier).semantics { paneTitle = title },
+            // Material's handle is 32 dp wide; once the sheet can collapse it is a 48 dp touch target.
+            dragHandle = { BottomSheetDefaults.DragHandle(Modifier.minimumInteractiveComponentSize()) },
+        ) {
+            FestivalModalHeader(title, closeTag, close, titleTag = titleTag, actions = headerActions)
+            content()
+        }
     }
 }
 
@@ -218,8 +260,12 @@ val MODAL_DIALOG_MAX_WIDTH: Dp = 560.dp
 
 /**
  * Shared modal dialog for wider windows and the first-run guide: an M3 dialog surface
- * (28 dp corners, card colour, at most [MODAL_DIALOG_MAX_WIDTH]) headed by
- * [FestivalModalHeader]. An outside tap, back and Close all call [onDismissRequest].
+ * (28 dp corners, card colour) headed by [FestivalModalHeader]. An outside tap, back and
+ * Close all call [onDismissRequest].
+ *
+ * The surface always takes the window width less 16 dp margins, capped at
+ * [MODAL_DIALOG_MAX_WIDTH] (M3 "Centered dialog (max 560dp wide)"), never the platform's
+ * preferred dialog width, which measured about 320 dp on a landscape phone (issues #139, #183).
  *
  * @param title Header and pane title.
  * @param closeTag Close button test tag.
@@ -227,11 +273,11 @@ val MODAL_DIALOG_MAX_WIDTH: Dp = 560.dp
  * @param modifier Surface modifier (test tags).
  * @param titleTag Optional heading test tag.
  * @param paneTitle TalkBack pane title (defaults to [title]).
- * @param compact Compact window: nearly full width with a 16 dp margin.
  * @param maxHeight Height cap ([Dp.Unspecified] for none).
  * @param titleStyle Header title style.
  * @param avoidHinge Keep the dialog on one side of a separating fold or hinge
- *   ([DialogHinge]) instead of centring it across the hinge.
+ *   ([DialogHinge]) instead of centring it across the hinge (default; M3: never place
+ *   interactive content across the hinge, issue #146).
  * @param content Dialog body below the header.
  */
 @Composable
@@ -242,20 +288,18 @@ fun FestivalModalDialog(
     modifier: Modifier = Modifier,
     titleTag: String? = null,
     paneTitle: String = title,
-    compact: Boolean = false,
     maxHeight: Dp = Dp.Unspecified,
     titleStyle: TextStyle = MaterialTheme.typography.titleLarge,
-    avoidHinge: Boolean = false,
+    avoidHinge: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    CoversBackdrop()
     val hingeArea = if (avoidHinge) dialogHingeArea() else null
     val surface: @Composable (Modifier) -> Unit = { placement ->
         Surface(
             shape = RoundedCornerShape(28.dp),
             color = BrandTokens.cardBackground,
             modifier = Modifier
-                .padding(if (compact || hingeArea != null) 16.dp else 0.dp)
+                .padding(16.dp)
                 .widthIn(max = MODAL_DIALOG_MAX_WIDTH)
                 .heightIn(max = maxHeight)
                 .fillMaxWidth()
@@ -274,16 +318,18 @@ fun FestivalModalDialog(
     // display, removes the dialog's window while the composition still holds it, leaving an
     // invisible modal (issue #139); a fresh window per density keeps it on screen.
     key(LocalConfiguration.current.densityDpi) {
-        if (hingeArea == null) {
-            Dialog(onDismissRequest = onDismissRequest, properties = DialogProperties(usePlatformDefaultWidth = !compact)) {
-                surface(Modifier)
-            }
-        } else {
-            Dialog(
-                onDismissRequest = onDismissRequest,
-                properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
-            ) {
-                HingeSideDialogLayout(hingeArea, onDismissRequest, surface)
+        CoversBackdrop {
+            if (hingeArea == null) {
+                Dialog(onDismissRequest = onDismissRequest, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+                    surface(Modifier)
+                }
+            } else {
+                Dialog(
+                    onDismissRequest = onDismissRequest,
+                    properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+                ) {
+                    HingeSideDialogLayout(hingeArea, onDismissRequest, surface)
+                }
             }
         }
     }
@@ -296,8 +342,8 @@ fun FestivalModalDialog(
  * @return The [DialogHinge] area, or null.
  */
 @Composable
-private fun dialogHingeArea(): DialogHinge.Area? {
-    val posture = LocalShellPosture.current ?: currentWindowAdaptiveInfo().windowPosture
+internal fun dialogHingeArea(): HingeSide.Rect? {
+    val posture = shellPosture()
     val hinge = posture.hingeList.firstOrNull { it.isSeparating } ?: return null
     val root = LocalView.current.rootView
     val density = LocalDensity.current
@@ -306,7 +352,7 @@ private fun dialogHingeArea(): DialogHinge.Area? {
     val x = origin[0].toFloat()
     val y = origin[1].toFloat()
     val safe = WindowInsets.safeDrawing
-    val safeArea = DialogHinge.Area(
+    val safeArea = HingeSide.Rect(
         left = x + safe.getLeft(density, direction),
         top = y + safe.getTop(density),
         right = x + root.width - safe.getRight(density, direction),
@@ -315,7 +361,7 @@ private fun dialogHingeArea(): DialogHinge.Area? {
     val bounds = hinge.bounds
     return DialogHinge.area(
         safe = safeArea,
-        hinge = DialogHinge.Area(x + bounds.left, y + bounds.top, x + bounds.right, y + bounds.bottom),
+        hinge = HingeSide.Rect(x + bounds.left, y + bounds.top, x + bounds.right, y + bounds.bottom),
         vertical = hinge.isVertical,
         separating = true,
         rtl = direction == LayoutDirection.Rtl,
@@ -331,8 +377,8 @@ private fun dialogHingeArea(): DialogHinge.Area? {
  * @param surface The dialog surface; apply the given modifier after its outer margin.
  */
 @Composable
-private fun HingeSideDialogLayout(
-    area: DialogHinge.Area,
+internal fun HingeSideDialogLayout(
+    area: HingeSide.Rect,
     onDismissRequest: () -> Unit,
     surface: @Composable (Modifier) -> Unit,
 ) {
@@ -347,7 +393,7 @@ private fun HingeSideDialogLayout(
                 detectTapGestures { if (!surfaceBounds.contains(it)) onDismissRequest() }
             },
     ) { measurables, constraints ->
-        val local = DialogHinge.Area(area.left - origin.x, area.top - origin.y, area.right - origin.x, area.bottom - origin.y)
+        val local = HingeSide.Rect(area.left - origin.x, area.top - origin.y, area.right - origin.x, area.bottom - origin.y)
         val placeable = measurables.single().measure(
             Constraints(
                 maxWidth = local.width.roundToInt().coerceIn(0, constraints.maxWidth),
@@ -398,22 +444,23 @@ fun FestivalAlertDialog(
     textTag: String? = null,
     destructive: Boolean = false,
 ) {
-    CoversBackdrop()
-    AlertDialog(
-        onDismissRequest = onDismissRequest,
-        title = { Text(title) },
-        text = { Text(text, modifier = if (textTag != null) Modifier.testTag(textTag) else Modifier) },
-        confirmButton = {
-            TextButton(
-                onClick = onConfirm,
-                colors = if (destructive) ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error) else ButtonDefaults.textButtonColors(),
-                modifier = Modifier.testTag(confirmTag),
-            ) { Text(confirmLabel) }
-        },
-        dismissButton = { TextButton(onClick = onDismissButton, modifier = Modifier.testTag(dismissTag)) { Text(dismissLabel) } },
-        containerColor = BrandTokens.cardBackground,
-        modifier = Modifier.popupTestTags().testTag(tag),
-    )
+    CoversBackdrop {
+        AlertDialog(
+            onDismissRequest = onDismissRequest,
+            title = { Text(title) },
+            text = { Text(text, modifier = if (textTag != null) Modifier.testTag(textTag) else Modifier) },
+            confirmButton = {
+                TextButton(
+                    onClick = onConfirm,
+                    colors = if (destructive) ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error) else ButtonDefaults.textButtonColors(),
+                    modifier = Modifier.testTag(confirmTag),
+                ) { Text(confirmLabel) }
+            },
+            dismissButton = { TextButton(onClick = onDismissButton, modifier = Modifier.testTag(dismissTag)) { Text(dismissLabel) } },
+            containerColor = BrandTokens.cardBackground,
+            modifier = Modifier.popupTestTags().testTag(tag),
+        )
+    }
 }
 
 // endregion

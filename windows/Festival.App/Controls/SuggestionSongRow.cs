@@ -26,10 +26,6 @@ public sealed partial class SuggestionSongRow : Button
     private static readonly SolidColorBrush Gold = new(Color.FromArgb(0xFF, 0xFF, 0xD7, 0x00));
     private static readonly SolidColorBrush GoldStroke = new(Color.FromArgb(0xFF, 0xCF, 0xA5, 0x00));
     private static readonly SolidColorBrush GoldBackground = new(Color.FromArgb(0xFF, 0x33, 0x29, 0x15));
-    private static readonly SolidColorBrush Green = new(Color.FromArgb(0xFF, 0x2E, 0xCC, 0x71));
-    private static readonly SolidColorBrush GreenStroke = new(Color.FromArgb(0xFF, 0x1E, 0x7F, 0x46));
-    private static readonly SolidColorBrush Red = new(Color.FromArgb(0xFF, 0xC6, 0x28, 0x28));
-    private static readonly SolidColorBrush RedStroke = new(Color.FromArgb(0xFF, 0x8B, 0x00, 0x00));
     private static readonly SolidColorBrush SubtleFill = new(Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF));
     private static readonly SolidColorBrush RivalFill = new(Color.FromArgb(0x33, 0x42, 0x85, 0xF4));
     private static readonly SolidColorBrush RivalText = new(Color.FromArgb(0xFF, 0x6E, 0xA8, 0xFF));
@@ -147,11 +143,12 @@ public sealed partial class SuggestionSongRow : Button
                 // Contrast theme: the rival name is a plain pill (ButtonFace / ButtonText with an outline), not brand blue.
                 if (p.RivalName is { } rival)
                     metadata.Children.Add(Services.ContrastTheme.IsOn ? NeutralPill(rival) : Pill(rival, RivalFill, null, RivalText));
+                // Rivals' win/lose text roles: the web's #C62828 measured 3.0:1 on the card (issue #259); contrast themes use WindowText.
                 if (p.RivalDeltaText is { } delta)
                     metadata.Children.Add(new TextBlock
                     {
                         Text = delta, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center,
-                        Foreground = Services.ContrastTheme.IsOn ? Services.ContrastTheme.Brush("FSTEmphasisBrush") : p.RivalDeltaSign > 0 ? Green : Red,
+                        Foreground = Role(p.RivalDeltaSign > 0 ? "FSTRivalWinTextBrush" : "FSTRivalLoseTextBrush"),
                     });
                 break;
             case SuggestionRowLayout.UnfcAccuracy when p.AccuracyExpanded is { } accuracy:

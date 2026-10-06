@@ -13,12 +13,13 @@ import com.festivalscoretracker.android.core.search.SearchScope
  * builds (and the non-distributed `benchmark` build) honour it (`MainActivity` checks `BuildConfig.DEBUG_LAUNCH`).
  *
  * Route syntax (`FST_DEBUG_ROUTE`): `song:<songId-or-title>`,
- * `songLeaderboard:<songId>:<Instrument wire ID>[:<page>]`,
+ * `songLeaderboard:<songId>:<Instrument wire ID>[:<page>[:reveal]]`,
  * `playerHistory:<songId>:<Instrument wire ID>`, `player:<accountId>`,
  * `playerBands:<accountId>`, `leaderboards`, `fullRankings:<Instrument wire ID>[:<page>]`,
  * `bandRankings:<bandType>[:<page>]`, `shop`, `rivals`, `statistics`, `suggestions`,
- * `compete`, `bands`, `band:<bandId>`, `licenses`, `allRivals:<scope>`,
+ * `compete`, `bands`, `band:<bandId>`, `songBandLeaderboard:<songId>[:<bandType>[:<page>[:reveal]]]`, `licenses`, `allRivals:<scope>`,
  * `rivalDetail:<rivalId>[:<scope>]`, `rivalry:<rivalId>:<mode>[:<scope>]` (scope = `RivalScope.routeToken`).
+ * A trailing `reveal` sets the board route's `navToPlayer`/`navToBand` (issue #307).
  *
  * @property section `FST_DEBUG_TAB`.
  * @property route Parsed `FST_DEBUG_ROUTE`, excluding song lookups.
@@ -110,7 +111,12 @@ data class DebugLaunch(
             return when (parts[0]) {
                 "songLeaderboard" -> arg?.split(":")?.let { pieces ->
                     val instrument = Instrument.fromWireId(pieces.getOrNull(1)) ?: return null
-                    SongLeaderboardRoute(pieces[0], instrument.wireId, pieces.getOrNull(2)?.toIntOrNull()?.coerceAtLeast(1) ?: 1)
+                    SongLeaderboardRoute(
+                        pieces[0],
+                        instrument.wireId,
+                        pieces.getOrNull(2)?.toIntOrNull()?.coerceAtLeast(1) ?: 1,
+                        navToPlayer = pieces.getOrNull(3) == "reveal",
+                    )
                 }
                 "playerHistory" -> arg?.split(":")?.let { pieces ->
                     val instrument = Instrument.fromWireId(pieces.getOrNull(1)) ?: return null
@@ -133,7 +139,14 @@ data class DebugLaunch(
                 "bands" -> BandsRoute
                 // `band:<bandId>[:<bandType>:<teamKey>]`; the team key itself contains `:`.
                 "band" -> arg?.split(":", limit = 3)?.let { BandRoute(it[0], bandType = it.getOrNull(1), teamKey = it.getOrNull(2)) }
-                "songBandLeaderboard" -> arg?.split(":", limit = 2)?.let { SongBandLeaderboardRoute(it[0], it.getOrNull(1) ?: "Band_Duets") }
+                "songBandLeaderboard" -> arg?.split(":")?.let { pieces ->
+                    SongBandLeaderboardRoute(
+                        pieces[0],
+                        pieces.getOrNull(1)?.takeIf { it.isNotBlank() } ?: "Band_Duets",
+                        pieces.getOrNull(2)?.toIntOrNull()?.coerceAtLeast(1) ?: 1,
+                        navToBand = pieces.getOrNull(3) == "reveal",
+                    )
+                }
                 "licenses" -> LicensesRoute
                 "allRivals", "rivalDetail", "rivalry" -> RivalRoutes.parseDebug(parts[0], arg)
                 else -> null

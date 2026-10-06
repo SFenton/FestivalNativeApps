@@ -34,7 +34,7 @@ struct CompeteScreen: View {
                 hub
             }
         }
-        .navigationTitle("Compete")
+        .festivalNavigationTitle("Compete")
         .festivalBackground(.carousel, session: session)
         .toolbar {
             QuickLinksToolbarItem(quickLinks)
@@ -155,6 +155,8 @@ struct CompeteInstrumentLeaderboardSection: View {
             card
         }
         .padding(.horizontal, 16)
+        // `.contain` keeps the rows' and the View Full Leaderboard CTA's identifiers reachable.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.compete.leaderboard-card.\(instrument.rawValue)")
         .task(id: loadKey) {
             guard gate.needsLoad(for: loadKey) else { return }

@@ -365,7 +365,7 @@ final class SongsScrollChrome {
 
     // MARK: Row fade near section starts (issue #298)
 
-    /// How deep the row fade under the bar may reach (``SectionBarEdgeFade``), or nil for
+    /// How deep the row fade under the bar may reach (``PinnedHeaderEdgeFade``), or nil for
     /// its full height. Read only by the row mask.
     private(set) var rowFadeLimit: CGFloat?
     /// Each nearby in-list title's limit (``fadeLimit(titleTop:barHeight:)``).
@@ -389,7 +389,7 @@ final class SongsScrollChrome {
     ///   - barHeight: The bar's current title height, which equals an in-list title's
     ///     (0 while unknown).
     /// - Returns: The limit in points, rounded down to half a point, or nil when it is
-    ///   at least the full fade height (``SectionBarEdgeFade/height``) or unknown.
+    ///   at least the full fade height (``PinnedHeaderEdgeFade/height``) or unknown.
     nonisolated static func fadeLimit(titleTop: CGFloat, barHeight: CGFloat) -> CGFloat? {
         guard titleTop.isFinite, barHeight.isFinite, barHeight > 0 else { return nil }
         let pinned = landingOffset
@@ -404,7 +404,7 @@ final class SongsScrollChrome {
             // An ordinary row: the fade ends at its top.
             limit = titleTop - pinned - barHeight
         }
-        guard limit < SectionBarEdgeFade.height else { return nil }
+        guard limit < PinnedHeaderEdgeFade.height else { return nil }
         return (max(0, limit) * 2).rounded(.down) / 2
     }
 
@@ -425,15 +425,6 @@ final class SongsScrollChrome {
         guard lowest != rowFadeLimit else { return false }
         rowFadeLimit = lowest
         return true
-    }
-
-    /// The row fade height under the bar: the fade for the current accessibility
-    /// settings, cut to ``rowFadeLimit``.
-    ///
-    /// - Parameter fade: ``SectionBarEdgeFade/height(reduceTransparency:increaseContrast:)``.
-    /// - Returns: The fade height to draw, in points.
-    func rowFadeHeight(fade: CGFloat) -> CGFloat {
-        max(0, min(fade, rowFadeLimit ?? fade))
     }
 
     // MARK: Previous title (issue #297)

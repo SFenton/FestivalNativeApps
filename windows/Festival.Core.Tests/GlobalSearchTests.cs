@@ -203,10 +203,15 @@ public class GlobalSearchViewModelTests
         var release = new TaskCompletionSource();
         var (service, time, session) = Create();
         await session.LoadCatalogAsync();
+        var reached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var inner = service.Handler.Responder;
         service.Handler.Responder = async (r, t) =>
         {
-            if (r.RequestUri!.AbsolutePath == SearchPath) await release.Task;
+            if (r.RequestUri!.AbsolutePath == SearchPath)
+            {
+                reached.TrySetResult();
+                await release.Task;
+            }
             return await inner(r, t);
         };
         var vm = new GlobalSearchViewModel(session);
@@ -221,7 +226,9 @@ public class GlobalSearchViewModelTests
         await Async.Settle();
         Assert.Empty(service.Handler.To(SearchPath));
         time.Advance(GlobalSearchViewModel.Debounce);
-        await Async.Until(() => vm.PlayersLoading);
+        // Wait for the players request itself: PlayersLoading flips before the song rows are matched.
+        await reached.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.True(vm.PlayersLoading);
         // Issue #299: All shows one spinner until songs and players have both settled (web SearchModal).
         Assert.Equal(["s1"], vm.Songs.Select(s => s.SongId));
         Assert.True(vm.IsBusy);
@@ -251,6 +258,58 @@ public class GlobalSearchViewModelTests
         Assert.Equal(announced, vm.LastAnnouncement);
         Assert.Equal("", vm.Hint);
         Assert.Empty(service.Handler.To("/api/bands/search"));
+    }
+
+    [Fact]
+    public async Task SectionShown_RaisedWhenEachSectionAppears_NotOnEveryRefresh()
+    {
+        var release = new TaskCompletionSource();
+        var (service, time, session) = Create();
+        await session.LoadCatalogAsync();
+        var reached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var inner = service.Handler.Responder;
+        service.Handler.Responder = async (r, t) =>
+        {
+            if (r.RequestUri!.AbsolutePath == SearchPath)
+            {
+                reached.TrySetResult();
+                await release.Task;
+            }
+            return await inner(r, t);
+        };
+        var vm = new GlobalSearchViewModel(session);
+        var shown = new List<SearchScope>();
+        vm.SectionShown += (_, section) => shown.Add(section);
+
+        // Song rows are ready at once but stay behind the spinner until the delayed players settle (issue #260).
+        vm.Query = "alph";
+        await Async.Settle();
+        time.Advance(GlobalSearchViewModel.Debounce);
+        await reached.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.True(vm.PlayersLoading);
+        Assert.NotEmpty(vm.Songs);
+        Assert.Empty(shown);
+        release.SetResult();
+        await Async.Until(() => vm.IsSettled);
+        Assert.Equal([SearchScope.Songs, SearchScope.Players], shown);
+
+        // Unrelated refreshes while both stay on screen raise nothing.
+        shown.Clear();
+        vm.Scope = SearchScope.All;
+        Assert.Empty(shown);
+
+        // Each scope switch that reveals a hidden section raises it once.
+        vm.Scope = SearchScope.Songs;
+        Assert.Empty(shown);
+        vm.Scope = SearchScope.Players;
+        Assert.Equal([SearchScope.Players], shown);
+        vm.Scope = SearchScope.All;
+        Assert.Equal([SearchScope.Players, SearchScope.Songs], shown);
+
+        // A new query hides both behind the spinner, then shows them again.
+        shown.Clear();
+        await Type(vm, time, "alp");
+        Assert.Equal([SearchScope.Songs, SearchScope.Players], shown);
     }
 
     [Fact]

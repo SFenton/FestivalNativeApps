@@ -136,6 +136,50 @@
     ]
   },
   {
+    "name": "kb-songs-filter-anonymous",
+    "tab": "songs",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "key:ctrl+f",
+      "key:tab",
+      "key:tab",
+      "assertfocus:id=fst.songs.filter",
+      "key:enter",
+      "waitfor:id=fst.songs.filter.reset@5",
+      "waitgone:id=fst.songs.filter.score.global",
+      "assertfocus:id=fst.songs.filter.year@3",
+      "key:tab",
+      "assertfocus:id=fst.songs.filter.duration",
+      "key:tab",
+      "assertfocus:id=fst.songs.filter.shop",
+      "key:tab",
+      "assertfocus:id=fst.songs.filter.double-bass",
+      "key:space",
+      "key:tab",
+      "assertfocus:id=fst.songs.filter.double-bass.supported@3",
+      "key:tab",
+      "assertfocus:id=fst.songs.filter.double-bass.unsupported@3",
+      "key:space",
+      "waitfor:name=No Results@10",
+      "key:tab",
+      "assertfocus:id=fst.songs.filter.reset@3",
+      "key:esc",
+      "assertfocus:id=fst.songs.filter@3",
+      "assertstatus:id=fst.songs.filter|Filters applied",
+      "key:enter",
+      "waitfor:id=fst.songs.filter.reset@5",
+      "key:shift+tab",
+      "assertfocus:id=fst.songs.filter.reset@3",
+      "key:enter",
+      "waitfor:id=fst.songs.row.fixture-pulse@10",
+      "key:esc",
+      "assertfocus:id=fst.songs.filter@3"
+    ]
+  },
+  {
     "name": "kb-section-accelerators",
     "tab": "songs",
     "profile": "fixture-player-1:Demo Player",
@@ -258,6 +302,55 @@
       "assertfocus:id=fst.song-detail.band-view-all.Band_Duets@3",
       "key:shift+tab",
       "assertfocus:id=fst.song-detail.band-selected.Band_Duets@3"
+    ]
+  },
+  {
+    "name": "kb-detail-row-opens-profile",
+    "route": "/songs/fixture-pulse",
+    "sizes": ["medium"],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2@10",
+      "focus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-1",
+      "key:down",
+      "assertfocus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2@3",
+      "key:enter",
+      "waitfor:id=fst.player.name@15",
+      "waitgone:id=fst.song-detail.title@5",
+      "key:alt+left",
+      "waitfor:id=fst.song-detail.title@15",
+      "waitgone:id=fst.player.name@5",
+      "scrollinto:id=fst.song-detail.preview-row.Solo_Drums.fixture-player-2@10",
+      "focus:id=fst.song-detail.preview-row.Solo_Drums.fixture-player-2",
+      "key:space",
+      "waitfor:id=fst.player.name@15",
+      "focus:id=PART_BackButton",
+      "key:enter",
+      "waitfor:id=fst.song-detail.title@15",
+      "waitgone:id=fst.player.name@5"
+    ]
+  },
+  {
+    "name": "kb-detail-anonymous-row",
+    "route": "/songs/fixture-pulse",
+    "fixture": ["--song-leaderboard", "anonymous"],
+    "sizes": ["compact"],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-4@10",
+      "focus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2",
+      "key:down",
+      "assertfocus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-4@3",
+      "key:up",
+      "assertfocus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2@3",
+      "key:tab",
+      "assertfocus:id=fst.song-detail.view-all.Solo_Guitar@3"
     ]
   },
   {
@@ -660,11 +753,11 @@
       "key:tab",
       "assertfocus:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8",
       "key:tab",
-      "assertfocus:name=View All Common Rivals",
+      "assertfocus:name=View All Rivals, Common Rivals",
       "key:tab",
       "assertfocus:name=See All Lead Rivals",
       "key:shift+tab",
-      "assertfocus:name=View All Common Rivals"
+      "assertfocus:name=View All Rivals, Common Rivals"
     ]
   }
 ]

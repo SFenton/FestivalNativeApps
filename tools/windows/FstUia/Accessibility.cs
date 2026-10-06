@@ -33,14 +33,16 @@ internal sealed partial class Driver
                 .Build())
             .Scan(new ScanOptions(scanId, window.Properties.NativeWindowHandle.Value));
         ScanOutput result;
-        var filesSkipped = false;
+        var filesSkipped = PostedInput.IsSessionLocked();
         try
         {
-            result = Run(OutputFileFormat.A11yTest);
+            // The .a11ytest file embeds a screen capture, which fails on the secure (locked) desktop only after the rules ran,
+            // so a locked console goes straight to a rules-only scan instead of scanning twice.
+            result = Run(filesSkipped ? OutputFileFormat.None : OutputFileFormat.A11yTest);
         }
         catch (System.ComponentModel.Win32Exception)
         {
-            // The .a11ytest file embeds a screen capture, which fails on the secure (locked) desktop; the rules still run.
+            // Locked mid-run: the rules still run.
             result = Run(OutputFileFormat.None);
             filesSkipped = true;
         }
@@ -78,11 +80,13 @@ internal sealed partial class Driver
             scans = [];
             response["scans"] = scans;
         }
+        var clock = System.Diagnostics.Stopwatch.StartNew();
         var result = Scan(window, Path.GetDirectoryName(path)!, Path.GetFileName(path)).AsObject();
         result["scan_id"] = Path.GetFileName(path);
         result["width_epx"] = WidthEpx(window);
+        result["elapsed_ms"] = clock.ElapsedMilliseconds;
         scans.Add(result);
-        Log($"scan {Path.GetFileName(path)}: {result["errors"]} error(s)");
+        Log($"scan {Path.GetFileName(path)}: {result["errors"]} error(s) in {clock.ElapsedMilliseconds} ms");
     }
 
     /// <summary>The window's current width in effective pixels.</summary>

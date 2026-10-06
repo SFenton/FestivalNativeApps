@@ -9,7 +9,7 @@ import FestivalDesign
 /// instrument (`.agents/design/apple/duo.md`, "Dual-source half-fold layouts").
 ///
 /// Reuses the player-profile graph card (`PlayerRankHistoryPage`, the pure
-/// `GET /api/rankings/{instrument}/{accountId}/history` read). See All opens the
+/// `GET /api/rankings/{instrument}/{accountId}/history` read). View All opens the
 /// player's own profile, where every graph lives.
 struct LeaderboardsRankHistoryPane: View {
     let session: FestivalSession
@@ -49,7 +49,7 @@ struct LeaderboardsRankHistoryPane: View {
                     message: "Select a player to follow their rank on every leaderboard here."
                 ) {
                     Button("Choose Profile") { openProfile() }
-                        .buttonStyle(.borderedProminent)
+                        .festivalProminentButton()
                         .accessibilityIdentifier("fst.dual.leaderboards.choose-profile")
                 }
             }

@@ -80,6 +80,46 @@ public class LeaderboardUnifyTests
     }
 
     [Fact]
+    public void ScoreRows_ReadTheSeasonWhileItShows()
+    {
+        // Issue #262: the row is one UIA stop with Raw parts, so a season on screen is part of its name; hidden, it isn't.
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        ILeaderboardScoreRow preview = new LeaderboardRow(
+            new LeaderboardEntry { AccountId = "a", DisplayName = "Ada", Rank = 1, Score = 99900, Accuracy = 980000, Season = 9 })
+        { IsSelectedPlayer = true };
+        Assert.Equal("Rank 1, Ada, 99,900 points, 98% accuracy, you", preview.Announcement);
+        Assert.Equal("Rank 1, Ada, 99,900 points, 98% accuracy, season 9, you", preview.SeasonShownAnnouncement);
+        ILeaderboardScoreRow noSeason = new LeaderboardRow(new LeaderboardEntry { AccountId = "b", DisplayName = "Bo", Rank = 2, Score = 5 });
+        Assert.Equal(noSeason.Announcement, noSeason.SeasonShownAnnouncement);
+
+        ILeaderboardScoreRow board = new SongLeaderboardRowViewModel(
+            new LeaderboardEntry { AccountId = "x", DisplayName = "Cy", Score = 1234, Rank = 3, Season = 12, Stars = 5, Accuracy = 990000, IsFullCombo = true }, false);
+        Assert.DoesNotContain("season", board.Announcement, StringComparison.Ordinal);
+        Assert.Equal(board.Announcement.Replace(", 5 stars", ", season 12, 5 stars", StringComparison.Ordinal), board.SeasonShownAnnouncement);
+
+        // History list rows read the season only while it shows (from 520 epx); the detail row always shows and reads it.
+        var point = new ScoreHistoryPoint(new ScoreHistoryEntry { NewScore = 5000, Accuracy = 990000, Season = 4, ChangedAt = "x" },
+            new DateTimeOffset(2026, 3, 30, 12, 5, 9, TimeSpan.Zero));
+        ILeaderboardScoreRow history = new ScoreHistoryListRow(point, true);
+        Assert.Equal($"{point.LongDate}, score 5,000, accuracy 99%, personal best", history.Announcement);
+        Assert.Equal($"{point.LongDate}, score 5,000, accuracy 99%, season 4, personal best", history.SeasonShownAnnouncement);
+        ILeaderboardScoreRow detail = new ScoreHistoryListRow(point, false) { IsDetail = true };
+        Assert.True(detail.PinsSeason);
+        Assert.Equal($"{point.LongDate}, score 5,000, accuracy 99%, season 4", detail.SeasonShownAnnouncement);
+        var seasonless = new ScoreHistoryListRow(new ScoreHistoryPoint(new ScoreHistoryEntry { NewScore = 1, ChangedAt = "x" }, point.Date), false);
+        Assert.Equal(seasonless.Announcement, seasonless.SeasonShownAnnouncement);
+    }
+
+    [Fact]
+    public void SeasonIds_PairWithTheBadgeIds()
+    {
+        Assert.Equal("fst.score.season.preview.Solo_Guitar.a", LeaderboardScoreRowIds.Season("fst.score.accuracy.preview.Solo_Guitar.a"));
+        Assert.Equal("fst.score.season.history.20260330120509.detail",
+            LeaderboardScoreRowIds.Season("fst.score.accuracy.history.20260330120509.detail"));
+        Assert.Equal("fst.score.season.custom", LeaderboardScoreRowIds.Season("custom"));
+    }
+
+    [Fact]
     public async Task BothPagers_ImplementTheBoardPagerContract()
     {
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;

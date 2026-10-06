@@ -29,7 +29,13 @@ public enum PublicEndpoint: Sendable {
     case bandProfile(bandType: String, teamKey: String, combo: String?)
     case bandRankHistory(bandType: String, teamKey: String, combo: String?, days: Int)
     case bandSongExtremes(bandType: String, teamKey: String, combo: String?, limit: Int)
-    case songBandLeaderboard(songId: String, bandType: String, top: Int, offset: Int, combo: String?)
+    /// One page of a song's band leaderboard
+    /// (`GET /api/leaderboard/{songId}/bands/{bandType}?top=&offset=[&combo=][&accountId=]`).
+    /// `accountId` is a query parameter that only asks for the selected player's best
+    /// band row (`selectedPlayerEntry`); it is never a selected-profile header.
+    case songBandLeaderboard(
+        songId: String, bandType: String, top: Int, offset: Int, combo: String?, accountId: String? = nil
+    )
     /// Song Detail's band previews: every band size's top rows in one pure read
     /// (`GET /api/leaderboard/{songId}/bands/all?top=[&accountId=]`). `accountId` is a
     /// query parameter that only asks for the selected player's best band row; it is
@@ -183,10 +189,11 @@ public enum PublicEndpoint: Sendable {
             segments = ["api", "rankings", "bands", bandType, teamKey, "songs"]
             query = [URLQueryItem(name: "limit", value: String(limit))]
             if let combo { query.append(URLQueryItem(name: "combo", value: combo)) }
-        case let .songBandLeaderboard(songId, bandType, top, offset, combo):
+        case let .songBandLeaderboard(songId, bandType, top, offset, combo, accountId):
             guard !songId.isEmpty, !songId.contains("/"),
                   !bandType.isEmpty, !bandType.contains("/"),
-                  (1...100).contains(top), offset >= 0, Self.isValidCombo(combo) else {
+                  (1...100).contains(top), offset >= 0, Self.isValidCombo(combo),
+                  accountId.map(ProfileSearchText.isValidAccountId) ?? true else {
                 throw FestivalAPIError.invalidResource
             }
             segments = ["api", "leaderboard", songId, "bands", bandType]
@@ -195,6 +202,7 @@ public enum PublicEndpoint: Sendable {
                 URLQueryItem(name: "offset", value: String(offset)),
             ]
             if let combo { query.append(URLQueryItem(name: "combo", value: combo)) }
+            if let accountId { query.append(URLQueryItem(name: "accountId", value: accountId)) }
         case let .songBandLeaderboards(songId, top, accountId):
             guard !songId.isEmpty, !songId.contains("/"), (1...50).contains(top),
                   accountId.map(ProfileSearchText.isValidAccountId) ?? true else {
@@ -244,13 +252,14 @@ public enum PublicEndpoint: Sendable {
     ///
     /// - Returns: False for account profiles, including HTTP 202 syncing envelopes,
     ///   for a player's own bands list (also account-scoped) and for band previews
-    ///   that carry a selected player's `accountId`.
+    ///   or band leaderboard pages that carry a selected player's `accountId`.
     var allowsSnapshotCache: Bool {
         switch self {
         case .player, .playerHistory, .playerNotifications, .playerBands, .playerBandsByType,
              .playerInstrumentRanking, .playerRankHistory:
             false
-        case let .songBandLeaderboards(_, _, accountId):
+        case let .songBandLeaderboards(_, _, accountId),
+             let .songBandLeaderboard(_, _, _, _, _, accountId):
             accountId == nil
         default: true
         }
@@ -271,6 +280,9 @@ public enum PublicEndpoint: Sendable {
 public enum OperationalEndpoint: Sendable {
     case features
     case accountSearch(query: String, limit: Int)
+    /// `GET /api/bands/search?q=&page=1&pageSize=`: the web global search's band query
+    /// (`useUnifiedSearch.ts`), first page only. Read-only since issue #320.
+    case bandSearch(query: String, pageSize: Int)
 
     /// Resolve a known operational path without attaching selected-profile metadata.
     ///
@@ -305,6 +317,34 @@ public enum OperationalEndpoint: Sendable {
                 .replacingOccurrences(of: "+", with: "%2B")
             guard let url = components?.url else {
                 throw FestivalAPIError.invalidProfileSearchQuery
+            }
+            return url
+        case let .bandSearch(query, pageSize):
+            guard (2...200).contains(query.count),
+                  query == query.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !ProfileSearchText.containsUnsafeScalar(query)
+            else {
+                throw FestivalAPIError.invalidBandSearchQuery
+            }
+            guard (1...BandSearchResponse.maximumPageSize).contains(pageSize) else {
+                throw FestivalAPIError.invalidBandSearch
+            }
+            var components = URLComponents(
+                url: baseURL.appendingPathComponent("api")
+                    .appendingPathComponent("bands").appendingPathComponent("search"),
+                resolvingAgainstBaseURL: false
+            )
+            components?.queryItems = [
+                URLQueryItem(name: "q", value: query),
+                URLQueryItem(name: "page", value: "1"),
+                URLQueryItem(name: "pageSize", value: String(pageSize)),
+            ]
+            // A literal `+` would reach the service as a space.
+            let encodedQuery = components?.percentEncodedQuery
+            components?.percentEncodedQuery = encodedQuery?
+                .replacingOccurrences(of: "+", with: "%2B")
+            guard let url = components?.url else {
+                throw FestivalAPIError.invalidBandSearchQuery
             }
             return url
         }

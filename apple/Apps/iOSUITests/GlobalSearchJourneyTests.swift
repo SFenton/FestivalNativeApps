@@ -1,13 +1,36 @@
 import XCTest
 
-/// Global search journeys against the loopback fixture (`tools/mock_service.py` on
-/// `127.0.0.1:8765`): open from the Search tab, search songs and players, open a
-/// result, and the blocked Bands scope (`.agents/controls/global-search/ios.md`).
+/// Global search journeys against a loopback fixture started from this revision: open
+/// from the Search tab, search songs, players and bands, and open a result
+/// (`.agents/controls/global-search/ios.md`). "All" always searches bands (issue #320),
+/// so the shared `:8765` listener, which may predate the band-search route, would show
+/// "Bands unavailable"; start the fixture on its own port instead:
+///
+///     python3 tools/mock_service.py --port 18936
 final class GlobalSearchJourneyTests: XCTestCase {
+    /// The fixture origin every journey here uses.
+    private static let origin = "http://127.0.0.1:18936"
+
+    /// Skip unless the fixture serves band search (it predates issue #320 otherwise).
+    ///
+    /// - Throws: A skip when that service is not running.
+    override func setUpWithError() throws {
+        let probe = expectation(description: "band-search probe")
+        var served = false
+        URLSession.shared.dataTask(
+            with: URL(string: "\(Self.origin)/api/bands/search?q=Syncing&page=1&pageSize=10")!
+        ) { _, response, _ in
+            served = (response as? HTTPURLResponse)?.statusCode == 200
+            probe.fulfill()
+        }.resume()
+        wait(for: [probe], timeout: 10)
+        try XCTSkipUnless(served, "Start `mock_service.py --port 18936` from this revision")
+    }
+
     @MainActor
     private func fixtureApp() -> XCUIApplication {
         FestivalApp.makeApp([
-            "FST_API_BASE_URL": "http://127.0.0.1:8765",
+            "FST_API_BASE_URL": Self.origin,
             "FST_UI_TEST_CLEAR_PROFILE": "1",
             "FST_DEBUG_STILL_BACKGROUND": "1",
         ])
@@ -28,7 +51,7 @@ final class GlobalSearchJourneyTests: XCTestCase {
                 .waitForExistence(timeout: 10),
             "Search tab content did not appear"
         )
-        let field = app.searchFields["Search songs or players"]
+        let field = app.searchFields["Search songs, players, or bands"]
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         return field
     }
@@ -130,6 +153,10 @@ final class GlobalSearchJourneyTests: XCTestCase {
         XCTAssertTrue(song.waitForExistence(timeout: 10))
         let player = app.buttons.matching(identifier: "fst.global-search.result.player").firstMatch
         XCTAssertTrue(player.waitForExistence(timeout: 15), "Player results never arrived")
+        // "All" lists bands after players (issue #320).
+        let band = app.buttons.matching(identifier: "fst.global-search.result.band").firstMatch
+        XCTAssertTrue(band.waitForExistence(timeout: 15), "Band results never arrived")
+        XCTAssertGreaterThan(band.frame.minY, player.frame.minY, "Bands are not after players")
         assertNoSectionTitles(in: app)
         song.tap()
         XCTAssertFalse(field.waitForExistence(timeout: 2) && field.isHittable, "Search stayed open")
@@ -138,28 +165,76 @@ final class GlobalSearchJourneyTests: XCTestCase {
         XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 10))
     }
 
-    /// Bands is visible but never searched: once a query is typed it explains why and
-    /// links to Band Rankings.
+    /// Issue #320: Bands searches member names, shows band cards with members and the
+    /// shared song count, and a result closes Search and opens that band's page.
     @MainActor
-    func testBandsScopeExplainsBlockedSearch() throws {
+    func testBandsScopeFindsBandsAndOpensOne() throws {
         continueAfterFailure = false
         let app = fixtureApp()
         app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
         _ = openSearch(in: app)
         let scope = app.segmentedControls["fst.global-search.scope"]
         XCTAssertTrue(scope.waitForExistence(timeout: 5))
         scope.buttons["Bands"].tap()
-        // Under two characters Bands shows its hint; a query brings the explanation.
         let hint = app.staticTexts["fst.global-search.hint"]
         XCTAssertTrue(hint.waitForExistence(timeout: 5))
+        let field = app.searchFields["Search bands"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "Bands scope placeholder missing")
+        field.tap()
+        field.typeText("Syncing")
+        let band = app.buttons.matching(identifier: "fst.global-search.result.band").firstMatch
+        XCTAssertTrue(band.waitForExistence(timeout: 15), "Band results never arrived")
+        XCTAssertEqual(
+            band.label, "Fixture Player 1 + Syncing Player + Empty Player, 4 songs together"
+        )
+        XCTAssertEqual(app.buttons.matching(identifier: "fst.global-search.result.band").count, 1)
+        XCTAssertFalse(
+            app.descendants(matching: .any).matching(identifier: "fst.global-search.bands-unavailable")
+                .firstMatch.exists, "The old band-search explanation is still shown"
+        )
+        assertNoSectionTitles(in: app)
+        band.tap()
+        XCTAssertFalse(field.waitForExistence(timeout: 2) && field.isHittable, "Search stayed open")
+        XCTAssertTrue(
+            app.descendants(matching: .any).matching(identifier: "fst.band.members-section").firstMatch
+                .waitForExistence(timeout: 15),
+            "The band page did not open"
+        )
+    }
+
+    /// Issue #320: no matching band shows the centred Bands empty state without Retry,
+    /// and a failed band search says so instead of reading as empty.
+    @MainActor
+    func testBandsEmptyAndFailedStayDistinct() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
+        _ = openSearch(in: app)
+        let scope = app.segmentedControls["fst.global-search.scope"]
+        XCTAssertTrue(scope.waitForExistence(timeout: 5))
+        scope.buttons["Bands"].tap()
         let field = app.searchFields.firstMatch
         field.tap()
-        field.typeText("Fixture")
-        let explanation = app.descendants(matching: .any)
-            .matching(identifier: "fst.global-search.bands-unavailable").firstMatch
-        XCTAssertTrue(explanation.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Band Rankings"].exists)
-        assertNoSectionTitles(in: app)
+        field.typeText("Pulse")
+        let empty = app.descendants(matching: .any).matching(identifier: "fst.global-search.hint").firstMatch
+        let shown = expectation(
+            for: NSPredicate(
+                format: "label == %@",
+                "No Bands Found. Check the spelling or try a different band member's name."
+            ),
+            evaluatedWith: empty
+        )
+        wait(for: [shown], timeout: 15)
+        XCTAssertFalse(app.buttons["Retry"].exists, "Bands empty state offered Retry")
+
+        field.tap()
+        field.typeText(XCUIKeyboardKey.delete.rawValue.repeated(5) + "busy")
+        let failure = app.descendants(matching: .any).matching(identifier: "fst.global-search.bands-error").firstMatch
+        XCTAssertTrue(failure.waitForExistence(timeout: 15), "Band search failure not shown")
+        XCTAssertFalse(app.buttons["Retry"].exists, "Bands failure offered Retry")
+        XCTAssertFalse(empty.exists, "A failed band search read as empty")
     }
 
     /// Issue #299: under two characters each scope's hint names what it searches.
@@ -195,7 +270,7 @@ final class GlobalSearchJourneyTests: XCTestCase {
     @MainActor
     func testSearchingSpinnerIsCentredBelowScopeBar() throws {
         continueAfterFailure = false
-        let origin = "http://127.0.0.1:18936"
+        let origin = Self.origin
         let probe = expectation(description: "slow account-search probe")
         var delayed = false
         let started = Date()
@@ -294,5 +369,12 @@ final class GlobalSearchJourneyTests: XCTestCase {
         )
         wait(for: [allEmpty], timeout: 15)
         XCTAssertFalse(app.buttons["Retry"].exists, "All empty state offered Retry")
+    }
+}
+
+private extension String {
+    /// This string repeated `count` times.
+    func repeated(_ count: Int) -> String {
+        String(repeating: self, count: count)
     }
 }

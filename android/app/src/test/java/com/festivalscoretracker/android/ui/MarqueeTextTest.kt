@@ -1,24 +1,30 @@
 package com.festivalscoretracker.android.ui
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.festivalscoretracker.android.presentation.ModalCoverage
 import com.festivalscoretracker.android.ui.common.FestivalMarquee
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.theme.FestivalAccessibility
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.GraphicsMode
 
 /** Web `MarqueeText` timing and the Reduce Motion fallback. */
 @RunWith(AndroidJUnit4::class)
@@ -46,5 +52,77 @@ class MarqueeTextTest {
         rule.onNodeWithTag("moving").assertIsDisplayed()
         rule.onNodeWithTag("still").assertIsDisplayed()
         rule.onNodeWithText(long).assertIsDisplayed()
+    }
+
+    @Test
+    fun overflowNeedsAMeasuredBoxNarrowerThanTheText() {
+        assertTrue(FestivalMarquee.overflows(textWidthPx = 300, boxWidthPx = 200))
+        assertFalse(FestivalMarquee.overflows(textWidthPx = 200, boxWidthPx = 200))
+        assertFalse(FestivalMarquee.overflows(textWidthPx = 100, boxWidthPx = 200))
+        // Not measured yet: never claims an overflow.
+        assertFalse(FestivalMarquee.overflows(textWidthPx = 300, boxWidthPx = 0))
+    }
+
+    @Test
+    fun fallbackModeNamesWrappedTruncatedOrStill() {
+        assertEquals(FestivalMarquee.Mode.Wrapped, FestivalMarquee.fallbackMode(lineCount = 2, ellipsized = false))
+        assertEquals(FestivalMarquee.Mode.Truncated, FestivalMarquee.fallbackMode(lineCount = 1, ellipsized = true))
+        assertEquals(FestivalMarquee.Mode.Static, FestivalMarquee.fallbackMode(lineCount = 1, ellipsized = false))
+    }
+
+    @Test
+    fun scrollingModeHoldsBehindAModal() {
+        assertEquals(FestivalMarquee.Mode.Scrolling, FestivalMarquee.scrollingMode(overflowing = true, held = false))
+        assertEquals(FestivalMarquee.Mode.Held, FestivalMarquee.scrollingMode(overflowing = true, held = true))
+        assertEquals(FestivalMarquee.Mode.Static, FestivalMarquee.scrollingMode(overflowing = false, held = true))
+        assertEquals(FestivalMarquee.Mode.Static, FestivalMarquee.scrollingMode(overflowing = false, held = false))
+    }
+
+    /** Issue #186 (`modal-shell` R10): an overflowing marquee stops scrolling while a modal covers it. */
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun overflowingMarqueeHoldsWhileAModalCoversIt() {
+        val long = "Through the Fire and Flames, an overflowing synthetic title"
+        val coverage = ModalCoverage.shared
+        rule.setContent {
+            FestivalMarqueeText(long, Modifier.width(80.dp).testTag("marquee"), wrapAtLargeText = false)
+        }
+        val mode = { rule.onNodeWithTag("marquee").fetchSemanticsNode().config[FestivalMarquee.ModeKey] }
+        rule.waitForIdle()
+        assertEquals(FestivalMarquee.Mode.Scrolling, mode())
+        coverage.open()
+        try {
+            rule.waitForIdle()
+            assertEquals(FestivalMarquee.Mode.Held, mode())
+        } finally {
+            coverage.close()
+        }
+        rule.waitForIdle()
+        assertEquals(FestivalMarquee.Mode.Scrolling, mode())
+    }
+
+    /** Issue #315: the top app bar learns whether a marquee title overflows, in motion and Reduce Motion. */
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun reportsOverflowWhileScrollingAndTruncating() {
+        val long = "Through the Fire and Flames, an overflowing synthetic title"
+        var moving: Boolean? = null
+        var still: Boolean? = null
+        var fits: Boolean? = null
+        rule.setContent {
+            Column {
+                FestivalMarqueeText(long, Modifier.width(80.dp), wrapAtLargeText = false, onOverflowChange = { moving = it })
+                FestivalMarqueeText("Hi", Modifier.width(200.dp), onOverflowChange = { fits = it })
+                CompositionLocalProvider(LocalFestivalAccessibility provides FestivalAccessibility(reduceMotion = true)) {
+                    FestivalMarqueeText(long, Modifier.width(80.dp), onOverflowChange = { still = it })
+                }
+            }
+        }
+        rule.waitForIdle()
+        assertEquals("moving", true, moving)
+        assertEquals("still", true, still)
+        assertEquals("fits", false, fits)
+        // TalkBack reads each full title once, whatever is drawn.
+        rule.onAllNodesWithText(long, useUnmergedTree = true).assertCountEquals(2)
     }
 }
