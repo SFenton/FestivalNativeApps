@@ -1021,11 +1021,13 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     private void AssertName(Window window, JsonObject step)
     {
         var expected = (string?)step["text"] ?? "";
+        // A leading '*' matches the name's end, for names that start with a local-time date (e.g. score-history rows).
+        var suffix = expected.StartsWith('*') ? expected[1..] : null;
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
         while (true)
         {
             var actual = Find(window, step).Properties.Name.ValueOrDefault ?? "";
-            if (actual == expected) return;
+            if (suffix is null ? actual == expected : actual.EndsWith(suffix, StringComparison.Ordinal)) return;
             if (DateTime.UtcNow > until)
                 throw new InvalidOperationException($"element {(string)step["arg"]!} is named {actual!}, expected {expected}");
             Thread.Sleep(200);
