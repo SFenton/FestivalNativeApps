@@ -32,7 +32,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -95,6 +94,7 @@ import com.festivalscoretracker.android.ui.quicklinks.ScrollQuickLinkSections
 import com.festivalscoretracker.android.ui.quicklinks.rememberScrollQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.common.rememberMeasuredPx
+import com.festivalscoretracker.android.ui.common.shellPosture
 
 // region Screen
 
@@ -117,7 +117,7 @@ fun BandDetailScreen(viewModel: BandDetailViewModel, routeName: String?, artwork
     // Quick Links (web BandPage) while the page is one scrolling column; two panes show everything side by side.
     val scroll = rememberScrollState()
     // One pane decision drives both the layout and the Quick Links action, so they cannot disagree.
-    val separatingHinge = currentWindowAdaptiveInfo().windowPosture.hingeList.any { it.isVertical && it.isSeparating }
+    val separatingHinge = shellPosture().hingeList.any { it.isVertical && it.isSeparating }
     val twoPane = BandLayout.splits(windowWidthDp(), separatingHinge, rememberSingleColumn())
     val (quickLinks, anchors) = rememberScrollQuickLinks(scroll, "Quick Links", if (detail != null && !twoPane) BandQuickLinks.sections() else emptyList())
     FestivalScreen(

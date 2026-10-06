@@ -19,7 +19,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -77,6 +76,7 @@ import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import java.text.NumberFormat
+import com.festivalscoretracker.android.ui.common.shellPosture
 
 // region Overview
 
@@ -106,7 +106,7 @@ fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
     val windowWidthDp = with(density) { currentWindowSize().width.toDp().value.toInt() }
     // One column under TalkBack or at large text (see rememberSingleColumn).
     val singleColumn = rememberSingleColumn()
-    val folded = !singleColumn && currentWindowAdaptiveInfo().windowPosture.hingeList.any { it.isSeparating && it.isVertical }
+    val folded = !singleColumn && shellPosture().hingeList.any { it.isSeparating && it.isVertical }
     val scrolled by remember(listState) { derivedStateOf { listState.canScrollBackward } }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val columns = if (singleColumn) 1 else LeaderboardsLayoutPolicy.columns(maxWidth.value.toInt(), folded)

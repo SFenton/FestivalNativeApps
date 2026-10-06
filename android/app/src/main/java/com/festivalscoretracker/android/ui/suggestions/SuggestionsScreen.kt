@@ -23,7 +23,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
@@ -67,6 +66,7 @@ import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlinx.coroutines.flow.distinctUntilChanged
 import com.festivalscoretracker.android.ui.common.rememberMeasuredPx
+import com.festivalscoretracker.android.ui.common.shellPosture
 
 // region Screen
 
@@ -250,7 +250,7 @@ private fun SuggestionsGrid(
     val gridState = rememberLazyStaggeredGridState()
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
-    val hinge = currentWindowAdaptiveInfo().windowPosture.hingeList.firstOrNull { it.isSeparating && it.isVertical }
+    val hinge = shellPosture().hingeList.firstOrNull { it.isSeparating && it.isVertical }
     var gridLeft by rememberMeasuredPx(0f)
     val cardCount = state.cards.size
 

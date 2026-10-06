@@ -8,7 +8,6 @@ import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -26,6 +25,7 @@ import com.festivalscoretracker.android.core.rivals.HingeColumns
 import com.festivalscoretracker.android.ui.common.rememberSingleColumn
 import kotlin.math.roundToInt
 import com.festivalscoretracker.android.ui.common.rememberMeasuredBounds
+import com.festivalscoretracker.android.ui.common.shellPosture
 
 // region Adaptive card grid
 
@@ -76,7 +76,7 @@ fun AdaptiveCardGrid(
     content: LazyStaggeredGridScope.() -> Unit,
 ) {
     val density = LocalDensity.current
-    val hinge = currentWindowAdaptiveInfo().windowPosture.hingeList.firstOrNull { it.isSeparating && it.isVertical }
+    val hinge = shellPosture().hingeList.firstOrNull { it.isSeparating && it.isVertical }
     var bounds by rememberMeasuredBounds()
     val gutter = with(density) { 16.dp.roundToPx() }
     val spec = bounds?.let { (start, width) ->

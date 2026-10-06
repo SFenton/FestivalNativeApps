@@ -28,7 +28,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -299,7 +298,7 @@ fun FestivalModalDialog(
  */
 @Composable
 internal fun dialogHingeArea(): HingeSide.Rect? {
-    val posture = LocalShellPosture.current ?: currentWindowAdaptiveInfo().windowPosture
+    val posture = shellPosture()
     val hinge = posture.hingeList.firstOrNull { it.isSeparating } ?: return null
     val root = LocalView.current.rootView
     val density = LocalDensity.current

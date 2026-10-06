@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
@@ -21,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.ui.design.readingGroup
 import com.festivalscoretracker.android.ui.common.rememberSingleColumn
 import com.festivalscoretracker.android.ui.common.rememberMeasuredPx
+import com.festivalscoretracker.android.ui.common.shellPosture
 
 // region Hinge
 
@@ -44,7 +44,7 @@ data class HingeSplit(val start: Dp, val end: Dp)
 @Composable
 fun rememberHingeSplit(): Pair<HingeSplit?, Modifier> {
     val density = LocalDensity.current
-    val hinge = currentWindowAdaptiveInfo().windowPosture.hingeList.firstOrNull { it.isSeparating && it.isVertical }
+    val hinge = shellPosture().hingeList.firstOrNull { it.isSeparating && it.isVertical }
     var left by rememberMeasuredPx(Float.NaN)
     var width by rememberMeasuredPx(0f)
     val modifier = Modifier.onGloballyPositioned {

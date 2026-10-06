@@ -1,6 +1,5 @@
 package com.festivalscoretracker.android.ui.settings
 
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -10,6 +9,7 @@ import androidx.compose.ui.layout.positionInWindow
 import com.festivalscoretracker.android.core.quicklinks.QuickLinks
 import com.festivalscoretracker.android.ui.common.rememberSingleColumn
 import com.festivalscoretracker.android.ui.common.rememberMeasuredPx
+import com.festivalscoretracker.android.ui.common.shellPosture
 
 // region Hinge split
 
@@ -22,15 +22,15 @@ import com.festivalscoretracker.android.ui.common.rememberMeasuredPx
 class HingeSplit(val value: Pair<Float, Float>?, val modifier: Modifier)
 
 /**
- * Observe a separating vertical hinge (Jetpack WindowManager via
- * `currentWindowAdaptiveInfo`, never product checks) relative to the page.
+ * Observe a separating vertical hinge (Jetpack WindowManager via [shellPosture], never
+ * product checks) relative to the page.
  *
  * @param keepWhenSingleColumn Report the hinge even under TalkBack or large text, for multi-column content that never collapses to one column (the Item Shop grid).
  * @return Split for this composition.
  */
 @Composable
 fun rememberHingeSplit(keepWhenSingleColumn: Boolean = false): HingeSplit {
-    val hinge = currentWindowAdaptiveInfo().windowPosture.hingeList.firstOrNull { it.isSeparating && it.isVertical }
+    val hinge = shellPosture().hingeList.firstOrNull { it.isSeparating && it.isVertical }
     var left by rememberMeasuredPx(0f)
     var width by rememberMeasuredPx(0f)
     val modifier = Modifier.onGloballyPositioned {

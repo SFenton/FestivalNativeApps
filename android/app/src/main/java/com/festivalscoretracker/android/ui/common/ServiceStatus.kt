@@ -34,7 +34,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.absolutePadding
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
@@ -222,7 +221,7 @@ fun ServiceStatusView(
 @Composable
 private fun rememberHingeSide(origin: Offset, width: Float, height: Float): HingeSide.Padding {
     if (!origin.isSpecified) return HingeSide.Padding.NONE
-    val posture = LocalShellPosture.current ?: currentWindowAdaptiveInfo().windowPosture
+    val posture = shellPosture()
     val hinge = posture.hingeList.firstOrNull { it.isSeparating } ?: return HingeSide.Padding.NONE
     val b = hinge.bounds
     return serviceStatusHingeSide(
