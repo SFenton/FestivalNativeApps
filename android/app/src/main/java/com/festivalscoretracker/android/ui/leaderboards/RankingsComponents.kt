@@ -45,6 +45,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
@@ -120,6 +124,18 @@ internal val LEADERBOARD_ROW_MIN_HEIGHT = 48.dp
 
 /** Vertical gap between the rows of a Leaderboards overview card (skeleton and loaded). */
 internal val LEADERBOARD_ROW_GAP = 2.dp
+
+/**
+ * Vertical inset of a one-line ranking row: the percentile metrics' two-line rating
+ * (bodyLarge value over a labelSmall Bayesian value, 40 dp) still fits the 48 dp row (issue #188).
+ */
+private val RANKING_ROW_VERTICAL_PADDING = 4.dp
+
+/** Vertical inset of a stacked (large-text or narrow) ranking row and its skeleton. */
+private val STACKED_RANKING_ROW_VERTICAL_PADDING = 6.dp
+
+/** Gap between the lines of a stacked ranking row and its skeleton. */
+private val STACKED_RANKING_LINE_GAP = 2.dp
 
 /**
  * Fixed column widths shared by every row of one board or card, so the selected
@@ -287,11 +303,13 @@ private fun RankingRowLayout(
     // Same selected-player treatment as the song boards (web `playerEntryRow`, 7.7).
     if (isSelected) rowModifier = rowModifier.background(BrandTokens.purpleHighlight).border(BorderStroke(1.dp, BrandTokens.purpleHighlightBorder), shape)
     if (route != null) rowModifier = rowModifier.clickable(role = Role.Button, onClickLabel = clickLabel) { onOpen(route) }
+    val columns = LocalRankingColumns.current
+    val stacked = isLargeText() || columns?.stacked == true
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         modifier = rowModifier
-            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .padding(horizontal = 8.dp, vertical = if (stacked) STACKED_RANKING_ROW_VERTICAL_PADDING else RANKING_ROW_VERTICAL_PADDING)
             .testTag(tag)
             .clearAndSetSemantics {
                 contentDescription = description
@@ -300,8 +318,7 @@ private fun RankingRowLayout(
     ) {
         // Web `RankingEntry` `isPlayer`: every text in the selected player's row is bold.
         val weight = if (isSelected) FontWeight.Bold else null
-        val columns = LocalRankingColumns.current
-        if (isLargeText() || columns?.stacked == true) {
+        if (stacked) {
             StackedRankingRow(rank, name, songs, rating, bayesian, weight, route != null, columns?.rank)
             return@Row
         }
@@ -351,7 +368,7 @@ private fun RowScope.StackedRankingRow(rank: Int, name: String, songs: String, r
         color = BrandTokens.textPrimary,
         modifier = rankWidth?.let { Modifier.widthIn(min = it) } ?: Modifier,
     )
-    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(STACKED_RANKING_LINE_GAP)) {
         Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = weight, color = BrandTokens.textPrimary)
         Text(rating, style = MaterialTheme.typography.bodyLarge, fontWeight = weight ?: FontWeight.SemiBold, color = RatingBlue)
         if (bayesian != null) Text(bayesian, style = MaterialTheme.typography.labelSmall, fontWeight = weight, color = BrandTokens.textSecondary)
@@ -449,12 +466,18 @@ fun RowSeparator(modifier: Modifier = Modifier) {
 
 /**
  * Static skeleton rows (no shimmer, so no per-frame work while loading). Each row has the
- * loaded rows' height, inset and gap, so rows don't jump when data arrives (issue #90).
+ * loaded rows' height, inset and gap, so rows don't jump when data arrives (issue #90). At
+ * large text the rows take the stacked rows' shape, one bar per text line in the same
+ * styles, so they grow with the loaded rows (issue #188).
  *
  * @param count Rows.
+ * @param bayesian Whether the loaded rows draw a Bayesian value line (percentile metrics),
+ *   which adds a line to stacked rows.
  */
 @Composable
-fun RankingsSkeletonRows(count: Int) {
+fun RankingsSkeletonRows(count: Int, bayesian: Boolean = false) {
+    val stacked = isLargeText()
+    val typography = MaterialTheme.typography
     Column(
         verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP),
         modifier = Modifier
@@ -466,12 +489,26 @@ fun RankingsSkeletonRows(count: Int) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth().heightIn(min = LEADERBOARD_ROW_MIN_HEIGHT).padding(horizontal = 8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = LEADERBOARD_ROW_MIN_HEIGHT)
+                    .padding(horizontal = 8.dp, vertical = if (stacked) STACKED_RANKING_ROW_VERTICAL_PADDING else 0.dp),
             ) {
-                SkeletonBar(32)
-                SkeletonBar(128)
-                Spacer(Modifier.weight(1f))
-                SkeletonBar(56)
+                if (stacked) {
+                    SkeletonLine(typography.labelLarge, 32)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(STACKED_RANKING_LINE_GAP)) {
+                        SkeletonLine(typography.bodyLarge, 128)
+                        SkeletonLine(typography.bodyLarge, 72)
+                        if (bayesian) SkeletonLine(typography.labelSmall, 48)
+                        SkeletonLine(typography.bodyMedium, 72)
+                    }
+                    Spacer(Modifier.width(20.dp))
+                } else {
+                    SkeletonBar(32)
+                    SkeletonBar(128)
+                    Spacer(Modifier.weight(1f))
+                    SkeletonBar(56)
+                }
             }
         }
     }
@@ -486,6 +523,24 @@ private fun SkeletonBar(widthDp: Int) {
             .clip(RoundedCornerShape(7.dp))
             .background(BrandTokens.surfaceMuted),
     )
+}
+
+/**
+ * A skeleton bar one text line tall in [style]: a blank line of that style sizes it, so it
+ * scales with the font exactly as the loaded row's text does.
+ */
+@Composable
+private fun SkeletonLine(style: TextStyle, widthDp: Int) {
+    Box(
+        Modifier
+            .width(widthDp.dp)
+            .drawBehind {
+                val bar = size.height * 0.6f
+                drawRoundRect(BrandTokens.surfaceMuted, topLeft = Offset(0f, (size.height - bar) / 2), size = Size(size.width, bar), cornerRadius = CornerRadius(bar / 2))
+            },
+    ) {
+        Text(" ", style = style, maxLines = 1)
+    }
 }
 
 /**

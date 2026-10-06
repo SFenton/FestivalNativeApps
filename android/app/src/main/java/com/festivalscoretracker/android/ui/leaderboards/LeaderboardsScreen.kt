@@ -53,6 +53,7 @@ import com.festivalscoretracker.android.core.rankings.AccountRankingEntry
 import com.festivalscoretracker.android.core.rankings.LeaderboardsLayoutPolicy
 import com.festivalscoretracker.android.core.rankings.PlayerRankingResult
 import com.festivalscoretracker.android.core.rankings.RankingMetric
+import com.festivalscoretracker.android.core.rankings.asRankingMetric
 import com.festivalscoretracker.android.core.rankings.RankingNavigation
 import com.festivalscoretracker.android.core.rankings.RankingSpotlight
 import com.festivalscoretracker.android.core.rankings.RankingSpotlightPlacement
@@ -375,7 +376,7 @@ private fun InstrumentCard(instrument: Instrument, viewModel: LeaderboardsViewMo
         val density = LocalDensity.current
         Column(Modifier.padding(8.dp).onSizeChanged { rowWidth = with(density) { it.width.toDp().value } }, verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP)) {
             when (val current = state) {
-                LoadState.Loading -> RankingsSkeletonRows(5)
+                LoadState.Loading -> RankingsSkeletonRows(5, bayesian = metric.isPercentile)
                 is LoadState.Failed -> ServiceStatusInline(current.issue, "${instrument.label} rankings unavailable", current.countdown, { viewModel.retryCard(instrument) }, Modifier.padding(horizontal = 8.dp))
                 is LoadState.Loaded -> CompositionLocalProvider(LocalRankingColumns provides rememberAccountColumns(current.value.rankings.entries + pinnedEntry(viewModel, instrument, selected), metric, rowWidth = rowWidth)) {
                     val entries = current.value.rankings.entries
@@ -485,7 +486,7 @@ private fun BandCard(bandType: BandType, viewModel: LeaderboardsViewModel, metri
         val density = LocalDensity.current
         Column(Modifier.padding(8.dp).onSizeChanged { rowWidth = with(density) { it.width.toDp().value } }, verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP)) {
             when (val current = state) {
-                LoadState.Loading -> RankingsSkeletonRows(5)
+                LoadState.Loading -> RankingsSkeletonRows(5, bayesian = bandMetric.asRankingMetric.isPercentile)
                 is LoadState.Failed -> ServiceStatusInline(current.issue, "${bandType.label} rankings unavailable", current.countdown, { viewModel.retryBand(bandType) }, Modifier.padding(horizontal = 8.dp))
                 is LoadState.Loaded -> CompositionLocalProvider(LocalRankingColumns provides rememberBandColumns(current.value.rankings.entries, bandMetric, rowWidth = rowWidth)) {
                     val entries = current.value.rankings.entries

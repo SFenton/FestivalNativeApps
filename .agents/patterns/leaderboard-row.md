@@ -2,7 +2,7 @@
 
 > **What:** shared score and ranking row geometry, columns, name overflow, pager and selected-player behavior. **Read when:** adding or changing any leaderboard, score preview, ranking card, spotlight or board footer.
 
-Status: **current**, 2026-10-05. Provenance: #37, #38, #90, #170, #172, #264, #292, #293, #294, #295, #306, #307.
+Status: **current**, 2026-10-05. Provenance: #37, #38, #90, #170, #172, #188, #264, #292, #293, #294, #295, #306, #307.
 
 ## Intent
 
@@ -21,7 +21,7 @@ Every row in one leaderboard section must read as one aligned, accessible data t
 ## Rules
 
 - **R1. Fit columns once per section.** Rank, score, rating and songs widths include spotlight and pinned rows; individual rows never choose their own plan. Use measured row/card width, not device identity. Score sections show the season from a 520-unit row and stars from 700 by width alone (web `resolveTopScoresColumns`); when those columns don't fit on one line beside a minimum name (large text), the section's rows stack (R2) instead of dropping them (#170). HIG Layout: "Choose layout from size classes, not device type/idiom or orientation."
-- **R2. Use a 48-unit minimum.** Loaded rows, selected and pinned rows, skeletons and spotlight placeholders share the web baseline; accessibility layouts may grow and stack. HIG Layout: "rows/containers may grow to avoid clipping/overlap and allow multiple lines."
+- **R2. Use a 48-unit minimum.** Loaded rows, selected and pinned rows, skeletons and spotlight placeholders share the web baseline; accessibility layouts may grow and stack. A compact second line in the value column (the percentile metrics' small Bayesian value) fits inside the 48 units rather than growing the row, and where large text stacks the loaded rows, the skeleton takes the same stacked lines so the rows still don't jump (Android, #188). HIG Layout: "rows/containers may grow to avoid clipping/overlap and allow multiple lines."
 - **R3. Keep names inside their column.** Overflowing normal-size names marquee through the shared text component; Reduce Motion, inactive/off-screen rows and motion-disabled systems tail-truncate, while accessibility text wraps and assistive technology receives the full name. HIG Motion: "When Reduce Motion is on, reduce automatic and repetitive animation."
 - **R4. Decide Compete songs once per card.** Hide songs played/total on every row only when the longest drawn name cannot fit; keep it in the accessibility value. Other ranking sections keep their shared songs column.
 - **R5. Reuse the board pager.** Full, band and song boards share one pager layout and button semantics; the selected player's pinned row is immediately above it and shares its columns.
@@ -33,7 +33,7 @@ Every row in one leaderboard section must read as one aligned, accessible data t
 
 | Sub-behavior | Apple | Android | Windows |
 |---|---|---|---|
-| Section fit and height | `FestivalCore/LeaderboardRowColumns.swift` `LeaderboardRowColumns`; `FestivalUI/Design/LeaderboardRowMetrics.swift` `LeaderboardRowMetrics` | `core/rankings/LeaderboardColumnLayout.kt` `LeaderboardColumnLayout`; `ui/leaderboards/RankingsComponents.kt` `LEADERBOARD_ROW_MIN_HEIGHT` | `Festival.Core/Domain/LeaderboardColumnLayout.cs` `LeaderboardColumnLayout`; `Festival.Core/ViewModels/LeaderboardEntryRows.cs` `LeaderboardRowMetrics` |
+| Section fit and height | `FestivalCore/LeaderboardRowColumns.swift` `LeaderboardRowColumns`; `FestivalUI/Design/LeaderboardRowMetrics.swift` `LeaderboardRowMetrics` | `core/rankings/LeaderboardColumnLayout.kt` `LeaderboardColumnLayout`; `ui/leaderboards/RankingsComponents.kt` `LEADERBOARD_ROW_MIN_HEIGHT`, `RankingsSkeletonRows` (stacked lines at large text, #188) | `Festival.Core/Domain/LeaderboardColumnLayout.cs` `LeaderboardColumnLayout`; `Festival.Core/ViewModels/LeaderboardEntryRows.cs` `LeaderboardRowMetrics` |
 | Rows and name | `FestivalUI/Features/Leaderboards/RankingsSupport.swift` `RankingRowLayout`, `LeaderboardNameText`; `Features/SongLeaderboard/SongLeaderboardEntryRow.swift` | `ui/leaderboards/RankingsComponents.kt` `LeaderboardNameText`; `ui/songdetail/SongDetailScreen.kt` `ScoreRow`; band score rows `ui/bands/SongBandLeaderboardScreen.kt` `BandScoreRow`, `BandRowColumns`, `rememberBandRankWidth`, `bandBoardColumns` (full band board: one plan for page rows and the pinned footer) | `Festival.App/Controls/LeaderboardEntryRow.xaml.cs` `LeaderboardEntryRow`; `Controls/MarqueeText.cs` `MarqueeText` |
 | Selected pinned row and its action (R5, R7) | `FestivalUI/Features/SongLeaderboard/SelectedScoreFooterRow.swift` `SelectedScoreFooterRow`; `FestivalCore/SelectedRowNavigation.swift` `SelectedRowAction` | `core/rankings/SelectedRowNavigation.kt` `SelectedRowAction`; `ui/songdetail/SongLeaderboardScreen.kt` `SelectedScoreFooterRow`; `ui/leaderboards/SelectedRowRevealEffect.kt` `revealSelectedRow` | Not yet audited (#307 verify lane) |
 | Band score footer stack plan (R8) | Not yet audited (#264 is the Windows lane; `FestivalUI/Features/SongDetail/SongBandPreviewSection.swift` `SongBandPreviewRow` draws the footer) | Not yet audited (#264 is the Windows lane; `ui/bands/SongBandLeaderboardScreen.kt` `BandScoreFooter` draws the footer) | `Festival.App/Controls/BandScoreFooterPanel.cs` `BandScoreFooterPanel` (score first child, badges second; `BandScoreFooterPanel.IsSection` on the section's rows host); `Festival.Core/Domain/BandScoreFooterLayout.cs` `BandScoreFooterLayout.Stacks`, `BandScoreFooterSection`. Consumers: `Controls/SongBandPreviewRowView.xaml` (Song Detail), `Pages/BandsSongLeaderboardPage.xaml` (Song Band Leaderboard) |
@@ -65,6 +65,7 @@ B wins under the precedence table: web behavior beats an undocumented native cop
 |---|---|---|
 | Apple’s fitter decides difficulty and stars, but Apple score rows do not yet render them. | Full web metadata parity on Apple score rows. | `TODO(orchestrator): scope the missing Apple score metadata columns.` |
 | Windows `Festival.Core/Domain/LeaderboardColumnLayout.cs` `Fit` still drops stars and then an unpinned row's season when the one-line row overflows (large text), unlike R1 and the web (#170). | R1 season/stars rule on Windows at large text. | Windows lane: stack the score rows instead (it already computes `stacked`), as Android does. |
+| Apple and Windows percentile rows (two-line rating) and large-text skeletons are not yet audited against R2's #188 clarification; Apple's `RankingRowLayout` pads 8 pt over a body + caption rating, which suggests about 54 pt. | R2 on Apple and Windows for Adjusted/Weighted and at large text. | Apple and Windows lanes: measure and fit, as Android's `RANKING_ROW_VERTICAL_PADDING` and `RankingsSkeletonRows` do. |
 
 ## Guards (`tools/pattern_guard.py`)
 

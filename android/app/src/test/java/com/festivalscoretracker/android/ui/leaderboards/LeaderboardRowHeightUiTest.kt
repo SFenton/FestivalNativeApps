@@ -7,6 +7,8 @@ import android.view.ViewGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
@@ -57,7 +59,7 @@ class LeaderboardRowHeightUiTest {
             FestivalTheme {
                 val density = LocalDensity.current
                 CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
-                    Column(Modifier.width(360.dp)) { content() }
+                    Column(Modifier.width(360.dp).verticalScroll(rememberScrollState())) { content() }
                 }
             }
         }
@@ -98,6 +100,52 @@ class LeaderboardRowHeightUiTest {
         val expected = LEADERBOARD_ROW_MIN_HEIGHT * rows + LEADERBOARD_ROW_GAP * (rows - 1)
         assertEquals(expected.value, height("loaded").value, 0.5f)
         assertEquals(expected.value, height("skeleton").value, 0.5f)
+    }
+
+    /**
+     * Issue #188: at font scale 2.0 ranking rows stack (rank and name, then rating, the
+     * Bayesian value for percentile metrics, and songs), so the overview skeleton takes the
+     * stacked shape too and the card does not jump when one-line names arrive.
+     */
+    @Test
+    fun largeTextSkeletonMatchesStackedRows() {
+        val rows = 5
+        val short = ranking.copy(displayName = "Player", adjustedSkillRating = 0.0123, adjustedSkillRank = 1)
+        show(fontScale = 2f) {
+            Tagged("skeleton") { RankingsSkeletonRows(rows) }
+            Tagged("loaded") {
+                Column(verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP)) {
+                    repeat(rows) { AccountRankingRow(short, RankingMetric.TotalScore, isSelected = false, route = null, onOpen = {}, tag = "row$it") }
+                }
+            }
+            Tagged("skeleton-percentile") { RankingsSkeletonRows(rows, bayesian = true) }
+            Tagged("loaded-percentile") {
+                Column(verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP)) {
+                    repeat(rows) { AccountRankingRow(short, RankingMetric.Adjusted, isSelected = it == 0, route = null, onOpen = {}, tag = "p$it") }
+                }
+            }
+        }
+        assertTrue(height("loaded") > LEADERBOARD_ROW_MIN_HEIGHT * rows)
+        assertTrue(height("loaded-percentile") > height("loaded"))
+        assertEquals(height("loaded").value, height("skeleton").value, 0.5f)
+        assertEquals(height("loaded-percentile").value, height("skeleton-percentile").value, 0.5f)
+    }
+
+    /**
+     * Issue #188: Adjusted and Weighted rows add a small Bayesian line under the rating;
+     * the two-line rating still fits the 48 dp row, as does its skeleton.
+     */
+    @Test
+    fun percentileRowsKeepTheEntryRowHeight() {
+        val rated = ranking.copy(adjustedSkillRating = 0.0123, adjustedSkillRank = 1, weightedRating = 0.0456, weightedRank = 1)
+        val ratedBand = band.copy(adjustedSkillRating = 0.0123, adjustedSkillRank = 2)
+        show {
+            Tagged("adjusted") { AccountRankingRow(rated, RankingMetric.Adjusted, isSelected = false, route = null, onOpen = {}) }
+            Tagged("weighted") { AccountRankingRow(rated, RankingMetric.Weighted, isSelected = true, route = null, onOpen = {}) }
+            Tagged("band-adjusted") { BandRankingRow(ratedBand, BandRankingMetric.Adjusted, isSelected = false, route = null, onOpen = {}) }
+            Tagged("skeleton") { RankingsSkeletonRows(1, bayesian = true) }
+        }
+        listOf("adjusted", "weighted", "band-adjusted", "skeleton").forEach(::assertRowHeight)
     }
 
     @Test
