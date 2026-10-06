@@ -49,6 +49,8 @@ class Journey:
         relaunch: Phase index after which the app is closed and relaunched with ``relaunch_args``.
         relaunch_args: Launch arguments for the relaunch.
         preset: ``uiwin.py`` window preset (a tall one keeps more of a long page on screen).
+        fixture: ``rivals_fixture.py`` flags (e.g. ``["--player-bands", "fail-once"]``); empty serves the plain
+            ``mock_service.py``.
     """
 
     name: str
@@ -59,6 +61,7 @@ class Journey:
     relaunch: int | None = None
     relaunch_args: list[str] = field(default_factory=list)
     preset: str = "medium"
+    fixture: list[str] = field(default_factory=list)
 
 
 def _profile(value: str) -> list[str]:
@@ -82,7 +85,7 @@ JOURNEYS = [
             ["invoke:id=fst.player.deselect", "waitfor:id=PrimaryButton@10", "invoke:id=PrimaryButton", "wait:2"],
         ],
         expect=[
-            ["fst.player.select", "fst.player.bands-link"],
+            ["fst.player.select", "fst.player.bands-section", "fst.player.bands-link"],
             ["fst.player.deselect", "fst.nav.statistics", "fst.nav.rivals"],
             ["Fixture Player 2", "fst.player.overview", "fst.player.instrument.Solo_Guitar",
              "fst.player.rank-history.Solo_Guitar", "fst.player.percentiles.Solo_Guitar"],
@@ -243,6 +246,73 @@ JOURNEYS = [
         expect=[["Find Band", "Band search isn"]],
         forbid=[["fst.profile.retry"]],
     ),
+    # Inline Bands section (issue #312, .agents/pages/player-profile/windows.md): fixture-player-1 has 18 duos,
+    # 8 trios and 4 quads, so Duos and Trios show six cards and View All, Quads shows all four and no View All.
+    # Each phase fails on the old link-only profile (no group headers, cards or View All buttons).
+    Journey(
+        name="bands-section",
+        launch=["--route", "/player/fixture-player-1", *ANONYMOUS],
+        preset="portrait-tablet",
+        steps=[
+            ["waitfor:id=fst.player.overview@15", "reveal:id=fst.player.bands@10",
+             "reveal:id=fst.player.bands.header.duos@15", "reveal:id=fst.player-bands.row.fixture-band-1@5",
+             "reveal:id=fst.player.bands.view-all.duos@5", "assertname:id=fst.player.bands.view-all.duos|View All Bands (18), Duos",
+             "reveal:id=fst.player.bands.header.trios@5", "reveal:id=fst.player.bands.view-all.trios@5",
+             "assertname:id=fst.player.bands.view-all.trios|View All Bands (8), Trios",
+             "reveal:id=fst.player.bands.header.quads@5", "reveal:id=fst.player-bands.row.fixture-pband-quad-4@5"],
+            ["reveal:id=fst.player.bands.view-all.duos@10", "invoke:id=fst.player.bands.view-all.duos",
+             "waitfor:id=fst.player-bands.title@10",
+             "assertstate:id=fst.player-bands.group.duos|selected=true@5",
+             "assertname:id=fst.player-bands.title|Fixture Player 1's Bands", "waitfor:name=Duos · 18 bands@10"],
+            ["invoke:id=PART_BackButton", "waitfor:id=fst.player.overview@10", "reveal:id=fst.player.bands-link@10",
+             "invoke:id=fst.player.bands-link", "waitfor:id=fst.player-bands.title@10",
+             "assertstate:id=fst.player-bands.group.all|selected=true@5", "waitfor:name=All Bands · 30 bands@10"],
+            ["invoke:id=PART_BackButton", "waitfor:id=fst.player.overview@10",
+             "reveal:id=fst.player-bands.row.fixture-band-1@15", "invoke:id=fst.player-bands.row.fixture-band-1",
+             "waitfor:id=fst.band.title@10", "waitfor:id=fst.band.member.fixture-band-1-a@10"],
+        ],
+        expect=[
+            ["Fixture Player 1's Bands", "See All, Fixture Player 1's Bands", "fst.player.bands.header.quads",
+             "fst.player-bands.row.fixture-pband-quad-1", "fst.player-bands.row.fixture-pband-quad-4"],
+            ["fst.player-bands.row.fixture-band-1"],
+            ["fst.player-bands.row.fixture-pband-trio-1"],
+            ["fst.band.title"],
+        ],
+        # Six-card previews: the seventh duo and trio stay on Player Bands; four quads need no View All.
+        forbid=[["fst.player-bands.row.fixture-pband-duo-7", "fst.player-bands.row.fixture-pband-trio-7",
+                 "fst.player.bands.view-all.quads", "fst.player.bands.empty.", "fst.player.bands.retry",
+                 "fst.player.bands.loading"], [], [], []],
+    ),
+    Journey(
+        name="bands-empty",
+        launch=["--route", "/player/fixture-player-2", *ANONYMOUS],
+        preset="portrait-tablet",
+        steps=[["waitfor:id=fst.player.overview@15", "reveal:id=fst.player.bands@10",
+                "reveal:id=fst.player.bands.empty.duos@15", "reveal:id=fst.player.bands.empty.trios@5",
+                "reveal:id=fst.player.bands.empty.quads@5"]],
+        expect=[["Fixture Player 2's Bands", "No Bands Yet", "Band lineups will appear here",
+                 "fst.player.bands.header.duos", "fst.player.bands.header.trios", "fst.player.bands.header.quads"]],
+        forbid=[["fst.player.bands.view-all.", "fst.player-bands.row.", "fst.player.bands.retry"]],
+    ),
+    # Every group read answers 500 once (rivals_fixture.py --player-bands fail-once): the section shows Retry while
+    # the rest of the profile stays, and Retry loads the groups.
+    Journey(
+        name="bands-retry",
+        launch=["--route", "/player/fixture-player-1", *ANONYMOUS],
+        preset="portrait-tablet",
+        fixture=["--player-bands", "fail-once"],
+        steps=[
+            ["waitfor:id=fst.player.overview@15", "reveal:id=fst.player.bands.retry@15"],
+            ["invoke:id=fst.player.bands.retry", "reveal:id=fst.player.bands.header.duos@15",
+             "reveal:id=fst.player-bands.row.fixture-band-1@5", "waitgone:id=fst.player.bands.retry@5"],
+        ],
+        # The page around the failed section stays (the overview tiles virtualize once scrolled away, so the
+        # non-virtualized title and section headings stand for it).
+        expect=[["Fixture Player 1's Bands", "fst.player.name", "fst.player.overview", "fst.player.instrument.Solo_Guitar",
+                 "fst.player.bands-link"],
+                ["fst.player.bands.header.duos", "fst.player-bands.row.fixture-band-1"]],
+        forbid=[["fst.player.bands.header.", "fst.player-bands.row."], ["fst.player.bands.retry"]],
+    ),
     # Statistics (.agents/pages/statistics/windows.md): every state reachable with fixtures. Rank-history read failures
     # have no fixture; Festival.Core.Tests covers that state (PlayerViewModelTests).
     Journey(
@@ -258,8 +328,8 @@ JOURNEYS = [
         expect=[
             ["fst.statistics", "fst.player.deselect", "fst.player.stat.overview.songs-played",
              "fst.player.instrument.Solo_Guitar", "fst.player.stat.Solo_Guitar.global-rank",
-             "fst.player.rank-history.Solo_Guitar", "fst.player.percentiles.Solo_Guitar", "fst.player.bands-link",
-             "fst.quick-links.open"],
+             "fst.player.rank-history.Solo_Guitar", "fst.player.percentiles.Solo_Guitar", "fst.player.bands-section",
+             "fst.player.bands-link", "fst.quick-links.open"],
             ["fst.player.rank-history.Solo_Guitar.newer"],
             ["fst.player.rank-history.Solo_Guitar.older"],
         ],
@@ -272,9 +342,11 @@ JOURNEYS = [
         steps=[
             ["waitfor:id=fst.player.overview@15", "invoke:id=fst.quick-links.open",
              "waitfor:id=fst.quick-links.item.global@5", "waitfor:id=fst.quick-links.item.instrument:Solo_Guitar@5",
-             "waitfor:id=fst.quick-links.item.bands@5", "toggle:id=fst.quick-links.item.bands", "wait:1.5"],
+             "waitfor:id=fst.quick-links.item.bands@5", "toggle:id=fst.quick-links.item.bands", "wait:1.5",
+             # Lands the inline section (issue #312) on the shared 32 epx line (section-jump-landing R2).
+             "assertinset:id=fst.player.bands-section|id=fst.player.available|32", "waitfor:id=fst.player.bands@3"],
         ],
-        expect=[["current section Bands"]],
+        expect=[["current section Bands", "Fixture Player 1's Bands"]],
         forbid=[["fst.quick-links.item.global"]],
     ),
     Journey(
@@ -344,6 +416,18 @@ def _free_port() -> int:
         return probe.getsockname()[1]
 
 
+def _wait_for_port(port: int, timeout: float = 15.0) -> None:
+    """Wait until the fixture service accepts connections (a wrapper imports the mock service first)."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+                return
+        except OSError:
+            time.sleep(0.2)
+    raise RuntimeError(f"fixture service did not listen on {port}")
+
+
 def _app_args(extra: list[str]) -> list[str]:
     """Turn ``--route``/``--tab`` into app arguments (Release/AOT builds ignore the FST_DEBUG_* environment)."""
     result: list[str] = []
@@ -370,13 +454,14 @@ def run(journey: Journey, exe: Path, shots: Path | None) -> list[str]:
     """Run one journey and return failure messages (empty when it passed)."""
     failures: list[str] = []
     port = _free_port()
-    mock = subprocess.Popen([sys.executable, str(REPO / "tools" / "mock_service.py"), "--port", str(port)],
+    service = (REPO / "tools" / "windows" / "rivals_fixture.py") if journey.fixture else (REPO / "tools" / "mock_service.py")
+    mock = subprocess.Popen([sys.executable, str(service), "--port", str(port), *journey.fixture],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     work = Path(tempfile.mkdtemp(prefix=f"fst-journey-{journey.name}-"))
     settings = work / "settings.json"
     pid = None
     try:
-        time.sleep(1.0)
+        _wait_for_port(port)
         base = f"http://127.0.0.1:{port}/"
         pid = _launch(exe, base, settings, journey.launch, journey.preset)
         for index, phase in enumerate(journey.steps):

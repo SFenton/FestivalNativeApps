@@ -36,6 +36,7 @@ public static class AppRouteParser
             ["songs", var id, var chart] when InstrumentInfo.TryParse(chart, out var i) =>
                 new AppRoute.SongLeaderboard(id, i, Page(query.GetValueOrDefault("page"))),
             ["player", var account] when ProfileText.IsValidAccountId(account) => new AppRoute.Player(account),
+            // The web's Routes.playerBands link carries ?group=&name=; ToPath never writes name (in-memory context).
             ["bands", "player", var account] when ProfileText.IsValidAccountId(account) =>
                 new AppRoute.PlayerBands(account, BandGroup(query.GetValueOrDefault("group")), query.GetValueOrDefault("name")),
             ["bands"] => new AppRoute.Bands(),

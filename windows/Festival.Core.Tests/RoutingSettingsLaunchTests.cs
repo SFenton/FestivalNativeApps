@@ -50,11 +50,19 @@ public class RoutingTests
 
     [Theory]
     [InlineData("/bands/player/acc1?group=Duos&name=Player%20One", PlayerBandGroup.Duos, "Player One")]
+    [InlineData("/bands/player/acc1?group=all&name=Player%20One", PlayerBandGroup.All, "Player One")]
     [InlineData("/bands/player/acc1?group=bogus", PlayerBandGroup.All, null)]
     public void Parser_PlayerBandsGroupAndName(string path, PlayerBandGroup group, string? name)
     {
         Assert.True(AppRouteParser.TryParse(path, out var route, out _));
         Assert.Equal(new AppRoute.PlayerBands("acc1", group, name), route);
+    }
+
+    [Fact]
+    public void PlayerBandsPath_NeverSerializesTheName()
+    {
+        Assert.Equal("/bands/player/acc1?group=trios", new AppRoute.PlayerBands("acc1", PlayerBandGroup.Trios, "Player One").ToPath());
+        Assert.Equal("/bands/player/acc1", new AppRoute.PlayerBands("acc1", PlayerBandGroup.All, "Player One").ToPath());
     }
 
     [Theory]

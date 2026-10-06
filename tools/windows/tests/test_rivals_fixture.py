@@ -129,6 +129,41 @@ class BandRankingsScenarioTests(unittest.TestCase):
 ms = f.mock_service
 
 
+class PlayerBandsScenarioTests(unittest.TestCase):
+    """``--player-bands fail-once`` (issue #312) fails each distinct player-bands read once."""
+
+    def test_first_read_per_path_fails_and_the_retry_passes(self):
+        seen: set[str] = set()
+        duos = "/api/player/fixture-player-1/bands?group=duos&page=1&pageSize=6"
+        trios = "/api/player/fixture-player-1/bands?group=trios&page=1&pageSize=6"
+        self.assertEqual([f.player_bands_failure(p, seen) for p in (duos, trios, duos, trios)], [True, True, False, False])
+        for path in ("/api/player/fixture-player-1", "/api/player/fixture-player-1/history", "/api/songs"):
+            self.assertFalse(f.player_bands_failure(path, seen), path)
+
+    def test_install_answers_500_then_defers(self):
+        original = ms.FixtureHandler.do_GET
+        served, answered = [], []
+        ms.FixtureHandler.do_GET = lambda handler: served.append(handler.path)
+        try:
+            f.install_player_bands("fail-once")
+            handler = type("H", (), {"_json": lambda self, status, body: answered.append((self.path, status))})
+            path = "/api/player/fixture-player-1/bands?group=quads&page=1&pageSize=6"
+            for p in (path, path, "/api/songs"):
+                ms.FixtureHandler.do_GET(type("H", (handler,), {"path": p})())
+        finally:
+            ms.FixtureHandler.do_GET = original
+        self.assertEqual(answered, [(path, 500)])
+        self.assertEqual(served, [path, "/api/songs"])
+
+    def test_take_player_bands(self):
+        self.assertEqual(f.take_player_bands(["--port", "0"]), (None, ["--port", "0"]))
+        self.assertEqual(f.take_player_bands(["--player-bands", "fail-once", "--port", "0"]), ("fail-once", ["--port", "0"]))
+        self.assertEqual(f.take_player_bands(["--player-bands=fail-once"]), ("fail-once", []))
+        for bad in (["--player-bands"], ["--player-bands", "empty"], ["--player-bands="]):
+            with self.assertRaises(SystemExit):
+                f.take_player_bands(bad)
+
+
 class SlowRivalsTests(unittest.TestCase):
     """Slow accounts (issue #265) hold only their rivals list reads."""
 

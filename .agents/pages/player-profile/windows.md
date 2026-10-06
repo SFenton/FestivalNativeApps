@@ -69,6 +69,10 @@ UIA gotcha: `Border`, `StackPanel`, `ItemsRepeater` and `UserControl` are not in
   - **instrument-links**: a revealed percentile row opens the Songs Filter preset.
   - **syncing**: the syncing state.
   - **bands-scope**: the Bands scope.
+  - **bands-section** (issue #312): fixture-player-1's inline Bands section shows the Duos, Trios and Quads headers. Duos and Trios show 6 preview cards plus **View All Bands (18|8)**; Quads shows all 4 cards and no View All. Duos View All opens Player Bands on Duos, See All opens it on All, and a card opens the Band page.
+  - **bands-empty**: fixture-player-2 shows **No Bands Yet** in every group, with no cards and no View All.
+  - **bands-retry**: with `rivals_fixture.py --player-bands fail-once`, every group read fails once. The section shows Retry while the rest of the profile stays; Retry then loads the groups.
+  - The Quick Links **Bands** item lands the section on the shared 32 epx line ([section-jump-landing](../../patterns/section-jump-landing.md) R2). This is asserted in `statistics-quick-links` and in `journeys/quick-links*.json` (`assertinset:id=fst.player.bands-section|id=fst.player.available|32`).
   - **statistics-\***: the Statistics page journeys ([statistics/windows.md](../statistics/windows.md#validation-issue-204)).
 - The `history*` journeys in the same file drive the Song Detail score history (`AppRoute.PlayerHistory` opens Song Detail, history sort and states); they belong to that page's validation.
 - Accessibility pages in `journeys/a11y.json`: `player`, `statistics`, `player-lead` (the Lead section, revealed) and `player-empty` (an empty instrument).
