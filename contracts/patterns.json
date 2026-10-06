@@ -872,6 +872,10 @@
             "symbol": "rememberBandRankWidth"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/SongBandLeaderboardScreen.kt",
+            "symbol": "bandBoardColumns"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt",
             "symbol": "SelectedScoreFooterRow"
           },

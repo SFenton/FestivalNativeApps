@@ -245,9 +245,12 @@ fun AnchoredRowCard(modifier: Modifier = Modifier, content: @Composable ColumnSc
         modifier = modifier.fillMaxWidth(),
     ) {
         // Same inset as the rows' card, so the pinned row's columns line up with the list.
-        Column(Modifier.padding(8.dp), content = content)
+        Column(Modifier.padding(ANCHORED_ROW_CARD_PADDING), content = content)
     }
 }
+
+/** Inset inside [AnchoredRowCard] (the solo boards' row card inset; band boards start their ranks after it). */
+internal val ANCHORED_ROW_CARD_PADDING = 8.dp
 
 /** Widest the anchored footer grows on large windows (keeps the pager and row centred). */
 private const val MAX_FOOTER_WIDTH_DP = 720

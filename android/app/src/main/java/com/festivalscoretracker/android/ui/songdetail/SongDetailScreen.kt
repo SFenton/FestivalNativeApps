@@ -71,6 +71,8 @@ import com.festivalscoretracker.android.ui.leaderboards.LeaderboardNameText
 import androidx.compose.material3.LocalTextStyle
 import com.festivalscoretracker.android.ui.leaderboards.LeaderboardSectionMember
 import com.festivalscoretracker.android.ui.leaderboards.rememberScoreColumns
+import com.festivalscoretracker.android.ui.leaderboards.LocalColumnProbe
+import com.festivalscoretracker.android.ui.leaderboards.columnProbe
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
@@ -106,6 +108,7 @@ import com.festivalscoretracker.android.data.LeaderboardPayload
 import com.festivalscoretracker.android.presentation.BackgroundController
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.SongDetailViewModel
+import com.festivalscoretracker.android.ui.bands.BandRowColumns
 import com.festivalscoretracker.android.ui.bands.BandScoreRow
 import com.festivalscoretracker.android.ui.bands.rememberBandRankWidth
 import com.festivalscoretracker.android.ui.bands.windowWidthDp
@@ -569,12 +572,12 @@ private fun BandPreview(
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         val open = { entry: SongBandLeaderboardEntry -> navigate(BandRoute(entry.bandId.ifEmpty { entry.teamKey }, entry.membersLabel, entry.bandType, entry.teamKey)) }
-                        val rankWidth = rememberBandRankWidth(board.entries + listOfNotNull(outside))
+                        val columns = BandRowColumns(rankWidth = rememberBandRankWidth(board.entries + listOfNotNull(outside)))
                         board.entries.forEachIndexed { index, entry ->
                             BandScoreRow(
                                 entry, song,
                                 selected = board.selectedPlayerEntry?.sameBand(entry) == true,
-                                rankWidth = rankWidth,
+                                columns = columns,
                                 tag = "fst.song-detail.band-row.${type.wireId}.$index",
                             ) { open(entry) }
                         }
@@ -584,7 +587,7 @@ private fun BandPreview(
                             val action = SelectedRowAction.preview(entry.rank, BandPaging.PAGE_SIZE)
                             BandScoreRow(
                                 entry, song, selected = true,
-                                rankWidth = rankWidth,
+                                columns = columns,
                                 tag = "fst.song-detail.band-selected.${type.wireId}",
                                 actionLabel = action.label(SelectedRowSubject.Band),
                             ) {
@@ -770,9 +773,18 @@ internal val LeaderboardEntry.accuracyId: String get() = accountId.ifEmpty { "ra
  */
 internal fun Modifier.selectedRowHighlight(selected: Boolean): Modifier {
     val shape = RoundedCornerShape(10.dp)
-    val inset = padding(horizontal = 4.dp).clip(shape)
+    val inset = padding(horizontal = SELECTED_HIGHLIGHT_INSET).clip(shape)
     return if (selected) inset.background(PurpleHighlight).border(1.dp, PurpleHighlightBorder, shape) else inset
 }
+
+/** Every score row's horizontal inset for its highlight ([selectedRowHighlight]). */
+internal val SELECTED_HIGHLIGHT_INSET = 4.dp
+
+/** A score row's own horizontal padding, inside its highlight. */
+internal val SCORE_ROW_PADDING = 8.dp
+
+/** Space after the rank column in a stacked (large text) score row. */
+internal val STACKED_RANK_GAP = 8.dp
 
 /**
  * One leaderboard row, the unified design shared with the rankings boards (7.7): rank,
@@ -798,20 +810,21 @@ fun ScoreRow(entry: LeaderboardEntry, isSelected: Boolean = false, navigable: Bo
         StackedScoreRow(entry, plan, weight, isSelected, navigable)
         return
     }
+    val probe = LocalColumnProbe.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(plan.gap.dp),
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = LEADERBOARD_ROW_MIN_HEIGHT)
-            .padding(horizontal = 8.dp),
+            .padding(horizontal = SCORE_ROW_PADDING),
     ) {
         if (plan.rankWidth > 0f) {
-            Text(RankingFormatting.rankLabel(entry.rank), style = MaterialTheme.typography.labelLarge, fontWeight = weight, color = BrandTokens.textPrimary, maxLines = 1, modifier = Modifier.width(plan.rankWidth.dp))
+            Text(RankingFormatting.rankLabel(entry.rank), style = MaterialTheme.typography.labelLarge, fontWeight = weight, color = BrandTokens.textPrimary, maxLines = 1, modifier = Modifier.width(plan.rankWidth.dp).columnProbe(probe, "score.rank.${entry.rank}"))
         }
         LeaderboardNameText(
             entry.displayName?.takeIf { it.isNotBlank() && entry.accountId.isNotEmpty() } ?: "Unknown User",
-            Modifier.weight(1f),
+            Modifier.weight(1f).columnProbe(probe, "score.name.${entry.rank}"),
             style = LocalTextStyle.current,
             fontWeight = weight,
         )
@@ -871,12 +884,14 @@ private fun SeasonCell(season: Int?, width: Float) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StackedScoreRow(entry: LeaderboardEntry, plan: LeaderboardColumnPlan, weight: FontWeight, isSelected: Boolean, navigable: Boolean) {
+    val probe = LocalColumnProbe.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().heightIn(min = LEADERBOARD_ROW_MIN_HEIGHT).padding(horizontal = 8.dp, vertical = 6.dp),
+        modifier = Modifier.fillMaxWidth().heightIn(min = LEADERBOARD_ROW_MIN_HEIGHT).padding(horizontal = SCORE_ROW_PADDING, vertical = 6.dp),
     ) {
-        Text(RankingFormatting.rankLabel(entry.rank), style = MaterialTheme.typography.labelLarge, fontWeight = weight, color = BrandTokens.textPrimary, modifier = Modifier.widthIn(min = plan.rankWidth.dp).padding(end = 8.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // The gap sits outside the shared rank width, so every row's name starts at the same x (R1).
+        Text(RankingFormatting.rankLabel(entry.rank), style = MaterialTheme.typography.labelLarge, fontWeight = weight, color = BrandTokens.textPrimary, modifier = Modifier.padding(end = STACKED_RANK_GAP).widthIn(min = plan.rankWidth.dp).columnProbe(probe, "score.rank.${entry.rank}"))
+        Column(Modifier.weight(1f).columnProbe(probe, "score.name.${entry.rank}"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 entry.displayName?.takeIf { it.isNotBlank() && entry.accountId.isNotEmpty() } ?: "Unknown User",
                 color = BrandTokens.textPrimary,
