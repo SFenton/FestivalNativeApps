@@ -8,12 +8,13 @@ namespace Festival.App.Controls;
 
 #region Board footer fade
 /// <summary>
-/// Fades a board's rows out just above its floating footer and hides them beneath it (issue #93, web
-/// <c>useScrollMask</c> over a viewport that ends at the footer). Same composition opacity-mask technique as
+/// The bottom-chrome ramp (scroll-edge R2–R4, R7; issues #93, #308, web <c>useScrollFade</c>): a board's rows are clear at
+/// its floating footer's top, opaque <see cref="BoardFooterEdgeFade.FadeDepth"/> epx above it, and hidden beneath it.
+/// Depth 0 is the accessibility hard cut at the footer's top. Same composition opacity-mask technique as
 /// <see cref="TopEdgeFade"/>: a <see cref="CompositionVisualSurface"/> renders <c>source</c>'s visual, a
-/// <see cref="CompositionMaskBrush"/> multiplies it by <see cref="BoardFooterEdgeFade.Stops"/> placed at the footer's top,
-/// and a sprite on <c>host</c> (a hit-test-invisible sibling over the same cell) paints the result while the source's own
-/// visual is hidden. Hit testing, keyboard focus and UI Automation still use the source. Turned off, the source shows
+/// <see cref="CompositionMaskBrush"/> multiplies it by <see cref="BoardFooterEdgeFade.Stops"/> placed above the footer's
+/// top, and a sprite on <c>host</c> (a hit-test-invisible sibling over the same cell) paints the result while the source's
+/// own visual is hidden. Hit testing, keyboard focus and UI Automation still use the source. Turned off, the source shows
 /// directly and the sprite is hidden.
 /// </summary>
 internal sealed class BoardFooterFade
@@ -24,10 +25,9 @@ internal sealed class BoardFooterFade
     private CompositionVisualSurface? surface;
     private SpriteVisual? sprite;
     private CompositionLinearGradientBrush? gradient;
-    private CompositionColorGradientStop[] stops = [];
     private bool active;
     private double cut = double.NaN;
-    private double strength = double.NaN;
+    private double depth = double.NaN;
 
     /// <summary>Creates the fade; composition objects are built on first use.</summary>
     /// <param name="source">Element whose rows fade (its XAML opacity is left alone).</param>
@@ -47,7 +47,7 @@ internal sealed class BoardFooterFade
 
     /// <summary>Shows the fade with the footer's top at <paramref name="footerTop"/>, or turns it off.</summary>
     /// <param name="footerTop">Footer top in the source's coordinates, epx; <see langword="null"/> turns the fade off.</param>
-    /// <param name="value">Band strength from <see cref="BoardFooterEdgeFade.Strength"/>.</param>
+    /// <param name="value">Ramp depth from <see cref="BoardFooterEdgeFade.FadeDepth"/> (0 = hard cut).</param>
     public void Update(double? footerTop, double value)
     {
         if (footerTop is not { } top)
@@ -59,19 +59,13 @@ internal sealed class BoardFooterFade
             return;
         }
         Build();
-        if (top != cut)
+        value = Math.Clamp(value, 0, BoardFooterEdgeFade.Depth);
+        if (top != cut || value != depth)
         {
-            cut = top;
-            gradient!.StartPoint = new Vector2(0, (float)(top - BoardFooterEdgeFade.Depth));
-            gradient.EndPoint = new Vector2(0, (float)(top + 1));
-        }
-        value = Math.Clamp(value, 0, 1);
-        if (value != strength)
-        {
-            strength = value;
-            var alphas = BoardFooterEdgeFade.Stops(value);
-            for (var i = 0; i < stops.Length; i++)
-                stops[i].Color = Windows.UI.Color.FromArgb((byte)Math.Round(255 * alphas[i].Alpha), 0, 0, 0);
+            (cut, depth) = (top, value);
+            // A sub-pixel floor keeps the gradient non-degenerate: depth 0 is a hard cut at the footer's top.
+            gradient!.StartPoint = new Vector2(0, (float)(top - Math.Max(value, 0.01)));
+            gradient.EndPoint = new Vector2(0, (float)top);
         }
         if (active) return;
         active = true;
@@ -95,8 +89,8 @@ internal sealed class BoardFooterFade
         gradient = compositor.CreateLinearGradientBrush();
         gradient.MappingMode = CompositionMappingMode.Absolute;
         gradient.ExtendMode = CompositionGradientExtendMode.Clamp;
-        stops = [.. BoardFooterEdgeFade.Stops(1).Select(s => compositor.CreateColorGradientStop(s.Offset, Microsoft.UI.Colors.Black))];
-        foreach (var stop in stops) gradient.ColorStops.Add(stop);
+        foreach (var (offset, alpha) in BoardFooterEdgeFade.Stops)
+            gradient.ColorStops.Add(compositor.CreateColorGradientStop(offset, Windows.UI.Color.FromArgb((byte)Math.Round(255 * alpha), 0, 0, 0)));
         var mask = compositor.CreateMaskBrush();
         mask.Source = content;
         mask.Mask = gradient;

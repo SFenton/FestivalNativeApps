@@ -136,9 +136,10 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
     #region Footer fade
     /// <summary>
     /// Fades rows out above the floating "your score" row and pager while more rows lie below, and hides them beneath
-    /// the footer (issue #93, web <c>useScrollMask</c>), unless a contrast theme, Windows transparency effects off or the
-    /// in-app Increase Contrast or Less Transparency setting asks for the plain list. Under a contrast theme a
-    /// window-colour plate behind the footer hides the rows there instead. Runs on scroll and size changes only.
+    /// the footer (scroll-edge R2–R4, issues #93, #308, web <c>useScrollFade</c>). A contrast theme, Windows transparency
+    /// effects off or the in-app Increase Contrast or Less Transparency setting turns the ramp into a hard cut at the
+    /// footer's top (R7), so no row text shows between or behind the footer's controls; under a contrast theme a
+    /// window-colour plate also backs the footer. Runs on scroll and size changes only.
     /// </summary>
     private void UpdateFooterFade()
     {
@@ -147,10 +148,9 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
         var shown = BoardFadeSource.Visibility == Visibility.Visible && Footer.ActualHeight > 0;
         FooterPlate.Visibility = contrast && shown ? Visibility.Visible : Visibility.Collapsed;
         if (contrast && shown) FooterPlate.Height = Footer.ActualHeight;
-        var enabled = shown &&
-                      SongHeaderEdgeFade.IsEnabled(contrast, fadeUiSettings.AdvancedEffectsEnabled, settings.LessTransparency, settings.MoreContrast);
-        double? top = enabled ? Footer.TransformToVisual(BoardFadeSource).TransformPoint(default).Y : null;
-        footerFade.Update(top, BoardFooterEdgeFade.Strength(Scroller.ScrollableHeight, Scroller.VerticalOffset));
+        var enabled = SongHeaderEdgeFade.IsEnabled(contrast, fadeUiSettings.AdvancedEffectsEnabled, settings.LessTransparency, settings.MoreContrast);
+        double? top = shown ? Footer.TransformToVisual(BoardFadeSource).TransformPoint(default).Y : null;
+        footerFade.Update(top, BoardFooterEdgeFade.FadeDepth(Scroller.ScrollableHeight, Scroller.VerticalOffset, enabled));
     }
 
     /// <summary>Follows appearance changes that switch the fade on or off while the page is shown.</summary>
