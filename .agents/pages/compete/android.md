@@ -18,13 +18,13 @@ The live public service was used with the public player `SFentonX` and no profil
 
 | Configuration | Findings |
 |---|---|
-| FST_Phone portrait/landscape, fs 1.0/2.0 | Before: at fs 2.0 rival rows dropped the "songs behind" pill. Fixed: the tint bar is drawn in `drawBehind` (same as #107). Combo Rivals header wrapped its title to 3 lines beside See All. Fixed: combo titles need 140 dp. TalkBack order: heading → scope header → rows → See All. |
+| FST_Phone portrait/landscape, fs 1.0/2.0 | Before: at fs 2.0 rival rows dropped the "songs behind" pill. Fixed: the tint bar is drawn in `drawBehind` (same as #107). Combo Rivals header wrapped its title to 3 lines beside View All. Fixed: combo titles need 140 dp. TalkBack order: heading → scope header → rows → View All. |
 | FST_Book_Fold folded / half / unfolded | Before (half): the combo header squeezed into the ~260 dp left lane and one rival pill was lost. Fixed: `CompeteHeaderLayout.stacks` puts the title below the icons. At fs 2.0 the grid is one column across the hinge (`rememberSingleColumn`, accepted). Section heading nodes no longer straddle the hinge (Box wrap). |
 | FST_Passport_Fold folded (fs 2.0) / half / unfolded | OK. |
 | FST_TriFold folded (360 dp) / partial / unfolded | Folded: the combo header stacks. Partial: one-row header. Unfolded: two columns. |
 | FST_Tablet portrait (rail) / landscape (drawer), fs 2.0 | OK. |
 | FST_Resizable phone fs 2.0 / foldable / tablet / desktop | OK. Desktop shows three columns. |
-| Reduced motion / motion | With scale 0, content appears with no stuck animation. A recording with animations on (Quick Links → Rivals → combo See All → back) is smooth. |
+| Reduced motion / motion | With scale 0, content appears with no stuck animation. A recording with animations on (Quick Links → Rivals → combo View All → back) is smooth. |
 
 Deliberate deviations:
 - The Quick Links floating button overlays content like a FAB and hides when you scroll down.
@@ -48,7 +48,7 @@ Live service, `SFentonX`, no profile headers. Across 113 UIAutomator trees no no
 | FST_Book_Fold folded / half / unfolded (fs 2.0) | View Full → Full Rankings. Half-opened columns stay off the hinge. |
 | FST_Passport_Fold folded / half / unfolded | View Full → Bass Full Rankings in each posture. |
 | FST_TriFold folded / partial / unfolded (fs 2.0) | One column when folded, two columns unfolded. View Full → Full Rankings. |
-| TalkBack, reduced motion, motion | TalkBack (phone tab) reads each board in this order: its rows, "View Full Leaderboards. Button", the next heading, then "See All: <chart>. Button". No overview is announced. With animator scale 0, every run settles with no stuck animation. A recording with animations on (Quick Links → Leaderboards → View Full → Lead Full Rankings) is smooth. Connected `CompeteDeviceJourneyTest` 3/3 on Book Fold half-opened. |
+| TalkBack, reduced motion, motion | TalkBack (phone tab) reads each board in this order: its rows, "View Full Leaderboards. Button", the next heading, then "View All: <chart>. Button". No overview is announced. With animator scale 0, every run settles with no stuck animation. A recording with animations on (Quick Links → Leaderboards → View Full → Lead Full Rankings) is smooth. Connected `CompeteDeviceJourneyTest` 3/3 on Book Fold half-opened. |
 
 Harness note: after `rotate:90`, `device.py` named swipes still use the portrait `wm size`, so a landscape run needs explicit `swipe:x1,y1,x2,y2,ms` coordinates.
 
@@ -75,6 +75,6 @@ Live public service with `SFentonX`, no profile headers. The 19 configurations r
 | FST_Book_Fold folded / half / unfolded fs 2.0 | Half-opened columns stay off the hinge, and the end state after Back matches. The connected test, which checks every frame, found the one-frame full-width grid (songs cells `[0, 11, 0, …]`), now fixed with `rememberMeasuredBounds` plus `shellPosture()`. After the fix the connected test passes 4/4 on the half-open Book Fold (and 4/4 on FST_Tablet). |
 | FST_Passport_Fold folded / unfolded | No diff after Back. |
 | FST_TriFold folded / partial / unfolded | Songs column shown when unfolded. No diff after Back. |
-| TalkBack, reduced motion | FST_Phone with TalkBack on, after Back: the toolbar (Notifications, Profile), then each card in order: its heading, See All, ten rows ("#4. SFentonX. 105,606,496. 731 / 731 songs." with "Your rank" first for the selected player), then View Full Leaderboards. Every row and button is a Button and all targets are at least 48 dp. With animator scale 0 Back still restores the list without motion. ATF passes in the connected test. |
+| TalkBack, reduced motion | FST_Phone with TalkBack on, after Back: the toolbar (Notifications, Profile), then each card in order: its heading, "View All: <chart>", ten rows ("#4. SFentonX. 105,606,496. 731 / 731 songs." with "Your rank" first for the selected player), then View Full Leaderboards. Every row and button is a Button and all targets are at least 48 dp. With animator scale 0 Back still restores the list without motion. ATF passes in the connected test. |
 
 M3: the board rows are list items in a card and View Full is the board's filled button, with 48 dp targets (`references/component-catalog.md`: "Minimum touch target 48x48dp"; `references/layout-and-responsive.md`: "Touch targets remain 48dp minimum even on large screens"). Navigation follows the window class: bar below 600 dp, then rail, then drawer (`references/navigation-patterns.md`), and Back is the system back on the `NavHost` (`SKILL.md`: "Bar / rail / drawer / drawers+**Compose** `NavHost` patterns per size class; predictive back where applicable"). No deviation was added.

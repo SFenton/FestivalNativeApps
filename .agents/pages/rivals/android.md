@@ -46,7 +46,7 @@ Native correction: the web sends the Settings combo for **every** Song Rivals ro
 
 ## Tests
 
-`src/test/.../rivals/`: `RivalsCoreTest` (scopes, combos, common rivals, categories, formatting, columns, routes), `RivalsDataTest` (URLs, 404/503, live-fallback flag, cache), `RivalsViewModelTest`, `RivalsUiTest` (Robolectric: hub → detail → rivalry → song, See All, leaderboard tab, Find Rival, deep link, no player, freeze, unresolvable list). Fixture screenshots: `android/reports/screenshots/rivals-*.png` from `tools/windows/rivals_fixture.py` (anonymized names) with `FST_DEBUG_PROFILE=fixture-player-1:Demo Player`.
+`src/test/.../rivals/`: `RivalsCoreTest` (scopes, combos, common rivals, categories, formatting, columns, routes), `RivalsDataTest` (URLs, 404/503, live-fallback flag, cache), `RivalsViewModelTest`, `RivalsUiTest` (Robolectric: hub → detail → rivalry → song, View All, leaderboard tab, Find Rival, deep link, no player, freeze, unresolvable list). Fixture screenshots: `android/reports/screenshots/rivals-*.png` from `tools/windows/rivals_fixture.py` (anonymized names) with `FST_DEBUG_PROFILE=fixture-player-1:Demo Player`.
 
 ## Validation (issue #107, 2026-10, live service, `SFentonX`)
 
@@ -62,7 +62,7 @@ Each AVD was driven with `fst_android.py device drive` (dark/light system theme:
 | FST_Passport_Fold folded / half / unfolded | 1 / 2 split / 1 | Font-scale change recreates the activity (fontScale is not in `configChanges`), so the hub briefly shows the spinner while the live read repeats |
 | FST_TriFold folded / partial / unfolded | 1 / 1 / 2 | Folded at 2.0 wraps the section title "Lead Rivals" to two lines (no clipping) |
 
-- **TalkBack** (`talkback_walk.py`, phone): top-bar actions → "selected. Song Rivals. Tab. 1 of 2" → "Leaderboard Rivals. Tab. 2 of 2" → per section: heading, "See All: <section>. Button", each row "<name>, you lead|ahead of you, N songs ahead, N songs behind. Button", "View All Rivals. Button".
+- **TalkBack** (`talkback_walk.py`, phone): top-bar actions → "selected. Song Rivals. Tab. 1 of 2" → "Leaderboard Rivals. Tab. 2 of 2" → per section: heading, "View All: <section>. Button", each row "<name>, you lead|ahead of you, N songs ahead, N songs behind. Button", "View All Rivals. Button".
 - **Targets/contrast:** every clickable is ≥ 48 dp (tree bounds); pill text 6.2–6.7:1 on its tinted background.
 - **Shell findings (not Rivals):** at font 2.0 the bell's unread badge overlaps the profile avatar in the top bar.
 - **M3 review:** primary tabs for top-level content switching, scrollable at large text; 12 dp glass cards and the shared purple buttons follow the repo's design tokens (repo rules win over M3 colour roles).
