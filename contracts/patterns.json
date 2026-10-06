@@ -1297,7 +1297,9 @@
           "regex": "FestivalFadeInScope\\s*\\(",
           "allow": [
             "apple/Sources/FestivalUI/Common/FadeInOnLoad.swift",
-            "apple/Sources/FestivalUI/Features/SongLeaderboard/SoloLeaderboardScreen.swift"
+            "apple/Sources/FestivalUI/Features/Leaderboards/FullRankingsScreen.swift",
+            "apple/Sources/FestivalUI/Features/SongLeaderboard/SoloLeaderboardScreen.swift",
+            "apple/Sources/FestivalUI/Features/SongLeaderboard/SongBandLeaderboardScreen.swift"
           ],
           "debt": [],
           "message": "Pages install the shared entrance window with festivalFadeInScope(resetKey:) or festivalScrollFadeInScope(_:resetKey:); a page that builds its own FestivalFadeInScope must be listed so its scroll rush and selected-row reveal stay on the shared rules (load-transition R5)."
