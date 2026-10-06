@@ -136,7 +136,7 @@ final class FestivalMobileUITests: XCTestCase {
         bands.tap()
         let bandStatus = app.staticTexts["fst.profile.bands-unavailable"]
         XCTAssertTrue(bandStatus.waitForExistence(timeout: 10))
-        XCTAssertTrue(bandStatus.label.contains("Band search is paused"))
+        XCTAssertTrue(bandStatus.label.contains("Use Search to find a band"))
         XCTAssertFalse(app.buttons["fst.profile.select"].exists)
         app.buttons["Players"].tap()
         let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
