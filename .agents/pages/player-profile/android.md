@@ -54,7 +54,7 @@ Web `PlayerContent` quick links: `global` "Global Statistics" (jumps to Overview
 
 ## Bands section
 
-Web `PlayerBandsSection` ("{name}'s Bands", See all, band cards, "View all bands (N)") fills from player-stats (blocked). Android reads one keyless page instead: `GET /api/player/{id}/bands?group=all&page=1&pageSize=4` (`FestivalApi.playerBands`, Bands lane; never band search or `/api/bands/{id}`), started when the row is shown (`ensureBands`) and reset per account/publication. Cards are the Bands lane's `PlayerBandCard` → `BandRoute`; "See all"/"View all bands (N)" → `PlayerBandsRoute`. States: loading, empty ("No bands yet"), inline retry. The web's separate Duos/Trios/Quads previews would need three reads; the full list page has the group picker.
+Web `PlayerBandsSection` ("{name}'s Bands", View All, band cards, "View all bands (N)") fills from player-stats (blocked). Android reads one keyless page instead: `GET /api/player/{id}/bands?group=all&page=1&pageSize=4` (`FestivalApi.playerBands`, Bands lane; never band search or `/api/bands/{id}`), started when the row is shown (`ensureBands`) and reset per account/publication. Cards are the Bands lane's `PlayerBandCard` → `BandRoute`; "View All"/"View all bands (N)" → `PlayerBandsRoute`. States: loading, empty ("No bands yet"), inline retry. The web's separate Duos/Trios/Quads previews would need three reads; the full list page has the group picker.
 
 ## Tap-to-filter tiles
 

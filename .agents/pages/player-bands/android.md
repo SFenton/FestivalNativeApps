@@ -33,4 +33,4 @@ Live service (SFentonX, 125 bands / 5 pages; Duos 24 = one page, no pager), debu
 
 ## Open
 
-- Entry points from the player page: its Bands section ("See all", "View all bands (N)"; [player-profile/android.md](../player-profile/android.md#bands-section)). No `?name=` carry-through (band search is blocked).
+- Entry points from the player page: its Bands section ("View All", "View all bands (N)"; [player-profile/android.md](../player-profile/android.md#bands-section)). No `?name=` carry-through (band search is blocked).

@@ -26,7 +26,7 @@ The web places the button **after** the rows and only for non-empty, error-free 
 3. **R3. Platform minimum target, no per-consumer overrides.** Height is at least the platform target (Apple 44 pt, Android 48 dp, Windows 40 epx `FSTMinTargetSize`). Consumers set no margin, height, colour, corner or font of their own; the canonical component owns them.
 4. **R4. Label first, then the card.** Labels are the web copy in Title Case (View Full Leaderboard, View All Rivals, View All Rankings (N), View All Scores). The accessible name starts with the visible label, then names the card or chart ("View Full Leaderboard, Lead"; WCAG 2.5.3 label in name), the role is Button and each card's CTA has its own test ID.
 5. **R5. Contrast and transparency modes keep it readable.** Windows contrast themes draw it HighlightText on Highlight with no automatic text backplate (`HighContrastAdjustment="None"`); Apple uses an opaque purple under Reduce Transparency and the in-app contrast/transparency toggles.
-6. **R6. Not this pattern.** A section header's "See All" link ([section-headers](section-headers.md)), in-card "See All" / "View All N Songs" rows (Rival Detail categories) and Search's "See All Results" are links, not this CTA.
+6. **R6. Not this pattern.** A section header's title-row "View All" link ([section-headers](section-headers.md) R8) and Search's "View All Results" are links, not this CTA. An in-card row at the bottom of a card's rows that opens the full list (Rival Detail categories) is this CTA, not a plain text row (#321). The app never says "See All".
 
 ## Canonical implementation
 

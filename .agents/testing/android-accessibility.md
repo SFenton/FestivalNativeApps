@@ -29,7 +29,7 @@ Statistics re-check (issue #111, 2026-10-03, live service, SFentonX): the `talkb
 | Rail profile item read "Profile: name, Profile, FP" | Navigation rail | The label carries "Profile: <name>"; the avatar is silent |
 | Songs tab read before the page and the other destinations after it | Rail on passport/tri-fold/tablet | The rail is one traversal group |
 | Every phone Songs row began "Not selected" | Songs | Only the highlighted two-pane row carries selection state |
-| Label read twice (description + visible text) | Quick Links items, Song Detail Item Shop button, Settings "Show" buttons, Compete "See All", Item Shop grid "Leaving Tomorrow", Band Detail tiles/members/history/song rows, Player Bands cards | Visible text hidden where a description replaces it; Compete uses the shared `SeeAllButton` |
+| Label read twice (description + visible text) | Quick Links items, Song Detail Item Shop button, Settings "Show" buttons, Compete "View All", Item Shop grid "Leaving Tomorrow", Band Detail tiles/members/history/song rows, Player Bands cards | Visible text hidden where a description replaces it; Compete uses the shared `SeeAllButton` |
 | "…Open notification." appended to every notification and the time ran into the message | Notifications | Click label "Open notification" ("Double-tap to open notification"); "Title. Message. Flag. Time" |
 | Score History top rows clipped the date ("Jul 24,") and wrapped "100 / %" at 200% (issue #102) | Song Detail (phone, tablet) | Rows stack date above a `FlowRow` at large text; one-line, min-width accuracy pill |
 | Permanent drawer broke "Leaderboard / s" and the player's name at 200% (issue #102) | FST_Tablet, FST_Resizable desktop | 360 dp drawer (M3 standard width) at font scale ≥ 1.3 |
