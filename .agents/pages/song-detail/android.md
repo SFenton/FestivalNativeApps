@@ -13,7 +13,7 @@
 - Header actions: **Paths** (only when a visible, charted, non-Karaoke chart exists) and, for a same-publication Shop offer, the **Item Shop** official-link pill (validated host only), which breathes in the status colour (web `shopBreathe*`, static under reduced motion). A failed Shop read shows `fst.song-detail.shop-error`.
 - **Intensity** (6.31): every charted instrument, two columns everywhere; compact cards show icon + meter (left-aligned, web cell), cards ≥ 480 dp add the label.
 - **Score History** (6.39, `SongHistoryCard.kt`, web `ScoreHistoryChart` in a `GraphCard`): `GET /api/player/{id}/history?songId=` (no instrument; `data/songs/FestivalApiSongHistory.kt`), invalid scores dropped while Filter Invalid Scores is on (`SongHistoryChart.valid`). Instrument Selector (required) over visible charts with history (auto: current → Lead → first); one canvas draws accuracy bars (red→green, gold for a 100% FC, ≤ 72 dp wide) and the blue score line; tapping a bar selects it (purple stroke) and shows its detail row; « ‹ › » paging (`SongHistoryPaging`, web `useChartPagination`); the five best scores (best purple and bold); **View All Scores** → `PlayerHistoryRoute` when there are more than five. Hidden when the player has no history on visible charts.
-- **Season pill (issue #62, web `QUERY_SHOW_SEASON`/`renderDetailCard`):** `core/songs/ScoreRowSeasonPolicy` (520 dp, = `LeaderboardColumnLayout.SEASON_BREAKPOINT`). The top-five rows measure their own width (`BoxWithConstraints`) and show the `S<n>` pill and the TalkBack "Season N" only from 520 dp. The web gates on the viewport; Android uses the rows' width so a hinge half or split pane stays narrow. The tapped bar's detail row always shows a known season. Phones show none in the list; instrument-card rows already followed the 520 dp rule. Tests: `ScoreRowSeasonPolicyTest`, `SongHistoryCardUiTest` (411 dp and 700 dp).
+- **Season pill (issue #62, web `QUERY_SHOW_SEASON`/`renderDetailCard`):** `core/songs/ScoreRowSeasonPolicy` (520 dp, = `LeaderboardColumnLayout.SEASON_BREAKPOINT`). The top-five rows measure their own width (`BoxWithConstraints`) and show the `S<n>` pill and the TalkBack "Season N" only from 520 dp. The web gates on the viewport; Android uses the rows' width so a hinge half or split pane stays narrow. The tapped bar's detail row always shows a known season. Phones show none in the list; instrument-card rows already followed the 520 dp rule. Tests: `ScoreRowSeasonPolicyTest`, `SongHistoryCardUiTest` (411 dp and 700 dp, the 519/520 dp boundary, font 2.0), `SongDetailScoreRowSeasonUiTest` (instrument-card rows; issue #170).
 - **Instrument switch** (issue #61, iOS #31): the selector updates at once while `SongHistorySwap.plan` swaps the drawn chart: fade the graph, top rows and View All out (150 ms), swap, fade in (250 ms); instant under app Reduce Motion or animator scale 0; a newer pick cancels the running swap (`LaunchedEffect` restart) and returning to the drawn chart just fades back in. The card (`fst.song-detail.history.card`) keeps its height: its min height is pinned for the swap and eased back to the new natural height afterwards, and while any selectable chart pages (`SongHistoryChart.reservesPager`) a non-paging chart keeps an empty 48 dp pager slot (`fst.song-detail.history.pager-slot`, no semantics). Tests: `SongDetailCoreTest.historySwap*`, `SongHistoryCardUiTest` switching/rapid/reduced-motion journeys (the emulator was unavailable on the low-disk host, so evidence is Robolectric).
 - **Instrument cards** (6.4/6.5/6.29/6.31/6.38/6.42): instrument header (icon, name, "N total entries") above a card of rows separated by hairlines (`RowSeparator`), columns from the shared section fitter (issue #37: `core/rankings/LeaderboardColumnLayout.fit` via `ui/leaderboards/rememberScoreColumns`, measured from every row plus the appended player row: rank, name, season from a 520 dp row, score, the reserved `AccuracyPill` slot, stars from a 700 dp row, in-card chevron on navigable rows; stars drop before the season when large text would squeeze the name); the selected player's row has the web purple highlight and bold texts, every row shares the same 4 dp inset so columns align; when outside the top ten the player's row follows after a separator (`fst.song-detail.your-rank.<chart>`, opens the page containing it). No "Your score" line. Cards end with the shared purple **View Full Leaderboard** (`ui/design/ViewFullLeaderboardButton`). Two columns when the content is ≥ 600 dp, and either side of a separating vertical hinge (book half-open) via `rememberHingeSplit` + `CardGridRow`.
 - An empty chart shows the web `InstrumentEmptyState` text; a failed chart shows an inline retry.
@@ -46,6 +46,39 @@ Ran with SFentonX selected (`FST_DEBUG_PROFILE`) on Everlong, using `device.py d
   - Intensity labels hide below a 480 dp card (web icon grid), but TalkBack still reads them.
   - The bottom bar is icon-only at large text.
   - The top-bar notification badge slightly overlaps the avatar at 2.0 (shell chrome; noted here, not changed).
+
+## Validation (issue #170, season pill, live public service, 2026-10)
+
+The #62 rule (season only on rows at least 520 dp wide; the tapped-bar detail row always shows it) was re-checked on SFentonX / Everlong with a UI-tree probe that measured each row's width in dp and recorded whether it showed `S<n>` plus the TalkBack "Season N". No configuration broke the rule, so the code was not changed.
+
+Row widths are in dp; "shown" or "hidden" refers to the season.
+
+| Configuration | Score History rows | Tapped-bar detail | Instrument-card rows |
+|---|---|---|---|
+| FST_Phone portrait, font 1.0 / 2.0 / light setting | 379, hidden | 355, shown ("Season 13") | 371, hidden |
+| FST_Phone landscape, 1.0 / 2.0 | 837, shown | not tapped (logic as portrait) | 1.0: two columns, 402–411, hidden. 2.0: one column, 573–829, shown |
+| FST_Tablet landscape 1.0 / 2.0 | 968 / 888, shown | 944, shown | 1.0: two columns, 468, hidden. 2.0: one column, 880, shown |
+| FST_Tablet portrait 1.0 | 672, shown | shown | 320, hidden |
+| FST_Resizable phone / foldable / tablet | 379 hidden / 713 shown / 968 shown | 355 / 689 / 944, shown | 371 / 340 / 468, hidden |
+| FST_Resizable desktop 1.0 / 2.0 | 1608 / 1528, shown | 1584, shown | 788 / 748, shown |
+| FST_Book_Fold folded / half-open / unfolded | 411 hidden / 402 hidden (hinge side) / 724 shown | 387 / 378 / 700, shown | 403 / 298–402 / 354, hidden |
+| FST_Book_Fold half-open 2.0 | 724, shown (no hinge split at large text) | not tapped | 715–724, shown |
+| FST_Passport_Fold folded / half-open / unfolded | 379 hidden / 397 hidden / 713 shown | 355 / 372, shown | 371 / 292–397 / 349, hidden |
+| FST_TriFold folded 1.0 / 2.0 | 328, hidden | not tapped | 320–328, hidden |
+| FST_TriFold partial | 592, shown | not tapped | 584–592 shown; 328 (stacked) hidden |
+| FST_TriFold unfolded 1.0 / 2.0 | 952, shown | not tapped | 1.0: 460 (two columns), hidden. 2.0: 688–952, shown |
+
+The detail row was tapped on the phone and on each fold and Resizable posture; it showed the season at every width (355–1584 dp). In the other runs, the chart sat under the floating toolbar, so the run was not tapped. The detail row has no width condition; Robolectric covers it at 519 dp and at 411 dp with font 2.0. The TriFold AVD launches on its secondary display, so runs there use `am start --display 0`; there is no crash.
+
+- **Why the row width, not the window class:** Material 3 recommends window size classes over hand-rolled `BoxWithConstraints` checks. The season rule is a deliberate exception (`leaderboard-row` R1, web `SEASON_BREAKPOINT`): the hinge half on a half-open Book Fold and the two-column cards on Medium/Expanded windows must stay narrow even when the window is wide.
+- **Large text (deliberate deviation):** at a font scale of 1.3 or more, the history rows and the cards both stack (`FlowRow` / `StackedScoreRow`), and both keep the 520 dp rule. The section fitter (`LeaderboardColumnLayout.fit`, issue #37) can still drop the card season on a card just over 520 dp when the stacked columns don't fit. This still meets "only when ≥ 520 dp", and it is the shared fitter's rule for every leaderboard, so this check left it as it was.
+- **Light theme:** the app stays dark (dark scheme only).
+- **Reduced motion:** animator scale 0 is the `device.py` default for all runs.
+- **Accessibility:** the season is read only when it is shown. `SongsAccessibilityJourneyTest#songDetailBoardAndPaths` (ATF touch targets, contrast and labels, plus reading order) passed on FST_Phone.
+- **Tests:**
+  - `SongHistoryCardUiTest.theRowsOwnWidthDecidesTheSeasonAtTheBreakpoint` covers 519 vs 520 dp in a 900 dp window.
+  - `SongHistoryCardUiTest.largeTextKeepsTheWidthRuleInTheStackedRows` covers font 2.0 at 411 and 600 dp.
+  - `SongDetailScoreRowSeasonUiTest` covers instrument-card rows at 411, 519 and 520 dp, then back to 519, and at font 2.0 at 411 and 900 dp.
 
 ## Open
 
