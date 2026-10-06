@@ -50,9 +50,9 @@ extension IPadAccessibilityAuditTests {
         if let first = bars.first {
             containers[IPadAuditWaivers.navigationBarContainer] = bars.dropFirst().reduce(first) { $0.union($1) }
         }
-        // Elements behind a modal drawer are enumerated by the audit but absent from the
-        // snapshot assistive technologies read.
-        if containers[IPadAuditWaivers.drawerContainer] != nil, let root = try? app.snapshot() {
+        // Elements the audit enumerates but the snapshot assistive technologies read leaves
+        // out (behind a modal drawer, hidden decoration).
+        if !findings.isEmpty, let root = try? app.snapshot() {
             let present = Set(IPadAuditPageEvidence.flatten(root).map { "\($0.label)|\(NSCoder.string(for: $0.frame))" })
             for index in findings.indices where !findings[index].frame.isEmpty {
                 findings[index].outsideTree = !present.contains("\(findings[index].label)|\(findings[index].frame)")
