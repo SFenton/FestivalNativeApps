@@ -485,6 +485,41 @@ public class SongBandLeaderboardViewModelTests
     }
 
     [Fact]
+    public async Task PinnedBandGatesOnSizeAndPlayerButNotOnPaging()
+    {
+        var bands = new BandService();
+        var session = bands.Service.Session(settings: Player("t30a"));
+        var vm = new SongBandLeaderboardViewModel(session, new AppRoute.SongBandLeaderboard("s1", "Band_Duets"));
+        vm.Activate();
+        await vm.LoadAsync();
+        Assert.True(vm.PinnedGate.IsGated);
+        Assert.True(vm.ShowSpotlight);
+
+        // Web PaginatedLeaderboard keys the footer's entrance on what it shows (footerAnimKey), not the page (#270).
+        var gated = new List<bool>();
+        vm.PinnedGate.PropertyChanged += (_, _) => gated.Add(vm.PinnedGate.IsGated);
+        var paging = vm.JumpCommand.ExecuteAsync(null);
+        Assert.False(vm.PinnedGate.IsGated);
+        await paging;
+        await vm.LoadAsync();
+        Assert.Equal(2, vm.Pager.Page);
+        Assert.False(vm.PinnedGate.IsGated);
+        Assert.DoesNotContain(true, gated);
+        Assert.True(vm.ShowSpotlight);
+
+        vm.BandTypeIndex = 1;
+        Assert.True(vm.PinnedGate.IsGated);
+        await Async.Until(() => vm.ShowRows && vm.BandType == BandType.Trios && vm.Pager.Page == 1);
+        await vm.Pager.LastCommand.ExecuteAsync(null);
+        Assert.False(vm.PinnedGate.IsGated);
+
+        session.UpdateSettings(s => s with { SelectedPlayer = new SelectedPlayer("t5a", "Five") });
+        Assert.True(vm.PinnedGate.IsGated);
+        await Async.Until(() => vm.Spotlight?.RankText == "#5");
+        vm.Deactivate();
+    }
+
+    [Fact]
     public async Task FollowsSelectedPlayerWhileActive()
     {
         var bands = new BandService();

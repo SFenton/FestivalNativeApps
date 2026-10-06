@@ -58,6 +58,13 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
     /// <summary>Rows/content load-swap gate.</summary>
     public LoadSwap LoadSwap { get; }
 
+    /// <summary>
+    /// Whether the pinned band row follows <see cref="LoadSwap"/>: only on the first load and when the band size or the
+    /// selected player changes (which changes the row), like the web footer; paging keeps it beside the spinner
+    /// (load-transition R2, issue #270).
+    /// </summary>
+    public PinnedRowGate PinnedGate { get; } = new();
+
     /// <summary>Whether load-swap motion is allowed; the app layer supplies <c>Motion.Allowed</c>.</summary>
     public Func<bool> AnimateLoadSwaps { get; set; } = () => false;
 
@@ -170,6 +177,14 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
         _ = LoadAsync();
     }
 
+    /// <summary>A pinned band that newly appears joins <see cref="PinnedGate"/> while a reload is in flight.</summary>
+    /// <param name="oldValue">Previous pinned band.</param>
+    /// <param name="newValue">New pinned band.</param>
+    partial void OnSpotlightChanged(SongBandSpotlightRow? oldValue, SongBandSpotlightRow? newValue)
+    {
+        if (oldValue is null && newValue is not null) PinnedGate.Arrived(LoadSwap.Phase);
+    }
+
     /// <summary>Loads the song header (best effort) and the current page.</summary>
     /// <returns>Load task.</returns>
     [RelayCommand]
@@ -177,6 +192,8 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
     {
         var requested = ++version;
         var (type, page, account) = (BandType, Pager.Page, SelectedAccount);
+        var key = (type, account);
+        PinnedGate.Begin(key, LoadSwap.Phase);
         var swap = LoadSwap.BeginReloadAsync(AnimateLoadSwaps(), State is LoadState.Loaded or LoadState.Empty or LoadState.Failed && LoadSwap.ContentVisible);
         if (State is LoadState.Idle) State = LoadState.Loading;
         try
@@ -208,6 +225,7 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
             await LoadSwap.CommitAsync(swapRequest, () =>
             {
                 Status.Clear();
+                PinnedGate.Commit(key);
                 loadedAccount = account;
                 Population = board.Population;
                 Pager.PageCount = pages;
@@ -222,6 +240,7 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
             var swapRequest = await swap;
             await LoadSwap.CommitAsync(swapRequest, () =>
             {
+                PinnedGate.Commit(key);
                 Status.Report(error);
                 Spotlight = null;
                 State = LoadState.Failed;

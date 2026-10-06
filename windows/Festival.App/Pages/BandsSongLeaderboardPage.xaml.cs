@@ -189,14 +189,17 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
         HeaderArt.Source = await ArtworkImages.LoadAsync(song.AlbumArt, pixels, headerArt.Token);
     }
 
-    /// <summary>Replays the web row entrance after the shared load gate reveals a new page.</summary>
+    /// <summary>
+    /// Replays the web row entrance after the shared load gate reveals a new page, with the pinned band entering alongside
+    /// the first row when it was gated (issue #295); paging keeps it in place (issue #270).
+    /// </summary>
     /// <param name="sender">Swap.</param>
     /// <param name="e">Unused.</param>
     private void OnContentRevealed(object? sender, EventArgs e) =>
         DispatcherQueue.TryEnqueue(() =>
         {
             FadeIn.StaggerRealized(Rows);
-            if (ViewModel.ShowSpotlight) FadeIn.Play(SpotlightPanel, PinnedRowReveal.RevealDelay);
+            if (ViewModel.ShowSpotlight && ViewModel.PinnedGate.IsGated) FadeIn.Play(SpotlightPanel, PinnedRowReveal.RevealDelay);
         });
 }
 #endregion

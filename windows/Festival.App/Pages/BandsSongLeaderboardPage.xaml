@@ -170,10 +170,14 @@
         <!-- Floating footer over the rows (BoardFooter): the selected player's band pinned in the shared leaderboard row
              (web FixedLeaderboardPlayerFooter, issue #306; same markup as the Solo board), "Your Page" above it when the band
              ranks on another page, then the shared board pager (web FixedLeaderboardPagination; operator batch 7.4). The
-             pinned row shares the rows' load gate and entrance (issue #295); gate and entrance sit on separate elements. -->
+             pinned row shares the rows' load gate and entrance (issue #295) on the first load and when the band size or
+             selected player changes; paging keeps it in place beside the spinner, like the web footer (PinnedGate,
+             load-transition R2, issue #270). While hidden, LoadSwapGate drops it from UI Automation and the Tab order.
+             Gate and entrance sit on separate elements. -->
         <StackPanel x:Name="Footer" Grid.Row="2" Grid.RowSpan="2" VerticalAlignment="Bottom" Margin="0,0,0,12" Spacing="8" MaxWidth="1200">
-            <Grid x:Name="SpotlightGate" Visibility="{x:Bind ViewModel.ShowSpotlight, Mode=OneWay}"
-                  controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content">
+            <controls:LoadSwapGate x:Name="SpotlightGate" Visibility="{x:Bind ViewModel.ShowSpotlight, Mode=OneWay}"
+                                   controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
+                                   controls:LoadSwapVisual.IsGated="{x:Bind ViewModel.PinnedGate.IsGated, Mode=OneWay}">
                 <StackPanel x:Name="SpotlightPanel" Spacing="4">
                     <Button HorizontalAlignment="Right" MinHeight="32" Command="{x:Bind ViewModel.JumpCommand}"
                             Background="{ThemeResource FSTPagerButtonBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
@@ -188,7 +192,7 @@
                     <controls:LeaderboardEntryRow Row="{x:Bind ViewModel.Spotlight, Mode=OneWay}" IsFloating="True"
                                                   RowAutomationId="fst.song-band-leaderboard.spotlight-footer" />
                 </StackPanel>
-            </Grid>
+            </controls:LoadSwapGate>
             <controls:LeaderboardsPager Pager="{x:Bind ViewModel.Pager, Mode=OneWay}" IdPrefix="fst.song-band-leaderboard" />
         </StackPanel>
     </Grid>
