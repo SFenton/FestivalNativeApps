@@ -867,7 +867,8 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>
     /// Waits until an element matching the selector reports the expected UIA <c>ItemStatus</c>. Off-screen and raw-view
     /// elements count (e.g. the decorative backdrop's state while the window is minimized). Unless the expected status is
-    /// <c>not-visible</c>, the window is brought to the front first (and every 2 s), since the backdrop pauses when covered.
+    /// <c>not-visible</c>, <c>=background</c> or a held Shop pulse (<c>pulse=held</c>), the window is brought to the front
+    /// first (and every 2 s), since the backdrop pauses when covered.
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector, the expected <c>status</c> and an optional timeout (default 5 s).</param>
@@ -886,9 +887,11 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         };
         rawView.Add(automation.PropertyLibrary.Element.ItemStatus);
         // The backdrop is occlusion-aware: asserting a visible state needs the window in front of other lanes' windows
-        // (a not-visible assertion, including a first-run demo's rotation=not-visible, must not restore a minimized window,
-        // and a rotation=background one must not reactivate a window that foreground:off deactivated).
-        var front = !expected.Contains("not-visible", StringComparison.Ordinal) && !expected.Contains("=background", StringComparison.Ordinal);
+        // (a not-visible assertion, including a first-run demo's rotation=not-visible or a held Shop pulse, must not
+        // restore a minimized window, and a rotation=background one must not reactivate a window that foreground:off
+        // deactivated).
+        var front = !expected.Contains("not-visible", StringComparison.Ordinal) && !expected.Contains("=background", StringComparison.Ordinal)
+            && !expected.Contains("pulse=held", StringComparison.Ordinal);
         var nextFront = DateTime.MinValue;
         while (true)
         {
@@ -1048,6 +1051,12 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                     "type" => element.Properties.ControlType.ValueOrDefault.ToString().ToLowerInvariant(),
                     "invoke" => element.Patterns.Invoke.IsSupported ? "true" : "false",
                     "focusable" => element.Properties.IsKeyboardFocusable.ValueOrDefault ? "true" : "false",
+                    // What Narrator reads after a combo box's name: its Value, else the selected item's name.
+                    "value" => element.Patterns.Value.PatternOrDefault?.Value.ValueOrDefault is { Length: > 0 } text
+                        ? text
+                        : element.Patterns.Selection.PatternOrDefault?.Selection.ValueOrDefault is { Length: > 0 } picked
+                            ? picked[0].Properties.Name.ValueOrDefault
+                            : null,
                     _ => element.Properties.Name.ValueOrDefault,
                 };
             }

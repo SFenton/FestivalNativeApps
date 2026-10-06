@@ -1,6 +1,8 @@
 package com.festivalscoretracker.android.settings
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.requiredWidth
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -11,6 +13,8 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -57,6 +61,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /** Settings Service Info: wire read, progress reducer, copy rules, rows and polling. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -524,17 +529,18 @@ class ServiceInfoTest {
 /** Service Info card rendering for states the phone journey does not reach (Robolectric). */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w411dp-h891dp-xxhdpi")
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 class ServiceInfoSectionUiTest {
     @get:Rule
     val rule = createComposeRule()
 
-    private fun render(reduceMotion: Boolean, snapshot: ServiceInfoSnapshot, fontScale: Float? = null) {
+    private fun render(reduceMotion: Boolean, snapshot: ServiceInfoSnapshot, fontScale: Float? = null, width: Dp? = null) {
         val poller = ServiceInfoPoller(read = { snapshot })
         rule.setContent {
             FestivalTheme(appReduceMotion = reduceMotion) {
                 val density = LocalDensity.current
                 CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale ?: density.fontScale)) {
-                    Column { ServiceInfoSection(poller) }
+                    Column(if (width != null) Modifier.requiredWidth(width) else Modifier) { ServiceInfoSection(poller) }
                 }
             }
         }
@@ -572,7 +578,27 @@ class ServiceInfoSectionUiTest {
         rule.onNodeWithText(ServiceInfoText.PROGRESS_INDETERMINATE, useUnmergedTree = true).assertDoesNotExist()
         rule.onNodeWithTag("fst.settings.service-info.phase")
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, ServiceInfoText.PROGRESS_INDETERMINATE))
+            // The web's indeterminate bar keeps role="progressbar"; TalkBack hears a progress bar too.
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo.Indeterminate))
         rule.onNodeWithTag("fst.settings.service-info.attempt", useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun phaseRowWithoutABarIsNotAProgressBar() {
+        val noBar = ServiceInfoSnapshot(
+            ServiceInfo(
+                currentUpdate = ServiceInfo.CurrentUpdate(
+                    status = "updating", scrapeId = 3.0, operationId = "op", phaseId = "scrape_leaderboards",
+                    subphaseId = "fetching_leaderboards", phaseAttempt = 1.0, phaseOrdinal = 1.0,
+                    subphaseProgress = ServiceInfo.SubphaseProgress(1.0, "fetching_leaderboards", 1.0, 1.0, "not_applicable", "leaderboards", null, null, null, null),
+                ),
+                workerStatus = ServiceInfo.WorkerStatus("online"),
+            ),
+        )
+        render(reduceMotion = true, noBar)
+        rule.onNodeWithTag("fst.settings.service-info.phase").assertExists()
+            .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.ProgressBarRangeInfo))
+        rule.onNodeWithTag("fst.settings.service-info.bar", useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test
@@ -585,12 +611,12 @@ class ServiceInfoSectionUiTest {
         rule.onNodeWithTag("fst.settings.service-info.phase")
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "24.8%. 1,240 of 5,000 accounts completed. $attempt"))
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo(0.248f, 0f..1f)))
-        // Title, 8 dp bar and attempt line are 4 dp apart, like the web's gap (4 + 8 + 4). The bar's
-        // semantics bounds are not its drawn height, so measure title to line.
+        // Title, 10 dp bar (web 0.65rem track) and attempt line are 4 dp apart, like the web's gap
+        // (4 + 10 + 4). The bar's semantics bounds are not its drawn height, so measure title to line.
         // The phase title repeats the state description; it is the second node in tree order.
         val title = bounds("Registered Player Band Discovery", index = 1)
         val line = rule.onNodeWithTag("fst.settings.service-info.attempt", useUnmergedTree = true).getUnclippedBoundsInRoot()
-        assertEquals(16f, (line.top - title.bottom).value, 0.5f)
+        assertEquals(18f, (line.top - title.bottom).value, 0.5f)
     }
 
     @Test
@@ -610,6 +636,29 @@ class ServiceInfoSectionUiTest {
         val process = rule.onNodeWithTag("fst.settings.service-info.process", useUnmergedTree = true).getUnclippedBoundsInRoot()
         assertTrue("process ${process.top} under description ${description.bottom}", process.top >= description.bottom)
         assertEquals(title.left.value, process.left.value, 0.5f)
+    }
+
+    @Test
+    fun stateRowStaysInlineOnWideWindowsAtLargeText() {
+        // Issue #184: like the Version rows, the state row stacks only when the title cannot fit
+        // beside the process state, not at every large font scale (tablet/desktop at 2.0).
+        render(reduceMotion = true, discovery, fontScale = 2f, width = 808.dp)
+        val title = bounds(ServiceInfoText.SERVICE_STATE_TITLE)
+        val process = rule.onNodeWithTag("fst.settings.service-info.process", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        assertTrue("process ${process.left} after title ${title.right}", process.left > title.right)
+        assertTrue(process.top < title.bottom)
+    }
+
+    @Test
+    fun stateRowStacksOnNarrowPanesAtDefaultText() {
+        render(reduceMotion = true, discovery, fontScale = 1f, width = 260.dp)
+        val title = bounds(ServiceInfoText.SERVICE_STATE_TITLE)
+        val description = bounds("Registered Player Band Discovery")
+        val process = rule.onNodeWithTag("fst.settings.service-info.process", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        assertTrue("process ${process.top} under description ${description.bottom}", process.top >= description.bottom)
+        assertEquals(title.left.value, process.left.value, 0.5f)
+        // The title is laid out at its full width on one line, never squeezed.
+        assertTrue(title.right - title.left < 260.dp)
     }
 
     @Test
