@@ -37,6 +37,7 @@ import com.festivalscoretracker.android.ui.rivals.RivalPill
 import com.festivalscoretracker.android.ui.rivals.RivalPreviewRows
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
 import kotlinx.coroutines.CompletableDeferred
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -127,11 +128,30 @@ class CompeteDeviceJourneyTest {
         h.assertNothingStraddles(leadCard, "fst.compete.spotlight.Solo_Guitar")
         val viewFull = hasTestTag("fst.compete.view-full-leaderboards").and(hasAnyAncestor(hasTestTag(leadCard)))
         scrollUntil(viewFull)
+        val cells = SONGS_CELL.and(hasAnyAncestor(hasTestTag(leadCard)))
+        fun songsShown() = rule.onAllNodes(cells, useUnmergedTree = true).fetchSemanticsNodes().size
+        fun cardBounds() = rule.onNodeWithTag(leadCard).fetchSemanticsNode().boundsInRoot
+        val songsBefore = songsShown()
+        val boundsBefore = cardBounds()
         rule.onNode(viewFull, useUnmergedTree = true).performSemanticsAction(SemanticsActions.OnClick)
         h.waitForTag("fst.full-rankings.pager")
-        back()
+
+        // Issues #82/#185: Back shows the card where it was, with the same columns on every frame.
+        rule.mainClock.autoAdvance = false
+        rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
+        val frames = mutableListOf<Int>()
+        repeat(60) {
+            rule.mainClock.advanceTimeByFrame()
+            if (rule.onAllNodes(hasTestTag(leadCard)).fetchSemanticsNodes().isNotEmpty()) frames += songsShown()
+        }
+        rule.mainClock.autoAdvance = true
+        rule.waitForIdle()
         h.waitForTag(GRID)
         h.waitForTag(leadCard)
+        assertTrue("Compete never reappeared", frames.isNotEmpty())
+        assertTrue("Songs cells changed while returning: $songsBefore before, frames $frames", frames.all { it == songsBefore })
+        assertEquals("The Lead card moved after returning", boundsBefore, cardBounds())
+        assertTrue("Compete reloaded the Lead card", !h.exists("$leadCard.loading"))
         h.assertAccessible()
     }
 
@@ -177,5 +197,10 @@ class CompeteDeviceJourneyTest {
 
     private companion object {
         const val GRID = "fst.compete.grid"
+
+        /** A board row's `X / Y` songs cell (issue #38). */
+        val SONGS_CELL = SemanticsMatcher("songs cell") { node ->
+            node.config.getOrElse(SemanticsProperties.Text) { emptyList() }.any { Regex("""^\d+ / \d+$""").matches(it.text) }
+        }
     }
 }
