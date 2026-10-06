@@ -28,7 +28,7 @@ struct SuggestionsCarouselPane: View {
 
     let session: FestivalSession
     let source: Source
-    /// Route for the header's "See All", if any.
+    /// Route for the header's "View All", if any.
     var seeAll: AppRoute?
 
     @State private var viewModel = SuggestionsViewModel(filter: .defaults())
@@ -62,7 +62,7 @@ struct SuggestionsCarouselPane: View {
     /// - Parameters:
     ///   - session: Shared app session.
     ///   - source: Whole catalogue or Item Shop songs only.
-    ///   - seeAll: Route for the header's "See All" link.
+    ///   - seeAll: Route for the header's "View All" link.
     init(session: FestivalSession, source: Source, seeAll: AppRoute? = nil) {
         self.session = session
         self.source = source

@@ -216,10 +216,34 @@ private let routableRivalId = "f1c749eb07c32578cfa3e59ec38c03a8"
         identifier: "fst.rivals.song.lead.view-all"
     ))
     let shared = try capture(PurpleActionLabel(title: "View All Rivals"))
-    let plainRow = try capture(RivalViewAllRow(title: "View All Rivals"))
+    let plainText = try capture(Text("View All Rivals").font(.body.weight(.semibold)))
     #expect(nativeHostedControlPixels(rivals).bright > 0)
     #expect(nativeHostedSignature(rivals) == nativeHostedSignature(shared))
-    #expect(nativeHostedSignature(rivals) != nativeHostedSignature(plainRow))
+    #expect(nativeHostedSignature(rivals) != nativeHostedSignature(plainText))
+}
+
+/// #321: a Rival Detail category's "View All" is the same shared purple button
+/// (``PurpleActionLink`` → ``PurpleActionLabel``), not a plain white "See All" row.
+@MainActor
+@Test func rivalDetailCategoryViewAllMatchesSharedPurpleButton() async throws {
+    let size = CGSize(width: 360, height: 80)
+    func capture(_ content: some View) throws -> CGImage {
+        let host = nativeHostedView(
+            NavigationStack { content.padding(16) }.preferredColorScheme(.dark), size: size
+        )
+        return try nativeHostedImage(host)
+    }
+    let category = try capture(PurpleActionLink(
+        title: "View All",
+        route: .rivalry(rivalId: "r", mode: "closest_battles", name: nil, scope: nil),
+        identifier: "fst.rival-detail.category.closest_battles.view-all",
+        card: "Closest Battles"
+    ))
+    let shared = try capture(PurpleActionLabel(title: "View All"))
+    let plainText = try capture(Text("View All").font(.body.weight(.semibold)))
+    #expect(nativeHostedControlPixels(category).bright > 0)
+    #expect(nativeHostedSignature(category) == nativeHostedSignature(shared))
+    #expect(nativeHostedSignature(category) != nativeHostedSignature(plainText))
 }
 
 /// A 503 (matching the live service's scrape-window freeze) shows each section's
@@ -466,6 +490,48 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     assertRendersContent(
         host, image: image, containing: ["Closest Battles", "Almost Passed", "Fixture Drift"]
     )
+    // #321: each category ends with the shared purple "View All", label first.
+    let tree = nativeHostedAccessibility(host)
+    #expect(tree.identifiers.contains("fst.rival-detail.category.closest_battles.view-all"))
+    #expect(tree.identifiers.contains("fst.rival-detail.category.almost_passed.view-all"))
+    #expect(tree.contains("View All, Closest Battles"))
+    #expect(!tree.contains("See All"))
+}
+
+/// iPhone Duo Rivals pane (#321): the pane header's "View All" link and each category
+/// card's purple "View All" keep their own identifiers. The pane and card containers
+/// carry identifiers too, so without `.accessibilityElement(children: .contain)` those
+/// would shadow every descendant's (see `LeaderboardsJourneyTests`).
+@MainActor
+@Test func rivalDualDetailPaneExposesViewAllIdentifiers() async throws {
+    let (session, storage, suite) = try await rivalsFixtureSession(accountId: "fixture-riv")
+    defer { storage.removePersistentDomain(forName: suite) }
+    let selection = AppRoute.rivalDetail(
+        rivalId: "f1c749eb07c32578cfa3e59ec38c03a8", name: "Fixture Rival Golf",
+        scope: .song(instruments: ["Solo_Guitar"])
+    )
+    let size = CGSize(width: 402, height: 700)
+    let host = nativeHostedView(
+        NavigationStack { RivalDualDetailPane(session: session, selection: selection) }
+            .defaultAppStorage(storage)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(host, untilText: ["Closest Battles"])
+    _ = try nativeHostedPNG(image, filename: "rival-dual-detail-pane.png", environment: "FST_RIVALS_RENDER_OUT")
+    assertRendersContent(host, image: image, containing: ["Closest Battles"])
+    let tree = nativeHostedAccessibility(host)
+    for identifier in [
+        "fst.dual.rivals.detail", "fst.dual.rivals.detail.view-all",
+        "fst.dual.rivals.category.closest_battles", "fst.dual.rivals.category.closest_battles.view-all",
+    ] {
+        #expect(tree.identifiers.contains(identifier), "\(identifier) unreachable: \(tree.identifiers)")
+    }
+    #expect(tree.contains("View All Fixture Rival Golf"))
+    #expect(tree.contains("View All, Closest Battles"))
+    #expect(!tree.contains("See All"))
 }
 
 @MainActor
