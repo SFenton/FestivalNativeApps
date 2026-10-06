@@ -1,4 +1,4 @@
-package com.festivalscoretracker.android.testing
+package com.festivalscoretracker.android.ui.common
 
 import android.os.Looper
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
