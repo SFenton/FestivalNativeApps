@@ -288,7 +288,7 @@ struct GlobalSearchResults: View {
             Section {
                 ForEach(Array(model.bands.enumerated()), id: \.element.id) { offset, band in
                     PlayerBandRow(
-                        entry: band, card: true, open: open,
+                        entry: band, open: open,
                         identifier: "fst.global-search.result.band"
                     )
                     .listRowInsets(Self.cardInsets)

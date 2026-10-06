@@ -168,7 +168,8 @@
         298,
         301,
         305,
-        308
+        308,
+        319
       ]
     },
     {
@@ -520,6 +521,14 @@
           ],
           "debt": [],
           "message": "Raw standard-material backgrounds belong in Design or an approved exception (surface-materials R3)."
+        },
+        {
+          "id": "apple-feature-opaque-card",
+          "glob": "apple/Sources/FestivalUI/Features/**/*.swift",
+          "regex": "\\.background\\(\\s*BrandTokens\\.cardBackground\\s*,\\s*in:",
+          "allow": [],
+          "debt": [],
+          "message": "An opaque cardBackground plate is FestivalCardModifier's accessibility fallback, not a feature surface; draw cards, rows and custom floating controls with festivalCard / festivalCardCapsule (surface-materials R1, #319)."
         }
       ],
       "related": {
@@ -537,7 +546,8 @@
       "supersedes": [],
       "supersededBy": null,
       "issues": [
-        291
+        291,
+        319
       ]
     },
     {
@@ -554,7 +564,8 @@
         "floating toolbar",
         "global search",
         "quick links",
-        "profile"
+        "profile",
+        "hit target"
       ],
       "web": [
         {
@@ -910,6 +921,10 @@
           {
             "path": "apple/Sources/FestivalCore/SelectedRowNavigation.swift",
             "symbol": "SelectedRowAction"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/RankingSpotlight.swift",
+            "symbol": "RankingSpotlight"
           }
         ],
         "android": [
@@ -1045,7 +1060,8 @@
           "song-detail",
           "song-leaderboard",
           "leaderboards",
-          "compete"
+          "compete",
+          "full-rankings"
         ]
       },
       "supersedes": [],
@@ -1058,7 +1074,9 @@
         292,
         293,
         294,
-        295
+        295,
+        318,
+        319
       ]
     },
     {
@@ -1865,6 +1883,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/ViewFullLeaderboardButton.kt",
             "symbol": "ViewFullLeaderboardButton"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/ViewFullLeaderboardButton.kt",
+            "symbol": "viewAllSpokenName"
           }
         ],
         "windows": [
