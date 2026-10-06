@@ -547,7 +547,8 @@
       "supersedes": [],
       "supersededBy": null,
       "issues": [
-        291
+        291,
+        319
       ]
     },
     {
@@ -1885,6 +1886,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/ViewFullLeaderboardButton.kt",
             "symbol": "ViewFullLeaderboardButton"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/ViewFullLeaderboardButton.kt",
+            "symbol": "viewAllSpokenName"
           }
         ],
         "windows": [

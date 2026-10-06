@@ -34,9 +34,11 @@ The web places the button **after** the rows and only for non-empty, error-free 
 | Sub-behavior | Apple | Android | Windows |
 |---|---|---|---|
 | Button look (R1–R3, R5) | `apple/Sources/FestivalUI/Features/Leaderboards/PurpleActionButton.swift` `PurpleActionLabel`; push link `PurpleActionLink` (label, route, test ID, label-first spoken name) | `android/app/src/main/java/com/festivalscoretracker/android/ui/design/ViewFullLeaderboardButton.kt` `ViewFullLeaderboardButton` | `windows/Festival.App/Themes/Styles.xaml` `FSTViewAllButtonStyle` (based on `AccentButtonStyle`) |
-| Labels and accessible name (R4) | per consumer | per consumer | `windows/Festival.Core/Domain/ViewAllCta.cs` `ViewAllCta` (`Name(label, card)`; card view models expose `ViewAllText`, `ViewAllName`, `ViewAllAutomationId`) |
+| Labels and accessible name (R4) | per consumer | label per consumer; `ViewFullLeaderboardButton(cardName = …)` speaks `viewAllSpokenName(label, card)` ("View All Rivals, Lead Rivals") and drops the visible Text from the merged semantics so TalkBack reads it once (as `SeeAllButton`) | `windows/Festival.Core/Domain/ViewAllCta.cs` `ViewAllCta` (`Name(label, card)`; card view models expose `ViewAllText`, `ViewAllName`, `ViewAllAutomationId`) |
 
 Windows consumers (`ViewAllCtaTests` lists them and forbids overrides): Song Detail Score History View All Scores (`SongDetailPage.xaml` `HistoryViewAll`, `fst.history.view-all`), Song Detail instrument cards (`fst.song-detail.view-all.<instrument>`) and band cards (`fst.song-detail.band-view-all.<type>`), Leaderboards instrument and band cards (`fst.leaderboards.card.<instrument>.view-all`, `fst.leaderboards.band-card.<type>.view-all`) and the Rivals hub cards on both tabs (`fst.rivals.section[.leaderboard].<id>.view-all`; `/compete` opens the same page).
+
+Android test IDs stay one tag per consumer (`fst.rivals.view-all`, `fst.compete.view-full-leaderboards`, …); each card's CTA is addressed through its card container's tag (`fst.rivals.section[.leaderboard].<id>`, `fst.compete.{leaderboard,rivals}-card.<id>`) with `hasAnyAncestor`, which keeps R4's one-ID-per-card without renaming tags used by connected tests (agent decision, #176).
 
 Apple consumers: `RivalsViewAllButton` (Rivals, Compete; via `PurpleActionLink`), Rival Detail categories (`RivalDetailScreen`, Duo `RivalDualDetailPane`; `PurpleActionLink` "View All", `fst.rival-detail.category.<key>.view-all` / `fst.dual.rivals.category.<key>.view-all`, spoken "View All, <category>"), `PlayerBandsPreviewSection`, `SongScorePreview`, `SongBandPreviewSection`, `SongScoreHistorySection`, `CompeteScreen`, `LeaderboardsScreen`. Android consumers: `RivalComponents`, `CompeteScreen`, `SongDetailScreen`, `SongHistoryCard`, `LeaderboardsScreen`, `ProfileBands`.
 
@@ -46,7 +48,7 @@ Apple consumers: `RivalsViewAllButton` (Rivals, Compete; via `PurpleActionLink`)
 |---|---|---|
 | Apple Song Detail cards label the button "View full leaderboard" (sentence case) and speak "View full `<chart>` leaderboard", which splits the visible label | R4 | Apple check; out of #268's Windows scope |
 | Android and Windows Rival Detail category "See All" and other "See All" copy; web `rivals.seeAll`, `compete.seeAll`, `player.seeAll` | R4, R6, R7 | Android, Windows and web checks of #321 |
-| TODO(orchestrator): Android accessible names are not audited against R4 | R4 | Android check of #68 adds its findings here |
+| Android Song Detail instrument/band cards (View Full Leaderboard), View All Scores, Leaderboards View All Rankings (N) and Profile View All Bands pass no `cardName`, so TalkBack reads the label alone (audited in #176; Rivals hub and Compete pass it) | R4 | Pass the card title as `cardName` in each consumer's Android check |
 
 ## Guards (`tools/pattern_guard.py`)
 

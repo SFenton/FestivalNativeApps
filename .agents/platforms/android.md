@@ -87,7 +87,7 @@ From Git Bash, pass Windows paths (`C:/…`) inside `--steps`: MSYS converts onl
 
 Compose `testTag`s appear as resource ids only when the app sets `testTagsAsResourceId`. Under TalkBack, `input tap` explores rather than activates.
 
-`rotate:` writes `user_rotation`, which did not rotate FST_Phone in issue #111 (2026-10-03). Use `shell:wm user-rotation lock 1` for landscape and `shell:wm user-rotation lock 0` to restore portrait.
+`rotate:` writes `user_rotation`, which did not rotate FST_Phone in issue #111 (2026-10-03). Use `shell:wm user-rotation lock 1` for landscape and `shell:wm user-rotation lock 0` to restore portrait. After that rotation, named `swipe:up|down` still uses portrait coordinates: on FST_Phone it starts at y = 1800, off the 1080 px landscape screen, and nothing scrolls (issue #176). Use explicit `swipe:x1,y1,x2,y2,ms` in landscape, e.g. `swipe:1000,660,1000,380,500` on FST_Phone.
 
 ## Emulator lock
 

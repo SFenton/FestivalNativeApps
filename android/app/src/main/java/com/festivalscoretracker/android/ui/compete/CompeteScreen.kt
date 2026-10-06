@@ -254,6 +254,7 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
                             modifier = Modifier.festivalFadeIn(revealed, fadeInStagger(value.entries.size + 1)),
                             label = CompeteText.VIEW_FULL_LEADERBOARDS,
                             testTag = "fst.compete.view-full-leaderboards",
+                            cardName = scope.label,
                         )
                     }
                 }
@@ -283,6 +284,7 @@ private fun RivalsCard(section: CompeteSection, viewModel: CompeteViewModel, nav
                     onViewAll = seeAll,
                     viewAllLabel = CompeteText.VIEW_ALL_RIVALS,
                     revealed = revealed,
+                    cardName = scope.label,
                 )
             }
         }
