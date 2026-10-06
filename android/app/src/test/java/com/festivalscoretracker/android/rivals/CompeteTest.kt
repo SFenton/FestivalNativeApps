@@ -13,6 +13,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -370,6 +371,34 @@ class CompeteUiTest {
         assertTrue(rule.onAllNodesWithTag("fst.compete.leaderboard-card.Solo_Guitar.loading").fetchSemanticsNodes().isEmpty())
         awaitInCard("fst.compete.leaderboard-card.Solo_Bass", hasTestTag("fst.service-status.inline"))
         assertTrue(rule.onAllNodesWithTag("fst.compete.leaderboard-card.Solo_Bass.loading").fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun spinnersGiveWayToEmptyCopyAndRivalsErrors() {
+        val gate = CompletableDeferred<Unit>()
+        // Drums has no ranked accounts (empty copy); Bass rivals fail (inline error).
+        transport.onRaw("/api/rankings/Solo_Drums") {
+            HttpResult(200, RankingsFixtures.rankings("Solo_Drums", "totalscore", 1, 10, total = 0).toByteArray(), mapOf("X-FST-Publication-Id" to "7"))
+        }
+        transport.onRaw("/api/rankings/Solo_Drums/${CompeteFixtures.PLAYER}") { HttpResult(404, "{}".toByteArray()) }
+        transport.beforeRespond = { request ->
+            val path = request.url.substringBefore('?')
+            if ("/api/rankings" in path || "/rivals/" in path) gate.await()
+            if (path.endsWith("/rivals/Solo_Bass")) throw IOException("offline")
+        }
+        launch(DebugLaunch(route = CompeteRoute, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true))
+        awaitInCard("fst.compete.leaderboard-card.Solo_Drums", hasTestTag("fst.compete.leaderboard-card.Solo_Drums.loading"))
+        rule.onNodeWithContentDescription("Loading Drums leaderboard")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo.Indeterminate))
+        awaitInCard("fst.compete.rivals-card.Solo_Bass", hasTestTag("fst.compete.rivals-card.Solo_Bass.loading"))
+        rule.onNodeWithContentDescription("Loading Bass rivals")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo.Indeterminate))
+
+        gate.complete(Unit)
+        awaitInCard("fst.compete.leaderboard-card.Solo_Drums", hasText(CompeteText.noRankings("Drums")))
+        assertTrue(rule.onAllNodesWithTag("fst.compete.leaderboard-card.Solo_Drums.loading").fetchSemanticsNodes().isEmpty())
+        awaitInCard("fst.compete.rivals-card.Solo_Bass", hasTestTag("fst.service-status.inline"))
+        assertTrue(rule.onAllNodesWithTag("fst.compete.rivals-card.Solo_Bass.loading").fetchSemanticsNodes().isEmpty())
     }
 
     /** Scrolls the lazy Compete grid to [cardTag] until a descendant matching [child] is composed. */

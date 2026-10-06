@@ -94,6 +94,9 @@ class FakeTransport(private val routes: MutableMap<String, (HttpRequest) -> Http
     /** Every request sent, in order. */
     val requests = mutableListOf<HttpRequest>()
 
+    /** Runs before each request is answered; a test can suspend here to hold reads open (loading states). */
+    var beforeRespond: suspend (HttpRequest) -> Unit = {}
+
     /**
      * Register a JSON response.
      *
@@ -118,6 +121,7 @@ class FakeTransport(private val routes: MutableMap<String, (HttpRequest) -> Http
 
     override suspend fun send(request: HttpRequest): HttpResult {
         requests += request
+        beforeRespond(request)
         val path = request.url.substringAfter("://").substringAfter('/').substringBefore('?').let { "/$it" }
         val route = routes[path] ?: return HttpResult(404, "{}".toByteArray())
         return route(request)

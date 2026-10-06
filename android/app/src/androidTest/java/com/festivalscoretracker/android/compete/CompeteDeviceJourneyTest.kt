@@ -8,11 +8,15 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -32,6 +36,7 @@ import com.festivalscoretracker.android.testing.RivalsFixtures
 import com.festivalscoretracker.android.ui.rivals.RivalPill
 import com.festivalscoretracker.android.ui.rivals.RivalPreviewRows
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
+import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -59,14 +64,17 @@ class CompeteDeviceJourneyTest {
 
     private fun launch() {
         h.enableAccessibilityChecks()
+        h.launch(debug(), transport)
+        h.waitForTag("fst.compete.leaderboard-card.0f")
+    }
+
+    private fun debug(): DebugLaunch {
         val compact = rule.activity.resources.configuration.screenWidthDp < 600
-        val debug = if (compact) {
+        return if (compact) {
             DebugLaunch(section = FestivalSection.Compete, profile = player, stillBackground = true)
         } else {
             DebugLaunch(route = CompeteRoute, profile = player, stillBackground = true)
         }
-        h.launch(debug, transport)
-        h.waitForTag("fst.compete.leaderboard-card.0f")
     }
 
     /** Scrolls the lazy grid until a node matching [matcher] is composed (cards load asynchronously). */
@@ -81,6 +89,33 @@ class CompeteDeviceJourneyTest {
     private fun back() {
         rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
         rule.waitForIdle()
+    }
+
+    /**
+     * While its reads are in flight every card shows a labelled, indeterminate Material 3
+     * progress indicator that TalkBack reads, and rows replace it once they arrive (#65, #173).
+     */
+    @Test
+    fun cardsShowLabelledProgressUntilRowsArrive() {
+        val gate = CompletableDeferred<Unit>()
+        transport.beforeRespond = { request -> if ("/api/rankings" in request.url || "/rivals/" in request.url) gate.await() }
+        h.enableAccessibilityChecks()
+        h.launch(debug(), transport)
+        val comboLoading = "fst.compete.leaderboard-card.0f.loading"
+        h.waitForTag(comboLoading)
+        scrollUntil(hasTestTag("$leadCard.loading"))
+        rule.onNode(hasContentDescription("Loading Lead leaderboard"), useUnmergedTree = true)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo.Indeterminate))
+        h.awaitAccessibilityTree(present = "$leadCard.loading")
+        val spoken = h.readingOrder("compete-loading")
+        assertTrue("TalkBack never reaches the Lead spinner: $spoken", spoken.any { it.startsWith("Loading Lead leaderboard") })
+        h.assertNothingStraddles(comboLoading, "$leadCard.loading")
+
+        gate.complete(Unit)
+        scrollUntil(hasTestTag("fst.compete.spotlight.Solo_Guitar"))
+        assertTrue("Lead spinner stayed after its rows arrived", !h.exists("$leadCard.loading"))
+        h.waitGone(comboLoading)
+        h.assertAccessible()
     }
 
     @Test
