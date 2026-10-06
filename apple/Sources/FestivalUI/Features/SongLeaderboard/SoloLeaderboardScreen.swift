@@ -18,10 +18,10 @@ struct SoloLeaderboardScreen: View {
     @State private var page: Int
     @State private var state: LoadState
     @State private var lastRequest: RequestKey?
-    /// First staggered reveal of this page finished; recycled rows then appear instantly.
-    @State private var staggerSettled = false
-    /// The rows' first-load fade window: a scroll rushes their stagger (issue #323), and
-    /// the selected-row reveal reads whether the reader scrolled first.
+    /// The rows' first-load fade window: a scroll rushes their stagger (issue #323), rows
+    /// the selected-row scroll realizes fade in with it, and once it closes recycled rows
+    /// appear without a fade (R5). The selected-row reveal reads whether the reader
+    /// scrolled first.
     @State private var fadeScope = FestivalFadeInScope()
     /// The song header has scrolled under the bar: the bar shows art, title and
     /// instrument instead (operator batch 7.2, like Song Detail).
@@ -198,7 +198,8 @@ struct SoloLeaderboardScreen: View {
                                 .accessibilityIdentifier(
                                     "fst.song-leaderboard.row.\(entry.accountId)"
                                 )
-                                .detailStaggeredFadeIn(index: index, settled: staggerSettled)
+                                // The page scope decides whether it still fades (R5).
+                                .festivalFadeIn(staggerIndex: index)
                                 .listRowInsets(EdgeInsets(
                                     top: Self.rowInset, leading: 16, bottom: Self.rowInset, trailing: 16
                                 ))
@@ -268,13 +269,6 @@ struct SoloLeaderboardScreen: View {
                         )
                     }
                 }
-                // The settle timer runs from each page's reveal, not from its load.
-                .task(id: revealedRowsKey) {
-                    guard let rows else { return }
-                    await FadeStagger.settle(afterRevealing: rows.leaderboard.entries.count) {
-                        staggerSettled = true
-                    }
-                }
             } else if case let .failed(issue) = state, reveal.showsResult {
                 // The first page failed: no header to keep yet.
                 ServiceStatusView(issue, title: "Leaderboard unavailable") {
@@ -300,9 +294,6 @@ struct SoloLeaderboardScreen: View {
             chartWidth = width
         }
         .coordinateSpace(.named(Self.pageSpace))
-        // New rows stagger in again; the gate reveals them after its spinner, so the
-        // settle timer runs from the reveal (inside the gated content).
-        .onChange(of: loadedRowsKey) { _, _ in staggerSettled = false }
         .detailFadeTestSafe()
         .festivalBackground(.song(song.albumArt), session: session)
         .festivalNavigationTitle(song.title)

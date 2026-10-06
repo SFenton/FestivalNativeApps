@@ -10,7 +10,13 @@ import SwiftUI
 /// Like the web, the scroll waits for the row's own entrance to finish (web waits
 /// `(playerIndex + 1) × STAGGER_INTERVAL` plus the fade), so it never carries the reader
 /// past rows that are still fading in; if the page is still fading anywhere, the scroll
-/// rushes those fades through the page's ``FestivalFadeInScope`` (issue #323). A reader
+/// rushes those fades through the page's ``FestivalFadeInScope``, and rows the scroll
+/// realizes (a row past the first screen, revealed as the stagger ends) fade in together
+/// rather than appear opaque (``FestivalFadeInScope/prepareForAutomaticScroll(lasting:)``,
+/// issue #323). Until the scroll starts, rows past the first screen that the list builds
+/// early are held for it (``FestivalFadeInScope/expectAutomaticScroll()``), so the rows it
+/// reaches have not spent their entrance unseen. Pass the page's scope and the row's
+/// stagger index. A reader
 /// who scrolls first cancels it (web `userScrolledRef`). A page holds at most 25 rows, so
 /// the scroll never builds more than a screenful or two of rows. It is animated only
 /// without Reduce Motion, and then waits only for layout (HIG Accessibility: "When Reduce
@@ -19,6 +25,9 @@ import SwiftUI
 enum SelectedRowReveal {
     /// Pause after the rows appear, so the list has laid them out before scrolling.
     static let settle: Duration = .milliseconds(200)
+
+    /// Length of the animated scroll, in seconds.
+    static let scrollDuration: TimeInterval = 0.35
 
     /// How long to wait after the rows are revealed before scrolling.
     ///
@@ -53,7 +62,8 @@ enum SelectedRowReveal {
     ///     the scroll is instant and does not wait for fades).
     ///   - staggerIndex: The row's stagger position, or nil for a block-fade page.
     ///   - fadesEnabled: Whether the page's load fades play (off in frozen UI-test runs).
-    ///   - scope: The page's fade scope: a reader who already scrolled cancels the reveal.
+    ///   - scope: The page's fade scope: a reader who already scrolled cancels the reveal,
+    ///     and rows the scroll realizes fade in with its rush.
     /// - Returns: False when the reveal was cancelled before scrolling.
     @discardableResult
     static func reveal<ID: Hashable>(
@@ -61,16 +71,29 @@ enum SelectedRowReveal {
         fadesEnabled: Bool = loadFadesPlay, scope: FestivalFadeInScope? = nil
     ) async -> Bool {
         let instant = reduceMotion || appReduceMotion
-        try? await Task.sleep(for: wait(staggerIndex: staggerIndex, animates: fadesEnabled && !instant))
-        guard !Task.isCancelled else { return false }
+        let animates = fadesEnabled && !instant
+        // Rows past the first screen that the list builds early wait for this scroll.
+        let expectation = animates ? scope?.expectAutomaticScroll() : nil
+        try? await Task.sleep(for: wait(staggerIndex: staggerIndex, animates: animates))
+        guard !Task.isCancelled else {
+            scope?.endAutomaticScrollExpectation(expectation)
+            return false
+        }
         // The reader scrolled while the page was fading in: leave them where they are.
-        if scope?.hasScrolled == true { return true }
+        if scope?.hasScrolled == true {
+            scope?.endAutomaticScrollExpectation(expectation)
+            return true
+        }
+        if !animates {
+            scope?.endAutomaticScrollExpectation(expectation)
+        }
         if instant {
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) { proxy.scrollTo(id, anchor: .center) }
         } else {
-            withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(id, anchor: .center) }
+            scope?.prepareForAutomaticScroll(lasting: scrollDuration)
+            withAnimation(.easeInOut(duration: scrollDuration)) { proxy.scrollTo(id, anchor: .center) }
         }
         return true
     }

@@ -31,6 +31,16 @@ public enum FestivalFadeIn {
     /// CSS `ease-out` is `cubic-bezier(0, 0, 0.58, 1)`.
     public static let animation: Animation = .timingCurve(0, 0, 0.58, 1, duration: duration)
 
+    /// One item's fade (``SwiftUICore/View/festivalFadeIn(isLoaded:)`` and its staggered
+    /// forms), starting `delay` seconds after it is scheduled; 0 once a page scope lets a
+    /// waiting item start. Block fades (reload gates) use ``animation``.
+    ///
+    /// - Parameter delay: Seconds before the fade starts.
+    /// - Returns: The web `fadeInUp` curve, delayed.
+    public static func itemAnimation(after delay: TimeInterval) -> Animation {
+        animation.delay(delay)
+    }
+
     /// Start delay for the item at `index` in a staggered list.
     ///
     /// - Parameters:
@@ -136,12 +146,20 @@ public final class FestivalFadeInScope {
     private var activeUntil: TimeInterval = 0
     /// When a scroll rushed the pending fades.
     private var rushedAt: TimeInterval?
+    /// How long after the rush rows built by the scroll still fade in: one fade, or the
+    /// selected-row scroll plus one fade (``prepareForAutomaticScroll(lasting:)``).
+    private var rushWindow: TimeInterval = FestivalFadeIn.duration
     /// Closed: later fades show content immediately until a reset.
     private var closed = false
     /// The reset key currently armed.
     private var armedKey: AnyHashable?
     /// Fades waiting for their stagger delay, released early by a rush.
     private var waiters: [UUID: CheckedContinuation<Void, Never>] = [:]
+    /// Selected-row scrolls this arm still expects (``expectAutomaticScroll()``).
+    private var expectedScrolls: Set<UUID> = []
+    /// Waiting fades past the first screen whose delay has elapsed, held for the expected
+    /// automatic scroll to rush them.
+    private var held: Set<UUID> = []
 
     /// Whether the content has moved since the scope was (re)armed: a reader who scrolls
     /// before the selected-row scroll starts cancels it (web `userScrolledRef`).
@@ -157,7 +175,7 @@ public final class FestivalFadeInScope {
     /// Whether fades on this page may still animate: not closed, and not past a rush.
     public var isOpen: Bool {
         guard !closed else { return false }
-        if let rushedAt { return now() < rushedAt + FestivalFadeIn.duration }
+        if let rushedAt { return now() < rushedAt + rushWindow }
         return true
     }
 
@@ -195,6 +213,69 @@ public final class FestivalFadeInScope {
         releaseWaiters()
     }
 
+    /// Announce an automatic scroll that will come once its row's entrance ends (the
+    /// selected-row reveal, ``SelectedRowReveal``).
+    ///
+    /// Until it starts (``prepareForAutomaticScroll(lasting:)``) or is called off
+    /// (``endAutomaticScrollExpectation(_:)``), a fade past the first screen
+    /// (``FestivalFadeInStart/pastFirstScreen``) whose time comes is held for the scroll
+    /// to rush. A lazy list builds rows just below the viewport before they show; without
+    /// the hold, the rows the scroll is about to reach would play their entrance unseen
+    /// and arrive opaque (issue #323). Rows on screen past the first screenful fade with
+    /// that rush instead of the stagger tail.
+    ///
+    /// - Returns: A token for ``endAutomaticScrollExpectation(_:)``, or nil when the
+    ///   window has closed or a scroll has already rushed it.
+    public func expectAutomaticScroll() -> UUID? {
+        guard !closed, rushedAt == nil else { return nil }
+        let token = UUID()
+        expectedScrolls.insert(token)
+        return token
+    }
+
+    /// Call off an expected automatic scroll (the reveal was cancelled or the reader
+    /// scrolled first): fades held for it start now.
+    ///
+    /// - Parameter token: The token ``expectAutomaticScroll()`` returned; nil, or one from
+    ///   an earlier arm, does nothing.
+    public func endAutomaticScrollExpectation(_ token: UUID?) {
+        guard let token, expectedScrolls.remove(token) != nil, expectedScrolls.isEmpty else { return }
+        let ready = held
+        held = []
+        for id in ready { release(id) }
+    }
+
+    /// Whether a fade with `start` waits on this scope even with no delay left: a row past
+    /// the first screen while an automatic scroll is expected.
+    ///
+    /// - Parameter start: The item's unscoped start.
+    /// - Returns: True when the fade must wait for the scroll's rush.
+    public func holds(_ start: FestivalFadeInStart) -> Bool {
+        start == .pastFirstScreen && !expectedScrolls.isEmpty && rushedAt == nil && !closed
+    }
+
+    /// Get ready for an automatic scroll (the selected-row reveal, ``SelectedRowReveal``):
+    /// rows the scroll realizes fade in together rather than appear opaque, even when it
+    /// starts just as the first-load stagger ends (a row past the first screen is revealed
+    /// exactly then, issue #323). Ends every ``expectAutomaticScroll()``.
+    ///
+    /// With fades held for this scroll, or none waiting at all, the rush starts now;
+    /// otherwise the scroll's own movement rushes the waiting entrances as any scroll does
+    /// (a scroll that doesn't move leaves the stagger running). Either way the rush window
+    /// lasts the scroll plus one fade. Does nothing more once the window has closed or a
+    /// scroll has already rushed it.
+    ///
+    /// - Parameter scrollDuration: How long the scroll animates, in seconds.
+    public func prepareForAutomaticScroll(lasting scrollDuration: TimeInterval) {
+        expectedScrolls = []
+        guard !closed, rushedAt == nil else { return }
+        rushWindow = max(0, scrollDuration) + FestivalFadeIn.duration
+        if !held.isEmpty || waiters.isEmpty {
+            rushedAt = now()
+            releaseWaiters()
+        }
+    }
+
     /// Close the window explicitly: later fades on this page show content immediately.
     public func close() {
         closed = true
@@ -216,8 +297,10 @@ public final class FestivalFadeInScope {
         openedAt = nil
         activeUntil = 0
         rushedAt = nil
+        rushWindow = FestivalFadeIn.duration
         closed = false
         hasScrolled = false
+        expectedScrolls = []
         releaseWaiters()
     }
 
@@ -249,20 +332,24 @@ public final class FestivalFadeInScope {
         return delay
     }
 
-    /// Wait until a fade scheduled `delay` seconds out may start: the delay elapses, a
-    /// scroll rushes the page, the scope resets or the waiting task is cancelled.
+    /// Wait until a fade scheduled `delay` seconds out may start: the delay elapses (and,
+    /// past the first screen, no automatic scroll is expected: ``holds(_:)``), a scroll
+    /// rushes the page, the scope resets or the waiting task is cancelled.
     ///
-    /// - Parameter delay: The delay ``scheduleFade(_:)`` returned.
-    public func waitToStart(after delay: TimeInterval) async {
-        guard delay > 0, rushedAt == nil, !closed, !Task.isCancelled else { return }
+    /// - Parameters:
+    ///   - delay: The delay ``scheduleFade(_:)`` returned.
+    ///   - start: The item's unscoped start, for the automatic-scroll hold.
+    public func waitToStart(after delay: TimeInterval, start: FestivalFadeInStart = .after(0)) async {
+        guard rushedAt == nil, !closed, !Task.isCancelled, delay > 0 || holds(start) else { return }
+        let holdable = start == .pastFirstScreen
         let id = UUID()
         await withTaskCancellationHandler {
             await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
                 waiters[id] = continuation
                 // Strong capture: the continuation must be resumed even if the page goes.
                 Task { @MainActor in
-                    try? await Task.sleep(for: .seconds(delay))
-                    self.release(id)
+                    if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
+                    self.delayElapsed(id, holdable: holdable)
                 }
             }
         } onCancel: {
@@ -270,8 +357,20 @@ public final class FestivalFadeInScope {
         }
     }
 
+    /// A waiting fade's delay has elapsed: start it, or hold it for an expected automatic
+    /// scroll when it is past the first screen.
+    private func delayElapsed(_ id: UUID, holdable: Bool) {
+        guard waiters[id] != nil else { return }
+        if holdable, !expectedScrolls.isEmpty {
+            held.insert(id)
+        } else {
+            release(id)
+        }
+    }
+
     /// Resume one waiting fade, if it is still waiting.
     private func release(_ id: UUID) {
+        held.remove(id)
         waiters.removeValue(forKey: id)?.resume()
     }
 
@@ -279,6 +378,7 @@ public final class FestivalFadeInScope {
     private func releaseWaiters() {
         let pending = waiters
         waiters = [:]
+        held = []
         for continuation in pending.values { continuation.resume() }
     }
 }
@@ -333,6 +433,12 @@ extension EnvironmentValues {
     /// Hosted snapshot tests set this to `false` so a capture never lands mid-fade.
     @Entry public var festivalFadeInEnabled: Bool = true
 
+    /// Replaces the curve of every item fade (``FestivalFadeIn/itemAnimation(after:)``)
+    /// below this point; nil, the default, keeps the web `fadeInUp`. Hosted animation tests
+    /// stretch it so a capture can land mid-fade; timings (stagger, scope, reveal) are
+    /// unchanged.
+    @Entry public var festivalFadeInItemCurve: Animation? = nil
+
     /// The enclosing page's fade window, or nil outside a scoped page (fades always play
     /// on their own schedule).
     @Entry public var festivalFadeInScope: FestivalFadeInScope? = nil
@@ -349,6 +455,7 @@ struct FestivalFadeInModifier: ViewModifier {
 
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @Environment(\.festivalFadeInEnabled) private var fadeEnabled
+    @Environment(\.festivalFadeInItemCurve) private var curve
     @Environment(\.festivalFadeInScope) private var scope
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
     @State private var revealed = false
@@ -391,18 +498,27 @@ struct FestivalFadeInModifier: ViewModifier {
             revealed = true
             return
         }
-        if delay > 0, let scope {
+        if let scope, delay > 0 || scope.holds(start) {
             // Wait on the scope rather than delaying the animation, so a scroll can start
             // this fade together with the rest (web `useStaggerRush`).
             pending = Task { @MainActor in
-                await scope.waitToStart(after: delay)
+                await scope.waitToStart(after: delay, start: start)
                 guard !Task.isCancelled else { return }
-                pending = nil
-                withAnimation(FestivalFadeIn.animation) { revealed = true }
+                // One animated update: a separate plain state write in the same update
+                // made a `List` row commit unanimated, so it popped in (macOS, #323).
+                withAnimation(itemAnimation(after: 0)) {
+                    pending = nil
+                    revealed = true
+                }
             }
         } else {
-            withAnimation(FestivalFadeIn.animation.delay(delay)) { revealed = true }
+            withAnimation(itemAnimation(after: delay)) { revealed = true }
         }
+    }
+
+    /// The item fade, on the environment's curve when one replaces it.
+    private func itemAnimation(after delay: TimeInterval) -> Animation {
+        curve.map { $0.delay(delay) } ?? FestivalFadeIn.itemAnimation(after: delay)
     }
 }
 
