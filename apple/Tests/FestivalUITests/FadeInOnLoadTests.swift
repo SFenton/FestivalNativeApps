@@ -235,6 +235,135 @@ private final class FakeClock {
     #expect(scope.isOpen)
 }
 
+/// Review of #351: the reveal of a row past the first screen starts exactly as the stagger
+/// ends (index ≥ 8 waits 1.4 s). A plain scroll then closes the finished scope, so the
+/// rows it reaches would appear opaque; the reveal's own scroll opens a rush window for
+/// the scroll plus one fade instead.
+@MainActor
+@Test func fadeScopeAutomaticScrollAfterTheStaggerFadesTheRowsItReaches() {
+    let clock = FakeClock()
+    let plain = FestivalFadeInScope(now: { clock.time })
+    let revealed = FestivalFadeInScope(now: { clock.time })
+    for scope in [plain, revealed] {
+        scope.noteContentOffset(0)
+        _ = scope.scheduleFade(.after(0.125))
+        #expect(scope.scheduleFade(.pastFirstScreen) == 1.0)
+    }
+    clock.time += FestivalFadeIn.entranceEnd(forIndex: 19)
+    // Without the reveal's preparation: the scroll closes the window (the bug).
+    plain.noteContentOffset(-600)
+    #expect(!plain.isOpen)
+    #expect(plain.scheduleFade(.pastFirstScreen) == nil)
+    // With it: rows the scroll realizes fade at once, for the scroll plus one fade.
+    revealed.prepareForAutomaticScroll(lasting: SelectedRowReveal.scrollDuration)
+    #expect(revealed.isRushed)
+    revealed.noteContentOffset(-600)
+    #expect(revealed.isOpen)
+    #expect(revealed.scheduleFade(.pastFirstScreen) == 0)
+    clock.time += SelectedRowReveal.scrollDuration + FestivalFadeIn.duration - 0.01
+    #expect(revealed.scheduleFade(.pastFirstScreen) == 0)
+    // Then nothing replays (load-transition R5).
+    clock.time += 0.02
+    #expect(!revealed.isOpen)
+    #expect(revealed.scheduleFade(.pastFirstScreen) == nil)
+    // A reset restores the ordinary rush window.
+    revealed.reset()
+    revealed.noteContentOffset(-600)
+    _ = revealed.scheduleFade(.after(1.0))
+    revealed.noteContentOffset(-700)
+    clock.time += FestivalFadeIn.duration + 0.01
+    #expect(!revealed.isOpen)
+}
+
+/// With entrances still waiting, the reveal leaves the rush to its scroll's movement, as
+/// any scroll (one that does not move keeps the stagger running).
+@MainActor
+@Test func fadeScopeAutomaticScrollRushesWaitingFadesOnlyWhenItMoves() async {
+    let scope = FestivalFadeInScope()
+    scope.noteContentOffset(0)
+    let delay = scope.scheduleFade(.after(3600)) ?? 0
+    let waiter = Task { @MainActor in await scope.waitToStart(after: delay) }
+    try? await Task.sleep(for: .milliseconds(50))
+    scope.prepareForAutomaticScroll(lasting: SelectedRowReveal.scrollDuration)
+    #expect(!scope.isRushed)
+    scope.noteContentOffset(-300)
+    #expect(scope.isRushed)
+    await waiter.value
+    // Once rushed, a later preparation changes nothing.
+    scope.prepareForAutomaticScroll(lasting: 10)
+    #expect(scope.isRushed)
+}
+
+/// Records when a waiting fade was let start.
+@MainActor
+private final class StartFlag {
+    var started = false
+}
+
+/// While a selected-row scroll is expected, a row past the first screen whose turn comes
+/// (a lazy list builds rows just below the viewport early) waits for that scroll to rush
+/// it, so the row the scroll reaches has not spent its entrance unseen; staggered rows
+/// keep their schedule.
+@MainActor
+@Test func fadeScopeHoldsRowsPastTheFirstScreenForTheExpectedScroll() async {
+    let scope = FestivalFadeInScope()
+    let token = scope.expectAutomaticScroll()
+    #expect(token != nil)
+    #expect(scope.holds(.pastFirstScreen))
+    #expect(!scope.holds(.after(0)))
+    #expect(!scope.holds(.never))
+    let tail = StartFlag()
+    let late = StartFlag()
+    let staggered = StartFlag()
+    let tailTask = Task { @MainActor in
+        await scope.waitToStart(after: 0.05, start: .pastFirstScreen)
+        tail.started = true
+    }
+    // Built after the stagger: no delay left, still held.
+    let lateTask = Task { @MainActor in
+        await scope.waitToStart(after: 0, start: .pastFirstScreen)
+        late.started = true
+    }
+    let staggeredTask = Task { @MainActor in
+        await scope.waitToStart(after: 0.05, start: .after(0.05))
+        staggered.started = true
+    }
+    await staggeredTask.value
+    #expect(staggered.started)
+    try? await Task.sleep(for: .milliseconds(300))
+    #expect(!tail.started)
+    #expect(!late.started)
+    // The scroll starts: everything held fades now, together.
+    scope.prepareForAutomaticScroll(lasting: SelectedRowReveal.scrollDuration)
+    await tailTask.value
+    await lateTask.value
+    #expect(scope.isRushed)
+    #expect(!scope.holds(.pastFirstScreen))
+    #expect(scope.expectAutomaticScroll() == nil)
+}
+
+/// A reveal called off (cancelled, or the reader scrolled first) lets held rows fade on
+/// their own; a stale token or a reset never strands one.
+@MainActor
+@Test func fadeScopeReleasesHeldRowsWhenTheScrollIsCalledOff() async {
+    let scope = FestivalFadeInScope()
+    scope.arm(for: AnyHashable("page-1"))
+    let stale = scope.expectAutomaticScroll()
+    scope.arm(for: AnyHashable("page-2"))
+    #expect(!scope.holds(.pastFirstScreen))
+    let token = scope.expectAutomaticScroll()
+    let held = Task { @MainActor in await scope.waitToStart(after: 0, start: .pastFirstScreen) }
+    try? await Task.sleep(for: .milliseconds(50))
+    scope.endAutomaticScrollExpectation(stale)
+    scope.endAutomaticScrollExpectation(nil)
+    #expect(scope.holds(.pastFirstScreen))
+    scope.endAutomaticScrollExpectation(token)
+    await held.value
+    #expect(!scope.isRushed)
+    #expect(scope.isOpen)
+    #expect(!scope.holds(.pastFirstScreen))
+}
+
 // MARK: - Selected-row reveal wait (issue #323)
 
 @MainActor
