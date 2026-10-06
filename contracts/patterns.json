@@ -564,7 +564,8 @@
         "floating toolbar",
         "global search",
         "quick links",
-        "profile"
+        "profile",
+        "hit target"
       ],
       "web": [
         {
