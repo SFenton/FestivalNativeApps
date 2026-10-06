@@ -219,8 +219,8 @@ public class SettingsServiceInfoTests
         Assert.Equal("7 Widgets completed", ServiceInfoText.UnitsText(bar with { UnitsKind = "widgets", UnitsCompleted = 7, UnitsTotal = null }));
         Assert.Equal("7 items completed", ServiceInfoText.UnitsText(bar with { UnitsKind = null, UnitsCompleted = 7, UnitsTotal = null }));
         Assert.Null(ServiceInfoText.UnitsText(bar with { UnitsCompleted = null }));
-        Assert.Equal(ServiceInfoText.ProgressIndeterminate, ServiceInfoText.ProgressText(bar with { Kind = ServiceBarKind.Indeterminate }));
-        Assert.Equal(ServiceInfoText.ProgressIndeterminate, ServiceInfoText.ProgressText(null));
+        Assert.Equal("Total not yet known", ServiceInfoText.ProgressText(bar with { Kind = ServiceBarKind.Indeterminate }));
+        Assert.Equal(ServiceInfoText.ProgressUnknownTotal, ServiceInfoText.ProgressText(null));
     }
 
     [Fact]
@@ -308,12 +308,18 @@ public class SettingsServiceInfoTests
         Assert.Equal("Computing Rankings · Calculating Instrument Rankings", vm.PhaseTitle);
         Assert.True(vm.HasPhase && vm.HasBar && !vm.IsIndeterminate && !vm.HasAttempt && vm.HasLastPublished);
         Assert.Equal((25.0, "25.0%", "250 of 1,000 leaderboards completed"), (vm.BarPercent, vm.ProgressText, vm.UnitsText));
-        Assert.Equal("Computing Rankings · Calculating Instrument Rankings. 25.0%. 250 of 1,000 leaderboards completed", vm.PhaseAccessibleName);
+        // Spoken like the web bar's aria-valuetext: phase and subphase are separate sentences, not "Phase · Subphase".
+        Assert.Equal("Computing Rankings. Calculating Instrument Rankings. 25.0%. 250 of 1,000 leaderboards completed", vm.PhaseAccessibleName);
         Assert.Equal("Sep 28, 2026, 3:04 PM UTC", vm.LastPublished);
 
         vm.Apply(new ServiceInfoSnapshot(Info(Updating(sub: Sub(1, 10, 10, final: false))), null));
         Assert.True(vm.IsIndeterminate);
-        Assert.Equal(ServiceInfoText.ProgressIndeterminate, vm.ProgressText);
+        Assert.Equal("Total not yet known", vm.ProgressText);
+        Assert.Equal("Computing Rankings. Calculating Instrument Rankings. Total not yet known", vm.PhaseAccessibleName);
+
+        vm.Apply(new ServiceInfoSnapshot(Info(Updating("scrape.solo", subphaseId: null)), null));
+        Assert.Null(vm.SpokenPhaseTitle);
+        Assert.Equal(vm.PhaseTitle + ". Total not yet known", vm.PhaseAccessibleName);
 
         vm.Apply(new ServiceInfoSnapshot(Info(new ServiceCurrentUpdate("idle")), null));
         Assert.Equal(("Waiting for the Next Update", ServiceProcessState.Idle, false, false), (vm.StateDescription, vm.ProcessState, vm.HasPhase, vm.HasBar));
@@ -321,6 +327,7 @@ public class SettingsServiceInfoTests
         vm.ApplyFailure();
         Assert.Equal(("Failed to load data", ServiceProcessState.Stopped, null, false), (vm.StateDescription, vm.ProcessState, vm.LastPublished, vm.HasLastPublished));
         Assert.Equal("", vm.PhaseAccessibleName);
+        Assert.Null(vm.SpokenPhaseTitle);
     }
 
     [Fact]

@@ -509,11 +509,11 @@
                 <StackPanel controls:QuickLinkAnchor.Id="service-info">
                     <TextBlock Text="Service Info" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
                     <TextBlock Text="Live leaderboard update status, exact phase progress when available, and publication timing." Style="{StaticResource SectionSubtitleStyle}" />
-                    <Border Style="{StaticResource FSTCardStyle}" Padding="16,8" AutomationProperties.AutomationId="fst.settings.service-info">
+                    <!-- Test IDs sit on the TextBlocks: a Border, Grid or unnamed StackPanel has no UIA element (issue #275). -->
+                    <Border Style="{StaticResource FSTCardStyle}" Padding="16,8">
                         <StackPanel Spacing="4">
                             <!-- At 150%+ Windows text size the process state moves under the label (code-behind) instead of squeezing it. -->
-                            <Grid x:Name="ServiceStateGrid" ColumnSpacing="12" MinHeight="56" Padding="0,8"
-                                  AutomationProperties.AutomationId="fst.settings.service-info.state">
+                            <Grid x:Name="ServiceStateGrid" ColumnSpacing="12" MinHeight="56" Padding="0,8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
@@ -525,7 +525,7 @@
                                 <StackPanel VerticalAlignment="Center" Spacing="4">
                                     <TextBlock Text="Leaderboard Service State" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="{x:Bind ViewModel.ServiceInfo.StateDescription, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}"
-                                               AutomationProperties.LiveSetting="Polite" />
+                                               AutomationProperties.LiveSetting="Polite" AutomationProperties.AutomationId="fst.settings.service-info.state" />
                                 </StackPanel>
                                 <StackPanel x:Name="ServiceProcessPanel" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                     <TextBlock Text="{x:Bind ViewModel.ServiceInfo.ProcessStateText, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}"
@@ -551,10 +551,10 @@
                                            Visibility="{x:Bind ViewModel.ServiceInfo.HasAttempt, Mode=OneWay}"
                                            AutomationProperties.AutomationId="fst.settings.service-info.attempt" />
                             </StackPanel>
-                            <StackPanel Spacing="4" MinHeight="56" Padding="0,8" Visibility="{x:Bind ViewModel.ServiceInfo.HasLastPublished, Mode=OneWay}"
-                                        AutomationProperties.AutomationId="fst.settings.service-info.last-published">
+                            <StackPanel Spacing="4" MinHeight="56" Padding="0,8" Visibility="{x:Bind ViewModel.ServiceInfo.HasLastPublished, Mode=OneWay}">
                                 <TextBlock Text="Last Successful Publication" Style="{StaticResource SettingTitleStyle}" />
-                                <TextBlock Text="{x:Bind ViewModel.ServiceInfo.LastPublished, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}" />
+                                <TextBlock Text="{x:Bind ViewModel.ServiceInfo.LastPublished, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}"
+                                           AutomationProperties.AutomationId="fst.settings.service-info.last-published" />
                             </StackPanel>
                         </StackPanel>
                     </Border>

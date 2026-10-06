@@ -56,6 +56,11 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasPhase), nameof(PhaseAccessibleName))]
     private string? phaseTitle;
 
+    /// <summary>Spoken phase title: phase and subphase as separate sentences (web <c>aria-valuetext</c>), not "Phase · Subphase".</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PhaseAccessibleName))]
+    private string? spokenPhaseTitle;
+
     /// <summary>Whether the bar shows.</summary>
     [ObservableProperty]
     private bool hasBar;
@@ -68,7 +73,7 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
     [ObservableProperty]
     private double barPercent;
 
-    /// <summary>"42.5%" or the indeterminate sentence; spoken on the phase row, not printed (web parity).</summary>
+    /// <summary>"42.5%" or "Total not yet known"; spoken on the phase row, not printed (web parity).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PhaseAccessibleName))]
     private string? progressText;
@@ -103,9 +108,12 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
     /// <summary>Whether the publication row shows.</summary>
     public bool HasLastPublished => LastPublished is not null;
 
-    /// <summary>Narrator name for the phase row: title, progress, units and attempts.</summary>
+    /// <summary>
+    /// Narrator name for the phase row, joined like the web bar's <c>aria-valuetext</c>: phase, subphase, progress, units
+    /// and attempts.
+    /// </summary>
     public string PhaseAccessibleName =>
-        string.Join(". ", new[] { PhaseTitle, HasBar ? ProgressText : null, UnitsText, AttemptText }.Where(s => s is not null));
+        string.Join(". ", new[] { SpokenPhaseTitle ?? PhaseTitle, HasBar ? ProgressText : null, UnitsText, AttemptText }.Where(s => s is not null));
 
     /// <summary>Whether polling is running.</summary>
     public bool IsPolling => polling is not null;
@@ -211,7 +219,10 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
         ProgressText = showBar ? ServiceInfoText.ProgressText(bar) : null;
         UnitsText = showBar ? ServiceInfoText.UnitsText(bar) : null;
         AttemptText = showBar ? ServiceInfoText.DiscoveryAttemptText(display) : null;
-        PhaseTitle = showPhase ? ServiceInfoText.PhaseTitle(phaseLabel, ServiceInfoText.SubphaseLabel(info, display)) : null;
+        var subphaseLabel = showPhase ? ServiceInfoText.SubphaseLabel(info, display) : null;
+        var phaseTitle = showPhase ? ServiceInfoText.PhaseTitle(phaseLabel, subphaseLabel) : null;
+        SpokenPhaseTitle = phaseTitle is null || phaseTitle == phaseLabel ? null : $"{phaseLabel}. {subphaseLabel}";
+        PhaseTitle = phaseTitle;
         LastPublished = ServiceInfoText.LastPublished(info, zone());
     }
 
@@ -226,6 +237,7 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
         ProgressText = null;
         UnitsText = null;
         AttemptText = null;
+        SpokenPhaseTitle = null;
         PhaseTitle = null;
         LastPublished = null;
     }
