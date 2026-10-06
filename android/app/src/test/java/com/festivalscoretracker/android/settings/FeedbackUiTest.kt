@@ -43,6 +43,7 @@ import com.festivalscoretracker.android.core.feedback.FeedbackProblem
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.nav.FestivalSection
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
+import com.festivalscoretracker.android.presentation.ModalCoverage
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
@@ -156,6 +157,19 @@ class FeedbackUiTest {
 
         rule.onNodeWithTag("fst.settings.feedback.done").performClick()
         waitGone("fst.settings.feedback.dialog")
+    }
+
+    /** Issue #186: the form is its own Dialog (modal-shell R6), so it must still hold the backdrop while open. */
+    @Test
+    fun openFormCoversTheBackdropUntilItCloses() {
+        val coverage = ModalCoverage.shared
+        launch()
+        val before = coverage.openCount.value
+        openForm(FeedbackKind.Feature)
+        assertEquals(before + 1, coverage.openCount.value)
+        rule.onNodeWithTag("fst.settings.feedback.close").performClick()
+        waitGone("fst.settings.feedback.dialog")
+        assertEquals(before, coverage.openCount.value)
     }
 
     @Test

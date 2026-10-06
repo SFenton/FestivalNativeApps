@@ -195,6 +195,50 @@ class FestivalModalTest {
     }
 
     /**
+     * Issue #186 (`modal-shell` R9): content behind the newest modal is covered and holds its
+     * decorative motion, while the newest modal's own content is not.
+     */
+    @Test
+    fun onlyContentBehindTheNewestModalIsCovered() {
+        assertEquals("no modal leaked from another test", 0, ModalCoverage.shared.openCount.value)
+        var sheet by mutableStateOf(false)
+        var alert by mutableStateOf(false)
+        var page: Boolean? = null
+        var inSheet: Boolean? = null
+        var inAlert: Boolean? = null
+        rule.setContent {
+            FestivalTheme {
+                page = coveredByModal()
+                if (sheet) {
+                    FestivalModalSheet(title = "Sort", closeTag = "s.close", onDismissRequest = {}) {
+                        inSheet = coveredByModal()
+                        if (alert) {
+                            // Stands in for a nested alert: the same registration every Festival modal uses.
+                            CoversBackdrop { inAlert = coveredByModal() }
+                        }
+                    }
+                }
+            }
+        }
+        settle()
+        assertEquals(false, page)
+        sheet = true
+        settle()
+        assertEquals(true, page)
+        assertEquals(false, inSheet)
+        alert = true
+        settle()
+        assertEquals(true, inSheet)
+        assertEquals(false, inAlert)
+        alert = false
+        settle()
+        assertEquals(false, inSheet)
+        sheet = false
+        settle()
+        assertEquals(false, page)
+    }
+
+    /**
      * Issue #139: a display-size (density) change removed the dialog's window while the
      * composition still held it, so the dialog must reopen in a fresh window per density.
      */

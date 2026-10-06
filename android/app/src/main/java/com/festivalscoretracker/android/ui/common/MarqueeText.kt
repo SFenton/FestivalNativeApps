@@ -73,6 +73,22 @@ object FestivalMarquee {
 
         /** Large text in-page: wrapped onto several lines. */
         Wrapped,
+
+        /** Wider than its box while a newer modal covers it: one clipped line, still until the modal closes. */
+        Held,
+    }
+
+    /**
+     * Mode of the scrolling (`basicMarquee`) branch.
+     *
+     * @param overflowing The text is wider than its box.
+     * @param held A newer modal covers the marquee (`modal-shell` R9).
+     * @return [Mode.Static], [Mode.Held] or [Mode.Scrolling].
+     */
+    fun scrollingMode(overflowing: Boolean, held: Boolean): Mode = when {
+        !overflowing -> Mode.Static
+        held -> Mode.Held
+        else -> Mode.Scrolling
     }
 
     /**
@@ -147,6 +163,9 @@ fun FestivalMarqueeText(
     var boxPx by remember { mutableIntStateOf(0) }
     val velocity = with(density) { FestivalMarquee.velocityDp(widthPx.toDp().value) }
     val overflowing = FestivalMarquee.overflows(widthPx, boxPx)
+    // Behind a newer modal the text holds at its start (`modal-shell` R9): the marquee never
+    // gets focus, so WhileFocused stops it without changing its layout (issue #186).
+    val held = coveredByModal()
     if (onOverflowChange != null) {
         LaunchedEffect(overflowing) { onOverflowChange(overflowing) }
     }
@@ -156,10 +175,10 @@ fun FestivalMarqueeText(
         // seen outside it is the visible box and the layout width is the full text.
         modifier
             .onSizeChanged { boxPx = it.width }
-            .semantics { marqueeMode = if (overflowing) FestivalMarquee.Mode.Scrolling else FestivalMarquee.Mode.Static }
+            .semantics { marqueeMode = FestivalMarquee.scrollingMode(overflowing, held) }
             .basicMarquee(
                 iterations = Int.MAX_VALUE,
-                animationMode = MarqueeAnimationMode.Immediately,
+                animationMode = if (held) MarqueeAnimationMode.WhileFocused else MarqueeAnimationMode.Immediately,
                 repeatDelayMillis = 2 * FestivalMarquee.PAUSE_MS,
                 initialDelayMillis = FestivalMarquee.PAUSE_MS,
                 spacing = MarqueeSpacing(FestivalMarquee.GAP_DP.dp),

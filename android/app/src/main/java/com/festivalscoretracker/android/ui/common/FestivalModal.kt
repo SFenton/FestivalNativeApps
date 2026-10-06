@@ -30,7 +30,9 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -74,18 +76,40 @@ import kotlin.math.roundToInt
 // region Backdrop coverage
 
 /**
+ * How many Festival modals enclose the current content: 0 on a page, 1 inside a sheet or
+ * dialog, 2 inside an alert over a sheet. Decorative loops compare it with
+ * [ModalCoverage.covers] so a page behind a modal holds still while the top modal's own
+ * content keeps animating (issue #186).
+ */
+val LocalModalDepth = compositionLocalOf { 0 }
+
+/**
  * Registers the calling modal with [ModalCoverage] while it is in the composition, so the
- * shared backdrop holds its frame instead of animating unseen behind it (issue #83).
+ * shared backdrop holds its frame instead of animating unseen behind it (issue #83), and
+ * gives [content] (the modal's window) one more [LocalModalDepth].
  *
  * @param coverage Open-modal counter.
+ * @param content The modal (its `Dialog`/`ModalBottomSheet` call).
  */
 @Composable
-internal fun CoversBackdrop(coverage: ModalCoverage = ModalCoverage.shared) {
+internal fun CoversBackdrop(coverage: ModalCoverage = ModalCoverage.shared, content: @Composable () -> Unit) {
     DisposableEffect(coverage) {
         coverage.open()
         onDispose { coverage.close() }
     }
+    CompositionLocalProvider(LocalModalDepth provides LocalModalDepth.current + 1, content = content)
 }
+
+/**
+ * Whether a newer Festival modal covers the calling content (`modal-shell` R9). Continuous
+ * decorative motion (marquees, Shop pulses, status pulses) holds a still frame while it does,
+ * like the backdrop: the scrim hides it and the frames are wasted work.
+ *
+ * @param coverage Open-modal counter.
+ * @return `true` while a modal opened above this content is on screen.
+ */
+@Composable
+fun coveredByModal(coverage: ModalCoverage = ModalCoverage.shared): Boolean = coverage.covers(LocalModalDepth.current)
 
 // endregion
 
@@ -189,7 +213,6 @@ fun FestivalModalSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = skipPartiallyExpanded)
     val scope = rememberCoroutineScope()
     val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
-    CoversBackdrop()
     val close: () -> Unit = {
         if (reduceMotion) {
             onDismissRequest()
@@ -197,16 +220,18 @@ fun FestivalModalSheet(
             scope.launch { sheetState.hide() }.invokeOnCompletion { onDismissRequest() }
         }
     }
-    ModalBottomSheet(
-        onDismissRequest = onDismissRequest,
-        sheetState = sheetState,
-        containerColor = BrandTokens.cardBackground,
-        modifier = Modifier.festivalSheetTop().festivalSheetHingeSide().popupTestTags().then(modifier).semantics { paneTitle = title },
-        // Material's handle is 32 dp wide; once the sheet can collapse it is a 48 dp touch target.
-        dragHandle = { BottomSheetDefaults.DragHandle(Modifier.minimumInteractiveComponentSize()) },
-    ) {
-        FestivalModalHeader(title, closeTag, close, titleTag = titleTag, actions = headerActions)
-        content()
+    CoversBackdrop {
+        ModalBottomSheet(
+            onDismissRequest = onDismissRequest,
+            sheetState = sheetState,
+            containerColor = BrandTokens.cardBackground,
+            modifier = Modifier.festivalSheetTop().festivalSheetHingeSide().popupTestTags().then(modifier).semantics { paneTitle = title },
+            // Material's handle is 32 dp wide; once the sheet can collapse it is a 48 dp touch target.
+            dragHandle = { BottomSheetDefaults.DragHandle(Modifier.minimumInteractiveComponentSize()) },
+        ) {
+            FestivalModalHeader(title, closeTag, close, titleTag = titleTag, actions = headerActions)
+            content()
+        }
     }
 }
 
@@ -250,7 +275,6 @@ fun FestivalModalDialog(
     avoidHinge: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    CoversBackdrop()
     val hingeArea = if (avoidHinge) dialogHingeArea() else null
     val surface: @Composable (Modifier) -> Unit = { placement ->
         Surface(
@@ -276,16 +300,18 @@ fun FestivalModalDialog(
     // display, removes the dialog's window while the composition still holds it, leaving an
     // invisible modal (issue #139); a fresh window per density keeps it on screen.
     key(LocalConfiguration.current.densityDpi) {
-        if (hingeArea == null) {
-            Dialog(onDismissRequest = onDismissRequest, properties = DialogProperties(usePlatformDefaultWidth = !compact)) {
-                surface(Modifier)
-            }
-        } else {
-            Dialog(
-                onDismissRequest = onDismissRequest,
-                properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
-            ) {
-                HingeSideDialogLayout(hingeArea, onDismissRequest, surface)
+        CoversBackdrop {
+            if (hingeArea == null) {
+                Dialog(onDismissRequest = onDismissRequest, properties = DialogProperties(usePlatformDefaultWidth = !compact)) {
+                    surface(Modifier)
+                }
+            } else {
+                Dialog(
+                    onDismissRequest = onDismissRequest,
+                    properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+                ) {
+                    HingeSideDialogLayout(hingeArea, onDismissRequest, surface)
+                }
             }
         }
     }
@@ -400,22 +426,23 @@ fun FestivalAlertDialog(
     textTag: String? = null,
     destructive: Boolean = false,
 ) {
-    CoversBackdrop()
-    AlertDialog(
-        onDismissRequest = onDismissRequest,
-        title = { Text(title) },
-        text = { Text(text, modifier = if (textTag != null) Modifier.testTag(textTag) else Modifier) },
-        confirmButton = {
-            TextButton(
-                onClick = onConfirm,
-                colors = if (destructive) ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error) else ButtonDefaults.textButtonColors(),
-                modifier = Modifier.testTag(confirmTag),
-            ) { Text(confirmLabel) }
-        },
-        dismissButton = { TextButton(onClick = onDismissButton, modifier = Modifier.testTag(dismissTag)) { Text(dismissLabel) } },
-        containerColor = BrandTokens.cardBackground,
-        modifier = Modifier.popupTestTags().testTag(tag),
-    )
+    CoversBackdrop {
+        AlertDialog(
+            onDismissRequest = onDismissRequest,
+            title = { Text(title) },
+            text = { Text(text, modifier = if (textTag != null) Modifier.testTag(textTag) else Modifier) },
+            confirmButton = {
+                TextButton(
+                    onClick = onConfirm,
+                    colors = if (destructive) ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error) else ButtonDefaults.textButtonColors(),
+                    modifier = Modifier.testTag(confirmTag),
+                ) { Text(confirmLabel) }
+            },
+            dismissButton = { TextButton(onClick = onDismissButton, modifier = Modifier.testTag(dismissTag)) { Text(dismissLabel) } },
+            containerColor = BrandTokens.cardBackground,
+            modifier = Modifier.popupTestTags().testTag(tag),
+        )
+    }
 }
 
 // endregion

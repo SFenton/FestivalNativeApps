@@ -58,6 +58,7 @@ import com.festivalscoretracker.android.core.firstrun.FirstRunDemoSongs
 import com.festivalscoretracker.android.core.firstrun.FirstRunRotatingDemos
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.Song
+import com.festivalscoretracker.android.ui.common.coveredByModal
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
@@ -179,7 +180,7 @@ internal fun DemoCard(modifier: Modifier = Modifier, border: Color = BrandTokens
 
 @Composable
 private fun pulseAlpha(pulse: Boolean): Float {
-    if (!pulse) return 1f
+    if (!pulse || coveredByModal()) return 1f
     val transition = rememberInfiniteTransition(label = "pulse")
     val value by transition.animateFloat(0.35f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "alpha")
     return value

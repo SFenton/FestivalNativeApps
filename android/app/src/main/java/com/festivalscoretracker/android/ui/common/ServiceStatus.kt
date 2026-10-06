@@ -295,7 +295,8 @@ private fun ServiceStatusContent(issue: ServiceIssue, fallbackTitle: String, cou
  */
 @Composable
 private fun ServiceStatusIcon(issue: ServiceIssue) {
-    val iconModifier = if (serviceStatusPulses(issue, LocalFestivalAccessibility.current.reduceMotion)) {
+    val pulses = serviceStatusPulses(issue, LocalFestivalAccessibility.current.reduceMotion) && !coveredByModal()
+    val iconModifier = if (pulses) {
         val alpha = rememberInfiniteTransition(label = "service-status-pulse").animateFloat(
             initialValue = 1f,
             targetValue = 0.4f,
