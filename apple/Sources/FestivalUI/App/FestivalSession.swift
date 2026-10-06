@@ -47,6 +47,9 @@ final class FestivalSession {
     private var sourceArtworkPaths: [String] = []
     @ObservationIgnored
     private var profileRequestRevision = 0
+    /// The live `/api/ws` publication socket owner, or nil when this session never opens one.
+    @ObservationIgnored
+    let liveConnection: PublicationLiveConnection?
     private(set) var publicationId: Int?
     private(set) var publicationRevision = 0
     private(set) var artworkPaths: [String] = []
@@ -75,13 +78,17 @@ final class FestivalSession {
     ///     persisted `UserDefaults.standard` selection — see
     ///     `DebugLaunchRoute` in `FestivalRootView.swift`. Ignored when a real
     ///     stored identity also exists; debug launches always take the debug value.
+    ///   - liveConnection: Live publication socket owner (issue #304); nil (hosted
+    ///     tests, fixture launches) never opens a socket.
     init(
         factory: @escaping @Sendable () throws -> FestivalAPI,
         artwork: ArtworkCache = ArtworkCache(),
         selectionStorage: UserDefaults? = nil,
-        debugSelectedPlayer: SelectedPlayerIdentity? = nil
+        debugSelectedPlayer: SelectedPlayerIdentity? = nil,
+        liveConnection: PublicationLiveConnection? = nil
     ) {
         self.factory = factory
+        self.liveConnection = liveConnection
         self.artwork = artwork
         self.selectionStorage = selectionStorage
         thumbnails.totalCostLimit = 24_000_000
@@ -473,7 +480,26 @@ final class FestivalSession {
         return result
     }
 
-    /// A new generation invalidates retained routes and visible loaded data.
+    // MARK: - Live publication updates
+
+    /// Hold one window's demand for the live publication socket (issue #304).
+    ///
+    /// - Parameter token: The window's stable token.
+    func acquireLiveUpdates(_ token: UUID) {
+        liveConnection?.acquire(token, session: self)
+    }
+
+    /// Give back one window's demand; the socket closes when no window holds any.
+    ///
+    /// - Parameter token: The window's token.
+    func releaseLiveUpdates(_ token: UUID) {
+        liveConnection?.release(token)
+    }
+
+    // MARK: - Publication observation
+
+    /// A new generation invalidates visible loaded data; pages refresh in place
+    /// (`PublicationRefreshBoundary`).
     ///
     /// Internal rather than private so same-module `FestivalSession+<Feature>.swift`
     /// extensions (see PROGRESS.md's lane file ownership) can feed their own reads

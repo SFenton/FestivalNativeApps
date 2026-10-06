@@ -219,8 +219,12 @@ val MODAL_DIALOG_MAX_WIDTH: Dp = 560.dp
 
 /**
  * Shared modal dialog for wider windows and the first-run guide: an M3 dialog surface
- * (28 dp corners, card colour, at most [MODAL_DIALOG_MAX_WIDTH]) headed by
- * [FestivalModalHeader]. An outside tap, back and Close all call [onDismissRequest].
+ * (28 dp corners, card colour) headed by [FestivalModalHeader]. An outside tap, back and
+ * Close all call [onDismissRequest].
+ *
+ * The surface always takes the window width less 16 dp margins, capped at
+ * [MODAL_DIALOG_MAX_WIDTH] (M3 "Centered dialog (max 560dp wide)"), never the platform's
+ * preferred dialog width, which measured about 320 dp on a landscape phone (issues #139, #183).
  *
  * @param title Header and pane title.
  * @param closeTag Close button test tag.
@@ -228,7 +232,6 @@ val MODAL_DIALOG_MAX_WIDTH: Dp = 560.dp
  * @param modifier Surface modifier (test tags).
  * @param titleTag Optional heading test tag.
  * @param paneTitle TalkBack pane title (defaults to [title]).
- * @param compact Compact window: nearly full width with a 16 dp margin.
  * @param maxHeight Height cap ([Dp.Unspecified] for none).
  * @param titleStyle Header title style.
  * @param avoidHinge Keep the dialog on one side of a separating fold or hinge
@@ -244,7 +247,6 @@ fun FestivalModalDialog(
     modifier: Modifier = Modifier,
     titleTag: String? = null,
     paneTitle: String = title,
-    compact: Boolean = false,
     maxHeight: Dp = Dp.Unspecified,
     titleStyle: TextStyle = MaterialTheme.typography.titleLarge,
     avoidHinge: Boolean = true,
@@ -257,7 +259,7 @@ fun FestivalModalDialog(
             shape = RoundedCornerShape(28.dp),
             color = BrandTokens.cardBackground,
             modifier = Modifier
-                .padding(if (compact || hingeArea != null) 16.dp else 0.dp)
+                .padding(16.dp)
                 .widthIn(max = MODAL_DIALOG_MAX_WIDTH)
                 .heightIn(max = maxHeight)
                 .fillMaxWidth()
@@ -277,7 +279,7 @@ fun FestivalModalDialog(
     // invisible modal (issue #139); a fresh window per density keeps it on screen.
     key(LocalConfiguration.current.densityDpi) {
         if (hingeArea == null) {
-            Dialog(onDismissRequest = onDismissRequest, properties = DialogProperties(usePlatformDefaultWidth = !compact)) {
+            Dialog(onDismissRequest = onDismissRequest, properties = DialogProperties(usePlatformDefaultWidth = false)) {
                 surface(Modifier)
             }
         } else {

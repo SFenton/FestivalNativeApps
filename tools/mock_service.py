@@ -21,6 +21,11 @@ ROOT = Path(__file__).resolve().parents[1]
 # Delay for the "slowpoke" account search, long enough for a UI test to see the
 # global-search spinner.
 SLOW_ACCOUNT_SEARCH_SECONDS = 4
+# `--song-leaderboard-paging` (issue #316): `fixture-pulse` Lead grows to four full
+# 25-row pages; a page after the first waits this long, long enough for a UI test to
+# see the reload spinner under a kept song header, and the last page fails with 500.
+SONG_LEADERBOARD_PAGING_ENTRIES = 100
+SLOW_SONG_LEADERBOARD_PAGE_SECONDS = 3
 
 
 def load_fixture(name: str) -> tuple[dict, str]:
@@ -606,6 +611,7 @@ class FixtureServer(ThreadingHTTPServer):
         large_catalogue: bool = False,
         long_titles: bool = False,
         service_info_discovery: bool = False,
+        song_leaderboard_paging: bool = False,
     ) -> None:
         """Create a deterministic, bounded service fixture.
 
@@ -628,6 +634,9 @@ class FixtureServer(ThreadingHTTPServer):
             long_titles: Retitle `fixture-pulse` with ``LONG_TITLE`` (wider than any bar).
             service_info_discovery: Serve ``SERVICE_INFO_DISCOVERY`` (an update in the
                 registered-band discovery phase) instead of the idle Service Info body.
+            song_leaderboard_paging: Give `fixture-pulse` Lead four full pages, delay every
+                page after the first by ``SLOW_SONG_LEADERBOARD_PAGE_SECONDS`` and fail the
+                last one with 500 (issue #316 paging journeys).
         """
         if metadata_edge and (
             unpinned or rollover_on_read is not None or rollover_on_command
@@ -650,6 +659,7 @@ class FixtureServer(ThreadingHTTPServer):
         self.large_catalogue = large_catalogue
         self.long_titles = long_titles
         self.service_info_discovery = service_info_discovery
+        self.song_leaderboard_paging = song_leaderboard_paging
         self.rollover_on_read = rollover_on_read
         self.rollover_on_command = rollover_on_command
         self.mismatched_shop_rollover = mismatched_shop_rollover
@@ -668,6 +678,7 @@ class FixtureServer(ThreadingHTTPServer):
             "largeCatalogue": large_catalogue,
             "longTitles": long_titles,
             "serviceInfoDiscovery": service_info_discovery,
+            "songLeaderboardPaging": song_leaderboard_paging,
         }
         self._publication_reads = 0
         self._publication_id = 7
@@ -1760,7 +1771,8 @@ class FixtureHandler(BaseHTTPRequestHandler):
             total = len(all_entries)
             entries = all_entries[offset:offset + top]
             self._json(200, {
-                "songId": song_id, "bandType": band_type, "count": len(entries),
+                "songId": song_id, "bandType": band_type, "showLeaderboardEntryTotals": True,
+                "count": len(entries),
                 "totalEntries": total, "localEntries": total, "entries": entries,
                 "selectedPlayerEntry": selected, "selectedBandEntry": None,
             })
@@ -1806,7 +1818,16 @@ class FixtureHandler(BaseHTTPRequestHandler):
                     "entries": entries,
                 })
                 return
-            ranks = range(offset + 1, min(offset + top, 26) + 1) if instrument == "Solo_Guitar" else ()
+            paging = (self.fixture.song_leaderboard_paging
+                      and song_id == "fixture-pulse" and instrument == "Solo_Guitar")
+            if paging and offset > 0:
+                time.sleep(SLOW_SONG_LEADERBOARD_PAGE_SECONDS)
+                if offset >= SONG_LEADERBOARD_PAGING_ENTRIES - top:
+                    self._json(500, {"status": "fixture_page_failed"})
+                    return
+            last_rank = SONG_LEADERBOARD_PAGING_ENTRIES if paging else 26
+            ranks = (range(offset + 1, min(offset + top, last_rank) + 1)
+                     if instrument == "Solo_Guitar" else ())
             entries = [
                 {
                     "accountId": f"fixture-player-{rank}",
@@ -1827,7 +1848,8 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 for entry in entries:
                     if entry["rank"] == 2:
                         entry["score"] = ROLLOVER_PLAYER_2_LEAD_SCORE
-            total = 26 if instrument == "Solo_Guitar" else 0
+            total = (SONG_LEADERBOARD_PAGING_ENTRIES if paging
+                     else 26 if instrument == "Solo_Guitar" else 0)
             if song_id == "fixture-pulse" and instrument == "Solo_Drums":
                 total = 1
                 if offset == 0:
@@ -2054,6 +2076,10 @@ def main() -> None:
         "--service-info-discovery", action="store_true",
         help="serve an updating Service Info body in the registered-band discovery phase",
     )
+    parser.add_argument(
+        "--song-leaderboard-paging", action="store_true",
+        help="fixture-pulse Lead: four pages, later pages slow, the last one fails (500)",
+    )
     args = parser.parse_args()
     if not 0 <= args.port <= 65535:
         parser.error("port must be between 0 (OS-assigned) and 65535")
@@ -2090,6 +2116,7 @@ def main() -> None:
         large_catalogue=args.large_catalogue,
         long_titles=args.long_titles,
         service_info_discovery=args.service_info_discovery,
+        song_leaderboard_paging=args.song_leaderboard_paging,
     ) as server:
         print(f"Local test fixture service on 127.0.0.1:{server.server_port}", flush=True)
         server.serve_forever()

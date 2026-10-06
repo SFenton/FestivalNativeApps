@@ -64,6 +64,7 @@ enum IPadAuditTextEvidence {
             let origin = app.coordinate(withNormalizedOffset: .zero)
             // Sixteen: an AX5 comparison launch in a ⅓ window puts a lazy card several
             // screens down (Song Detail's Pro Lead header was never reached in eight).
+            var lastTarget: (frame: CGRect, moved: CGFloat)?
             for attempt in 0..<16 {
                 let found = matches(in: app)
                 // A slow drag by about the distance needed: a flick's momentum overshot a
@@ -72,19 +73,34 @@ enum IPadAuditTextEvidence {
                 // Not built yet (lazy rows): drag where the audited element was. The
                 // window's middle is a split's divider, which scrolls neither pane.
                 var x = fallbackX.map { min(max($0, window.minX + 20), window.maxX - 20) } ?? window.midX
-                if ordinal < found.count {
-                    let frame = found[ordinal].frame
-                    if area.contains(frame) { return found[ordinal] }
+                // After a drag, follow the target by position: a lazy list drops and adds
+                // repeats as it scrolls, so the ordinal goes stale (Rival Detail's fourth
+                // "See All" became the third and was never found again).
+                let index: Int?
+                if let last = lastTarget, !found.isEmpty {
+                    let expected = last.frame.minY - last.moved
+                    index = found.indices.min {
+                        abs(found[$0].frame.minY - expected) < abs(found[$1].frame.minY - expected)
+                    }
+                } else {
+                    index = ordinal < found.count ? ordinal : nil
+                }
+                if let index {
+                    let frame = found[index].frame
+                    if area.contains(frame) { return found[index] }
                     x = min(max(frame.midX, window.minX + 20), window.maxX - 20)
                     let top = area.top(for: frame), bottom = area.bottom(for: frame)
                     distance = frame.minY < top
                         ? -min(500, top - frame.minY + 60)
                         : min(500, frame.maxY - bottom + 60)
+                    lastTarget = (frame, distance)
                 }
                 // Every other drag starts at the trailing margin of the element's pane: a
                 // drag that starts on a chart selects a bar instead of scrolling (Song
                 // Detail's score history under the leading pane's bar was never cleared).
-                if attempt % 2 == 1 {
+                // Split windows only: in one pane the trailing edge holds the scroll bar
+                // and page tools (a ⅓ window's Rival Detail "See All" was never reached).
+                if attempt % 2 == 1, area.topBars.count >= 2 {
                     let pane = area.topBars.first { $0.minX <= x && x <= $0.maxX } ?? window
                     x = pane.maxX - 12
                 }

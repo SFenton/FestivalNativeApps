@@ -2,7 +2,7 @@
 
 > **What:** the shared sheet, dialog and alert container with its title, dismissal and standard Close affordance. **Read when:** presenting a scoped task, confirmation or notice.
 
-Status: **current**, 2026-10-05. Provenance: #23, #24, #25, #94, #96, #125, #139, #140.
+Status: **current**, 2026-10-05. Provenance: #23, #24, #25, #94, #96, #125, #139, #140, #183.
 
 ## Intent
 
@@ -25,6 +25,7 @@ A modal identifies one short, scoped task, exposes its platform-standard dismiss
 - **R6. Preserve the feedback-form exception.** It has potentially lossy text input, so it uses Cancel and Submit with discard confirmation rather than the ordinary Close-only task shell. Apple HIG Sheets: “Single-view sheets: Cancel on the top toolbar's leading edge; Done, when present, trailing.”
 - **R7. Serialize presentations.** Dismiss a sheet before opening another; a confirmation alert may sit above a modal, but never stack independent alerts. Apple HIG Sheets: “Display only one sheet at a time from the main interface.”
 - **R8. Keep surfaces off a separating hinge with one side rule (Android).** Sheets, centred dialogs and the full-page service status ([empty-error-states](empty-error-states.md) R7) never straddle a **separating** fold or hinge. Material 3: “Never place interactive content or critical information across the hinge area.” A vertical hinge (book posture) keeps the wider side of the surface's page, the leading side on a tie; a horizontal hinge (tabletop) always keeps the part **below** it, whichever half is larger, and only a page that ends inside the hinge keeps the part above. Flat folds keep the ordinary placement. The rule lives once in `core/nav/HingeSide.kt` (`HingeSide.keep` / `HingeSide.padding`, page-rectangle aware); `SheetHinge`, `DialogHinge` and `serviceStatusHingeSide` only adapt its result to sheet padding, a centring area or page padding. Agent decision (#140, design review of #212): one shared helper after the three surfaces' copies drifted on tabletop; the owner may override.
+- **R9. Size centred dialogs from the window (Android).** `FestivalModalDialog` always takes the window width less 16 dp margins, capped at 560 dp (Material 3: “Centered dialog (max 560dp wide)”), and never the platform's preferred dialog width (`usePlatformDefaultWidth`), which measured 320 dp in a 923 dp landscape phone window. First run (#139) fixed this for itself with a `compact` flag; #183 found What's New and Privacy Policy still 320 dp wide on landscape phones and moved the rule into the shell, removing the flag. Feature dialogs never set their own width.
 
 ## Canonical implementation
 
@@ -48,3 +49,4 @@ A modal identifies one short, scoped task, exposes its platform-standard dismiss
 - `modal-shell/android-alert-dialog`
 - `modal-shell/apple-manual-modal-close` (precise single-line `ToolbarItem` Close/xmark forms; current-tree scan has no outside-`Design/` match)
 - `modal-shell/android-hinge-side` (a new `…HingeSide/Insets/Area/Padding` function outside `core/nav` and the three adapters)
+- `modal-shell/android-dialog-platform-width` (any `usePlatformDefaultWidth` other than `false`, R9)

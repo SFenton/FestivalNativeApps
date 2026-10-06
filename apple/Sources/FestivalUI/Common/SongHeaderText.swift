@@ -95,7 +95,7 @@ struct SongHeaderText<Details: View>: View {
 struct SongHeaderRow<Details: View>: View {
     private let song: Song
     private let session: FestivalSession
-    private let onHeightChange: (CGFloat) -> Void
+    private let onHeightChange: ((CGFloat) -> Void)?
     private let details: Details
 
     /// Create a leaderboard's song header.
@@ -104,11 +104,12 @@ struct SongHeaderRow<Details: View>: View {
     ///   - song: The board's song.
     ///   - session: Shared session (artwork cache).
     ///   - onHeightChange: Called with the header's laid-out height, for the board's
-    ///     ``SongHeaderScrollAway`` threshold.
+    ///     ``SongHeaderScrollAway`` threshold; nil when the board measures its padded
+    ///     header itself.
     ///   - details: Lines under the artist (instrument or band size, entry total).
     init(
         song: Song, session: FestivalSession,
-        onHeightChange: @escaping (CGFloat) -> Void,
+        onHeightChange: ((CGFloat) -> Void)? = nil,
         @ViewBuilder details: () -> Details
     ) {
         self.song = song
@@ -133,7 +134,7 @@ struct SongHeaderRow<Details: View>: View {
         .onGeometryChange(for: CGFloat.self) { proxy in
             proxy.size.height
         } action: { height in
-            onHeightChange(height)
+            onHeightChange?(height)
         }
     }
 }
