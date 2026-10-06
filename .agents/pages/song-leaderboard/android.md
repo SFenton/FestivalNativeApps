@@ -69,18 +69,18 @@ Live public service, SFentonX selected (#28), *Through the Fire and Flames* Lead
 
 | Configuration | Result |
 | --- | --- |
-| FST_Phone portrait, font 1.0 | Pass: bar empty at the top, song title after the header scrolls away; rows fade over a linear 36 dp ramp above the pinned row (40 dp eased when captured; changed to 36 linear after the review, Robolectric pixel-verified); pager floats on the page background. |
+| FST_Phone portrait, font 1.0 | Pass: bar empty at the top, song title after the header scrolls away; rows fade over a linear 36 dp ramp above the pinned row (re-captured on the 36 dp build after the review); pager floats on the page background. |
 | FST_Phone, Increase Contrast (`contrast_level 1.0`) | **Fixed:** rows showed beneath the pinned card and between the pager buttons (the clip went with the fade). Now rows end hard at the footer's top (R7). |
 | FST_Phone font 2.0 / landscape | Pass. Font 2.0: two stacked rows between header and footer; the title stays off until the instrument row has gone too (header item). Landscape: the header, pinned row and pager fill the short viewport; rows scroll in (known, issues #104/#149). |
-| FST_Tablet portrait font 2.0 / landscape | Pass: rail or drawer, fade above the pinned row. |
+| FST_Tablet portrait / landscape (1.0, 2.0) | Pass: rail or drawer, fade above the pinned row. |
 | FST_Resizable phone, foldable, tablet, desktop | Pass: compact bottom bar, medium rail, expanded drawer; fade above the pinned row in each. |
 | FST_Book_Fold folded, half, unfolded (1.0, 2.0) | Pass. Half: rows in one pane, header, pinned row and pager in the other, nothing masked or across the hinge, bar stays empty (header never scrolls away). |
-| FST_Passport_Fold folded, half (2.0), unfolded | Pass, as the book fold; at large text the split is skipped (`rememberSingleColumn`). |
-| FST_TriFold folded (2.0), unfolded | Pass. Folded at 2.0 the header, pinned card and pager take most of the narrow viewport (known trade-off); rows scroll. |
+| FST_Passport_Fold folded, half (1.0, 2.0), unfolded | Pass, as the book fold; at large text the split is skipped (`rememberSingleColumn`). |
+| FST_TriFold folded (1.0, 2.0), partial, unfolded | Pass. Folded at 2.0 the header, pinned card and pager take most of the narrow viewport (known trade-off); rows scroll. |
 | Reduced motion (animator scale 0) | Pass: paging swaps without fades; the pinned row hides with the rows under the spinner (#295), the pager stays. |
 | TalkBack order | Header → rows → pinned row ("Jump to your position", 48 dp) → pager in one pane; around a separating hinge (no TalkBack) rows pane first, then header → pinned → pager. |
 
-The app is dark-only, so a light system theme renders the same. Reduce Transparency is an in-app setting covered by Robolectric. Observation: on a cold first launch after install, the song header and pinned row can take ~20 s to appear (cold catalogue and profile reads over the emulator network); they arrive without a reload.
+The app is dark-only, so a light system theme renders the same. Reduce Transparency is an in-app setting covered by Robolectric. Observation: on a cold first launch after install, the song header and pinned row can take 20–60 s to appear (cold catalogue and profile reads over the emulator network; the bar shows the "Leaderboard" fallback title until then); they arrive without a reload.
 
 Material 3 notes: top app bar title on scroll follows the "collapses on scroll" bar behavior; the footer has no shadow band ("Shadows are only used when needed for additional protection"); pager buttons are 48 dp targets; foldables keep content off the hinge ("Never place interactive content or critical information across the hinge area"). Deliberate deviations: dark-only theme and 16 dp margins (existing cross-page choices).
 
@@ -96,5 +96,15 @@ Evidence (live service, dark theme; captures on the tracker issue's Android reso
 | [phone, Increase Contrast](https://github.com/user-attachments/assets/4881a546-5f45-4291-b2b4-0652d042ce4c) | FST_Phone portrait | 1.0, `contrast_level 1.0` | R7 hard cut (40 dp build, first pass) |
 | [folded, scrolled](https://github.com/user-attachments/assets/d8325d10-bf20-4e2f-ac40-9b8349e99952) | FST_Book_Fold folded | 1.0, none | bar title after scroll (40 dp build, first pass) |
 | [phone paging motion](https://github.com/user-attachments/assets/5c8e9410-5809-4a6a-bcde-8c55f6bddffc) | FST_Phone portrait | 1.0, animations on | paging keeps the pager (first pass) |
+| [phone portrait sheet](https://github.com/user-attachments/assets/22e59e39-723d-4c7b-88af-536f50e7bbc0) | FST_Phone portrait | 1.0 and 2.0 | top and scrolled: bar title after the header, ramp above the pinned row, stacked rows at 2.0 |
+| [phone landscape](https://github.com/user-attachments/assets/b5435eba-8371-4e7e-a4c7-e0c4dc10250e) | FST_Phone landscape | 1.0 | header fills the short viewport; after it scrolls, one row fades into the pinned row |
+| [tablet sheet](https://github.com/user-attachments/assets/45182992-2d76-4f8b-9a37-cbe7bea7395a) | FST_Tablet landscape and portrait | 1.0 and 2.0 | scrolled: drawer or rail, ramp above the pinned row |
+| [resizable compact/medium](https://github.com/user-attachments/assets/3fb6ef20-a80e-48c9-97b3-aa7b46a05a83) | FST_Resizable phone, foldable | 1.0 | bottom bar, rail; top and scrolled |
+| [resizable expanded](https://github.com/user-attachments/assets/2d071af3-726c-482d-adbb-da3fb4ce7cf9) | FST_Resizable tablet, desktop | 1.0 | drawer; top and scrolled |
+| [book fold sheet](https://github.com/user-attachments/assets/7a99c0ae-b68d-4c77-a84a-a93361924d5c) | FST_Book_Fold half, unfolded | half 1.0, unfolded 2.0 | half: rows pane and footer pane split at the hinge; unfolded 2.0 ramp |
+| [passport fold sheet](https://github.com/user-attachments/assets/fc83182c-02d2-4d44-894a-fe1b69e6720b) | FST_Passport_Fold folded, half, unfolded | 1.0, half at 2.0 | split at 1.0, single pane at 2.0 (`rememberSingleColumn`) |
+| [trifold sheet](https://github.com/user-attachments/assets/2e5e33ea-2dea-4ea4-9f05-e064e41738a1) | FST_TriFold folded, partial, unfolded | 1.0, folded at 2.0 | compact, medium and expanded; folded 2.0 trade-off |
+| [phone paging, animations on](https://github.com/user-attachments/assets/893c5a1a-2938-4bdb-a1f0-38ce50ba32d9) | FST_Phone portrait | 1.0, animations on | 36 dp build: scroll, bar title, Next and Previous keep the pinned row and pager |
+| [phone paging, animator scale 0](https://github.com/user-attachments/assets/75daea95-26d2-47f4-9677-fdaf231242cd) | FST_Phone portrait | 1.0, animator scale 0 | same sequence; rows swap instantly |
 
-Other rows of the table above were checked by eye on device without uploaded captures.
+Every row of the validation table has a capture above (the #190 review asked for the full matrix).
