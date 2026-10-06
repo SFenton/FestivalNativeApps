@@ -1,6 +1,6 @@
 # Song band leaderboard — iPhone notes
 
-> **What:** iPhone implementation state and decisions for `/songs/:songId/bands/:bandType`. **Read when:** changing this page on iPhone. Behavior: [spec.md](spec.md) (currently a stub — this file is the source of truth for what's actually built until spec.md is promoted).
+> **What:** iPhone implementation state and decisions for `/songs/:songId/bands/:bandType`. **Read when:** changing this page on iPhone. Behavior: [spec.md](spec.md).
 
 Source: `FortniteFestivalWeb/src/pages/leaderboard/band/SongBandLeaderboardPage.tsx`, `.../components/bands/SongBandScoreFooter.tsx`. Service: `FSTService/Api/LeaderboardEndpoints.cs:98` (`/api/leaderboard/{songId}/bands/{bandType}`) — pure, keyless `GET` (`MetaDatabase.GetSongBandLeaderboard`/`GetSongBandLeaderboardEntryForAccount`/`...ForTeam`, only `SELECT`s).
 

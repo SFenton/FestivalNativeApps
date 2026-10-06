@@ -77,7 +77,7 @@ object RivalCategorization {
     /** Songs in Closest Battles. */
     const val CLOSEST_BATTLES_COUNT = 5
 
-    /** Songs per category on Rival Detail before "See All". */
+    /** Songs per category on Rival Detail before "View All". */
     const val PREVIEW_COUNT = 5
 
     private data class Meta(val title: String, val description: String, val sentiment: RivalSentiment)

@@ -22,7 +22,9 @@ enum AppRoute: Hashable {
     /// `/songs/:songId/bands/:bandType` (1-based page). `focus` is the band row to
     /// highlight and bring into view, like `navToPlayer` for a band (issue #307).
     case songBandLeaderboard(Song, bandType: String, page: Int = 1, focus: SongBandRowFocus? = nil)
-    /// `/songs/:songId/:instrument/history`
+    /// `/songs/:songId/:instrument/history`: the separate, sortable Player History page
+    /// (``PlayerHistoryScreen``), opened by Song Detail's View All Scores, notifications
+    /// and deep links (view-all-cta R8).
     case playerHistory(Song, Instrument)
 
     // MARK: Players and bands

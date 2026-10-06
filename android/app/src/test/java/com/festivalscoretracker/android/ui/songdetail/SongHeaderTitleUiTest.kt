@@ -170,9 +170,11 @@ class SongHeaderTitleUiTest {
     }
 
     @Test
-    fun songBandLeaderboardTitleScrollsAcrossTheHeader() {
+    fun songBandLeaderboardTitleScrollsAcrossTheHeaderAndTheBar() {
         launch("songBandLeaderboard:s-alpha:Band_Duets")
         assertScrollsAcrossTheColumn(BAND_HEADER)
+        // Issue #317: like the solo board, the bar takes the song title once the header scrolls away.
+        assertPinnedTitleScrollsAcrossTheBar("fst.song-band-leaderboard.list")
     }
 
     @Test

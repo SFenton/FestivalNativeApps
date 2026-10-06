@@ -10,7 +10,7 @@ Status of record: [contracts/parity-backlog.json](../../contracts/parity-backlog
 | home-redirect | `/` | none | partial | [spec (stub)](home-redirect/spec.md) | — |
 | songs | `/songs` | none | partial | [spec](songs/spec.md) | [ios](songs/ios.md) · [ipados](songs/ipados.md) · [android](songs/android.md) · [windows](songs/windows.md) |
 | song-detail | `/songs/:songId` | none | partial | [spec](song-detail/spec.md) | [ios](song-detail/ios.md) · [ipados](song-detail/ipados.md) · [android](song-detail/android.md) · [windows](song-detail/windows.md) |
-| song-band-leaderboard | `/songs/:songId/bands/:bandType` | none | absent | [spec (stub)](song-band-leaderboard/spec.md) | [ios](song-band-leaderboard/ios.md) · [android](song-band-leaderboard/android.md) · [windows](song-band-leaderboard/windows.md) |
+| song-band-leaderboard | `/songs/:songId/bands/:bandType` | none | absent | [spec](song-band-leaderboard/spec.md) | [ios](song-band-leaderboard/ios.md) · [android](song-band-leaderboard/android.md) · [windows](song-band-leaderboard/windows.md) |
 | song-leaderboard | `/songs/:songId/:instrument` | none | partial | [spec](song-leaderboard/spec.md) | [ios](song-leaderboard/ios.md) · [ipados](song-leaderboard/ipados.md) · [android](song-leaderboard/android.md) · [windows](song-leaderboard/windows.md) |
 | player-history | `/songs/:songId/:instrument/history` | none | absent | [spec](player-history/spec.md) | [ios](player-history/ios.md) · [android](player-history/android.md) · [windows](player-history/windows.md) |
 | player-profile | `/player/:accountId` | none | absent | [spec (stub)](player-profile/spec.md) | [ios](player-profile/ios.md) · [android](player-profile/android.md) · [windows](player-profile/windows.md) |

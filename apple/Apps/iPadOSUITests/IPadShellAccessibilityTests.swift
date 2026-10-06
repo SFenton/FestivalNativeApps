@@ -146,7 +146,16 @@ final class IPadShellAccessibilityTests: XCTestCase {
             if dismissal == "close" {
                 element(app, "fst.shell.drawer.close").tap()
             } else {
-                app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+                // The scrim right of the panel, in screen points from the window (iPhone
+                // Duo: `app.coordinate` taps never reached the inner display).
+                // Midway between the panel and the window's trailing edge, clear of the
+                // Duo's system vertical bar.
+                let window = app.windows.firstMatch.frame
+                let panel = element(app, "fst.shell.drawer").frame
+                let x = panel.width > 0 && panel.maxX < window.maxX - 80
+                    ? (panel.maxX + window.maxX) / 2 : window.minX + window.width * 0.9
+                IPadAccessibilityAuditTests.screenOrigin(app)
+                    .withOffset(CGVector(dx: x, dy: window.midY)).tap()
             }
             XCTAssertTrue(waitForDisappearance(of: element(app, "fst.shell.drawer"), timeout: 5), "\(dismissal) closes")
             let closed = waitForTrace(app) { $0.hasPrefix("fst.shell.drawer.open") }
@@ -237,8 +246,12 @@ final class IPadShellAccessibilityTests: XCTestCase {
         SplitPage(name: "full-rankings", env: ["FST_DEBUG_ROUTE": "fullRankings:Solo_Guitar"],
                   ready: "Lead Rankings", row: "fst.rankings.row."),
         SplitPage(name: "rivals", env: ["FST_DEBUG_ROUTE": "rivals"], ready: "Rivals", row: "fst.rivals.row."),
-        SplitPage(name: "leaderboards", env: ["FST_DEBUG_TAB": "leaderboards"], ready: "Leaderboards",
-                  row: "fst.rankings.row."),
+        // iPhone Duo: with a profile `FST_DEBUG_TAB=leaderboards` resolves against the
+        // compact tab set and opens Songs (Lane A11Y3's unreached row); the route pushes it.
+        SplitPage(name: "leaderboards",
+                  env: IPadAccessibilityAuditTests.runningOnDuo
+                      ? ["FST_DEBUG_ROUTE": "leaderboards"] : ["FST_DEBUG_TAB": "leaderboards"],
+                  ready: "Leaderboards", row: "fst.rankings.row."),
         SplitPage(name: "song-board", env: [:], profile: false, ready: "fst.songs.list",
                   row: "fst.song-detail.leaderboard.Solo_Guitar", exact: true, song: "fixture-pulse"),
         SplitPage(name: "settings", env: ["FST_DEBUG_TAB": "settings"], ready: "Settings",
@@ -272,6 +285,7 @@ final class IPadShellAccessibilityTests: XCTestCase {
             ) != nil, let paneFrame = IPadAccessibilityAuditTests.trailingPane(app) else {
                 XCTFail("\(page.name): the trailing pane did not open")
                 if let dir = ProcessInfo.processInfo.environment["FST_AUDIT_OUT"] {
+                    try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
                     try? XCUIScreen.main.screenshot().pngRepresentation
                         .write(to: URL(fileURLWithPath: dir).appendingPathComponent("split-\(page.name)-unopened.png"))
                     try? app.debugDescription.write(

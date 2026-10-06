@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.presentation.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.festivalscoretracker.android.core.bands.PlayerBandGroup
 import com.festivalscoretracker.android.core.bands.PlayerBandListResponse
 import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.model.Instrument
@@ -21,7 +22,9 @@ import com.festivalscoretracker.android.core.profile.PlayerStatistics
 import com.festivalscoretracker.android.core.profile.PlayerStats
 import com.festivalscoretracker.android.core.profile.PlayerTileAction
 import com.festivalscoretracker.android.core.profile.PlayerTopSongs
+import com.festivalscoretracker.android.core.profile.ProfileBandGroup
 import com.festivalscoretracker.android.core.profile.ProfileFormatting
+import com.festivalscoretracker.android.core.profile.ProfileSections
 import com.festivalscoretracker.android.core.profile.RankHistoryChartModel
 import com.festivalscoretracker.android.core.profile.SongsPreset
 import com.festivalscoretracker.android.core.profile.StatTints
@@ -33,6 +36,9 @@ import com.festivalscoretracker.android.presentation.LoadState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -55,7 +61,7 @@ import kotlinx.coroutines.launch
  * @property ranking `FestivalApi.playerInstrumentRanking`.
  * @property rankHistory `FestivalApi.playerRankHistory` (30 days).
  * @property catalog Catalogue songs for top-song titles and art (`FestivalApi.catalog`, cached in process).
- * @property bands First page of the player's bands (`FestivalApi.playerBands`, group All,
+ * @property bands First page of one band-size group of the player's bands (`FestivalApi.playerBands`,
  *   [PlayerProfileViewModel.BANDS_PREVIEW_SIZE] rows; a pure read, never band search).
  */
 class ProfileReads(
@@ -63,7 +69,7 @@ class ProfileReads(
     val ranking: suspend (Instrument, String) -> PlayerInstrumentRankingPayload,
     val rankHistory: suspend (Instrument, String) -> PlayerRankHistory,
     val catalog: suspend () -> List<Song> = { emptyList() },
-    val bands: suspend (String) -> PlayerBandListResponse = { PlayerBandListResponse(accountId = it) },
+    val bands: suspend (String, PlayerBandGroup) -> PlayerBandListResponse = { account, _ -> PlayerBandListResponse(accountId = account) },
 )
 
 // endregion
@@ -242,9 +248,9 @@ sealed interface BandsLoad {
     /**
      * Loaded.
      *
-     * @property bands First page (group All).
+     * @property groups First page of each [ProfileSections.BAND_GROUPS] group, in web order.
      */
-    data class Loaded(val bands: PlayerBandListResponse) : BandsLoad
+    data class Loaded(val groups: List<ProfileBandGroup>) : BandsLoad
 
     /**
      * Failed with an inline retry.
@@ -607,8 +613,13 @@ class PlayerProfileViewModel(
         sectionJobs.remove("bands")?.cancel()
         bandsLoad.value = BandsLoad.Loading
         sectionJobs["bands"] = viewModelScope.launch {
+            // Web previews Duos, Trios and Quads separately; all three load together or the section fails.
             bandsLoad.value = try {
-                BandsLoad.Loaded(reads.bands(account))
+                BandsLoad.Loaded(
+                    coroutineScope {
+                        ProfileSections.BAND_GROUPS.map { group -> async { ProfileBandGroup(group, reads.bands(account, group)) } }.awaitAll()
+                    },
+                )
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -895,8 +906,8 @@ class PlayerProfileViewModel(
     // endregion
 
     companion object {
-        /** Band cards the player page previews before "View all bands". */
-        const val BANDS_PREVIEW_SIZE = 4
+        /** Band cards each player-page group previews before "View all bands" (service `GetPlayerBands` previewCount). */
+        const val BANDS_PREVIEW_SIZE = 6
     }
 }
 

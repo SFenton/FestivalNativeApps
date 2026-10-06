@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.profile
 
+import com.festivalscoretracker.android.ui.common.FadeInWindow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -66,6 +67,7 @@ import com.festivalscoretracker.android.core.profile.PlayerTileAction
 import com.festivalscoretracker.android.core.profile.ProfileRow
 import com.festivalscoretracker.android.core.profile.ProfileSections
 import com.festivalscoretracker.android.core.quicklinks.QuickLinks
+import com.festivalscoretracker.android.presentation.profile.BandsLoad
 import com.festivalscoretracker.android.presentation.profile.PlayerIdentityAction
 import com.festivalscoretracker.android.presentation.profile.PlayerInstrumentSection
 import com.festivalscoretracker.android.presentation.profile.PlayerProfileUiState
@@ -132,9 +134,13 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
     val loaded = state.phase == ProfilePhase.Loaded
     val visible = state.instruments.map { it.instrument }
     val showIdentity = state.showsIdentityRow
-    val rows = remember(visible, loaded, showIdentity) { if (loaded) ProfileSections.rows(visible, showIdentity) else emptyList() }
+    val bandsLoad by viewModel.bands.collectAsStateWithLifecycle()
+    val bandGroups = (bandsLoad as? BandsLoad.Loaded)?.groups.orEmpty()
+    val rows = remember(visible, loaded, showIdentity, bandGroups) { if (loaded) ProfileSections.rows(visible, showIdentity, bandGroups) else emptyList() }
     val sections = remember(visible, loaded, state.displayName) { if (loaded) ProfileSections.quickLinks(visible, state.displayName) else emptyList() }
-    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections) { id ->
+    // The grid's fade window, here so Quick Links jumps rush it (load-transition R5).
+    val fadeWindow = rememberFadeInWindow(gridState, reset = state.accountId)
+    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections, fadeInWindow = fadeWindow) { id ->
         rows.indexOfFirst { it.key == ProfileSections.rowKey(id) }.takeIf { it >= 0 }
     }
     val density = LocalDensity.current
@@ -148,7 +154,7 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
             actions = { QuickLinksAction(quickLinks, windowWidthDp) },
             modifier = Modifier.semantics { testTagsAsResourceId = true }.testTag(tag),
         ) { padding ->
-            Box(Modifier.fillMaxSize()) { PlayerProfileContent(viewModel, padding, gridState, rows, onSplitChange = { splitAtFold = it }) }
+            Box(Modifier.fillMaxSize()) { PlayerProfileContent(viewModel, padding, gridState, rows, onSplitChange = { splitAtFold = it }, fadeWindow = fadeWindow) }
         }
     }
 }
@@ -162,7 +168,7 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
  * notices, only when they apply; no avatar or name, the top bar names the page),
  * Overview, one card
  * per Settings-visible chart (stats, global rank, rank history, percentiles), top and
- * bottom five songs per chart and the Bands link. Select/Switch never
+ * bottom five songs per chart and the player's bands (Duos, Trios, Quads previews). Select/Switch never
  * navigate away; stat tiles and song rows do (web `withProfileSwitch`).
  *
  * @param viewModel Page model.
@@ -170,6 +176,7 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
  * @param gridState Grid state shared with Quick Links.
  * @param rows Rows in page order.
  * @param onSplitChange Receives the grid's fold split (see [rememberProfileGridState]).
+ * @param fadeWindow The grid's fade window when the caller also scrolls it (Quick Links); by default the content creates it.
  */
 @Composable
 fun PlayerProfileContent(
@@ -178,14 +185,15 @@ fun PlayerProfileContent(
     gridState: LazyStaggeredGridState,
     rows: List<ProfileRow>,
     onSplitChange: (Boolean) -> Unit = {},
+    fadeWindow: FadeInWindow? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     // Rows fade in (staggered) on the frame after the profile finishes loading.
     val revealed = rememberRevealed(state.phase == ProfilePhase.Loaded)
     // Sections that start loading when scrolled to (rank history, bands) show in place
     // once the page has scrolled; only what is visible at load fades in.
-    val fadeWindow = rememberFadeInWindow(gridState, reset = state.accountId)
-    CompositionLocalProvider(LocalFadeInWindow provides fadeWindow) {
+    val window = fadeWindow ?: rememberFadeInWindow(gridState, reset = state.accountId)
+    CompositionLocalProvider(LocalFadeInWindow provides window) {
     when (val phase = state.phase) {
         ProfilePhase.NoAccount -> Message(
             "No Profile Selected",
@@ -223,6 +231,8 @@ private fun LoadedProfile(
     val ranks by viewModel.ranks.collectAsStateWithLifecycle()
     val histories by viewModel.rankHistories.collectAsStateWithLifecycle()
     val bands by viewModel.bands.collectAsStateWithLifecycle()
+    // Band rows join the grid when the preview loads; they fade in (staggered per group) like the web's cards.
+    val bandsRevealed = rememberRevealed(bands is BandsLoad.Loaded)
     var confirm by rememberSaveable { mutableStateOf<PlayerIdentityAction?>(null) }
     var pendingAction by remember { mutableStateOf<PlayerTileAction?>(null) }
     val scope = rememberCoroutineScope()
@@ -273,7 +283,15 @@ private fun LoadedProfile(
                     }
                     ProfileRow.Bands -> {
                         LaunchedEffect(state.accountId) { viewModel.ensureBands() }
-                        ProfileBandsSection(state, bands, onRetry = viewModel::retryBands, onNavigate = shell.navigate)
+                        ProfileBandsHeading(state, bands, onRetry = viewModel::retryBands, onNavigate = shell.navigate)
+                    }
+                    is ProfileRow.BandGroupHeader -> ProfileBandGroupHeader(row.group)
+                    is ProfileRow.BandCard -> Box(Modifier.festivalFadeIn(bandsRevealed, fadeInStagger(row.index))) {
+                        ProfileBandCard(row.entry, onNavigate = shell.navigate)
+                    }
+                    is ProfileRow.BandsEmpty -> Box(Modifier.festivalFadeIn(bandsRevealed)) { ProfileBandsEmpty(row.group) }
+                    is ProfileRow.BandsViewAll -> Box(Modifier.festivalFadeIn(bandsRevealed)) {
+                        ProfileBandsViewAll(state, row.group, row.total, onNavigate = shell.navigate)
                     }
                 }
                 }
@@ -319,7 +337,7 @@ private fun LoadedProfile(
  * @param onReload Re-read the viewed profile.
  */
 @Composable
-private fun IdentityActions(state: PlayerProfileUiState, onSelect: () -> Unit, onReload: () -> Unit) {
+internal fun IdentityActions(state: PlayerProfileUiState, onSelect: () -> Unit, onReload: () -> Unit) {
     Column(Modifier.fillMaxWidth().testTag("fst.player.identity"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when (state.identity) {
             PlayerIdentityAction.Select, PlayerIdentityAction.Switch -> Button(
