@@ -1,5 +1,10 @@
 import CoreGraphics
 import Testing
+#if canImport(UIKit)
+import UIKit
+#else
+import AppKit
+#endif
 @testable import FestivalCore
 @testable import FestivalUI
 
@@ -37,15 +42,88 @@ struct InstrumentMenuImageTests {
         #expect(image.size == CGSize(width: 23, height: 23))
     }
 
-    /// Quick Links instrument icons start at the enclosed-circle SF Symbol size beside
-    /// body text (20 pt on iOS/iPadOS, 16 pt beside macOS's 13 pt menu text), far below
-    /// the 144 pt artwork that overflowed the rows.
-    @Test func quickLinkInstrumentIconMatchesSymbolSize() {
+    /// Quick Links instrument icons (issue #313) are sized for visual weight, not equal
+    /// geometry: 24 pt on iOS/iPadOS (the Song Paths menu size) and 19 pt on macOS, far
+    /// below the 144 pt artwork that overflowed the rows (#303).
+    @Test func quickLinkInstrumentIconBaseSide() {
         #if os(macOS)
-        #expect(QuickLinkLabel.instrumentIconBaseSide == 16)
+        #expect(QuickLinkLabel.instrumentIconBaseSide == 19)
         #else
-        #expect(QuickLinkLabel.instrumentIconBaseSide == 20)
+        #expect(QuickLinkLabel.instrumentIconBaseSide == InstrumentIcon.menuIconSide)
         #endif
+    }
+
+    /// Only the white disc inside each artwork's black ring reads on the dark sheet and
+    /// menus. At the Quick Links base side it must look as large as the adjacent SF
+    /// Symbols (within 95–110 %), not smaller as with #303's 20 pt frame.
+    @Test(arguments: Instrument.allCases, [false, true])
+    func quickLinkInstrumentDiscMatchesSymbolSize(_ instrument: Instrument, keyboard: Bool) throws {
+        let fraction = try #require(Self.visibleDiscFraction(instrument, keyboard: keyboard))
+        let visible = QuickLinkLabel.instrumentIconBaseSide * fraction
+        let symbol = QuickLinkLabel.adjacentSymbolSide
+        #expect(visible >= symbol * 0.95, "\(instrument) disc \(visible) pt vs \(symbol) pt symbols")
+        #expect(visible <= symbol * 1.1, "\(instrument) disc \(visible) pt vs \(symbol) pt symbols")
+    }
+
+    /// The icon grows with text like the row symbols and stops where they stop
+    /// (xxxLarge), so it neither shrinks below them nor outgrows them at the
+    /// accessibility sizes. macOS menus keep one size.
+    @Test func quickLinkInstrumentIconScalesLikeRowSymbols() {
+        let base = QuickLinkLabel.instrumentIconBaseSide
+        let limit = QuickLinkLabel.instrumentIconSide(for: QuickLinkLabel.symbolScaleLimit)
+        #expect(QuickLinkLabel.instrumentIconSide(for: .large) == base)
+        #expect(QuickLinkLabel.instrumentIconSide(for: .accessibility3) == limit)
+        #expect(QuickLinkLabel.instrumentIconSide(for: .accessibility5) == limit)
+        #if os(macOS)
+        #expect(QuickLinkLabel.instrumentIconSide(for: .xSmall) == base)
+        #expect(limit == base)
+        #else
+        #expect(QuickLinkLabel.instrumentIconSide(for: .xSmall) < base)
+        #expect(QuickLinkLabel.instrumentIconSide(for: .xLarge) > base)
+        #expect(limit > QuickLinkLabel.instrumentIconSide(for: .xxLarge))
+        #expect(abs(limit - base * 23 / 17) < 0.5)
+        #endif
+    }
+
+    /// Width of the artwork's light (visible on dark) pixels as a fraction of its side.
+    ///
+    /// - Parameters:
+    ///   - instrument: Chart whose artwork to measure.
+    ///   - keyboard: Use the keys variant.
+    /// - Returns: The bright bounding-box width over the image width, or nil if unreadable.
+    private static func visibleDiscFraction(_ instrument: Instrument, keyboard: Bool) -> CGFloat? {
+        let platformImage = InstrumentIcon.menuPlatformImage(for: instrument, keyboard: keyboard, side: 144)
+        #if canImport(UIKit)
+        let source = platformImage?.cgImage
+        #else
+        let source = platformImage?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        #endif
+        guard let image = source else { return nil }
+        let width = image.width, height = image.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let drawn: Bool = pixels.withUnsafeMutableBytes { buffer in
+            guard let context = CGContext(
+                data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8,
+                bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return false }
+            context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        guard drawn else { return nil }
+        var minX = width, maxX = -1
+        for y in 0..<height {
+            for x in 0..<width {
+                let i = (y * width + x) * 4
+                let luminance = (Int(pixels[i]) + Int(pixels[i + 1]) + Int(pixels[i + 2])) / 3
+                if pixels[i + 3] > 128, luminance > 128 {
+                    minX = min(minX, x)
+                    maxX = max(maxX, x)
+                }
+            }
+        }
+        guard maxX >= minX else { return nil }
+        return CGFloat(maxX - minX + 1) / CGFloat(width)
     }
 
     /// Only Lead and Pro Lead switch to the keys artwork on a keyboard song.

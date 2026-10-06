@@ -123,23 +123,55 @@ public struct QuickLinksMenu: View {
 
 /// One quick link's icon and title, indented by depth.
 ///
-/// Instrument artwork is pre-sized to the adjacent SF Symbols (issue #303): menus and
-/// the iPhone accessory sheet draw a plain image at its 144 pt intrinsic size.
+/// Instrument artwork is pre-sized to the visual weight of the adjacent SF Symbols
+/// (issues #303, #313): menus and the iPhone accessory sheet draw a plain image at its
+/// 144 pt intrinsic size.
 struct QuickLinkLabel: View {
     let section: QuickLinkSection
 
-    /// Instrument icon side at the default text size: the 20 pt of an enclosed-circle SF
-    /// Symbol (`globe`, `star.circle`) beside 17 pt body text on iOS/iPadOS, 16 pt beside
-    /// macOS's 13 pt menu text (HIG Icons: "Keep all icons consistent in size").
+    /// Instrument icon side at the default text size, sized for visual weight (#313).
+    ///
+    /// The artwork is a full-bleed disc whose black outer ring disappears on the dark
+    /// sheet and menus, so only 81–86 % of the side reads. 24 pt
+    /// (``InstrumentIcon/menuIconSide``) shows a 19–21 pt disc beside the 20 pt-tall SF
+    /// Symbols at 17 pt body text on iOS/iPadOS; 19 pt shows 15–16 pt beside macOS's
+    /// 16 pt menu symbols (HIG Icons: "Adjust dimensions for visual weight so they look
+    /// consistent, rather than forcing equal geometry").
     #if os(macOS)
-    static let instrumentIconBaseSide: CGFloat = 16
+    static let instrumentIconBaseSide: CGFloat = 19
     #else
-    static let instrumentIconBaseSide: CGFloat = 20
+    static let instrumentIconBaseSide: CGFloat = InstrumentIcon.menuIconSide
     #endif
 
-    /// Scales with Dynamic Type like the row text (HIG Typography: "Increase the size of
-    /// meaningful interface icons as font size increases").
-    @ScaledMetric(relativeTo: .body) private var instrumentIconSide = QuickLinkLabel.instrumentIconBaseSide
+    /// Height of the SF Symbols in neighbouring rows at the default text size: 20 pt
+    /// beside 17 pt body text, 16 pt in macOS menus. The visible instrument disc matches it.
+    #if os(macOS)
+    static let adjacentSymbolSide: CGFloat = 16
+    #else
+    static let adjacentSymbolSide: CGFloat = 20
+    #endif
+
+    /// The text size the adjacent row symbols stop growing at: in the accessibility sizes
+    /// list-row SF Symbols stay at their xxxLarge size (20 pt → 28 pt tall measured at
+    /// Accessibility XL) while body text keeps growing.
+    static let symbolScaleLimit = DynamicTypeSize.xxxLarge
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// The instrument icon side for a text size: scaled like body text (HIG Typography:
+    /// "Increase the size of meaningful interface icons as font size increases") up to
+    /// ``symbolScaleLimit``, so it keeps matching the symbols. macOS menus don't scale.
+    ///
+    /// - Parameter size: The environment's Dynamic Type size.
+    /// - Returns: The side in points before ``InstrumentIcon/menuSide(_:)`` snapping.
+    static func instrumentIconSide(for size: DynamicTypeSize) -> CGFloat {
+        #if canImport(UIKit)
+        let traits = UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(min(size, symbolScaleLimit)))
+        return UIFontMetrics(forTextStyle: .body).scaledValue(for: instrumentIconBaseSide, compatibleWith: traits)
+        #else
+        return instrumentIconBaseSide
+        #endif
+    }
 
     var body: some View {
         Label {
@@ -149,7 +181,9 @@ struct QuickLinkLabel: View {
             case let .system(name):
                 Image(systemName: name)
             case let .instrument(instrument):
-                InstrumentIcon.menuImage(for: instrument, keyboard: false, side: instrumentIconSide)
+                InstrumentIcon.menuImage(
+                    for: instrument, keyboard: false, side: Self.instrumentIconSide(for: dynamicTypeSize)
+                )
             case nil:
                 EmptyView()
             }
