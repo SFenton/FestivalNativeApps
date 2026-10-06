@@ -10,13 +10,13 @@ import FestivalDesign
 /// Like the web `SongDetailPage`, only a spinner shows until every visible chart's top
 /// ten and (with a selected player) the song's score history have loaded; then the
 /// page fades in and its sections stagger (operator batch 6.41). The selected player's
-/// score history is a section of this page (batch 6.39), after Intensity.
+/// score history is a section of this page (batch 6.39), after Intensity: the best five
+/// scores, with View All Scores opening the separate ``PlayerHistoryScreen`` (issue #324).
 struct SongDetailScreen: View {
     let song: Song
     let session: FestivalSession
     let visibleInstruments: Set<Instrument>
-    /// Deep link to `/songs/:id/:instrument/history`: open scrolled to Score History on
-    /// this instrument, every score listed.
+    /// Settings → Filter invalid scores: hide over-threshold scores in the previews.
     @AppStorage("fst.settings.filterInvalidScores") private var filterInvalidScores = false
     @AppStorage("fst.settings.leeway") private var leeway = 1.0
     /// Every card's first read (and the history) finished: the page may appear.
