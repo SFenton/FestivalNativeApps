@@ -102,11 +102,22 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
 
     /// <summary>Detail row for the selected bar.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasSelectedPoint))]
+    [NotifyPropertyChangedFor(nameof(HasSelectedPoint), nameof(ShowDetailSlot))]
     private ScoreHistoryListRow? selectedRow;
 
     /// <summary>Whether a bar is selected.</summary>
     public bool HasSelectedPoint => SelectedRow is not null;
+
+    /// <summary>
+    /// Whether the detail row's space stays reserved (empty) because a chart switch closed an open detail row, so the card
+    /// keeps its height on the new chart (issue #261). It ends when the player picks or clears a bar, or the history reloads.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowDetailSlot))]
+    private bool reservesDetail;
+
+    /// <summary>Whether the detail row's slot is laid out: a bar is selected, or a chart switch reserved its space.</summary>
+    public bool ShowDetailSlot => HasSelectedPoint || ReservesDetail;
 
     /// <summary>Whether paging arrows show.</summary>
     public bool ShowPaging => Pager.NeedsPagination;
@@ -206,6 +217,8 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
     public void SelectInstrument(Instrument instrument)
     {
         if (!Instruments.Contains(instrument) || Selected == instrument) return;
+        // Like the web, the new chart opens with no bar selected; the closed detail row keeps its space instead.
+        ReservesDetail |= HasSelectedPoint;
         Selected = instrument;
         Rebuild();
     }
@@ -225,6 +238,7 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
     [RelayCommand]
     public void ToggleBar(int index)
     {
+        ReservesDetail = false;
         Pager.Toggle(index);
         RefreshPage();
     }
@@ -289,6 +303,7 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
     private void Show(SongScoreHistoryPhase next, List<ScoreHistoryEntry> loaded)
     {
         entries = loaded;
+        ReservesDetail = false;
         counts = SongScoreHistory.Counts(entries);
         Instruments = [.. pool.Where(i => counts.GetValueOrDefault(i) > 0)];
         var choice = SongScoreHistory.DefaultInstrument(pool, counts, Selected ?? Requested);

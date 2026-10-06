@@ -119,5 +119,81 @@
       "assertstate:id=fst.history.instrument.Solo_Drums|toggle=off"
     ],
     "tabs": 0
+  },
+  {
+    "name": "history-swap-live-detail",
+    "route": "/songs/d58d8501-a33e-46f5-81bd-157306d5987e/Solo_Guitar/history",
+    "profile": "195e93ef108143b2975ee46662d4d0e1:SFentonX",
+    "sizes": [
+      "medium",
+      "wide",
+      "maximized",
+      "snap-left",
+      "snap-right"
+    ],
+    "ready": [
+      "waitfor:id=fst.history.chart@30",
+      "scrollinto:id=fst.history.chart@10",
+      "scrollinto:id=fst.history.sort.open@10"
+    ],
+    "after_ready": [
+      "toggle:id=fst.history.bar.24",
+      "waitfor:id=fst.history.detail@5",
+      "scrollinto:id=fst.history.sort.open@5",
+      "markspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "shot:{stem}-0-detail.png",
+      "toggle:id=fst.history.instrument.Solo_Bass",
+      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "wait:0.8",
+      "waitgone:id=fst.history.detail@3",
+      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "shot:{stem}-1-bass.png",
+      "toggle:id=fst.history.instrument.Solo_Drums",
+      "toggle:id=fst.history.instrument.Solo_Guitar",
+      "toggle:id=fst.history.instrument.Solo_Vocals",
+      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "wait:0.8",
+      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertstate:id=fst.history.instrument.Solo_Vocals|toggle=on"
+    ],
+    "tabs": 0
+  },
+  {
+    "name": "history-swap-live-detail-film",
+    "route": "/songs/d58d8501-a33e-46f5-81bd-157306d5987e/Solo_Guitar/history",
+    "profile": "195e93ef108143b2975ee46662d4d0e1:SFentonX",
+    "sizes": [
+      "medium"
+    ],
+    "modes": [
+      "normal"
+    ],
+    "ready": [
+      "waitfor:id=fst.history.chart@30",
+      "scrollinto:id=fst.history.chart@10",
+      "scrollinto:id=fst.history.sort.open@10"
+    ],
+    "after_ready": [
+      "toggle:id=fst.history.bar.24",
+      "waitfor:id=fst.history.detail@5",
+      "scrollinto:id=fst.history.sort.open@5",
+      "markspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "wait:1",
+      "film:{stem}-film",
+      "wait:1",
+      "toggle:id=fst.history.instrument.Solo_Bass",
+      "wait:1.5",
+      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "toggle:id=fst.history.instrument.Solo_Drums",
+      "wait:1.5",
+      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "toggle:id=fst.history.instrument.Solo_Guitar",
+      "toggle:id=fst.history.instrument.Solo_Vocals",
+      "wait:1.5",
+      "filmstop:{stem}-film",
+      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertstate:id=fst.history.instrument.Solo_Vocals|toggle=on"
+    ],
+    "tabs": 0
   }
 ]

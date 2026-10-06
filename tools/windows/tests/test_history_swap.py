@@ -55,6 +55,21 @@ class HistorySwapJourneyTests(unittest.TestCase):
         self.assertEqual(a11y_matrix.page_sizes(detail, ["compact", "medium", "wide"], "hc-desert"),
                          ["compact", "medium", "wide"])
 
+    def test_detail_page_keeps_the_span_after_the_row_closes(self):
+        # Issue #261 review: a switch closes the selected bar's row but its slot keeps the card's height, after the fade,
+        # after rapid switching and with motion off (no skip_modes), and a new pick fills the slot without a jump.
+        detail = next(p for p in PAGES if p["name"] == "history-swap-detail")
+        self.assertNotIn("skip_modes", detail)
+        run = steps(detail)
+        gone = run.index("waitgone:id=fst.history.detail@3")
+        self.assertEqual(run[gone + 1], f"assertspan:{SPAN}")
+        rapid = run.index("toggle:id=fst.history.instrument.Solo_Drums")
+        self.assertEqual(run[rapid + 1:rapid + 4], ["toggle:id=fst.history.instrument.Solo_Guitar",
+                                                    "toggle:id=fst.history.instrument.Solo_Bass", f"assertspan:{SPAN}"])
+        self.assertIn(f"assertspan:{SPAN}", run[run.index("wait:0.8", rapid):])
+        self.assertEqual(run[-1], f"assertspan:{SPAN}")
+        self.assertEqual(run[-2], "waitfor:id=fst.history.detail@5")
+
     def test_chart_names_ignore_the_visible_page(self):
         # Large text pages the chart to fewer bars, so the name's "N of 2 scores from …" range varies by size.
         for page in PAGES:

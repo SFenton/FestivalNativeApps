@@ -56,11 +56,22 @@
       "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
       "wait:0.8",
       "waitgone:id=fst.history.detail@3",
+      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
       "assertname:id=fst.history.chart|Bass score history, * of 2 scores *",
-      "shot:{stem}-bass.png"
+      "shot:{stem}-bass.png",
+      "toggle:id=fst.history.instrument.Solo_Drums",
+      "toggle:id=fst.history.instrument.Solo_Guitar",
+      "toggle:id=fst.history.instrument.Solo_Bass",
+      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "wait:0.8",
+      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertstate:id=fst.history.instrument.Solo_Bass|toggle=on",
+      "assertname:id=fst.history.chart|Bass score history, * of 2 scores *",
+      "toggle:id=fst.history.bar.1",
+      "waitfor:id=fst.history.detail@5",
+      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card"
     ],
     "tabs": 0,
-    "skip_modes": ["no-animations", "app-reduced"],
     "skip_sizes": {
       "text-150": [
         "compact"
