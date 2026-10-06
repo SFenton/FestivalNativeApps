@@ -88,8 +88,9 @@ class LoadSwap<T> internal constructor(initial: T, ready: Boolean, key: Any?) {
     val contentModifier: Modifier = Modifier.graphicsLayer { alpha = contentAlpha.value }
 
     /**
-     * For stale result content kept composed beside the spinner (a pinned row whose slot holds
-     * the pager in place, issue #93): while the spinner shows it is hidden, silent to TalkBack
+     * For stale result content kept composed beside or beneath the spinner (a pinned row whose
+     * slot holds the pager in place, issue #93; the Leaderboards overview list, whose cards keep
+     * loading under the spinner, issue #178): while the spinner shows it is hidden, silent to TalkBack
      * and ignores touches, with or without Reduce Motion, so stale content never shows under
      * the spinner (issue #149). Never apply it to controls: pickers and pagers stay visible and
      * usable during a swap so a newer selection supersedes the pending one (load-transition R4).

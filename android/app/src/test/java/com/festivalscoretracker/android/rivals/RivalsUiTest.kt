@@ -35,6 +35,7 @@ import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
+import com.festivalscoretracker.android.ui.common.spinnerShowsDuring
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
 import okhttp3.OkHttpClient
@@ -146,6 +147,16 @@ class RivalsUiTest {
         rule.onAllNodesWithTag("fst.rivals.row.${ids[0]}")[0].performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.rival-detail.title")
         assertEquals(1, transport.sent("/api/player/${RivalsFixtures.PLAYER}/leaderboard-rivals/Solo_Guitar/${ids[0]}").size)
+    }
+
+    @Test
+    fun tabSwitchFadesThroughTheSpinner() {
+        launch(DebugLaunch(route = RivalsRoute, profile = player, stillBackground = true))
+        waitForTag("fst.rivals.section.Solo_Guitar")
+        // Issue #71: the old tab fades out and the spinner shows before the new tab's cards.
+        assertTrue(rule.spinnerShowsDuring("fst.rivals.loading") { rule.onNodeWithTag("fst.rivals.tab.leaderboard").performSemanticsAction(SemanticsActions.OnClick) })
+        waitForTag("fst.rivals.section.leaderboard.Solo_Guitar")
+        rule.waitUntil(5_000) { settle(100); rule.onAllNodesWithTag("fst.rivals.loading").fetchSemanticsNodes().isEmpty() }
     }
 
     @Test

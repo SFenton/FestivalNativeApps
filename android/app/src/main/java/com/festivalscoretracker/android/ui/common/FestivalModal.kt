@@ -236,17 +236,20 @@ fun FestivalModalSheet(
             scope.launch { sheetState.hide() }.invokeOnCompletion { onDismissRequest() }
         }
     }
+    // The sheet's own fade window (load-transition R5): its first-load fades rush when it scrolls.
+    val fadeIn = rememberPageFadeInWindow()
     CoversBackdrop {
         ModalBottomSheet(
             onDismissRequest = onDismissRequest,
             sheetState = sheetState,
             containerColor = BrandTokens.cardBackground,
-            modifier = Modifier.festivalSheetTop().festivalSheetHingeSide().popupTestTags().then(modifier).semantics { paneTitle = title },
+            modifier = Modifier.festivalSheetTop().festivalSheetHingeSide().popupTestTags().then(modifier).semantics { paneTitle = title }
+                .fadeInRushOnScroll(fadeIn),
             // Material's handle is 32 dp wide; once the sheet can collapse it is a 48 dp touch target.
             dragHandle = { BottomSheetDefaults.DragHandle(Modifier.minimumInteractiveComponentSize()) },
         ) {
             FestivalModalHeader(title, closeTag, close, titleTag = titleTag, actions = headerActions)
-            content()
+            CompositionLocalProvider(LocalFadeInWindow provides fadeIn) { content() }
         }
     }
 }
@@ -294,6 +297,8 @@ fun FestivalModalDialog(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val hingeArea = if (avoidHinge) dialogHingeArea() else null
+    // The dialog's own fade window (load-transition R5): its first-load fades rush when it scrolls.
+    val fadeIn = rememberPageFadeInWindow()
     val surface: @Composable (Modifier) -> Unit = { placement ->
         Surface(
             shape = RoundedCornerShape(28.dp),
@@ -306,11 +311,12 @@ fun FestivalModalDialog(
                 .then(placement)
                 .popupTestTags()
                 .then(modifier)
-                .semantics { this.paneTitle = paneTitle },
+                .semantics { this.paneTitle = paneTitle }
+                .fadeInRushOnScroll(fadeIn),
         ) {
             Column(Modifier.padding(top = 12.dp)) {
                 FestivalModalHeader(title, closeTag, onDismissRequest, titleTag = titleTag, titleStyle = titleStyle)
-                content()
+                CompositionLocalProvider(LocalFadeInWindow provides fadeIn) { content() }
             }
         }
     }

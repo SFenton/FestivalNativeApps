@@ -1,5 +1,7 @@
 package com.festivalscoretracker.android.ui.songdetail
 
+import com.festivalscoretracker.android.ui.common.rememberPageFadeInWindow
+import com.festivalscoretracker.android.ui.leaderboards.awaitSelectedRowEntrance
 import com.festivalscoretracker.android.ui.design.popupTestTags
 import androidx.compose.ui.semantics.selected
 import androidx.compose.runtime.setValue
@@ -187,6 +189,8 @@ fun SongLeaderboardScreen(
     var revealPending by rememberSaveable { mutableStateOf(revealSelected) }
     val anchor = remember { SelectedRowAnchor() }
     val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
+    // The page's fade window, here so the reveal can rush the rows its scroll reaches (load-transition R5).
+    val fadeIn = rememberPageFadeInWindow()
 
     // The rows and the pinned footer share one column plan, fitted to the narrower of the two (issue #37, 7.9).
     val columns = rememberScoreColumns(loaded?.entries.orEmpty() + listOfNotNull(footer))
@@ -196,9 +200,13 @@ fun SongLeaderboardScreen(
     LaunchedEffect(revealPending, pageShown, loaded) {
         if (!revealPending || !pageShown) return@LaunchedEffect
         if (selectedOnPage) {
-            withFrameNanos { }
-            val bounds = anchor.bounds()
-            if (bounds != null) listState.revealSelectedRow("rows", null, bounds.first, bounds.second, animate = !reduceMotion)
+            // Like the web's navToPlayer: scroll once the row's own entrance has finished (issue #323).
+            val index = loaded.entries.indexOfFirst { RankingSpotlight.isSelected(selectedAccountId, it.accountId) }
+            if (awaitSelectedRowEntrance(fadeIn, fadeInStagger(index), reduceMotion)) {
+                withFrameNanos { }
+                val bounds = anchor.bounds()
+                if (bounds != null) listState.revealSelectedRow("rows", null, bounds.first, bounds.second, animate = !reduceMotion)
+            }
         }
         revealPending = false
         onRevealed()
@@ -213,6 +221,7 @@ fun SongLeaderboardScreen(
         scrolled = headerGone,
         marqueeTitle = true,
         modifier = Modifier.semantics { testTagsAsResourceId = true },
+        fadeInWindow = fadeIn,
     ) { padding ->
         val failed = board as? LoadState.Failed
         if (failed != null) {

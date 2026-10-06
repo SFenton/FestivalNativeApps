@@ -14,6 +14,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import com.festivalscoretracker.android.core.quicklinks.QuickLinkSection
 import com.festivalscoretracker.android.core.quicklinks.QuickLinks
+import com.festivalscoretracker.android.ui.common.FadeInWindow
+import com.festivalscoretracker.android.ui.common.LocalFadeInWindow
 import kotlin.math.roundToInt
 
 // region Scroll-state sections
@@ -81,14 +83,20 @@ internal class ScrollQuickLinkSections(private val scrollState: ScrollState) : Q
  * @param scrollState The column's scroll state.
  * @param title Quick Links title.
  * @param sections Sections in order.
+ * @param fadeInWindow The page's fade window, which jumps rush (defaults to the enclosing one).
  * @return The controller and the section marker for the page's modifiers.
  */
 @Composable
-internal fun rememberScrollQuickLinks(scrollState: ScrollState, title: String, sections: List<QuickLinkSection>): Pair<QuickLinksController, ScrollQuickLinkSections> {
+internal fun rememberScrollQuickLinks(
+    scrollState: ScrollState,
+    title: String,
+    sections: List<QuickLinkSection>,
+    fadeInWindow: FadeInWindow? = LocalFadeInWindow.current,
+): Pair<QuickLinksController, ScrollQuickLinkSections> {
     val anchors = remember(scrollState) { ScrollQuickLinkSections(scrollState) }
     val ordered = QuickLinks.ordered(sections)
     anchors.ids = ordered.map { it.id }
-    val controller = rememberQuickLinks(anchors, title, ordered) { id -> anchors.ids.indexOf(id).takeIf { it >= 0 } }
+    val controller = rememberQuickLinks(anchors, title, ordered, fadeInWindow = fadeInWindow) { id -> anchors.ids.indexOf(id).takeIf { it >= 0 } }
     return controller to anchors
 }
 
