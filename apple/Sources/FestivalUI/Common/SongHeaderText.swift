@@ -4,7 +4,8 @@ import FestivalDesign
 
 // MARK: - In-page song header text
 
-/// The text column of every in-page song header (Song Details hero, Song Leaderboard):
+/// The text column of every in-page song header (Song Details hero, and through
+/// ``SongHeaderRow`` the Song Leaderboard and Band Song Leaderboard):
 /// the song title and artist, each on one line that fills the width beside the album
 /// art and scrolls with ``MarqueeText`` when it does not fit, like the web's shared
 /// `SongInfoHeader` (pattern `song-header` R1–R3, issue #315).
@@ -72,7 +73,97 @@ struct SongHeaderText<Details: View>: View {
     }
 }
 
+// MARK: - Leaderboard song header row
+
+/// The in-page song header of a song leaderboard (Song Leaderboard, Band Song
+/// Leaderboard): 80 pt album art beside ``SongHeaderText`` (title, artist and the
+/// board's detail line), like the web's `SongInfoHeader` that both web boards share
+/// (pattern `song-header` R1–R5, issue #315).
+///
+/// It sits at the top of the board's scrolling content with no card behind it (the
+/// dimmed song backdrop keeps it legible) and reports when it has scrolled under the
+/// bar, so the page can show ``SongBarTitleToolbarItem`` instead. VoiceOver reads it as
+/// one heading: title, artist, then the details.
+struct SongHeaderRow<Details: View>: View {
+    private let song: Song
+    private let session: FestivalSession
+    private let onScrolledAway: (Bool) -> Void
+    private let details: Details
+
+    /// Create a leaderboard's song header.
+    ///
+    /// - Parameters:
+    ///   - song: The board's song.
+    ///   - session: Shared session (artwork cache).
+    ///   - onScrolledAway: Called with whether the header's bottom edge has passed under
+    ///     the bar (``SongDetailPinnedTitlePolicy``).
+    ///   - details: Lines under the artist (instrument or band size, entry total).
+    init(
+        song: Song, session: FestivalSession,
+        onScrolledAway: @escaping (Bool) -> Void,
+        @ViewBuilder details: () -> Details
+    ) {
+        self.song = song
+        self.session = session
+        self.onScrolledAway = onScrolledAway
+        self.details = details()
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ArtworkTile(raw: song.albumArt, session: session, size: 80)
+                .id(song.albumArt)
+                .accessibilityHidden(true)
+            SongHeaderText(title: song.title, artist: song.artist, titleFont: .title3.bold(), spacing: 4) {
+                details
+            }
+        }
+        .foregroundStyle(FestivalText.primary)
+        .padding(.vertical, 6)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+        .onGeometryChange(for: Bool.self) { proxy in
+            SongDetailPinnedTitlePolicy.isHeroHidden(titleMaxY: proxy.frame(in: .scrollView).maxY)
+        } action: { hidden in
+            onScrolledAway(hidden)
+        }
+    }
+}
+
 // MARK: - Pinned bar title
+
+/// The bar's principal item on a song leaderboard: ``SongBarTitle`` while the page's
+/// ``SongHeaderRow`` is scrolled away, otherwise an empty, unspoken placeholder (pattern
+/// `song-header` R4).
+///
+/// The title is built only once the header has scrolled away: a hidden (opacity 0) copy
+/// was still audited, and its fixed-size icon failed Dynamic Type. The placeholder holds
+/// the slot meanwhile: an empty principal item let the bar fall back to the page's
+/// `navigationTitle`, which then showed above the in-page header (issue #93).
+struct SongBarTitleToolbarItem: ToolbarContent {
+    let song: Song
+    let session: FestivalSession
+    /// The board's caption under the title (instrument or band size).
+    let caption: String
+    /// Whether the in-page header has scrolled under the bar.
+    let isShown: Bool
+    /// Accessibility identifier of the shown title.
+    let identifier: String
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .principal) {
+            if isShown {
+                SongBarTitle(song: song, session: session, caption: caption)
+                    .transition(.opacity)
+                    .accessibilityIdentifier(identifier)
+            } else {
+                Color.clear
+                    .frame(width: 1, height: 1)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+}
 
 /// The compact song title a song page shows in its navigation bar once the in-page
 /// header has scrolled away: 28 pt art, the title on one marqueeing line and an

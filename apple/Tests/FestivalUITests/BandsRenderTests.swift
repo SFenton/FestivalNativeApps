@@ -224,8 +224,14 @@ private func fixtureSong(_ session: FestivalSession, songId: String) async throw
     let image = try nativeHostedImage(host)
     _ = try nativeHostedPNG(image, filename: "song-band-leaderboard-loaded.png", environment: "FST_BANDS_RENDER_OUT")
     #expect(image.width > 0 && image.height > 0)
+    let tree = nativeHostedAccessibility(host)
     // No selected player: no pinned band footer (issue #306).
-    #expect(!nativeHostedAccessibility(host).identifiers.contains(songBandFooterID))
+    #expect(!tree.identifiers.contains(songBandFooterID))
+    // The shared song header (issue #315): one heading naming the song once, with the
+    // artist and band size (row behavior: `SongHeaderTextTests`).
+    #expect(tree.identifiers.contains("fst.song-band-leaderboard.header"))
+    #expect(tree.texts.filter { $0.contains(song.title) }.count == 1, "texts: \(tree.texts)")
+    #expect(tree.contains(song.artist) && tree.contains("Duos"))
 }
 
 private let songBandFooterID = "fst.song-band-leaderboard.spotlight-footer"

@@ -1546,7 +1546,15 @@
           },
           {
             "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
+            "symbol": "SongHeaderRow"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
             "symbol": "SongBarTitle"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
+            "symbol": "SongBarTitleToolbarItem"
           }
         ],
         "android": [

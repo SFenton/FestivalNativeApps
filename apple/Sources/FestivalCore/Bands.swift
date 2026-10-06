@@ -355,6 +355,9 @@ public struct SongBandLeaderboardEntry: Decodable, Sendable, Equatable, Identifi
 public struct SongBandLeaderboardResponse: Decodable, Sendable, Equatable {
     public let songId: String
     public let bandType: String
+    /// Whether the service lets clients show the board's entry total (web
+    /// `showLeaderboardEntryTotals`); absent reads as hidden.
+    public var showLeaderboardEntryTotals: Bool? = nil
     public let count: Int
     public let totalEntries: Int
     public let localEntries: Int?
@@ -377,14 +380,17 @@ public struct SongBandLeaderboardResponse: Decodable, Sendable, Equatable {
     ///   - entries: Page rows.
     ///   - selectedPlayerEntry: Selected player's best band row, if any.
     ///   - selectedBandEntry: Selected band's row, if any.
+    ///   - showLeaderboardEntryTotals: Whether the entry total may be shown.
     public init(
         songId: String, bandType: String, count: Int, totalEntries: Int, localEntries: Int?,
         entries: [SongBandLeaderboardEntry],
         selectedPlayerEntry: SongBandLeaderboardEntry? = nil,
-        selectedBandEntry: SongBandLeaderboardEntry? = nil
+        selectedBandEntry: SongBandLeaderboardEntry? = nil,
+        showLeaderboardEntryTotals: Bool? = nil
     ) {
         self.songId = songId
         self.bandType = bandType
+        self.showLeaderboardEntryTotals = showLeaderboardEntryTotals
         self.count = count
         self.totalEntries = totalEntries
         self.localEntries = localEntries
@@ -407,6 +413,17 @@ public struct SongBandLeaderboardResponse: Decodable, Sendable, Equatable {
     public func isSelected(_ entry: SongBandLeaderboardEntry) -> Bool {
         guard let selected = selectedEntry else { return false }
         return SongBandLeaderboardPreview.isSameBand(entry, selected)
+    }
+
+    /// The song header's detail line: the band size, with the entry total when the
+    /// service allows it (web `songBandLeaderboard.subtitle`, issue #315), e.g.
+    /// "Duos · 1,234 entries".
+    ///
+    /// - Parameter label: The band size's label ("Duos").
+    /// - Returns: The detail line.
+    public func headerDetail(label: String) -> String {
+        guard showLeaderboardEntryTotals == true else { return label }
+        return "\(label) · \(totalEntries.formatted()) entries"
     }
 
     /// Pages of 25 rows, matching `LeaderboardResponse.pageCount`.

@@ -235,22 +235,10 @@ struct SoloLeaderboardScreen: View {
         .navigationTitle(song.title)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: headerHidden)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                // Built only once the header has scrolled away: a hidden (opacity 0)
-                // copy was still audited, and its fixed-size icon failed Dynamic Type.
-                // Until then an empty, unspoken placeholder holds the slot: an empty
-                // principal item let the bar fall back to `navigationTitle`, so the
-                // title showed above the in-page header before any scroll (issue #93).
-                if headerHidden {
-                    SongBarTitle(song: song, session: session, caption: instrument.label)
-                        .transition(.opacity)
-                        .accessibilityIdentifier("fst.song-leaderboard.pinned-title")
-                } else {
-                    Color.clear
-                        .frame(width: 1, height: 1)
-                        .accessibilityHidden(true)
-                }
-            }
+            SongBarTitleToolbarItem(
+                song: song, session: session, caption: instrument.label, isShown: headerHidden,
+                identifier: "fst.song-leaderboard.pinned-title"
+            )
             #if os(iOS)
             if let shownPayload {
                 RankingsPagerToolbarContent(
@@ -447,37 +435,24 @@ struct SoloLeaderboardScreen: View {
     /// total), scrolling above rows so large text sizes keep a usable list.
     ///
     /// The title and artist fill the width beside the art on one marqueeing line each
-    /// (``SongHeaderText``, issue #315: the title used to wrap beside empty space).
+    /// (the shared ``SongHeaderRow``, issue #315: the title used to wrap beside empty
+    /// space). No card or band behind it, like Song Detail's (operator batch 7.2, issue
+    /// #293): the shared dimmed song backdrop keeps the text legible.
     ///
     /// - Parameter payload: Current chart, including its optional totals disclosure.
     /// - Returns: The native song summary over the page backdrop.
     private func scoreHeader(_ payload: LeaderboardPayload) -> some View {
-        HStack(spacing: 12) {
-            ArtworkTile(raw: song.albumArt, session: session, size: 80)
-                .id(song.albumArt)
-                .accessibilityHidden(true)
-            SongHeaderText(title: song.title, artist: song.artist, titleFont: .title3.bold(), spacing: 4) {
-                HStack(spacing: 6) {
-                    InstrumentIcon(instrument, size: 20)
-                        .accessibilityHidden(true)
-                    MarqueeText(payload.leaderboard.showLeaderboardEntryTotals == true
-                        ? "\(instrument.label) · \(payload.leaderboard.totalEntries.formatted()) entries"
-                        : instrument.label)
-                        .foregroundStyle(FestivalText.primary)
-                }
+        SongHeaderRow(song: song, session: session, onScrolledAway: { headerHidden = $0 }) {
+            HStack(spacing: 6) {
+                InstrumentIcon(instrument, size: 20)
+                    .accessibilityHidden(true)
+                MarqueeText(payload.leaderboard.showLeaderboardEntryTotals == true
+                    ? "\(instrument.label) · \(payload.leaderboard.totalEntries.formatted()) entries"
+                    : instrument.label)
+                    .foregroundStyle(FestivalText.primary)
             }
         }
-        .foregroundStyle(FestivalText.primary)
-        // No card or band behind the header, like Song Detail's (operator batch 7.2,
-        // issue #293): the shared dimmed song backdrop keeps the text legible.
-        .padding(.vertical, 6)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isHeader)
-        .onGeometryChange(for: Bool.self) { proxy in
-            SongDetailPinnedTitlePolicy.isHeroHidden(titleMaxY: proxy.frame(in: .scrollView).maxY)
-        } action: { hidden in
-            headerHidden = hidden
-        }
+        .accessibilityIdentifier("fst.song-leaderboard.header")
     }
 
     /// Load a specific page and reject late responses from a previous selection.

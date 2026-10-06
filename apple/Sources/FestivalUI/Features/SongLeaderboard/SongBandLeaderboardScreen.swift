@@ -37,6 +37,9 @@ struct SongBandLeaderboardScreen: View {
     @State private var bottomFadeDistance = ScrollEdgeFade.distance
     /// The page's measured width, for the footer's fitted columns.
     @State private var chartWidth: CGFloat = 0
+    /// The in-page song header has scrolled under the bar: show art, title and band
+    /// size in the navigation bar instead, like the Solo board (issue #315).
+    @State private var headerHidden = false
     @Environment(\.deviceLayout) private var layout
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
@@ -142,23 +145,29 @@ struct SongBandLeaderboardScreen: View {
                 // `List` would draw a second disclosure chevron outside each card.
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(spacing: Self.rowGap) {
-                            if payload.leaderboard.entries.isEmpty {
-                                Text("No \(bandType.label.lowercased()) scores yet.")
-                                    .foregroundStyle(FestivalText.primary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            ForEach(payload.leaderboard.entries) { entry in
-                                // The selected player's band, or the band this page was
-                                // opened for, gets the purple highlight (web `isSelected`).
-                                SongBandPreviewRow(
-                                    entry: entry, highlighted: isHighlighted(entry, in: payload.leaderboard)
-                                )
-                                .accessibilityIdentifier("fst.song-band-leaderboard.row.\(entry.id)")
+                        VStack(spacing: 0) {
+                            // The song header scrolls with the cards, like the Solo
+                            // board's; once it passes under the bar the bar shows it.
+                            songHeader(payload.leaderboard)
+                                .padding(.top, 20)
+                                .padding(.bottom, 12)
+                            LazyVStack(spacing: Self.rowGap) {
+                                if payload.leaderboard.entries.isEmpty {
+                                    Text("No \(bandType.label.lowercased()) scores yet.")
+                                        .foregroundStyle(FestivalText.primary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                ForEach(payload.leaderboard.entries) { entry in
+                                    // The selected player's band, or the band this page was
+                                    // opened for, gets the purple highlight (web `isSelected`).
+                                    SongBandPreviewRow(
+                                        entry: entry, highlighted: isHighlighted(entry, in: payload.leaderboard)
+                                    )
+                                    .accessibilityIdentifier("fst.song-band-leaderboard.row.\(entry.id)")
+                                }
                             }
                         }
                         .padding(.horizontal, 16)
-                        .padding(.top, 8)
                         .padding(.bottom, Self.rowGap)
                     }
                     // Opened for one band's row: scroll it into view once (web
@@ -195,9 +204,16 @@ struct SongBandLeaderboardScreen: View {
             chartWidth = width
         }
         .coordinateSpace(.named(Self.pageSpace))
-        .festivalBackground(.carousel, session: session)
+        // The song's dimmed cover behind its header, like the Solo board and the web
+        // page's `PageBackground` (Android and Windows switch to it too).
+        .festivalBackground(.song(song.albumArt), session: session)
         .navigationTitle("\(bandType.label) Scores")
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: headerHidden)
         .toolbar {
+            SongBarTitleToolbarItem(
+                song: song, session: session, caption: bandType.label, isShown: headerHidden,
+                identifier: "fst.song-band-leaderboard.pinned-title"
+            )
             if pageTools == nil {
                 ToolbarItem(placement: .festivalPageAction) { bandTypeMenu }
             }
@@ -212,6 +228,9 @@ struct SongBandLeaderboardScreen: View {
             }
             #endif
         }
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
         // iPhone tab-bar accessory (issue #92): Band Size.
         .festivalPageTool(token: bandType, order: PageToolOrder.primary) {
             bandTypeMenu
@@ -221,6 +240,22 @@ struct SongBandLeaderboardScreen: View {
             page = 1
         }
         .task(id: requestKey) { await load() }
+    }
+
+    // MARK: Song header
+
+    /// The song header: art beside the title, artist and band size (with the entry
+    /// total when the service allows it), on one full-width marqueeing line each, like
+    /// the web's `SongInfoHeader` on this page (``SongHeaderRow``, issue #315).
+    ///
+    /// - Parameter leaderboard: The loaded page.
+    /// - Returns: The header over the song backdrop.
+    private func songHeader(_ leaderboard: SongBandLeaderboardResponse) -> some View {
+        SongHeaderRow(song: song, session: session, onScrolledAway: { headerHidden = $0 }) {
+            MarqueeText(leaderboard.headerDetail(label: bandType.label))
+                .foregroundStyle(FestivalText.primary)
+        }
+        .accessibilityIdentifier("fst.song-band-leaderboard.header")
     }
 
     // MARK: Pinned bottom chrome

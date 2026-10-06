@@ -102,6 +102,24 @@ private func fixtureURL(_ name: String) -> URL {
     #expect(first.members.first?.chartedInstruments == [.lead])
 }
 
+/// The song header's detail line shows the band size, with the entry total only when
+/// the service allows it (web `songBandLeaderboard.subtitle`, issue #315).
+@Test func songBandLeaderboardHeaderDetailFollowsEntryTotalsFlag() throws {
+    let data = try Data(contentsOf: fixtureURL("song-band-leaderboard-demo.json"))
+    let response = try JSONDecoder().decode(SongBandLeaderboardResponse.self, from: data)
+    #expect(response.showLeaderboardEntryTotals == true)
+    #expect(response.headerDetail(label: "Duos") == "Duos · \(26.formatted()) entries")
+    let hidden = SongBandLeaderboardResponse(
+        songId: "s", bandType: "Band_Duets", count: 0, totalEntries: 1_234, localEntries: nil, entries: [],
+        showLeaderboardEntryTotals: false
+    )
+    #expect(hidden.headerDetail(label: "Duos") == "Duos")
+    let absent = SongBandLeaderboardResponse(
+        songId: "s", bandType: "Band_Duets", count: 0, totalEntries: 1_234, localEntries: nil, entries: []
+    )
+    #expect(absent.headerDetail(label: "Trios") == "Trios")
+}
+
 /// `accountId` adds the selected player's best band; it is the pinned footer's row and
 /// highlights the matching page row. A selected row of another size is rejected.
 @Test func songBandLeaderboardDecodesSelectedPlayerBand() throws {
