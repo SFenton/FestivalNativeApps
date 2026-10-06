@@ -14,6 +14,9 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertTouchHeightIsEqualTo
 import androidx.compose.ui.test.assertTouchWidthIsEqualTo
+import android.graphics.Canvas
+import android.view.View
+import com.festivalscoretracker.android.presentation.songs.PathSwapTiming
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -205,6 +208,73 @@ class SongPathsSheetUiTest {
         assertEquals(0, count("fst.paths.table.header"))
         rule.onNodeWithText("BEAT").assertDoesNotExist()
         assertEquals(listOf("text:Lead:Expert"), calls)
+    }
+
+    /**
+     * Mean pixel brightness (0–1) of the node tagged [tag], drawn in software from the sheet's
+     * window (Robolectric's `captureToImage` never gets a frame with the clock paused).
+     */
+    private fun brightness(tag: String): Float {
+        val b = rule.onNodeWithTag(tag).fetchSemanticsNode().boundsInWindow
+        val global = Class.forName("android.view.WindowManagerGlobal")
+        val instance = global.getMethod("getInstance").invoke(null)
+        @Suppress("UNCHECKED_CAST")
+        val window = (global.getDeclaredField("mViews").apply { isAccessible = true }.get(instance) as List<View>).last()
+        val whole = Bitmap.createBitmap(window.width, window.height, Bitmap.Config.ARGB_8888)
+        rule.runOnUiThread { window.draw(Canvas(whole)) }
+        val top = b.top.toInt().coerceAtLeast(0)
+        val bottom = b.bottom.toInt().coerceAtMost(whole.height)
+        assertTrue("$tag is on screen", top < bottom)
+        var sum = 0f
+        for (x in b.left.toInt() until b.right.toInt()) for (y in top until bottom) {
+            val p = whole.getPixel(x, y)
+            sum += (android.graphics.Color.red(p) + android.graphics.Color.green(p) + android.graphics.Color.blue(p)) / (3f * 255f)
+        }
+        return sum / ((b.right.toInt() - b.left.toInt()) * (bottom - top))
+    }
+
+    /** Release a gated text load with the clock paused and step to the frame the table commits. */
+    private fun commitGatedTable(gate: CompletableDeferred<Unit>, loaded: String) {
+        rule.mainClock.autoAdvance = false
+        gate.complete(Unit)
+        var frames = 0
+        while (status() != loaded && frames++ < 200) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(16))
+            rule.mainClock.advanceTimeByFrame()
+        }
+        assertEquals(loaded, status())
+    }
+
+    @Test
+    fun textRowsStaggerInAfterTheSpinnerLikeWebTextStagger() {
+        assertEquals(listOf(0, 60, 120, 600), listOf(0, 1, 2, 10).map(PathSwapTiming::rowStagger))
+        val gate = CompletableDeferred<Unit>()
+        show(viewModel(display = PathDisplayMode.Text, loadText = { _, _ -> gate.await(); text() }))
+        commitGatedTable(gate, "Lead Expert path loaded, 3 activations")
+        // The table mounts with every row hidden (no container fade, no stale rows).
+        rule.mainClock.advanceTimeByFrame()
+        val hidden = listOf("fst.paths.row.1", "fst.paths.row.2").map(::brightness)
+        // 100 ms in: row 1 is well into its fade, row 2 (60 ms later) has barely started.
+        rule.mainClock.advanceTimeBy(100)
+        val mid = listOf("fst.paths.row.1", "fst.paths.row.2").map(::brightness)
+        rule.mainClock.advanceTimeBy(1_500)
+        val full = listOf("fst.paths.row.1", "fst.paths.row.2").map(::brightness)
+        val revealed = (0..1).map { (mid[it] - hidden[it]) / (full[it] - hidden[it]) }
+        assertTrue("rows draw once revealed ($hidden → $full)", full.indices.all { full[it] > hidden[it] + 0.02f })
+        assertTrue("row 1 leads row 2 by the 60 ms stagger ($revealed)", revealed[0] > revealed[1] + 0.1f)
+        assertTrue("row 1 is mid-fade at 100 ms ($revealed)", revealed[0] in 0.15f..0.85f)
+    }
+
+    @Test
+    fun reducedMotionShowsTextRowsWithoutStagger() {
+        val gate = CompletableDeferred<Unit>()
+        show(viewModel(display = PathDisplayMode.Text, loadText = { _, _ -> gate.await(); text() }), reduceMotion = true)
+        commitGatedTable(gate, "Lead Expert path loaded, 3 activations")
+        rule.mainClock.advanceTimeByFrame()
+        val first = listOf("fst.paths.row.1", "fst.paths.row.2").map(::brightness)
+        rule.mainClock.advanceTimeBy(1_500)
+        val later = listOf("fst.paths.row.1", "fst.paths.row.2").map(::brightness)
+        (0..1).forEach { assertEquals("row ${it + 1} fully shown on its first frame", later[it], first[it], 0.01f) }
     }
 
     @Test

@@ -148,6 +148,20 @@ object PathSwapTiming {
     const val MIN_TEXT_SPINNER_MILLIS = 500L
 
     /**
+     * Delay between activation rows as the table reveals (web `STAGGER_ROW_MS`; each row
+     * runs the shared 400 ms `fadeInUp`).
+     */
+    const val ROW_STAGGER_MILLIS = 60
+
+    /**
+     * Start delay of table row [index] in the reveal (web `i * STAGGER_ROW_MS`, uncapped).
+     *
+     * @param index Zero-based row index.
+     * @return Milliseconds.
+     */
+    fun rowStagger(index: Int): Int = index.coerceAtLeast(0) * ROW_STAGGER_MILLIS
+
+    /**
      * Minimum spinner hold for a display.
      *
      * @param display Display.

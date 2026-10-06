@@ -1050,6 +1050,10 @@
           "symbol": "PathsModal"
         },
         {
+          "path": "pages/songinfo/components/path/PathDataTable.tsx",
+          "symbol": "PathDataTable"
+        },
+        {
           "path": "hooks/chart/useListAnimation.ts",
           "symbol": "useListAnimation"
         }
@@ -1215,7 +1219,8 @@
         70,
         71,
         149,
-        169
+        169,
+        177
       ]
     },
     {
