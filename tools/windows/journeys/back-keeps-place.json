@@ -193,6 +193,63 @@
     ]
   },
   {
+    "name": "back-suggestions-row",
+    "route": "/suggestions",
+    "profile": "fixture-player-1:Demo Player",
+    "env": {
+      "FST_DEBUG_SUGGESTIONS_SEED": "1"
+    },
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.suggestions.list@25"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.suggestions.row.fixture-orbit|Solo_PeripheralDrums@15",
+      "wait:1",
+      "focus:id=fst.suggestions.row.fixture-orbit|Solo_PeripheralDrums",
+      "wait:1",
+      "pin:id=fst.suggestions.category.first_plays_mixed_decade_20",
+      "pin:id=fst.suggestions.row.fixture-orbit|Solo_PeripheralDrums",
+      "key:enter",
+      "waitfor:id=fst.song-detail.title@20",
+      "wait:1",
+      "invoke:id=PART_BackButton",
+      "waitfor:id=fst.suggestions.row.fixture-orbit|Solo_PeripheralDrums@15",
+      "assertpinned:id=fst.suggestions.category.first_plays_mixed_decade_20",
+      "assertpinned:id=fst.suggestions.row.fixture-orbit|Solo_PeripheralDrums",
+      "wait:1.5",
+      "assertpinned:id=fst.suggestions.category.first_plays_mixed_decade_20",
+      "assertpinned:id=fst.suggestions.row.fixture-orbit|Solo_PeripheralDrums",
+      "assertfocus:id=fst.suggestions.row.fixture-orbit|Solo_PeripheralDrums@3",
+      "shot:{stem}-back.png"
+    ]
+  },
+  {
+    "name": "back-settings-licenses",
+    "route": "/settings",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@25"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.settings.licenses@15",
+      "wait:1",
+      "focus:id=fst.settings.licenses",
+      "wait:1",
+      "pin:id=fst.settings.licenses",
+      "key:enter",
+      "waitfor:id=fst.licenses.summary@20",
+      "wait:1",
+      "key:alt+left",
+      "waitfor:id=fst.settings.licenses@15",
+      "assertpinned:id=fst.settings.licenses",
+      "wait:1.5",
+      "assertpinned:id=fst.settings.licenses",
+      "assertfocus:id=fst.settings.licenses@3",
+      "shot:{stem}-back.png"
+    ]
+  },
+  {
     "name": "back-leaderboards-live",
     "route": "/leaderboards",
     "profile": "195e93ef108143b2975ee46662d4d0e1:SFentonX",

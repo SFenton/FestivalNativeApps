@@ -137,9 +137,10 @@ internal static class CachedPageScroll
         if (!page.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, Release)) Release();
     }
 
-    /// <summary>The control to return focus to: the one left when it still shows the same item, otherwise the live
-    /// control with the same automation ID (Songs re-projects its rows on return, and a recycled list container may now
-    /// show another item).</summary>
+    /// <summary>The control to return focus to: the one left when it is still shown with the same item, otherwise the
+    /// shown control with the same automation ID, preferring one bound to the same item. Songs re-projects its rows on
+    /// return; a list may re-realize the item in a new container and keep the old one collapsed (Suggestions, #276); and
+    /// an automation ID can repeat on a page (a song in two Suggestions cards).</summary>
     /// <param name="page">Page shown again by Back.</param>
     /// <param name="left">Focus recorded when the page was left.</param>
     /// <returns>The control, or <see langword="null"/> to leave focus where WinUI put it.</returns>
@@ -148,30 +149,47 @@ internal static class CachedPageScroll
         if (left.Control.TryGetTarget(out var control) && Focusable(control, page)
             && ReferenceEquals(control.DataContext, left.DataContext)
             && AutomationProperties.GetAutomationId(control) == left.AutomationId) return control;
-        return string.IsNullOrEmpty(left.AutomationId) ? null : Find(page, left.AutomationId, page);
+        if (string.IsNullOrEmpty(left.AutomationId)) return null;
+        Control? first = null;
+        return Find(page, left, page, ref first) ?? first;
     }
 
-    /// <summary>Finds a focusable control by automation ID.</summary>
+    /// <summary>Finds a shown, focusable control by automation ID, skipping collapsed subtrees.</summary>
     /// <param name="element">Subtree root.</param>
-    /// <param name="automationId">Automation ID.</param>
+    /// <param name="left">Focus recorded when the page was left.</param>
     /// <param name="page">Owning page.</param>
-    /// <returns>The first match in tree order, or <see langword="null"/>.</returns>
-    private static Control? Find(DependencyObject element, string automationId, Page page)
+    /// <param name="first">The first match in tree order, whatever item it shows.</param>
+    /// <returns>The first match bound to the item left, or <see langword="null"/>.</returns>
+    private static Control? Find(DependencyObject element, LeftFocus left, Page page, ref Control? first)
     {
-        if (element is Control control && AutomationProperties.GetAutomationId(control) == automationId
-            && Focusable(control, page)) return control;
+        if (element is UIElement { Visibility: not Visibility.Visible }) return null;
+        if (element is Control control && AutomationProperties.GetAutomationId(control) == left.AutomationId
+            && Focusable(control, page))
+        {
+            if (ReferenceEquals(control.DataContext, left.DataContext)) return control;
+            first ??= control;
+        }
         var count = VisualTreeHelper.GetChildrenCount(element);
         for (var i = 0; i < count; i++)
-            if (Find(VisualTreeHelper.GetChild(element, i), automationId, page) is { } found) return found;
+            if (Find(VisualTreeHelper.GetChild(element, i), left, page, ref first) is { } found) return found;
         return null;
     }
 
-    /// <summary>Whether a control is live in the page and can take focus.</summary>
+    /// <summary>Whether a control is shown in the page and can take focus.</summary>
     /// <param name="control">Control.</param>
     /// <param name="page">Owning page.</param>
-    /// <returns><see langword="true"/> when loaded, enabled, visible and inside <paramref name="page"/>.</returns>
-    private static bool Focusable(Control control, Page page) =>
-        control is { IsLoaded: true, IsEnabled: true, Visibility: Visibility.Visible } && IsWithin(control, page);
+    /// <returns><see langword="true"/> when loaded and enabled, and it and every ancestor up to <paramref name="page"/>
+    /// are visible.</returns>
+    private static bool Focusable(Control control, Page page)
+    {
+        if (control is not { IsLoaded: true, IsEnabled: true }) return false;
+        for (DependencyObject? node = control; node is not null; node = VisualTreeHelper.GetParent(node))
+        {
+            if (node is UIElement { Visibility: not Visibility.Visible }) return false;
+            if (ReferenceEquals(node, page)) return true;
+        }
+        return false;
+    }
 
     /// <summary>Drops a bring-into-view request while focus returns.</summary>
     /// <param name="sender">Control focus returned to.</param>
