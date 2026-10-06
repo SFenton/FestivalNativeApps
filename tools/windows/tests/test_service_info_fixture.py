@@ -175,6 +175,20 @@ class PagesTests(unittest.TestCase):
         self.assertEqual(m.page_sizes(monotonic, ["compact", "medium", "wide"], "normal"), ["compact"])
         self.assertEqual(m.mode_pages([monotonic], "text-200"), [])
 
+    def test_monotonic_page_proves_each_accepted_count_is_announced_once(self):
+        """Issue #275: listening starts before Settings' first read; kept-back lower reads announce nothing."""
+        monotonic = {p["name"]: p for p in json.loads(PAGES.read_text(encoding="utf-8"))}["settings-service-info-monotonic"]
+        self.assertEqual(monotonic["tab"], "songs")
+        steps = monotonic["after_ready"]
+        self.assertEqual(steps[:2], ["listen:announcements", "key:ctrl+comma"])
+        announced = [uiwin.parse_step(s)["text"] for s in steps if s.startswith("assertannounced:")]
+        self.assertEqual(len(announced), 2)
+        self.assertIn("1,310 attempted this pass", announced[0])
+        self.assertIn("1,400 attempted this pass", announced[1])
+        self.assertEqual(steps[-3:], ["assertannouncedcount:1|~1,310 attempted this pass",
+                                      "assertannouncedcount:1|~1,400 attempted this pass",
+                                      "assertannouncedcount:0|~1,200 attempted this pass"])
+
     def test_loading_page_opens_settings_itself_once_per_run(self):
         """Loading only precedes the first read after Settings opens, and the fixture holds only its first read."""
         loading = {p["name"]: p for p in json.loads(PAGES.read_text(encoding="utf-8"))}["settings-service-info-loading"]

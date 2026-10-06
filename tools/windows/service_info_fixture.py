@@ -16,8 +16,9 @@ State               ``/api/service-info`` answer → card
 ``idle``            Idle worker → "Waiting for the Next Update" · Idle, publication row
 ``discovery``       Band discovery, 24.8% of 5,000 accounts, attempts → bar, attempt line, spoken percent/units
 ``monotonic``       Band discovery whose attempt counts go 1,310 → 1,200 → 1,200 (a lower, older count) → 1,400:
-                    the card keeps 1,310 for the lower reads and shows 1,400 on the fourth (never backwards). The
-                    sequence counts reads per fixture service, so its journey page runs at one size and mode.
+                    the card keeps 1,310 for the lower reads and shows 1,400 on the fourth (never backwards), and
+                    Narrator hears 1,310 and 1,400 once each. The sequence counts reads per fixture service, so its
+                    journey page runs at one size and mode, starts on Songs and opens Settings after listening.
 ``indeterminate``   Updating with no known total → empty track, no attempt line, "Total not yet known" spoken
 ``failed``          Online worker, last update failed → "Last Leaderboard Update Failed" · Idle
 ``stopped``         Offline worker → "Leaderboard Updater Unavailable" · Stopped

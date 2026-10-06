@@ -369,7 +369,7 @@ Evidence: `a11y_matrix.py --scan --pages journeys/a11y-settings-service-info.jso
 - Desert, Night sky, light and dark theme, display 100%, text 200%, and text 200% with display 100%;
 - live public-service screenshots and a recording.
 
-Every run had 0 Axe errors. Fixed: three test IDs sat on elements without a UIA peer (`Border`, `Grid`, `StackPanel`) and are now on the text they identify. The phase row's Narrator name now matches the web's `aria-valuetext` ("Phase. Subphase", "Total not yet known"). Per configuration: [settings/windows.md](../pages/settings/windows.md#validation-service-info-issue-275-2026-10-06).
+Every run had 0 Axe errors. Fixed: three test IDs sat on elements without a UIA peer (`Border`, `Grid`, `StackPanel`) and are now on the text they identify. The phase row's Narrator name now matches the web's `aria-valuetext` ("Phase. Subphase", "Total not yet known"). Narrator now hears each newly accepted attempt count once (a UIA notification, proven with `listen:announcements`); lower, kept-back reads stay silent. Per configuration: [settings/windows.md](../pages/settings/windows.md#validation-service-info-issue-275-2026-10-06).
 
 ## App Navigation validation (issue #225, 2026-10-04)
 

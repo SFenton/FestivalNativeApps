@@ -9,7 +9,7 @@ namespace Festival.Core.ViewModels;
 /// the web's 3 s request timeout, and reduces each read through <see cref="ServiceProgressReducer"/>. A failure after a
 /// success shows the failure rather than silently keeping old progress. Like the web card, percent and units are spoken
 /// on the phase row rather than printed, band discovery adds its attempt line, and the publication row only shows once
-/// a read succeeded.
+/// a read succeeded. Each newly accepted attempt line is announced once (<see cref="ProgressAnnounced"/>).
 /// </summary>
 public sealed partial class SettingsServiceInfoViewModel : ObservableObject
 {
@@ -130,6 +130,13 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
 
     /// <summary>Per-read timeout: <see cref="RequestTimeout"/> unless an automation hook lengthens it (<see cref="ParseTimeoutOverride"/>).</summary>
     public TimeSpan ReadTimeout { get; set; } = RequestTimeout;
+
+    /// <summary>
+    /// Raised once each time a read shows a new band-discovery attempt line (the first one, or a higher count the reducer
+    /// accepted), with the phase row's complete spoken progress (<see cref="PhaseAccessibleName"/>) for Narrator. A read
+    /// whose lower or equal count is kept back, or that leaves the line unchanged, raises nothing (issue #275).
+    /// </summary>
+    public event EventHandler<Announcement>? ProgressAnnounced;
     #endregion
 
     #region Polling
@@ -214,6 +221,7 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
     internal void Apply(ServiceInfoSnapshot snapshot)
     {
         var info = snapshot.Info;
+        var previousAttempt = AttemptText;
         var (display, next) = ServiceProgressReducer.Reduce(memory, info);
         memory = next;
         var updating = info.CurrentUpdate?.Status == "updating";
@@ -237,6 +245,8 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
         SpokenPhaseTitle = phaseTitle is null || phaseTitle == phaseLabel ? null : $"{phaseLabel}. {subphaseLabel}";
         PhaseTitle = phaseTitle;
         LastPublished = ServiceInfoText.LastPublished(info, zone());
+        if (AttemptText is not null && AttemptText != previousAttempt)
+            ProgressAnnounced?.Invoke(this, new Announcement(PhaseAccessibleName, AnnouncementKind.Completed));
     }
 
     /// <summary>Shows the failed state (web "Failed to load data"): the state row only.</summary>

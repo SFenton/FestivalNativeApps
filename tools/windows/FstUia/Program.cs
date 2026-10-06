@@ -779,6 +779,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertannounced":
                 AssertAnnounced(step);
                 break;
+            case "assertannouncedcount":
+                AssertAnnouncedCount(step);
+                break;
             default:
                 throw new ArgumentException($"unknown step {verb}");
         }
@@ -978,6 +981,22 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 throw new InvalidOperationException($"no announcement \"{expected}\"; heard [{string.Join(" | ", announcements)}]");
             Thread.Sleep(100);
         }
+    }
+
+    /// <summary>
+    /// Fails unless exactly the step's count of recorded announcements match its text (exact, or a <c>~</c> regex) so far,
+    /// e.g. a value spoken once and not repeated by later reads.
+    /// </summary>
+    /// <param name="step">Step with <c>count</c> and <c>text</c>.</param>
+    /// <exception cref="InvalidOperationException">No <c>listen</c> step ran, or the count differs.</exception>
+    private void AssertAnnouncedCount(JsonObject step)
+    {
+        if (announcementHandler is null) throw new InvalidOperationException("assertannouncedcount needs an earlier listen:announcements step in the same drive");
+        var expected = (string)step["text"]!;
+        var count = (int)step["count"]!;
+        var heard = announcements.Count(a => StatusMatches(a, expected));
+        if (heard != count)
+            throw new InvalidOperationException($"announcement \"{expected}\" heard {heard} time(s), expected {count}; heard [{string.Join(" | ", announcements)}]");
     }
 
     /// <summary>Whether an ItemStatus equals the expected text, or matches it as a regex when it starts with <c>~</c>.</summary>

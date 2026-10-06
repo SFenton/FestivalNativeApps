@@ -505,7 +505,8 @@
                 </StackPanel>
 
                 <!-- Service Info (web SettingsServiceProgressCard): live update state, phase progress, last publication. Percent and
-                     units are spoken on the phase row rather than printed (web parity); band discovery adds its attempt line. -->
+                     units are spoken on the phase row rather than printed (web parity); band discovery adds its attempt line, and
+                     each newly accepted attempt count is announced once from that line (code-behind, issue #275). -->
                 <StackPanel controls:QuickLinkAnchor.Id="service-info">
                     <TextBlock Text="Service Info" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
                     <TextBlock Text="Live leaderboard update status, exact phase progress when available, and publication timing." Style="{StaticResource SectionSubtitleStyle}" />
@@ -547,7 +548,7 @@
                                 <ProgressBar Height="8" MinHeight="8" CornerRadius="4" Maximum="100" Value="{x:Bind ViewModel.ServiceInfo.BarPercent, Mode=OneWay}"
                                              Foreground="{ThemeResource FSTProgressFillBrush}" Background="{ThemeResource FSTProgressTrackBrush}"
                                              Visibility="{x:Bind ViewModel.ServiceInfo.HasBar, Mode=OneWay}" AutomationProperties.AccessibilityView="Raw" />
-                                <TextBlock Text="{x:Bind ViewModel.ServiceInfo.AttemptText, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}"
+                                <TextBlock x:Name="ServiceAttemptText" Text="{x:Bind ViewModel.ServiceInfo.AttemptText, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}"
                                            Visibility="{x:Bind ViewModel.ServiceInfo.HasAttempt, Mode=OneWay}"
                                            AutomationProperties.AutomationId="fst.settings.service-info.attempt" />
                             </StackPanel>

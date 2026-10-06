@@ -346,6 +346,39 @@ public class SettingsServiceInfoTests
     }
 
     [Fact]
+    public void Apply_AnnouncesEachAcceptedAttemptCountOnce()
+    {
+        var vm = new SettingsServiceInfoViewModel(new FakeService().Client(), new FakeTimeProvider(), () => TimeZoneInfo.Utc);
+        var heard = new List<Announcement>();
+        vm.ProgressAnnounced += (_, announcement) => heard.Add(announcement);
+
+        // No attempt line (another phase): nothing to announce.
+        vm.Apply(new ServiceInfoSnapshot(Info(Updating(sub: Sub(250, 1000, 25))), null));
+        Assert.Empty(heard);
+
+        vm.Apply(new ServiceInfoSnapshot(Info(Discovery(Attempts(12, 1), at: "2026-09-28T15:00:00Z")), null));
+        Assert.Equal([new Announcement(vm.PhaseAccessibleName, AnnouncementKind.Completed)], heard);
+        Assert.Contains("12 attempted this pass", heard[0].Text, StringComparison.Ordinal);
+
+        // A lower (older) count is kept back and an unchanged one is not repeated.
+        vm.Apply(new ServiceInfoSnapshot(Info(Discovery(Attempts(10, 1), at: "2026-09-28T15:00:05Z")), null));
+        vm.Apply(new ServiceInfoSnapshot(Info(Discovery(Attempts(12, 1), at: "2026-09-28T15:00:10Z")), null));
+        Assert.Single(heard);
+
+        vm.Apply(new ServiceInfoSnapshot(Info(Discovery(Attempts(15, 2), at: "2026-09-28T15:00:15Z")), null));
+        Assert.Equal(2, heard.Count);
+        Assert.Equal(vm.PhaseAccessibleName, heard[1].Text);
+        Assert.Contains("15 attempted this pass · 2 temporarily unavailable", heard[1].Text, StringComparison.Ordinal);
+
+        // Leaving discovery is silent; the line coming back is new again.
+        vm.Apply(new ServiceInfoSnapshot(Info(new ServiceCurrentUpdate("idle")), null));
+        vm.ApplyFailure();
+        Assert.Equal(2, heard.Count);
+        vm.Apply(new ServiceInfoSnapshot(Info(Discovery(Attempts(15, 2), at: "2026-09-28T15:00:20Z")), null));
+        Assert.Equal(3, heard.Count);
+    }
+
+    [Fact]
     public async Task Poll_EveryFiveSeconds_UntilStopped()
     {
         var (service, time, paths) = Fake(r => r.RequestUri!.AbsolutePath == "/api/service-info" ? Wire.Ok(UpdatingBody) : null);
