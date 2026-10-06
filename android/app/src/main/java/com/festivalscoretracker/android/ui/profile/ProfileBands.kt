@@ -39,8 +39,8 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 
 /**
  * "{name}'s Bands" (web `PlayerBandsSection`): the first few bands from the keyless
- * `GET /api/player/{id}/bands`, each opening Band Detail, plus "See all" and "View all
- * bands (N)" into Player Bands. The web fills this from player-stats (blocked); one
+ * `GET /api/player/{id}/bands`, each opening Band Detail, plus "View All" and "View All
+ * Bands (N)" into Player Bands. The web fills this from player-stats (blocked); one
  * All-group page replaces its per-size previews.
  *
  * @param state Page state.
@@ -62,7 +62,7 @@ internal fun ProfileBandsSection(state: PlayerProfileUiState, bands: BandsLoad?,
                     color = BrandTokens.textPrimary,
                     modifier = Modifier.weight(1f).semantics { heading() },
                 )
-                SeeAllButton(onClick = { onNavigate(all) }, modifier = Modifier.testTag("fst.player.bands-link"), label = "See All", spokenLabel = "See All ${state.displayName}'s Bands")
+                SeeAllButton(onClick = { onNavigate(all) }, section = "${state.displayName}'s Bands", modifier = Modifier.testTag("fst.player.bands-link"))
             }
             when (bands) {
                 null, BandsLoad.Loading -> FestivalLoading("Loading bands", Modifier.testTag("fst.player.bands.loading"), size = 24.dp)

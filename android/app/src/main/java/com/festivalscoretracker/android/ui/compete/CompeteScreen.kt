@@ -47,7 +47,6 @@ import com.festivalscoretracker.android.core.rankings.RankingNavigation
 import com.festivalscoretracker.android.core.rankings.RankingSpotlight
 import com.festivalscoretracker.android.core.rivals.RivalQuickLinks
 import com.festivalscoretracker.android.core.rivals.RivalRoutes
-import com.festivalscoretracker.android.core.rivals.RivalText
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.compete.CompeteBoard
 import com.festivalscoretracker.android.presentation.compete.CompeteSection
@@ -162,8 +161,8 @@ private fun ScopeHeader(scope: CompeteScope, onSeeAll: (() -> Unit)?, tag: Strin
             color = BrandTokens.textPrimary,
             modifier = Modifier.weight(1f).semantics { heading() },
         )
-        // The shared "See All ›" link (white, bold, chevron; read once as "See All: <scope>").
-        if (onSeeAll != null) SeeAllButton(onClick = onSeeAll, modifier = Modifier.testTag(tag), spokenLabel = "${RivalText.SEE_ALL}: ${scope.label}")
+        // The shared "View All ›" link (white, bold, chevron; read once as "View All: <scope>").
+        if (onSeeAll != null) SeeAllButton(onClick = onSeeAll, section = scope.label, modifier = Modifier.testTag(tag))
     }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val stacked = CompeteHeaderLayout.stacks(maxWidth.value, scope.instruments.size, onSeeAll != null, isLargeText())

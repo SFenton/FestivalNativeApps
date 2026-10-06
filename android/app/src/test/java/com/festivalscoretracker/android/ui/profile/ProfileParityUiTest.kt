@@ -132,6 +132,8 @@ class ProfileParityUiTest {
         journey.tap("fst.quick-links.item.bands")
         journey.waitForTag("fst.player.bands-link")
         rule.onNodeWithTag("fst.player.bands-link").assertIsDisplayed()
+        // Issue #321: the title-row link reads "View All", label first.
+        rule.onNodeWithTag("fst.player.bands-link").assert(hasContentDescription("View All: ", substring = true))
     }
 
     @Test

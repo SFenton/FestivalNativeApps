@@ -154,7 +154,7 @@ fun AllRivalsScreen(viewModel: AllRivalsViewModel) {
 
 /**
  * Rival Detail (`/rivals/:rivalId`, web `RivalDetailPage`): head-to-head summary and
- * the web's six categories as cards of five songs with "See All" into Rivalry.
+ * the web's six categories as cards of five songs with "View All" into Rivalry.
  *
  * @param viewModel Comparison logic.
  * @param route Originating route (forwarded to Rivalry).
