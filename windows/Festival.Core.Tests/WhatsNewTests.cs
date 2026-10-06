@@ -246,6 +246,12 @@ public class WhatsNewTests
         Assert.Empty(Changelog.ResolveEntries(Env, true, _ => throw new UnauthorizedAccessException()));
         Assert.Empty(Changelog.ResolveEntries(Env, true, _ => new MemoryStream("{}"u8.ToArray())));
         Assert.Empty(Changelog.ResolveEntries(_ => Path.Combine(Path.GetTempPath(), $"fst-missing-{Guid.NewGuid():N}.json"), true));
+        // The dialog (launch and Settings replay) presents only when there are blocks: an empty changelog has none on
+        // either channel, and its hash is the never-pending EmptyHash.
+        var empty = Changelog.ResolveEntries(_ => "missing.json", true, Open);
+        Assert.Empty(Changelog.DisplayBlocks(InstallChannel.Store, empty));
+        Assert.Empty(Changelog.DisplayBlocks(InstallChannel.Tester, empty));
+        Assert.Equal(Changelog.EmptyHash, Changelog.Hash(empty));
     }
 
     [Fact]

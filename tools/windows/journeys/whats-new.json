@@ -201,5 +201,27 @@
       "waitfor:id=fst.songs.sort.reset@5",
       "key:esc"
     ]
+  },
+  {
+    "name": "invalid-document-replay-never-presents",
+    "route": "/settings",
+    "preset": "medium",
+    "extra": {"FST_DEBUG_DISTRIBUTION": "tester",
+              "FST_DEBUG_WHATS_NEW_FILE": "{repo}\\tools\\windows\\fixtures\\missing-whats-new.json"},
+    "steps": [
+      "waitfor:id=fst.settings.show-instrument-icons@20",
+      "wait:2",
+      "waitgone:id=fst.whats-new.dialog@1",
+      "scrollinto:id=fst.settings.whats-new",
+      "waitfor:id=fst.settings.whats-new@5",
+      "invoke:id=fst.settings.whats-new",
+      "wait:2",
+      "waitgone:id=fst.whats-new.dialog@1",
+      "focus:id=fst.settings.whats-new",
+      "key:enter",
+      "wait:2",
+      "waitgone:id=fst.whats-new.dialog@1",
+      "assertfocus:id=fst.settings.whats-new@3"
+    ]
   }
 ]

@@ -11,7 +11,7 @@
 | Test document | `Changelog.ResolveEntries`: in Debug/automation launches only (`App.HooksEnabled`), `FST_DEBUG_WHATS_NEW_FILE=<path>` replaces the embedded document; the show-once hash comes from the loaded document, and an unreadable or invalid file gives no entries (never presented). Release launches ignore it. UIA fixture: `tools/windows/fixtures/whats-new-grouped.json` (issue #274) |
 | Dismissal record | `Data/ChangelogSeenStore.cs` → `whats-new.json` in the app data folder (`AppStateFiles.WhatsNew`, kept by Settings Reset); `{version, hash}` ≤ 1 KB, hash ≤ 32, version ≤ 64; invalid → show again |
 | Dialog | `Festival.App/MainWindow.WhatsNew.cs`: `ContentDialog` "What's New · <app version>", Title Case level-2 block headings (`SubtitleTextBlockStyle`), level-3 category headings (`BodyStrongTextBlockStyle`, only when `Headed`) with bullets in a scroller, **Dismiss** (close button spanning the command row, centred like the web's full-width button; Esc and a click outside also dismiss and record; operator batch 6.14). The notes scroller is a named tab stop that opens focused, so arrow and Page keys scroll long notes (issue #235). Its height is the window less 240 epx and refits while the dialog is open. IDs `fst.whats-new.dialog`, `fst.whats-new.list` (the scroller, named after the title), `fst.whats-new.dismiss`, `fst.whats-new.section.{b}` and `fst.whats-new.group.{b}.{g}` (headings) |
-| Replay | Settings → Version → **What's New · Show** (`fst.settings.whats-new`) → `MainWindow.ShowWhatsNew()` |
+| Replay | Settings → Version → **What's New · Show** (`fst.settings.whats-new`) → `MainWindow.ShowWhatsNew()`; with no displayable blocks (empty or invalid document) it presents nothing and records nothing |
 
 ## Gate and ordering
 
@@ -62,6 +62,9 @@ The #235 journeys only saw the checked-in placeholder (one ungrouped bullet), so
 | `store-grouped-headings` | store channel: "Version 2610.09.01" with its groups and "Other" last; no tester block |
 | `replay-tester-grouped` | Settings replay at compact shows the same tester block |
 | `invalid-document-never-presents` | an invalid document gives no entries, so the forced dialog never opens |
+| `invalid-document-replay-never-presents` | with the same invalid document, Settings → What's New · Show (invoked, then Enter) opens nothing and focus stays on the row |
+
+Fixed after the #317 design review: the Settings replay called `ShowWhatsNewAsync` directly, which built the dialog even with no blocks, so an empty changelog presented an empty dialog and recorded `EmptyHash`. `ShowWhatsNewAsync` now computes `Changelog.DisplayBlocks` first and returns before opening or recording anything when it is empty, for launch and replay alike (spec: "an empty changelog never presents"). The release build always embeds a generated non-empty document, so the Show row stays enabled rather than adding a disabled state that release users never reach.
 
 Matrix pages `whats-new-tester-grouped`, `whats-new-store-grouped` and `kb-whats-new-tester-grouped` (Tab/Shift+Tab, End reaches 100%, Home returns to 0, Esc) in `journeys/a11y-whats-new.json`:
 
@@ -75,7 +78,7 @@ Matrix pages `whats-new-tester-grouped`, `whats-new-store-grouped` and `kb-whats
 | Keyboard | the notes open focused; End/Home scroll the whole grouped list; Tab/Shift+Tab/Esc as in #235 |
 | Live service | a document generated with `versioning.py whats-new --tag windows/v2610.06.07` (102 tester notes in 17 groups) shows "Changes So Far", Songs … General, then Other, on tester; and "Version 2610.06.07" on store, at every size |
 
-No product defect was found: the grouping and channel code from #80 was already right, and #274 adds the test path and coverage only.
+The grouping and channel code from #80 was already right; #274 adds the test path and coverage, plus the empty-replay fix above.
 
 ## Open
 

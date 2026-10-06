@@ -92,12 +92,15 @@ public sealed partial class MainWindow
     private async Task ShowWhatsNewAsync()
     {
         if (whatsNewOpen) return;
+        // An empty changelog never presents, from launch or the Settings replay, and records no dismissal (spec).
+        var blocks = Changelog.DisplayBlocks(whatsNewChannel, whatsNewEntries);
+        if (blocks.Count == 0) return;
         whatsNewOpen = true;
         try
         {
             // Dismiss spans the command row, centred like the web's full-width button (operator batch 6.14).
             var title = WhatsNewGate.Title(AppVersion);
-            var notes = WhatsNewContent(Changelog.DisplayBlocks(whatsNewChannel, whatsNewEntries), title);
+            var notes = WhatsNewContent(blocks, title);
             var dialog = Controls.FestivalDialog.Create(
                 RootGrid.XamlRoot,
                 title,
