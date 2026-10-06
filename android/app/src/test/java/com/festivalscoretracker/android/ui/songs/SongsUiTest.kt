@@ -148,6 +148,7 @@ class SongsUiTest {
         }
         launch(DebugLaunch(stillBackground = true), transport = transport)
         waitForTag("fst.songs.row.s-gamma")
+        rule.onNodeWithTag("fst.songs.filter.open").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "No filters"))
         click("fst.songs.filter.open")
         waitForTag("fst.songs.filter.general")
         // No profile: only General (web 6415d3e3); score and Selected Instrument filters are hidden.

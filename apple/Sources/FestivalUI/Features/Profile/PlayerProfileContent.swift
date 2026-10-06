@@ -210,7 +210,7 @@ struct PlayerProfileContent: View {
 
     var body: some View {
         content
-            .navigationTitle(displayName)
+            .festivalNavigationTitle(displayName)
             #if os(iOS)
             .navigationBarTitleDisplayMode(.large)
             #endif

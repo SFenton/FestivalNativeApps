@@ -98,6 +98,40 @@ class SongsAccessibilityJourneyTest {
         h.assertAccessible()
     }
 
+    /**
+     * Songs Filter without a profile (issue #181): only General, every group expanded, ATF over
+     * the bucket switches and Select All / Clear All, nothing across a separating hinge
+     * (`--posture half`), and the Filter button speaking its applied state.
+     */
+    @Test
+    fun anonymousFilterShowsOnlyGeneralAndSpeaksItsState() {
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(stillBackground = true), transport)
+        h.waitForTag("fst.songs.list")
+        rule.onNodeWithTag("fst.songs.filter.open").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "No filters"))
+        h.tap("fst.songs.filter.open")
+        h.waitForTag("fst.songs.filter.general")
+        assertEquals(0, rule.onAllNodesWithTag("fst.songs.filter.score-sections").fetchSemanticsNodes().size)
+        for (group in listOf("fst.songs.filter.year", "fst.songs.filter.duration", "fst.songs.filter.shop", "fst.songs.filter.double-bass")) {
+            h.scrollTo("fst.songs.filter.form", group)
+            h.tap(group)
+        }
+        h.scrollTo("fst.songs.filter.form", "fst.songs.filter.double-bass.unsupported")
+        h.tap("fst.songs.filter.double-bass.unsupported")
+        h.readingOrder("songs-filter-anonymous")
+        h.assertNothingStraddles("fst.songs.filter", "fst.songs.filter.form", "fst.songs.filter.done", "fst.songs.filter.double-bass.supported")
+        h.tap("fst.songs.filter.done")
+        h.waitGone("fst.songs.filter.form")
+        rule.onNodeWithTag("fst.songs.filter.open").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Filters on: Double Bass"))
+        h.readingOrder("songs-filtered-anonymous")
+        h.tap("fst.songs.filter.open")
+        h.waitForTag("fst.songs.filter.reset")
+        h.tap("fst.songs.filter.reset")
+        h.tap("fst.songs.filter.done")
+        h.waitGone("fst.songs.filter.form")
+        h.assertAccessible()
+    }
+
     /** Sort states on a device (issue #125): live mode/direction/Reset, Item Shop sections and the spoken sort state. */
     @Test
     fun songsSortStates() {

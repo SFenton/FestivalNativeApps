@@ -18,6 +18,13 @@ import FestivalCore
 /// metric, instrument or sort. The content is rebuilt (`.id`) for each reveal, which restarts
 /// `festivalFadeIn` staggers and scroll position (web resets scroll on these reloads).
 ///
+/// A page whose header shares the rows' scroll view (the song leaderboard's song header,
+/// issue #316) uses the **retained-frame** initializer instead: the content builder is
+/// called from the first reveal on, with a ``FestivalReloadReveal`` saying whether the
+/// result may show. The frame (scroll view and header) fades in with the first load and
+/// then stays put; only the result inside it leaves and returns, as the web keeps
+/// `SongInfoHeader` outside its `LoadGate` (load-transition R4).
+///
 /// Reduce Motion (system or in-app) and `festivalFadeInEnabled == false` swap instantly;
 /// with Reduce Motion the spinner still holds 400 ms so it never blinks.
 struct FestivalReloadGate<Key: Equatable, Content: View>: View {
@@ -32,8 +39,11 @@ struct FestivalReloadGate<Key: Equatable, Content: View>: View {
     /// Called in the update that reveals content, before it is built (e.g. to open a
     /// time-based stagger window).
     let onReveal: (() -> Void)?
+    /// Keep the content built from the first reveal on, passing it whether the result
+    /// may show, instead of removing it for each reload.
+    let retainsFrame: Bool
     /// The loaded content (or its empty/error state).
-    @ViewBuilder let content: () -> Content
+    let content: (FestivalReloadReveal) -> Content
 
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @Environment(\.festivalFadeInEnabled) private var fadeEnabled
@@ -60,6 +70,34 @@ struct FestivalReloadGate<Key: Equatable, Content: View>: View {
         self.spinnerLabel = spinnerLabel
         self.spinnerIdentifier = spinnerIdentifier
         self.onReveal = onReveal
+        retainsFrame = false
+        self.content = { _ in content() }
+        _transition = State(initialValue: ReloadTransition(isLoading: isLoading))
+        _shownKey = State(initialValue: key)
+    }
+
+    /// A gate that keeps its frame (scroll view and page header) from the first reveal
+    /// on, and swaps only the result inside it (issue #316).
+    ///
+    /// - Parameters:
+    ///   - key: What is selected; a change starts a reload of the result only.
+    ///   - isLoading: Whether the data for `key` is still loading.
+    ///   - spinnerLabel: VoiceOver label for the spinner.
+    ///   - spinnerIdentifier: Accessibility identifier for the spinner, for UI tests.
+    ///   - onReveal: Called in the update that reveals content, before it is built.
+    ///   - content: The frame, built from the first reveal on; it shows its result
+    ///     (rows, empty or error state) only while ``FestivalReloadReveal/showsResult``.
+    init(
+        key: Key, isLoading: Bool, spinnerLabel: String = "Loading", spinnerIdentifier: String? = nil,
+        onReveal: (() -> Void)? = nil,
+        @ViewBuilder retainingFrame content: @escaping (FestivalReloadReveal) -> Content
+    ) {
+        self.key = key
+        self.isLoading = isLoading
+        self.spinnerLabel = spinnerLabel
+        self.spinnerIdentifier = spinnerIdentifier
+        self.onReveal = onReveal
+        retainsFrame = true
         self.content = content
         _transition = State(initialValue: ReloadTransition(isLoading: isLoading))
         _shownKey = State(initialValue: key)
@@ -75,9 +113,18 @@ struct FestivalReloadGate<Key: Equatable, Content: View>: View {
     var body: some View {
         // A key that arrived in this update hides the content now, before `onChange` runs.
         let keyPending = key != shownKey
+        let showsResult = transition.showsContent && !keyPending
         ZStack {
-            if transition.showsContent && !keyPending {
-                content()
+            if retainsFrame {
+                if transition.hasShownContent {
+                    // The frame fades in with the first reveal only; the result inside
+                    // it leaves at once on a new key (no inherited spinner fade).
+                    content(FestivalReloadReveal(showsResult: showsResult, generation: transition.generation))
+                        .animation(nil, value: key)
+                        .transition(.asymmetric(insertion: .opacity, removal: .identity))
+                }
+            } else if showsResult {
+                content(FestivalReloadReveal(showsResult: true, generation: transition.generation))
                     .id(transition.generation)
                     .transition(.asymmetric(insertion: .opacity, removal: .identity))
             }
@@ -85,6 +132,8 @@ struct FestivalReloadGate<Key: Equatable, Content: View>: View {
                 FestivalLoadingView(accessibilityLabel: spinnerLabel)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .accessibilityIdentifier(spinnerIdentifier ?? "")
+                    // Over a retained frame the spinner must not block its header.
+                    .allowsHitTesting(!retainsFrame)
                     .transition(.opacity)
             }
         }
@@ -160,4 +209,15 @@ struct FestivalReloadGate<Key: Equatable, Content: View>: View {
     private static func seconds(_ duration: Duration) -> Double {
         Double(duration.components.seconds) + Double(duration.components.attoseconds) / 1e18
     }
+}
+
+// MARK: - FestivalReloadReveal
+
+/// What a retained-frame ``FestivalReloadGate`` tells its content (issue #316).
+struct FestivalReloadReveal: Equatable {
+    /// Whether the result (rows, empty or error state) may show now; false from a new
+    /// key or refetch until the spinner has faded out.
+    let showsResult: Bool
+    /// Bumps for every reveal; identity for a result that must be rebuilt.
+    let generation: Int
 }

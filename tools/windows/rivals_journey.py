@@ -31,6 +31,8 @@ UIWIN = ROOT / "tools" / "windows" / "uiwin.py"
 EXE = journey_exe.DEBUG_EXE
 RIVAL = "f1c749eb07c32578cfa3e59ec38c03a8"
 LEADERBOARD_RIVAL = "f1c71052e0052ae7143f3b3c750f2f49"  # rank 2 in contracts/fixtures/leaderboard-rivals-demo.json
+# Narrator name of RIVAL's row (rivals-list-demo.json, renamed by rivals_fixture.py): ahead/behind, never a shared count (#67, #267).
+RIVAL_NAME = "Demo Rival 1, ahead of you, 128 songs ahead, 243 songs behind"
 
 # name -> (environment, route, steps). {shot:NAME} placeholders become screenshots when --shots is given.
 SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
@@ -40,6 +42,7 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
         [
             "waitfor:id=fst.rivals.section.common@20",
             f"waitfor:id=fst.rivals.row.{RIVAL}@10",
+            f"assertname:id=fst.rivals.row.{RIVAL}|{RIVAL_NAME}",
             "{shot:hub}",
             "select:id=fst.rivals.tab.leaderboard",
             "waitfor:id=fst.rivals.section.leaderboard.Solo_Guitar@10",
@@ -48,11 +51,11 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
             "{shot:hub-leaderboard}",
             "select:id=fst.rivals.tab.song",
             "waitfor:id=fst.rivals.section.common@10",
-            f"click:id=fst.rivals.row.{RIVAL}",
+            f"invoke:id=fst.rivals.row.{RIVAL}",
             "waitfor:id=fst.rival-detail.category.closest_battles@15",
             "waitfor:id=fst.rival-detail.view-profile@10",
             "{shot:detail}",
-            "click:id=fst.rival-detail.see-all",
+            "invoke:id=fst.rival-detail.see-all",
             "waitfor:id=fst.rivalry.list@15",
             "waitfor:id=fst.rivalry.song.fixture-pulse.Solo_Guitar@10",
             "expand:id=fst.rivalry.sort",
@@ -64,9 +67,10 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
             "waitfor:id=fst.rival-detail.title@10",
             "key:alt+left",
             "waitfor:id=fst.rivals.see-all@10",
-            "click:id=fst.rivals.see-all",
+            "invoke:id=fst.rivals.see-all",
             "waitfor:id=fst.all-rivals.list@15",
             f"waitfor:id=fst.all-rivals.row.{RIVAL}@10",
+            f"assertname:id=fst.all-rivals.row.{RIVAL}|{RIVAL_NAME}",
             "{shot:all-rivals}",
         ],
     ),
@@ -105,6 +109,35 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
             "{shot:quick-links-wide}",
         ],
     ),
+    # View All Rivals is the shared accent View all button (issue #268): a UIA Button whose name starts with its visible
+    # label, one per card with its own ID, on both tabs; it opens All Rivals for the card's scope and Back returns.
+    "view-all": (
+        {"FST_DEBUG_PROFILE": "fixture-player-1:Demo Player"},
+        "/rivals",
+        [
+            "waitfor:id=fst.rivals.section.common@20",
+            "scrollinto:id=fst.rivals.section.common.view-all@10",
+            "assertstate:id=fst.rivals.section.common.view-all|type=button",
+            "assertstate:id=fst.rivals.section.common.view-all|name=View All Rivals, Common Rivals",
+            "assertstate:id=fst.rivals.section.common.view-all|invoke=true",
+            "assertstate:id=fst.rivals.section.common.view-all|focusable=true",
+            "scrollinto:id=fst.rivals.section.Solo_Guitar.view-all@10",
+            "assertstate:id=fst.rivals.section.Solo_Guitar.view-all|name=View All Rivals, Lead Rivals",
+            "{shot:view-all}",
+            "invoke:id=fst.rivals.section.Solo_Guitar.view-all",
+            "waitfor:id=fst.all-rivals.list@15",
+            f"waitfor:id=fst.all-rivals.row.{RIVAL}@10",
+            "key:alt+left",
+            "waitfor:id=fst.rivals.section.Solo_Guitar.view-all@10",
+            "select:id=fst.rivals.tab.leaderboard",
+            "scrollinto:id=fst.rivals.section.leaderboard.Solo_Guitar.view-all@10",
+            "assertstate:id=fst.rivals.section.leaderboard.Solo_Guitar.view-all|name=View All Rivals, Lead Rivals",
+            "{shot:view-all-leaderboard}",
+            "invoke:id=fst.rivals.section.leaderboard.Solo_Guitar.view-all",
+            "waitfor:id=fst.all-rivals.list@15",
+            "waitfor:name=Ranked by Total Score · You are #1@10",
+        ],
+    ),
     "compete": (
         {"FST_DEBUG_PROFILE": "fixture-player-1:Demo Player"},
         "/compete",
@@ -132,7 +165,7 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
             "assertstate:id=fst.rivals.section.Solo_Guitar.loading|name=Busy Loading Lead Rivals",
             # assertstate also reads cards scrolled out of view.
             "assertstate:id=fst.rivals.section.Solo_PeripheralDrums.loading|name=Busy Loading Pro Drums Rivals",
-            "waitgone:id=fst.rivals.view-all@2",
+            "waitgone:id=fst.rivals.section.common.view-all@2",
             "{shot:loading}",
             # Four reads run at a time, so Lead (first wave) settles while Common Rivals, which needs every list,
             # keeps its ring: sections load independently.
@@ -347,7 +380,7 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=18743)
     parser.add_argument("--shots", type=Path)
     parser.add_argument("--only", help=f"comma-separated scenarios ({', '.join(SCENARIOS)})")
-    parser.add_argument("--sizes", default="medium", help="comma-separated presets for the populated journey")
+    parser.add_argument("--sizes", default="medium", help="comma-separated presets for the populated and view-all journeys")
     journey_exe.add_argument(parser)
     options = parser.parse_args()
     names = options.only.split(",") if options.only else list(SCENARIOS)
@@ -366,7 +399,7 @@ def main() -> int:
         if options.shots:
             options.shots.mkdir(parents=True, exist_ok=True)
         for name in names:
-            sizes = options.sizes.split(",") if name == "populated" else ["medium"]
+            sizes = options.sizes.split(",") if name in ("populated", "view-all") else ["medium"]
             for size in sizes:
                 try:
                     run(name, options.port, options.shots, size, options.exe)

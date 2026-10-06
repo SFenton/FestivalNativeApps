@@ -56,7 +56,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -69,7 +68,6 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -448,9 +446,9 @@ private fun VersionSection(
     GlassCard(Modifier.fillMaxWidth()) {
         AppVersionRow()
         Divider()
-        ValueRow("Build", if (debug) "Debug" else "Release", "fst.settings.build")
+        SettingsValueRow("Build", if (debug) "Debug" else "Release", "fst.settings.build")
         Divider()
-        ValueRow(
+        SettingsValueRow(
             "Service Version",
             when (serviceVersion) {
                 ServiceVersionState.Loading -> "Loading"
@@ -460,7 +458,7 @@ private fun VersionSection(
             "fst.settings.service-version",
         )
         Divider()
-        ValueRow("Service", serviceOrigin, "fst.settings.service-origin")
+        SettingsValueRow("Service", serviceOrigin, "fst.settings.service-origin")
         Divider()
         whatsNew()
     }
@@ -574,57 +572,7 @@ private fun ToggleRow(
 internal fun AppVersionRow(
     versionText: String = AppBuildInfo.versionText(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, BuildConfig.GIT_SHA),
 ) {
-    ValueRow("App Version", versionText, "fst.settings.app-version")
-}
-
-/**
- * A read-only "title … value" row (Version section). The value sits at the end of the title's
- * line when both fit at their natural widths; otherwise (large text, narrow panes, the long
- * service origin) it stacks under the title, so neither is squeezed into a one-letter column
- * (issue #121).
- *
- * @param title Row label.
- * @param value Trailing value.
- * @param tag Test tag of the merged row.
- */
-@Composable
-private fun ValueRow(title: String, value: String, tag: String) {
-    Layout(
-        content = {
-            Text(title, color = BrandTokens.textPrimary)
-            Text(value, color = BrandTokens.textSecondary)
-        },
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 48.dp)
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .testTag(tag)
-            .semantics(mergeDescendants = true) {},
-    ) { measurables, constraints ->
-        val (titleText, valueText) = measurables
-        val width = constraints.maxWidth
-        val gap = 12.dp.roundToPx()
-        val titleWidth = titleText.maxIntrinsicWidth(Constraints.Infinity)
-        val valueWidth = valueText.maxIntrinsicWidth(Constraints.Infinity)
-        if (titleWidth + gap + valueWidth <= width) {
-            val valuePlaceable = valueText.measure(Constraints(maxWidth = valueWidth))
-            val titlePlaceable = titleText.measure(Constraints(maxWidth = width - gap - valuePlaceable.width))
-            val height = maxOf(constraints.minHeight, titlePlaceable.height, valuePlaceable.height)
-            layout(width, height) {
-                titlePlaceable.placeRelative(0, (height - titlePlaceable.height) / 2)
-                valuePlaceable.placeRelative(width - valuePlaceable.width, (height - valuePlaceable.height) / 2)
-            }
-        } else {
-            val titlePlaceable = titleText.measure(Constraints(maxWidth = width))
-            val valuePlaceable = valueText.measure(Constraints(maxWidth = width))
-            val stackGap = 4.dp.roundToPx()
-            val height = maxOf(constraints.minHeight, titlePlaceable.height + stackGap + valuePlaceable.height)
-            layout(width, height) {
-                titlePlaceable.placeRelative(0, 0)
-                valuePlaceable.placeRelative(0, titlePlaceable.height + stackGap)
-            }
-        }
-    }
+    SettingsValueRow("App Version", versionText, "fst.settings.app-version")
 }
 
 /**

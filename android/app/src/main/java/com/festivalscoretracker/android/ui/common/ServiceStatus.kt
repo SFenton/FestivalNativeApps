@@ -32,13 +32,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.absolutePadding
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -192,7 +192,7 @@ fun ServiceStatusView(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
 ) {
-    var origin by remember { mutableStateOf(Offset.Unspecified) }
+    var origin by rememberMeasuredOffset(Offset.Unspecified)
     BoxWithConstraints(modifier.fillMaxSize().padding(contentPadding).onGloballyPositioned { origin = it.positionInWindow() }) {
         val side = rememberHingeSide(origin, constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
         val density = LocalDensity.current
@@ -224,7 +224,7 @@ fun ServiceStatusView(
 @Composable
 private fun rememberHingeSide(origin: Offset, width: Float, height: Float): HingeSide.Padding {
     if (!origin.isSpecified) return HingeSide.Padding.NONE
-    val posture = LocalShellPosture.current ?: currentWindowAdaptiveInfo().windowPosture
+    val posture = shellPosture()
     val hinge = posture.hingeList.firstOrNull { it.isSeparating } ?: return HingeSide.Padding.NONE
     val b = hinge.bounds
     return serviceStatusHingeSide(
@@ -295,15 +295,22 @@ private fun ServiceStatusContent(issue: ServiceIssue, fallbackTitle: String, cou
  */
 @Composable
 private fun ServiceStatusIcon(issue: ServiceIssue) {
-    val iconModifier = if (serviceStatusPulses(issue, LocalFestivalAccessibility.current.reduceMotion)) {
+    // A modal over the page holds the pulse still (`modal-shell` R10).
+    val pulses = serviceStatusPulses(issue, LocalFestivalAccessibility.current.reduceMotion) && !coveredByModal()
+    val probe = LocalMotionProbe.current
+    val iconModifier = if (pulses) {
         val alpha = rememberInfiniteTransition(label = "service-status-pulse").animateFloat(
             initialValue = 1f,
             targetValue = 0.4f,
             animationSpec = infiniteRepeatable(tween(durationMillis = 1000), RepeatMode.Reverse),
             label = "service-status-pulse-alpha",
         )
+        if (probe != null) {
+            LaunchedEffect(alpha, probe) { snapshotFlow { alpha.value }.collect { probe(MotionProbes.SERVICE_STATUS_PULSE, it) } }
+        }
         Modifier.graphicsLayer { this.alpha = alpha.value }
     } else {
+        if (probe != null) SideEffect { probe(MotionProbes.SERVICE_STATUS_PULSE, 1f) }
         Modifier
     }
     Icon(serviceStatusIcon(issue), contentDescription = null, tint = serviceStatusIconTint(issue), modifier = iconModifier.size(40.dp))

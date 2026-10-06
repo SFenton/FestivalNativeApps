@@ -92,6 +92,6 @@ struct ProfileIdentityToolbarItem: ToolbarContent {
         .accessibilityIdentifier(isEnabled ? action.accessibilityIdentifier : action.accessibilityIdentifier + ".pending")
         .disabled(!isEnabled)
         base.buttonStyle(.borderedProminent)
-            .tint(action.isDestructive ? BrandTokens.statusRed : BrandTokens.accentBlue)
+            .tint(action.isDestructive ? BrandTokens.statusRed : AccentText.prominentFill)
     }
 }

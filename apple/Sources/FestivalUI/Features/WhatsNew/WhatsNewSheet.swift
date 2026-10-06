@@ -75,7 +75,7 @@ struct WhatsNewSheet: View {
                 .padding(.vertical, 6)
         }
         .buttonStyle(.borderedProminent)
-        .tint(BrandTokens.accentBlue)
+        .tint(AccentText.prominentFill)
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity)

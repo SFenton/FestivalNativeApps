@@ -54,6 +54,7 @@ struct FestivalBackgroundModifier: ViewModifier {
             .background {
                 if SplitPaneChrome.drawsOwnBackdrop(sharedBySplit: sharedBySplit) {
                     FestivalBackdropView(coordinator: coordinator, appeared: appeared)
+                        .accessibilityHidden(true)
                 }
             }
             .onAppear {
