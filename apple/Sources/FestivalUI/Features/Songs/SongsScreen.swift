@@ -20,6 +20,13 @@ enum FestivalDebugLaunch {
         let value = ProcessInfo.processInfo.environment["FST_DEBUG_SONG_BAND"]
         return (value?.isEmpty ?? true) ? nil : value
     }
+
+    /// `FST_DEBUG_SONG_INSTRUMENT=<instrument rawValue>` (e.g. `Solo_Guitar`) with
+    /// `FST_DEBUG_SONG` pushes that song's solo Song Leaderboard (page 1) instead of its
+    /// Detail page, so its song header can be captured directly (issue #315).
+    static var songInstrument: Instrument? {
+        ProcessInfo.processInfo.environment["FST_DEBUG_SONG_INSTRUMENT"].flatMap(Instrument.init(rawValue:))
+    }
 }
 #endif
 
@@ -522,6 +529,12 @@ struct SongsScreen: View {
             if let bandType = FestivalDebugLaunch.songBandType {
                 SongBandLeaderboardScreen(session: session, song: song, bandType: bandType)
                     .pageTrailingItems()
+            } else if let instrument = FestivalDebugLaunch.songInstrument {
+                SoloLeaderboardScreen(
+                    song: song, instrument: instrument, session: session,
+                    initialPage: 1, path: .constant([])
+                )
+                .pageTrailingItems()
             } else {
                 SongDetailScreen(song: song, session: session, visibleInstruments: visibleInstruments)
                     .pageTrailingItems()
