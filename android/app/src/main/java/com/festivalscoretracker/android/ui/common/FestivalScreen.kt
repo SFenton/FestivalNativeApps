@@ -141,7 +141,8 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
  *   so the shell lifts the floating toolbar above the on-screen keyboard (Songs search, issue #84).
  * @param actionsReadFirst On compact windows, TalkBack and keyboard focus reach the floating toolbar
  *   holding [actions] right after the top app bar instead of after the content: an endless feed
- *   (Suggestions) never ends, so a toolbar read last is unreachable by swiping (issue #112).
+ *   (Suggestions) never ends, so a toolbar read last is unreachable by swiping (issue #112); a
+ *   ~700-row list (Songs) is effectively the same (issue #160).
  * @param scrolled Content sits under the bar. No visual effect since batch 6.20 (the bar stays
  *   transparent); kept so screens can still report it without churn.
  * @param titleIcon Decorative icon drawn before the title (Instrument Leaderboards, issue #294),

@@ -150,10 +150,51 @@ class MockServiceTests(unittest.TestCase):
         with urlopen(self.base + "/api/leaderboard/fixture-pulse/bands/all?top=10"
                      "&accountId=fixture-player-1") as response:
             selected = json.load(response)["bands"][0]["selectedPlayerEntry"]
-        self.assertEqual(selected["rank"], 14)
+        self.assertEqual(selected["rank"], 29)
         self.assertEqual(selected["members"][0]["accountId"], "fixture-player-1")
         with self.assertRaises(HTTPError) as error:
             urlopen(self.base + "/api/leaderboard/fixture-pulse/bands/all?top=51")
+        self.assertEqual(error.exception.code, 400)
+
+    def test_song_band_board_holds_the_appended_band_at_its_rank(self):
+        """The full Duos board lists the rank-29 band Song Detail appends on page 2 and
+        returns it as `selectedPlayerEntry` for the pinned footer (issue #307)."""
+        board = "/api/leaderboard/fixture-pulse/bands/Band_Duets?top=25"
+        with urlopen(self.base + board + "&offset=0") as response:
+            first = json.load(response)
+        self.assertEqual(first["totalEntries"], 29)
+        self.assertEqual([e["rank"] for e in first["entries"]], list(range(1, 26)))
+        self.assertIsNone(first["selectedPlayerEntry"])
+        with urlopen(self.base + board + "&offset=25&accountId=fixture-player-1") as response:
+            second = json.load(response)
+        self.assertEqual([e["rank"] for e in second["entries"]], [26, 27, 28, 29])
+        self.assertEqual(second["entries"][-1]["bandId"], "fixture-band-fixture-player-1")
+        self.assertEqual(second["selectedPlayerEntry"], second["entries"][-1])
+        self.assertIsNone(second["selectedBandEntry"])
+        with urlopen(self.base + "/api/leaderboard/fixture-pulse/bands/all?top=10"
+                     "&accountId=fixture-player-1") as response:
+            duets = json.load(response)["bands"][0]
+        self.assertEqual(duets["selectedPlayerEntry"], second["entries"][-1])
+        with self.assertRaises(HTTPError) as error:
+            urlopen(self.base + board + "&offset=0&accountId=a&accountId=b")
+        self.assertEqual(error.exception.code, 400)
+
+    def test_song_band_page_returns_the_selected_players_band_for_the_footer(self):
+        """`/bands/{bandType}?accountId=` adds the player's band; no player or no rows adds none."""
+        path = "/api/leaderboard/fixture-pulse/bands/Band_Duets?top=25&offset=0"
+        with urlopen(self.base + path) as response:
+            self.assertIsNone(json.load(response)["selectedPlayerEntry"])
+        with urlopen(self.base + path + "&accountId=fixture-player-1") as response:
+            body = json.load(response)
+        selected = body["selectedPlayerEntry"]
+        self.assertEqual((selected["rank"], selected["bandType"]), (29, "Band_Duets"))
+        self.assertEqual(selected["members"][0]["accountId"], "fixture-player-1")
+        self.assertEqual(body["totalEntries"], 29)
+        with urlopen(self.base + "/api/leaderboard/fixture-pulse/bands/Band_Trios?top=25&offset=0"
+                     "&accountId=fixture-player-1") as response:
+            self.assertIsNone(json.load(response)["selectedPlayerEntry"])
+        with self.assertRaises(HTTPError) as error:
+            urlopen(self.base + path + "&accountId=fixture-player-1&accountId=fixture-player-2")
         self.assertEqual(error.exception.code, 400)
 
     def test_large_rankings_mode_pages_deep_and_keeps_default_small(self):

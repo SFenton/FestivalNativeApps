@@ -42,6 +42,14 @@ extension IPadAccessibilityAuditTests {
             if predictions.exists { frame = frame.union(predictions.frame) }
             containers[IPadAuditWaivers.keyboardContainer] = frame
         }
+        // The top navigation bars (one per split pane): the system caps the text size of
+        // what a bar hosts (``IPadAuditWaivers`` `system-bar-title-size`).
+        let window = app.windows.firstMatch.frame
+        let bars = app.navigationBars.allElementsBoundByIndex
+            .map(\.frame).filter { $0.height > 0 && $0.maxY < window.midY }
+        if let first = bars.first {
+            containers[IPadAuditWaivers.navigationBarContainer] = bars.dropFirst().reduce(first) { $0.union($1) }
+        }
         let content = IPadAuditPageEvidence.contentRect(app)
         // The comparison launch is AX5 (the claims are about larger sizes), or the default
         // size when the audit itself ran at AX5.
@@ -159,7 +167,11 @@ extension IPadAccessibilityAuditTests {
                 // both; otherwise frame heights (never one of each).
                 let otherLines = otherShot.map(IPadAuditPageEvidence.recognizedLines(in:)) ?? []
                 let sizeRatio = { (audited: CGRect, compared: CGRect, label: String) -> Double? in
-                    if let a = IPadAuditPageEvidence.textHeight(in: audited, label: label, lines: lines),
+                    // Vision's box for a one- or two-letter lowercase word is not a glyph
+                    // height (Rival Detail's "vs": 24 → 48 pt frames, 2.0×, read as 1.2×
+                    // from the boxes); such labels compare their own frames.
+                    let short = label.trimmingCharacters(in: .whitespaces).count < 3
+                    if !short, let a = IPadAuditPageEvidence.textHeight(in: audited, label: label, lines: lines),
                        let c = IPadAuditPageEvidence.textHeight(in: compared, label: label, lines: otherLines), a > 0 {
                         return growth(a, c)
                     }
@@ -193,7 +205,8 @@ extension IPadAccessibilityAuditTests {
                 }
                 for index in heuristic where findings[index].text?.growth == nil
                     || (comparisonSize == .accessibilityExtraExtraExtraLarge && isClipped(index)) {
-                    guard let locator = locators[index], let element = locator.resolve(in: other, within: otherContent) else {
+                    guard let locator = locators[index],
+                          let element = locator.resolve(in: other, within: otherContent, fallbackX: frames[index].midX) else {
                         findings[index].text?.missing = "element not found in the comparison launch"
                         continue
                     }

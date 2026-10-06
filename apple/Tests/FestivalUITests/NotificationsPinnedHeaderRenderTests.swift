@@ -124,34 +124,6 @@ private func listScrollView(in view: NSView) -> NSScrollView? {
     return nil
 }
 
-/// Bright (text/glyph) samples inside `rect`, in host points, of a capture of `host`.
-@MainActor
-private func brightSamples(in rect: CGRect, of image: CGImage, hostSize: CGSize) -> Int {
-    let width = image.width, height = image.height
-    var bytes = [UInt8](repeating: 0, count: width * height * 4)
-    let drawn = bytes.withUnsafeMutableBytes { buffer -> Bool in
-        guard let context = CGContext(
-            data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8,
-            bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return false }
-        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
-        return true
-    }
-    guard drawn else { return 0 }
-    let scale = CGFloat(width) / hostSize.width
-    let minX = max(0, Int(rect.minX * scale)), maxX = min(width, Int(rect.maxX * scale))
-    let minY = max(0, Int(rect.minY * scale)), maxY = min(height, Int(rect.maxY * scale))
-    var count = 0
-    for y in stride(from: minY, to: maxY, by: 2) {
-        for x in stride(from: minX, to: maxX, by: 2) {
-            let pixel = (y * width + x) * 4
-            if Int(bytes[pixel]) + Int(bytes[pixel + 1]) + Int(bytes[pixel + 2]) > 3 * 150 { count += 1 }
-        }
-    }
-    return count
-}
-
 // MARK: - Pinned header (issue #301)
 
 /// Issue #301: scrolled Notifications rows have gone by the time they reach the pinned
@@ -193,7 +165,7 @@ func notificationsRowsDoNotDrawUnderThePinnedSectionHeader(offset: Double, pinne
     #expect(headerRow > 20)
     let band = CGRect(x: 90, y: pinTop + 1, width: size.width - 110, height: headerRow - 2)
     let below = CGRect(x: 90, y: pinTop + 80, width: size.width - 110, height: 200)
-    #expect(brightSamples(in: band, of: image, hostSize: size) == 0)
-    #expect(brightSamples(in: below, of: image, hostSize: size) > 0)
+    #expect(nativeHostedBrightSamples(in: band, of: image, hostSize: size) == 0)
+    #expect(nativeHostedBrightSamples(in: below, of: image, hostSize: size) > 0)
 }
 #endif

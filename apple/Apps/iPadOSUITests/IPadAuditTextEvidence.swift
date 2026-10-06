@@ -54,24 +54,32 @@ enum IPadAuditTextEvidence {
         }
 
         /// The element at ``ordinal``, scrolled inside `content` (default: the window) if
-        /// needed, at most eight slow drags.
+        /// needed, at most sixteen slow drags.
         @MainActor
-        func resolve(in app: XCUIApplication, within content: CGRect? = nil) -> XCUIElement? {
-            let window = content ?? app.windows.firstMatch.frame
+        func resolve(
+            in app: XCUIApplication, within area: IPadAuditPageEvidence.ContentArea? = nil, fallbackX: CGFloat? = nil
+        ) -> XCUIElement? {
+            let area = area ?? IPadAuditPageEvidence.ContentArea(rect: app.windows.firstMatch.frame)
+            let window = area.rect
             let origin = app.coordinate(withNormalizedOffset: .zero)
-            for _ in 0..<8 {
+            // Sixteen: an AX5 comparison launch in a ⅓ window puts a lazy card several
+            // screens down (Song Detail's Pro Lead header was never reached in eight).
+            for _ in 0..<16 {
                 let found = matches(in: app)
                 // A slow drag by about the distance needed: a flick's momentum overshot a
                 // Form's last header past the top and back again.
                 var distance: CGFloat = 400
-                var x = window.midX
+                // Not built yet (lazy rows): drag where the audited element was. The
+                // window's middle is a split's divider, which scrolls neither pane.
+                var x = fallbackX.map { min(max($0, window.minX + 20), window.maxX - 20) } ?? window.midX
                 if ordinal < found.count {
                     let frame = found[ordinal].frame
-                    if window.contains(frame) { return found[ordinal] }
+                    if area.contains(frame) { return found[ordinal] }
                     x = min(max(frame.midX, window.minX + 20), window.maxX - 20)
-                    distance = frame.minY < window.minY
-                        ? -min(500, window.minY - frame.minY + 60)
-                        : min(500, frame.maxY - window.maxY + 60)
+                    let top = area.top(for: frame), bottom = area.bottom(for: frame)
+                    distance = frame.minY < top
+                        ? -min(500, top - frame.minY + 60)
+                        : min(500, frame.maxY - bottom + 60)
                 }
                 let start = origin.withOffset(CGVector(dx: x, dy: window.midY + distance / 2))
                 let end = origin.withOffset(CGVector(dx: x, dy: window.midY - distance / 2))

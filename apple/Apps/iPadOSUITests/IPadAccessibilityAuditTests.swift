@@ -30,6 +30,8 @@ import XCTest
 final class IPadAccessibilityAuditTests: XCTestCase {
     /// iPhone Duo: whether this run's pose splits (read once per test).
     private var duoSplitPossible: Bool?
+    /// The app window of the last page reached (in the JSON: proves the pose or tile).
+    private var lastWindow = ""
 
     // MARK: - Modes and pages
 
@@ -197,16 +199,16 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     static let shell: [Page] = [
         Page(name: "flyout", profile: true, ready: "fst.songs.list", open: { app in
             // The proof is a row inside the panel, so the panel is the "sheet" region.
-            tapFirst(app, ["fst.shell.drawer.open"]) ? "fst.shell.drawer.songs" : nil
+            openDrawer(app) ? "fst.shell.drawer.songs" : nil
         }, sheet: true),
-        Page(name: "song-board-split", env: ["FST_DEBUG_SONG": "fixture-pulse"],
-             ready: "fst.song-detail.intensity", open: { app in
-                 openSplit(app, ids: ["fst.song-detail.leaderboard.Solo_Guitar"])
-             }, splitOnly: true),
-        Page(name: "song-history-split", env: ["FST_DEBUG_SONG": "fixture-pulse"], profile: true,
-             ready: "fst.song-detail.intensity", open: { app in
-                 openSplit(app, ids: ["fst.song-detail.history.view-all"])
-             }, splitOnly: true),
+        // Song Detail opened from its Songs row, as a person does: a page pushed by
+        // `FST_DEBUG_SONG` did not scroll under XCUITest drags or scroll-to-tap.
+        Page(name: "song-board-split", ready: "fst.songs.list", open: { app in
+            openSong(app, "fixture-pulse") ? openSplit(app, ids: ["fst.song-detail.leaderboard.Solo_Guitar"]) : nil
+        }, splitOnly: true),
+        Page(name: "song-history-split", profile: true, ready: "fst.songs.list", open: { app in
+            openSong(app, "fixture-pulse") ? openSplit(app, ids: ["fst.song-detail.history.view-all"]) : nil
+        }, splitOnly: true),
         Page(name: "rivals-split", env: ["FST_DEBUG_ROUTE": "rivals"], profile: true, ready: "Rivals",
              open: { app in openSplit(app, prefix: "fst.rivals.row.") }, splitOnly: true),
         Page(name: "leaderboards-split", env: ["FST_DEBUG_TAB": "leaderboards"], ready: "Leaderboards",
@@ -443,9 +445,11 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             app.terminate()
             return nil
         }
+        lastWindow = NSCoder.string(for: app.windows.firstMatch.frame)
         var proof = page.ready
         if let open = page.open {
-            guard let opened = open(app), Self.anyElement(app, opened).waitForExistence(timeout: 15) else {
+            guard let opened = open(app),
+                  opened == "fst.split.opened" || Self.anyElement(app, opened).waitForExistence(timeout: 15) else {
                 add(screenshot(app, "\(mode.rawValue)-\(page.name)-unreached"))
                 app.terminate()
                 return nil
@@ -478,10 +482,13 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             let unreached: [String]
             /// Split pages left out because this window cannot split (portrait, compact).
             let skipped: [String]
+            /// The app window of the last page reached (iPhone Duo pose, ⅓ tile).
+            let window: String
             let findings: [Finding]
         }
         let summary = Summary(
-            mode: mode.rawValue, group: group, unreached: unreached, skipped: skipped, findings: findings
+            mode: mode.rawValue, group: group, unreached: unreached, skipped: skipped,
+            window: lastWindow, findings: findings
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -543,9 +550,73 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             let known = frame.width > frame.height && frame.width >= 800
             duoSplitPossible = known
             IPadAuditRenderedContrast.interfaceIsLandscape = frame.width > frame.height
+            IPadAuditRenderedContrast.windowSize = frame.size
             return known
         default: return false
         }
+    }
+
+    /// Open the flyout or drawer: its toolbar button, or on the folded iPhone Duo rail the
+    /// system overflow menu that holds it (`/duo` W1: the hamburger overflows there).
+    ///
+    /// - Returns: True once the drawer shows.
+    @MainActor
+    static func openDrawer(_ app: XCUIApplication) -> Bool {
+        if tapFirst(app, ["fst.shell.drawer.open"], timeout: 5) {
+            return anyElement(app, "fst.shell.drawer.songs").waitForExistence(timeout: 5)
+        }
+        let more = app.buttons.matching(NSPredicate(format: "label IN %@", ["More", "Show More"])).firstMatch
+        guard more.waitForExistence(timeout: 5) else { return false }
+        more.tap()
+        let item = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == 'Open Navigation' OR label == 'Menu'")).firstMatch
+        guard item.waitForExistence(timeout: 5) else { return false }
+        item.tap()
+        return anyElement(app, "fst.shell.drawer.songs").waitForExistence(timeout: 5)
+    }
+
+    /// Open a song's detail page from its Songs row.
+    ///
+    /// - Returns: True once Song Detail shows.
+    @MainActor
+    static func openSong(_ app: XCUIApplication, _ songId: String) -> Bool {
+        let row = app.buttons["fst.songs.row.\(songId)"]
+        guard row.waitForExistence(timeout: 15) else { return false }
+        // At AX5 the row can sit below the fold: bring it on screen with slow drags.
+        let window = app.windows.firstMatch.frame
+        for _ in 0..<8 where !(row.isHittable && window.insetBy(dx: 0, dy: 60).contains(
+            CGPoint(x: row.frame.midX, y: row.frame.midY))) {
+            // The middle: Songs' trailing edge holds the section index scrubber.
+            slowDrag(app, x: window.midX, fromY: window.minY + window.height * 0.75,
+                     toY: window.minY + window.height * 0.35)
+        }
+        row.tap()
+        return anyElement(app, "fst.song-detail.intensity").waitForExistence(timeout: 20)
+    }
+
+    /// The trailing pane's frame while a split is open, else nil: `fst.split.trailing`,
+    /// or on iOS 27.1 (iPhone Duo), where that container identifier is not exposed, the
+    /// navigation bar that starts right of the window's middle.
+    @MainActor
+    static func trailingPane(_ app: XCUIApplication) -> CGRect? {
+        let pane = anyElement(app, "fst.split.trailing")
+        if pane.exists { return pane.frame }
+        let window = app.windows.firstMatch.frame
+        let bars = app.navigationBars.allElementsBoundByIndex.map(\.frame)
+            .filter { $0.height > 0 && $0.minX > window.midX - 40 && $0.maxY < window.midY }
+        guard let bar = bars.first else { return nil }
+        return CGRect(x: bar.minX, y: window.minY, width: window.maxX - bar.minX, height: window.height)
+    }
+
+    /// Wait for the trailing pane (``trailingPane(_:)``).
+    @MainActor
+    static func waitForTrailingPane(_ app: XCUIApplication, timeout: TimeInterval = 10) -> Bool {
+        let deadline = Date.now.addingTimeInterval(timeout)
+        repeat {
+            if trailingPane(app) != nil { return true }
+            Thread.sleep(forTimeInterval: 0.5)
+        } while Date.now < deadline
+        return false
     }
 
     /// A slow vertical drag between two screen points (no flick momentum).
@@ -564,7 +635,8 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     /// is on screen. Programmatic taps on offscreen rows stall the main thread
     /// (`xcuitest.md` pitfalls).
     ///
-    /// - Returns: `fst.split.trailing` once the trailing pane shows, else nil.
+    /// - Returns: `fst.split.opened` (a marker ``reachWithProof`` accepts) once the
+    ///   trailing pane shows, else nil.
     @MainActor
     static func openSplit(_ app: XCUIApplication, ids: [String] = [], prefix: String? = nil) -> String? {
         func row() -> XCUIElement {
@@ -582,7 +654,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
                 CGPoint(x: element.frame.midX, y: element.frame.midY)
             ) {
                 element.tap()
-                return anyElement(app, "fst.split.trailing").waitForExistence(timeout: 10) ? "fst.split.trailing" : nil
+                return waitForTrailingPane(app) ? "fst.split.opened" : nil
             }
             // Screen points from the window frame: normalized app coordinates stay in the
             // portrait frame in a landscape window, so the drag ran sideways.
@@ -591,7 +663,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             // reaches the row there (as `IPadShellJourneyTests` does).
             if attempt >= 4, element.exists {
                 element.tap()
-                return anyElement(app, "fst.split.trailing").waitForExistence(timeout: 10) ? "fst.split.trailing" : nil
+                return waitForTrailingPane(app) ? "fst.split.opened" : nil
             }
             // The trailing margin: a drag that starts on a chart selects a bar.
             slowDrag(app, x: window.maxX - 10, fromY: window.minY + window.height * 0.75,

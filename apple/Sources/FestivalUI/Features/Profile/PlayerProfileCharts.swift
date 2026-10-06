@@ -438,9 +438,7 @@ struct RankHistoryCharts: View {
                 }
             }
         }
-        .chartOverlay { proxy in
-            axisElements(proxy: proxy, scale: scale, visible: visible)
-        }
+        .chartPlotFrameReporter()
         .frame(height: Self.plotHeight)
         .accessibilityChartDescriptor(RankHistoryDescriptor(points: points, instrument: instrument))
         .accessibilityAdjustableAction { direction in
@@ -451,6 +449,13 @@ struct RankHistoryCharts: View {
             }
         }
         .accessibilityIdentifier("fst.player.rank-history.\(instrument.rawValue).chart")
+        .chartAxisElements(ChartAxisLabels(
+            leading: "Total Score scale, 0 to \(RankHistoryChartFormat.compactScore(scale.valueTop))",
+            trailing: "Rank scale, " + ChartAxisLabels.span(
+                scale.rankTicks.first.map { "#\($0.formatted())" }, scale.rankTicks.last.map { "#\($0.formatted())" }
+            ),
+            bottom: "Dates, " + ChartAxisLabels.span(visible.first?.label, visible.last?.label)
+        ))
 
         if paging.needsPagination {
             // Swipe a page at a time (web `SWIPE_THRESHOLD` 50 pt): left shows newer
@@ -475,51 +480,6 @@ struct RankHistoryCharts: View {
     static func barColor(_ point: Point) -> Color {
         let rgb = RankHistoryChartFormat.rankColor(rank: point.rank, totalAccounts: point.rankedAccountCount)
         return Color(.sRGB, red: Double(rgb.red) / 255, green: Double(rgb.green) / 255, blue: Double(rgb.blue) / 255)
-    }
-
-    /// One static-text element over each axis's tick labels (score, rank, dates).
-    ///
-    /// Swift Charts draws tick labels without accessibility elements, so the iPad audit
-    /// reported each axis as "Potentially inaccessible text" (three unattributed issues on
-    /// Player, two on Statistics: Lane A11Y2's open item, confirmed 2026-10-05 by their
-    /// count matching the axes). Each element covers its labels' area and reads the axis
-    /// range, so VoiceOver gets the scale the labels show (HIG Charts / VoiceOver: "Make
-    /// charts and other infographics fully accessible").
-    private func axisElements(proxy: ChartProxy, scale: RankHistoryChartScale, visible: [Point]) -> some View {
-        GeometryReader { geometry in
-            if let anchor = proxy.plotFrame {
-                let plot = geometry[anchor]
-                let size = geometry.size
-                let ranks = scale.rankTicks.map { "#\($0.formatted())" }
-                ZStack(alignment: .topLeading) {
-                    axisElement(
-                        "Total Score scale, 0 to \(RankHistoryChartFormat.compactScore(scale.valueTop))",
-                        frame: CGRect(x: 0, y: plot.minY, width: max(1, plot.minX), height: plot.height)
-                    )
-                    axisElement(
-                        "Rank scale, \(ranks.first ?? "") to \(ranks.last ?? "")",
-                        frame: CGRect(x: plot.maxX, y: plot.minY, width: max(1, size.width - plot.maxX), height: plot.height)
-                    )
-                    axisElement(
-                        "Dates, \(visible.first?.label ?? "") to \(visible.last?.label ?? "")",
-                        frame: CGRect(x: plot.minX, y: plot.maxY, width: plot.width, height: max(1, size.height - plot.maxY))
-                    )
-                }
-            }
-        }
-    }
-
-    /// An invisible static-text element at `frame` (chart overlay coordinates).
-    private func axisElement(_ label: String, frame: CGRect) -> some View {
-        Rectangle()
-            .fill(Color.clear)
-            .frame(width: frame.width, height: frame.height)
-            .contentShape(Rectangle())
-            .offset(x: frame.minX, y: frame.minY)
-            .allowsHitTesting(false)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(label)
-            .accessibilityAddTraits(.isStaticText)
     }
 
     /// A rotated axis title beside the plot, like the web's rotated Recharts labels.
@@ -659,6 +619,9 @@ struct RankHistoryCharts: View {
                     .foregroundStyle(FestivalText.primary)
             }
         }
+        // Wrap instead of truncating: at AX5 in a two-column iPad page the card proposed
+        // one line and "Total Score 89,400,000" read "Total Score 89,4…" (Lane A11Y3).
+        .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             "Latest global rank \(latest.totalScoreRank.formatted())\(field)"

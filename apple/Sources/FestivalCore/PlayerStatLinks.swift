@@ -294,8 +294,14 @@ public enum StatGridColumns {
     public static let accessibilityMinimumTileWidth: Double = 224
     /// Space between tiles, both axes.
     public static let spacing: Double = 8
-    /// iPhone portrait always gets two columns, even at large Dynamic Type.
+    /// iPhone portrait gets two columns, up to the largest standard Dynamic Type size.
     public static let minimumColumns = 2
+    /// At accessibility sizes one column is allowed where two tiles would each be
+    /// narrower than ``accessibilityMinimumTileWidth``: two 167 pt tiles in a 375 pt
+    /// window stacked "SONGS PLAYED" one letter per line and cut "2 (66.6%)" to "(…" at
+    /// AX5 (iPad ⅓ window audit, Lane A11Y3; HIG Typography: "Reduce the number of text
+    /// columns as size increases").
+    public static let accessibilityMinimumColumns = 1
     /// Wider cards stop at four so tiles never shrink to a sliver of text.
     public static let maximumColumns = 4
 
@@ -307,9 +313,10 @@ public enum StatGridColumns {
     ///   - spacing: Gap between tiles; defaults to ``spacing``.
     /// - Returns: `2...4` columns.
     public static func count(
-        forWidth width: Double, minimumTileWidth: Double = minimumTileWidth, spacing: Double = spacing
+        forWidth width: Double, minimumTileWidth: Double = minimumTileWidth, spacing: Double = spacing,
+        minimumColumns: Int = minimumColumns
     ) -> Int {
-        guard width.isFinite, width > 0 else { return minimumColumns }
+        guard width.isFinite, width > 0 else { return Self.minimumColumns }
         let fit = Int(((width + spacing) / (minimumTileWidth + spacing)).rounded(.down))
         return min(max(fit, minimumColumns), maximumColumns)
     }
