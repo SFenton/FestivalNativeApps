@@ -20,9 +20,14 @@ struct SoloLeaderboardScreen: View {
     @State private var lastRequest: RequestKey?
     /// First staggered reveal of this page finished; recycled rows then appear instantly.
     @State private var staggerSettled = false
-    /// The in-list song header has scrolled under the bar: show art, title and
-    /// instrument in the navigation bar instead (operator batch 7.2, like Song Detail).
-    @State private var headerHidden = false
+    /// The in-list song header's own geometry puts it under the bar (operator batch
+    /// 7.2, like Song Detail).
+    @State private var headerGeometryHidden = false
+    /// The List has scrolled past the header's resting bottom edge, which still holds
+    /// when a fling recycled the header's row before it reported itself hidden (#316).
+    @State private var headerScrolledPast = false
+    /// The header's resting edge, read by the scroll reader without a re-render.
+    @State private var headerEdge = HeaderEdge()
     /// The chart's measured width, for the section's fitted columns (issue #37).
     @State private var chartWidth: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -38,11 +43,19 @@ struct SoloLeaderboardScreen: View {
     /// opened from Song Detail's spotlight row or after a footer jump (web
     /// `navToPlayer`, issue #307).
     @State private var focusPending: Bool
+    /// The rows' visible height: the result area under the header (spinner placeholder
+    /// or error) fills it, so a page change never lets the List clamp the header back
+    /// into view (issue #316).
+    @State private var listHeight: CGFloat = 0
 
     /// Row insets: two rows sit ``rowGap`` apart.
     nonisolated private static let rowInset: CGFloat = 4
     /// Space between two rows, also kept above the pinned chrome (issue #293).
     nonisolated private static let rowGap: CGFloat = rowInset * 2
+    /// Scroll anchors of the song header and of the result area that replaces the rows
+    /// while a page loads or after it failed.
+    nonisolated private static let headerAnchor = "fst.song-leaderboard.header-anchor"
+    nonisolated private static let resultAnchor = "fst.song-leaderboard.result-anchor"
 
     /// Coordinate space shared by the rows' fade mask and the pinned chrome.
     nonisolated private static let pageSpace = "fst.song-leaderboard.page"
@@ -57,6 +70,13 @@ struct SoloLeaderboardScreen: View {
             if case .loading = self { return true }
             return false
         }
+    }
+
+    /// Identity of a pending selected-row reveal: re-runs when the request or the
+    /// revealed rows change.
+    private struct FocusRequest: Equatable {
+        let pending: Bool
+        let rows: String?
     }
 
     private struct RequestKey: Hashable {
@@ -111,28 +131,42 @@ struct SoloLeaderboardScreen: View {
         // otherwise the first page kept an opaque mask, and rows showed behind the
         // pager, until something else re-rendered the page (issues #294, #305).
         let chromeTop = bottomChromeTop
-        // Page changes fade the rows out, show the spinner and fade the new page in
-        // (web LoadGate, issue #71).
-        FestivalReloadGate(key: requestKey, isLoading: state.isLoading, spinnerLabel: "Loading leaderboard") {
-            switch state {
-            case .loading:
-                EmptyView()
-            case let .failed(issue):
-                ServiceStatusView(issue, title: "Leaderboard unavailable") {
-                    Task { await loadPage() }
-                }
-            case let .loaded(payload):
+        // Page changes remove the rows, show the spinner and fade the new page in (web
+        // LoadGate, issue #71). The song header and its list stay from the first load on
+        // and only the rows swap, for a failed page too (web keeps `SongInfoHeader`
+        // outside its LoadGate and skips its stagger on 'paginate', issue #316).
+        FestivalReloadGate(
+            key: requestKey, isLoading: state.isLoading, spinnerLabel: "Loading leaderboard",
+            spinnerIdentifier: "fst.song-leaderboard.loading"
+        ) { reveal in
+            if let shownPayload {
+                // The rows of the page being revealed; nil while the next page loads or
+                // after it failed.
+                let rows = reveal.showsResult ? loadedPayload : nil
+                let revealedRowsKey = reveal.showsResult ? loadedRowsKey : nil
                 VStack(spacing: 0) {
-                    scoreBanner(payload)
+                    scoreBanner(shownPayload)
                     ScrollViewReader { proxy in
                         List {
                             // The song header scrolls with the rows (no card behind it);
                             // once it passes under the bar the bar shows it instead.
-                            scoreHeader(payload)
+                            scoreHeader(shownPayload)
                                 .listRowInsets(EdgeInsets(top: 20, leading: 16, bottom: 8, trailing: 16))
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
-                            ForEach(Array(payload.leaderboard.entries.enumerated()), id: \.element.id) { index, entry in
+                                .id(Self.headerAnchor)
+                                .onGeometryChange(for: CGFloat.self) { proxy in
+                                    proxy.frame(in: .scrollView).maxY
+                                } action: { maxY in
+                                    headerEdge.measure(maxY: maxY)
+                                }
+                            if rows == nil {
+                                // A failed page's error, or nothing under the spinner,
+                                // in the rows' place below the header (song-leaderboard-
+                                // header R5, issue #316).
+                                resultArea(reveal.showsResult ? failedIssue : nil)
+                            }
+                            ForEach(Array((rows?.leaderboard.entries ?? []).enumerated()), id: \.element.id) { index, entry in
                                 let isSelectedRow = isSelectedAccount(entry.accountId)
                                 // One design with every leaderboard (web `entryRow`): each row
                                 // its own material card, the player's purple, with the chevron
@@ -175,10 +209,38 @@ struct SoloLeaderboardScreen: View {
                         }
                         .listStyle(.plain)
                         .scrollContentBackground(.hidden)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                            listHeight = height
+                        }
+                        .onScrollEdgeReading({ [headerEdge] reading in
+                            headerEdge.offset = reading.offset
+                            return SongDetailPinnedTitlePolicy.isHeroHidden(
+                                scrolled: reading.offset,
+                                restingMaxY: headerEdge.restingMaxY(belowInset: reading.inset)
+                            )
+                        }, action: { scrolledPast in
+                            headerScrolledPast = scrolledPast
+                        })
+                        // A page change under a collapsed header starts the new page at
+                        // its first row and keeps the header under the bar; otherwise
+                        // it returns to the top (web `goToPage('paginate')`, #316).
+                        .onChange(of: requestKey) { _, _ in
+                            let target = LeaderboardPaging.reloadScroll(
+                                headerUnderBar: headerHidden, boardChanged: false
+                            )
+                            // After the List has swapped the rows for the result area.
+                            Task { @MainActor in
+                                switch target {
+                                case .top: proxy.scrollTo(Self.headerAnchor, anchor: .top)
+                                case .firstRow: proxy.scrollTo(Self.resultAnchor, anchor: .top)
+                                }
+                            }
+                        }
                         // Opened for the selected player's row: scroll it into view once
-                        // (web `navToPlayer`, issue #307).
-                        .task(id: focusPending) {
-                            guard focusPending, let target = payload.leaderboard.entries.first(where: {
+                        // its page is revealed (web `navToPlayer`, issue #307).
+                        .task(id: FocusRequest(pending: focusPending, rows: revealedRowsKey)) {
+                            guard focusPending, let rows else { return }
+                            guard let target = rows.leaderboard.entries.first(where: {
                                 isSelectedAccount($0.accountId)
                             }) else {
                                 focusPending = false
@@ -202,10 +264,17 @@ struct SoloLeaderboardScreen: View {
                         )
                     }
                 }
-                .task {
-                    await FadeStagger.settle(afterRevealing: payload.leaderboard.entries.count) {
+                // The settle timer runs from each page's reveal, not from its load.
+                .task(id: revealedRowsKey) {
+                    guard let rows else { return }
+                    await FadeStagger.settle(afterRevealing: rows.leaderboard.entries.count) {
                         staggerSettled = true
                     }
+                }
+            } else if case let .failed(issue) = state, reveal.showsResult {
+                // The first page failed: no header to keep yet.
+                ServiceStatusView(issue, title: "Leaderboard unavailable") {
+                    Task { await loadPage() }
                 }
             }
         }
@@ -268,6 +337,42 @@ struct SoloLeaderboardScreen: View {
     private var loadedPayload: LeaderboardPayload? {
         if case let .loaded(payload) = state { return payload }
         return nil
+    }
+
+    /// The song header is under the bar: the bar shows art, title and instrument
+    /// instead. Either signal suffices; both clear once the header is back in view.
+    private var headerHidden: Bool { headerGeometryHidden || headerScrolledPast }
+
+    /// The current page's failure, nil while it loads or once it loaded.
+    private var failedIssue: ServiceIssue? {
+        if case let .failed(issue) = state { return issue }
+        return nil
+    }
+
+    /// What stands in for the rows below the kept song header: a failed page's status
+    /// and Retry, or an empty, unspoken area while the next page loads under the gate's
+    /// spinner (load-transition R4, issue #316). It is as tall as the visible rows, so
+    /// the List keeps a collapsed header under the bar instead of clamping it back.
+    ///
+    /// - Parameter issue: The failure to show; nil while loading.
+    /// - Returns: A full-width List row.
+    private func resultArea(_ issue: ServiceIssue?) -> some View {
+        Group {
+            if let issue {
+                ServiceStatusView(issue, title: "Leaderboard unavailable") {
+                    Task { await loadPage() }
+                }
+            } else {
+                Color.clear
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: max(1, listHeight))
+        .listRowInsets(EdgeInsets())
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .id(Self.resultAnchor)
     }
 
     /// The player's footer and the pager, floating over the page background with no
@@ -442,7 +547,7 @@ struct SoloLeaderboardScreen: View {
                 name: instrument.label, totalEntries: payload.leaderboard.totalEntries,
                 showsTotals: payload.leaderboard.showLeaderboardEntryTotals
             ),
-            idPrefix: "fst.song-leaderboard", hidden: $headerHidden
+            idPrefix: "fst.song-leaderboard", hidden: $headerGeometryHidden
         ) {
             InstrumentIcon(instrument, size: 20)
         }
@@ -494,4 +599,37 @@ struct SoloLeaderboardScreen: View {
         }
     }
 
+}
+
+// MARK: - Header edge
+
+/// The Solo song header's bottom edge at the List's resting top and the latest scroll
+/// offset, shared with the scroll reader's transform. It is a reference so a re-measure
+/// reaches that transform (captured once on iOS 17 / macOS 14) without re-rendering the
+/// page on every scroll frame.
+private final class HeaderEdge {
+    /// The header's bottom edge in `.scrollView` space with the List at its resting top.
+    /// A List's `.scrollView` space starts at its frame, which runs under the bar, not
+    /// at the bar's lower edge as Song Detail's `ScrollView` does.
+    private var restingScrollViewMaxY: CGFloat?
+    /// Distance scrolled from the resting top, from the latest scroll reading.
+    var offset: CGFloat = 0
+
+    /// The header's resting bottom edge below the bar's lower edge.
+    ///
+    /// - Parameter inset: The List's top content inset (the bar), from the same reading.
+    /// - Returns: The edge, or nil before the header was measured.
+    func restingMaxY(belowInset inset: CGFloat) -> CGFloat? {
+        restingScrollViewMaxY.map { $0 - max(0, inset) }
+    }
+
+    /// Record the header's current bottom edge. Measured only at the resting top (or
+    /// once, when nothing is known yet), so a scroll reading that lags the geometry by a
+    /// frame cannot skew it.
+    ///
+    /// - Parameter maxY: The header's bottom edge in `.scrollView` space.
+    func measure(maxY: CGFloat) {
+        guard maxY.isFinite, restingScrollViewMaxY == nil || abs(offset) < 1 else { return }
+        restingScrollViewMaxY = maxY + offset
+    }
 }

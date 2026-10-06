@@ -939,6 +939,190 @@ final class SongDetailJourneyTests: XCTestCase {
         XCTAssertTrue(app.buttons["Back one page"].exists, "Lead lost its pager")
     }
 
+    /// Page a song leaderboard and verify the song header stays while only the rows
+    /// reload (issue #316; web `SongInfoHeader` sits outside its LoadGate).
+    ///
+    /// - Throws: An XCTest failure when the header leaves with the rows.
+    @MainActor
+    func testSoloLeaderboardHeaderStaysWhilePaging() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = SongsUITestSupport.fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+
+        let row = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "Fixture song row did not load")
+        row.tap()
+        let lead = app.buttons["fst.song-detail.leaderboard.Solo_Guitar"]
+        XCTAssertTrue(lead.waitForExistence(timeout: 10), "Lead leaderboard action is missing")
+        lead.tap()
+
+        let next = app.buttons["fst.song-leaderboard.page-next"]
+        let previous = app.buttons["fst.song-leaderboard.page-previous"]
+        XCTAssertTrue(next.waitForExistence(timeout: 10), "Pagination is not reachable")
+        SongsUITestSupport.collapseSidebarOnPad(app)
+        let header = app.descendants(matching: .any)
+            .matching(identifier: "fst.song-leaderboard.header").firstMatch
+        XCTAssertTrue(header.waitForExistence(timeout: 10), "The song header is missing on page 1")
+        let firstRow = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.song-leaderboard.row."))
+            .firstMatch
+        XCTAssertTrue(firstRow.waitForExistence(timeout: 10), "Page 1 rows did not load")
+
+        next.tap()
+        XCTAssertTrue(header.exists, "The song header left with the rows on the next page")
+        XCTAssertTrue(app.staticTexts["2 / 2"].waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(identifier: "fst.song-leaderboard.row.fixture-player-26")
+                .firstMatch.waitForExistence(timeout: 10),
+            "Page 2 rows did not load"
+        )
+        XCTAssertTrue(header.exists, "The song header is missing on page 2")
+
+        previous.tap()
+        XCTAssertTrue(header.exists, "The song header left with the rows on the previous page")
+        XCTAssertTrue(app.staticTexts["1 / 2"].waitForExistence(timeout: 10))
+        XCTAssertTrue(firstRow.waitForExistence(timeout: 10), "Page 1 rows did not return")
+        XCTAssertTrue(header.exists, "The song header is missing after paging back")
+    }
+
+    // MARK: - Song header while paging (issue #316)
+
+    /// Origin of the `--song-leaderboard-paging` fixture: `fixture-pulse` Lead has four
+    /// pages, pages after the first take 3 s and page 4 fails with 500.
+    private static let pagingOrigin = "http://127.0.0.1:18937"
+
+    /// Skip unless the paging fixture runs from this revision:
+    ///
+    ///     python3 tools/mock_service.py --port 18937 --song-leaderboard-paging
+    ///
+    /// - Throws: `XCTSkip` without that listener.
+    @MainActor
+    private func requirePagingFixture() throws {
+        let probe = expectation(description: "paging fixture probe")
+        var reachable = false
+        let board = "\(Self.pagingOrigin)/api/leaderboard/fixture-pulse/Solo_Guitar?top=25"
+        URLSession.shared.dataTask(with: URL(string: board)!) { data, response, _ in
+            reachable = (response as? HTTPURLResponse)?.statusCode == 200
+                && data.map { String(decoding: $0, as: UTF8.self).contains("\"totalEntries\":100") } == true
+            probe.fulfill()
+        }.resume()
+        wait(for: [probe], timeout: 5)
+        try XCTSkipUnless(
+            reachable, "Start `mock_service.py --port 18937 --song-leaderboard-paging` from this revision"
+        )
+    }
+
+    /// Open `fixture-pulse` Lead's full leaderboard on the paging fixture.
+    ///
+    /// - Returns: The launched app, showing page 1's rows.
+    @MainActor
+    private func openPagingLeaderboard() -> XCUIApplication {
+        XCUIDevice.shared.orientation = .portrait
+        let app = SongsUITestSupport.fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = Self.pagingOrigin
+        app.launch()
+        let song = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(song.waitForExistence(timeout: 15), "Fixture song row did not load")
+        song.tap()
+        let lead = app.buttons["fst.song-detail.leaderboard.Solo_Guitar"]
+        XCTAssertTrue(lead.waitForExistence(timeout: 10), "Lead leaderboard action is missing")
+        lead.tap()
+        XCTAssertTrue(
+            element("fst.song-leaderboard.row.fixture-player-1", in: app).waitForExistence(timeout: 10),
+            "Page 1 rows did not load"
+        )
+        XCTAssertTrue(app.staticTexts["1 / 4"].waitForExistence(timeout: 5), "Expected four fixture pages")
+        SongsUITestSupport.collapseSidebarOnPad(app)
+        return app
+    }
+
+    /// First element with an accessibility identifier, of any type.
+    private func element(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+
+    /// Whether the in-list song header is on screen below the bar rather than under it.
+    @MainActor
+    private func headerShows(in app: XCUIApplication) -> Bool {
+        let header = element("fst.song-leaderboard.header", in: app)
+        guard header.exists, !header.frame.isEmpty else { return false }
+        let bar = app.navigationBars.firstMatch
+        return header.frame.maxY > (bar.exists ? bar.frame.maxY : 0) + 1
+    }
+
+    /// A failed page keeps the song header and swaps only the rows for the error and
+    /// Retry (load-transition R4, song-leaderboard-header R5).
+    ///
+    /// - Throws: An XCTest failure when the error replaces the header.
+    @MainActor
+    func testSoloLeaderboardFailedPageKeepsHeader() throws {
+        continueAfterFailure = false
+        try requirePagingFixture()
+        let app = openPagingLeaderboard()
+        XCTAssertTrue(headerShows(in: app), "The song header is missing on page 1")
+
+        app.buttons["fst.song-leaderboard.page-last"].tap()
+        XCTAssertTrue(
+            element("fst.song-leaderboard.loading", in: app).waitForExistence(timeout: 2),
+            "The reload spinner did not show"
+        )
+        XCTAssertTrue(headerShows(in: app), "The song header left while page 4 loaded")
+        let retry = app.buttons["fst.service-status.retry"]
+        XCTAssertTrue(retry.waitForExistence(timeout: 15), "Page 4's error did not show")
+        XCTAssertTrue(headerShows(in: app), "The error replaced the song header")
+        XCTAssertTrue(retry.isHittable, "Retry is not reachable under the header")
+        XCTAssertFalse(
+            element("fst.song-leaderboard.row.fixture-player-1", in: app).exists,
+            "Page 1 rows stayed under the error"
+        )
+        SongsUITestSupport.record(app, name: "song-leaderboard-failed-page-header")
+
+        retry.tap()
+        XCTAssertTrue(headerShows(in: app), "Retry removed the song header")
+        XCTAssertTrue(retry.waitForExistence(timeout: 15), "Retrying page 4 did not fail again")
+        XCTAssertTrue(headerShows(in: app), "The song header is missing after Retry")
+    }
+
+    /// Paging while the header is under the bar keeps the bar title and never brings
+    /// the in-list header back; the new page starts at its first row.
+    ///
+    /// - Throws: An XCTest failure when the header flashes or the bar title leaves.
+    @MainActor
+    func testSoloLeaderboardPagingUnderBarKeepsPinnedTitle() throws {
+        continueAfterFailure = false
+        try requirePagingFixture()
+        let app = openPagingLeaderboard()
+        let pinned = element("fst.song-leaderboard.pinned-title", in: app)
+        let list = app.collectionViews.firstMatch
+        for _ in 0..<4 where !pinned.exists {
+            list.swipeUp(velocity: .slow)
+        }
+        XCTAssertTrue(pinned.waitForExistence(timeout: 3), "The bar title did not take over")
+        XCTAssertFalse(headerShows(in: app), "The header is still on screen")
+
+        app.buttons["fst.song-leaderboard.page-next"].tap()
+        XCTAssertTrue(
+            element("fst.song-leaderboard.loading", in: app).waitForExistence(timeout: 2),
+            "The reload spinner did not show"
+        )
+        // Page 2 takes 3 s: sample the bar and header while the spinner runs.
+        let deadline = Date().addingTimeInterval(2)
+        while Date() < deadline {
+            XCTAssertTrue(pinned.exists, "The bar title left while page 2 loaded")
+            XCTAssertFalse(headerShows(in: app), "The in-list header came back while page 2 loaded")
+        }
+        let firstRow = element("fst.song-leaderboard.row.fixture-player-26", in: app)
+        XCTAssertTrue(firstRow.waitForExistence(timeout: 10), "Page 2 rows did not load")
+        XCTAssertTrue(app.staticTexts["2 / 4"].exists)
+        XCTAssertTrue(pinned.exists, "The bar title left when page 2 arrived")
+        XCTAssertFalse(headerShows(in: app), "The in-list header came back when page 2 arrived")
+        XCTAssertTrue(firstRow.isHittable, "Page 2 does not start at its first row")
+        SongsUITestSupport.record(app, name: "song-leaderboard-paged-under-bar")
+    }
+
     /// Traverse Songs, Detail and page two, then verify landscape layout survives.
     ///
     /// - Throws: An XCTest failure for missing accessible actions or screen state.
