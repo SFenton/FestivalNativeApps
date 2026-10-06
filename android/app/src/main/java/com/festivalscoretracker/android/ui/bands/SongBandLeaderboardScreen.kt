@@ -198,10 +198,11 @@ fun SongBandLeaderboardScreen(
                         modifier = Modifier.padding(vertical = 4.dp).testTag("fst.song-band-leaderboard.band-type-menu"),
                     )
                 },
-                // The pinned band fades out with the page and staggers back in with its first row (issue #295).
+                // The pinned band fades out with the page and staggers back in with its first row (issue #295);
+                // while the next page loads the stale row is hidden, unread and untouchable (load-transition R2).
                 footer = {
                     footerEntry?.let { entry ->
-                        AnchoredRowCard(with(swap) { Modifier.staggered(0) }) {
+                        AnchoredRowCard(with(swap) { Modifier.staggered(0) }.then(swap.pinnedContentModifier)) {
                             LeaderboardSectionMember(columns, "footer") {
                                 SelectedScoreFooterRow(
                                     entry = entry.footerLeaderboardEntry,

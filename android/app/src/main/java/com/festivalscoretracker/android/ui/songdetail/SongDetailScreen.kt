@@ -870,7 +870,9 @@ private fun StackedScoreRow(entry: LeaderboardEntry, plan: LeaderboardColumnPlan
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().heightIn(min = LEADERBOARD_ROW_MIN_HEIGHT).padding(horizontal = 8.dp, vertical = 6.dp),
     ) {
-        Text(RankingFormatting.rankLabel(entry.rank), style = MaterialTheme.typography.labelLarge, fontWeight = weight, color = BrandTokens.textPrimary, modifier = Modifier.widthIn(min = plan.rankWidth.dp).padding(end = 8.dp))
+        // Padding outside the shared minimum, so every rank (bold pinned row, #10 after #9) gets the
+        // same slot and names line up down the section (issue #149).
+        Text(RankingFormatting.rankLabel(entry.rank), style = MaterialTheme.typography.labelLarge, fontWeight = weight, color = BrandTokens.textPrimary, modifier = Modifier.padding(end = 8.dp).widthIn(min = plan.rankWidth.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 entry.displayName?.takeIf { it.isNotBlank() && entry.accountId.isNotEmpty() } ?: "Unknown User",

@@ -991,7 +991,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; graph card lists run the web out/height/in list sequence; entrances never replay while scrolling and reduced motion removes fades.",
+      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner; graph card lists run the web out/height/in list sequence; entrances never replay while scrolling and reduced motion removes fades.",
       "keywords": [
         "loading",
         "spinner",
@@ -1173,6 +1173,7 @@
         60,
         70,
         71,
+        149,
         169
       ]
     },

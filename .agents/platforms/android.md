@@ -67,7 +67,7 @@ No official tri-fold profile ships with emulator 37.1 or cmdline-tools 23.0. `FS
 | `features [postures…]` | FoldingFeatures seen by WindowManager, per posture |
 | `test [pkg.Class[#m]\|package:pkg] [--task] [--posture]` | Connected tests on one AVD with `ANDROID_SERIAL` pinned (posture applied first), killed at the hold limit |
 
-Common options: `--avd` (default `FST_Phone`), `--hold` (≤300 s), `--wait-timeout`, `--window` (only works in an interactive session), `--allow-foreign`, `--animations`. Exit codes: 3 for device/usage errors, 124 for lock timeouts.
+Common options: `--avd` (default `FST_Phone`), `--hold` (≤300 s), `--wait-timeout`, `--window` (only works in an interactive session), `--allow-foreign`, `--animations`. `--animations` only skips zeroing the scales; the AVD keeps whatever an earlier lane left (usually 0), so for motion evidence set them in the steps (`shell:settings put global animator_duration_scale 1`, likewise `transition_animation_scale` and `window_animation_scale`) and relaunch with a `shell:am start -W -S …` step before recording (issue #149). Exit codes: 3 for device/usage errors, 124 for lock timeouts.
 
 Drive steps (`;`- or newline-separated; `#` comments):
 
@@ -95,6 +95,7 @@ Compose `testTag`s appear as resource ids only when the app sets `testTagsAsReso
 - A hold lasts at most **300 s**. A watchdog kills tracked children, releases the lock and exits with 124. Waiters give up after `--wait-timeout` (default 1800 s).
 - FST emulators always use console port **5580** (`emulator-5580`). Only `FST_*` AVDs, or whatever holds port 5580, are ever stopped. Any other running emulator makes `boot` refuse (exit 3) rather than kill it.
 - Shutdown runs `sync` + `reboot -p`, then `emu kill`, then kills leftover qemu processes. A hard `emu kill` can lose recent `/data` writes such as a fresh install. Install and shoot in one hold with `--apk`.
+- Every lane installs its own build of the same package on the shared AVDs. A `drive` or `launch` without `--apk` runs whatever another session installed last. In issue #149 that misled one capture: a stale build showed a misalignment the current branch had already fixed. Pass `--apk` for every evidence or validation run.
 - Emulator logs: `~/.fst-locks/emulator-<AVD>.log`.
 # Android architecture and devices
 
