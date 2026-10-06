@@ -63,7 +63,7 @@ data class SongsPreferencesState(
      * Spoken state of the Filter button (issue #181), so TalkBack hears what the gold tint shows:
      * "No filters", or "Filters on: " and the applied groups in sheet order (Year, Duration,
      * Item Shop, Double Bass, then with a player Score & FC and Selected Instrument). Same
-     * vocabulary as the Item Shop Filter (issue #145); empty exactly when [filterActive] is false.
+     * vocabulary as the Item Shop Filter (issue #145); "No filters" exactly when [filterActive] is false.
      *
      * @param hasPlayer A player is selected.
      * @param hideShop Item Shop hidden in Settings.
