@@ -1654,7 +1654,7 @@
       "title": "Chart date axis",
       "status": "current",
       "doc": ".agents/patterns/chart-date-axis.md",
-      "summary": "History bar charts centre each date label horizontally on its own bar on every page and text size, label only visible bars and keep tick text out of the accessibility tree.",
+      "summary": "History bar charts centre each date label on its own bar on every page and text size, keep labels horizontal rather than the web's angled ticks (agent decision #314), pin end labels inside the chart instead of clipping, hide colliding labels (newest kept), label only visible bars and keep tick text out of the accessibility tree.",
       "keywords": [
         "chart",
         "x axis",
@@ -1662,7 +1662,10 @@
         "axis label",
         "bar chart",
         "score history",
-        "rank history"
+        "rank history",
+        "graph",
+        "bar label",
+        "tick"
       ],
       "web": [
         {
@@ -1672,6 +1675,10 @@
         {
           "path": "pages/leaderboards/components/RankHistoryChart.tsx",
           "symbol": "RankHistoryChart"
+        },
+        {
+          "path": "components/common/chartVisuals.ts",
+          "symbol": "CHART_X_AXIS_TICK"
         }
       ],
       "canonical": {
@@ -1683,8 +1690,12 @@
         ],
         "android": [
           {
-            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongHistoryCard.kt",
-            "symbol": "SongHistoryCard"
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/profile/PlayerCharts.kt",
+            "symbol": "bandLabelLefts"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ChartBandLabels.kt",
+            "symbol": "ChartBandLabels"
           }
         ],
         "windows": [
@@ -1708,7 +1719,42 @@
           ],
           "debt": [],
           "message": "Apple chart date axes come from the shared barChartDateAxis, which centres each date on its bar (chart-date-axis R1, R4)."
+        },
+        {
+          "id": "android-local-centring",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "\\(slot\\s*-\\s*\\w+\\.size\\.width\\)\\s*/\\s*2",
+          "allow": [],
+          "debt": [],
+          "message": "Bar-chart date labels are placed by ChartGeometry.bandLabelLefts, not per-chart centring math (chart-date-axis R1, R4-R6)."
+        },
+        {
+          "id": "android-band-labels",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "bandLabelLefts\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/core/profile/PlayerCharts.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ChartBandLabels.kt"
+          ],
+          "debt": [],
+          "message": "Bar-chart dates are laid out by the ChartBandLabels row, whose height follows the text size; canvases don't draw dates in a fixed band (chart-date-axis R4, R5)."
         }
+      ],
+      "related": {
+        "patterns": [
+          "load-transition"
+        ],
+        "controls": [],
+        "pages": [
+          "player-profile",
+          "leaderboards",
+          "song-detail"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        314
       ]
     },
     {

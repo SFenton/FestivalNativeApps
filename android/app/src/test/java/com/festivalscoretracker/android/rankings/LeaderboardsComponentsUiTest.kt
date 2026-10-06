@@ -183,6 +183,11 @@ class LeaderboardsComponentsUiTest {
         rule.waitUntil(5_000) { settle(); text("Rank History") && exists("fst.leaderboards.rank-history.picker") }
         rule.waitUntil(5_000) { settle(); rule.onAllNodesWithContentDescription("Rank history chart", substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
         assertTrue(text("Total Score"))
+        // The date row spans the plot and both axis gutters, so each date can centre under its bar (#314).
+        val plotBounds = rule.onNodeWithTag("fst.leaderboards.rank-history.plot").fetchSemanticsNode().boundsInRoot
+        val dateBounds = rule.onNodeWithTag("fst.leaderboards.rank-history.dates").fetchSemanticsNode().boundsInRoot
+        assertTrue(dateBounds.height > 0f && dateBounds.left < plotBounds.left && dateBounds.right > plotBounds.right)
+        assertTrue(dateBounds.top >= plotBounds.bottom)
         // The window pages and swipes like the profile chart; tapping a bar shows its detail.
         rule.onNodeWithTag("fst.leaderboards.rank-history.back-page").performSemanticsAction(SemanticsActions.OnClick)
         settle()
