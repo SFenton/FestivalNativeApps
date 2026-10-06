@@ -67,6 +67,16 @@ class NavigationJourneyTests(unittest.TestCase):
         self.assertTrue(failures[1].startswith("did not expect /"))
         self.assertIn("'fst.nav.songs' after position", failures[2])
 
+    def test_no_overview_pattern(self):
+        # Issue #266: a Compete-style overview control fails the compete journey; other names don't.
+        self.assertNotRegex(TREE, n.NO_OVERVIEW)
+        self.assertRegex('  Button "Leaderboards Overview" id=fst.compete.overview class=Button', n.NO_OVERVIEW)
+        self.assertRegex('  HyperlinkButton "Open leaderboard overview" id= class=HyperlinkButton', n.NO_OVERVIEW)
+        self.assertNotRegex('  Text "Overview" id=fst.player.overview class=TextBlock', n.NO_OVERVIEW)
+        compete = next(j for j in n.JOURNEYS if j.name == "compete")
+        self.assertIn(n.NO_OVERVIEW, compete.phases[0].forbid)
+        self.assertIn(n.NO_OVERVIEW, compete.phases[1].forbid)
+
     def test_check_reports_missing_order_item(self):
         failures = n.check(n.Phase(steps=[], order=n.PLAYER_PANE), TREE)
         self.assertEqual(1, len(failures))
