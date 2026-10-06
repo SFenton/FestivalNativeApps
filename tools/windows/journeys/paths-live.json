@@ -1,0 +1,140 @@
+[
+  {
+    "name": "paths-live",
+    "route": "/songs/7b5ab751-1f6d-4682-8dd9-94d309f65fc7",
+    "settings": {
+      "pathUnavailableWarningDismissed": true
+    },
+    "sizes": [
+      "compact",
+      "medium",
+      "snap-left",
+      "snap-right"
+    ],
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@30",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:name=Lead Expert CHOpt path@30",
+      "wait:1.5",
+      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller"
+    ],
+    "after_ready": [
+      "shot:{stem}-1-fit.png",
+      "scrollto:id=fst.paths.image-scroller,40",
+      "wait:0.6",
+      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller",
+      "shot:{stem}-2-scrolled.png",
+      "invoke:id=fst.paths.zoom-in",
+      "waitfor:name=150%@5",
+      "wait:0.8",
+      "shot:{stem}-3-zoomed.png",
+      "invoke:id=fst.paths.zoom-out",
+      "waitfor:name=100%@5",
+      "wait:0.8",
+      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller",
+      "expand:id=fst.paths.instrument.compact",
+      "waitfor:name=Drums@5",
+      "select:name=Drums",
+      "waitfor:name=Drums Expert CHOpt path@30",
+      "wait:1",
+      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller",
+      "expand:id=fst.paths.difficulty.compact",
+      "waitfor:name=Hard@5",
+      "select:name=Hard",
+      "waitfor:name=Drums Hard CHOpt path@30",
+      "wait:1",
+      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller",
+      "expand:id=fst.paths.display.compact",
+      "waitfor:name=Text@5",
+      "select:name=Text",
+      "waitfor:id=fst.paths.activation.1@30",
+      "expand:id=fst.paths.display.compact",
+      "waitfor:name=Image@5",
+      "select:name=Image",
+      "waitfor:name=Drums Hard CHOpt path@30",
+      "wait:1",
+      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller",
+      "shot:{stem}-4-switched.png"
+    ],
+    "teardown": [
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-live-wide",
+    "route": "/songs/7b5ab751-1f6d-4682-8dd9-94d309f65fc7",
+    "settings": {
+      "pathUnavailableWarningDismissed": true
+    },
+    "sizes": [
+      "wide",
+      "maximized"
+    ],
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@30",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:name=Lead Expert CHOpt path@30",
+      "wait:1.5",
+      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller"
+    ],
+    "after_ready": [
+      "shot:{stem}-1-fit.png",
+      "film:{stem}-film",
+      "wait:0.5",
+      "scrollto:id=fst.paths.image-scroller,4",
+      "wait:0.15",
+      "scrollto:id=fst.paths.image-scroller,8",
+      "wait:0.15",
+      "scrollto:id=fst.paths.image-scroller,12",
+      "wait:0.15",
+      "scrollto:id=fst.paths.image-scroller,16",
+      "wait:0.15",
+      "scrollto:id=fst.paths.image-scroller,20",
+      "wait:0.15",
+      "scrollto:id=fst.paths.image-scroller,24",
+      "wait:0.15",
+      "scrollto:id=fst.paths.image-scroller,28",
+      "wait:0.15",
+      "scrollto:id=fst.paths.image-scroller,32",
+      "wait:0.15",
+      "scrollto:id=fst.paths.image-scroller,36",
+      "wait:0.15",
+      "scrollto:id=fst.paths.image-scroller,40",
+      "wait:0.15",
+      "wait:2.5",
+      "filmstop:{stem}-film",
+      "scrollto:id=fst.paths.image-scroller,40",
+      "wait:0.6",
+      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller",
+      "shot:{stem}-2-scrolled.png",
+      "invoke:id=fst.paths.zoom-in",
+      "waitfor:name=150%@5",
+      "wait:0.8",
+      "shot:{stem}-3-zoomed.png",
+      "invoke:id=fst.paths.zoom-out",
+      "waitfor:name=100%@5",
+      "wait:0.8",
+      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller",
+      "toggle:id=fst.paths.instrument.Solo_Drums",
+      "waitfor:name=Drums Expert CHOpt path@30",
+      "wait:1",
+      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller",
+      "select:name=Hard",
+      "waitfor:name=Drums Hard CHOpt path@30",
+      "wait:1",
+      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller",
+      "select:name=Text",
+      "waitfor:id=fst.paths.activation.1@30",
+      "select:name=Image",
+      "waitfor:name=Drums Hard CHOpt path@30",
+      "wait:1",
+      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller",
+      "shot:{stem}-4-switched.png"
+    ],
+    "teardown": [
+      "key:esc"
+    ]
+  }
+]

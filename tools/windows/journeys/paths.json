@@ -26,7 +26,8 @@
       "waitfor:id=fst.paths@10",
       "waitfor:id=fst.paths.image@15",
       "waitfor:name=Lead Expert CHOpt path@5",
-      "wait:1"
+      "wait:1",
+      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller"
     ],
     "teardown": [
       "key:esc"
@@ -66,6 +67,65 @@
       "invoke:id=fst.paths.zoom-in",
       "waitfor:name=225%@5",
       "wait:1"
+    ],
+    "teardown": [
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-scrolled",
+    "route": "/songs/fixture-pulse",
+    "skip_sizes": {
+      "scale-150": [
+        "maximized"
+      ],
+      "scale-100": [
+        "maximized"
+      ]
+    },
+    "settings": {
+      "pathUnavailableWarningDismissed": true
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.image@15",
+      "waitfor:name=Lead Expert CHOpt path@5",
+      "wait:1",
+      "scrollto:id=fst.paths.image-scroller,100",
+      "wait:0.5",
+      "assertstate:id=fst.paths.image-scroller|scroll=100",
+      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller"
+    ],
+    "teardown": [
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-zoom-restore",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": true
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.image@15",
+      "waitfor:name=Lead Expert CHOpt path@5",
+      "wait:1",
+      "invoke:id=fst.paths.zoom-in",
+      "invoke:id=fst.paths.zoom-in",
+      "waitfor:name=225%@5",
+      "scrollto:id=fst.paths.image-scroller,50",
+      "wait:0.5",
+      "invoke:id=fst.paths.zoom-out",
+      "invoke:id=fst.paths.zoom-out",
+      "waitfor:name=100%@5",
+      "assertstate:id=fst.paths.zoom-out|enabled=false",
+      "wait:0.5",
+      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller"
     ],
     "teardown": [
       "key:esc"
@@ -200,7 +260,8 @@
       "select:name=Lead",
       "waitfor:id=fst.paths.image@15",
       "waitfor:name=Lead Expert CHOpt path@5",
-      "wait:1"
+      "wait:1",
+      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller"
     ],
     "teardown": [
       "key:esc"
@@ -221,7 +282,8 @@
       "waitfor:name=Hard@5",
       "select:name=Hard",
       "waitfor:name=Lead Hard CHOpt path@15",
-      "wait:1"
+      "wait:1",
+      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller"
     ],
     "teardown": [
       "key:esc"
@@ -319,7 +381,8 @@
       "toggle:id=fst.paths.instrument.Solo_Guitar",
       "waitfor:id=fst.paths.image@15",
       "waitfor:name=Lead Expert CHOpt path@5",
-      "wait:1"
+      "wait:1",
+      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller"
     ],
     "teardown": [
       "key:esc"
@@ -338,7 +401,8 @@
       "waitfor:id=fst.paths.image@15",
       "select:name=Hard",
       "waitfor:name=Lead Hard CHOpt path@15",
-      "wait:1"
+      "wait:1",
+      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller"
     ],
     "teardown": [
       "key:esc"
@@ -400,7 +464,8 @@
       "waitfor:id=fst.paths.image@15",
       "waitfor:name=Lead Expert CHOpt path@5",
       "assertannounced:Lead Expert path image loaded@5",
-      "wait:1"
+      "wait:1",
+      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller"
     ],
     "sizes": [
       "compact",
@@ -493,7 +558,8 @@
       "waitfor:id=fst.paths.image@15",
       "waitfor:name=Lead Expert CHOpt path@5",
       "assertannounced:Lead Expert path image loaded@5",
-      "wait:1"
+      "wait:1",
+      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller"
     ],
     "sizes": [
       "wide",

@@ -259,7 +259,7 @@ public sealed partial class SongPathsView : UserControl
     {
         if (e.IsIntermediate) return;
         applyingZoom = true;
-        ViewModel.Zoom = Math.Clamp(ImageScroller.ZoomFactor, SongPathsViewModel.MinZoom, SongPathsViewModel.MaxZoom);
+        ViewModel.Zoom = SongPathsViewModel.NormalizeZoom(ImageScroller.ZoomFactor);
         applyingZoom = false;
     }
 

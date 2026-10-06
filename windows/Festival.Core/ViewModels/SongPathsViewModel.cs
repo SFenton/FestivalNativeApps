@@ -78,6 +78,22 @@ public sealed partial class SongPathsViewModel : ObservableObject
         return Math.Max(1, Math.Min(available, pixelWidth / scale));
     }
 
+    /// <summary>
+    /// Zoom factor reported by the image scroller, as a model zoom: clamped to <see cref="MinZoom"/>–<see cref="MaxZoom"/>
+    /// and snapped onto a bound within half a displayed percent. The scroller returns a float that DPI snapping can leave
+    /// just past a bound (1.0003 at 150% display scale), which read "100%" while Zoom out stayed enabled (issue #279).
+    /// </summary>
+    /// <param name="factor">The scroller's zoom factor.</param>
+    /// <returns>Model zoom, exactly a bound when within 0.005 of it; <see cref="MinZoom"/> for a non-finite factor.</returns>
+    public static double NormalizeZoom(double factor)
+    {
+        const double tolerance = 0.005;
+        if (!double.IsFinite(factor)) return MinZoom;
+        var zoom = Math.Clamp(factor, MinZoom, MaxZoom);
+        if (zoom - MinZoom < tolerance) return MinZoom;
+        return MaxZoom - zoom < tolerance ? MaxZoom : zoom;
+    }
+
     private readonly FestivalSession session;
     private CancellationTokenSource? request;
     private int revision;

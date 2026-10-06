@@ -155,6 +155,34 @@ public class SongPathsViewModelTests
     public void FitImageWidth_UsesFullViewportWithoutUpscaling(double viewport, int pixels, double scale, double expected) =>
         Assert.Equal(expected, SongPathsViewModel.FitImageWidth(viewport, pixels, scale));
 
+    [Theory]
+    [InlineData(1.0003, 1)] // DPI-snapped float just past fit: "100%" must disable Zoom out
+    [InlineData(1.0049, 1)]
+    [InlineData(0.9997, 1)]
+    [InlineData(0.5, 1)]
+    [InlineData(1.006, 1.006)]
+    [InlineData(1.5, 1.5)]
+    [InlineData(2.25, 2.25)]
+    [InlineData(2.9996, 3)]
+    [InlineData(3.2, 3)]
+    [InlineData(double.NaN, 1)]
+    [InlineData(double.PositiveInfinity, 1)]
+    public void NormalizeZoom_ClampsAndSnapsOntoBounds(double factor, double expected) =>
+        Assert.Equal(expected, SongPathsViewModel.NormalizeZoom(factor));
+
+    [Fact]
+    public void ScrollerZoomJustPastFit_DisablesZoomOut()
+    {
+        var service = new FakeService();
+        SongsWire.Install(service);
+        var vm = new SongPathsViewModel(service.Session(), Song(), [Instrument.Lead]);
+        vm.ZoomInCommand.Execute(null);
+        vm.Zoom = SongPathsViewModel.NormalizeZoom(1.0003f);
+        Assert.Equal(("100%", false, true), (vm.ZoomText, vm.CanZoomOut, vm.CanZoomIn));
+        vm.Zoom = SongPathsViewModel.NormalizeZoom(2.9996f);
+        Assert.Equal(("300%", true, false), (vm.ZoomText, vm.CanZoomOut, vm.CanZoomIn));
+    }
+
     [Fact]
     public void InstrumentOptions_MirrorInstrumentsWithIconsAndSpokenNames()
     {
