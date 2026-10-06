@@ -33,14 +33,15 @@ object RankingNavigation {
     /**
      * TalkBack click label for a player row, named after where it actually leads (iOS
      * `SongPreviewSpotlightPolicy.hint`, issue #63): the selected player's in-place row opens
-     * Statistics, their appended row past the preview opens their page of the full board.
+     * Statistics; their appended row past the preview jumps to their position in the full
+     * board ([SelectedRowLabels], issue #307).
      *
      * @param route Row destination from [playerRoute] or the spotlight row's board page.
      * @return Action label.
      */
     fun actionLabel(route: AppRoute): String = when (route) {
-        StatisticsRoute -> "Open your statistics"
-        is SongLeaderboardRoute -> "Open your page of the full leaderboard"
+        StatisticsRoute -> SelectedRowLabels.OPEN_STATISTICS
+        is SongLeaderboardRoute -> SelectedRowLabels.JUMP_TO_PLAYER
         else -> "Open profile"
     }
 
@@ -113,14 +114,14 @@ object SongScoreSpotlight {
      * Build the pinned footer row from the selected player's score index.
      *
      * Only projects a score observed under the same publication as the board
-     * (never a newer score index onto an older page, or the reverse), and only when
-     * the player's row is not already on the page.
+     * (never a newer score index onto an older page, or the reverse). Like the web
+     * footer it stays pinned while the player's row is also on the page; its action then
+     * opens Statistics instead of jumping ([SelectedRowAction.footer], issue #307).
      *
      * @param player Selected player, or null.
      * @param score Their score on this song and chart, or null.
      * @param scorePublicationId Publication the score index was observed under.
      * @param boardPublicationId Publication the page was read under.
-     * @param visible Rows on the current page.
      * @return Footer row, or null when nothing should be pinned.
      */
     fun footer(
@@ -128,10 +129,8 @@ object SongScoreSpotlight {
         score: PlayerScore?,
         scorePublicationId: Int?,
         boardPublicationId: Int,
-        visible: List<LeaderboardEntry>,
     ): LeaderboardEntry? {
         if (player == null || score == null || scorePublicationId != boardPublicationId) return null
-        if (visible.any { RankingSpotlight.isSelected(player.accountId, it.accountId) }) return null
         return LeaderboardEntry(
             accountId = player.accountId,
             displayName = player.displayName,

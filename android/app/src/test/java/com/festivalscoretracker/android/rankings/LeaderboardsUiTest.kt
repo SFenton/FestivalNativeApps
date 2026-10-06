@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -20,6 +21,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.model.SelectedPlayer
@@ -474,6 +476,44 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         assertEquals(0f, footer, 0.5f)
     }
 
+    /**
+     * Pages from page 1 (selected score pinned) to a held page 2 and checks the stale pinned row
+     * is hidden from TalkBack and ignores a tap at its old place while the spinner shows (issue #149).
+     */
+    private fun assertStalePinnedRowHiddenWhilePaging(reduceMotion: Boolean) {
+        transport.on("/api/player/${RankingsFixtures.SELECTED}", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            ProfileFixtures.profile(RankingsFixtures.SELECTED, "Selected Player", listOf(ProfileFixtures.score("s-alpha", "01", rank = 30, total = 60)))
+        }
+        if (reduceMotion) {
+            runBlocking { store.updateData { it.toMutablePreferences().apply { this[booleanPreferencesKey(SettingsRegistry.REDUCE_MOTION)] = true } } }
+        }
+        val nextPage = CompletableDeferred<Unit>()
+        hold = { request -> nextPage.takeIf { request.url.contains("/api/leaderboard/s-alpha/Solo_Guitar") && request.url.contains("offset=25") } }
+        launch("songLeaderboard:s-alpha:Solo_Guitar", selected)
+        waitForDescription("Page 1 of 3")
+        waitForTag(footerTag)
+        val pinned = node(footerTag).fetchSemanticsNode().boundsInRoot.center
+        assertTrue(rule.onAllNodesWithTag(footerTag).fetchSemanticsNodes().isNotEmpty())
+        click("fst.song-leaderboard.page-next")
+        waitForTag("fst.song-leaderboard.loading")
+        settle()
+        // The merged tree is what TalkBack reads; the unmerged one still lists cleared descendants.
+        assertTrue("page 1's pinned row must not show under the spinner", rule.onAllNodesWithTag(footerTag).fetchSemanticsNodes().isEmpty())
+        rule.onRoot().performTouchInput { this.click(pinned) }
+        settle()
+        assertTrue("a tap where the pinned row was must not open a player", exists("fst.song-leaderboard.loading"))
+        nextPage.complete(Unit)
+        waitForDescription("Page 2 of 3")
+        rule.waitUntil(5_000) { settle(100); !exists("fst.song-leaderboard.loading") }
+        assertTrue("the pinned score returns with the new page", exists(footerTag))
+    }
+
+    @Test
+    fun songLeaderboardHidesTheStalePinnedScoreWhileThePageLoads() = assertStalePinnedRowHiddenWhilePaging(reduceMotion = false)
+
+    @Test
+    fun songLeaderboardHidesTheStalePinnedScoreWhileThePageLoadsUnderReduceMotion() = assertStalePinnedRowHiddenWhilePaging(reduceMotion = true)
+
     // endregion
 
     private fun scoreBounds(ancestor: String) = rule.onAllNodes(hasTestTag("fst.score") and hasAnyAncestor(hasTestTag(ancestor)), useUnmergedTree = true)
@@ -524,18 +564,58 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         waitForTag("fst.song-leaderboard.row.$mine")
         assertEquals("Open your statistics", clickLabel("fst.song-leaderboard.row.$mine"))
         assertEquals("Open profile", clickLabel("fst.song-leaderboard.row.${Fixtures.ACCOUNT_A.dropLast(2)}10"))
-        // Highlighted in place: no pinned copy below the board.
+        // No score index for this player: highlighted in place with nothing pinned.
         assertFalse(exists("fst.song-leaderboard.spotlight-footer"))
     }
 
-    @Test
-    fun songLeaderboardPinnedFooterOpensStatistics() {
+    /** Ranks [RankingsFixtures.SELECTED] 30th (page 2) on the Guitar board and in its score index. */
+    private fun selectedThirtieth() {
         transport.on("/api/player/${RankingsFixtures.SELECTED}", headers = mapOf("X-FST-Publication-Id" to "7")) {
             ProfileFixtures.profile(RankingsFixtures.SELECTED, "Selected Player", listOf(ProfileFixtures.score("s-alpha", "01", rank = 30, total = 60)))
         }
+        transport.on("/api/leaderboard/s-alpha/Solo_Guitar", headers = mapOf("X-FST-Publication-Id" to "7")) { request ->
+            val offset = Regex("offset=(\\d+)").find(request.url)?.groupValues?.get(1)?.toInt() ?: 0
+            val board = Fixtures.leaderboard("s-alpha", rows = minOf(25, 60 - offset), total = 60, startRank = offset + 1)
+            if (offset == 25) board.replace("\"accountId\":\"${Fixtures.ACCOUNT_A.dropLast(2)}14\"", "\"accountId\":\"${RankingsFixtures.SELECTED}\"") else board
+        }
+    }
+
+    /** Whether a row sits wholly between the list's top and the pinned footer/pager. */
+    private fun inView(tag: String): Boolean {
+        val row = node(tag).fetchSemanticsNode().boundsInRoot
+        return row.top >= node("fst.song-leaderboard.list").fetchSemanticsNode().boundsInRoot.top &&
+            row.bottom <= node("fst.song-leaderboard.bottom-bar").fetchSemanticsNode().boundsInRoot.top
+    }
+
+    @Test
+    fun songLeaderboardPinnedFooterJumpsToThePlayersPageThenOpensStatistics() {
+        selectedThirtieth()
         launch("songLeaderboard:s-alpha:Solo_Guitar", selected)
-        waitForTag("fst.song-leaderboard.row.${RankingsFixtures.SELECTED}")
-        assertEquals("Open your statistics", clickLabel("fst.song-leaderboard.row.${RankingsFixtures.SELECTED}"))
+        waitForDescription("Page 1 of 3")
+        waitForTag(footerTag)
+        // Leaderboard-row R7 (issue #307): off this page, the pinned row jumps to its page.
+        assertEquals("Jump to your position", clickLabel(footerTag))
+        click(footerTag)
+        waitForDescription("Page 2 of 3")
+        val row = "fst.song-leaderboard.row.${RankingsFixtures.SELECTED}"
+        waitForTag(row)
+        rule.waitUntil(10_000) { settle(100); inView(row) }
+        assertEquals("Open your statistics", clickLabel(row))
+        // Now on screen, the pinned copy opens Statistics like the row itself.
+        assertEquals("Open your statistics", clickLabel(footerTag))
+        click(footerTag)
+        rule.waitUntil(10_000) { settle(100); !exists("fst.song-leaderboard.list") }
+    }
+
+    @Test
+    fun songLeaderboardOpenedForThePlayerRevealsTheirRow() {
+        selectedThirtieth()
+        launch("songLeaderboard:s-alpha:Solo_Guitar:2:reveal", selected)
+        waitForDescription("Page 2 of 3")
+        val row = "fst.song-leaderboard.row.${RankingsFixtures.SELECTED}"
+        waitForTag(row)
+        rule.waitUntil(10_000) { settle(100); inView(row) }
+        assertEquals("Open your statistics", clickLabel(footerTag))
     }
 
     @Test
@@ -631,6 +711,19 @@ class FullRankingsDesktopUiTest : LeaderboardsHarness() {
         val pager = node("fst.full-rankings.pager").fetchSemanticsNode().boundsInRoot
         assertEquals(list.center.x, pager.center.x, with(rule.density) { 2.dp.toPx() })
     }
+
+    /** Issue #149: the pinned "your rank" row spans the capped board, lining up with its rows. */
+    @Test
+    fun desktopPinnedRankSpansTheBoard() {
+        launch("fullRankings:Solo_Guitar", selected)
+        waitForTag("fst.full-rankings.spotlight-footer")
+        val tag = "fst.rankings.row.${RankingsFixtures.accountId(1)}"
+        waitForTag(tag)
+        val row = node(tag).fetchSemanticsNode().boundsInRoot
+        val footer = node("fst.full-rankings.spotlight-footer").fetchSemanticsNode().boundsInRoot
+        assertEquals(row.left, footer.left, 0.5f)
+        assertEquals(row.right, footer.right, 0.5f)
+    }
 }
 
 @RunWith(AndroidJUnit4::class)
@@ -709,6 +802,40 @@ class LeaderboardsExpandedUiTest : LeaderboardsHarness() {
         launch("songLeaderboard:s-alpha:Solo_Guitar")
         waitForDescription("Page 1 of 3")
         rule.waitUntil(10_000) { settle(100); exists("fst.stars") }
+    }
+
+    /**
+     * Issue #149: on a wide window the pinned score row spans the rows' card, so its season,
+     * score, accuracy and stars columns sit under the rows' (the footer used to stop at 720 dp,
+     * centred, while the rows filled the window).
+     */
+    @Test
+    fun expandedSongLeaderboardPinnedRowLinesUpWithTheRows() {
+        transport.on("/api/player/${RankingsFixtures.SELECTED}", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            ProfileFixtures.profile(RankingsFixtures.SELECTED, "Selected Player", listOf(ProfileFixtures.score("s-alpha", "01", rank = 30, total = 60)))
+        }
+        launch("songLeaderboard:s-alpha:Solo_Guitar", selected)
+        waitForTag("fst.song-leaderboard.spotlight-footer")
+        rule.waitUntil(10_000) { settle(100); exists("fst.stars") }
+        val rowTag = SemanticsMatcher("score row") { it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("fst.song-leaderboard.row.") == true }
+        // The pinned row's own box carries the spotlight tag (`SelectedScoreFooterRow`).
+        val footer = rule.onAllNodesWithTag("fst.song-leaderboard.spotlight-footer", useUnmergedTree = true)
+            .fetchSemanticsNodes().single().boundsInRoot
+        val row = rule.onAllNodes(rowTag and hasAnyAncestor(hasTestTag("fst.song-leaderboard.list")), useUnmergedTree = true)
+            .fetchSemanticsNodes().map { it.boundsInRoot }.first { it.width > 0f }
+        assertTrue("the board is wider than the old 720 dp footer cap", with(rule.density) { row.width.toDp() } > 900.dp)
+        assertEquals(row.left, footer.left, 0.5f)
+        assertEquals(row.right, footer.right, 0.5f)
+        val footerScore = rule.onAllNodes(hasTestTag("fst.score") and hasAnyAncestor(hasTestTag("fst.song-leaderboard.spotlight-footer")), useUnmergedTree = true)
+            .fetchSemanticsNodes().single().boundsInRoot
+        val rowScores = rule.onAllNodes(hasTestTag("fst.score") and hasAnyAncestor(hasTestTag("fst.song-leaderboard.list")), useUnmergedTree = true)
+            .fetchSemanticsNodes().map { it.boundsInRoot }.filter { it.width > 0f }
+        assertTrue(rowScores.size > 1)
+        for (bounds in rowScores) assertEquals(footerScore.right, bounds.right, 0.5f)
+        // The pager keeps its own width, centred under the board.
+        val pager = node("fst.song-leaderboard.pager").fetchSemanticsNode().boundsInRoot
+        assertTrue(pager.width < row.width)
+        assertEquals(row.center.x, pager.center.x, with(rule.density) { 2.dp.toPx() })
     }
 }
 

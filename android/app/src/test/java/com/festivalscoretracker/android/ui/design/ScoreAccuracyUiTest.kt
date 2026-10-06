@@ -24,6 +24,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.font.FontStyle
@@ -212,6 +213,36 @@ class ScoreAccuracyUiTest {
             val bounds = rule.onNodeWithTag(tag(it), useUnmergedTree = true).getUnclippedBoundsInRoot()
             assertTrue("$it overflows: $bounds", bounds.right.value <= 400f && bounds.width.value > 0f)
         }
+    }
+
+    /**
+     * Issue #149: stacked (font 2.0) rows give every rank the section's slot, so a bold pinned
+     * row and a longer rank (#10 after #9) indent their names like the rest.
+     */
+    @Test
+    fun largeTextNamesLineUpWhateverTheRankWidth() {
+        val section = listOf(
+            LeaderboardEntry("acct-9", "Nine Player", 99_000, 9, accuracy = 990_000.0, isFullCombo = false),
+            LeaderboardEntry("acct-10", "Ten Player", 98_000, 10, accuracy = 980_000.0, isFullCombo = false),
+            LeaderboardEntry("acct-28", "Pinned Player", 97_000, 28, accuracy = 970_000.0, isFullCombo = false),
+        )
+        rule.setContent {
+            FestivalTheme {
+                val density = LocalDensity.current
+                CompositionLocalProvider(LocalDensity provides Density(density.density, 2f)) {
+                    val columns = rememberScoreColumns(section)
+                    Column(Modifier.width(400.dp)) {
+                        LeaderboardSectionMember(columns, "rows") {
+                            section.dropLast(1).forEach { ScoreRow(it, columns = columns.plan) }
+                        }
+                        LeaderboardSectionMember(columns, "footer") { ScoreRow(section.last(), isSelected = true, columns = columns.plan) }
+                    }
+                }
+            }
+        }
+        rule.waitForIdle()
+        val lefts = section.map { rule.onNodeWithText(it.displayName!!, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.left }
+        assertTrue("names ragged: $lefts", lefts.all { abs(it - lefts.first()) < 0.5f })
     }
 
     @Test

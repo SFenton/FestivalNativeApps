@@ -129,6 +129,43 @@ class BandRankingsScenarioTests(unittest.TestCase):
 ms = f.mock_service
 
 
+class SlowRivalsTests(unittest.TestCase):
+    """Slow accounts (issue #265) hold only their rivals list reads."""
+
+    def test_only_slow_accounts_list_reads_are_delayed(self):
+        slow = f.SLOW_RIVALS_SECONDS
+        for path in ("/api/player/fixture-player-slow/rivals/Solo_Guitar",
+                     "/api/player/fixture-player-slow/rivals/03",
+                     "/api/player/fixture-player-slow-503/rivals/Solo_Bass",
+                     "/api/player/fixture-player-slow/leaderboard-rivals/Solo_Guitar?rankBy=totalscore"):
+            self.assertEqual(f.rivals_list_delay(path), slow, path)
+        for path in ("/api/player/fixture-player-1/rivals/Solo_Guitar",
+                     "/api/player/fixture-player-503/leaderboard-rivals/Solo_Guitar",
+                     "/api/player/fixture-player-slow/rivals/Solo_Guitar/f1c749eb07c32578cfa3e59ec38c03a8",
+                     "/api/player/fixture-player-slow/leaderboard-rivals/Solo_Guitar/abc",
+                     "/api/player/fixture-player-slow", "/api/songs"):
+            self.assertEqual(f.rivals_list_delay(path), 0.0, path)
+
+    def test_delay_stays_under_the_app_request_timeout(self):
+        self.assertTrue(0 < f.SLOW_RIVALS_SECONDS < 30)
+
+    def test_install_sleeps_then_serves(self):
+        original = ms.FixtureHandler.do_GET
+        served, slept = [], []
+        ms.FixtureHandler.do_GET = lambda handler: served.append(handler.path)
+        real_sleep = f.time.sleep
+        f.time.sleep = slept.append
+        try:
+            f.install_slow_rivals()
+            for path in ("/api/player/fixture-player-slow/rivals/Solo_Guitar", "/api/player/fixture-player-1/rivals/Solo_Guitar"):
+                ms.FixtureHandler.do_GET(type("H", (), {"path": path})())
+        finally:
+            ms.FixtureHandler.do_GET = original
+            f.time.sleep = real_sleep
+        self.assertEqual(len(served), 2)
+        self.assertEqual(slept, [f.SLOW_RIVALS_SECONDS])
+
+
 class DetailNameTests(unittest.TestCase):
     """``name_detail_bodies`` patches both detail builders and restores cleanly."""
 

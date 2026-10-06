@@ -254,7 +254,7 @@
                                                 </DataTemplate>
                                             </ItemsRepeater.ItemTemplate>
                                         </ItemsRepeater>
-                                        <Button Content="View Full Leaderboard" Tag="{x:Bind}" Click="OnViewFull" Style="{StaticResource FSTViewAllButtonStyle}"
+                                        <Button Content="{x:Bind vm:LeaderboardPreviewViewModel.ViewAllText}" Tag="{x:Bind}" Click="OnViewFull" Style="{StaticResource FSTViewAllButtonStyle}"
                                                 Margin="0,4,0,0" Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
                                                 AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                     </StackPanel>
@@ -285,7 +285,8 @@
                                         <Border Style="{StaticResource FSTCardStyle}" MinHeight="96" Visibility="{x:Bind ShowPlaceholder, Mode=OneWay}">
                                             <StackPanel Spacing="8">
                                                 <ProgressRing IsActive="{x:Bind IsLoading, Mode=OneWay}" HorizontalAlignment="Left" Width="24" Height="24"
-                                                              Visibility="{x:Bind IsLoading, Mode=OneWay}" AutomationProperties.Name="Loading band scores" />
+                                                              Visibility="{x:Bind IsLoading, Mode=OneWay}" AutomationProperties.Name="Loading band scores"
+                                                              AutomationProperties.AutomationId="{x:Bind LoadingAutomationId}" />
                                                 <TextBlock Text="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}" TextWrapping="Wrap"
                                                            Style="{StaticResource BodyTextBlockStyle}" Foreground="{ThemeResource FSTSecondaryTextBrush}"
                                                            AutomationProperties.AutomationId="{x:Bind EmptyAutomationId}" />
@@ -294,7 +295,7 @@
                                             </StackPanel>
                                         </Border>
                                         <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" VerticalCacheLength="20"
-                                                       Visibility="{x:Bind ShowRows, Mode=OneWay}"
+                                                       Visibility="{x:Bind ShowRows, Mode=OneWay}" controls:BandScoreFooterPanel.IsSection="True"
                                                        controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="96">
                                             <ItemsRepeater.Layout>
                                                 <StackLayout Spacing="4" />
@@ -305,7 +306,7 @@
                                                 </DataTemplate>
                                             </ItemsRepeater.ItemTemplate>
                                         </ItemsRepeater>
-                                        <Button Content="View Full Leaderboard" Tag="{x:Bind}" Click="OnBandViewFull" Style="{StaticResource FSTViewAllButtonStyle}"
+                                        <Button Content="{x:Bind vm:LeaderboardPreviewViewModel.ViewAllText}" Tag="{x:Bind}" Click="OnBandViewFull" Style="{StaticResource FSTViewAllButtonStyle}"
                                                 Margin="0,4,0,0" Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
                                                 AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                     </StackPanel>

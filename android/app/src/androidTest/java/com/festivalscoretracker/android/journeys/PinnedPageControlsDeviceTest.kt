@@ -175,16 +175,15 @@ class PinnedPageControlsDeviceTest {
 
         val tools = listOf("fst.songs.sort.open", "fst.songs.filter.open", "fst.quick-links.open")
         val anchors = when (placement) {
-            Placement.FloatingToolbar -> tools
-            Placement.TopBar -> tools + "fst.songs.search"
+            // The list filter is pinned inline above the list at every width (issue #309).
+            Placement.FloatingToolbar, Placement.TopBar -> tools + "fst.songs.search"
             Placement.Overflow -> listOf("fst.nav.overflow", "fst.songs.search")
         } + "fst.global-search.open"
         val labels = when (placement) {
             Placement.Overflow -> listOf("More actions")
             else -> listOf("Sort songs", "Filter songs", "Quick Links")
-        } + listOf("Search songs".takeIf { placement == Placement.FloatingToolbar }, "Search").filterNotNull()
+        } + "Search"
         val atTop = anchors.associateWith(::bounds)
-        val searchAtTop = if (placement == Placement.FloatingToolbar) bounds("fst.songs.search.open") else null
         assertReads(h.readingOrder("pinned-songs-top"), labels, "at the top")
 
         repeat(3) { swipe("fst.songs.list", down = true) }
@@ -192,32 +191,21 @@ class PinnedPageControlsDeviceTest {
         assertSame(atTop, "while scrolled")
         val scrolled = h.readingOrder("pinned-songs-scrolled")
         assertReads(scrolled, labels, "while scrolled")
-        if (placement == Placement.FloatingToolbar) {
-            assertToolbarReadBefore("fst.songs.list")
-            assertTrue("search minimized while scrolled", bounds("fst.songs.search.open").width < searchAtTop!!.width)
-        }
+        if (placement == Placement.FloatingToolbar) assertToolbarReadBefore("fst.songs.list")
 
         opens("fst.songs.sort.open", "fst.songs.sort.form", "fst.songs.sort.done", placement, "pinned-songs-sort")
         opens("fst.songs.filter.open", "fst.songs.filter.form", "fst.songs.filter.done", placement, "pinned-songs-filter")
         jumpsWithQuickLinks(placement)
         opens("fst.global-search.open", "fst.global-search.surface", "fst.global-search.close", Placement.TopBar, "pinned-songs-global-search")
         assertSame(atTop, "after the tools")
-        if (placement == Placement.FloatingToolbar) {
-            h.tap("fst.songs.search.open")
-            h.waitForTag("fst.songs.search")
-            rule.onNodeWithTag("fst.songs.search").assertIsFocused()
-            h.tap("fst.songs.search.close")
-            h.waitGone("fst.songs.search")
-        } else {
-            h.tap("fst.songs.search")
-            rule.onNodeWithTag("fst.songs.search").assertIsFocused()
-            Espresso.closeSoftKeyboard()
-        }
+        h.tap("fst.songs.search")
+        rule.onNodeWithTag("fst.songs.search").assertIsFocused()
+        Espresso.closeSoftKeyboard()
         rule.waitForIdle()
 
         scrollToTop("fst.songs.list") { h.exists("fst.songs.row.s-1") }
         rule.waitForIdle()
-        assertSame(atTop + listOfNotNull(searchAtTop?.let { "fst.songs.search.open" to it }), "back at the top")
+        assertSame(atTop, "back at the top")
         assertReads(h.readingOrder("pinned-songs-restored"), labels, "back at the top")
         h.assertAccessible()
     }

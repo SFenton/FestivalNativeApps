@@ -2,6 +2,35 @@ import Foundation
 import Testing
 @testable import FestivalCore
 
+// MARK: - Ramps (issue #308)
+
+/// The web ramps: `useScrollMask` 40 px at top edges, `useScrollFade` 36 px at bottom
+/// chrome.
+@Test func scrollEdgeRampsMatchTheWeb() {
+    #expect(ScrollEdgeFade.topDistance == 40)
+    #expect(ScrollEdgeFade.distance == 36)
+}
+
+/// Accessibility settings turn any ramp into a hard edge; bad input never fades.
+@Test func scrollEdgeRampBecomesAHardEdge() {
+    #expect(ScrollEdgeFade.ramp(ScrollEdgeFade.topDistance, hardEdge: false) == 40)
+    #expect(ScrollEdgeFade.ramp(ScrollEdgeFade.distance, hardEdge: false) == 36)
+    #expect(ScrollEdgeFade.ramp(ScrollEdgeFade.topDistance, hardEdge: true) == 0)
+    #expect(ScrollEdgeFade.ramp(ScrollEdgeFade.distance, hardEdge: true) == 0)
+    #expect(ScrollEdgeFade.ramp(-4, hardEdge: false) == 0)
+    #expect(ScrollEdgeFade.ramp(.nan, hardEdge: false) == 0)
+    #expect(ScrollEdgeFade.ramp(.infinity, hardEdge: false) == 0)
+}
+
+/// A hard edge cuts rows exactly at the chrome's top: no ramp, nothing beneath.
+@Test func bottomHardEdgeCutsAtChromeTop() {
+    let stops = ScrollEdgeFade.bottom(
+        height: 800, obscured: 200, distance: ScrollEdgeFade.ramp(ScrollEdgeFade.distance, hardEdge: true)
+    )
+    #expect(stops.fadeStart == 0.75)
+    #expect(stops.fadeEnd == 0.75)
+}
+
 // MARK: - Bottom scroll edge fade (issue #93)
 
 /// Rows fade over 36 pt above the chrome and are clear beneath it.
