@@ -32,7 +32,8 @@
         </StackPanel>
 
         <!-- Selectors (compact): the chart fills the sheet above one bottom row of native ComboBoxes for the instrument
-             (icon + name), difficulty and display (Fluent; replaces the web's mobile instrument accordion, issue #88). -->
+             (icon + name), difficulty and display (Fluent; replaces the web's mobile instrument accordion, issue #88).
+             Declared before ChartArea so Tab reaches the selectors before the chart they choose (spec order). -->
         <Grid x:Name="CompactSelectors" Grid.Row="2" ColumnSpacing="8" Visibility="Collapsed">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
