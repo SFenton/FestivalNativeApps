@@ -245,7 +245,7 @@ struct SongBandLeaderboardContent: View {
         .festivalBackground(.song(song.albumArt), session: session)
         // Kept for the back menu and window title; the principal item below holds the
         // bar empty until the header scrolls away (issue #93).
-        .navigationTitle(song.title)
+        .festivalNavigationTitle(song.title)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: headerHidden)
         .toolbar {
             SongLeaderboardPinnedTitle(

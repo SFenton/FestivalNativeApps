@@ -1064,6 +1064,10 @@
           "symbol": "PathsModal"
         },
         {
+          "path": "contexts/PublicationBoundary.tsx",
+          "symbol": "PublicationBoundary"
+        },
+        {
           "path": "hooks/chart/useListAnimation.ts",
           "symbol": "useListAnimation"
         }
@@ -1085,6 +1089,26 @@
           {
             "path": "apple/Sources/FestivalCore/PathSwitchTransition.swift",
             "symbol": "PathSwitchTransition"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/PublicationRefreshBoundary.swift",
+            "symbol": "PublicationRefreshBoundary"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/PublicationRefreshTransition.swift",
+            "symbol": "PublicationRefreshTransition"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/PublicationRefreshFocus.swift",
+            "symbol": "PublicationRefreshFocus"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/PublicationFocusProbe.swift",
+            "symbol": "PublicationFocusProbe"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/PageTitle.swift",
+            "symbol": "festivalNavigationTitle"
           }
         ],
         "android": [
@@ -1164,6 +1188,22 @@
           "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."
         },
         {
+          "id": "apple-page-title",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\.navigationTitle\\s*\\(",
+          "allow": [
+            "apple/Sources/FestivalUI/Common/PageTitle.swift",
+            "apple/Sources/FestivalUI/App/FestivalRootView.swift",
+            "apple/Sources/FestivalUI/Design/FestivalModal.swift",
+            "apple/Sources/FestivalUI/Features/Search/GlobalSearchTab.swift",
+            "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackFormSheet.swift",
+            "apple/Sources/FestivalUI/Features/Settings/SettingsScreen.swift",
+            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift"
+          ],
+          "debt": [],
+          "message": "Pages inside PublicationRefreshBoundary set their title with festivalNavigationTitle so the VoiceOver page anchor can name them during a publication refresh (load-transition R9)."
+        },
+        {
           "id": "android-load-swap",
           "glob": "android/app/src/main/**/*.kt",
           "regex": "rememberLoadSwap\\s*\\(",
@@ -1229,7 +1269,8 @@
         70,
         71,
         149,
-        169
+        169,
+        304
       ]
     },
     {
@@ -1467,7 +1508,8 @@
         12,
         15,
         286,
-        303
+        303,
+        313
       ]
     },
     {
@@ -1706,6 +1748,107 @@
       "supersededBy": null,
       "issues": [
         315
+      ]
+    },
+    {
+      "id": "view-all-cta",
+      "title": "View all call to action",
+      "status": "current",
+      "doc": ".agents/patterns/view-all-cta.md",
+      "summary": "A card of preview rows ends with one full-width brand-purple button below the rows (View Full Leaderboard, View All Rivals, View All Rankings (N), View All Scores) at the platform minimum target, with no per-consumer overrides, a label-first accessible name and readable contrast-mode colours.",
+      "keywords": [
+        "view all",
+        "view full leaderboard",
+        "view all rivals",
+        "view all rankings",
+        "view all scores",
+        "call to action",
+        "cta",
+        "purple button"
+      ],
+      "web": [
+        {
+          "path": "pages/songinfo/components/ViewFullLeaderboardCta.tsx",
+          "symbol": "ViewFullLeaderboardCta"
+        },
+        {
+          "path": "pages/rivals/useRivalsSharedStyles.ts",
+          "symbol": "viewAllButton"
+        },
+        {
+          "path": "pages/leaderboards/components/RankingCard.tsx",
+          "symbol": "RankingCard"
+        },
+        {
+          "path": "components/common/GraphCard.tsx",
+          "symbol": "viewAllButton"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Leaderboards/PurpleActionButton.swift",
+            "symbol": "PurpleActionLabel"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/ViewFullLeaderboardButton.kt",
+            "symbol": "ViewFullLeaderboardButton"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "FSTViewAllButtonStyle"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/ViewAllCta.cs",
+            "symbol": "ViewAllCta"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "section-headers",
+          "leaderboard-row"
+        ],
+        "pages": [
+          "song-detail",
+          "rivals",
+          "compete",
+          "leaderboards"
+        ]
+      },
+      "guards": [
+        {
+          "id": "windows-label-copy",
+          "glob": "windows/Festival.Core/**/*.cs",
+          "regex": "\"View (All|Full) [A-Z]",
+          "allow": [
+            "windows/Festival.Core/Domain/ViewAllCta.cs"
+          ],
+          "debt": [],
+          "message": "Windows View all labels come from ViewAllCta so every CTA keeps the web copy and the label-first name rule (view-all-cta R4)."
+        },
+        {
+          "id": "windows-xaml-literal",
+          "glob": "windows/Festival.App/**/*.xaml",
+          "regex": "Content=\"View (All|Full) ",
+          "allow": [],
+          "debt": [],
+          "message": "Bind a View all CTA's text and name to its view model (ViewAllText/ViewAllName via ViewAllCta) and use FSTViewAllButtonStyle (view-all-cta R3, R4)."
+        },
+        {
+          "id": "windows-parallel-style",
+          "glob": "windows/Festival.App/**/*.xaml",
+          "regex": "x:Key=\"[^\"]*ViewAll[^\"]*\"",
+          "allow": [
+            "windows/Festival.App/Themes/Styles.xaml"
+          ],
+          "debt": [],
+          "message": "Windows has one View all CTA style, FSTViewAllButtonStyle in Themes/Styles.xaml; extend it instead of adding another (view-all-cta R3)."
+        }
       ]
     }
   ]

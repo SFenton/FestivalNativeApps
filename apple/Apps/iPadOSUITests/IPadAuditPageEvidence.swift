@@ -249,7 +249,9 @@ enum IPadAuditPageEvidence {
             if frame.minY > window.midY { bottom = min(bottom, frame.minY) }
         }
         var area = ContentArea(rect: CGRect(x: window.minX, y: window.minY, width: window.width, height: bottom - window.minY))
-        guard let root = try? app.snapshot() else { return area }
+        // The open drawer sits in front of the page's bars and pagers: its rows are
+        // measurable wherever they are (the page's large-title bar reached y 198 behind it).
+        guard !drawerOpen, let root = try? app.snapshot() else { return area }
         func walk(_ node: XCUIElementSnapshot, inBar: Bool) {
             let isBar = node.elementType == .navigationBar && node.frame.maxY < window.midY && node.frame.height > 0
             if isBar { area.topBars.append(node.frame) }
