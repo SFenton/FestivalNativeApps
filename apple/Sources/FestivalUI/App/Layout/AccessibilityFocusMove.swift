@@ -18,8 +18,10 @@ import UIKit
 enum AccessibilityFocusTarget: Equatable, Sendable {
     /// The top-most heading inside the anchor's own frame (a pane's or panel's title).
     case topHeading
-    /// The element with this accessibility identifier, anywhere in the anchor's window.
-    case identifier(String)
+    /// The element with this accessibility identifier, anywhere in the anchor's window;
+    /// else the element with `fallbackLabel` (the iPhone Duo rail's overflow "More" button
+    /// when the identified item moved into it).
+    case identifier(String, fallbackLabel: String? = nil)
 }
 
 /// One request: a new `token` asks again for the same target.
@@ -197,15 +199,18 @@ private struct AccessibilityFocusAnchor: UIViewRepresentable {
                     )
                 }
                 chosen = AccessibilityFocusChoice.topHeading(candidates, in: region).map { elements[$0] }
-            case .identifier(let id):
+            case .identifier(let id, let fallbackLabel):
                 chosen = elements.first { Self.identifier(of: $0) == id }
+                    ?? fallbackLabel.flatMap { label in
+                        elements.first { $0.accessibilityLabel == label && $0.accessibilityTraits.contains(.button) }
+                    }
             }
             guard let chosen else { return false }
             UIAccessibility.post(notification: request.screenChanged ? .screenChanged : .layoutChanged, argument: chosen)
             let kind: String
             switch request.target {
             case .topHeading: kind = request.screenChanged ? "heading" : "heading-layout"
-            case .identifier(let id): kind = id
+            case .identifier(let id, _): kind = id
             }
             AccessibilityFocusTrace.shared.record("\(kind): \(chosen.accessibilityLabel ?? "")")
             return true
@@ -267,7 +272,7 @@ extension AppRoute {
         case .player(let accountId, _): "player:\(accountId)"
         case .rivalDetail(let rivalId, _, _): "rivalDetail:\(rivalId)"
         case .band(let bandId, _, _, _): "band:\(bandId)"
-        case .songLeaderboard(let song, let instrument, _): "songLeaderboard:\(song.songId):\(instrument.rawValue)"
+        case .songLeaderboard(let song, let instrument, _, _): "songLeaderboard:\(song.songId):\(instrument.rawValue)"
         case .playerHistory(let song, let instrument): "playerHistory:\(song.songId):\(instrument.rawValue)"
         case .licenses: "licenses"
         default: String(describing: self).prefix(40).description

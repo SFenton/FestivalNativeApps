@@ -7,7 +7,10 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.festivalscoretracker.android.AppContainer
+import com.festivalscoretracker.android.core.bands.BandText
 import com.festivalscoretracker.android.core.bands.BandType
+import com.festivalscoretracker.android.core.bands.PlayerBandGroup
+import com.festivalscoretracker.android.ui.leaderboards.SyncRouteArguments
 import com.festivalscoretracker.android.core.nav.BandRoute
 import com.festivalscoretracker.android.core.nav.BandsRoute
 import com.festivalscoretracker.android.core.nav.PlayerBandsRoute
@@ -38,8 +41,9 @@ fun NavGraphBuilder.bandsDestinations(container: AppContainer) {
     composable<PlayerBandsRoute> { entry ->
         val route = entry.toRoute<PlayerBandsRoute>()
         val shell = LocalShellActions.current
-        val list: PlayerBandsViewModel = viewModel(key = "player-bands:${route.accountId}") {
-            PlayerBandsViewModel(route.accountId, BandPaging.PAGE_SIZE, api::playerBands, container.backoff)
+        val group = PlayerBandGroup.fromWireId(route.group)
+        val list: PlayerBandsViewModel = viewModel(key = "player-bands:${route.accountId}:${group.wireId}") {
+            PlayerBandsViewModel(route.accountId, BandPaging.PAGE_SIZE, api::playerBands, container.backoff, group)
         }
         val state by list.bands.collectAsStateWithLifecycle()
         val entries = (state as? LoadState.Loaded)?.value?.entries.orEmpty()
@@ -64,16 +68,28 @@ fun NavGraphBuilder.bandsDestinations(container: AppContainer) {
     composable<SongBandLeaderboardRoute> { entry ->
         val route = entry.toRoute<SongBandLeaderboardRoute>()
         val shell = LocalShellActions.current
-        val board: SongBandLeaderboardViewModel = viewModel(key = "song-bands:${route.songId}") {
+        // The selected player's best band comes back as `selectedPlayerEntry` (the allowlisted read-only
+        // `accountId=` query, no profile headers), for its highlight and pinned footer (issue #307).
+        val accountId = shell.selectedPlayer?.accountId?.takeIf { BandText.isValidMemberId(it) }
+        val board: SongBandLeaderboardViewModel = viewModel(key = "song-bands:${route.songId}:$accountId") {
             SongBandLeaderboardViewModel(
                 route.songId,
                 BandType.fromWireId(route.bandType) ?: BandType.Duets,
                 { api.catalog(it) },
-                api::songBandLeaderboard,
+                { id, type, page, top -> api.songBandLeaderboard(id, type, page, top, accountId) },
                 container.backoff,
+                initialPage = route.page,
             )
         }
-        SongBandLeaderboardScreen(board, api::artworkUrl, container.background, shell.navigate)
+        val routeState = entry.savedStateHandle
+        val page by board.page.collectAsStateWithLifecycle()
+        SyncRouteArguments(routeState, "page" to page)
+        SongBandLeaderboardScreen(
+            board, api::artworkUrl, container.background, shell.navigate,
+            revealSelected = route.navToBand,
+            // Revealed once: Back or a recreated entry keeps the scroll position instead (web clears `navToBand`).
+            onRevealed = { routeState["navToBand"] = false },
+        )
     }
 }
 

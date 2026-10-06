@@ -98,3 +98,22 @@ Journeys (`uiwin` `assertstatus:id=fst.shell.artwork-background|<status>[@secs]`
 | Keyboard | 30-press Tab walks in every run (5–8 stops) never land on the backdrop | — | Not focusable, no Narrator stop (`AccessibilityView.Raw`) |
 
 `no-art` can't be reached against the live service (every catalogue song has art); it is covered by `artwork_fixture.py`, whose screenshots show the undimmed brand purple.
+
+## Validation (issue #277)
+
+2026-10-05, Debug x64 on the 3840×2160 300% host, re-checking #83 (work hidden behind dialogs) with `a11y_matrix.py --pages tools/windows/journeys/a11y-modal-motion.json --scan --tabs 12` (fixture) plus live launches without `--base-url`. Pages: `mm-first-run-backdrop` (Songs tour), `-static` (motion off or contrast), `-reduced` (in-app Reduce Motion), `mm-whats-new-backdrop`, `mm-first-run-shop-pulses` (Settings → Item Shop guide through all four slides, `shop-overview` to `shop-leaving-tomorrow`, each asserting `pulse=running pulse-slides=1`, then minimize (`held`) and restore (`running`) on the last), `-static`/`-reduced` (the same four slides `held`, still `held` after minimize and restore; added 2026-10-06 after design review), and `mm-suggestions-scroll` (UIA `scrollto:` round trip). Axe.Windows reported 0 errors in every run (over 100 page × size × mode runs).
+
+| Configuration | Result | Finding |
+|---|---|---|
+| Compact, medium, wide, maximized, snap-left | All 6 pages PASS | Backdrop paused under the tour and What's New, `animated` after Close/Esc; the visible slide reports `pulse=running pulse-slides=1` after each Next; `pulse=held` when minimized and running again on restore |
+| Light and dark app theme (medium) | All PASS | No theme dependence |
+| Desert contrast (compact, medium, wide) | All PASS | Backdrop `save-data` throughout. Pulses still run on the visible slide only (contrast doesn't turn motion off) |
+| Text 200% (compact, medium, wide) | All PASS after a journey fix | Medium once opened the tour before the first fixture cover had decoded, so the paused backdrop reported `no-art` (the documented paused-before-first-cover state). The journey now accepts `not-visible` or `no-art` under a dialog and still requires `animated` after Close. In short windows the dialog body scrolls, so the pips sit below the fold (#244) |
+| Display 100%, 150% (medium) | All PASS | — |
+| Windows Animation effects off (compact, medium, wide), in-app Reduce Motion | All PASS | Backdrop `reduced-motion`/`save-data`; every pulse slide `pulse=held` |
+| Keyboard | 12-press Tab walk in every run | The dialog keeps focus (4–5 stops: Next, Back, Close, pips; none outside the app). On Suggestions, Tab moves row by row. One wide run focused two cards' rows for the same fixture song at the same scrolled spot. That's a repeat, not a trap: the next Tab moved on |
+| Live public service (compact, medium, wide; Desert contrast medium) | Tour over Songs: paused under the dialog, `animated` after Close; the Item Shop guide's visible slide runs its pulse ring with `pulse-slides=1` | Paused shows as `not-visible` when the first cover had decoded before the tour opened, or as `no-art` (brand surface) when it hadn't. Both happened in different launches. The cover fades in when the tour closes (recording) |
+
+Suggestions art: rows use the shared `ArtworkImages` decoded LRU (160 entries), so scrolling back reuses decoded covers. Unchanged since #83.
+
+Not changed: Songs-row Shop pulse rings share one `ShopPulseClock`, which also drives the visible tour slide. They keep breathing under a dialog, because pausing the clock under every modal would also stop the visible demo's pulses.

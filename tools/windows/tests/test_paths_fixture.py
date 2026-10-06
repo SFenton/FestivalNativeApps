@@ -38,12 +38,24 @@ class PathsJourneyTests(unittest.TestCase):
     """Every reachable Paths state has a page under the dialog route."""
 
     STATES = ("image-loading", "image", "text-loading", "text", "missing", "offline", "instrument-switch",
-              "difficulty-switch", "warning", "zoomed", "column-reorder")
+              "difficulty-switch", "warning", "zoomed", "column-reorder", "swap-announced", "display-toggle",
+              "rapid-switch")
 
     def test_every_state_has_a_page(self):
         pages = {page["name"] for page in json.loads(JOURNEYS.read_text(encoding="utf-8"))}
         for state in self.STATES:
             self.assertIn(f"paths-{state}", pages)
+
+    def test_swap_journeys_assert_the_announcements_in_both_layouts(self):
+        # Issue #269: each swap journey listens and asserts what Narrator hears, narrow and wide.
+        pages = {page["name"]: page for page in json.loads(JOURNEYS.read_text(encoding="utf-8"))}
+        for state in ("swap-announced", "display-toggle", "rapid-switch", "keyboard-switch"):
+            for name, sizes in ((f"paths-{state}", {"compact", "medium", "snap-left"}),
+                                (f"paths-{state}-wide", {"wide", "maximized"})):
+                ready = pages[name]["ready"]
+                self.assertIn("listen:announcements", ready, name)
+                self.assertTrue(any(step.startswith("assertannounced:") for step in ready), name)
+                self.assertEqual(set(pages[name]["sizes"]), sizes, name)
 
     def test_pages_open_the_fixture_song(self):
         for page in json.loads(JOURNEYS.read_text(encoding="utf-8")):

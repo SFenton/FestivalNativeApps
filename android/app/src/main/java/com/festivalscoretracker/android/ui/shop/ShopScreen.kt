@@ -89,6 +89,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -180,7 +181,12 @@ fun ShopScreen(
             isRoot = false,
             actions = {
                 if (!state.hidden) {
-                    IconButton(onClick = { showFilter = true }, modifier = Modifier.testTag("fst.shop.filter.open")) {
+                    // The gold tint alone would hide the filter state from TalkBack (issue #145).
+                    val filterState = state.filter.stateDescription
+                    IconButton(
+                        onClick = { showFilter = true },
+                        modifier = Modifier.testTag("fst.shop.filter.open").semantics { stateDescription = filterState },
+                    ) {
                         Icon(
                             Icons.Filled.FilterList,
                             contentDescription = "Filter Item Shop",

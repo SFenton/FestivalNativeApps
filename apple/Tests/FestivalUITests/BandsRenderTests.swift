@@ -224,14 +224,39 @@ private func fixtureSong(_ session: FestivalSession, songId: String) async throw
     let image = try nativeHostedImage(host)
     _ = try nativeHostedPNG(image, filename: "song-band-leaderboard-loaded.png", environment: "FST_BANDS_RENDER_OUT")
     #expect(image.width > 0 && image.height > 0)
+    let tree = nativeHostedAccessibility(host)
     // No selected player: no pinned band footer (issue #306).
-    #expect(!nativeHostedAccessibility(host).identifiers.contains(songBandFooterID))
+    #expect(!tree.identifiers.contains(songBandFooterID))
+    // The solo board's song header, with the band size where the instrument goes, and
+    // no "<Band> Scores" title (issue #317). The shared header names the song once
+    // (issue #315; row behavior: `SongHeaderTextTests`).
+    #expect(tree.identifiers.contains(songBandHeaderID))
+    #expect(tree.texts.filter { $0.contains(song.title) }.count == 1, "texts: \(tree.texts)")
+    #expect(tree.contains(song.artist))
+    #expect(tree.contains("Duos · 29 entries"))
+    #expect(!tree.contains("Duos Scores"))
+    // The bar stays empty until the header scrolls away.
+    #expect(!tree.identifiers.contains("fst.song-band-leaderboard.pinned-title"))
+}
+
+private let songBandHeaderID = "fst.song-band-leaderboard.header"
+
+/// The header's board line names the board and adds the entry total only when the
+/// service asks for totals, for the solo and band boards alike (issue #317).
+@Test func songLeaderboardBoardLineAddsTotalsOnlyWhenAsked() {
+    #expect(SongLeaderboardBoardLine.text(name: "Duos", totalEntries: 1234, showsTotals: true)
+        == "Duos · \(1234.formatted()) entries")
+    #expect(SongLeaderboardBoardLine.text(name: "Quads", totalEntries: 1234, showsTotals: false) == "Quads")
+    #expect(SongLeaderboardBoardLine.text(name: "Lead", totalEntries: 7, showsTotals: nil) == "Lead")
+    // A band size just picked, before its first response: the name alone.
+    #expect(SongLeaderboardBoardLine.text(name: "Trios", totalEntries: nil, showsTotals: nil) == "Trios")
+    #expect(SongLeaderboardBoardLine.text(name: "Trios", totalEntries: nil, showsTotals: true) == "Trios")
 }
 
 private let songBandFooterID = "fst.song-band-leaderboard.spotlight-footer"
 
-/// A selected player with a Duos score here gets their band pinned above the pager,
-/// read as one element with rank, members and score (issue #306), at an iPhone width
+/// A selected player with a Duos score here gets their band pinned above the pager
+/// (issue #306), labelled with its rank and destination (issue #307), at an iPhone width
 /// and at a Mac window width where the footer adds season and stars.
 @MainActor
 @Test(arguments: [CGSize(width: 402, height: 900), CGSize(width: 1000, height: 760)])
@@ -256,7 +281,8 @@ func songBandLeaderboardScreenPinsTheSelectedPlayersBand(size: CGSize) async thr
     )
     let tree = nativeHostedAccessibility(host)
     #expect(tree.identifiers.contains(songBandFooterID))
-    #expect(tree.contains("Rank 14"))
+    // Rank 29 sits on page 2, so page 1's footer jumps to it (issue #307).
+    #expect(tree.contains("Your band's rank, 29th. Jump to your band's position."))
     #expect(tree.identifiers.contains("fst.song-band-leaderboard.page-info"))
 }
 
@@ -315,6 +341,138 @@ func songBandLeaderboardScreenPinsTheSelectedPlayersBand(size: CGSize) async thr
     let image = try nativeHostedImage(host)
     _ = try nativeHostedPNG(image, filename: "song-band-leaderboard-trios.png", environment: "FST_BANDS_RENDER_OUT")
     #expect(image.width > 0 && image.height > 0)
+    // Another band size keeps the song header with its own label (issue #317).
+    let tree = nativeHostedAccessibility(host)
+    #expect(tree.identifiers.contains(songBandHeaderID))
+    #expect(tree.contains("Trios · 0 entries"))
+}
+
+/// Passes requests to the fixture service, holding Trios band-board reads until the
+/// test releases them, so the page can be inspected mid-reload.
+private actor HeldTriosTransport: HTTPTransport {
+    private let base = URLSessionHTTPTransport()
+    private var released = false
+    private var heldCount = 0
+    private var held: [CheckedContinuation<Void, Never>] = []
+    private var arrival: CheckedContinuation<Void, Never>?
+
+    /// Send a request, holding a Trios band-board read until ``release()``.
+    ///
+    /// - Parameter request: Public GET to the fixture service.
+    /// - Returns: The fixture service's response.
+    /// - Throws: Transport failures from the fixture service.
+    func send(_ request: URLRequest) async throws -> HTTPResult {
+        if !released, request.url?.path.hasSuffix("/bands/Band_Trios") == true {
+            heldCount += 1
+            arrival?.resume()
+            arrival = nil
+            await withCheckedContinuation { held.append($0) }
+        }
+        return try await base.send(request)
+    }
+
+    /// Wait until a Trios read is being held.
+    func waitForHeldRead() async {
+        if heldCount > 0 { return }
+        await withCheckedContinuation { arrival = $0 }
+    }
+
+    /// Let held and later Trios reads through.
+    func release() {
+        released = true
+        held.forEach { $0.resume() }
+        held = []
+    }
+}
+
+/// The band size a hosted test switches, standing in for the Band Size tool.
+@MainActor @Observable
+private final class BandSizeSelection {
+    var size: BandType = .duets
+}
+
+/// Hosts the band board on a band size the test owns.
+private struct BandSizeHarness: View {
+    let session: FestivalSession
+    let song: Song
+    @Bindable var selection: BandSizeSelection
+
+    var body: some View {
+        SongBandLeaderboardContent(session: session, song: song, bandType: $selection.size)
+    }
+}
+
+/// Switching Duos to Trios keeps the song header on screen through the reload and
+/// names Trios at once; the Trios total joins only once Trios answers, and a Duos
+/// total never sits under "Trios" (song-leaderboard-header R5, issue #317).
+@MainActor
+@Test func songBandLeaderboardKeepsTheHeaderWhileAnotherBandSizeLoads() async throws {
+    let transport = HeldTriosTransport()
+    let client = try FestivalAPI(baseURL: try await RivalsMockService.shared.baseURL(), transport: transport)
+    let session = FestivalSession(factory: { client })
+    let song = try await fixtureSong(session, songId: "fixture-pulse")
+    let selection = BandSizeSelection()
+    let host = nativeHostedView(
+        NavigationStack { BandSizeHarness(session: session, song: song, selection: selection) }
+            .preferredColorScheme(.dark),
+        size: CGSize(width: 402, height: 900)
+    )
+    let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 900))
+    defer { window.orderOut(nil) }
+    _ = try await nativeHostedSettle(host, untilText: ["Duos · 29 entries"])
+
+    selection.size = .trios
+    await transport.waitForHeldRead()
+    var sawSpinner = false
+    for _ in 0..<8 {
+        try await Task.sleep(for: .milliseconds(100))
+        host.layoutSubtreeIfNeeded()
+        let tree = nativeHostedAccessibility(host)
+        sawSpinner = sawSpinner || tree.identifiers.contains("fst.song-band-leaderboard.loading")
+        #expect(tree.identifiers.contains(songBandHeaderID), "Header dropped mid-reload: \(tree.texts)")
+        #expect(tree.contains(song.title))
+        #expect(tree.contains("Trios"), "Header does not name Trios mid-reload: \(tree.texts)")
+        #expect(!tree.contains("Duos ·") && !tree.contains("Trios ·"), "Stale total mid-reload: \(tree.texts)")
+    }
+    #expect(sawSpinner, "The rows never reloaded behind the header")
+    _ = try nativeHostedPNG(
+        try nativeHostedImage(host), filename: "song-band-leaderboard-trios-reloading.png",
+        environment: "FST_BANDS_RENDER_OUT"
+    )
+
+    await transport.release()
+    let image = try await nativeHostedSettle(host, untilText: ["Trios · 0 entries"])
+    _ = try nativeHostedPNG(image, filename: "song-band-leaderboard-duos-to-trios.png", environment: "FST_BANDS_RENDER_OUT")
+    #expect(nativeHostedAccessibility(host).identifiers.contains(songBandHeaderID))
+}
+
+/// The selected player's band is pinned above the pager like the Solo footer (issue
+/// #307): page 1 offers "Jump to your band's position"; page 2, where rank 29 is
+/// listed and highlighted, offers "Open band".
+@MainActor
+@Test func songBandLeaderboardFooterJumpsOffPageAndOpensBandOnPage() async throws {
+    nativeHostedEnableAccessibility()
+    let (session, storage, suite) = try await bandsFixtureSession(selected: "fixture-player-1")
+    defer { if let suite { storage?.removePersistentDomain(forName: suite) } }
+    let song = try await fixtureSong(session, songId: "fixture-pulse")
+    for (page, label, filename) in [
+        (1, "Your band's rank, 29th. Jump to your band's position.", "song-band-leaderboard-footer-jump.png"),
+        (2, "Your band's rank, 29th. Open band.", "song-band-leaderboard-footer-open.png"),
+    ] {
+        let host = nativeHostedView(
+            NavigationStack {
+                SongBandLeaderboardScreen(
+                    session: session, song: song, bandType: "Band_Duets", initialPage: page
+                )
+            }
+            .preferredColorScheme(.dark),
+            size: CGSize(width: 402, height: 900)
+        )
+        let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 900))
+        defer { window.orderOut(nil) }
+        let image = try await nativeHostedSettle(host, untilText: [label])
+        _ = try nativeHostedPNG(image, filename: filename, environment: "FST_BANDS_RENDER_OUT")
+    }
 }
 
 // MARK: - Song Detail band previews
@@ -400,7 +558,128 @@ private func renderSongBandPreviews(
         return
     }
     #expect(response.preview(for: .duets).entries.count == 2)
-    #expect(response.preview(for: .duets).footerEntry?.rank == 14)
+    #expect(response.preview(for: .duets).footerEntry?.rank == 29)
     #expect(response.preview(for: .trios).entries.isEmpty)
+}
+// MARK: - Profile bands preview (issue #312)
+
+@MainActor
+@Test func playerBandsPreviewReadsSixPerGroupWithTotals() async throws {
+    let (session, _, _) = try await bandsFixtureSession()
+    let preview = try await session.playerBandsPreview(accountId: "fixture-player-1")
+    #expect(preview.groups.map(\.group) == [.duos, .trios, .quads])
+    #expect(preview.groups.map(\.entries.count) == [6, 6, 4])
+    #expect(preview.groups.map(\.totalCount) == [18, 8, 4])
+    #expect(preview.groups.map(\.hasMore) == [true, true, false])
+    #expect(preview.groups[0].entries.allSatisfy { $0.bandType == "Band_Duets" })
+
+    let empty = try await session.playerBandsPreview(accountId: "fixture-player-2")
+    #expect(empty.groups.allSatisfy { $0.entries.isEmpty && !$0.hasMore })
+}
+
+@MainActor
+@Test func profileBandsSectionShowsGroupsCardsAndViewAll() async throws {
+    let (session, _, _) = try await bandsFixtureSession()
+    let host = nativeHostedView(
+        NavigationStack {
+            ScrollView {
+                PlayerBandsPreviewSection(
+                    session: session, accountId: "fixture-player-1", displayName: "Fixture Player 1",
+                    routeDisplayName: nil
+                )
+                .padding(16)
+            }
+        }
+        .preferredColorScheme(.dark),
+        size: CGSize(width: 402, height: 2600)
+    )
+    let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 2600))
+    defer { window.orderOut(nil) }
+    await settle(host)
+    let image = try nativeHostedImage(host)
+    _ = try nativeHostedPNG(image, filename: "profile-bands-loaded.png", environment: "FST_BANDS_RENDER_OUT")
+    let tree = nativeHostedAccessibility(host)
+    for id in [
+        "fst.player.bands", "fst.player.bands-link",
+        "fst.player.bands.group.duos", "fst.player.bands.group.trios", "fst.player.bands.group.quads",
+        "fst.player.bands.view-all.duos", "fst.player.bands.view-all.trios",
+        "fst.player-bands.row.fixture-band-1", "fst.player-bands.row.fixture-pband-quad-4",
+    ] {
+        #expect(tree.identifiers.contains(id), "missing \(id)")
+    }
+    // Six cards per group: the seventh Duo waits behind View All; Quads has no View All.
+    #expect(!tree.identifiers.contains("fst.player-bands.row.fixture-pband-duo-7"))
+    #expect(!tree.identifiers.contains("fst.player.bands.view-all.quads"))
+    #expect(!tree.identifiers.contains("fst.player.bands.loading"))
+    #expect(tree.contains("Fixture Player 1's Bands"))
+    #expect(tree.contains("View all 18 duos"))
+    assertRendersContent(host, image: image, containing: ["Duos", "Trios", "Quads"])
+}
+
+@MainActor
+@Test func profileBandsSectionShowsNoBandsYetPerEmptyGroup() async throws {
+    let (session, _, _) = try await bandsFixtureSession()
+    let host = nativeHostedView(
+        NavigationStack {
+            ScrollView {
+                PlayerBandsPreviewSection(
+                    session: session, accountId: "fixture-player-2", displayName: "Fixture Player 2",
+                    routeDisplayName: nil
+                )
+                .padding(16)
+            }
+        }
+        .preferredColorScheme(.dark),
+        size: CGSize(width: 402, height: 900)
+    )
+    let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 900))
+    defer { window.orderOut(nil) }
+    await settle(host)
+    let image = try nativeHostedImage(host)
+    _ = try nativeHostedPNG(image, filename: "profile-bands-empty.png", environment: "FST_BANDS_RENDER_OUT")
+    let tree = nativeHostedAccessibility(host)
+    for group in ["duos", "trios", "quads"] {
+        #expect(tree.identifiers.contains("fst.player.bands.empty.\(group)"))
+        #expect(!tree.identifiers.contains("fst.player.bands.view-all.\(group)"))
+    }
+    #expect(tree.contains("No Bands Yet"))
+    #expect(tree.identifiers.contains("fst.player.bands-link"))
+}
+
+@MainActor
+@Test func profileBandsSectionFailureStaysInlineWithRetry() async throws {
+    let session = FestivalSession(factory: {
+        try FestivalAPI(baseURL: URL(string: "http://127.0.0.1:9")!, transport: URLSessionHTTPTransport())
+    })
+    let host = nativeHostedView(
+        NavigationStack {
+            ScrollView {
+                PlayerBandsPreviewSection(
+                    session: session, accountId: "fixture-player-1", displayName: "Fixture Player 1",
+                    routeDisplayName: nil
+                )
+                .padding(16)
+            }
+        }
+        .preferredColorScheme(.dark),
+        size: CGSize(width: 402, height: 700)
+    )
+    let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 700))
+    defer { window.orderOut(nil) }
+    await settle(host)
+    let tree = nativeHostedAccessibility(host)
+    #expect(tree.identifiers.contains("fst.player.bands.error"))
+    #expect(tree.contains("Retry"))
+    // The title and View All stay usable while the cards are unavailable.
+    #expect(tree.contains("Fixture Player 1's Bands"))
+    #expect(tree.identifiers.contains("fst.player.bands-link"))
+    #expect(tree.contains("View All Fixture Player 1's Bands"))
+}
+
+@Test func playerBandsRouteDefaultsToAllAndCarriesGroup() {
+    #expect(AppRoute.playerBands(accountId: "a", displayName: nil)
+        == .playerBands(accountId: "a", displayName: nil, group: .all))
+    #expect(AppRoute.playerBands(accountId: "a", displayName: nil, group: .duos)
+        != .playerBands(accountId: "a", displayName: nil))
 }
 #endif

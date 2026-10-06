@@ -26,28 +26,13 @@
                 <!-- No bottom padding: BoardFooter.Inset already ends the list one row gap (4 epx) above the footer, and
                      padding here doubled it (issue #293). -->
                 <StackPanel x:Name="ScrollContent" Spacing="12" Padding="0,12,0,0">
-                    <Grid ColumnSpacing="16" controls:FadeIn.OnShow="True">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Border x:Name="HeaderArtHost" Width="80" Height="80" CornerRadius="8" Background="{StaticResource FSTSurfaceMutedBrush}">
-                            <Image x:Name="HeaderArt" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
-                        </Border>
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                            <TextBlock Text="{x:Bind ViewModel.Title, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="Wrap"
-                                       AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.song-leaderboard.title" />
-                            <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <controls:InstrumentIcon File="{x:Bind ViewModel.IconFile, Mode=OneWay}" Width="20" Height="20"
-                                                         AutomationProperties.AccessibilityView="Raw" />
-                                <TextBlock Text="{x:Bind ViewModel.InstrumentLabel}" VerticalAlignment="Center"
-                                           AutomationProperties.AutomationId="fst.song-leaderboard.instrument" />
-                            </StackPanel>
-                            <TextBlock Text="{x:Bind ViewModel.TotalText, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
-                                       Visibility="{x:Bind ViewModel.HasTotal, Mode=OneWay}" />
-                        </StackPanel>
-                    </Grid>
+                    <controls:SongLeaderboardHeader x:Name="Header" controls:FadeIn.OnShow="True"
+                                                    Title="{x:Bind ViewModel.Title, Mode=OneWay}" Artist="{x:Bind ViewModel.Subtitle, Mode=OneWay}"
+                                                    BoardIconFile="{x:Bind ViewModel.IconFile, Mode=OneWay}" BoardLabel="{x:Bind ViewModel.InstrumentLabel}"
+                                                    TotalText="{x:Bind ViewModel.TotalText, Mode=OneWay}"
+                                                    TitleAutomationId="fst.song-leaderboard.title" ArtistAutomationId="fst.song-leaderboard.artist"
+                                                    BoardAutomationId="fst.song-leaderboard.instrument" TotalAutomationId="fst.song-leaderboard.total"
+                                                    SongAutomationId="fst.song-leaderboard.song" TitleInvoked="OnSongTitle" />
                     <!-- One frosted row per entry, 4 epx apart (web entryRow list, operator batch 7.7). -->
                     <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="RowsRepeater" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52"
                                    controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
@@ -84,12 +69,16 @@
         <!-- Web fixed footer: the pinned "your score" row is a full-width row like the list's, so its rank, name, score and
              accuracy line up with them (operator batch 7.9), then the pager; both float over the rows (BoardFooter).
              "Your Page" sits above the row instead of stealing its width. The pinned row shares the rows' load gate and
-             entrance (issue #295): it fades out with the old page, keeping its slot so the pager and footer fade stay put,
-             and fades in with the first new row. The gate (XAML opacity transition) and the entrance (composition visual) sit
-             on separate elements, as for the rows and their repeater: one element can't take both. -->
+             entrance (issue #295) on the first load and when the invalid-score leeway changes: it fades out with the old page,
+             keeping its slot so the pager and footer fade stay put, and fades in with the first new row. Paging keeps it in
+             place beside the spinner, like the web footer (PinnedGate, load-transition R2, issue #270). While hidden,
+             LoadSwapGate drops the row from UI Automation and the Tab order. The gate (XAML
+             opacity transition) and the entrance (composition visual) sit on separate elements, as for the rows and their
+             repeater: one element can't take both. -->
         <StackPanel x:Name="Footer" Grid.RowSpan="3" VerticalAlignment="Bottom" Spacing="8">
-            <Grid x:Name="SpotlightGate" Visibility="{x:Bind ViewModel.ShowSpotlight, Mode=OneWay}"
-                  controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content">
+            <controls:LoadSwapGate x:Name="SpotlightGate" Visibility="{x:Bind ViewModel.ShowSpotlight, Mode=OneWay}"
+                                   controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
+                                   controls:LoadSwapVisual.IsGated="{x:Bind ViewModel.PinnedGate.IsGated, Mode=OneWay}">
                 <StackPanel x:Name="SpotlightPanel" Spacing="4">
                     <Button HorizontalAlignment="Right" MinHeight="32" Command="{x:Bind ViewModel.JumpCommand}"
                             Background="{ThemeResource FSTPagerButtonBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
@@ -104,7 +93,7 @@
                     <controls:LeaderboardEntryRow Row="{x:Bind ViewModel.Spotlight, Mode=OneWay}" IsFloating="True"
                                                   RowAutomationId="fst.song-leaderboard.spotlight-footer" />
                 </StackPanel>
-            </Grid>
+            </controls:LoadSwapGate>
             <controls:LeaderboardsPager Pager="{x:Bind ViewModel.Pager}" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" />
         </StackPanel>
 
@@ -121,8 +110,6 @@
                     </VisualState.StateTriggers>
                     <VisualState.Setters>
                         <Setter Target="PageRoot.Padding" Value="12,0,12,8" />
-                        <Setter Target="HeaderArtHost.Width" Value="56" />
-                        <Setter Target="HeaderArtHost.Height" Value="56" />
                     </VisualState.Setters>
                 </VisualState>
             </VisualStateGroup>

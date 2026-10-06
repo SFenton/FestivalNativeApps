@@ -157,3 +157,48 @@ public sealed partial class LoadSwap : ObservableObject
     private bool IsCurrent(int request) => Volatile.Read(ref revision) == request;
 }
 #endregion
+
+#region Pinned row gate
+/// <summary>
+/// Whether a board's pinned "your score/rank" row follows the board's <see cref="LoadSwap"/> during a reload
+/// (load-transition R2, issue #270). Like the web <c>PaginatedLeaderboard</c> footer, whose entrance is keyed on the
+/// instrument and metric (<c>footerAnimKey</c>), not the page, the row is gated only by a reload that changes what it
+/// shows: the first load, or a new <em>key</em> (Full Rankings: instrument and Rank By; song board: the invalid-score
+/// leeway). A page change, F5 or retry over the same key keeps it in place, beside the spinner, because its value is
+/// still current. A row that first appears while a reload is in flight joins the gate, so it enters with the rows
+/// instead of popping in beside the spinner.
+/// </summary>
+public sealed partial class PinnedRowGate : ObservableObject
+{
+    private object? shownKey;
+    private bool committed;
+
+    /// <summary>Whether the pinned row follows the swap (hidden, out of the UIA content view, not hit-testable while it loads).</summary>
+    [ObservableProperty]
+    private bool isGated = true;
+
+    /// <summary>
+    /// Starts a reload for <paramref name="key"/>; call before <see cref="LoadSwap.BeginReloadAsync"/>. A gate still
+    /// hiding the row from an earlier, unrevealed reload stays closed so the row never shows the old key's value.
+    /// </summary>
+    /// <param name="key">What the pinned row shows (compared with <see cref="object.Equals(object?, object?)"/>).</param>
+    /// <param name="phase">The board's phase before this reload starts.</param>
+    public void Begin(object? key, LoadSwapPhase phase) =>
+        IsGated = !committed || !Equals(key, shownKey) || (IsGated && phase != LoadSwapPhase.ContentIn);
+
+    /// <summary>Records the key a commit (success or failure) applied; call inside the commit's state mutation.</summary>
+    /// <param name="key">The committed request's key.</param>
+    public void Commit(object? key)
+    {
+        shownKey = key;
+        committed = true;
+    }
+
+    /// <summary>A pinned row newly appeared: it joins the gate unless the board is already revealed.</summary>
+    /// <param name="phase">The board's phase when it appeared.</param>
+    public void Arrived(LoadSwapPhase phase)
+    {
+        if (phase != LoadSwapPhase.ContentIn) IsGated = true;
+    }
+}
+#endregion

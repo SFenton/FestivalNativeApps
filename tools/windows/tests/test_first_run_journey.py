@@ -93,11 +93,55 @@ class ContractTests(unittest.TestCase):
         late = next(s for s in j.SCENARIOS if s.name == "late-catalogue")
         self.assertEqual(late.fixture, ("--songs-delay", str(j.SONGS_DELAY)))
         steps = [step for phase in late.phases for step in phase.steps]
-        self.assertIn("assertstatus:id=fst.first-run.demo.songs-song-list|placeholder", steps)
-        self.assertIn(f"assertstatus:id=fst.first-run.demo.songs-song-list|catalogue@{j.SONGS_DELAY + 20}", steps)
-        self.assertEqual(j._demo("songs-sort", "catalogue", 5), "assertstatus:id=fst.first-run.demo.songs-sort|catalogue@5")
-        others = [s for s in j.SCENARIOS if s is not late and s.name not in ("catalogue-unavailable", "top-songs-rotation")]
+        self.assertIn("assertstatus:id=fst.first-run.demo.songs-song-list|~^placeholder( |$)", steps)
+        self.assertIn(f"assertstatus:id=fst.first-run.demo.songs-song-list|~^catalogue( |$)@{j.SONGS_DELAY + 20}", steps)
+        self.assertEqual(j._demo("songs-sort", "catalogue", 5), "assertstatus:id=fst.first-run.demo.songs-sort|~^catalogue( |$)@5")
+        large = {"rotation", "rotation-reduced", "rotation-background", "top-songs-rotation"}
+        self.assertTrue(all(s.fixture == ("--large-catalogue",) for s in j.SCENARIOS if s.name in large))
+        others = [s for s in j.SCENARIOS if s is not late and s.name not in large | {"catalogue-unavailable"}]
         self.assertTrue(all(s.fixture == () for s in others))
+
+    def test_rotation_scenarios_cover_running_paused_hidden_and_instant(self):
+        rotation = next(s for s in j.SCENARIOS if s.name == "rotation")
+        steps = "\n".join(step for phase in rotation.phases for step in phase.steps)
+        for token in ("rotation=running", "rotation=not-visible", "swap=fade", "resize:minimized", "resize:restored"):
+            self.assertIn(token, steps)
+        # Paging away and back within one phase leaves the first tick's single swap unchanged (paused while unselected).
+        first = rotation.phases[0].steps
+        back = first.index("invoke:id=SecondaryButton")
+        self.assertIn("invoke:id=PrimaryButton", first[:back])
+        self.assertEqual(first[back + 1], j._rotation("songs-song-list", j.FIRST_TICK_FADE))
+        self.assertRegex("catalogue rotation=running swaps=1 swap=fade", j.FIRST_TICK_FADE)
+        self.assertNotRegex("catalogue rotation=running swaps=3 swap=fade", j.FIRST_TICK_FADE)
+        reduced = next(s for s in j.SCENARIOS if s.name == "rotation-reduced")
+        self.assertTrue(reduced.settings["reduceMotion"])
+        self.assertIn("swap=instant", reduced.phases[0].steps[1])
+        status = "catalogue rotation=running swaps=3 swap=fade"
+        self.assertRegex(status, j.SWAPPED_FADE)
+        self.assertNotRegex("catalogue rotation=running swaps=0 swap=none", j.SWAPPED_FADE)
+        self.assertNotRegex(status, j.SWAPPED_INSTANT)
+        # Rotation steps never contain the step separator.
+        self.assertNotIn(";", steps)
+
+    def test_rotation_background_holds_while_inactive_and_resumes(self):
+        # Issue #258: a visible but deactivated window holds the swap count, and reactivation resumes it.
+        scenario = next(s for s in j.SCENARIOS if s.name == "rotation-background")
+        steps = scenario.phases[0].steps
+        off, on = steps.index("foreground:off"), steps.index("foreground:on")
+        self.assertLess(off, on)
+        self.assertEqual(steps[off - 1], j._rotation("songs-song-list", j.FIRST_TICK_FADE, j.SWAP_WAIT))
+        held = j._rotation("songs-song-list", j.FIRST_TICK_BACKGROUND)
+        self.assertEqual(steps[off + 1:on], [held, "wait:12", held])
+        self.assertEqual(steps[on + 1], j._rotation("songs-song-list", j.RESUMED_FADE, j.SWAP_WAIT))
+        self.assertRegex("catalogue rotation=background swaps=1 swap=fade", j.FIRST_TICK_BACKGROUND)
+        self.assertNotRegex("catalogue rotation=running swaps=1 swap=fade", j.FIRST_TICK_BACKGROUND)
+        self.assertNotRegex("catalogue rotation=background swaps=3 swap=fade", j.FIRST_TICK_BACKGROUND)
+        for resumed in ("catalogue rotation=running swaps=2 swap=fade", "catalogue rotation=running swaps=12 swap=fade"):
+            self.assertRegex(resumed, j.RESUMED_FADE)
+        self.assertNotRegex("catalogue rotation=running swaps=1 swap=fade", j.RESUMED_FADE)
+        self.assertNotRegex("catalogue rotation=background swaps=2 swap=fade", j.RESUMED_FADE)
+        for step in steps:
+            j.uiwin.parse_step(step)
 
     def test_top_songs_rotation_asserts_pinned_pills_after_real_swaps(self):
         import uiwin
@@ -140,7 +184,7 @@ class ContractTests(unittest.TestCase):
         self.assertIn(j._demo("statistics-top-songs", "placeholder", 15), down_steps)
         self.assertIn(j._demo("suggestions-category-card", "placeholder", 15), down_steps)
         self.assertIn(j._demo("rivals-detail", "placeholder", 15), down_steps)
-        self.assertFalse(any("|catalogue" in step for step in down_steps))
+        self.assertFalse(any("catalogue" in step.partition("|")[2] for step in down_steps))
         self.assertIn(f"wait:{1 + j.UNAVAILABLE_WAIT}", down_steps)
 
     def test_live_demo_pages_parse_and_assert_catalogue_songs(self):
@@ -152,8 +196,24 @@ class ContractTests(unittest.TestCase):
             steps = a11y_matrix.page_steps(page, "medium", Path("out"), "", True, 12)
             for step in steps:
                 uiwin.parse_step(step)
-            self.assertTrue(any(s.startswith("assertstatus:id=fst.first-run.demo.") and s.split("|")[1].startswith("catalogue")
+            self.assertTrue(any(s.startswith("assertstatus:id=fst.first-run.demo.") and re.match(r"~?\^?catalogue", s.partition("|")[2])
                                 for s in steps), page["name"])
+
+    def test_rotating_demo_statuses_are_prefix_matches(self):
+        # Issue #258: a rotating demo's ItemStatus appends its rotation state, so an exact status would never match.
+        demos = (REPO / "windows" / "Festival.Core" / "Domain" / "FirstRunDemos.cs").read_text(encoding="utf-8")
+        block = demos[demos.index("RotatingKinds = new"):]
+        rotating = set(re.findall(r'\["([a-z-]+)"\] = FirstRunDemoRotationKind\.', block[:block.index("};")]))
+        self.assertEqual(len(rotating), 12)
+        journeys = REPO / "tools" / "windows" / "journeys"
+        steps = [step for scenario in j.SCENARIOS for phase in scenario.phases for step in phase.steps]
+        for name in ("first-run-demos.json", "a11y-first-run-rotation.json"):
+            for page in json.loads((journeys / name).read_text(encoding="utf-8")):
+                steps += page.get("ready", []) + page.get("after_ready", [])
+        for step in steps:
+            found = re.match(r"assertstatus:id=fst\.first-run\.demo\.([a-z-]+)\|(.*)", step)
+            if found and found.group(1) in rotating:
+                self.assertTrue(found.group(2).startswith("~"), step)
 
     def test_states_covered(self):
         product = json.loads((REPO / "contracts" / "product.json").read_text(encoding="utf-8"))

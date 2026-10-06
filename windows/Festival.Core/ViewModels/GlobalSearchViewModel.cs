@@ -79,6 +79,20 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     /// <summary>Raised once per settled query with the result-count announcement ("3 songs, 10 players").</summary>
     public event EventHandler<string>? ResultsAnnounced;
 
+    /// <summary>
+    /// Raised when a results section appears (<see cref="SearchScope.Songs"/> or <see cref="SearchScope.Players"/>):
+    /// its rows were held behind the one spinner until every read settled, so the page re-arms that list's stagger and
+    /// the rows fade as the spinner clears (web: "rows fade up with a stagger"). Raised again only after the section
+    /// was hidden (a new query, scope change or the spinner).
+    /// </summary>
+    public event EventHandler<SearchScope>? SectionShown;
+
+    /// <summary>Whether the Songs section was showing at the last refresh.</summary>
+    private bool songsShown;
+
+    /// <summary>Whether the Players section was showing at the last refresh.</summary>
+    private bool playersShown;
+
     #region State
     /// <summary>User text.</summary>
     [ObservableProperty]
@@ -442,10 +456,16 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
         ResultsAnnounced?.Invoke(this, LastAnnouncement);
     }
 
-    /// <summary>Raises change notifications for every derived property.</summary>
+    /// <summary>Raises change notifications for every derived property, then <see cref="SectionShown"/> for each section that appeared.</summary>
     private void Refresh()
     {
         foreach (var name in DerivedProperties) OnPropertyChanged(name);
+        var songsWasShown = songsShown;
+        var playersWasShown = playersShown;
+        songsShown = ShowSongsSection;
+        playersShown = ShowPlayersSection;
+        if (songsShown && !songsWasShown) SectionShown?.Invoke(this, SearchScope.Songs);
+        if (playersShown && !playersWasShown) SectionShown?.Invoke(this, SearchScope.Players);
     }
 
     /// <summary>Derived property names.</summary>

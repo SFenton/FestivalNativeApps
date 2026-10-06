@@ -258,9 +258,8 @@ public enum PublicEndpoint: Sendable {
         case .player, .playerHistory, .playerNotifications, .playerBands, .playerBandsByType,
              .playerInstrumentRanking, .playerRankHistory:
             false
-        case let .songBandLeaderboards(_, _, accountId):
-            accountId == nil
-        case let .songBandLeaderboard(_, _, _, _, _, accountId):
+        case let .songBandLeaderboards(_, _, accountId),
+             let .songBandLeaderboard(_, _, _, _, _, accountId):
             accountId == nil
         default: true
         }
@@ -281,6 +280,9 @@ public enum PublicEndpoint: Sendable {
 public enum OperationalEndpoint: Sendable {
     case features
     case accountSearch(query: String, limit: Int)
+    /// `GET /api/bands/search?q=&page=1&pageSize=`: the web global search's band query
+    /// (`useUnifiedSearch.ts`), first page only. Read-only since issue #320.
+    case bandSearch(query: String, pageSize: Int)
 
     /// Resolve a known operational path without attaching selected-profile metadata.
     ///
@@ -315,6 +317,34 @@ public enum OperationalEndpoint: Sendable {
                 .replacingOccurrences(of: "+", with: "%2B")
             guard let url = components?.url else {
                 throw FestivalAPIError.invalidProfileSearchQuery
+            }
+            return url
+        case let .bandSearch(query, pageSize):
+            guard (2...200).contains(query.count),
+                  query == query.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !ProfileSearchText.containsUnsafeScalar(query)
+            else {
+                throw FestivalAPIError.invalidBandSearchQuery
+            }
+            guard (1...BandSearchResponse.maximumPageSize).contains(pageSize) else {
+                throw FestivalAPIError.invalidBandSearch
+            }
+            var components = URLComponents(
+                url: baseURL.appendingPathComponent("api")
+                    .appendingPathComponent("bands").appendingPathComponent("search"),
+                resolvingAgainstBaseURL: false
+            )
+            components?.queryItems = [
+                URLQueryItem(name: "q", value: query),
+                URLQueryItem(name: "page", value: "1"),
+                URLQueryItem(name: "pageSize", value: String(pageSize)),
+            ]
+            // A literal `+` would reach the service as a space.
+            let encodedQuery = components?.percentEncodedQuery
+            components?.percentEncodedQuery = encodedQuery?
+                .replacingOccurrences(of: "+", with: "%2B")
+            guard let url = components?.url else {
+                throw FestivalAPIError.invalidBandSearchQuery
             }
             return url
         }

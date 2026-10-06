@@ -47,6 +47,8 @@ class MainActivityTest {
     fun launchesTheShellWithDebugExtrasAndSurvivesRecreation() {
         ActivityScenario.launch<MainActivity>(intent("FST_DEBUG_TAB" to "settings")).use { scenario ->
             rule.waitUntil(10_000) { settle(); exists("fst.settings.list") }
+            // TalkBack announces the window title on open: the full name, not the launcher "FST" (#182).
+            scenario.onActivity { assertEquals("Festival Score Tracker", it.title.toString()) }
             // Recreation keeps the tab but does not replay one-shot launch extras.
             scenario.recreate()
             rule.waitUntil(10_000) { settle(); exists("fst.settings.list") }

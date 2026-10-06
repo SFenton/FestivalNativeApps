@@ -178,7 +178,6 @@ class SongsSectionIndexUiTest {
     fun hiddenState_whenTheListHasOneSection_andBackWhenItHasMore() {
         launch()
         waitForTag("fst.songs.section-index")
-        rule.onNodeWithTag("fst.songs.search.open").performClick()
         waitForTag("fst.songs.search")
         rule.onNodeWithTag("fst.songs.search").performTextInput("Mtune")
         waitGone("fst.songs.section-index")
@@ -222,7 +221,6 @@ class SongsSectionIndexUiTest {
     private fun railReturn(): Pair<Float, Float> {
         waitForTag("fst.songs.section-index")
         val rest = rule.onNodeWithTag("fst.songs.section-index").fetchSemanticsNode().positionInRoot.x
-        rule.onNodeWithTag("fst.songs.search.open").performClick()
         waitForTag("fst.songs.search")
         rule.onNodeWithTag("fst.songs.search").performTextInput("Mtune")
         waitGone("fst.songs.section-index")

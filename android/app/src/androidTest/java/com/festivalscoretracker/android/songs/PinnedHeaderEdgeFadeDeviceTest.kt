@@ -36,8 +36,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * The Songs pinned section header edge on a real device (issues #49, #157), driven by the real
- * system settings through [FestivalTheme]: rows fade out over 28 dp below the pinned header, and
+ * The Songs pinned section header edge on a real device (issues #49, #157, #308), driven by the real
+ * system settings through [FestivalTheme]: rows fade out over a linear 40 dp below the pinned header, and
  * system High contrast text or Remove animations (animator duration scale 0) switch to a hard
  * edge, live, while the header stays opaque. Run with `device.py test
  * com.festivalscoretracker.android.songs.PinnedHeaderEdgeFadeDeviceTest --avd <AVD>`.
@@ -115,7 +115,7 @@ class PinnedHeaderEdgeFadeDeviceTest {
 
     private fun isFade(shot: Shot): Boolean =
         shot.green(20) > 0.9f && (2 until 38).none { shot.red(it) > 0.05f } &&
-            shot.red(41) < 0.3f && (70 until 200).all { shot.red(it) > 0.95f }
+            shot.red(41) < 0.3f && (82 until 200).all { shot.red(it) > 0.95f }
 
     private fun isHardEdge(shot: Shot): Boolean =
         shot.green(20) > 0.9f && (2 until 38).none { shot.red(it) > 0.05f } && (41 until 200).all { shot.red(it) > 0.95f }

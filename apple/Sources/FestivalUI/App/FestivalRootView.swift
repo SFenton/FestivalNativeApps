@@ -87,6 +87,7 @@ public struct FestivalRootView: View {
         #if DEBUG
         let debug = DebugLaunchRoute(environment: ProcessInfo.processInfo.environment)
         if let tab = debug.section { initialSection = tab }
+        _searchActive = State(initialValue: debug.opensSearch)
         initialRoute = debug.route
         _drawerPresented = State(initialValue: debug.opensDrawer)
         _rootProfilePresented = State(initialValue: debug.opensProfileSheet)
@@ -115,7 +116,8 @@ public struct FestivalRootView: View {
             }
             session = FestivalSession(
                 factory: factory, selectionStorage: selectionStorage,
-                debugSelectedPlayer: debugSelectedPlayer
+                debugSelectedPlayer: debugSelectedPlayer,
+                liveConnection: PublicationLiveConnection.isEnabled() ? PublicationLiveConnection() : nil
             )
             Self.processSession = session
         }
@@ -420,16 +422,10 @@ public struct FestivalRootView: View {
             if adapted.paths != paths { paths = adapted.paths }
             if adapted.selected != selected { selected = adapted.selected }
         }
-        // A new publication can leave retained `Song`-valued routes pointing at an older
-        // catalogue (AGENTS.md publication invariants), so the Songs path is cleared with a
-        // visible explanation. Profile/band selection never navigates: pages refresh in
-        // place for the new identity (operator, 2026-09-28).
-        .onChange(of: session.publicationRevision) { _, _ in
-            if !songsPath.isEmpty {
-                songsNotice = "Published scores changed. Returned to Songs to avoid outdated details."
-                songsPath.removeAll()
-            }
-        }
+        // A new publication never navigates (issue #304): every page refreshes in place
+        // (`PublicationRefreshBoundary`), re-reading `Song`-valued routes from the new
+        // catalogue. Profile/band selection never navigates either (operator, 2026-09-28).
+        .publicationLiveUpdates(session: session)
         .onChange(of: visibleInstruments) { _, shown in
             if let songsInstrument, !shown.contains(songsInstrument) {
                 songsNotice = "\(songsInstrument.label) was hidden. Showing all instruments."
@@ -607,12 +603,6 @@ public struct FestivalRootView: View {
         }
     }
 
-    /// Songs path, used by publication/profile invalidation notices.
-    private var songsPath: [AppRoute] {
-        get { paths[.songs] ?? [] }
-        nonmutating set { paths[.songs] = newValue }
-    }
-
 
     // MARK: - Keyboard commands
 
@@ -756,7 +746,7 @@ public struct FestivalRootView: View {
     private func dismissDrawer() {
         closeDrawer()
         drawerFocus = AccessibilityFocusRequest(
-            target: .identifier("fst.shell.drawer.open"), screenChanged: false,
+            target: .identifier("fst.shell.drawer.open", fallbackLabel: "More"), screenChanged: false,
             token: (drawerFocus?.token ?? 0) + 1
         )
     }
@@ -889,24 +879,32 @@ public struct FestivalRootView: View {
         case .suggestions:
             tabStack(.suggestions) {
                 SuggestionsScreen(session: session, visibleInstruments: visibleInstruments)
+                    .refreshesOnPublication(session: session)
                     .firstRun(.suggestions, session: session)
             }
         case .leaderboards:
             tabStack(.leaderboards) {
-                LeaderboardsScreen(session: session).firstRun(.leaderboards, session: session)
+                LeaderboardsScreen(session: session)
+                    .refreshesOnPublication(session: session)
+                    .firstRun(.leaderboards, session: session)
             }
         case .compete:
             tabStack(.compete) {
-                CompeteScreen(session: session).firstRun(.compete, session: session)
+                CompeteScreen(session: session)
+                    .refreshesOnPublication(session: session)
+                    .firstRun(.compete, session: session)
             }
         case .rivals:
             tabStack(.rivals) {
                 RivalsScreen(session: session, showsRootTrailingItems: true)
+                    .refreshesOnPublication(session: session)
                     .firstRun(.rivals, session: session)
             }
         case .statistics:
             tabStack(.statistics) {
-                StatisticsScreen(session: session).firstRun(.statistics, session: session)
+                StatisticsScreen(session: session)
+                    .refreshesOnPublication(session: session)
+                    .firstRun(.statistics, session: session)
             }
         case .settings:
             tabStack(.settings) {
@@ -916,6 +914,7 @@ public struct FestivalRootView: View {
             // Sidebar Item Shop row (iPad/macOS); phones push `.shop` instead.
             tabStack(.shop) {
                 ShopScreen(session: session, isVisible: selected == .shop && (paths[.shop] ?? []).isEmpty)
+                    .refreshesOnPublication(session: session)
                     .firstRun(.shop, session: session)
             }
         }
@@ -1009,6 +1008,9 @@ private struct ShellCommandsPublisher: ViewModifier {
 /// `leaderboard:<instrument>:<rankBy>` or `combo:<token>:<instrument>[,<instrument>…]`.
 /// Song routes need a loaded `Song`; the Songs lane handles `FST_DEBUG_SONG` itself.
 ///
+/// `FST_DEBUG_TAB=search` opens the Search tab over Songs (iPhone Duo's rail Search
+/// button is not reachable by XCUITest taps on the inner display; Lane A11Y4).
+///
 /// Shell extras: `FST_DEBUG_DRAWER=1` opens the hamburger drawer, `FST_DEBUG_SHEET=profile`
 /// opens profile selection, and `FST_DEBUG_PROFILE=<accountId>:<displayName>` selects a
 /// player **in memory only** before the session loads (so profile-only tabs can be
@@ -1019,6 +1021,8 @@ private struct ShellCommandsPublisher: ViewModifier {
 /// corner radii (read by `FestivalDrawer`, not here).
 struct DebugLaunchRoute {
     let section: FestivalSection?
+    /// `FST_DEBUG_TAB=search`: start on the Search tab.
+    let opensSearch: Bool
     let route: AppRoute?
     let opensDrawer: Bool
     let opensProfileSheet: Bool
@@ -1030,6 +1034,7 @@ struct DebugLaunchRoute {
     /// - Parameter environment: Process environment.
     init(environment: [String: String]) {
         section = environment["FST_DEBUG_TAB"].flatMap(FestivalSection.init(rawValue:))
+        opensSearch = environment["FST_DEBUG_TAB"] == "search"
         opensDrawer = environment["FST_DEBUG_DRAWER"] == "1"
         opensProfileSheet = environment["FST_DEBUG_SHEET"] == "profile"
         anonymous = environment["FST_DEBUG_ANONYMOUS"] == "1"

@@ -151,6 +151,9 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             return "fst.paths.display"
         }, sheet: true),
         Page(name: "item-shop", env: ["FST_DEBUG_ROUTE": "shop"], ready: "Item Shop"),
+        // iPhone Duo: the Search tab opens at launch (`FST_DEBUG_TAB=search`); its rail
+        // button is not hittable on the inner display in landscape (Lane A11Y3).
+        runningOnDuo ? Page(name: "search", env: ["FST_DEBUG_TAB": "search"], ready: "Search") :
         Page(name: "search", ready: "fst.songs.list", open: { app in
             // Regular width: the flyout's Search row (no persistent sidebar, 2026-10-04).
             if anyElement(app, "fst.shell.drawer.open").waitForExistence(timeout: 5),
@@ -175,12 +178,18 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         Page(name: "settings", env: ["FST_DEBUG_TAB": "settings"], ready: "Settings"),
         Page(name: "licenses", env: ["FST_DEBUG_ROUTE": "licenses"], ready: "Licenses"),
         Page(name: "profile-sheet", env: ["FST_DEBUG_SHEET": "profile"], ready: "fst.profile.scope", sheet: true),
-        Page(name: "whats-new", env: ["FST_DEBUG_WHATS_NEW": "force"], ready: "fst.whats-new.dismiss", sheet: true),
+        // Close, not Dismiss: beside the iPhone Duo vertical bar the sheet has no Dismiss bar
+        // (`/duo` M1), which left What's New unreached there (Lane A11Y3).
+        Page(name: "whats-new", env: ["FST_DEBUG_WHATS_NEW": "force"], ready: "fst.whats-new.close", sheet: true),
     ]
 
     /// Pages that need a selected player.
     static let profile: [Page] = [
-        Page(name: "statistics", env: ["FST_DEBUG_TAB": "statistics"], profile: true, ready: "Fixture Player 1"),
+        // The overview section, not the title: the iPhone Duo bar does not expose it.
+        // iPhone Duo has no Statistics tab: the route pushes the same page (Lane A11Y4).
+        Page(name: "statistics",
+             env: runningOnDuo ? ["FST_DEBUG_ROUTE": "statistics"] : ["FST_DEBUG_TAB": "statistics"],
+             profile: true, ready: "fst.player.overview"),
         Page(name: "suggestions", env: ["FST_DEBUG_TAB": "suggestions"], profile: true, ready: "Suggestions"),
         Page(name: "rivals", env: ["FST_DEBUG_ROUTE": "rivals"], profile: true, ready: "Rivals"),
         Page(name: "rival-detail",
@@ -199,7 +208,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     static let shell: [Page] = [
         Page(name: "flyout", profile: true, ready: "fst.songs.list", open: { app in
             // The proof is a row inside the panel, so the panel is the "sheet" region.
-            tapFirst(app, ["fst.shell.drawer.open"]) ? "fst.shell.drawer.songs" : nil
+            openDrawer(app) ? "fst.shell.drawer.songs" : nil
         }, sheet: true),
         // Song Detail opened from its Songs row, as a person does: a page pushed by
         // `FST_DEBUG_SONG` did not scroll under XCUITest drags or scroll-to-tap.
@@ -336,6 +345,8 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         var pageEvidence: IPadAuditPageEvidence.Evidence?
         /// Growth and read-back evidence for Dynamic Type heuristics (``IPadAuditTextEvidence``).
         var text: IPadAuditTextEvidence.Evidence?
+        /// Absent from the accessibility snapshot (hidden by a modal panel), when checked.
+        var outsideTree: Bool?
         /// The waiver that accepted this issue (``IPadAuditWaivers``), if any.
         var waiver: String?
     }
@@ -355,7 +366,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         var findings: [Finding] = []
         var unreached: [String] = []
         var skipped: [String] = []
-        for page in pages {
+        for page in pages where Self.pageSelected(page.name) {
             if page.splitOnly, !splitPossible(mode) {
                 skipped.append(page.name)
                 continue
@@ -403,7 +414,8 @@ final class IPadAccessibilityAuditTests: XCTestCase {
                         containers: finding.frame.isEmpty ? [] : Set(containers.compactMap { id, frame in
                             let rect = NSCoder.cgRect(for: finding.frame)
                             return frame.contains(CGPoint(x: rect.midX, y: rect.midY)) ? id : nil
-                        })
+                        }),
+                        outsideTree: finding.outsideTree ?? false
                     ),
                     page: page.name, mode: mode.rawValue
                 )?.id
@@ -448,7 +460,8 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         lastWindow = NSCoder.string(for: app.windows.firstMatch.frame)
         var proof = page.ready
         if let open = page.open {
-            guard let opened = open(app), Self.anyElement(app, opened).waitForExistence(timeout: 15) else {
+            guard let opened = open(app),
+                  opened == "fst.split.opened" || Self.anyElement(app, opened).waitForExistence(timeout: 15) else {
                 add(screenshot(app, "\(mode.rawValue)-\(page.name)-unreached"))
                 app.terminate()
                 return nil
@@ -483,11 +496,13 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             let skipped: [String]
             /// The app window of the last page reached (iPhone Duo pose, ⅓ tile).
             let window: String
+            /// The `FST_AUDIT_PAGES` filter, when the run audited only some pages.
+            let pages: [String]?
             let findings: [Finding]
         }
         let summary = Summary(
             mode: mode.rawValue, group: group, unreached: unreached, skipped: skipped,
-            window: lastWindow, findings: findings
+            window: lastWindow, pages: Self.pageFilter.map { $0.sorted() }, findings: findings
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -504,6 +519,20 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    /// `FST_AUDIT_PAGES` (comma-separated page names, `TEST_RUNNER_FST_AUDIT_PAGES` through
+    /// xcodebuild): audit only those pages of the group, for re-checking one fix. Unset
+    /// audits every page; a filtered run's JSON lists the filter in `pages`.
+    static var pageFilter: Set<String>? {
+        guard let raw = ProcessInfo.processInfo.environment["FST_AUDIT_PAGES"], !raw.isEmpty else { return nil }
+        return Set(raw.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) })
+    }
+
+    /// Whether `FST_AUDIT_PAGES` leaves this page in the run.
+    ///
+    /// - Parameter name: The page's audit name.
+    /// - Returns: True when unfiltered or listed.
+    static func pageSelected(_ name: String) -> Bool { pageFilter?.contains(name) ?? true }
 
     /// A configured, not-yet-launched app for a page and mode.
     @MainActor
@@ -555,6 +584,25 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         }
     }
 
+    /// Open the flyout or drawer: its toolbar button, or on the folded iPhone Duo rail the
+    /// system overflow menu that holds it (`/duo` W1: the hamburger overflows there).
+    ///
+    /// - Returns: True once the drawer shows.
+    @MainActor
+    static func openDrawer(_ app: XCUIApplication) -> Bool {
+        if tapFirst(app, ["fst.shell.drawer.open"], timeout: 5) {
+            return anyElement(app, "fst.shell.drawer.songs").waitForExistence(timeout: 5)
+        }
+        let more = app.buttons.matching(NSPredicate(format: "label IN %@", ["More", "Show More"])).firstMatch
+        guard more.waitForExistence(timeout: 5) else { return false }
+        more.tap()
+        let item = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == 'Open Navigation' OR label == 'Menu'")).firstMatch
+        guard item.waitForExistence(timeout: 5) else { return false }
+        item.tap()
+        return anyElement(app, "fst.shell.drawer.songs").waitForExistence(timeout: 5)
+    }
+
     /// Open a song's detail page from its Songs row.
     ///
     /// - Returns: True once Song Detail shows.
@@ -574,10 +622,39 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         return anyElement(app, "fst.song-detail.intensity").waitForExistence(timeout: 20)
     }
 
+    /// The trailing pane's frame while a split is open, else nil: `fst.split.trailing`,
+    /// or on iOS 27.1 (iPhone Duo), where that container identifier is not exposed, the
+    /// navigation bar that starts right of the window's middle.
+    @MainActor
+    static func trailingPane(_ app: XCUIApplication) -> CGRect? {
+        let pane = anyElement(app, "fst.split.trailing")
+        if pane.exists { return pane.frame }
+        let window = app.windows.firstMatch.frame
+        let bars = app.navigationBars.allElementsBoundByIndex.map(\.frame)
+            .filter { $0.height > 0 && $0.minX > window.midX - 40 && $0.maxY < window.midY }
+        guard let bar = bars.first else { return nil }
+        return CGRect(x: bar.minX, y: window.minY, width: window.maxX - bar.minX, height: window.height)
+    }
+
+    /// Wait for the trailing pane (``trailingPane(_:)``) to show and finish sliding in:
+    /// its frame read mid-spring (791 pt instead of 605) failed the midpoint check.
+    @MainActor
+    static func waitForTrailingPane(_ app: XCUIApplication, timeout: TimeInterval = 10) -> Bool {
+        let deadline = Date.now.addingTimeInterval(timeout)
+        var last: CGRect?
+        repeat {
+            let frame = trailingPane(app)
+            if let frame, let last, abs(frame.minX - last.minX) < 0.5 { return true }
+            last = frame
+            Thread.sleep(forTimeInterval: 0.4)
+        } while Date.now < deadline
+        return last != nil
+    }
+
     /// A slow vertical drag between two screen points (no flick momentum).
     @MainActor
     static func slowDrag(_ app: XCUIApplication, x: CGFloat, fromY: CGFloat, toY: CGFloat) {
-        let origin = app.coordinate(withNormalizedOffset: .zero)
+        let origin = screenOrigin(app)
         origin.withOffset(CGVector(dx: x, dy: fromY)).press(
             forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: x, dy: toY)),
             withVelocity: .slow, thenHoldForDuration: 0.2
@@ -585,12 +662,48 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         Thread.sleep(forTimeInterval: 0.5)
     }
 
+    /// Width of the iPhone Duo system vertical bar at the window's trailing edge (inner
+    /// display, measured ≈ 80 pt), kept clear of scroll drags.
+    static let duoVerticalBarClearance: CGFloat = 96
+
+    /// A drag's x, moved left of the iPhone Duo vertical bar: a drag starting on the bar
+    /// pressed its tab buttons (Leaderboards' split row was never opened, Lane A11Y4).
+    ///
+    /// - Parameters:
+    ///   - x: The wanted x in screen points.
+    ///   - app: The running app.
+    /// - Returns: `x`, or on iPhone Duo at most the window's trailing edge minus the bar.
+    @MainActor
+    static func dragX(_ x: CGFloat, in app: XCUIApplication) -> CGFloat {
+        guard runningOnDuo else { return x }
+        return min(x, app.windows.firstMatch.frame.maxX - duoVerticalBarClearance)
+    }
+
+    /// The coordinate of screen point (0, 0) for gestures given in screen points.
+    ///
+    /// On iPhone Duo the app's own coordinates do not land on the inner display (taps and
+    /// drags from `app.coordinate` went nowhere, Lane A11Y3), while gestures on an element
+    /// do: there the origin is taken from the app window, offset back by the window's
+    /// frame. iPad keeps the app's coordinate space.
+    ///
+    /// - Parameter app: The running app.
+    /// - Returns: A coordinate at screen point (0, 0).
+    @MainActor
+    static func screenOrigin(_ app: XCUIApplication) -> XCUICoordinate {
+        guard runningOnDuo else { return app.coordinate(withNormalizedOffset: .zero) }
+        let window = app.windows.firstMatch
+        let frame = window.frame
+        return window.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: -frame.minX, dy: -frame.minY))
+    }
+
     /// Open a split page's trailing pane from a row (an identifier, or the first row
     /// whose identifier has `prefix`), scrolling the page with slow drags until the row
     /// is on screen. Programmatic taps on offscreen rows stall the main thread
     /// (`xcuitest.md` pitfalls).
     ///
-    /// - Returns: `fst.split.trailing` once the trailing pane shows, else nil.
+    /// - Returns: `fst.split.opened` (a marker ``reachWithProof`` accepts) once the
+    ///   trailing pane shows, else nil.
     @MainActor
     static func openSplit(_ app: XCUIApplication, ids: [String] = [], prefix: String? = nil) -> String? {
         func row() -> XCUIElement {
@@ -608,7 +721,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
                 CGPoint(x: element.frame.midX, y: element.frame.midY)
             ) {
                 element.tap()
-                return anyElement(app, "fst.split.trailing").waitForExistence(timeout: 10) ? "fst.split.trailing" : nil
+                return waitForTrailingPane(app) ? "fst.split.opened" : nil
             }
             // Screen points from the window frame: normalized app coordinates stay in the
             // portrait frame in a landscape window, so the drag ran sideways.
@@ -617,10 +730,10 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             // reaches the row there (as `IPadShellJourneyTests` does).
             if attempt >= 4, element.exists {
                 element.tap()
-                return anyElement(app, "fst.split.trailing").waitForExistence(timeout: 10) ? "fst.split.trailing" : nil
+                return waitForTrailingPane(app) ? "fst.split.opened" : nil
             }
             // The trailing margin: a drag that starts on a chart selects a bar.
-            slowDrag(app, x: window.maxX - 10, fromY: window.minY + window.height * 0.75,
+            slowDrag(app, x: dragX(window.maxX - 10, in: app), fromY: window.minY + window.height * 0.75,
                      toY: window.minY + window.height * 0.35)
         }
         return nil

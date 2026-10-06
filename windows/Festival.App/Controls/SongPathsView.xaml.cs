@@ -106,9 +106,10 @@ public sealed partial class SongPathsView : UserControl
             paths.DismissWarning(await FestivalDialog.ShowAsync(notice) == ContentDialogResult.Secondary);
         }
         // Near full-window at compact sizes (the chart fills the sheet); never wider than the window. The content gets
-        // the width explicitly: a dialog sizes to its content, and the layout picks its selectors from that width.
+        // the width explicitly: a dialog sizes to its content, and the layout picks its selectors from that width. The
+        // content box is the dialog less its padding and border; a view wider than it is clipped on the right (#269).
         var dialogWidth = Math.Max(320, Math.Min(1200, xamlRoot.Size.Width - 24));
-        var view = new SongPathsView(paths) { Width = dialogWidth - 48 };
+        var view = new SongPathsView(paths) { Width = dialogWidth - DialogChromeWidth() };
         var dialog = FestivalDialog.Create(xamlRoot, title, view, "fst.paths");
         dialog.FullSizeDesired = true;
         dialog.Resources["ContentDialogMaxWidth"] = dialogWidth;
@@ -125,6 +126,17 @@ public sealed partial class SongPathsView : UserControl
             view.Detach();
             paths.Close();
         }
+    }
+
+    /// <summary>The ContentDialog's horizontal chrome: its theme padding plus border, both sides (24 + 1 each by default).</summary>
+    /// <returns>The width, in epx, the dialog takes from its content box.</returns>
+    private static double DialogChromeWidth()
+    {
+        static Thickness Lookup(string key, double fallback) =>
+            Application.Current.Resources.TryGetValue(key, out var value) && value is Thickness thickness ? thickness : new Thickness(fallback);
+        var padding = Lookup("ContentDialogPadding", 24);
+        var border = Lookup("ContentDialogBorderWidth", 1);
+        return padding.Left + padding.Right + border.Left + border.Right;
     }
     #endregion
 
@@ -223,6 +235,67 @@ public sealed partial class SongPathsView : UserControl
         var compact = e.NewSize.Width < CompactWidth;
         Selectors.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         CompactSelectors.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>Compact box widths for their longest options (instrument, difficulty, display); measured once per sheet.</summary>
+    private (double Instrument, double Difficulty, double Display)? compactWidths;
+
+    /// <summary>Whether difficulty and display sit on a second line under the instrument box.</summary>
+    private bool compactStacked;
+
+    /// <summary>
+    /// Sizes each compact ComboBox to its longest option and reflows difficulty and display under the instrument when the
+    /// three don't fit on one line (issue #280: "Pro Drums + Cymbals" and 200% text were clipped, and the instrument box
+    /// changed width with the selection).
+    /// </summary>
+    /// <param name="sender">Compact selector grid.</param>
+    /// <param name="e">Size change.</param>
+    private void OnCompactSelectorsSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var widths = compactWidths ??= MeasureCompactWidths();
+        CompactDisplayPicker.Width = widths.Display;
+        CompactDifficultyPicker.MinWidth = widths.Difficulty;
+        var next = PathSelectorLayout.Stacks(e.NewSize.Width, widths.Instrument, widths.Difficulty, widths.Display, CompactSelectors.ColumnSpacing);
+        // Stacked, the instrument box spans the row (its trimmed label is the last resort on the narrowest windows).
+        CompactInstrumentPicker.Width = next ? double.NaN : widths.Instrument;
+        if (next == compactStacked) return;
+        compactStacked = next;
+        ApplyCompactArrangement();
+    }
+
+    /// <summary>Places the compact boxes on one line, or the instrument above difficulty and display.</summary>
+    private void ApplyCompactArrangement()
+    {
+        Grid.SetColumnSpan(CompactInstrumentPicker, compactStacked ? 3 : 1);
+        Grid.SetRow(CompactDifficultyPicker, compactStacked ? 1 : 0);
+        Grid.SetColumn(CompactDifficultyPicker, compactStacked ? 0 : 1);
+        Grid.SetColumnSpan(CompactDifficultyPicker, compactStacked ? 2 : 1);
+        Grid.SetRow(CompactDisplayPicker, compactStacked ? 1 : 0);
+        // An empty Auto row still adds RowSpacing, so the gap exists only while stacked.
+        CompactSelectors.RowSpacing = compactStacked ? CompactSelectors.ColumnSpacing : 0;
+    }
+
+    /// <summary>Measures every option at the current text scale (off-tree text blocks scale like FirstRunCarousel's).</summary>
+    /// <returns>Box widths including the ComboBox template's padding and drop-down glyph column.</returns>
+    private (double Instrument, double Difficulty, double Display) MeasureCompactWidths()
+    {
+        var padding = CompactDifficultyPicker.Padding;
+        double Widest(IEnumerable<string> labels) => labels.Select(TextWidth).DefaultIfEmpty(0).Max();
+        return (
+            PathSelectorLayout.BoxWidth(Widest(ViewModel.InstrumentOptions.Select(o => o.Label)) + PathSelectorLayout.InstrumentIconSpace,
+                padding.Left, padding.Right, PathSelectorLayout.InstrumentMinWidth),
+            PathSelectorLayout.BoxWidth(Widest(ViewModel.DifficultyLabels), padding.Left, padding.Right, 0),
+            PathSelectorLayout.BoxWidth(Widest(CompactDisplayPicker.Items.OfType<string>()), padding.Left, padding.Right, PathSelectorLayout.DisplayMinWidth));
+    }
+
+    /// <summary>Desired width of an option label in the ComboBox content font.</summary>
+    /// <param name="label">Option text.</param>
+    /// <returns>Width in effective pixels.</returns>
+    private double TextWidth(string label)
+    {
+        var block = new TextBlock { Text = label, FontSize = CompactDifficultyPicker.FontSize, FontFamily = CompactDifficultyPicker.FontFamily };
+        block.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+        return block.DesiredSize.Width;
     }
     #endregion
 

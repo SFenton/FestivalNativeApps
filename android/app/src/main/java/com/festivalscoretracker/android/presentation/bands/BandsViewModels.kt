@@ -59,14 +59,16 @@ internal suspend fun <T> loadClampedPage(requested: Int, load: suspend (Int) -> 
  * @property pageSize Rows per page (25 for the page, 6 for the landing preview).
  * @param load Page read `(accountId, group, page, pageSize)`.
  * @param backoff Shared retry backoff.
+ * @param initialGroup Group selected on open (web `?group=`; the player page's per-size "View all").
  */
 class PlayerBandsViewModel(
     val accountId: String,
     val pageSize: Int,
     private val load: suspend (String, PlayerBandGroup, Int, Int) -> PlayerBandListResponse,
     backoff: ServiceRetryBackoff,
+    initialGroup: PlayerBandGroup = PlayerBandGroup.All,
 ) : ViewModel() {
-    private val groupFlow = MutableStateFlow(PlayerBandGroup.All)
+    private val groupFlow = MutableStateFlow(initialGroup)
     private val pageFlow = MutableStateFlow(1)
     private val loader = RetryingLoader(viewModelScope, "player-bands:$accountId:$pageSize", backoff) {
         val group = groupFlow.value
@@ -230,6 +232,7 @@ class BandDetailViewModel(
  * @param loadCatalog Catalogue read (header).
  * @param loadBoard Page read `(songId, bandType, page, top)`.
  * @param backoff Shared retry backoff.
+ * @param initialPage Starting one-based page (route `?page=`; Song Detail's band row jumps here, issue #307).
  */
 class SongBandLeaderboardViewModel(
     songId: String,
@@ -237,9 +240,10 @@ class SongBandLeaderboardViewModel(
     loadCatalog: suspend (refresh: Boolean) -> CatalogPayload,
     loadBoard: suspend (String, BandType, Int, Int) -> SongBandLeaderboardResponse,
     backoff: ServiceRetryBackoff,
+    initialPage: Int = 1,
 ) : ViewModel() {
     private val typeFlow = MutableStateFlow(initialBandType)
-    private val pageFlow = MutableStateFlow(1)
+    private val pageFlow = MutableStateFlow(initialPage.coerceAtLeast(1))
     private val songLoader = RetryingLoader(viewModelScope, "song:$songId", backoff) { refresh ->
         SongResolver.resolve(loadCatalog(refresh).catalog.songs, songId)
     }

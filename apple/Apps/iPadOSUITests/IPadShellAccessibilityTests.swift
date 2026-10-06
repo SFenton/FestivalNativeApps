@@ -89,6 +89,24 @@ final class IPadShellAccessibilityTests: XCTestCase {
         return !element.exists
     }
 
+    /// Tap the trailing pane's Close: in the iPhone Duo vertical bar it can overflow into
+    /// the system "More" menu when the pane's page has many bar items.
+    @MainActor
+    private func closeSplit(_ app: XCUIApplication) {
+        let close = element(app, "fst.split.close")
+        if close.waitForExistence(timeout: 3), close.isHittable {
+            close.tap()
+            return
+        }
+        let more = app.buttons.matching(NSPredicate(format: "label IN %@", ["More", "Show More"])).firstMatch
+        if more.waitForExistence(timeout: 3) {
+            more.tap()
+            let item = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Close'")).firstMatch
+            if item.waitForExistence(timeout: 3) { item.tap(); return }
+        }
+        XCTFail("the trailing pane's Close is neither in the bar nor its overflow menu")
+    }
+
     /// Identifiers in depth-first accessibility order.
     @MainActor
     private func order(_ app: XCUIApplication) throws -> [XCUIElementSnapshot] {
@@ -101,16 +119,24 @@ final class IPadShellAccessibilityTests: XCTestCase {
     /// its title on open and back to the flyout button after Close or a scrim tap.
     @MainActor
     func testFlyoutIsModalAndReturnsFocus() throws {
-        if !IPadAccessibilityAuditTests.runningOnDuo { XCUIDevice.shared.orientation = .landscapeLeft }
+        let orientations: [UIDeviceOrientation] = IPadAccessibilityAuditTests.runningOnDuo
+            ? [.unknown] : [.landscapeLeft, .portrait]
+        for orientation in orientations {
+            if orientation != .unknown { XCUIDevice.shared.orientation = orientation }
+            try flyoutIsModalAndReturnsFocus()
+        }
+    }
+
+    /// One orientation of ``testFlyoutIsModalAndReturnsFocus()``.
+    @MainActor
+    private func flyoutIsModalAndReturnsFocus() throws {
         let app = makeApp()
         launch(app)
         XCTAssertTrue(element(app, "fst.songs.list").waitForExistence(timeout: 25))
-        let open = element(app, "fst.shell.drawer.open")
-        XCTAssertTrue(open.waitForExistence(timeout: 10), "the flyout button")
 
         for dismissal in ["close", "scrim"] {
-            open.tap()
-            XCTAssertTrue(element(app, "fst.shell.drawer.songs").waitForExistence(timeout: 5), "opens (\(dismissal))")
+            // The button, or on the iPhone Duo rail its overflow menu.
+            XCTAssertTrue(IPadAccessibilityAuditTests.openDrawer(app), "opens (\(dismissal))")
             let opened = waitForTrace(app) { $0.hasPrefix("heading: ") }
             XCTAssertEqual(opened, "heading: Festival Score Tracker", "focus moves to the flyout's title")
             let ids = try order(app).map(\.identifier)
@@ -120,13 +146,25 @@ final class IPadShellAccessibilityTests: XCTestCase {
             if dismissal == "close" {
                 element(app, "fst.shell.drawer.close").tap()
             } else {
-                app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+                // The scrim right of the panel, in screen points from the window (iPhone
+                // Duo: `app.coordinate` taps never reached the inner display).
+                // Midway between the panel and the window's trailing edge, clear of the
+                // Duo's system vertical bar.
+                let window = app.windows.firstMatch.frame
+                let panel = element(app, "fst.shell.drawer").frame
+                let x = panel.width > 0 && panel.maxX < window.maxX - 80
+                    ? (panel.maxX + window.maxX) / 2 : window.minX + window.width * 0.9
+                IPadAccessibilityAuditTests.screenOrigin(app)
+                    .withOffset(CGVector(dx: x, dy: window.midY)).tap()
             }
             XCTAssertTrue(waitForDisappearance(of: element(app, "fst.shell.drawer"), timeout: 5), "\(dismissal) closes")
             let closed = waitForTrace(app) { $0.hasPrefix("fst.shell.drawer.open") }
-            XCTAssertEqual(closed, "fst.shell.drawer.open: Open Navigation", "focus returns to the flyout button")
+            // The button, or the iPhone Duo rail's "More" overflow that holds it.
+            XCTAssertTrue(["fst.shell.drawer.open: Open Navigation", "fst.shell.drawer.open: More"].contains(closed),
+                          "focus returns to the flyout button (\(closed))")
             XCTAssertTrue(element(app, "fst.songs.list").exists, "the page is back in the tree")
         }
+        app.terminate()
     }
 
     /// In a ⅓ window (phone tabs and drawer) the page behind the open drawer leaves the
@@ -208,8 +246,12 @@ final class IPadShellAccessibilityTests: XCTestCase {
         SplitPage(name: "full-rankings", env: ["FST_DEBUG_ROUTE": "fullRankings:Solo_Guitar"],
                   ready: "Lead Rankings", row: "fst.rankings.row."),
         SplitPage(name: "rivals", env: ["FST_DEBUG_ROUTE": "rivals"], ready: "Rivals", row: "fst.rivals.row."),
-        SplitPage(name: "leaderboards", env: ["FST_DEBUG_TAB": "leaderboards"], ready: "Leaderboards",
-                  row: "fst.rankings.row."),
+        // iPhone Duo: with a profile `FST_DEBUG_TAB=leaderboards` resolves against the
+        // compact tab set and opens Songs (Lane A11Y3's unreached row); the route pushes it.
+        SplitPage(name: "leaderboards",
+                  env: IPadAccessibilityAuditTests.runningOnDuo
+                      ? ["FST_DEBUG_ROUTE": "leaderboards"] : ["FST_DEBUG_TAB": "leaderboards"],
+                  ready: "Leaderboards", row: "fst.rankings.row."),
         SplitPage(name: "song-board", env: [:], profile: false, ready: "fst.songs.list",
                   row: "fst.song-detail.leaderboard.Solo_Guitar", exact: true, song: "fixture-pulse"),
         SplitPage(name: "settings", env: ["FST_DEBUG_TAB": "settings"], ready: "Settings",
@@ -237,12 +279,13 @@ final class IPadShellAccessibilityTests: XCTestCase {
             if let song = page.song {
                 XCTAssertTrue(IPadAccessibilityAuditTests.openSong(app, song), "\(page.name): Song Detail opens")
             }
-            XCTAssertFalse(element(app, "fst.split.trailing").exists, "\(page.name) starts full width")
-            guard let opened = IPadAccessibilityAuditTests.openSplit(
+            XCTAssertNil(IPadAccessibilityAuditTests.trailingPane(app), "\(page.name) starts full width")
+            guard IPadAccessibilityAuditTests.openSplit(
                 app, ids: page.exact ? [page.row] : [], prefix: page.exact ? nil : page.row
-            ) else {
+            ) != nil, let paneFrame = IPadAccessibilityAuditTests.trailingPane(app) else {
                 XCTFail("\(page.name): the trailing pane did not open")
                 if let dir = ProcessInfo.processInfo.environment["FST_AUDIT_OUT"] {
+                    try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
                     try? XCUIScreen.main.screenshot().pngRepresentation
                         .write(to: URL(fileURLWithPath: dir).appendingPathComponent("split-\(page.name)-unopened.png"))
                     try? app.debugDescription.write(
@@ -252,7 +295,6 @@ final class IPadShellAccessibilityTests: XCTestCase {
                 app.terminate()
                 continue
             }
-            let trailing = element(app, opened)
             // The same item can be listed more than once (Leaderboards: one row per
             // instrument card; Full Rankings: the selected-profile footer): every selected
             // row is the opened item's.
@@ -264,26 +306,31 @@ final class IPadShellAccessibilityTests: XCTestCase {
 
             let nodes = try order(app)
             let rowIndex = nodes.firstIndex { $0.identifier == rowID }
+            // The pane's container, or (iOS 27.1, no container identifier) its first element.
             let paneIndex = nodes.firstIndex { $0.identifier == "fst.split.trailing" }
+                ?? nodes.firstIndex { paneFrame.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY)) && $0.frame.width > 0
+                    && $0.frame.width < paneFrame.width + 1 }
             if let rowIndex, let paneIndex {
                 XCTAssertLessThan(rowIndex, paneIndex, "\(page.name): the leading pane reads before the trailing pane")
             } else {
                 XCTFail("\(page.name): row \(rowID) or trailing pane missing from the tree")
             }
-            XCTAssertEqual(trailing.frame.minX, window.midX, accuracy: 30, "\(page.name): trailing half")
+            XCTAssertEqual(paneFrame.minX, window.midX, accuracy: 30, "\(page.name): trailing half")
 
             // Focus: the trailing pane's top heading.
             let focus = waitForTrace(app) { $0.hasPrefix("heading: ") }
             let title = String(focus.dropFirst("heading: ".count))
             XCTAssertTrue(focus.hasPrefix("heading: ") && !title.isEmpty, "\(page.name): focus moves into the pane (\(focus))")
             let paneHeadings = nodes.filter {
-                IPadAccessibilityAuditTests.isHeader($0) && trailing.frame.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY))
+                IPadAccessibilityAuditTests.isHeader($0) && paneFrame.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY))
             }.map(\.label)
             XCTAssertTrue(paneHeadings.contains(title), "\(page.name): focus target '\(title)' is a heading in the pane \(paneHeadings)")
 
             // Close: full width, no selection, focus back to the row.
-            element(app, "fst.split.close").tap()
-            XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "\(page.name): Close returns to full width")
+            closeSplit(app)
+            let deadline = Date.now.addingTimeInterval(10)
+            while IPadAccessibilityAuditTests.trailingPane(app) != nil, Date.now < deadline { Thread.sleep(forTimeInterval: 0.3) }
+            XCTAssertNil(IPadAccessibilityAuditTests.trailingPane(app), "\(page.name): Close returns to full width")
             let back = waitForTrace(app) { $0.hasPrefix("row: ") }
             XCTAssertTrue(back.hasPrefix("row: "), "\(page.name): focus returns to the opened row (\(back))")
             XCTAssertEqual(

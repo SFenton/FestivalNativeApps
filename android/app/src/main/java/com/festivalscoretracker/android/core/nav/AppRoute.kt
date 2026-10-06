@@ -46,11 +46,17 @@ sealed interface AppRoute
  */
 @Serializable data class SongDetailRoute(val songId: String, val instrument: String? = null) : AppRoute
 
-/** `/songs/:songId/:instrument` with a one-based page. */
-@Serializable data class SongLeaderboardRoute(val songId: String, val instrument: String, val page: Int = 1) : AppRoute
+/**
+ * `/songs/:songId/:instrument` with a one-based page; [navToPlayer] (web `?navToPlayer=true`)
+ * reveals the selected player's highlighted row on arrival (issue #307).
+ */
+@Serializable data class SongLeaderboardRoute(val songId: String, val instrument: String, val page: Int = 1, val navToPlayer: Boolean = false) : AppRoute
 
-/** `/songs/:songId/bands/:bandType`. */
-@Serializable data class SongBandLeaderboardRoute(val songId: String, val bandType: String) : AppRoute
+/**
+ * `/songs/:songId/bands/:bandType` with a one-based page; [navToBand] (web `?navToBand=true`)
+ * reveals the selected player's highlighted band row on arrival (issue #307).
+ */
+@Serializable data class SongBandLeaderboardRoute(val songId: String, val bandType: String, val page: Int = 1, val navToBand: Boolean = false) : AppRoute
 
 /** `/songs/:songId/:instrument/history`. */
 @Serializable data class PlayerHistoryRoute(val songId: String, val instrument: String) : AppRoute
@@ -60,8 +66,12 @@ sealed interface AppRoute
 /** `/player/:accountId`. */
 @Serializable data class PlayerRoute(val accountId: String, val displayName: String? = null) : AppRoute
 
-/** `/bands/player/:accountId`. */
-@Serializable data class PlayerBandsRoute(val accountId: String, val displayName: String? = null) : AppRoute
+/**
+ * `/bands/player/:accountId?group=`.
+ *
+ * @property group Initial `PlayerBandGroup.wireId` filter (the player page's per-size "View all"), or null for All.
+ */
+@Serializable data class PlayerBandsRoute(val accountId: String, val displayName: String? = null, val group: String? = null) : AppRoute
 
 /** `/bands`. */
 @Serializable data object BandsRoute : AppRoute

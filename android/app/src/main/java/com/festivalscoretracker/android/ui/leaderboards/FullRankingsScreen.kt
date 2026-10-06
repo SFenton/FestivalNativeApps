@@ -18,8 +18,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -33,20 +31,26 @@ import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.core.model.Instrument
+import com.festivalscoretracker.android.core.model.LeaderboardPaging
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.rankings.AccountRankingEntry
 import com.festivalscoretracker.android.core.rankings.PlayerRankingResult
 import com.festivalscoretracker.android.core.rankings.RankingFormatting
 import com.festivalscoretracker.android.core.rankings.RankingMetric
 import com.festivalscoretracker.android.core.rankings.RankingNavigation
+import com.festivalscoretracker.android.core.rankings.RankingPaging
 import com.festivalscoretracker.android.core.rankings.RankingSpotlight
 import com.festivalscoretracker.android.core.rankings.RankingSpotlightPlacement
 import com.festivalscoretracker.android.core.rankings.RankingSpotlightSource
+import com.festivalscoretracker.android.core.rankings.SelectedRowAction
+import com.festivalscoretracker.android.core.rankings.SelectedRowSubject
+import com.festivalscoretracker.android.core.rankings.label
 import com.festivalscoretracker.android.data.rankings.RankingsPayload
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.leaderboards.FullRankingsViewModel
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LoadSwap
+import com.festivalscoretracker.android.core.shell.LoadSwapPhase
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
@@ -63,7 +67,7 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 /**
  * `/leaderboards/all`: one instrument's paginated rankings. The instrument and
  * Rank By pickers are top-app-bar actions; the selected player is highlighted in place
- * or pinned above the bottom-anchored pager, and rows fade out above that footer
+ * and always pinned above the bottom-anchored pager (issue #318), and rows fade out above that footer
  * instead of scrolling visibly behind it (issue #115).
  *
  * @param viewModel Board logic.
@@ -89,8 +93,10 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
     val shownPage = (shown as? LoadState.Loaded)?.value
     val entries = shownPage?.rankings?.entries.orEmpty()
     val revealsSelected = entries.any { RankingSpotlight.isSelected(selected, it.accountId) }
+    // The requested page's rows are on screen (not the previous page fading out or the spinner).
+    val pageShown = swap.phase == LoadSwapPhase.ContentIn && board is LoadState.Loaded && swap.shown === board
     // Inner width of the rows card, so narrow panes (beside a hinge) keep names readable (issue #115).
-    var rowWidth by remember { mutableFloatStateOf(Float.NaN) }
+    var rowWidth by rememberRankingRowWidth()
 
     // A new page starts at the top, unless it holds the selected row (revealed instead).
     LaunchedEffect(swap.showsSpinner) {
@@ -126,7 +132,7 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
             listState = listState,
             idPrefix = "fst.full-rankings",
             controls = { FullRankingsControls(current) },
-            footer = { FullRankingsFooter(instrument, metric, selected, entries, spotlight, shownPage != null, viewModel, navigate) },
+            footer = { FullRankingsFooter(instrument, metric, selected, entries, spotlight, shownPage != null, page, pageShown, viewModel, navigate) },
             pager = { RankingsPager(page, totalPages, "fst.full-rankings", viewModel::goTo) },
             fadeAboveFooter = true,
         ) {
@@ -215,6 +221,8 @@ private fun ColumnScope.FullRankingsFooter(
     entries: List<AccountRankingEntry>,
     spotlight: LoadState<PlayerRankingResult>,
     pageLoaded: Boolean,
+    page: Int,
+    pageShown: Boolean,
     viewModel: FullRankingsViewModel,
     navigate: (AppRoute) -> Unit,
 ) {
@@ -228,20 +236,27 @@ private fun ColumnScope.FullRankingsFooter(
         PlayerRankingResult.Unranked -> RankingSpotlightSource.Unranked
         null -> RankingSpotlightSource.NotLoaded
     }
-    when (val placement = RankingSpotlight.placement(selected, entries, source)) {
+    // Pinned on every page, the player's own included, like the song boards (issue #318).
+    when (val placement = RankingSpotlight.pinnedPlacement(selected, entries, source)) {
         RankingSpotlightPlacement.None, RankingSpotlightPlacement.Inline -> Unit
         RankingSpotlightPlacement.Pending -> AnchoredRowCard { SpotlightLoadingRow("fst.full-rankings.spotlight-footer.loading") }
         RankingSpotlightPlacement.Unranked -> AnchoredRowCard { SpotlightUnrankedRow("Not yet ranked on ${instrument.label}.", "fst.full-rankings.spotlight-footer.unranked") }
-        // Web fixed player footer: the full-width row (opening the profile) in the page's
-        // columns, so it lines up with the rows above (operator batch 7, 7.9).
+        // Web fixed player footer: the full-width row in the page's columns, so it lines up
+        // with the rows above (operator batch 7, 7.9). `leaderboard-row` R7: it jumps to the
+        // player's page while their row is elsewhere and opens Statistics once it is on screen;
+        // while a page loads, the rank decides.
         is RankingSpotlightPlacement.Footer -> AnchoredRowCard {
+            val rank = placement.entry.rank(metric)
+            val visible = if (pageShown) entries.any { RankingSpotlight.isSelected(selected, it.accountId) } else rank > 0 && LeaderboardPaging.pageForRank(rank, RankingPaging.PAGE_SIZE) == page
+            val action = SelectedRowAction.footer(rank, visible, page, RankingPaging.PAGE_SIZE)
             AccountRankingRow(
                 entry = placement.entry,
                 metric = metric,
                 isSelected = true,
                 route = RankingNavigation.playerRoute(placement.entry.accountId, placement.entry.displayName, selected),
-                onOpen = navigate,
+                onOpen = { route -> if (action is SelectedRowAction.Jump) viewModel.goTo(action.page) else navigate(route) },
                 tag = "fst.full-rankings.spotlight-footer",
+                clickLabel = action.label(SelectedRowSubject.Player),
             )
         }
     }

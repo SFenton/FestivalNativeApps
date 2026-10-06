@@ -200,7 +200,9 @@ object RankingSpotlight {
         !selectedAccountId.isNullOrBlank() && selectedAccountId.equals(accountId, ignoreCase = true)
 
     /**
-     * Decide how to present the selected player on a loaded board.
+     * Decide how to present the selected player on a Leaderboards overview card (web
+     * `RankingCard`: a player already in the top ten is not repeated). Full boards use
+     * [pinnedPlacement].
      *
      * @param selectedAccountId Selected account, or null.
      * @param visibleEntries Rows rendered for the board (card top ten or current page).
@@ -217,6 +219,28 @@ object RankingSpotlight {
             is RankingSpotlightSource.Available ->
                 if (isSelected(selectedAccountId, source.entry.accountId)) RankingSpotlightPlacement.Footer(source.entry) else RankingSpotlightPlacement.Pending
         }
+    }
+
+    /**
+     * Decide the pinned footer of a full paginated board (web `FullRankingsPage`
+     * `hasPlayerFooter = !!playerRanking`; `leaderboard-row` R5/R7, issue #318). Unlike
+     * [placement] (the overview cards, which never repeat a visible player), the full board
+     * pins the selected player's row above the pager on every page, including the page that
+     * holds it; the footer's action then opens the profile instead of jumping.
+     *
+     * @param selectedAccountId Selected account, or null.
+     * @param visibleEntries Rows of the page being shown; the player's own row there stands in
+     *   while the own-row read is pending or stale.
+     * @param source What is known about the own row.
+     * @return [RankingSpotlightPlacement.Footer] whenever the player's row is known, otherwise
+     *   None, Pending or Unranked; never [RankingSpotlightPlacement.Inline].
+     */
+    fun pinnedPlacement(selectedAccountId: String?, visibleEntries: List<AccountRankingEntry>, source: RankingSpotlightSource): RankingSpotlightPlacement {
+        if (selectedAccountId.isNullOrBlank()) return RankingSpotlightPlacement.None
+        val own = (source as? RankingSpotlightSource.Available)?.entry?.takeIf { isSelected(selectedAccountId, it.accountId) }
+            ?: visibleEntries.firstOrNull { isSelected(selectedAccountId, it.accountId) }
+        if (own != null) return RankingSpotlightPlacement.Footer(own)
+        return if (source == RankingSpotlightSource.Unranked) RankingSpotlightPlacement.Unranked else RankingSpotlightPlacement.Pending
     }
 }
 

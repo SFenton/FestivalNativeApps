@@ -102,6 +102,52 @@ private func fixtureURL(_ name: String) -> URL {
     #expect(first.members.first?.chartedInstruments == [.lead])
 }
 
+/// `accountId` adds the selected player's best band; it is the pinned footer's row and
+/// highlights the matching page row. A selected row of another size is rejected.
+@Test func songBandLeaderboardDecodesSelectedPlayerBand() throws {
+    let data = try Data(contentsOf: fixtureURL("song-band-leaderboard-demo.json"))
+    var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let entries = try #require(object["entries"] as? [[String: Any]])
+    var mine = try #require(entries.last)
+    mine["rank"] = 29
+    object["selectedPlayerEntry"] = mine
+    let response = try JSONDecoder().decode(
+        SongBandLeaderboardResponse.self, from: JSONSerialization.data(withJSONObject: object)
+    )
+    try response.validate(songId: "fixture-pulse", bandType: .duets)
+    let selected = try #require(response.selectedEntry)
+    #expect(selected.rank == 29)
+    #expect(response.selectedBandEntry == nil)
+    #expect(response.isSelected(try #require(response.entries.last)))
+    #expect(!response.isSelected(try #require(response.entries.first)))
+    // Without a selected row nothing is highlighted.
+    let plain = try JSONDecoder().decode(SongBandLeaderboardResponse.self, from: data)
+    #expect(plain.selectedEntry == nil)
+    #expect(!plain.isSelected(try #require(plain.entries.first)))
+    // A selected row from another band size does not belong on this board.
+    mine["bandType"] = "Band_Trios"
+    object["selectedPlayerEntry"] = mine
+    let mismatched = try JSONDecoder().decode(
+        SongBandLeaderboardResponse.self, from: JSONSerialization.data(withJSONObject: object)
+    )
+    #expect(throws: FestivalAPIError.invalidBandProfile) {
+        try mismatched.validate(songId: "fixture-pulse", bandType: .duets)
+    }
+}
+
+/// The per-size board carries the service's entry-total switch for its song header
+/// (issue #317); an older payload without it reads as "no totals".
+@Test func songBandLeaderboardDecodesEntryTotalsSwitch() throws {
+    let data = try Data(contentsOf: fixtureURL("song-band-leaderboard-demo.json"))
+    #expect(try JSONDecoder().decode(SongBandLeaderboardResponse.self, from: data).showLeaderboardEntryTotals == true)
+    var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    object.removeValue(forKey: "showLeaderboardEntryTotals")
+    let legacy = try JSONDecoder().decode(
+        SongBandLeaderboardResponse.self, from: JSONSerialization.data(withJSONObject: object)
+    )
+    #expect(legacy.showLeaderboardEntryTotals == nil)
+}
+
 @Test func songBandLeaderboardRejectsMismatchedSongOrBandType() throws {
     let data = try Data(contentsOf: fixtureURL("song-band-leaderboard-demo.json"))
     let response = try JSONDecoder().decode(SongBandLeaderboardResponse.self, from: data)
@@ -232,6 +278,25 @@ private let selectedDuoJSON = """
         ).url(relativeTo: base).absoluteString
         == "https://example.com/api/leaderboard/fixture-pulse/bands/Band_Duets?top=25&offset=0"
     )
+    // The selected player is a query parameter only (their best band, issue #307).
+    let selected = PublicEndpoint.songBandLeaderboard(
+        songId: "fixture-pulse", bandType: "Band_Duets", top: 25, offset: 25, combo: nil,
+        accountId: "fixture-player-1"
+    )
+    #expect(
+        try selected.url(relativeTo: base).absoluteString
+        == "https://example.com/api/leaderboard/fixture-pulse/bands/Band_Duets?top=25&offset=25&accountId=fixture-player-1"
+    )
+    #expect(!selected.allowsSnapshotCache)
+    #expect(PublicEndpoint.songBandLeaderboard(
+        songId: "fixture-pulse", bandType: "Band_Duets", top: 25, offset: 0, combo: nil
+    ).allowsSnapshotCache)
+    #expect(throws: FestivalAPIError.invalidResource) {
+        try PublicEndpoint.songBandLeaderboard(
+            songId: "fixture-pulse", bandType: "Band_Duets", top: 25, offset: 0, combo: nil,
+            accountId: "not valid"
+        ).url(relativeTo: base)
+    }
     #expect(
         try PublicEndpoint.songBandLeaderboard(
             songId: "fixture-pulse", bandType: "Band_Duets", top: 25, offset: 25, combo: nil,
@@ -299,4 +364,45 @@ private let selectedDuoJSON = """
     #expect(PlayerBandGroup.duos.label == "Duos")
     #expect(PlayerBandGroup.trios.label == "Trios")
     #expect(PlayerBandGroup.quads.label == "Quads")
+}
+
+// MARK: - Player bands preview (profile page, issue #312)
+
+/// A minimal player-band row for preview tests.
+///
+/// - Parameter index: Distinguishes the band's identifiers.
+/// - Returns: A two-member Duos row.
+private func previewEntry(_ index: Int) -> PlayerBandEntry {
+    PlayerBandEntry(
+        bandId: "band-\(index)", teamKey: "team-\(index)", bandType: "Band_Duets", appearanceCount: index,
+        members: []
+    )
+}
+
+@Test func playerBandsPreviewKeepsWebGroupOrderAndPreviewSize() {
+    let duos = PlayerBandListResponse(accountId: "p", totalCount: 18, entries: (1...8).map(previewEntry))
+    let quads = PlayerBandListResponse(accountId: "p", totalCount: 4, entries: (1...4).map(previewEntry))
+    let preview = PlayerBandsPreview(responses: [.quads: quads, .duos: duos])
+
+    #expect(preview.groups.map(\.group) == [.duos, .trios, .quads])
+    let duoGroup = preview.groups[0]
+    #expect(duoGroup.entries.map(\.bandId) == (1...6).map { "band-\($0)" })
+    #expect(duoGroup.totalCount == 18)
+    #expect(duoGroup.hasMore)
+    // A group the service did not return previews as empty ("No Bands Yet"), not a failure.
+    #expect(preview.groups[1].entries.isEmpty)
+    #expect(preview.groups[1].totalCount == 0)
+    #expect(!preview.groups[1].hasMore)
+    #expect(preview.groups[2].entries.count == 4)
+    #expect(!preview.groups[2].hasMore)
+}
+
+@Test func playerBandsPreviewNeverReportsFewerBandsThanItShows() {
+    // A stale total below the page's rows must not hide View All nor under-count.
+    let response = PlayerBandListResponse(accountId: "p", totalCount: 1, entries: (1...3).map(previewEntry))
+    let group = PlayerBandsPreview.Group(group: .trios, response: response)
+    #expect(group.totalCount == 3)
+    #expect(!group.hasMore)
+    #expect(group.id == .trios)
+    #expect(PlayerBandsPreview.previewCount == 6)
 }

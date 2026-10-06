@@ -3,6 +3,9 @@ package com.festivalscoretracker.android.ui.songs
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
@@ -145,6 +148,7 @@ class SongsUiTest {
         }
         launch(DebugLaunch(stillBackground = true), transport = transport)
         waitForTag("fst.songs.row.s-gamma")
+        rule.onNodeWithTag("fst.songs.filter.open").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "No filters"))
         click("fst.songs.filter.open")
         waitForTag("fst.songs.filter.general")
         // No profile: only General (web 6415d3e3); score and Selected Instrument filters are hidden.
@@ -334,6 +338,7 @@ class SongsUiTest {
     fun shopFilterSheetFiltersListAndKeepsStateWhenReopened() {
         launch(DebugLaunch(route = ShopRoute, stillBackground = true))
         waitForTag("fst.shop.song.s-alpha")
+        assertFilterState("No filters")
         click("fst.shop.filter.open")
         waitForTag("fst.shop.filter.new")
         click("fst.shop.filter.new")
@@ -342,6 +347,7 @@ class SongsUiTest {
         rule.onNodeWithTag("fst.shop.song.s-beta").assertExists()
         click("fst.shop.filter.done")
         rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithTag("fst.shop.filter.new").fetchSemanticsNodes().isEmpty() }
+        assertFilterState("Filters on: New")
         click("fst.shop.filter.open")
         waitForTag("fst.shop.filter.new")
         rule.onNodeWithTag("fst.shop.filter.new").assertIsOn()
@@ -351,6 +357,14 @@ class SongsUiTest {
         click("fst.shop.filter.reset")
         waitForTag("fst.shop.song.s-alpha")
         rule.onNodeWithTag("fst.shop.filter.new").assertIsOff()
+        click("fst.shop.filter.done")
+        rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithTag("fst.shop.filter.new").fetchSemanticsNodes().isEmpty() }
+        assertFilterState("No filters")
+    }
+
+    /** The Shop Filter button speaks its state, not only its gold tint (issue #145). */
+    private fun assertFilterState(expected: String) {
+        rule.onNodeWithTag("fst.shop.filter.open").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, expected))
     }
 
     @Test
@@ -368,8 +382,10 @@ class SongsUiTest {
         click("fst.shop.filter.done")
         waitForTag("fst.shop.filter.empty")
         assertTrue(rule.onAllNodesWithTag("fst.shop.empty").fetchSemanticsNodes().isEmpty())
+        assertFilterState("Filters on: Leaving Tomorrow")
         click("fst.shop.filter.empty-reset")
         waitForTag("fst.shop.song.s-alpha")
+        assertFilterState("No filters")
     }
 
     @Test

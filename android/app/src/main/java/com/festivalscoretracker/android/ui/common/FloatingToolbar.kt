@@ -46,7 +46,7 @@ import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
  * elevated, floating 16 dp above the bottom bar).
  *
  * Pages do **not** call this directly: on compact windows [FestivalScreen] moves its `actions`
- * (Quick Links, Sort, Filter, …) plus global search here; on medium and wider windows the same
+ * (Quick Links, Sort, Filter, …) here; on medium and wider windows the same
  * actions stay in the top app bar. A screen outside [FestivalScreen] can use [FloatingToolbarContent].
  * The most recently composed registration wins, so the entering screen owns the toolbar during a
  * navigation transition and the previous screen takes it back when it returns.
@@ -56,7 +56,6 @@ class FloatingToolbarHost {
     private class Entry(
         val content: State<@Composable RowScope.() -> Unit>,
         val pinned: Boolean,
-        val aboveKeyboard: State<Boolean>,
         val readFirst: Boolean,
     )
 
@@ -67,9 +66,6 @@ class FloatingToolbarHost {
 
     /** Whether the current owner keeps the toolbar on screen while its content scrolls. */
     val pinned: Boolean get() = entries.lastOrNull()?.pinned == true
-
-    /** Whether the current owner holds a focused text field, so the toolbar rides above the keyboard. */
-    val aboveKeyboard: Boolean get() = entries.lastOrNull()?.aboveKeyboard?.value == true
 
     /**
      * Whether the current owner's toolbar is read by TalkBack/keyboard right after the top app bar
@@ -82,23 +78,17 @@ class FloatingToolbarHost {
      *
      * @param content Latest content (read on every recomposition).
      * @param pinned Keep the toolbar visible while content scrolls (no hide on scroll).
-     * @param aboveKeyboard Latest "content holds a focused text field" flag (Songs search, issue #84).
      * @param readFirst Read the toolbar before the page content rather than after it.
      * @return Unregister callback.
      */
     fun register(
         content: State<@Composable RowScope.() -> Unit>,
         pinned: Boolean = false,
-        aboveKeyboard: State<Boolean> = NOT_ABOVE_KEYBOARD,
         readFirst: Boolean = false,
     ): () -> Unit {
-        val entry = Entry(content, pinned, aboveKeyboard, readFirst)
+        val entry = Entry(content, pinned, readFirst)
         entries += entry
         return { entries.remove(entry) }
-    }
-
-    private companion object {
-        val NOT_ABOVE_KEYBOARD: State<Boolean> = mutableStateOf(false)
     }
 }
 
@@ -108,8 +98,6 @@ class FloatingToolbarHost {
  *
  * @param pinned Keep the toolbar on screen while the page scrolls (M3 "always visible" floating
  *   toolbar) instead of the default hide on scroll.
- * @param aboveKeyboard The content holds a focused text field: the shell lifts the toolbar above
- *   the on-screen keyboard while this is true.
  * @param readFirst TalkBack and keyboard focus reach the toolbar right after the top app bar,
  *   before the page content (for pages whose content is an endless feed, issue #112).
  * @param content Toolbar items, typically `IconButton`s; global search is not added automatically here.
@@ -117,15 +105,13 @@ class FloatingToolbarHost {
 @Composable
 fun FloatingToolbarContent(
     pinned: Boolean = false,
-    aboveKeyboard: Boolean = false,
     readFirst: Boolean = false,
     content: @Composable RowScope.() -> Unit,
 ) {
     val host = LocalShellActions.current.floatingToolbar ?: return
     val latest = rememberUpdatedState(content)
-    val keyboard = rememberUpdatedState(aboveKeyboard)
     DisposableEffect(host, pinned, readFirst) {
-        val unregister = host.register(latest, pinned, keyboard, readFirst)
+        val unregister = host.register(latest, pinned, readFirst)
         onDispose { unregister() }
     }
 }
@@ -206,8 +192,8 @@ fun FloatingToolbar(host: FloatingToolbarHost, modifier: Modifier = Modifier, sc
     // A page whose actions are all conditional (or none) registers empty content: measure it but
     // place nothing, so no empty pill draws or blocks touches.
     var hasContent by remember { mutableStateOf(true) }
-    // Content that changes width (Songs search minimizing to an icon, issue #84) resizes smoothly;
-    // reduced motion snaps.
+    // Content that changes width (a tool appearing, such as Quick Links once a sort has sections)
+    // resizes smoothly; reduced motion snaps.
     val resize = if (LocalFestivalAccessibility.current.reduceMotion) Modifier else Modifier.animateContentSize()
     Surface(
         shape = CircleShape,

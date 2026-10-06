@@ -218,6 +218,30 @@ class RankingsCoreTest {
         assertFalse(RankingSpotlight.isSelected(selected, ""))
     }
 
+    @Test
+    fun fullBoardPinsTheSelectedRowEvenOnItsOwnPage() {
+        val top = (1..10).map { entry(it) }
+        val own = entry(RankingsFixtures.SELECTED_RANK)
+        val selected = RankingsFixtures.SELECTED
+        val onPage = top[3]
+        assertEquals(RankingSpotlightPlacement.None, RankingSpotlight.pinnedPlacement(null, top, RankingSpotlightSource.Available(own)))
+        assertEquals(RankingSpotlightPlacement.None, RankingSpotlight.pinnedPlacement(" ", top, RankingSpotlightSource.NotLoaded))
+        // Issue #318: the player's own page still pins their row (never Inline), from the own-row read.
+        val ownOnPage = onPage.copy(displayName = "From the own-row read")
+        assertEquals(RankingSpotlightPlacement.Footer(ownOnPage), RankingSpotlight.pinnedPlacement(onPage.accountId.uppercase(), top, RankingSpotlightSource.Available(ownOnPage)))
+        // The page's own row stands in while the own-row read is pending or stale.
+        assertEquals(RankingSpotlightPlacement.Footer(onPage), RankingSpotlight.pinnedPlacement(onPage.accountId, top, RankingSpotlightSource.NotLoaded))
+        assertEquals(RankingSpotlightPlacement.Footer(onPage), RankingSpotlight.pinnedPlacement(onPage.accountId, top, RankingSpotlightSource.Unranked))
+        assertEquals(RankingSpotlightPlacement.Footer(onPage), RankingSpotlight.pinnedPlacement(onPage.accountId, top, RankingSpotlightSource.Available(top[0])))
+        // Off-page: the same states as the overview cards.
+        assertEquals(RankingSpotlightPlacement.Footer(own), RankingSpotlight.pinnedPlacement(selected, top, RankingSpotlightSource.Available(own)))
+        assertEquals(RankingSpotlightPlacement.Pending, RankingSpotlight.pinnedPlacement(selected, top, RankingSpotlightSource.NotLoaded))
+        assertEquals(RankingSpotlightPlacement.Unranked, RankingSpotlight.pinnedPlacement(selected, top, RankingSpotlightSource.Unranked))
+        assertEquals(RankingSpotlightPlacement.Pending, RankingSpotlight.pinnedPlacement(selected, top, RankingSpotlightSource.Available(top[0])))
+        // The overview cards keep hiding a visible player.
+        assertEquals(RankingSpotlightPlacement.Inline, RankingSpotlight.placement(onPage.accountId, top, RankingSpotlightSource.Available(onPage)))
+    }
+
     // endregion
 
     // region Navigation and layout
@@ -238,26 +262,26 @@ class RankingsCoreTest {
     fun rowActionLabelsNameTheDestination() {
         assertEquals("Open profile", RankingNavigation.actionLabel(PlayerRoute(RankingsFixtures.accountId(1), "Them")))
         assertEquals("Open your statistics", RankingNavigation.actionLabel(StatisticsRoute))
-        assertEquals("Open your page of the full leaderboard", RankingNavigation.actionLabel(SongLeaderboardRoute("s-alpha", "Solo_Guitar", 3)))
+        assertEquals("Jump to your position", RankingNavigation.actionLabel(SongLeaderboardRoute("s-alpha", "Solo_Guitar", 3, navToPlayer = true)))
     }
 
     @Test
-    fun songFooterProjectsOnlySamePublicationScoresOffThePage() {
+    fun songFooterProjectsOnlySamePublicationScores() {
         val player = SelectedPlayer(RankingsFixtures.SELECTED, "Me")
         val score = FestivalApi.JSON.decodeFromString(PlayerScore.serializer(), ProfileFixtures.score("s-alpha", rank = 30, acc = 990, fc = true))
-        val other = LeaderboardEntry(accountId = RankingsFixtures.accountId(1), score = 1, rank = 1)
-        val footer = SongScoreSpotlight.footer(player, score, 7, 7, listOf(other))!!
+        val footer = SongScoreSpotlight.footer(player, score, 7, 7)!!
         assertEquals(RankingsFixtures.SELECTED, footer.accountId)
         assertEquals("Me", footer.displayName)
         assertEquals(30, footer.rank)
         assertEquals(990_000.0, footer.accuracy!!, 0.0)
         assertEquals(true, footer.isFullCombo)
-        assertNull(SongScoreSpotlight.footer(player, score, 8, 7, listOf(other)))
-        assertNull(SongScoreSpotlight.footer(player, score, null, 7, listOf(other)))
-        assertNull(SongScoreSpotlight.footer(player, score, 7, 7, listOf(other.copy(accountId = RankingsFixtures.SELECTED.uppercase()))))
-        assertNull(SongScoreSpotlight.footer(null, score, 7, 7, emptyList()))
-        assertNull(SongScoreSpotlight.footer(player, null, 7, 7, emptyList()))
-        assertEquals(0, SongScoreSpotlight.footer(player, score.copy(rank = null), 7, 7, emptyList())!!.rank)
+        assertNull(SongScoreSpotlight.footer(player, score, 8, 7))
+        assertNull(SongScoreSpotlight.footer(player, score, null, 7))
+        // Pinned even while the row is on the page (`leaderboard-row` R7, issue #307: web and Apple always pin it).
+        assertEquals(30, SongScoreSpotlight.footer(player, score, 7, 7)!!.rank)
+        assertNull(SongScoreSpotlight.footer(null, score, 7, 7))
+        assertNull(SongScoreSpotlight.footer(player, null, 7, 7))
+        assertEquals(0, SongScoreSpotlight.footer(player, score.copy(rank = null), 7, 7)!!.rank)
     }
 
     @Test

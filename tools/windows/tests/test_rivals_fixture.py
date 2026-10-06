@@ -129,6 +129,117 @@ class BandRankingsScenarioTests(unittest.TestCase):
 ms = f.mock_service
 
 
+class SongBandTotalsTests(unittest.TestCase):
+    """``--song-band-totals`` flags only per-size song band board reads (issue #317)."""
+
+    def test_flags_only_per_size_band_boards(self):
+        for path in ("/api/leaderboard/fixture-pulse/bands/Band_Duets?top=25&offset=0",
+                     "/api/leaderboard/fixture-orbit/bands/Band_Quad"):
+            self.assertTrue(f.song_band_totals(path, {"entries": []})["showLeaderboardEntryTotals"], path)
+        for path in ("/api/leaderboard/fixture-pulse/bands/all", "/api/leaderboard/fixture-pulse/Solo_Guitar",
+                     "/api/rankings/bands/Band_Duets"):
+            self.assertNotIn("showLeaderboardEntryTotals", f.song_band_totals(path, {"entries": []}), path)
+        self.assertIsNone(f.song_band_totals("/api/leaderboard/fixture-pulse/bands/Band_Duets", None))
+
+    def test_install_wraps_each_response(self):
+        original = ms.FixtureHandler.do_GET
+        sent = []
+
+        class Handler:
+            path = "/api/leaderboard/fixture-pulse/bands/Band_Trios?top=25"
+
+            def _json(self, status, payload, *, etag=None):
+                sent.append((status, payload, etag))
+
+        ms.FixtureHandler.do_GET = lambda handler: handler._json(200, {"totalEntries": 0}, etag="e")
+        try:
+            f.install_song_band_totals()
+            handler = Handler()
+            ms.FixtureHandler.do_GET(handler)
+        finally:
+            ms.FixtureHandler.do_GET = original
+        self.assertEqual(sent, [(200, {"totalEntries": 0, "showLeaderboardEntryTotals": True}, "e")])
+        self.assertNotIn("_json", vars(handler))
+
+
+class SongBandSlowTests(unittest.TestCase):
+    """``--song-band-slow`` holds only the chosen size's per-size song band board reads (issue #317 review)."""
+
+    def test_take_song_band_slow(self):
+        self.assertEqual(f.take_song_band_slow(["--port", "1", "--song-band-slow", "Band_Quad"]), ("Band_Quad", ["--port", "1"]))
+        self.assertEqual(f.take_song_band_slow(["--song-band-slow=Band_Trios", "--x"]), ("Band_Trios", ["--x"]))
+        self.assertEqual(f.take_song_band_slow(["--port", "1"]), (None, ["--port", "1"]))
+        for bad in (["--song-band-slow"], ["--song-band-slow", "Quads"], ["--song-band-slow="]):
+            with self.assertRaises(SystemExit):
+                f.take_song_band_slow(bad)
+
+    def test_delay_only_for_the_slowed_size(self):
+        slow = f.SLOW_SONG_BAND_SECONDS
+        self.assertEqual(f.song_band_delay("/api/leaderboard/fixture-pulse/bands/Band_Quad?top=25&offset=0", "Band_Quad"), slow)
+        for path in ("/api/leaderboard/fixture-pulse/bands/Band_Duets", "/api/leaderboard/fixture-pulse/bands/all",
+                     "/api/rankings/bands/Band_Quad"):
+            self.assertEqual(f.song_band_delay(path, "Band_Quad"), 0.0, path)
+        self.assertEqual(f.song_band_delay("/api/leaderboard/fixture-pulse/bands/Band_Quad", None), 0.0)
+
+    def test_install_sleeps_then_serves(self):
+        original = ms.FixtureHandler.do_GET
+        served, slept = [], []
+
+        class Handler:
+            path = "/api/leaderboard/fixture-pulse/bands/Band_Quad"
+
+        ms.FixtureHandler.do_GET = lambda handler: served.append(handler.path)
+        sleep = f.time.sleep
+        f.time.sleep = slept.append
+        try:
+            f.install_song_band_slow("Band_Quad")
+            ms.FixtureHandler.do_GET(Handler())
+            Handler.path = "/api/leaderboard/fixture-pulse/bands/Band_Duets"
+            ms.FixtureHandler.do_GET(Handler())
+        finally:
+            ms.FixtureHandler.do_GET = original
+            f.time.sleep = sleep
+        self.assertEqual(slept, [f.SLOW_SONG_BAND_SECONDS])
+        self.assertEqual(len(served), 2)
+
+
+class SlowRivalsTests(unittest.TestCase):
+    """Slow accounts (issue #265) hold only their rivals list reads."""
+
+    def test_only_slow_accounts_list_reads_are_delayed(self):
+        slow = f.SLOW_RIVALS_SECONDS
+        for path in ("/api/player/fixture-player-slow/rivals/Solo_Guitar",
+                     "/api/player/fixture-player-slow/rivals/03",
+                     "/api/player/fixture-player-slow-503/rivals/Solo_Bass",
+                     "/api/player/fixture-player-slow/leaderboard-rivals/Solo_Guitar?rankBy=totalscore"):
+            self.assertEqual(f.rivals_list_delay(path), slow, path)
+        for path in ("/api/player/fixture-player-1/rivals/Solo_Guitar",
+                     "/api/player/fixture-player-503/leaderboard-rivals/Solo_Guitar",
+                     "/api/player/fixture-player-slow/rivals/Solo_Guitar/f1c749eb07c32578cfa3e59ec38c03a8",
+                     "/api/player/fixture-player-slow/leaderboard-rivals/Solo_Guitar/abc",
+                     "/api/player/fixture-player-slow", "/api/songs"):
+            self.assertEqual(f.rivals_list_delay(path), 0.0, path)
+
+    def test_delay_stays_under_the_app_request_timeout(self):
+        self.assertTrue(0 < f.SLOW_RIVALS_SECONDS < 30)
+
+    def test_install_sleeps_then_serves(self):
+        original = ms.FixtureHandler.do_GET
+        served, slept = [], []
+        ms.FixtureHandler.do_GET = lambda handler: served.append(handler.path)
+        real_sleep = f.time.sleep
+        f.time.sleep = slept.append
+        try:
+            f.install_slow_rivals()
+            for path in ("/api/player/fixture-player-slow/rivals/Solo_Guitar", "/api/player/fixture-player-1/rivals/Solo_Guitar"):
+                ms.FixtureHandler.do_GET(type("H", (), {"path": path})())
+        finally:
+            ms.FixtureHandler.do_GET = original
+            f.time.sleep = real_sleep
+        self.assertEqual(len(served), 2)
+        self.assertEqual(slept, [f.SLOW_RIVALS_SECONDS])
+
+
 class DetailNameTests(unittest.TestCase):
     """``name_detail_bodies`` patches both detail builders and restores cleanly."""
 

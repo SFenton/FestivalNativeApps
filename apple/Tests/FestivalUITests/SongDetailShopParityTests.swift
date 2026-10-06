@@ -259,18 +259,69 @@ private func playerScore(rank: Int?, score: Int = 500) throws -> PlayerScore {
     #expect(route(other, selected: nil) == .player(accountId: "p1", displayName: "p1"))
     // Own row in the top ten (case-insensitive) → Statistics, as on the Solo chart.
     #expect(route(row("me", rank: 3), selected: me) == .statistics)
-    // Own footer row → the full chart page containing the rank (25 per page).
+    // Own footer row → the full chart page containing the rank (25 per page), with
+    // the row brought into view (issue #307).
     #expect(route(row("ME", rank: 42), selected: me, footer: true)
-        == .songLeaderboard(song, .lead, 2))
+        == .songLeaderboard(song, .lead, 2, focusSelected: true))
     #expect(route(row("ME", rank: 25), selected: me, footer: true)
-        == .songLeaderboard(song, .lead, 1))
+        == .songLeaderboard(song, .lead, 1, focusSelected: true))
     // Anonymous rows have no profile.
     #expect(route(row("", rank: 4), selected: me) == nil)
     #expect(SongPreviewSpotlightPolicy.hint(for: .statistics) == "Opens your statistics")
     #expect(SongPreviewSpotlightPolicy.hint(for: .player(accountId: "p1", displayName: nil))
         == "Opens player profile")
     #expect(SongPreviewSpotlightPolicy.hint(for: .songLeaderboard(song, .lead, 2))
-        == "Opens your page of the full leaderboard")
+        == "Jumps to your position in the full leaderboard")
+}
+
+/// The selected band's row appended after a band preview follows the solo spotlight
+/// row's rule (issue #307): it opens the full band board at the page containing its
+/// rank, focused on that band; every other band row opens its Band page.
+@Test func bandPreviewRowsRouteLikeTheSoloSpotlight() throws {
+    let song = try JSONDecoder().decode(Song.self, from: Data("""
+    {"songId":"fixture-pulse","title":"Fixture Pulse","artist":"Fixture Artist"}
+    """.utf8))
+    func band(_ id: String, rank: Int) throws -> SongBandLeaderboardEntry {
+        try JSONDecoder().decode(SongBandLeaderboardEntry.self, from: Data("""
+        {"bandId":"\(id)","bandType":"Band_Duets","teamKey":"\(id)-key","comboId":null,
+         "members":[{"accountId":"a","displayName":"Ann","instruments":["Solo_Guitar"]},
+                    {"accountId":"b","displayName":"Bo","instruments":["Solo_Drums"]}],
+         "score":1000,"rank":\(rank),"accuracy":990000,"isFullCombo":false,"stars":5,
+         "season":9,"difficulty":3,"percentile":0.5,"endTime":null}
+        """.utf8))
+    }
+    let mine = try band("mine", rank: 57)
+    let appended = SongBandRowNavigation.previewRoute(
+        for: mine, song: song, bandType: .duets, isAppended: true
+    )
+    #expect(appended == .songBandLeaderboard(
+        song, bandType: "Band_Duets", page: 3, focus: SongBandRowFocus(mine)
+    ))
+    #expect(SongBandRowNavigation.hint(for: appended)
+        == "Jumps to your band's position in the full leaderboard")
+    // A top-ten row (the selected band's highlighted one included) opens its page.
+    let other = try band("other", rank: 2)
+    let bandPage = AppRoute.band(
+        bandId: "other", name: "Ann + Bo", bandType: "Band_Duets", teamKey: "other-key"
+    )
+    #expect(SongBandRowNavigation.previewRoute(
+        for: other, song: song, bandType: .duets, isAppended: false
+    ) == bandPage)
+    #expect(SongBandRowNavigation.bandRoute(other) == bandPage)
+    #expect(SongBandRowNavigation.hint(for: bandPage) == "Opens band")
+    // The full board's footer follows the Solo footer: jump while off the shown page,
+    // open the band once its row is on screen.
+    let offPage = SongBandRowNavigation.footerAction(for: mine, pageEntries: [other])
+    #expect(offPage == .jump(page: 3))
+    #expect(offPage.footerLabel(for: .band, rank: 57)
+        == "Your band's rank, 57th. Jump to your band's position.")
+    let onPage = SongBandRowNavigation.footerAction(for: mine, pageEntries: [other, mine])
+    #expect(onPage == .openProfile)
+    #expect(onPage.footerLabel(for: .band, rank: 57) == "Your band's rank, 57th. Open band.")
+    // Without a usable rank the appended row falls back to the Band page.
+    #expect(SongBandRowNavigation.previewRoute(
+        for: try band("mine", rank: 0), song: song, bandType: .duets, isAppended: true
+    ) == SongBandRowNavigation.bandRoute(try band("mine", rank: 0)))
 }
 
 /// The Shop action's breathe really cycles (0 → 1 → 0 over 3 s) and holds a static

@@ -26,7 +26,12 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [page-tools-and-nav-chrome](page-tools-and-nav-chrome.md) | Where page actions, search, Quick Links, the bell and Profile live on each platform |
 | [modal-shell](modal-shell.md) | Shared sheet and dialog container: header, Close, detents, top fade, dismissal |
 | [leaderboard-row](leaderboard-row.md) | Leaderboard and score rows: height, columns, name marquee, pinned player row and pager |
-| [load-transition](load-transition.md) | Fade out, spinner, fade in on page or modal load and reload; staggered row fade-in |
+| [load-transition](load-transition.md) | Fade out, spinner, fade in on page or modal load and reload; graph card list swaps; staggered row fade-in |
 | [empty-error-states](empty-error-states.md) | Empty, no-results, unavailable and error states: layout, copy and retry |
 | [quick-links](quick-links.md) | The Quick Links menu: order, icons, activation line and placement |
 | [section-headers](section-headers.md) | Section titles: style, outside-card placement and pinned/sticky behavior |
+| [chart-date-axis](chart-date-axis.md) | Date labels on history bar charts: centred on their bar, visible bars only |
+| [song-leaderboard-header](song-leaderboard-header.md) | Song-scoped leaderboards (instrument or band size): song-first header, bar title after scroll, song album-art backdrop |
+| [song-header](song-header.md) | Song page headers: shared art + title/artist block, full-width one-line marquee, pinned bar song title |
+| [view-all-cta](view-all-cta.md) | The full-width purple "View all" button below a card's rows: look, placement, copy and accessible name |
+| [settings-value-row](settings-value-row.md) | Read-only Settings title/value rows (Version, Service Info state): inline when it fits, otherwise the value stacks under the title |

@@ -8,12 +8,18 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.model.LeaderboardEntry
 import com.festivalscoretracker.android.core.rankings.LeaderboardColumnLayout
@@ -72,15 +78,17 @@ class LeaderboardSectionColumns(val plan: LeaderboardColumnPlan, val widths: Lea
  * `computeRankWidth`, the score `ch` width and `topScoresLayout`; issue #37).
  *
  * @param entries Section rows, including the pinned row.
+ * @param minRankWidth Rank column the section's other rows already use (the band board's
+ *   member cards, `leaderboard-row` R1), so a pinned row drawn here keeps their column.
  * @return Shared columns.
  */
 @Composable
-fun rememberScoreColumns(entries: List<LeaderboardEntry>): LeaderboardSectionColumns {
+fun rememberScoreColumns(entries: List<LeaderboardEntry>, minRankWidth: Dp = 0.dp): LeaderboardSectionColumns {
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
     val typography = MaterialTheme.typography
     val widths = remember { LeaderboardSectionWidths() }
-    val section = remember(entries, density, typography) {
+    val section = remember(entries, density, typography, minRankWidth) {
         val texts = ScoreSectionTexts.of(entries)
         fun widest(list: List<String>, style: TextStyle): Float = with(density) {
             val px = list.maxOfOrNull { measurer.measure(it, style.copy(fontWeight = FontWeight.Bold), maxLines = 1).size.width } ?: return@with 0f
@@ -88,7 +96,7 @@ fun rememberScoreColumns(entries: List<LeaderboardEntry>): LeaderboardSectionCol
         }
         LeaderboardSection(
             kind = LeaderboardRowKind.Score,
-            rankWidth = widest(texts.ranks, typography.labelLarge),
+            rankWidth = maxOf(widest(texts.ranks, typography.labelLarge), minRankWidth.value),
             metaWidth = widest(texts.seasons, typography.labelLarge),
             valueWidth = widest(texts.scores, typography.bodyMedium),
             hasAccuracy = texts.hasAccuracy,
@@ -119,5 +127,37 @@ fun LeaderboardSectionMember(columns: LeaderboardSectionColumns, key: String, mo
 
 /** Room added to measured text so a column equal to its widest text never wraps on rounding. */
 internal val TEXT_SLACK = 2.dp
+
+// endregion
+
+// region Column probe
+
+/**
+ * Test hook recording where rows draw their rank and name columns, so UI tests can check
+ * that a section's rows and its pinned row share them (`leaderboard-row` R1). Row semantics
+ * are merged or cleared for TalkBack, so the columns have no nodes of their own.
+ */
+internal fun interface ColumnProbe {
+    /**
+     * Records a column's bounds.
+     *
+     * @param key `<row kind>.<column>.<rank>`, e.g. `band.rank.12` or `score.name.9968`.
+     * @param bounds Unclipped bounds in the root, px (a row under the pinned footer still reports its columns).
+     */
+    fun record(key: String, bounds: Rect)
+}
+
+/** The active [ColumnProbe]; null (no cost) outside tests. */
+internal val LocalColumnProbe = staticCompositionLocalOf<ColumnProbe?> { null }
+
+/**
+ * Reports this column's bounds to [probe] when one is installed.
+ *
+ * @param probe [LocalColumnProbe] value.
+ * @param key Probe key.
+ * @return Modifier.
+ */
+internal fun Modifier.columnProbe(probe: ColumnProbe?, key: String): Modifier =
+    if (probe == null) this else onGloballyPositioned { probe.record(key, Rect(it.positionInRoot(), it.size.toSize())) }
 
 // endregion

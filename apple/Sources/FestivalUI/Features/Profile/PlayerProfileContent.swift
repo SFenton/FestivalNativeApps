@@ -210,7 +210,7 @@ struct PlayerProfileContent: View {
 
     var body: some View {
         content
-            .navigationTitle(displayName)
+            .festivalNavigationTitle(displayName)
             #if os(iOS)
             .navigationBarTitleDisplayMode(.large)
             #endif
@@ -351,8 +351,13 @@ struct PlayerProfileContent: View {
                             .festivalFadeIn(isLoaded: true, index: first + 2 + index)
                     }
                 }
-                bandsLink
-                    .festivalFadeIn(isLoaded: true, index: first + 2 + visibleInstruments.count)
+                // Web `PlayerContent` appends `buildPlayerBandsItems` after the instrument
+                // sections: the bands show inline, not behind a link (issue #312).
+                PlayerBandsPreviewSection(
+                    session: session, accountId: accountId, displayName: displayName,
+                    routeDisplayName: routeDisplayName
+                )
+                .festivalFadeIn(isLoaded: true, index: first + 2 + visibleInstruments.count)
             }
             .padding(16)
             .festivalFadeInScope()
@@ -631,29 +636,6 @@ struct PlayerProfileContent: View {
     @ViewBuilder
     private func instrumentTile(_ payload: PlayerProfilePayload, instrument: Instrument) -> some View {
         instrumentSection(payload, instrument: instrument)
-    }
-
-    // MARK: Bands
-
-    private var bandsLink: some View {
-        NavigationLink(
-            value: AppRoute.playerBands(accountId: accountId, displayName: routeDisplayName ?? displayName)
-        ) {
-            HStack {
-                Image(systemName: "person.3")
-                    .accessibilityHidden(true)
-                Text("View \(displayName)'s Bands")
-                    .foregroundStyle(BrandTokens.textPrimary)
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.forward")
-                    .font(.footnote)
-                    .foregroundStyle(FestivalText.deemphasized)
-                    .accessibilityHidden(true)
-            }
-            .frame(minHeight: 44)
-        }
-        .accessibilityIdentifier("fst.player.bands-link")
-        .quickLinkSection(id: "bands", title: "Bands", symbol: "person.3.fill")
     }
 
     // MARK: Formatting
