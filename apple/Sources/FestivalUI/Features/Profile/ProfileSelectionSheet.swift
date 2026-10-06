@@ -168,14 +168,14 @@ struct ProfileSelectionSheet: View {
         }
     }
 
-    /// Bands gate, the enter-query hint, loading, results and error states.
+    /// Bands note (natives have no band profile yet; global search finds bands, issue
+    /// #320), the enter-query hint, loading, results and error states.
     @ViewBuilder private var scopeResultsContent: some View {
         switch scope {
         case .bands:
             centredMessage(
-                "Band search is paused: the service's fallback for a missing "
-                    + "band index rebuilds membership data instead of only reading it, "
-                    + "so this app never sends that request.",
+                "Choosing a band as your profile isn't available in the app yet. "
+                    + "Use Search to find a band and open its page.",
                 identifier: "fst.profile.bands-unavailable"
             )
         case .players:

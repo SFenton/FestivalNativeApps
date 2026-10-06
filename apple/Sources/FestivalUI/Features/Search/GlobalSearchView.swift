@@ -71,8 +71,6 @@ struct GlobalSearchResults: View {
         if !model.hasQuery {
             // Issue #299: the hint names what the scope searches, Bands included.
             centeredMessage(GlobalSearch.enterQueryHint(for: model.scope))
-        } else if model.scope == .bands {
-            resultList { bandsUnavailable }
         } else if model.isSearching {
             // Issue #299: one spinner for the whole area, centred between the scope bar
             // and the field, keyboard or tab bar (HIG Progress indicators: "Display
@@ -85,6 +83,7 @@ struct GlobalSearchResults: View {
             resultList {
                 if model.scope.sections.contains(.songs) { songRows }
                 if model.scope.sections.contains(.players) { playerRows }
+                if model.scope.sections.contains(.bands) { bandRows }
             }
         }
     }
@@ -113,7 +112,7 @@ struct GlobalSearchResults: View {
 
     /// Identity of the shown result set: each new set fades in once.
     private var resultFadeKey: [String] {
-        model.songs.map(\.id) + model.players.map(\.accountId)
+        model.songs.map(\.id) + model.players.map(\.accountId) + model.bands.map(\.id)
     }
 
     /// Stagger index for a result row, or -1 (instant) once its result set has settled.
@@ -141,11 +140,12 @@ struct GlobalSearchResults: View {
     private var isEmpty: Bool {
         let songsEmpty = model.songState == .ready && model.songs.isEmpty
         let playersEmpty = model.playerState == .ready && model.players.isEmpty
+        let bandsEmpty = model.bandState == .ready && model.bands.isEmpty
         switch model.scope {
-        case .all: return songsEmpty && playersEmpty
+        case .all: return songsEmpty && playersEmpty && bandsEmpty
         case .songs: return songsEmpty
         case .players: return playersEmpty
-        case .bands: return false
+        case .bands: return bandsEmpty
         }
     }
 
@@ -256,7 +256,7 @@ struct GlobalSearchResults: View {
     ///
     /// - Parameters:
     ///   - issue: Classified failure.
-    ///   - section: `.songs` or `.players`.
+    ///   - section: `.songs`, `.players` or `.bands`.
     private func failureRow(_ issue: ServiceIssue, section: GlobalSearchScope) -> some View {
         Section {
             ServiceStatusInline(
@@ -272,30 +272,36 @@ struct GlobalSearchResults: View {
 
     // MARK: Bands
 
-    /// Band search is never sent (its GET writes); the scope explains that instead.
-    private var bandsUnavailable: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "person.3")
-                        .accessibilityHidden(true)
-                    Text("Band search isn't available in the app yet. The service's band search "
-                        + "can change stored band data, so the app won't call it until a "
-                        + "read-only version exists. Browse bands in Leaderboards → Band "
-                        + "Rankings, or from a player's Bands.")
-                        .fixedSize(horizontal: false, vertical: true)
+    /// Band cards (web `PlayerBandCard`: member names, instruments, appearance count), or
+    /// why bands failed (issue #320). A result opens that band's page; native apps have
+    /// no selected band profile, so the web's "selected band opens Statistics" never applies.
+    @ViewBuilder private var bandRows: some View {
+        switch model.bandState {
+        case .idle, .loading:
+            EmptyView()
+        case let .failed(issue):
+            failureRow(issue, section: .bands)
+        case .ready where model.bands.isEmpty:
+            // "All" hides an empty section; the Bands scope shows the centred empty state.
+            EmptyView()
+        case .ready:
+            Section {
+                ForEach(Array(model.bands.enumerated()), id: \.element.id) { offset, band in
+                    PlayerBandRow(
+                        entry: band, card: true, open: open,
+                        identifier: "fst.global-search.result.band"
+                    )
+                    .listRowInsets(Self.cardInsets)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .festivalFadeIn(
+                        isLoaded: true,
+                        index: resultFadeIndex(offset + model.songs.count + model.players.count)
+                    )
                 }
-                .foregroundStyle(FestivalText.primary)
-                Button("Band Rankings") {
-                    open(.bandRankings(bandType: "Band_Duets"))
-                }
-                .buttonStyle(.borderless)
-                .tint(BrandTokens.accentBlue)
             }
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("fst.global-search.bands-unavailable")
+            .modifier(ResultSectionChrome())
         }
-        .listRowBackground(Color.white.opacity(0.06))
     }
 
     // MARK: Building blocks
