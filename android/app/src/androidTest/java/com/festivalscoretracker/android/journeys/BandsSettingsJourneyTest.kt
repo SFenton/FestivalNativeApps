@@ -76,8 +76,10 @@ class BandsSettingsJourneyTest {
         h.tap("fst.song-detail.band-view-all.Band_Duets")
         h.waitForTag("fst.song-band-leaderboard.list")
         h.readingOrder("song-band-leaderboard")
+        h.tap("fst.song-band-leaderboard.band-type")
+        h.waitForTag("fst.song-band-leaderboard.band-type-menu")
         h.tap("fst.song-band-leaderboard.band-type.Band_Trios")
-        h.waitForTag("fst.song-band-leaderboard.subtitle")
+        h.waitForTag("fst.song-band-leaderboard.song")
         h.assertAccessible()
     }
 

@@ -13,6 +13,9 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -68,6 +71,8 @@ class BandsUiTest {
     /** Holds a matching request until the returned deferred completes (null = answer at once). */
     private var hold: (HttpRequest) -> CompletableDeferred<Unit>? = { null }
 
+    private lateinit var container: AppContainer
+
     private fun launch(route: String, profile: SelectedPlayer? = null) {
         val debug = DebugLaunch(route = DebugLaunch.parseRoute(route), profile = profile, stillBackground = true)
         val gated = object : HttpTransport {
@@ -76,7 +81,7 @@ class BandsUiTest {
                 return transport.send(request)
             }
         }
-        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = gated, settingsStore = InMemoryPreferences())
+        container = AppContainer(rule.activity, OkHttpClient(), debug, transport = gated, settingsStore = InMemoryPreferences())
         rule.setContent { FestivalApp(container, debug) }
         settle()
     }
@@ -380,7 +385,6 @@ class BandsUiTest {
     fun songBandLeaderboardSwitchesSizesAndOpensBands() {
         launch("songBandLeaderboard:s-alpha:Band_Duets")
         waitForTag("fst.song-band-leaderboard.row.band-1:1")
-        rule.onNodeWithText("Duos · 30 entries").assertIsDisplayed()
         // Web AccuracyDisplay: the full combo is the gold accuracy pill, not an "FC" chip (7.11).
         rule.onNodeWithContentDescription("Full combo, accuracy 100%", useUnmergedTree = true).assertExists()
         assertTrue(rule.onAllNodesWithText("FC", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
@@ -391,13 +395,75 @@ class BandsUiTest {
         // The pager floats in the bottom bar, outside the list (shared RankingsBoardLayout, issue #307).
         click("fst.song-band-leaderboard.page-last")
         waitForTag("fst.song-band-leaderboard.row.band-26:26")
-        rule.onNodeWithTag("fst.song-band-leaderboard.list").performScrollToNode(hasTestTag("fst.song-band-leaderboard.band-type.Band_Quad"))
-        click("fst.song-band-leaderboard.band-type.Band_Quad")
+        // The band size is the header's drop-down, like the solo board's instrument (issue #317).
+        switchBandSize("Band_Quad")
         waitForTag("fst.song-band-leaderboard.empty")
-        click("fst.song-band-leaderboard.band-type.Band_Trios")
+        assertEquals("Quads", sizeLabel())
+        assertTrue("the song header stays when the size changes", exists("fst.song-band-leaderboard.song"))
+        switchBandSize("Band_Trios")
         waitForTag("fst.song-band-leaderboard.row.band-1:1")
         click("fst.song-band-leaderboard.row.band-1:1")
         waitForTag("fst.band.screen")
+    }
+
+    /** Opens the header's band-size drop-down and picks [wireId]. */
+    private fun switchBandSize(wireId: String) {
+        rule.onNodeWithTag("fst.song-band-leaderboard.list").performScrollToIndex(0)
+        click("fst.song-band-leaderboard.band-type")
+        waitForTag("fst.song-band-leaderboard.band-type-menu")
+        click("fst.song-band-leaderboard.band-type.$wireId")
+    }
+
+    /** The visible band size in the header's switcher (the merged anchor TalkBack reads). */
+    private fun sizeLabel(): String =
+        rule.onNodeWithTag("fst.song-band-leaderboard.band-type").fetchSemanticsNode()
+            .config.getOrNull(SemanticsProperties.Text)?.joinToString().orEmpty()
+
+    private fun barTitle(): String =
+        rule.onNodeWithTag("fst.nav.title", useUnmergedTree = true).fetchSemanticsNode()
+            .config.getOrNull(SemanticsProperties.Text)?.joinToString().orEmpty()
+
+    @Test
+    fun songBandLeaderboardUsesTheSoloSongHeaderAndScrollAwayTitle() {
+        launch("songBandLeaderboard:s-alpha:Band_Duets")
+        waitForTag("fst.song-band-leaderboard.row.band-1:1")
+        // Issue #317: the solo board's song header (one heading: title and artist), with the band
+        // size where the instrument goes, and no "<Band> Leaderboard" bar title.
+        rule.onNode(hasTestTag("fst.song-band-leaderboard.song")).assertIsDisplayed()
+        rule.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading) and hasText("Alpha Tune", substring = true)).assertExists()
+        assertEquals("Duos", sizeLabel())
+        val anchor = rule.onNodeWithTag("fst.song-band-leaderboard.band-type").fetchSemanticsNode().config
+        assertEquals(Role.DropdownList, anchor.getOrNull(SemanticsProperties.Role))
+        assertEquals("Switch band size", anchor.getOrNull(SemanticsActions.OnClick)?.label)
+        assertTrue(rule.onAllNodesWithText("Duos Leaderboard", substring = true, useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        assertEquals("", barTitle())
+        // Once the header scrolls away the bar takes the song title, as on the solo board.
+        rule.onNodeWithTag("fst.song-band-leaderboard.list").performScrollToNode(hasTestTag("fst.song-band-leaderboard.row.band-20:20"))
+        settle()
+        rule.waitUntil(5_000) { settle(100); barTitle() == "Alpha Tune" }
+    }
+
+    @Test
+    fun songBandLeaderboardShowsTheSongsStaticCover() {
+        // With album art (the class default strips it), the board pushes the song's static cover.
+        transport.on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson }
+        launch("songBandLeaderboard:s-alpha:Band_Duets")
+        waitForTag("fst.song-band-leaderboard.row.band-1:1")
+        val cover = container.api.artworkUrl("alpha-512.jpg")
+        assertTrue(cover != null)
+        rule.waitUntil(5_000) { settle(100); container.background.focus.value == cover }
+    }
+
+    @Test
+    fun songBandLeaderboardFailureKeepsTheSongHeader() {
+        transport.onRaw("/api/leaderboard/s-alpha/bands/Band_Duets") { HttpResult(500, ByteArray(0)) }
+        launch("songBandLeaderboard:s-alpha")
+        waitForTag("fst.song-band-leaderboard.error")
+        waitForTag("fst.song-band-leaderboard.song")
+        assertTrue(exists("fst.song-band-leaderboard.band-type"))
+        // The header's title opens the song (web `onTitleClick`, issue #315).
+        click("fst.song-band-leaderboard.song")
+        waitForTag("fst.song-detail.header")
     }
 
     // region Selected band (leaderboard-row R7, issue #307)
@@ -498,16 +564,6 @@ class BandsUiTest {
         rows = Triple("fst.song-band-leaderboard.row.band-1:1", "fst.song-band-leaderboard.row.band-26:26", "fst.song-band-leaderboard.row.band-51:51"),
         pagerInList = false,
     )
-
-    @Test
-    fun songBandLeaderboardFailureAndSongLink() {
-        transport.onRaw("/api/leaderboard/s-alpha/bands/Band_Duets") { HttpResult(500, ByteArray(0)) }
-        launch("songBandLeaderboard:s-alpha")
-        waitForTag("fst.song-band-leaderboard.error")
-        waitForTag("fst.song-band-leaderboard.song")
-        click("fst.song-band-leaderboard.song")
-        waitForTag("fst.nav.back")
-    }
 
     // endregion
 
