@@ -51,6 +51,27 @@ Ran with SFentonX selected (`FST_DEBUG_PROFILE`) on Everlong, using `device.py d
   - The bottom bar is icon-only at large text.
   - The top-bar notification badge slightly overlaps the avatar at 2.0 (shell chrome; noted here, not changed).
 
+## Validation: band previews (issue #172, live public service, 2026-10)
+
+SFentonX on Everlong (Quads band appended at #9,968, Trios at #9,920, no Duos band), `device.py drive`, one emulator at a time.
+
+| Configuration | Result |
+|---|---|
+| FST_Phone portrait/landscape, 1.0/2.0 | Three sections with ten rows each, the selected band appended in purple, then View Full. Narrow cards stack the team score under the members; at 2.0 names wrap and nothing clips. |
+| FST_Tablet, 1.0/2.0 | **Fixed:** the appended "#9,920" row pushed its members right of the top ten (clearest at 2.0), against `leaderboard-row` R1. The section now shares one rank column (`rememberBandRankWidth`). |
+| FST_Resizable phone/foldable/tablet/desktop (1.0), desktop/phone (2.0) | Aligned at every width class. |
+| FST_Book_Fold folded/half/unfolded, 2.0 | Half-open pairs Duos \| Trios either side of the hinge with Quads below. At 2.0 the page goes single column (`rememberSingleColumn`), the same as unfolded. |
+| FST_Passport_Fold folded/half/unfolded, 2.0 | Same as Book_Fold. |
+| FST_TriFold folded/partial/unfolded, 2.0 | Good. On the folded cover at 2.0 (about 360 dp), the shared "#9,968" column leaves the top-ten rows a wide rank gutter, and long names wrap, sometimes mid-word. This is accepted: R1 shares one column, and R3 lets accessibility text wrap. Instrument `StackedScoreRow` keeps the section rank width too. |
+
+- **TalkBack** (`talkback_walk.py`, FST_Phone): rows read in order ("Rank 2, ‹member›, Drums, ‹score›, …, band score …, accuracy, 5 gold stars. Button"), then "Your band, Rank 9968, …. Button" and "View Full Leaderboard. Button". Each row is one stop with the "Open band" action. `SongsAccessibilityJourneyTest` (ATF) passed on FST_Phone and FST_Book_Fold half-open, and `BandsSettingsJourneyTest` passed on FST_Phone.
+- **Material 3:** rows are whole-card click targets taller than 48 dp. View Full is the shared purple `ViewFullLeaderboardButton`, the section titles use the shared `SectionHeader`, and the loading state is a labelled `FestivalLoading` spinner.
+- **Deliberate deviations:**
+  - The appended selected band opens Band Detail, not its page of the full board (web). This follows the #64 acceptance criteria and matches iOS and Windows.
+  - Android reads each size (`/bands/{type}?top=10`) where iOS and Windows read `/bands/all`. Both are allowlisted pure reads.
+  - View Full shows no entry count, and sections have no "N bands" subtitle.
+  - Instrument icons inside band rows keep 18 dp at large text.
+
 ## Open
 
 Promoted (selected-band) band previews need a selected-band identity.
