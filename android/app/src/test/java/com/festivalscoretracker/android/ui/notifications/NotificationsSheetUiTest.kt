@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.notifications.ImprovementNotification
@@ -26,6 +27,7 @@ import com.festivalscoretracker.android.ui.theme.FestivalTheme
 import java.time.Duration
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -93,9 +95,38 @@ class NotificationsSheetUiTest {
     }
 
     @Test
+    fun rowsDrawEveryFlagAndPerChartFlagGroups() {
+        val coalesced = NotificationPayload(
+            newFullCombo = true,
+            newStars = 6.0,
+            coalescedEvents = listOf(NotificationEventPayload("player_first_score", "Solo_Guitar", newNumeric = 100.0, newRank = 3.0)),
+        )
+        val multi = NotificationPayload(
+            coalescedEvents = listOf(
+                NotificationEventPayload("player_score_pb", "Solo_Guitar", newNumeric = 100.0),
+                NotificationEventPayload("player_fc_achieved", "Solo_Bass"),
+            ),
+        )
+        show(listOf(row("chips", "player_first_score", payload = coalesced), row("groups", "player_score_pb", payload = multi)))
+        rule.onNodeWithTag("fst.notifications.list").performScrollToNode(hasTestTag("fst.notifications.row.chips"))
+        rule.onNodeWithTag("fst.notifications.row.chips").assert(SemanticsMatcher.expectValue(NotificationFlagsKey, "FirstPlay,FullCombo,GoldStars"))
+        val chips = rule.onNodeWithTag("fst.notifications.row.chips").fetchSemanticsNode().config[SemanticsProperties.ContentDescription].joinToString()
+        assertTrue(chips, chips.contains("got a Full Combo, and earned gold stars. First Play, Full Combo, Gold Stars."))
+        rule.onNodeWithTag("fst.notifications.list").performScrollToNode(hasTestTag("fst.notifications.row.groups"))
+        rule.onNodeWithTag("fst.notifications.row.groups").assert(SemanticsMatcher.expectValue(NotificationFlagsKey, "Lead:NewHighScore|Bass:FullCombo"))
+        val groups = rule.onNodeWithTag("fst.notifications.row.groups").fetchSemanticsNode().config[SemanticsProperties.ContentDescription].joinToString()
+        assertTrue(groups, groups.contains("For Lead, your play set a new personal best with 100 points. For Bass, got a Full Combo. Lead: New High Score. Bass: Full Combo."))
+    }
+
+    @Test
     fun flagColoursMatchTheWeb() {
         val colours = NotificationFlagKind.entries.map { it.color() }
         assertEquals(NotificationFlagKind.entries.size, colours.toSet().size)
         assertEquals(Color(0xFF1D4ED8), NotificationFlagKind.RankUp.color())
+        // White 12 sp semibold labels need WCAG AA 4.5:1 on every pill colour.
+        NotificationFlagKind.entries.forEach { kind ->
+            val ratio = 1.05f / (kind.color().luminance() + 0.05f)
+            assertTrue("$kind contrast $ratio", ratio >= 4.5f)
+        }
     }
 }

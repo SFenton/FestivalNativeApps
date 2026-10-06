@@ -152,6 +152,14 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         }, sheet: true),
         Page(name: "item-shop", env: ["FST_DEBUG_ROUTE": "shop"], ready: "Item Shop"),
         Page(name: "search", ready: "fst.songs.list", open: { app in
+            // iPhone Duo: the Search tab sits in the vertical rail as a plain button.
+            let railSearch = app.buttons.matching(NSPredicate(
+                format: "identifier == 'magnifyingglass' AND label == 'Search'"
+            )).firstMatch
+            if runningOnDuo, railSearch.waitForExistence(timeout: 5), railSearch.isHittable {
+                railSearch.tap()
+                return "Search"
+            }
             // Regular width: the flyout's Search row (no persistent sidebar, 2026-10-04).
             if anyElement(app, "fst.shell.drawer.open").waitForExistence(timeout: 5),
                !app.tabBars.buttons["Search"].exists {
@@ -611,15 +619,19 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         return CGRect(x: bar.minX, y: window.minY, width: window.maxX - bar.minX, height: window.height)
     }
 
-    /// Wait for the trailing pane (``trailingPane(_:)``).
+    /// Wait for the trailing pane (``trailingPane(_:)``) to show and finish sliding in:
+    /// its frame read mid-spring (791 pt instead of 605) failed the midpoint check.
     @MainActor
     static func waitForTrailingPane(_ app: XCUIApplication, timeout: TimeInterval = 10) -> Bool {
         let deadline = Date.now.addingTimeInterval(timeout)
+        var last: CGRect?
         repeat {
-            if trailingPane(app) != nil { return true }
-            Thread.sleep(forTimeInterval: 0.5)
+            let frame = trailingPane(app)
+            if let frame, let last, abs(frame.minX - last.minX) < 0.5 { return true }
+            last = frame
+            Thread.sleep(forTimeInterval: 0.4)
         } while Date.now < deadline
-        return false
+        return last != nil
     }
 
     /// A slow vertical drag between two screen points (no flick momentum).

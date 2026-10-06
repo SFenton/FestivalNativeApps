@@ -180,6 +180,34 @@ public static class Changelog
     /// <summary>Hash of an empty changelog; an empty changelog is never presented.</summary>
     public static string EmptyHash { get; } = Hash([]);
 
+    /// <summary>
+    /// Debug/automation variable naming a <c>WhatsNew.json</c> file to show instead of the embedded one, so UI
+    /// Automation can reach the grouped and tester states the checked-in placeholder lacks.
+    /// </summary>
+    public const string DocumentVariable = "FST_DEBUG_WHATS_NEW_FILE";
+
+    /// <summary>
+    /// The entries this launch shows: <see cref="Entries"/>, or in Debug/automation launches the document named by
+    /// <see cref="DocumentVariable"/> (decoded with the same bounds; an unreadable or invalid file means no entries).
+    /// </summary>
+    /// <param name="environment">Environment lookup.</param>
+    /// <param name="hooksEnabled">Debug or automation launch.</param>
+    /// <param name="openFile">Opens a file for reading (defaults to <see cref="File.OpenRead(string)"/>).</param>
+    /// <returns>Entries, newest first.</returns>
+    public static IReadOnlyList<ChangelogEntry> ResolveEntries(Func<string, string?> environment, bool hooksEnabled, Func<string, Stream>? openFile = null)
+    {
+        var path = hooksEnabled ? environment(DocumentVariable)?.Trim() : null;
+        if (string.IsNullOrEmpty(path)) return Entries;
+        try
+        {
+            return Load(() => (openFile ?? File.OpenRead)(path));
+        }
+        catch (Exception error) when (error is UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return [];
+        }
+    }
+
     /// <summary>Loads and decodes the generated document; any failure yields no entries.</summary>
     /// <param name="open">Stream factory (defaults to the embedded resource).</param>
     /// <returns>Entries, newest first.</returns>

@@ -74,7 +74,7 @@ struct RivalsScreen: View {
                 hub
             }
         }
-        .navigationTitle("Rivals")
+        .festivalNavigationTitle("Rivals")
         .festivalBackground(.carousel, session: session)
         .toolbar {
             // Pushed from the iPhone drawer: page actions only (the pushed-page avatar

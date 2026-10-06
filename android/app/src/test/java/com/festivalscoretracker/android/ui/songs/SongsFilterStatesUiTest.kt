@@ -3,6 +3,9 @@ package com.festivalscoretracker.android.ui.songs
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasTestTag
@@ -378,6 +381,65 @@ class SongsFilterStatesUiTest {
         assertFalse(exists("fst.songs.filter.score-sections"))
         rule.onNodeWithTag("fst.songs.filter.shop").assertExists()
     }
+
+    /**
+     * Issue #181 (`anonymous-hidden` → `player-loaded` → deselected): a General filter chosen
+     * without a profile narrows the list, tints and speaks the Filter button, and keeps doing so
+     * after a profile is selected (the player sections appear) and after it is cleared again.
+     */
+    @Test
+    fun anonymousGeneralFilterSurvivesSelectionAndClearingAndSpeaksItsState() {
+        val doubleBass = transport().apply {
+            on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) {
+                Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null")
+                    .replace("\"sig\":\"Guitar\"", "\"sig\":\"Guitar\",\"doubleBassSupported\":true")
+                    .replace("\"sig\":\"Keyboard\"", "\"sig\":\"Keyboard\",\"doubleBassSupported\":false")
+            }
+        }
+        currentPrefs = InMemoryPreferences()
+        launch(DebugLaunch(stillBackground = true), currentPrefs!!, doubleBass)
+        waitForTag("fst.songs.row.s-gamma")
+        assertFilterState("No filters")
+        openFilter()
+        assertFalse(exists("fst.songs.filter.score-sections"))
+        click("fst.songs.filter.double-bass")
+        settle()
+        click("fst.songs.filter.double-bass.unsupported")
+        click("fst.songs.filter.done")
+        waitGone("fst.songs.filter.form")
+        waitGone("fst.songs.row.s-gamma")
+        assertFalse(exists("fst.songs.row.s-beta"))
+        assertFilterState("Filters on: Double Bass")
+        assertEquals(SongGeneralFilter(doubleBassUnsupported = false), saved().general)
+
+        // Selecting a profile (the Select action persists the player) keeps the General filter.
+        runBlocking { SettingsRepository(currentPrefs!!).setSelectedPlayer(player) }
+        waitForTag("fst.songs.instrument-status.s-alpha", unmerged = true)
+        assertFalse(exists("fst.songs.row.s-beta"))
+        assertFalse(exists("fst.songs.row.s-gamma"))
+        assertFilterState("Filters on: Double Bass")
+        openFilter()
+        rule.onNodeWithTag("fst.songs.filter.score-sections").assertExists()
+        rule.onNodeWithTag("fst.songs.filter.double-bass.unsupported").assertIsOff()
+        click("fst.songs.filter.done")
+        waitGone("fst.songs.filter.form")
+
+        // Clearing the profile hides the player sections; General still narrows.
+        runBlocking { SettingsRepository(currentPrefs!!).setSelectedPlayer(null) }
+        rule.waitUntil(10_000) { settle(100); !exists("fst.songs.instrument-status.s-alpha", unmerged = true) }
+        waitForTag("fst.songs.row.s-alpha")
+        assertFalse(exists("fst.songs.row.s-beta"))
+        assertFilterState("Filters on: Double Bass")
+        openFilter()
+        assertFalse(exists("fst.songs.filter.score-sections"))
+        click("fst.songs.filter.reset")
+        click("fst.songs.filter.done")
+        waitForTag("fst.songs.row.s-gamma")
+        assertFilterState("No filters")
+    }
+
+    private fun assertFilterState(expected: String) = rule.onNodeWithTag("fst.songs.filter.open")
+        .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, expected))
 
     // endregion
 }

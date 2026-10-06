@@ -8,11 +8,15 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -32,6 +36,8 @@ import com.festivalscoretracker.android.testing.RivalsFixtures
 import com.festivalscoretracker.android.ui.rivals.RivalPill
 import com.festivalscoretracker.android.ui.rivals.RivalPreviewRows
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
+import kotlinx.coroutines.CompletableDeferred
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -59,14 +65,17 @@ class CompeteDeviceJourneyTest {
 
     private fun launch() {
         h.enableAccessibilityChecks()
+        h.launch(debug(), transport)
+        h.waitForTag("fst.compete.leaderboard-card.0f")
+    }
+
+    private fun debug(): DebugLaunch {
         val compact = rule.activity.resources.configuration.screenWidthDp < 600
-        val debug = if (compact) {
+        return if (compact) {
             DebugLaunch(section = FestivalSection.Compete, profile = player, stillBackground = true)
         } else {
             DebugLaunch(route = CompeteRoute, profile = player, stillBackground = true)
         }
-        h.launch(debug, transport)
-        h.waitForTag("fst.compete.leaderboard-card.0f")
     }
 
     /** Scrolls the lazy grid until a node matching [matcher] is composed (cards load asynchronously). */
@@ -83,6 +92,33 @@ class CompeteDeviceJourneyTest {
         rule.waitForIdle()
     }
 
+    /**
+     * While its reads are in flight every card shows a labelled, indeterminate Material 3
+     * progress indicator that TalkBack reads, and rows replace it once they arrive (#65, #173).
+     */
+    @Test
+    fun cardsShowLabelledProgressUntilRowsArrive() {
+        val gate = CompletableDeferred<Unit>()
+        transport.beforeRespond = { request -> if ("/api/rankings" in request.url || "/rivals/" in request.url) gate.await() }
+        h.enableAccessibilityChecks()
+        h.launch(debug(), transport)
+        val comboLoading = "fst.compete.leaderboard-card.0f.loading"
+        h.waitForTag(comboLoading)
+        scrollUntil(hasTestTag("$leadCard.loading"))
+        rule.onNode(hasContentDescription("Loading Lead leaderboard"), useUnmergedTree = true)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo.Indeterminate))
+        h.awaitAccessibilityTree(present = "$leadCard.loading")
+        val spoken = h.readingOrder("compete-loading")
+        assertTrue("TalkBack never reaches the Lead spinner: $spoken", spoken.any { it.startsWith("Loading Lead leaderboard") })
+        h.assertNothingStraddles(comboLoading, "$leadCard.loading")
+
+        gate.complete(Unit)
+        scrollUntil(hasTestTag("fst.compete.spotlight.Solo_Guitar"))
+        assertTrue("Lead spinner stayed after its rows arrived", !h.exists("$leadCard.loading"))
+        h.waitGone(comboLoading)
+        h.assertAccessible()
+    }
+
     @Test
     fun leaderboardsGroupOpensTheFullBoardAndComesBack() {
         launch()
@@ -92,11 +128,36 @@ class CompeteDeviceJourneyTest {
         h.assertNothingStraddles(leadCard, "fst.compete.spotlight.Solo_Guitar")
         val viewFull = hasTestTag("fst.compete.view-full-leaderboards").and(hasAnyAncestor(hasTestTag(leadCard)))
         scrollUntil(viewFull)
+        val cells = SONGS_CELL.and(hasAnyAncestor(hasTestTag(leadCard)))
+        fun songsShown() = rule.onAllNodes(cells, useUnmergedTree = true).fetchSemanticsNodes().size
+        fun cardBounds() = rule.onNodeWithTag(leadCard).fetchSemanticsNode().boundsInRoot
+        val songsBefore = songsShown()
+        val boundsBefore = cardBounds()
         rule.onNode(viewFull, useUnmergedTree = true).performSemanticsAction(SemanticsActions.OnClick)
         h.waitForTag("fst.full-rankings.pager")
-        back()
+
+        // Issues #82/#185: Back shows the card where it was, with the same columns on every frame.
+        rule.mainClock.autoAdvance = false
+        rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
+        val frames = mutableListOf<Int>()
+        val placements = mutableListOf<Any?>()
+        repeat(60) {
+            rule.mainClock.advanceTimeByFrame()
+            val node = rule.onAllNodes(hasTestTag(leadCard)).fetchSemanticsNodes().firstOrNull()
+            if (node != null) {
+                frames += songsShown()
+                placements += node.boundsInRoot
+            }
+        }
+        rule.mainClock.autoAdvance = true
+        rule.waitForIdle()
         h.waitForTag(GRID)
         h.waitForTag(leadCard)
+        assertTrue("Compete never reappeared", frames.isNotEmpty())
+        assertTrue("Songs cells changed while returning: $songsBefore before, frames $frames", frames.all { it == songsBefore })
+        assertTrue("The Lead card moved while returning: $boundsBefore before, frames $placements", placements.all { it == boundsBefore })
+        assertEquals("The Lead card moved after returning", boundsBefore, cardBounds())
+        assertTrue("Compete reloaded the Lead card", !h.exists("$leadCard.loading"))
         h.assertAccessible()
     }
 
@@ -142,5 +203,10 @@ class CompeteDeviceJourneyTest {
 
     private companion object {
         const val GRID = "fst.compete.grid"
+
+        /** A board row's `X / Y` songs cell (issue #38). */
+        val SONGS_CELL = SemanticsMatcher("songs cell") { node ->
+            node.config.getOrElse(SemanticsProperties.Text) { emptyList() }.any { Regex("""^\d+ / \d+$""").matches(it.text) }
+        }
     }
 }
