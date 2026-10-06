@@ -106,7 +106,7 @@ STEP_VERBS = {
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
     "scrollto": "scrollto",
     "assertname": "setvalue", "assertaligned": "pair", "assertbelow": "pair", "assertlevel": "pair", "assertgap": "gap",
-    "assertinset": "gap", "assertstatus": "status", "assertstate": "state", "pin": "selector",
+    "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state", "pin": "selector",
     "assertpinned": "selector", "foreground": "onoff",
 }
 
@@ -200,7 +200,10 @@ def parse_step(step: str) -> dict:
     ``assertgap:<sel>|<sel>|<epx>`` fails unless the gap from the first element's bottom edge to the second's top
     edge is ``<epx>`` effective pixels (window DPI) within 1 epx, e.g. a list's last row above a pinned footer;
     ``assertinset:<sel>|<sel>|<epx>`` waits (up to 3 s) until the first element's top edge is ``<epx>`` effective
-    pixels below the second's top edge within 1 epx, e.g. a Quick Links target landed under its page scroller's top.
+    pixels below the second's top edge within 1 epx, e.g. a Quick Links target landed under its page scroller's top;
+    ``scrollinset:<sel>|<scroller>|<epx>`` scrolls the second element (UIA Scroll pattern, no input) until the first
+    element's top edge sits ``<epx>`` (more than 0) effective pixels below the scroller's top within 1 epx: a fixed,
+    unclipped list position for scans (a clipped element's UIA top reads as the viewport edge, so a 0 inset proves nothing).
     ``assertstatus:<sel>|<status>[@<seconds>]`` waits until the element's UIA ItemStatus equals
     ``<status>`` (or matches it as a .NET regex when it starts with ``~``; no ``;`` since steps split on it)
     (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``; a status containing
@@ -259,6 +262,8 @@ def parse_step(step: str) -> dict:
         if "xy" in (result["selector"]["kind"], result["other"]["kind"]):
             raise ValueError(f"{verb} needs element selectors, not coordinates")
         result["epx"] = float(epx)
+        if verb == "scrollinset" and result["epx"] <= 0:
+            raise ValueError(f"scrollinset needs a positive inset (a clipped top reads as 0), not {epx!r}")
     elif shape == "status":
         body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
         selector, sep, status = body.partition("|")

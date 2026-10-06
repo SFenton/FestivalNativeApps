@@ -54,7 +54,7 @@ enum IPadAuditTextEvidence {
         }
 
         /// The element at ``ordinal``, scrolled inside `content` (default: the window) if
-        /// needed, at most eight slow drags.
+        /// needed, at most sixteen slow drags.
         @MainActor
         func resolve(
             in app: XCUIApplication, within area: IPadAuditPageEvidence.ContentArea? = nil, fallbackX: CGFloat? = nil
@@ -62,7 +62,9 @@ enum IPadAuditTextEvidence {
             let area = area ?? IPadAuditPageEvidence.ContentArea(rect: app.windows.firstMatch.frame)
             let window = area.rect
             let origin = app.coordinate(withNormalizedOffset: .zero)
-            for _ in 0..<8 {
+            // Sixteen: an AX5 comparison launch in a ⅓ window puts a lazy card several
+            // screens down (Song Detail's Pro Lead header was never reached in eight).
+            for _ in 0..<16 {
                 let found = matches(in: app)
                 // A slow drag by about the distance needed: a flick's momentum overshot a
                 // Form's last header past the top and back again.

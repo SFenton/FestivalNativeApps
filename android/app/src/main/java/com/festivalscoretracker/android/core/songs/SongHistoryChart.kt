@@ -164,8 +164,9 @@ object SongHistoryChart {
 
 /**
  * How Score History swaps its graph when the selected chart changes (issue #61, iOS #31):
- * the graph and its best scores fade out, swap to the new chart, then fade back in while
- * the card keeps its size. With reduced motion the swap is instant.
+ * the graph fades out, swaps to the new chart, then fades back in while the card keeps its
+ * size. With reduced motion the swap is instant. The best scores below follow the web
+ * GraphCard list sequence instead ([com.festivalscoretracker.android.core.shell.GraphListPolicy], issue #169).
  */
 object SongHistorySwap {
     /** Fade-out time of the old chart's graph. */

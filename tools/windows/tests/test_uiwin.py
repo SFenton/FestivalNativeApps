@@ -172,6 +172,17 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_scrollinset(self):
+        step = u.parse_step("scrollinset:id=fst.suggestions.category.x|id=fst.suggestions.list|8")
+        self.assertEqual(step["verb"], "scrollinset")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.suggestions.category.x"})
+        self.assertEqual(step["other"], {"kind": "id", "value": "fst.suggestions.list"})
+        self.assertEqual(step["epx"], 8.0)
+        for bad in ("scrollinset:id=a|id=b", "scrollinset:id=a|id=b|-8", "scrollinset:id=a|1,2|8",
+                    "scrollinset:id=a|id=b|0"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_window_state_presets(self):
         self.assertEqual(u.preset_op("minimized"), {"kind": "minimize"})
         self.assertEqual(u.preset_op("restored"), {"kind": "restore"})
