@@ -789,7 +789,7 @@ internal fun Modifier.selectedRowHighlight(selected: Boolean): Modifier {
 fun ScoreRow(entry: LeaderboardEntry, isSelected: Boolean = false, navigable: Boolean = false, columns: LeaderboardColumnPlan? = null) {
     val plan = columns ?: rememberScoreColumns(listOf(entry)).plan
     val weight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-    if (isLargeText()) {
+    if (isLargeText() || plan.stacked) {
         StackedScoreRow(entry, plan, weight, isSelected, navigable)
         return
     }
@@ -859,9 +859,10 @@ private fun SeasonCell(season: Int?, width: Float) {
 }
 
 /**
- * [ScoreRow] at large font scales: rank and the (wrapping) name on the first line, the
- * season, score, accuracy pill and stars on the next, indented under the name, so no
- * column is squeezed to an ellipsis.
+ * [ScoreRow] at large font scales, or when the section's one-line columns don't fit
+ * ([LeaderboardColumnPlan.stacked]): rank and the (wrapping) name on the first line, the
+ * score, accuracy pill, season and stars flowing on the next, indented under the name, so no
+ * column is squeezed to an ellipsis or dropped.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

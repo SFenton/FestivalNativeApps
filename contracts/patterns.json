@@ -814,7 +814,8 @@
         "score footer",
         "team score",
         "badges wrap",
-        "large text"
+        "large text",
+        "season column"
       ],
       "web": [
         {
@@ -999,6 +1000,7 @@
         37,
         38,
         90,
+        170,
         292,
         293,
         294,
