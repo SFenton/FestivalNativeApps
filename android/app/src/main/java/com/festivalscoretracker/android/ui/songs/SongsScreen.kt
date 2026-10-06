@@ -249,8 +249,8 @@ fun SongsScreen(
 }
 
 /**
- * Quick Links, Sort and Filter (selected player only): the page's own tools, in the floating
- * toolbar on phones and the top app bar elsewhere.
+ * Quick Links, Sort and Filter (always; General filters only without a player): the page's own tools, in the floating
+ * toolbar on phones and the top app bar elsewhere. Sort and Filter speak their state, not only their gold tint.
  *
  * @param state Songs state (gold tints for a changed sort / active filters).
  * @param quickLinks Sort-bucket Quick Links.
@@ -265,7 +265,9 @@ private fun SongsPageTools(state: SongsUiState, quickLinks: QuickLinksController
     IconButton(onClick = onSort, modifier = Modifier.testTag("fst.songs.sort.open").semantics { stateDescription = sortState }) {
         Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort songs", tint = if (state.sortChanged) BrandTokens.gold else BrandTokens.textPrimary)
     }
-    IconButton(onClick = onFilter, modifier = Modifier.testTag("fst.songs.filter.open")) {
+    // The spoken state carries what the gold tint shows (issue #181; Item Shop precedent #145).
+    val filterState = state.filterStateDescription
+    IconButton(onClick = onFilter, modifier = Modifier.testTag("fst.songs.filter.open").semantics { stateDescription = filterState }) {
         Icon(
             Icons.Filled.FilterList,
             contentDescription = "Filter songs",
