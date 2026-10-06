@@ -15,7 +15,7 @@ import com.festivalscoretracker.android.core.search.SearchScope
  * Route syntax (`FST_DEBUG_ROUTE`): `song:<songId-or-title>`,
  * `songLeaderboard:<songId>:<Instrument wire ID>[:<page>[:reveal]]`,
  * `playerHistory:<songId>:<Instrument wire ID>`, `player:<accountId>`,
- * `playerBands:<accountId>`, `leaderboards`, `fullRankings:<Instrument wire ID>[:<page>]`,
+ * `playerBands:<accountId>[:<group wire ID>]`, `leaderboards`, `fullRankings:<Instrument wire ID>[:<page>]`,
  * `bandRankings:<bandType>[:<page>]`, `shop`, `rivals`, `statistics`, `suggestions`,
  * `compete`, `bands`, `band:<bandId>`, `songBandLeaderboard:<songId>[:<bandType>[:<page>[:reveal]]]`, `licenses`, `allRivals:<scope>`,
  * `rivalDetail:<rivalId>[:<scope>]`, `rivalry:<rivalId>:<mode>[:<scope>]` (scope = `RivalScope.routeToken`).
@@ -123,7 +123,7 @@ data class DebugLaunch(
                     PlayerHistoryRoute(pieces[0], instrument.wireId)
                 }
                 "player" -> arg?.let { PlayerRoute(it) }
-                "playerBands" -> arg?.let { PlayerBandsRoute(it) }
+                "playerBands" -> arg?.split(":")?.let { pieces -> PlayerBandsRoute(pieces[0], group = pieces.getOrNull(1)) }
                 "leaderboards" -> LeaderboardsRoute
                 "fullRankings" -> arg?.split(":").let { pieces ->
                     FullRankingsRoute((Instrument.fromWireId(pieces?.getOrNull(0)) ?: Instrument.Lead).wireId, page = pieces?.getOrNull(1)?.toIntOrNull()?.coerceAtLeast(1) ?: 1)

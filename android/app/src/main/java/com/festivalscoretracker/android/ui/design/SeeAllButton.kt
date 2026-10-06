@@ -13,6 +13,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -20,6 +21,9 @@ import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 
 // region See all
+
+/** The link's visible label, which leaves the accessibility tree (TalkBack reads [SeeAllButton]'s spoken label); exposed for tests only. */
+internal val SeeAllVisibleLabelKey = SemanticsPropertyKey<String>("SeeAllVisibleLabel")
 
 /**
  * Copy for the title-row link (issue #321): the app says "View All", never "See All", so the
@@ -53,7 +57,10 @@ fun SeeAllButton(onClick: () -> Unit, section: String, modifier: Modifier = Modi
     TextButton(
         onClick = onClick,
         colors = ButtonDefaults.textButtonColors(contentColor = BrandTokens.textPrimary),
-        modifier = modifier.heightIn(min = 48.dp).semantics { contentDescription = spokenLabel },
+        modifier = modifier.heightIn(min = 48.dp).semantics {
+            contentDescription = spokenLabel
+            set(SeeAllVisibleLabelKey, label)
+        },
     ) {
         // The button's description ("View All: <section>") is what TalkBack reads; the visible text would repeat it.
         Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, modifier = Modifier.clearAndSetSemantics { })

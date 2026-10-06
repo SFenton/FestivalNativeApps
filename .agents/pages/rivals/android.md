@@ -46,7 +46,7 @@ Native correction: the web sends the Settings combo for **every** Song Rivals ro
 
 ## Tests
 
-`src/test/.../rivals/`: `RivalsCoreTest` (scopes, combos, common rivals, categories, formatting, columns, routes), `RivalsDataTest` (URLs, 404/503, live-fallback flag, cache), `RivalsViewModelTest`, `RivalsUiTest` (Robolectric: hub → detail → rivalry → song, View All, leaderboard tab, Find Rival, deep link, no player, freeze, unresolvable list). Fixture screenshots: `android/reports/screenshots/rivals-*.png` from `tools/windows/rivals_fixture.py` (anonymized names) with `FST_DEBUG_PROFILE=fixture-player-1:Demo Player`.
+`src/test/.../rivals/`: `RivalsCoreTest` (scopes, combos, common rivals, categories, formatting, columns, routes), `RivalsDataTest` (URLs, 404/503, live-fallback flag, cache), `RivalsViewModelTest`, `RivalsUiTest` (Robolectric: hub → detail → rivalry → song, View All, View All Rivals on both tabs (`viewAllRivalsOpensEachCardsScopeList`), leaderboard tab, Find Rival, deep link, no player, freeze, unresolvable list), `ViewAllRivalsButtonUiTest` (issue #176: View All Rivals and View Full Leaderboards share size, ≥ 48 dp height, `Role.Button` and the sampled `accentPurple` fill; both grow alike at font 2.0 without clipping, also in a 260 dp lane; no button without an action). Fixture screenshots: `android/reports/screenshots/rivals-*.png` from `tools/windows/rivals_fixture.py` (anonymized names) with `FST_DEBUG_PROFILE=fixture-player-1:Demo Player`.
 
 ## Validation (issue #107, 2026-10, live service, `SFentonX`)
 
@@ -70,6 +70,25 @@ Each AVD was driven with `fst_android.py device drive` (dark/light system theme:
 ## Validation (issue #175, 2026-10-05, live service, `SFentonX`): no shared count
 
 Re-checked #67 with the same `device drive` matrix as #107 (hub; dark 1.0, dark 2.0, light 1.0; UIAutomator trees counted). Every configuration showed **0 "shared"** and as many "songs ahead" as "songs behind" pills, with both pills present at 2.0: FST_Phone portrait/landscape (hub and All Rivals), FST_Tablet both orientations, FST_Resizable phone/foldable/tablet/desktop, FST_Book_Fold and FST_Passport_Fold folded/half/unfolded, FST_TriFold folded/partial/unfolded. Layout findings are unchanged from #107. TalkBack: "GingerNINZIN_JPN, ahead of you, 52 songs ahead, 110 songs behind. Button". Connected `RivalsDeviceJourneyTest` and `FirstRunJourneyTest` pass on FST_Phone. The only miss was the **first-run rival demos** (Compete rivals, Rivals overview, Rivals instruments), which still showed web's "N songs" shared total; they now show ahead/behind (see Layout).
+
+## Validation (issue #176, 2026-10-05, live service, `SFentonX`): View All Rivals vs View Full Leaderboards
+
+Checked that every View All Rivals button (hub cards on both tabs, Compete Rivals cards) is the shared `ViewFullLeaderboardButton` (6.29) via `RivalPreviewRows`, and matches Compete's View Full Leaderboards. Look and layout needed no change; only the accessible name did (below). Each configuration ran with `fst_android.py device drive` (one per drive, ≤ 300 s lock hold) and the bounds of `fst.rivals.view-all` / `fst.compete.view-full-leaderboards` were read from the UI tree. In every configuration both buttons were clickable, had the same width and left edge in the same column, used the same purple fill, had a white label inside the bounds, and were ≥ 48 dp tall.
+
+| Configuration | Columns | Button width × height (px) | Finding |
+|---|---|---|---|
+| FST_Phone portrait 1.0 / 2.0 / light system theme | 1 | 996 × 126 / 996 × 140 / 996 × 126 | Pass (app is dark-only, so the light theme is identical) |
+| FST_Phone landscape 1.0 / 2.0 | 2 / 1 | 1078 × 126 / 2198 × 140 | Pass. `swipe:up` uses portrait coordinates after `wm user-rotation lock 1`, so landscape drives need explicit `swipe:x1,y1,x2,y2` |
+| FST_Tablet natural (landscape) / rotated, 1.0 / 2.0 | 2 / 1 | 952 × 96 / 1344 × 96 / 1344 × 107 | Pass |
+| FST_Resizable phone / foldable / tablet / desktop / tablet 2.0 | 1 / 1 / 2 / 3 / 1 | 996 / 1872 / 714 / 526 (mdpi, 48 px) / 1332 | Pass |
+| FST_Book_Fold folded / unfolded / half 2.0 | 1 / 1 / 1 | 1002 × 117 / 1764 × 117 / 1764 × 131 | Pass. Folded: the floating Quick Links FAB overlaps the button's right end until you scroll (shell FAB behaviour, not this button) |
+| FST_Passport_Fold folded / unfolded 1.0 / 2.0 | 1 | 996 × 126 / 1872 × 126 / 1872 × 140 | Pass |
+| FST_TriFold folded / unfolded / partial 2.0 | 1 / 2 / 1 | 656 × 96 / 936 × 96 / 1184 × 107 | Pass |
+
+- **TalkBack** (`talkback_walk.py`, phone, live): each card reads heading → "View All: <card>. Button" → rows → the CTA, then the next card. The CTA read "View All Rivals. Button" without its card, missing [view-all-cta](../../patterns/view-all-cta.md) R4 (added to master during this pass); `RivalPreviewRows(cardName = …)` now makes it "View All Rivals, Lead Rivals" on the hub and "View All Rivals, Lead" / "View Full Leaderboards, Lead" on Compete. As `SeeAllButton`, the visible label leaves the merged semantics when a card name is set: with both, TalkBack read "View All Rivals, Lead Rivals. View All Rivals. Button". Live re-check (FST_Phone, `SFentonX`): TalkBack says "View Full Leaderboards, Lead. Button"; UIAutomator shows every hub and Compete CTA with that description, empty text and unchanged 996 × 126 px bounds. `talkback_walk.py` on the hub jumped to the top bar after three rows (walker issue), so the hub reading was checked through the tree.
+- **Contrast/motion:** white SemiBold on `accentPurple` `#7C3AED` ≈ 5.7:1. With animator scale 0 the tap navigates without motion; with animations on the press shows the M3 ripple, then the standard route transition.
+- **M3 review** (material-3 skill, component catalog → Filled Button: "Primary action, highest emphasis", "Minimum touch target 48x48dp"): it is a filled M3 `Button` with `Role.Button` and a ≥ 48 dp target. Two deliberate deviations follow operator decision 6.29 / web parity: a 12 dp corner instead of M3's full-pill shape, and the brand `accentPurple` instead of the `primary` colour role.
+- **Tests:** `ViewAllRivalsButtonUiTest` (Robolectric), `RivalsUiTest.viewAllRivalsOpensEachCardsScopeList`, `CompeteUiTest.viewAllRivalsMatchesViewFullLeaderboardsAndOpensTheList`, connected `RivalsDeviceJourneyTest.viewAllRivalsIsATargetOffTheHingeAndOpensTheList` / `viewAllRivalsMatchesViewFullLeaderboardsWithRealFonts` (passed on FST_Phone and on FST_Book_Fold half-open).
 
 ## Open
 

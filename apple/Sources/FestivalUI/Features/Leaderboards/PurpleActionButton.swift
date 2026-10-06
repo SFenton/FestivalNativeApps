@@ -1,9 +1,35 @@
 import SwiftUI
 import FestivalDesign
 
+// MARK: - Purple action link
+
+/// The shared "View All …" push below a card of preview rows (view-all-cta R1–R4):
+/// a `NavigationLink` drawing ``PurpleActionLabel`` with the row button style, so
+/// consumers set only the label, destination, spoken name and test ID (#321).
+struct PurpleActionLink: View {
+    /// Visible Title Case label, e.g. "View All" or "View All Rivals".
+    let title: String
+    /// Full list to push.
+    let route: AppRoute
+    /// Per-card `…view-all` accessibility identifier.
+    let identifier: String
+    /// Card or list the button opens, spoken after the label ("View All, Closest
+    /// Battles"; WCAG 2.5.3 label in name). `nil` speaks the label alone.
+    var card: String? = nil
+
+    var body: some View {
+        NavigationLink(value: route) {
+            PurpleActionLabel(title: title)
+        }
+        .festivalRowButtonStyle()
+        .accessibilityLabel(card.map { "\(title), \($0)" } ?? title)
+        .accessibilityIdentifier(identifier)
+    }
+}
+
 // MARK: - Purple action surface
 
-/// The one purple "View full leaderboard" / "View all …" button look used everywhere
+/// The one purple "View Full Leaderboard" / "View All …" button look used everywhere
 /// (operator batch 6.29): full-width, 44 pt, white semibold text on the accent-purple
 /// material card (issue #291), and an opaque purple fill under Reduce Transparency, the
 /// app's contrast/transparency overrides, or before iOS/macOS 26 (white stays ≥ 4.5:1).

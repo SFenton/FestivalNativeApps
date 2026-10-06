@@ -262,6 +262,7 @@ fun RivalSectionHeader(
  * @param onViewAll "View all rivals".
  * @param viewAllLabel Button text.
  * @param revealed Whether the rows have finished loading ([festivalFadeIn]: web `nextStagger`).
+ * @param cardName The card's title, spoken after the button label (`view-all-cta` R4).
  */
 @Composable
 fun RivalPreviewRows(
@@ -270,6 +271,7 @@ fun RivalPreviewRows(
     onViewAll: (() -> Unit)?,
     viewAllLabel: String = RivalText.VIEW_ALL_RIVALS,
     revealed: Boolean = true,
+    cardName: String? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         rows.forEachIndexed { index, entry ->
@@ -283,6 +285,7 @@ fun RivalPreviewRows(
                 modifier = Modifier.festivalFadeIn(revealed, fadeInStagger(rows.size + 1)),
                 label = viewAllLabel,
                 testTag = "fst.rivals.view-all",
+                cardName = cardName,
             )
         }
     }

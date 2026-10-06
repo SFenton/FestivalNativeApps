@@ -71,6 +71,17 @@ enum class PlayerBandGroup(val wireId: String, val label: String, val bandType: 
     Duos("duos", "Duos", BandType.Duets),
     Trios("trios", "Trios", BandType.Trios),
     Quads("quads", "Quads", BandType.Quad),
+    ;
+
+    companion object {
+        /**
+         * The group for a route's `?group=` value; unknown or missing values mean [All] (web `parsePlayerBandListGroup`).
+         *
+         * @param wireId Query value.
+         * @return Group.
+         */
+        fun fromWireId(wireId: String?): PlayerBandGroup = entries.firstOrNull { it.wireId == wireId } ?: All
+    }
 }
 
 // endregion

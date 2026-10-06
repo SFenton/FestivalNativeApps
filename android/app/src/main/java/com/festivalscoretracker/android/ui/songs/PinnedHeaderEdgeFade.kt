@@ -12,7 +12,6 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.drawscope.translate
@@ -26,38 +25,21 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.songs.EdgeFade
 import com.festivalscoretracker.android.core.songs.EdgeFadeItem
+import com.festivalscoretracker.android.core.scrolledge.ScrollEdgeFade
 import com.festivalscoretracker.android.core.songs.SongHeaderEdgeFade
-import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
-import com.festivalscoretracker.android.ui.theme.rememberSystemHighContrastText
+import com.festivalscoretracker.android.ui.common.drawScrollEdgeRamp
+import com.festivalscoretracker.android.ui.common.rememberScrollEdgeHardEdge
 
 // region Pinned section header edge fade
 
 /**
- * Whether rows meet the pinned Songs section header at a hard edge instead of fading out below
- * it ([SongHeaderEdgeFade.isEnabled]): Increase Contrast (the app toggle or the system contrast
- * level), system High contrast text, Reduce Transparency, and Reduce Motion (the app toggle or
- * system Remove animations, Android's stand-in for reduced transparency, issue #157). Followed
- * live, so flipping a system switch while Songs is open updates the edge.
- *
- * @return True for a hard edge.
- */
-@Composable
-internal fun rememberPinnedHeaderHardEdge(): Boolean {
-    val accessibility = LocalFestivalAccessibility.current
-    val highContrastText = rememberSystemHighContrastText()
-    return !SongHeaderEdgeFade.isEnabled(
-        increaseContrast = accessibility.increaseContrast || highContrastText,
-        reduceTransparency = accessibility.reduceTransparency,
-        removeAnimations = accessibility.reduceMotion,
-    )
-}
-
-/**
  * The pinned-header edge of one sticky-header list: where rows are cut and fade out below the
  * pinned header ([edge]), and the recorded drawings of its headers ([layers]) that
- * [pinnedHeaderEdgeFade] redraws whole over the cut and band (issues #49, #91, #288).
+ * [pinnedHeaderEdgeFade] redraws whole over the cut and ramp (issues #49, #91, #288, #308). The
+ * one pinned-section-title fade on Android (scroll-edge R1): every list with sticky section
+ * titles uses it.
  *
- * @property depth Fade band depth in px; 0 keeps a hard edge.
+ * @property depth Full ramp in px ([ScrollEdgeFade.TOP_DP]); 0 keeps a hard edge.
  * @property layers Recorded header drawings by list key ([rememberPinnedHeaderRecorder]).
  * @param listState The list's state.
  * @param firstHeaderKey Key of the list's first header, or null when the list has no headers.
@@ -79,7 +61,7 @@ internal class PinnedHeaderEdgeState(
     /** The current edge, or null when no header is pinned over scrolled rows. Read in the draw phase only. */
     val edge: EdgeFade? by derivedStateOf {
         if (firstHeaderKey == null) null
-        else SongHeaderEdgeFade.edge(visible(), listState.layoutInfo.viewportStartOffset, firstHeaderKey, spacing, depth)
+        else SongHeaderEdgeFade.edge(visible(), listState.layoutInfo.viewportStartOffset, spacing, depth)
     }
 
     /**
@@ -96,8 +78,8 @@ internal class PinnedHeaderEdgeState(
 }
 
 /**
- * Remembers the [PinnedHeaderEdgeState] for a sticky-header list, with the fade depth chosen by
- * [rememberPinnedHeaderHardEdge].
+ * Remembers the [PinnedHeaderEdgeState] for a sticky-header list, with the ramp chosen by
+ * [rememberScrollEdgeHardEdge] (R7).
  *
  * @param listState The list's state.
  * @param firstHeaderKey Key of the list's first header, or null.
@@ -113,7 +95,7 @@ internal fun rememberPinnedHeaderEdge(
     isHeader: (Any) -> Boolean,
 ): PinnedHeaderEdgeState {
     val density = LocalDensity.current
-    val depth = if (rememberPinnedHeaderHardEdge()) 0f else with(density) { SongHeaderEdgeFade.DEPTH_DP.dp.toPx() }
+    val depth = if (rememberScrollEdgeHardEdge()) 0f else with(density) { ScrollEdgeFade.TOP_DP.dp.toPx() }
     val spacingPx = with(density) { spacing.roundToPx() }
     // Headers register here once; the map outlives a depth change (an accessibility switch).
     val layers = remember { HashMap<Any, GraphicsLayer>() }
@@ -145,15 +127,15 @@ internal fun rememberPinnedHeaderRecorder(key: Any, layers: MutableMap<Any, Grap
 }
 
 /**
- * Hides rows under the pinned section header and fades them out over a short eased band just
- * below it ([SongHeaderEdgeFade]), so the header needs no backing (issue #91). On an offscreen
- * layer it clears everything above the header's resting bottom edge, masks the band with a
- * vertical gradient (`BlendMode.DstIn`), then redraws the recorded layers of the headers over the
- * cut and band whole ([SongHeaderEdgeFade.headersOverEdge]), so their text stays fully opaque,
- * the next header pushes the pinned one out without fading (issue #288) and no row ever shows
- * behind a header. With a hard edge ([PinnedHeaderEdgeState.depth] 0) rows end at the header's
- * bottom edge. Drawing only: hit testing, semantics and TalkBack order are unchanged. Without an
- * edge it draws nothing and skips the offscreen layer.
+ * Hides rows under the pinned section header and fades them in over the linear ramp just below
+ * it ([SongHeaderEdgeFade]), so the header needs no backing (issue #91). On an offscreen layer it
+ * clears everything above the header's resting bottom edge, masks the ramp
+ * ([drawScrollEdgeRamp]), then redraws the recorded layers of the headers over the cut and ramp
+ * whole ([SongHeaderEdgeFade.headersOverEdge]), so their text stays fully opaque, the next header
+ * pushes the pinned one out without fading (issue #288) and no row ever shows behind a header.
+ * With a hard edge ([PinnedHeaderEdgeState.depth] 0) rows end at the header's bottom edge.
+ * Drawing only: hit testing, semantics and TalkBack order are unchanged. Without an edge it draws
+ * nothing and skips the offscreen layer.
  *
  * @param state The list's edge state.
  * @param headerStart Headers' start inset in px (the list's start content padding).
@@ -164,20 +146,9 @@ internal fun Modifier.pinnedHeaderEdgeFade(state: PinnedHeaderEdgeState, headerS
     .drawWithContent {
         drawContent()
         val fade = state.edge ?: return@drawWithContent
-        val depth = state.depth
         drawRect(Color.Transparent, size = Size(size.width, fade.top), blendMode = BlendMode.Clear)
-        if (depth > 0f) {
-            val stops = SongHeaderEdgeFade.STOPS
-                .map { (t, alpha) -> t to Color.Black.copy(alpha = SongHeaderEdgeFade.maskAlpha(alpha, fade.strength)) }
-                .toTypedArray()
-            drawRect(
-                Brush.verticalGradient(*stops, startY = fade.top, endY = fade.top + depth),
-                topLeft = Offset(0f, fade.top),
-                size = Size(size.width, depth),
-                blendMode = BlendMode.DstIn,
-            )
-        }
-        // Headers are drawn whole and opaque over the cut and band, so the next header slides up and
+        drawScrollEdgeRamp(clearY = fade.top, opaqueY = fade.top + fade.depth)
+        // Headers are drawn whole and opaque over the cut and ramp, so the next header slides up and
         // pushes the pinned one out instead of fading in the band (issue #288). Each header's own
         // (partly faded) drawing is cleared first; list items never overlap a header there.
         val placed = state.headersOverEdge(fade.top).map { (layer, y) ->

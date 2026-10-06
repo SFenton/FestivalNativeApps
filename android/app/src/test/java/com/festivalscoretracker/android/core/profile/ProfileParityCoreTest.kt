@@ -1,5 +1,8 @@
 package com.festivalscoretracker.android.core.profile
 
+import com.festivalscoretracker.android.core.bands.PlayerBandEntry
+import com.festivalscoretracker.android.core.bands.PlayerBandGroup
+import com.festivalscoretracker.android.core.bands.PlayerBandListResponse
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.core.rankings.RankingMetric
@@ -259,6 +262,47 @@ class ProfileParityCoreTest {
         assertEquals(Instrument.Drums, links[2].instrument)
         // Every link lands on a row.
         links.forEach { link -> assertTrue(rows.any { it.key == ProfileSections.rowKey(link.id) }) }
+    }
+
+    @Test
+    fun bandRowsFollowTheWebDuosTriosQuadsPreview() {
+        fun entry(id: String) = PlayerBandEntry(bandId = id, teamKey = "a:$id")
+        fun page(total: Int, vararg ids: String) = PlayerBandListResponse(accountId = "a", totalCount = total, entries = ids.map(::entry))
+        val groups = listOf(
+            ProfileBandGroup(PlayerBandGroup.Duos, page(8, "d1", "d2")),
+            ProfileBandGroup(PlayerBandGroup.Trios, page(0)),
+            ProfileBandGroup(PlayerBandGroup.Quads, page(1, "q1")),
+        )
+        val rows = ProfileSections.rows(listOf(Instrument.Lead), bands = groups)
+        val bandKeys = rows.dropWhile { it != ProfileRow.Bands }.map { it.key }
+        assertEquals(
+            listOf(
+                "bands",
+                "bands:duos", "bands:duos:0:d1", "bands:duos:1:d2", "bands:duos:view-all",
+                "bands:trios", "bands:trios:empty",
+                "bands:quads", "bands:quads:0:q1",
+            ),
+            bandKeys,
+        )
+        // Cards fill grid columns like the web's `span: false`; headers, empty states and View all span the row.
+        assertEquals(
+            listOf(true, true, false, false, true, true, true, true, false),
+            rows.dropWhile { it != ProfileRow.Bands }.map { it.fullWidth },
+        )
+        assertEquals(ProfileRow.BandsViewAll(PlayerBandGroup.Duos, 8), rows.single { it is ProfileRow.BandsViewAll })
+        assertEquals(0, (rows.last() as ProfileRow.BandCard).index)
+        assertEquals(rows.size, rows.map { it.key }.toSet().size)
+        assertEquals(listOf(PlayerBandGroup.Duos, PlayerBandGroup.Trios, PlayerBandGroup.Quads), ProfileSections.BAND_GROUPS)
+        // Still loading or failed: only the heading row.
+        assertEquals("bands", ProfileSections.rows(listOf(Instrument.Lead)).last().key)
+    }
+
+    @Test
+    fun playerBandGroupParsesRouteValues() {
+        assertEquals(PlayerBandGroup.Duos, PlayerBandGroup.fromWireId("duos"))
+        assertEquals(PlayerBandGroup.Quads, PlayerBandGroup.fromWireId("quads"))
+        assertEquals(PlayerBandGroup.All, PlayerBandGroup.fromWireId(null))
+        assertEquals(PlayerBandGroup.All, PlayerBandGroup.fromWireId("Duos"))
     }
 
     // endregion
