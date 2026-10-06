@@ -152,6 +152,14 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         }, sheet: true),
         Page(name: "item-shop", env: ["FST_DEBUG_ROUTE": "shop"], ready: "Item Shop"),
         Page(name: "search", ready: "fst.songs.list", open: { app in
+            // iPhone Duo: the Search tab sits in the vertical rail as a plain button.
+            let railSearch = app.buttons.matching(NSPredicate(
+                format: "identifier == 'magnifyingglass' AND label == 'Search'"
+            )).firstMatch
+            if runningOnDuo, railSearch.waitForExistence(timeout: 5), railSearch.isHittable {
+                railSearch.tap()
+                return "Search"
+            }
             // Regular width: the flyout's Search row (no persistent sidebar, 2026-10-04).
             if anyElement(app, "fst.shell.drawer.open").waitForExistence(timeout: 5),
                !app.tabBars.buttons["Search"].exists {
