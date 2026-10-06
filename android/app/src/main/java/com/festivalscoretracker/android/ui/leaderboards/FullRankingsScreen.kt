@@ -196,6 +196,7 @@ private fun LazyListScope.rankingRows(
                                 route = RankingNavigation.playerRoute(entry.accountId, entry.displayName, selected),
                                 onOpen = navigate,
                                 reveal = true,
+                                revealDelayMillis = fadeInStagger(index),
                             )
                         }
                     }
