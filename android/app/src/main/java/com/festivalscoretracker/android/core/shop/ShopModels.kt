@@ -179,6 +179,21 @@ data class ShopOfferFilter(val new: Boolean = false, val available: Boolean = fa
     val isActive: Boolean get() = new || available || leavingTomorrow
 
     /**
+     * Spoken state of the Filter button (issue #145), so TalkBack hears what the gold tint
+     * shows: "No filters", or "Filters on: " and the switches that are on, in sheet order.
+     */
+    val stateDescription: String
+        get() = if (!isActive) {
+            "No filters"
+        } else {
+            "Filters on: " + listOfNotNull(
+                "New".takeIf { new },
+                "Available".takeIf { available },
+                "Leaving Tomorrow".takeIf { leavingTomorrow },
+            ).joinToString(", ")
+        }
+
+    /**
      * Whether an offer passes the filter.
      *
      * @param offer Validated offer.

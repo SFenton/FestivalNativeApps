@@ -121,31 +121,34 @@ public sealed partial class FirstRunDemo : UserControl
     }
     #endregion
 
-    /// <summary>Statistics Top Songs: four catalogue rows with rotating percentile pills.</summary>
+    /// <summary>
+    /// Statistics Top Songs (<see cref="FirstRunTopSongsDemo"/>): four catalogue rows whose songs rotate under fixed
+    /// percentile pills. Each pill is a raw-view <c>fst.first-run.demo.statistics-top-songs.pill.N</c> whose ItemStatus
+    /// turns from "initial" to "rotated" once its own row's song has swapped, so UI tests can check every pill after a
+    /// real swap.
+    /// </summary>
     private void BuildTopSongs()
     {
-        const int count = 4;
-        var rotation = new FirstRunRowRotation<FirstRunDemoSong>(songs, count);
-        for (var i = 0; i < count; i++)
+        var demo = new FirstRunTopSongsDemo(songs);
+        for (var slot = 0; slot < demo.Songs.Count; slot++)
         {
             var row = SongRow(out var setter);
-            var trailing = (StackPanel)((Grid)row.Child).Children[2];
-            var slot = i;
-            Action<int> set = poolIndex =>
+            var pill = Pill(FirstRunTopSongsDemo.Pill(slot));
+            var label = (TextBlock)pill.Child;
+            AutomationProperties.SetAutomationId(label, $"fst.first-run.demo.{SlideId}.pill.{slot}");
+            AutomationProperties.SetAccessibilityView(label, AccessibilityView.Raw);
+            AutomationProperties.SetItemStatus(label, "initial");
+            ((StackPanel)((Grid)row.Child).Children[2]).Children.Add(pill);
+            setter(slot);
+            AddSlot(row, poolIndex =>
             {
                 setter(poolIndex);
-                trailing.Children.Clear();
-                trailing.Children.Add(Pill($"Top {FirstRunDemos.TopSongPercentiles[(poolIndex + slot) % FirstRunDemos.TopSongPercentiles.Count]:0.#}%"));
-            };
-            set(i);
-            AddSlot(row, set);
+                AutomationProperties.SetItemStatus(label, "rotated");
+            });
         }
         advance = _ =>
         {
-            var indices = rotation.NextSwap();
-            if (indices.Count == 0) return;
-            rotation.Replace(indices);
-            foreach (var rowIndex in indices) FadeSwap(rowIndex, SongPoolIndex(rotation.Rows[rowIndex]));
+            foreach (var slot in demo.Advance()) FadeSwap(slot, SongPoolIndex(demo.Songs[slot]));
         };
     }
 
@@ -212,7 +215,7 @@ public sealed partial class FirstRunDemo : UserControl
                     "near_fc_any" => instruments[i % instruments.Length],
                     _ => template.Instrument,
                 };
-                rows.Children.Add(new TextBlock { Text = $"{song.Row.Title} · {value}", FontSize = 12, Foreground = new SolidColorBrush(Colors.White), TextTrimming = TextTrimming.CharacterEllipsis });
+                rows.Children.Add(SongLine(song, $" · {value}"));
             }
         }
         Apply(0);
@@ -338,7 +341,7 @@ public sealed partial class FirstRunDemo : UserControl
             {
                 var data = category.Value[i];
                 var song = songs[(index + i) % songs.Count];
-                host.Children.Add(Text($"{song.Row.Title}: #{data.UserRank} vs #{data.RivalRank}", 12, false));
+                host.Children.Add(SongLine(song, $": #{data.UserRank} vs #{data.RivalRank}"));
             }
         }
         Apply(0);
@@ -877,6 +880,23 @@ public sealed partial class FirstRunDemo : UserControl
     /// <summary>Muted fill for placeholder art and text bars.</summary>
     /// <returns>Brush.</returns>
     private static SolidColorBrush Muted() => new(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
+
+    /// <summary>
+    /// A one-line song mention inside a card (Suggestions, Rival detail): the title followed by <paramref name="suffix"/>,
+    /// or a redacted bar before it for a placeholder, so loading rows never read as an untitled song.
+    /// </summary>
+    /// <param name="song">Song or placeholder.</param>
+    /// <param name="suffix">Trailing text such as " · 98%".</param>
+    /// <returns>Line element.</returns>
+    private static FrameworkElement SongLine(FirstRunDemoSong song, string suffix)
+    {
+        if (!song.IsPlaceholder) return Text(song.Row.Title + suffix, 12, false);
+        var bar = RedactedBar(90, 9);
+        bar.Visibility = Visibility.Visible;
+        bar.VerticalAlignment = VerticalAlignment.Center;
+        bar.Margin = new Thickness(0, 3, 4, 3);
+        return new StackPanel { Orientation = Orientation.Horizontal, Children = { bar, Text(suffix, 12, false) } };
+    }
 
     /// <summary>A text row: title, detail and a trailing value.</summary>
     /// <param name="setter">Receives a row.</param>
