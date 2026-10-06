@@ -109,6 +109,7 @@ STEP_VERBS = {
     "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state",
     "markspan": "span", "assertspan": "span", "film": "path", "filmstop": "path", "pin": "selector",
     "assertpinned": "selector", "foreground": "onoff", "listen": "listen", "assertannounced": "announced",
+    "assertannouncedcount": "announcedcount",
 }
 
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text; ``scroll`` takes a rounded
@@ -230,7 +231,9 @@ def parse_step(step: str) -> dict:
     the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls;
     ``listen:announcements`` starts recording the window's UIA notification events (the app's screen-reader
     announcements, what Narrator speaks) and a later ``assertannounced:<text>[@<seconds>]`` in the same ``drive`` waits
-    (default 5 s) until one equals ``<text>`` (or matches it as a .NET regex when it starts with ``~``).
+    (default 5 s) until one equals ``<text>`` (or matches it as a .NET regex when it starts with ``~``);
+    ``assertannouncedcount:<n>|<text>`` fails unless exactly ``<n>`` recorded announcements match ``<text>`` so far
+    (no wait), e.g. a value announced once and not repeated on later reads.
 
     Args:
         step: A step string.
@@ -362,6 +365,11 @@ def parse_step(step: str) -> dict:
         result["text"] = text.strip()
         if wait:
             result["timeout"] = float(wait)
+    elif shape == "announcedcount":
+        count, _, text = arg.partition("|")
+        if not re.fullmatch(r"\d+", count.strip()) or not text.strip():
+            raise ValueError(f"bad assertannouncedcount {arg!r}; use <count>|<text>")
+        result["count"], result["text"] = int(count), text.strip()
     elif shape == "path" and verb == "shot" and arg.endswith("@screen"):
         result["arg"], result["mode"] = arg[: -len("@screen")], "screen"
     elif shape == "preset":
