@@ -38,7 +38,7 @@
 
 ## Evidence
 
-Fixture screenshots (mock service, no production data): `android/reports/screenshots/leaderboards-*.png`. Robolectric: `rankings/LeaderboardsUiTest.kt` (phone journeys + expanded grid), `LeaderboardsComponentsUiTest.kt` (card states, hinge row). Unit: `RankingsCoreTest`, `RankingsDataTest`, `RankingsViewModelTest`, `OverviewLayoutTest` (paired hinge rows and Quick Links targets). Device: `androidTest/.../leaderboards/LeaderboardsDeviceJourneyTest` (FST_Phone and FST_Book_Fold `--posture half`: history paired across the fold, spotlight, View All → Full Rankings, pinned row until its page).
+Fixture screenshots (mock service, no production data): `android/reports/screenshots/leaderboards-*.png`. Robolectric: `rankings/LeaderboardsUiTest.kt` (phone journeys + expanded grid), `LeaderboardsComponentsUiTest.kt` (card states, hinge row). Unit: `RankingsCoreTest`, `RankingsDataTest`, `RankingsViewModelTest`, `OverviewLayoutTest` (paired hinge rows and Quick Links targets). Device: `androidTest/.../leaderboards/LeaderboardsDeviceJourneyTest` (FST_Phone and FST_Book_Fold `--posture half`: history paired across the fold, spotlight, View All → Full Rankings, pinned row on every page, issue #318).
 
 ## Validation (issue #114, live service)
 

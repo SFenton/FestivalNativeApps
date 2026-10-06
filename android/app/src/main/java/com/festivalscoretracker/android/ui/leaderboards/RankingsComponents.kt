@@ -371,6 +371,8 @@ private fun RowScope.StackedRankingRow(rank: Int, name: String, songs: String, r
  * @param onOpen Navigation callback.
  * @param tag Test tag; defaults to `fst.rankings.row.<key>`.
  * @param reveal Scroll the selected row into view when it appears (paginated boards).
+ * @param clickLabel TalkBack action label overriding the route's (a pinned footer that may
+ *   jump to its page instead, `leaderboard-row` R7).
  */
 @Composable
 fun AccountRankingRow(
@@ -381,6 +383,7 @@ fun AccountRankingRow(
     onOpen: (AppRoute) -> Unit,
     tag: String = "fst.rankings.row.${entry.key}",
     reveal: Boolean = false,
+    clickLabel: String? = null,
 ) {
     val requester = remember { BringIntoViewRequester() }
     if (reveal && isSelected) {
@@ -396,7 +399,7 @@ fun AccountRankingRow(
         route = route,
         onOpen = onOpen,
         tag = tag,
-        clickLabel = route?.let(RankingNavigation::actionLabel).orEmpty(),
+        clickLabel = clickLabel ?: route?.let(RankingNavigation::actionLabel).orEmpty(),
         unavailable = "Profile unavailable",
         modifier = Modifier.bringIntoViewRequester(requester),
     )
