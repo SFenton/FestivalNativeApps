@@ -61,8 +61,9 @@ internal static class PostedInput
     /// </summary>
     /// <param name="topLevel">Target top-level window.</param>
     /// <param name="keys">Chord, e.g. <c>SHIFT, TAB</c>.</param>
+    /// <param name="settle">Wait 120 ms for the app to read the messages; a key sequence settles only after its last chord.</param>
     /// <exception cref="InvalidOperationException">The window has no XAML input site.</exception>
-    public static void Press(IntPtr topLevel, IReadOnlyList<VirtualKeyShort> keys)
+    public static void Press(IntPtr topLevel, IReadOnlyList<VirtualKeyShort> keys, bool settle = true)
     {
         var site = InputSite(topLevel) ?? throw new InvalidOperationException("no InputSiteWindowClass child to post keys to");
         var modifiers = keys.Where(IsModifier).ToList();
@@ -88,7 +89,7 @@ internal static class PostedInput
                 PostKey(site, key, down: false, alt);
             }
             foreach (var modifier in Enumerable.Reverse(modifiers)) PostKey(site, modifier, down: false, alt && modifier != VirtualKeyShort.ALT);
-            Thread.Sleep(120); // let the app read the messages while the shared key state still holds the modifiers
+            if (settle) Thread.Sleep(120); // let the app read the messages while the shared key state still holds the modifiers
         }
         finally
         {
