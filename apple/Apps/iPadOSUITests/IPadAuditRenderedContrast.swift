@@ -1,3 +1,4 @@
+import Vision
 import XCTest
 
 /// Rendered-pixel contrast for accessibility-audit issues on iPad
@@ -89,15 +90,20 @@ enum IPadAuditRenderedContrast {
     static func duoUpright(_ raw: CGImage, scale: CGFloat) -> CGImage? {
         func turned(_ clockwise: Bool) -> CGImage? { rotate(raw, clockwise: clockwise) }
         if let known = duoClockwise { return turned(known) }
-        let counts = [true, false].map { clockwise -> Int in
-            guard let image = turned(clockwise), let pixels = try? bitmapPixels(image) else { return 0 }
-            let capture = Capture(pixels: pixels, width: image.width, height: image.height,
-                                  screen: CGSize(width: CGFloat(image.width) / scale, height: CGFloat(image.height) / scale),
-                                  image: image, rotated: true)
-            return IPadAuditPageEvidence.recognizedLines(in: capture).count
+        // Upside-down text is also "recognized" (equal line counts on the inner display,
+        // 2026-10-05), so score by confidence-weighted characters: upright text reads
+        // with high confidence, flipped text as low-confidence fragments.
+        let scores = [true, false].map { clockwise -> Double in
+            guard let image = turned(clockwise) else { return 0 }
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = .accurate
+            request.usesLanguageCorrection = true
+            guard (try? VNImageRequestHandler(cgImage: image, options: [:]).perform([request])) != nil else { return 0 }
+            return (request.results ?? []).compactMap { $0.topCandidates(1).first }
+                .reduce(0) { $0 + Double($1.confidence) * Double($1.string.count) }
         }
-        duoClockwise = counts[0] >= counts[1]
-        return turned(duoClockwise ?? true)
+        duoClockwise = scores[0] > scores[1]
+        return turned(duoClockwise ?? false)
     }
 
     /// A quarter turn of `image`.

@@ -13,7 +13,7 @@ class SheetHingeTest {
         vertical: Boolean = true,
         separating: Boolean = true,
         rtl: Boolean = false,
-    ) = SheetHinge.insets(2000f, left, right, top, bottom, vertical, separating, rtl, sheetTopPx = 100f, gapPx = 20f)
+    ) = SheetHinge.insets(2000f, 1600f, left, right, top, bottom, vertical, separating, rtl, sheetTopPx = 100f, gapPx = 20f)
 
     @Test
     fun flatFoldKeepsTheCentredSheet() {
@@ -50,5 +50,15 @@ class SheetHingeTest {
         assertEquals(SheetHinge.Insets(top = 1020f), insets(left = 0f, right = 2000f, top = 1080f, bottom = 1100f, vertical = false))
         // A hinge above the sheet's normal top needs no extra padding.
         assertEquals(SheetHinge.Insets(top = 0f), insets(left = 0f, right = 2000f, top = 40f, bottom = 60f, vertical = false))
+    }
+
+    @Test
+    fun tabletopLargerUpperHalfStillKeepsTheSheetBelow() {
+        assertEquals(SheetHinge.Insets(top = 1320f), insets(left = 0f, right = 2000f, top = 1380f, bottom = 1400f, vertical = false))
+    }
+
+    @Test
+    fun windowEndingInsideTheHingeKeepsTheSheetAbove() {
+        assertEquals(SheetHinge.Insets(bottom = 40f), insets(left = 0f, right = 2000f, top = 1560f, bottom = 1620f, vertical = false))
     }
 }

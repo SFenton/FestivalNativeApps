@@ -41,12 +41,20 @@
             "symbol": "ModalTopEdgeFadeModifier"
           },
           {
-            "path": "apple/Sources/FestivalUI/Design/ModalPinnedHeaderFade.swift",
-            "symbol": "ModalPinnedHeaderFade"
+            "path": "apple/Sources/FestivalUI/Design/PinnedHeaderEdgeFade.swift",
+            "symbol": "PinnedHeaderEdgeFade"
           },
           {
-            "path": "apple/Sources/FestivalUI/Features/Songs/SectionBarEdgeFade.swift",
-            "symbol": "SectionBarEdgeFade"
+            "path": "apple/Sources/FestivalUI/Common/PlatformScrollObserver.swift",
+            "symbol": "PlatformScrollObserver"
+        },
+        {
+            "path": "apple/Sources/FestivalUI/Common/ScrollEdgeReader.swift",
+            "symbol": "onScrollEdgeReading"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/ScrollEdgeFadeModifiers.swift",
+            "symbol": "ScrollEdgeHardEdge"
           },
           {
             "path": "apple/Sources/FestivalCore/ScrollEdgeFade.swift",
@@ -95,9 +103,6 @@
             "apple/Sources/FestivalUI/Design/**",
             "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
             "apple/Sources/FestivalUI/Features/FirstRun/Demo/**"
-          ],
-          "debt": [
-            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift"
           ],
           "message": "Scroll-content masks belong to the canonical edge-fade components (scroll-edge R1)."
         },
@@ -162,7 +167,8 @@
         297,
         298,
         301,
-        305
+        305,
+        308
       ]
     },
     {
@@ -639,7 +645,8 @@
         84,
         92,
         160,
-        300
+        300,
+        309
       ]
     },
     {
@@ -691,6 +698,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
             "symbol": "FestivalAlertDialog"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/nav/HingeSide.kt",
+            "symbol": "HingeSide"
           }
         ],
         "windows": [
@@ -737,6 +748,18 @@
             "apple/Sources/FestivalUI/Design/**"
           ],
           "message": "Modal Close belongs to FestivalSheetCloseItem, not a hand-made toolbar control (modal-shell R4)."
+        },
+        {
+          "id": "android-hinge-side",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "fun\\s+(?:Modifier\\.)?\\w*[Hh]inge(?:Side|Insets|Area|Padding)\\w*\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/core/nav/**",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalSheet.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ServiceStatus.kt"
+          ],
+          "message": "Keep surfaces off a separating hinge through core/nav HingeSide; adapt its result, don't add another side rule (modal-shell R8)."
         }
       ],
       "related": {
@@ -765,7 +788,10 @@
         24,
         25,
         94,
-        96
+        96,
+        125,
+        139,
+        140
       ]
     },
     {
@@ -773,7 +799,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform, and one selected-row rule (jump off-page, open the profile on-page) for players and bands.",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform, one selected-row rule (jump off-page, open the profile on-page) for players and bands, and one measured section-wide score-footer stack plan that never truncates the score.",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -784,7 +810,11 @@
         "pager",
         "pinned player",
         "selected row",
-        "band footer"
+        "band footer",
+        "score footer",
+        "team score",
+        "badges wrap",
+        "large text"
       ],
       "web": [
         {
@@ -802,6 +832,14 @@
         {
           "path": "components/common/MarqueeText.tsx",
           "symbol": "MarqueeText"
+        },
+        {
+          "path": "components/bands/SongBandScoreFooter.tsx",
+          "symbol": "SongBandScoreFooter"
+        },
+        {
+          "path": "components/bands/SongBandScoreFooter.tsx",
+          "symbol": "getSongBandScoreWidth"
         }
       ],
       "canonical": {
@@ -847,6 +885,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongDetailScreen.kt",
             "symbol": "ScoreRow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt",
+            "symbol": "SelectedScoreFooterRow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/SelectedRowNavigation.kt",
+            "symbol": "SelectedRowAction"
           }
         ],
         "windows": [
@@ -865,6 +911,18 @@
           {
             "path": "windows/Festival.App/Controls/LeaderboardsPager.xaml.cs",
             "symbol": "LeaderboardsPager"
+          },
+          {
+            "path": "windows/Festival.App/Controls/BandScoreFooterPanel.cs",
+            "symbol": "BandScoreFooterPanel"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/BandScoreFooterLayout.cs",
+            "symbol": "BandScoreFooterLayout"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/BandScoreFooterLayout.cs",
+            "symbol": "BandScoreFooterSection"
           }
         ]
       },
@@ -908,6 +966,17 @@
           ],
           "debt": [],
           "message": "Board pagination belongs to the shared pager (leaderboard-row R5)."
+        },
+        {
+          "id": "windows-score-footer-owner",
+          "glob": "windows/**/*.cs",
+          "regex": "class\\s+(?!\\w*Tests\\b)\\w*ScoreFooter\\w*",
+          "allow": [
+            "windows/Festival.App/Controls/BandScoreFooterPanel.cs",
+            "windows/Festival.Core/Domain/BandScoreFooterLayout.cs"
+          ],
+          "debt": [],
+          "message": "Score footers share one section-wide stack plan; extend BandScoreFooterPanel/BandScoreFooterSection instead (leaderboard-row R8)."
         }
       ],
       "related": {
@@ -941,7 +1010,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; graph card lists run the web out/height/in list sequence; entrances never replay while scrolling and reduced motion removes fades.",
+      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner; graph card lists run the web out/height/in list sequence; entrances never replay while scrolling and reduced motion removes fades.",
       "keywords": [
         "loading",
         "spinner",
@@ -1127,6 +1196,7 @@
         60,
         70,
         71,
+        149,
         169
       ]
     },
@@ -1179,6 +1249,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ServiceStatus.kt",
             "symbol": "FestivalLoading"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ServiceStatus.kt",
+            "symbol": "ServiceStatusView"
           }
         ],
         "windows": [
@@ -1210,7 +1284,8 @@
       ],
       "related": {
         "patterns": [
-          "load-transition"
+          "load-transition",
+          "modal-shell"
         ],
         "controls": [
           "global-search",
@@ -1228,6 +1303,7 @@
         35,
         65,
         99,
+        140,
         299
       ]
     },

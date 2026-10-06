@@ -152,6 +152,8 @@ class NavigationPolicyTest {
         assertEquals(SongLeaderboardRoute("s1", "Solo_Bass", 3), DebugLaunch.parseRoute("songLeaderboard:s1:Solo_Bass:3"))
         assertEquals(SongLeaderboardRoute("s1", "Solo_Bass", 1), DebugLaunch.parseRoute("songLeaderboard:s1:Solo_Bass:x"))
         assertEquals(SongLeaderboardRoute("s1", "Solo_Bass", 1), DebugLaunch.parseRoute("songLeaderboard:s1:Solo_Bass:-4"))
+        assertEquals(SongLeaderboardRoute("s1", "Solo_Bass", 2, navToPlayer = true), DebugLaunch.parseRoute("songLeaderboard:s1:Solo_Bass:2:reveal"))
+        assertEquals(SongLeaderboardRoute("s1", "Solo_Bass", 2), DebugLaunch.parseRoute("songLeaderboard:s1:Solo_Bass:2:other"))
         assertNull(DebugLaunch.parseRoute("songLeaderboard:s1:Nope"))
         assertNull(DebugLaunch.parseRoute("songLeaderboard"))
         assertEquals(PlayerRoute("abc"), DebugLaunch.parseRoute("player:abc"))

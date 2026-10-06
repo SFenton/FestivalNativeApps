@@ -107,7 +107,7 @@ STEP_VERBS = {
     "scrollto": "scrollto",
     "assertname": "setvalue", "assertaligned": "pair", "assertbelow": "pair", "assertlevel": "pair", "assertgap": "gap",
     "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state", "pin": "selector",
-    "assertpinned": "selector",
+    "assertpinned": "selector", "foreground": "onoff",
 }
 
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text; ``scroll`` takes a rounded
@@ -193,7 +193,8 @@ def parse_step(step: str) -> dict:
     ``scrollto:<selector>,<percent>`` sets a scroller's vertical position through the UIA
     Scroll pattern and ``reveal:<selector>`` scrolls the target into view (UIA ScrollItem, else
     stepping its scroller from the top), with no input, so both work while the console is locked;
-    ``assertname:<sel>|<text>`` waits (default 5 s) until the element's UIA Name is exactly the text;
+    ``assertname:<sel>|<text>`` waits (default 5 s) until the element's UIA Name is exactly the text
+    (``|*<text>``: until it ends with the text, for names that start with a local-time date);
     ``assertaligned:<sel>|<sel>`` fails unless both elements' horizontal centres are within 2 px (a column);
     ``assertbelow:<sel>|<sel>`` fails unless the first element's vertical centre is at least 8 px below the second's,
     and ``assertlevel:<sel>|<sel>`` unless both vertical centres are within 4 px (a line);
@@ -205,7 +206,12 @@ def parse_step(step: str) -> dict:
     element's top edge sits ``<epx>`` (more than 0) effective pixels below the scroller's top within 1 epx: a fixed,
     unclipped list position for scans (a clipped element's UIA top reads as the viewport edge, so a 0 inset proves nothing).
     ``assertstatus:<sel>|<status>[@<seconds>]`` waits until the element's UIA ItemStatus equals
-    ``<status>`` (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``);
+    ``<status>`` (or matches it as a .NET regex when it starts with ``~``; no ``;`` since steps split on it)
+    (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``; a status containing
+    ``not-visible`` or ``=background`` is read without bringing the window to the front);
+    ``foreground:on`` activates the app window and ``foreground:off`` hands activation to the taskbar, leaving the window
+    visible and uncovered but inactive (e.g. a first-run demo's ``rotation=background``; while the console is locked
+    both send ``WM_ACTIVATE`` instead);
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
     (``on``/``off``/``indeterminate``), ``enabled`` (``true``/``false``), ``selected`` (UIA SelectionItem
     ``IsSelected``: ``true``/``false``, e.g. a list's current item), ``scroll`` (UIA Scroll pattern vertical percent,
@@ -317,6 +323,10 @@ def parse_step(step: str) -> dict:
         result["percent"] = float(percent)
     elif shape == "seconds":
         result["arg"] = str(float(arg))
+    elif shape == "onoff":
+        if arg.lower() not in ("on", "off"):
+            raise ValueError(f"bad {verb} {arg!r}; use on or off")
+        result["arg"] = arg.lower()
     elif shape == "path" and verb == "shot" and arg.endswith("@screen"):
         result["arg"], result["mode"] = arg[: -len("@screen")], "screen"
     elif shape == "preset":

@@ -2,7 +2,7 @@
 
 > **What:** shared score and ranking row geometry, columns, name overflow, pager and selected-player behavior. **Read when:** adding or changing any leaderboard, score preview, ranking card, spotlight or board footer.
 
-Status: **current**, 2026-10-05. Provenance: #37, #38, #90, #292, #293, #294, #295, #306, #307.
+Status: **current**, 2026-10-05. Provenance: #37, #38, #90, #264, #292, #293, #294, #295, #306, #307.
 
 ## Intent
 
@@ -16,6 +16,7 @@ Every row in one leaderboard section must read as one aligned, accessible data t
 | `FortniteFestivalWeb/src/pages/leaderboards/helpers/rankingHelpers.ts` (`computeRankWidth`) | Calculates one rank width for a section. |
 | `FortniteFestivalWeb/src/components/leaderboard/PaginatedLeaderboard.tsx` (`PaginatedLeaderboard`) | Pinned score/footer, paging and staggered board rows. |
 | `FortniteFestivalWeb/src/components/common/MarqueeText.tsx` (`MarqueeText`); `packages/theme/src/spacing.ts` (`Layout.entryRowHeight = 48`) | Contained overflowing text and the 48-unit row baseline. |
+| `FortniteFestivalWeb/src/components/bands/SongBandScoreFooter.tsx` (`SongBandScoreFooter`, `getSongBandScoreWidth`) | Band team score footer: score, stars and accuracy; the score never shrinks (`flexShrink: 0`) and its width is decided once from every entry of the board. |
 
 ## Rules
 
@@ -25,6 +26,7 @@ Every row in one leaderboard section must read as one aligned, accessible data t
 - **R4. Decide Compete songs once per card.** Hide songs played/total on every row only when the longest drawn name cannot fit; keep it in the accessibility value. Other ranking sections keep their shared songs column.
 - **R5. Reuse the board pager.** Full, band and song boards share one pager layout and button semantics; the selected player's pinned row is immediately above it and shares its columns.
 - **R7. One selected-row rule for players and bands (#307).** Solo and band song boards pin the selected profile's row with the same row component. A selected row shown apart from its page (Song Detail's appended row, a footer while the row is on another page) jumps to the page containing its rank and reveals the highlighted row (instant under Reduce Motion); once the row is on screen it opens the profile (Statistics for a player, the Band page for a band). Other rows open their player or band. Labels name the destination ("Jump to your band's position" / "Open band"). HIG Lists and tables: "Provide appropriate selection feedback."
+- **R8. Stack score footers once per section, never truncate the score (#264).** A row's team score footer (web `SongBandScoreFooter`: score, then FC, accuracy and stars) keeps the score whole at every width and text size. When any realized row in a section (one Song Detail band preview card, one song band board) measures that its badges don't fit beside its score, every row in that section puts the badges on a line under the score; the plan is a measured section-wide decision (R1), made at measure time so virtualized rows report the stacked height at once, and rows grow (R2). Rows report only their own need, so the plan converges. Badges may clip at their own line's edge only at extreme sizes; the score never does. A new footer reuses the platform's canonical footer below instead of its own grid, wrap or trimming. WCAG 1.4.4 (Resize text); HIG Layout: "rows/containers may grow to avoid clipping/overlap and allow multiple lines."
 - **R6. Maintain platform-approved variants.** Android and Windows use their native shared pager and row surface; their title/header behavior is not an Apple collapsing-title requirement. MD3 transitions and Fluent theme brushes are approved native variants (#294).
 
 ## Canonical implementation
@@ -33,8 +35,13 @@ Every row in one leaderboard section must read as one aligned, accessible data t
 |---|---|---|---|
 | Section fit and height | `FestivalCore/LeaderboardRowColumns.swift` `LeaderboardRowColumns`; `FestivalUI/Design/LeaderboardRowMetrics.swift` `LeaderboardRowMetrics` | `core/rankings/LeaderboardColumnLayout.kt` `LeaderboardColumnLayout`; `ui/leaderboards/RankingsComponents.kt` `LEADERBOARD_ROW_MIN_HEIGHT` | `Festival.Core/Domain/LeaderboardColumnLayout.cs` `LeaderboardColumnLayout`; `Festival.Core/ViewModels/LeaderboardEntryRows.cs` `LeaderboardRowMetrics` |
 | Rows and name | `FestivalUI/Features/Leaderboards/RankingsSupport.swift` `RankingRowLayout`, `LeaderboardNameText`; `Features/SongLeaderboard/SongLeaderboardEntryRow.swift` | `ui/leaderboards/RankingsComponents.kt` `LeaderboardNameText`; `ui/songdetail/SongDetailScreen.kt` `ScoreRow` | `Festival.App/Controls/LeaderboardEntryRow.xaml.cs` `LeaderboardEntryRow`; `Controls/MarqueeText.cs` `MarqueeText` |
-| Selected pinned row and its action (R5, R7) | `FestivalUI/Features/SongLeaderboard/SelectedScoreFooterRow.swift` `SelectedScoreFooterRow`; `FestivalCore/SelectedRowNavigation.swift` `SelectedRowAction` | Not yet audited (#307 verify lane) | Not yet audited (#307 verify lane) |
+| Selected pinned row and its action (R5, R7) | `FestivalUI/Features/SongLeaderboard/SelectedScoreFooterRow.swift` `SelectedScoreFooterRow`; `FestivalCore/SelectedRowNavigation.swift` `SelectedRowAction` | `core/rankings/SelectedRowNavigation.kt` `SelectedRowAction`; `ui/songdetail/SongLeaderboardScreen.kt` `SelectedScoreFooterRow`; `ui/leaderboards/SelectedRowRevealEffect.kt` `revealSelectedRow` | Not yet audited (#307 verify lane) |
+| Band score footer stack plan (R8) | Not yet audited (#264 is the Windows lane; `FestivalUI/Features/SongDetail/SongBandPreviewSection.swift` `SongBandPreviewRow` draws the footer) | Not yet audited (#264 is the Windows lane; `ui/bands/SongBandLeaderboardScreen.kt` `BandScoreFooter` draws the footer) | `Festival.App/Controls/BandScoreFooterPanel.cs` `BandScoreFooterPanel` (score first child, badges second; `BandScoreFooterPanel.IsSection` on the section's rows host); `Festival.Core/Domain/BandScoreFooterLayout.cs` `BandScoreFooterLayout.Stacks`, `BandScoreFooterSection`. Consumers: `Controls/SongBandPreviewRowView.xaml` (Song Detail), `Pages/BandsSongLeaderboardPage.xaml` (Song Band Leaderboard) |
 | Pager | `FestivalUI/Features/Leaderboards/RankingsSupport.swift` `RankingsPagerView` | `ui/leaderboards/RankingsComponents.kt` `RankingsPager` | `Festival.App/Controls/LeaderboardsPager.xaml.cs` `LeaderboardsPager` |
+
+### Agent decision: Android selected rows (#307)
+
+Agent decision (2026-10-06, owner may override with `/choose`): Android pins the selected player's and band's rows on the solo and band song boards whenever the board returns them, as on the web and Apple, instead of hiding the footer while the row is on screen; the band board moved onto the shared `RankingsBoardLayout` so both footers sit above one pager, and the band footer reuses `SelectedScoreFooterRow` through `SongBandLeaderboardEntry.footerLeaderboardEntry`. Routes carry `navToPlayer` / `navToBand` with the page, and the reveal centres the row above the footer, instantly under Reduce Motion. Rejected: keeping hide-when-visible footers (a second rule beside web and Apple) and an in-list band footer (diverges from the solo board). MD3 Lists: "In Compose, prefer Material3 list patterns"; touch targets stay 48dp and TalkBack click labels name the destination.
 
 ## Known debt
 
@@ -48,3 +55,4 @@ Every row in one leaderboard section must read as one aligned, accessible data t
 - `leaderboard-row/android-row-metrics`
 - `leaderboard-row/windows-row-metrics`
 - `leaderboard-row/windows-pager-owner`
+- `leaderboard-row/windows-score-footer-owner`: no second score-footer panel, line plan or section plan outside the canonical files (R8). The guard can only forbid; consumers are listed in the canonical table and their page notes.
