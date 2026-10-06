@@ -231,6 +231,9 @@ struct SuggestionsScreen: View {
                 }
             }
             .padding(.vertical, 16)
+            // One fade window per generated batch: scrolling while it staggers in fades
+            // the rest of that batch in together; older cards never fade (#323).
+            .festivalFadeInScope(resetKey: viewModel.batchGeneration)
         }
         .scrollContentBackground(.hidden)
         .task(id: viewModel.batchGeneration) {

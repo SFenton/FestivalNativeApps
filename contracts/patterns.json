@@ -1118,7 +1118,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner; graph card lists run the web out/height/in list sequence and chart swaps keep the card's size; entrances never replay while scrolling and reduced motion removes fades.",
+      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner; graph card lists run the web out/height/in list sequence and chart swaps keep the card's size; the first scroll rushes pending entrances together and never replays them and reduced motion removes fades.",
       "keywords": [
         "loading",
         "spinner",
@@ -1158,6 +1158,10 @@
         {
           "path": "hooks/chart/useListAnimation.ts",
           "symbol": "useListAnimation"
+        },
+        {
+          "path": "hooks/ui/useStaggerRush.ts",
+          "symbol": "useStaggerRush"
         }
       ],
       "canonical": {
@@ -1173,6 +1177,10 @@
           {
             "path": "apple/Sources/FestivalUI/Common/FadeInOnLoad.swift",
             "symbol": "FestivalFadeInScope"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SelectedRowReveal.swift",
+            "symbol": "SelectedRowReveal"
           },
           {
             "path": "apple/Sources/FestivalCore/PathSwitchTransition.swift",
@@ -1284,6 +1292,17 @@
           "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."
         },
         {
+          "id": "apple-fade-scope",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "FestivalFadeInScope\\s*\\(",
+          "allow": [
+            "apple/Sources/FestivalUI/Common/FadeInOnLoad.swift",
+            "apple/Sources/FestivalUI/Features/SongLeaderboard/SoloLeaderboardScreen.swift"
+          ],
+          "debt": [],
+          "message": "Pages install the shared entrance window with festivalFadeInScope(resetKey:) or festivalScrollFadeInScope(_:resetKey:); a page that builds its own FestivalFadeInScope must be listed so its scroll rush and selected-row reveal stay on the shared rules (load-transition R5)."
+        },
+        {
           "id": "apple-page-title",
           "glob": "apple/Sources/**/*.swift",
           "regex": "\\.navigationTitle\\s*\\(",
@@ -1368,7 +1387,8 @@
         169,
         177,
         304,
-        316
+        316,
+        323
       ]
     },
     {

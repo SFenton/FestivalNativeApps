@@ -20,6 +20,9 @@ struct SoloLeaderboardScreen: View {
     @State private var lastRequest: RequestKey?
     /// First staggered reveal of this page finished; recycled rows then appear instantly.
     @State private var staggerSettled = false
+    /// The rows' first-load fade window: a scroll rushes their stagger (issue #323), and
+    /// the selected-row reveal reads whether the reader scrolled first.
+    @State private var fadeScope = FestivalFadeInScope()
     /// The song header has scrolled under the bar: the bar shows art, title and
     /// instrument instead (operator batch 7.2, like Song Detail).
     @State private var headerHidden = false
@@ -205,6 +208,10 @@ struct SoloLeaderboardScreen: View {
                         }
                         .listStyle(.plain)
                         .scrollContentBackground(.hidden)
+                        // One fade window per revealed page (web `resetRush` on
+                        // paginate): scrolling while its rows stagger in, or the
+                        // selected-row scroll, fades the rest in together (#323).
+                        .festivalScrollFadeInScope(fadeScope, resetKey: revealedRowsKey)
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
                             listHeight = height
                         }
@@ -233,13 +240,17 @@ struct SoloLeaderboardScreen: View {
                         // its page is revealed (web `navToPlayer`, issue #307).
                         .task(id: FocusRequest(pending: focusPending, rows: revealedRowsKey)) {
                             guard focusPending, let rows else { return }
-                            guard let target = rows.leaderboard.entries.first(where: {
+                            guard let targetIndex = rows.leaderboard.entries.firstIndex(where: {
                                 isSelectedAccount($0.accountId)
                             }) else {
                                 focusPending = false
                                 return
                             }
-                            if await SelectedRowReveal.reveal(target.id, proxy: proxy, reduceMotion: reduceMotion) {
+                            // After the row's own entrance (web `navToPlayer`, #323).
+                            if await SelectedRowReveal.reveal(
+                                rows.leaderboard.entries[targetIndex].id, proxy: proxy,
+                                reduceMotion: reduceMotion, staggerIndex: targetIndex, scope: fadeScope
+                            ) {
                                 focusPending = false
                             }
                         }
