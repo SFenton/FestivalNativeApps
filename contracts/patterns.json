@@ -1508,6 +1508,107 @@
           "message": "Apple chart date axes come from the shared barChartDateAxis, which centres each date on its bar (chart-date-axis R1, R4)."
         }
       ]
+    },
+    {
+      "id": "view-all-cta",
+      "title": "View all call to action",
+      "status": "current",
+      "doc": ".agents/patterns/view-all-cta.md",
+      "summary": "A card of preview rows ends with one full-width brand-purple button below the rows (View Full Leaderboard, View All Rivals, View All Rankings (N), View All Scores) at the platform minimum target, with no per-consumer overrides, a label-first accessible name and readable contrast-mode colours.",
+      "keywords": [
+        "view all",
+        "view full leaderboard",
+        "view all rivals",
+        "view all rankings",
+        "view all scores",
+        "call to action",
+        "cta",
+        "purple button"
+      ],
+      "web": [
+        {
+          "path": "pages/songinfo/components/ViewFullLeaderboardCta.tsx",
+          "symbol": "ViewFullLeaderboardCta"
+        },
+        {
+          "path": "pages/rivals/useRivalsSharedStyles.ts",
+          "symbol": "viewAllButton"
+        },
+        {
+          "path": "pages/leaderboards/components/RankingCard.tsx",
+          "symbol": "RankingCard"
+        },
+        {
+          "path": "components/common/GraphCard.tsx",
+          "symbol": "viewAllButton"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Leaderboards/PurpleActionButton.swift",
+            "symbol": "PurpleActionLabel"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/ViewFullLeaderboardButton.kt",
+            "symbol": "ViewFullLeaderboardButton"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "FSTViewAllButtonStyle"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/ViewAllCta.cs",
+            "symbol": "ViewAllCta"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "section-headers",
+          "leaderboard-row"
+        ],
+        "pages": [
+          "song-detail",
+          "rivals",
+          "compete",
+          "leaderboards"
+        ]
+      },
+      "guards": [
+        {
+          "id": "windows-label-copy",
+          "glob": "windows/Festival.Core/**/*.cs",
+          "regex": "\"View (All|Full) [A-Z]",
+          "allow": [
+            "windows/Festival.Core/Domain/ViewAllCta.cs"
+          ],
+          "debt": [],
+          "message": "Windows View all labels come from ViewAllCta so every CTA keeps the web copy and the label-first name rule (view-all-cta R4)."
+        },
+        {
+          "id": "windows-xaml-literal",
+          "glob": "windows/Festival.App/**/*.xaml",
+          "regex": "Content=\"View (All|Full) ",
+          "allow": [],
+          "debt": [],
+          "message": "Bind a View all CTA's text and name to its view model (ViewAllText/ViewAllName via ViewAllCta) and use FSTViewAllButtonStyle (view-all-cta R3, R4)."
+        },
+        {
+          "id": "windows-parallel-style",
+          "glob": "windows/Festival.App/**/*.xaml",
+          "regex": "x:Key=\"[^\"]*ViewAll[^\"]*\"",
+          "allow": [
+            "windows/Festival.App/Themes/Styles.xaml"
+          ],
+          "debt": [],
+          "message": "Windows has one View all CTA style, FSTViewAllButtonStyle in Themes/Styles.xaml; extend it instead of adding another (view-all-cta R3)."
+        }
+      ]
     }
   ]
 }

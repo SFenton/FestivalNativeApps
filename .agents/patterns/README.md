@@ -31,3 +31,4 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [quick-links](quick-links.md) | The Quick Links menu: order, icons, activation line and placement |
 | [section-headers](section-headers.md) | Section titles: style, outside-card placement and pinned/sticky behavior |
 | [chart-date-axis](chart-date-axis.md) | Date labels on history bar charts: centred on their bar, visible bars only |
+| [view-all-cta](view-all-cta.md) | The full-width purple "View all" button below a card's rows: look, placement, copy and accessible name |
