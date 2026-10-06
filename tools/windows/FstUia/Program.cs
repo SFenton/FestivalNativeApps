@@ -779,6 +779,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertannounced":
                 AssertAnnounced(step);
                 break;
+            case "assertannouncedcount":
+                AssertAnnouncedCount(step);
+                break;
             default:
                 throw new ArgumentException($"unknown step {verb}");
         }
@@ -864,7 +867,8 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>
     /// Waits until an element matching the selector reports the expected UIA <c>ItemStatus</c>. Off-screen and raw-view
     /// elements count (e.g. the decorative backdrop's state while the window is minimized). Unless the expected status is
-    /// <c>not-visible</c>, the window is brought to the front first (and every 2 s), since the backdrop pauses when covered.
+    /// <c>not-visible</c>, <c>=background</c> or a held Shop pulse (<c>pulse=held</c>), the window is brought to the front
+    /// first (and every 2 s), since the backdrop pauses when covered.
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector, the expected <c>status</c> and an optional timeout (default 5 s).</param>
@@ -883,9 +887,11 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         };
         rawView.Add(automation.PropertyLibrary.Element.ItemStatus);
         // The backdrop is occlusion-aware: asserting a visible state needs the window in front of other lanes' windows
-        // (a not-visible assertion, including a first-run demo's rotation=not-visible, must not restore a minimized window,
-        // and a rotation=background one must not reactivate a window that foreground:off deactivated).
-        var front = !expected.Contains("not-visible", StringComparison.Ordinal) && !expected.Contains("=background", StringComparison.Ordinal);
+        // (a not-visible assertion, including a first-run demo's rotation=not-visible or a held Shop pulse, must not
+        // restore a minimized window, and a rotation=background one must not reactivate a window that foreground:off
+        // deactivated).
+        var front = !expected.Contains("not-visible", StringComparison.Ordinal) && !expected.Contains("=background", StringComparison.Ordinal)
+            && !expected.Contains("pulse=held", StringComparison.Ordinal);
         var nextFront = DateTime.MinValue;
         while (true)
         {
@@ -978,6 +984,22 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 throw new InvalidOperationException($"no announcement \"{expected}\"; heard [{string.Join(" | ", announcements)}]");
             Thread.Sleep(100);
         }
+    }
+
+    /// <summary>
+    /// Fails unless exactly the step's count of recorded announcements match its text (exact, or a <c>~</c> regex) so far,
+    /// e.g. a value spoken once and not repeated by later reads.
+    /// </summary>
+    /// <param name="step">Step with <c>count</c> and <c>text</c>.</param>
+    /// <exception cref="InvalidOperationException">No <c>listen</c> step ran, or the count differs.</exception>
+    private void AssertAnnouncedCount(JsonObject step)
+    {
+        if (announcementHandler is null) throw new InvalidOperationException("assertannouncedcount needs an earlier listen:announcements step in the same drive");
+        var expected = (string)step["text"]!;
+        var count = (int)step["count"]!;
+        var heard = announcements.Count(a => StatusMatches(a, expected));
+        if (heard != count)
+            throw new InvalidOperationException($"announcement \"{expected}\" heard {heard} time(s), expected {count}; heard [{string.Join(" | ", announcements)}]");
     }
 
     /// <summary>Whether an ItemStatus equals the expected text, or matches it as a regex when it starts with <c>~</c>.</summary>

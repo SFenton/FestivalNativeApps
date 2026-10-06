@@ -14,7 +14,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** [SongCoverBackdrop]: song-scoped pages show their static cover while composed (pattern `song-header`, issue #317). */
+/** [SongCoverBackdrop]: song-scoped pages show their static cover while composed (pattern `song-leaderboard-header` R4, issue #317). */
 @RunWith(AndroidJUnit4::class)
 class SongCoverBackdropTest {
     @get:Rule

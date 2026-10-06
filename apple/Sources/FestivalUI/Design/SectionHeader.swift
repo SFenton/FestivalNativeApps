@@ -39,28 +39,29 @@ public struct FestivalSectionHeader: View {
     }
 }
 
-// MARK: - See All link
+// MARK: - View All link
 
-/// The trailing "See All" push beside a section title (web `SectionHeader` `actionLabel`,
-/// section-headers R8): the iPhone Duo secondary panes and the profile's bands section
-/// share it. HIG Accessibility: 44×44 pt default control size on iOS/iPadOS.
-struct SectionSeeAllLink: View {
+/// The trailing "View All" push beside a section title (web `SectionHeader` `actionLabel`,
+/// section-headers R8): the iPhone Duo secondary panes, their Song Detail history cards
+/// and the profile's bands section share it. View All copy, never See All (#321).
+/// HIG Accessibility: 44×44 pt default control size on iOS/iPadOS.
+struct SectionViewAllLink: View {
     /// Full list to push.
     let route: AppRoute
     /// Accessibility identifier.
     let identifier: String
-    /// What is listed, spoken after "See All" (e.g. "SFentonX's Bands").
+    /// What is listed, spoken after "View All" (e.g. "SFentonX's Bands").
     let listName: String
 
     var body: some View {
         NavigationLink(value: route) {
-            Text("See All")
+            Text("View All")
                 .font(.subheadline.weight(.semibold))
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
         }
         .tint(BrandTokens.accentBlue)
-        .accessibilityLabel("See All \(listName)")
+        .accessibilityLabel("View All \(listName)")
         .accessibilityIdentifier(identifier)
     }
 }

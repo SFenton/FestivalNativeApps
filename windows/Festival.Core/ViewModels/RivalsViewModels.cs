@@ -138,8 +138,15 @@ public sealed partial class RivalSectionViewModel : ObservableObject
     /// <summary>Accessible name of the See All link.</summary>
     public string SeeAllName => "See All " + Title;
 
-    /// <summary>Accessible name of the View All Rivals button below the rows (distinct from the header link).</summary>
-    public string ViewAllName => "View All " + Title;
+    /// <summary>Visible text of the accent button below the rows (web <c>rivals.viewAllRivals</c>).</summary>
+    public string ViewAllText => ViewAllCta.RivalsLabel;
+
+    /// <summary>Accessible name of the View All Rivals button: the visible label, then the card (WCAG 2.5.3), e.g.
+    /// "View All Rivals, Lead Rivals"; distinct from the header's "See All Lead Rivals" link.</summary>
+    public string ViewAllName => ViewAllCta.Name(ViewAllText, Title);
+
+    /// <summary>UIA automation ID of the View All Rivals button, unique per card like Song Detail's and Leaderboards'.</summary>
+    public string ViewAllAutomationId => AutomationId + ".view-all";
 
     /// <summary>All Rivals route for this scope.</summary>
     public AppRoute.AllRivals ViewAllRoute { get; }

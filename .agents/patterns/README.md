@@ -31,4 +31,7 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [quick-links](quick-links.md) | The Quick Links menu: order, icons, activation line and placement |
 | [section-headers](section-headers.md) | Section titles: style, outside-card placement and pinned/sticky behavior |
 | [chart-date-axis](chart-date-axis.md) | Date labels on history bar charts: centred on their bar, visible bars only |
-| [song-header](song-header.md) | Song page headers: shared art + title block, full-width one-line marquee title, board line (instrument or band size), pinned bar song title, static album-art backdrop |
+| [song-leaderboard-header](song-leaderboard-header.md) | Song-scoped leaderboards (instrument or band size): song-first header, bar title after scroll, song album-art backdrop |
+| [song-header](song-header.md) | Song page headers: shared art + title/artist block, full-width one-line marquee, pinned bar song title |
+| [view-all-cta](view-all-cta.md) | The full-width purple "View all" button below a card's rows: look, placement, copy and accessible name |
+| [settings-value-row](settings-value-row.md) | Read-only Settings title/value rows (Version, Service Info state): inline when it fits, otherwise the value stacks under the title |

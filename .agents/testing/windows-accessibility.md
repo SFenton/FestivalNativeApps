@@ -25,6 +25,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 |---|---|---|---|---|---|
 | Songs (anonymous / selected) | ✅✅✅ | 9/10/10 | ✅ | ✅ | ✅ (C+M) |
 | Songs Filter (web sections, percentile open) | ✅✅✅ (+AOT) | 20/20/20 | ✅ | ✅ | ✅ |
+| Songs Filter, no profile (General only, Double Bass open, issue #273) | ✅✅✅ | 7/7/7 | ✅ | ✅ (Night sky, Desert) | ✅ (200%) |
 | Song Detail + Paths dialog | ✅✅✅ | 16/17/17 | ✅ | ✅ | ✅ |
 | Song Leaderboard | ✅✅✅ | 8/10/10 | ✅ | ✅ | ✅ (C/M/W, also 200%; display 100%/150%, issue #197) |
 | Player History (Song Detail Score History, issue #198) | ✅✅✅ | 7/9/9 | UIA (locked console) | ✅ (Night sky, Desert: chart roles) | ✅ (200%: axes scale) |
@@ -360,6 +361,16 @@ Evidence: `a11y_matrix.py --scan --tabs 60 --pages journeys/settings-states.json
 ## CHOpt Path Default View validation (issue #256, 2026-10-05)
 
 Evidence: `a11y_matrix.py --scan --pages journeys/a11y-settings-path-view.json` at compact, medium, wide, maximized and both snaps. It then ran at compact and wide under Desert, Night sky, light and dark theme, text 200%, display 100%/150% and text 200% with display 150%. Every run had 0 Axe errors. There is no disclosure: Narrator reads the group name "CHOpt Path Default View" and the selected Image or Text radio (SelectionItem). Arrow keys move focus and selection together. The `path-default-view` journey proves the choice persists and sets the view Paths opens in. No app change. Per configuration: [settings/windows.md](../pages/settings/windows.md#validation-chopt-path-default-view-issue-256-2026-10-05).
+
+## Settings Service Info validation (issue #275, 2026-10-06)
+
+Evidence: `a11y_matrix.py --scan --pages journeys/a11y-settings-service-info.json`, with every card state on `service_info_fixture.py`, Loading included (it runs under an automation-only longer request timeout so the scan fits; users keep 3 s):
+
+- compact, medium, wide, maximized and both snaps;
+- Desert, Night sky, light and dark theme, display 100%, text 200%, and text 200% with display 100%;
+- live public-service screenshots and a recording.
+
+Every run had 0 Axe errors. Fixed: three test IDs sat on elements without a UIA peer (`Border`, `Grid`, `StackPanel`) and are now on the text they identify. The phase row's Narrator name now matches the web's `aria-valuetext` ("Phase. Subphase", "Total not yet known"). Narrator now hears each newly accepted attempt count once (a UIA notification, proven with `listen:announcements`); lower, kept-back reads stay silent. Per configuration: [settings/windows.md](../pages/settings/windows.md#validation-service-info-issue-275-2026-10-06).
 
 ## App Navigation validation (issue #225, 2026-10-04)
 

@@ -35,7 +35,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -120,13 +119,14 @@ import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.RowChevron
 import com.festivalscoretracker.android.ui.design.StarRating
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.common.rememberMeasuredPx
 
 // region Screen
 
 /**
  * `/songs/:songId/bands/:bandType`: the solo board's song header with the band size
  * (a drop-down) where the instrument goes, over the song's static cover, then 25-row
- * pages of band scores (pattern `song-header`, issue #317). Rows open Band Detail with
+ * pages of band scores (pattern `song-leaderboard-header`, issue #317). Rows open Band Detail with
  * the type and team key.
  *
  * With a selected player, their best band is highlighted on its page and pinned above the
@@ -198,7 +198,7 @@ fun SongBandLeaderboardScreen(
         onRevealed()
     }
 
-    // Like the solo board (pattern `song-header`, issue #317): the song header and band size
+    // Like the solo board (pattern `song-leaderboard-header` R3, issue #317): the song header and band size
     // scroll with the rows and the top bar takes the song title once they have scrolled away.
     // Across a hinge the header stays in the leading pane, so the bar stays empty.
     val headerGone by remember(listState) { derivedStateOf { !twoPane && listState.firstVisibleItemIndex > 0 } }
@@ -209,7 +209,7 @@ fun SongBandLeaderboardScreen(
         marqueeTitle = true,
         modifier = Modifier.testTag("fst.song-band-leaderboard.screen"),
     ) { padding ->
-        var contentLeft by remember { mutableFloatStateOf(0f) }
+        var contentLeft by rememberMeasuredPx(0f)
         BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { contentLeft = it.positionInWindow().x }) {
             val split = BandLayout.listSplit(rememberBandHinge(contentLeft, maxWidth))
             SideEffect { twoPane = split.twoPane && split.leadingWidth != null }

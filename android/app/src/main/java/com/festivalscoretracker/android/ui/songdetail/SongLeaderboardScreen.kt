@@ -142,7 +142,7 @@ fun SongLeaderboardRouteScreen(container: AppContainer, settings: AppSettings, r
  * @param visibleInstruments Settings-visible charts (the header's instrument switcher).
  * @param leeway Filter Invalid Scores leeway (the page is read with it; the spotlight shows the next valid score), or null.
  * @param artworkUrl Artwork resolver for the song header.
- * @param background Shared backdrop: shows the song's static cover while the board is visible (pattern `song-header`, issue #317), or null.
+ * @param background Shared backdrop: shows the song's static cover while the board is visible (pattern `song-leaderboard-header` R4, issue #317), or null.
  * @param revealSelected Opened for the selected player's row (web `navToPlayer`): bring it into view once its page shows.
  * @param onRevealed Called once that reveal has run (or found no row), so the route stops asking for it.
  */
@@ -380,7 +380,7 @@ internal fun InstrumentSwitcher(current: Instrument, charts: List<Instrument>, o
 }
 
 /**
- * The board line under a song leaderboard's [SongHeader] (pattern `song-header`): the
+ * The board line under a song leaderboard's [SongHeader] (pattern `song-leaderboard-header` R1): the
  * board's instrument on the solo board, its band size on the band board (issue #317).
  * With more than one option it is a 48 dp drop-down (TalkBack "drop down list") whose
  * menu switches the board and checks the current option; with a single option it is

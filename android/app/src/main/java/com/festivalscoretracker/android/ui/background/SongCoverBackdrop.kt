@@ -9,7 +9,7 @@ import com.festivalscoretracker.android.presentation.BackgroundController
 /**
  * Shows a song's static album art on the shared [ArtworkBackground] while the calling
  * song-scoped page is composed (web `PageBackground src={song.albumArt}`; pattern
- * `song-header`). Song Detail, the solo song leaderboard and the song band leaderboard
+ * `song-leaderboard-header` R4). Song Detail, the solo song leaderboard and the song band leaderboard
  * each call it, so a pushed page keeps the cover even after the previous destination
  * pops its own focus (issue #317).
  *
