@@ -265,6 +265,10 @@ struct CoverLayerView: View {
                     .scaledToFill()
                     .frame(width: size.width, height: size.height)
                     .colorMultiply(ArtworkBackdropCanvas.gray(lightness))
+                    // Hidden on the image itself too: the page's cover still reached the
+                    // tree as an unlabelled full-screen Image behind Song Detail (Increase
+                    // Contrast audit, "Element has no description"; Lane A11Y3).
+                    .accessibilityHidden(true)
             } else {
                 BrandTokens.appBackground
                     .frame(width: size.width, height: size.height)

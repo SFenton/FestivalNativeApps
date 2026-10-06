@@ -156,7 +156,7 @@ JOURNEYS = [
         ],
         expect=[
             ["fst.history.instrument.Solo_Bass", "fst.history.instrument.Solo_Drums", "5 of 8 scores",
-             "fst.history.entry-back", "fst.history.page-forward", "fst.history.view-all"],
+             "fst.history.entry-back", "fst.history.page-forward", "fst.history.view-all", "View All Scores, Lead"],
             ["fst.history.bar.2"],
             ["fst.history.bar.7"],
             ["610,000"],

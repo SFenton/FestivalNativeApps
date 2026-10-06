@@ -1,3 +1,6 @@
+using System.Globalization;
+using Festival.Core.ViewModels;
+
 namespace Festival.Core.Tests;
 
 public class FirstRunDemoTests
@@ -71,6 +74,25 @@ public class FirstRunDemoTests
     [InlineData(FirstRunDemoRotationState.Background, 1, true, "catalogue rotation=background swaps=1 swap=fade")]
     public void RotationStatus_AppendsTheRotationOnlyForRotatingDemos(FirstRunDemoRotationState state, int swaps, bool faded, string expected) =>
         Assert.Equal(expected, FirstRunDemoRotationStatus.Format(FirstRunDemos.CatalogueStatus, state, swaps, faded));
+
+    [Theory]
+    [InlineData(false, true, true, true, false, null)]
+    [InlineData(true, true, true, true, false, "running")]
+    [InlineData(true, false, true, true, false, "held")]
+    [InlineData(true, true, false, true, false, "held")]
+    [InlineData(true, true, true, false, false, "held")]
+    [InlineData(true, true, true, true, true, "held")]
+    public void PulseState_RunsOnlyOnTheVisibleSlideWithMotionInAVisibleWindow(bool hasPulses, bool active, bool loaded, bool motion, bool hidden, string? expected) =>
+        Assert.Equal(expected, FirstRunDemoRotationStatus.PulseState(hasPulses, active, loaded, motion, hidden));
+
+    [Theory]
+    [InlineData(FirstRunDemoRotationState.Static, null, 0, "catalogue")]
+    [InlineData(FirstRunDemoRotationState.Static, "running", 1, "catalogue pulse=running pulse-slides=1")]
+    [InlineData(FirstRunDemoRotationState.Static, "running", 2, "catalogue pulse=running pulse-slides=2")]
+    [InlineData(FirstRunDemoRotationState.Static, "held", 1, "catalogue pulse=held")]
+    [InlineData(FirstRunDemoRotationState.Running, "held", 0, "catalogue rotation=running swaps=0 swap=none pulse=held")]
+    public void RotationStatus_EndsWithThePulseTokenForPulseDemos(FirstRunDemoRotationState state, string? pulse, int slides, string expected) =>
+        Assert.Equal(expected, FirstRunDemoRotationStatus.Format(FirstRunDemos.CatalogueStatus, state, 0, false, pulse, slides));
 
     [Fact]
     public void SongPool_UsesCatalogueSongsWithArt_EpicGamesFirst_ElsePlaceholders()
@@ -306,5 +328,38 @@ public class FirstRunDemoTests
         Assert.Equal(6, FirstRunDemos.RivalsBelow.Count);
         Assert.Equal(3, FirstRunDemos.InstrumentRivals.Count);
         Assert.Equal(6, FirstRunDemos.RivalDetailCategories.Count);
+    }
+
+    [Fact]
+    public void RivalDemos_ShowTheRowsAheadAndBehindWithoutSharedCount()
+    {
+        // Issue #267 (Windows check of #67/#40): the Rivals/Compete demos repeat the real row's pills, never "shared".
+        var culture = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        try
+        {
+            var keyDrifter = FirstRunDemos.RivalsAbove[0];
+            Assert.Equal("66 songs ahead · 82 songs behind", keyDrifter.CountsText);
+            Assert.Equal("KeyDrifter · 66 songs ahead · 82 songs behind", keyDrifter.GroupLine);
+            Assert.Equal(new FirstRunDemoRow("KeyDrifter", "66 songs ahead · 82 songs behind", "▲ 12"), keyDrifter.Row);
+            Assert.Equal("▼ 10", FirstRunDemos.RivalsBelow[0].Row.Value);
+            var all = FirstRunDemos.RivalsAbove.Concat(FirstRunDemos.RivalsBelow)
+                .Concat(FirstRunDemos.InstrumentRivals.Values.SelectMany(p => p.Above.Concat(p.Below)));
+            foreach (var rival in all)
+            {
+                var row = new RivalRowItem(rival.AccountId, rival.DisplayName, RivalDirection.Above, rival.BehindCount, rival.AheadCount, null,
+                    new AppRoute.RivalDetail(rival.AccountId));
+                Assert.Equal($"{row.AheadText} · {row.BehindText}", rival.CountsText);
+                foreach (var text in new[] { rival.GroupLine, rival.Row.Title, rival.Row.Detail, rival.Row.Value })
+                {
+                    Assert.DoesNotContain("shared", text, StringComparison.OrdinalIgnoreCase);
+                    Assert.DoesNotContain(rival.SharedSongCount.ToString(CultureInfo.InvariantCulture), text, StringComparison.Ordinal);
+                }
+            }
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = culture;
+        }
     }
 }

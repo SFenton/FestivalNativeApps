@@ -1,0 +1,39 @@
+[
+  {
+    "name": "history-view-all-live",
+    "route": "/songs/d58d8501-a33e-46f5-81bd-157306d5987e/Solo_Guitar/history",
+    "profile": "195e93ef108143b2975ee46662d4d0e1:SFentonX",
+    "sizes": [
+      "compact",
+      "medium",
+      "wide",
+      "maximized",
+      "snap-left",
+      "snap-right"
+    ],
+    "ready": [
+      "waitfor:id=fst.history.chart@30",
+      "scrollinto:id=fst.history.view-all@10"
+    ],
+    "after_ready": [
+      "assertname:id=fst.history.view-all|View All Scores, Lead",
+      "shot:{stem}-0-view-all.png",
+      "tree:{stem}-view-all.txt",
+      "focus:id=fst.history.view-all",
+      "key:shift+tab",
+      "key:tab",
+      "assertfocus:id=fst.history.view-all",
+      "shot:{stem}-0k-focus.png",
+      "key:enter",
+      "wait:0.8",
+      "waitgone:id=fst.history.view-all@5",
+      "scrollinto:id=fst.song-detail.view-all.Solo_Guitar@10",
+      "focus:id=fst.song-detail.view-all.Solo_Guitar",
+      "key:shift+tab",
+      "key:tab",
+      "assertfocus:id=fst.song-detail.view-all.Solo_Guitar",
+      "shot:{stem}-1-view-full.png"
+    ],
+    "tabs": 0
+  }
+]

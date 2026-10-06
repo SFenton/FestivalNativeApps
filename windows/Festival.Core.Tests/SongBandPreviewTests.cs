@@ -145,7 +145,7 @@ public class SongBandPreviewTests
         Assert.Equal("Rank 1. Lead 1, Lead. Bass 1, Bass. Team score 99,999 points, full combo, 96.5% accuracy, 5 stars", first.Announcement);
         Assert.Equal("Rank 2. Lead 2, Lead. Bass 2, Bass. Team score 99,998 points", duos.Rows[1].Announcement);
         Assert.Equal(new AppRoute.SongBandLeaderboard("s1", "Band_Duets"), duos.FullRoute);
-        Assert.Equal(("fst.song-detail.band-view-all.Band_Duets", "View Full Leaderboard, Duos"), (duos.ViewAllAutomationId, duos.ViewAllName));
+        Assert.Equal(("fst.song-detail.band-view-all.Band_Duets", "View Full Leaderboard", "View Full Leaderboard, Duos"), (duos.ViewAllAutomationId, duos.ViewAllText, duos.ViewAllName));
         Assert.Equal(("fst.song-detail.band-header.Band_Duets", "band-Band_Duets"), (duos.HeaderAutomationId, duos.QuickLinkId));
 
         var quads = vm.BandPreviews[2];

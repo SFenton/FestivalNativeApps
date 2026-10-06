@@ -7,7 +7,7 @@
 | Piece | Where |
 |---|---|
 | Read | `data/notifications/FestivalApiNotifications.kt`: `FestivalApi.playerNotifications(accountId, limit)` → pinned keyless `GET /api/player/{id}/notifications?limit=` through the `ServiceEndpoint.Feature` seam (pure read per `FSTService/Api/ImprovementNotificationEndpoints.cs:10-31`; verified by the iPhone and Windows lanes) |
-| Wire + rules | `core/notifications/Notifications.kt`: envelope/rows, `validate` (unique safe GUIDs, kinds, song IDs), `isGenerated`, `NotificationRouting` (web destination + ranking-metric tables, coalesced events), `NotificationText` (player single-event copy, `Song · Instrument` / `{Rank} Improved` titles, flags, en-US numbers, `#1,234` ranks, shop-song copy, relative time), `NotificationMediaRules` (web media rail: art, art over an instrument grid for multi-chart rows, else the chart icon; Lead when none), `NotificationFlagKind`, `NotificationText.emphasize` (web bold values) |
+| Wire + rules | `core/notifications/Notifications.kt`: envelope/rows, `validate` (unique safe GUIDs, kinds, song IDs), `isGenerated`, `NotificationRouting` (web destination + ranking-metric tables, coalesced events), `NotificationText` (delegates to `core/notifications/NotificationTextEngine.kt`, the full player-scoped port of web `notificationText.ts`, issue #180: coalesced events, derived Full Combo/gold-star results, redundant star events dropped, priority order, `Song · Instrument` / `{Rank} Improved` / `Rank Updates · {scope}` / `{scope} · Improvements` titles, statement paragraphs, emphasis, every flag plus per-chart flag groups; en-US numbers, `#1,234` ranks, shop-song copy, relative time), `NotificationMediaRules` (web media rail: art, art over an instrument grid for multi-chart rows, else the chart icon; Lead when none), `NotificationFlagKind`/`NotificationFlagGroup`, lenient payload decoders (web `numberValue`/`booleanValue`/`stringValue`) |
 | Seen | `core/notifications/NotificationSeenStore.kt`: settings DataStore key `fst.notifications.seen.v1` (registered `Kept`), per-account GUID lists pruned to the current feed, ≤400 per account, ≤20 accounts |
 | Model | `presentation/notifications/NotificationsViewModel.kt`: NoPlayer/Loading/Failed/Empty(generated)/Loaded(New, Older), unread badge (99+), refresh on player change and each open (no polling), a failed refresh keeps the last feed; row art via the shell's `artwork` lookup (catalogue art, else the shop payload's, through `FestivalApi.artworkUrl`) |
 | UI | `ui/notifications/NotificationsUi.kt`: `NotificationsBell` (M3 `BadgedBox`, gold badge) in the shell's `ShellActions.notifications` slot before the avatar; `NotificationsSheet` (M3 modal bottom sheet, width-capped on large windows) |
@@ -16,8 +16,8 @@
 
 - Upper-case 74%-white section headings (`NEW` / `OLDER`, spoken as written); each row is its own `surfaceSubtle` card (10 dp radius, `#1E2A3A` hairline, 4 dp apart, 24 dp side margins).
 - 64 dp media rail: 54 dp album art, 44 dp art above an 18 dp two-column instrument grid when the row touches several charts, else a 36 dp instrument icon. Decorative; the shared in-process Coil loader like other rows. Combo media and its icon/art cycle need band/combo feeds (not read natively).
-- Bold marquee title, 12 sp white message with the web's bold values (scores, ranks, instrument, song, "Full Combo", "gold stars", "x to y stars"), one colour-coded flag pill (web `FLAG_COLORS`, 2 dp 18%-white border).
-- Trailing: gold `#FACC15` unread dot above a 72%-white chevron (chevron only when the row navigates). No visible time (the web row shows none); TalkBack reads "Unread. Title. Message. Flag. Time" (the flag in words so its meaning never depends on colour; the time in full words, "5 minutes ago", "1 hour ago", "September 28"), and navigable rows add "Open notification."
+- Bold marquee title, 12 sp white message with the web's bold values (scores, ranks, instrument, song, "Full Combo", "gold stars", "x to y stars"); several statements are separate paragraphs (web `pre-line`). Flags: a wrapping row of colour-coded pills (web `FLAG_COLORS`, 12 sp semibold white, 8 dp radius = M3 chip `small` shape, 2 dp 18%-white border, 2 dp gaps), one per flag; multi-chart song rows show one line per chart, a 20 dp decorative instrument icon before that chart's pills (web flag groups). Pills are non-interactive status labels inside the one clickable row, not M3 `AssistChip`s, and keep the web's 12 sp (Label Medium) rather than the chip's Label Large; white text on every flag colour is ≥ 4.5:1 (`NotificationsSheetUiTest.flagColoursMatchTheWeb`).
+- Trailing: gold `#FACC15` unread dot above a 72%-white chevron (chevron only when the row navigates). No visible time (the web row shows none); TalkBack reads "Unread. Title. Message. Flags. Time" (every flag in words, per chart for flag groups, e.g. "Lead: New High Score. Bass: Full Combo", so meaning never depends on colour; the time in full words, "5 minutes ago", "1 hour ago", "September 28"), and navigable rows add "Open notification."
 - Empty state: bell-off glyph, "No notifications available", generated/not-generated body.
 
 ## Behavior
@@ -28,7 +28,7 @@
 
 ## IDs and evidence
 
-`fst.shell.notifications` (label "Notifications, N unread"), `fst.notifications.sheet`, `.list`, `.row.<guid>` (test-only semantics `NotificationMediaKind`), `.empty`, `.failed`, `.loading`, `.no-player`. Tests: `notifications/NotificationsTest.kt`, `ui/notifications/NotificationsStatesUiTest.kt` (Robolectric, one test per reachable state), `journeys/NotificationsDeviceTest.kt` (connected: ATF, reading order, 48 dp, hinge, navigation), `settings/SettingsUiTest.kt`. Screenshot: `android/reports/screenshots/notifications-phone.png` (mock `fixture-player-1`).
+`fst.shell.notifications` (label "Notifications, N unread"), `fst.notifications.sheet`, `.list`, `.row.<guid>` (test-only semantics `NotificationMediaKind` and `NotificationFlags`, e.g. `FirstPlay,FullCombo,GoldStars` or `Lead:NewHighScore|Bass:FullCombo`), `.empty`, `.failed`, `.loading`, `.no-player`. Tests: `notifications/NotificationsTest.kt`, `notifications/NotificationTextEngineTest.kt` (live coalesced shapes, derived results, priority, flag groups, aggregate/rank variants, lenient decoding), `ui/notifications/NotificationsSheetUiTest.kt`, `ui/notifications/NotificationsStatesUiTest.kt` (Robolectric, one test per reachable state), `journeys/NotificationsDeviceTest.kt` (connected: ATF, reading order, 48 dp, hinge, navigation), `settings/SettingsUiTest.kt`. Screenshot: `android/reports/screenshots/notifications-phone.png` (mock `fixture-player-1`).
 
 ## Validation (issue #136, 2026-10-04)
 
@@ -75,7 +75,27 @@ Emulator API 37, debug build, live public service (keyless `GET /api/player/{id}
 | no-profile | `noProfileAsksForAPlayerWithoutReading` |
 | (extras) | `rowWithoutADestinationOnlyMarksItSeen`, `failedReadOffersRetry`; connected `NotificationsDeviceTest` |
 
+## Validation (issue #180, 2026-10-06)
+
+Re-checks the #76 web row design (media rail, bold values, colour-coded flags) with the same setup as #136: emulator API 37, debug build, live public service, SFentonX (11 live rows). **Found:** Android ported only web's single-event copy and one pill per row. Live coalesced rows (`player_first_score` carrying `player_fc_achieved` and `player_gold_stars_achieved`, personal bests with rank climbs) dropped the Full Combo, gold-star and rank clauses and chips. Aggregate and multi-rank statements and per-chart flag groups were also missing. **Fixed:** `NotificationTextEngine.kt` ports the whole web `notificationText.ts`. Live rows now read e.g. "You set a new personal best on **Lead** for **Take Me Higher** with **171,030** points, got a **Full Combo**, earned **gold stars**, and climbed from **#4,223** to **#97**." with New High Score / Full Combo / Gold Stars / Rank Up pills.
+
+| Configuration | Result |
+|---|---|
+| FST_Phone portrait and landscape, font 1.0 and 2.0 | OK: album art rail, bold values, every coalesced pill. At 2.0 the text and pills wrap with no clipping. |
+| FST_Tablet portrait and landscape, font 1.0 and 2.0 | OK: centred 640 dp sheet; at 2.0 four pills wrap to two lines. |
+| FST_Resizable medium / expanded / desktop (desktop also at font 2.0) | OK: rail at medium and expanded, centred sheet. Compact width is covered by FST_Phone. |
+| FST_Book_Fold folded / unfolded / half-open (half also at font 2.0) | OK: half-open puts the sheet in the start pane beside the hinge. |
+| FST_Passport_Fold folded / unfolded / half-open at font 2.0 | OK. |
+| FST_TriFold folded / partial / unfolded (`--display 0`) | OK. |
+
+- Accessibility:
+  - TalkBack reads "Unread. Title. Message. Flags. Time", naming every pill in words (per chart for flag groups). Album art is decorative.
+  - White text on every flag colour is at least 4.5:1 (`flagColoursMatchTheWeb`).
+  - Connected `NotificationsDeviceTest` passes 3/3 on FST_Phone and on FST_Book_Fold half-open: ATF checks, reading order, 48 dp targets and the hinge.
+- The AVDs are shared: other lanes install their own builds, and one older build showed the pre-fix rows. Always drive evidence with `device.py drive --apk …`. When a higher `versionCode` is installed, uninstall it first in a separate `shell:pm uninstall` drive (`INSTALL_FAILED_VERSION_DOWNGRADE`).
+- M3 deviations (deliberate; web parity): Label Medium pills instead of the chip's Label Large; non-interactive pills instead of `AssistChip`. Otherwise as in #136.
+
 ## Open
 
-- Band feeds, multi-event coalescing copy and flag groups (Windows lacks them too; Apple ports them, issue #76); scroll-visibility seen marking.
+- Band feeds and combo copy (not read natively); scroll-visibility seen marking.
 - A rank row without an instrument opens the Leaderboards hub without its Rank By (`LeaderboardsRoute` takes none; the web passes `?rankBy=`). Live player rank rows always name an instrument.

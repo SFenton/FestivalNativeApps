@@ -206,6 +206,16 @@ object LeaderboardColumnLayout {
     fun seasonLabel(season: Int): String = "S$season"
 
     /**
+     * The column gap a score row of this width uses (web `NARROW_BREAKPOINT`): [COMPACT_GAP]
+     * below [COMPACT_BREAKPOINT], else [WIDE_GAP], also before the first layout.
+     *
+     * @param rowWidth Row width in dp, including its chrome; NaN or 0 before the first layout.
+     * @return Gap in dp.
+     */
+    fun gapFor(rowWidth: Float): Float =
+        if (rowWidth.isFinite() && rowWidth > 0f && rowWidth < COMPACT_BREAKPOINT) COMPACT_GAP else WIDE_GAP
+
+    /**
      * Fits a section's columns into a row width.
      *
      * A rankings section with a [LeaderboardSection.nameWidth] shows its songs label only when
@@ -229,7 +239,7 @@ object LeaderboardColumnLayout {
         val known = rowWidth.isFinite() && rowWidth > 0f
         val scale = if (fontScale.isFinite()) maxOf(1f, fontScale) else 1f
         val score = section.kind == LeaderboardRowKind.Score
-        val gap = if (known && rowWidth < COMPACT_BREAKPOINT) COMPACT_GAP else WIDE_GAP
+        val gap = gapFor(rowWidth)
         val minRank = if (score) MIN_SCORE_RANK_WIDTH else MIN_RANKING_RANK_WIDTH
         val rank = if (section.rankWidth <= 0f) 0f else maxOf(section.rankWidth, minRank)
         val accuracy = if (score && section.hasAccuracy) ACCURACY_WIDTH * scale else 0f

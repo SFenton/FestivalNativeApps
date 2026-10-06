@@ -139,7 +139,7 @@ public class SongDetailSongsLaneTests
         Assert.False(lead.ShowPlaceholder);
         Assert.True(lead.HasPlayerRow);
         Assert.Equal("fst.song-detail.view-all.Solo_Guitar", lead.ViewAllAutomationId);
-        Assert.Equal("View Full Leaderboard, Lead", lead.ViewAllName);
+        Assert.Equal(("View Full Leaderboard", "View Full Leaderboard, Lead"), (lead.ViewAllText, lead.ViewAllName));
         lead.UpdatePlayer(null);
         Assert.Equal(10, lead.Rows.Count);
         Assert.False(lead.HasPlayerRow);

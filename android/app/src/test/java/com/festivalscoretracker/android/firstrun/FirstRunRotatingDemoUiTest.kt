@@ -227,6 +227,36 @@ class FirstRunRotatingDemoUiTest {
         rule.mainClock.advanceTimeByFrame()
     }
 
+    /** Issues #67/#175: rival demos show the player's ahead/behind counts, never the shared-song count. */
+    @Test
+    fun rivalDemosShowAheadAndBehindWithoutTheSharedCount() {
+        var id by mutableStateOf("compete-rivals")
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            FestivalTheme {
+                CompositionLocalProvider(LocalFirstRunDemoCatalog provides catalog) { FirstRunDemo(id, true) }
+            }
+        }
+        rule.mainClock.advanceTimeByFrame()
+        fun shown(): List<String> =
+            rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.Text), useUnmergedTree = true).fetchSemanticsNodes().map { node ->
+                node.config[SemanticsProperties.Text].joinToString("") { it.text }
+            }
+        val bareCount = Regex("""^[\d,]+ songs$""")
+        // KeyDrifter leads 82 songs and trails 66; DrumSurge leads 58 and trails 84 (player's side: ahead = rival trails).
+        assertTrue(shown().containsAll(listOf("66 ahead", "82 behind", "84 ahead", "58 behind")))
+        listOf("compete-rivals", "rivals-overview", "rivals-instruments", "compete-hub").forEach { demo ->
+            rule.runOnIdle { id = demo }
+            rule.mainClock.advanceTimeByFrame()
+            // Compete Hub opens on its rankings layout and swaps to the rivals one on the first tick.
+            if (demo == "compete-hub") rule.mainClock.advanceTimeBy(cycle)
+            val texts = shown()
+            assertEquals("$demo counts", texts.count { it.endsWith(" ahead") }, texts.count { it.endsWith(" behind") })
+            assertTrue("$demo shows ahead/behind", texts.any { it.endsWith(" ahead") })
+            assertTrue("$demo hides the shared count: $texts", texts.none { bareCount.matches(it) || it.contains("shared", ignoreCase = true) })
+        }
+    }
+
     /** A lifecycle the test moves between RESUMED (foreground) and STARTED (backgrounded or covered). */
     private class TestLifecycle : LifecycleOwner {
         val registry: LifecycleRegistry = LifecycleRegistry.createUnsafe(this).apply { currentState = Lifecycle.State.RESUMED }
