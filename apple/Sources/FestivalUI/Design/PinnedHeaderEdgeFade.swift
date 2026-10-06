@@ -32,7 +32,7 @@ import SwiftUI
 /// Sheet-list positions are measured from the top of the List's scroll view, which
 /// reaches up under the sheet header by the pin line (its top content inset). The pin
 /// line and scroll offset come from `onScrollGeometryChange` on iOS 18 / macOS 15 and
-/// later, and from the List's platform scroll view (``ListScrollOffsetObserver``) on
+/// later, and from the List's platform scroll view (``PlatformScrollObserver``) on
 /// iOS 17 / macOS 14, so every supported system grows the same 40 pt ramp.
 enum PinnedHeaderEdgeFade {
     /// Distance below the pinned title's bottom edge over which rows fade in, in points:
@@ -40,14 +40,10 @@ enum PinnedHeaderEdgeFade {
     static let height = CGFloat(ScrollEdgeFade.topDistance)
 
     /// Whether sheet lists read their scroll position from the platform scroll view
-    /// (``ListScrollOffsetObserver``) because `onScrollGeometryChange` is missing: iOS 17
+    /// (``PlatformScrollObserver``) because `onScrollGeometryChange` is missing: iOS 17
     /// and macOS 14, or `FST_DEBUG_LEGACY_SCROLL_GEOMETRY=1` in Debug builds, which
     /// exercises that path on a newer simulator.
-    static var usesLegacyScrollTracking: Bool {
-        if DebugAnimationOverride.legacyScrollGeometry { return true }
-        if #available(iOS 18.0, macOS 15.0, *) { return false }
-        return true
-    }
+    static var usesLegacyScrollTracking: Bool { ScrollEdgeTracking.usesLegacyPath }
 
     /// The fade height for the current accessibility settings.
     ///
@@ -219,7 +215,7 @@ final class PinnedHeaderEdgeFadeState {
     /// Full fade height for the current accessibility settings.
     @ObservationIgnored private var fade = PinnedHeaderEdgeFade.height
     /// Follows the List's platform scroll view when ``legacyScrollTracking`` is on.
-    @ObservationIgnored private var legacyObserver: ListScrollOffsetObserver?
+    @ObservationIgnored private var legacyObserver: PlatformScrollObserver?
     /// Rows report their top only above this global line (the edge plus the full fade and
     /// some slack), so rows far below the header never update while scrolling.
     let rowLimit = TopInset()
@@ -284,7 +280,7 @@ final class PinnedHeaderEdgeFadeState {
     /// Follow the List's platform scroll view (``legacyScrollTracking`` only).
     fileprivate func attachLegacyScrollView(_ scrollView: ListPlatformScrollView) {
         guard legacyScrollTracking else { return }
-        let observer = legacyObserver ?? ListScrollOffsetObserver { [weak self] reading in
+        let observer = legacyObserver ?? PlatformScrollObserver { [weak self] reading in
             self?.setScroll(inset: reading.inset, offset: reading.offset)
         }
         legacyObserver = observer

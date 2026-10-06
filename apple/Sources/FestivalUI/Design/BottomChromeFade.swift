@@ -42,9 +42,17 @@ extension View {
     ///     screen never re-renders when it changes (issues #294, #305).
     ///   - distance: The page's fade height, updated from the scroll position.
     ///   - space: Named coordinate space shared with the chrome.
+    ///   - legacyScrollTracking: Read the scroll position from the platform scroll view
+    ///     (``ScrollEdgeTracking/usesLegacyPath``); tests set it to cover the iOS 17 /
+    ///     macOS 14 path on newer systems.
     /// - Returns: The scroll view, masked.
-    func bottomChromeFade(chromeTop: CGFloat?, distance: Binding<Double>, in space: String) -> some View {
-        modifier(BottomChromeFade(chromeTop: chromeTop, distance: distance, space: space))
+    func bottomChromeFade(
+        chromeTop: CGFloat?, distance: Binding<Double>, in space: String,
+        legacyScrollTracking: Bool = ScrollEdgeTracking.usesLegacyPath
+    ) -> some View {
+        modifier(BottomChromeFade(
+            chromeTop: chromeTop, distance: distance, space: space, legacyScrollTracking: legacyScrollTracking
+        ))
     }
 }
 
@@ -57,13 +65,15 @@ struct BottomChromeFade: ViewModifier {
     let chromeTop: CGFloat?
     @Binding var distance: Double
     let space: String
+    /// Read the scroll position from the platform scroll view (iOS 17 / macOS 14).
+    var legacyScrollTracking = ScrollEdgeTracking.usesLegacyPath
     /// The shared scroll-edge R7 setting, the same one every top-edge fade reads.
     @ScrollEdgeHardEdge private var hardEdge
 
     func body(content: Content) -> some View {
         let fadeDistance = ScrollEdgeFade.ramp(distance, hardEdge: hardEdge)
         content
-            .modifier(BottomFadeDistanceReader { distance = $0 })
+            .modifier(BottomFadeDistanceReader(legacy: legacyScrollTracking) { distance = $0 })
             .mask { mask(fadeDistance: fadeDistance) }
     }
 
@@ -122,34 +132,29 @@ struct BottomChromeFade: ViewModifier {
 // MARK: - Bottom fade distance reader
 
 /// Reports the bottom fade height for how far a scroll view's rows still run below its
-/// pinned chrome (iOS 18 / macOS 15 and later; nothing before, which keeps the full
-/// fade). Read from the scroll view: a last-row frame reader did not update while the
-/// List scrolled, so the fade stayed on the resting last row (issue #293). The value
-/// is clamped before it reaches the screen, so only the last fade-height of scrolling
+/// pinned chrome, on every supported system (``SwiftUI/View/onScrollEdgeReading(legacy:_:action:)``:
+/// `onScrollGeometryChange` on iOS 18 / macOS 15 and later, the platform scroll view
+/// before), so the last row comes to rest unfaded everywhere (scroll-edge R4; #308
+/// review). Read from the scroll view: a last-row frame reader did not update while the
+/// List scrolled, so the fade stayed on the resting last row (issue #293). The value is
+/// clamped before it reaches the screen, so only the last fade-height of scrolling
 /// re-renders it.
 ///
-/// The scroll view's height is `visibleRect`'s, which spans the regions under its
-/// insets for a `List` and a `ScrollView` alike. `containerSize` does only for a
-/// `List`: a `ScrollView` reports it without its safe-area insets, which counted
-/// the bottom inset twice, so the fade never shrank and the last row rested faded
-/// (Full Rankings, band boards; issue #305).
+/// The scroll view's height is `visibleRect`'s (the platform scroll view's bounds), which
+/// spans the regions under its insets for a `List` and a `ScrollView` alike.
+/// `containerSize` does only for a `List`: a `ScrollView` reports it without its
+/// safe-area insets, which counted the bottom inset twice, so the fade never shrank and
+/// the last row rested faded (Full Rankings, band boards; issue #305).
 struct BottomFadeDistanceReader: ViewModifier {
+    /// Read the platform scroll view (iOS 17 / macOS 14).
+    var legacy = ScrollEdgeTracking.usesLegacyPath
     let changed: (Double) -> Void
 
     func body(content: Content) -> some View {
-        if #available(iOS 18.0, macOS 15.0, *) {
-            content.onScrollGeometryChange(for: Double.self) { geometry in
-                ScrollEdgeFade.bottomDistance(lastRowOverflow: ScrollEdgeFade.contentOverflow(
-                    contentHeight: Double(geometry.contentSize.height),
-                    offsetY: Double(geometry.contentOffset.y),
-                    containerHeight: Double(geometry.visibleRect.height),
-                    bottomInset: Double(geometry.contentInsets.bottom)
-                )).rounded()
-            } action: { _, distance in
-                changed(distance)
-            }
-        } else {
-            content
+        content.onScrollEdgeReading(legacy: legacy) { reading in
+            ScrollEdgeFade.bottomDistance(lastRowOverflow: reading.overflow.map(Double.init)).rounded()
+        } action: { distance in
+            changed(distance)
         }
     }
 }

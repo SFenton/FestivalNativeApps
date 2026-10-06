@@ -209,34 +209,58 @@ func pinnedHeaderAccessibilitySettingsKeepAHardEdge(reduceTransparency: Bool, in
 }
 
 /// UIKit readings match `ScrollGeometry`: offset 0 at the resting top (content offset
-/// `-inset`), negative while pulled down.
-@Test func listScrollOffsetReadingFromAUIScrollViewOffset() {
-    #expect(ListScrollOffsetObserver.reading(contentOffsetY: -64, topInset: 64)
-        == .init(inset: 64, offset: 0))
-    #expect(ListScrollOffsetObserver.reading(contentOffsetY: -24, topInset: 64)
-        == .init(inset: 64, offset: 40))
-    #expect(ListScrollOffsetObserver.reading(contentOffsetY: -90, topInset: 64)
-        == .init(inset: 64, offset: -26))
+/// `-inset`), negative while pulled down; overflow 0 at the end of the content.
+@Test func platformScrollReadingFromAUIScrollViewOffset() {
+    func reading(_ y: CGFloat) -> PlatformScrollObserver.Reading {
+        PlatformScrollObserver.reading(
+            contentOffsetY: y, topInset: 64, contentHeight: 2000, containerHeight: 800, bottomInset: 90
+        )
+    }
+    #expect(reading(-64) == .init(inset: 64, offset: 0, overflow: 1354))
+    #expect(reading(-24) == .init(inset: 64, offset: 40, overflow: 1314))
+    #expect(reading(-90) == .init(inset: 64, offset: -26, overflow: 1380))
+    // At the end the content's bottom meets the bottom chrome (the bottom inset).
+    #expect(reading(1290).overflow == 0)
+    #expect(reading(1300).overflow == -10)
 }
 
 /// AppKit readings match `ScrollGeometry` for flipped (table) and unflipped documents.
-@Test func listScrollOffsetReadingFromAClipView() {
+@Test func platformScrollReadingFromAClipView() {
     // Flipped: the visible rect starts `inset` above the document's top at rest.
-    #expect(ListScrollOffsetObserver.reading(
+    #expect(PlatformScrollObserver.reading(
         visible: CGRect(x: 0, y: -52, width: 400, height: 600), documentHeight: 2000,
-        topInset: 52, flipped: true
-    ) == .init(inset: 52, offset: 0))
-    #expect(ListScrollOffsetObserver.reading(
+        topInset: 52, bottomInset: 48, flipped: true
+    ) == .init(inset: 52, offset: 0, overflow: 1500))
+    #expect(PlatformScrollObserver.reading(
         visible: CGRect(x: 0, y: 100, width: 400, height: 600), documentHeight: 2000,
         topInset: 52, flipped: true
-    ) == .init(inset: 52, offset: 152))
+    ) == .init(inset: 52, offset: 152, overflow: 1300))
+    #expect(PlatformScrollObserver.reading(
+        visible: CGRect(x: 0, y: 1448, width: 400, height: 600), documentHeight: 2000,
+        topInset: 52, bottomInset: 48, flipped: true
+    ).overflow == 0)
     // Unflipped: the document's top is its maxY.
-    #expect(ListScrollOffsetObserver.reading(
+    #expect(PlatformScrollObserver.reading(
         visible: CGRect(x: 0, y: 1452, width: 400, height: 600), documentHeight: 2000,
         topInset: 52, flipped: false
-    ) == .init(inset: 52, offset: 0))
-    #expect(ListScrollOffsetObserver.reading(
+    ) == .init(inset: 52, offset: 0, overflow: 1452))
+    #expect(PlatformScrollObserver.reading(
         visible: CGRect(x: 0, y: 1412, width: 400, height: 600), documentHeight: 2000,
         topInset: 52, flipped: false
-    ) == .init(inset: 52, offset: 40))
+    ) == .init(inset: 52, offset: 40, overflow: 1412))
+}
+
+/// From outside some content, the scroll view covering most of it is its scroll view: not
+/// a small nested scroller, not one beside it, and nothing when none covers half of it.
+@Test func enclosedScrollViewSearchPicksTheCoveringScrollView() {
+    let content = CGRect(x: 0, y: 100, width: 400, height: 600)
+    // The List reaches up under the header; a chip row inside it; a page beside it.
+    let list = CGRect(x: 0, y: 40, width: 400, height: 660)
+    let chips = CGRect(x: 0, y: 140, width: 400, height: 44)
+    let beside = CGRect(x: 400, y: 0, width: 400, height: 800)
+    #expect(EnclosedScrollViewSearch.best(target: content, candidates: [chips, beside, list]) == 2)
+    #expect(EnclosedScrollViewSearch.best(target: content, candidates: [chips, beside]) == nil)
+    // Equal cover: the outermost (first) wins.
+    #expect(EnclosedScrollViewSearch.best(target: content, candidates: [list, list]) == 0)
+    #expect(EnclosedScrollViewSearch.best(target: .zero, candidates: [list]) == nil)
 }
