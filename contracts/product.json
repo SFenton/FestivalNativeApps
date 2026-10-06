@@ -347,6 +347,7 @@
     "fst.player.percentile-row.*": "player-profile",
     "fst.leaderboards.loading": "leaderboards",
     "fst.song-leaderboard.pinned-title": "song-leaderboard",
+    "fst.song-leaderboard.header": "song-leaderboard",
     "fst.compete.leaderboard-card.*": "compete",
     "fst.stars": "star-rating",
     "fst.score": "song-leaderboard",

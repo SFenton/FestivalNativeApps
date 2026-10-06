@@ -939,6 +939,55 @@ final class SongDetailJourneyTests: XCTestCase {
         XCTAssertTrue(app.buttons["Back one page"].exists, "Lead lost its pager")
     }
 
+    /// Page a song leaderboard and verify the song header stays while only the rows
+    /// reload (issue #316; web `SongInfoHeader` sits outside its LoadGate).
+    ///
+    /// - Throws: An XCTest failure when the header leaves with the rows.
+    @MainActor
+    func testSoloLeaderboardHeaderStaysWhilePaging() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = SongsUITestSupport.fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+
+        let row = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "Fixture song row did not load")
+        row.tap()
+        let lead = app.buttons["fst.song-detail.leaderboard.Solo_Guitar"]
+        XCTAssertTrue(lead.waitForExistence(timeout: 10), "Lead leaderboard action is missing")
+        lead.tap()
+
+        let next = app.buttons["fst.song-leaderboard.page-next"]
+        let previous = app.buttons["fst.song-leaderboard.page-previous"]
+        XCTAssertTrue(next.waitForExistence(timeout: 10), "Pagination is not reachable")
+        SongsUITestSupport.collapseSidebarOnPad(app)
+        let header = app.descendants(matching: .any)
+            .matching(identifier: "fst.song-leaderboard.header").firstMatch
+        XCTAssertTrue(header.waitForExistence(timeout: 10), "The song header is missing on page 1")
+        let firstRow = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.song-leaderboard.row."))
+            .firstMatch
+        XCTAssertTrue(firstRow.waitForExistence(timeout: 10), "Page 1 rows did not load")
+
+        next.tap()
+        XCTAssertTrue(header.exists, "The song header left with the rows on the next page")
+        XCTAssertTrue(app.staticTexts["2 / 2"].waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(identifier: "fst.song-leaderboard.row.fixture-player-26")
+                .firstMatch.waitForExistence(timeout: 10),
+            "Page 2 rows did not load"
+        )
+        XCTAssertTrue(header.exists, "The song header is missing on page 2")
+
+        previous.tap()
+        XCTAssertTrue(header.exists, "The song header left with the rows on the previous page")
+        XCTAssertTrue(app.staticTexts["1 / 2"].waitForExistence(timeout: 10))
+        XCTAssertTrue(firstRow.waitForExistence(timeout: 10), "Page 1 rows did not return")
+        XCTAssertTrue(header.exists, "The song header is missing after paging back")
+    }
+
     /// Traverse Songs, Detail and page two, then verify landscape layout survives.
     ///
     /// - Throws: An XCTest failure for missing accessible actions or screen state.

@@ -507,6 +507,7 @@ struct SoloLeaderboardScreen: View {
         .padding(.vertical, 6)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier("fst.song-leaderboard.header")
         .onGeometryChange(for: Bool.self) { proxy in
             SongDetailPinnedTitlePolicy.isHeroHidden(titleMaxY: proxy.frame(in: .scrollView).maxY)
         } action: { hidden in
