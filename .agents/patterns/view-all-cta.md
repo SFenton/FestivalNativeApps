@@ -47,7 +47,7 @@ Apple consumers: `RivalsViewAllButton` (Rivals, Compete; via `PurpleActionLink`)
 | Debt | Breaks | Plan |
 |---|---|---|
 | Apple Song Detail cards label the button "View full leaderboard" (sentence case) and speak "View full `<chart>` leaderboard", which splits the visible label | R4 | Apple check; out of #268's Windows scope |
-| Android and Windows Rival Detail category "See All" and other "See All" copy; web `rivals.seeAll`, `compete.seeAll`, `player.seeAll` | R4, R6, R7 | Android, Windows and web checks of #321 |
+| Windows Rival Detail category "See All" and other Windows "See All" copy (Android and web now say "View All", #321) | R4, R6, R7 | Windows check of #321 |
 | Android Song Detail instrument/band cards (View Full Leaderboard), View All Scores, Leaderboards View All Rankings (N) and Profile View All Bands pass no `cardName`, so TalkBack reads the label alone (audited in #176; Rivals hub and Compete pass it) | R4 | Pass the card title as `cardName` in each consumer's Android check |
 
 ## Guards (`tools/pattern_guard.py`)

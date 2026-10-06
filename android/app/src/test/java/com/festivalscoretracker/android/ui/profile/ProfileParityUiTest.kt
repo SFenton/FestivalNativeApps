@@ -146,6 +146,8 @@ class ProfileParityUiTest {
         journey.tap("fst.quick-links.item.bands")
         journey.waitForTag("fst.player.bands-link")
         rule.onNodeWithTag("fst.player.bands-link").assertIsDisplayed()
+        // Issue #321: the title-row link reads "View All", label first.
+        rule.onNodeWithTag("fst.player.bands-link").assert(hasContentDescription("View All: ", substring = true))
     }
 
     @Test
@@ -338,10 +340,10 @@ class ProfileParityUiTest {
         installGroupedBands()
         journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
         journey.scrollTo("fst.player.bands")
-        // `section-headers` R8: the title-row link shows "View All" and TalkBack hears "View All {name}'s Bands".
+        // `section-headers` R8: the title-row link shows "View All" and TalkBack hears "View All: {name}'s Bands".
         val spoken = rule.onNodeWithTag("fst.player.bands-link").fetchSemanticsNode().config[SemanticsProperties.ContentDescription].single()
-        assertTrue(spoken, Regex("View All .+'s Bands").matches(spoken))
-        rule.onNodeWithText(spoken.removePrefix("View All ")).assertIsDisplayed()
+        assertTrue(spoken, Regex("View All: .+'s Bands").matches(spoken))
+        rule.onNodeWithText(spoken.removePrefix("View All: ")).assertIsDisplayed()
         rule.onNodeWithTag("fst.player.bands-link").assert(SemanticsMatcher.expectValue(SeeAllVisibleLabelKey, "View All"))
         assertTrue(rule.onAllNodes(hasText("See All", substring = true), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
         assertTrue(rule.onAllNodes(hasContentDescription("See All", substring = true)).fetchSemanticsNodes().isEmpty())

@@ -408,6 +408,14 @@
           "message": "Pinned section headers belong to the canonical Songs list (section-headers R4)."
         },
         {
+          "id": "android-view-all-copy",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "\"[^\"]*\\bSee [Aa]ll\\b",
+          "allow": [],
+          "debt": [],
+          "message": "The app says \"View All\", never \"See All\"; title-row links use SeeAllButton/ViewAllLinkText (section-headers R8, #321)."
+        },
+        {
           "id": "windows-sticky-copy",
           "glob": "windows/**/*.xaml",
           "regex": "x:Name=\"(StickyHeader|IncomingHeader)\"",

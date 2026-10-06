@@ -209,15 +209,15 @@ private fun Modifier.rivalTintBar(color: Color): Modifier = drawBehind {
 // region Section card
 
 /**
- * A titled group with a "See All" action (web section header card).
+ * A titled group with a "View All" link (web section header card).
  *
  * @param title Title Case heading.
  * @param modifier Modifier.
  * @param instrument Leading chart icon.
  * @param description Secondary line.
  * @param titleColor Heading color (category sentiment).
- * @param onSeeAll "See All" action, or null to hide it.
- * @param seeAllTag Test tag for "See All".
+ * @param onSeeAll "View All" action, or null to hide it.
+ * @param seeAllTag Test tag for "View All".
  */
 @Composable
 fun RivalSectionHeader(
@@ -232,7 +232,7 @@ fun RivalSectionHeader(
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         if (instrument != null) InstrumentIcon(instrument, size = 36.dp, decorative = true)
         // Traversal group: TalkBack reads the title and its description before the
-        // vertically centred See All, which otherwise sorts between them.
+        // vertically centred View All, which otherwise sorts between them.
         Column(Modifier.weight(1f).semantics { isTraversalGroup = true }) {
             Text(
                 title,
@@ -246,9 +246,8 @@ fun RivalSectionHeader(
         if (onSeeAll != null) {
             SeeAllButton(
                 onClick = onSeeAll,
+                section = title,
                 modifier = if (seeAllTag != null) Modifier.testTag(seeAllTag) else Modifier,
-                label = RivalText.SEE_ALL,
-                spokenLabel = "${RivalText.SEE_ALL}: $title",
             )
         }
     }
