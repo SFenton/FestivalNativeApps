@@ -28,9 +28,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,6 +52,8 @@ import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.LoadSwapSpinner
 import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.common.rememberSingleColumn
+import com.festivalscoretracker.android.ui.common.rememberMeasuredOffset
+import com.festivalscoretracker.android.ui.common.rememberMeasuredPx
 
 // region Shared grid
 
@@ -81,7 +80,7 @@ internal fun bandRouteFor(entry: PlayerBandEntry): AppRoute = BandRoute(entry.ke
  */
 @Composable
 private fun BandGrid(padding: PaddingValues, tag: String, controls: @Composable () -> Unit, content: LazyGridScope.() -> Unit) {
-    var contentLeft by remember { mutableFloatStateOf(0f) }
+    var contentLeft by rememberMeasuredPx(0f)
     // One column under TalkBack or at large text, like every other content grid (rememberSingleColumn).
     val singleColumn = rememberSingleColumn()
     BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { contentLeft = it.positionInWindow().x }) {
@@ -182,7 +181,7 @@ internal const val BAND_MISSING_ID_MESSAGE = "This band link is missing an ID an
 @Composable
 fun BandNotFoundScreen() {
     FestivalScreen(title = "Band", isRoot = false, modifier = Modifier.testTag("fst.bands.screen")) { padding ->
-        var contentOrigin by remember { mutableStateOf(Offset.Zero) }
+        var contentOrigin by rememberMeasuredOffset(Offset.Zero)
         BoxWithConstraints(Modifier.fillMaxSize().padding(padding).onGloballyPositioned { contentOrigin = it.positionInWindow() }) {
             val split = BandLayout.listSplit(rememberBandHinge(contentOrigin.x, maxWidth))
             val viewport = rememberBandTabletopHinge(contentOrigin.y, maxHeight)?.left?.dp ?: maxHeight

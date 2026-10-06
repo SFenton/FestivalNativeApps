@@ -41,6 +41,9 @@ struct SongDetailScreen: View {
     /// Whether the hero title has scrolled under the navigation bar (gap #6). Only
     /// the Bool changes while scrolling, so the page body is not re-evaluated every frame.
     @State private var heroTitleHidden = false
+    /// The hero title's bottom edge in the scroll content: scrolling past it pins the
+    /// title in the bar (`songHeaderScrollAway`, like the song leaderboards).
+    @State private var heroTitleBottom: CGFloat = 0
     /// The page's width (the web viewport), for Score History's season column (issue #32).
     @State private var pageWidth: CGFloat = 0
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -190,6 +193,7 @@ struct SongDetailScreen: View {
         .detailFadeTestSafe()
         .festivalBackground(.song(song.albumArt), session: session)
         .festivalNavigationTitle(song.title)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: heroTitleHidden)
         .toolbar { detailToolbar }
         // iPhone tab-bar accessory (issue #92): Item Shop, then Paths, then Quick Links.
         .festivalPageTool(
@@ -262,9 +266,10 @@ struct SongDetailScreen: View {
     private var detailToolbar: some ToolbarContent {
         #if os(iOS)
         if !deviceLayout.sectionChrome.isVerticalBar {
-            ToolbarItem(placement: .principal) {
-                pinnedTitle
-            }
+            SongBarTitleToolbarItem(
+                song: song, session: session, caption: nil, isShown: heroTitleHidden,
+                identifier: "fst.song-detail.pinned-title"
+            )
         }
         #endif
         if pageTools == nil, let offer = shopOffer {
@@ -320,23 +325,15 @@ struct SongDetailScreen: View {
                     ArtworkTile(raw: song.albumArt, session: session, size: 96)
                         .id(song.albumArt)
                         .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 8) {
-                        MarqueeText(song.title, font: .title.bold())
-                            .onGeometryChange(for: Bool.self) { proxy in
-                                SongDetailPinnedTitlePolicy.isHeroHidden(
-                                    titleMaxY: proxy.frame(in: .scrollView).maxY
-                                )
-                            } action: { hidden in
-                                heroTitleHidden = hidden
-                            }
-                        MarqueeText(song.artist, font: .body)
-                            .foregroundStyle(FestivalText.primary)
+                    SongHeaderText(
+                        title: song.title, artist: song.artist, titleFont: .title.bold(), spacing: 8,
+                        onTitleBottomChange: { heroTitleBottom = $0 }
+                    ) {
                         if let year = song.year {
                             Text(year.formatted(.number.grouping(.never)))
                                 .foregroundStyle(FestivalText.primary)
                         }
                     }
-                    .marqueeSync()
                 }
                 .accessibilityElement(children: .combine)
                 // The page's h1 (spec "Accessibility order"): the rotor's first heading.
@@ -437,10 +434,12 @@ struct SongDetailScreen: View {
                 }
             }
             .padding(16)
+            .songHeaderContentSpace()
             // Only what is on screen at load fades; lazily built cards scrolled into
             // view afterwards appear without a fade (issue #30).
             .festivalFadeInScope()
         }
+        .songHeaderScrollAway(headerBottom: heroTitleBottom) { heroTitleHidden = $0 }
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width.rounded() }) { width in
             pageWidth = width
         }
@@ -561,46 +560,6 @@ extension SongDetailScreen {
             .accessibilityIdentifier("fst.song-detail.shop")
         }
     }
-
-    /// Compact art + title shown in the navigation bar once the hero title scrolls
-    /// under it: the native form of the PWA's pinned song header.
-    ///
-    /// Built only while the hero is scrolled away, so the title is never announced
-    /// twice. A transparent copy kept in the tree was still read (and audited as
-    /// invisible, fixed-size text) on iPadOS: the bar hosts this view outside SwiftUI's
-    /// accessibility hiding. A `.hidden()` placeholder of the same text keeps the bar's
-    /// layout from jumping as the title appears.
-    private var pinnedTitle: some View {
-        ZStack(alignment: .leading) {
-            Text(song.title)
-                .font(.headline)
-                .lineLimit(1)
-                .padding(.leading, 36)
-                .hidden()
-            if heroTitleHidden {
-                HStack(spacing: 8) {
-                    ArtworkTile(raw: song.albumArt, session: session, size: 28)
-                        .accessibilityHidden(true)
-                    MarqueeText(song.title)
-                        .font(.headline)
-                        .foregroundStyle(FestivalText.primary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
-                .transition(.opacity)
-                .accessibilityElement(children: .combine)
-                .accessibilityAddTraits(.isHeader)
-                // The bar caps its text size at accessibility sizes: a long press shows
-                // the title in the Large Content Viewer, as system bar titles do.
-                .accessibilityShowsLargeContentViewer()
-                .accessibilityIdentifier("fst.song-detail.pinned-title")
-            }
-        }
-        .frame(maxWidth: 240)
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: heroTitleHidden)
-        // A bar title stays on one line at every text size.
-        .environment(\.marqueeWrapsAtAccessibilitySizes, false)
-    }
 }
 
 /// High visibility priority for Song Detail's page-unique actions (iOS 27+).
@@ -645,7 +604,8 @@ enum SongDetailShopActionStyle: Equatable, Sendable {
     }
 }
 
-/// Decide when Song Detail's navigation bar should carry the song's identity.
+/// Decide when Full Rankings' navigation bar should carry the page title (Song Details
+/// now uses ``SwiftUI/View/songHeaderScrollAway(headerBottom:legacy:action:)``).
 enum SongDetailPinnedTitlePolicy {
     /// The hero counts as scrolled away once its title's bottom edge passes the top
     /// of the scroll view.

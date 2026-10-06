@@ -47,7 +47,9 @@ class MockServiceTests(unittest.TestCase):
             "metadataEdge": False,
             "largeRankings": False,
             "largeCatalogue": False,
+            "longTitles": False,
             "serviceInfoDiscovery": False,
+            "songLeaderboardPaging": False,
         })
         self.assertEqual(set(identity["sourceHashes"]), {
             "tools/mock_service.py",
@@ -245,6 +247,62 @@ class MockServiceTests(unittest.TestCase):
         finally:
             large.shutdown()
             large.server_close()
+            thread.join(timeout=2)
+
+    def test_long_titles_mode_retitles_only_the_scrollable_song(self):
+        """`--long-titles` widens `fixture-pulse`'s title; its boards still scroll."""
+        with urlopen(self.base + "/api/songs") as response:
+            default = json.load(response)
+        server = FixtureServer(("127.0.0.1", 0), FixtureHandler, long_titles=True)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        base = f"http://127.0.0.1:{server.server_port}"
+        try:
+            with urlopen(base + "/api/songs") as response:
+                etag = response.headers["ETag"]
+                body = json.load(response)
+            self.assertNotEqual(etag, '"fst-fixture-songs-v1"')
+            titles = {song["songId"]: song["title"] for song in body["songs"]}
+            self.assertGreaterEqual(len(titles["fixture-pulse"]), 90)
+            for song in default["songs"]:
+                if song["songId"] != "fixture-pulse":
+                    self.assertEqual(titles[song["songId"]], song["title"])
+            with urlopen(base + "/api/leaderboard/fixture-pulse/Solo_Guitar?top=25") as response:
+                self.assertGreaterEqual(len(json.load(response)["entries"]), 20)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+    def test_song_leaderboard_paging_mode_slows_later_pages_and_fails_the_last(self):
+        """`--song-leaderboard-paging`: four Lead pages, later ones slow, page 4 fails (#316)."""
+        from tools import mock_service
+        with urlopen(self.base + "/api/leaderboard/fixture-pulse/Solo_Guitar?top=25") as response:
+            self.assertEqual(json.load(response)["totalEntries"], 26)
+        paging = FixtureServer(("127.0.0.1", 0), FixtureHandler, song_leaderboard_paging=True)
+        thread = threading.Thread(target=paging.serve_forever, daemon=True)
+        thread.start()
+        base = f"http://127.0.0.1:{paging.server_port}/api/leaderboard/fixture-pulse/Solo_Guitar"
+        try:
+            with patch.object(mock_service.time, "sleep") as sleep:
+                with urlopen(base + "?top=25") as response:
+                    first = json.load(response)
+                sleep.assert_not_called()
+                self.assertEqual(first["totalEntries"], 100)
+                self.assertEqual(len(first["entries"]), 25)
+                with urlopen(base + "?top=25&offset=50") as response:
+                    third = json.load(response)
+                self.assertEqual([e["rank"] for e in third["entries"]][:1], [51])
+                sleep.assert_called_with(mock_service.SLOW_SONG_LEADERBOARD_PAGE_SECONDS)
+                with self.assertRaises(HTTPError) as failure:
+                    urlopen(base + "?top=25&offset=75")
+                self.assertEqual(failure.exception.code, 500)
+            with urlopen(f"http://127.0.0.1:{paging.server_port}"
+                         "/api/leaderboard/fixture-pulse/Solo_Bass?top=25") as response:
+                self.assertEqual(json.load(response)["totalEntries"], 0)
+        finally:
+            paging.shutdown()
+            paging.server_close()
             thread.join(timeout=2)
 
     def test_multi_instrument_song_history_feeds_instrument_switching(self):

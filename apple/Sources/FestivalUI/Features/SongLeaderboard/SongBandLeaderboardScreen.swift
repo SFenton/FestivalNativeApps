@@ -81,13 +81,18 @@ struct SongBandLeaderboardContent: View {
     @State private var bottomFadeDistance = ScrollEdgeFade.distance
     /// The page's measured width, for the footer's fitted columns.
     @State private var chartWidth: CGFloat = 0
-    /// The in-list song header has scrolled under the bar: show art, title and band
-    /// size in the bar instead, like the solo board (issue #317).
+    /// The song header has scrolled under the bar: show art, title and band size in the
+    /// bar instead, like the solo board (issues #315, #317).
     @State private var headerHidden = false
     /// Visible height of the scroll view, for the reload gate's spinner area.
     @State private var viewportHeight: CGFloat = 0
     /// Height of the song header with its padding, for the reload gate's spinner area.
     @State private var headerHeight: CGFloat = 0
+    /// A page change under the collapsed header: the gate stays a full visible page tall
+    /// until the new rows are revealed, so the page starts at its first row with the
+    /// header still under the bar (``LeaderboardPaging/reloadScroll(headerUnderBar:boardChanged:)``,
+    /// issue #316).
+    @State private var rowsAtTop = false
     @Environment(\.deviceLayout) private var layout
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
@@ -100,6 +105,12 @@ struct SongBandLeaderboardContent: View {
     nonisolated private static let pageSpace = "fst.song-band-leaderboard.page"
     /// Scroll identity of the song header, the top of the page.
     nonisolated private static let headerAnchor = "fst.song-band-leaderboard.top"
+    /// Scroll identity of the reload gate, where the rows start.
+    nonisolated private static let rowsAnchor = "fst.song-band-leaderboard.rows"
+    /// Space between the bar and the song header, like the solo board's header row.
+    nonisolated private static let headerTopInset: CGFloat = 20
+    /// Space between the song header and the first card.
+    nonisolated private static let headerBottomGap: CGFloat = 12
 
     private struct RequestKey: Equatable {
         let bandType: BandType
@@ -190,8 +201,8 @@ struct SongBandLeaderboardContent: View {
                     // 20 pt below the bar and 12 pt above the first card, like the solo
                     // board's header row.
                     songHeader
-                        .padding(.top, 20)
-                        .padding(.bottom, 12)
+                        .padding(.top, Self.headerTopInset)
+                        .padding(.bottom, Self.headerBottomGap)
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
                             headerHeight = height
                         }
@@ -207,9 +218,15 @@ struct SongBandLeaderboardContent: View {
                     // The rest of the visible page, so the spinner and error state sit
                     // centred below the header rather than against it.
                     .frame(minHeight: gateMinHeight)
+                    .id(Self.rowsAnchor)
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, Self.rowGap)
+            }
+            // Read from the scroll offset, like the solo board's `List` (song-header R4):
+            // the header's bottom edge is its padded height less the gap under it.
+            .songHeaderScrollAway(headerBottom: max(0, headerHeight - Self.headerBottomGap)) {
+                headerHidden = $0
             }
             // Cards fade out above the pinned footer and pager like the solo board's
             // rows (issues #305, #306): a sibling pager under the scroll view cut them
@@ -222,9 +239,23 @@ struct SongBandLeaderboardContent: View {
                 viewportHeight = height
             }
             // A reload starts from the top, as the web resets scroll on these reloads
-            // (the gate's rows rebuild, but the scroll view now outlives them).
-            .onChange(of: requestKey) { _, _ in
-                proxy.scrollTo(Self.headerAnchor, anchor: .top)
+            // (the gate's rows rebuild, but the scroll view now outlives them). A page
+            // change under the collapsed header starts at the new page's first row and
+            // keeps the header under the bar, as the web pins its collapsed header
+            // while paging (issue #316).
+            .onChange(of: requestKey) { old, new in
+                let target = LeaderboardPaging.reloadScroll(
+                    headerUnderBar: headerHidden,
+                    boardChanged: old.bandType != new.bandType || old.accountId != new.accountId
+                )
+                rowsAtTop = target == .firstRow
+                switch target {
+                case .top:
+                    proxy.scrollTo(Self.headerAnchor, anchor: .top)
+                case .firstRow:
+                    // Once the gate has grown to a full visible page.
+                    Task { @MainActor in proxy.scrollTo(Self.rowsAnchor, anchor: .top) }
+                }
             }
         }
         .rankingsListRailClearance(layout)
@@ -248,10 +279,13 @@ struct SongBandLeaderboardContent: View {
         .festivalNavigationTitle(song.title)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: headerHidden)
         .toolbar {
-            SongLeaderboardPinnedTitle(
-                song: song, session: session, boardName: bandType.label,
-                idPrefix: "fst.song-band-leaderboard", headerHidden: headerHidden
+            // iOS and iPadOS: the Mac keeps its window title (song-header R4).
+            #if os(iOS)
+            SongBarTitleToolbarItem(
+                song: song, session: session, caption: bandType.label, isShown: headerHidden,
+                identifier: "fst.song-band-leaderboard.pinned-title"
             )
+            #endif
             if pageTools == nil {
                 ToolbarItem(placement: .festivalPageAction) { bandTypeMenu }
             }
@@ -400,29 +434,31 @@ struct SongBandLeaderboardContent: View {
 
     // MARK: Song header
 
-    /// The shared song leaderboard header with the band size as its board line.
+    /// The shared song header (``SongHeaderRow``: title and artist on one full-width
+    /// marqueeing line each, issue #315) with the band size as its board line.
     ///
     /// The line names the band size chosen now, so it reads "Trios" the moment Trios is
     /// picked; the entry total joins only once a Trios page has answered (a Duos total
     /// never sits under "Trios").
     private var songHeader: some View {
         let loaded = shown.flatMap { $0.key.bandType == bandType ? $0.payload.leaderboard : nil }
-        return SongLeaderboardHeader(
-            song: song, session: session,
-            boardLine: SongLeaderboardBoardLine.text(
+        return SongHeaderRow(song: song, session: session) {
+            MarqueeText(SongLeaderboardBoardLine.text(
                 name: bandType.label, totalEntries: loaded?.totalEntries,
                 showsTotals: loaded?.showLeaderboardEntryTotals
-            ),
-            idPrefix: "fst.song-band-leaderboard", hidden: $headerHidden
-        )
+            ))
+            .foregroundStyle(FestivalText.primary)
+        }
+        .accessibilityIdentifier("fst.song-band-leaderboard.header")
     }
 
     // MARK: Gated rows
 
     /// Height of the visible page below the header, so the reload spinner and the error
-    /// state sit centred in it.
+    /// state sit centred in it; the whole visible page while a page change keeps the
+    /// header under the bar (``rowsAtTop``).
     private var gateMinHeight: CGFloat {
-        max(0, viewportHeight - headerHeight - Self.rowGap)
+        max(0, viewportHeight - (rowsAtTop ? 0 : headerHeight) - Self.rowGap)
     }
 
     /// The reload gate's content: the band cards, the empty line or the error state.
@@ -459,6 +495,8 @@ struct SongBandLeaderboardContent: View {
             }
             // Rows start under the header even when they are fewer than a screen.
             .frame(maxWidth: .infinity, minHeight: gateMinHeight, alignment: .top)
+            // Revealed: the page no longer holds a full visible page of height.
+            .onAppear { rowsAtTop = false }
             // Opened for one band's row: scroll it into view once (web `navToPlayer`,
             // issue #307).
             .task(id: focusPending) {

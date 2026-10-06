@@ -109,6 +109,10 @@ class WhatsNewDeviceTest {
             val gap = with(rule.density) { (sheet.bottom - dismiss.bottom).toDp() }
             // Bar padding plus the gesture/navigation inset; never the empty band below short notes.
             assertTrue("Dismiss is $gap above the sheet's bottom edge", gap.value in 0f..80f)
+        } else {
+            // modal-shell R9 (#183): the dialog is 560 dp on every window ≥ 600 dp, never the platform's ~320 dp width.
+            val width = with(rule.density) { rule.onNodeWithTag("fst.whats-new.sheet").fetchSemanticsNode().size.width.toDp() }
+            assertEquals("dialog width", 560f, width.value, 2f)
         }
     }
 

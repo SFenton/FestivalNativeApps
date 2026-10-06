@@ -27,6 +27,11 @@ extension IPadAccessibilityAuditTests {
         app: XCUIApplication, proof: String
     ) throws -> [String: CGRect] {
         let name = "\(mode.rawValue)-\(page.name)"
+        if mode.isDuo, IPadAuditRenderedContrast.duoClockwise == nil, let root = try? app.snapshot() {
+            IPadAuditRenderedContrast.duoReferences = IPadAuditPageEvidence.flatten(root)
+                .filter { $0.elementType == .staticText && $0.label.count >= 6 && $0.frame.height > 10 }
+                .prefix(12).map { ($0.label, $0.frame) }
+        }
         let capture = IPadAuditRenderedContrast.Capture.screen()
         write(capture, tree: app, name: name)
         var containers: [String: CGRect] = [:]
