@@ -208,6 +208,10 @@ public struct FestivalRootView: View {
                 FestivalBackgroundHost(session: session)
                     .ignoresSafeArea()
                 shell(presentation)
+                    // The page behind the open drawer leaves the accessibility tree: the
+                    // panel's `isModal` hid it in the flyout shell but not behind the
+                    // phone drawer's tab shell (⅓ window audit: covered rows read 1:1).
+                    .accessibilityHidden(while: drawerPresented && usesDrawer)
                     .background { keyboardCommands(presentation, layout: layout) }
                     .modifier(ShellCommandsPublisher(commands: shellCommands(presentation)))
                     .modifier(FlyoutEdgeSwipe(

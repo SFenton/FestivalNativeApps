@@ -13,7 +13,7 @@
 | Filter persistence as its own file `%LOCALAPPDATA%\FestivalScoreTracker\suggestions-filter.json` (untouched filter = no file; corrupt/oversize = defaults) | `Festival.Core/Data/SuggestionFilterStore.cs` |
 | Row metadata by category key (web `getRowLayout`: rival, UNFC accuracy, season, percentile tier, stars, instrument chips) and Narrator names | `Festival.Core/Domain/SuggestionRowPresentation.cs` |
 | Page model: web batching (10 first, 6 per trigger, endless `resetForEndless` remix, 1,000-category cap + Start New Mix), one generator per (player, catalogue, score publication), rivals fetched in parallel and spliced when they answer, filter applied without regenerating | `Festival.Core/ViewModels/SuggestionsViewModel.cs`, `SuggestionsFilterDraft.cs` |
-| Page: virtualized `ListView` of Fluent cards; third-from-last realized card loads the next batch; filter `DropDownButton` flyout (Instruments / General expanders, collapsed like the web accordions; Instrument-Specific uses the web **Instrument Selector** with `DeferSelection`, nothing selected on opening, the chart's type switches expanding under it; switches apply live; Reset is the web Modal's full-width red button (batch 7.10); gold tint when active). Rows end with an in-card chevron (›, batch 7.3). The title and Filter action stay hidden behind the spinner until the first cards are ready, then fade in with them (web `headerStagger`, batch 6.41). Each card's title, description and category instrument (36 epx) sit above the card; rows follow the web `CategoryCard` (10 × 24 epx padding, separators between rows only, 34 epx instrument chips with 20 epx icons, 20 epx star images for star-gain categories, marquee titles on hover/focus); cards stagger in | `Festival.App/Pages/SuggestionsPage.xaml(.cs)`, `Festival.App/Controls/SuggestionSongRow.cs` |
+| Page: virtualized `ListView` of Fluent cards; third-from-last realized card loads the next batch; filter `DropDownButton` flyout (Instruments / General expanders, collapsed like the web accordions; Instrument-Specific uses the web **Instrument Selector** with `DeferSelection`, nothing selected on opening, the chart's type switches expanding under it; switches apply live; Reset is the web Modal's full-width red button (batch 7.10); gold tint when active). Rows end with an in-card chevron (›, batch 7.3). The title and Filter action stay hidden behind the spinner until the first cards are ready, then fade in with them (web `headerStagger`, batch 6.41). Each card's title, description and category instrument (36 epx) sit above the card; rows follow the web `CategoryCard` (10 × 24 epx padding, separators between rows only, 34 epx instrument chips with 20 epx icons, 20 epx star images for star-gain categories, marquee titles on hover/focus); cards stagger in, and each newly generated batch staggers from its own first card while cards already shown never fade again (`SuggestionsViewModel.CardsAdded` → `FadeIn.Restagger(list, batchStart)`, web `revealedCountRef`; the first batch, a new mix and a filter change restart from 0; issue #260, checked by `suggestions_journey.py --only fade`) | `Festival.App/Pages/SuggestionsPage.xaml(.cs)`, `Festival.App/Controls/SuggestionSongRow.cs` |
 
 States: no player, loading, syncing (202), failed (catalogue or profile; Retry), empty (no suggestions / filtered with Reset Filters), loaded, end-of-mix footer. Rows push Song Detail with the row's (or category's) chart.
 
@@ -58,6 +58,40 @@ Per configuration:
 - **Keyboard:** the Filter button and cards each take one Tab stop, and arrow keys move between rows.
 - **Axe:** 0 errors in every one of the 24 runs: `a11y_matrix.py --only suggestions --scan --tabs 20` in normal, hc-desert, hc-night-sky, light, dark, scale-100, scale-150 and text-200 modes, each at compact, medium and wide. `suggestions_journey.py --axe` also scans the filter, filtered-empty, end-of-mix, loading, syncing and denied states.
 - **Not reachable:** the page's no-player panel is defensive. The shell redirects player-only routes to Songs, and the journey asserts that redirect. `fst.suggestions.error` sits on `ServiceStatusView`, which has no UIA peer, so tests use `fst.service-status.{title,retry}`.
+
+## Validation (issue #259, 2026-10-04): rival rows of #59
+
+Rechecked #59 (no rival name pill on single-rival rows) with the `winui-design` and `winui-code-review` skills.
+
+Live public service (SFentonX):
+- Spotlight, gap, protect, slipping and dominate rows show only the signed delta and the instrument icon.
+- Their row names end with the rival, e.g. "Ride, Epic Games · 2025, Tap Vocals, 1 rank behind MarioFan1993".
+- Mixed families such as "FC These to Beat …" (`song_rival_near_fc`) keep the pill, because each row can name a different rival.
+
+Fix:
+- **Problem:** the delta's red literal (`#C62828`, from the web) measured 3.0:1 on the card. That fails WCAG 1.4.3's 4.5:1 for text.
+- **Change:** the delta now uses the Rivals text roles `FSTRivalWinTextBrush` (#5ED68A) and `FSTRivalLoseTextBrush` (#FF8A80), both above 7:1. The literal brushes are removed. winui-design says: "Hard-coded color literals → {ThemeResource} brushes by semantic name". In contrast themes the roles are WindowText, as before.
+- **Deviation:** this is a deliberate colour difference from the web's #C62828. The + or − sign still carries the meaning without colour.
+
+Tooling:
+- `suggestions_journey.py --only rival-rows` scrolls to the mixed `song_rival_pct_push` card and the spotlight `song_rival_spotlight_rival-below-1` card (seed 1).
+- It checks the dumped UIA tree: the pill is present only on the mixed card, and each spotlight row name ends "… ranks behind Rival B1". It then runs an Axe scan at compact, medium and wide.
+- The runner's Axe gate parsed text that `drive` never prints, so it could not fail. It now uses `songs_filter_journey.scan_errors` on the JSON response.
+- `suggestions_fixture_server.py` prints its bound port, so `a11y_matrix.py` can start it with `--port 0` for the new `suggestions-rivals` page.
+
+Per configuration:
+- **Widths:** fixture `rival-rows` passed at compact, medium and wide; `resize` passed at compact, wide, maximized, snap-left, snap-right and medium. Live SFentonX screenshots were taken at wide and compact.
+- **Live widths (retry, 2026-10-05):** the live public service (SFentonX, default keyless origin, no fixture) at medium, maximized, snap-left and snap-right. The "Rival Spotlight: Aapelikaapeli." card shows only "-1"/"+1" and the instrument icon on every row, and the UIA tree has no pill text between subtitle and delta. Its row names are identical at all four sizes, e.g. "Rocket Man, Elton John · 1972, Bass, 1 rank behind Aapelikaapeli." and "Centuries, Fall Out Boy · 2014, Lead, 1 rank ahead of Aapelikaapeli.". The mixed "FC These to Beat Taco Plz!" card keeps its "Taco Plz" pill. Axe found 0 errors at each size.
+- **Themes:** in light and dark the app stays dark (documented deviation). In Desert and Night sky the delta is WindowText; the sign still reads without colour.
+- **Text and display scale:** at text 200% the delta and icon stay beside the title block without clipping. Display scale 100% and 150% both pass.
+- **Keyboard:** `keyboard` passed, and the Tab walks reached 20 in-app stops with no stops outside the app and no traps.
+- **Axe:** `a11y_matrix.py --only suggestions` scanned 0 errors in normal, Desert, Night sky, light, dark, scale-100, scale-150 and text-200, at compact, medium and wide.
+- **Axe, rival rows:** the new seeded `suggestions-rivals` matrix page (`journeys/a11y.json`: Spotlight card in view) scanned 0 errors in 26 runs: normal and display 150% at compact, medium, wide, maximized, snap-left and snap-right; display 100%, text 200%, Desert and Night sky at compact, medium and wide; light and dark theme at medium.
+  - The first pass reported 2 `BoundingRectangleSizeReasonable` findings at 150% medium, on a row subtitle ("Artist N · 1975") clipped to zero height at the list's top edge.
+  - Cause: `scrollinto` leaves the list wherever the card first comes on screen, so some size and scale combination puts a text line exactly on the edge. This is setup, not app layout.
+  - Fix: the page now pins the Spotlight card 8 epx below the list top with the new driver step `scrollinset`, so the top edge crosses the 16-epx gap between cards. The rule is in [testing/windows](../../testing/windows.md).
+- **Journeys:** the full `suggestions_journey.py` run passed.
+- **Loading:** `loading` (an 8 s state) kept expiring while it waited behind other sessions on the shared desktop lock (`LOCK_BOUND`). A later retry passed at medium. It doesn't touch rival rows, and it passed at every width in the #205 run.
 
 ## IDs
 

@@ -230,6 +230,7 @@ class BandDetailViewModel(
  * @param loadCatalog Catalogue read (header).
  * @param loadBoard Page read `(songId, bandType, page, top)`.
  * @param backoff Shared retry backoff.
+ * @param initialPage Starting one-based page (route `?page=`; Song Detail's band row jumps here, issue #307).
  */
 class SongBandLeaderboardViewModel(
     songId: String,
@@ -237,9 +238,10 @@ class SongBandLeaderboardViewModel(
     loadCatalog: suspend (refresh: Boolean) -> CatalogPayload,
     loadBoard: suspend (String, BandType, Int, Int) -> SongBandLeaderboardResponse,
     backoff: ServiceRetryBackoff,
+    initialPage: Int = 1,
 ) : ViewModel() {
     private val typeFlow = MutableStateFlow(initialBandType)
-    private val pageFlow = MutableStateFlow(1)
+    private val pageFlow = MutableStateFlow(initialPage.coerceAtLeast(1))
     private val songLoader = RetryingLoader(viewModelScope, "song:$songId", backoff) { refresh ->
         SongResolver.resolve(loadCatalog(refresh).catalog.songs, songId)
     }

@@ -1739,7 +1739,16 @@ def cmd_uitest(args: argparse.Namespace) -> int:
     if not args.only:
         print("at least one --only Class[/testMethod] is required", file=sys.stderr)
         return 2
+    if code := scripting_preflight(bool(getattr(args, "set_pose", False))):
+        return code
     udid = resolve_device(args.device)
+    if getattr(args, "rotate", None) and getattr(args, "set_pose", False):
+        # Rotations are relative: start from a fresh boot so they land on the default
+        # orientation (the Duo boots closed, in its default orientation).
+        def shutdown(target: str) -> int:
+            _run(["xcrun", "simctl", "shutdown", target], check=False, capture_output=True)
+            return 0
+        _with_sim_lock(udid, shutdown)
     derived = driver_derived_data()
 
     current_hash = source_hash()
@@ -1774,8 +1783,12 @@ def cmd_uitest(args: argparse.Namespace) -> int:
         label = f"batch {batch_index}/{len(batches)}"
         returncode, elapsed, log_path, result_bundle = _run_uitest_batch(
             udid=udid, derived=derived, selectors=batch, timeout=args.timeout,
-            a11y=getattr(args, "a11y", None),
+            a11y=getattr(args, "a11y", None), pose=getattr(args, "pose", None),
+            set_pose=getattr(args, "set_pose", False), rotate=getattr(args, "rotate", None),
         )
+        if returncode == EXIT_POSE_MISMATCH:
+            print(f"uitest {label}: iPhone Duo pose not reached; stopping", file=sys.stderr)
+            return returncode
         if returncode:
             failed_batches.append((batch, returncode))
             log_text = log_path.read_text(encoding="utf-8", errors="replace")
@@ -1834,7 +1847,8 @@ def _result_counts(result_bundle: Path) -> str:
 
 def _run_uitest_batch(
     *, udid: str, derived: Path, selectors: list[str], timeout: float,
-    a11y: list[str] | None = None,
+    a11y: list[str] | None = None, pose: str | None = None, set_pose: bool = False,
+    rotate: list[str] | None = None,
 ) -> tuple[int, float, Path, Path]:
     """Run one bounded batch of ``-only-testing:`` selectors under one lock hold.
 
@@ -1867,8 +1881,29 @@ def _run_uitest_batch(
         fcntl.flock(lock, fcntl.LOCK_EX)
         lock.write(f"{os.getpid()} {REPO_ROOT}\n")
         lock.flush()
+        state = _run(["xcrun", "simctl", "list", "devices", udid], check=False, capture_output=True, text=True)
+        was_booted = "(Booted)" in (state.stdout or "")
         boot_exclusive(udid)
         _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
+        if pose:
+            # Inside this batch's lock hold: another lane's run between batches shuts the
+            # Duo down, and it boots closed in its default orientation.
+            # Still booted from this run's previous batch: the pose (and any rotation)
+            # stands; only a fresh boot or a mismatch sets it again.
+            problem = require_pose(udid, pose, False) if was_booted else "boot"
+            reset = problem is not None and set_pose
+            if reset:
+                problem = require_pose(udid, pose, True)
+            if problem:
+                print(problem, file=sys.stderr)
+                return EXIT_POSE_MISMATCH, time.time() - start, log_path, result_bundle
+            if reset:
+                for direction in rotate or []:
+                    try:
+                        set_duo_pose(udid, f"rotate-{direction}")
+                    except DeviceHubError as error:
+                        print(error, file=sys.stderr)
+                        return error.code, time.time() - start, log_path, result_bundle
         cmd = [
             "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", product().scheme,
             "-destination", f"platform=iOS Simulator,id={udid}",
@@ -2080,6 +2115,14 @@ def main(argv: list[str] | None = None) -> int:
                              "restored afterwards (repeatable)")
     uitest.add_argument("--app", choices=sorted(PRODUCTS), default=None,
                        help="UI-test product (default: ipad for the ipad alias, else phone)")
+    uitest.add_argument("--pose", choices=sorted(POSE_EXPECTED_CLASS),
+                        help="iPhone Duo: require this pose in every batch (re-set inside the batch's "
+                             "lock hold with --set-pose, so another lane's reboot cannot lose it)")
+    uitest.add_argument("--set-pose", action="store_true",
+                        help="with --pose: press Device Hub's pose control when needed (UI scripting)")
+    uitest.add_argument("--rotate", action="append", choices=["left", "right"],
+                        help="with --set-pose: Device Hub rotations after the pose, applied from a fresh "
+                             "boot (default orientation) whenever the Duo had to boot (repeatable)")
     uitest.set_defaults(func=cmd_uitest)
 
     pose = sub.add_parser("pose", help="print, set (Device Hub UI scripting) or calibrate the iPhone Duo pose")

@@ -121,9 +121,9 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
 
 /**
  * Standard screen chrome: transparent top app bar over the shared backdrop, the
- * drawer button on tab roots, back on pushed screens, then screen actions, global
- * search (in the floating toolbar on compact windows), the notifications slot and the
- * profile avatar as the rightmost action on tab roots.
+ * drawer button on tab roots, back on pushed screens, then screen actions (in the floating
+ * toolbar on compact windows), global search, the notifications slot and the profile avatar
+ * as the rightmost action.
  *
  * @param title Title Case title.
  * @param isRoot Whether this is a tab root.
@@ -131,11 +131,10 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
  * @param actions Screen actions, placed before search and the avatar.
  * @param pinActions On compact windows, keep the floating toolbar holding [actions] on screen
  *   while the page scrolls instead of hiding it (Songs, Suggestions: issue #52).
- * @param actionsAboveKeyboard On compact windows, [actions] currently hold a focused text field,
- *   so the shell lifts the floating toolbar above the on-screen keyboard (Songs search, issue #84).
  * @param actionsReadFirst On compact windows, TalkBack and keyboard focus reach the floating toolbar
  *   holding [actions] right after the top app bar instead of after the content: an endless feed
- *   (Suggestions) never ends, so a toolbar read last is unreachable by swiping (issue #112).
+ *   (Suggestions) never ends, so a toolbar read last is unreachable by swiping (issue #112); a
+ *   ~700-row list (Songs) is effectively the same (issue #160).
  * @param scrolled Content sits under the bar. No visual effect since batch 6.20 (the bar stays
  *   transparent); kept so screens can still report it without churn.
  * @param titleIcon Decorative icon drawn before the title (Instrument Leaderboards, issue #294),
@@ -151,7 +150,6 @@ fun FestivalScreen(
     modifier: Modifier = Modifier,
     actions: @Composable RowScope.() -> Unit = {},
     pinActions: Boolean = false,
-    actionsAboveKeyboard: Boolean = false,
     actionsReadFirst: Boolean = false,
     scrolled: Boolean = false,
     titleIcon: (@Composable (size: Dp) -> Unit)? = null,
@@ -176,7 +174,7 @@ fun FestivalScreen(
     // stays in the top app bar on every window size (operator 2026-09-28).
     val toolbarReadsFirst = shell.floatingToolbar != null && actionsReadFirst
     if (shell.floatingToolbar != null) {
-        FloatingToolbarContent(pinned = pinActions, aboveKeyboard = actionsAboveKeyboard, readFirst = actionsReadFirst) { actions() }
+        FloatingToolbarContent(pinned = pinActions, readFirst = actionsReadFirst) { actions() }
     }
     Scaffold(
         modifier = modifier

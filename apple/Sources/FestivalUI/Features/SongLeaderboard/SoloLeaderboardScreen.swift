@@ -26,8 +26,6 @@ struct SoloLeaderboardScreen: View {
     /// The chart's measured width, for the section's fitted columns (issue #37).
     @State private var chartWidth: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @Environment(\.colorSchemeContrast) private var contrast
     /// The last loaded page: keeps the pager's page count and the footer's columns
     /// while the next page loads, so neither disappears (issue #93).
     @State private var shownPayload: LeaderboardPayload?
@@ -36,6 +34,10 @@ struct SoloLeaderboardScreen: View {
     /// Height of the rows' bottom fade: full mid-list (and before iOS 18 / macOS 15),
     /// shrinking to 0 as the list reaches its end (issue #293).
     @State private var bottomFadeDistance = ScrollEdgeFade.distance
+    /// The selected player's row still needs scrolling into view once its page loads:
+    /// opened from Song Detail's spotlight row or after a footer jump (web
+    /// `navToPlayer`, issue #307).
+    @State private var focusPending: Bool
 
     /// Row insets: two rows sit ``rowGap`` apart.
     nonisolated private static let rowInset: CGFloat = 4
@@ -84,15 +86,18 @@ struct SoloLeaderboardScreen: View {
     ///   - session: Shared process-lifetime API and artwork session.
     ///   - initialPage: One-based page from navigation/deep link.
     ///   - path: Native tab's route descriptor to update on paging.
+    ///   - focusSelected: Bring the selected player's row into view once the page loads.
     ///   - initialState: Loading in production, fixture state in hosted UI tests.
     init(
         song: Song, instrument: Instrument, session: FestivalSession,
-        initialPage: Int, path: Binding<[AppRoute]>, initialState: LoadState = .loading
+        initialPage: Int, path: Binding<[AppRoute]>, focusSelected: Bool = false,
+        initialState: LoadState = .loading
     ) {
         self.song = song
         self.instrument = instrument
         self.session = session
         _page = State(initialValue: max(1, initialPage))
+        _focusPending = State(initialValue: focusSelected)
         _path = path
         _state = State(initialValue: initialState)
         if case let .loaded(payload) = initialState {
@@ -101,6 +106,11 @@ struct SoloLeaderboardScreen: View {
     }
 
     var body: some View {
+        // Read here, not only inside the reload gate's content or the mask's lazy
+        // `GeometryReader`, so measuring the pinned chrome always rebuilds the mask:
+        // otherwise the first page kept an opaque mask, and rows showed behind the
+        // pager, until something else re-rendered the page (issues #294, #305).
+        let chromeTop = bottomChromeTop
         // Page changes fade the rows out, show the spinner and fade the new page in
         // (web LoadGate, issue #71).
         FestivalReloadGate(key: requestKey, isLoading: state.isLoading, spinnerLabel: "Loading leaderboard") {
@@ -114,66 +124,83 @@ struct SoloLeaderboardScreen: View {
             case let .loaded(payload):
                 VStack(spacing: 0) {
                     scoreBanner(payload)
-                    List {
-                        // The song header scrolls with the rows (no card behind it);
-                        // once it passes under the bar the bar shows it instead.
-                        scoreHeader(payload)
-                            .listRowInsets(EdgeInsets(top: 20, leading: 16, bottom: 8, trailing: 16))
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                        ForEach(Array(payload.leaderboard.entries.enumerated()), id: \.element.id) { index, entry in
-                            let isSelectedRow = isSelectedAccount(entry.accountId)
-                            // One design with every leaderboard (web `entryRow`): each row
-                            // its own material card, the player's purple, with the chevron
-                            // inside the card. A button that pushes onto the tab's path
-                            // rather than a NavigationLink, so the List draws no second
-                            // disclosure indicator outside the card.
-                            Button {
-                                path.append(playerRoute(for: entry))
-                            } label: {
-                                HStack(spacing: 8) {
-                                    SongLeaderboardEntryRow(
-                                        entry: entry, isPlayer: isSelectedRow,
-                                        currentSeason: session.catalogCurrentSeason
-                                    )
-                                    Image(systemName: "chevron.forward")
-                                        .font(.footnote.weight(.semibold))
-                                        .foregroundStyle(FestivalText.deemphasized)
-                                        .accessibilityHidden(true)
+                    ScrollViewReader { proxy in
+                        List {
+                            // The song header scrolls with the rows (no card behind it);
+                            // once it passes under the bar the bar shows it instead.
+                            scoreHeader(payload)
+                                .listRowInsets(EdgeInsets(top: 20, leading: 16, bottom: 8, trailing: 16))
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                            ForEach(Array(payload.leaderboard.entries.enumerated()), id: \.element.id) { index, entry in
+                                let isSelectedRow = isSelectedAccount(entry.accountId)
+                                // One design with every leaderboard (web `entryRow`): each row
+                                // its own material card, the player's purple, with the chevron
+                                // inside the card. A button that pushes onto the tab's path
+                                // rather than a NavigationLink, so the List draws no second
+                                // disclosure indicator outside the card.
+                                Button {
+                                    path.append(playerRoute(for: entry))
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        SongLeaderboardEntryRow(
+                                            entry: entry, isPlayer: isSelectedRow,
+                                            currentSeason: session.catalogCurrentSeason
+                                        )
+                                        Image(systemName: "chevron.forward")
+                                            .font(.footnote.weight(.semibold))
+                                            .foregroundStyle(FestivalText.deemphasized)
+                                            .accessibilityHidden(true)
+                                    }
+                                    .padding(.horizontal, 14)
+                                    .frame(minHeight: LeaderboardRowMetrics.minHeight)
+                                    .modifier(RankingRowSurface(isSelected: isSelectedRow))
+                                    .contentShape(Rectangle())
                                 }
-                                .padding(.horizontal, 14)
-                                .frame(minHeight: LeaderboardRowMetrics.minHeight)
-                                .modifier(RankingRowSurface(isSelected: isSelectedRow))
-                                .contentShape(Rectangle())
+                                .festivalRowButtonStyle()
+                                // Accessibility grouping first, fade outermost: wrapping the
+                                // link in the fade before `.contain` hid its score texts
+                                // from the row's descendants.
+                                .accessibilityElement(children: .contain)
+                                .accessibilityIdentifier(
+                                    "fst.song-leaderboard.row.\(entry.accountId)"
+                                )
+                                .detailStaggeredFadeIn(index: index, settled: staggerSettled)
+                                .listRowInsets(EdgeInsets(
+                                    top: Self.rowInset, leading: 16, bottom: Self.rowInset, trailing: 16
+                                ))
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
                             }
-                            .festivalRowButtonStyle()
-                            // Accessibility grouping first, fade outermost: wrapping the
-                            // link in the fade before `.contain` hid its score texts
-                            // from the row's descendants.
-                            .accessibilityElement(children: .contain)
-                            .accessibilityIdentifier(
-                                "fst.song-leaderboard.row.\(entry.accountId)"
-                            )
-                            .detailStaggeredFadeIn(index: index, settled: staggerSettled)
-                            .listRowInsets(EdgeInsets(
-                                top: Self.rowInset, leading: 16, bottom: Self.rowInset, trailing: 16
-                            ))
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
                         }
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
+                        // Opened for the selected player's row: scroll it into view once
+                        // (web `navToPlayer`, issue #307).
+                        .task(id: focusPending) {
+                            guard focusPending, let target = payload.leaderboard.entries.first(where: {
+                                isSelectedAccount($0.accountId)
+                            }) else {
+                                focusPending = false
+                                return
+                            }
+                            if await SelectedRowReveal.reveal(target.id, proxy: proxy, reduceMotion: reduceMotion) {
+                                focusPending = false
+                            }
+                        }
+                        .rankingsListRailClearance(layout)
+                        // Rows fade out over up to 36 pt above the pinned footer and pager
+                        // and are not drawn beneath them (web `useScrollFade`, issue #93),
+                        // so the chrome floats over the page background with no opaque
+                        // band, and no row text sits under its text (the contrast audit
+                        // that once required the band). The fade shrinks away as the last
+                        // row arrives, so the list ends one row gap above the chrome with
+                        // no reserved margin (issue #293). Shared with every paginated
+                        // board, with or without a footer (issue #305).
+                        .bottomChromeFade(
+                            chromeTop: chromeTop, distance: $bottomFadeDistance, in: Self.pageSpace
+                        )
                     }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
-                    .rankingsListRailClearance(layout)
-                    .modifier(BottomFadeDistanceReader { bottomFadeDistance = $0 })
-                    // Rows fade out over up to 36 pt above the pinned footer and pager
-                    // and are not drawn beneath them (web `useScrollFade`, issue #93),
-                    // so the chrome floats over the page background with no opaque
-                    // band, and no row text sits under its text (the contrast audit
-                    // that once required the band). The fade shrinks away as the last
-                    // row arrives, so the list ends one row gap above the chrome with
-                    // no reserved margin (issue #293).
-                    .mask { bottomChromeFadeMask }
                 }
                 .task {
                     await FadeStagger.settle(afterRevealing: payload.leaderboard.entries.count) {
@@ -290,11 +317,7 @@ struct SoloLeaderboardScreen: View {
                 }
             }
         }
-        .onGeometryChange(for: CGFloat?.self) { proxy in
-            proxy.size.height > 0 ? proxy.frame(in: .named(Self.pageSpace)).minY : nil
-        } action: { top in
-            bottomChromeTop = top
-        }
+        .reportsBottomChromeTop(in: Self.pageSpace) { bottomChromeTop = $0 }
     }
 
     /// Padding that rests the last row one row gap above the footer, or above the
@@ -306,34 +329,6 @@ struct SoloLeaderboardScreen: View {
             hasFooter: session.selectedPlayer != nil && selectedPlayerEntry() != nil,
             hasPager: shownPayload != nil && !layout.sectionChrome.isVerticalBar
         )
-    }
-
-    /// Alpha mask for the rows: opaque, then a fade of up to 36 pt ending at the
-    /// pinned chrome's top edge, clear beneath it. The fade shrinks as the last row
-    /// reaches its resting place, one row gap above the chrome (issue #293). Extends
-    /// into the top safe area so rows still scroll under the navigation bar.
-    private var bottomChromeFadeMask: some View {
-        GeometryReader { proxy in
-            let frame = proxy.frame(in: .named(Self.pageSpace))
-            let stops = ScrollEdgeFade.bottom(
-                height: Double(frame.height),
-                obscured: bottomChromeTop.map { Double(frame.maxY - $0) } ?? 0,
-                distance: bottomFadeDistance
-            )
-            if bottomChromeTop == nil {
-                Color.black
-            } else {
-                LinearGradient(
-                    stops: [
-                        .init(color: .black, location: stops.fadeStart),
-                        .init(color: .clear, location: stops.fadeEnd),
-                    ],
-                    startPoint: .top, endPoint: .bottom
-                )
-            }
-        }
-        .ignoresSafeArea()
-        .accessibilityHidden(true)
     }
 
     // MARK: Selected-player spotlight
@@ -354,9 +349,10 @@ struct SoloLeaderboardScreen: View {
     /// paginated board may or may not currently show their row.
     ///
     /// Tapping the row opens Statistics, matching the web client's footer
-    /// (`LeaderboardPage.tsx:476-500`, `navigate('/statistics')`); a trailing jump
-    /// control — a native addition beyond web — moves straight to their page when
-    /// they are not visible on the current one.
+    /// (`LeaderboardPage.tsx:476-500`, `navigate('/statistics')`), while their row is
+    /// on the shown page; otherwise it jumps to their page and brings the row into view
+    /// (a native addition beyond web). The band board's footer follows the same rule
+    /// (``SelectedRowAction``, issue #307).
     @ViewBuilder
     private var selectedPlayerFooter: some View {
         if let selected = session.selectedPlayer, let entry = selectedPlayerEntry() {
@@ -370,18 +366,21 @@ struct SoloLeaderboardScreen: View {
             // Same row design and columns as the list rows (operator batch 7.3). Off
             // this page, tapping jumps to the player's page; on it, opens Statistics.
             Group {
-                if isVisible {
+                let action = SelectedRowAction.footer(rank: rank, isVisible: isVisible, pageSize: 25)
+                switch action {
+                case .openProfile:
                     NavigationLink(value: AppRoute.statistics) {
                         footerRow(entry)
                     }
-                    .accessibilityLabel("Your rank, \(RankingFormatting.ordinal(rank)).")
-                } else {
+                    .accessibilityLabel(action.footerLabel(for: .player, rank: rank))
+                    .accessibilityIdentifier("fst.song-leaderboard.spotlight-open")
+                case let .jump(destination):
                     Button {
-                        move(to: LeaderboardPaging.page(forRank: rank, pageSize: 25))
+                        move(to: destination, focusSelected: true)
                     } label: {
                         footerRow(entry)
                     }
-                    .accessibilityLabel("Your rank, \(RankingFormatting.ordinal(rank)). Jump to your page.")
+                    .accessibilityLabel(action.footerLabel(for: .player, rank: rank))
                     .accessibilityIdentifier("fst.song-leaderboard.spotlight-jump")
                 }
             }
@@ -418,29 +417,10 @@ struct SoloLeaderboardScreen: View {
         )
     }
 
-    /// The player's footer row, drawn exactly like a list row.
+    /// The player's footer row, drawn exactly like a list row (shared with the band
+    /// board's footer, ``SelectedScoreFooterRow``).
     private func footerRow(_ entry: LeaderboardEntry) -> some View {
-        HStack(spacing: 8) {
-            SongLeaderboardEntryRow(
-                entry: entry, isPlayer: true, currentSeason: session.catalogCurrentSeason
-            )
-            Image(systemName: "chevron.forward")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(FestivalText.deemphasized)
-                .accessibilityHidden(true)
-        }
-        .padding(.horizontal, 14)
-        .frame(minHeight: LeaderboardRowMetrics.minHeight)
-        .modifier(RankingRowSurface(isSelected: true))
-        // The footer floats over artwork with no band behind it (issue #93): with
-        // Reduce Transparency or Increase Contrast its translucent purple gets an
-        // opaque backing, as the pager's plates already have.
-        .background {
-            if reduceTransparency || contrast == .increased {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(BrandTokens.appBackground)
-            }
-        }
+        SelectedScoreFooterRow(entry: entry, currentSeason: session.catalogCurrentSeason)
     }
 
     /// Send a row to the shared Statistics tab when it is the selected player,
@@ -554,42 +534,16 @@ struct SoloLeaderboardScreen: View {
 
     /// Change both the visible page and its native navigation descriptor.
     ///
-    /// - Parameter destination: One-based page inside the loaded chart's bounds.
-    private func move(to destination: Int) {
+    /// - Parameters:
+    ///   - destination: One-based page inside the loaded chart's bounds.
+    ///   - focusSelected: Bring the selected player's row into view once it loads.
+    private func move(to destination: Int, focusSelected: Bool = false) {
         state = .loading
+        focusPending = focusSelected
         page = destination
         if !path.isEmpty {
-            path[path.count - 1] = .songLeaderboard(song, instrument, destination)
+            path[path.count - 1] = .songLeaderboard(song, instrument, destination, focusSelected: focusSelected)
         }
     }
 
-}
-
-// MARK: - Bottom fade distance reader
-
-/// Reports the bottom fade height for how far a scroll view's rows still run below its
-/// pinned chrome (iOS 18 / macOS 15 and later; nothing before, which keeps the full
-/// fade). Read from the scroll view: a last-row frame reader did not update while the
-/// List scrolled, so the fade stayed on the resting last row (issue #293). The value
-/// is clamped before it reaches the screen, so only the last fade-height of scrolling
-/// re-renders it.
-struct BottomFadeDistanceReader: ViewModifier {
-    let changed: (Double) -> Void
-
-    func body(content: Content) -> some View {
-        if #available(iOS 18.0, macOS 15.0, *) {
-            content.onScrollGeometryChange(for: Double.self) { geometry in
-                ScrollEdgeFade.bottomDistance(lastRowOverflow: ScrollEdgeFade.contentOverflow(
-                    contentHeight: Double(geometry.contentSize.height),
-                    offsetY: Double(geometry.contentOffset.y),
-                    containerHeight: Double(geometry.containerSize.height),
-                    bottomInset: Double(geometry.contentInsets.bottom)
-                )).rounded()
-            } action: { _, distance in
-                changed(distance)
-            }
-        } else {
-            content
-        }
-    }
 }

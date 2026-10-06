@@ -250,6 +250,20 @@
     ]
   },
   {
+    "name": "suggestions-rivals",
+    "route": "/suggestions",
+    "profile": "fixture-suggest:Fixture Player",
+    "fixture": ["suggestions_fixture_server.py"],
+    "env": {"FST_DEBUG_SUGGESTIONS_SEED": "1"},
+    "ready": [
+      "waitfor:id=fst.suggestions.list@25",
+      "scrollinto:id=fst.suggestions.category.song_rival_pct_push@30",
+      "scrollinto:id=fst.suggestions.category.song_rival_spotlight_rival-below-1@30",
+      "scrollinset:id=fst.suggestions.category.song_rival_spotlight_rival-below-1|id=fst.suggestions.list|8",
+      "waitfor:name=Track 41, Artist B · 1968, Pro Lead, 2 ranks behind Rival B1@10"
+    ]
+  },
+  {
     "name": "leaderboards",
     "route": "/leaderboards",
     "ready": [
@@ -366,6 +380,14 @@
     "ready": [
       "waitfor:id=fst.rivals.section.common@20",
       "wait:2"
+    ]
+  },
+  {
+    "name": "compete-loading",
+    "route": "/compete",
+    "profile": "fixture-player-slow:Demo Player",
+    "ready": [
+      "waitfor:id=fst.rivals.section.common.loading@20"
     ]
   },
   {

@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.songs
 
+import androidx.compose.ui.semantics.getOrNull
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
@@ -267,8 +268,16 @@ class SongsParityUiTest {
         // Trios ranks the player's band 2nd: highlighted in place, not appended.
         rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.band-row.Band_Trios.1"))
         assertFalse(exists("fst.song-detail.band-selected.Band_Trios"))
+        // Leaderboard-row R7 (issue #307): the appended row jumps to the band's place on the
+        // full board, like the solo spotlight row; in-place rows still open the band.
+        fun label(tag: String) = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().config.getOrNull(SemanticsActions.OnClick)?.label
+        assertEquals("Jump to your band's position", label("fst.song-detail.band-selected.Band_Duets"))
+        assertEquals("Open band", label("fst.song-detail.band-row.Band_Trios.1"))
         click("fst.song-detail.band-selected.Band_Duets")
-        waitForTag("fst.band.screen")
+        waitForTag("fst.song-band-leaderboard.screen")
+        waitForTag("fst.song-band-leaderboard.row.band-12:12", unmerged = true)
+        waitForTag("fst.song-band-leaderboard.spotlight-footer", unmerged = true)
+        assertFalse(exists("fst.band.screen"))
     }
 
     @Test

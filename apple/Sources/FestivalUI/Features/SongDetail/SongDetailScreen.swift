@@ -43,6 +43,7 @@ struct SongDetailScreen: View {
     @State private var heroTitleHidden = false
     /// The page's width (the web viewport), for Score History's season column (issue #32).
     @State private var pageWidth: CGFloat = 0
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Section chrome: the iPhone Duo vertical bar needs a titled symbol Shop item.
@@ -281,6 +282,24 @@ struct SongDetailScreen: View {
         QuickLinksToolbarItem(quickLinks)
     }
 
+    /// One instrument's leaderboard preview card, with its fade and Quick Links entry.
+    ///
+    /// - Parameters:
+    ///   - instrument: The card's instrument.
+    ///   - index: Its position among the cards (fade stagger).
+    /// - Returns: The card.
+    private func instrumentCard(_ instrument: Instrument, index: Int) -> some View {
+        SongScorePreview(
+            song: song, instrument: instrument, session: session,
+            preloaded: previewPreloads[instrument]
+        )
+        .festivalFadeIn(isLoaded: true, index: index + 3)
+        .quickLinkSection(QuickLinkSection(
+            id: "instrument-\(instrument.rawValue)", title: instrument.label,
+            icon: .instrument(instrument)
+        ))
+    }
+
     /// Opens the Paths sheet.
     private var pathsButton: some View {
         Button {
@@ -376,20 +395,34 @@ struct SongDetailScreen: View {
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
-                    LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: 360), spacing: 12)],
-                        alignment: .leading, spacing: 20
-                    ) {
-                        ForEach(Array(previewInstruments.enumerated()), id: \.element) { index, instrument in
-                            SongScorePreview(
-                                song: song, instrument: instrument, session: session,
-                                preloaded: previewPreloads[instrument]
-                            )
-                            .festivalFadeIn(isLoaded: true, index: index + 3)
-                            .quickLinkSection(QuickLinkSection(
-                                id: "instrument-\(instrument.rawValue)", title: instrument.label,
-                                icon: .instrument(instrument)
-                            ))
+                    if dynamicTypeSize.isAccessibilitySize {
+                        // Eager rows at accessibility sizes: scrolling the lazy grid's very
+                        // tall, unequal cards to the end of the page at AX5 hung the main
+                        // thread in a lazy-layout loop (iPad portrait, sampled 2026-10-05,
+                        // Lane A11Y3); the same columns, built at once.
+                        let columns = SongDetailCardColumns.count(forWidth: pageWidth - 32)
+                        let rows = SongDetailCardColumns.rows(previewInstruments, columns: columns)
+                        VStack(alignment: .leading, spacing: 20) {
+                            ForEach(rows, id: \.self) { row in
+                                HStack(alignment: .top, spacing: 12) {
+                                    ForEach(row, id: \.self) { instrument in
+                                        instrumentCard(instrument, index: previewInstruments.firstIndex(of: instrument) ?? 0)
+                                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                                    }
+                                    ForEach(0..<(columns - row.count), id: \.self) { _ in
+                                        Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: SongDetailCardColumns.minimumWidth), spacing: 12)],
+                            alignment: .leading, spacing: 20
+                        ) {
+                            ForEach(Array(previewInstruments.enumerated()), id: \.element) { index, instrument in
+                                instrumentCard(instrument, index: index)
+                            }
                         }
                     }
                 }
@@ -629,3 +662,34 @@ enum SongDetailPinnedTitlePolicy {
 }
 
 /// Load a visible chart's top ten via the same public, publication-aware API as Solo.
+
+/// Columns of Song Detail's instrument cards: as many 360 pt columns as fit (the lazy
+/// grid's `.adaptive(minimum: 360, spacing: 12)`), at least one.
+enum SongDetailCardColumns {
+    /// Narrowest card column.
+    static let minimumWidth: CGFloat = 360
+    /// Space between columns.
+    static let spacing: CGFloat = 12
+
+    /// Column count for a content width.
+    ///
+    /// - Parameter width: Width the cards share.
+    /// - Returns: Columns, at least one.
+    static func count(forWidth width: CGFloat) -> Int {
+        guard width.isFinite, width > 0 else { return 1 }
+        return max(1, Int(((width + spacing) / (minimumWidth + spacing)).rounded(.down)))
+    }
+
+    /// Instruments split into rows of `columns`.
+    ///
+    /// - Parameters:
+    ///   - instruments: Cards in order.
+    ///   - columns: Cards per row.
+    /// - Returns: The rows.
+    static func rows(_ instruments: [Instrument], columns: Int) -> [[Instrument]] {
+        let size = max(1, columns)
+        return stride(from: 0, to: instruments.count, by: size).map {
+            Array(instruments[$0 ..< min($0 + size, instruments.count)])
+        }
+    }
+}

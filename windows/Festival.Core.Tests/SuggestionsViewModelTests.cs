@@ -321,6 +321,42 @@ public sealed class SuggestionsViewModelTests
     }
 
     [Fact]
+    public async Task CardsAddedReportsWhereEachNewBatchStarts()
+    {
+        var harness = new Harness { RivalsStatus = HttpStatusCode.NotFound };
+        var model = harness.Model();
+        var starts = new List<int>();
+        model.CardsAdded += (_, start) => starts.Add(start);
+
+        await model.LoadAsync();
+        Assert.Equal([0], starts);
+
+        // A scroll-triggered batch starts after the cards already shown.
+        model.LoadMore();
+        Assert.Equal([0, SuggestionsViewModel.InitialBatch], starts);
+
+        // A filter change rebuilds every card (and may generate more): one announcement from 0.
+        starts.Clear();
+        var unplayed = SuggestionCategoryTypeInfo.All.Where(t => t != SuggestionCategoryType.Unplayed)
+            .Aggregate(SuggestionFilterSettings.Default, (f, t) => f.WithGlobalType(t, false));
+        model.ApplyFilter(unplayed);
+        Assert.Equal([0], starts);
+
+        // Nothing visible: no announcement.
+        starts.Clear();
+        var none = SuggestionCategoryTypeInfo.All.Aggregate(SuggestionFilterSettings.Default, (f, t) => f.WithGlobalType(t, false));
+        model.ApplyFilter(none);
+        model.LoadMore();
+        Assert.Empty(starts);
+
+        // A new mix is all new cards.
+        model.ApplyFilter(SuggestionFilterSettings.Default);
+        starts.Clear();
+        model.StartNewMixCommand.Execute(null);
+        Assert.Equal([0], starts);
+    }
+
+    [Fact]
     public async Task FilteringEverythingShowsFilteredEmptyState()
     {
         var harness = new Harness();

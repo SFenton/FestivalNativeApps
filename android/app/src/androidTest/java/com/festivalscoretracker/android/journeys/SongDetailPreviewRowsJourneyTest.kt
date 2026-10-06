@@ -106,7 +106,7 @@ class SongDetailPreviewRowsJourneyTest {
 
         assertButtonRow(row(other), "Open profile")
         assertButtonRow(row(Fixtures.ACCOUNT_B), "Open profile")
-        assertButtonRow("fst.song-detail.your-rank.Solo_Guitar", "Open your page of the full leaderboard")
+        assertButtonRow("fst.song-detail.your-rank.Solo_Guitar", "Jump to your position")
         val anonymous = requireNotNull(node(row("rank-2"))) { "no visible anonymous row" }
         assertFalse("anonymous row is actionable", anonymous.isClickable)
         assertEquals("Profile unavailable", anonymous.stateDescription?.toString())

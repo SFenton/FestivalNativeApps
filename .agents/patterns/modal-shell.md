@@ -2,7 +2,7 @@
 
 > **What:** the shared sheet, dialog and alert container with its title, dismissal and standard Close affordance. **Read when:** presenting a scoped task, confirmation or notice.
 
-Status: **current**, 2026-10-05. Provenance: #23, #24, #25, #94, #96.
+Status: **current**, 2026-10-05. Provenance: #23, #24, #25, #94, #96, #125, #139, #140.
 
 ## Intent
 
@@ -24,6 +24,7 @@ A modal identifies one short, scoped task, exposes its platform-standard dismiss
 - **R5. Keep the body below the header.** The Apple shell applies the shared top fade (#94); Android and Windows retain a hard content edge. Modal presentation never covers its own title or Close control.
 - **R6. Preserve the feedback-form exception.** It has potentially lossy text input, so it uses Cancel and Submit with discard confirmation rather than the ordinary Close-only task shell. Apple HIG Sheets: “Single-view sheets: Cancel on the top toolbar's leading edge; Done, when present, trailing.”
 - **R7. Serialize presentations.** Dismiss a sheet before opening another; a confirmation alert may sit above a modal, but never stack independent alerts. Apple HIG Sheets: “Display only one sheet at a time from the main interface.”
+- **R8. Keep surfaces off a separating hinge with one side rule (Android).** Sheets, centred dialogs and the full-page service status ([empty-error-states](empty-error-states.md) R7) never straddle a **separating** fold or hinge. Material 3: “Never place interactive content or critical information across the hinge area.” A vertical hinge (book posture) keeps the wider side of the surface's page, the leading side on a tie; a horizontal hinge (tabletop) always keeps the part **below** it, whichever half is larger, and only a page that ends inside the hinge keeps the part above. Flat folds keep the ordinary placement. The rule lives once in `core/nav/HingeSide.kt` (`HingeSide.keep` / `HingeSide.padding`, page-rectangle aware); `SheetHinge`, `DialogHinge` and `serviceStatusHingeSide` only adapt its result to sheet padding, a centring area or page padding. Agent decision (#140, design review of #212): one shared helper after the three surfaces' copies drifted on tabletop; the owner may override.
 
 ## Canonical implementation
 
@@ -32,6 +33,7 @@ A modal identifies one short, scoped task, exposes its platform-standard dismiss
 | Sheet/dialog shell | `apple/Sources/FestivalUI/Design/FestivalModal.swift` `FestivalModal` | `android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt` `FestivalModalSheet`, `FestivalModalDialog` | `windows/Festival.App/Controls/FestivalDialog.cs` `FestivalDialog` |
 | Standard Close | `apple/Sources/FestivalUI/Design/SheetStyle.swift` `FestivalSheetCloseItem` | `android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt` `FestivalModalCloseButton` | `windows/Festival.App/Controls/FestivalDialog.cs` `Create` |
 | Confirmation | `apple/Sources/FestivalUI/Design/FestivalModal.swift` `FestivalModal` | `android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt` `FestivalAlertDialog` | `windows/Festival.App/Controls/FestivalDialog.cs` `ShowAsync` |
+| Separating-hinge side (R8) | — (Duo layouts: [design/apple/duo.md](../design/apple/duo.md)) | `android/app/src/main/java/com/festivalscoretracker/android/core/nav/HingeSide.kt` `HingeSide` | — (no hinge posture) |
 
 ## Known debt
 
@@ -45,3 +47,4 @@ A modal identifies one short, scoped task, exposes its platform-standard dismiss
 - `modal-shell/android-bottom-sheet`
 - `modal-shell/android-alert-dialog`
 - `modal-shell/apple-manual-modal-close` (precise single-line `ToolbarItem` Close/xmark forms; current-tree scan has no outside-`Design/` match)
+- `modal-shell/android-hinge-side` (a new `…HingeSide/Insets/Area/Padding` function outside `core/nav` and the three adapters)
