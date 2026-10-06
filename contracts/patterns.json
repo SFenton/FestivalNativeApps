@@ -579,6 +579,10 @@
           {
             "path": "apple/Sources/FestivalUI/App/Shell/RootChrome.swift",
             "symbol": "FestivalRootTrailingItems"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Shell/RootChrome.swift",
+            "symbol": "RootProfileButton"
           }
         ],
         "android": [
@@ -593,6 +597,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/TopBarActions.kt",
             "symbol": "AdaptiveTopBarActions"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
+            "symbol": "ProfileAvatarButton"
           }
         ],
         "windows": [
@@ -603,6 +611,10 @@
           {
             "path": "windows/Festival.App/Pages/SongsPage.xaml",
             "symbol": "Actions"
+          },
+          {
+            "path": "windows/Festival.App/MainWindow.xaml",
+            "symbol": "ProfileButton"
           }
         ]
       },
@@ -634,6 +646,15 @@
             "windows/Festival.App/MainWindow.xaml"
           ],
           "message": "Global title-bar command content belongs to the main shell (page-tools-and-nav-chrome R5, R6)."
+        },
+        {
+          "id": "apple-profile-item-glass",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "sharedBackgroundVisibility",
+          "allow": [
+            "apple/Sources/FestivalUI/App/Shell/RootChrome.swift"
+          ],
+          "message": "Only the shell's profile item hides its toolbar glass, through profileItemBackground (page-tools-and-nav-chrome R8)."
         }
       ],
       "related": {
