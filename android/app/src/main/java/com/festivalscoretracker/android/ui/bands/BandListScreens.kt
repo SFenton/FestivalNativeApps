@@ -262,9 +262,12 @@ fun PlayerBandsScreen(viewModel: PlayerBandsViewModel, title: String, onNavigate
                     itemsIndexed(list.entries, key = { _, entry -> entry.key }) { index, entry ->
                         PlayerBandCard(entry, { onNavigate(bandRouteFor(entry)) }, with(swap) { Modifier.staggered(index) })
                     }
-                    fullRow("pager") { Box(swap.contentModifier) { BandPager(page, list.pageCount(viewModel.pageSize), "fst.player-bands", viewModel::goTo) } }
                 }
             }
+            // The pager stays outside the swapped result, visible and usable while a page loads, so
+            // a newer page supersedes the pending one (load-transition R4; web keeps the previous
+            // page's count as placeholder data). Hidden for the first load and on failure, as on web.
+            loaded?.let { list -> fullRow("pager") { BandPager(page, list.pageCount(viewModel.pageSize), "fst.player-bands", viewModel::goTo) } }
         }
     }
 }

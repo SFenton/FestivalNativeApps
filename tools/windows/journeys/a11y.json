@@ -383,6 +383,14 @@
     ]
   },
   {
+    "name": "compete-loading",
+    "route": "/compete",
+    "profile": "fixture-player-slow:Demo Player",
+    "ready": [
+      "waitfor:id=fst.rivals.section.common.loading@20"
+    ]
+  },
+  {
     "name": "rivals",
     "route": "/rivals",
     "profile": "fixture-player-1:Demo Player",

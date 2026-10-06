@@ -327,12 +327,21 @@ public sealed record SongLeaderboardRowViewModel(LeaderboardEntry Entry, bool Is
     /// <summary>Badge UIA ID (<c>fst.score.accuracy.&lt;accountId&gt;</c>, as on Apple's full Solo chart).</summary>
     public string BadgeAutomationId => "fst.score.accuracy." + Entry.AccountId;
 
-    /// <summary>Screen-reader name.</summary>
-    public string Announcement =>
+    /// <summary>Screen-reader name while the season column is hidden (rows under 520 epx).</summary>
+    public string Announcement => Announce(false);
+
+    /// <summary>Screen-reader name with the season, read while the row shows it (issue #262).</summary>
+    public string SeasonShownAnnouncement => Announce(true);
+
+    /// <summary>Builds the screen-reader name.</summary>
+    /// <param name="season">Whether to read the season.</param>
+    /// <returns>Rank, name, score, accuracy, full combo, season, then stars.</returns>
+    private string Announce(bool season) =>
         (IsSelected && Entry.Rank > 0 ? $"Your rank, {RankingFormatting.Ordinal(Entry.Rank)}. {Name}" :
          IsSelected ? $"Your score. {Name}" : $"Rank {RankText}, {Name}") +
         $", {Score} points" + (HasAccuracy ? $", {Accuracy} accuracy" : "") +
         (IsFullCombo ? ", " + ScoreFormatting.FullComboAnnouncement(HasAccuracy) : "") +
+        (season && Entry.Season is { } s ? string.Create(CultureInfo.InvariantCulture, $", season {s}") : "") +
         (StarRating.From(Entry.Stars) is { } stars ? $", {stars.Announcement}" : "");
 }
 #endregion

@@ -302,7 +302,7 @@ private fun RankingRowLayout(
         val weight = if (isSelected) FontWeight.Bold else null
         val columns = LocalRankingColumns.current
         if (isLargeText() || columns?.stacked == true) {
-            StackedRankingRow(rank, name, songs, rating, bayesian, weight, route != null)
+            StackedRankingRow(rank, name, songs, rating, bayesian, weight, route != null, columns?.rank)
             return@Row
         }
         Text(
@@ -340,10 +340,17 @@ private fun RankingRowLayout(
 /**
  * [RankingRowLayout]'s content at large font scales: rank and the (wrapping) name on the
  * first line, the songs count and rating on the next, so no column is squeezed or overlaps.
+ * The rank keeps the section's shared width, so names line up down the section (issue #149).
  */
 @Composable
-private fun RowScope.StackedRankingRow(rank: Int, name: String, songs: String, rating: String, bayesian: String?, weight: FontWeight?, navigable: Boolean) {
-    Text(RankingFormatting.rankLabel(rank), style = MaterialTheme.typography.labelLarge, fontWeight = weight, color = BrandTokens.textPrimary)
+private fun RowScope.StackedRankingRow(rank: Int, name: String, songs: String, rating: String, bayesian: String?, weight: FontWeight?, navigable: Boolean, rankWidth: Dp?) {
+    Text(
+        RankingFormatting.rankLabel(rank),
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = weight,
+        color = BrandTokens.textPrimary,
+        modifier = rankWidth?.let { Modifier.widthIn(min = it) } ?: Modifier,
+    )
     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = weight, color = BrandTokens.textPrimary)
         Text(rating, style = MaterialTheme.typography.bodyLarge, fontWeight = weight ?: FontWeight.SemiBold, color = RatingBlue)

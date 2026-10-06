@@ -358,6 +358,9 @@
         <Setter Property="MinHeight" Value="36" />
         <Setter Property="Margin" Value="0,6,0,0" />
         <Setter Property="FontWeight" Value="SemiBold" />
+        <!-- Contrast themes draw the accent button as HighlightText on Highlight; WinUI's automatic adjustment would
+             otherwise paint a Window backplate box behind the label (as ServiceStatusView's Retry; issue #264). -->
+        <Setter Property="HighContrastAdjustment" Value="None" />
     </Style>
 
     <!-- Instrument / band header above a card (web InstrumentHeader MD): 36 epx icon, bold title, optional subtitle. -->

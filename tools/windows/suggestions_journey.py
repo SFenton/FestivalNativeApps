@@ -7,7 +7,11 @@ window presets, keyboard navigation (Tab per card, Up/Down per row, Esc focus re
 open), the filtered-empty state and its Reset, incremental loading, the end of a mix and Start New Mix, row ->
 Song Detail -> back, the redirect without a selected player, the loading, syncing (202) and denied (403) states and
 an unreachable service with Retry. ``rival-rows`` (issue #259) checks the dumped UIA tree: single-rival spotlight rows
-draw no rival name pill and name the rival in their Narrator name, mixed-rival rows keep the pill. Steps are UIA patterns or posted keys, so the journeys also run while the console
+draw no rival name pill and name the rival in their Narrator name, mixed-rival rows keep the pill. ``fade`` (issue
+#260) runs with ``--perf-log`` and checks the ``FadeIn`` lines per phase (``fade_trace.py``): the cards on screen at
+load fade, a scroll straight after the load (inside the 1 s window) realizes old cards without a fade, the next generated
+batch fades only its new cards, and scrolling back to the top and down again fades nothing. Steps are UIA patterns or
+posted keys, so the journeys also run while the console
 is locked (screenshots are then black: pass ``--shots`` only on an unlocked desktop). Axe scans must report 0 errors.
 
 Usage: ``python tools/windows/suggestions_journey.py [--port 18767] [--shots DIR] [--only NAME] [--sizes compact,medium,wide]``
@@ -26,6 +30,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import journey_exe  # noqa: E402  (sibling module)
+import fade_trace  # noqa: E402  (sibling module)
 import songs_filter_journey  # noqa: E402  (sibling module: shared Axe response parsing)
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -129,6 +134,8 @@ SCENARIOS: dict[str, tuple[str | None, dict[str, str], list[str]]] = {
         [*LOADED, f"scrollinto:{TENTH_CARD}", f"scrollinto:{RIVAL_CARD}@15", f"waitfor:{RIVAL_CARD}@10",
          "{shot:load-more}"],
     ),
+    # Load-only fades (issue #260): steps run in FADE_PHASES, each judged on the fade lines it appended.
+    "fade": (PROFILE, {}, []),
     "rival-rows": (
         PROFILE,
         {},
@@ -201,6 +208,36 @@ SCENARIOS: dict[str, tuple[str | None, dict[str, str], list[str]]] = {
 }
 
 
+CARD_LIST = "CardList"
+# UI Automation needs a second or more between the list appearing and its first scroll, so the fade scenario
+# lengthens the app's 1 s arm window (Debug/automation FST_DEBUG_FADE_WINDOW_MS): a scroll then lands inside the
+# window, where only the scroll-close rule (not the timeout) can keep the old rows it realizes from fading.
+FADE_WINDOW_MS = 4000
+FADE_PHASES = [
+    # R5: the cards on screen at load fade in, staggered from the first; a scroll straight after the load closes the
+    # window, and the old cards it realizes appear without a fade. Reaching the end may generate the next batch,
+    # whose new cards alone may fade; back at the top, still inside the window, the first screen's recycled cards
+    # (which a time-only window would fade again) come back without a fade.
+    fade_trace.Phase("load-scroll", ["waitfor:id=fst.nav.suggestions@30", "select:id=fst.nav.suggestions",
+                                     f"waitfor:{ROW}@30", "scrollto:id=fst.suggestions.list,100",
+                                     "scrollto:id=fst.suggestions.list,0"],
+                     lambda events: fade_trace.check_load_then_scroll(events, CARD_LIST, FADE_WINDOW_MS)),
+    # Scrolling to the end of the loaded cards generates the next batch: only its new cards fade, from their first.
+    # A batch's cards fade only when realized within its arm's window, which a busy host can miss when the batch
+    # lands beyond the realization cache, so the phase jumps to the end a few times: each jump realizes its batch.
+    fade_trace.Phase("load-more", ["scrollto:id=fst.suggestions.list,0", f"waitfor:{CARD}@10",
+                                   f"scrollinto:{TENTH_CARD}", f"scrollinto:{RIVAL_CARD}@15", f"waitfor:{RIVAL_CARD}@10",
+                                   *["scrollto:id=fst.suggestions.list,100", "wait:0.4"] * 3],
+                     lambda events: fade_trace.check_batch(events, CARD_LIST)),
+    # Back to the top (after the batch window ran out) and down again: cards already shown never fade again.
+    fade_trace.Phase("scroll-back", ["scrollto:id=fst.suggestions.list,0", f"waitfor:{CARD}@10",
+                                     f"wait:{FADE_WINDOW_MS / 1000 + 0.5}",
+                                     f"scrollinto:{TENTH_CARD}", f"waitfor:{TENTH_CARD}@10"],
+                     lambda events: fade_trace.check_only_new(events, CARD_LIST)),
+]
+"""Phases of the ``fade`` scenario."""
+
+
 def uiwin(*args: str) -> str:
     """Runs one uiwin.py command, raising on failure.
 
@@ -261,10 +298,16 @@ def launch_args(name: str, port: int, size: str, exe: Path) -> list[str]:
     base = env.get("base-url", f"http://127.0.0.1:{port}/")
     # --first-run=off: the first-run carousel is modal and would swallow the scripted input. An isolated data
     # folder gives default settings (all nine charts) and an unfiltered mix on every run.
-    args = ["launch", str(exe), "--timeout", "60", "--wait", "1", "--preset", size, "--route", "/suggestions",
+    # The fade scenario starts on Songs and opens Suggestions inside its first drive, so the initial load and the
+    # scroll straight after it run in one drive (a launch can wait on the desktop lock for longer than the window).
+    route = "/songs" if name == "fade" else "/suggestions"
+    args = ["launch", str(exe), "--timeout", "60", "--wait", "1", "--preset", size, "--route", route,
             f"--arg=--base-url={base}", "--arg=--first-run=off", f"--arg=--settings-path={data / 'settings.json'}",
             "--extra", f"FST_DEBUG_DATA_DIR={data}", "--extra", "FST_DEBUG_SUGGESTIONS_SEED=1"]
     args += [f"--arg=--profile={profile}:Fixture Player"] if profile else ["--arg=--anonymous"]
+    if name == "fade":
+        args.append(f"--arg=--perf-log={data / 'perf.log'}")
+        args += ["--extra", f"FST_DEBUG_FADE_WINDOW_MS={FADE_WINDOW_MS}"]
     for key, value in env.items():
         if key.startswith("FST_"):
             args += ["--extra", f"{key}={value}"]
@@ -331,6 +374,40 @@ SIZED = {"loaded", "rival-rows"}
 """Scenarios run at every ``--sizes`` preset; the rest run at medium."""
 
 
+def drive(steps: list[str]) -> str:
+    """Drives the launched app through ``steps``.
+
+    Args:
+        steps: ``uiwin.py drive`` steps.
+
+    Returns:
+        The driver's output.
+    """
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as handle:
+        handle.write("\n".join(steps))
+    try:
+        return uiwin("drive", "--steps-file", handle.name)
+    finally:
+        Path(handle.name).unlink(missing_ok=True)
+
+
+def run_fade(shots: Path | None, size: str) -> None:
+    """Drives :data:`FADE_PHASES` against the launched ``fade`` scenario and judges each phase's fade lines.
+
+    Args:
+        shots: Screenshot directory, if any (a final screenshot is saved there).
+        size: Window preset name used in file names.
+
+    Raises:
+        RuntimeError: A step or a fade check failed.
+    """
+    failures = fade_trace.run_phases(drive, WORK / "fade" / "perf.log", FADE_PHASES)
+    if shots is not None:
+        uiwin("shot", str(shots / f"fade-{size}.png"))
+    if failures:
+        raise RuntimeError("fade checks failed:\n" + "\n".join(failures))
+
+
 def run(name: str, port: int, shots: Path | None, size: str, exe: Path) -> None:
     """Launches, drives and closes one scenario.
 
@@ -348,6 +425,10 @@ def run(name: str, port: int, shots: Path | None, size: str, exe: Path) -> None:
     scans.mkdir(parents=True, exist_ok=True)
     uiwin(*launch_args(name, port, size, exe))
     try:
+        if name == "fade":
+            run_fade(shots, size)
+            print(f"PASS {name} [{size}]")
+            return
         steps = expand(SCENARIOS[name][2], shots, size, scans)
         with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as handle:
             handle.write("\n".join(steps))
