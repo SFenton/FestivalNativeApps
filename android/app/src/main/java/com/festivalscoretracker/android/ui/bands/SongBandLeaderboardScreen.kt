@@ -23,6 +23,7 @@ import com.festivalscoretracker.android.ui.leaderboards.RankingsPager
 import com.festivalscoretracker.android.ui.leaderboards.rememberScoreColumns
 import com.festivalscoretracker.android.ui.leaderboards.revealSelectedRow
 import com.festivalscoretracker.android.ui.songdetail.SelectedScoreFooterRow
+import com.festivalscoretracker.android.ui.songdetail.SongHeader as SharedSongHeader
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -31,7 +32,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -118,6 +118,7 @@ import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.RowChevron
 import com.festivalscoretracker.android.ui.design.StarRating
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.common.rememberMeasuredPx
 
 // region Screen
 
@@ -198,7 +199,7 @@ fun SongBandLeaderboardScreen(
     }
 
     FestivalScreen(title = "${type.label} Leaderboard", isRoot = false, modifier = Modifier.testTag("fst.song-band-leaderboard.screen")) { padding ->
-        var contentLeft by remember { mutableFloatStateOf(0f) }
+        var contentLeft by rememberMeasuredPx(0f)
         BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { contentLeft = it.positionInWindow().x }) {
             val split = BandLayout.listSplit(rememberBandHinge(contentLeft, maxWidth))
             SideEffect { twoPane = split.twoPane && split.leadingWidth != null }
@@ -362,6 +363,11 @@ internal fun SongBandLeaderboardLayout(
     }
 }
 
+/**
+ * The song header: the shared [com.festivalscoretracker.android.ui.songdetail.SongHeader] (web
+ * `SongInfoHeader` with `onTitleClick` and `subtitle2`), so the title takes the full width and
+ * marquees like every song page (`song-header`, issue #315). Art and text open Song Detail.
+ */
 @Composable
 private fun SongHeader(
     song: Song?,
@@ -370,28 +376,29 @@ private fun SongHeader(
     artworkUrl: (String?) -> String?,
     onNavigate: (AppRoute) -> Unit,
 ) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        AsyncImage(
-            model = artworkUrl(song?.albumArt),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.size(72.dp).clip(RoundedCornerShape(10.dp)).background(BrandTokens.surfaceMuted),
+    val total = (board as? LoadState.Loaded)?.value?.population
+    val entries = total?.let { "${type.label} · ${BandFormatting.count(it.toLong())} ${if (it == 1) "entry" else "entries"}" }
+    if (song != null) {
+        SharedSongHeader(
+            song,
+            artworkUrl(song.albumArt),
+            artSize = 64.dp,
+            subtitle2 = entries,
+            onTitleClick = { onNavigate(SongDetailRoute(song.songId)) },
+            tag = "fst.song-band-leaderboard.song",
+            subtitle2Tag = "fst.song-band-leaderboard.subtitle",
         )
-        Column(Modifier.weight(1f)) {
-            if (song != null) {
-                BandTextLink(song.title, "fst.song-band-leaderboard.song") { onNavigate(SongDetailRoute(song.songId)) }
-                val details = listOfNotNull(song.artist.ifEmpty { null }, song.year?.toString()).joinToString(" · ")
-                if (details.isNotEmpty()) Text(details, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
-            }
-            val total = (board as? LoadState.Loaded)?.value?.population
-            if (total != null) {
-                Text(
-                    "${type.label} · ${BandFormatting.count(total.toLong())} ${if (total == 1) "entry" else "entries"}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = BrandTokens.textSecondary,
-                    modifier = Modifier.testTag("fst.song-band-leaderboard.subtitle"),
-                )
-            }
+        return
+    }
+    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Box(Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(BrandTokens.surfaceMuted))
+        if (entries != null) {
+            Text(
+                entries,
+                style = MaterialTheme.typography.bodyLarge,
+                color = BrandTokens.textSecondary,
+                modifier = Modifier.testTag("fst.song-band-leaderboard.subtitle"),
+            )
         }
     }
 }

@@ -25,6 +25,12 @@ public sealed partial class MainWindow
     /// </summary>
     private InstallChannel whatsNewChannel = InstallChannel.Store;
 
+    /// <summary>Entries shown and hashed: the embedded document, or a Debug/automation <c>FST_DEBUG_WHATS_NEW_FILE</c>.</summary>
+    private IReadOnlyList<ChangelogEntry> whatsNewEntries = Changelog.Entries;
+
+    /// <summary>Show-once hash of <see cref="whatsNewEntries"/>.</summary>
+    private string whatsNewHash = Changelog.CurrentHash;
+
     /// <summary>Whether the visible page's first-run check has run: What's New waits for it so a carousel goes first.</summary>
     private bool firstRunEvaluated;
 
@@ -41,9 +47,11 @@ public sealed partial class MainWindow
         var args = Environment.GetCommandLineArgs().Skip(1).ToArray();
         whatsNewChannel = InstallChannels.Resolve(args, App.LaunchEnvironment, App.HooksEnabled,
             () => Windows.ApplicationModel.Package.Current.SignatureKind.ToString());
+        whatsNewEntries = Changelog.ResolveEntries(App.LaunchEnvironment, App.HooksEnabled);
+        whatsNewHash = Changelog.Hash(whatsNewEntries);
         var mode = WhatsNewGate.Parse(args, App.LaunchEnvironment, App.HooksEnabled);
         if (mode == WhatsNewMode.Fresh) whatsNewStore.Reset();
-        whatsNewPending = WhatsNewGate.IsPending(mode, whatsNewStore.SeenHash(), Changelog.CurrentHash);
+        whatsNewPending = WhatsNewGate.IsPending(mode, whatsNewStore.SeenHash(), whatsNewHash);
         if (!whatsNewPending) return;
         whatsNewTimer = DispatcherQueue.CreateTimer();
         whatsNewTimer.Interval = WhatsNewSettleDelay;
@@ -84,12 +92,15 @@ public sealed partial class MainWindow
     private async Task ShowWhatsNewAsync()
     {
         if (whatsNewOpen) return;
+        // An empty changelog never presents, from launch or the Settings replay, and records no dismissal (spec).
+        var blocks = Changelog.DisplayBlocks(whatsNewChannel, whatsNewEntries);
+        if (blocks.Count == 0) return;
         whatsNewOpen = true;
         try
         {
             // Dismiss spans the command row, centred like the web's full-width button (operator batch 6.14).
             var title = WhatsNewGate.Title(AppVersion);
-            var notes = WhatsNewContent(Changelog.DisplayBlocks(whatsNewChannel), title);
+            var notes = WhatsNewContent(blocks, title);
             var dialog = Controls.FestivalDialog.Create(
                 RootGrid.XamlRoot,
                 title,
@@ -110,7 +121,7 @@ public sealed partial class MainWindow
             {
                 root.Changed -= Refit;
             }
-            whatsNewStore?.MarkSeen(AppVersion, Changelog.CurrentHash);
+            whatsNewStore?.MarkSeen(AppVersion, whatsNewHash);
         }
         catch (Exception error) when (error is InvalidOperationException or System.Runtime.InteropServices.COMException)
         {

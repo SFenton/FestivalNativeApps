@@ -415,6 +415,9 @@ public struct SongBandLeaderboardResponse: Decodable, Sendable, Equatable {
     public let totalEntries: Int
     public let localEntries: Int?
     public let entries: [SongBandLeaderboardEntry]
+    /// Whether the header shows the entry total (web `songBandLeaderboard.subtitle`);
+    /// absent or false shows only the band size (issue #317).
+    public var showLeaderboardEntryTotals: Bool? = nil
     /// The selected player's best band on this song and size, present when the request
     /// carried `accountId` and that player has a band score here.
     public var selectedPlayerEntry: SongBandLeaderboardEntry? = nil
@@ -433,11 +436,13 @@ public struct SongBandLeaderboardResponse: Decodable, Sendable, Equatable {
     ///   - entries: Page rows.
     ///   - selectedPlayerEntry: Selected player's best band row, if any.
     ///   - selectedBandEntry: Selected band's row, if any.
+    ///   - showLeaderboardEntryTotals: Whether the header shows the entry total.
     public init(
         songId: String, bandType: String, count: Int, totalEntries: Int, localEntries: Int?,
         entries: [SongBandLeaderboardEntry],
         selectedPlayerEntry: SongBandLeaderboardEntry? = nil,
-        selectedBandEntry: SongBandLeaderboardEntry? = nil
+        selectedBandEntry: SongBandLeaderboardEntry? = nil,
+        showLeaderboardEntryTotals: Bool? = nil
     ) {
         self.songId = songId
         self.bandType = bandType
@@ -447,6 +452,7 @@ public struct SongBandLeaderboardResponse: Decodable, Sendable, Equatable {
         self.entries = entries
         self.selectedPlayerEntry = selectedPlayerEntry
         self.selectedBandEntry = selectedBandEntry
+        self.showLeaderboardEntryTotals = showLeaderboardEntryTotals
     }
 
     /// The pinned footer's row: a selected band's row wins over the selected player's

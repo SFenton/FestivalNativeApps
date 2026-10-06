@@ -34,10 +34,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.absolutePadding
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
@@ -192,7 +189,7 @@ fun ServiceStatusView(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
 ) {
-    var origin by remember { mutableStateOf(Offset.Unspecified) }
+    var origin by rememberMeasuredOffset(Offset.Unspecified)
     BoxWithConstraints(modifier.fillMaxSize().padding(contentPadding).onGloballyPositioned { origin = it.positionInWindow() }) {
         val side = rememberHingeSide(origin, constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
         val density = LocalDensity.current
@@ -224,7 +221,7 @@ fun ServiceStatusView(
 @Composable
 private fun rememberHingeSide(origin: Offset, width: Float, height: Float): HingeSide.Padding {
     if (!origin.isSpecified) return HingeSide.Padding.NONE
-    val posture = LocalShellPosture.current ?: currentWindowAdaptiveInfo().windowPosture
+    val posture = shellPosture()
     val hinge = posture.hingeList.firstOrNull { it.isSeparating } ?: return HingeSide.Padding.NONE
     val b = hinge.bounds
     return serviceStatusHingeSide(

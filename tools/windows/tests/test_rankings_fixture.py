@@ -36,6 +36,21 @@ class RankingsFixtureTests(unittest.TestCase):
         self.assertIsNone(f.board_override("/api/rankings/Solo_Guitar", {}))
         self.assertIsNone(f.board_override("/api/songs", {}))
 
+    def test_rankings_delay_applies_to_solo_board_reads_only(self):
+        self.assertTrue(f.is_board_read("/api/rankings/Solo_Guitar"))
+        self.assertFalse(f.is_board_read("/api/rankings/Solo_Guitar/fixture-rank-40"))
+        self.assertFalse(f.is_board_read("/api/rankings/bands/Band_Duets"))
+        self.assertFalse(f.is_board_read("/api/rankings/"))
+        self.assertFalse(f.is_board_read("/api/songs"))
+
+    def test_take_rankings_delay(self):
+        self.assertEqual(f.take_rankings_delay(["--port", "0", "--rankings-delay", "3"]), (3.0, ["--port", "0"]))
+        self.assertEqual(f.take_rankings_delay(["--rankings-delay=1.5"]), (1.5, []))
+        self.assertEqual(f.take_rankings_delay(["--port", "0"]), (None, ["--port", "0"]))
+        for bad in (["--rankings-delay"], ["--rankings-delay", "x"], ["--rankings-delay=-1"]):
+            with self.assertRaises(SystemExit):
+                f.take_rankings_delay(bad)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -61,7 +61,14 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
     public string Subtitle => "Select a bar to see more score details.";
 
     /// <summary>"View All Scores" (web <c>chart.viewAllScores</c>, Title Case per the capitalization rule).</summary>
-    public string ViewAllLabel => "View All Scores";
+    public string ViewAllText => ViewAllCta.ScoresLabel;
+
+    /// <summary>UIA name of View All Scores: the visible label, then the selected chart (<see cref="ViewAllCta.Name"/>),
+    /// e.g. "View All Scores, Lead".</summary>
+    public string ViewAllName => ViewAllCta.Name(ViewAllText, Selected is { } chart ? chart.Label() : Title);
+
+    /// <summary>UI Automation ID of View All Scores (unchanged <c>fst.history.*</c> family).</summary>
+    public string ViewAllAutomationId => "fst.history.view-all";
 
     /// <summary>Phase.</summary>
     [ObservableProperty]
@@ -86,7 +93,7 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
 
     /// <summary>Selected chart.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(EmptyMessage))]
+    [NotifyPropertyChangedFor(nameof(EmptyMessage), nameof(ViewAllName))]
     private Instrument? selected;
 
     /// <summary>The selected chart's points, oldest first.</summary>
