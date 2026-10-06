@@ -104,6 +104,9 @@ public struct ReloadTransition: Equatable, Sendable {
     public private(set) var generation: Int
     /// Whether the page's data is still loading.
     public private(set) var isLoading: Bool
+    /// Whether content has been on screen at least once: a gate that keeps its frame
+    /// (a page header around reloading rows, issue #316) shows the frame from then on.
+    public private(set) var hasShownContent: Bool
     /// Whether the spinner has been up for its minimum time.
     private var spinnerHeld: Bool
 
@@ -115,6 +118,7 @@ public struct ReloadTransition: Equatable, Sendable {
         phase = isLoading ? .spinner : .content
         generation = 0
         self.isLoading = isLoading
+        hasShownContent = !isLoading
         spinnerHeld = false
     }
 
@@ -169,6 +173,7 @@ public struct ReloadTransition: Equatable, Sendable {
         case (.spinnerOut, .spinnerOut):
             phase = .content
             generation += 1
+            hasShownContent = true
         default:
             break
         }

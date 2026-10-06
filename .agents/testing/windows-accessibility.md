@@ -362,6 +362,16 @@ Evidence: `a11y_matrix.py --scan --tabs 60 --pages journeys/settings-states.json
 
 Evidence: `a11y_matrix.py --scan --pages journeys/a11y-settings-path-view.json` at compact, medium, wide, maximized and both snaps. It then ran at compact and wide under Desert, Night sky, light and dark theme, text 200%, display 100%/150% and text 200% with display 150%. Every run had 0 Axe errors. There is no disclosure: Narrator reads the group name "CHOpt Path Default View" and the selected Image or Text radio (SelectionItem). Arrow keys move focus and selection together. The `path-default-view` journey proves the choice persists and sets the view Paths opens in. No app change. Per configuration: [settings/windows.md](../pages/settings/windows.md#validation-chopt-path-default-view-issue-256-2026-10-05).
 
+## Settings Service Info validation (issue #275, 2026-10-06)
+
+Evidence: `a11y_matrix.py --scan --pages journeys/a11y-settings-service-info.json`, with every card state on `service_info_fixture.py`, Loading included (it runs under an automation-only longer request timeout so the scan fits; users keep 3 s):
+
+- compact, medium, wide, maximized and both snaps;
+- Desert, Night sky, light and dark theme, display 100%, text 200%, and text 200% with display 100%;
+- live public-service screenshots and a recording.
+
+Every run had 0 Axe errors. Fixed: three test IDs sat on elements without a UIA peer (`Border`, `Grid`, `StackPanel`) and are now on the text they identify. The phase row's Narrator name now matches the web's `aria-valuetext` ("Phase. Subphase", "Total not yet known"). Narrator now hears each newly accepted attempt count once (a UIA notification, proven with `listen:announcements`); lower, kept-back reads stay silent. Per configuration: [settings/windows.md](../pages/settings/windows.md#validation-service-info-issue-275-2026-10-06).
+
 ## App Navigation validation (issue #225, 2026-10-04)
 
 Evidence: `a11y_matrix.py --scan --tabs 30 --pages journeys/a11y-navigation.json` (anonymous, player, band page, Settings, pane open at compact) at compact, medium, wide, snap-left, snap-right and maximized, plus light and dark theme, Desert, Night sky, text 200% and display 100%/150%: 0 Axe errors except the open minimal pane (WinUI popup-host finding, open issue 8). `journeys/navigation.py` covers `songs`, `leaderboards`, `settings`, `player`, `band`, `reselect`, the compact pane and keyboard use (8/8 pass). Per configuration: [app-navigation/windows.md](../controls/app-navigation/windows.md#validation-issue-225-2026-10-04).

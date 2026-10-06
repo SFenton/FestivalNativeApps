@@ -14,6 +14,8 @@ public sealed partial class FullRankingsViewModel : ObservableObject
 {
     private readonly FestivalSession session;
     private readonly OwnRankingReader? reader;
+    private Instrument spotlightInstrument;
+    private bool spotlightShown;
     private int version;
     private List<AccountRankingEntry> entries = [];
 
@@ -30,7 +32,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
         page = Math.Max(1, route.Page);
         Pager = new RankingsPagerViewModel("fst.full-rankings", GoToPageAsync);
         Status = new ServiceStatusViewModel("full-rankings", "Rankings unavailable", LoadAsync, session.Time);
-        spotlight = NewSpotlight();
+        spotlight = NewSpotlight(instrument);
         LoadSwap = new LoadSwap(session.Time);
         LoadSwap.PropertyChanged += (_, _) =>
         {
@@ -50,6 +52,12 @@ public sealed partial class FullRankingsViewModel : ObservableObject
 
     /// <summary>Rows/content load-swap gate.</summary>
     public LoadSwap LoadSwap { get; }
+
+    /// <summary>
+    /// Whether the pinned "your rank" row follows <see cref="LoadSwap"/>: only for the first load and an instrument or
+    /// Rank By change, like the web footer (keyed on instrument and metric); paging keeps it beside the spinner.
+    /// </summary>
+    public PinnedRowGate PinnedGate { get; } = new();
 
     /// <summary>Whether load-swap motion is allowed; the app layer supplies <c>Motion.Allowed</c>.</summary>
     public Func<bool> AnimateLoadSwaps { get; set; } = () => false;
@@ -84,7 +92,10 @@ public sealed partial class FullRankingsViewModel : ObservableObject
     [ObservableProperty]
     private List<RankingRowViewModel> rows = [];
 
-    /// <summary>Selected-player spotlight (rebuilt per instrument).</summary>
+    /// <summary>
+    /// Selected-player spotlight, rebuilt when a board for another instrument commits: the old pinned row fades out
+    /// with the old rows instead of vanishing when the switch starts (issue #270, load-transition R2).
+    /// </summary>
     [ObservableProperty]
     private RankingSpotlightViewModel spotlight;
 
@@ -126,7 +137,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
     /// </summary>
     public bool ShowContent => State is LoadState.Loaded or LoadState.Empty;
 
-    /// <summary>Switches instrument (resets to page 1 and the spotlight).</summary>
+    /// <summary>Switches instrument (resets to page 1; the spotlight is rebuilt when the new board commits).</summary>
     /// <param name="value">Instrument.</param>
     /// <returns>Load task.</returns>
     [RelayCommand]
@@ -134,7 +145,6 @@ public sealed partial class FullRankingsViewModel : ObservableObject
     {
         if (value == Instrument) return Task.CompletedTask;
         Instrument = value;
-        Spotlight = NewSpotlight();
         Page = 1;
         return LoadAsync();
     }
@@ -167,6 +177,8 @@ public sealed partial class FullRankingsViewModel : ObservableObject
     {
         var request = ++version;
         var (requestedInstrument, requestedMetric, requestedPage) = (Instrument, Metric, Page);
+        var key = (requestedInstrument, requestedMetric);
+        PinnedGate.Begin(key, LoadSwap.Phase);
         var swap = LoadSwap.BeginReloadAsync(AnimateLoadSwaps(), State is LoadState.Loaded or LoadState.Empty or LoadState.Failed && LoadSwap.ContentVisible);
         if (State is LoadState.Idle) State = LoadState.Loading;
         IsRefreshing = true;
@@ -184,6 +196,8 @@ public sealed partial class FullRankingsViewModel : ObservableObject
             await LoadSwap.CommitAsync(swapRequest, () =>
             {
                 Status.Clear();
+                PinnedGate.Commit(key);
+                if (spotlightInstrument != requestedInstrument) Spotlight = NewSpotlight(requestedInstrument);
                 entries = board.Entries;
                 TotalText = $"{board.TotalAccounts:N0} ranked players";
                 Pager.Update(requestedPage, board.PageCount);
@@ -201,6 +215,8 @@ public sealed partial class FullRankingsViewModel : ObservableObject
             await LoadSwap.CommitAsync(swapRequest, () =>
             {
                 IsRefreshing = false;
+                PinnedGate.Commit(key);
+                if (spotlightInstrument != requestedInstrument) Spotlight = NewSpotlight(requestedInstrument);
                 Status.Report(error);
                 State = LoadState.Failed;
             }, AnimateLoadSwaps());
@@ -231,17 +247,32 @@ public sealed partial class FullRankingsViewModel : ObservableObject
         RankingRowViewModel.ShareColumns(Rows, Spotlight.Row);
     }
 
-    /// <summary>Creates the spotlight for the current instrument with a jump back into this board.</summary>
+    /// <summary>Creates the spotlight for a board's instrument with a jump back into this board.</summary>
+    /// <param name="board">Instrument of the board it pins to.</param>
     /// <returns>Spotlight.</returns>
-    private RankingSpotlightViewModel NewSpotlight()
+    private RankingSpotlightViewModel NewSpotlight(Instrument board)
     {
-        var created = new RankingSpotlightViewModel(Instrument, reader, session.Time, "full-rankings.spotlight." + Instrument.ServiceId(), GoToPageAsync);
+        spotlightInstrument = board;
+        var created = new RankingSpotlightViewModel(board, reader, session.Time, "full-rankings.spotlight." + board.ServiceId(), GoToPageAsync);
         // The pinned row arrives after the page: widen every rank column to fit it (operator batch 7.9).
         created.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(RankingSpotlightViewModel.Row)) RankingRowViewModel.ShareColumns(Rows, created.Row);
+            if (e.PropertyName == nameof(RankingSpotlightViewModel.IsVisible) && ReferenceEquals(created, Spotlight)) PinnedRowShown(created.IsVisible);
         };
         return created;
+    }
+
+    /// <summary>Starts tracking a replacement spotlight's visibility (a new instrument's board committed).</summary>
+    /// <param name="value">New spotlight.</param>
+    partial void OnSpotlightChanged(RankingSpotlightViewModel value) => spotlightShown = value.IsVisible;
+
+    /// <summary>Tracks the current spotlight's visibility; a row that newly appears joins <see cref="PinnedGate"/>.</summary>
+    /// <param name="shown">Whether the pinned row is now shown.</param>
+    private void PinnedRowShown(bool shown)
+    {
+        if (shown && !spotlightShown) PinnedGate.Arrived(LoadSwap.Phase);
+        spotlightShown = shown;
     }
 }
 #endregion

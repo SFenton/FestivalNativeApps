@@ -93,3 +93,65 @@ public class LoadSwapTests
         Assert.Equal("failed", state);
     }
 }
+
+/// <summary>Pinned-row gate (load-transition R2, issue #270): web <c>footerAnimKey</c> parity.</summary>
+public class PinnedRowGateTests
+{
+    [Fact]
+    public void FirstLoad_IsGated()
+    {
+        var gate = new PinnedRowGate();
+        Assert.True(gate.IsGated);
+        gate.Begin("lead", LoadSwapPhase.Loading);
+        Assert.True(gate.IsGated);
+    }
+
+    [Fact]
+    public void SameKeyAfterReveal_KeepsTheRowShown()
+    {
+        var gate = new PinnedRowGate();
+        gate.Begin("lead", LoadSwapPhase.Loading);
+        gate.Commit("lead");
+        gate.Begin("lead", LoadSwapPhase.ContentIn);
+        Assert.False(gate.IsGated);
+        gate.Commit("lead");
+        gate.Begin("lead", LoadSwapPhase.Loading);
+        Assert.False(gate.IsGated);
+    }
+
+    [Fact]
+    public void NewKey_GatesTheRow()
+    {
+        var gate = new PinnedRowGate();
+        gate.Commit(("lead", "totalscore"));
+        gate.Begin(("lead", "totalscore"), LoadSwapPhase.ContentIn);
+        Assert.False(gate.IsGated);
+        gate.Begin(("lead", "fcrate"), LoadSwapPhase.ContentIn);
+        Assert.True(gate.IsGated);
+    }
+
+    [Fact]
+    public void UnrevealedGatedReload_StaysGatedForAFollowingSameKeyReload()
+    {
+        var gate = new PinnedRowGate();
+        gate.Commit("a");
+        gate.Begin("b", LoadSwapPhase.ContentIn);
+        gate.Commit("b");
+        gate.Begin("b", LoadSwapPhase.SpinnerOut);
+        Assert.True(gate.IsGated);
+        gate.Begin("b", LoadSwapPhase.ContentIn);
+        Assert.False(gate.IsGated);
+    }
+
+    [Fact]
+    public void Arrival_JoinsTheGateOnlyBeforeReveal()
+    {
+        var gate = new PinnedRowGate();
+        gate.Commit("a");
+        gate.Begin("a", LoadSwapPhase.ContentIn);
+        gate.Arrived(LoadSwapPhase.ContentIn);
+        Assert.False(gate.IsGated);
+        gate.Arrived(LoadSwapPhase.Loading);
+        Assert.True(gate.IsGated);
+    }
+}

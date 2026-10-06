@@ -228,9 +228,11 @@ private func fixtureSong(_ session: FestivalSession, songId: String) async throw
     // No selected player: no pinned band footer (issue #306).
     #expect(!tree.identifiers.contains(songBandFooterID))
     // The solo board's song header, with the band size where the instrument goes, and
-    // no "<Band> Scores" title (issue #317).
+    // no "<Band> Scores" title (issue #317). The shared header names the song once
+    // (issue #315; row behavior: `SongHeaderTextTests`).
     #expect(tree.identifiers.contains(songBandHeaderID))
-    #expect(tree.contains(song.title))
+    #expect(tree.texts.filter { $0.contains(song.title) }.count == 1, "texts: \(tree.texts)")
+    #expect(tree.contains(song.artist))
     #expect(tree.contains("Duos · 29 entries"))
     #expect(!tree.contains("Duos Scores"))
     // The bar stays empty until the header scrolls away.
@@ -668,9 +670,10 @@ private func renderSongBandPreviews(
     let tree = nativeHostedAccessibility(host)
     #expect(tree.identifiers.contains("fst.player.bands.error"))
     #expect(tree.contains("Retry"))
-    // The title and See All stay usable while the cards are unavailable.
+    // The title and View All stay usable while the cards are unavailable.
     #expect(tree.contains("Fixture Player 1's Bands"))
     #expect(tree.identifiers.contains("fst.player.bands-link"))
+    #expect(tree.contains("View All Fixture Player 1's Bands"))
 }
 
 @Test func playerBandsRouteDefaultsToAllAndCarriesGroup() {
