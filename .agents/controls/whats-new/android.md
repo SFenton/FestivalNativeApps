@@ -17,7 +17,7 @@
 
 ## Presentation
 
-- Compact windows (< 600 dp) **and any window with a separating hinge** (each panel is compact; issue #142): full-height `ModalBottomSheet` on one side of the hinge (M3 bottom sheets suit compact screens; swipe down, back and a scrim tap all close it). Wider windows: a 560 dp M3 dialog (a bottom sheet would be width-capped and short on landscape tablets); outside tap and back close it. Every close path records the dismissal (web writes `{version, hash}` on dismiss).
+- Compact windows (< 600 dp) **and any window with a separating hinge** (each panel is compact; issue #142): full-height `ModalBottomSheet` on one side of the hinge (M3 bottom sheets suit compact screens; swipe down, back and a scrim tap all close it). Wider windows: a 560 dp M3 dialog, the shared `FestivalModalDialog` width ([modal-shell](../../patterns/modal-shell.md) R9), because a bottom sheet would be width-capped and short on landscape tablets; outside tap and back close it. Every close path records the dismissal (web writes `{version, hash}` on dismiss).
 - Opaque `cardBackground`; title "What's New · <versionName>" (heading); Close icon (`fst.whats-new.close`); Title Case block headings (`titleMedium` bold, heading semantics, `fst.whats-new.section.<i>`), category subheadings (`titleSmall` semibold secondary, heading semantics, `fst.whats-new.group.<i>.<g>`; only when `headed`) and decorative bullets; the list (`fst.whats-new.list`) scrolls above an opaque bottom bar with a hairline and a **centred** Dismiss button (`fst.whats-new.dismiss`, batch 6.14). Pane title = the sheet title.
 - The compact sheet is full height, so `WhatsNewContent(fillHeight = true)` gives the list the remaining height and pins the Dismiss bar to the sheet's bottom edge (M3 adaptive table: "Bottom sheet | Compact: Full height"). The dialog wraps its content (`fillHeight = false`). Before #142 the bar floated under short content with empty sheet below it.
 
@@ -39,7 +39,7 @@ Checked on the live public service on every FST AVD, light/dark system theme, fo
 | Configuration | Finding |
 |---|---|
 | FST_Phone portrait | Full-height sheet. The Dismiss bar floated under the short placeholder list; **fixed** (pinned to the bottom edge). Forced first run + forced What's New showed What's New first on the live service; **fixed** (gated on the first-run evaluation). Replay from Settings, Close and Dismiss all record the dismissal |
-| FST_Phone landscape | About 760 dp wide, so the 560 dp dialog; at font 2.0 the title wraps, the notes scroll and Dismiss stays visible |
+| FST_Phone landscape | Wider than 600 dp, so the dialog; at font 2.0 the title wraps, the notes scroll and Dismiss stays visible. (#183: the dialog was in fact only 320 dp wide here; see below) |
 | FST_Tablet, FST_Resizable tablet/desktop, unfolded folds | 560 dp centred dialog, 28 dp corners; outside tap and back close it |
 | FST_Resizable phone/foldable | Sheet on the phone preset; dialog on the 2208 × 1840 foldable preset (its fold is flat, not separating) |
 | FST_Book_Fold / FST_Passport_Fold / FST_TriFold folded | Compact sheet, as the phone |
@@ -51,6 +51,26 @@ Checked on the live public service on every FST AVD, light/dark system theme, fo
 - M3 alignment: compact = full-height `ModalBottomSheet`, wider = centred dialog capped at 560 dp with 28 dp corners (M3 adaptive table), 48 dp targets, pane title, heading semantics. Deliberate deviations: the header uses the app's shared modal header (`titleLarge` bold with a Close icon) rather than the dialog's Headline Small, matching every other Festival sheet and the web; dark scheme only; a debug build's title shows its `versionName` (`0.2.0`).
 - TalkBack order: scrim "Close sheet", the Material sheet pane (unlabelled, accepted in [android-accessibility](../../testing/android-accessibility.md)), drag handle, title, Close, version heading, notes, Dismiss.
 
+## Validation (issue #183)
+
+#80's channel and grouping work checked again on the live public service with the real generated notes: 108 tester bullets in 17 groups, and a 1-bullet store entry. The debug build is installed with `-PfstVersionName=2610.06.01` and `FST_DEBUG_DISTRIBUTION=tester|store`.
+
+| Configuration | Finding |
+|---|---|
+| FST_Phone portrait | Full-height sheet. Tester: "Changes So Far" with category headings in the web changelog's order and Other last, bullets word for word. Store: "Version …" with its release bullet only. Dark and light system theme, font 1.0 and 2.0, scrolled to the end; Dismiss stays pinned |
+| FST_Phone landscape | **Defect:** the dialog was 320 dp wide in a 923 dp window (about 1.5 note lines at font 2.0), because `FestivalModalDialog` used the platform's preferred dialog width. **Fixed** in the shared shell ([modal-shell](../../patterns/modal-shell.md) R9): 560 dp at font 1.0 and 2.0. Privacy Policy had the same defect and the same fix |
+| FST_Tablet landscape/portrait | 560 dp centred dialog, tester and store, font 2.0 |
+| FST_Resizable | Sheet at the phone preset; 560 dp dialog at the foldable, tablet and desktop presets (desktop also at font 2.0) |
+| FST_Book_Fold / FST_Passport_Fold | Folded: compact sheet. Unfolded: dialog. Half-open (separating hinge): the sheet sits on one side of the hinge, also at font 2.0 |
+| FST_TriFold | Folded: sheet; partially unfolded (flat, not separating) and unfolded: dialog; unfolded at font 2.0 |
+| Settings → What's New → Show | Replays the same channel's notes; Dismiss closes it |
+| Animator scale 0 | Connected tests run with scales 0; the sheet and dialog appear without motion |
+
+- Channel: Android resolves the installer synchronously in `AppContainer`, so there is no pending state (unlike Apple's AppTransaction).
+- M3: unchanged from #142. Block headings are Title Medium, category subheadings Title Small and bullets Body Medium. The shared Title Large header is the documented deviation.
+- Tests added: `WhatsNewUiTest.hostShowsTheInstallChannelsNotes` (the host shows tester notes, then the release notes when the channel switches to Store), `WhatsNewLandscapePhoneUiTest` (560 dp dialog at `w891dp-h411dp-land`), `FestivalModalTest.dialogTakesTheWindowWidthLessMargins`, and the connected test's 560 dp dialog check.
+- Data note (release tooling, not the app): one tester note reads "Close (?) button" because of a trailer encoding issue.
+
 ## Open
 
-- The shared `FestivalModalDialog` (the first-run carousel uses it too) still centres across a separating hinge; What's New avoids it by presenting the hinge-aware sheet. Out of scope for #142.
+- None. #146 made `FestivalModalDialog` avoid a separating hinge (`avoidHinge`), and #183 made it size from the window.

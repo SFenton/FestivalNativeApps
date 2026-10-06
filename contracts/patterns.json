@@ -795,6 +795,13 @@
             "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ServiceStatus.kt"
           ],
           "message": "Keep surfaces off a separating hinge through core/nav HingeSide; adapt its result, don't add another side rule (modal-shell R8)."
+        },
+        {
+          "id": "android-dialog-platform-width",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "usePlatformDefaultWidth\\s*=(?!\\s*false\\b)",
+          "allow": [],
+          "message": "Centred dialogs take the window width less 16 dp margins, capped at 560 dp, never the platform dialog width (modal-shell R9)."
         }
       ],
       "related": {
