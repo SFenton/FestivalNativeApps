@@ -14,18 +14,35 @@ import com.festivalscoretracker.android.core.songs.SongHeaderEdgeFade
 data class FooterFade(val cut: Float, val strength: Float)
 
 /**
- * The soft bottom edge of the song leaderboard's rows above its floating player-score footer and
- * pager (issue #93, port of the web `useScrollMask` bottom mask): rows scrolling down to the
- * footer fade out over a short eased band ending at its top edge and stay hidden beneath it,
+ * The soft bottom edge of a board's rows above its floating player-score footer and pager
+ * (issue #93; scroll-edge bottom chrome, web `useScrollFade`): rows scrolling down to the
+ * footer fade out linearly over [DEPTH_DP] ending at its top edge and stay hidden beneath it,
  * so the footer floats over the page background without an opaque band.
  *
- * As on the web, the band shrinks over the last [DEPTH_DP] of scrolling and is gone at the end
- * of the list, so the last row is never faded. Pure geometry: the UI reads it in the draw phase
- * only.
+ * The band weakens over the last [DEPTH_DP] of scrolling and is gone at the end of the list
+ * (web `atBottom`), so the last row is never faded. This is Android's only bottom-chrome ramp
+ * (scroll-edge R3). Pure geometry: the UI reads it in the draw phase only.
  */
 object BoardFooterEdgeFade {
-    /** Fade depth above the footer (web `useScrollMask`: 40 px). */
-    const val DEPTH_DP = 40f
+    /** Fade depth above the footer (web `useScrollFade` `DEFAULT_DISTANCE`: 36 px; Apple `ScrollEdgeFade.distance`). */
+    const val DEPTH_DP = 36f
+
+    /**
+     * Full-strength mask alpha down the band, as (position, alpha): position 0 is [DEPTH_DP]
+     * above the footer, 1 is the footer's top edge. Linear, opaque to clear (web `.fadeBottom`
+     * 36 px gradient; Apple `ScrollEdgeFade.bottom`), never the Songs header easing (issue #190).
+     */
+    val STOPS: List<Pair<Float, Float>> = listOf(0f to 1f, 1f to 0f)
+
+    /**
+     * Mask alpha at a stop, scaled by the fade strength (1 = unchanged row).
+     *
+     * @param stopAlpha Full-strength alpha at the stop ([STOPS]).
+     * @param strength Fade strength ([strength]).
+     * @return Mask alpha in 0..1.
+     */
+    fun maskAlpha(stopAlpha: Float, strength: Float): Float =
+        1f - strength.coerceIn(0f, 1f) * (1f - stopAlpha.coerceIn(0f, 1f))
 
     /**
      * Whether the fade band is drawn: Increase Contrast and Reduce Transparency keep a hard edge,

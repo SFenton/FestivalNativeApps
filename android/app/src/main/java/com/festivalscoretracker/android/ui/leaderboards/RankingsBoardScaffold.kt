@@ -45,7 +45,6 @@ import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.rankings.BoardFooterEdgeFade
 import com.festivalscoretracker.android.core.rankings.FooterFade
-import com.festivalscoretracker.android.core.songs.SongHeaderEdgeFade
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 
@@ -302,7 +301,7 @@ private fun Modifier.clipAboveFooter(footerHeight: () -> Int): Modifier = this
     }
 
 /**
- * Hides rows beneath the floating footer and fades them out over an eased band ending at its
+ * Hides rows beneath the floating footer and fades them out over a linear 36 dp band ending at its
  * top edge ([BoardFooterEdgeFade]), so the footer and pager float over the page background
  * with no row showing behind or between them. On an offscreen layer it masks the band with a
  * vertical gradient (`BlendMode.DstIn`) and clears everything below the cut. Drawing only: hit
@@ -319,9 +318,8 @@ private fun Modifier.footerEdgeFade(edge: () -> FooterFade?, depth: Float): Modi
         val fade = edge() ?: return@drawWithContent
         val top = (fade.cut - depth).coerceAtLeast(0f)
         if (fade.cut > top) {
-            // Full-strength alpha runs 1 → 0 down the band (the Songs header easing, reversed).
-            val stops = SongHeaderEdgeFade.STOPS
-                .map { (t, alpha) -> t to Color.Black.copy(alpha = SongHeaderEdgeFade.maskAlpha(1f - alpha, fade.strength)) }
+            val stops = BoardFooterEdgeFade.STOPS
+                .map { (t, alpha) -> t to Color.Black.copy(alpha = BoardFooterEdgeFade.maskAlpha(alpha, fade.strength)) }
                 .toTypedArray()
             drawRect(
                 Brush.verticalGradient(*stops, startY = fade.cut - depth, endY = fade.cut),

@@ -10,8 +10,22 @@ class BoardFooterEdgeFadeTest {
     private val depth = 40f
 
     @Test
-    fun depthMatchesTheWebScrollMask() {
-        assertEquals(40f, BoardFooterEdgeFade.DEPTH_DP)
+    fun depthMatchesTheWebScrollFade() {
+        assertEquals(36f, BoardFooterEdgeFade.DEPTH_DP)
+    }
+
+    @Test
+    fun rampIsLinearFromOpaqueToClearAtTheFooter() {
+        assertEquals(listOf(0f to 1f, 1f to 0f), BoardFooterEdgeFade.STOPS)
+    }
+
+    @Test
+    fun maskAlphaScalesTheRampByStrength() {
+        assertEquals(0f, BoardFooterEdgeFade.maskAlpha(0f, 1f))
+        assertEquals(1f, BoardFooterEdgeFade.maskAlpha(1f, 1f))
+        assertEquals(0.5f, BoardFooterEdgeFade.maskAlpha(0f, 0.5f))
+        assertEquals(1f, BoardFooterEdgeFade.maskAlpha(0f, 0f))
+        assertEquals(0f, BoardFooterEdgeFade.maskAlpha(-1f, 2f))
     }
 
     @Test

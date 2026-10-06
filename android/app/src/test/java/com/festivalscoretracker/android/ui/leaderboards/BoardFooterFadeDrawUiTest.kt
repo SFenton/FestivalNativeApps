@@ -84,12 +84,13 @@ class BoardFooterFadeDrawUiTest {
         val image = board(fade = true)
         val cut = rule.onNodeWithTag("fst.t.bottom-bar").fetchSemanticsNode().positionInWindow.y.toInt() - image.y
         assertFalse("no row shows beneath the footer", image.redIn(cut + 1 until 800))
-        assertTrue("rows above the band are untouched", image.redIn(cut - 200 until cut - 41))
-        // The 40 dp band eases out towards the cut.
-        val band = (cut - 40 until cut).filter { image.redAt(it) > 0.01f }
+        assertTrue("rows above the band are untouched", image.redIn(cut - 200 until cut - 37))
+        // Scroll-edge R3: a linear 36 dp ramp, opaque at its top and clear at the cut.
+        val band = (cut - 36 until cut).filter { image.redAt(it) > 0.01f }
         assertTrue(band.size > 20)
-        assertTrue(band.zipWithNext().all { (a, b) -> image.redAt(b) <= image.redAt(a) + 0.01f })
-        assertTrue(image.redAt(cut - 2) < 0.15f)
+        band.forEach { y -> assertEquals("linear ramp at ${cut - y} dp above the cut", (cut - y - 0.5f) / 36f, image.redAt(y), 0.04f) }
+        assertTrue("fully opaque just above the band", (cut - 52 until cut - 36).all { image.redAt(it) > 0.99f || image.redAt(it) < 0.01f })
+        assertTrue(image.redAt(cut - 2) < 0.1f)
     }
 
     @Test
@@ -112,7 +113,7 @@ class BoardFooterFadeDrawUiTest {
         val image = board(fade = true, accessibility)
         val cut = rule.onNodeWithTag("fst.t.bottom-bar").fetchSemanticsNode().positionInWindow.y.toInt() - image.y
         assertFalse("no row shows beneath the footer", image.redIn(cut + 1 until 800))
-        assertTrue("no ramp: rows are opaque up to the cut", (cut - 40 until cut - 1).all { image.redAt(it) > 0.99f || image.redAt(it) < 0.01f })
+        assertTrue("no ramp: rows are opaque up to the cut", (cut - 36 until cut - 1).all { image.redAt(it) > 0.99f || image.redAt(it) < 0.01f })
         assertTrue("rows reach the cut", image.redIn(cut - 12 until cut))
         rule.onNodeWithTag("row.14").assertIsNotDisplayed()
     }
