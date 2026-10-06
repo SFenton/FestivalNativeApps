@@ -25,6 +25,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 |---|---|---|---|---|---|
 | Songs (anonymous / selected) | ✅✅✅ | 9/10/10 | ✅ | ✅ | ✅ (C+M) |
 | Songs Filter (web sections, percentile open) | ✅✅✅ (+AOT) | 20/20/20 | ✅ | ✅ | ✅ |
+| Songs Filter, no profile (General only, Double Bass open, issue #273) | ✅✅✅ | 7/7/7 | ✅ | ✅ (Night sky, Desert) | ✅ (200%) |
 | Song Detail + Paths dialog | ✅✅✅ | 16/17/17 | ✅ | ✅ | ✅ |
 | Song Leaderboard | ✅✅✅ | 8/10/10 | ✅ | ✅ | ✅ (C/M/W, also 200%; display 100%/150%, issue #197) |
 | Player History (Song Detail Score History, issue #198) | ✅✅✅ | 7/9/9 | UIA (locked console) | ✅ (Night sky, Desert: chart roles) | ✅ (200%: axes scale) |

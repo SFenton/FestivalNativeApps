@@ -111,7 +111,7 @@
                                         </ItemsRepeater>
                                         <controls:LeaderboardsSpotlight Spotlight="{x:Bind Spotlight}" IdPrefix="{x:Bind SpotlightAutomationId}"
                                                                         Visibility="{x:Bind ShowRows, Mode=OneWay}" />
-                                        <Button Content="{x:Bind ViewAllText, Mode=OneWay}" Tag="{x:Bind}" Click="OnViewAll" Style="{StaticResource FSTViewAllButtonStyle}" Margin="0,4,0,0"
+                                        <Button Content="{x:Bind ViewAllText, Mode=OneWay}" Tag="{x:Bind}" Click="OnViewAll" Style="{StaticResource FSTViewAllButtonStyle}"
                                                 Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName, Mode=OneWay}"
                                                 AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                 </StackPanel>
@@ -162,7 +162,7 @@
                                                 </DataTemplate>
                                             </ItemsRepeater.ItemTemplate>
                                         </ItemsRepeater>
-                                        <Button Content="{x:Bind ViewAllText, Mode=OneWay}" Tag="{x:Bind}" Click="OnViewAll" Style="{StaticResource FSTViewAllButtonStyle}" Margin="0,4,0,0"
+                                        <Button Content="{x:Bind ViewAllText, Mode=OneWay}" Tag="{x:Bind}" Click="OnViewAll" Style="{StaticResource FSTViewAllButtonStyle}"
                                                 Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName, Mode=OneWay}"
                                                 AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                 </StackPanel>

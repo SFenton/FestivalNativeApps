@@ -623,7 +623,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             Log($"ok {verb}:{arg}");
         }
         var result = Describe(window).AsObject();
-        foreach (var key in new[] { "focus", "scans", "aligned", "pinned", "sizes", "apart", "hits" })
+        if (announcementHandler is not null)
+            response["announcements"] = new JsonArray([.. announcements.Select(a => (JsonNode)JsonValue.Create(a)!)]);
+        foreach (var key in new[] { "focus", "scans", "aligned", "pinned", "announcements", "sizes", "apart", "hits" })
         {
             if (response[key] is not JsonArray collected) continue;
             response.Remove(key);
@@ -770,6 +772,12 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "pin":
             case "assertpinned":
                 Pin(window, step, verb == "pin");
+                break;
+            case "listen":
+                Listen(window);
+                break;
+            case "assertannounced":
+                AssertAnnounced(step);
                 break;
             case "assertsize":
                 AssertSize(window, step);
@@ -933,6 +941,52 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             throw new InvalidOperationException("foreground:off could not move activation to the taskbar (locked console?)");
         if (Native.WindowsAbove(hwnd, window.Properties.ProcessId.Value) is { Count: > 0 } above)
             throw new InvalidOperationException("foreground:off left the window covered by " + string.Join(", ", above.Select(b => $"\"{b.Title}\"")));
+    }
+
+    /// <summary>UIA notification texts (what Narrator speaks) raised in the window since <c>listen:announcements</c>.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentQueue<string> announcements = new();
+
+    /// <summary>The window's notification subscription, or <see langword="null"/> before <c>listen</c>.</summary>
+    private FlaUI.Core.EventHandlers.NotificationEventHandlerBase? announcementHandler;
+
+    /// <summary>
+    /// Starts recording the window's UIA notification events (<c>RaiseNotificationEvent</c>: the app's screen-reader
+    /// announcements) for later <c>assertannounced</c> steps in the same <c>drive</c>.
+    /// </summary>
+    /// <param name="window">App window (its subtree includes dialogs hosted in the window's popups).</param>
+    private void Listen(Window window)
+    {
+        // WinUI raises notifications from peers whose UIA parent chain can stop short of the window (a UserControl's
+        // created peer inside a dialog popup), so a window-scoped subscription hears nothing: listen at the desktop and
+        // keep this process's notifications only.
+        if (announcementHandler is not null) return;
+        var processId = window.Properties.ProcessId.Value;
+        announcementHandler = automation.GetDesktop().RegisterNotificationEvent(FlaUI.Core.Definitions.TreeScope.Subtree,
+            (sender, _, _, text, _) =>
+            {
+                int? from = null;
+                try { from = sender?.Properties.ProcessId.ValueOrDefault; } catch (Exception) { /* sender gone */ }
+                if (from is null or 0 || from == processId) announcements.Enqueue(text ?? "");
+            });
+    }
+
+    /// <summary>
+    /// Waits until a recorded announcement equals the step's text (or matches it as a .NET regex when it starts with
+    /// <c>~</c>).
+    /// </summary>
+    /// <param name="step">Step with <c>text</c> and an optional timeout (default 5 s).</param>
+    /// <exception cref="InvalidOperationException">No <c>listen</c> step ran, or nothing matched by the timeout.</exception>
+    private void AssertAnnounced(JsonObject step)
+    {
+        if (announcementHandler is null) throw new InvalidOperationException("assertannounced needs an earlier listen:announcements step in the same drive");
+        var expected = (string)step["text"]!;
+        var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        while (!announcements.Any(a => StatusMatches(a, expected)))
+        {
+            if (DateTime.UtcNow > until)
+                throw new InvalidOperationException($"no announcement \"{expected}\"; heard [{string.Join(" | ", announcements)}]");
+            Thread.Sleep(100);
+        }
     }
 
     /// <summary>Whether an ItemStatus equals the expected text, or matches it as a regex when it starts with <c>~</c>.</summary>

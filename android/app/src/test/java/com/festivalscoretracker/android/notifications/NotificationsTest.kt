@@ -62,7 +62,7 @@ class NotificationsTest {
         val pb = NotificationText.format(item("a", "player_score_pb", newNumeric = 123456.0), "Alpha Tune")
         assertEquals("Alpha Tune · Lead", pb.title)
         assertEquals("You set a new personal best on Lead for Alpha Tune with 123,456 points.", pb.message)
-        assertEquals("New High Score", pb.flag)
+        assertEquals(listOf(NotificationFlagKind.NewHighScore), pb.flags)
         assertEquals(NotificationDestination.Song("s-alpha", Instrument.Lead), pb.destination)
 
         val first = NotificationText.format(item("b", "player_first_score", newNumeric = 5.0, newRank = 1234), null)
@@ -72,25 +72,25 @@ class NotificationsTest {
         val rank = NotificationText.format(item("c", "player_skill_rank_improved", song = null, oldRank = 10, newRank = 3), null)
         assertEquals("Adjusted Percentile Rank Improved", rank.title)
         assertEquals("You moved up from #10 to #3 in Lead adjusted percentile rankings.", rank.message)
-        assertEquals("Rank Up", rank.flag)
+        assertEquals(listOf(NotificationFlagKind.RankUp), rank.flags)
         assertEquals(NotificationDestination.Rankings("adjusted", Instrument.Lead), rank.destination)
 
         val total = NotificationText.format(item("d", "player_total_score_improved", song = null, instrument = null, newNumeric = 1.5), null)
         assertEquals("Total Score Improved", total.title)
         assertEquals("Your this instrument total score increased to 1.5 points.", total.message)
-        assertEquals("Progress", total.flag)
+        assertEquals(listOf(NotificationFlagKind.Progress), total.flags)
         assertNull(total.destination)
 
         val unknown = NotificationText.format(item("e", "mystery_kind", song = null), null)
         assertEquals("New improvement detected.", unknown.message)
-        assertEquals("Improvement", unknown.flag)
+        assertEquals(listOf(NotificationFlagKind.Improvement), unknown.flags)
 
         val shop = NotificationText.format(
             item("f", "service_new_shop_song", instrument = null, payload = NotificationPayload(songTitle = " Beta ", artist = null)), null,
         )
         assertEquals("New Song · Beta - Unknown Artist", shop.title)
         assertEquals("Beta by Unknown Artist has been added to the Item Shop.", shop.message)
-        assertNull(shop.flag)
+        assertTrue(shop.flags.isEmpty())
         assertEquals(NotificationDestination.Song("s-alpha", null), shop.destination)
 
         assertEquals("You improved from more to 5 stars on Lead for X.", NotificationText.format(item("g", "player_stars_improved", newNumeric = 5.0), "X").message)
@@ -129,7 +129,7 @@ class NotificationsTest {
     @Test
     fun messagesBoldTheWebsEmphasisTerms() {
         val pb = NotificationText.format(item("a", "player_score_pb", newNumeric = 123456.0), "Alpha Tune")
-        assertEquals(NotificationFlagKind.NewHighScore, pb.flagKind)
+        assertEquals("New High Score", pb.spokenFlags)
         assertEquals(
             listOf(
                 NotificationMessagePart("You set a new personal best on "), NotificationMessagePart("Lead", true), NotificationMessagePart(" for "),
@@ -154,7 +154,7 @@ class NotificationsTest {
             item("g", "service_new_shop_song", payload = NotificationPayload(songTitle = "Shop Tune", artist = "Band X")), null,
         )
         assertEquals(listOf("Shop Tune", "Band X"), shop.messageParts.filter { it.emphasis }.map { it.text })
-        assertNull(shop.flagKind)
+        assertEquals("", shop.spokenFlags)
         assertEquals(listOf(NotificationMessagePart("plain")), NotificationText.emphasize("plain", listOf("", "this song", "absent")))
         NotificationFlagKind.entries.forEach { assertEquals(it.label, NotificationText.flag(kindFor(it))) }
     }
