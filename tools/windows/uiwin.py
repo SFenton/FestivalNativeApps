@@ -271,7 +271,8 @@ def parse_step(step: str) -> dict:
     ``markspan:<sel>|<sel>|<name>`` records the distance from the first element's top edge to the second's (epx)
     under ``<name>`` and ``assertspan:<sel>|<sel>|<name>`` fails unless that distance is unchanged within 1 epx
     in the same drive (a card that must keep its height across a transition, measured top to top so scrolling
-    doesn't matter).
+    doesn't matter). ``assertspan:<sel>|<sel>|<name>~<epx>`` widens that tolerance for a mid-transition check whose
+    anchor itself animates (e.g. list rows below a card rising ``FadeInTiming.OffsetY`` = 12 epx as they fade in).
     ``film:<dir>`` starts a background ``PrintWindow`` capture (frames scaled to at most 1280 px, up to 300) while
     the following steps run, and ``filmstop:<dir>`` ends it and writes ``f0000.jpg``… and ``frames.json`` (each
     frame's offset in ms) to ``<dir>``: motion evidence for a short transition such as a fade.
@@ -353,12 +354,17 @@ def parse_step(step: str) -> dict:
     elif shape == "span":
         first, sep, rest = arg.partition("|")
         second, sep2, name = rest.rpartition("|")
-        if not sep or not sep2 or not re.fullmatch(r"[A-Za-z0-9_.-]+", name.strip()):
-            raise ValueError(f"bad {verb} {arg!r}; use <selector>|<selector>|<name>")
+        name, tilde, slack = name.strip().partition("~")
+        if not sep or not sep2 or not re.fullmatch(r"[A-Za-z0-9_.-]+", name):
+            raise ValueError(f"bad {verb} {arg!r}; use <selector>|<selector>|<name>[~<epx>]")
+        if tilde and (verb != "assertspan" or not re.fullmatch(r"\d+(\.\d+)?", slack) or float(slack) < 1):
+            raise ValueError(f"bad {verb} {arg!r}; only assertspan takes a ~<epx> tolerance of at least 1")
         result["selector"], result["other"] = parse_selector(first), parse_selector(second)
         if "xy" in (result["selector"]["kind"], result["other"]["kind"]):
             raise ValueError(f"{verb} needs element selectors, not coordinates")
-        result["name"] = name.strip()
+        result["name"] = name
+        if tilde:
+            result["tolerance"] = float(slack)
     elif shape == "status":
         body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
         selector, sep, status = body.partition("|")
