@@ -27,12 +27,13 @@
                     <Border Width="128" Height="128" CornerRadius="8" Background="{StaticResource FSTSurfaceMutedBrush}">
                         <Image x:Name="HeaderArt" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
                     </Border>
+                    <!-- Song header title and artist line: the shared SongHeaderText column (one line each across the column,
+                         scrolling when they overflow, wrapping at large text; song-header R1-R3, issue #315). The actions
+                         below stay page-specific. -->
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
-                        <TextBlock Text="{x:Bind ViewModel.Song.Title, Mode=OneWay}" Style="{StaticResource TitleLargeTextBlockStyle}"
-                                   TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level1"
-                                   AutomationProperties.AutomationId="fst.song-detail.title" />
-                        <TextBlock Text="{x:Bind ViewModel.Song.Subtitle, Mode=OneWay}" Style="{StaticResource BodyLargeTextBlockStyle}"
-                                   Foreground="{ThemeResource FSTSecondaryTextBrush}" TextWrapping="Wrap" />
+                        <controls:SongHeaderText Title="{x:Bind ViewModel.Song.Title, Mode=OneWay}" Artist="{x:Bind ViewModel.Song.Subtitle, Mode=OneWay}"
+                                                 TitleStyle="{StaticResource TitleLargeTextBlockStyle}" ArtistStyle="{StaticResource FSTMarqueeSongHeaderArtistStyle}"
+                                                 Spacing="4" TitleAutomationId="fst.song-detail.title" ArtistAutomationId="fst.song-detail.artist" />
                         <!-- Paths, Item Shop and Quick Links share Fluent's 40 epx touch-target height (FSTMinTargetSize). -->
                         <controls:WrapPanel HorizontalSpacing="8" VerticalSpacing="8" Margin="0,8,0,0">
                             <Button Click="OnPathsClick" Visibility="{x:Bind ViewModel.HasPaths, Mode=OneWay}" Style="{StaticResource AccentButtonStyle}"
@@ -332,10 +333,10 @@
                 <Border Width="40" Height="40" CornerRadius="6" Background="{StaticResource FSTSurfaceMutedBrush}">
                     <Image x:Name="PinnedArt" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
                 </Border>
-                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <controls:MarqueeText Text="{x:Bind ViewModel.Song.Title, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeTitleStyle}" />
-                    <controls:MarqueeText Text="{x:Bind ViewModel.Song.Subtitle, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeCaptionStyle}" />
-                </StackPanel>
+                <!-- Pinned bar copy of the shared song header text: one marqueeing line at every text size (song-header R4). -->
+                <controls:SongHeaderText Grid.Column="1" VerticalAlignment="Center" Variant="Bar"
+                                         Title="{x:Bind ViewModel.Song.Title, Mode=OneWay}" Artist="{x:Bind ViewModel.Song.Subtitle, Mode=OneWay}"
+                                         TitleAutomationId="fst.song-detail.pinned-title" ArtistAutomationId="fst.song-detail.pinned-artist" />
                 <Button Grid.Column="2" Click="OnPathsClick" Visibility="{x:Bind ViewModel.HasPaths, Mode=OneWay}" Style="{StaticResource AccentButtonStyle}"
                         MinHeight="{StaticResource FSTMinTargetSize}" VerticalAlignment="Center"
                         AutomationProperties.Name="Paths" AutomationProperties.AutomationId="fst.song-detail.pinned-paths">

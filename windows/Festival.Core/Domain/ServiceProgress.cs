@@ -375,7 +375,7 @@ public static class ServiceInfoText
     }
 
     /// <summary>Windows text size at and above which the process state stacks under its label.</summary>
-    public const double StackedStateTextScale = 1.5;
+    public const double StackedStateTextScale = LargeText.Scale;
 
     /// <summary>
     /// Whether the "Leaderboard Service State" row stacks its process state under the label (Apple's accessibility-size

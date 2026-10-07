@@ -14,7 +14,7 @@ public class PagerSurfaceMarkupTests
     private const string CardStroke = "{ThemeResource FSTCardStrokeBrush}";
 
     private static readonly string AppRoot =
-        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Festival.App");
+        Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Festival.App"));
 
     #region Helpers
 

@@ -1,0 +1,167 @@
+[
+  {
+    "name": "song-detail-moving",
+    "route": "/songs/fixture-pulse",
+    "preset": "compact",
+    "args": ["--no-art"],
+    "steps": [
+      "waitfor:id=fst.song-detail.title@30",
+      "waitgone:name=Loading song@20",
+      "wait:1.5",
+      "assertname:id=fst.song-detail.title|Fixture Pulse and the Extraordinarily Long Song Title That Never Fits on One Line",
+      "assertmarquee:id=fst.song-detail.title|moving|60",
+      "assertmarquee:id=fst.song-detail.artist|moving|32",
+      "assertmarqueesync:id=fst.song-detail.title|id=fst.song-detail.artist",
+      "shot:{shots}\\song-detail-moving.png",
+      "scrollto:id=fst.song-detail,100",
+      "waitfor:id=fst.song-detail.pinned-title@5",
+      "wait:1",
+      "assertmarquee:id=fst.song-detail.pinned-title|moving|28",
+      "assertmarquee:id=fst.song-detail.pinned-artist|moving|22",
+      "assertmarqueesync:id=fst.song-detail.pinned-title|id=fst.song-detail.pinned-artist",
+      "shot:{shots}\\song-detail-pinned-moving.png"
+    ]
+  },
+  {
+    "name": "song-detail-static",
+    "route": "/songs/fixture-pulse",
+    "preset": "compact",
+    "args": ["--no-art", "--reduce-motion"],
+    "steps": [
+      "waitfor:id=fst.song-detail.title@30",
+      "waitgone:name=Loading song@20",
+      "wait:1.5",
+      "assertname:id=fst.song-detail.title|Fixture Pulse and the Extraordinarily Long Song Title That Never Fits on One Line",
+      "assertmarquee:id=fst.song-detail.title|static|60",
+      "assertmarquee:id=fst.song-detail.artist|static|32",
+      "shot:{shots}\\song-detail-static.png",
+      "scrollto:id=fst.song-detail,100",
+      "waitfor:id=fst.song-detail.pinned-title@5",
+      "wait:1",
+      "assertmarquee:id=fst.song-detail.pinned-title|static|28",
+      "assertmarquee:id=fst.song-detail.pinned-artist|static|22",
+      "shot:{shots}\\song-detail-pinned-static.png"
+    ]
+  },
+  {
+    "name": "song-leaderboard-moving",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "preset": "compact",
+    "args": ["--no-art"],
+    "steps": [
+      "waitfor:id=fst.song-leaderboard.list@30",
+      "waitfor:id=fst.song-leaderboard.title@10",
+      "wait:1.5",
+      "assertmarquee:id=fst.song-leaderboard.title|moving|44",
+      "assertmarquee:id=fst.song-leaderboard.artist|moving|26",
+      "assertmarqueesync:id=fst.song-leaderboard.title|id=fst.song-leaderboard.artist",
+      "shot:{shots}\\song-leaderboard-moving.png"
+    ]
+  },
+  {
+    "name": "song-leaderboard-static",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "preset": "compact",
+    "args": ["--no-art", "--reduce-motion"],
+    "steps": [
+      "waitfor:id=fst.song-leaderboard.list@30",
+      "waitfor:id=fst.song-leaderboard.title@10",
+      "wait:1.5",
+      "assertmarquee:id=fst.song-leaderboard.title|static|44",
+      "assertmarquee:id=fst.song-leaderboard.artist|static|26",
+      "shot:{shots}\\song-leaderboard-static.png"
+    ]
+  },
+  {
+    "name": "song-band-leaderboard-moving",
+    "route": "/songs/fixture-pulse/bands/Band_Duets",
+    "preset": "compact",
+    "args": ["--no-art"],
+    "steps": [
+      "waitfor:id=fst.song-band-leaderboard.list@30",
+      "assertname:id=fst.song-band-leaderboard.title|Fixture Pulse and the Extraordinarily Long Song Title That Never Fits on One Line",
+      "wait:1.5",
+      "assertmarquee:id=fst.song-band-leaderboard.title|moving|44",
+      "assertmarquee:id=fst.song-band-leaderboard.artist|moving|26",
+      "assertmarqueesync:id=fst.song-band-leaderboard.title|id=fst.song-band-leaderboard.artist",
+      "shot:{shots}\\song-band-leaderboard-moving.png"
+    ]
+  },
+  {
+    "name": "song-band-leaderboard-static",
+    "route": "/songs/fixture-pulse/bands/Band_Duets",
+    "preset": "compact",
+    "args": ["--no-art", "--reduce-motion"],
+    "steps": [
+      "waitfor:id=fst.song-band-leaderboard.list@30",
+      "assertname:id=fst.song-band-leaderboard.title|Fixture Pulse and the Extraordinarily Long Song Title That Never Fits on One Line",
+      "wait:1.5",
+      "assertmarquee:id=fst.song-band-leaderboard.title|static|44",
+      "assertmarquee:id=fst.song-band-leaderboard.artist|static|26",
+      "shot:{shots}\\song-band-leaderboard-static.png"
+    ]
+  },
+  {
+    "name": "player-history-moving",
+    "route": "/songs/fixture-pulse/Solo_Guitar/history",
+    "preset": "compact",
+    "args": ["--no-art"],
+    "extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1"},
+    "steps": [
+      "waitfor:id=fst.history@30",
+      "waitfor:id=fst.song-detail.pinned-title@10",
+      "wait:1.5",
+      "assertname:id=fst.song-detail.pinned-title|Fixture Pulse and the Extraordinarily Long Song Title That Never Fits on One Line",
+      "assertmarquee:id=fst.song-detail.pinned-title|moving|28",
+      "assertmarquee:id=fst.song-detail.pinned-artist|moving|22",
+      "assertmarqueesync:id=fst.song-detail.pinned-title|id=fst.song-detail.pinned-artist",
+      "shot:{shots}\\player-history-moving.png"
+    ]
+  },
+  {
+    "name": "player-history-static",
+    "route": "/songs/fixture-pulse/Solo_Guitar/history",
+    "preset": "compact",
+    "args": ["--no-art", "--reduce-motion"],
+    "extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1"},
+    "steps": [
+      "waitfor:id=fst.history@30",
+      "waitfor:id=fst.song-detail.pinned-title@10",
+      "wait:1.5",
+      "assertname:id=fst.song-detail.pinned-title|Fixture Pulse and the Extraordinarily Long Song Title That Never Fits on One Line",
+      "assertmarquee:id=fst.song-detail.pinned-title|static|28",
+      "assertmarquee:id=fst.song-detail.pinned-artist|static|22",
+      "shot:{shots}\\player-history-static.png"
+    ]
+  },
+  {
+    "name": "song-detail-lone-title",
+    "route": "/songs/fixture-pulse",
+    "preset": "compact",
+    "args": ["--no-art"],
+    "fixture": ["--short-artist"],
+    "steps": [
+      "waitfor:id=fst.song-detail.title@30",
+      "waitgone:name=Loading song@20",
+      "wait:1.5",
+      "assertmarquee:id=fst.song-detail.title|moving|60",
+      "assertmarquee:id=fst.song-detail.artist|fits|32",
+      "shot:{shots}\\song-detail-lone-title.png"
+    ]
+  },
+  {
+    "name": "song-leaderboard-lone-title",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "preset": "compact",
+    "args": ["--no-art"],
+    "fixture": ["--short-artist"],
+    "steps": [
+      "waitfor:id=fst.song-leaderboard.list@30",
+      "waitfor:id=fst.song-leaderboard.title@10",
+      "wait:1.5",
+      "assertmarquee:id=fst.song-leaderboard.title|moving|44",
+      "assertmarquee:id=fst.song-leaderboard.artist|fits|26",
+      "shot:{shots}\\song-leaderboard-lone-title.png"
+    ]
+  }
+]
