@@ -37,9 +37,9 @@ public sealed partial class LeaderboardsSpotlight : UserControl
         get => PinnedRow.IsFloating;
         set
         {
-            PinnedRow.IsFloating = value;
+            PinnedRow.IsFloating = LoadingRow.IsFloating = value;
             var backplate = value ? Visibility.Visible : Visibility.Collapsed;
-            LoadingBackplate.Visibility = FailedBackplate.Visibility = UnrankedBackplate.Visibility = backplate;
+            FailedBackplate.Visibility = UnrankedBackplate.Visibility = backplate;
         }
     }
 

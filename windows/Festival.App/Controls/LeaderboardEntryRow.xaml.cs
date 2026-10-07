@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Shapes;
 
 namespace Festival.App.Controls;
 
@@ -22,6 +23,7 @@ public sealed partial class LeaderboardEntryRow : UserControl
     private double width = double.NaN;
     private bool current;
     private string? rowAutomationId;
+    private Rectangle[]? bars;
 
     /// <summary>Row model: any <see cref="ILeaderboardEntryRow"/>.</summary>
     public static readonly DependencyProperty RowProperty = DependencyProperty.Register(
@@ -169,6 +171,7 @@ public sealed partial class LeaderboardEntryRow : UserControl
         // The section reserves the chevron slot (UpdateColumns); a row without a destination leaves it blank so its
         // values stay in line with openable rows (issue #209).
         Chevron.Opacity = row.Route is not null ? 1 : 0;
+        ApplyPlaceholder(row as LeaderboardSkeletonRow);
         ApplyWeights(row);
         ApplySurface();
         UpdateColumns();
@@ -183,6 +186,66 @@ public sealed partial class LeaderboardEntryRow : UserControl
     private string BadgeAutomationId(ILeaderboardScoreRow score) =>
         string.IsNullOrEmpty(rowAutomationId) ? score.BadgeAutomationId
             : "fst.score.accuracy." + rowAutomationId[(rowAutomationId.LastIndexOf('.') + 1)..];
+
+    /// <summary>
+    /// A loading placeholder (<see cref="LeaderboardSkeletonRow"/>, issue #281) lays out exactly like a loaded row, so it
+    /// is as tall at every text size and width, but its text is invisible, it is raw-view only (Narrator skips it; the
+    /// card's loading is conveyed by its rows arriving) and it draws static placeholder bars in the text's cells. A
+    /// recycled row turns all of that back off.
+    /// </summary>
+    /// <param name="skeleton">Placeholder model, or <see langword="null"/> for a loaded row.</param>
+    private void ApplyPlaceholder(LeaderboardSkeletonRow? skeleton)
+    {
+        if (skeleton is null) RowButton.ClearValue(AutomationProperties.AccessibilityViewProperty);
+        else AutomationProperties.SetAccessibilityView(RowButton, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
+        RankText.Opacity = NameText.Opacity = MetaText.Opacity = ValueStack.Opacity = skeleton is null ? 1 : 0;
+        if (skeleton is { ShowBars: true } && bars is null)
+        {
+            bars = [Bar(28, HorizontalAlignment.Left), Bar(0, HorizontalAlignment.Left), Bar(48, HorizontalAlignment.Left),
+                Bar(56, HorizontalAlignment.Right)];
+            foreach (var bar in bars) RowGrid.Children.Add(bar);
+        }
+        if (skeleton is not null && bars is not null) bars[1].Width = Math.Max(56, 140 - skeleton.Index * 12);
+    }
+
+    /// <summary>One static rounded placeholder bar (no shimmer: no per-frame work beside a game).</summary>
+    /// <param name="width">Width in epx.</param>
+    /// <param name="alignment">Alignment in its cell, like the text it stands in for.</param>
+    /// <returns>Bar.</returns>
+    private static Rectangle Bar(double width, HorizontalAlignment alignment) => new()
+    {
+        Height = 14, Width = width, RadiusX = 7, RadiusY = 7, HorizontalAlignment = alignment,
+        VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false,
+        Fill = (Brush)Application.Current.Resources["FSTSurfaceMutedBrush"],
+    };
+
+    /// <summary>
+    /// Puts a placeholder's bars in the cells of the text they stand in for: rank, name and rating, plus the songs label
+    /// when large text gives it its own line, so a stacked placeholder shows a bar on each line.
+    /// </summary>
+    /// <param name="songsOwnLine">Whether the songs label sits on its own line under the name.</param>
+    private void PlaceBars(bool songsOwnLine)
+    {
+        if (bars is null) return;
+        var show = Row is LeaderboardSkeletonRow { ShowBars: true };
+        Mirror(bars[0], RankText, show && RankText.Visibility == Visibility.Visible);
+        Mirror(bars[1], NameText, show);
+        Mirror(bars[2], MetaText, show && songsOwnLine && MetaText.Visibility == Visibility.Visible);
+        Mirror(bars[3], ValueStack, show);
+    }
+
+    /// <summary>Copies a text element's grid cell to its placeholder bar.</summary>
+    /// <param name="bar">Bar.</param>
+    /// <param name="source">Text element.</param>
+    /// <param name="visible">Whether the bar shows.</param>
+    private static void Mirror(Rectangle bar, FrameworkElement source, bool visible)
+    {
+        Grid.SetRow(bar, Grid.GetRow(source));
+        Grid.SetRowSpan(bar, Grid.GetRowSpan(source));
+        Grid.SetColumn(bar, Grid.GetColumn(source));
+        Grid.SetColumnSpan(bar, Grid.GetColumnSpan(source));
+        bar.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     /// <summary>
     /// Bold for the selected player (web <c>isPlayer</c>; operator batch 6.42): rank and name on score rows, plus the songs
@@ -220,6 +283,8 @@ public sealed partial class LeaderboardEntryRow : UserControl
         PillText.HighContrastAdjustment = badgeOnHighlight ? ElementHighContrastAdjustment.None : ElementHighContrastAdjustment.Application;
         Surface.Background = (Brush)resources[selected ? "FSTPlayerRowBrush" : current ? "FSTCurrentRowBrush" : "FSTCardSurfaceBrush"];
         Surface.BorderBrush = (Brush)resources[selected ? "FSTPlayerRowStrokeBrush" : "FSTCardStrokeBrush"];
+        if (bars is not null)
+            foreach (var bar in bars) bar.Fill = (Brush)resources["FSTSurfaceMutedBrush"];
         // Selected-row text follows the fill (HighlightText under a contrast theme); other rows inherit the button's.
         if (selected)
         {
@@ -314,6 +379,7 @@ public sealed partial class LeaderboardEntryRow : UserControl
         Place(Pill, scoreStack ? valueLine : 0, scoreStack ? 1 : 3, 4, 1, VerticalAlignment.Center);
         Place(StarsHost, scoreStack ? valueLine : 0, scoreStack ? 1 : 3, 5, 1, VerticalAlignment.Center);
         RowButton.Padding = scoreStack ? new Thickness(12, 6, 12, 6) : new Thickness(12, 0, 12, 0);
+        PlaceBars(below || rankingStack);
     }
 
     /// <summary>Puts an element in the row grid.</summary>

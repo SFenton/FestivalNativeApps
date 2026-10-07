@@ -8,14 +8,13 @@
         <!-- The neutral loading ring only (implicit ProgressRing style; audit 2026-09-28: no "Loading your rank…" subtitle); UIA keeps the name. -->
         <!-- Floating (Full Rankings footer), the loading, failure and unranked cards get the pinned row's opaque backplate
              under their frosted surface so scrolling rows never show through their text (issue #208). -->
+        <!-- The ring sits on a bar-less placeholder of the canonical row, fitted to the board's columns, so the loading row
+             is as tall as the pinned row that replaces it at every text size (issue #281; leaderboard-row R2). -->
         <Grid Visibility="{x:Bind Spotlight.ShowLoading, Mode=OneWay, FallbackValue=Collapsed}">
-            <Border x:Name="LoadingBackplate" CornerRadius="12" IsHitTestVisible="False" Visibility="Collapsed"
-                    Background="{ThemeResource FSTFloatingBackplateBrush}" />
-            <StackPanel x:Name="LoadingRow" Orientation="Horizontal" Padding="12,0" MinHeight="48" CornerRadius="12" BorderThickness="1"
-                        Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}">
-                <ProgressRing x:Name="LoadingRing" IsActive="{x:Bind Spotlight.ShowLoading, Mode=OneWay, FallbackValue=False}" Width="20" Height="20"
-                              AutomationProperties.Name="Loading your rank" />
-            </StackPanel>
+            <controls:LeaderboardEntryRow x:Name="LoadingRow" Row="{x:Bind Spotlight.LoadingRow, Mode=OneWay, FallbackValue={x:Null}}" />
+            <ProgressRing x:Name="LoadingRing" IsActive="{x:Bind Spotlight.ShowLoading, Mode=OneWay, FallbackValue=False}" Width="20" Height="20"
+                          Margin="12,0" HorizontalAlignment="Left" VerticalAlignment="Center"
+                          AutomationProperties.Name="Loading your rank" />
         </Grid>
         <Grid Visibility="{x:Bind Spotlight.ShowFailed, Mode=OneWay, FallbackValue=Collapsed}">
             <Border x:Name="FailedBackplate" CornerRadius="12" IsHitTestVisible="False" Visibility="Collapsed"

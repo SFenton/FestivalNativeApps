@@ -6,6 +6,8 @@ scrape-freeze 503 with ``Retry-After: 30`` (``--frozen-board``). Board names are
 ``Solo_Bass`` for ``/api/rankings/Solo_Bass`` and ``Band_Trios`` for ``/api/rankings/bands/Band_Trios``. Player
 spotlight reads (``/api/rankings/{instrument}/{accountId}``) and every other route are the unchanged mock service.
 ``--long-name`` renames every rank-2 player to a name too long for any row, for the name marquee (issue #292).
+``--slow-board`` answers a chosen board normally after :data:`SLOW_SECONDS`, so its card's loading rows stay on screen
+next to loaded cards (issue #281: placeholder rows as tall as loaded rows).
 
 Usage: ``python tools/windows/leaderboards_fixture.py --port 0 --empty-board Solo_Bass --frozen-board Band_Trios``
 (other flags, such as ``--large-rankings``, pass through to mock_service.py).
@@ -16,6 +18,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import time
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
@@ -26,18 +29,22 @@ import mock_service  # noqa: E402  (path set above)
 BOARD = re.compile(r"^/api/rankings/(?:(bands)/)?([A-Za-z_]+)$")
 LONG_NAME = "Fixture Player With An Extraordinarily Long Display Name That Never Fits"
 LONG_NAME_RANK = 2
+#: Delay before a ``--slow-board`` read is answered.
+SLOW_SECONDS = 25.0
 
 
-def board_override(path: str, empty: set[str], frozen: set[str]) -> tuple[str, str, bool] | None:
+def board_override(path: str, empty: set[str], frozen: set[str],
+                   slow: set[str] = frozenset()) -> tuple[str, str, bool] | None:
     """Decide whether a request is a top-level board read this wrapper answers.
 
     Args:
         path: Request path without the query string.
         empty: Board IDs answered with an empty page.
         frozen: Board IDs answered with a scrape-freeze 503.
+        slow: Board IDs answered by the mock after :data:`SLOW_SECONDS`.
 
     Returns:
-        ``(kind, board, is_band)`` with kind ``"empty"`` or ``"frozen"``, or ``None`` to defer to the mock.
+        ``(kind, board, is_band)`` with kind ``"empty"``, ``"frozen"`` or ``"slow"``, or ``None`` to defer to the mock.
     """
     match = BOARD.fullmatch(path)
     if match is None:
@@ -47,6 +54,8 @@ def board_override(path: str, empty: set[str], frozen: set[str]) -> tuple[str, s
         return "frozen", board, is_band
     if board in empty:
         return "empty", board, is_band
+    if board in slow:
+        return "slow", board, is_band
     return None
 
 
@@ -70,23 +79,28 @@ def empty_page(board: str, is_band: bool, query: dict[str, list[str]]) -> dict:
     return {"bandType": board, **page, "totalTeams": 0} if is_band else {"instrument": board, **page, "totalAccounts": 0}
 
 
-def install(empty: set[str], frozen: set[str]) -> None:
-    """Patch the mock handler so the chosen boards are empty or frozen.
+def install(empty: set[str], frozen: set[str], slow: set[str] = frozenset()) -> None:
+    """Patch the mock handler so the chosen boards are empty, frozen or slow.
 
     Args:
         empty: Board IDs answered with an empty page.
         frozen: Board IDs answered with a scrape-freeze 503.
+        slow: Board IDs answered by the mock after :data:`SLOW_SECONDS` (the server is threaded).
     """
     handler = mock_service.FixtureHandler
     original = handler.do_GET
 
     def do_GET(self) -> None:  # noqa: N802 (stdlib handler name)
         parsed = urlsplit(self.path)
-        override = board_override(parsed.path, empty, frozen)
+        override = board_override(parsed.path, empty, frozen, slow)
         if override is None:
             original(self)
             return
         kind, board, is_band = override
+        if kind == "slow":
+            time.sleep(SLOW_SECONDS)
+            original(self)
+            return
         if kind == "frozen":
             self.send_response(503)
             self.send_header("Retry-After", "30")
@@ -122,8 +136,9 @@ def main() -> None:
     parser.add_argument("--empty-board", action="append", default=[])
     parser.add_argument("--frozen-board", action="append", default=[])
     parser.add_argument("--long-name", action="store_true")
+    parser.add_argument("--slow-board", action="append", default=[])
     options, rest = parser.parse_known_args()
-    install(set(options.empty_board), set(options.frozen_board))
+    install(set(options.empty_board), set(options.frozen_board), set(options.slow_board))
     if options.long_name:
         install_long_name()
     sys.argv = [sys.argv[0], *rest]
