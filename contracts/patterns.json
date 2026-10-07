@@ -674,6 +674,10 @@
           {
             "path": "apple/Sources/FestivalUI/App/Shell/RootChrome.swift",
             "symbol": "RootProfileButton"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongsBottomFilterField.swift",
+            "symbol": "SongsFilterFieldPlacement"
           }
         ],
         "android": [
