@@ -550,7 +550,8 @@
           "scroll-edge",
           "section-jump-landing",
           "quick-links",
-          "empty-error-states"
+          "empty-error-states",
+          "hinge-columns"
         ],
         "controls": [
           "quick-links",
@@ -569,6 +570,7 @@
         297,
         312,
         321,
+        343,
         348
       ]
     },
@@ -742,7 +744,9 @@
         "global search",
         "quick links",
         "profile",
-        "hit target"
+        "hit target",
+        "drawer",
+        "hamburger"
       ],
       "web": [
         {
@@ -756,6 +760,10 @@
         {
           "path": "pages/songs/components/SongsToolbar.tsx",
           "symbol": "SongsToolbar"
+        },
+        {
+          "path": "components/shell/desktop/Sidebar.tsx",
+          "symbol": "Sidebar"
         }
       ],
       "canonical": {
@@ -791,6 +799,18 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchTab.swift",
             "symbol": "GlobalSearchFieldPlacement"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
+            "symbol": "DrawerMenu"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
+            "symbol": "FestivalDrawer"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Shell/SidebarMenu.swift",
+            "symbol": "SidebarMenu"
           }
         ],
         "android": [
@@ -904,7 +924,8 @@
         271,
         300,
         309,
-        337
+        337,
+        338
       ]
     },
     {
@@ -1553,7 +1574,8 @@
             "apple/Sources/FestivalUI/Features/Leaderboards/LeaderboardsScreen.swift",
             "apple/Sources/FestivalUI/Features/Leaderboards/FullRankingsScreen.swift",
             "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
-            "apple/Sources/FestivalUI/Features/Shop/ShopScreen.swift"
+            "apple/Sources/FestivalUI/Features/Shop/ShopScreen.swift",
+            "apple/Sources/FestivalUI/Features/Compete/CompeteScreen.swift"
           ],
           "debt": [],
           "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."
@@ -2613,6 +2635,106 @@
         82,
         276,
         347
+      ]
+    },
+    {
+      "id": "hinge-columns",
+      "title": "Hinge columns",
+      "status": "current",
+      "doc": ".agents/patterns/hinge-columns.md",
+      "summary": "While a vertical fold crosses a layout (iPhone Duo book pose, Android book posture), grid and two-up row gutters sit on the fold with the same column count each side, full-width titles wrap on their own side, and the flat layout returns in place when unfolded.",
+      "keywords": [
+        "hinge",
+        "fold",
+        "foldable",
+        "book pose",
+        "book posture",
+        "partially folded",
+        "division",
+        "grid columns",
+        "two column",
+        "gutter",
+        "iphone duo"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/HingeColumns.swift",
+            "symbol": "HingeColumns"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/HingeColumns.swift",
+            "symbol": "HingeGrid"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/HingeColumns.swift",
+            "symbol": "HingeRow"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/HingeColumns.swift",
+            "symbol": "HingeEagerGrid"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Profile/PlayerStatGrid.swift",
+            "symbol": "StatTileGridLayout"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rivals/HingeColumns.kt",
+            "symbol": "HingeColumns"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/shop/ShopColumns.kt",
+            "symbol": "ShopColumnPolicy"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/AdaptiveCardGrid.kt",
+            "symbol": "AdaptiveCardGrid"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/settings/HingeSplit.kt",
+            "symbol": "rememberHingeSplit"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FoldLane.kt",
+            "symbol": "FoldLane"
+          }
+        ],
+        "windows": []
+      },
+      "related": {
+        "patterns": [
+          "section-headers"
+        ],
+        "pages": [
+          "statistics",
+          "player-profile",
+          "shop",
+          "leaderboards",
+          "suggestions",
+          "songs",
+          "song-detail",
+          "compete"
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-lazy-grid",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\bLazyVGrid\\s*\\(",
+          "allow": [
+            "apple/Sources/FestivalUI/App/Layout/HingeColumns.swift",
+            "apple/Sources/FestivalUI/Features/FirstRun/Demo/FirstRunShopDemos.swift"
+          ],
+          "debt": [],
+          "message": "Page grids use HingeGrid so their gutter sits on an iPhone Duo fold in book pose (hinge-columns R1, R6); the First Run Shop demo is a fixed miniature inside a slide."
+        }
+      ],
+      "supersedes": [],
+      "issues": [
+        343
       ]
     }
   ]

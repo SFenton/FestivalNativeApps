@@ -310,7 +310,10 @@ struct ShopScreen: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     shopDisclosures(snapshot)
-                    LazyVGrid(columns: gridColumns, spacing: ShopGridPolicy.spacing) {
+                    HingeGrid(
+                        columns: gridColumns, spacing: ShopGridPolicy.spacing,
+                        perSide: .fit(minimum: ShopGridPolicy.minimumFoldCardWidth)
+                    ) {
                         ForEach(Array(offers.enumerated()), id: \.element.id) { index, offer in
                             offerCard(offer, snapshot: snapshot, grid: true)
                                 .detailStaggeredFadeIn(index: index, settled: staggerSettled)
@@ -747,6 +750,9 @@ enum ShopGridPolicy {
     static let minimumCardWidth: CGFloat = 210
     /// Narrowest card when the inner display rounds to an even count.
     static let minimumEvenCardWidth: CGFloat = 190
+    /// Narrowest card on each side of a book-pose fold (``HingeGrid``): the trailing
+    /// side, narrowed by the vertical bar, keeps two cards (pattern `hinge-columns`).
+    static let minimumFoldCardWidth: CGFloat = 160
     /// Spacing between cards and rows.
     static let spacing: CGFloat = 12
 

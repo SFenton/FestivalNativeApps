@@ -460,3 +460,51 @@ private final class StartFlag {
     // After the reveal every row takes the plain path.
     #expect(SongsScreen.fadeIndex("a", in: [:]) == nil)
 }
+
+// MARK: - Nested scroll views (#354)
+
+/// A nested scroll view (a carousel's track) reports each movement past the threshold
+/// from its last resting position, never its first report or sub-threshold jitter.
+@Test func nestedScrollMotionReportsMovementPastTheThreshold() {
+    var motion = FestivalNestedScrollMotion()
+    let first = motion.note(16)
+    #expect(!first)
+    #expect(motion.resting == 16)
+    let jitter = motion.note(16 - FestivalFadeInScope.scrollThreshold)
+    #expect(!jitter)
+    let invalid = motion.note(.nan)
+    #expect(!invalid)
+    let swipe = motion.note(-200)
+    #expect(swipe)
+    #expect(motion.resting == -200)
+    let settle = motion.note(-202)
+    #expect(!settle)
+    let again = motion.note(-300)
+    #expect(again)
+}
+
+/// A swipe in a nested scroll view rushes its page's pending fades like a page scroll;
+/// once they have finished, it closes the window so swiping never replays an entrance.
+@MainActor
+@Test func nestedScrollMotionRushesThePageScope() {
+    var time: TimeInterval = 100
+    let scope = FestivalFadeInScope(now: { time })
+    _ = scope.scheduleFade(.after(0.5))
+    var motion = FestivalNestedScrollMotion()
+    _ = motion.note(16)
+    if motion.note(-100) { scope.rush() }
+    #expect(scope.isRushed)
+    #expect(scope.scheduleFade(.after(0.75)) == 0)
+    time += FestivalFadeIn.duration + 0.01
+    #expect(!scope.isOpen)
+    #expect(scope.scheduleFade(.after(0.125)) == nil)
+
+    let settled = FestivalFadeInScope(now: { time })
+    _ = settled.scheduleFade(.after(0))
+    time += 1
+    var later = FestivalNestedScrollMotion()
+    _ = later.note(0)
+    if later.note(50) { settled.rush() }
+    #expect(!settled.isOpen)
+}
+
