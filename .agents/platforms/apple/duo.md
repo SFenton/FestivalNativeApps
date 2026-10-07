@@ -94,6 +94,7 @@ The top safe inset is 0 in outer portrait although the camera sits in the top-ri
 | Folded portrait, profile, Songs | Avatar (custom view) forced a horizontal top bar beside "Songs"; bell overflowed into `…` (B1) | No top bar: bell and `person.crop.circle.fill` "Profile: <name>" in the rail, page actions in `…` (the hamburger too: the 5-tab rail fits two root items) |
 | Folded portrait, anonymous, Songs | — | Hamburger, sort, bell, profile all in the rail |
 | Folded portrait, drawer | Scrim dimmed the vertical bar; panel ran to the bottom edge | Panel inset by `overlayInsets` (clear of the home-indicator inset), scrim off the bar |
+| Folded portrait, drawer (#339, live 2026-10-07) | Art behind the rail undimmed; panel ended 42 pt above the bottom | Scrim dims the rail too (rail strip RGB ≈ 56,5,12 → 14,14,14); panel ends 8 pt above the bottom, rows above the home indicator; a tap on the rail's Profile spot closes the drawer without opening Profile |
 | Folded portrait, Player profile | Select Profile only in content | Rail: Back, Select Profile (`person.crop.circle.badge.plus`), Quick Links |
 | Folded portrait, Leaderboards › Player › Back | Rail re-laid out ~7 frames after the pop (hamburger collapsed to a dot, Rank By blanked) | Mostly clean; intermittent 2–3 frame residual ([design notes](../../design/apple/duo.md#toolbar-rules-all-duo-poses)) |
 | Folded upside down / both landscapes | Not capturable | Both landscapes captured 2026-10-04 (see the rotations table); upside down is not adopted |

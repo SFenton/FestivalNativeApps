@@ -38,7 +38,7 @@ Operator verdict (2026-10-04): the always-on split layouts on iPad, Duo and Mac 
 
 ## Navigation flyout (iPad, iPhone Duo)
 
-- The side panel is an **overlay flyout like iPhone's drawer**: it slides **over** the content with a scrim, from the leading edge, opened by the toolbar/sidebar button or edge swipe, closed by tapping the scrim, Escape or selecting a destination. It never pushes or resizes content, and there is no persistent sidebar column.
+- The side panel is an **overlay flyout like iPhone's drawer**: it slides **over** the content with a full-window scrim (on Duo the vertical bar too, #339), from the leading edge, opened by the toolbar/sidebar button or edge swipe, closed by tapping the scrim, Escape or selecting a destination. It never pushes or resizes content, and there is no persistent sidebar column.
 - macOS keeps its persistent sidebar (Mac convention, [macos.md](macos.md)); the Mac split rules above apply to its content area.
 
 ## Implementation (Lane SPLIT, 2026-10-04)
