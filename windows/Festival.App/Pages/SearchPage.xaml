@@ -139,7 +139,7 @@
                             </ItemsRepeater.Layout>
                             <ItemsRepeater.ItemTemplate>
                                 <DataTemplate x:DataType="vm:PlayerBandCardViewModel">
-                                    <controls:BandCardView Card="{x:Bind}" />
+                                    <controls:BandCardView Card="{x:Bind}" RouteRequested="OnBandRouteRequested" />
                                 </DataTemplate>
                             </ItemsRepeater.ItemTemplate>
                         </ItemsRepeater>

@@ -128,6 +128,28 @@ public class GlobalSearchResultsTests
     }
 
     [Fact]
+    public void CloseSearchBelowTop_DropsOnlyTheSearchUnderTheResult()
+    {
+        // Songs root → Search → Band: Back must return to the root, not to Search (close, then push).
+        var band = new AppRoute.Band("b0", "Band_Duets", "acc_a:b0mate");
+        var routes = new Stack<AppRoute?>([null, new AppRoute.Search("ab"), band]);
+        Assert.True(GlobalSearchResults.CloseSearchBelowTop(routes));
+        Assert.Equal(new AppRoute?[] { band, null }, routes.ToArray());
+        // Nothing to close: the destination was not pushed over Search, or the stack is the bare root.
+        var detail = new AppRoute.SongDetail("s0");
+        var noSearch = new Stack<AppRoute?>([null, detail, band]);
+        Assert.False(GlobalSearchResults.CloseSearchBelowTop(noSearch));
+        Assert.Equal(new AppRoute?[] { band, detail, null }, noSearch.ToArray());
+        var root = new Stack<AppRoute?>([null]);
+        Assert.False(GlobalSearchResults.CloseSearchBelowTop(root));
+        Assert.Single(root);
+        // A Search page replacing its own query is not a result.
+        var twice = new Stack<AppRoute?>([null, new AppRoute.Search("ab"), new AppRoute.Search("abc")]);
+        Assert.False(GlobalSearchResults.CloseSearchBelowTop(twice));
+        Assert.Equal(3, twice.Count);
+    }
+
+    [Fact]
     public void Announcement_Counts()
     {
         Assert.Equal("No results found.", GlobalSearchResults.Announcement(0, 0, 0));

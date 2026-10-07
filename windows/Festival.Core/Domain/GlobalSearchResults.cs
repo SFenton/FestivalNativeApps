@@ -291,6 +291,27 @@ public static class GlobalSearchResults
     /// <returns>Band route.</returns>
     public static AppRoute BandRoute(PlayerBandEntry band) => new AppRoute.Band(band.Key, band.BandType, band.TeamKey);
 
+    /// <summary>
+    /// Closes Search under a result it opened: drops the Search route directly below the destination on a section's
+    /// tracked route stack (top first), so Back returns to the page Search was opened from and the query is not
+    /// restored (global-search spec "close the surface, then push").
+    /// </summary>
+    /// <param name="routes">Section route stack; its top is the pushed destination.</param>
+    /// <returns><see langword="true"/> when a Search route was removed.</returns>
+    public static bool CloseSearchBelowTop(Stack<AppRoute?> routes)
+    {
+        if (routes.Count < 2) return false;
+        var top = routes.Pop();
+        if (routes.Peek() is AppRoute.Search && top is not AppRoute.Search)
+        {
+            routes.Pop();
+            routes.Push(top);
+            return true;
+        }
+        routes.Push(top);
+        return false;
+    }
+
     /// <summary>Polite result-count announcement ("3 songs, 10 players, 2 bands").</summary>
     /// <param name="songs">Song count, or <see langword="null"/> when the catalogue failed.</param>
     /// <param name="players">Player count, or <see langword="null"/> when the account search failed.</param>

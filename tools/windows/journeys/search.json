@@ -33,8 +33,10 @@
       "shot:{shots}\\search-bands-wide.png",
       "invoke:id=fst.global-search.result.band",
       "waitfor:id=fst.band.title@15",
+      "waitgone:id=fst.global-search.field@5",
       "key:alt+left",
-      "waitfor:id=fst.global-search.field@10"
+      "waitfor:id=fst.songs.list@10",
+      "waitgone:id=fst.global-search.field@5"
     ]
   },
   {
@@ -92,9 +94,8 @@
       "invoke:id=fst.global-search.result.player",
       "waitfor:id=fst.player.name@15",
       "key:alt+left",
-      "waitfor:id=fst.global-search.field@10",
-      "key:escape",
-      "waitfor:id=fst.leaderboards@10"
+      "waitfor:id=fst.leaderboards@10",
+      "waitgone:id=fst.global-search.field@5"
     ]
   },
   {
@@ -126,7 +127,8 @@
       "invoke:id=fst.global-search.result.song",
       "waitfor:id=fst.song-detail.title@10",
       "key:alt+left",
-      "waitfor:id=fst.global-search.field@10"
+      "waitfor:id=fst.songs.list@10",
+      "waitgone:id=fst.global-search.field@5"
     ]
   },
   {

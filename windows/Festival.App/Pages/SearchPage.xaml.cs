@@ -125,6 +125,11 @@ public sealed partial class SearchPage : Page, IPageFind
         if (e.ClickedItem is GlobalPlayerResult player) MainWindow.Instance?.OpenSearchRoute(player.Route);
     }
 
+    /// <summary>Opens a band card's page through the shared result navigation (Search closes first).</summary>
+    /// <param name="sender">Card.</param>
+    /// <param name="route">Band route.</param>
+    private void OnBandRouteRequested(object? sender, AppRoute route) => MainWindow.Instance?.OpenSearchRoute(route);
+
     /// <summary>Names song rows for UI Automation.</summary>
     /// <param name="sender">List.</param>
     /// <param name="args">Container.</param>

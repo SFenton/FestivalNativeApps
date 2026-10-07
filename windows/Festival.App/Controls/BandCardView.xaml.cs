@@ -4,7 +4,10 @@ using Microsoft.UI.Xaml.Controls;
 namespace Festival.App.Controls;
 
 #region Band card
-/// <summary>Renders a <see cref="PlayerBandCardViewModel"/>; invoking it opens Band Detail.</summary>
+/// <summary>
+/// Renders a <see cref="PlayerBandCardViewModel"/>; invoking it opens Band Detail, or raises
+/// <see cref="RouteRequested"/> when a host (global search) owns the navigation.
+/// </summary>
 public sealed partial class BandCardView : UserControl
 {
     /// <summary>Bound card.</summary>
@@ -21,12 +24,20 @@ public sealed partial class BandCardView : UserControl
         set => SetValue(CardProperty, value);
     }
 
-    /// <summary>Opens Band Detail with the safe type/team-key lookup.</summary>
+    /// <summary>
+    /// Raised instead of the default push when handled by a host: global search closes itself before opening the band
+    /// (<c>MainWindow.OpenSearchRoute</c>). Player Bands consumers leave it unset and keep the plain push.
+    /// </summary>
+    public event EventHandler<AppRoute>? RouteRequested;
+
+    /// <summary>Opens Band Detail with the safe type/team-key lookup (through the host when it handles the request).</summary>
     /// <param name="sender">Card button.</param>
     /// <param name="e">Unused.</param>
     private void OnClick(object sender, RoutedEventArgs e)
     {
-        if (Card is { } card) MainWindow.Instance?.Navigate(card.Route);
+        if (Card is not { } card) return;
+        if (RouteRequested is { } host) host(this, card.Route);
+        else MainWindow.Instance?.Navigate(card.Route);
     }
 }
 #endregion
