@@ -102,12 +102,13 @@ public class PagerSurfaceMarkupTests
     }
 
     [Theory]
-    [InlineData("Controls/LeaderboardsSpotlight.xaml")]
-    [InlineData("Pages/LeaderboardsSongPage.xaml")]
-    public void YourPageButton_DrawsOnTheRowCardSurface(string file)
+    [InlineData("Controls/LeaderboardsSpotlight.xaml", "Jump to your page")]
+    [InlineData("Pages/LeaderboardsSongPage.xaml", "Jump to your page")]
+    [InlineData("Pages/BandsSongLeaderboardPage.xaml", "Jump to your band's page")]
+    public void YourPageButton_DrawsOnTheRowCardSurface(string file, string name)
     {
         var jump = Load(file).Descendants().Single(e => e.Name.LocalName == "Button"
-            && Attr(e, "AutomationProperties.Name") == "Jump to your page");
+            && Attr(e, "AutomationProperties.Name") == name);
         Assert.Equal(CardSurface, Attr(jump, "Background"));
         Assert.Equal(CardStroke, Attr(jump, "BorderBrush"));
     }

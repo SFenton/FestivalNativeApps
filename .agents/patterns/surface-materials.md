@@ -63,7 +63,7 @@ Agent decision (#319, 2026-10-06, owner may override with `/choose`). Question: 
 
 **Chose B.** No platform **must** or owner choice applies and the web has no Your page control, so the precedence table falls to the pattern registry. R1 says non-system floating controls over rows wear the rows' surface, and Apple's native precedent already puts this action on the row card. Option A would only survive as a new opaque plate that R1 forbids.
 
-The change is limited to these two buttons because they were the only other XAML consumers of the retired `FSTPagerButtonBrush` (the `windows-pager-only-plate` guard keeps it retired). The pinned row's `FSTFloatingBackplateBrush` is a backplate under that row's own card surface (#208), not a control surface, so it stays. `PagerSurfaceMarkupTests` pins both buttons to the card brushes.
+The change covers every board-footer Your page button: those two, plus the Song Band Leaderboard's `fst.song-band-leaderboard.spotlight-jump` in `Pages/BandsSongLeaderboardPage.xaml` (#306 copied the Solo footer before #319 landed; #326 moved it). They were the only other XAML consumers of the retired `FSTPagerButtonBrush` (the `windows-pager-only-plate` guard keeps it retired). A new board footer copies the card-surface button, never the old plate. The pinned row's `FSTFloatingBackplateBrush` is a backplate under that row's own card surface (#208), not a control surface, so it stays. `PagerSurfaceMarkupTests` pins all three buttons to the card brushes.
 
 ## Known debt
 
