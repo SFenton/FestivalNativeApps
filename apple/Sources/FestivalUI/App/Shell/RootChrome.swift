@@ -110,18 +110,28 @@ extension EnvironmentValues {
 /// the badged bell and the profile identity stay visible (HIG Designing for iPhone Duo:
 /// "Set visibility priority by group ... to preserve frequent actions ... and
 /// status/badged items"). Horizontal bars show Quick Links regardless.
+///
+/// A page's own rail action (``VerticalBarActionItem``) ranks by prominence: the page's
+/// primary action (Player Select / Switch, drawn prominent) stays visible like the
+/// bell and profile, so it renders blue in the rail instead of hiding in "…" (issue
+/// #351; HIG Designing for iPhone Duo: "Place primary navigation (Back/Close) at the
+/// top, then prominent actions (Done)"); a plain page action overflows first.
 enum RootChromeRailItem: CaseIterable, Equatable {
     case drawer
     case quickLinks
     case bell
     case profile
+    /// A plain page action mirrored into the rail.
+    case pageAction
+    /// The page's prominent primary action mirrored into the rail.
+    case primaryPageAction
 
     /// True when the system should keep this item visible ahead of same-bar
     /// items with standard priority once the vertical bar runs out of room.
     var staysVisibleAheadOfOthers: Bool {
         switch self {
-        case .drawer, .quickLinks: false
-        case .bell, .profile: true
+        case .drawer, .quickLinks, .pageAction: false
+        case .bell, .profile, .primaryPageAction: true
         }
     }
 }
@@ -464,7 +474,8 @@ extension View {
 /// vertical bar the action also becomes a titled symbol item, so it sits in the rail
 /// beside Back instead of only deep in the content (operator, 2026-09-28: Duo "Select
 /// Profile" belongs in the rail). The in-page design stays with the page's lane; this
-/// only owns rail placement.
+/// only owns rail placement and, for a primary action, the same prominent fill as the
+/// page's header button (issue #351).
 struct VerticalBarActionItem: ToolbarContent {
     /// Title (overflow menu and VoiceOver).
     let title: String
@@ -472,6 +483,11 @@ struct VerticalBarActionItem: ToolbarContent {
     let systemImage: String
     /// Accessibility identifier for UI tests.
     let identifier: String
+    /// Fill for a page's primary action, drawn as a prominent (`.borderedProminent`)
+    /// item like the page's header button in horizontal bars (issue #351); nil keeps a
+    /// plain symbol item. HIG Toolbars: "Use `.prominent` for a key action such as
+    /// Done/Submit".
+    var prominentFill: Color?
     /// Performs the page's action.
     let action: () -> Void
     @Environment(\.deviceLayout) private var layout
@@ -485,17 +501,43 @@ struct VerticalBarActionItem: ToolbarContent {
         #endif
     }
 
+    /// The item's rail ranking: a prominent primary action stays visible.
+    var railItem: RootChromeRailItem {
+        prominentFill == nil ? .pageAction : .primaryPageAction
+    }
+
     var body: some ToolbarContent {
         if layout.sectionChrome.isVerticalBar {
-            // Its own group right after Back: sharing the trailing group with Quick Links
-            // made the rail re-lay out the destination's items after a pop.
-            ToolbarItem(placement: Self.placement) {
-                Button(action: action) {
-                    Label(title, systemImage: systemImage)
-                }
-                .tint(BrandTokens.textPrimary)
-                .accessibilityIdentifier(identifier)
+            #if os(iOS)
+            if #available(iOS 27.0, *) {
+                item.railVisibilityPriority(railItem)
+            } else {
+                item
             }
+            #else
+            item
+            #endif
+        }
+    }
+
+    /// Its own group right after Back: sharing the trailing group with Quick Links made
+    /// the rail re-lay out the destination's items after a pop.
+    private var item: some ToolbarContent {
+        ToolbarItem(placement: Self.placement) {
+            button
+        }
+    }
+
+    @ViewBuilder private var button: some View {
+        let base = Button(action: action) {
+            Label(title, systemImage: systemImage)
+        }
+        .accessibilityIdentifier(identifier)
+        if let prominentFill {
+            base.buttonStyle(.borderedProminent)
+                .tint(prominentFill)
+        } else {
+            base.tint(BrandTokens.textPrimary)
         }
     }
 }

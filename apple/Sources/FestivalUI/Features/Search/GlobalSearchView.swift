@@ -13,7 +13,10 @@ import FestivalDesign
 /// The search field and scope bar sit on top; results, one centred spinner or a centred
 /// message fill the rest. Every result is its own `List` row
 /// holding one action (`.agents/platforms/apple/architecture.md`, "List rows hold one
-/// action"). Placement per layout: `.agents/controls/global-search/ios.md`.
+/// action"). In wide landscape (``WideColumns``, pattern `wide-columns`, issue #350) a
+/// section's cards pair up two per row, row-major, each still its own plain-style
+/// button; titles and failure messages stay full width. Placement per layout:
+/// `.agents/controls/global-search/ios.md`.
 struct GlobalSearchResults: View {
     @Bindable var model: GlobalSearchModel
     let session: FestivalSession
@@ -37,6 +40,9 @@ struct GlobalSearchResults: View {
     /// Result set whose staggered fade has finished: rows the List rebuilds after that
     /// (scrolled away and back) appear without a fade (issue #30).
     @State private var fadeSettledResults: [String]?
+    /// The results surface's size: page width on iOS, the resizable sheet on the Mac.
+    @State private var surfaceSize: CGSize = .zero
+    @Environment(\.deviceLayout) private var layout
 
     var body: some View {
         VStack(spacing: 10) {
@@ -62,6 +68,9 @@ struct GlobalSearchResults: View {
             results
         }
         .padding(.top, 8)
+        // Rotation or a resize only regroups the rows: the model (and its results) lives
+        // above this view, so nothing reloads or fades in again.
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { surfaceSize = $0 }
         // A container element, so the identifier does not replace its children's own.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.global-search.surface")
@@ -163,6 +172,64 @@ struct GlobalSearchResults: View {
     /// One result card's List row chrome.
     private static let cardInsets = EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 16)
 
+    // MARK: Wide landscape columns
+
+    /// Result cards per row: two in wide landscape (pattern `wide-columns`), else one.
+    private var columns: Int {
+        #if os(macOS)
+        WideColumns.count(size: surfaceSize)
+        #else
+        WideColumns.count(layout: layout, width: surfaceSize.width > 0 ? surfaceSize.width : nil)
+        #endif
+    }
+
+    /// One section's result cards as List rows: one card per row, or row-major pairs in
+    /// wide landscape whose gutter meets the iPhone Duo hinge (``HingeRow`` page hinge).
+    /// Every card keeps its own button, identifier and staggered fade slot.
+    ///
+    /// - Parameters:
+    ///   - items: The section's results, in service order.
+    ///   - section: `.songs`, `.players` or `.bands`, for the fade slots.
+    ///   - card: One result's card (a single plain-style action).
+    /// - Returns: The rows.
+    @ViewBuilder
+    private func cardRows<Item: Identifiable, Card: View>(
+        _ items: [Item], section: GlobalSearchScope, @ViewBuilder card: @escaping (Item) -> Card
+    ) -> some View {
+        let columns = columns
+        if columns > 1 {
+            ForEach(WideColumns.rows(items, columns: columns), id: \.first!.id) { row in
+                HingeRow(spacing: WideColumns.spacing, hinge: .page) {
+                    ForEach(row) { item in
+                        card(item)
+                            .frame(maxWidth: .infinity)
+                            .festivalFadeIn(isLoaded: true, index: fadeIndex(of: item, in: items, section: section))
+                    }
+                    ForEach(row.count..<columns, id: \.self) { _ in
+                        Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
+                    }
+                }
+                .listRowInsets(Self.cardInsets)
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+            }
+        } else {
+            ForEach(items) { item in
+                card(item)
+                    .listRowInsets(Self.cardInsets)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    // Each new result set fades in, staggered like the web list.
+                    .festivalFadeIn(isLoaded: true, index: fadeIndex(of: item, in: items, section: section))
+            }
+        }
+    }
+
+    /// A card's stagger slot from its position in its section.
+    private func fadeIndex<Item: Identifiable>(of item: Item, in items: [Item], section: GlobalSearchScope) -> Int {
+        resultFadeIndex(section, offset: items.firstIndex { $0.id == item.id })
+    }
+
     // MARK: Section titles
 
     /// A section's Songs / Players / Bands title above its rows, in "All" only (issue
@@ -239,7 +306,7 @@ struct GlobalSearchResults: View {
         case .ready:
             Section {
                 sectionTitle(.songs)
-                ForEach(model.songs) { song in
+                cardRows(model.songs, section: .songs) { song in
                     Button {
                         open(.songDetail(song))
                     } label: {
@@ -262,15 +329,7 @@ struct GlobalSearchResults: View {
                     .buttonStyle(.plain)
                     .accessibilityElement(children: .combine)
                     .accessibilityAddTraits(.isButton)
-                    .listRowInsets(Self.cardInsets)
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
                     .accessibilityIdentifier("fst.global-search.result.song")
-                    // Each new result set fades in, staggered like the web list.
-                    .festivalFadeIn(
-                        isLoaded: true,
-                        index: resultFadeIndex(.songs, offset: model.songs.firstIndex(of: song))
-                    )
                 }
             }
             .modifier(ResultSectionChrome())
@@ -294,7 +353,9 @@ struct GlobalSearchResults: View {
         case .ready:
             Section {
                 sectionTitle(.players)
-                PlayerSearchResultRows(model.players) { player in
+                // One row per result (``PlayerSearchResultRows``' rule); wide rows pair
+                // plain-style buttons, which iOS taps one at a time.
+                cardRows(model.players, section: .players) { player in
                     Button {
                         // Web: the selected profile opens Statistics, others their page.
                         if session.selectedPlayer?.accountId == player.accountId {
@@ -312,14 +373,7 @@ struct GlobalSearchResults: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(player.displayName)
-                    .listRowInsets(Self.cardInsets)
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
                     .accessibilityIdentifier("fst.global-search.result.player")
-                    .festivalFadeIn(
-                        isLoaded: true,
-                        index: resultFadeIndex(.players, offset: model.players.firstIndex(of: player))
-                    )
                 }
             }
             .modifier(ResultSectionChrome())
@@ -365,17 +419,10 @@ struct GlobalSearchResults: View {
         case .ready:
             Section {
                 sectionTitle(.bands)
-                ForEach(Array(model.bands.enumerated()), id: \.element.id) { offset, band in
+                cardRows(model.bands, section: .bands) { band in
                     PlayerBandRow(
                         entry: band, open: open,
                         identifier: "fst.global-search.result.band"
-                    )
-                    .listRowInsets(Self.cardInsets)
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                    .festivalFadeIn(
-                        isLoaded: true,
-                        index: resultFadeIndex(.bands, offset: offset)
                     )
                 }
             }
