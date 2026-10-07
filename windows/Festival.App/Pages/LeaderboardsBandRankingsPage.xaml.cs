@@ -24,6 +24,7 @@ public sealed partial class LeaderboardsBandRankingsPage : Page, IRouteHost
     /// <summary>Rankings column width in the split layout.</summary>
     private const double SplitListWidth = 560;
 
+    private readonly FailedReloadFocus reloadFocus;
     private int shownPage;
     private bool split;
     private AppRoute.Band? detailRoute;
@@ -34,6 +35,8 @@ public sealed partial class LeaderboardsBandRankingsPage : Page, IRouteHost
         InitializeComponent();
         BoardFooter.Inset(Footer, RowsRepeater);
         BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Scroller, Footer, FooterPlate);
+        reloadFocus = FailedReloadFocus.Attach(Footer, Footer, RowsStatus, () => ViewModel?.LoadSwap.Phase == LoadSwapPhase.ContentIn,
+            () => ViewModel?.State == LoadState.Failed);
         SizeChanged += (_, e) => ApplySplit(e.NewSize.Width >= SplitWidth);
     }
 
@@ -80,7 +83,11 @@ public sealed partial class LeaderboardsBandRankingsPage : Page, IRouteHost
     /// <param name="sender">Swap.</param>
     /// <param name="e">Unused.</param>
     private void OnContentRevealed(object? sender, EventArgs e) =>
-        DispatcherQueue.TryEnqueue(() => FadeIn.StaggerRealized(RowsRepeater));
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            reloadFocus.Settle();
+            FadeIn.StaggerRealized(RowsRepeater);
+        });
 
     #region Split layout
     /// <summary>

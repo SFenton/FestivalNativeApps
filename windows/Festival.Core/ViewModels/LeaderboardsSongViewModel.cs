@@ -19,6 +19,7 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
     private int version;
     private bool attached;
     private double? loadedLeeway;
+    private bool boardShown;
     private List<LeaderboardEntry> entries = [];
 
     /// <summary>Creates the page model for a route.</summary>
@@ -40,6 +41,8 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
             OnPropertyChanged(nameof(ShowRows));
             OnPropertyChanged(nameof(ShowEmpty));
             OnPropertyChanged(nameof(ShowError));
+            OnPropertyChanged(nameof(ShowPageError));
+            OnPropertyChanged(nameof(ShowRowsError));
         };
     }
 
@@ -59,8 +62,9 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
     public LoadSwap LoadSwap { get; }
 
     /// <summary>
-    /// Whether the pinned "your score" row follows <see cref="LoadSwap"/>: only for the first load and a change of the
-    /// invalid-score leeway (which can change the row), like the web footer; paging keeps it beside the spinner.
+    /// Whether the pinned "your score" row follows <see cref="LoadSwap"/>: only for the first load, a change of the
+    /// invalid-score leeway (which can change the row) and a retry after a failed reload hid it, like the web footer;
+    /// paging keeps it beside the spinner.
     /// </summary>
     public PinnedRowGate PinnedGate { get; } = new();
 
@@ -81,7 +85,8 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
 
     /// <summary>Lifecycle.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsLoading), nameof(ShowRows), nameof(ShowEmpty), nameof(ShowError), nameof(ShowContent))]
+    [NotifyPropertyChangedFor(nameof(IsLoading), nameof(ShowRows), nameof(ShowEmpty), nameof(ShowError), nameof(ShowPageError),
+        nameof(ShowRowsError), nameof(ShowContent), nameof(ShowHeader), nameof(ShowSpotlight))]
     private LoadState state = LoadState.Idle;
 
     /// <summary>Whether a page change is in flight over already-shown rows.</summary>
@@ -124,8 +129,24 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
     /// <summary>Whether "No scores yet." is shown.</summary>
     public bool ShowEmpty => State == LoadState.Empty && LoadSwap.ContentVisible;
 
-    /// <summary>Whether the full-page failure is shown.</summary>
+    /// <summary>Whether a failure is shown, in place of the whole page or of the rows.</summary>
     public bool ShowError => State == LoadState.Failed && LoadSwap.ContentVisible;
+
+    /// <summary>Whether the first load failed: with no header to keep yet, the failure fills the page.</summary>
+    public bool ShowPageError => ShowError && !boardShown;
+
+    /// <summary>
+    /// Whether a reload (another page, F5 or a leeway change) failed after a board was shown: the failure and Retry
+    /// replace only the rows under the kept song header (load-transition R4; web renders <c>EmptyState</c> under
+    /// <c>SongInfoHeader</c>).
+    /// </summary>
+    public bool ShowRowsError => ShowError && boardShown;
+
+    /// <summary>
+    /// Whether the song header is shown: from the first committed board on, through page changes and a failed reload
+    /// (load-transition R4, issue #283); a failed first load has no header.
+    /// </summary>
+    public bool ShowHeader => ShowContent || State == LoadState.Failed && boardShown;
 
     /// <summary>
     /// Whether the song header and pager are shown. They stay in place while another page loads (web
@@ -134,8 +155,11 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
     /// </summary>
     public bool ShowContent => State is LoadState.Loaded or LoadState.Empty;
 
-    /// <summary>Whether the pinned row is shown.</summary>
-    public bool ShowSpotlight => Spotlight is not null;
+    /// <summary>
+    /// Whether the pinned row is shown. A failed reload drops it with the pager, as the web <c>EmptyState</c> replaces
+    /// <c>PaginatedLeaderboard</c> and its footer (issue #283).
+    /// </summary>
+    public bool ShowSpotlight => Spotlight is not null && State != LoadState.Failed;
 
     /// <summary>Whether "Jump to your page" applies (ranked, on another page).</summary>
     public bool CanJump => Spotlight?.Entry.Rank is > 0 and var rank && LeaderboardPaging.PageForRank(rank) != Page &&
@@ -184,7 +208,7 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
         var request = ++version;
         var requestedPage = Page;
         var key = CurrentLeeway;
-        PinnedGate.Begin(key, LoadSwap.Phase);
+        PinnedGate.Begin(key, LoadSwap.Phase, hidden: State == LoadState.Failed);
         var swap = LoadSwap.BeginReloadAsync(AnimateLoadSwaps(), State is LoadState.Loaded or LoadState.Empty or LoadState.Failed && LoadSwap.ContentVisible);
         if (State is LoadState.Idle) State = LoadState.Loading;
         IsRefreshing = true;
@@ -213,6 +237,7 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
                     ? string.Create(CultureInfo.CurrentCulture, $"{board.TotalEntries:N0} {Instrument.Label()} entries") : "";
                 Pager.Update(requestedPage, pages);
                 ApplySelection();
+                boardShown = true;
                 State = entries.Count == 0 ? LoadState.Empty : LoadState.Loaded;
                 IsRefreshing = false;
             }, AnimateLoadSwaps());

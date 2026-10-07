@@ -12,6 +12,7 @@ namespace Festival.App.Pages;
 /// <summary>Solo song leaderboard (<c>/songs/:songId/:instrument</c>) over the song's static cover.</summary>
 public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
 {
+    private readonly FailedReloadFocus reloadFocus;
     private int shownPage;
     private bool spotlightShown;
 
@@ -21,6 +22,8 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
         InitializeComponent();
         BoardFooter.Inset(Footer, ScrollContent);
         BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Scroller, Footer, FooterPlate);
+        reloadFocus = FailedReloadFocus.Attach(Footer, BoardPager, RowsStatus, () => ViewModel?.LoadSwap.Phase == LoadSwapPhase.ContentIn,
+            () => ViewModel?.State == LoadState.Failed);
     }
 
     /// <summary>Page model (set on navigation).</summary>
@@ -98,6 +101,7 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
     private void OnContentRevealed(object? sender, EventArgs e) =>
         DispatcherQueue.TryEnqueue(() =>
         {
+            reloadFocus.Settle();
             FadeIn.StaggerRealized(RowsRepeater);
             if (ViewModel.ShowSpotlight && ViewModel.PinnedGate.IsGated) FadeIn.Play(SpotlightPanel, PinnedRowReveal.RevealDelay);
         });

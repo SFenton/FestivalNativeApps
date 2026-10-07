@@ -183,8 +183,12 @@ public sealed partial class PinnedRowGate : ObservableObject
     /// </summary>
     /// <param name="key">What the pinned row shows (compared with <see cref="object.Equals(object?, object?)"/>).</param>
     /// <param name="phase">The board's phase before this reload starts.</param>
-    public void Begin(object? key, LoadSwapPhase phase) =>
-        IsGated = !committed || !Equals(key, shownKey) || (IsGated && phase != LoadSwapPhase.ContentIn);
+    /// <param name="hidden">
+    /// Whether the board hides the row right now (the song board drops it with the pager after a failed reload, issue
+    /// #283): a retry then brings it back with the new rows rather than beside the spinner.
+    /// </param>
+    public void Begin(object? key, LoadSwapPhase phase, bool hidden = false) =>
+        IsGated = hidden || !committed || !Equals(key, shownKey) || (IsGated && phase != LoadSwapPhase.ContentIn);
 
     /// <summary>Records the key a commit (success or failure) applied; call inside the commit's state mutation.</summary>
     /// <param name="key">The committed request's key.</param>

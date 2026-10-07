@@ -90,6 +90,54 @@
     ]
   },
   {
+    "name": "song-board-paging-keeps-chrome",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "preset": "medium",
+    "extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1"},
+    "fixture": ["--song-leaderboard-paging"],
+    "steps": [
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-2@20",
+      "waitfor:id=fst.song-leaderboard.spotlight-footer@10",
+      "focus:id=fst.song-leaderboard.page-next",
+      "key:right",
+      "waitgone:id=fst.song-leaderboard.row.fixture-player-2@5",
+      "waitfor:id=fst.song-leaderboard.title@2",
+      "waitfor:id=fst.song-leaderboard.spotlight-footer@2",
+      "waitfor:id=fst.song-leaderboard.page-info@2",
+      "assertfocus:id=fst.song-leaderboard.page-next",
+      "shot:{shots}/song-board-paging-loading.png",
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-26@15",
+      "waitfor:id=fst.song-leaderboard.spotlight-footer@5",
+      "assertfocus:id=fst.song-leaderboard.page-next"
+    ]
+  },
+  {
+    "name": "song-board-failed-page-keeps-header",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "preset": "medium",
+    "extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1"},
+    "fixture": ["--song-leaderboard-paging"],
+    "steps": [
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-2@20",
+      "waitfor:id=fst.song-leaderboard.spotlight-footer@10",
+      "focus:id=fst.song-leaderboard.page-next",
+      "key:end",
+      "waitfor:id=fst.service-status.retry@15",
+      "waitfor:id=fst.song-leaderboard.title@2",
+      "waitgone:id=fst.song-leaderboard.spotlight-footer@5",
+      "waitgone:id=fst.song-leaderboard.page-next@5",
+      "waitgone:id=fst.song-leaderboard.row.fixture-player-2@5",
+      "assertfocus:id=fst.service-status.retry",
+      "shot:{shots}/song-board-failed-page.png",
+      "key:enter",
+      "wait:1",
+      "waitfor:id=fst.song-leaderboard.title@2",
+      "waitfor:id=fst.service-status.retry@15",
+      "wait:1",
+      "assertfocus:id=fst.service-status.retry"
+    ]
+  },
+  {
     "name": "rankings-rows-open-profile",
     "route": "/leaderboards/all?instrument=Solo_Guitar",
     "preset": "compact",
