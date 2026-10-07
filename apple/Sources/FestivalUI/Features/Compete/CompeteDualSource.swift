@@ -15,6 +15,8 @@ import FestivalDesign
 /// Both reuse the phone hub's own cards (`CompeteInstrumentLeaderboardSection`,
 /// `RivalInstrumentSongCard`) with the page's reads (``CompeteHubModel``), so the cards
 /// match the stacked page exactly and appear only after the page's one spinner (#354).
+/// Their pane headers and cards then fade in on the page's reading-order stagger
+/// (``CompeteDualSourceEntrance``), and a swipe rushes the rest (load-transition R5).
 struct CompeteLeaderboardsCarousel: View {
     let session: FestivalSession
     let instruments: [Instrument]
@@ -23,25 +25,21 @@ struct CompeteLeaderboardsCarousel: View {
     let retry: () -> Void
 
     var body: some View {
-        pane
-            #if os(iOS)
-            // The primary region no longer scrolls vertically, so a large title
-            // would never collapse; keep the fold region for the cards.
-            .toolbarTitleDisplayMode(.inline)
-            #endif
-    }
-
-    private var pane: some View {
         DualSourcePane(
-            "Leaderboards", systemImage: "trophy.fill", identifier: "compete.leaderboards"
+            "Leaderboards", systemImage: "trophy.fill", identifier: "compete.leaderboards",
+            entranceIndex: CompeteDualSourceEntrance.leaderboardsHeader
         ) {
             if instruments.isEmpty {
                 DualSourceMessage(
                     "No Instruments", systemImage: "slider.horizontal.3",
                     message: "Enable at least one instrument in Settings to see leaderboards."
                 )
+                .festivalFadeIn(staggerIndex: CompeteDualSourceEntrance.firstLeaderboardCard)
             } else {
-                HorizontalCarousel("Leaderboards", items: instruments, minimumCardWidth: 300) { instrument in
+                HorizontalCarousel(
+                    "Leaderboards", items: instruments, minimumCardWidth: CompeteDualSourceEntrance.minimumCardWidth,
+                    entranceIndex: CompeteDualSourceEntrance.firstLeaderboardCard
+                ) { instrument in
                     // The section pads itself 16 pt on each side for the stacked
                     // page; the carousel already insets its cards.
                     CompeteInstrumentLeaderboardSection(
@@ -59,20 +57,31 @@ struct CompeteLeaderboardsCarousel: View {
 struct CompeteRivalsCarousel: View {
     let instruments: [Instrument]
     let model: CompeteHubModel
+    /// Leaderboard cards the top carousel shows side by side, which precede this pane in
+    /// reading order.
+    let leaderboardColumns: Int
     /// Reads again whatever failed.
     let retry: () -> Void
 
     var body: some View {
+        let header = CompeteDualSourceEntrance.rivalsHeader(
+            instrumentCount: instruments.count, leaderboardColumns: leaderboardColumns
+        )
         DualSourcePane(
-            "Rivals", systemImage: "person.2.fill", seeAll: .rivals, identifier: "compete.rivals"
+            "Rivals", systemImage: "person.2.fill", seeAll: .rivals, identifier: "compete.rivals",
+            entranceIndex: header
         ) {
             if instruments.isEmpty {
                 DualSourceMessage(
                     "No Instruments", systemImage: "slider.horizontal.3",
                     message: "Enable at least one instrument in Settings to see rivals."
                 )
+                .festivalFadeIn(staggerIndex: header + 1)
             } else {
-                HorizontalCarousel("Rivals", items: instruments, minimumCardWidth: 300) { instrument in
+                HorizontalCarousel(
+                    "Rivals", items: instruments, minimumCardWidth: CompeteDualSourceEntrance.minimumCardWidth,
+                    entranceIndex: header + 1
+                ) { instrument in
                     RivalInstrumentSongCard(
                         instrument: instrument, state: model.rivals[instrument] ?? .loading,
                         registersQuickLink: false,
@@ -82,5 +91,33 @@ struct CompeteRivalsCarousel: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Entrance order
+
+/// Reading-order stagger positions for Compete's dual-source panes (web
+/// `useStagger().next()`, load-transition R5): the Leaderboards header, the leaderboard
+/// cards on screen, then the Rivals header and its cards. Leaderboard cards off screen
+/// to the right only show after a swipe, which rushes the page's pending fades, so they
+/// don't hold back the Rivals pane.
+enum CompeteDualSourceEntrance {
+    /// Narrowest Compete carousel card, in points.
+    static let minimumCardWidth: CGFloat = 300
+    /// The Leaderboards pane header.
+    static let leaderboardsHeader = 0
+    /// The first leaderboard card (or the pane's no-instruments message).
+    static let firstLeaderboardCard = 1
+
+    /// The Rivals pane header's stagger position.
+    ///
+    /// - Parameters:
+    ///   - instrumentCount: Settings-visible instruments (one card per instrument).
+    ///   - leaderboardColumns: Cards the Leaderboards carousel shows side by side
+    ///     (``CarouselPaging/columns(width:minimumCardWidth:)``).
+    /// - Returns: The position after the leaderboard cards on screen (or the pane's
+    ///   message when there are no instruments).
+    static func rivalsHeader(instrumentCount: Int, leaderboardColumns: Int) -> Int {
+        firstLeaderboardCard + max(1, min(instrumentCount, leaderboardColumns))
     }
 }

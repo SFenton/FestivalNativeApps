@@ -18,6 +18,8 @@ struct CompeteScreen: View {
     let session: FestivalSession
     @State private var quickLinks = QuickLinksController()
     @State private var model = CompeteHubModel()
+    /// Leaderboard cards the Duo top carousel shows side by side (its reading order).
+    @State private var leaderboardColumns = 1
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var layout
     private var visible = VisibleInstrumentsReader()
@@ -71,6 +73,7 @@ struct CompeteScreen: View {
         // The page gate starts over for another account, so it never reveals the previous
         // account's cards (`.agents/platforms/apple/architecture.md`, "Per-entity screens").
         .id(session.selectedPlayer?.accountId)
+        .modifier(CompeteTitleDisplayMode(dualSource: DualSourcePolicy.isActive(layout)))
     }
 
     @ViewBuilder private var content: some View {
@@ -85,7 +88,23 @@ struct CompeteScreen: View {
                 stackedHub
             }
         } secondary: {
-            CompeteRivalsCarousel(instruments: visible.instruments, model: model, retry: retryFailedReads)
+            CompeteRivalsCarousel(
+                instruments: visible.instruments, model: model, leaderboardColumns: leaderboardColumns,
+                retry: retryFailedReads
+            )
+        }
+        // The Duo panes' one first-load window, rushed by a swipe in either carousel
+        // (load-transition R5). The stacked hub installs its own inside its scroll view.
+        .festivalNestedFadeInScope()
+        // The carousels span the page's width; the Rivals pane follows the leaderboard
+        // cards on screen in reading order. The secondary region only appears once the
+        // layout has measured itself, so this is known before the Rivals pane fades.
+        .onGeometryChange(for: Int.self) { proxy in
+            CarouselPaging.columns(
+                width: proxy.size.width.rounded(), minimumCardWidth: CompeteDualSourceEntrance.minimumCardWidth
+            )
+        } action: { columns in
+            leaderboardColumns = columns
         }
     }
 
@@ -270,6 +289,23 @@ struct CompeteInstrumentLeaderboardSection: View {
     private func isSelected(_ accountId: String) -> Bool {
         guard let selected = session.selectedPlayer?.accountId else { return false }
         return selected.caseInsensitiveCompare(accountId) == .orderedSame
+    }
+}
+
+// MARK: - Title
+
+/// The Duo dual-source layout keeps an inline title: its primary region doesn't scroll
+/// vertically, so a large title would never collapse. Applied outside the page gate, so
+/// the title doesn't change size when the page reveals (#354).
+private struct CompeteTitleDisplayMode: ViewModifier {
+    let dualSource: Bool
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content.toolbarTitleDisplayMode(dualSource ? .inline : .automatic)
+        #else
+        content
+        #endif
     }
 }
 

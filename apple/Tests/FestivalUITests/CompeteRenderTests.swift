@@ -117,7 +117,8 @@ private actor ControlledRankingsTransport: HTTPTransport {
 
 @MainActor
 private func controlledCompeteHost(
-    _ transport: ControlledRankingsTransport, visible: Set<String>, size: CGSize
+    _ transport: ControlledRankingsTransport, visible: Set<String>, size: CGSize,
+    layout: DeviceLayout = .standardPhone, fades: Bool = false
 ) async throws -> (host: NSHostingView<some View>, window: NSWindow, cleanup: () -> Void) {
     let baseURL = try await RivalsMockService.shared.baseURL()
     let client = try FestivalAPI(baseURL: baseURL, transport: transport)
@@ -129,7 +130,14 @@ private func controlledCompeteHost(
     let session = FestivalSession(factory: { client }, selectionStorage: storage)
     let host = nativeHostedView(
         NavigationStack { CompeteScreen(session: session) }
+            .environment(\.deviceLayout, layout)
+            // Motion on: GitHub's macOS runner image turns the system Reduce Motion on
+            // (actions/runner-images `configure-system.sh`), which shows content at once.
+            .environment(\._accessibilityReduceMotion, false)
+            // Captures keep fades off (`NativeHostedRoot`); entrance journeys turn them on.
+            .environment(\.festivalFadeInEnabled, fades)
             .defaultAppStorage(storage)
+            .frame(width: size.width, height: size.height)
             .preferredColorScheme(.dark),
         size: size
     )
@@ -171,6 +179,90 @@ private func controlledCompeteHost(
         host, image: image, containing: ["Leaderboards", "Fixture Player 1", "Fixture Rival Golf"],
         notContaining: ["Loading"]
     )
+}
+
+/// iPhone Duo inner display, portrait, flat: Compete's two dual-source carousels.
+private let competeDuoPortrait = DeviceLayout.resolve(LayoutSignals(
+    size: CGSize(width: 669, height: 951), widthClass: .regular, hinge: .fullyOpen
+), dualSource: true)
+
+/// On the Duo dual-source layout the page also loads behind its one spinner, with no
+/// pane header or card behind it, then the panes fade in on the page's reading-order
+/// stagger rather than all at once (load-transition R1, R5; #354 review): the
+/// Leaderboards header (stagger 0) shows well before the rivals card (stagger 4, about
+/// 500 ms later), so a poll catches the header without it.
+@MainActor
+@Test func competeDuoPanesLoadBehindOneSpinnerThenStagger() async throws {
+    let transport = ControlledRankingsTransport(delay: .seconds(3))
+    let (host, _, cleanup) = try await controlledCompeteHost(
+        transport, visible: ["fst.settings.showLead", "fst.settings.showBass"],
+        size: CGSize(width: 669, height: 951), layout: competeDuoPortrait, fades: true
+    )
+    defer { cleanup() }
+    try await nativeHostedSettle(host, untilText: ["Loading Compete"], timeout: .seconds(30))
+    try await Task.sleep(for: .milliseconds(300))
+    host.layoutSubtreeIfNeeded()
+    let pending = nativeHostedAccessibility(host)
+    #expect(pending.identifiers.contains("fst.compete.loading"))
+    for text in ["Leaderboards", "Rivals"] {
+        #expect(!pending.texts.contains(text), "Duo Compete shows the \(text) pane header before the page loaded")
+    }
+    for text in ["Fixture Player 1", "Fixture Rival Golf"] {
+        #expect(!pending.contains(text), "Duo Compete shows \"\(text)\" before the page loaded")
+    }
+
+    // Each element's first poll after the spinner left.
+    enum Element: String, CaseIterable {
+        case leaderboardsHeader, leadCard, rivalsHeader, rivalCard
+    }
+    func visibleElements() -> Set<Element> {
+        let tree = nativeHostedAccessibility(host)
+        var shown = Set<Element>()
+        if tree.texts.contains("Leaderboards") { shown.insert(.leaderboardsHeader) }
+        // The section's container identifier isn't surfaced inside the carousel's
+        // nested scroll views on macOS; its rows are.
+        if tree.contains("Fixture Player 1") { shown.insert(.leadCard) }
+        if tree.texts.contains("Rivals") { shown.insert(.rivalsHeader) }
+        if tree.contains("Fixture Rival Golf") { shown.insert(.rivalCard) }
+        return shown
+    }
+    var deadline = NativeHostedEvidenceDeadline(limit: .seconds(15))
+    var firstSeen: [Element: Int] = [:]
+    var poll = 0
+    do {
+        while firstSeen.count < Element.allCases.count {
+            host.layoutSubtreeIfNeeded()
+            let tree = nativeHostedAccessibility(host)
+            if !tree.identifiers.contains("fst.compete.loading") {
+                for element in visibleElements() where firstSeen[element] == nil { firstSeen[element] = poll }
+                poll += 1
+            }
+            try deadline.check("Duo Compete revealed only \(firstSeen.keys.map(\.rawValue))")
+            try await deadline.sleep(for: .milliseconds(20))
+        }
+    } catch let expired as NativeHostedEvidenceExpired {
+        nativeHostedRecordExpired(expired)
+        return
+    }
+    func expectStagger() {
+        let order = Element.allCases.compactMap { firstSeen[$0] }
+        #expect(order == order.sorted(), "the panes reveal in reading order (polls \(firstSeen))")
+        #expect(
+            (firstSeen[.leaderboardsHeader] ?? 0) < (firstSeen[.rivalCard] ?? 0),
+            "the Duo panes stagger in rather than appear together (polls \(firstSeen))"
+        )
+    }
+    if let starved = deadline.starved {
+        withKnownIssue("Starved host (\(starved)): its polls can't separate the stagger", isIntermittent: true) {
+            expectStagger()
+        }
+    } else {
+        expectStagger()
+    }
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Fixture Player 1", "Fixture Rival Golf"], excluding: ["Loading"], timeout: .seconds(30)
+    )
+    _ = try nativeHostedPNG(image, filename: "compete-duo-loaded.png", environment: "FST_COMPETE_RENDER_OUT")
 }
 
 /// Every leaderboard failing shows one page-wide error, as the web's

@@ -119,6 +119,7 @@ struct DualSourcePane<Content: View>: View {
     private let systemImage: String
     private let seeAll: AppRoute?
     private let identifier: String
+    private let entranceIndex: Int?
     private let content: Content
 
     /// Create a pane.
@@ -128,15 +129,18 @@ struct DualSourcePane<Content: View>: View {
     ///   - systemImage: SF Symbol shown before the title.
     ///   - seeAll: Route pushed by the header's "View All" link, if the source has a page.
     ///   - identifier: Accessibility identifier suffix (`fst.dual.<identifier>`).
+    ///   - entranceIndex: The header's position in the page's first-load stagger (inside
+    ///     a page fade scope, load-transition R5), or nil for a header that shows at once.
     ///   - content: The source's content, usually a ``HorizontalCarousel``.
     init(
         _ title: String, systemImage: String, seeAll: AppRoute? = nil, identifier: String,
-        @ViewBuilder content: () -> Content
+        entranceIndex: Int? = nil, @ViewBuilder content: () -> Content
     ) {
         self.title = title
         self.systemImage = systemImage
         self.seeAll = seeAll
         self.identifier = identifier
+        self.entranceIndex = entranceIndex
         self.content = content()
     }
 
@@ -153,6 +157,7 @@ struct DualSourcePane<Content: View>: View {
                 }
             }
             .padding(.horizontal, 16)
+            .festivalFadeIn(staggerIndex: entranceIndex)
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
