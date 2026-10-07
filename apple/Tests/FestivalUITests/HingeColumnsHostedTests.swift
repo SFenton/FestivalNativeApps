@@ -27,6 +27,10 @@ private let flat = DeviceLayout.resolve(LayoutSignals(
 
 private let hostSize = CGSize(width: 951, height: 669)
 
+/// Frame tolerance: on a 1x display (headless CI) SwiftUI snaps half-point edges to whole
+/// pixels, so the equal 407.5 pt flat columns measure 407 and 408 pt.
+private let pixelTolerance: CGFloat = 1.5
+
 /// Grid content: the window less the 84 pt vertical bar, inset 16 pt like the pages.
 private struct HingeFixture: View {
     let layout: DeviceLayout
@@ -109,7 +113,7 @@ private let ids = ["fixture.header", "fixture.grid.0", "fixture.grid.1", "fixtur
     // Let the measured spans arrive (one extra layout pass), then read the frames.
     _ = try await frames(host, ids)
     var folded = try await frames(host, ids)
-    for _ in 0..<20 where (folded["fixture.grid.0"]?.maxX ?? 0) > bookFold.minX + 1 {
+    for _ in 0..<20 where (folded["fixture.grid.0"]?.maxX ?? 0) > bookFold.minX + pixelTolerance {
         folded = try await frames(host, ids)
     }
     let header = try #require(folded["fixture.header"])
@@ -119,26 +123,26 @@ private let ids = ["fixture.header", "fixture.grid.0", "fixture.grid.1", "fixtur
     let row1 = try #require(folded["fixture.row.1"])
     // The centre gutter is the fold: leading cells end at its leading edge, trailing ones
     // start at its trailing edge.
-    #expect(abs(grid0.maxX - bookFold.minX) < 1)
-    #expect(abs(grid1.minX - bookFold.maxX) < 1)
-    #expect(abs(row0.maxX - bookFold.minX) < 1)
-    #expect(abs(row1.minX - bookFold.maxX) < 1)
+    #expect(abs(grid0.maxX - bookFold.minX) < pixelTolerance)
+    #expect(abs(grid1.minX - bookFold.maxX) < pixelTolerance)
+    #expect(abs(row0.maxX - bookFold.minX) < pixelTolerance)
+    #expect(abs(row1.minX - bookFold.maxX) < pixelTolerance)
     // The title wraps on its own side.
-    #expect(header.maxX <= bookFold.midX - HingeColumns.titleClearance + 1)
+    #expect(header.maxX <= bookFold.midX - HingeColumns.titleClearance + pixelTolerance)
 
     // Unfold the same view: flat equal columns, the title spans the content again.
     box.layout = flat
     var open = try await frames(host, ids)
-    for _ in 0..<20 where abs((open["fixture.grid.0"]?.width ?? 0) - (open["fixture.grid.1"]?.width ?? -1)) > 1 {
+    for _ in 0..<20 where abs((open["fixture.grid.0"]?.width ?? 0) - (open["fixture.grid.1"]?.width ?? -1)) >= pixelTolerance {
         open = try await frames(host, ids)
     }
     let flat0 = try #require(open["fixture.grid.0"])
     let flat1 = try #require(open["fixture.grid.1"])
     let flatRow0 = try #require(open["fixture.row.0"])
     let flatRow1 = try #require(open["fixture.row.1"])
-    #expect(abs(flat0.width - flat1.width) < 1)
-    #expect(abs(flatRow0.width - flatRow1.width) < 1)
-    #expect(abs(flat1.minX - flat0.maxX - 20) < 1)
+    #expect(abs(flat0.width - flat1.width) < pixelTolerance)
+    #expect(abs(flatRow0.width - flatRow1.width) < pixelTolerance)
+    #expect(abs(flat1.minX - flat0.maxX - 20) < pixelTolerance)
     #expect(flat0.maxX < bookFold.minX - 20)
     // The title spans the content again.
     #expect(try #require(open["fixture.header"]).maxX > bookFold.maxX)
