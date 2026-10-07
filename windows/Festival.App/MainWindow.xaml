@@ -50,7 +50,7 @@
                 </AutoSuggestBox>
             </TitleBar.Content>
             <TitleBar.RightHeader>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel x:Name="TitleBarRightHeader" Orientation="Horizontal" VerticalAlignment="Center">
                 <Button x:Name="GlobalSearchButton" Visibility="Collapsed" Padding="8" Background="Transparent" BorderThickness="0"
                         MinWidth="{StaticResource FSTMinTargetSize}" MinHeight="{StaticResource FSTMinTargetSize}"
                         VerticalAlignment="Center" ToolTipService.ToolTip="Search songs and players (Ctrl+E)"
