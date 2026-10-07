@@ -113,7 +113,7 @@ struct DualSourceLayout<Primary: View, Secondary: View>: View {
 // MARK: - Secondary pane chrome
 
 /// The standard frame for a secondary region: a Title Case header with an optional
-/// "See All" push, over content that fills the rest of the region.
+/// "View All" push, over content that fills the rest of the region.
 struct DualSourcePane<Content: View>: View {
     private let title: String
     private let systemImage: String
@@ -126,7 +126,7 @@ struct DualSourcePane<Content: View>: View {
     /// - Parameters:
     ///   - title: Title Case header naming the second source.
     ///   - systemImage: SF Symbol shown before the title.
-    ///   - seeAll: Route pushed by the header's "See All" link, if the source has a page.
+    ///   - seeAll: Route pushed by the header's "View All" link, if the source has a page.
     ///   - identifier: Accessibility identifier suffix (`fst.dual.<identifier>`).
     ///   - content: The source's content, usually a ``HorizontalCarousel``.
     init(
@@ -149,7 +149,7 @@ struct DualSourcePane<Content: View>: View {
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 8)
                 if let seeAll {
-                    SectionSeeAllLink(route: seeAll, identifier: "fst.dual.\(identifier).see-all", listName: title)
+                    SectionViewAllLink(route: seeAll, identifier: "fst.dual.\(identifier).view-all", listName: title)
                 }
             }
             .padding(.horizontal, 16)
@@ -157,6 +157,8 @@ struct DualSourcePane<Content: View>: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .padding(.top, 8)
+        // `.contain` keeps the header link's own identifier reachable under the pane's.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.dual.\(identifier)")
     }
 }

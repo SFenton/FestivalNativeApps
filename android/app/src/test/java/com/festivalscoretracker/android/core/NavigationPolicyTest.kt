@@ -159,6 +159,7 @@ class NavigationPolicyTest {
         assertEquals(PlayerRoute("abc"), DebugLaunch.parseRoute("player:abc"))
         assertNull(DebugLaunch.parseRoute("player"))
         assertEquals(PlayerBandsRoute("abc"), DebugLaunch.parseRoute("playerBands:abc"))
+        assertEquals(PlayerBandsRoute("abc", group = "trios"), DebugLaunch.parseRoute("playerBands:abc:trios"))
         assertEquals(LeaderboardsRoute, DebugLaunch.parseRoute("leaderboards"))
         assertEquals(FullRankingsRoute("Solo_Drums"), DebugLaunch.parseRoute("fullRankings:Solo_Drums"))
         assertEquals(FullRankingsRoute("Solo_Guitar"), DebugLaunch.parseRoute("fullRankings"))

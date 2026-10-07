@@ -143,6 +143,8 @@ BAND_TYPES = frozenset({"Band_Duets", "Band_Trios", "Band_Quad"})
 # `--large-rankings`: enough synthetic rows for multi-page pagers (48 pages of 25).
 LARGE_RANKINGS_ACCOUNTS = 1_200
 LARGE_RANKINGS_TEAMS = 600
+# `--large-rankings` also pads the fixture-pulse Duos song band board to three pages (scores stay positive).
+LARGE_SONG_BAND_ENTRIES = 75
 # `--large-catalogue`: synthetic songs spread over #, A–Z so lists scroll and the section
 # index has every bucket; artwork reuses the generated fixture motifs.
 _CATALOGUE_WORDS = (
@@ -319,6 +321,41 @@ def _player_band_entry(band_id: str, team_key: str, band_type: str, members: int
             for index in range(members)
         ],
     }
+
+
+def _band_search_member(account_id: str, name: str, instrument: str) -> dict:
+    """One `PlayerBandMemberDto` inside a band-search result.
+
+    Args:
+        account_id: Synthetic account identifier.
+        name: Synthetic display name.
+        instrument: Charted instrument key.
+
+    Returns:
+        A JSON-ready member object.
+    """
+    return {"accountId": account_id, "displayName": name, "instruments": [instrument]}
+
+
+# `GET /api/bands/search` candidates (issue #320): `fixture-team-1`/`-2` resolve on the
+# band-profile board, so a tapped result opens a band page.
+BAND_SEARCH_CANDIDATES = (
+    {
+        "bandId": "fixture-band-1", "teamKey": "fixture-team-1", "bandType": "Band_Duets",
+        "appearanceCount": 12, "members": [
+            _band_search_member("fixture-player-1", "Fixture Player 1", "Solo_Guitar"),
+            _band_search_member("fixture-player-2", "Fixture Player 2", "Solo_Bass"),
+        ],
+    },
+    {
+        "bandId": "fixture-band-2", "teamKey": "fixture-team-2", "bandType": "Band_Trios",
+        "appearanceCount": 4, "members": [
+            _band_search_member("fixture-player-1", "Fixture Player 1", "Solo_Drums"),
+            _band_search_member("fixture-syncing", "Syncing Player", "Solo_Vocals"),
+            _band_search_member("fixture-empty", "Empty Player", "Solo_Guitar"),
+        ],
+    },
+)
 
 
 def _song_band_leaderboard_entry(rank: int, band_type: str) -> dict:
@@ -1111,6 +1148,8 @@ class FixtureHandler(BaseHTTPRequestHandler):
                     else term in player["displayName"].casefold())
             ]
             self._json(200, {"results": matches[:limit]})
+        elif path == "/api/bands/search":
+            self._band_search(query)
         elif match := PLAYER_HISTORY.fullmatch(path):
             account_id = match.group(1)
             if set(query) - {"songId", "instrument"}:
@@ -1757,10 +1796,15 @@ class FixtureHandler(BaseHTTPRequestHandler):
             if song_id == "fixture-pulse" and band_type == "Band_Duets":
                 # Ranks 1-29; rank 29 (page 2) is `fixture-player-1`'s band, the row
                 # Song Detail appends to its Duos preview, so its jump lands on a real
-                # row and the pinned footer can jump or open (#307).
+                # row and the pinned footer can jump or open (#307). `--large-rankings`
+                # continues to rank 75 (three pages) for bottom-chrome fade captures (#308).
                 all_entries = [_song_band_leaderboard_entry(rank, band_type)
                                for rank in range(1, SELECTED_SONG_BAND_RANK)]
                 all_entries.append(_selected_song_band_entry("fixture-player-1", band_type))
+                if self.fixture.large_rankings:
+                    all_entries.extend(_song_band_leaderboard_entry(rank, band_type)
+                                       for rank in range(SELECTED_SONG_BAND_RANK + 1,
+                                                         LARGE_SONG_BAND_ENTRIES + 1))
             else:
                 all_entries = []
             # A `fixture-player-*` `accountId` adds that player's rank-29 band as the
@@ -1769,6 +1813,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
             selected = (_selected_song_band_entry(account_ids[0] if account_ids else None, band_type)
                         if all_entries else None)
             total = len(all_entries)
+
             entries = all_entries[offset:offset + top]
             self._json(200, {
                 "songId": song_id, "bandType": band_type, "showLeaderboardEntryTotals": True,
@@ -2004,6 +2049,39 @@ class FixtureHandler(BaseHTTPRequestHandler):
         job = FEEDBACK_FAILED_JOB if b"fixture-failed" in body else FEEDBACK_FILED_JOB
         self._json(202, {"id": job, "status": "queued"})
 
+    def _band_search(self, query: dict[str, list[str]]) -> None:
+        """Serve `GET /api/bands/search?q=&page=1&pageSize=` (issue #320).
+
+        Mirrors `BandSearchResponseDto`: members whose display name contains the query
+        match; "busy" answers 503 and anything else unmatched an empty envelope. Only
+        the first page with 1–100 rows is accepted, as natives request.
+
+        Args:
+            query: Parsed query string.
+        """
+        terms, pages, sizes = query.get("q", []), query.get("page", []), query.get("pageSize", [])
+        if (set(query) != {"q", "page", "pageSize"} or len(terms) != 1 or pages != ["1"]
+                or len(sizes) != 1 or not sizes[0].isdigit()
+                or not 1 <= int(sizes[0]) <= 100
+                or not 2 <= len(terms[0].strip()) <= 200):
+            self._json(400, {"error": "invalid_band_search"})
+            return
+        term = terms[0].strip().casefold()
+        if term == "busy":
+            self._json(503, {"error": "band_search_unavailable"})
+            return
+        results = [
+            {**band, "ranking": None, "matchedInterpretationIds": [], "matchedAccountIds": []}
+            for band in BAND_SEARCH_CANDIDATES
+            if any(term in member["displayName"].casefold() for member in band["members"])
+        ][:int(sizes[0])]
+        self._json(200, {
+            "query": terms[0], "normalizedQuery": term, "bandType": None, "comboId": None,
+            "rankBy": "adjusted", "page": 1, "pageSize": int(sizes[0]),
+            "totalCount": len(results), "isAmbiguous": False, "needsDisambiguation": False,
+            "interpretations": [], "results": results,
+        })
+
     def _feedback_status(self, job: str) -> None:
         """Fixture for ``GET /api/feedback/{id}``: the filed job reports issue #1, the
         failed job reports ``failed`` and any other ID is ``404 not_found``.
@@ -2062,7 +2140,8 @@ def main() -> None:
     parser.add_argument("--metadata-edge", action="store_true")
     parser.add_argument(
         "--large-rankings", action="store_true",
-        help="pad rankings to 1,200 accounts / 600 teams for multi-page pager captures",
+        help="pad rankings to 1,200 accounts / 600 teams (and the fixture-pulse Duos band board to 75 rows) "
+             "for multi-page pager captures",
     )
     parser.add_argument(
         "--large-catalogue", action="store_true",

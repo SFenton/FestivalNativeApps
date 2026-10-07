@@ -625,7 +625,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         var result = Describe(window).AsObject();
         if (announcementHandler is not null)
             response["announcements"] = new JsonArray([.. announcements.Select(a => (JsonNode)JsonValue.Create(a)!)]);
-        foreach (var key in new[] { "focus", "scans", "aligned", "pinned", "announcements" })
+        foreach (var key in new[] { "focus", "scans", "aligned", "pinned", "announcements", "paint", "bold" })
         {
             if (response[key] is not JsonArray collected) continue;
             response.Remove(key);
@@ -778,6 +778,12 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 break;
             case "assertannounced":
                 AssertAnnounced(step);
+                break;
+            case "assertpaint":
+                AssertPaint(window, step);
+                break;
+            case "assertbold":
+                AssertBold(window, step);
                 break;
             case "assertannouncedcount":
                 AssertAnnouncedCount(step);
@@ -1051,6 +1057,12 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                     "type" => element.Properties.ControlType.ValueOrDefault.ToString().ToLowerInvariant(),
                     "invoke" => element.Patterns.Invoke.IsSupported ? "true" : "false",
                     "focusable" => element.Properties.IsKeyboardFocusable.ValueOrDefault ? "true" : "false",
+                    // What Narrator reads after a combo box's name: its Value, else the selected item's name.
+                    "value" => element.Patterns.Value.PatternOrDefault?.Value.ValueOrDefault is { Length: > 0 } text
+                        ? text
+                        : element.Patterns.Selection.PatternOrDefault?.Selection.ValueOrDefault is { Length: > 0 } picked
+                            ? picked[0].Properties.Name.ValueOrDefault
+                            : null,
                     _ => element.Properties.Name.ValueOrDefault,
                 };
             }

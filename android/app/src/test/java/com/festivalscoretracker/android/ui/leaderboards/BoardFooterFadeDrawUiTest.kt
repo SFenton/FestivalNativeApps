@@ -33,9 +33,9 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Pixels of the board's footer edge (issue #93): rows are hidden beneath a transparent floating
- * footer and fade out above it, unless the board opts out; an accessibility mode keeps the cut
- * without the ramp (scroll-edge R7).
+ * Pixels of the board's footer edge (issues #93, #308): rows are hidden beneath a transparent
+ * floating footer and fade out over the 36 dp linear ramp above it (the web's `useScrollFade`),
+ * unless the board opts out. Accessibility modes keep the cut with no ramp (scroll-edge R7).
  */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w400dp-h800dp-mdpi")
@@ -84,12 +84,15 @@ class BoardFooterFadeDrawUiTest {
         val image = board(fade = true)
         val cut = rule.onNodeWithTag("fst.t.bottom-bar").fetchSemanticsNode().positionInWindow.y.toInt() - image.y
         assertFalse("no row shows beneath the footer", image.redIn(cut + 1 until 800))
-        assertTrue("rows above the band are untouched", image.redIn(cut - 200 until cut - 41))
-        // The 40 dp band eases out towards the cut.
-        val band = (cut - 40 until cut).filter { image.redAt(it) > 0.01f }
+        assertTrue("rows above the band are untouched", (cut - 200 until cut - 37).all { image.redAt(it).let { r -> r > 0.95f || r < 0.02f } })
+        assertTrue(image.redIn(cut - 200 until cut - 37))
+        // The 36 dp linear ramp fades out towards the cut (rows sit 12 dp apart, so gaps read 0).
+        val band = (cut - 36 until cut).filter { image.redAt(it) > 0.01f }
         assertTrue(band.size > 20)
         assertTrue(band.zipWithNext().all { (a, b) -> image.redAt(b) <= image.redAt(a) + 0.01f })
-        assertTrue(image.redAt(cut - 2) < 0.15f)
+        assertTrue("never above the linear ramp", (cut - 36 until cut).all { image.redAt(it) <= (cut - it) / 36f + 0.05f })
+        assertTrue("linear, not eased", band.any { image.redAt(it) in 0.3f..0.7f })
+        assertTrue(image.redAt(cut - 1) < 0.1f)
     }
 
     @Test
@@ -97,24 +100,23 @@ class BoardFooterFadeDrawUiTest {
         assertTrue(board(fade = false).redIn(700 until 800))
     }
 
-    /**
-     * Scroll-edge R7: Reduce Transparency and Increase Contrast turn the ramp into a hard cut at
-     * the footer's top edge. No row shows beneath the footer, and rows right above the cut are
-     * drawn at full strength (no ramp).
-     */
+    @Test
+    fun reduceTransparencyCutsRowsAtAHardEdge() = assertHardEdge(FestivalAccessibility(reduceTransparency = true))
+
+    @Test
+    fun increaseContrastCutsRowsAtAHardEdge() = assertHardEdge(FestivalAccessibility(increaseContrast = true))
+
+    @Test
+    fun reduceMotionCutsRowsAtAHardEdge() = assertHardEdge(FestivalAccessibility(reduceMotion = true))
+
+    /** R7: no ramp, but rows still never show beneath the footer. */
     private fun assertHardEdge(accessibility: FestivalAccessibility) {
         val image = board(fade = true, accessibility)
         val cut = rule.onNodeWithTag("fst.t.bottom-bar").fetchSemanticsNode().positionInWindow.y.toInt() - image.y
         assertFalse("no row shows beneath the footer", image.redIn(cut + 1 until 800))
-        assertTrue("no ramp above the cut", (cut - 40 until cut - 1).all { image.redAt(it) > 0.9f || image.redAt(it) < 0.01f })
-        assertTrue("rows reach the cut", image.redIn(cut - 12 until cut))
+        assertTrue("rows are opaque up to the cut", (cut - 200 until cut).all { image.redAt(it).let { r -> r > 0.95f || r < 0.02f } })
+        assertTrue(image.redIn(cut - 40 until cut))
     }
-
-    @Test
-    fun reduceTransparencyKeepsAHardCutAtTheFooter() = assertHardEdge(FestivalAccessibility(reduceTransparency = true))
-
-    @Test
-    fun increaseContrastKeepsAHardCutAtTheFooter() = assertHardEdge(FestivalAccessibility(increaseContrast = true))
 
     /**
      * Rows covered by the bottom bar are neither visible nor reachable under each accessibility
@@ -134,6 +136,9 @@ class BoardFooterFadeDrawUiTest {
 
     @Test
     fun increaseContrastHidesCoveredRowsFromTalkBack() = assertCoveredRowsLeaveTalkBack(FestivalAccessibility(increaseContrast = true))
+
+    @Test
+    fun reduceMotionHidesCoveredRowsFromTalkBack() = assertCoveredRowsLeaveTalkBack(FestivalAccessibility(reduceMotion = true))
 
     /**
      * Rows hidden beneath the footer leave the accessibility tree (issue #104): TalkBack would

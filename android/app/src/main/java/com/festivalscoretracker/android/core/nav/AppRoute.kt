@@ -66,8 +66,12 @@ sealed interface AppRoute
 /** `/player/:accountId`. */
 @Serializable data class PlayerRoute(val accountId: String, val displayName: String? = null) : AppRoute
 
-/** `/bands/player/:accountId`. */
-@Serializable data class PlayerBandsRoute(val accountId: String, val displayName: String? = null) : AppRoute
+/**
+ * `/bands/player/:accountId?group=`.
+ *
+ * @property group Initial `PlayerBandGroup.wireId` filter (the player page's per-size "View all"), or null for All.
+ */
+@Serializable data class PlayerBandsRoute(val accountId: String, val displayName: String? = null, val group: String? = null) : AppRoute
 
 /** `/bands`. */
 @Serializable data object BandsRoute : AppRoute

@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.nav.HingeSide
+import com.festivalscoretracker.android.presentation.ModalCoverage
 import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.FestivalAccessibility
@@ -293,6 +294,57 @@ class ServiceStatusUiTest {
             }
         }
         rule.onNodeWithTag("fst.service-status.countdown").assertIsDisplayed()
+    }
+
+    /**
+     * Issue #186 (`modal-shell` R10): the retrying page's icon pulse holds its still frame while a
+     * Festival modal covers the page and resumes once it closes. The icon's drawn alpha is
+     * sampled through [LocalMotionProbe].
+     */
+    @Test
+    fun retryPulseHoldsWhileAModalCoversThePageAndResumes() {
+        assertEquals("no modal leaked from another test", 0, ModalCoverage.shared.openCount.value)
+        var sheet by mutableStateOf(false)
+        var alpha = Float.NaN
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            CompositionLocalProvider(LocalMotionProbe provides { loop, value -> if (loop == MotionProbes.SERVICE_STATUS_PULSE) alpha = value }) {
+                FestivalTheme {
+                    ServiceStatusView(ServiceIssue.ScrapeInProgress(30), "Leaderboards unavailable", 30, onRetry = {})
+                    if (sheet) {
+                        FestivalModalSheet(title = "Sort", closeTag = "sheet.close", onDismissRequest = {}) {}
+                    }
+                }
+            }
+        }
+        // The pulse is a 1 s reversing tween (1 → 0.4); eight samples over ~1 s see it move unless held.
+        fun samples() = List(8) {
+            rule.mainClock.advanceTimeBy(130)
+            rule.waitForIdle()
+            alpha
+        }
+        fun awaitOpenModals(count: Int) {
+            repeat(30) {
+                if (ModalCoverage.shared.openCount.value == count) return
+                rule.mainClock.advanceTimeBy(50)
+                rule.waitForIdle()
+            }
+            assertEquals(count, ModalCoverage.shared.openCount.value)
+        }
+        rule.mainClock.advanceTimeBy(200)
+        rule.waitForIdle()
+        val pulsing = samples()
+        assertTrue("the retry icon pulses on an uncovered page: $pulsing", pulsing.toSet().size > 1 && pulsing.any { it < 0.9f })
+
+        rule.runOnIdle { sheet = true }
+        awaitOpenModals(1)
+        val held = samples()
+        assertEquals("covered: the still, fully drawn icon", List(held.size) { 1f }, held)
+
+        rule.runOnIdle { sheet = false }
+        awaitOpenModals(0)
+        val resumed = samples()
+        assertTrue("the pulse resumes once the modal closes: $resumed", resumed.toSet().size > 1 && resumed.any { it < 0.9f })
     }
 
     @Test

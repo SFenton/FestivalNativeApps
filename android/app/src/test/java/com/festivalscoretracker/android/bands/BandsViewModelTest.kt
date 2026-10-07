@@ -63,6 +63,15 @@ class BandsViewModelTest {
     // region Player bands
 
     @Test
+    fun playerBandsStartsOnItsInitialGroup() = runTest(main.dispatcher) {
+        val viewModel = PlayerBandsViewModel(BandFixtures.PLAYER, BandPaging.PAGE_SIZE, api::playerBands, backoff, PlayerBandGroup.Quads)
+        advanceUntilIdle()
+        assertEquals(PlayerBandGroup.Quads, viewModel.group.value)
+        assertEquals(2, viewModel.bands.value.valueOrNull!!.totalCount)
+        assertTrue(transport.requests.filter { "/bands" in it.url }.all { "group=quads" in it.url })
+    }
+
+    @Test
     fun playerBandsPagesAndSwitchesGroups() = runTest(main.dispatcher) {
         val viewModel = PlayerBandsViewModel(BandFixtures.PLAYER, BandPaging.PAGE_SIZE, api::playerBands, backoff)
         assertTrue(viewModel.isValidAccount)

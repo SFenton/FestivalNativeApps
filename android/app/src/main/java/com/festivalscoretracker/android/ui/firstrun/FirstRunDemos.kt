@@ -37,6 +37,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -58,6 +59,9 @@ import com.festivalscoretracker.android.core.firstrun.FirstRunDemoSongs
 import com.festivalscoretracker.android.core.firstrun.FirstRunRotatingDemos
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.Song
+import com.festivalscoretracker.android.ui.common.LocalMotionProbe
+import com.festivalscoretracker.android.ui.common.MotionProbes
+import com.festivalscoretracker.android.ui.common.coveredByModal
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
@@ -179,9 +183,15 @@ internal fun DemoCard(modifier: Modifier = Modifier, border: Color = BrandTokens
 
 @Composable
 private fun pulseAlpha(pulse: Boolean): Float {
-    if (!pulse) return 1f
+    val probe = LocalMotionProbe.current
+    // A newer modal over the tour holds the pulse still (`modal-shell` R10).
+    if (!pulse || coveredByModal()) {
+        if (probe != null) SideEffect { probe(MotionProbes.FIRST_RUN_DEMO_PULSE, 1f) }
+        return 1f
+    }
     val transition = rememberInfiniteTransition(label = "pulse")
     val value by transition.animateFloat(0.35f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "alpha")
+    if (probe != null) SideEffect { probe(MotionProbes.FIRST_RUN_DEMO_PULSE, value) }
     return value
 }
 

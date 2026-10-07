@@ -83,6 +83,10 @@ class FixtureServerTests(unittest.TestCase):
         before = self.server.publication_id
         status, served, body = self.get(f"/api/player/{f.ROLLOVER_ID}", pin=before)
         self.assertEqual((status, served, body["accountId"]), (200, str(before), f.ROLLOVER_ID))
+        # The fixture advances after writing the response, so the client can finish reading first.
+        deadline = time.monotonic() + 5
+        while self.server.publication_id == before and time.monotonic() < deadline:
+            time.sleep(0.01)
         self.assertEqual(self.server.publication_id, before + 1)
         # A route the mock serves without a pin check still conflicts for the older generation.
         self.assertEqual(self.get("/api/rankings/Solo_Guitar/fixture-player-1/history?days=30", pin=before)[0], 409)
