@@ -275,6 +275,46 @@ class SlowRivalsTests(unittest.TestCase):
         self.assertEqual(slept, [f.SLOW_RIVALS_SECONDS])
 
 
+class SongBandRowsTests(unittest.TestCase):
+    """``--song-band-rows``: a song band board long enough to scroll under its pager (issue #305)."""
+
+    def test_pages_through_the_long_board(self):
+        first = f.song_band_board_response("/api/leaderboard/fixture-pulse/bands/Band_Duets?top=25&offset=0", 40)
+        self.assertEqual((first["totalEntries"], first["localEntries"], first["count"]), (40, 40, 25))
+        self.assertEqual([e["rank"] for e in first["entries"]][:2], [1, 2])
+        last = f.song_band_board_response("/api/leaderboard/fixture-pulse/bands/Band_Trios?top=25&offset=25", 40)
+        self.assertEqual((last["bandType"], last["count"], last["entries"][-1]["rank"]), ("Band_Trios", 15, 40))
+
+    def test_other_requests_defer_to_the_mock_service(self):
+        for path in ("/api/leaderboard/fixture-pulse/bands/all", "/api/leaderboard/fixture-pulse/Solo_Guitar",
+                     "/api/leaderboard/fixture-pulse/bands/Band_Nope", "/api/leaderboard/real-song/bands/Band_Duets",
+                     "/api/leaderboard/fixture-pulse/bands/Band_Duets?top=0",
+                     "/api/leaderboard/fixture-pulse/bands/Band_Duets?offset=x"):
+            self.assertIsNone(f.song_band_board_response(path, 40), path)
+
+    def test_take_song_band_rows(self):
+        self.assertEqual(f.take_song_band_rows(["--port", "0"]), (None, ["--port", "0"]))
+        self.assertEqual(f.take_song_band_rows(["--song-band-rows", "40", "--port", "0"]), (40, ["--port", "0"]))
+        self.assertEqual(f.take_song_band_rows(["--song-band-rows=60"]), (60, []))
+        for bad in (["--song-band-rows"], ["--song-band-rows", "many"], ["--song-band-rows=0"]):
+            with self.assertRaises(SystemExit):
+                f.take_song_band_rows(bad)
+
+    def test_install_serves_long_boards_and_defers_the_rest(self):
+        original = ms.FixtureHandler.do_GET
+        served, answered = [], []
+        ms.FixtureHandler.do_GET = lambda handler: served.append(handler.path)
+        try:
+            f.install_song_band_rows(30)
+            for path in ("/api/leaderboard/fixture-pulse/bands/Band_Quad", "/api/songs"):
+                handler = type("H", (), {"path": path, "_json": lambda self, status, body: answered.append((status, body))})()
+                ms.FixtureHandler.do_GET(handler)
+        finally:
+            ms.FixtureHandler.do_GET = original
+        self.assertEqual(served, ["/api/songs"])
+        self.assertEqual((answered[0][0], answered[0][1]["totalEntries"]), (200, 30))
+
+
 class DetailNameTests(unittest.TestCase):
     """``name_detail_bodies`` patches both detail builders and restores cleanly."""
 

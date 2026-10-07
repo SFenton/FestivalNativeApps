@@ -191,4 +191,85 @@ public sealed class StaggerArmTests
         Assert.True(arm.SuppressedByScroll(Ms(4100), 6, 8));
         Assert.False(arm.SuppressedByScroll(Ms(6000), 6, 8));
     }
+
+    [Fact]
+    public void RevealWait_LastsUntilTheSelectedRowsOwnFadeEnds()
+    {
+        var arm = Loaded();
+        arm.Played(3, Ms(500), Ms(1100));
+        // Scheduled at 1100, starts at 1600, ends 400 ms later (FadeInTiming.Duration).
+        Assert.Equal(Ms(1900), arm.RevealWait(3, Ms(100)));
+        Assert.Equal(Ms(800), arm.RevealWait(3, Ms(1200)));
+        Assert.Equal(TimeSpan.Zero, arm.RevealWait(3, Ms(2000)));
+        Assert.Equal((Ms(500), Ms(900)), arm.Entrance(3, Ms(2000)));
+    }
+
+    [Fact]
+    public void RevealWait_IsZeroForARowThatNeverFaded()
+    {
+        var arm = Loaded();
+        Assert.Equal(TimeSpan.Zero, arm.RevealWait(7, Ms(1100)));
+        Assert.Null(arm.Entrance(7, Ms(1100)));
+        arm.Played(7, Ms(250), Ms(1100));
+        arm.Shown(7);
+        Assert.Equal(TimeSpan.Zero, arm.RevealWait(7, Ms(1100)));
+        Assert.Null(arm.Entrance(7, Ms(1100)));
+    }
+
+    [Fact]
+    public void Played_ClampsANegativeDelay()
+    {
+        var arm = Loaded();
+        arm.Played(0, Ms(-50), Ms(1100));
+        Assert.Equal(Ms(400), arm.RevealWait(0, Ms(1100)));
+    }
+
+    [Fact]
+    public void Rush_StartsOnlyTheFadesThatHaventBegun()
+    {
+        var arm = Loaded();
+        for (var i = 0; i < 6; i++) arm.Played(i, Ms(125 * (i + 1)), Ms(1100));
+        // At 1500 rows 0-1 (starting 1225, 1350) are running; row 2 starts at 1475; rows 3-5 still wait.
+        var rushed = arm.Rush(Ms(1500));
+        Assert.Equal([(3, Ms(500)), (4, Ms(625)), (5, Ms(750))], rushed);
+        // Rushed rows now start at once, and a second rush finds nothing pending.
+        Assert.Equal(Ms(400), arm.RevealWait(4, Ms(1500)));
+        Assert.Empty(arm.Rush(Ms(1500)));
+        Assert.Equal((TimeSpan.Zero, Ms(10)), arm.Entrance(5, Ms(1510)));
+    }
+
+    [Fact]
+    public void LoadArm_ForgetsFadesAndScrollAndCountsGenerations()
+    {
+        var arm = Loaded();
+        var generation = arm.Generation;
+        arm.Played(2, Ms(375), Ms(1100));
+        Assert.False(arm.ScrolledSinceLoad);
+        Assert.True(arm.Scrolled(0, 120));
+        Assert.True(arm.ScrolledSinceLoad);
+
+        arm.Arm(0, Ms(3000));
+        Assert.Equal(generation + 1, arm.Generation);
+        Assert.False(arm.ScrolledSinceLoad);
+        Assert.Null(arm.Entrance(2, Ms(3000)));
+    }
+
+    [Fact]
+    public void AppendedBatch_KeepsEarlierFadesAndScroll()
+    {
+        var arm = Loaded();
+        arm.Played(1, Ms(250), Ms(1100));
+        Assert.True(arm.Scrolled(0, 120));
+        arm.Arm(20, Ms(1300));
+        Assert.True(arm.ScrolledSinceLoad);
+        Assert.NotNull(arm.Entrance(1, Ms(1300)));
+    }
+
+    [Fact]
+    public void LayoutRounding_IsNotTheReaderScrolling()
+    {
+        var arm = Loaded(0, 100);
+        Assert.False(arm.Scrolled(0, 100.5));
+        Assert.False(arm.ScrolledSinceLoad);
+    }
 }

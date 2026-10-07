@@ -15,7 +15,7 @@ namespace Festival.App.Pages;
 #region Song detail page
 /// <summary>
 /// Song Detail: header, Intensity for every charted instrument, the selected player's score history and a top-10 card per
-/// visible chart. Also hosts the score-history route (<c>/songs/:id/:instrument/history</c>), opened scrolled to history.
+/// visible chart. Its View All Scores opens the separate Player History page (<c>/songs/:id/:instrument/history</c>, issue #324).
 /// </summary>
 public sealed partial class SongDetailPage : Page, IBackdropPage
 {

@@ -12,8 +12,8 @@ namespace Festival.App.Controls;
 
 #region Board footer fade
 /// <summary>
-/// The one bottom-chrome ramp for every board with a floating footer (scroll-edge R1–R4, R7; issues #93, #308, web
-/// <c>useScrollFade</c>): rows are clear at the footer's top, opaque <see cref="BoardFooterEdgeFade.FadeDepth"/> epx above
+/// The one bottom-chrome ramp for every board with a floating footer (scroll-edge R1–R4, R7, R9; issues #93, #305, #308,
+/// web board pages' <c>useScrollMask</c>): rows are clear at the footer's top, opaque <see cref="BoardFooterEdgeFade.FadeDepth"/> epx above
 /// it, and hidden beneath it; depth 0 is the end of the list (nothing dimmed) or, under a contrast theme, Windows
 /// transparency effects off, or in-app Increase Contrast / Less Transparency, the accessibility hard cut at the footer's
 /// top. Pages call <see cref="Attach"/> once; it follows scrolling, sizes, visibility and the appearance settings itself.
@@ -107,7 +107,12 @@ internal sealed class BoardFooterFade
     private ScrollViewer? EnsureScroller()
     {
         if (scroller is null && (scroller = FindScrollViewer(list)) is not null)
+        {
             scroller.ViewChanged += (_, _) => Update();
+            // Rows arriving (or a page swap) change the extent without a scroll; a board that loads long shows the
+            // ramp at once, with or without the selected player's pinned row (issue #305).
+            scroller.RegisterPropertyChangedCallback(ScrollViewer.ScrollableHeightProperty, (_, _) => Update());
+        }
         return scroller;
     }
 
@@ -148,7 +153,7 @@ internal sealed class BoardFooterFade
         if (plate is not null)
         {
             plate.Visibility = contrast && shown ? Visibility.Visible : Visibility.Collapsed;
-            if (contrast && shown) plate.Height = footer.ActualHeight;
+            if (contrast && shown) plate.Height = footer.ActualHeight + footer.Margin.Bottom;
         }
         var enabled = SongHeaderEdgeFade.IsEnabled(contrast, uiSettings.AdvancedEffectsEnabled, settings.LessTransparency, settings.MoreContrast);
         double? top = shown ? footer.TransformToVisual(source).TransformPoint(default).Y : null;

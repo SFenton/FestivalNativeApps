@@ -31,10 +31,10 @@ public static class AppRouteParser
             [] or ["songs"] => null,
             ["settings"] => null,
             ["songs", var id] => new AppRoute.SongDetail(id, Chart(query.GetValueOrDefault("instrument"))),
-            ["songs", var id, "bands", var type] => new AppRoute.SongBandLeaderboard(id, type),
+            ["songs", var id, "bands", var type] => new AppRoute.SongBandLeaderboard(id, type, Page(query.GetValueOrDefault("page")), Flag(query.GetValueOrDefault("navToBand"))),
             ["songs", var id, var chart, "history"] when InstrumentInfo.TryParse(chart, out var i) => new AppRoute.PlayerHistory(id, i),
             ["songs", var id, var chart] when InstrumentInfo.TryParse(chart, out var i) =>
-                new AppRoute.SongLeaderboard(id, i, Page(query.GetValueOrDefault("page"))),
+                new AppRoute.SongLeaderboard(id, i, Page(query.GetValueOrDefault("page")), Flag(query.GetValueOrDefault("navToPlayer"))),
             ["player", var account] when ProfileText.IsValidAccountId(account) => new AppRoute.Player(account),
             // The web's Routes.playerBands link carries ?group=&name=; ToPath never writes name (in-memory context).
             ["bands", "player", var account] when ProfileText.IsValidAccountId(account) =>
@@ -106,6 +106,11 @@ public static class AppRouteParser
     /// <returns>Page ≥ 1.</returns>
     private static int Page(string? value) =>
         int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var page) && page > 0 ? page : 1;
+
+    /// <summary>Parses a web boolean flag (<c>navToPlayer=true</c>).</summary>
+    /// <param name="value">Query value.</param>
+    /// <returns><see langword="true"/> only for <c>true</c>.</returns>
+    private static bool Flag(string? value) => string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Splits a query string; later duplicates win.</summary>
     /// <param name="query">Text after <c>?</c>.</param>

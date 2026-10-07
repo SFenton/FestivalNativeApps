@@ -5,8 +5,8 @@ namespace Festival.Core.Tests;
 
 /// <summary>
 /// Guards issue #72: title-bar and page tool buttons keep Fluent's 40x40 epx minimum touch target
-/// (<c>FSTMinTargetSize</c>), so a tap just beside the glyph still activates them. The live check is the
-/// off-centre click probe in <c>.agents/testing/windows.md</c>; this keeps the markup from regressing.
+/// (<c>FSTMinTargetSize</c>), so a tap just beside the glyph still activates them. The live check is the hit-target
+/// journey (<c>tools/windows/journeys/a11y-hit-targets.json</c>, issue #271); this keeps the markup from regressing.
 /// </summary>
 public class HitTargetMarkupTests
 {
@@ -60,12 +60,53 @@ public class HitTargetMarkupTests
     [InlineData("Pages/ShopPage.xaml", "fst.shop.filter", false)]
     [InlineData("Pages/ShopPage.xaml", "fst.shop.view-toggle", false)]
     [InlineData("Pages/RivalDetailPage.xaml", "fst.rival-detail.view-profile", false)]
+    [InlineData("Pages/LeaderboardsFullRankingsPage.xaml", "fst.full-rankings.instrument-menu", false)]
+    [InlineData("Pages/LeaderboardsFullRankingsPage.xaml", "fst.rankings.rank-by-menu", false)]
+    [InlineData("Pages/LeaderboardsBandRankingsPage.xaml", "fst.band-rankings.band-type-menu", false)]
+    [InlineData("Pages/LeaderboardsBandRankingsPage.xaml", "fst.band-rankings.rank-by-menu", false)]
+    [InlineData("Pages/SongDetailPage.xaml", "fst.song-detail.pinned-paths", false)]
     public void ToolButtons_UseMinTarget(string file, string id, bool iconOnly)
     {
         var button = Assert.Single(ById(Load(file), id));
         Assert.Equal(Resource, Attr(button, "MinHeight"));
         // Labelled buttons are already wider than 40; icon-only ones need the width too.
         if (iconOnly) Assert.Equal(Resource, Attr(button, "MinWidth"));
+    }
+
+[Fact]
+    public void EveryDropDownButton_UsesMinTarget()
+    {
+        // Issue #271: #72 listed its buttons one by one and missed the Full/Band Rankings pickers (31 epx tall). Every
+        // DropDownButton in the app is a page tool (sort, filter, picker), so the rule covers them all.
+        var buttons = Directory.EnumerateFiles(AppRoot, "*.xaml", SearchOption.AllDirectories)
+            .Where(path => Path.GetRelativePath(AppRoot, path).Split(Path.DirectorySeparatorChar)[0] is not ("bin" or "obj"))
+            .SelectMany(path => XDocument.Load(path).Descendants()
+                .Where(e => e.Name.LocalName == "DropDownButton")
+                .Select(e => (File: Path.GetFileName(path), Id: Attr(e, "AutomationProperties.AutomationId"), MinHeight: Attr(e, "MinHeight"))))
+            .ToList();
+        Assert.True(buttons.Count >= 10, $"found only {buttons.Count} DropDownButtons");
+        Assert.All(buttons, b => Assert.True(b.MinHeight == Resource, $"{b.File} {b.Id}: MinHeight {b.MinHeight ?? "unset"}"));
+    }
+
+    [Fact]
+    public void TitleBar_RecomputesPassthroughAfterDynamicChanges()
+    {
+        // Issue #271: the TitleBar computes its clickable (passthrough) regions before the search box/button swap and
+        // the bell settle, so part of the compact Search button, or the whole box after resizing up, dragged the window.
+        var code = File.ReadAllText(Path.Combine(AppRoot, "MainWindow.TitleBar.cs"));
+        Assert.Contains("AppTitleBar.RecomputeDragRegions();", code, StringComparison.Ordinal);
+        foreach (var trigger in new[]
+                 {
+                     "RootGrid.SizeChanged += (_, _) => QueueDragRegionRefresh();",
+                     "TitleBarRightHeader.SizeChanged += (_, _) => QueueDragRegionRefresh();",
+                     "GlobalSearchBox.SizeChanged += (_, _) => QueueDragRegionRefresh();",
+                     "TitleBar.TitleProperty, (_, _) => QueueDragRegionRefresh()",
+                 })
+        {
+            Assert.Contains(trigger, code, StringComparison.Ordinal);
+        }
+        var header = Load("MainWindow.xaml").Descendants().Single(e => e.Name.LocalName == "TitleBar.RightHeader");
+        Assert.Equal("TitleBarRightHeader", Attr(header.Elements().Single(), "Name"));
     }
 
     [Fact]

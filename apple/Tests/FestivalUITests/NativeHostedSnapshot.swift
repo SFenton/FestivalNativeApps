@@ -362,21 +362,24 @@ func nativeHostedReadinessBudget(
     inVirtualMachine ? timeout * nativeHostedVirtualMachineTimeoutScale : timeout
 }
 
-/// A readiness bound measured in a wait's own poll time rather than wall-clock time.
+/// A readiness bound measured in a wait's own time rather than wall-clock time.
 ///
 /// Every hosted test shares one main actor. Under `swift test --parallel` it runs
 /// ~99% busy, so a poll that asks for 250 ms resumes seconds later and the screen's
 /// own `.task` loads advance just as slowly. A wall-clock bound then fails whichever
 /// test settles last (three Leaderboards spotlight tests hit 62–80 s against a 60 s
-/// bound) although nothing is wrong. This budget adds up only the sleeps the wait
-/// requested, so main-actor starvation stretches the wall time of both the wait and
-/// the content equally and never spends the budget; a load that never finishes still
-/// ends the wait once the requested polls add up to `limit`.
+/// bound) although nothing is wrong. This budget charges the sleeps the wait requested
+/// plus the wait's own work between them (layout, accessibility walks, captures), and
+/// leaves out only the queueing delay before each poll resumes. Starvation therefore
+/// stretches the wait without spending its budget, while a loop whose own polls are
+/// expensive still ends after about `limit` of its own time.
 struct NativeHostedPollBudget {
-    /// Total requested poll time allowed (already scaled for a VM).
+    /// The wait's own time allowed (already scaled for a VM).
     let limit: Duration
-    /// Requested poll time spent so far.
-    private(set) var polled: Duration = .zero
+    /// Requested sleeps plus the wait's own work so far.
+    private(set) var spent: Duration = .zero
+    /// When the last poll resumed; the work since then is charged on the next sleep.
+    private var resumedAt: ContinuousClock.Instant?
 
     /// - Parameters:
     ///   - timeout: The wait's budget on a physical Mac.
@@ -385,16 +388,24 @@ struct NativeHostedPollBudget {
         limit = nativeHostedReadinessBudget(timeout, inVirtualMachine: inVirtualMachine)
     }
 
-    /// Whether the requested poll time has passed the limit.
-    var isExhausted: Bool { polled > limit }
+    /// Whether the wait's own time has passed the limit.
+    var isExhausted: Bool { spent > limit }
 
-    /// Sleep for one poll interval and charge only the requested interval.
+    /// Charge the work since the last poll, then sleep one interval and charge it,
+    /// but not the delay before the poll resumes.
+    ///
+    /// Main-actor isolated so the resume instant is taken back on the main actor;
+    /// a nonisolated method would resume on the cooperative pool and charge the hop back.
     ///
     /// - Parameter interval: Requested poll interval.
     /// - Throws: Cancellation.
+    @MainActor
     mutating func sleep(for interval: Duration) async throws {
+        let clock = ContinuousClock()
+        if let resumedAt { spent += clock.now - resumedAt }
         try await Task.sleep(for: interval)
-        polled += interval
+        spent += interval
+        resumedAt = clock.now
     }
 }
 
@@ -409,12 +420,12 @@ struct NativeHostedPollBudget {
 /// identical captures end the wait; content that keeps animating (a spinner in
 /// a loading-state test) ends it after `animationGrace` instead. Polling backs
 /// off from 20 ms to 250 ms so dozens of concurrently settling tests do not
-/// starve the main actor they are waiting on. The timeout counts requested poll
+/// starve the main actor they are waiting on. The timeout counts the wait's own
 /// time (`NativeHostedPollBudget`), so a saturated parallel run cannot exhaust it.
 ///
 /// - Parameters:
 ///   - host: Sized host, usually attached to `nativeHostedWindow`.
-///   - timeout: Upper bound, in requested poll time, for `ready` to become true on a
+///   - timeout: Upper bound, in the wait's own time, for `ready` to become true on a
 ///     physical Mac (scaled in a VM, see `nativeHostedReadinessBudget`).
 ///   - animationGrace: How long a ready-but-still-changing capture may keep changing.
 ///   - sourceLocation: Where a readiness timeout is reported.

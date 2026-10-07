@@ -50,13 +50,13 @@ public enum SpotlightPlacementKind
 {
     /// <summary>No player is selected.</summary>
     None,
-    /// <summary>Their row is already visible; highlight it in place.</summary>
+    /// <summary>Their row is already visible; highlight it in place (overview cards only).</summary>
     Inline,
     /// <summary>Not visible and their own rank is still loading (or failed).</summary>
     Pending,
     /// <summary>Not visible and they have no rank on this board.</summary>
     Unranked,
-    /// <summary>Not visible; show their row separately below the board.</summary>
+    /// <summary>Show their row separately below the board (on a full board, also while it is on the shown page).</summary>
     Footer,
 }
 
@@ -66,9 +66,9 @@ public enum SpotlightPlacementKind
 public readonly record struct RankingSpotlightPlacement(SpotlightPlacementKind Kind, AccountRankingEntry? Entry = null);
 
 /// <summary>
-/// Pure selected-player spotlight decision for overview cards and Full Rankings, mirroring the web's
+/// Pure selected-player spotlight decisions: <see cref="Place"/> for overview cards, mirroring the web's
 /// <c>RankingCard</c> (<c>spotlightFooterRows</c> drops a ranking already in the top rows) and Apple's
-/// <c>RankingSpotlight.placement</c>.
+/// <c>RankingSpotlight.placement</c>; <see cref="PlacePinned"/> for Full Rankings, which always pins the row.
 /// </summary>
 public static class RankingSpotlight
 {
@@ -96,6 +96,27 @@ public static class RankingSpotlight
         return SameAccount(own.AccountId, selectedAccountId)
             ? new(SpotlightPlacementKind.Footer, own)
             : new(SpotlightPlacementKind.Pending);
+    }
+
+    /// <summary>
+    /// Decides the pinned footer of a full paginated board (web <c>FullRankingsPage</c> <c>hasPlayerFooter = !!playerRanking</c>;
+    /// pattern <c>leaderboard-row</c> R5/R7, issue #318; Android <c>RankingSpotlight.pinnedPlacement</c>). Unlike
+    /// <see cref="Place"/> (overview cards, which never repeat a visible player), the full board pins the selected player's
+    /// row above the pager on every page, including the page that already shows it: never <see cref="SpotlightPlacementKind.Inline"/>.
+    /// </summary>
+    /// <param name="selectedAccountId">Selected player, or <see langword="null"/>/blank.</param>
+    /// <param name="visibleEntries">Rows of the shown page; the player's row there stands in while the own read is pending or failed.</param>
+    /// <param name="ownLoaded">Whether the per-account read has completed successfully.</param>
+    /// <param name="own">The player's own row when ranked (ignored until <paramref name="ownLoaded"/>).</param>
+    /// <returns>Footer whenever the player's row is known, otherwise None, Pending or Unranked.</returns>
+    public static RankingSpotlightPlacement PlacePinned(
+        string? selectedAccountId, IEnumerable<AccountRankingEntry> visibleEntries, bool ownLoaded, AccountRankingEntry? own)
+    {
+        if (string.IsNullOrWhiteSpace(selectedAccountId)) return new(SpotlightPlacementKind.None);
+        var known = (ownLoaded && own is not null && SameAccount(own.AccountId, selectedAccountId) ? own : null)
+                    ?? visibleEntries.FirstOrDefault(e => SameAccount(e.AccountId, selectedAccountId));
+        if (known is not null) return new(SpotlightPlacementKind.Footer, known);
+        return ownLoaded && own is null ? new(SpotlightPlacementKind.Unranked) : new(SpotlightPlacementKind.Pending);
     }
 }
 #endregion

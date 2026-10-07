@@ -197,6 +197,32 @@ def live_pages(pages: list[dict]) -> list[dict]:
     return [p for p in pages if "fixture" not in p and not str(p.get("profile", "")).startswith("fixture-")]
 
 
+def pattern_presses(steps: list[str]) -> list[str]:
+    """Replaces real pointer presses with UIA patterns, for checking a press journey on a locked console.
+
+    ``tapat``/``clickat`` need an unlocked interactive console (a locked one routes input to the lock screen). This
+    swaps each for ``invoke:`` on its target, or ``focus:`` when the next step is an ``assertfocus`` (a text box
+    has no Invoke pattern), so the outcome and close steps can still be checked. It proves nothing about where a
+    press lands; only a real run does.
+
+    Args:
+        steps: Step strings.
+
+    Returns:
+        The steps with every press replaced.
+    """
+    swapped = []
+    for i, step in enumerate(steps):
+        verb, _, rest = step.partition(":")
+        if verb not in ("tapat", "clickat"):
+            swapped.append(step)
+            continue
+        target = rest.split("|", 1)[0]
+        following = next((s for s in steps[i + 1:] if not s.startswith("wait:")), "")
+        swapped.append(f"{'focus' if following.startswith('assertfocus:') else 'invoke'}:{target}")
+    return swapped
+
+
 def mode_pages(pages: list[dict], mode: str) -> list[dict]:
     """Pages that apply to one ``--mode``.
 
@@ -412,6 +438,9 @@ def run_size(page: dict, mode: str, size: str, exe: Path, port: int | None, out:
                 record["focus"] = summarize_focus(result["focus"])
                 record["focus_raw"] = [e["line"] for e in result["focus"]]
             record["window"] = {k: result.get(k) for k in ("bounds_epx", "scale")}
+            for key in ("sizes", "apart", "hits", "presses", "narration", "read", "orders"):
+                if key in result:
+                    record[key] = result[key]
         except RuntimeError as error:
             record["error"] = str(error)
             if pid:
@@ -460,6 +489,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="use the app's default keyless public origin (evidence runs); skips fixture-only pages")
     parser.add_argument("--fixture", type=Path, default=FIXTURE,
                         help="fixture service script (e.g. tools/windows/rankings_fixture.py for every Full Rankings state)")
+    parser.add_argument("--pattern-presses", action="store_true",
+                        help="locked console: run tapat/clickat steps as invoke/focus to check outcome and close steps")
     args = parser.parse_args(argv)
     try:
         mode_spec(args.mode)
@@ -478,6 +509,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.live:
         pages = live_pages(pages)
     pages = mode_pages(pages, args.mode)
+    if args.pattern_presses:
+        pages = [{**p, **{k: pattern_presses(p[k]) for k in ("setup", "ready", "after_ready", "teardown") if k in p}}
+                 for p in pages]
     # One fixture service per distinct (script, flags) pair (most pages share the default one).
     fixtures: dict[tuple[Path, tuple[str, ...]], tuple[subprocess.Popen, int]] = {}
     results: list[dict] = []

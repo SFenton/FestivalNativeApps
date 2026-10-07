@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Numerics;
 using Festival.App.Services;
 using Microsoft.UI.Composition;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
@@ -17,7 +18,8 @@ namespace Festival.App.Controls;
 /// after its items change, 125 ms apart, for the rows that fit the viewport; the first scroll movement after a load closes
 /// that window (<see cref="StaggerArm"/>, pattern <c>load-transition</c> R5), so rows realized by scrolling just appear,
 /// as on the web. <see cref="Restagger(UIElement, int)"/> re-arms it for an appended batch only, which scrolling reveals
-/// (Suggestions). Both run on
+/// (Suggestions). <see cref="RevealSelected"/> brings a board's selected row into view only after its own entrance,
+/// rushing the fades still waiting (issue #307). All run on
 /// the compositor, leave nothing running when finished, and do nothing while motion is off (<see cref="Motion.Allowed"/>).
 /// </summary>
 public static class FadeIn
@@ -317,6 +319,7 @@ public static class FadeIn
             return;
         }
         Reset(element);
+        arm.Shown(index);
         if (arm.SuppressedByScroll(now, index, visible)) Trace("fade-skip", list, $"index={index}");
     }
 
@@ -410,15 +413,19 @@ public static class FadeIn
     private static void PlayRow(FrameworkElement list, UIElement element, int index, TimeSpan delay)
     {
         Play(element, delay);
+        if (Motion.Allowed) ArmOf(list).Played(index, delay, Now);
+        else ArmOf(list).Shown(index);
         Trace("fade-play", list, $"index={index} delay={delay.TotalMilliseconds:F0} motion={(Motion.Allowed ? 1 : 0)}");
     }
 
     /// <summary>
-    /// Writes a stagger decision to the perf log (<c>--perf-log</c>) for the fade journeys (issue #260): one line per
-    /// re-arm, per row that fades, per load arm a scroll closes and per row that scroll kept from fading inside the
-    /// closed window; never for rows that just appear otherwise, so steady scrolling writes nothing.
+    /// Writes a stagger decision to the perf log (<c>--perf-log</c>) for the fade journeys (issues #260, #307): one line
+    /// per re-arm, per row that fades, per load arm a scroll closes, per row that scroll kept from fading inside the
+    /// closed window, per selected-row reveal and per fade that reveal rushed; never for rows that just appear
+    /// otherwise, so steady scrolling writes nothing.
     /// </summary>
-    /// <param name="kind">Line kind (<c>fade-arm</c>, <c>fade-play</c>, <c>fade-close</c>, <c>fade-skip</c>).</param>
+    /// <param name="kind">Line kind (<c>fade-arm</c>, <c>fade-play</c>, <c>fade-close</c>, <c>fade-skip</c>,
+    /// <c>fade-reveal</c>, <c>fade-rush</c>).</param>
     /// <param name="list">List (named by its x:Name, else its AutomationId).</param>
     /// <param name="detail">Space-separated <c>key=value</c> pairs.</param>
     private static void Trace(string kind, UIElement list, FormattableString detail)
@@ -428,6 +435,160 @@ public static class FadeIn
         if (string.IsNullOrEmpty(id)) id = Microsoft.UI.Xaml.Automation.AutomationProperties.GetAutomationId(list);
         PerfLog.Write($"{kind} list={(string.IsNullOrEmpty(id) ? "?" : id)} {FormattableString.Invariant(detail)}");
     }
+    #endregion
+
+    #region Selected-row reveal
+    private static readonly DependencyProperty PendingRevealProperty = DependencyProperty.RegisterAttached(
+        "PendingReveal", typeof(object), typeof(FadeIn), new PropertyMetadata(null));
+
+    /// <summary>Rendered frames a reveal waits for the list to realize its rows before going ahead anyway (about 2 s).</summary>
+    private const int RealizeFrames = 120;
+
+    /// <summary>
+    /// Brings a list's selected row into view once its own entrance has finished (web <c>navToPlayer</c>/<c>navToBand</c>;
+    /// patterns <c>leaderboard-row</c> R7 and <c>load-transition</c> R5, issue #307). Call it after the list's
+    /// <see cref="StaggerRealized(ListViewBase)"/>. A list the load gate just showed realizes its rows on a later layout
+    /// pass, so this first waits (frame by frame) for the selected row, or the first row, to be realized and its fade
+    /// scheduled; then for the row's stagger delay plus its fade. It does nothing if the reader scrolled the list
+    /// meanwhile or a newer load replaced the rows, and otherwise starts every fade that hasn't begun together
+    /// (<see cref="StaggerArm.Rush"/>) before calling <paramref name="reveal"/>, so the reveal's scroll never cuts the
+    /// stagger short. A row without a running fade (motion off, or beyond the staggered rows) reveals as soon as it is
+    /// realized, still rushing.
+    /// </summary>
+    /// <param name="list">Stagger list (<see cref="ListViewBase"/> or <see cref="ItemsRepeater"/>).</param>
+    /// <param name="index">Selected row index.</param>
+    /// <param name="reveal">Scrolls the row into view.</param>
+    public static void RevealSelected(FrameworkElement list, int index, Action reveal)
+    {
+        (list.GetValue(PendingRevealProperty) as PendingReveal)?.Stop();
+        var arm = ArmOf(list);
+        var pending = new PendingReveal(list, arm, index, reveal);
+        list.SetValue(PendingRevealProperty, pending);
+        pending.Start();
+    }
+
+    /// <summary>One selected-row reveal waiting for its row's realization and entrance (<see cref="RevealSelected"/>).</summary>
+    private sealed class PendingReveal(FrameworkElement list, StaggerArm arm, int index, Action reveal)
+    {
+        private readonly int generation = arm.Generation;
+        private DispatcherQueueTimer? timer;
+        private bool listening;
+        private int frames;
+
+        /// <summary>Waits for the list's next rendered frames.</summary>
+        public void Start()
+        {
+            listening = true;
+            Microsoft.UI.Xaml.Media.CompositionTarget.Rendering += OnFrame;
+        }
+
+        /// <summary>Drops the reveal (a newer one replaced it).</summary>
+        public void Stop()
+        {
+            if (listening) Microsoft.UI.Xaml.Media.CompositionTarget.Rendering -= OnFrame;
+            listening = false;
+            timer?.Stop();
+            timer = null;
+        }
+
+        /// <summary>Once the list has realized the selected (or first) row, schedules the reveal after its entrance.</summary>
+        /// <param name="sender">Unused.</param>
+        /// <param name="e">Unused.</param>
+        private void OnFrame(object? sender, object e)
+        {
+            if (!Current)
+            {
+                Stop();
+                return;
+            }
+            if (arm.Generation != generation)
+            {
+                Stop();
+                Finish(checkScroll: false);
+                return;
+            }
+            var realized = list.IsLoaded && (ElementAt(list, index) is not null || ElementAt(list, 0) is not null);
+            if (!realized && ++frames < RealizeFrames) return;
+            Stop();
+            var wait = !Motion.Allowed ? TimeSpan.Zero : arm.RevealWait(index, Now);
+            if (wait <= TimeSpan.Zero)
+            {
+                Finish(checkScroll: false);
+                return;
+            }
+            timer = list.DispatcherQueue.CreateTimer();
+            timer.Interval = wait;
+            timer.IsRepeating = false;
+            timer.Tick += (t, _) =>
+            {
+                t.Stop();
+                timer = null;
+                Finish(checkScroll: true);
+            };
+            timer.Start();
+        }
+
+        /// <summary>Whether this is still the list's reveal.</summary>
+        private bool Current => ReferenceEquals(list.GetValue(PendingRevealProperty), this);
+
+        /// <summary>Rushes the pending fades and reveals the row, unless a newer load, an unload or the reader's scroll got there first.</summary>
+        /// <param name="checkScroll">Whether the reader may have scrolled while the reveal waited.</param>
+        private void Finish(bool checkScroll)
+        {
+            if (Current) list.ClearValue(PendingRevealProperty);
+            var now = Now;
+            var entrance = arm.Entrance(index, now);
+            var timing = FormattableString.Invariant(
+                $"index={index} faded={(entrance is null ? 0 : 1)} delay={(entrance?.Delay ?? TimeSpan.Zero).TotalMilliseconds:F0} after={(entrance?.Since ?? TimeSpan.Zero).TotalMilliseconds:F0}");
+            if (arm.Generation != generation || !list.IsLoaded)
+            {
+                Trace("fade-reveal", list, $"{timing} cancelled=1");
+                return;
+            }
+            if (checkScroll && arm.ScrolledSinceLoad)
+            {
+                Trace("fade-reveal", list, $"{timing} scrolled=1 rushed=0 motion={(Motion.Allowed ? 1 : 0)}");
+                return;
+            }
+            var rushed = Rush(list, arm, now);
+            Trace("fade-reveal", list, $"{timing} scrolled=0 rushed={rushed.Count} motion={(Motion.Allowed ? 1 : 0)}");
+            foreach (var (row, delay) in rushed) Trace("fade-rush", list, $"index={row} delay={delay.TotalMilliseconds:F0}");
+            reveal();
+        }
+    }
+
+    /// <summary>Starts the list's pending fades now (the rest of the entrance fades in together).</summary>
+    /// <param name="list">Stagger list.</param>
+    /// <param name="arm">Its arm.</param>
+    /// <param name="now">Monotonic time.</param>
+    /// <returns>Rows rushed, with the stagger delay each had.</returns>
+    private static List<(int Index, TimeSpan Delay)> Rush(FrameworkElement list, StaggerArm arm, TimeSpan now)
+    {
+        var rushed = new List<(int, TimeSpan)>();
+        if (!Motion.Allowed) return rushed;
+        foreach (var (index, delay) in arm.Rush(now))
+        {
+            if (ElementAt(list, index) is not UIElement element)
+            {
+                arm.Shown(index);
+                continue;
+            }
+            Play(element, TimeSpan.Zero);
+            rushed.Add((index, delay));
+        }
+        return rushed;
+    }
+
+    /// <summary>A stagger list's realized element for a row.</summary>
+    /// <param name="list">List view or repeater.</param>
+    /// <param name="index">Row index.</param>
+    /// <returns>The container or element, or <see langword="null"/> when it isn't realized.</returns>
+    private static UIElement? ElementAt(FrameworkElement list, int index) => list switch
+    {
+        ListViewBase view => view.ContainerFromIndex(index) as UIElement,
+        ItemsRepeater repeater => repeater.TryGetElement(index),
+        _ => null,
+    };
     #endregion
 
     #region Composition
