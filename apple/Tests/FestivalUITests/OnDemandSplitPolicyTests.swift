@@ -309,7 +309,7 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
 @Test func songsGridColumnsWithSelectedPlayer() {
     func columns(_ layout: DeviceLayout, player: Bool, invalid: Bool = false) -> Int {
         SongProfilePanelPolicy.gridColumns(
-            layout: layout, hasSelectedPlayer: player, filterInvalidScores: invalid
+            layout: layout, hasSelectedProfile: player, filterInvalidScores: invalid
         )
     }
     #expect(columns(SplitLayouts.iPadLandscape, player: false) == 2)

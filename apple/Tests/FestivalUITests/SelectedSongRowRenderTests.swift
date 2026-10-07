@@ -297,6 +297,77 @@ private func selectedSongRow(
         != row("panel-drums-off", player, panel: false, filter: .drums).data)
 }
 
+/// At the 600 pt split breakpoint a compact card (all charts) can't keep its pills on
+/// one line in the 282 pt half, so the row stays exactly plain; one filtered chart's
+/// card may wrap there and splits (#340 review: one-line rule vs. wrap fallback).
+@MainActor
+@Test func wideSongRowsAtTheBreakpointKeepCompactCardsOnOneLine() async throws {
+    let fixtures = try selectedRowFixtures()
+    let player = try await selectedRowSession(accountId: "fixture-player-2", fixtures: fixtures)
+    let threshold = CGSize(width: 600, height: 200)
+    func row(_ name: String, panel: Bool, filter: Instrument? = nil) throws -> Data {
+        try selectedSongRow(
+            name: name, song: fixtures.song, session: player, season: fixtures.season,
+            chart: filter ?? .lead, filter: filter, size: threshold, profilePanel: panel
+        ).data
+    }
+    #expect(try row("panel-600", panel: true) == row("panel-600-off", panel: false))
+    #expect(try row("panel-600-drums", panel: true, filter: .drums)
+        != row("panel-600-drums-off", panel: false, filter: .drums))
+}
+
+/// A selected band's score card takes the right half of a wide row once its
+/// publication-matched `/song-rows` index loads; loading, unpublished (503), unscored
+/// and too-narrow rows keep the plain row (#340).
+@MainActor
+@Test func wideSongRowsShowTheSelectedBandsScoreCard() async throws {
+    let fixtures = try selectedRowFixtures()
+    let transport = HostedBandSongRowsTransport()
+    let band = try selectedBandSession(
+        teamKey: HostedBandSongRowsTransport.scoredTeam, transport: transport
+    )
+    func row(
+        _ name: String, _ session: FestivalSession, panel: Bool,
+        size: CGSize = CGSize(width: 900, height: 200)
+    ) throws -> (data: Data, fills: (gold: Int, green: Int, red: Int)) {
+        try selectedSongRow(
+            name: name, song: fixtures.song, session: session, season: fixtures.season,
+            size: size, profilePanel: panel
+        )
+    }
+    // Loading: the plain row's loading state, no card.
+    #expect(try row("band-loading", band, panel: true).data
+        == row("band-loading-off", band, panel: false).data)
+
+    await band.refreshSelectedBand()
+    #expect(band.hasCurrentBandScores(forCatalogue: 7))
+    let split = try row("band-panel-wide", band, panel: true)
+    let plain = try row("band-panel-off-wide", band, panel: false)
+    #expect(split.data != plain.data)
+    // Gold stars on the card.
+    #expect(split.fills.gold > 10)
+    // The 600 pt half is narrower than the band's one-line card.
+    let threshold = CGSize(width: 600, height: 200)
+    #expect(try row("band-panel-600", band, panel: true, size: threshold).data
+        == row("band-panel-600-off", band, panel: false, size: threshold).data)
+
+    // No band row for this song, or an unpublished projection: plain rows.
+    let empty = try selectedBandSession(
+        teamKey: HostedBandSongRowsTransport.emptyTeam, transport: transport
+    )
+    await empty.refreshSelectedBand()
+    #expect(try row("band-empty", empty, panel: true).data
+        == row("band-empty-off", empty, panel: false).data)
+    let down = try selectedBandSession(
+        teamKey: HostedBandSongRowsTransport.unpublishedTeam, transport: transport
+    )
+    await down.refreshSelectedBand()
+    #expect(try row("band-down", down, panel: true).data
+        == row("band-down-off", down, panel: false).data)
+    // Plain band rows differ by state: loading, scored pills, unavailable.
+    #expect(plain.data != (try row("band-down-plain", down, panel: false).data))
+}
+
 /// The same anonymous native card must paint the source's optional duration.
 @MainActor
 @Test func songRowPaintsOptionalCatalogueDuration() throws {

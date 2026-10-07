@@ -35,15 +35,16 @@ private func pulseScores() throws -> [Instrument: PlayerScore] {
     return Dictionary(uniqueKeysWithValues: response.scores.map { ($0.instrument, $0) })
 }
 
-/// Rows split only for a selected player with a current score index, no invalid-score
-/// substitution, standard text sizes, a Songs (not Shop) row and at least 600 pt.
+/// Rows split only for a selected player or band with a current score index, no
+/// invalid-score substitution, standard text sizes, a Songs (not Shop) row and at least
+/// 600 pt.
 @Test func profilePanelGate() {
     func allows(
         allowed: Bool = true, player: Bool = true, current: Bool = true,
         invalid: Bool = false, ax: Bool = false, shop: Bool = false, width: CGFloat = 800
     ) -> Bool {
         SongProfilePanelPolicy.allows(
-            allowed: allowed, hasSelectedPlayer: player, scoresCurrent: current,
+            allowed: allowed, hasSelectedProfile: player, scoresCurrent: current,
             filterInvalidScores: invalid, accessibilitySize: ax, shopRow: shop, rowWidth: width
         )
     }
@@ -61,26 +62,31 @@ private func pulseScores() throws -> [Instrument: PlayerScore] {
     #expect(!allows(shop: true))
 }
 
-/// Cards keep their pills on one line: the panel takes the most columns that fit,
-/// keeps stars only when they cost no extra line, and wraps one column when nothing fits.
+/// Compact cards keep their pills on one line: the panel takes the most columns that
+/// fit, keeps stars only when they cost no extra line, and gives up (the row stays
+/// plain) when even a starless card can't fit; one filtered chart wraps in one column.
 @Test func profilePanelArrangement() {
     #expect(SongProfilePanelPolicy.halfWidth(contentWidth: 1012) == 500)
     #expect(SongProfilePanelPolicy.halfWidth(contentWidth: 4) == 0)
     // 52 chrome + 84 score + 66 accuracy + 80 percentile + 2 gaps = 302; + stars 160 = 462.
-    #expect(SongProfilePanelPolicy.lineWidth([.score, .accuracy, .percentile]) == 302)
-    #expect(SongProfilePanelPolicy.lineWidth([.score, .accuracy, .percentile, .stars]) == 462)
-    #expect(SongProfilePanelPolicy.lineWidth([]) == SongProfilePanelPolicy.tileChrome)
-    #expect(SongProfilePanelPolicy.lineWidth([.score], scale: 2) == 220)
-
     let full: [SongMetadataField] = [
         .score(250_000), .accuracy(99_000, fullCombo: false, percentageVisible: true, tint: nil),
         .percentile("Top 5%", tier: .topFive), .stars(count: 5, gold: true),
     ]
+    let compact = Array(full.prefix(3))
+    #expect(SongProfilePanelPolicy.lineWidth(compact) == 302)
+    #expect(SongProfilePanelPolicy.lineWidth(full) == 462)
+    #expect(SongProfilePanelPolicy.lineWidth([]) == SongProfilePanelPolicy.tileChrome)
+    #expect(SongProfilePanelPolicy.lineWidth([.score(250_000)], scale: 2) == 220)
+    // A score grows with its digits: a band's seven-digit score is wider.
+    #expect(SongProfilePanelPolicy.estimatedWidth(.score(1_234_567)) == 102)
+    #expect(SongProfilePanelPolicy.estimatedWidth(.score(9_999)) == 60)
+
     let tiles = [Instrument.lead, .bass, .drums, .vocals].map {
-        SongProfilePanelTile(chart: $0, fields: full)
+        SongProfilePanelTile(subject: .chart($0), fields: full)
     }
     typealias Arrangement = SongProfilePanelPolicy.Arrangement
-    func arrange(_ width: CGFloat, overview: Bool = true, tiles: [SongProfilePanelTile] = tiles) -> Arrangement {
+    func arrange(_ width: CGFloat, overview: Bool = true, tiles: [SongProfilePanelTile] = tiles) -> Arrangement? {
         SongProfilePanelPolicy.arrangement(width: width, tiles: tiles, overview: overview)
     }
     // iPad 11 portrait half (~383 pt): stars would wrap, so one compact column.
@@ -94,9 +100,20 @@ private func pulseScores() throws -> [Instrument: PlayerScore] {
     #expect(arrange(1300) == Arrangement(columns: 4, dropsStars: true))
     // Never more columns than cards.
     #expect(arrange(1300, tiles: Array(tiles.prefix(2))) == Arrangement(columns: 2, dropsStars: false))
-    // Too narrow even compact: one wrapping column.
-    #expect(arrange(200) == Arrangement(columns: 1, dropsStars: true))
-    // One filtered chart keeps every field and wraps.
+    // Compact cards never wrap: too narrow even without stars, no arrangement (the row
+    // stays plain). A 600 pt row's half is 282 pt, below the 302 pt compact card.
+    #expect(arrange(SongProfilePanelPolicy.halfWidth(contentWidth: 600 - 24)) == nil)
+    #expect(arrange(301) == nil)
+    #expect(arrange(302) == Arrangement(columns: 1, dropsStars: true))
+    #expect(arrange(200) == nil)
+    // Larger text widens every card: the same half no longer fits.
+    #expect(arrange(383) != nil)
+    #expect(SongProfilePanelPolicy.arrangement(width: 383, tiles: tiles, overview: true, scale: 1.5) == nil)
+    // A card without stars needs no star decision.
+    let plain = [SongProfilePanelTile(subject: .chart(.lead), fields: compact)]
+    #expect(arrange(302, tiles: plain) == Arrangement(columns: 1, dropsStars: false))
+    #expect(arrange(301, tiles: plain) == nil)
+    // One filtered chart keeps every field and wraps within the half.
     #expect(arrange(200, overview: false) == Arrangement(columns: 1, dropsStars: false))
 }
 
@@ -173,4 +190,44 @@ private func pulseScores() throws -> [Instrument: PlayerScore] {
     )
     #expect(bare.map(\.fields) == [[]])
     #expect(bare.first?.announcement == "Drums, scored")
+}
+
+/// A selected band gets one compact card per scored song, named for VoiceOver; no row,
+/// a zero score or every field hidden behave like the player cards.
+@Test func profilePanelBandTiles() throws {
+    let band = SelectedBandIdentity(bandType: .trios, teamKey: "a1:b2:c3", displayName: "Fixture Trio")
+    let entry = try JSONDecoder().decode(BandSongPerformanceEntry.self, from: Data("""
+    {"songId":"fixture-pulse","rank":3,"totalEntries":1000,"percentile":0.003,"score":1234567,
+     "accuracy":1000000,"isFullCombo":true,"stars":6,"season":9,"endTime":"2026-09-27T00:00:00Z"}
+    """.utf8))
+    let tiles = try SongProfilePanelPolicy.bandTiles(
+        band: band, entry: entry, currentSeason: 9,
+        visibility: SongMetadataVisibility(), order: MetadataField.allCases
+    )
+    #expect(tiles.count == 1)
+    #expect(tiles[0].id == "band")
+    #expect(tiles[0].chart == nil)
+    #expect(tiles[0].subject == .band(.trios, name: "Fixture Trio"))
+    // Overview fields only: no season or last played on the card.
+    #expect(tiles[0].fields.map(\.id) == [.score, .accuracy, .percentile, .stars])
+    #expect(tiles[0].announcement.hasPrefix("Fixture Trio, Trios band: Score 1,234,567"))
+    #expect(tiles[0].announcement.contains("Full combo"))
+    // A band card fits one line from 320 pt (seven-digit score) without stars, 480 with.
+    #expect(SongProfilePanelPolicy.arrangement(width: 319, tiles: tiles, overview: true) == nil)
+    #expect(SongProfilePanelPolicy.arrangement(width: 479, tiles: tiles, overview: true)
+        == .init(columns: 1, dropsStars: true))
+    #expect(SongProfilePanelPolicy.arrangement(width: 480, tiles: tiles, overview: true)
+        == .init(columns: 1, dropsStars: false))
+
+    #expect(try SongProfilePanelPolicy.bandTiles(
+        band: band, entry: nil, currentSeason: 9,
+        visibility: SongMetadataVisibility(), order: MetadataField.allCases
+    ).isEmpty)
+    let zero = try JSONDecoder().decode(BandSongPerformanceEntry.self, from: Data("""
+    {"songId":"fixture-pulse","rank":3,"totalEntries":1000,"percentile":0.003,"score":0}
+    """.utf8))
+    #expect(try SongProfilePanelPolicy.bandTiles(
+        band: band, entry: zero, currentSeason: 9,
+        visibility: SongMetadataVisibility(), order: MetadataField.allCases
+    ).isEmpty)
 }

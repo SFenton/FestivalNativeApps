@@ -650,7 +650,17 @@ struct SongsScreen: View, Equatable {
             publicationRevision: session.publicationRevision,
             visible: isVisible
         )) {
-            guard isVisible, session.selectedPlayer != nil else { return }
+            guard isVisible else { return }
+            if session.selectedBand != nil {
+                switch session.bandLoadState {
+                case .loading, .failed:
+                    await session.refreshSelectedBand()
+                case .none, .available, .syncing:
+                    break
+                }
+                return
+            }
+            guard session.selectedPlayer != nil else { return }
             switch session.playerLoadState {
             case .loading, .failed:
                 await session.refreshSelectedPlayer()
@@ -1513,21 +1523,22 @@ struct SongsScreen: View, Equatable {
     /// Song cards per list row: two side by side under each section header in a
     /// landscape regular window (iPad, iPhone Duo inner display; operator 2026-10-04,
     /// `split-view.md`: Songs never splits, it uses the width instead), else one. With
-    /// a player selected each song takes the full width so its row can put the
-    /// player's instrument cards on the right half (#340). The Mac keeps one
+    /// a player or band selected each song takes the full width so its row can put the
+    /// profile's score cards on the right half (#340, `songs-profile-panel`). The Mac keeps one
     /// single-line row per song, like a table.
     private var songColumns: Int {
         #if os(macOS)
         1
         #else
         SongProfilePanelPolicy.gridColumns(
-            layout: deviceLayout, hasSelectedPlayer: session.selectedPlayer != nil,
-            filterInvalidScores: filterInvalidScores
+            layout: deviceLayout,
+            hasSelectedProfile: session.selectedPlayer != nil || session.selectedBand != nil,
+            filterInvalidScores: session.selectedBand == nil && filterInvalidScores
         )
         #endif
     }
 
-    /// Rows may split into song | player instrument cards: iPad and the iPhone Duo
+    /// Rows may split into song | profile score cards: iPad and the iPhone Duo
     /// inner display (regular in both dimensions) and the Mac.
     private var allowsProfilePanel: Bool {
         #if os(macOS)

@@ -84,6 +84,7 @@ public struct FestivalRootView: View {
         var selectionStorage: UserDefaults? = .standard
         var initialRoute: AppRoute?
         var debugSelectedPlayer: SelectedPlayerIdentity?
+        var debugSelectedBand: SelectedBandIdentity?
         #if DEBUG
         let debug = DebugLaunchRoute(environment: ProcessInfo.processInfo.environment)
         if let tab = debug.section { initialSection = tab }
@@ -105,6 +106,7 @@ public struct FestivalRootView: View {
         // previous behavior) let one lane's debug launch clobber another lane's
         // actually-persisted selection.
         debugSelectedPlayer = debug.debugSelectedPlayer()
+        debugSelectedBand = debug.debugSelectedBand()
         if debug.anonymous { selectionStorage = nil }
         #endif
         let session: FestivalSession
@@ -116,7 +118,7 @@ public struct FestivalRootView: View {
             }
             session = FestivalSession(
                 factory: factory, selectionStorage: selectionStorage,
-                debugSelectedPlayer: debugSelectedPlayer,
+                debugSelectedPlayer: debugSelectedPlayer, debugSelectedBand: debugSelectedBand,
                 liveConnection: PublicationLiveConnection.isEnabled() ? PublicationLiveConnection() : nil
             )
             Self.processSession = session
@@ -1016,6 +1018,8 @@ private struct ShellCommandsPublisher: ViewModifier {
 /// player **in memory only** before the session loads (so profile-only tabs can be
 /// captured) — it is never written to `UserDefaults`, so it cannot clobber another
 /// lane's real persisted selection on the shared simulator.
+/// `FST_DEBUG_BAND=<bandType>/<teamKey>/<displayName>` selects a band the same way
+/// (issue #340; band selection has no user-facing entry yet) and wins over any player.
 /// `FST_DEBUG_ANONYMOUS=1` ignores any stored profile for this launch without deleting it.
 /// `FST_DEBUG_DRAWER_RADII=1` overlays the drawer panel's frame and resolved concentric
 /// corner radii (read by `FestivalDrawer`, not here).
@@ -1027,6 +1031,8 @@ struct DebugLaunchRoute {
     let opensDrawer: Bool
     let opensProfileSheet: Bool
     let profile: (accountId: String, displayName: String)?
+    /// `FST_DEBUG_BAND`'s unvalidated parts.
+    let band: (bandType: String, teamKey: String, displayName: String)?
     let anonymous: Bool
 
     /// Parse the launch environment.
@@ -1044,6 +1050,9 @@ struct DebugLaunchRoute {
         } else {
             profile = nil
         }
+        let bandParts = environment["FST_DEBUG_BAND"]?
+            .split(separator: "/", maxSplits: 2).map(String.init) ?? []
+        band = bandParts.count == 3 ? (bandParts[0], bandParts[1], bandParts[2]) : nil
         guard let raw = environment["FST_DEBUG_ROUTE"] else {
             route = nil
             return
@@ -1108,6 +1117,17 @@ struct DebugLaunchRoute {
                 accountId: profile.accountId, displayName: profile.displayName
             )
         )
+    }
+
+    /// Build the debug band as an in-memory-only selected band.
+    ///
+    /// - Returns: A validated band for a well-formed `FST_DEBUG_BAND`, else nil.
+    func debugSelectedBand() -> SelectedBandIdentity? {
+        guard let band, let type = BandType(rawValue: band.bandType) else { return nil }
+        let identity = SelectedBandIdentity(
+            bandType: type, teamKey: band.teamKey, displayName: band.displayName
+        )
+        return (try? identity.validate()) == nil ? nil : identity
     }
 }
 #endif

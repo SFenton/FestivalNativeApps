@@ -4,14 +4,16 @@ import FestivalDesign
 
 // MARK: - Wide-row profile panel
 
-/// The right half of a wide Songs row: one flat card per scored chart (its icon, then
-/// its score pills on one line where they fit), laid out in equal-width columns
-/// (``SongProfilePanelPolicy/arrangement(width:tiles:overview:scale:)``).
+/// The right half of a wide Songs row (pattern `songs-profile-panel`): one flat card per
+/// scored chart of the selected player, or the selected band's one card (an icon, then
+/// its score pills on one line), laid out in equal-width columns
+/// (``SongProfilePanelPolicy/arrangement(width:tiles:overview:scale:)``). Only a single
+/// filtered chart's card may wrap its pills.
 ///
 /// Cards are flat fills inside the row's one card surface (surface-materials R6) and
 /// reuse the Songs score pills (``SongMetadataFieldView``). Each card is one
-/// VoiceOver stop naming its chart and every field, including stars a compact
-/// arrangement leaves out visually.
+/// VoiceOver stop naming its chart (or band) and every field, including stars a
+/// compact arrangement leaves out visually.
 struct SongProfilePanel: View {
     let songId: String
     let tiles: [SongProfilePanelTile]
@@ -42,22 +44,39 @@ struct SongProfilePanel: View {
         .accessibilityIdentifier("fst.songs.profile-panel.\(songId)")
     }
 
-    /// One chart's card: the chart icon (as on the status chips), then its pills.
+    /// The card's leading glyph: the chart icon (as on the status chips), or a people
+    /// symbol sized to the band.
     ///
-    /// - Parameter tile: The chart and its ordered fields.
+    /// - Parameter tile: The card.
+    /// - Returns: A 28 pt decorative glyph.
+    @ViewBuilder private func icon(_ tile: SongProfilePanelTile) -> some View {
+        switch tile.subject {
+        case let .chart(chart):
+            InstrumentIcon(
+                chart, keyboard: keyboard && (chart == .lead || chart == .proLead), size: 24
+            )
+        case let .band(type, _):
+            Image(systemName: type.symbolName)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(FestivalText.primary)
+        }
+    }
+
+    /// One card: its icon, then its pills.
+    ///
+    /// - Parameter tile: The chart (or band) and its ordered fields.
     /// - Returns: A flat-filled card that reads as one element.
     private func card(_ tile: SongProfilePanelTile) -> some View {
         let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
-        let keys = keyboard && (tile.chart == .lead || tile.chart == .proLead)
         let fields = arrangement.dropsStars ? tile.fields.filter { $0.id != .stars } : tile.fields
         return HStack(alignment: .top, spacing: 8) {
-            InstrumentIcon(tile.chart, keyboard: keys, size: 24)
+            icon(tile)
                 .frame(width: 28, height: 28)
                 .accessibilityHidden(true)
             if !fields.isEmpty {
                 SongProfileMetadataPills(fields: fields, songId: songId, leading: true)
             } else {
-                Text(tile.chart.label)
+                Text(tile.label)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(FestivalText.primary)
                     .frame(minHeight: 28)
@@ -74,6 +93,6 @@ struct SongProfilePanel: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(tile.announcement)
-        .accessibilityIdentifier("fst.songs.profile-panel.\(songId).\(tile.chart.rawValue)")
+        .accessibilityIdentifier("fst.songs.profile-panel.\(songId).\(tile.id)")
     }
 }
