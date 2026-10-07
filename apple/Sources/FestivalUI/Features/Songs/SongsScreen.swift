@@ -1599,8 +1599,7 @@ struct SongsScreen: View, Equatable {
                     for: song, catalogueObservation: catalogueObservation,
                     fadeIndex: Self.fadeIndex(song.songId, in: fadeOrder), windowMenu: false, gridCard: true
                 )
-                .accessibilityIdentifier("fst.songs.row.\(song.songId)")
-                    .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity)
             }
             ForEach(songs.count..<columns, id: \.self) { _ in
                 Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
@@ -1622,11 +1621,11 @@ struct SongsScreen: View, Equatable {
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
             .listRowInsets(songRowInsets)
-            .accessibilityIdentifier("fst.songs.row.\(song.songId)")
             .macKeyboardRow(song.id)
     }
 
-    /// A song card with its Song Detail link, context menu, fade and selected state.
+    /// A song card with its Song Detail link, context menu, fade, selected state and
+    /// accessibility: one `fst.songs.row.<songId>` link, then any profile-card stops.
     ///
     /// - Parameters:
     ///   - song: Validated catalogue song to display.
@@ -1693,10 +1692,14 @@ struct SongsScreen: View, Equatable {
         // .buttons[...]` queries. Restore it explicitly rather than relying on the
         // link's own traits surviving the combine.
         .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("fst.songs.row.\(song.songId)")
         #if !os(macOS)
         // The Mac's `ListDetailLink` already marks its label selected.
         .listDetailSelectable(AppRoute.songDetail(song))
         #endif
+        // A wide row's profile cards follow the song link as their own VoiceOver stops
+        // (`songs-profile-panel` R8); outside the link, which would collapse them.
+        .songProfilePanelAccessibility(songId: song.songId)
     }
 
     /// Rows primed before the very first reveal, and how long priming may block it.

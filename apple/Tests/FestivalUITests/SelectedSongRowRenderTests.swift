@@ -12,6 +12,8 @@ private struct SelectedRowFixtures {
     let song: Song
     let season: Int
     let profiles: [String: Data]
+    /// The whole artless catalogue, observed under publication seven.
+    let catalog: CatalogPayload
 }
 
 /// Force `festivalGlass` surfaces onto their deterministic, opaque fallback.
@@ -92,7 +94,7 @@ private func selectedRowFixtures() throws -> SelectedRowFixtures {
           var rows = catalog["songs"] as? [[String: Any]],
           let index = rows.firstIndex(where: { $0["songId"] as? String == "fixture-pulse" })
     else { throw FestivalAPIError.invalidCatalogue }
-    rows[index].removeValue(forKey: "albumArt")
+    for row in rows.indices { rows[row].removeValue(forKey: "albumArt") }
     catalog["songs"] = rows
     let songs = try JSONDecoder().decode(
         SongsResponse.self, from: JSONSerialization.data(withJSONObject: catalog)
@@ -106,7 +108,10 @@ private func selectedRowFixtures() throws -> SelectedRowFixtures {
           let profiles = envelope["profiles"] as? [String: [String: Any]]
     else { throw FestivalAPIError.invalidPlayerProfile }
     let bytes = try profiles.mapValues { try JSONSerialization.data(withJSONObject: $0) }
-    return SelectedRowFixtures(song: song, season: season, profiles: bytes)
+    return SelectedRowFixtures(
+        song: song, season: season, profiles: bytes,
+        catalog: CatalogPayload(catalog: songs, publicationId: 7, observedPublicationId: 7, isStale: false)
+    )
 }
 
 /// Select one validated synthetic identity without persisting score bytes.
@@ -366,6 +371,108 @@ private func selectedSongRow(
         == row("band-down-off", down, panel: false).data)
     // Plain band rows differ by state: loading, scored pills, unavailable.
     #expect(plain.data != (try row("band-down-plain", down, panel: false).data))
+}
+
+/// The real Mac Songs list's accessibility tree for one selected profile, once Pulse's
+/// row has split (or the budget runs out).
+///
+/// - Parameters:
+///   - session: A selected player or band with a current score index.
+///   - catalog: The artless catalogue under the index's publication.
+///   - ready: The identifier whose appearance means the row split.
+/// - Returns: Accessibility nodes in walk (VoiceOver) order.
+/// - Throws: A failed hosted render.
+@MainActor
+private func wideSongsAccessibility(
+    session: FestivalSession, catalog: CatalogPayload, ready: String
+) async throws -> [MacAXNode] {
+    let suiteName = "fst-songs-panel-ax-\(UUID().uuidString)"
+    let storage = try #require(UserDefaults(suiteName: suiteName))
+    defer { storage.removePersistentDomain(forName: suiteName) }
+    storage.set(true, forKey: "fst.settings.hideShop")
+    storage.set(true, forKey: "fst.accessibility.moreContrast")
+    let size = CGSize(width: 1100, height: 700)
+    let host = nativeHostedView(
+        NavigationStack {
+            SongsScreen(session: session, initialState: .loaded(catalog), isVisible: false)
+        }
+        .defaultAppStorage(storage)
+        .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    _ = try await nativeHostedSettle(host) {
+        nativeHostedAccessibilityElement(ready, in: host) != nil
+    }
+    let nodes = macAccessibilityTree(host)
+    macAccessibilityDump(nodes, name: "songs-profile-panel-\(ready)")
+    withExtendedLifetime(window) {}
+    return nodes
+}
+
+/// Check one split row's VoiceOver order: the song link (which doesn't read the cards),
+/// then the panel container, then each expected card with its announcement.
+///
+/// - Parameters:
+///   - nodes: The hosted tree in walk order.
+///   - songId: The split row's song.
+///   - cards: Expected card suffixes and the start of each announcement, in order.
+private func expectPanelFollowsSong(
+    _ nodes: [MacAXNode], songId: String, cards: [(id: String, label: String)],
+    sourceLocation: SourceLocation = #_sourceLocation
+) {
+    let elements = nodes.filter(\.isElement)
+    let row = elements.firstIndex { $0.identifier == "fst.songs.row.\(songId)" }
+    let panel = nodes.firstIndex { $0.identifier == "fst.songs.profile-panel.\(songId)" }
+    guard let row, let panel else {
+        Issue.record("Missing row or panel:\n\(nodes.map(\.description).joined(separator: "\n"))",
+                     sourceLocation: sourceLocation)
+        return
+    }
+    let link = elements[row]
+    #expect(link.role == "AXButton", "\(link)", sourceLocation: sourceLocation)
+    #expect(!link.spokenName.contains("Score"), "the link reads the cards: \(link)", sourceLocation: sourceLocation)
+    let rowIndex = nodes.firstIndex { $0.identifier == link.identifier && $0.isElement }!
+    #expect(rowIndex < panel, sourceLocation: sourceLocation)
+    let prefix = "fst.songs.profile-panel.\(songId)."
+    let found = nodes.enumerated().filter { $0.element.identifier.hasPrefix(prefix) }
+    #expect(found.map { String($0.element.identifier.dropFirst(prefix.count)) } == cards.map(\.id),
+            sourceLocation: sourceLocation)
+    for ((index, node), card) in zip(found, cards) {
+        #expect(index > panel && node.depth > nodes[panel].depth, "\(node)", sourceLocation: sourceLocation)
+        #expect(node.isElement && node.spokenName.hasPrefix(card.label), "\(node)", sourceLocation: sourceLocation)
+    }
+}
+
+/// A split row is the song's link followed by the profile panel's cards, each its own
+/// labelled VoiceOver stop (`songs-profile-panel` R8, #388 review): the link must not
+/// collapse them into the song.
+@MainActor
+@Test func wideSongRowsReadTheProfileCardsAfterTheSongLink() async throws {
+    let fixtures = try selectedRowFixtures()
+    let player = try await selectedRowSession(accountId: "fixture-player-2", fixtures: fixtures)
+    let song = fixtures.song.songId
+    let expected = try SongProfilePanelPolicy.tiles(
+        song: fixtures.song, scores: player.selectedPlayerScores[song] ?? [:],
+        instrumentFilter: nil, visibleInstruments: Set(Instrument.allCases),
+        currentSeason: fixtures.season, visibility: SongMetadataVisibility(),
+        order: MetadataField.allCases
+    )
+    #expect(expected.count >= 2)
+    let playerTree = try await wideSongsAccessibility(
+        session: player, catalog: fixtures.catalog,
+        ready: "fst.songs.profile-panel.\(song).\(expected[0].id)"
+    )
+    expectPanelFollowsSong(playerTree, songId: song, cards: expected.map { ($0.id, $0.label + ":") })
+
+    let band = try selectedBandSession(
+        teamKey: HostedBandSongRowsTransport.scoredTeam, transport: HostedBandSongRowsTransport()
+    )
+    await band.refreshSelectedBand()
+    let bandTree = try await wideSongsAccessibility(
+        session: band, catalog: fixtures.catalog, ready: "fst.songs.profile-panel.\(song).band"
+    )
+    expectPanelFollowsSong(bandTree, songId: song, cards: [("band", "Fixture Duo")])
 }
 
 /// The same anonymous native card must paint the source's optional duration.

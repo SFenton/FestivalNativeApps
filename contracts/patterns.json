@@ -2650,6 +2650,10 @@
             "symbol": "SongProfilePanel"
           },
           {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongProfilePanel.swift",
+            "symbol": "songProfilePanelAccessibility"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/Songs/SongRowView.swift",
             "symbol": "profilePanel"
           },

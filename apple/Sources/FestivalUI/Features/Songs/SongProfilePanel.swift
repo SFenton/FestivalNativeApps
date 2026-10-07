@@ -11,9 +11,13 @@ import FestivalDesign
 /// filtered chart's card may wrap its pills.
 ///
 /// Cards are flat fills inside the row's one card surface (surface-materials R6) and
-/// reuse the Songs score pills (``SongMetadataFieldView``). Each card is one
-/// VoiceOver stop naming its chart (or band) and every field, including stars a
-/// compact arrangement leaves out visually.
+/// reuse the Songs score pills (``SongMetadataFieldView``). The drawn panel is hidden
+/// from accessibility because a row is its link's label, and a link collapses its label
+/// into one element. Each card publishes its bounds and announcement
+/// (``SongProfilePanelCardsKey``), and ``SwiftUI/View/songProfilePanelAccessibility(songId:)``,
+/// outside the link, exposes them as one VoiceOver stop per card after the song
+/// (`songs-profile-panel` R8). An announcement names the chart (or band) and every
+/// field, including stars a compact arrangement leaves out visually.
 struct SongProfilePanel: View {
     let songId: String
     let tiles: [SongProfilePanelTile]
@@ -40,8 +44,7 @@ struct SongProfilePanel: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("fst.songs.profile-panel.\(songId)")
+        .accessibilityHidden(true)
     }
 
     /// The card's leading glyph: the chart icon (as on the status chips), or a people
@@ -65,7 +68,7 @@ struct SongProfilePanel: View {
     /// One card: its icon, then its pills.
     ///
     /// - Parameter tile: The chart (or band) and its ordered fields.
-    /// - Returns: A flat-filled card that reads as one element.
+    /// - Returns: A flat-filled card that publishes its accessibility stop.
     private func card(_ tile: SongProfilePanelTile) -> some View {
         let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
         let fields = arrangement.dropsStars ? tile.fields.filter { $0.id != .stars } : tile.fields
@@ -91,8 +94,65 @@ struct SongProfilePanel: View {
                 shape.stroke(FestivalText.primary, lineWidth: 1)
             }
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(tile.announcement)
-        .accessibilityIdentifier("fst.songs.profile-panel.\(songId).\(tile.id)")
+        .anchorPreference(key: SongProfilePanelCardsKey.self, value: .bounds) {
+            [SongProfilePanelCardStop(id: tile.id, label: tile.announcement, bounds: $0)]
+        }
+    }
+}
+
+// MARK: - Accessibility stops
+
+/// One drawn profile card's VoiceOver stop: its ``SongProfilePanelTile/id``, its
+/// announcement and its bounds.
+struct SongProfilePanelCardStop {
+    let id: String
+    let label: String
+    let bounds: Anchor<CGRect>
+}
+
+/// The drawn cards of one Songs row's profile panel, in reading order.
+struct SongProfilePanelCardsKey: PreferenceKey {
+    static let defaultValue: [SongProfilePanelCardStop] = []
+
+    static func reduce(value: inout [SongProfilePanelCardStop], nextValue: () -> [SongProfilePanelCardStop]) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
+extension View {
+    /// Expose a Songs row's profile cards to VoiceOver after the row's link
+    /// (`songs-profile-panel` R8): a `fst.songs.profile-panel.<songId>` container holding
+    /// one labelled `fst.songs.profile-panel.<songId>.<instrument | band>` element over each
+    /// drawn card. Apply it outside the link and after the row's own accessibility
+    /// modifiers, so the song stays one link and the cards follow it. The stops don't take
+    /// hits; a click or tap still opens the song. Rows without a panel add nothing.
+    ///
+    /// - Parameter songId: The row's song.
+    /// - Returns: The row followed by its card stops.
+    func songProfilePanelAccessibility(songId: String) -> some View {
+        // SwiftUI lists an overlay's elements before its content's; the song reads first.
+        accessibilitySortPriority(1)
+        .overlayPreferenceValue(SongProfilePanelCardsKey.self) { cards in
+            if !cards.isEmpty {
+                GeometryReader { proxy in
+                    ZStack(alignment: .topLeading) {
+                        ForEach(cards, id: \.id) { card in
+                            let frame = proxy[card.bounds]
+                            Color.clear
+                                .frame(width: frame.width, height: frame.height)
+                                .position(x: frame.midX, y: frame.midY)
+                                .accessibilityElement(children: .ignore)
+                                .accessibilityLabel(card.label)
+                                .accessibilityAddTraits(.isStaticText)
+                                .accessibilityIdentifier("fst.songs.profile-panel.\(songId).\(card.id)")
+                        }
+                    }
+                    .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("fst.songs.profile-panel.\(songId)")
+                }
+                .allowsHitTesting(false)
+            }
+        }
     }
 }

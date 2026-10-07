@@ -2,7 +2,7 @@
 
 > **What:** the wide Songs row that puts the selected profile's score cards on its right half: a player's per-instrument cards, or a band's score card. The song stays on the left; the list stays full width. **Read when:** changing wide Songs rows on iPad, the iPhone Duo inner display or the Mac; adding a selected-profile visual to a Songs row; or porting this to Android/Windows wide layouts.
 
-Status: **current**, 2026-10-07. Provenance: #340 (split from #332; agent decision below), #388 design review.
+Status: **current**, 2026-10-07. Provenance: #340 (split from #332; agent decision below), #388 design reviews (fit; R8 accessibility tree).
 
 ## Intent
 
@@ -26,7 +26,7 @@ The web has no wide split row; its desktop row puts the same pills inline. The p
 5. **R5. Band card.** One card for the selected band's song row (score > 0), with the band-size symbol (`BandType.symbolName`, shared with Song Details' band Quick Links). Bands have no chart, so no Intensity or game difficulty. The band index comes only from the mutation-free `GET /api/rankings/bands/{bandType}/{teamKey}/song-rows` ([service safety](../platforms/service-safety.md)), validated for team, combo, count and value ranges. The plain (narrow or gated) band row shows the band's pills like the player's one-chart row.
 6. **R6. Grid and fold.** While a profile is selected (and, for a player, Filter Invalid Scores is off), the landscape two-card grid shows one song per row so each row has the width (`SongProfilePanelPolicy.gridColumns`). The row's two halves are a two-up row: in iPhone Duo book pose they meet at the fold (`HingeRow`, [hinge-columns](hinge-columns.md) R1), and R3's fit uses the cards' trailing side (`SongProfilePanelPolicy.panelWidth`).
 7. **R7. Surfaces.** Cards are flat `surfaceMuted` 35 % fills, 8 pt radius, a stroke under Increase Contrast, inside the one row card; no second material ([surface-materials](surface-materials.md) R6).
-8. **R8. Accessibility and IDs.** Each card is one VoiceOver element ("Lead: Score 270,007, Full combo, …"; "The Duo, Duos band: Score 1,234,567, …"), read after the song; the row stays one combined link. Test IDs: `fst.songs.profile-panel.<songId>` and `fst.songs.profile-panel.<songId>.<instrument rawValue | band>`.
+8. **R8. Accessibility and IDs.** The song stays one link (`fst.songs.row.<songId>`, button trait) and is read first. After it comes the panel container `fst.songs.profile-panel.<songId>`, with one labelled static-text element per card: `fst.songs.profile-panel.<songId>.<instrument rawValue | band>`, for example "Lead: Score 270,007, Full combo, …" or "The Duo, Duos band: Score 1,234,567, …". A link or button collapses its label into one element, and on the Mac it dropped the cards entirely. So the drawn panel inside the row is hidden from accessibility, and each card publishes its bounds and announcement (`SongProfilePanelCardsKey`). `songProfilePanelAccessibility(songId:)`, applied outside the link, places non-hit-testable stops over the drawn cards, and the link's sort priority keeps the song first. Never combine the panel into the row's element.
 9. **R9. One component.** Consumers never build their own split: `SongRowView.profilePanel` asks `SongProfilePanelPolicy` (gate, tiles, arrangement) and renders `SongProfilePanel`.
 
 ## Canonical implementation
@@ -35,10 +35,11 @@ The web has no wide split row; its desktop row puts the same pills inline. The p
 |---|---|---|---|
 | Gate, fit, tiles, grid (R1–R6) | `apple/Sources/FestivalUI/Features/Songs/SongProfilePanelPolicy.swift` `SongProfilePanelPolicy` (`allows`, `arrangement`, `panelWidth`, `tiles`, `bandTiles`, `gridColumns`) | not ported | not ported |
 | Panel view (R7, R8) | `apple/Sources/FestivalUI/Features/Songs/SongProfilePanel.swift` `SongProfilePanel` | — | — |
+| Card accessibility stops (R8) | `apple/Sources/FestivalUI/Features/Songs/SongProfilePanel.swift` `songProfilePanelAccessibility(songId:)`, applied by `SongsScreen.songCell` | — | — |
 | Row integration | `apple/Sources/FestivalUI/Features/Songs/SongRowView.swift` `profilePanel` (halves in `HingeRow`) | — | — |
 | Band index (R2, R5) | `apple/Sources/FestivalCore/FestivalAPI+Bands.swift` `bandSongRows`; `apple/Sources/FestivalUI/App/FestivalSession.swift` `refreshSelectedBand` | — | — |
 
-Tests: `SongProfilePanelPolicyTests` (gate, fit including the 600 pt threshold, the fold's trailing width, player and band tiles), `SelectedBandSessionTests` (band index load, publication gate, 503), `SelectedSongRowRenderTests` (`wideSongRowsSplitOnlyForASelectedPlayersScores`, `wideSongRowsAtTheBreakpointKeepCompactCardsOnOneLine`, `wideSongRowsShowTheSelectedBandsScoreCard`), `FestivalAPIBandsTests` (`bandSongRows…`), `OnDemandSplitPolicyTests.songsGridColumnsWithSelectedPlayer`.
+Tests: `SongProfilePanelPolicyTests` (gate, fit including the 600 pt threshold, the fold's trailing width, player and band tiles), `SelectedBandSessionTests` (band index load, publication gate, 503), `SelectedSongRowRenderTests` (`wideSongRowsSplitOnlyForASelectedPlayersScores`, `wideSongRowsAtTheBreakpointKeepCompactCardsOnOneLine`, `wideSongRowsShowTheSelectedBandsScoreCard`, `wideSongRowsReadTheProfileCardsAfterTheSongLink`: the real Mac Songs tree reads the link, then the panel, then each player or band card), `FestivalAPIBandsTests` (`bandSongRows…`), `OnDemandSplitPolicyTests.songsGridColumnsWithSelectedPlayer`.
 
 ## Agent decision (#340, 2026-10-07)
 
