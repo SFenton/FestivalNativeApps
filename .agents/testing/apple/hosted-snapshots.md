@@ -8,7 +8,8 @@ Helpers: `apple/Tests/FestivalUITests/NativeHostedSnapshot.swift`; self-tests in
 |---|---|
 | `nativeHostedView(_:size:forceGlassFallback:)` | Host a screen. Forces the glass fallback (see root causes) and turns on the in-process accessibility tree |
 | `nativeHostedWindow(_:size:)` | Offscreen, never-shown window; required for lazy `List` rows. Keep it alive through capture |
-| `nativeHostedSettle(_:untilText:excluding:)` / `(_:until:)` | Wait for the **final** state (text present, loading text absent, or any predicate), then for two identical frames. Returns the capture; records an issue on timeout (20 s on a Mac; every budget ×4 in a VM such as `apple-ci`) |
+| `nativeHostedSettle(_:untilText:excluding:)` / `(_:until:)` | Wait for the **final** state (text present, loading text absent, or any predicate), then for two identical frames. Returns the capture; records an issue on timeout (20 s of *requested poll time*, not wall-clock; every budget ×4 in a VM such as `apple-ci`) |
+| `NativeHostedPollBudget` | The bound for a bespoke polling loop: `while !ready, !budget.isExhausted { try await budget.sleep(for:) }`. Charges only the requested sleeps |
 | `assertRendersContent(_:image:minimumNonBackgroundFraction:minimumInkFraction:containing:notContaining:)` | Fail blank, spinner-only or wrong-state pages. Defaults: 1% non-background, 0.2% ink |
 | `nativeHostedAccessibility(_:)` | Labels/titles/values/identifiers, walking accessibility children **and** AppKit subviews (List/Form cells) |
 | `nativeHostedContent(_:)` | Non-background and ink fractions plus detected background |
@@ -18,11 +19,27 @@ Helpers: `apple/Tests/FestivalUITests/NativeHostedSnapshot.swift`; self-tests in
 ## Recipe
 
 1. Build a `FestivalSession` over an **in-memory transport** that rejects writes, privileged keys, selected-profile headers, wrong routes and mismatched publication pins (a throwing factory is fine for error states; never fall through to production). Rivals/Compete reads bypass `HTTPTransport`, so they use the loopback `RivalsMockService` (`tools/mock_service.py --port 0`). Use a separate `UserDefaults` suite via `.defaultAppStorage` and clean it up.
-2. Apply `.preferredColorScheme(.dark)` and the app tint, then host with `nativeHostedView` (+ `nativeHostedWindow` for anything with a `List`). A standalone `Form` (e.g. Songs Sort) is the opposite: a window makes pickers look inactive, so render its content bare.
-3. **Never wait with `Task.sleep`.** Call `nativeHostedSettle(host, untilText: [final-state text], excluding: ["Loading…"])`. For a *loading*-state shot, capture synchronously right after `layoutSubtreeIfNeeded()`.
+2. Apply `.preferredColorScheme(.dark)` and the app tint, then host with `nativeHostedView` (+ `nativeHostedWindow` for anything with a `List`). A standalone `Form` (e.g. Songs Sort) is the opposite: a window makes pickers look inactive, so render its content bare. Wrap a page whose rows are `NavigationLink`s in a `NavigationStack`, as the app does: outside one the rows are disabled, drawn at 50% opacity and slow to capture (see the settling rule).
+3. **Never wait with `Task.sleep`.** Call `nativeHostedSettle(host, untilText: [final-state text], excluding: ["Loading…"])`. For a *loading*-state shot, capture synchronously right after `layoutSubtreeIfNeeded()`. See the settling rule below.
 4. Assert with `assertRendersContent(host, image:, containing:, notContaining:)` on every full-page render counted as visual evidence, plus state-specific pixel checks where colour carries meaning. Bitmaps are at backing scale, never below 2× (`nativeHostedImage` upsamples 1× headless CI captures so stride-sampled thresholds match a Retina Mac); AppKit/ColorSync shifts token RGB slightly, so assert geometry, painted foreground and selected state, not exact token bytes.
 5. Optional private captures: `FST_<AREA>_RENDER_OUT` (e.g. `FST_LEADERBOARDS_RENDER_OUT`) pointing at an **existing private** directory. Never commit screenshots, service payloads or game artwork.
 6. AppKit `NSTextField` accepts a typed `controlTextDidChange` to drive the real 250 ms search task; `NSSegmentedControl` can switch scopes. SwiftUI result buttons expose no `NSButton`, so viewed/select/focus flows still need device tests.
+
+## Settling rule (parallel runs)
+
+Under `swift test --parallel` every hosted test shares one main actor, which runs ~99% busy for most of the ~3-minute bundle. A wait that takes 3 s alone can take 80 s there, and a `.task` load moves just as slowly. So:
+
+- **Wait on a condition, never on time.** The condition is the final text, an accessibility identifier, a toolbar item, a transport's `requests(atLeast:)` or a `ManualTestClock` sleeper. Do not use a fixed sleep or a `clock.now < deadline` loop.
+- **Bound every wait in poll time.** `nativeHostedSettle` and `NativeHostedPollBudget` charge only the sleeps they requested, so starvation stretches the wait instead of spending its budget. The bound is a hang guard: give it at least 20 s (60 s for a full page with many reads), never a tight value.
+- **Keep each main-actor turn cheap**, because one slow capture delays every other test's turn. Profile with `sample <swiftpm-testing-helper pid>` during a full run. Usual causes are translucent layers (next table) and per-pixel `NSColor` loops.
+- Serialize (`@Suite(.serialized)` / `@Test(.serialized, arguments:)`) only tests that share global state, such as `UserDefaults.standard` or process-wide caches. Serializing does not relieve the shared main actor.
+
+| Cause (fixed 2026-10-06) | Symptom | Fix |
+|---|---|---|
+| Wall-clock readiness bounds (`nativeHostedSettle`'s, plus bespoke `deadline` loops) | `leaderboardsScreenShows{Spotlight{Footer…,FailureInline},UnrankedSpotlightText}` passed alone (3 s) but failed at 62–80 s against a 60 s bound in every full run, and on the base commit too. This blocked `lane_integrate.sh --test` | `NativeHostedPollBudget`: settle and the Mac-tree/reveal loops count requested poll time |
+| `LeaderboardsScreen` hosted without a `NavigationStack` | Its `NavigationLink` rows were disabled and drawn at 50% opacity. `cacheDisplay` composites each translucent layer through a full-size transparency layer, so ~150 rows cost **1.35 s of main actor per capture** (a plain page costs 2–9 ms) | The tests host the overview in a `NavigationStack`: 9 ms per capture, and the rows render as they do in the app |
+
+Still heavy, by design: `bandBoardRowsFadeAbovePagerWithoutPlayerFooter` (BandRankings/SongBand without a stack, about 1 s per capture × 80 captures, `.serialized`). Its brightness thresholds are tuned for the dimmed rows, so moving it into a `NavigationStack` means re-measuring them. `selectedRowRevealFadesTheRowItReaches` measures mid-fade opacity, which is translucent on purpose.
 
 ## Why full pages captured blank (fixed 2026-09-28)
 
