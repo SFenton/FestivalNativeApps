@@ -166,6 +166,26 @@ private final class FakeClock {
     #expect(!scope.isOpen)
 }
 
+/// The page's frozen time (`festivalFadeInFrozenTime`, issue #327) times the scope while
+/// it is set: the rush window stays open however long the host stalls; nil restores the
+/// scope's own clock.
+@MainActor
+@Test func fadeScopeUsesThePagesFrozenTime() {
+    let clock = FakeClock()
+    let scope = FestivalFadeInScope(now: { clock.time })
+    scope.freezeClock(at: clock.time)
+    scope.noteContentOffset(0)
+    _ = scope.scheduleFade(.after(1.0))
+    scope.noteContentOffset(-200)
+    #expect(scope.isRushed)
+    clock.time += 60
+    #expect(scope.isOpen)
+    #expect(scope.scheduleFade(.pastFirstScreen) == 0)
+    scope.freezeClock(at: nil)
+    #expect(!scope.isOpen)
+    #expect(scope.scheduleFade(.pastFirstScreen) == nil)
+}
+
 /// A scroll after every fade has finished closes the window without a rush.
 @MainActor
 @Test func fadeScopeClosesWhenScrolledAfterTheFadesFinished() {
