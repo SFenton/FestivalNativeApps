@@ -6,7 +6,13 @@ Source: `FortniteFestivalWeb/src/utils/songSettings.ts:66-80`, `FortniteFestival
 
 ## When this presentation applies
 
-Selected-player scores are available, identity- and publication-validated, and **positive** on the first enabled / explicitly filtered chart, **and** Show Instrument Icons is off or one chart is filtered. Default icons-on "All instruments" uses [status chips](../songs-instrument-status-chips/spec.md). Missing chart, 200 empty/zero, 202, 403/error, failed publication or the Filter Invalid Scores pause keep an explicit non-scored state. No per-row GET, no selected-profile headers, no blocked reads, no raw profile bytes kept across a switch. Selected bands have no metadata until a mutation-free policy exists.
+Selected-player scores are available, identity- and publication-validated, and **positive** on the first enabled / explicitly filtered chart, **and** Show Instrument Icons is off or one chart is filtered. Default icons-on "All instruments" uses [status chips](../songs-instrument-status-chips/spec.md). Missing chart, 200 empty/zero, 202, 403/error, failed publication or the Filter Invalid Scores pause keep an explicit non-scored state. No per-row GET, no selected-profile headers, no blocked reads, no raw profile bytes kept across a switch. A selected band's row shows its `/song-rows` score with the same pills (no Intensity or game difficulty; [songs-profile-panel](../../patterns/songs-profile-panel.md) R5).
+
+## Wide rows: the profile panel
+
+Wide shells (Apple: iPad, the iPhone Duo inner display and Mac) split a selected player's or band's scored Songs rows into song | score cards. The rules (gates, one-line fit, player and band cards, grid, surfaces, accessibility, test IDs) and the A/B/C agent decision live in the [songs-profile-panel](../../patterns/songs-profile-panel.md) pattern. This control supplies the cards' pills:
+- "All instruments" and band cards show only Score, Accuracy/FC, Percentile and Stars (where enabled), in the saved order, and keep them on **one line**; when they can't, the row keeps the plain presentation above (pattern R3).
+- A filtered chart's single card shows every enabled field and wraps its pills in the half, like the one-chart row.
 
 ## Fields (source default order)
 

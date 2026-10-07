@@ -226,6 +226,35 @@ func selectionKeepsVisibleTabAndPaths(selected: FestivalSection) {
     let malformed = DebugLaunchRoute(environment: ["FST_DEBUG_PROFILE": "not-two-parts"])
     #expect(malformed.debugSelectedPlayer() == nil)
 }
+
+/// `FST_DEBUG_BAND` selects a validated band in memory only; it wins over a debug or
+/// stored player because one profile is selected at a time (#340).
+@MainActor
+@Test func debugBandSelectsInMemoryAndWinsOverAPlayer() throws {
+    let suiteName = "fst-debug-band-\(UUID().uuidString)"
+    let storage = try #require(UserDefaults(suiteName: suiteName))
+    defer { storage.removePersistentDomain(forName: suiteName) }
+    let debug = DebugLaunchRoute(environment: [
+        "FST_DEBUG_BAND": "Band_Duets/aaa111:bbb222/The Duo / Live",
+        "FST_DEBUG_PROFILE": "f1c7fea37bf9b1069250832ae4211461:Some Name",
+    ])
+    let band = try #require(debug.debugSelectedBand())
+    #expect(band == SelectedBandIdentity(bandType: .duets, teamKey: "aaa111:bbb222", displayName: "The Duo / Live"))
+    let session = FestivalSession(
+        factory: { throw FestivalAPIError.invalidResource },
+        selectionStorage: storage, debugSelectedPlayer: debug.debugSelectedPlayer(),
+        debugSelectedBand: band
+    )
+    #expect(session.selectedBand == band)
+    #expect(session.selectedPlayer == nil)
+    #expect(session.bandLoadState == .loading)
+    #expect(storage.data(forKey: SelectedPlayerIdentity.storageKey) == nil)
+
+    // Wrong size, unknown type or malformed values select nothing.
+    for raw in ["Band_Trios/aaa111:bbb222/Short", "Band_Solo/a:b/X", "Band_Duets/a:b", "Band_Duets/a:a/X"] {
+        #expect(DebugLaunchRoute(environment: ["FST_DEBUG_BAND": raw]).debugSelectedBand() == nil)
+    }
+}
 #endif
 
 // MARK: - Profile-only routes

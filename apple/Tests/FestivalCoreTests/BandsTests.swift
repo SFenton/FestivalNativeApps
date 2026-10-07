@@ -273,6 +273,21 @@ private let selectedDuoJSON = """
         == "https://example.com/api/rankings/bands/Band_Duets/a:b/songs?limit=5"
     )
     #expect(
+        try PublicEndpoint.bandSongRows(
+            bandType: "Band_Duets", teamKey: "a:b", combo: nil
+        ).url(relativeTo: base).absoluteString
+        == "https://example.com/api/rankings/bands/Band_Duets/a:b/song-rows"
+    )
+    #expect(
+        try PublicEndpoint.bandSongRows(
+            bandType: "Band_Duets", teamKey: "a:b", combo: "GB"
+        ).url(relativeTo: base).query == "combo=GB"
+    )
+    #expect(throws: FestivalAPIError.invalidResource) {
+        try PublicEndpoint.bandSongRows(bandType: "Band_Duets", teamKey: "a/b", combo: nil)
+            .url(relativeTo: base)
+    }
+    #expect(
         try PublicEndpoint.songBandLeaderboard(
             songId: "fixture-pulse", bandType: "Band_Duets", top: 25, offset: 0, combo: nil
         ).url(relativeTo: base).absoluteString

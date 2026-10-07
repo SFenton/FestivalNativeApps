@@ -62,6 +62,14 @@ final class FestivalSession {
     private(set) var playerLoadState: SelectedPlayerLoadState = .none
     private(set) var playerError: String?
     private(set) var selectionRevision = 0
+    /// The band selected as the Songs profile (issue #340); exclusive with
+    /// ``selectedPlayer``. In memory only until band selection is ported.
+    private(set) var selectedBand: SelectedBandIdentity?
+    /// The selected band's published score per song (`/song-rows`).
+    private(set) var selectedBandScores: [String: BandSongPerformanceEntry] = [:]
+    private(set) var selectedBandScoreObservation: Int?
+    private(set) var bandLoadState: SelectedPlayerLoadState = .none
+    @ObservationIgnored private var bandRequestRevision = 0
     /// The last catalogue's current season; only highlights song-page season pills.
     private(set) var catalogCurrentSeason: Int?
 
@@ -78,6 +86,10 @@ final class FestivalSession {
     ///     persisted `UserDefaults.standard` selection — see
     ///     `DebugLaunchRoute` in `FestivalRootView.swift`. Ignored when a real
     ///     stored identity also exists; debug launches always take the debug value.
+    ///   - debugSelectedBand: A band to select **in memory only** (`FST_DEBUG_BAND`,
+    ///     hosted tests). A valid band wins over every player selection, because one
+    ///     profile is selected at a time (web `selectedProfile`); an invalid one is
+    ///     ignored.
     ///   - liveConnection: Live publication socket owner (issue #304); nil (hosted
     ///     tests, fixture launches) never opens a socket.
     init(
@@ -85,6 +97,7 @@ final class FestivalSession {
         artwork: ArtworkCache = ArtworkCache(),
         selectionStorage: UserDefaults? = nil,
         debugSelectedPlayer: SelectedPlayerIdentity? = nil,
+        debugSelectedBand: SelectedBandIdentity? = nil,
         liveConnection: PublicationLiveConnection? = nil
     ) {
         self.factory = factory
@@ -92,7 +105,10 @@ final class FestivalSession {
         self.artwork = artwork
         self.selectionStorage = selectionStorage
         thumbnails.totalCostLimit = 24_000_000
-        if let debugSelectedPlayer {
+        if let debugSelectedBand, (try? debugSelectedBand.validate()) != nil {
+            selectedBand = debugSelectedBand
+            bandLoadState = .loading
+        } else if let debugSelectedPlayer {
             selectedPlayer = debugSelectedPlayer
             playerLoadState = .loading
         } else if let stored = selectionStorage?.data(forKey: SelectedPlayerIdentity.storageKey) {
@@ -247,6 +263,7 @@ final class FestivalSession {
         let stored = try JSONEncoder().encode(identity)
         selectionStorage?.set(stored, forKey: SelectedPlayerIdentity.storageKey)
         profileRequestRevision += 1
+        clearSelectedBand()
         selectedPlayer = identity
         selectedPlayerScores = scores
         selectedPlayerScoreObservation = payload.observedPublicationId
@@ -321,6 +338,67 @@ final class FestivalSession {
             playerLoadState = .failed(ServiceIssue(error))
             playerError = error.localizedDescription
         }
+    }
+
+    /// Reload the selected band's song-rows index, refusing a stale completion after a
+    /// switch or a publication change (the same revision guard as
+    /// ``refreshSelectedPlayer()``). A 503 while the band projection is unpublished
+    /// becomes `.failed`, never an empty index.
+    func refreshSelectedBand() async {
+        guard let band = selectedBand else { return }
+        bandRequestRevision += 1
+        let requestRevision = bandRequestRevision
+        bandLoadState = .loading
+        selectedBandScores.removeAll()
+        selectedBandScoreObservation = nil
+        do {
+            let payload = try await client().bandSongRows(
+                bandType: band.bandType, teamKey: band.teamKey
+            )
+            try await observe(publicationId: payload.observedPublicationId)
+            try Task.checkCancellation()
+            guard bandRequestRevision == requestRevision, selectedBand == band else {
+                throw CancellationError()
+            }
+            selectedBandScores = try payload.response.scoreIndex(
+                bandType: band.bandType, teamKey: band.teamKey
+            )
+            selectedBandScoreObservation = payload.observedPublicationId
+            bandLoadState = .available
+        } catch is CancellationError {
+            return
+        } catch let error as URLError where error.code == .cancelled {
+            return
+        } catch {
+            guard !Task.isCancelled, bandRequestRevision == requestRevision,
+                  selectedBand == band else { return }
+            selectedBandScores.removeAll()
+            selectedBandScoreObservation = nil
+            bandLoadState = .failed(ServiceIssue(error))
+        }
+    }
+
+    /// Apply the selected band's scores only to Songs from the same current observation
+    /// (``hasCurrentPlayerScores(forCatalogue:)``'s rule for the band index).
+    ///
+    /// - Parameter catalogueObservation: Generation observed for the displayed Songs rows.
+    /// - Returns: True only for a selected, available, generation-matched band index.
+    func hasCurrentBandScores(forCatalogue catalogueObservation: Int?) -> Bool {
+        guard selectedBand != nil, bandLoadState == .available,
+              let catalogueObservation else { return false }
+        return SongRelatedPublicationPolicy.matches(
+            catalogue: catalogueObservation, related: selectedBandScoreObservation,
+            current: publicationId
+        )
+    }
+
+    /// Drop the in-memory band selection and its index.
+    private func clearSelectedBand() {
+        bandRequestRevision += 1
+        selectedBand = nil
+        selectedBandScores.removeAll()
+        selectedBandScoreObservation = nil
+        bandLoadState = .none
     }
 
     /// Apply selected scores only to Songs from the same current observation.
@@ -520,6 +598,10 @@ final class FestivalSession {
                 selectedPlayerScoreObservation = nil
                 playerLoadState = selectedPlayer == nil ? .none : .loading
                 playerError = nil
+                bandRequestRevision += 1
+                selectedBandScores.removeAll()
+                selectedBandScoreObservation = nil
+                bandLoadState = selectedBand == nil ? .none : .loading
                 currentShop = nil
                 shopOffersById.removeAll()
                 shopError = nil

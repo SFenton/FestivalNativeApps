@@ -2659,6 +2659,73 @@
       ]
     },
     {
+      "id": "songs-profile-panel",
+      "title": "Songs profile panel",
+      "status": "current",
+      "doc": ".agents/patterns/songs-profile-panel.md",
+      "summary": "On wide Songs rows (iPad, iPhone Duo inner display, Mac) with a selected player or band whose score index is available and publication-matched, the row splits: song on the left, that profile's compact score cards (per scored instrument, or one band card) on the right. Compact cards keep one line or the row stays plain; loading, paused, failed, Filter Invalid Scores, accessibility sizes and Shop rows keep today's row.",
+      "keywords": [
+        "profile panel",
+        "wide row",
+        "split row",
+        "instrument cards",
+        "band score card",
+        "selected profile",
+        "songs row",
+        "one line",
+        "fit"
+      ],
+      "web": [
+        {
+          "path": "pages/songs/SongsPage.tsx",
+          "symbol": "bandPerformanceToPlayerScore"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongProfilePanelPolicy.swift",
+            "symbol": "SongProfilePanelPolicy"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongProfilePanelPolicy.swift",
+            "symbol": "bandTiles"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongProfilePanel.swift",
+            "symbol": "SongProfilePanel"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongProfilePanel.swift",
+            "symbol": "songProfilePanelAccessibility"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongRowView.swift",
+            "symbol": "profilePanel"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/FestivalSession.swift",
+            "symbol": "refreshSelectedBand"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "surface-materials",
+          "load-transition",
+          "hinge-columns"
+        ],
+        "pages": [
+          "songs"
+        ],
+        "controls": [
+          "song-score-metadata",
+          "songs-instrument-status-chips"
+        ]
+      },
+      "guards": []
+    },
+    {
       "id": "hinge-columns",
       "title": "Hinge columns",
       "status": "current",
@@ -2765,7 +2832,7 @@
       "title": "Wide columns",
       "status": "current",
       "doc": ".agents/patterns/wide-columns.md",
-      "summary": "Page rows and cards show in two columns only in wide landscape windows (iPad landscape, iPhone Duo unfolded landscape, a wide Mac surface), row-major under full-width headings, meeting at the Duo hinge, reflowing without reloading; portrait and compact windows keep one column; full-width leaderboards pair rank rows the same way under one full-width pinned row and pager, while split sub-pages stay one column.",
+      "summary": "Page rows and cards show in two columns only in wide landscape windows (iPad landscape, iPhone Duo unfolded landscape, a wide Mac surface), row-major under full-width headings (pages of unequal section cards such as Settings flow column by column in balanced columns), meeting at the Duo hinge, reflowing without reloading; portrait, compact windows and (for Settings) accessibility text sizes keep one column; full-width leaderboards pair rank rows row-major under one full-width pinned row and pager, while split sub-pages stay one column.",
       "keywords": [
         "two column",
         "two-column",
@@ -2777,7 +2844,10 @@
         "grid",
         "ipad landscape",
         "iphone duo",
-        "mac sheet size"
+        "mac sheet size",
+        "settings columns",
+        "balanced columns",
+        "column-major"
       ],
       "web": [],
       "canonical": {
@@ -2805,6 +2875,18 @@
           {
             "path": "apple/Sources/FestivalUI/Mac/MacRootView.swift",
             "symbol": "searchSheetSize"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/WideColumns.swift",
+            "symbol": "WideColumnStack"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/SettingsScreen.swift",
+            "symbol": "ReadableWidthContainer"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Mac/MacSettingsView.swift",
+            "symbol": "MacSettingsView"
           }
         ],
         "android": [],
@@ -2837,7 +2919,8 @@
       "supersedes": [],
       "issues": [
         350,
-        353
+        353,
+        355
       ]
     },
     {

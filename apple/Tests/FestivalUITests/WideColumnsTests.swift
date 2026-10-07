@@ -203,3 +203,58 @@ private struct Ranked: Identifiable, Equatable {
     #expect(items[WideColumns.rowStart(of: 3, columns: 2)].id == pairs[1].id)
     #expect(WideColumns.indexedRows([Ranked](), columns: 2).isEmpty)
 }
+
+// MARK: - Balanced columns (R7, #355)
+
+/// Sections split column-major where the taller column is shortest; neither is empty.
+@Test func balancedSplitEvensTheColumns() {
+    // One tall section, then short ones: the tall one stands alone on the left.
+    #expect(WideColumns.balancedSplit(leading: [600, 100, 100, 100], trailing: [600, 100, 100, 100], spacing: 28) == 1)
+    // Equal sections split in half.
+    #expect(WideColumns.balancedSplit(leading: [100, 100, 100, 100], trailing: [100, 100, 100, 100], spacing: 28) == 2)
+    // Odd count of equal sections: the earlier split wins the tie of tallest columns.
+    #expect(WideColumns.balancedSplit(leading: [100, 100, 100], trailing: [100, 100, 100], spacing: 28) == 1)
+    // A tall last section pulls the rest to the left.
+    #expect(WideColumns.balancedSplit(leading: [100, 100, 100, 500], trailing: [100, 100, 100, 500], spacing: 0) == 3)
+    // Narrower right column (book pose): its heights decide its side.
+    #expect(WideColumns.balancedSplit(leading: [200, 200, 200], trailing: [200, 200, 500], spacing: 0) == 2)
+    // Empty sections add no gap.
+    #expect(WideColumns.balancedSplit(leading: [300, 0, 0, 300], trailing: [300, 0, 0, 300], spacing: 28) == 1)
+    #expect(WideColumns.balancedSplit(leading: [100], trailing: [100], spacing: 28) == 1)
+    #expect(WideColumns.balancedSplit(leading: [], trailing: [], spacing: 28) == 0)
+}
+
+/// Accessibility text sizes stack Settings into one column; standard sizes keep the
+/// width-based count.
+@Test func readableColumnsStackAtAccessibilitySizes() {
+    #expect(WideColumns.readable(2, typeSize: .large) == 2)
+    #expect(WideColumns.readable(2, typeSize: .xxxLarge) == 2)
+    #expect(WideColumns.readable(2, typeSize: .accessibility1) == 1)
+    #expect(WideColumns.readable(2, typeSize: .accessibility5) == 1)
+    #expect(WideColumns.readable(1, typeSize: .small) == 1)
+    #expect(WideColumns.count(layout: Windows.iPadLandscape, width: 874) == 2)
+    #expect(WideColumns.count(layout: Windows.iPadPortrait, width: 1210) == 1)
+    #expect(WideColumns.count(size: CGSize(width: 860, height: 560)) == 2)
+    // Settings on iPhone Duo: two columns unfolded in landscape, one otherwise.
+    #expect(WideColumns.readable(WideColumns.count(layout: Windows.duoInnerLandscape), typeSize: .large) == 2)
+    #expect(WideColumns.readable(WideColumns.count(layout: Windows.duoInnerLandscape), typeSize: .accessibility1) == 1)
+    #expect(WideColumns.readable(WideColumns.count(layout: Windows.duoInnerPortrait), typeSize: .large) == 1)
+    #expect(WideColumns.readable(WideColumns.count(layout: Windows.duoFolded), typeSize: .large) == 1)
+    #expect(WideColumns.readable(WideColumns.count(layout: Windows.iPhonePortrait), typeSize: .large) == 1)
+}
+
+/// Two readable columns widen the cap by one column and the gutter.
+@Test func readableWidthCapsEachColumn() {
+    #expect(ReadableWidthContainer.maxWidth(columns: 1) == 680)
+    #expect(ReadableWidthContainer.maxWidth(columns: 0) == 680)
+    #expect(ReadableWidthContainer.maxWidth(columns: 2) == 680 * 2 + WideColumns.spacing)
+}
+
+/// The Mac Settings window holds two columns of at least ~400 pt.
+@Test func macSettingsWindowHoldsTwoColumns() {
+    #if os(macOS)
+    let size = MacSettingsView.size
+    #expect(WideColumns.count(size: size) == 2)
+    #expect((size.width - WideColumns.rowMargins - WideColumns.spacing) / 2 >= 400)
+    #endif
+}

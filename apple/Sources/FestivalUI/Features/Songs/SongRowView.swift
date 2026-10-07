@@ -91,8 +91,15 @@ struct SongRowView: View {
     private var songRowVisualOrderRaw = SettingsOrder.encode(MetadataField.allCases)
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.songRowsAllowSingleLine) private var allowsSingleLine
-    /// The card's width, measured only where one-line rows are allowed.
+    @Environment(\.songRowsAllowProfilePanel) private var allowsProfilePanel
+    /// Dynamic Type scale for the profile panel's pill-width estimates.
+    @ScaledMetric(relativeTo: .body) private var panelScale: CGFloat = 1
+    /// The card's content width, measured only where one-line or split rows are allowed.
+    @Environment(\.deviceLayout) private var deviceLayout
     @State private var rowWidth: CGFloat = 0
+    /// Row content's window span, measured only when the profile panel may show (its
+    /// halves meet at an iPhone Duo fold, `hinge-columns` R1).
+    @State private var rowSpan: HorizontalSpan?
 
     /// Decorate one real Shop offer without turning it into a new navigation action.
     ///
@@ -148,6 +155,52 @@ struct SongRowView: View {
 
     private var scoreDataCurrent: Bool {
         session.hasCurrentPlayerScores(forCatalogue: catalogueObservation)
+    }
+
+    /// The selected band's index is available and matches these Songs rows.
+    private var bandScoreDataCurrent: Bool {
+        session.hasCurrentBandScores(forCatalogue: catalogueObservation)
+    }
+
+    /// The selected band's fields for this song on a plain row, or nil without a
+    /// current, positive band score.
+    private var bandFields: [SongMetadataField]? {
+        guard session.selectedBand != nil, bandScoreDataCurrent,
+              let entry = session.selectedBandScores[song.songId], entry.score > 0,
+              let fields = try? SongProfileCardPolicy.bandFields(
+                  for: entry, currentSeason: currentSeason, visibility: metadata
+              ), !fields.isEmpty else { return nil }
+        return SongProfileCardPolicy.reordered(fields, by: SettingsOrder.decode(songRowVisualOrderRaw))
+    }
+
+    /// Selected-band state under a plain row: loading, unavailable or paused (the
+    /// player rows' copy and paused test ID), else the band's pills when it scored
+    /// this song; nothing for a song the band hasn't scored.
+    ///
+    /// - Parameter band: The selected band.
+    /// - Returns: The row's band content.
+    @ViewBuilder private func bandContent(_ band: SelectedBandIdentity) -> some View {
+        switch session.bandLoadState {
+        case .loading:
+            Label("Loading \(band.displayName)'s scores", systemImage: "hourglass")
+                .font(.footnote)
+                .foregroundStyle(FestivalText.primary)
+                .accessibilityIdentifier("fst.songs.band-summary.\(song.songId)")
+        case .failed:
+            Label("Band scores unavailable", systemImage: "exclamationmark.triangle")
+                .font(.footnote)
+                .foregroundStyle(BrandTokens.gold)
+                .accessibilityIdentifier("fst.songs.band-summary.\(song.songId)")
+        case .available where !bandScoreDataCurrent:
+            Label("Band scores paused until songs update", systemImage: "pause.circle")
+                .font(.footnote)
+                .foregroundStyle(BrandTokens.gold)
+                .accessibilityIdentifier("fst.songs.profile-paused-row.\(song.songId)")
+        case .available, .none, .syncing:
+            if let bandFields {
+                SongProfileMetadataPills(fields: bandFields, songId: song.songId)
+            }
+        }
     }
 
     private var usesInstrumentChips: Bool {
@@ -273,6 +326,8 @@ struct SongRowView: View {
                     filterInvalidScores: filterInvalidScores, songId: song.songId
                 )
             }
+        } else if let band = session.selectedBand {
+            bandContent(band)
         }
     }
 
@@ -421,6 +476,82 @@ struct SongRowView: View {
         }
     }
 
+    /// The selected profile's cards and their one-line arrangement for the wide split
+    /// row, or nil for the plain row: not allowed, too narrow, no current score index,
+    /// nothing scored, an invalid accuracy value, or compact cards that can't keep one
+    /// line (`songs-profile-panel` R3).
+    private var profilePanel: (tiles: [SongProfilePanelTile], arrangement: SongProfilePanelPolicy.Arrangement)? {
+        let band = session.selectedBand
+        guard SongProfilePanelPolicy.allows(
+            allowed: allowsProfilePanel,
+            hasSelectedProfile: band != nil || session.selectedPlayer != nil,
+            scoresCurrent: band != nil ? bandScoreDataCurrent : scoreDataCurrent,
+            filterInvalidScores: band == nil && filterInvalidScores,
+            accessibilitySize: dynamicTypeSize.isAccessibilitySize, shopRow: shopOffer != nil,
+            rowWidth: rowWidth + 24
+        ) else { return nil }
+        let order: [MetadataField] = SettingsOrder.decode(songRowVisualOrderRaw)
+        let tiles: [SongProfilePanelTile]?
+        if let band {
+            tiles = try? SongProfilePanelPolicy.bandTiles(
+                band: band, entry: session.selectedBandScores[song.songId],
+                currentSeason: currentSeason, visibility: metadata, order: order
+            )
+        } else {
+            tiles = try? SongProfilePanelPolicy.tiles(
+                song: song, scores: session.selectedPlayerScores[song.songId] ?? [:],
+                instrumentFilter: instrument, visibleInstruments: visibleInstruments,
+                currentSeason: currentSeason, visibility: metadata, order: order
+            )
+        }
+        guard let tiles, !tiles.isEmpty,
+              let arrangement = SongProfilePanelPolicy.arrangement(
+                  width: SongProfilePanelPolicy.panelWidth(contentWidth: rowWidth, band: panelFoldBand), tiles: tiles,
+                  overview: band != nil || instrument == nil, scale: panelScale
+              ) else { return nil }
+        return (tiles, arrangement)
+    }
+
+    /// The iPhone Duo fold's band across the row content, the same band ``HingeRow``
+    /// splits the panel row at; nil without a fold through it.
+    private var panelFoldBand: HingeBand? {
+        HingeColumns.band(
+            span: rowSpan, fold: deviceLayout.foldFrame, gutter: SongProfilePanelPolicy.gap,
+            minimumSide: HingeColumns.minimumSide
+        )
+    }
+
+    /// Wide split row: the song (and a player's status chips) on the left half, the
+    /// selected profile's score cards on the right half (issue #340). The halves meet at
+    /// an iPhone Duo fold in book pose (``HingeRow``, `hinge-columns` R1).
+    ///
+    /// - Parameters:
+    ///   - tiles: Non-empty scored cards.
+    ///   - arrangement: Their one-line columns.
+    /// - Returns: Two halves inside the one row card.
+    private func profilePanelRow(
+        _ tiles: [SongProfilePanelTile], arrangement: SongProfilePanelPolicy.Arrangement
+    ) -> some View {
+        HingeRow(spacing: SongProfilePanelPolicy.gap) {
+            HStack(alignment: .top, spacing: 12) {
+                artworkTile
+                VStack(alignment: .leading, spacing: 4) {
+                    songInfo
+                    if usesInstrumentChips {
+                        profileContent
+                    }
+                }
+                Spacer(minLength: 4)
+                shopIcons
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            SongProfilePanel(
+                songId: song.songId, tiles: tiles, arrangement: arrangement,
+                keyboard: song.usesKeyboardIcon, highContrast: highContrast
+            )
+        }
+    }
+
     /// Chips sit beside the title (``SongRowLayoutPolicy``) when allowed and they fit.
     private var singleLine: Bool {
         guard allowsSingleLine, usesInstrumentChips, !dynamicTypeSize.isAccessibilitySize else { return false }
@@ -450,6 +581,8 @@ struct SongRowView: View {
                         shopOfferTrailing(shopOffer)
                     }
                 }
+            } else if let profilePanel {
+                profilePanelRow(profilePanel.tiles, arrangement: profilePanel.arrangement)
             } else if let structuredFields, case let .success(fields) = structuredFields {
                 structuredMetadataRow(fields)
             } else if dynamicTypeSize.isAccessibilitySize && usesInstrumentChips {
@@ -483,7 +616,12 @@ struct SongRowView: View {
                 }
             }
         }
-        .onGeometryChange(for: CGFloat.self) { allowsSingleLine ? $0.size.width : 0 } action: { rowWidth = $0 }
+        .onGeometryChange(for: CGFloat.self) {
+            allowsSingleLine || allowsProfilePanel ? $0.size.width : 0
+        } action: { rowWidth = $0 }
+        .onGeometryChange(for: HorizontalSpan?.self) {
+            allowsProfilePanel ? HorizontalSpan($0.frame(in: .global)) : nil
+        } action: { if rowSpan != $0 { rowSpan = $0 } }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .festivalRowCard(cornerRadius: 12)

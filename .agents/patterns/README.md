@@ -36,6 +36,7 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [song-header](song-header.md) | Song page headers: shared art + title/artist block, full-width one-line marquee, pinned bar song title |
 | [view-all-cta](view-all-cta.md) | The full-width purple "View all" button below a card's rows: look, placement, copy and accessible name |
 | [back-keeps-place](back-keeps-place.md) | Back to a cached page: no reload, no movement or replayed fade-in, focus back on the opener |
+| [songs-profile-panel](songs-profile-panel.md) | Wide Songs rows with a selected player or band: song left, that profile's one-line score cards right |
 | [settings-value-row](settings-value-row.md) | Read-only Settings title/value rows (Version, Service Info state): inline when it fits, otherwise the value stacks under the title |
 | [hinge-columns](hinge-columns.md) | Foldable book pose: grid and two-up row gutters on the fold, full-width titles kept on their side, flat layout when unfolded |
 | [wide-columns](wide-columns.md) | When rows and cards show two columns: wide landscape only (iPad, unfolded Duo, wide Mac), row-major under full-width headings, meeting at the Duo hinge; the page audit |

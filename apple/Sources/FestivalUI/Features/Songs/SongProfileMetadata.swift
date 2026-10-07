@@ -141,14 +141,70 @@ enum SongProfileCardPolicy {
         song: Song?, currentSeason: Int?,
         visibility: SongMetadataVisibility
     ) throws -> [SongMetadataField] {
-        guard score.score > 0 else { return [] }
+        try projectedFields(
+            score: score.score, accuracy: score.accuracy, fullCombo: score.isFullCombo == true,
+            rank: score.rank, totalEntries: score.totalEntries, stars: score.stars,
+            season: score.season, intensity: song?.difficulty?.chartedValue(for: chart),
+            difficulty: score.difficulty,
+            lastPlayed: score.validLastPlayedAt ?? score.lastPlayedAt,
+            currentSeason: currentSeason, visibility: visibility
+        )
+    }
+
+    /// Project one band's published song score (`/song-rows`) like a player's: the web
+    /// maps it to a score row (`bandPerformanceToPlayerScore`) and shows score,
+    /// accuracy/FC, percentile, stars, season and last played; bands have no chart, so
+    /// no Intensity or game difficulty.
+    ///
+    /// - Parameters:
+    ///   - entry: The selected band's validated, publication-matched row for this song.
+    ///   - currentSeason: Optional, independently validated catalogue season.
+    ///   - visibility: Saved switches; an independent FC cue survives hiding Percentage.
+    /// - Returns: Source-default field order; empty for a zero score.
+    /// - Throws: Invalid reported accuracy tint, never replaced with a plausible pill.
+    static func bandFields(
+        for entry: BandSongPerformanceEntry, currentSeason: Int?,
+        visibility: SongMetadataVisibility
+    ) throws -> [SongMetadataField] {
+        try projectedFields(
+            score: entry.score, accuracy: entry.accuracy.map(Double.init),
+            fullCombo: entry.isFullCombo == true,
+            rank: entry.rank, totalEntries: entry.totalEntries, stars: entry.stars,
+            season: entry.season, intensity: nil, difficulty: nil, lastPlayed: entry.endTime,
+            currentSeason: currentSeason, visibility: visibility
+        )
+    }
+
+    /// The shared field projection behind player and band rows.
+    ///
+    /// - Parameters:
+    ///   - score: Positive score; zero or less yields no fields.
+    ///   - accuracy: Expanded accuracy (ten-thousandths of a percent).
+    ///   - fullCombo: The service reported a full combo.
+    ///   - rank: Leaderboard rank for the percentile bucket.
+    ///   - totalEntries: Leaderboard size for the percentile bucket.
+    ///   - stars: Raw stars, 6 meaning gold.
+    ///   - season: Season the score was set in.
+    ///   - intensity: Catalogue chart Intensity, nil for bands.
+    ///   - difficulty: Game difficulty index, nil for bands.
+    ///   - lastPlayed: ISO 8601 date the score was set.
+    ///   - currentSeason: Current catalogue season.
+    ///   - visibility: Saved switches.
+    /// - Returns: Fields in source order.
+    /// - Throws: Invalid reported accuracy tint.
+    private static func projectedFields(
+        score: Int, accuracy rawAccuracy: Double?, fullCombo combo: Bool,
+        rank: Int?, totalEntries: Int?, stars: Int?, season: Int?,
+        intensity: Double?, difficulty: Double?, lastPlayed: String?,
+        currentSeason: Int?, visibility: SongMetadataVisibility
+    ) throws -> [SongMetadataField] {
+        guard score > 0 else { return [] }
         var fields: [SongMetadataField] = []
         if visibility.score {
-            fields.append(.score(score.score))
+            fields.append(.score(score))
         }
-        let combo = score.isFullCombo == true
         if visibility.percentage || combo {
-            let accuracy = visibility.percentage ? score.accuracy : nil
+            let accuracy = visibility.percentage ? rawAccuracy : nil
             if let accuracy {
                 let tint = combo ? nil : try ScoreFormatting.accuracyTint(accuracy)
                 fields.append(
@@ -162,28 +218,27 @@ enum SongProfileCardPolicy {
                 )
             }
         }
-        if visibility.percentile, let rank = score.rank, let total = score.totalEntries,
+        if visibility.percentile, let rank, let total = totalEntries,
            let bucket = ScoreFormatting.percentileBucket(rank: rank, totalEntries: total) {
             let percentile = min(Double(rank) / Double(total) * 100, 100)
             let tier: SongPercentileTier = percentile <= 1
                 ? .topOne : percentile <= 5 ? .topFive : .ordinary
             fields.append(.percentile(bucket, tier: tier))
         }
-        if visibility.stars, let stars = score.stars, stars > 0 {
+        if visibility.stars, let stars, stars > 0 {
             fields.append(.stars(count: stars >= 6 ? 5 : stars, gold: stars >= 6))
         }
-        if visibility.season, let season = score.season, season > 0 {
+        if visibility.season, let season, season > 0 {
             fields.append(.season(season, current: currentSeason == season))
         }
-        if visibility.intensity, let raw = song?.difficulty?.chartedValue(for: chart) {
-            fields.append(.intensity(raw))
+        if visibility.intensity, let intensity {
+            fields.append(.intensity(intensity))
         }
-        if visibility.difficulty, let difficulty = score.difficulty,
+        if visibility.difficulty, let difficulty,
            difficulty.rounded() == difficulty, (0...3).contains(difficulty) {
             fields.append(.difficulty(Int(difficulty)))
         }
-        if visibility.lastPlayed,
-           let rawDate = score.validLastPlayedAt ?? score.lastPlayedAt {
+        if visibility.lastPlayed, let rawDate = lastPlayed {
             do {
                 let date = try Date.ISO8601FormatStyle().parse(rawDate)
                 fields.append(.lastPlayed(
