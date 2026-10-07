@@ -162,20 +162,49 @@ func nativeHostedWindow<Content: View>(
 func nativeHostedImage<Content: View>(_ host: NSHostingView<Content>) throws -> CGImage {
     host.layoutSubtreeIfNeeded()
     host.displayIfNeeded()
-    var bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
-    if CGFloat(bitmap.pixelsWide) < host.bounds.width * 2 {
+    return try nativeHostedCache(host, in: host.bounds)
+}
+
+/// Capture only `rect` of the host, at least 2x like ``nativeHostedImage(_:)``.
+///
+/// A whole-host capture of a page with pinned material chrome (Full Rankings' footer,
+/// the band board's pager) takes about a second alone, which used most of a short
+/// animation-evidence deadline; one row's rect takes a tenth of that (issue #327).
+/// Sample it with `nativeHostedBrightSamples(in: CGRect(origin: .zero, size: rect.size),
+/// of: image, hostSize: rect.size)`.
+///
+/// - Parameters:
+///   - host: The same retained host, in its window.
+///   - rect: The region, in the host's top-left points (an accessibility frame).
+/// - Returns: The region's composited pixels.
+/// - Throws: An unavailable native bitmap or missing image.
+@MainActor
+func nativeHostedImage<Content: View>(_ host: NSHostingView<Content>, in rect: CGRect) throws -> CGImage {
+    host.layoutSubtreeIfNeeded()
+    host.displayIfNeeded()
+    let local = host.isFlipped ? rect : CGRect(
+        x: rect.minX, y: host.bounds.height - rect.maxY, width: rect.width, height: rect.height
+    )
+    return try nativeHostedCache(host, in: local)
+}
+
+/// Cache `local` (view coordinates) of a laid-out, displayed host at no less than 2x.
+@MainActor
+private func nativeHostedCache(_ host: NSView, in local: CGRect) throws -> CGImage {
+    var bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: local))
+    if CGFloat(bitmap.pixelsWide) < local.width * 2 {
         let colorSpace = bitmap.colorSpace
         let scaled = try #require(NSBitmapImageRep(
             bitmapDataPlanes: nil,
-            pixelsWide: Int((host.bounds.width * 2).rounded(.up)),
-            pixelsHigh: Int((host.bounds.height * 2).rounded(.up)),
+            pixelsWide: Int((local.width * 2).rounded(.up)),
+            pixelsHigh: Int((local.height * 2).rounded(.up)),
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
             colorSpaceName: bitmap.colorSpaceName, bytesPerRow: 0, bitsPerPixel: 0
         ))
         bitmap = scaled.retagging(with: colorSpace) ?? scaled
-        bitmap.size = host.bounds.size
+        bitmap.size = local.size
     }
-    host.cacheDisplay(in: host.bounds, to: bitmap)
+    host.cacheDisplay(in: local, to: bitmap)
     return try #require(bitmap.cgImage)
 }
 
@@ -406,6 +435,177 @@ struct NativeHostedPollBudget {
         try await Task.sleep(for: interval)
         spent += interval
         resumedAt = clock.now
+    }
+}
+
+/// Main-actor resume lag above which a host counts as starved for animation evidence
+/// (issue #327): SwiftUI then evaluates almost no animation frames, and an animated
+/// commit can render straight at its final value without calling its curve.
+let nativeHostedStarvedLag: Duration = .milliseconds(250)
+
+/// Wait, for at most `limit` of wall-clock time, until the shared main actor wakes
+/// promptly: `streak` consecutive 10 ms sleeps each resume within `lag` of their deadline
+/// (issue #327).
+///
+/// The whole UI bundle runs in parallel on one main actor. At its peak a 20 ms poll
+/// resumes about once a second, SwiftUI evaluates almost no animation frames, and an
+/// animated commit can render straight at its final value. A test whose evidence is an
+/// animation's rendered frames (not merely its end state) waits here first, about a third
+/// of a second on a responsive host. The deadline is short and wall-clock: a hosted
+/// runner can stay starved for minutes (an unbounded or 10-minute wait before each case
+/// hung `apple-ci` until its job timeout), so after `limit` the test proceeds and treats
+/// its animation evidence as inconclusive. Each probe sleeps; nothing holds the main
+/// actor while it polls.
+///
+/// - Parameters:
+///   - lag: How late a wake-up may be and still count as prompt.
+///   - streak: Prompt wake-ups in a row that make the host responsive.
+///   - limit: The longest wait, in wall-clock time, before proceeding regardless.
+/// - Returns: Whether the host became responsive before `limit`.
+/// - Throws: Cancellation.
+@MainActor
+@discardableResult
+func nativeHostedAwaitResponsiveMainActor(
+    lag: Duration = .milliseconds(25), streak: Int = 25, limit: Duration = .seconds(5)
+) async throws -> Bool {
+    let clock = ContinuousClock()
+    let end = clock.now + limit
+    let interval = Duration.milliseconds(10)
+    var prompt = 0
+    while prompt < streak {
+        guard clock.now < end else { return false }
+        let asleep = clock.now
+        try await Task.sleep(for: interval, tolerance: .milliseconds(1))
+        prompt = clock.now - asleep <= interval + lag ? prompt + 1 : 0
+    }
+    return true
+}
+
+// MARK: - Animation-evidence deadline
+
+/// The one short wall-clock deadline every phase of an animation-evidence journey shares
+/// (issue #327): the responsive wait, page loads, the arrival and the settling. Each poll
+/// sleeps through it and records how late it resumed.
+///
+/// A hosted runner can starve the shared main actor for the whole run, so no phase may
+/// wait longer than the journey's few seconds. Alone a journey takes about 4 s, so
+/// ``limit`` is unscaled in a VM. When it passes, ``check(_:)`` throws
+/// ``NativeHostedEvidenceExpired``; the caller's `defer` releases anything it holds and
+/// ``nativeHostedRecordExpired(_:sourceLocation:)`` judges it: a starved journey proves
+/// nothing (an intermittent known issue), a responsive one that ran out of time fails.
+struct NativeHostedEvidenceDeadline {
+    /// The longest one animation-evidence journey may take, in wall-clock time.
+    static let limit: Duration = .seconds(10)
+    /// The longest the responsive wait may take, inside ``limit``.
+    static let responsiveLimit: Duration = .seconds(5)
+
+    /// When the journey must end.
+    let end: ContinuousClock.Instant
+    /// Whether the shared main actor responded before the journey started.
+    private(set) var responsive = true
+    /// The longest a poll resumed past its requested interval.
+    private(set) var worstLag: Duration = .zero
+    /// Polls' late resumption, summed over the stalls (a poll over ``stallLag`` late).
+    /// Prompt polls are left out: a 20 ms poll on a responsive Mac resumes about 5 ms late,
+    /// which over a 10 s journey sums past a second.
+    private(set) var stalled: Duration = .zero
+    /// How late a poll resumes before it counts as a stall.
+    static let stallLag: Duration = .milliseconds(50)
+
+    /// Start the deadline now.
+    ///
+    /// - Parameter limit: The journey's wall-clock length (``limit``; tests of the helper
+    ///   pass less).
+    init(limit: Duration = Self.limit) {
+        end = ContinuousClock.now + limit
+    }
+
+    /// Whether the deadline has passed.
+    var isExpired: Bool { ContinuousClock.now >= end }
+
+    /// Why the host was too starved for its rendered frames to show an animation, or nil
+    /// while it stayed responsive: the responsive wait gave up, one poll resumed more than
+    /// `nativeHostedStarvedLag` late, or the stalls summed to over a second.
+    var starved: String? {
+        if !responsive { return "the main actor was still slow to resume after the bounded wait" }
+        if worstLag > nativeHostedStarvedLag { return "a poll resumed \(worstLag) late" }
+        if stalled > .seconds(1) { return "polls stalled for \(stalled) in all" }
+        return nil
+    }
+
+    /// Wait until the shared main actor responds (`nativeHostedAwaitResponsiveMainActor`),
+    /// for at most ``responsiveLimit`` of this deadline; record whether it did.
+    ///
+    /// - Throws: Cancellation.
+    @MainActor
+    mutating func awaitResponsiveMainActor() async throws {
+        let left = end - ContinuousClock.now
+        responsive = try await nativeHostedAwaitResponsiveMainActor(
+            limit: max(.zero, min(Self.responsiveLimit, left))
+        )
+    }
+
+    /// Throw ``NativeHostedEvidenceExpired`` once the deadline has passed.
+    ///
+    /// - Parameter waiting: What the journey was still waiting for (the failure message).
+    /// - Throws: ``NativeHostedEvidenceExpired``.
+    func check(_ waiting: @autoclosure () -> String) throws {
+        guard isExpired else { return }
+        throw NativeHostedEvidenceExpired(waiting: waiting(), starved: starved)
+    }
+
+    /// Sleep one poll interval and record how late it resumed.
+    ///
+    /// Main-actor isolated so the resume instant is taken back on the main actor.
+    ///
+    /// - Parameter interval: Requested poll interval.
+    /// - Throws: Cancellation.
+    @MainActor
+    mutating func sleep(for interval: Duration) async throws {
+        let asleep = ContinuousClock.now
+        try await Task.sleep(for: interval)
+        record(lateBy: ContinuousClock.now - asleep - interval)
+    }
+
+    /// Record one poll that resumed `lag` past its requested interval.
+    ///
+    /// - Parameter lag: How late the poll resumed (negative counts as on time).
+    mutating func record(lateBy lag: Duration) {
+        let lag = max(.zero, lag)
+        worstLag = max(worstLag, lag)
+        if lag > Self.stallLag { stalled += lag }
+    }
+}
+
+/// An animation-evidence journey that reached its ``NativeHostedEvidenceDeadline``.
+struct NativeHostedEvidenceExpired: Error, CustomStringConvertible {
+    /// What the journey was still waiting for.
+    let waiting: String
+    /// Why the host was starved, or nil when it stayed responsive.
+    let starved: String?
+
+    var description: String {
+        "\(waiting) when the \(NativeHostedEvidenceDeadline.limit) evidence deadline passed"
+            + (starved.map { " (starved host: \($0))" } ?? " on a responsive host")
+    }
+}
+
+/// Report an expired animation-evidence journey: on a starved host an intermittent known
+/// issue (it proves neither the animation nor its absence), on a responsive host a
+/// failure (the journey should end in about 4 s).
+///
+/// - Parameters:
+///   - expired: The expiry.
+///   - sourceLocation: Where the issue is reported.
+func nativeHostedRecordExpired(
+    _ expired: NativeHostedEvidenceExpired, sourceLocation: SourceLocation = #_sourceLocation
+) {
+    if expired.starved != nil {
+        withKnownIssue("A starved host's journey proves nothing", isIntermittent: true) {
+            Issue.record("\(expired)", sourceLocation: sourceLocation)
+        }
+    } else {
+        Issue.record("\(expired)", sourceLocation: sourceLocation)
     }
 }
 

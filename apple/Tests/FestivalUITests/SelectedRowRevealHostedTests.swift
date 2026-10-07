@@ -13,11 +13,21 @@ import FestivalDesign
 // as the old settle timer stopped fading rows), sample the row by its accessibility
 // frame and capture it as soon as it is on screen.
 //
-// Captures do show in-flight SwiftUI animations, but the rushed fade (400 ms) mostly
-// overlaps the scroll (350 ms), so a loaded host could miss it. Each journey therefore
-// stretches the item fades' curve (`festivalFadeInItemCurve`) to a slow linear one; the
-// page scope's timing, the reveal's wait, the scroll and the reload gate's block fade
-// keep their real values.
+// The fade is sampled by explicit progress, not by when a capture lands (issue #327):
+// each journey replaces the item fades' curve (`festivalFadeInItemCurve`) with a
+// ``HeldFadeCurve`` that holds every item fade at its start until the test releases it.
+// A row that commits with its fade is therefore still undrawn whenever it is first
+// captured, however long the `apple-ci` VM stalls; a row that arrives opaque is drawn.
+// The page scope runs on a frozen clock (`festivalFadeInFrozenTime`), so a stall cannot close
+// its rush window before the scroll reaches the row; the reveal's wait, the scroll and
+// the reload gate's block fade keep their real timing. `FadeInOnLoadTests` checks the
+// scope's ordering (rows past the first screen held for the scroll, rushed with it)
+// through the model. Every phase of a journey shares one short wall-clock deadline
+// (`NativeHostedEvidenceDeadline`, 10 s; alone a journey takes about 4 s): it starts once
+// the shared main actor responds, waiting 5 s of it at most, and captures only the row's
+// rect. At the parallel bundle's peak SwiftUI evaluates almost no animation frames and can
+// render an animated commit at its end, so a starved journey's fade evidence is a known
+// issue rather than a verdict (and never a hang); a responsive one is judged strictly.
 
 // MARK: - Fixture transport
 
@@ -169,96 +179,172 @@ struct RevealSample {
     let bright: Int
 }
 
-/// What ``watchReveal(_:size:row:band:threshold:rest:timeout:)`` saw.
+/// What ``watchReveal(_:row:band:threshold:drawn:fade:deadline:)`` saw.
 struct RevealWatch {
-    /// The first capture with the row wholly in the clear band.
+    /// The first capture with the row wholly in the clear band, taken while every item
+    /// fade was still held at its start.
     let first: RevealSample
-    /// The settled capture.
+    /// The settled capture, after the held fades were released and had ended.
     let settled: RevealSample
-    /// How long the main actor went unpolled just before `first`: a long gap means the
-    /// row may have finished fading unobserved (the `apple-ci` VM stalls for seconds).
-    let gapBeforeFirst: Duration
+    /// Opacity frames SwiftUI animated the page's item fades with, held or released, by the
+    /// settled capture (0 when no item fade ran, as under Reduce Motion). A loaded host
+    /// may tick none while the fades are held, but a fade on the curve ends only on a
+    /// released frame.
+    let frames: Int
+    /// Why the host was too starved for its rendered frames to show a fade, or nil when
+    /// it stayed responsive (see `nativeHostedStarvedLag`).
+    var starved: String?
 }
 
-/// The test-only slow item fade (see the file comment).
-private let slowedItemFade = Animation.linear(duration: 3)
+// MARK: - Held fade curve
 
-/// Watch `row` until it rests in the clear band, recording the first capture with the row
-/// wholly inside the band and the settled one: at least `rest` later, once two captures
-/// in a row (150 ms apart) agree on its frame and, within 2%, its text.
+/// An item-fade curve whose progress the test sets explicitly (issue #327): every fade's
+/// opacity on it stays at its start (hidden; see ``heldProgress``) until
+/// ``HeldFadeCurve/release(_:)``, then ends on the next frame; everything else the same
+/// transaction animates (the rise, layout) ends at once. A capture therefore tells a row
+/// that committed with its fade (undrawn, whenever the capture lands) from one that
+/// arrived opaque (drawn), with no wall-clock sampling: the `apple-ci` VM stalls the
+/// shared main actor for seconds, long enough for a timed fade to finish between two
+/// captures.
+struct HeldFadeCurve: CustomAnimation {
+    /// Identifies this curve's state (one key per journey).
+    let key: String
+
+    private struct State {
+        var released = false
+        /// Opacity frames requested, held or released.
+        var frames = 0
+    }
+
+    /// The most progress a held fade makes (0.01%: invisible). It creeps toward it rather
+    /// than staying exactly at the start: a curve that keeps returning its start value
+    /// makes SwiftUI re-evaluate it about 20 times as often as a running fade, which
+    /// starved every hosted test running alongside.
+    static let heldProgress = 1e-4
+
+    nonisolated(unsafe) private static var states: [String: State] = [:]
+    private static let lock = NSLock()
+
+    /// Let every fade on `key` end at its next frame.
+    static func release(_ key: String) {
+        lock.withLock { states[key, default: State()].released = true }
+    }
+
+    /// Opacity frames SwiftUI has animated `key` with.
+    static func frames(_ key: String) -> Int {
+        lock.withLock { states[key]?.frames ?? 0 }
+    }
+
+    func animate<V: VectorArithmetic>(value: V, time: TimeInterval, context: inout AnimationContext<V>) -> V? {
+        // Only opacity is held: it is the evidence. The same transaction also animates the
+        // rise and any layout the reveal causes; those end at once, so the row's frame is
+        // final when the test checks that it lies in the band.
+        guard V.self == Double.self else { return nil }
+        let released = Self.lock.withLock {
+            Self.states[key, default: State()].frames += 1
+            return Self.states[key, default: State()].released
+        }
+        // Held: within `heldProgress` of the start. Released: done, at the final value.
+        return released ? nil : value.scaled(by: Self.heldProgress * (1 - exp(-time)))
+    }
+}
+
+/// Watch `row` until it lies wholly in the clear band and capture it while the item fades
+/// are held (`first`), then release them and capture it again once it has settled: its
+/// text is drawn (over `drawn` samples) and two captures in a row (150 ms apart) agree on
+/// its frame and, within 2%, its text. The released fade ends on the row's next animation
+/// frame, which a loaded host may tick only after other rows' frames, so the wait is for
+/// the drawn row rather than for any fade on the curve to end. Each capture renders only
+/// the row's rect (`nativeHostedImage(_:in:)`). Every wait is a condition bounded by the
+/// journey's shared wall-clock `deadline`, which throws ``NativeHostedEvidenceExpired``
+/// when it passes. Nothing depends on when a capture lands.
 ///
 /// - Parameters:
 ///   - host: The board's host, in its window.
-///   - size: The host's size.
 ///   - row: The row's accessibility identifier.
 ///   - band: The clear vertical band (below the bar, above the pinned chrome's fade).
 ///   - threshold: Bright-sample threshold for row text.
-///   - rest: Least time from the first in-band capture to the settled one.
-///   - timeout: Upper bound, in the wait's own time (`NativeHostedPollBudget`), for the row
-///     to arrive and settle (scaled in a VM).
-/// - Returns: The first in-band and the settled captures, and the poll gap before the first.
+///   - drawn: Bright samples the settled row's text exceeds.
+///   - fade: The page's ``HeldFadeCurve`` key.
+///   - deadline: The journey's shared deadline; its polls record their lag on it.
+/// - Returns: The held and settled captures and the frames animated on the curve.
+/// - Throws: ``NativeHostedEvidenceExpired`` when the deadline passes first.
 @MainActor
 private func watchReveal<Content: View>(
-    _ host: NSHostingView<Content>, size: CGSize, row: String, band: ClosedRange<CGFloat>,
-    threshold: Int, rest: Duration, timeout: Duration = .seconds(60)
+    _ host: NSHostingView<Content>, row: String, band: ClosedRange<CGFloat>,
+    threshold: Int, drawn: Int = 100, fade: String, deadline: inout NativeHostedEvidenceDeadline
 ) async throws -> RevealWatch {
-    let clock = ContinuousClock()
-    var budget = NativeHostedPollBudget(timeout)
-    var first: (sample: RevealSample, at: ContinuousClock.Instant, gap: Duration)?
-    var previous: RevealSample?
-    var lastPoll = clock.now
-    var lastFrame: CGRect?
-    while !budget.isExhausted {
-        let gap = clock.now - lastPoll
-        lastPoll = clock.now
+    /// The row's capture when it lies wholly in the band, else nil.
+    func capture() throws -> RevealSample? {
         host.layoutSubtreeIfNeeded()
-        let frame = nativeHostedAccessibilityFrame(row, in: host)
-        lastFrame = frame ?? lastFrame
-        if let frame, frame.minY >= band.lowerBound, frame.maxY <= band.upperBound {
-            let image = try nativeHostedImage(host)
-            let sample = RevealSample(
-                frame: frame,
-                bright: nativeHostedBrightSamples(in: frame, of: image, hostSize: size, threshold: threshold)
+        guard let frame = nativeHostedAccessibilityFrame(row, in: host),
+              frame.minY >= band.lowerBound, frame.maxY <= band.upperBound else { return nil }
+        return RevealSample(
+            frame: frame,
+            bright: nativeHostedBrightSamples(
+                in: CGRect(origin: .zero, size: frame.size), of: try nativeHostedImage(host, in: frame),
+                hostSize: frame.size, threshold: threshold
             )
-            guard let first else {
-                first = (sample, clock.now, gap)
-                continue
-            }
-            if clock.now - first.at >= rest {
-                if let previous, abs(previous.bright - sample.bright) <= max(2, sample.bright / 50),
-                   abs(previous.frame.minY - sample.frame.minY) < 0.5 {
-                    return RevealWatch(first: first.sample, settled: sample, gapBeforeFirst: first.gap)
-                }
-                previous = sample
-                try await budget.sleep(for: .milliseconds(150))
-                continue
-            }
-        } else {
-            previous = nil
-        }
-        try await budget.sleep(for: .milliseconds(first == nil ? 20 : 100))
+        )
     }
-    Issue.record("\(row) never rested in the clear band \(band) (last frame \(String(describing: lastFrame)))")
-    throw CancellationError()
+
+    // Each loop looks once more before it gives up: a starved poll can resume past the
+    // deadline with the row already in place.
+    var first = try capture()
+    while first == nil {
+        try deadline.check(
+            "\(row) had not lain wholly in the clear band \(band) (frame \(String(describing: nativeHostedAccessibilityFrame(row, in: host))))"
+        )
+        try await deadline.sleep(for: .milliseconds(20))
+        first = try capture()
+    }
+    guard let first else { throw CancellationError() }
+
+    HeldFadeCurve.release(fade)
+    var previous: RevealSample?
+    while true {
+        let sample = try capture().flatMap { $0.bright > drawn ? $0 : nil }
+        if let sample, let previous, abs(previous.bright - sample.bright) <= max(2, sample.bright / 50),
+           abs(previous.frame.minY - sample.frame.minY) < 0.5 {
+            return RevealWatch(first: first, settled: sample, frames: HeldFadeCurve.frames(fade))
+        }
+        previous = sample
+        try deadline.check(
+            "\(row) had not settled drawn in the clear band \(band) after its fade (last \(String(describing: previous)))"
+        )
+        try await deadline.sleep(for: .milliseconds(150))
+    }
 }
 
 /// Open `board` for its selected row (Full Rankings: jump from its pinned footer while
-/// page 1 still fades) and watch the row arrive.
+/// page 1 still fades) and watch the row arrive, within one shared deadline.
 ///
 /// - Parameters:
 ///   - board: The board to open.
 ///   - motion: The motion setting to render with.
 ///   - size: The host's size.
-/// - Returns: What the watch saw.
+/// - Returns: What the watch saw, with the deadline's starvation verdict.
+/// - Throws: ``NativeHostedEvidenceExpired`` when the deadline passes first.
 @MainActor
 private func runRevealJourney(board: RevealBoard, motion: RevealMotion, size: CGSize) async throws -> RevealWatch {
     let reduceMotion = motion == .reduceMotion
+    let fade = "reveal-\(board.rawValue)-\(motion.rawValue)-\(UUID().uuidString)"
+    // Released on every exit, an expired deadline or a thrown capture included: a held
+    // curve keeps SwiftUI requesting frames for every row on it.
+    defer { HeldFadeCurve.release(fade) }
+    var deadline = NativeHostedEvidenceDeadline()
+    // Rendered fade frames are the evidence: start once the shared main actor responds.
+    try await deadline.awaitResponsiveMainActor()
+    let frozen = ProcessInfo.processInfo.systemUptime
     let host = nativeHostedView(
         try await board.screen()
             // Fades on (the hosted root turns them off for still captures).
             .environment(\.festivalFadeInEnabled, true)
             .environment(\._accessibilityReduceMotion, reduceMotion)
-            .environment(\.festivalFadeInItemCurve, slowedItemFade)
+            .environment(\.festivalFadeInItemCurve, Animation(HeldFadeCurve(key: fade)))
+            // Frozen scope clock: a stall between the scroll's start and its first
+            // movement can't close the rush window the reached rows fade in with.
+            .environment(\.festivalFadeInFrozenTime, frozen)
             .frame(width: size.width, height: size.height)
             .preferredColorScheme(.dark),
         size: size
@@ -268,12 +354,15 @@ private func runRevealJourney(board: RevealBoard, motion: RevealMotion, size: CG
 
     if board == .fullRankings {
         // Jump from the pinned footer as soon as it offers it, while page 1 still fades.
-        var budget = NativeHostedPollBudget(.seconds(30))
-        var jump: NSObject?
-        while jump == nil, !budget.isExhausted {
+        func findJump() -> NSObject? {
             host.layoutSubtreeIfNeeded()
-            jump = nativeHostedAccessibilityElement("fst.full-rankings.spotlight-jump", in: host)
-            if jump == nil { try await budget.sleep(for: .milliseconds(30)) }
+            return nativeHostedAccessibilityElement("fst.full-rankings.spotlight-jump", in: host)
+        }
+        var jump = findJump()
+        while jump == nil {
+            try deadline.check("the footer had not offered its jump to the player's page")
+            try await deadline.sleep(for: .milliseconds(30))
+            jump = findJump()
         }
         let press: AnyObject = try #require(jump, "the footer offers a jump to the player's page")
         #expect(press.accessibilityPerformPress?() == true)
@@ -281,14 +370,16 @@ private func runRevealJourney(board: RevealBoard, motion: RevealMotion, size: CG
 
     // Below the bar and above the pinned footer/pager and their 40 pt fade.
     let band: ClosedRange<CGFloat> = 90...(size.height - 230)
-    let watch = try await watchReveal(
-        host, size: size, row: board.rowId, band: band, threshold: board.threshold,
-        rest: reduceMotion ? .seconds(1) : .seconds(3.5)
+    var watch = try await watchReveal(
+        host, row: board.rowId, band: band, threshold: board.threshold, fade: fade, deadline: &deadline
     )
-    _ = try nativeHostedPNG(
-        try nativeHostedImage(host), filename: "reveal-\(board.rawValue)-\(motion.rawValue).png",
-        environment: "FST_LEADERBOARDS_RENDER_OUT"
-    )
+    watch.starved = deadline.starved
+    if ProcessInfo.processInfo.environment["FST_LEADERBOARDS_RENDER_OUT"] != nil {
+        _ = try nativeHostedPNG(
+            try nativeHostedImage(host), filename: "reveal-\(board.rawValue)-\(motion.rawValue).png",
+            environment: "FST_LEADERBOARDS_RENDER_OUT"
+        )
+    }
     return watch
 }
 
@@ -299,33 +390,49 @@ private func runRevealJourney(board: RevealBoard, motion: RevealMotion, size: CG
 /// fades in with the rush rather than arriving already opaque. With Reduce Motion the
 /// row appears without a fade and the scroll is instant (load-transition R6).
 ///
-/// A first capture that followed a main-actor stall longer than a third of the slowed
-/// fade cannot show whether the row was still fading, so that journey runs again (up to
-/// three times); if every run stalls, only the settled row is judged.
+/// Every item fade is held at its start until the row has arrived (``HeldFadeCurve``), so
+/// the first capture shows whether the row committed with its fade (undrawn) or opaque
+/// (drawn) however late it lands (issue #327). The whole journey shares one 10 s
+/// wall-clock deadline (``NativeHostedEvidenceDeadline``). When the shared main actor was
+/// starved, SwiftUI may have committed even a faded row at its end without calling the
+/// curve, so the fade evidence (or an expired deadline) is recorded as an intermittent
+/// known issue rather than judged; on a responsive host both are judged strictly. Reduce
+/// Motion's evidence (no fade, drawn, instant) holds either way once the row arrives.
 @MainActor
 @Test(.serialized, arguments: RevealBoard.allCases, RevealMotion.allCases)
 func selectedRowRevealFadesTheRowItReaches(board: RevealBoard, motion: RevealMotion) async throws {
     let size = CGSize(width: 402, height: 700)
-    let reduceMotion = motion == .reduceMotion
-    var watch = try await runRevealJourney(board: board, motion: motion, size: size)
-    var attempts = 1
-    while !reduceMotion, watch.gapBeforeFirst > .seconds(1), attempts < 3 {
-        attempts += 1
+    let watch: RevealWatch
+    do {
         watch = try await runRevealJourney(board: board, motion: motion, size: size)
+    } catch let expired as NativeHostedEvidenceExpired {
+        nativeHostedRecordExpired(expired)
+        return
     }
     let (first, settled) = (watch.first, watch.settled)
     #expect(settled.bright > 100, "the settled row's text is drawn (\(settled.bright))")
-    if reduceMotion {
+    if motion == .reduceMotion {
+        #expect(watch.frames == 0, "with Reduce Motion no item fades (\(watch.frames) frames)")
         #expect(
             Double(first.bright) >= Double(settled.bright) * 0.9,
             "with Reduce Motion the row arrives fully drawn (\(first.bright) of \(settled.bright))"
         )
         #expect(abs(first.frame.minY - settled.frame.minY) < 2, "with Reduce Motion the scroll is instant")
-    } else if watch.gapBeforeFirst <= .seconds(1) {
-        #expect(
-            Double(first.bright) < Double(settled.bright) * 0.5,
-            "the row the scroll reaches is still fading in (\(first.bright) of \(settled.bright))"
-        )
+    } else {
+        func expectFade() {
+            #expect(watch.frames > 0, "the page's item fades run on the held curve")
+            #expect(
+                Double(first.bright) < Double(settled.bright) * 0.5,
+                "the row the scroll reaches is still fading in (\(first.bright) of \(settled.bright))"
+            )
+        }
+        if let starved = watch.starved {
+            withKnownIssue("Starved host (\(starved)): its rendered frames can't show a fade", isIntermittent: true) {
+                expectFade()
+            }
+        } else {
+            expectFade()
+        }
     }
 }
 
@@ -391,9 +498,12 @@ private struct StaggeredListProbe: View {
 /// row commit without animation (macOS, found under #323). Each row's curve records the
 /// frames SwiftUI animates it with, so the check does not depend on a capture landing
 /// mid-fade; captures of the first row still prove it ends fully drawn and, when two land
-/// close together, that it did not jump from hidden to drawn.
+/// close together, that it did not jump from hidden to drawn. The journey shares one
+/// wall-clock deadline (``NativeHostedEvidenceDeadline``, issue #327).
 @MainActor
 @Test func staggeredListRowsFadeInRatherThanPop() async throws {
+    var deadline = NativeHostedEvidenceDeadline()
+    try await deadline.awaitResponsiveMainActor()
     let size = CGSize(width: 400, height: 500)
     let probe = "staggered-list-\(UUID().uuidString)"
     let fade: TimeInterval = 2
@@ -412,46 +522,72 @@ private struct StaggeredListProbe: View {
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
     let clock = ContinuousClock()
-    var budget = NativeHostedPollBudget(.seconds(60))
-    var samples: [(dim: Int, bright: Int, at: ContinuousClock.Instant)] = []
+    // Each capture's poll interval (`from` before layout, `to` after sampling): the
+    // capture happened somewhere inside it, however long the main actor stalled there.
+    var samples: [(dim: Int, bright: Int, from: ContinuousClock.Instant, to: ContinuousClock.Instant)] = []
     var drawnAt: ContinuousClock.Instant?
     let rows = 0..<6
     func frames() -> [[TimeInterval]] { rows.map { RecordingFadeCurve.frames("\(probe).\($0)") } }
-    while !budget.isExhausted {
-        host.layoutSubtreeIfNeeded()
-        if let frame = nativeHostedAccessibilityFrame("fst.test.staggered-row.0", in: host) {
-            let image = try nativeHostedImage(host)
-            samples.append((
-                nativeHostedBrightSamples(in: frame, of: image, hostSize: size, threshold: 60),
-                nativeHostedBrightSamples(in: frame, of: image, hostSize: size, threshold: 200),
-                clock.now
-            ))
+    do {
+        while true {
+            let from = clock.now
+            host.layoutSubtreeIfNeeded()
+            if let frame = nativeHostedAccessibilityFrame("fst.test.staggered-row.0", in: host) {
+                // Only the row's rect: cheap, so two captures land close together.
+                let image = try nativeHostedImage(host, in: frame)
+                let rect = CGRect(origin: .zero, size: frame.size)
+                samples.append((
+                    nativeHostedBrightSamples(in: rect, of: image, hostSize: frame.size, threshold: 60),
+                    nativeHostedBrightSamples(in: rect, of: image, hostSize: frame.size, threshold: 200),
+                    from, clock.now
+                ))
+            }
+            if let last = samples.last, last.bright > 100 {
+                drawnAt = drawnAt ?? clock.now
+                // Every row's fade has ended, or the first row has stayed drawn for a whole
+                // fade (a popped row never records a frame).
+                let finished = frames().allSatisfy { $0.contains { $0 >= fade } }
+                if finished || clock.now - (drawnAt ?? clock.now) > .seconds(fade + 1) { break }
+            } else {
+                drawnAt = nil
+            }
+            try deadline.check(
+                "the first row had not stayed drawn for a whole fade (samples \(samples.map { "\($0.dim)/\($0.bright)" }))"
+            )
+            try await deadline.sleep(for: .milliseconds(30))
         }
-        if let last = samples.last, last.bright > 100 {
-            drawnAt = drawnAt ?? clock.now
-            // Every row's fade has ended, or the first row has stayed drawn for a whole
-            // fade (a popped row never records a frame).
-            let finished = frames().allSatisfy { $0.contains { $0 >= fade } }
-            if finished || clock.now - (drawnAt ?? clock.now) > .seconds(fade + 1) { break }
-        } else {
-            drawnAt = nil
+    } catch let expired as NativeHostedEvidenceExpired {
+        nativeHostedRecordExpired(expired)
+        return
+    }
+    let starved = deadline.starved
+    func expectFade() throws {
+        let final = try #require(samples.last, "the first row is revealed")
+        #expect(final.bright > 100, "the first row ends fully drawn (\(final.bright))")
+        // The pop committed every row that waited on the scope unanimated. Under a saturated
+        // main actor a `List` can rebuild a row after the page window closed, and that row
+        // rightly shows without a fade (load-transition R5), so not every row must animate.
+        let recorded = frames()
+        #expect(
+            recorded.contains { !$0.isEmpty },
+            "the staggered rows commit with their fade rather than popping in (frames per row: \(recorded.map(\.count)))"
+        )
+        // Two captures at most 400 ms apart cannot span a 2 s fade from hidden to fully drawn.
+        // Bounded by the earlier poll's start and the later one's end, so a stall inside a
+        // poll widens the bound rather than hiding a fade's progress (issue #327).
+        let popped = zip(samples, samples.dropFirst()).contains { before, after in
+            after.to - before.from < .milliseconds(400) && before.dim < final.dim / 10 && after.bright >= final.bright * 9 / 10
         }
-        try await budget.sleep(for: .milliseconds(30))
+        #expect(!popped, "the first row jumps from hidden to drawn (\(samples.map { "\($0.dim)/\($0.bright)" }))")
     }
-    let final = try #require(samples.last, "the first row is revealed")
-    #expect(final.bright > 100, "the first row ends fully drawn (\(final.bright))")
-    // The pop committed every row that waited on the scope unanimated. Under a saturated
-    // main actor a `List` can rebuild a row after the page window closed, and that row
-    // rightly shows without a fade (load-transition R5), so not every row must animate.
-    let recorded = frames()
-    #expect(
-        recorded.contains { !$0.isEmpty },
-        "the staggered rows commit with their fade rather than popping in (frames per row: \(recorded.map(\.count)))"
-    )
-    // Two captures 400 ms apart cannot span a 2 s fade from hidden to fully drawn.
-    let popped = zip(samples, samples.dropFirst()).contains { before, after in
-        after.at - before.at < .milliseconds(400) && before.dim < final.dim / 10 && after.bright >= final.bright * 9 / 10
+    // A starved host can commit an animated row at its end without calling its curve, so
+    // its frames prove nothing either way.
+    if let starved {
+        try withKnownIssue("Starved host (\(starved)): its rendered frames can't show a fade", isIntermittent: true) {
+            try expectFade()
+        }
+    } else {
+        try expectFade()
     }
-    #expect(!popped, "the first row jumps from hidden to drawn (\(samples.map { "\($0.dim)/\($0.bright)" }))")
 }
 #endif
