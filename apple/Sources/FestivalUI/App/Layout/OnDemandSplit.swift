@@ -336,6 +336,11 @@ struct OnDemandSplitStack<Root: View>: View {
     @State private var focusToken = 0
     /// The item most recently open in the trailing pane (the row to refocus on close).
     @State private var lastSelection: AppRoute?
+    /// Whether the stacks are split-shaped; trails the window by a run-loop turn when a
+    /// fold, rotation or resize changes what it allows (``OnDemandSplitPolicy/defersWindowChange(from:to:)``).
+    @State private var appliedSplit: Bool?
+    /// The last panes the window allowed, kept while a collapse is pending.
+    @State private var heldGeometry: OnDemandSplitPolicy.Geometry?
 
     /// Create a section stack.
     ///
@@ -360,10 +365,20 @@ struct OnDemandSplitStack<Root: View>: View {
 
     private var cut: OnDemandSplitPolicy.Cut? { OnDemandSplitPolicy.cut(section: section, path: path) }
 
-    /// The panes the window allows for the list page on top, or nil.
+    /// The panes the window allows now, whatever page is on top, or nil.
+    private var windowGeometry: OnDemandSplitPolicy.Geometry? {
+        OnDemandSplitPolicy.geometry(OnDemandSplitPolicy.context(layout: layout, container: container))
+    }
+
+    /// What the window allows now, for deferring shape changes.
+    private var windowState: OnDemandSplitPolicy.WindowState {
+        OnDemandSplitPolicy.WindowState(measured: container.width > 0, allowsSplit: windowGeometry != nil)
+    }
+
+    /// The panes for the list page on top, or nil, as the stacks have applied them.
     private var geometry: OnDemandSplitPolicy.Geometry? {
         guard cut != nil else { return nil }
-        return OnDemandSplitPolicy.geometry(OnDemandSplitPolicy.context(layout: layout, container: container))
+        return OnDemandSplitPolicy.appliedGeometry(live: windowGeometry, held: heldGeometry, applied: appliedSplit)
     }
 
     var body: some View {
@@ -387,6 +402,22 @@ struct OnDemandSplitStack<Root: View>: View {
         }
         .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { frame in
             if frame != container { container = frame }
+        }
+        .onChange(of: windowGeometry, initial: true) { _, live in
+            if let live { heldGeometry = live }
+        }
+        .onChange(of: windowState, initial: true) { old, new in
+            guard appliedSplit != nil, OnDemandSplitPolicy.defersWindowChange(from: old, to: new) else {
+                appliedSplit = new.allowsSplit
+                return
+            }
+            // Fold, rotation or resize: let the window's own update (size class, display,
+            // tab bar) finish first, then push or split without animation (#346).
+            DispatchQueue.main.async {
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { appliedSplit = new.allowsSplit }
+            }
         }
         .onChange(of: open, initial: true) { wasOpen, open in
             if isVisible { openReporter?(section, isOpen: open) }

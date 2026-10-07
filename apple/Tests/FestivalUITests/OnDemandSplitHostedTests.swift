@@ -152,6 +152,75 @@ private let duoInnerPortrait = DeviceLayout.resolve(LayoutSignals(
     try await nativeHostedSettle(boards, untilText: ["Fixture List Root", "Rows Select"], timeout: splitBudget)
 }
 
+// MARK: - Fold and unfold
+
+/// The Duo pose a hosted split sees: the inner display (landscape) or the outer one.
+@MainActor @Observable
+private final class FoldPose {
+    var folded = false
+}
+
+/// Hosts a split whose window layout and size follow ``FoldPose``, as folding moves the
+/// app between the Duo's displays.
+private struct FoldingSplitHost: View {
+    let session: FestivalSession
+    let pose: FoldPose
+    @State var path: [AppRoute]
+    let recorder: PathRecorder
+
+    var body: some View {
+        let size = pose.folded ? CGSize(width: 466, height: 678) : CGSize(width: 951, height: 669)
+        OnDemandSplitStack(
+            section: .rivals, session: session, visibleInstruments: Set(Instrument.allCases),
+            path: $path, isVisible: true
+        ) { rootIsTop in
+            List {
+                Text("Fixture List Root")
+                Text(rootIsTop ? "Root On Top" : "Root Covered")
+                SelectModeProbe()
+            }
+        }
+        .environment(\.deviceLayout, pose.folded ? duoOuter : duoInner)
+        .frame(width: size.width, height: size.height)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onChange(of: path, initial: true) { _, new in recorder.path = new }
+    }
+}
+
+/// Folding with an item open in the split pushes it in one column, never a blank pane;
+/// unfolding splits again; repeated fold/unfold keeps working and keeps the path (#346).
+@MainActor
+@Test func foldingAnOpenSplitPushesTheItemAndUnfoldingSplitsAgain() async throws {
+    let size = CGSize(width: 951, height: 678)
+    let pose = FoldPose()
+    let recorder = PathRecorder()
+    let host = nativeHostedView(
+        FoldingSplitHost(session: offlineSession(), pose: pose, path: [fixtureRival], recorder: recorder)
+            .frame(width: size.width, height: size.height)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    try await nativeHostedSettle(
+        host, untilText: ["Fixture List Root", "Root On Top", "No Player Selected", "Rows Select"], timeout: splitBudget
+    )
+    for _ in 0..<2 {
+        pose.folded = true
+        // One column: the open item is pushed over the list (no trailing pane).
+        try await nativeHostedSettle(
+            host, untilText: ["No Player Selected"], excluding: ["Fixture List Root", "Rows Select"], timeout: splitBudget
+        )
+        #expect(recorder.path == [fixtureRival], "Folding keeps the open item")
+        pose.folded = false
+        try await nativeHostedSettle(
+            host, untilText: ["Fixture List Root", "Root On Top", "No Player Selected", "Rows Select"],
+            timeout: splitBudget
+        )
+        #expect(recorder.path == [fixtureRival], "Unfolding keeps the open item")
+    }
+}
+
 // MARK: - Selected row
 
 /// A row whose route is the current selection gets the selected treatment; others do not.
