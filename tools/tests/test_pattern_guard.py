@@ -100,6 +100,26 @@ class RepositoryRegistryTests(unittest.TestCase):
         report = pg.check(pg.ROOT, pg.web_root())
         self.assertEqual(report.errors, [])
 
+    def test_page_hiding_scroll_indicators_fails(self):
+        """scroll-indicators R1/R3 (#356): a page that hides its indicators breaks the build."""
+        entry = next(p for p in pg.load()["patterns"] if p["id"] == "scroll-indicators")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            page = "apple/Sources/FestivalUI/Features/Songs/SongsPage.swift"
+            for text, flagged in (
+                ("ScrollView { }\n.scrollIndicators(.hidden)\n", True),
+                ("List { }.scrollIndicators( .never, axes: .vertical)\n", True),
+                ("ScrollView(.vertical, showsIndicators: false) { }\n", True),
+                ("ScrollView { }.scrollIndicators(.automatic)\n", False),
+                ("// .scrollIndicators(.hidden) is banned here\n", False),
+            ):
+                _write(root, page, text)
+                _write(root, "apple/Sources/FestivalUI/Common/HorizontalCarousel.swift",
+                       "ScrollView(.horizontal) { }.scrollIndicators(.hidden)\n")
+                report = pg.Report()
+                hits = pg.run_guards(entry, root, report)
+                self.assertEqual([h[1] for h in hits], [page] if flagged else [], text)
+
 
 if __name__ == "__main__":
     unittest.main()
