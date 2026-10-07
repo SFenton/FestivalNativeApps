@@ -113,6 +113,13 @@ data class GlobalSearchUiState(
     val showBandsSection: Boolean
         get() = showsResults && shows(SearchScope.Bands) && bandsPhase != SectionPhase.Idle && bandsPhase != SectionPhase.Empty
 
+    /**
+     * Whether each shown section has its Songs / Players / Bands title: only in All, like the web
+     * `SearchModal` `<h3>` per rendered category (issue #348). A single scope stays untitled because
+     * its chip already names it (issue #299).
+     */
+    val showsSectionTitles: Boolean get() = scope == SearchScope.All
+
     /** Centred short-query hint naming what the selected scope searches (issue #299), else null. */
     val hint: String?
         get() = if (isShortQuery) GlobalSearchResults.enterQueryHint(scope) else null

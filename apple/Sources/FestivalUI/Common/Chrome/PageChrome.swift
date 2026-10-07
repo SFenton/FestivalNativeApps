@@ -17,10 +17,22 @@ import UIKit
 /// bar, but under a shorter bar (iPad, iPhone landscape, iPhone Duo) it reached past
 /// that line and dimmed the section a jump had just shown. HIG Layout: "Respect [the
 /// safe area] so system UI and hardware do not cover controls/content."
+///
+/// The gradient spans the full width under horizontal safe areas too (``extendedEdges``):
+/// the iPhone Duo vertical bar is a leading or trailing inset, and a scrim that stopped
+/// there left the art under the bar brighter than the page beside it (issue #335). HIG
+/// Layout: "Extend full-screen backgrounds beneath sidebars, toolbars, and tab bars to
+/// window/screen edges."
 struct TopEdgeScrim: ViewModifier {
     /// The tallest the scrim gets: the status bar, a collapsed iPhone bar and a little
     /// of the content below.
     static let maxHeight: CGFloat = 150
+
+    /// Safe-area edges the gradient extends under: the top (status bar and navigation
+    /// bar) and both horizontal edges (the iPhone Duo vertical bar), like the backdrop
+    /// beneath it. A split pane already ignores the safe area facing its divider, so
+    /// the divider band's own gradient (`SplitDivider`) never doubles it.
+    static let extendedEdges: Edge.Set = [.top, .horizontal]
 
     /// The page's top safe-area inset (status bar plus navigation bar), once measured.
     @State private var topInset: CGFloat?
@@ -64,7 +76,7 @@ struct TopEdgeScrim: ViewModifier {
                 .frame(height: SplitPaneChrome.topScrimHeight(
                     pane: pane, own: Self.height(topInset: topInset), leading: sharedScrim?.height
                 ))
-                .ignoresSafeArea(edges: .top)
+                .ignoresSafeArea(edges: Self.extendedEdges)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
             }

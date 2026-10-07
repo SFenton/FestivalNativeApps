@@ -183,7 +183,8 @@
         306,
         308,
         319,
-        322
+        322,
+        335
       ]
     },
     {
@@ -343,6 +344,10 @@
         {
           "path": "pages/player/components/PlayerBandsSection.tsx",
           "symbol": "buildPlayerBandsItems"
+        },
+        {
+          "path": "components/search/SearchModal.tsx",
+          "symbol": "renderResults"
         }
       ],
       "canonical": {
@@ -455,11 +460,13 @@
         "patterns": [
           "scroll-edge",
           "section-jump-landing",
-          "quick-links"
+          "quick-links",
+          "empty-error-states"
         ],
         "controls": [
           "quick-links",
-          "songs-section-index"
+          "songs-section-index",
+          "global-search"
         ],
         "pages": [
           "songs"
@@ -1498,7 +1505,8 @@
             "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt",
             "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/BandListScreens.kt",
             "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/SongBandLeaderboardScreen.kt",
-            "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalsScreen.kt"
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalsScreen.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/compete/CompeteScreen.kt"
           ],
           "debt": [],
           "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."
@@ -1636,7 +1644,8 @@
       "related": {
         "patterns": [
           "load-transition",
-          "modal-shell"
+          "modal-shell",
+          "section-headers"
         ],
         "controls": [
           "global-search",

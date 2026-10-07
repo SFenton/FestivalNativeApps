@@ -55,7 +55,7 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * Stateless search content: one centred spinner, one full-height region for every state (6.21),
- * and no section titles or Retry buttons (issue #299).
+ * no Retry buttons (issue #299), and Songs / Players / Bands section titles only in All (issue #348).
  */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w411dp-h891dp-mdpi")
@@ -88,9 +88,29 @@ class GlobalSearchContentUiTest {
         }
     }
 
-    private fun assertNoRetryOrSectionTitle() {
+    private val sectionTitle = isHeading().and(hasText("Songs") or hasText("Players") or hasText("Bands"))
+
+    private fun assertNoRetry() {
         rule.onAllNodes(hasText("Retry", substring = true) and hasClickAction(), useUnmergedTree = true).assertCountEquals(0)
-        rule.onAllNodes(isHeading().and(hasText("Songs") or hasText("Players") or hasText("Bands"))).assertCountEquals(0)
+    }
+
+    private fun assertNoRetryOrSectionTitle() {
+        assertNoRetry()
+        rule.onAllNodes(sectionTitle).assertCountEquals(0)
+    }
+
+    /** Asserts exactly [scopes] are titled, in that order, each as a heading above its first row. */
+    private fun assertSectionTitles(vararg scopes: SearchScope) {
+        assertNoRetry()
+        rule.onAllNodes(sectionTitle).assertCountEquals(scopes.size)
+        var previousBottom = Float.NEGATIVE_INFINITY
+        scopes.forEach { scope ->
+            val title = rule.onNodeWithTag(GlobalSearchTags.section(scope)).performScrollTo()
+                .assert(isHeading()).assert(hasText(scope.title))
+                .fetchSemanticsNode().boundsInRoot
+            assertTrue("${scope.title} title follows the previous section", title.top >= previousBottom - 1f)
+            previousBottom = title.bottom
+        }
     }
 
     @Test
@@ -127,14 +147,41 @@ class GlobalSearchContentUiTest {
     }
 
     @Test
-    fun allResultsHaveNoSectionTitles() {
+    fun allResultsAreGroupedUnderSectionTitlesInWebOrder() {
+        // Issue #348: mixed results were indistinguishable; All titles each shown category like the web.
         show(GlobalSearchUiState(query = "The", settledQuery = "The", songs = listOf(song), songsPhase = SectionPhase.Loaded, players = listOf(player), playersPhase = SectionPhase.Loaded))
+        val songsTitle = rule.onNodeWithTag(GlobalSearchTags.section(SearchScope.Songs)).fetchSemanticsNode().boundsInRoot
         val songRow = rule.onNodeWithTag(GlobalSearchTags.RESULT_SONG).assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val playersTitle = rule.onNodeWithTag(GlobalSearchTags.section(SearchScope.Players)).fetchSemanticsNode().boundsInRoot
+        val playerRow = rule.onNodeWithTag(GlobalSearchTags.RESULT_PLAYER).assertIsDisplayed().fetchSemanticsNode().boundsInRoot
         val chips = rule.onNodeWithTag(GlobalSearchTags.SCOPES).fetchSemanticsNode().boundsInRoot
-        rule.onNodeWithTag(GlobalSearchTags.RESULT_PLAYER).assertIsDisplayed()
-        // The first row sits directly under the scope chips' 4 dp padding: no title row between them.
-        assertEquals(chips.bottom + 4f, songRow.top, 1f)
-        assertNoRetryOrSectionTitle()
+        assertTrue(songsTitle.top >= chips.bottom)
+        assertTrue(songsTitle.bottom <= songRow.top + 1f)
+        assertTrue(playersTitle.top >= songRow.bottom - 1f)
+        assertTrue(playersTitle.bottom <= playerRow.top + 1f)
+        // The shared section header (section-headers R1) aligns with the rows' 16 dp inset.
+        assertEquals(songRow.left + 16f, songsTitle.left, 1f)
+        assertSectionTitles(SearchScope.Songs, SearchScope.Players)
+    }
+
+    @Test
+    fun singleScopeResultsHaveNoSectionTitle() {
+        // Issue #299: the chip already names a single scope.
+        val loaded = GlobalSearchUiState(
+            query = "The", settledQuery = "The", songs = listOf(song), songsPhase = SectionPhase.Loaded,
+            players = listOf(player), playersPhase = SectionPhase.Loaded, bands = listOf(band), bandsPhase = SectionPhase.Loaded,
+        )
+        var ui by mutableStateOf(loaded.copy(scope = SearchScope.Songs))
+        rule.setContent {
+            FestivalTheme {
+                Box(Modifier.fillMaxWidth().height(600.dp)) { GlobalSearchContent(ui, { null }, {}, {}) }
+            }
+        }
+        SearchScope.chips.forEach { scope ->
+            ui = loaded.copy(scope = scope)
+            rule.waitForIdle()
+            assertNoRetryOrSectionTitle()
+        }
     }
 
     @Test
@@ -158,7 +205,9 @@ class GlobalSearchContentUiTest {
         show(GlobalSearchUiState(query = "The", settledQuery = "The", songs = listOf(song), songsPhase = SectionPhase.Loaded, playersPhase = SectionPhase.Empty))
         rule.onNodeWithTag(GlobalSearchTags.RESULT_SONG).assertIsDisplayed()
         rule.onNodeWithTag(GlobalSearchTags.EMPTY).assertDoesNotExist()
-        assertNoRetryOrSectionTitle()
+        // Web omits an empty category in All: no Players title and no per-category "no results" row.
+        assertSectionTitles(SearchScope.Songs)
+        rule.onNodeWithText(GlobalSearchResults.EMPTY_PLAYERS_TITLE).assertDoesNotExist()
     }
 
     @Test
@@ -187,7 +236,10 @@ class GlobalSearchContentUiTest {
         )
         rule.onNodeWithTag(GlobalSearchTags.PLAYERS_ERROR).assertIsDisplayed()
         rule.onNodeWithTag(GlobalSearchTags.RESULT_SONG).assertIsDisplayed()
-        assertNoRetryOrSectionTitle()
+        // Like the web, a failed category keeps its title in All, with the failure under it.
+        assertSectionTitles(SearchScope.Songs, SearchScope.Players)
+        val playersTitle = rule.onNodeWithTag(GlobalSearchTags.section(SearchScope.Players)).fetchSemanticsNode().boundsInRoot
+        assertTrue(playersTitle.bottom <= rule.onNodeWithTag(GlobalSearchTags.PLAYERS_ERROR).fetchSemanticsNode().boundsInRoot.top + 1f)
     }
 
     @Test
@@ -244,7 +296,7 @@ class GlobalSearchContentUiTest {
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("The Lead + The Bass, Duos, 3 appearances")))
             .fetchSemanticsNode().boundsInRoot
         assertTrue(bandCard.top >= playerRow.bottom - 1f)
-        assertNoRetryOrSectionTitle()
+        assertSectionTitles(SearchScope.Songs, SearchScope.Players, SearchScope.Bands)
     }
 
     @Test
