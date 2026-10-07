@@ -69,7 +69,8 @@ import com.festivalscoretracker.android.ui.common.FestivalModalSheet
  * Profile discovery (web `SearchModal` profile targets): the selected player's
  * summary, a Players/Bands target and a Material 3 search field. A result **views**
  * the player (dismiss, then push `/player/:id` on the current tab); selecting
- * happens on the player page. Band search is never requested (its GET can write).
+ * happens on the player page. Bands can't be selected as the profile yet, so the Bands target
+ * points to global search (which finds and opens bands) and requests nothing.
  *
  * @param player Selected player.
  * @param searchViewModel Search logic.
@@ -197,8 +198,8 @@ private fun SearchSection(viewModel: ProfileSearchViewModel, onOpen: (PlayerSear
             ProfileSearchState.BandsUnavailable -> Row(Modifier.testTag("fst.profile.bands-unavailable"), verticalAlignment = Alignment.Top) {
                 Icon(Icons.Outlined.Groups, contentDescription = null, tint = BrandTokens.textPrimary)
                 Text(
-                    "Band search isn't available: the service's band search can change stored data, so this app doesn't call it. " +
-                        "Open a band from a player's Bands list or from Band Rankings.",
+                    "Choosing a band as your profile isn't available in the app yet. " +
+                        "To find a band, use Search; you can also open one from a player's Bands list or Band Rankings.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = BrandTokens.textPrimary,
                     modifier = Modifier.padding(start = 12.dp),

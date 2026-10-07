@@ -133,8 +133,8 @@ internal val navigationPlayer = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Pl
 
 /**
  * App Navigation control states on a compact phone (issue #132): `songs`, `leaderboards`,
- * `settings`, `player` and `reselect`. `band` cannot be selected at runtime (band search is
- * blocked by the service-safety allowlist); its tab set is covered by `NavigationPolicyTest`.
+ * `settings`, `player` and `reselect`. `band` cannot be selected at runtime (Android has no
+ * band-profile selection yet); its tab set is covered by `NavigationPolicyTest`.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w411dp-h891dp-xxhdpi")

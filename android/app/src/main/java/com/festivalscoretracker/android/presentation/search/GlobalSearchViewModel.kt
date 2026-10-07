@@ -3,8 +3,10 @@ package com.festivalscoretracker.android.presentation.search
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.festivalscoretracker.android.core.bands.PlayerBandEntry
 import com.festivalscoretracker.android.core.model.PlayerSearchResult
 import com.festivalscoretracker.android.core.model.Song
+import com.festivalscoretracker.android.core.search.GlobalBandResult
 import com.festivalscoretracker.android.core.search.GlobalPlayerResult
 import com.festivalscoretracker.android.core.search.GlobalSearchResults
 import com.festivalscoretracker.android.core.search.GlobalSongResult
@@ -13,6 +15,7 @@ import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -62,6 +65,10 @@ data class SearchEmptyState(val title: String, val subtitle: String)
  * @property playersPhase Players lifecycle.
  * @property playersIssue Players failure, when [playersPhase] is [SectionPhase.Failed].
  * @property playersCountdown Seconds until an automatic players retry (scrape freeze).
+ * @property bands Band matches (≤10).
+ * @property bandsPhase Bands lifecycle.
+ * @property bandsIssue Bands failure, when [bandsPhase] is [SectionPhase.Failed].
+ * @property bandsCountdown Seconds until an automatic bands retry (scrape freeze).
  * @property announcement Polite count announcement for the settled query, or null while unsettled.
  */
 data class GlobalSearchUiState(
@@ -76,29 +83,35 @@ data class GlobalSearchUiState(
     val playersPhase: SectionPhase = SectionPhase.Idle,
     val playersIssue: ServiceIssue? = null,
     val playersCountdown: Int? = null,
+    val bands: List<GlobalBandResult> = emptyList(),
+    val bandsPhase: SectionPhase = SectionPhase.Idle,
+    val bandsIssue: ServiceIssue? = null,
+    val bandsCountdown: Int? = null,
     val announcement: String? = null,
 ) {
     /** Whether the query is too short to search. */
     val isShortQuery: Boolean get() = !GlobalSearchResults.isSearchable(query)
 
-    /** Whether the Bands scope (explanation, no request) is chosen. */
-    val isBandsScope: Boolean get() = scope == SearchScope.Bands
+    private val allEmpty: Boolean
+        get() = songsPhase == SectionPhase.Empty && playersPhase == SectionPhase.Empty && bandsPhase == SectionPhase.Empty
 
-    private val allEmpty: Boolean get() = songsPhase == SectionPhase.Empty && playersPhase == SectionPhase.Empty
+    private val showsResults: Boolean get() = !isShortQuery && settledQuery.isNotEmpty()
 
-    private val showsResults: Boolean get() = !isShortQuery && !isBandsScope && settledQuery.isNotEmpty()
+    private fun shows(section: SearchScope): Boolean = scope == SearchScope.All || scope == section
 
     /** Whether the Songs section is shown (rows or its failure line). */
     val showSongsSection: Boolean
-        get() = showsResults && (scope == SearchScope.All || scope == SearchScope.Songs) &&
-            (songs.isNotEmpty() || songsPhase == SectionPhase.Failed)
+        get() = showsResults && shows(SearchScope.Songs) && (songs.isNotEmpty() || songsPhase == SectionPhase.Failed)
 
     /** Whether the Players section is shown (rows or failure). An empty envelope never shows a section: in
      *  All it is hidden like the web (`shouldRenderGlobalSection`), in Players it is [emptyState]. While
      *  players load, [isBusy] shows the one centred spinner instead. */
     val showPlayersSection: Boolean
-        get() = showsResults && (scope == SearchScope.All || scope == SearchScope.Players) &&
-            playersPhase != SectionPhase.Idle && playersPhase != SectionPhase.Empty
+        get() = showsResults && shows(SearchScope.Players) && playersPhase != SectionPhase.Idle && playersPhase != SectionPhase.Empty
+
+    /** Whether the Bands section is shown (rows or failure); the same rules as [showPlayersSection]. */
+    val showBandsSection: Boolean
+        get() = showsResults && shows(SearchScope.Bands) && bandsPhase != SectionPhase.Idle && bandsPhase != SectionPhase.Empty
 
     /** Centred short-query hint naming what the selected scope searches (issue #299), else null. */
     val hint: String?
@@ -106,7 +119,7 @@ data class GlobalSearchUiState(
 
     /**
      * Centred title-and-subtitle empty state (issue #99): every scope empty in All, Songs with no
-     * match, or Players with an empty envelope; else null. No Retry (issue #299).
+     * match, Players with an empty envelope, or Bands with no match; else null. No Retry (issue #299).
      */
     val emptyState: SearchEmptyState?
         get() = when {
@@ -117,19 +130,22 @@ data class GlobalSearchUiState(
                 SearchEmptyState(GlobalSearchResults.EMPTY_SONGS_TITLE, GlobalSearchResults.EMPTY_SONGS_SUBTITLE)
             scope == SearchScope.Players && playersPhase == SectionPhase.Empty ->
                 SearchEmptyState(GlobalSearchResults.EMPTY_PLAYERS_TITLE, GlobalSearchResults.EMPTY_PLAYERS_SUBTITLE)
+            scope == SearchScope.Bands && bandsPhase == SectionPhase.Empty ->
+                SearchEmptyState(GlobalSearchResults.EMPTY_BANDS_TITLE, GlobalSearchResults.EMPTY_BANDS_SUBTITLE)
             else -> null
         }
 
     /**
      * Whether the one centred spinner shows: the debounce is pending, or a scope the current view
      * shows is still loading (issue #299: like the web, no inline per-section progress, so in All the
-     * rows appear together once songs and players both settle).
+     * rows appear together once songs, players and bands all settle).
      */
     val isBusy: Boolean
-        get() = !isShortQuery && !isBandsScope && (
+        get() = !isShortQuery && (
             debouncing || settledQuery.isEmpty() ||
-                (scope != SearchScope.Players && songsPhase == SectionPhase.Loading) ||
-                (scope != SearchScope.Songs && playersPhase == SectionPhase.Loading)
+                (shows(SearchScope.Songs) && songsPhase == SectionPhase.Loading) ||
+                (shows(SearchScope.Players) && playersPhase == SectionPhase.Loading) ||
+                (shows(SearchScope.Bands) && bandsPhase == SectionPhase.Loading)
             )
 }
 
@@ -139,16 +155,16 @@ data class GlobalSearchUiState(
 
 /**
  * The one global-search engine (global-search spec): trimmed query, two-character minimum,
- * 250 ms debounce, local song matches and the keyless account search behind one centred spinner,
- * per-scope empty/error states, cancellation of
- * superseded queries (late results dropped) and one polite count announcement per settled query.
- * Bands are shown but never requested (the service's band search GET can write).
+ * 250 ms debounce, local song matches plus the keyless account and band searches (in parallel, like
+ * the web's `useUnifiedSearch`) behind one centred spinner, per-scope empty/error states, cancellation
+ * of superseded queries (late results dropped) and one polite count announcement per settled query.
  *
  * Activity-scoped so folding, rotating or resizing only swaps the surface; query, scope and
  * the open flag also survive process death through [savedState]. Nothing is persisted to disk.
  *
  * @param loadCatalog Current catalogue (in-process memo in `FestivalApi`).
  * @param searchPlayers Keyless account search (`FestivalApi.searchPlayers`).
+ * @param searchBands Keyless band search (`FestivalApi.searchBands`, a pure read).
  * @param selectedAccountId Selected player, read when players arrive.
  * @param backoff Shared scrape-freeze backoff.
  * @param savedState Saved query/scope/expanded.
@@ -156,6 +172,7 @@ data class GlobalSearchUiState(
 class GlobalSearchViewModel(
     private val loadCatalog: suspend () -> List<Song>,
     private val searchPlayers: suspend (query: String, limit: Int) -> List<PlayerSearchResult>,
+    private val searchBands: suspend (query: String, limit: Int) -> List<PlayerBandEntry>,
     private val selectedAccountId: () -> String?,
     private val backoff: ServiceRetryBackoff = ServiceRetryBackoff(),
     private val savedState: SavedStateHandle = SavedStateHandle(),
@@ -219,7 +236,8 @@ class GlobalSearchViewModel(
     }
 
     /**
-     * Toggle a scope chip (tapping the selected chip returns to All). Bands never requests.
+     * Toggle a scope chip (tapping the selected chip returns to All). Every scope is already
+     * searched, so switching never sends a request.
      *
      * @param chip Chip tapped.
      */
@@ -231,15 +249,16 @@ class GlobalSearchViewModel(
 
     /**
      * Run the current text now, skipping the debounce (IME Search action). With no Retry button
-     * (issue #299), Search on a settled query whose songs or players failed, or whose players
-     * envelope came back empty (possibly a server timeout), runs it again.
+     * (issue #299), Search on a settled query whose songs, players or bands failed, or whose players
+     * or bands came back empty (possibly a server timeout), runs it again.
      */
     fun submit() {
         val current = mutableState.value
         val text = GlobalSearchResults.normalize(current.query)
         if (text.length < GlobalSearchResults.MIN_QUERY) return
         val rerunnable = current.songsPhase == SectionPhase.Failed ||
-            current.playersPhase == SectionPhase.Failed || current.playersPhase == SectionPhase.Empty
+            current.playersPhase == SectionPhase.Failed || current.playersPhase == SectionPhase.Empty ||
+            current.bandsPhase == SectionPhase.Failed || current.bandsPhase == SectionPhase.Empty
         if (current.debouncing || current.settledQuery != text || rerunnable) start(text, debounce = false)
     }
 
@@ -273,7 +292,8 @@ class GlobalSearchViewModel(
         mutableState.update {
             it.copy(
                 settledQuery = "", debouncing = false, songs = emptyList(), songsPhase = SectionPhase.Idle,
-                players = emptyList(), playersPhase = SectionPhase.Idle, playersIssue = null, playersCountdown = null, announcement = null,
+                players = emptyList(), playersPhase = SectionPhase.Idle, playersIssue = null, playersCountdown = null,
+                bands = emptyList(), bandsPhase = SectionPhase.Idle, bandsIssue = null, bandsCountdown = null, announcement = null,
             )
         }
     }
@@ -288,21 +308,33 @@ class GlobalSearchViewModel(
             mutableState.update { it.copy(debouncing = true, announcement = null) }
             delay(GlobalSearchResults.DEBOUNCE_MS)
         }
-        val canSearchPlayers = GlobalSearchResults.canSearchPlayers(text)
+        val canSearch = GlobalSearchResults.canSearchPlayers(text)
+        val remotePhase = if (canSearch) SectionPhase.Loading else SectionPhase.Empty
         mutableState.update {
             it.copy(
-                debouncing = false, settledQuery = text, announcement = null,
-                players = emptyList(), playersIssue = null, playersCountdown = null,
-                playersPhase = if (canSearchPlayers) SectionPhase.Loading else SectionPhase.Empty,
+                debouncing = false, settledQuery = text, announcement = null, songsPhase = SectionPhase.Loading,
+                players = emptyList(), playersIssue = null, playersCountdown = null, playersPhase = remotePhase,
+                bands = emptyList(), bandsIssue = null, bandsCountdown = null, bandsPhase = remotePhase,
             )
         }
-        loadSongs(text)
-        if (canSearchPlayers) loadPlayers(text)
-        announce()
+        coroutineScope {
+            launch { loadSongs(text) }
+            if (canSearch) {
+                launch {
+                    loadRemote(PLAYERS_BACKOFF_KEY, { GlobalSearchResults.players(searchPlayers(text, GlobalSearchResults.PLAYER_LIMIT), selectedAccountId()) }) { rows, phase, issue, countdown ->
+                        copy(players = rows, playersPhase = phase, playersIssue = issue, playersCountdown = countdown)
+                    }
+                }
+                launch {
+                    loadRemote(BANDS_BACKOFF_KEY, { GlobalSearchResults.bands(searchBands(text, GlobalSearchResults.BAND_LIMIT)) }) { rows, phase, issue, countdown ->
+                        copy(bands = rows, bandsPhase = phase, bandsIssue = issue, bandsCountdown = countdown)
+                    }
+                }
+            }
+        }
     }
 
     private suspend fun loadSongs(text: String) {
-        mutableState.update { it.copy(songsPhase = SectionPhase.Loading) }
         val (songs, phase) = try {
             val matches = GlobalSearchResults.matchSongs(loadCatalog(), text)
             matches to if (matches.isEmpty()) SectionPhase.Empty else SectionPhase.Loaded
@@ -312,29 +344,41 @@ class GlobalSearchViewModel(
             emptyList<GlobalSongResult>() to SectionPhase.Failed
         }
         mutableState.update { it.copy(songs = songs, songsPhase = phase) }
+        announceIfSettled()
     }
 
-    private suspend fun loadPlayers(text: String) {
+    /**
+     * Load one service scope (players or bands). A scrape freeze counts down and retries on its
+     * own with that scope's backoff; any other failure stays failed (no Retry, issue #299).
+     *
+     * @param backoffKey Shared backoff key for this scope.
+     * @param read The keyless read, already projected to result rows.
+     * @param set Writes rows, phase, issue and countdown into the state.
+     */
+    private suspend fun <T> loadRemote(
+        backoffKey: String,
+        read: suspend () -> List<T>,
+        set: GlobalSearchUiState.(rows: List<T>, phase: SectionPhase, issue: ServiceIssue?, countdown: Int?) -> GlobalSearchUiState,
+    ) {
         while (true) {
-            mutableState.update { it.copy(playersPhase = SectionPhase.Loading, playersIssue = null, playersCountdown = null) }
+            mutableState.update { it.set(emptyList(), SectionPhase.Loading, null, null) }
             try {
-                val players = GlobalSearchResults.players(searchPlayers(text, GlobalSearchResults.PLAYER_LIMIT), selectedAccountId())
-                backoff.reset(BACKOFF_KEY)
-                mutableState.update {
-                    it.copy(players = players, playersPhase = if (players.isEmpty()) SectionPhase.Empty else SectionPhase.Loaded)
-                }
+                val rows = read()
+                backoff.reset(backoffKey)
+                mutableState.update { it.set(rows, if (rows.isEmpty()) SectionPhase.Empty else SectionPhase.Loaded, null, null) }
+                announceIfSettled()
                 return
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
                 val issue = ServiceIssue.from(error)
-                mutableState.update { it.copy(players = emptyList(), playersPhase = SectionPhase.Failed, playersIssue = issue) }
+                mutableState.update { it.set(emptyList(), SectionPhase.Failed, issue, null) }
+                // A scrape freeze announces the failure first, then counts down and retries.
+                announceIfSettled()
                 if (!issue.retriesAutomatically) return
-                // A scrape freeze counts down and retries on its own; announce the failure first.
-                announce()
-                var remaining = backoff.nextDelay(BACKOFF_KEY, issue.retryAfterSeconds)
+                var remaining = backoff.nextDelay(backoffKey, issue.retryAfterSeconds)
                 while (remaining > 0) {
-                    mutableState.update { it.copy(playersCountdown = remaining) }
+                    mutableState.update { it.set(emptyList(), SectionPhase.Failed, issue, remaining) }
                     delay(1_000)
                     remaining--
                 }
@@ -342,16 +386,23 @@ class GlobalSearchViewModel(
         }
     }
 
-    private fun announce() {
+    /** Announce the counts once no scope is still loading. */
+    private fun announceIfSettled() {
         mutableState.update {
+            val phases = listOf(it.songsPhase, it.playersPhase, it.bandsPhase)
+            if (SectionPhase.Loading in phases) return@update it
             it.copy(
                 announcement = GlobalSearchResults.announcement(
-                    songs = if (it.songsPhase == SectionPhase.Failed) null else it.songs.size,
-                    players = if (it.playersPhase == SectionPhase.Failed) null else it.players.size,
+                    songs = count(it.songsPhase, it.songs.size),
+                    players = count(it.playersPhase, it.players.size),
+                    bands = count(it.bandsPhase, it.bands.size),
                 ),
             )
         }
     }
+
+    private fun count(phase: SectionPhase, size: Int): GlobalSearchResults.Count =
+        if (phase == SectionPhase.Failed) GlobalSearchResults.Count.Failed else GlobalSearchResults.Count.Of(size)
 
     // endregion
 
@@ -359,7 +410,8 @@ class GlobalSearchViewModel(
         private const val KEY_QUERY = "globalSearch.query"
         private const val KEY_SCOPE = "globalSearch.scope"
         private const val KEY_EXPANDED = "globalSearch.expanded"
-        private const val BACKOFF_KEY = "global-search.players"
+        private const val PLAYERS_BACKOFF_KEY = "global-search.players"
+        private const val BANDS_BACKOFF_KEY = "global-search.bands"
     }
 }
 

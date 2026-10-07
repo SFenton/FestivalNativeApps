@@ -97,7 +97,7 @@ private class SearchHarness(val rule: AndroidComposeTestRule<ActivityScenarioRul
         }
     }
 
-    /** Every band-search request (must stay empty: the service's band search GET can write). */
+    /** Every band-search request (a keyless pure read since FortniteFestivalLeaderboardScraper#170). */
     fun bandSearches() = transport.requests.filter { "/api/bands/search" in it.url }
 }
 
@@ -111,7 +111,7 @@ class GlobalSearchUiTest {
     private val h by lazy { SearchHarness(rule) }
 
     @Test
-    fun hintResultsScopesAndBandsExplanationWithoutBandSearch() {
+    fun hintResultsScopesAndBandResultsOpenTheBandPage() {
         h.launch()
         h.waitForTag("fst.songs.row.s-alpha")
         assertEquals(1, rule.onAllNodesWithTag(GlobalSearchTags.OPEN).fetchSemanticsNodes().size)
@@ -133,9 +133,9 @@ class GlobalSearchUiTest {
         // Issue #299: the scope chips already name the scope, so no section titles are drawn.
         assertEquals(0, rule.onAllNodesWithText("Players", ignoreCase = true).fetchSemanticsNodes().count { it.config.contains(SemanticsProperties.Heading) })
         // Counts are announced (polite live region) but never drawn as text (operator batch 6).
-        rule.onNodeWithTag(GlobalSearchTags.STATUS).assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("0 songs, 1 player")))
+        rule.onNodeWithTag(GlobalSearchTags.STATUS).assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("0 songs, 1 player, 2 bands")))
         rule.onNodeWithTag(GlobalSearchTags.STATUS).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion))
-        assertEquals(0, rule.onAllNodesWithText("0 songs, 1 player").fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithText("0 songs, 1 player, 2 bands").fetchSemanticsNodes().size)
         assertEquals(1, h.transport.sent("/api/account/search").size)
         assertTrue(h.transport.sent("/api/account/search").single().url.contains("limit=10"))
         h.transport.sent("/api/account/search").single().headers.keys.forEach { key ->
@@ -163,15 +163,50 @@ class GlobalSearchUiTest {
         h.settle()
         rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).assertIsNotSelected()
 
-        // Bands: explanation, no request, Band Rankings link.
+        // Bands: the same settled query already searched bands (web useUnifiedSearch); the chip
+        // only filters, so no new request. Malformed and repeated rows were dropped.
+        val bandRequests = h.bandSearches().size
+        assertTrue(bandRequests >= 2)
+        h.bandSearches().forEach { request ->
+            assertTrue(request.url, request.url.contains("page=1&pageSize=10"))
+            request.headers.keys.forEach { key -> assertTrue(!key.equals("X-API-Key", true) && !key.lowercase().startsWith("x-fst-selected")) }
+        }
         rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Bands)).performClick()
-        h.waitForTag(GlobalSearchTags.BANDS_UNAVAILABLE)
-        rule.onNodeWithText(GlobalSearchResults.BANDS_UNAVAILABLE).assertIsDisplayed()
-        assertTrue(h.bandSearches().isEmpty())
-        rule.onNodeWithTag(GlobalSearchTags.BANDS_RANKINGS).performClick()
+        h.waitForTag(GlobalSearchTags.RESULT_BAND)
+        assertEquals(2, rule.onAllNodesWithTag(GlobalSearchTags.RESULT_BAND).fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag(GlobalSearchTags.RESULT_SONG).fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag(GlobalSearchTags.RESULT_PLAYER).fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithText("Band search isn't available", substring = true).fetchSemanticsNodes().size)
+        // The player-bands card: member names, size and appearances as one "Open band" button.
+        rule.onAllNodesWithTag(GlobalSearchTags.RESULT_BAND).onFirst()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Synthetic Lead + Synthetic Bass, Duos, 12 appearances")))
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+        assertEquals(bandRequests, h.bandSearches().size)
+        rule.onAllNodesWithTag(GlobalSearchTags.RESULT_BAND).onFirst().performClick()
         h.waitForGone(GlobalSearchTags.SURFACE)
-        rule.waitUntil(10_000) { h.settle(100); rule.onAllNodesWithText("Duos Leaderboards").fetchSemanticsNodes().isNotEmpty() }
-        assertTrue(h.bandSearches().isEmpty())
+        h.waitForTag("fst.band.screen")
+    }
+
+    @Test
+    fun bandsEmptyAndFailureFollowThePlayersRules() {
+        h.launch()
+        h.waitForTag("fst.songs.row.s-alpha")
+        rule.onNodeWithTag(GlobalSearchTags.OPEN).performClick()
+        h.waitForTag(GlobalSearchTags.FIELD)
+        rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Bands)).performClick()
+        h.settle()
+        rule.onNodeWithTag(GlobalSearchTags.HINT).assert(hasText(GlobalSearchResults.ENTER_QUERY_HINT_BANDS))
+        rule.onNodeWithTag(GlobalSearchTags.FIELD).performTextInput("zzzz")
+        rule.waitUntil(10_000) { h.settle(100); rule.onAllNodesWithText(GlobalSearchResults.EMPTY_BANDS_TITLE).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText(GlobalSearchResults.EMPTY_BANDS_SUBTITLE).assertIsDisplayed()
+        assertEquals(0, rule.onAllNodesWithText("Retry").fetchSemanticsNodes().size)
+        // A failure is not "No bands found": it shows the service status line, still without Retry.
+        h.transport.on("/api/bands/search", status = 500) { "{}" }
+        rule.onNodeWithTag(GlobalSearchTags.FIELD).performImeAction()
+        h.waitForTag(GlobalSearchTags.BANDS_ERROR)
+        assertEquals(0, rule.onAllNodesWithText(GlobalSearchResults.EMPTY_BANDS_TITLE).fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithText("Retry").fetchSemanticsNodes().size)
+        assertEquals(2, h.bandSearches().size)
     }
 
     @Test
@@ -395,7 +430,7 @@ class ExpandedGlobalSearchUiTest {
         rule.onNodeWithTag(GlobalSearchTags.RESULT_SONG).performClick()
         h.waitForGone(GlobalSearchTags.SURFACE)
         h.waitForTag("fst.song-detail.intensity")
-        assertTrue(h.bandSearches().isEmpty())
+        assertTrue(h.bandSearches().isNotEmpty())
     }
 
     @Test
@@ -437,7 +472,7 @@ class MediumGlobalSearchUiTest {
         h.waitForTag(GlobalSearchTags.RESULT_SONG)
         rule.onNodeWithTag(GlobalSearchTags.CLOSE).performClick()
         h.waitForGone(GlobalSearchTags.SURFACE)
-        assertTrue(h.bandSearches().isEmpty())
+        assertTrue(h.bandSearches().isNotEmpty())
     }
 
     @OptIn(ExperimentalTestApi::class)

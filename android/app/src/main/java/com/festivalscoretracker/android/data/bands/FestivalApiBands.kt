@@ -3,13 +3,16 @@ package com.festivalscoretracker.android.data.bands
 import com.festivalscoretracker.android.core.bands.BandDetail
 import com.festivalscoretracker.android.core.bands.BandProfileEnvelope
 import com.festivalscoretracker.android.core.bands.BandRankHistoryResponse
+import com.festivalscoretracker.android.core.bands.BandSearchResponse
 import com.festivalscoretracker.android.core.bands.BandSongExtremesResponse
 import com.festivalscoretracker.android.core.bands.BandText
 import com.festivalscoretracker.android.core.bands.BandType
+import com.festivalscoretracker.android.core.bands.PlayerBandEntry
 import com.festivalscoretracker.android.core.bands.PlayerBandGroup
 import com.festivalscoretracker.android.core.bands.PlayerBandListResponse
 import com.festivalscoretracker.android.core.bands.SongBandLeaderboardResponse
 import com.festivalscoretracker.android.core.model.FestivalApiException
+import com.festivalscoretracker.android.core.model.ProfileSearchText
 import com.festivalscoretracker.android.data.FestivalApi
 import com.festivalscoretracker.android.data.ServiceEndpoint
 
@@ -19,9 +22,10 @@ import com.festivalscoretracker.android.data.ServiceEndpoint
  * Allowlisted keyless band GETs (`.agents/platforms/service-safety.md`). Every
  * route here only `SELECT`s: `GetPlayerBandsList` degrades to an empty page
  * instead of rebuilding its projection, and Band Detail reads the rankings board
- * filtered by `teamKey` (`GetBandTeamRanking`). Band search, `/api/bands/{bandId}`
- * and the bare `/api/rankings/bands/{bandType}/{teamKey}` can write on a GET and
- * have no builder here.
+ * filtered by `teamKey` (`GetBandTeamRanking`). Band search is a pure read on every
+ * path since FortniteFestivalLeaderboardScraper#170 (its missing-projection fallback
+ * no longer rebuilds membership rows). `/api/bands/{bandId}` and the bare
+ * `/api/rankings/bands/{bandType}/{teamKey}` can write on a GET and have no builder here.
  */
 object BandEndpoints {
     /**
@@ -105,6 +109,28 @@ object BandEndpoints {
         )
     }
 
+    /** Largest band-search page the service serves. */
+    const val MAX_SEARCH_PAGE_SIZE = 100
+
+    /**
+     * `GET /api/bands/search?q=&page=&pageSize=` (unpinned, like account search). Only
+     * the free-text query is sent: no `accountIds`, combo or selected-profile headers.
+     *
+     * @param query Trimmed 2–200 character query without control or bidi characters.
+     * @param page One-based page.
+     * @param pageSize Rows, 1–100.
+     * @return Endpoint.
+     */
+    fun bandSearch(query: String, page: Int, pageSize: Int): ServiceEndpoint {
+        if (!ProfileSearchText.isValidQuery(query)) throw FestivalApiException.InvalidSearchQuery()
+        if (page < 1 || pageSize !in 1..MAX_SEARCH_PAGE_SIZE) throw FestivalApiException.InvalidResource()
+        return ServiceEndpoint.Feature(
+            listOf("bands", "search"),
+            listOf("q" to query, "page" to page.toString(), "pageSize" to pageSize.toString()),
+            pinned = false,
+        )
+    }
+
     private fun requireTeamKey(teamKey: String) {
         if (!BandText.isValidTeamKey(teamKey)) throw FestivalApiException.InvalidResource()
     }
@@ -113,6 +139,20 @@ object BandEndpoints {
 // endregion
 
 // region Band reads
+
+/**
+ * Search bands by member name (global search Bands scope, web `api.searchBands`).
+ * A malformed page (an invalid row, a repeated band, more rows than requested) fails
+ * whole with [FestivalApiException.InvalidResponse], as on Apple.
+ *
+ * @param query Trimmed 2–200 character query.
+ * @param limit Rows requested, 1–100 (web `bandLimit` is 10).
+ * @return Bands in service order.
+ */
+suspend fun FestivalApi.searchBands(query: String, limit: Int): List<PlayerBandEntry> {
+    val body = readUnpinned(BandEndpoints.bandSearch(query, page = 1, pageSize = limit))
+    return decode(BandSearchResponse.serializer(), body).entries(limit)
+}
 
 /**
  * Read one page of a player's bands.
