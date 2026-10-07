@@ -1910,7 +1910,7 @@
       "title": "Song leaderboard header",
       "status": "current",
       "doc": ".agents/patterns/song-leaderboard-header.md",
-      "summary": "A song-scoped leaderboard (instrument or band size) names the song first in an in-page header with the board on the line under the artist, keeps that header on screen through board, page and player reloads (only the rows reload), keeps the bar title empty until the header scrolls away, and sits on the song's static dimmed album art.",
+      "summary": "A song-scoped leaderboard (instrument or band size) names the song first in an in-page header with the board on the line under the artist, keeps that header on screen through board, page and player reloads (only the rows reload), keeps the bar title empty until the header scrolls away, and sits on the song's static dimmed album art. Owner-approved variant (#342): a board opened beside Song Detail in a split's trailing pane drops the song header and is titled by its instrument icon and name (or band size).",
       "keywords": [
         "song header",
         "band leaderboard",
@@ -1927,7 +1927,10 @@
         "board line",
         "band size",
         "instrument switcher",
-        "static cover"
+        "static cover",
+        "split pane",
+        "split view",
+        "trailing pane"
       ],
       "issues": [
         93,
@@ -1935,7 +1938,8 @@
         315,
         316,
         317,
-        324
+        324,
+        342
       ],
       "web": [
         {
@@ -1964,6 +1968,14 @@
           {
             "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardHeader.swift",
             "symbol": "SongLeaderboardBoardLine"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/InstrumentPageTitle.swift",
+            "symbol": "InstrumentPageTitle"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/InstrumentPageTitle.swift",
+            "symbol": "InstrumentPageTitleToolbarItem"
           }
         ],
         "android": [
@@ -2006,7 +2018,7 @@
           "regex": "ToolbarItem\\(\\s*placement:\\s*\\.principal",
           "allow": [],
           "debt": [],
-          "message": "Song leaderboard bar titles come from the shared SongBarTitleToolbarItem (song-leaderboard-header R3, R5; song-header R4)."
+          "message": "Song leaderboard bar titles come from the shared SongBarTitleToolbarItem, or InstrumentPageTitleToolbarItem beside Song Detail (song-leaderboard-header R3, R5, Variants #342; song-header R4)."
         },
         {
           "id": "android-cover-push",
@@ -2185,7 +2197,8 @@
       "supersededBy": null,
       "issues": [
         315,
-        317
+        317,
+        342
       ]
     },
     {
