@@ -256,8 +256,8 @@ struct SoloLeaderboardScreen: View {
                             }
                         }
                         .rankingsListRailClearance(layout)
-                        // Rows fade out over up to 36 pt above the pinned footer and pager
-                        // and are not drawn beneath them (web `useScrollFade`, issue #93),
+                        // Rows fade out over up to 40 pt above the pinned footer and pager
+                        // and are not drawn beneath them (web board `useScrollMask`, #93, #329),
                         // so the chrome floats over the page background with no opaque
                         // band, and no row text sits under its text (the contrast audit
                         // that once required the band). The fade shrinks away as the last

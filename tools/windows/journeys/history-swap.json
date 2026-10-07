@@ -1,38 +1,37 @@
 [
   {
     "name": "history-swap",
-    "route": "/songs/fixture-pulse/Solo_Guitar/history",
+    "route": "/songs/fixture-pulse",
     "profile": "fixture-history-multi:History Multi",
     "ready": [
       "waitfor:id=fst.history.chart@20",
-      "scrollinto:id=fst.history.instrument.group@10",
-      "scrollinto:id=fst.history.sort.open@10"
+      "scrollinset:id=fst.history.instrument.group|id=fst.song-detail|72"
     ],
     "after_ready": [
-      "markspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "markspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "toggle:id=fst.history.instrument.Solo_Bass",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card~12",
       "wait:0.8",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "assertname:id=fst.history.chart|Bass score history, * of 2 scores *",
       "waitgone:id=fst.history.page-back@2",
       "toggle:id=fst.history.instrument.Solo_Drums",
       "wait:0.8",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "tree:{stem}-drums.txt",
       "toggle:id=fst.history.instrument.Solo_Guitar",
       "toggle:id=fst.history.instrument.Solo_Drums",
       "toggle:id=fst.history.instrument.Solo_Guitar",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card~12",
       "toggle:id=fst.history.instrument.Solo_Bass",
       "wait:0.8",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "assertname:id=fst.history.chart|Bass score history, * of 2 scores *",
       "assertstate:id=fst.history.instrument.Solo_Bass|toggle=on",
       "assertstate:id=fst.history.instrument.Solo_Guitar|toggle=off",
       "toggle:id=fst.history.instrument.Solo_Guitar",
       "wait:0.8",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "waitfor:id=fst.history.bar.7@3",
       "shot:{stem}-lead.png"
     ],
@@ -40,36 +39,35 @@
   },
   {
     "name": "history-swap-detail",
-    "route": "/songs/fixture-pulse/Solo_Guitar/history",
+    "route": "/songs/fixture-pulse",
     "profile": "fixture-history-multi:History Multi",
     "ready": [
       "waitfor:id=fst.history.chart@20",
-      "scrollinto:id=fst.history.instrument.group@10",
-      "scrollinto:id=fst.history.sort.open@10"
+      "scrollinset:id=fst.history.instrument.group|id=fst.song-detail|72"
     ],
     "after_ready": [
       "toggle:id=fst.history.bar.7",
       "waitfor:id=fst.history.detail@5",
-      "scrollinto:id=fst.history.sort.open@5",
-      "markspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "scrollinset:id=fst.history.subtitle|id=fst.song-detail|72",
+      "markspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "toggle:id=fst.history.instrument.Solo_Bass",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card~12",
       "wait:0.8",
       "waitgone:id=fst.history.detail@3",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "assertname:id=fst.history.chart|Bass score history, * of 2 scores *",
       "shot:{stem}-bass.png",
       "toggle:id=fst.history.instrument.Solo_Drums",
       "toggle:id=fst.history.instrument.Solo_Guitar",
       "toggle:id=fst.history.instrument.Solo_Bass",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card~12",
       "wait:0.8",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "assertstate:id=fst.history.instrument.Solo_Bass|toggle=on",
       "assertname:id=fst.history.chart|Bass score history, * of 2 scores *",
       "toggle:id=fst.history.bar.1",
       "waitfor:id=fst.history.detail@5",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card"
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card"
     ],
     "tabs": 0,
     "skip_sizes": {
@@ -86,11 +84,11 @@
   },
   {
     "name": "history-swap-keyboard",
-    "route": "/songs/fixture-pulse/Solo_Guitar/history",
+    "route": "/songs/fixture-pulse",
     "profile": "fixture-history-multi:History Multi",
     "ready": [
       "waitfor:id=fst.history.chart@20",
-      "scrollinto:id=fst.history.instrument.group@10"
+      "scrollinset:id=fst.history.instrument.group|id=fst.song-detail|72"
     ],
     "after_ready": [
       "focus:id=fst.history.instrument.Solo_Guitar",
@@ -119,22 +117,21 @@
   },
   {
     "name": "history-swap-keyboard-span",
-    "route": "/songs/fixture-pulse/Solo_Guitar/history",
+    "route": "/songs/fixture-pulse",
     "profile": "fixture-history-multi:History Multi",
     "ready": [
       "waitfor:id=fst.history.chart@20",
-      "scrollinto:id=fst.history.instrument.group@10",
-      "scrollinto:id=fst.history.sort.open@10"
+      "scrollinset:id=fst.history.instrument.group|id=fst.song-detail|72"
     ],
     "after_ready": [
-      "markspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "markspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "focus:id=fst.history.instrument.Solo_Guitar",
       "key:right",
       "assertfocus:id=fst.history.instrument.Solo_Bass@3",
       "key:space",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card~12",
       "wait:0.8",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "assertfocus:id=fst.history.instrument.Solo_Bass@3",
       "assertname:id=fst.history.chart|Bass score history, * of 2 scores *",
       "assertstate:id=fst.history.instrument.Solo_Bass|toggle=on",
@@ -142,14 +139,14 @@
       "assertfocus:id=fst.history.instrument.Solo_Drums@3",
       "key:enter",
       "wait:0.8",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "assertfocus:id=fst.history.instrument.Solo_Drums@3",
       "assertstate:id=fst.history.instrument.Solo_Drums|toggle=on",
       "shot:{stem}-focus.png",
       "keys:left space left space right space",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card~12",
       "wait:0.8",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "assertstate:id=fst.history.instrument.Solo_Bass|toggle=on",
       "assertstate:id=fst.history.instrument.Solo_Guitar|toggle=off",
       "assertname:id=fst.history.chart|Bass score history, * of 2 scores *",
@@ -168,27 +165,26 @@
   },
   {
     "name": "history-swap-instant",
-    "route": "/songs/fixture-pulse/Solo_Guitar/history",
+    "route": "/songs/fixture-pulse",
     "profile": "fixture-history-multi:History Multi",
     "ready": [
       "waitfor:id=fst.history.chart@20",
-      "scrollinto:id=fst.history.instrument.group@10",
-      "scrollinto:id=fst.history.sort.open@10"
+      "scrollinset:id=fst.history.instrument.group|id=fst.song-detail|72"
     ],
     "modes": [
       "no-animations",
       "app-reduced"
     ],
     "after_ready": [
-      "markspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "markspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "toggle:id=fst.history.instrument.Solo_Bass",
       "assertname:id=fst.history.chart@0.1|Bass score history, * of 2 scores *",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "waitgone:id=fst.history.page-back@0.1",
       "toggle:id=fst.history.instrument.Solo_Guitar",
       "assertstate:id=fst.history.instrument.Solo_Guitar|toggle=on",
       "waitfor:id=fst.history.bar.7@0.1",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "shot:{stem}-lead.png"
     ],
     "tabs": 0

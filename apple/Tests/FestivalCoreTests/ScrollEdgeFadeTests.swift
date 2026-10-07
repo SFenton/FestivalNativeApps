@@ -4,17 +4,18 @@ import Testing
 
 // MARK: - Ramps (issue #308)
 
-/// The web ramps: `useScrollMask` 40 px at top edges, `useScrollFade` 36 px at bottom
-/// chrome.
+/// The web ramps: `useScrollMask` 40 px at top edges and at a board's bottom chrome
+/// (the board pages' viewport ends at the footer; issue #329), not `useScrollFade`'s
+/// 36 px list fade.
 @Test func scrollEdgeRampsMatchTheWeb() {
     #expect(ScrollEdgeFade.topDistance == 40)
-    #expect(ScrollEdgeFade.distance == 36)
+    #expect(ScrollEdgeFade.distance == 40)
 }
 
 /// Accessibility settings turn any ramp into a hard edge; bad input never fades.
 @Test func scrollEdgeRampBecomesAHardEdge() {
     #expect(ScrollEdgeFade.ramp(ScrollEdgeFade.topDistance, hardEdge: false) == 40)
-    #expect(ScrollEdgeFade.ramp(ScrollEdgeFade.distance, hardEdge: false) == 36)
+    #expect(ScrollEdgeFade.ramp(ScrollEdgeFade.distance, hardEdge: false) == 40)
     #expect(ScrollEdgeFade.ramp(ScrollEdgeFade.topDistance, hardEdge: true) == 0)
     #expect(ScrollEdgeFade.ramp(ScrollEdgeFade.distance, hardEdge: true) == 0)
     #expect(ScrollEdgeFade.ramp(-4, hardEdge: false) == 0)
@@ -33,16 +34,16 @@ import Testing
 
 // MARK: - Bottom scroll edge fade (issue #93)
 
-/// Rows fade over 36 pt above the chrome and are clear beneath it.
+/// Rows fade over 40 pt above the chrome and are clear beneath it.
 @Test func bottomFadeEndsAtChromeTop() {
     let stops = ScrollEdgeFade.bottom(height: 800, obscured: 200)
     #expect(stops.fadeEnd == 0.75)
-    #expect(stops.fadeStart == 564.0 / 800)
+    #expect(stops.fadeStart == 560.0 / 800)
 }
 
 /// No chrome: the fade sits on the bottom edge.
 @Test func bottomFadeWithoutChromeUsesBottomEdge() {
-    let stops = ScrollEdgeFade.bottom(height: 360, obscured: 0)
+    let stops = ScrollEdgeFade.bottom(height: 400, obscured: 0)
     #expect(stops.fadeEnd == 1)
     #expect(stops.fadeStart == 0.9)
 }
@@ -51,7 +52,7 @@ import Testing
 @Test func bottomFadeClampsDegenerateGeometry() {
     #expect(ScrollEdgeFade.bottom(height: 100, obscured: 400) == .init(fadeStart: 0, fadeEnd: 0))
     #expect(ScrollEdgeFade.bottom(height: 100, obscured: 80) == .init(fadeStart: 0, fadeEnd: 0.2))
-    #expect(ScrollEdgeFade.bottom(height: 100, obscured: -10) == .init(fadeStart: 0.64, fadeEnd: 1))
+    #expect(ScrollEdgeFade.bottom(height: 100, obscured: -10) == .init(fadeStart: 0.6, fadeEnd: 1))
     #expect(ScrollEdgeFade.bottom(height: 0, obscured: 10) == .init(fadeStart: 1, fadeEnd: 1))
     #expect(ScrollEdgeFade.bottom(height: .nan, obscured: 10) == .init(fadeStart: 1, fadeEnd: 1))
     #expect(ScrollEdgeFade.bottom(height: 100, obscured: .infinity) == .init(fadeStart: 1, fadeEnd: 1))
@@ -62,12 +63,12 @@ import Testing
 /// Far from the end the full fade shows; it shrinks to nothing as the last row
 /// reaches its resting place, so no band is reserved below it.
 @Test func bottomFadeDistanceShrinksAtListEnd() {
-    #expect(ScrollEdgeFade.bottomDistance(lastRowOverflow: nil) == 36)
-    #expect(ScrollEdgeFade.bottomDistance(lastRowOverflow: 200) == 36)
+    #expect(ScrollEdgeFade.bottomDistance(lastRowOverflow: nil) == 40)
+    #expect(ScrollEdgeFade.bottomDistance(lastRowOverflow: 200) == 40)
     #expect(ScrollEdgeFade.bottomDistance(lastRowOverflow: 12.5) == 12.5)
     #expect(ScrollEdgeFade.bottomDistance(lastRowOverflow: 0) == 0)
     #expect(ScrollEdgeFade.bottomDistance(lastRowOverflow: -40) == 0)
-    #expect(ScrollEdgeFade.bottomDistance(lastRowOverflow: .infinity) == 36)
+    #expect(ScrollEdgeFade.bottomDistance(lastRowOverflow: .infinity) == 40)
     #expect(ScrollEdgeFade.bottomDistance(lastRowOverflow: -.infinity) == 0)
     #expect(ScrollEdgeFade.bottomDistance(lastRowOverflow: .nan) == 0)
     #expect(ScrollEdgeFade.bottomDistance(lastRowOverflow: 5, distance: -1) == 0)
@@ -143,10 +144,10 @@ import Testing
 
 /// Reduce Transparency or Increase Contrast turn the bottom ramp into a hard cut at
 /// the chrome's top edge; with neither the scroll-driven fade height is kept.
-@Test(arguments: [(false, false, 36.0), (true, false, 0.0), (false, true, 0.0), (true, true, 0.0)])
+@Test(arguments: [(false, false, 40.0), (true, false, 0.0), (false, true, 0.0), (true, true, 0.0)])
 func bottomFadeIsAHardEdgeForAccessibility(reduceTransparency: Bool, increaseContrast: Bool, expected: Double) {
     #expect(ScrollEdgeFade.accessibleDistance(
-        36, reduceTransparency: reduceTransparency, increaseContrast: increaseContrast
+        ScrollEdgeFade.distance, reduceTransparency: reduceTransparency, increaseContrast: increaseContrast
     ) == expected)
     #expect(ScrollEdgeFade.accessibleDistance(
         12.5, reduceTransparency: reduceTransparency, increaseContrast: increaseContrast
@@ -158,7 +159,7 @@ func bottomFadeIsAHardEdgeForAccessibility(reduceTransparency: Bool, increaseCon
 @Test func hardEdgeStopsMeetAtChromeTop() {
     let stops = ScrollEdgeFade.bottom(
         height: 800, obscured: 200,
-        distance: ScrollEdgeFade.accessibleDistance(36, reduceTransparency: true, increaseContrast: false)
+        distance: ScrollEdgeFade.accessibleDistance(ScrollEdgeFade.distance, reduceTransparency: true, increaseContrast: false)
     )
     #expect(stops == .init(fadeStart: 0.75, fadeEnd: 0.75))
 }

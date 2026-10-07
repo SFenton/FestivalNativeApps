@@ -407,7 +407,8 @@ public class SongBandLeaderboardViewModelTests
         Assert.Equal(new AppRoute.Band("sb30", "Band_Duets", "t30a:t30b"), pin.Route);
         Assert.Equal("fst.song-band-leaderboard.spotlight-footer", pin.AutomationId);
         Assert.Equal("fst.score.accuracy.band-spotlight", pin.BadgeAutomationId);
-        Assert.Equal("Your band's rank, 30th. Lead 30 + Unknown User, 99,970 points", pin.Announcement);
+        Assert.Equal("Your band's rank, 30th. Jump to your band's position. Lead 30 + Unknown User, 99,970 points", pin.Announcement);
+        Assert.Equal(new SelectedRowAction(2), pin.Action);
         Assert.DoesNotContain(vm.Rows, r => r.IsSelected);
         Assert.True(vm.CanJump);
         Assert.True(vm.JumpCommand.CanExecute(null));
@@ -420,8 +421,9 @@ public class SongBandLeaderboardViewModelTests
         Assert.All(own.Members, m => Assert.True(m.OnPlayerRow));
         Assert.All(vm.Rows.Where(r => !r.IsSelected).SelectMany(r => r.Members), m => Assert.False(m.OnPlayerRow));
         Assert.StartsWith("Your band. Rank 30. ", own.PageAnnouncement, StringComparison.Ordinal);
-        Assert.True(vm.ShowSpotlight); // Still pinned on the band's own page (web hasSelectedFooter).
+        Assert.True(vm.ShowSpotlight); // Still pinned on the band's own page (web hasSelectedFooter), now opening Band Detail.
         Assert.False(vm.CanJump);
+        Assert.StartsWith("Your band's rank, 30th. Open band. ", vm.Spotlight!.Announcement, StringComparison.Ordinal);
         Assert.False(vm.JumpCommand.CanExecute(null));
         await vm.JumpCommand.ExecuteAsync(null); // A no-op when it doesn't apply.
         Assert.Equal(2, vm.Pager.Page);
@@ -439,13 +441,13 @@ public class SongBandLeaderboardViewModelTests
             BandType = "Band_Duets", TeamKey = "a:b", Rank = 1, Score = 1234, Accuracy = 990000, IsFullCombo = true, Stars = 6,
             Members = [new BandMember { AccountId = "a", DisplayName = "Ann" }, new BandMember { AccountId = "b", DisplayName = "Bo" }],
         });
-        Assert.Equal("Your band's rank, 1st. Ann + Bo, 1,234 points, 99% accuracy, full combo, 5 gold stars", first.Announcement);
+        Assert.Equal("Your band's rank, 1st. Open band. Ann + Bo, 1,234 points, 99% accuracy, full combo, 5 gold stars", first.Announcement);
         Assert.Equal(new AppRoute.Band("a:b", "Band_Duets", "a:b"), first.Route);
         Assert.Equal("", first.Season);
         Assert.Equal(990000, first.AccuracyValue);
         var unranked = first with { Entry = first.Entry with { Rank = 0 } };
         Assert.Equal("—", unranked.RankText);
-        Assert.StartsWith("Your band. Ann + Bo", unranked.Announcement, StringComparison.Ordinal);
+        Assert.StartsWith("Your band. Open band. Ann + Bo", unranked.Announcement, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -705,6 +707,105 @@ public class SongBandLeaderboardViewModelTests
         gate2.SetResult();
         await Async.Settle();
         Assert.True(vm.ShowRows);
+    }
+
+    [Fact]
+    public async Task SelectedBandFooter_JumpsToItsPageThenOpensBandDetail_LikeTheSoloFooter()
+    {
+        CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
+        var bands = new BandService();
+        var session = bands.Service.Session(settings: new AppSettings { SelectedPlayer = new SelectedPlayer("t29a", "Fixture One") });
+        var vm = new SongBandLeaderboardViewModel(session, new AppRoute.SongBandLeaderboard("fixture-pulse", "Band_Duets"));
+        await vm.LoadAsync();
+
+        var sent = bands.Service.Handler.To("/api/leaderboard/fixture-pulse/bands/Band_Duets").Single();
+        Assert.Equal("?top=25&offset=0&accountId=t29a", sent.Uri.Query);
+        Assert.DoesNotContain(sent.Headers.Keys, h => h.StartsWith("x-fst-selected", StringComparison.OrdinalIgnoreCase) || h == "X-API-Key");
+
+        Assert.True(vm.ShowSpotlight);
+        var footer = vm.Spotlight!;
+        Assert.Equal(new SelectedRowAction(2), footer.Action);
+        Assert.True(vm.CanJump && vm.JumpCommand.CanExecute(null));
+        Assert.Equal("#29", footer.RankText);
+        Assert.True(footer.IsSelected);
+        Assert.Equal("Lead 29 + Unknown User", footer.Name);
+        Assert.Equal(new AppRoute.Band("sb29", "Band_Duets", "t29a:t29b"), footer.Route);
+        Assert.Equal("fst.song-band-leaderboard.spotlight-footer", footer.AutomationId);
+        Assert.StartsWith("Your band's rank, 29th. Jump to your band's position. Lead 29 + Unknown User, 99,971 points", footer.Announcement, StringComparison.Ordinal);
+        Assert.DoesNotContain(vm.Rows, r => r.IsSelected);
+        Assert.False(vm.RevealSelected);
+
+        await vm.JumpCommand.ExecuteAsync(null);
+        Assert.Equal(2, vm.Pager.Page);
+        Assert.True(vm.RevealSelected);
+        var mine = Assert.Single(vm.Rows, r => r.IsSelected);
+        Assert.Equal(29, mine.Entry.Rank);
+        Assert.StartsWith("Your band. Rank 29. ", mine.PageAnnouncement, StringComparison.Ordinal);
+        Assert.False(vm.CanJump || vm.JumpCommand.CanExecute(null));
+        Assert.Equal(new SelectedRowAction(null), vm.Spotlight!.Action);
+        Assert.StartsWith("Your band's rank, 29th. Open band. ", vm.Spotlight.Announcement, StringComparison.Ordinal);
+
+        vm.BandType = BandType.Trios;
+        Assert.False(vm.RevealSelected);
+        await Async.Until(() => vm.ShowRows && vm.BandType == BandType.Trios);
+        Assert.Equal(1, vm.Pager.Page);
+    }
+
+    [Fact]
+    public async Task SelectedBandFooter_GatesOnBandSizeButNotOnPaging_LikeTheSoloFooter()
+    {
+        var bands = new BandService();
+        var session = bands.Service.Session(settings: new AppSettings { SelectedPlayer = new SelectedPlayer("t29a", "Fixture One") });
+        var vm = new SongBandLeaderboardViewModel(session, new AppRoute.SongBandLeaderboard("fixture-pulse", "Band_Duets"));
+        await vm.LoadAsync();
+        Assert.True(vm.PinnedGate.IsGated);
+        Assert.True(vm.ShowSpotlight);
+
+        // Load-transition R2 (#270): a page turn can't change the band's rank or score, so the footer stays beside the spinner.
+        var gated = new List<bool>();
+        vm.PinnedGate.PropertyChanged += (_, _) => gated.Add(vm.PinnedGate.IsGated);
+        var jump = vm.JumpCommand.ExecuteAsync(null);
+        Assert.False(vm.PinnedGate.IsGated);
+        await jump;
+        await vm.LoadAsync();
+        Assert.False(vm.PinnedGate.IsGated);
+        Assert.DoesNotContain(true, gated);
+        Assert.True(vm.ShowSpotlight);
+
+        vm.BandType = BandType.Trios;
+        Assert.True(vm.PinnedGate.IsGated);
+        await Async.Until(() => vm.ShowRows && vm.BandType == BandType.Trios);
+    }
+
+    [Fact]
+    public async Task RevealRoute_OpensOnTheRequestedPage_AndAnonymousReadsSendNoAccount()
+    {
+        var bands = new BandService();
+        var session = bands.Service.Session(settings: new AppSettings { SelectedPlayer = new SelectedPlayer("t29a", "Fixture One") });
+        var vm = new SongBandLeaderboardViewModel(session, new AppRoute.SongBandLeaderboard("fixture-pulse", "Band_Duets", 2, RevealSelected: true));
+        Assert.True(vm.RevealSelected);
+        await vm.LoadAsync();
+        Assert.Equal(2, vm.Pager.Page);
+        Assert.Contains(bands.Service.Handler.Requests, r => r.Uri.Query.StartsWith("?top=25&offset=25&accountId=", StringComparison.Ordinal));
+        Assert.Single(vm.Rows, r => r.IsSelected);
+        Assert.False(vm.CanJump);
+
+        var anonymous = new BandService();
+        var plain = new SongBandLeaderboardViewModel(anonymous.Service.Session(), new AppRoute.SongBandLeaderboard("fixture-pulse", "Band_Duets"));
+        await plain.LoadAsync();
+        Assert.Equal("?top=25&offset=0", anonymous.Service.Handler.To("/api/leaderboard/fixture-pulse/bands/Band_Duets").Single().Uri.Query);
+        Assert.False(plain.ShowSpotlight);
+        Assert.False(plain.JumpCommand.CanExecute(null));
+        await plain.JumpCommand.ExecuteAsync(null);
+        Assert.Equal(1, plain.Pager.Page);
+
+        anonymous.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal) ? Wire.Response(HttpStatusCode.InternalServerError) : null;
+        await vm.LoadAsync();
+        Assert.True(vm.ShowSpotlight);
+        bands.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal) ? Wire.Response(HttpStatusCode.InternalServerError) : null;
+        await vm.LoadAsync();
+        Assert.True(vm.ShowError);
+        Assert.False(vm.ShowSpotlight);
     }
 
     [Fact]

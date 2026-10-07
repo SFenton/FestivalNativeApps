@@ -17,10 +17,6 @@ public sealed partial class LeaderboardsSpotlight : UserControl
     public static readonly DependencyProperty IdPrefixProperty = DependencyProperty.Register(
         nameof(IdPrefix), typeof(string), typeof(LeaderboardsSpotlight), new PropertyMetadata(null, (d, _) => ((LeaderboardsSpotlight)d).ApplyIds()));
 
-    /// <summary>Automation ID of the jump button.</summary>
-    public static readonly DependencyProperty JumpAutomationIdProperty = DependencyProperty.Register(
-        nameof(JumpAutomationId), typeof(string), typeof(LeaderboardsSpotlight), new PropertyMetadata(null, (d, _) => ((LeaderboardsSpotlight)d).ApplyIds()));
-
     /// <summary>Creates the control.</summary>
     public LeaderboardsSpotlight()
     {
@@ -57,13 +53,6 @@ public sealed partial class LeaderboardsSpotlight : UserControl
         set => SetValue(IdPrefixProperty, value);
     }
 
-    /// <summary>Jump button automation ID.</summary>
-    public string? JumpAutomationId
-    {
-        get => (string?)GetValue(JumpAutomationIdProperty);
-        set => SetValue(JumpAutomationIdProperty, value);
-    }
-
     /// <summary>
     /// Applies automation IDs to each state. The prefix goes on the pinned row's own UIA element (its Button) and the
     /// loading ring, since the StackPanels around them are not in the UIA control view; the inline failure's Retry gets
@@ -78,21 +67,6 @@ public sealed partial class LeaderboardsSpotlight : UserControl
             AutomationProperties.SetAutomationId(Unranked, prefix + ".unranked");
             Failed.RetryAutomationId = prefix + ".retry";
         }
-        AutomationProperties.SetAutomationId(Jump, JumpAutomationId ?? (IdPrefix is null ? "" : IdPrefix + "-jump"));
-    }
-
-    /// <summary>
-    /// Raised when "Your Page" is invoked while it holds focus, with that focus kind. The button collapses once the
-    /// player's row is on the page, so the host moves focus to that row instead of letting it fall to the page start.
-    /// </summary>
-    public event EventHandler<FocusState>? FocusedJump;
-
-    /// <summary>Reports a jump from the focused button.</summary>
-    /// <param name="sender">Jump button.</param>
-    /// <param name="e">Unused.</param>
-    private void OnJumpClick(object sender, RoutedEventArgs e)
-    {
-        if (Jump.FocusState != FocusState.Unfocused) FocusedJump?.Invoke(this, Jump.FocusState);
     }
 }
 #endregion

@@ -5,9 +5,10 @@
     xmlns:controls="using:Festival.App.Controls"
     IsTabStop="False">
     <!-- Song-first header of every song leaderboard (web SongInfoHeader; song-leaderboard-header pattern): static cover,
-         song title (heading 1) and artist as one-line marquees (song-header R2), then the board line (instrument icon +
-         name, or the band size) and the optional entry total (issue #317). The whole block is one flat button that opens
-         Song Detail, like the web's pressable title area (onTitleClick; song-header R1). -->
+         the shared song title (heading 1) and artist column (SongHeaderText: one-line marquees that wrap at large text,
+         song-header R1-R3), then the board line (instrument icon + name, or the band size) and the optional entry total
+         (issue #317). The whole block is one flat button that opens Song Detail, like the web's pressable title area
+         (onTitleClick; song-header R1). -->
     <Grid x:Name="Host">
         <Button x:Name="SongButton" Click="OnSongClick" Padding="0" BorderThickness="0" CornerRadius="8" Background="Transparent"
                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Center"
@@ -22,10 +23,9 @@
                     <Image x:Name="Art" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
                 </Border>
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                    <controls:MarqueeText x:Name="TitleBlock" Text="{x:Bind Title, Mode=OneWay}" TextStyle="{StaticResource FSTPageTitleStyle}"
-                                          AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="{x:Bind TitleAutomationId, Mode=OneWay}" />
-                    <controls:MarqueeText x:Name="ArtistBlock" Text="{x:Bind Artist, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeSecondaryStyle}"
-                                          AutomationProperties.AutomationId="{x:Bind ArtistAutomationId, Mode=OneWay}" />
+                    <controls:SongHeaderText Title="{x:Bind Title, Mode=OneWay}" Artist="{x:Bind Artist, Mode=OneWay}" Spacing="2"
+                                             TitleAutomationId="{x:Bind TitleAutomationId, Mode=OneWay}"
+                                             ArtistAutomationId="{x:Bind ArtistAutomationId, Mode=OneWay}" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <controls:InstrumentIcon x:Name="BoardIcon" File="{x:Bind BoardIconFile, Mode=OneWay}" Width="20" Height="20"
                                                  AutomationProperties.AccessibilityView="Raw" />

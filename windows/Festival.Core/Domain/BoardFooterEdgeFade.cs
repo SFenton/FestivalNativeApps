@@ -3,7 +3,8 @@ namespace Festival.Core.Domain;
 #region Board footer edge fade
 /// <summary>
 /// The one bottom-chrome ramp above a leaderboard's floating footer (the pinned "your score" row and the pager; issues
-/// #93, #308). Like the web's <c>useScrollFade</c>, rows are fully clear at the footer's top and fully opaque
+/// #93, #305, #308). Like the web board pages (<c>Page.tsx</c> <c>useScrollMask</c> over a viewport that
+/// <c>useLeaderboardFooterScrollMargin</c> ends at the footer), rows are fully clear at the footer's top and fully opaque
 /// <see cref="Depth"/> epx above it, linear (<see cref="SongHeaderEdgeFade.Stops"/> reversed), and nothing shows beneath
 /// the footer. The ramp's depth is <c>min(scroll left, Depth)</c> (<see cref="FadeDepth"/>), so at the end of the list
 /// the last row is fully opaque. Contrast themes, Windows transparency effects off and the in-app Increase Contrast /
@@ -12,8 +13,11 @@ namespace Festival.Core.Domain;
 /// </summary>
 public static class BoardFooterEdgeFade
 {
-    /// <summary>Ramp depth in epx (web <c>useScrollFade</c> <c>DEFAULT_DISTANCE</c>: 36 px). The only bottom-ramp constant.</summary>
-    public const double Depth = 36;
+    /// <summary>
+    /// Ramp depth in epx: the web board pages' <c>useScrollMask</c> <c>DEFAULT_SIZE</c> (40 px, linear; no board overrides
+    /// it). Not <c>useScrollFade</c>'s 36 px per-row exponential fade, which web boards don't use. The only bottom-ramp constant.
+    /// </summary>
+    public const double Depth = 40;
 
     /// <summary>The ramp's depth for the scroll left below the viewport: 0 at the end (nothing more below) up to <see cref="Depth"/>.</summary>
     /// <param name="scrollableHeight">Scroll extent minus viewport, epx.</param>
@@ -48,7 +52,7 @@ public static class BoardFooterEdgeFade
 
     /// <summary>
     /// The board footer edge state that the fade layer publishes to UI Automation, from the mask actually drawn, so a
-    /// UI test can tell the 36 epx ramp, the end state and the R7 hard cut apart without reading pixels.
+    /// UI test can tell the 40 epx ramp, the end state and the R7 hard cut apart without reading pixels.
     /// </summary>
     /// <param name="drawn">Whether the mask is drawn (rows and a floating footer are shown).</param>
     /// <param name="enabled">Whether the settings allow the ramp (<see cref="SongHeaderEdgeFade.IsEnabled"/>).</param>

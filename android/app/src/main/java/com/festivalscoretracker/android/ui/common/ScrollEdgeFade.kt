@@ -62,8 +62,8 @@ fun DrawScope.drawScrollEdgeRamp(clearY: Float, opaqueY: Float) {
 
 /**
  * Hides content beneath floating bottom chrome (the leaderboards' "your rank" footer and pager)
- * and fades it out over the linear ramp ending at the chrome's top edge ([FooterFade],
- * `useScrollFade`), so the chrome floats over the page background with nothing showing behind or
+ * and fades it out over the linear ramp ending at the chrome's top edge ([FooterFade], the web
+ * board pages' `useScrollMask`), so the chrome floats over the page background with nothing showing behind or
  * between it. A zero-depth edge (end of the list, or a hard edge, R7) still clears everything
  * below the cut. On an offscreen layer; drawing only, so hit testing, semantics and TalkBack order
  * are unchanged. Without an edge it draws nothing extra and skips the offscreen layer.

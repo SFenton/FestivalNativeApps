@@ -7,6 +7,7 @@ namespace Festival.Core.Data;
 /// <summary>Reflection-free metadata for the Bands lane's wire types.</summary>
 [JsonSourceGenerationOptions(PropertyNameCaseInsensitive = false, UseStringEnumConverter = true)]
 [JsonSerializable(typeof(PlayerBandListResponse))]
+[JsonSerializable(typeof(BandSearchResponse))]
 [JsonSerializable(typeof(BandProfileEnvelope))]
 [JsonSerializable(typeof(BandRankHistoryResponse))]
 [JsonSerializable(typeof(BandSongExtremesResponse))]

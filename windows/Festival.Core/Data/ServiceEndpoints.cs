@@ -6,7 +6,8 @@ namespace Festival.Core.Data;
 #region Endpoint URLs
 /// <summary>
 /// Builds allowlisted keyless GET URLs from individually validated segments. Blocked routes
-/// (band search, <c>/api/bands/{id}</c>, player stats, band sync-status) have no builder here.
+/// (<c>/api/bands/{id}</c>, player stats, band sync-status) have no builder here; band search
+/// (<see cref="BandEndpoints.BandSearch"/>) is allowed since the #320 read-only service fix.
 /// </summary>
 public static partial class ServiceEndpoints
 {

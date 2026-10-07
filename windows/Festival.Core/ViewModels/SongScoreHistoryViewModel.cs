@@ -21,8 +21,8 @@ public enum SongScoreHistoryPhase
 /// <summary>
 /// The selected player's score history on Song Detail (web <c>ScoreHistoryChart</c> in <c>GraphCard</c>): an instrument
 /// selector over the charts with history, a paged accuracy-bar + score-line chart whose bars select a detail row, the top
-/// five scores and "View all scores", which expands the list in place (the separate history page is folded into this
-/// section; the <c>/songs/:id/:instrument/history</c> route opens Song Detail scrolled here). One read per song:
+/// five scores by score and "View All Scores", which opens the selected chart's sortable Player History page
+/// (<c>/songs/:id/:instrument/history</c>; view-all-cta R8, issue #324). One read per song:
 /// <c>GET /api/player/{id}/history?songId=</c>.
 /// </summary>
 public sealed partial class SongScoreHistoryViewModel : ObservableObject
@@ -93,7 +93,7 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
 
     /// <summary>Selected chart.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(EmptyMessage), nameof(ViewAllName))]
+    [NotifyPropertyChangedFor(nameof(EmptyMessage), nameof(ViewAllName), nameof(ViewAllRoute))]
     private Instrument? selected;
 
     /// <summary>The selected chart's points, oldest first.</summary>
@@ -144,33 +144,18 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
     /// <summary>Whether forward arrows are enabled.</summary>
     public bool CanGoForward => !Pager.ForwardDisabled;
 
-    /// <summary>List rows (top five, or all after "View all scores").</summary>
+    /// <summary>List rows: the selected chart's top five by score (web <c>visibleCards</c>), best first.</summary>
     [ObservableProperty]
     private List<ScoreHistoryListRow> rows = [];
 
-    /// <summary>Whether the list shows every row.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanViewAll))]
-    private bool showAll;
+    /// <summary>Whether "View All Scores" shows: the chart has more than five scores (web <c>GraphCard</c> <c>viewAllLabel</c>).</summary>
+    public bool CanViewAll => Points.Count > SongScoreHistory.ListSize;
 
-    /// <summary>Whether "View all scores" shows (more than five rows, not yet expanded).</summary>
-    public bool CanViewAll => !ShowAll && Points.Count > SongScoreHistory.ListSize;
-
-    /// <summary>List sort key (default Score, like the web list).</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(SortLabel), nameof(SortAnnouncement))]
-    private PlayerScoreSortMode sortMode = PlayerScoreSortMode.Score;
-
-    /// <summary>List sort direction (default descending).</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(SortLabel), nameof(SortAnnouncement))]
-    private bool sortAscending;
-
-    /// <summary>Sort button text, e.g. "Score ↓".</summary>
-    public string SortLabel => $"{SortMode.Label()} {(SortAscending ? "↑" : "↓")}";
-
-    /// <summary>Sort button accessible name.</summary>
-    public string SortAnnouncement => $"Sort scores by {SortMode.Label()}, {(SortAscending ? "ascending" : "descending")}";
+    /// <summary>
+    /// Where "View All Scores" goes: the selected chart's Player History page, which lists every score with the web's sorts
+    /// (view-all-cta R8: the card never expands in place; issue #324).
+    /// </summary>
+    public AppRoute.PlayerHistory? ViewAllRoute => Selected is { } chart ? new AppRoute.PlayerHistory(SongId, chart) : null;
 
     /// <summary>Message for a chart without rows (web <c>chart.noHistory</c>).</summary>
     public string EmptyMessage => $"No score history for {Selected?.Label() ?? "this instrument"}";
@@ -271,39 +256,6 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
     [RelayCommand]
     public Task RetryAsync() => LoadAsync(song, pool);
 
-    /// <summary>Shows every row in place.</summary>
-    [RelayCommand]
-    public void ViewAll()
-    {
-        ShowAll = true;
-        RebuildRows();
-    }
-
-    /// <summary>Chooses a list sort key (keeps the direction).</summary>
-    /// <param name="mode">Key.</param>
-    [RelayCommand]
-    public void SortBy(PlayerScoreSortMode mode) => SortMode = mode;
-
-    /// <summary>Flips the list direction.</summary>
-    [RelayCommand]
-    public void ToggleDirection() => SortAscending = !SortAscending;
-
-    /// <summary>Restores Score, descending.</summary>
-    [RelayCommand]
-    public void ResetSort()
-    {
-        SortMode = PlayerScoreSortMode.Score;
-        SortAscending = false;
-    }
-
-    /// <summary>Re-sorts on mode change.</summary>
-    /// <param name="value">Mode.</param>
-    partial void OnSortModeChanged(PlayerScoreSortMode value) => RebuildRows();
-
-    /// <summary>Re-sorts on direction change.</summary>
-    /// <param name="value">Direction.</param>
-    partial void OnSortAscendingChanged(bool value) => RebuildRows();
-
     /// <summary>Applies a phase and rows, choosing the chart.</summary>
     /// <param name="next">Phase.</param>
     /// <param name="loaded">Rows for this song.</param>
@@ -326,7 +278,6 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
     {
         Points = Selected is { } instrument ? SongScoreHistory.Points(entries, instrument) : [];
         Pager.Reset(Points.Count);
-        ShowAll = false;
         RefreshPage();
         RebuildRows();
     }
@@ -358,14 +309,10 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
         OnPropertyChanged(nameof(CanGoForward));
     }
 
-    /// <summary>Rebuilds the list in the chosen order; the first row (personal best by default) is highlighted.</summary>
+    /// <summary>Rebuilds the top-five list, highest score first; the first row (the personal best) is highlighted.</summary>
     private void RebuildRows()
     {
-        var sorted = PlayerScoreHistorySort.Sorted(Points.Select(p => p.Entry), SortMode, SortAscending);
-        var best = PlayerScoreHistorySort.HighScoreIndex(sorted);
-        var ordered = sorted.Select(e => Points.First(p => ReferenceEquals(p.Entry, e))).ToList();
-        var shown = ShowAll ? ordered : [.. ordered.Take(SongScoreHistory.ListSize)];
-        var rows = shown.Select((p, i) => new ScoreHistoryListRow(p, i == best)).ToList();
+        var rows = SongScoreHistory.TopScores(Points).Select((p, i) => new ScoreHistoryListRow(p, i == 0)).ToList();
         // One set of columns for the list, so scores and accuracy badges line up (issue #37).
         var section = LeaderboardColumns.Measure(rows);
         Rows = [.. rows.Select(r => r with { Section = section })];
@@ -412,12 +359,18 @@ public sealed record ScoreHistoryListRow(ScoreHistoryPoint Point, bool IsBest) :
     public AppRoute? Route => null;
 
     /// <summary>
+    /// Prefix of a list row's automation ID: Song Detail's top-five rows by default; Player History uses
+    /// <c>fst.history.row.</c>.
+    /// </summary>
+    public string RowIdPrefix { get; init; } = "fst.song-detail.history.row.";
+
+    /// <summary>
     /// UIA automation ID: <c>fst.history.detail</c> for the selected bar's detail row (it may show the same score as a list
-    /// row, whose ID must stay unique), else <c>fst.song-detail.history.row.&lt;yyyyMMddHHmmss&gt;</c>.
+    /// row, whose ID must stay unique), else <see cref="RowIdPrefix"/> + <c>&lt;yyyyMMddHHmmss&gt;</c>.
     /// </summary>
     public string AutomationId => IsDetail
         ? "fst.history.detail"
-        : "fst.song-detail.history.row." + Point.Date.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+        : RowIdPrefix + Point.Date.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
 
     /// <summary>Badge UIA ID (<c>fst.score.accuracy.history.&lt;yyyyMMddHHmmss&gt;</c>; <c>.detail</c> on the tapped bar's row).</summary>
     public string BadgeAutomationId => "fst.score.accuracy.history." +

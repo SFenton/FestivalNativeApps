@@ -92,28 +92,41 @@ public abstract record AppRoute
         public override string ToPath() => $"/songs/{Esc(SongId)}" + (Instrument is { } i ? $"?instrument={i.ServiceId()}" : "");
     }
 
-    /// <summary><c>/songs/:songId/:instrument[?page=]</c>.</summary>
+    /// <summary><c>/songs/:songId/:instrument[?page=][&amp;navToPlayer=true]</c>.</summary>
     /// <param name="SongId">Song.</param>
     /// <param name="Instrument">Chart.</param>
     /// <param name="Page">One-based page.</param>
-    public sealed record SongLeaderboard(string SongId, Instrument Instrument, int Page = 1) : AppRoute
+    /// <param name="RevealSelected">Bring the selected player's row into view once the page loads (web <c>navToPlayer</c>, issue #307).</param>
+    public sealed record SongLeaderboard(string SongId, Instrument Instrument, int Page = 1, bool RevealSelected = false) : AppRoute
     {
         /// <inheritdoc />
         public override AppSection Section => AppSection.Songs;
         /// <inheritdoc />
         public override string ToPath() =>
-            $"/songs/{Esc(SongId)}/{Instrument.ServiceId()}" + (Page > 1 ? $"?page={Page.ToString(CultureInfo.InvariantCulture)}" : "");
+            $"/songs/{Esc(SongId)}/{Instrument.ServiceId()}" + PageQuery(Page, RevealSelected ? "navToPlayer" : null);
     }
 
-    /// <summary><c>/songs/:songId/bands/:bandType</c>.</summary>
+    /// <summary><c>/songs/:songId/bands/:bandType[?page=][&amp;navToBand=true]</c>.</summary>
     /// <param name="SongId">Song.</param>
     /// <param name="BandType">Band type.</param>
-    public sealed record SongBandLeaderboard(string SongId, string BandType) : AppRoute
+    /// <param name="Page">One-based page.</param>
+    /// <param name="RevealSelected">Bring the selected band's row into view once the page loads (web <c>navToBand</c>, issue #307).</param>
+    public sealed record SongBandLeaderboard(string SongId, string BandType, int Page = 1, bool RevealSelected = false) : AppRoute
     {
         /// <inheritdoc />
         public override AppSection Section => AppSection.Songs;
         /// <inheritdoc />
-        public override string ToPath() => $"/songs/{Esc(SongId)}/bands/{Esc(BandType)}";
+        public override string ToPath() => $"/songs/{Esc(SongId)}/bands/{Esc(BandType)}" + PageQuery(Page, RevealSelected ? "navToBand" : null);
+    }
+
+    /// <summary>A board's <c>?page=N[&amp;flag=true]</c> query; page one is omitted unless a reveal flag needs a query.</summary>
+    /// <param name="page">One-based page.</param>
+    /// <param name="revealFlag">Reveal flag name, or <see langword="null"/>.</param>
+    /// <returns>Query (with <c>?</c>) or empty.</returns>
+    private static string PageQuery(int page, string? revealFlag)
+    {
+        var text = page.ToString(CultureInfo.InvariantCulture);
+        return revealFlag is null ? page > 1 ? $"?page={text}" : "" : $"?page={text}&{revealFlag}=true";
     }
 
     /// <summary><c>/songs/:songId/:instrument/history</c>.</summary>

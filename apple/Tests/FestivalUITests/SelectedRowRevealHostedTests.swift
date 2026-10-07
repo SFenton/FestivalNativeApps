@@ -194,7 +194,7 @@ private let slowedItemFade = Animation.linear(duration: 3)
 ///   - band: The clear vertical band (below the bar, above the pinned chrome's fade).
 ///   - threshold: Bright-sample threshold for row text.
 ///   - rest: Least time from the first in-band capture to the settled one.
-///   - timeout: Upper bound, in requested poll time (`NativeHostedPollBudget`), for the row
+///   - timeout: Upper bound, in the wait's own time (`NativeHostedPollBudget`), for the row
 ///     to arrive and settle (scaled in a VM).
 /// - Returns: The first in-band and the settled captures, and the poll gap before the first.
 @MainActor
@@ -279,7 +279,7 @@ private func runRevealJourney(board: RevealBoard, motion: RevealMotion, size: CG
         #expect(press.accessibilityPerformPress?() == true)
     }
 
-    // Below the bar and above the pinned footer/pager and their 36 pt fade.
+    // Below the bar and above the pinned footer/pager and their 40 pt fade.
     let band: ClosedRange<CGFloat> = 90...(size.height - 230)
     let watch = try await watchReveal(
         host, size: size, row: board.rowId, band: band, threshold: board.threshold,

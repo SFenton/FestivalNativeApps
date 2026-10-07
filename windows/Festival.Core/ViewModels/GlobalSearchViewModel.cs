@@ -7,10 +7,11 @@ namespace Festival.Core.ViewModels;
 /// <summary>
 /// The one global-search engine (global-search spec): trimmed query, 2-character minimum, 250 ms debounce, local
 /// song matches ready as soon as the debounce fires (title-bar suggestions and the Songs scope), players from the
-/// keyless account search, one page spinner that waits for every read the scope shows (issue #299), per-scope
-/// empty/error states without Retry, cancellation of superseded queries and a polite count announcement.
-/// Bands are shown but never requested (the service's band search GET can write). <see cref="ForPlayers"/> is the same
-/// engine limited to players for the compact pickers (the title-bar profile flyout and Find Rival).
+/// keyless account search and bands from the keyless band search (both started together after the debounce in every
+/// scope, like the web; issue #320), one page spinner that waits for every read the scope shows (issue #299),
+/// per-scope empty/error states without Retry, cancellation of superseded queries and a polite count announcement.
+/// <see cref="ForPlayers"/> is the same engine limited to players for the compact pickers (the title-bar profile
+/// flyout and Find Rival); it never requests bands.
 /// </summary>
 public sealed partial class GlobalSearchViewModel : ObservableObject
 {
@@ -29,6 +30,7 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     {
         this.session = session;
         PlayersStatus = new ServiceStatusViewModel("global-search.players", "Player search unavailable", RetryAsync, session.Time);
+        BandsStatus = new ServiceStatusViewModel("global-search.bands", "Bands unavailable", RetryAsync, session.Time);
     }
 
     /// <summary>Creates the Search page's model from its route, reusing a settled title-bar search for the same query.</summary>
@@ -40,7 +42,7 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
         Scope = route.Scope;
         var text = GlobalSearchResults.Normalize(route.Text);
         if (seed is { IsSettled: true } && seed.SettledQuery == text && text.Length >= GlobalSearchResults.MinQueryLength &&
-            seed.PlayersState != LoadState.Failed)
+            seed.PlayersState != LoadState.Failed && seed.BandsState != LoadState.Failed)
         {
             seeding = true;
             Query = text;
@@ -50,6 +52,8 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
             SongsState = seed.SongsState;
             Players = seed.Players;
             PlayersState = seed.PlayersState;
+            Bands = seed.Bands;
+            BandsState = seed.BandsState;
             Suggestions = seed.Suggestions;
             Refresh();
             return;
@@ -80,7 +84,8 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     public event EventHandler<string>? ResultsAnnounced;
 
     /// <summary>
-    /// Raised when a results section appears (<see cref="SearchScope.Songs"/> or <see cref="SearchScope.Players"/>):
+    /// Raised when a results section appears (<see cref="SearchScope.Songs"/>, <see cref="SearchScope.Players"/> or
+    /// <see cref="SearchScope.Bands"/>):
     /// its rows were held behind the one spinner until every read settled, so the page re-arms that list's stagger and
     /// the rows fade as the spinner clears (web: "rows fade up with a stagger"). Raised again only after the section
     /// was hidden (a new query, scope change or the spinner).
@@ -92,6 +97,9 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
 
     /// <summary>Whether the Players section was showing at the last refresh.</summary>
     private bool playersShown;
+
+    /// <summary>Whether the Bands section was showing at the last refresh.</summary>
+    private bool bandsShown;
 
     #region State
     /// <summary>User text.</summary>
@@ -110,6 +118,10 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     [ObservableProperty]
     private List<GlobalPlayerResult> players = [];
 
+    /// <summary>Band matches for <see cref="SettledQuery"/> (≤10, the canonical band cards).</summary>
+    [ObservableProperty]
+    private List<PlayerBandCardViewModel> bands = [];
+
     /// <summary>Title-bar suggestion items.</summary>
     [ObservableProperty]
     private List<GlobalSuggestion> suggestions = [];
@@ -121,6 +133,10 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     /// <summary>Players lifecycle for the settled query.</summary>
     [ObservableProperty]
     private LoadState playersState;
+
+    /// <summary>Bands lifecycle for the settled query (<see cref="LoadState.Empty"/> without a request for the pickers).</summary>
+    [ObservableProperty]
+    private LoadState bandsState;
 
     /// <summary>Whether a newer query is waiting for the debounce.</summary>
     [ObservableProperty]
@@ -135,36 +151,30 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     /// <summary>Players failure presentation (freeze → "Scores are updating" with automatic retry).</summary>
     public ServiceStatusViewModel PlayersStatus { get; }
 
+    /// <summary>Bands failure presentation (same rules as <see cref="PlayersStatus"/>).</summary>
+    public ServiceStatusViewModel BandsStatus { get; }
+
     /// <summary>Current search task (tests and the view await nothing; exposed for determinism).</summary>
     internal Task? Pending { get; private set; }
 
-    /// <summary>Whether songs and players have both finished for the settled query.</summary>
-    public bool IsSettled => SettledQuery.Length > 0 && !IsDebouncing &&
-                             SongsState is LoadState.Loaded or LoadState.Empty or LoadState.Failed &&
-                             PlayersState is LoadState.Loaded or LoadState.Empty or LoadState.Failed;
+    /// <summary>Whether songs, players and bands have all finished for the settled query.</summary>
+    public bool IsSettled => SettledQuery.Length > 0 && !IsDebouncing && IsDone(SongsState) && IsDone(PlayersState) && IsDone(BandsState);
+
+    /// <summary>Whether a read finished (rows, nothing or a failure).</summary>
+    /// <param name="state">Lifecycle.</param>
+    /// <returns><see langword="true"/> once settled.</returns>
+    private static bool IsDone(LoadState state) => state is LoadState.Loaded or LoadState.Empty or LoadState.Failed;
     #endregion
 
     #region Presentation
     /// <summary>Whether the query is too short to search.</summary>
     public bool IsShortQuery => !GlobalSearchResults.IsSearchable(Query);
 
-    /// <summary>Whether the Bands scope (explanation, no request) is chosen.</summary>
-    public bool IsBandsScope => Scope == SearchScope.Bands;
+    /// <summary>Whether every scope finished with nothing (All view shows one "No results found.").</summary>
+    private bool AllEmpty => SongsState == LoadState.Empty && PlayersState == LoadState.Empty && BandsState == LoadState.Empty;
 
-    /// <summary>Band explanation text.</summary>
-    public string BandsExplanation => GlobalSearchResults.BandsUnavailable;
-
-    /// <summary>Whether both live scopes finished with nothing (All view shows one "No results found.").</summary>
-    private bool AllEmpty => SongsState == LoadState.Empty && PlayersState == LoadState.Empty;
-
-    /// <summary>Whether the band explanation is shown: Bands with a searchable query (a short one shows the hint).</summary>
-    public bool ShowBandsExplanation => IsBandsScope && !IsShortQuery;
-
-    /// <summary>
-    /// Whether results for the current text are on screen (not short, not replaced by the bands block and not behind
-    /// the one centred spinner).
-    /// </summary>
-    private bool ShowsResults => !IsShortQuery && !IsBandsScope && SettledQuery.Length > 0 && !IsBusy;
+    /// <summary>Whether results for the current text are on screen (not short and not behind the one centred spinner).</summary>
+    private bool ShowsResults => !IsShortQuery && SettledQuery.Length > 0 && !IsBusy;
 
     /// <summary>Whether the Songs section is shown.</summary>
     public bool ShowSongsSection => ShowsResults && Scope is SearchScope.All or SearchScope.Songs &&
@@ -175,6 +185,9 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
 
     /// <summary>Whether player rows are shown (their card is hidden otherwise).</summary>
     public bool HasPlayerRows => Players.Count > 0;
+
+    /// <summary>Whether band cards are shown (their list is hidden otherwise).</summary>
+    public bool HasBandRows => Bands.Count > 0;
 
     /// <summary>Whether the Songs section shows its failure line.</summary>
     public bool SongsFailed => SongsState == LoadState.Failed;
@@ -196,6 +209,22 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     /// <summary>Whether the account search finished with an empty envelope.</summary>
     public bool PlayersEmpty => PlayersState == LoadState.Empty;
 
+    /// <summary>
+    /// Whether the Bands section is shown (cards or failure), with the same rules as <see cref="ShowPlayersSection"/>:
+    /// an empty envelope is hidden in All and the centred empty state in Bands.
+    /// </summary>
+    public bool ShowBandsSection => ShowsResults && Scope is SearchScope.All or SearchScope.Bands &&
+                                    BandsState is LoadState.Loaded or LoadState.Failed;
+
+    /// <summary>Whether the band search is running (the page's spinner waits for it in All and Bands).</summary>
+    public bool BandsLoading => BandsState == LoadState.Loading;
+
+    /// <summary>Whether the Bands section shows the service-status card (never read as "No bands found").</summary>
+    public bool BandsFailed => BandsState == LoadState.Failed;
+
+    /// <summary>Whether the band search finished with an empty envelope.</summary>
+    public bool BandsEmpty => BandsState == LoadState.Empty;
+
     /// <summary>Songs failure text.</summary>
     public string SongsFailedText => GlobalSearchResults.SongsFailed;
 
@@ -205,12 +234,13 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     /// <summary>Whether <see cref="Hint"/> has text.</summary>
     public bool HasHint => Hint.Length > 0;
 
-    /// <summary>Which centred empty state applies: every scope empty in All, Songs with no match, or Players empty.</summary>
+    /// <summary>Which centred empty state applies: every scope empty in All, or the chosen scope empty.</summary>
     private SearchScope? EmptyScope =>
         !ShowsResults ? null :
         Scope == SearchScope.All && AllEmpty ? SearchScope.All :
         Scope == SearchScope.Songs && SongsState == LoadState.Empty ? SearchScope.Songs :
-        Scope == SearchScope.Players && PlayersEmpty ? SearchScope.Players : null;
+        Scope == SearchScope.Players && PlayersEmpty ? SearchScope.Players :
+        Scope == SearchScope.Bands && BandsEmpty ? SearchScope.Bands : null;
 
     /// <summary>Whether the centred title-and-subtitle empty state is shown (issue #99).</summary>
     public bool HasEmptyState => EmptyScope is not null;
@@ -221,6 +251,7 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
         SearchScope.All => GlobalSearchResults.EmptyAllTitle,
         SearchScope.Songs => GlobalSearchResults.EmptySongsTitle,
         SearchScope.Players => GlobalSearchResults.EmptyPlayersTitle,
+        SearchScope.Bands => GlobalSearchResults.EmptyBandsTitle,
         _ => "",
     };
 
@@ -230,6 +261,7 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
         SearchScope.All => GlobalSearchResults.EmptyAllSubtitle,
         SearchScope.Songs => GlobalSearchResults.EmptySongsSubtitle,
         SearchScope.Players => GlobalSearchResults.EmptyPlayersSubtitle,
+        SearchScope.Bands => GlobalSearchResults.EmptyBandsSubtitle,
         _ => "",
     };
 
@@ -248,13 +280,14 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
 
     /// <summary>
     /// Whether the page shows its one centred spinner instead of results (issue #299, web <c>SearchModal</c>): during
-    /// the debounce, and until every read the scope shows has settled. All waits for songs and players; Songs never
-    /// waits for players.
+    /// the debounce, and until every read the scope shows has settled. All waits for songs, players and bands; a single
+    /// scope waits only for itself (Songs never waits for the network).
     /// </summary>
-    public bool IsBusy => !IsShortQuery && !IsBandsScope &&
+    public bool IsBusy => !IsShortQuery &&
                           (IsDebouncing || SettledQuery.Length == 0 ||
                            Scope is SearchScope.All or SearchScope.Songs && SongsState == LoadState.Loading ||
-                           Scope is SearchScope.All or SearchScope.Players && PlayersLoading);
+                           Scope is SearchScope.All or SearchScope.Players && PlayersLoading ||
+                           Scope is SearchScope.All or SearchScope.Bands && BandsLoading);
     #endregion
 
     #region Commands
@@ -291,6 +324,7 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
         Cancel();
         IsDebouncing = false;
         PlayersStatus.Clear();
+        BandsStatus.Clear();
     }
     #endregion
 
@@ -345,13 +379,15 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
         SettledQuery = "";
         Songs = [];
         Players = [];
+        Bands = [];
         Suggestions = [];
         SongsState = LoadState.Idle;
         PlayersState = LoadState.Idle;
+        BandsState = LoadState.Idle;
         Refresh();
     }
 
-    /// <summary>Runs one search: songs locally as soon as the debounce fires, then players over the network.</summary>
+    /// <summary>Runs one search: songs locally as soon as the debounce fires, then players and bands together over the network.</summary>
     /// <param name="text">Trimmed query.</param>
     /// <param name="debounce">Whether to wait first.</param>
     /// <param name="token">Cancelled by newer input.</param>
@@ -368,9 +404,13 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
             }
             IsDebouncing = false;
             SettledQuery = text;
-            PlayersState = GlobalSearchResults.CanSearchPlayers(text) ? LoadState.Loading : LoadState.Empty;
-            // Earlier matches that still fit stay while the account search runs (the list no longer shrinks per keystroke).
+            // The band search takes the same query rules as the account search (2–200 characters, no unsafe text).
+            var remote = GlobalSearchResults.CanSearchPlayers(text);
+            PlayersState = remote ? LoadState.Loading : LoadState.Empty;
+            BandsState = remote && !playersOnly ? LoadState.Loading : LoadState.Empty;
+            // Earlier matches that still fit stay while the searches run (the lists no longer shrink per keystroke).
             Players = PlayersState == LoadState.Loading ? GlobalSearchResults.RetainMatching(Players, text) : [];
+            Bands = BandsState == LoadState.Loading ? [.. Bands.Where(b => GlobalSearchResults.BandStillMatches(b.Entry, text))] : [];
             if (playersOnly)
             {
                 SongsState = LoadState.Empty;
@@ -379,11 +419,25 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
             {
                 await LoadSongsAsync(text, token);
                 token.ThrowIfCancellationRequested();
-                Suggestions = GlobalSearchResults.Suggestions(text, Songs, Players);
+                UpdateSuggestions(text);
             }
             Refresh();
-            if (PlayersState == LoadState.Loading) await LoadPlayersAsync(text, token);
-            if (!playersOnly) Suggestions = GlobalSearchResults.Suggestions(text, Songs, Players);
+            // Both reads run together; each result is applied here, one at a time, as it arrives, so the Players
+            // scope shows its rows without waiting for the band search (and state is never written concurrently).
+            var pending = new List<Task<Action>>(2);
+            if (PlayersState == LoadState.Loading) pending.Add(LoadPlayersAsync(text, token));
+            if (BandsState == LoadState.Loading) pending.Add(LoadBandsAsync(text, token));
+            while (pending.Count > 0)
+            {
+                var done = await Task.WhenAny(pending);
+                pending.Remove(done);
+                var apply = await done;
+                token.ThrowIfCancellationRequested();
+                apply();
+                UpdateSuggestions(text);
+                Refresh();
+            }
+            UpdateSuggestions(text);
             Refresh();
             Announce();
         }
@@ -421,28 +475,70 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     /// <summary>Reads the keyless account search; late or cancelled results are dropped.</summary>
     /// <param name="text">Trimmed query.</param>
     /// <param name="token">Cancellation.</param>
-    /// <returns>Load task.</returns>
-    private async Task LoadPlayersAsync(string text, CancellationToken token)
+    /// <returns>The state change to apply on the search's continuation.</returns>
+    private async Task<Action> LoadPlayersAsync(string text, CancellationToken token)
     {
         try
         {
             var response = await session.Api.SearchPlayersAsync(text, GlobalSearchResults.PlayerLimit, token);
-            token.ThrowIfCancellationRequested();
             var selected = session.SelectedPlayer?.AccountId;
             var results = excludeSelected
                 ? response.Results.Where(r => !string.Equals(r.AccountId, selected, StringComparison.OrdinalIgnoreCase))
                 : response.Results;
-            Players = GlobalSearchResults.Players(results, selected);
-            // Status first: once the state flips, the query counts as settled and its status must already be current.
-            PlayersStatus.Clear();
-            PlayersState = Players.Count > 0 ? LoadState.Loaded : LoadState.Empty;
+            var players = GlobalSearchResults.Players(results, selected);
+            return () =>
+            {
+                Players = players;
+                // Status first: once the state flips, the query counts as settled and its status must already be current.
+                PlayersStatus.Clear();
+                PlayersState = players.Count > 0 ? LoadState.Loaded : LoadState.Empty;
+            };
         }
         catch (FestivalApiException error) when (!token.IsCancellationRequested)
         {
-            Players = [];
-            PlayersStatus.Report(error);
-            PlayersState = LoadState.Failed;
+            return () =>
+            {
+                Players = [];
+                PlayersStatus.Report(error);
+                PlayersState = LoadState.Failed;
+            };
         }
+    }
+
+    /// <summary>Reads the keyless band search (first page); late or cancelled results are dropped.</summary>
+    /// <param name="text">Trimmed query.</param>
+    /// <param name="token">Cancellation.</param>
+    /// <returns>The state change to apply on the search's continuation.</returns>
+    private async Task<Action> LoadBandsAsync(string text, CancellationToken token)
+    {
+        try
+        {
+            var response = await session.Api.SearchBandsAsync(text, GlobalSearchResults.BandLimit, token);
+            List<PlayerBandCardViewModel> bands = [.. response.Results.Take(GlobalSearchResults.BandLimit)
+                .Select(entry => new PlayerBandCardViewModel(entry, GlobalSearchResults.BandResultId))];
+            return () =>
+            {
+                Bands = bands;
+                BandsStatus.Clear();
+                BandsState = bands.Count > 0 ? LoadState.Loaded : LoadState.Empty;
+            };
+        }
+        catch (FestivalApiException error) when (!token.IsCancellationRequested)
+        {
+            return () =>
+            {
+                Bands = [];
+                BandsStatus.Report(error);
+                BandsState = LoadState.Failed;
+            };
+        }
+    }
+
+    /// <summary>Rebuilds the title-bar suggestions (the players-only pickers have none).</summary>
+    /// <param name="text">Trimmed query.</param>
+    private void UpdateSuggestions(string text)
+    {
+        if (!playersOnly) Suggestions = GlobalSearchResults.Suggestions(text, Songs, Players, [.. Bands.Select(b => b.Entry)]);
     }
 
     /// <summary>Raises the count announcement once the query settles.</summary>
@@ -452,7 +548,8 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
             ? GlobalSearchResults.PlayersAnnouncement(PlayersState == LoadState.Failed ? null : Players.Count, PlayersHint)
             : GlobalSearchResults.Announcement(
                 SongsState == LoadState.Failed ? null : Songs.Count,
-                PlayersState == LoadState.Failed ? null : Players.Count);
+                PlayersState == LoadState.Failed ? null : Players.Count,
+                BandsState == LoadState.Failed ? null : Bands.Count);
         ResultsAnnounced?.Invoke(this, LastAnnouncement);
     }
 
@@ -462,18 +559,22 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
         foreach (var name in DerivedProperties) OnPropertyChanged(name);
         var songsWasShown = songsShown;
         var playersWasShown = playersShown;
+        var bandsWasShown = bandsShown;
         songsShown = ShowSongsSection;
         playersShown = ShowPlayersSection;
+        bandsShown = ShowBandsSection;
         if (songsShown && !songsWasShown) SectionShown?.Invoke(this, SearchScope.Songs);
         if (playersShown && !playersWasShown) SectionShown?.Invoke(this, SearchScope.Players);
+        if (bandsShown && !bandsWasShown) SectionShown?.Invoke(this, SearchScope.Bands);
     }
 
     /// <summary>Derived property names.</summary>
     private static readonly string[] DerivedProperties =
     [
-        nameof(IsShortQuery), nameof(IsBandsScope), nameof(ShowSongsSection), nameof(SongsFailed), nameof(ShowPlayersSection),
+        nameof(IsShortQuery), nameof(ShowSongsSection), nameof(SongsFailed), nameof(ShowPlayersSection),
         nameof(PlayersLoading), nameof(PlayersFailed), nameof(PlayersEmpty), nameof(Hint), nameof(HasHint),
-        nameof(HasEmptyState), nameof(EmptyTitle), nameof(EmptySubtitle), nameof(ShowBandsExplanation),
+        nameof(HasEmptyState), nameof(EmptyTitle), nameof(EmptySubtitle), nameof(ShowBandsSection), nameof(BandsLoading),
+        nameof(BandsFailed), nameof(BandsEmpty), nameof(HasBandRows),
         nameof(IsBusy), nameof(IsSettled), nameof(HasSongRows), nameof(HasPlayerRows), nameof(PlayersHint), nameof(CanRetryPlayers),
     ];
     #endregion

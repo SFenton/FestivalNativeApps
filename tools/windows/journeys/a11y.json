@@ -108,7 +108,7 @@
     "route": "/songs/fixture-pulse/Solo_Guitar/history",
     "profile": "fixture-player-1:Demo Player",
     "ready": [
-      "waitfor:id=fst.history.subtitle@20"
+      "waitfor:id=fst.history.list@20"
     ]
   },
   {

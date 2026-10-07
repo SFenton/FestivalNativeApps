@@ -39,7 +39,7 @@ Android consumers (#317): `SongLeaderboardScreen` (instrument) and `ui/bands/Son
 
 Android tests: `BandsUiTest.songBandLeaderboardUsesTheSoloSongHeaderAndScrollAwayTitle` (R1, R3), `SongHeaderTitleUiTest.songBandLeaderboardTitleScrollsAcrossTheHeaderAndTheBar`, and the cover tests `BandsUiTest.songBandLeaderboardShowsTheSongsStaticCover`, `LeaderboardsUiTest.songLeaderboardShowsTheSongsStaticCover` and `SongCoverBackdropTest` (R4).
 
-Windows consumers: `Pages/LeaderboardsSongPage` (instrument + icon) and `Pages/BandsSongLeaderboardPage` (band size).
+Windows consumers: `Pages/LeaderboardsSongPage` (instrument + icon), `Pages/BandsSongLeaderboardPage` (band size) and `Pages/PlayerHistoryPage` (instrument + icon, no total; the title opens Song Detail; #324, web `PlayerHistoryPage` uses `SongInfoHeader` too).
 
 ### Windows (`Controls/SongLeaderboardHeader`)
 
@@ -53,6 +53,7 @@ Windows consumers: `Pages/LeaderboardsSongPage` (instrument + icon) and `Pages/B
 
 - **Windows has no bar title (R3).** The WinUI title bar carries the back button and app identity, not a per-page title; the solo header scrolls away under it and the page-change announcement names the board (`<Song>, <Board> leaderboard`).
 - **Windows band board: fixed header.** Agent decision (#317, 2026-10-05; the owner may override): the band board's header stays fixed above the size `SelectorBar` instead of scrolling away with the rows like the solo board. The band rows' load gate hides the `ListView` (and any `ListView.Header`) while a size swap loads, which would blank the header, and the row UIA from #196 relies on that `ListView`. The web also keeps `SongInfoHeader` `collapsed` above the band rows, outside its `LoadGate` (R5).
+- **Windows Player History: fixed header.** Agent decision (#324, 2026-10-06; the owner may override): Player History keeps the header, with its Sort `DropDownButton` beside it (web header actions), fixed above the scrolling score rows, as the band board does, so the sort stays in reach on a long history and a re-sort (which scrolls to the top) never moves the header.
 - **Windows title invocation.** Agent decision (#317 review, 2026-10-06; the owner may override): the whole header is the Song Detail link, as the web's title area is, instead of the band board's former separate `HyperlinkButton` under a "{Band} Leaderboard" heading. A separate link would repeat the song title (R1, [song-header](song-header.md) R1: "the whole header is one control"); a `HyperlinkButton` would recolour the inherited board line with the accent brush. A flat `Button` keeps the text colours and gives Fluent's hover/press fill and focus rectangle.
 
 ## Known debt

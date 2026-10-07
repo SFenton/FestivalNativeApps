@@ -10,13 +10,22 @@ that just appears otherwise::
     fade-close list=CardList start=0 since=420
     fade-skip list=CardList index=6
 
+A board that opens on the selected row (``navToPlayer``/``navToBand``, issue #307) also writes one line when
+``FadeIn.RevealSelected`` brings that row into view (``after``: ms since the row's own fade was scheduled; ``rushed``:
+fades it started early; ``scrolled=1`` when it gave way to the reader's scroll; ``cancelled=1`` when a newer load
+replaced the rows) and one per rushed row::
+
+    fade-reveal list=Rows index=3 faded=1 delay=500 after=905 scrolled=0 rushed=6 motion=1
+    fade-rush list=Rows index=8 delay=1125
+
 A journey drives the app in phases and judges only the lines each phase appended, so it can prove that a page fades
 the rows visible at load, that a scroll right after the load closes the window so old rows it realizes just appear,
 that an appended batch fades only its own new rows, that scrolling away and back replays nothing, and that rows held
 behind a spinner fade once when it clears. :data:`WIRING` lists the page calls these
 journeys exercise; ``tests/test_fade_trace.py`` checks them in CI, where WinUI journeys cannot run.
 
-Used by ``suggestions_journey.py`` (scenario ``fade``) and ``search_journey.py`` (journey ``fade-delayed-results``).
+Used by ``suggestions_journey.py`` (scenario ``fade``), ``search_journey.py`` (journey ``fade-delayed-results``) and
+``selected_reveal_journey.py`` (the selected-row reveal, :func:`check_reveal`).
 """
 
 from __future__ import annotations
@@ -28,9 +37,11 @@ from pathlib import Path
 from typing import Callable
 
 ROOT = Path(__file__).resolve().parents[2]
-LINE = re.compile(r"^fade-(?P<kind>arm|play|close|skip) list=(?P<list>\S+)(?P<rest>(?: \w+=-?\d+)*)\s*$")
+LINE = re.compile(r"^fade-(?P<kind>arm|play|close|skip|reveal|rush) list=(?P<list>\S+)(?P<rest>(?: \w+=-?\d+)*)\s*$")
 ARM_WINDOW_MS = 1000
 """``FadeInTiming.ArmWindow``: how long after an arm newly realized rows may still fade."""
+FADE_MS = 400
+"""``FadeInTiming.Duration``: one row's fade."""
 
 #: ``(file, regex, what breaks without it)``: the page wiring behind each fade journey assertion.
 WIRING: tuple[tuple[str, str, str], ...] = (
@@ -41,7 +52,7 @@ WIRING: tuple[tuple[str, str, str], ...] = (
      r"SectionShown\s*\+=\s*OnSectionShown",
      "Search rows held behind the spinner appear without a fade (journey fade-delayed-results)"),
     ("windows/Festival.App/Pages/SearchPage.xaml.cs",
-     r"FadeIn\.Restagger\(section == SearchScope\.Songs \? SongsList : PlayersList\)",
+     r"FadeIn\.Restagger\(section switch\s*\{\s*SearchScope\.Songs\s*=>\s*SongsList,\s*SearchScope\.Players\s*=>\s*PlayersList,\s*_\s*=>\s*BandsList",
      "Search rows held behind the spinner appear without a fade (journey fade-delayed-results)"),
     ("windows/Festival.App/Controls/FadeIn.cs",
      r"viewer\.ViewChanging\s*\+=\s*OnViewChanging",
@@ -52,6 +63,18 @@ WIRING: tuple[tuple[str, str, str], ...] = (
     ("windows/Festival.App/Pages/SongDetailPage.xaml.cs",
      r"boardArm\.Scrolled\(Scroller\.HorizontalOffset,\s*Scroller\.VerticalOffset\);\s*\n\s*if\s*\(boardArm\.IsOpen",
      "Song Detail leaderboard cards realized by an early scroll fade in (load-transition R5)"),
+    ("windows/Festival.App/Controls/FadeIn.cs",
+     r"if\s*\(Motion\.Allowed\)\s*ArmOf\(list\)\.Played\(index,\s*delay,\s*Now\)",
+     "a selected-row reveal no longer waits for the row's own entrance (journey selected-reveal, leaderboard-row R7)"),
+    ("windows/Festival.App/Pages/BandsSongLeaderboardPage.xaml.cs",
+     r"FadeIn\.StaggerRealized\(Rows\);[\s\S]{0,400}?FadeIn\.RevealSelected\(Rows,",
+     "the band board's navToBand reveal scrolls before its rows' entrance (journey selected-reveal: band)"),
+    ("windows/Festival.App/Pages/LeaderboardsSongPage.xaml.cs",
+     r"FadeIn\.StaggerRealized\(RowsRepeater\);[\s\S]{0,600}?FadeIn\.RevealSelected\(RowsRepeater,",
+     "the solo board's navToPlayer reveal scrolls before its rows' entrance (journey selected-reveal: solo)"),
+    ("windows/Festival.App/Pages/LeaderboardsFullRankingsPage.xaml.cs",
+     r"FadeIn\.StaggerRealized\(RowsRepeater\);[\s\S]{0,400}?RevealSelected\(\);",
+     "Full Rankings' pinned-row jump reveal scrolls before its rows' entrance (leaderboard-row R7)"),
 )
 
 # region Parsing
@@ -219,6 +242,73 @@ def check_none(events: list[FadeEvent]) -> list[str]:
     """
     played = [(e.list, e.values.get("index")) for e in events if e.kind == "play"]
     return [f"rows faded again after the reveal: {played}"] if played else []
+
+
+def check_reveal(events: list[FadeEvent], list_id: str, index: int, motion: bool = True,
+                 require_rush: bool = False, slack_ms: int = 5, margin_ms: int = 50) -> list[str]:
+    """Leaderboard-row R7 and load-transition R5: a selected row is revealed only after its own entrance, and the
+    reveal's jump rushes the fades that hadn't begun.
+
+    With motion, the row must have faded before the reveal, the reveal must come at least its stagger delay plus a
+    fade (:data:`FADE_MS`) after the row's fade was scheduled, every rushed row must still have been waiting, and
+    every row whose stagger delay outlasted the reveal (by ``margin_ms``) must have been rushed rather than left to
+    fade after the jump. Under Reduce Motion the reveal is immediate (``motion=0``) and rushes nothing.
+
+    Args:
+        events: Events of the phase that opened the board on the selected row.
+        list_id: List name.
+        index: Selected row index.
+        motion: Whether the app ran with motion allowed.
+        require_rush: Fail when the reveal rushed nothing (the run must exercise the rush).
+        slack_ms: Timer jitter allowed before the row's fade ends.
+        margin_ms: Scheduling spread between rows faded in the same entrance.
+
+    Returns:
+        Failures.
+    """
+    own = [e for e in events if e.list == list_id]
+    reveals = [i for i, e in enumerate(own)
+               if e.kind == "reveal" and e.values.get("index") == index and not e.values.get("cancelled")]
+    if not reveals:
+        return [f"{list_id}: row {index} was never revealed (no fade-reveal)"]
+    failures = [f"{list_id}: row {index} revealed {len(reveals)} times"] if len(reveals) > 1 else []
+    at = reveals[0]
+    reveal = own[at].values
+    if reveal.get("scrolled"):
+        return failures + [f"{list_id}: the reveal gave way to a scroll nobody made (scrolled=1)"]
+    rushes = [e.values for e in own[at + 1:at + 1 + reveal.get("rushed", 0)] if e.kind == "rush"]
+    if len(rushes) != reveal.get("rushed", 0):
+        failures.append(f"{list_id}: reveal reported rushed={reveal.get('rushed')} but logged {len(rushes)} rushes")
+    if not motion:
+        if reveal.get("motion") != 0:
+            failures.append(f"{list_id}: Reduce Motion run revealed with motion={reveal.get('motion')}")
+        if reveal.get("rushed") or reveal.get("faded"):
+            failures.append(f"{list_id}: Reduce Motion reveal waited or rushed: {reveal}")
+        return failures
+    if reveal.get("motion") != 1:
+        failures.append(f"{list_id}: the reveal ran without motion: {reveal}")
+    if not any(e.kind == "play" and e.values.get("index") == index for e in own[:at]):
+        failures.append(f"{list_id}: row {index} never faded before its reveal")
+    if not reveal.get("faded"):
+        return failures + [f"{list_id}: the reveal didn't wait for row {index}'s entrance (faded=0)"]
+    delay, after = reveal.get("delay", 0), reveal.get("after", 0)
+    if after < delay + FADE_MS - slack_ms:
+        failures.append(f"{list_id}: revealed {after} ms after row {index}'s fade was scheduled, before its "
+                        f"{delay} ms delay + {FADE_MS} ms fade ended")
+    early = [r["index"] for r in rushes if r.get("delay", 0) <= after - margin_ms]
+    if early:
+        failures.append(f"{list_id}: rushed rows {early} whose fades had already started")
+    rushed = {r["index"] for r in rushes}
+    last: dict[int, int] = {}
+    for event in own[:at]:
+        if event.kind == "play":
+            last[event.values["index"]] = event.values.get("delay", 0)
+    left = sorted(i for i, d in last.items() if d > after + margin_ms and i not in rushed)
+    if left:
+        failures.append(f"{list_id}: rows {left} kept their stagger delay through the reveal's jump (not rushed)")
+    if require_rush and not rushes:
+        failures.append(f"{list_id}: the reveal rushed no fade, so the rush was not exercised")
+    return failures
 
 # endregion
 
