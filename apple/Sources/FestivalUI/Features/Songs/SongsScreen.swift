@@ -1512,13 +1512,28 @@ struct SongsScreen: View, Equatable {
 
     /// Song cards per list row: two side by side under each section header in a
     /// landscape regular window (iPad, iPhone Duo inner display; operator 2026-10-04,
-    /// `split-view.md`: Songs never splits, it uses the width instead), else one. The
-    /// Mac keeps one single-line row per song, like a table.
+    /// `split-view.md`: Songs never splits, it uses the width instead), else one. With
+    /// a player selected each song takes the full width so its row can put the
+    /// player's instrument cards on the right half (#340). The Mac keeps one
+    /// single-line row per song, like a table.
     private var songColumns: Int {
         #if os(macOS)
         1
         #else
-        SongGridPolicy.columns(layout: deviceLayout)
+        SongProfilePanelPolicy.gridColumns(
+            layout: deviceLayout, hasSelectedPlayer: session.selectedPlayer != nil,
+            filterInvalidScores: filterInvalidScores
+        )
+        #endif
+    }
+
+    /// Rows may split into song | player instrument cards: iPad and the iPhone Duo
+    /// inner display (regular in both dimensions) and the Mac.
+    private var allowsProfilePanel: Bool {
+        #if os(macOS)
+        true
+        #else
+        deviceLayout.isRegularInBothDimensions
         #endif
     }
 
@@ -1637,6 +1652,7 @@ struct SongsScreen: View, Equatable {
             visibleInstruments: visibleInstruments,
             currentSeason: currentSeason
         )
+        .environment(\.songRowsAllowProfilePanel, allowsProfilePanel)
         #if os(macOS)
         // On the Mac the row is the link's label, so its row button style draws the
         // hover tint and the keyboard focus ring on the card (an invisible link's

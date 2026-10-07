@@ -148,6 +148,7 @@ private func selectedRowSession(
 ///   - shop: Optional validated synthetic Shop accent.
 ///   - typeSize: Ordinary or accessibility text size.
 ///   - size: Available native card content dimensions.
+///   - profilePanel: The shell allows the wide split row (#340).
 /// - Returns: Real AppKit pixels, status fills and optional private screenshot bytes.
 /// - Throws: Failed native render or evidence encoding.
 @MainActor
@@ -157,7 +158,8 @@ private func selectedSongRow(
     icons: Bool = true, visible: Set<Instrument> = Set(Instrument.allCases),
     metadata: SongMetadataVisibility = SongMetadataVisibility(),
     invalidFilter: Bool = false, shop: ShopHighlight? = nil,
-    typeSize: DynamicTypeSize = .large, size: CGSize = CGSize(width: 390, height: 320)
+    typeSize: DynamicTypeSize = .large, size: CGSize = CGSize(width: 390, height: 320),
+    profilePanel: Bool = false
 ) throws -> (data: Data, fills: (gold: Int, green: Int, red: Int)) {
     let host = nativeHostedView(
         SongRowView(
@@ -167,6 +169,7 @@ private func selectedSongRow(
             filterInvalidScores: invalidFilter, showInstrumentIcons: icons,
             visibleInstruments: visible, currentSeason: season
         )
+        .environment(\.songRowsAllowProfilePanel, profilePanel)
         .preferredColorScheme(.dark)
         .environment(\.dynamicTypeSize, typeSize)
         // Force the deterministic glass fallback: real Liquid Glass compositing
@@ -250,6 +253,48 @@ private func selectedSongRow(
     #expect(lead.data != paused.data)
     #expect(lead.fills.gold > 10)
     #expect(largest.fills.gold > 10 && largest.fills.green > 10)
+}
+
+/// Wide rows split only for a selected player with a current score index (#340): no
+/// profile, a narrow row, Filter Invalid Scores or an accessibility size keeps the
+/// plain row pixel for pixel.
+@MainActor
+@Test func wideSongRowsSplitOnlyForASelectedPlayersScores() async throws {
+    let fixtures = try selectedRowFixtures()
+    let player = try await selectedRowSession(accountId: "fixture-player-2", fixtures: fixtures)
+    let anonymous = FestivalSession(factory: { throw FestivalAPIError.invalidResource })
+    let wide = CGSize(width: 900, height: 200)
+    func row(
+        _ name: String, _ session: FestivalSession, panel: Bool, size: CGSize = wide,
+        invalid: Bool = false, typeSize: DynamicTypeSize = .large, filter: Instrument? = nil
+    ) throws -> (data: Data, fills: (gold: Int, green: Int, red: Int)) {
+        try selectedSongRow(
+            name: name, song: fixtures.song, session: session, season: fixtures.season,
+            chart: filter ?? .lead, filter: filter, invalidFilter: invalid,
+            typeSize: typeSize, size: size, profilePanel: panel
+        )
+    }
+    let split = try row("panel-wide", player, panel: true)
+    let plain = try row("panel-off-wide", player, panel: false)
+    #expect(split.data != plain.data)
+    #expect(split.fills.gold > 10 && split.fills.green > 10)
+    // No profile: today's row.
+    #expect(try row("panel-anonymous", anonymous, panel: true).data
+        == row("panel-anonymous-off", anonymous, panel: false).data)
+    // Too narrow for two halves.
+    let narrow = CGSize(width: 560, height: 200)
+    #expect(try row("panel-narrow", player, panel: true, size: narrow).data
+        == row("panel-narrow-off", player, panel: false, size: narrow).data)
+    // Filter Invalid Scores keeps its paused row.
+    #expect(try row("panel-invalid", player, panel: true, invalid: true).data
+        == row("panel-invalid-off", player, panel: false, invalid: true).data)
+    // Accessibility sizes keep the stacked row.
+    let tall = CGSize(width: 900, height: 620)
+    #expect(try row("panel-ax", player, panel: true, size: tall, typeSize: .accessibility3).data
+        == row("panel-ax-off", player, panel: false, size: tall, typeSize: .accessibility3).data)
+    // One filtered chart splits too.
+    #expect(try row("panel-drums", player, panel: true, filter: .drums).data
+        != row("panel-drums-off", player, panel: false, filter: .drums).data)
 }
 
 /// The same anonymous native card must paint the source's optional duration.

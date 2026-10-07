@@ -91,7 +91,10 @@ struct SongRowView: View {
     private var songRowVisualOrderRaw = SettingsOrder.encode(MetadataField.allCases)
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.songRowsAllowSingleLine) private var allowsSingleLine
-    /// The card's width, measured only where one-line rows are allowed.
+    @Environment(\.songRowsAllowProfilePanel) private var allowsProfilePanel
+    /// Dynamic Type scale for the profile panel's pill-width estimates.
+    @ScaledMetric(relativeTo: .body) private var panelScale: CGFloat = 1
+    /// The card's content width, measured only where one-line or split rows are allowed.
     @State private var rowWidth: CGFloat = 0
 
     /// Decorate one real Shop offer without turning it into a new navigation action.
@@ -421,6 +424,57 @@ struct SongRowView: View {
         }
     }
 
+    /// The selected player's scored-chart cards for the wide split row, or nil for the
+    /// plain row (not allowed, too narrow, no current score index, no scored chart or
+    /// an invalid accuracy value).
+    private var profilePanelTiles: [SongProfilePanelTile]? {
+        guard SongProfilePanelPolicy.allows(
+            allowed: allowsProfilePanel, hasSelectedPlayer: session.selectedPlayer != nil,
+            scoresCurrent: scoreDataCurrent, filterInvalidScores: filterInvalidScores,
+            accessibilitySize: dynamicTypeSize.isAccessibilitySize, shopRow: shopOffer != nil,
+            rowWidth: rowWidth + 24
+        ) else { return nil }
+        let tiles = try? SongProfilePanelPolicy.tiles(
+            song: song, scores: session.selectedPlayerScores[song.songId] ?? [:],
+            instrumentFilter: instrument, visibleInstruments: visibleInstruments,
+            currentSeason: currentSeason, visibility: metadata,
+            order: SettingsOrder.decode(songRowVisualOrderRaw)
+        )
+        guard let tiles, !tiles.isEmpty else { return nil }
+        return tiles
+    }
+
+    /// Wide split row: the song (and its status chips) on the left half, the selected
+    /// player's instrument cards on the right half (issue #340).
+    ///
+    /// - Parameter tiles: Non-empty scored-chart cards.
+    /// - Returns: Two equal halves inside the one row card.
+    private func profilePanelRow(_ tiles: [SongProfilePanelTile]) -> some View {
+        let half = SongProfilePanelPolicy.halfWidth(contentWidth: rowWidth)
+        return HStack(alignment: .top, spacing: SongProfilePanelPolicy.gap) {
+            HStack(alignment: .top, spacing: 12) {
+                artworkTile
+                VStack(alignment: .leading, spacing: 4) {
+                    songInfo
+                    if usesInstrumentChips {
+                        profileContent
+                    }
+                }
+                Spacer(minLength: 4)
+                shopIcons
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            SongProfilePanel(
+                songId: song.songId, tiles: tiles,
+                arrangement: SongProfilePanelPolicy.arrangement(
+                    width: half, tiles: tiles, overview: instrument == nil, scale: panelScale
+                ),
+                keyboard: song.usesKeyboardIcon, highContrast: highContrast
+            )
+            .frame(width: half)
+        }
+    }
+
     /// Chips sit beside the title (``SongRowLayoutPolicy``) when allowed and they fit.
     private var singleLine: Bool {
         guard allowsSingleLine, usesInstrumentChips, !dynamicTypeSize.isAccessibilitySize else { return false }
@@ -450,6 +504,8 @@ struct SongRowView: View {
                         shopOfferTrailing(shopOffer)
                     }
                 }
+            } else if let profilePanelTiles {
+                profilePanelRow(profilePanelTiles)
             } else if let structuredFields, case let .success(fields) = structuredFields {
                 structuredMetadataRow(fields)
             } else if dynamicTypeSize.isAccessibilitySize && usesInstrumentChips {
@@ -483,7 +539,9 @@ struct SongRowView: View {
                 }
             }
         }
-        .onGeometryChange(for: CGFloat.self) { allowsSingleLine ? $0.size.width : 0 } action: { rowWidth = $0 }
+        .onGeometryChange(for: CGFloat.self) {
+            allowsSingleLine || allowsProfilePanel ? $0.size.width : 0
+        } action: { rowWidth = $0 }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .festivalRowCard(cornerRadius: 12)

@@ -2,13 +2,16 @@ import SwiftUI
 import FestivalCore
 import FestivalDesign
 
-/// Keep ordered metadata right-aligned without a fixed phone/tablet row count.
+/// Keep ordered metadata right-aligned (or left-aligned in a wide row's instrument
+/// card) without a fixed phone/tablet row count.
 private struct SongMetadataFlow: Layout {
     struct Cache {
         var idealSizes: [CGSize]
     }
 
     let spacing: CGFloat
+    /// Start each wrapped line at the leading edge instead of the trailing edge.
+    var leading = false
 
     /// Cache intrinsic pill sizes until content or text scaling changes.
     ///
@@ -48,7 +51,7 @@ private struct SongMetadataFlow: Layout {
         return CGSize(width: min(intrinsic, available), height: height)
     }
 
-    /// Align each wrapped pill row to the score's trailing edge.
+    /// Align each wrapped pill row to the score's trailing edge (or the leading edge).
     ///
     /// - Parameters:
     ///   - bounds: Allocated full-width metadata strip.
@@ -64,7 +67,7 @@ private struct SongMetadataFlow: Layout {
         let sizes = constrainedSizes(subviews, ideal: cache.idealSizes, width: available)
         var y = bounds.minY
         for group in rows(sizes, width: available) {
-            var x = bounds.maxX - rowWidth(group, sizes: sizes)
+            var x = leading ? bounds.minX : bounds.maxX - rowWidth(group, sizes: sizes)
             let height = group.reduce(CGFloat.zero) { max($0, sizes[$1].height) }
             for index in group {
                 subviews[index].place(
@@ -386,13 +389,15 @@ struct SongMetadataFieldView: View {
 struct SongProfileMetadataPills: View {
     let fields: [SongMetadataField]
     let songId: String
+    /// Leading-aligned lines (the wide row's instrument cards); trailing by default.
+    var leading = false
 
     var body: some View {
-        SongMetadataFlow(spacing: 10) {
+        SongMetadataFlow(spacing: 10, leading: leading) {
             ForEach(fields) { field in
                 SongMetadataFieldView(field: field, songId: songId)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .trailing)
+        .frame(maxWidth: .infinity, alignment: leading ? .leading : .trailing)
     }
 }

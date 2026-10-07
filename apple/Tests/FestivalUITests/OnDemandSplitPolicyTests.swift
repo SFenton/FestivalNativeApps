@@ -304,6 +304,23 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
     #expect(SongGridPolicy.rows([1, 2], columns: 1) == [[1], [2]])
 }
 
+/// A selected player gives each song the full width for its instrument cards (#340);
+/// no player, or Filter Invalid Scores, keeps the landscape grid.
+@Test func songsGridColumnsWithSelectedPlayer() {
+    func columns(_ layout: DeviceLayout, player: Bool, invalid: Bool = false) -> Int {
+        SongProfilePanelPolicy.gridColumns(
+            layout: layout, hasSelectedPlayer: player, filterInvalidScores: invalid
+        )
+    }
+    #expect(columns(SplitLayouts.iPadLandscape, player: false) == 2)
+    #expect(columns(SplitLayouts.duoInnerLandscape, player: false) == 2)
+    #expect(columns(SplitLayouts.iPadLandscape, player: true) == 1)
+    #expect(columns(SplitLayouts.duoInnerLandscape, player: true) == 1)
+    #expect(columns(SplitLayouts.iPadLandscape, player: true, invalid: true) == 2)
+    #expect(columns(SplitLayouts.iPadPortrait, player: true) == 1)
+    #expect(columns(SplitLayouts.iPhonePortrait, player: false) == 1)
+}
+
 /// The flyout opens from a leading-edge swipe only.
 @Test func flyoutEdgeSwipeRule() {
     #expect(FlyoutEdgeSwipe.opens(startFromLeading: 10, translation: CGSize(width: 90, height: 10)))
