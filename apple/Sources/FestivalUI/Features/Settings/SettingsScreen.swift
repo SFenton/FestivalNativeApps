@@ -65,6 +65,11 @@ struct SettingsScreen: View {
     @State private var quickLinks = QuickLinksController()
     /// A reorder row is lifted, so the page must not scroll under the drag.
     @State private var reorderDragging = false
+    /// The page's measured size: its own column decides (the Licenses split, the Mac
+    /// Settings window), not the window.
+    @State private var pageSize: CGSize = .zero
+    /// Accessibility text sizes keep one readable column (pattern `wide-columns` R7).
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     let session: FestivalSession
     let isVisible: Bool
@@ -86,10 +91,12 @@ struct SettingsScreen: View {
     }
 
     var body: some View {
+        let columns = columns
         ScrollView {
-            // A plain VStack (not Lazy): the page is short, and a lazily recycled card would
-            // replay its load-in fade when scrolled back into view.
-            VStack(alignment: .leading, spacing: 28) {
+            // Eager (not Lazy): the page is short, and a lazily recycled card would replay
+            // its load-in fade when scrolled back into view. Wide landscape splits the
+            // sections into two balanced columns (pattern `wide-columns` R7, #355).
+            WideColumnStack(columns: columns, spacing: 28) {
                 if let pane {
                     paneContent(pane)
                 } else {
@@ -99,10 +106,11 @@ struct SettingsScreen: View {
             .padding(.horizontal, 16)
             .padding(.top, pane == nil ? 8 : 20)
             .padding(.bottom, 32)
-            .modifier(ReadableWidthContainer(isRegularWidth: layout.widthClass == .regular))
+            .modifier(ReadableWidthContainer(isRegularWidth: layout.widthClass == .regular, columns: columns))
             // A scroll while the cards stagger in fades the rest in together (#323).
             .festivalFadeInScope()
         }
+        .onGeometryChange(for: CGSize.self, of: { $0.size }) { pageSize = $0 }
         .debugPageScrollStress()
         .scrollDisabled(reorderDragging)
         .onPreferenceChange(SettingsReorderDragActiveKey.self) { reorderDragging = $0 }
@@ -151,6 +159,18 @@ struct SettingsScreen: View {
     }
 
     // MARK: - Page and panes
+
+    /// Section columns: two in wide landscape when two columns fit the page (iPad
+    /// landscape, iPhone Duo unfolded in landscape, the Mac Settings window), otherwise
+    /// one; accessibility text sizes always stack (pattern `wide-columns` R1, R7).
+    private var columns: Int {
+        #if os(macOS)
+        let fitted = WideColumns.count(size: pageSize)
+        #else
+        let fitted = WideColumns.count(layout: layout, width: pageSize.width > 0 ? pageSize.width : nil)
+        #endif
+        return WideColumns.readable(fitted, typeSize: typeSize)
+    }
 
     /// The whole page in the web's order (iPhone, iPad).
     @ViewBuilder private var fullPage: some View {
@@ -903,23 +923,32 @@ private struct SettingsQuickLinks: ViewModifier {
 
 // MARK: - Readable width
 
-/// Caps Settings' content to a readable column and centers it on a regular-width
-/// window (Duo unfolded, iPad), instead of stretching every toggle row edge to edge
-/// or splitting into a 2-column grid: Settings rows are label/control pairs, not
-/// dashboard cards, so a wide row just reads worse
-/// (`.agents/design/apple/duo.md` "Settings, Shop, Bands — … readable-width Settings").
-/// A compact window (iPhone, Duo folded) is unaffected — this only activates once a
-/// caller passes `isRegularWidth: true`.
+/// Caps a page's content to readable columns and centers it on a regular-width window
+/// (Duo unfolded, iPad, Mac), instead of stretching every toggle row edge to edge:
+/// one 680 pt column, or two side by side when Settings splits its sections in wide
+/// landscape (pattern `wide-columns` R7, #355). A compact window (iPhone, Duo folded)
+/// is unaffected: this only activates once a caller passes `isRegularWidth: true`.
 struct ReadableWidthContainer: ViewModifier {
     let isRegularWidth: Bool
+    /// Readable columns side by side (Settings in wide landscape), else 1.
+    var columns: Int = 1
     /// Roughly a Dynamic Type–friendly settings form width, well under an iPad or
     /// unfolded Duo's full window.
-    private static let maxWidth: CGFloat = 680
+    static let columnWidth: CGFloat = 680
+
+    /// The cap for `columns` readable columns and the gutters between them.
+    ///
+    /// - Parameter columns: Columns side by side (at least 1).
+    /// - Returns: The maximum content width in points.
+    static func maxWidth(columns: Int) -> CGFloat {
+        let count = CGFloat(max(1, columns))
+        return columnWidth * count + WideColumns.spacing * (count - 1)
+    }
 
     func body(content: Content) -> some View {
-        if isRegularWidth {
+        if isRegularWidth || columns > 1 {
             content
-                .frame(maxWidth: Self.maxWidth, alignment: .leading)
+                .frame(maxWidth: Self.maxWidth(columns: columns), alignment: .leading)
                 .frame(maxWidth: .infinity)
         } else {
             content

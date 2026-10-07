@@ -2763,7 +2763,7 @@
       "title": "Wide columns",
       "status": "current",
       "doc": ".agents/patterns/wide-columns.md",
-      "summary": "Page rows and cards show in two columns only in wide landscape windows (iPad landscape, iPhone Duo unfolded landscape, a wide Mac surface), row-major under full-width headings, meeting at the Duo hinge, reflowing without reloading; portrait and compact windows keep one column.",
+      "summary": "Page rows and cards show in two columns only in wide landscape windows (iPad landscape, iPhone Duo unfolded landscape, a wide Mac surface), row-major under full-width headings (pages of unequal section cards such as Settings flow column by column in balanced columns), meeting at the Duo hinge, reflowing without reloading; portrait, compact windows and (for Settings) accessibility text sizes keep one column.",
       "keywords": [
         "two column",
         "two-column",
@@ -2775,7 +2775,10 @@
         "grid",
         "ipad landscape",
         "iphone duo",
-        "mac sheet size"
+        "mac sheet size",
+        "settings columns",
+        "balanced columns",
+        "column-major"
       ],
       "web": [],
       "canonical": {
@@ -2799,6 +2802,18 @@
           {
             "path": "apple/Sources/FestivalUI/Mac/MacRootView.swift",
             "symbol": "searchSheetSize"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/WideColumns.swift",
+            "symbol": "WideColumnStack"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/SettingsScreen.swift",
+            "symbol": "ReadableWidthContainer"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Mac/MacSettingsView.swift",
+            "symbol": "MacSettingsView"
           }
         ],
         "android": [],
@@ -2828,7 +2843,8 @@
       "guards": [],
       "supersedes": [],
       "issues": [
-        350
+        350,
+        355
       ]
     },
     {

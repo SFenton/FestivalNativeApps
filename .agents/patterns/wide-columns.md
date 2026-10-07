@@ -2,7 +2,7 @@
 
 > **What:** the app-wide rule for when a page's rows or cards show in two columns: in wide landscape windows (iPad landscape, iPhone Duo unfolded in landscape, a wide Mac surface) and never in portrait. It covers reading order, headings, the Duo hinge and reflow, and lists every page that adopts it. **Read when:** making a page or sheet two-column, changing when Songs or Search pair their rows, or adding a page (add it to the audit below).
 
-Status: **current**, 2026-10-08. Provenance: #350 (split from #332); generalizes the Songs landscape grid (`SongGridPolicy`, #312, #321).
+Status: **current**, 2026-10-08. Provenance: #350 (split from #332); generalizes the Songs landscape grid (`SongGridPolicy`, #312, #321). Settings adopts it with R7 (#355).
 
 ## Intent
 
@@ -20,6 +20,7 @@ None. The web pages are a single column, including the search modal (`FortniteFe
 4. **R4. Reflow in place.** Rotation, a fold change or resizing a window re-chunks the same loaded items. It never starts a new request, shows a spinner, changes a row's identity or replays a fade-in ([back-keeps-place](back-keeps-place.md), [load-transition](load-transition.md)). Page models live outside the column decision (Search's `GlobalSearchModel` is owned by the shell).
 5. **R5. One policy.** Pages call `WideColumns` and `HingeRow`; they never compare widths, idioms or devices themselves. `SongGridPolicy` delegates to it. A page that cannot adopt the rule (a content-sized grid, a table, a split pane) is listed in the audit with its reason.
 6. **R6. Mac Search opens at a two-column size in a wide window.** In a landscape Mac window at least 960 × 700 pt, the Search sheet opens at 880 × 640 pt, so its results show two columns. Otherwise it opens at 620 × 680 pt with one column, the web modal's shape. The sheet stays resizable (minimum 560 × 520), and its columns follow its live size (R1). HIG Sheets (macOS): "Present a sheet in a reasonable default size" (should).
+7. **R7. Pages of unequal section cards flow column by column (Settings, #355).** A page of stacked section cards with very different heights does not pair rows: pairing would leave large holes beside a tall card. `WideColumnStack` places whole sections top to bottom in the left column, then in the right. It splits at the index that makes the taller column shortest (`WideColumns.balancedSplit`, earliest on a tie, neither column empty). The columns are R1's cells and meet at the Duo hinge (R3, `HingeRowLayout.cells`). Section order, Quick Links, the load-in stagger and VoiceOver keep the one-column sequence. Each section is an accessibility container sorted by page order (iOS 18 / macOS 15 and later; earlier systems fall back to geometric order). Accessibility text sizes (AX1 and larger) always use one column (`WideColumns.readable`). HIG Layout: "Accommodate Dynamic Type… horizontal views may stack" (should). Each column is capped at 680 pt (`ReadableWidthContainer.maxWidth(columns:)`). The page measures its own width, so a page narrowed by the Licenses trailing pane drops to one column. On the Mac, Settings window panes split the same way (`count(size:)`). The window is 860 × 620 pt, so General, Songs, Paths and About show two columns of about 400 pt; single-section panes (Guides, Service) stay one centred column. A section that grows may move to the other column; this is an in-place reflow (R4).
 
 ## Agent decision (#350, 2026-10-08): a flowing grid under full-width headings
 
@@ -33,6 +34,18 @@ Question: what does two-column Search look like? Posted on the issue.
 
 Chose **A**. The owner may override it with `/choose B` or `/choose C`.
 
+## Agent decision (#355, 2026-10-07): Settings sections in two balanced columns
+
+Question: what does two-column Settings look like? Owner: "Settings page should be two-col when unfolded/iPad landscape/MacOS". Posted on the issue.
+
+| Option | What you see | Guidance (strength) | Precedent | Trade-offs |
+|---|---|---|---|---|
+| **A (chosen)** | The same sections flow column by column into two height-balanced columns; sub-pages (Licenses) still push or open in the trailing pane. | HIG Duo inner display: "a width reflow (Music goes from stacked to two columns)"; "Keep the same hierarchy inside and out" (should). HIG Layout: "Choose layout from size classes" (should); "Accommodate Dynamic Type" (should). | This pattern (R1–R4); web Settings is one column (`SettingsPage.tsx` `cardColumn`), so its sections and order are kept. | Keeps every section, row, Quick Link and the reading order. |
+| B | Section list on the left, the selected section on the right (iPad Settings app). | HIG Duo allows "a split view" but "show another level only if it suits the content" (should). | None; it would clash with the Settings → Licenses trailing pane and Quick Links. | Adds a navigation level that iPhone and portrait don't have; one section at a time. |
+| C | Keep one 680 pt readable column. | — | Previous `duo.md` rule. | Ignores the owner's request. |
+
+Chose **A**. Its R7 supersedes `duo.md`'s "Settings intentionally does not get a 2-column grid". The owner may override it with `/choose B` or `/choose C`.
+
 ## Canonical implementation
 
 | Sub-behavior | Apple | Android | Windows |
@@ -42,6 +55,8 @@ Chose **A**. The owner may override it with `/choose B` or `/choose C`.
 | Songs grid | `apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift` `SongGridPolicy` (delegates) | — | — |
 | Search results | `apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift` `GlobalSearchResults` | — | — |
 | Mac Search sheet size | `apple/Sources/FestivalUI/Mac/MacRootView.swift` `MacRootView` (`searchSheetSize`) | — | — |
+| Column-by-column balanced stack (R7) | `apple/Sources/FestivalUI/App/Layout/WideColumns.swift` `WideColumnStack`, `WideColumnStackLayout`, `WideColumns.balancedSplit`, `WideColumns.readable` | — | — |
+| Settings page and Mac panes | `apple/Sources/FestivalUI/Features/Settings/SettingsScreen.swift` (`columns`, `ReadableWidthContainer`); window size `apple/Sources/FestivalUI/Mac/MacSettingsView.swift` | — (not yet; out of the Apple lane for #355) | — |
 
 ## Page audit (#350)
 
@@ -58,7 +73,7 @@ Status per page: **adopts** (follows R1–R5), **exempt** (a layout the rule doe
 | Player Profile | follow-up | Instrument tiles in two columns at regular width, including portrait. Should switch to R1. |
 | Suggestions | follow-up | Two columns at regular width, including portrait. Should switch to R1. |
 | Compete | follow-up | Leaderboards beside Rivals (`HingeRow`) at regular width, including portrait. Should switch to R1. |
-| Settings | follow-up (#355) | One readable-width column. |
+| Settings | adopts (#355) | Sections flow column by column in two balanced columns (R7); one column at accessibility text sizes; Mac Settings window panes too. |
 | Full Rankings, Song Leaderboard, Song Band Leaderboard, Band Rankings | follow-up (#353) | One leaderboard table column. |
 | Bands, Player Bands, Band Detail | follow-up | One column (the Mac Band Detail places Summary beside Statistics). |
 | Rivals, All Rivals, Rival Detail, Rivalry, Player History | follow-up | One column of rows. |

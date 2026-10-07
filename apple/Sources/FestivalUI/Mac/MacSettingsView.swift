@@ -19,9 +19,10 @@ public struct MacSettingsView: View {
     @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
     @Environment(\.colorSchemeContrast) private var systemContrast
 
-    /// Settings window content size (points): wide enough for the readable 680 pt
-    /// form column's rows, tall enough for most panes without scrolling.
-    static let size = CGSize(width: 700, height: 620)
+    /// Settings window content size (points): wide enough for two ~400 pt columns of
+    /// sections (pattern `wide-columns` R7, #355; a one-section pane keeps one readable
+    /// column), tall enough for most panes without scrolling.
+    static let size = CGSize(width: 860, height: 620)
 
     /// Create the Settings window content.
     ///
