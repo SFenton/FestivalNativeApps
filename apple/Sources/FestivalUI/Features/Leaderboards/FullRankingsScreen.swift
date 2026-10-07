@@ -282,16 +282,6 @@ struct FullRankingsScreen: View {
                     RankByMenu(selection: $rankBy)
                 }
             }
-            #if os(iOS)
-            if let board {
-                RankingsPagerToolbarContent(
-                    page: page, totalPages: board.totalPages,
-                    idPrefix: "fst.full-rankings"
-                ) { destination in
-                    page = destination
-                }
-            }
-            #endif
         }
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -379,7 +369,7 @@ struct FullRankingsScreen: View {
         PinnedChromeSpacing.resolve(
             rowGap: Double(Self.rowGap), rowBottomInset: Double(Self.rowGap), edgePadding: 8,
             hasFooter: shownEntries.map { Self.showsFooter(spotlightPlacement(entries: $0)) } ?? false,
-            hasPager: board != nil && !layout.sectionChrome.isVerticalBar
+            hasPager: board != nil
         )
     }
 

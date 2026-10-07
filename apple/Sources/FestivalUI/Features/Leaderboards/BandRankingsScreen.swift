@@ -136,16 +136,6 @@ struct BandRankingsScreen: View {
                     }
                 }
             }
-            #if os(iOS)
-            if let board {
-                RankingsPagerToolbarContent(
-                    page: page, totalPages: board.totalPages,
-                    idPrefix: "fst.band-rankings"
-                ) { destination in
-                    page = destination
-                }
-            }
-            #endif
         }
         // iPhone tab-bar accessory (issue #92): Rank By.
         .festivalPageTool(token: rankBy, order: PageToolOrder.primary) {
