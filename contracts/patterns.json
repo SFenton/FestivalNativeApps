@@ -819,6 +819,10 @@
             "symbol": "FestivalDrawer"
           },
           {
+            "path": "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
+            "symbol": "DrawerPlacement"
+          },
+          {
             "path": "apple/Sources/FestivalUI/App/Shell/SidebarMenu.swift",
             "symbol": "SidebarMenu"
           }
@@ -943,6 +947,7 @@
         309,
         337,
         338,
+        339,
         341,
         351
       ]

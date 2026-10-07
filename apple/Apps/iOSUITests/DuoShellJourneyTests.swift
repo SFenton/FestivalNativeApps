@@ -46,7 +46,7 @@ final class DuoShellJourneyTests: XCTestCase {
         assertPhoneTabs(selected: "Compete", in: app, pose: "folded")
 
         // Rivals is pushed on Compete's stack from the drawer (not a phone tab).
-        tapToolbarItem("fst.shell.drawer.open", overflowLabels: ["Menu", "Open Navigation"], in: app)
+        ShellUITestSupport.tapToolbarItem("fst.shell.drawer.open", overflowLabels: ["Menu", "Open Navigation"], in: app)
         let rivals = app.buttons["fst.shell.drawer.rivals"]
         XCTAssertTrue(rivals.waitForExistence(timeout: 10))
         rivals.tap()
@@ -65,7 +65,7 @@ final class DuoShellJourneyTests: XCTestCase {
         // Unfolded, the Profile button pushes Statistics on the current stack.
         post("unfolded-landscape")
         waitForWindow("unfolded-landscape", in: app)
-        tapToolbarItem("fst.shell.profile", overflowLabels: ["Profile: Fixture Player 1", "Fixture Player 1", "FP"], in: app)
+        ShellUITestSupport.tapToolbarItem("fst.shell.profile", overflowLabels: ["Profile: Fixture Player 1", "Fixture Player 1", "FP"], in: app)
         XCTAssertTrue(SongsUITestSupport.playerPage(in: app).waitForExistence(timeout: 15),
                       "Profile did not open the selected player's Statistics")
         SongsUITestSupport.assertPlayerTitle("Fixture Player 1", in: app)
@@ -136,52 +136,17 @@ final class DuoShellJourneyTests: XCTestCase {
         let collapsed = app.tabBars.buttons.matching(NSPredicate(format: "value == %@", "Collapsed")).firstMatch
         if collapsed.exists { collapsed.tap() }
         let deadline = Date().addingTimeInterval(10)
-        while playerTabs.contains(where: { tabButtons($0, in: app).isEmpty }), Date() < deadline {
+        while playerTabs.contains(where: { ShellUITestSupport.tabButtons($0, in: app).isEmpty }), Date() < deadline {
             RunLoop.current.run(until: Date().addingTimeInterval(0.25))
         }
         for tab in playerTabs {
-            XCTAssertFalse(tabButtons(tab, in: app).isEmpty, "\(pose) is missing the \(tab) tab", file: file, line: line)
+            XCTAssertFalse(ShellUITestSupport.tabButtons(tab, in: app).isEmpty, "\(pose) is missing the \(tab) tab", file: file, line: line)
         }
         for tab in wideOnlyTabs {
-            XCTAssertTrue(tabButtons(tab, in: app).isEmpty, "\(pose) shows a \(tab) tab", file: file, line: line)
+            XCTAssertTrue(ShellUITestSupport.tabButtons(tab, in: app).isEmpty, "\(pose) shows a \(tab) tab", file: file, line: line)
         }
-        XCTAssertTrue(tabButtons(selected, in: app).contains(where: \.isSelected),
+        XCTAssertTrue(ShellUITestSupport.tabButtons(selected, in: app).contains(where: \.isSelected),
                       "\(pose) moved the selection off \(selected)", file: file, line: line)
-    }
-
-    /// On-screen buttons titled `title` that are not in a navigation bar.
-    @MainActor
-    private func tabButtons(_ title: String, in app: XCUIApplication) -> [XCUIElement] {
-        let bars = app.navigationBars.allElementsBoundByIndex.map(\.frame)
-        return app.buttons.matching(NSPredicate(format: "label == %@", title)).allElementsBoundByIndex.filter { button in
-            let frame = button.frame
-            return frame.width > 1 && frame.height > 1 && !bars.contains { $0.intersects(frame) }
-        }
-    }
-
-    /// Tap a shell toolbar button, from the toolbar overflow (More) when the vertical bar
-    /// has no room for it (the drawer and Profile buttons on a pushed page).
-    ///
-    /// - Parameters:
-    ///   - identifier: The button's accessibility identifier.
-    ///   - labels: Titles the overflow menu may list it under (its `Label` title).
-    ///   - app: The running app.
-    @MainActor
-    private func tapToolbarItem(
-        _ identifier: String, overflowLabels labels: [String], in app: XCUIApplication,
-        file: StaticString = #filePath, line: UInt = #line
-    ) {
-        let direct = app.buttons[identifier]
-        if direct.waitForExistence(timeout: 3), direct.isHittable {
-            direct.tap()
-            return
-        }
-        let more = app.buttons.matching(identifier: "BottomOverflowBarButtonItem").firstMatch
-        XCTAssertTrue(more.waitForExistence(timeout: 10), "No \(identifier) or toolbar overflow", file: file, line: line)
-        more.tap()
-        let entry = app.buttons.matching(NSPredicate(format: "identifier == %@ OR label IN %@", identifier, labels)).firstMatch
-        XCTAssertTrue(entry.waitForExistence(timeout: 5), "The overflow has no \(identifier) entry", file: file, line: line)
-        entry.tap()
     }
 
     /// Attach a screenshot to the test report.

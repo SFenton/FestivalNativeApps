@@ -63,6 +63,19 @@ private enum Layouts {
     static let foldedRotations = [
         duoFoldedPortrait, duoFoldedUpsideDown, duoFoldedLandscapeLeading, duoFoldedLandscapeTrailing,
     ]
+    /// The outer camera in each of ``foldedRotations``, in the same order.
+    static let foldedCameras = [
+        CGRect(x: 404, y: 8, width: 44, height: 36), CGRect(x: 18, y: 634, width: 44, height: 36),
+        CGRect(x: 8, y: 18, width: 36, height: 44), CGRect(x: 634, y: 404, width: 36, height: 44),
+    ]
+}
+
+/// The drawer `GeometryReader`'s size: the window inside its safe area.
+private func sizeInside(_ window: CGSize, _ safeArea: EdgeInsets) -> CGSize {
+    CGSize(
+        width: window.width - safeArea.leading - safeArea.trailing,
+        height: window.height - safeArea.top - safeArea.bottom
+    )
 }
 
 // MARK: - Section set and navigation
@@ -266,30 +279,28 @@ func iPadFlyoutReachesEverySection(profile: FestivalProfileKind) {
     #expect(placement.panelPadding == EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
     #expect(placement.contentTop == CGFloat(62 - 8 + 4))
     #expect(placement.contentBottom == CGFloat(34))
-    #expect(placement.scrimInsets == EdgeInsets())
+    #expect(placement.cutoutPadding == EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 0))
 }
 
 /// In every folded rotation the panel stays clear of the vertical bar and the camera,
-/// and the scrim leaves the vertical bar uncovered.
-@Test(arguments: Layouts.foldedRotations)
-func duoDrawerAvoidsBarAndCamera(layout: DeviceLayout) {
+/// and runs to the floating margin at the top and bottom edges the camera leaves free
+/// (rows padded clear of the status bar and home indicator, as on iPhone; #339).
+@Test(arguments: zip(Layouts.foldedRotations, Layouts.foldedCameras))
+func duoDrawerAvoidsBarAndCamera(layout: DeviceLayout, camera: CGRect) {
     let window = layout.orientation == .portrait
         ? CGSize(width: 466, height: 678) : CGSize(width: 678, height: 466)
-    let safeArea = layout.overlayInsets
-    let inner = CGSize(
-        width: window.width - safeArea.leading - safeArea.trailing,
-        height: window.height - safeArea.top - safeArea.bottom
-    )
-    let placement = DrawerPlacement.resolve(size: inner, safeArea: safeArea, layout: layout)
+    let safeArea = layout.safeAreaInsets
+    let placement = DrawerPlacement.resolve(size: sizeInside(window, safeArea), safeArea: safeArea, layout: layout)
     let panel = placement.panelFrame(in: window)
     let bounds = CGRect(origin: .zero, size: window)
     let reserved = layout.overlayInsets
+    let cutout = layout.cutoutInsets
     let usable = CGRect(
-        x: reserved.leading, y: reserved.top,
+        x: reserved.leading, y: cutout.top,
         width: window.width - reserved.leading - reserved.trailing,
-        height: window.height - reserved.top - reserved.bottom
+        height: window.height - cutout.top - cutout.bottom
     )
-    #expect(usable.contains(panel), "panel \(panel) leaves the reserved-free area \(usable)")
+    #expect(usable.contains(panel), "panel \(panel) leaves the bar- and camera-free area \(usable)")
     #expect(panel.width > 200)
     guard case let .verticalBar(edge) = layout.sectionChrome else {
         Issue.record("folded layouts have a vertical bar")
@@ -299,13 +310,28 @@ func duoDrawerAvoidsBarAndCamera(layout: DeviceLayout) {
         ? CGRect(x: 0, y: 0, width: reserved.leading, height: window.height)
         : CGRect(x: window.width - reserved.trailing, y: 0, width: reserved.trailing, height: window.height)
     #expect(!panel.intersects(bar))
-    let scrim = CGRect(
-        x: placement.scrimInsets.leading, y: 0,
-        width: window.width - placement.scrimInsets.leading - placement.scrimInsets.trailing,
-        height: window.height
-    )
-    #expect(scrim.intersection(bar).width == 0, "scrim \(scrim) covers the bar \(bar)")
+    #expect(!panel.intersects(camera), "panel \(panel) covers the camera \(camera)")
+    #expect(placement.panelPadding.top == DrawerPlacement.margin + cutout.top)
+    #expect(placement.panelPadding.bottom == DrawerPlacement.margin + cutout.bottom)
+    // The rows clear the home indicator (and the status bar) inside the taller panel.
+    #expect(panel.minY + placement.contentTop >= safeArea.top)
+    #expect(panel.maxY - placement.contentBottom <= window.height - safeArea.bottom)
     #expect(bounds.contains(panel))
+}
+
+/// Unfolded (flat landscape, book pose, portrait) the panel runs to the floating 8 pt
+/// margin at the bottom like iPhone's, its rows above the home indicator (#339).
+@Test(arguments: [Layouts.duoUnfolded, Layouts.duoPartiallyFolded, Layouts.duoUnfoldedPortrait])
+func duoUnfoldedDrawerReachesTheBottom(layout: DeviceLayout) {
+    let window = layout.size
+    let safeArea = layout.safeAreaInsets
+    let placement = DrawerPlacement.resolve(size: sizeInside(window, safeArea), safeArea: safeArea, layout: layout)
+    let panel = placement.panelFrame(in: window)
+    #expect(panel.maxY == window.height - DrawerPlacement.margin)
+    #expect(panel.minY == DrawerPlacement.margin)
+    #expect(panel.maxY - placement.contentBottom <= window.height - safeArea.bottom)
+    #expect(placement.contentBottom >= 16)
+    #expect(panel.minX >= safeArea.leading + DrawerPlacement.margin)
 }
 
 // MARK: - Drawer corners
@@ -336,9 +362,10 @@ func drawerCutoutSitsOnThePanel(layout: DeviceLayout) {
     )
     let placement = DrawerPlacement.resolve(size: inner, safeArea: safeArea, layout: layout)
     let cutout = placement.cutoutPadding
-    #expect(placement.scrimInsets.leading + cutout.leading == placement.panelPadding.leading)
-    #expect(placement.scrimInsets.top + cutout.top == placement.panelPadding.top)
-    #expect(placement.scrimInsets.bottom + cutout.bottom == placement.panelPadding.bottom)
+    // The scrim covers the whole window, the Duo vertical bar included (#339).
+    #expect(cutout.leading == placement.panelPadding.leading)
+    #expect(cutout.top == placement.panelPadding.top)
+    #expect(cutout.bottom == placement.panelPadding.bottom)
     #expect(cutout.leading >= 0 && cutout.top >= 0 && cutout.bottom >= 0)
 }
 

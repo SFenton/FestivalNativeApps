@@ -112,14 +112,16 @@ enum DrawerMenu {
 
 // MARK: - Drawer placement
 
-/// Pure geometry of the floating drawer panel and its scrim for one window.
+/// Pure geometry of the floating drawer panel for one window.
 ///
 /// An ordinary phone (``DeviceLayout/Pose/standard``) keeps the original iPhone
-/// placement exactly: an 8 pt margin all round, a full-screen scrim, and content padded
-/// below the status bar and above the home indicator. iPhone Duo instead insets the
-/// panel by ``DeviceLayout/overlayInsets`` (the system vertical bar plus the camera
-/// occlusion) and keeps the scrim off the vertical bar, so the drawer never covers a
-/// leading bar or the camera in any outer rotation (`.agents/design/apple/duo.md`, B5).
+/// placement exactly: an 8 pt margin all round, and content padded below the status bar
+/// and above the home indicator. iPhone Duo uses the same rule for the top and bottom
+/// edges (the panel runs the window's height; its rows clear the status bar and home
+/// indicator), and additionally starts the panel after a leading vertical bar and clear
+/// of the camera occlusion (``DeviceLayout/cutoutInsets``), so it never covers either in
+/// any rotation (`.agents/design/apple/duo.md`, B5). The scrim always covers the whole
+/// window, the vertical bar included (#339).
 struct DrawerPlacement: Equatable {
     /// Gap between the floating panel and the window (or reserved-region) edges.
     static let margin: CGFloat = 8
@@ -136,8 +138,6 @@ struct DrawerPlacement: Equatable {
     let contentTop: CGFloat
     /// Content padding below the last row, inside the panel.
     let contentBottom: CGFloat
-    /// Window edges the dimming scrim leaves uncovered (the system vertical bar).
-    let scrimInsets: EdgeInsets
 
     /// Resolve the placement.
     ///
@@ -152,8 +152,7 @@ struct DrawerPlacement: Equatable {
                 width: min(maximumWidth, size.width * widthFraction),
                 panelPadding: EdgeInsets(top: margin, leading: margin, bottom: margin, trailing: margin),
                 contentTop: max(16, safeArea.top - margin + 4),
-                contentBottom: max(16, safeArea.bottom),
-                scrimInsets: EdgeInsets()
+                contentBottom: max(16, safeArea.bottom)
             )
         }
         // Never less than the drawer's own safe area, whatever the probe reported.
@@ -162,25 +161,19 @@ struct DrawerPlacement: Equatable {
             top: max(overlay.top, safeArea.top), leading: max(overlay.leading, safeArea.leading),
             bottom: max(overlay.bottom, safeArea.bottom), trailing: max(overlay.trailing, safeArea.trailing)
         )
+        // Top and bottom: like iPhone, the status bar and home indicator only pad the rows;
+        // a camera occlusion beyond them still moves the panel (#339).
+        let top = margin + max(0, reserved.top - safeArea.top)
+        let bottom = margin + max(0, reserved.bottom - safeArea.bottom)
         let windowWidth = size.width + safeArea.leading + safeArea.trailing
         let available = max(0, windowWidth - reserved.leading - reserved.trailing)
-        var scrim = EdgeInsets()
-        if case let .verticalBar(edge) = layout.sectionChrome {
-            // The bar's safe-area inset is at least the bar's width on its edge.
-            switch edge {
-            case .leading: scrim.leading = reserved.leading
-            case .trailing: scrim.trailing = reserved.trailing
-            }
-        }
         return DrawerPlacement(
             width: min(maximumWidth, available * widthFraction),
             panelPadding: EdgeInsets(
-                top: margin + reserved.top, leading: margin + reserved.leading,
-                bottom: margin + reserved.bottom, trailing: margin
+                top: top, leading: margin + reserved.leading, bottom: bottom, trailing: margin
             ),
-            contentTop: 16,
-            contentBottom: 16,
-            scrimInsets: scrim
+            contentTop: max(16, safeArea.top - top + 4),
+            contentBottom: max(16, safeArea.bottom - (bottom - margin))
         )
     }
 
@@ -195,16 +188,17 @@ struct DrawerPlacement: Equatable {
         )
     }
 
-    /// Padding that places the scrim's cut-out over the panel, in the scrim's coordinates.
+    /// Padding that places the scrim's cut-out over the panel, in the scrim's (the full
+    /// window's) coordinates.
     ///
-    /// The scrim is itself inset by ``scrimInsets``, so the cut-out is laid out at the
-    /// panel's real window position (rather than offset there), which keeps any
-    /// position-dependent (concentric) corners identical to the panel's.
+    /// The cut-out is laid out at the panel's real window position (rather than offset
+    /// there), which keeps any position-dependent (concentric) corners identical to the
+    /// panel's.
     var cutoutPadding: EdgeInsets {
         EdgeInsets(
-            top: panelPadding.top - scrimInsets.top,
-            leading: panelPadding.leading - scrimInsets.leading,
-            bottom: panelPadding.bottom - scrimInsets.bottom,
+            top: panelPadding.top,
+            leading: panelPadding.leading,
+            bottom: panelPadding.bottom,
             // The cut-out is leading-aligned at a fixed width, so its trailing edge is free.
             trailing: 0
         )
@@ -340,9 +334,8 @@ struct FestivalDrawer: View {
                     // real colour rather than the scrim.
                     .mask {
                         Rectangle().overlay(alignment: .leading) {
-                            // Laid out at the panel's own window position (the scrim is
-                            // inset by `scrimInsets`), so its concentric corners resolve
-                            // exactly like the panel's.
+                            // Laid out at the panel's own window position, so its
+                            // concentric corners resolve exactly like the panel's.
                             Color.black
                                 .frame(width: width)
                                 .drawerPanelShape(.clip)
@@ -355,8 +348,6 @@ struct FestivalDrawer: View {
                     .contentShape(Rectangle())
                     .onTapGesture(perform: onClose)
                     .accessibilityHidden(true)
-                    // Never dim or intercept taps on the system vertical bar (iPhone Duo).
-                    .padding(placement.scrimInsets)
                 panel(topInset: placement.contentTop, bottomInset: placement.contentBottom)
                     .accessibilityFocusMove(openFocus)
                     .frame(width: width)
