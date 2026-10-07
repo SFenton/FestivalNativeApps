@@ -28,7 +28,7 @@ Agent decision (#344, 2026-10-07; owner may override with `/choose`): options we
 | Line rule (R1, R2) | `apple/Sources/FestivalUI/App/Layout/OnDemandSplitPolicy.swift` `OnDemandSplitPolicy.drawsDividerLine` | — (see debt) | — (no split) |
 | Band and backdrop (R3, R4) | `apple/Sources/FestivalUI/App/Layout/OnDemandSplit.swift` `OnDemandSplitLayout` (private `SplitDivider`, `SplitBackdrop`); `SplitPaneChrome.swift` `SplitPaneChrome` | — | — |
 
-Apple consumers: `OnDemandSplitStack` (iPad, iPhone Duo inner landscape) and `MacListDetailStack` (Mac content area): Rivals, All Rivals, Leaderboards, Full/Band Rankings, Song Detail (full leaderboard, score history), Settings › Licenses. Tests: `OnDemandSplitPolicyTests.dividerLineOnlyUnderIncreaseContrastAtAMidpoint`; `MacAccessibilityTreeTests` (the band is never an accessibility element).
+Apple consumers: `OnDemandSplitStack` (iPad, iPhone Duo inner landscape) and `MacListDetailStack` (Mac content area): Rivals, All Rivals, Leaderboards (Full/Band Rankings in the trailing pane; profiles cover both panes as full pages, #352), Song Detail (full leaderboard, score history), Settings › Licenses. Tests: `OnDemandSplitPolicyTests.dividerLineOnlyUnderIncreaseContrastAtAMidpoint`; `MacAccessibilityTreeTests` (the band is never an accessibility element).
 
 ## Known debt
 

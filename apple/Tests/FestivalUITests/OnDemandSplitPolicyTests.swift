@@ -86,9 +86,8 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
     typealias Page = OnDemandSplitPolicy.ListPage
     #expect(Page.rivals.accepts(rival("r")) && !Page.rivals.accepts(player("p")))
     #expect(Page.leaderboards.accepts(player("p")) && Page.leaderboards.accepts(band("b")))
-    #expect(!Page.leaderboards.accepts(rankings))
-    #expect(Page.rankings.accepts(player("p")) && !Page.rankings.accepts(band("b")))
-    #expect(Page.bandRankings.accepts(band("b")) && !Page.bandRankings.accepts(player("p")))
+    // View All Rankings opens the full boards beside the overview (issue #352).
+    #expect(Page.leaderboards.accepts(rankings) && Page.leaderboards.accepts(bandRankings))
     #expect(Page.songDetail.accepts(board) && Page.songDetail.accepts(history))
     // Song Detail's player rows, band boards and other songs push full width.
     #expect(!Page.songDetail.accepts(player("p")) && !Page.songDetail.accepts(bandBoard))
@@ -120,11 +119,12 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
         == .init(list: [allRivals], detail: [rival("x")], page: .rivals))
     #expect(OnDemandSplitPolicy.cut(section: .leaderboards, path: [player("p")])
         == .init(list: [], detail: [player("p")], page: .leaderboards))
-    // "View all rankings" pushes Full Rankings full width (a list page, nothing open).
+    // View All Rankings opens Full or Band Rankings in the trailing pane (issue #352);
+    // their rows push inside it.
     #expect(OnDemandSplitPolicy.cut(section: .leaderboards, path: [rankings])
-        == .init(list: [rankings], detail: [], page: .rankings))
+        == .init(list: [], detail: [rankings], page: .leaderboards))
     #expect(OnDemandSplitPolicy.cut(section: .leaderboards, path: [bandRankings, band("b")])
-        == .init(list: [bandRankings], detail: [band("b")], page: .bandRankings))
+        == .init(list: [], detail: [bandRankings, band("b")], page: .leaderboards))
     #expect(OnDemandSplitPolicy.cut(section: .settings, path: [.licenses])
         == .init(list: [], detail: [.licenses], page: .settings))
     // Compete › Leaderboards (pushed) is a list page too.
@@ -137,19 +137,42 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
 /// Selecting replaces the open item; closing returns to the list; a non-detail push
 /// from the list closes the item with it; trailing pushes extend the detail.
 @Test func pathWritesKeepOneNavigationState() {
-    let open = [rankings, player("a")]
-    #expect(OnDemandSplitPolicy.path(selecting: player("b"), in: open, section: .leaderboards) == [rankings, player("b")])
-    #expect(OnDemandSplitPolicy.path(selecting: player("b"), in: [rankings], section: .leaderboards) == [rankings, player("b")])
-    #expect(OnDemandSplitPolicy.pathClosingDetail(open, section: .leaderboards) == [rankings])
-    #expect(OnDemandSplitPolicy.pathClosingDetail([rankings], section: .leaderboards) == nil)
+    let open = [allRivals, rival("a")]
+    #expect(OnDemandSplitPolicy.path(selecting: rival("b"), in: open, section: .rivals) == [allRivals, rival("b")])
+    #expect(OnDemandSplitPolicy.path(selecting: rival("b"), in: [allRivals], section: .rivals) == [allRivals, rival("b")])
+    #expect(OnDemandSplitPolicy.pathClosingDetail(open, section: .rivals) == [allRivals])
+    #expect(OnDemandSplitPolicy.pathClosingDetail([allRivals], section: .rivals) == nil)
     // Leading stack writes: unchanged keeps the item, a pop or other push replaces.
-    #expect(OnDemandSplitPolicy.path(settingList: [rankings], in: open, section: .leaderboards) == open)
-    #expect(OnDemandSplitPolicy.path(settingList: [], in: open, section: .leaderboards) == [])
-    #expect(OnDemandSplitPolicy.path(settingList: [rankings, .shop], in: open, section: .leaderboards) == [rankings, .shop])
-    // Trailing stack writes.
-    #expect(OnDemandSplitPolicy.path(settingDetailTail: [.playerBands(accountId: "a", displayName: nil)], in: open, section: .leaderboards)
-        == open + [.playerBands(accountId: "a", displayName: nil)])
-    #expect(OnDemandSplitPolicy.path(settingDetailTail: [], in: [rankings], section: .leaderboards) == [rankings])
+    #expect(OnDemandSplitPolicy.path(settingList: [allRivals], in: open, section: .rivals) == open)
+    #expect(OnDemandSplitPolicy.path(settingList: [], in: open, section: .rivals) == [])
+    #expect(OnDemandSplitPolicy.path(settingList: [allRivals, .shop], in: open, section: .rivals) == [allRivals, .shop])
+    // Trailing stack writes: a player pushed inside Full Rankings (issue #352).
+    #expect(OnDemandSplitPolicy.path(settingDetailTail: [player("a")], in: [rankings], section: .leaderboards)
+        == [rankings, player("a")])
+    #expect(OnDemandSplitPolicy.path(settingDetailTail: [], in: [rankings, player("a")], section: .leaderboards) == [rankings])
+    #expect(OnDemandSplitPolicy.path(settingDetailTail: [], in: [], section: .leaderboards) == [])
+}
+
+/// Profiles are full pages (issue #352): opened from the list page one covers it; pushed
+/// in the trailing pane one widens the pane over it; anything else sits side by side.
+@Test func profilesCoverTheListPage() throws {
+    let board = try AppRoute.songLeaderboard(song("s"), .lead, 1)
+    let detail = try AppRoute.songDetail(song("s"))
+    func cover(_ section: FestivalSection, _ path: [AppRoute]) -> OnDemandSplitPolicy.Cover? {
+        OnDemandSplitPolicy.cut(section: section, path: path)?.cover
+    }
+    #expect(OnDemandSplitPolicy.isFullPage(player("p")) && OnDemandSplitPolicy.isFullPage(band("b")))
+    #expect(!OnDemandSplitPolicy.isFullPage(rankings) && !OnDemandSplitPolicy.isFullPage(rival("r")))
+    #expect(cover(.leaderboards, []) == OnDemandSplitPolicy.Cover.none)
+    #expect(cover(.leaderboards, [player("p")]) == .overList)
+    #expect(cover(.leaderboards, [band("b")]) == .overList)
+    #expect(cover(.leaderboards, [rankings]) == OnDemandSplitPolicy.Cover.none)
+    #expect(cover(.leaderboards, [rankings, player("p")]) == .overSplit)
+    #expect(cover(.leaderboards, [rankings, player("p"), .playerBands(accountId: "p", displayName: nil)]) == .overSplit)
+    #expect(cover(.leaderboards, [bandRankings, band("b")]) == .overSplit)
+    #expect(cover(.songs, [detail, board]) == OnDemandSplitPolicy.Cover.none)
+    #expect(cover(.songs, [detail, board, player("p")]) == .overSplit)
+    #expect(cover(.rivals, [rival("r")]) == OnDemandSplitPolicy.Cover.none)
 }
 
 /// Back on the leading pane's page closes an open item first, keeping the list page;
@@ -162,9 +185,9 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
     #expect(OnDemandSplitPolicy.pathAfterListBack([detail], section: .songs) == [])
     // A page pushed in the trailing pane closes with the item it was pushed from.
     let open = [rankings, player("a"), .playerBands(accountId: "a", displayName: nil)]
-    #expect(OnDemandSplitPolicy.pathAfterListBack(open, section: .leaderboards) == [rankings])
+    #expect(OnDemandSplitPolicy.pathAfterListBack(open, section: .leaderboards) == [])
     #expect(OnDemandSplitPolicy.pathAfterListBack([detail, board, player("p")], section: .songs) == [detail])
-    #expect(OnDemandSplitPolicy.pathAfterListBack([rankings], section: .leaderboards) == [])
+    #expect(OnDemandSplitPolicy.pathAfterListBack([.leaderboards, rankings], section: .compete) == [.leaderboards])
     // A section root list page (Rivals) closes its item; at the root there is no Back.
     #expect(OnDemandSplitPolicy.pathAfterListBack([rival("r")], section: .rivals) == [])
     #expect(OnDemandSplitPolicy.pathAfterListBack([], section: .rivals) == nil)
@@ -340,10 +363,10 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
 
 /// The select action opens only the list page's detail routes and compares by page.
 @Test func selectActionAcceptsPageDetails() {
-    let action = ListDetailSelectAction(section: .leaderboards, page: .rankings) { _ in }
-    #expect(action.accepts(player("p")) && !action.accepts(rankings))
-    #expect(action == ListDetailSelectAction(section: .leaderboards, page: .rankings) { _ in })
-    #expect(action != ListDetailSelectAction(section: .leaderboards, page: .leaderboards) { _ in })
+    let action = ListDetailSelectAction(section: .leaderboards, page: .leaderboards) { _ in }
+    #expect(action.accepts(player("p")) && action.accepts(rankings) && !action.accepts(rival("r")))
+    #expect(action == ListDetailSelectAction(section: .leaderboards, page: .leaderboards) { _ in })
+    #expect(action != ListDetailSelectAction(section: .leaderboards, page: .rivals) { _ in })
     // The shelved dual-source regions accept everything.
     #expect(ListDetailSelectAction(section: .songs) { _ in }.accepts(rankings))
 }

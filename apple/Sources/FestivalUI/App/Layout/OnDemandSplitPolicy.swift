@@ -17,14 +17,20 @@ import Foundation
 /// | List page (leading pane top) | Detail roots (trailing pane) |
 /// |---|---|
 /// | Rivals root, `.rivals`, `.allRivals` | `.rivalDetail` |
-/// | Leaderboards root, `.leaderboards` | `.player`, `.band` |
-/// | `.fullRankings` | `.player` |
-/// | `.bandRankings` | `.band` |
+/// | Leaderboards root, `.leaderboards` | `.fullRankings`, `.bandRankings`; `.player`, `.band` (full page) |
 /// | `.songDetail` | `.songLeaderboard`, `.playerHistory` |
 /// | Settings root | `.licenses` |
 ///
-/// Songs, Song Leaderboard, Item Shop, Suggestions, Statistics, Compete, Band Detail,
-/// Player Bands and Rivalry never split: what they push opens full width.
+/// Songs, Song Leaderboard, Full and Band Rankings, Item Shop, Suggestions, Statistics,
+/// Compete, Band Detail, Player Bands and Rivalry never split: what they push opens
+/// full width.
+///
+/// **Profiles are full pages** (issue #352, agent decision the owner may override):
+/// a player or band profile never sits in a half pane. Opened from the list page it
+/// covers the whole width, and opened inside the trailing pane (Full Rankings beside
+/// Leaderboards, a song board beside Song Detail) the trailing pane widens over the list
+/// page. The list page stays alive, hidden, behind it, so Back returns to it with its
+/// place kept (``Cover``).
 enum OnDemandSplitPolicy {
     /// A page whose items open in the trailing pane.
     enum ListPage: Sendable, Equatable {
@@ -32,10 +38,6 @@ enum OnDemandSplitPolicy {
         case rivals
         /// The Leaderboards overview (instrument and band cards).
         case leaderboards
-        /// Full Rankings.
-        case rankings
-        /// Band Rankings.
-        case bandRankings
         /// Song Detail (its full leaderboards and score history).
         case songDetail
         /// The Settings list (iPad, iPhone Duo; the Mac has a Settings window).
@@ -48,9 +50,8 @@ enum OnDemandSplitPolicy {
         func accepts(_ route: AppRoute) -> Bool {
             switch (self, route) {
             case (.rivals, .rivalDetail),
+                 (.leaderboards, .fullRankings), (.leaderboards, .bandRankings),
                  (.leaderboards, .player), (.leaderboards, .band),
-                 (.rankings, .player),
-                 (.bandRankings, .band),
                  (.songDetail, .songLeaderboard), (.songDetail, .playerHistory),
                  (.settings, .licenses):
                 true
@@ -72,6 +73,41 @@ enum OnDemandSplitPolicy {
 
         /// The open item's route, if any.
         var selection: AppRoute? { detail.first }
+
+        /// How the open item shares the split with the list page.
+        var cover: Cover {
+            guard let selection else { return .none }
+            if OnDemandSplitPolicy.isFullPage(selection) { return .overList }
+            return detail.contains(where: OnDemandSplitPolicy.isFullPage) ? .overSplit : .none
+        }
+    }
+
+    /// Whether the trailing pane covers the list page (issue #352: profiles are full
+    /// pages). A covered list page stays alive behind it, hidden from sight, touch and
+    /// assistive technologies, so Back returns to it with its place kept.
+    enum Cover: Sendable, Equatable {
+        /// Side by side, or nothing open.
+        case none
+        /// A profile pushed inside the trailing pane (Full Rankings › player): the pane
+        /// widens over the whole split and the hidden list page keeps its half width.
+        case overSplit
+        /// The open item is itself a profile (Leaderboards › player): it covers the
+        /// whole width and the hidden list page keeps the full width it had. iOS pushes
+        /// it on the leading stack instead (a real push, with the system Back and its
+        /// edge swipe); the Mac covers the list in the trailing pane.
+        case overList
+    }
+
+    /// Whether a route is a full page that never sits in a half pane: a player or band
+    /// profile (issue #352).
+    ///
+    /// - Parameter route: Any route.
+    /// - Returns: True for `.player` and `.band`.
+    static func isFullPage(_ route: AppRoute) -> Bool {
+        switch route {
+        case .player, .band: true
+        default: false
+        }
     }
 
     /// Narrowest pane: each half must be at least this wide for the split to apply.
@@ -100,8 +136,6 @@ enum OnDemandSplitPolicy {
         switch route {
         case .rivals, .allRivals: .rivals
         case .leaderboards: .leaderboards
-        case .fullRankings: .rankings
-        case .bandRankings: .bandRankings
         case .songDetail: .songDetail
         default: nil
         }
@@ -131,7 +165,7 @@ enum OnDemandSplitPolicy {
     /// The section path after the leading pane's stack writes its path.
     ///
     /// An unchanged list keeps the open item; anything else (a pop, or a push of a
-    /// page that is not a detail, such as "View all rankings") replaces the path, so
+    /// page that is not a detail, such as Songs from Song Detail) replaces the path, so
     /// the open item closes with the list page it belonged to. A detail route pushed
     /// by a plain link stays in the new path and the cut lifts it into the trailing pane.
     ///

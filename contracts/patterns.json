@@ -2369,7 +2369,7 @@
       "title": "View all call to action",
       "status": "current",
       "doc": ".agents/patterns/view-all-cta.md",
-      "summary": "A card of preview rows ends with one full-width brand-purple button below the rows (View Full Leaderboard, View All Rivals, View All on Rival Detail categories, View All Rankings (N), View All Scores) at the platform minimum target, with no per-consumer overrides, a label-first accessible name and readable contrast-mode colours. The preview keeps its capped length: the button navigates to the full list's own page (pushed, or the trailing pane in a split; Song Detail View All Scores opens Player History with its sorts) and never expands the card in place (R8, owner #324).",
+      "summary": "A card of preview rows ends with one full-width brand-purple button below the rows (View Full Leaderboard, View All Rivals, View All on Rival Detail categories, View All Rankings (N), View All Scores) at the platform minimum target, with no per-consumer overrides, a label-first accessible name and readable contrast-mode colours. The preview keeps its capped length: the button navigates to the full list's own page (pushed, or the trailing pane in a split; Song Detail View All Scores opens Player History with its sorts) and never expands the card in place (R8, owner #324); Leaderboards' View All Rankings opens Full Rankings beside the overview (#352).",
       "keywords": [
         "view all",
         "view full leaderboard",
@@ -2560,7 +2560,7 @@
       "title": "Back keeps place",
       "status": "current",
       "doc": ".agents/patterns/back-keeps-place.md",
-      "summary": "Back to a cached or back-stack page keeps its loaded content (keyed reload gate; new publication or account reloads, failures retry), rebuilds and replays nothing, moves nothing (Windows pauses focus-follow scrolling and scroll anchoring while away) and, on Windows, returns focus to the opener in its original focus state. In an Apple on-demand split, Back on the leading page closes the open trailing pane first and keeps the page; a second Back leaves it.",
+      "summary": "Back to a cached or back-stack page keeps its loaded content (keyed reload gate; new publication or account reloads, failures retry), rebuilds and replays nothing, moves nothing (Windows pauses focus-follow scrolling and scroll anchoring while away) and, on Windows, returns focus to the opener in its original focus state. In an Apple on-demand split, Back on the leading page closes the open trailing pane first and keeps the page; a second Back leaves it. A player or band profile is a full page that covers the split, and its Back returns to the kept split (#352).",
       "keywords": [
         "back",
         "back navigation",

@@ -24,6 +24,9 @@ struct MacStack<Root: View>: View {
     let paneContext: SplitPaneContext?
     /// Closes the trailing pane (Escape), while one is open beside this pane.
     let close: (() -> Void)?
+    /// Whether a profile in the trailing pane covers this (list) pane (issue #352): its
+    /// keys and page tools stand down while it is hidden.
+    let isCovered: Bool
     let root: Root
 
     /// Create a pane stack.
@@ -38,12 +41,13 @@ struct MacStack<Root: View>: View {
     ///   - rootMaxWidth: Widest root content.
     ///   - paneContext: The split context of a list page's pane, or nil.
     ///   - close: Closes the trailing pane, or nil.
+    ///   - isCovered: Whether a profile in the trailing pane covers this pane.
     ///   - root: Pane root.
     init(
         session: FestivalSession, visibleInstruments: Set<Instrument>,
         stackPath: Binding<[AppRoute]>, fullPath: Binding<[AppRoute]>, isVisible: Bool,
         providesGlobalToolbar: Bool = true, rootMaxWidth: CGFloat = MacLayoutPolicy.pageMaxWidth(for: nil),
-        paneContext: SplitPaneContext? = nil, close: (() -> Void)? = nil,
+        paneContext: SplitPaneContext? = nil, close: (() -> Void)? = nil, isCovered: Bool = false,
         @ViewBuilder root: () -> Root
     ) {
         self.session = session
@@ -55,6 +59,7 @@ struct MacStack<Root: View>: View {
         self.rootMaxWidth = rootMaxWidth
         self.paneContext = paneContext
         self.close = close
+        self.isCovered = isCovered
         self.root = root()
     }
 
@@ -76,12 +81,16 @@ struct MacStack<Root: View>: View {
             root
                 .modifier(MacKeyboardNavigation(
                     selection: paneContext?.selection, select: paneContext?.select, push: push,
-                    isTop: stackPath.isEmpty, close: close
+                    isTop: stackPath.isEmpty, close: close, isEnabled: !isCovered
                 ))
                 .splitPaneContext(paneContext)
                 .environment(\.macPageIsTop, stackPath.isEmpty)
                 .environment(\.macColumnIsList, isList)
                 .modifier(MacPageWidth(maxWidth: rootMaxWidth))
+                // A covered page's own toolbar tools (Rank By, Quick Links) would join the
+                // window toolbar beside the profile's: pages place them only without a
+                // page-tools registry, so a covered pane hands its pages one nobody shows.
+                .environment(\.pageToolsRegistry, isCovered ? coveredTools : nil)
                 .modifier(MacGlobalToolbar(isEnabled: providesGlobalToolbar))
                 .navigationDestination(for: AppRoute.self) { route in
                     AppRouteDestination(
@@ -90,7 +99,7 @@ struct MacStack<Root: View>: View {
                     )
                     .modifier(MacKeyboardNavigation(
                         selection: paneContext?.selection, select: paneContext?.select, push: push,
-                        isTop: stackPath.last == route, close: close
+                        isTop: stackPath.last == route, close: close, isEnabled: !isCovered
                     ))
                     .splitPaneContext(paneContext?.pushedPage)
                     .environment(\.macPageIsTop, stackPath.last == route)
@@ -101,6 +110,9 @@ struct MacStack<Root: View>: View {
                 }
         }
     }
+
+    /// Collects (and discards) a covered page's tools.
+    @State private var coveredTools = PageToolsRegistry()
 
     /// Return on a keyboard-highlighted row: push in this pane.
     private func push(_ route: AppRoute) {
@@ -133,11 +145,15 @@ struct MacPageWidth: ViewModifier {
 // MARK: - On-demand split (Mac content area)
 
 /// A Mac destination's content: one stack, split on demand
-/// (`.agents/design/apple/split-view.md`). A list page (Rivals, Leaderboards, Full and
-/// Band Rankings, Song Detail) starts full width; selecting a row splits the content
-/// area right of the sidebar 50/50 at its exact midpoint, fixed (no drag), and shows the
-/// item in the trailing pane; Close, Escape, ⌘[ or Back return to full width. A content
-/// area narrower than two 360 pt panes pushes instead (``OnDemandSplitPolicy``).
+/// (`.agents/design/apple/split-view.md`). A list page (Rivals, Leaderboards, Song
+/// Detail) starts full width; selecting a row splits the content area right of the
+/// sidebar 50/50 at its exact midpoint, fixed (no drag), and shows the item in the
+/// trailing pane; Close, Escape, ⌘[ or Back return to full width. A content area
+/// narrower than two 360 pt panes pushes instead (``OnDemandSplitPolicy``).
+///
+/// Profiles are full pages (issue #352): a player or band opened from the list page, or
+/// pushed in the trailing pane, widens the trailing pane over the whole content area
+/// with a Back button, while the list page waits hidden behind it with its place kept.
 ///
 /// While a list page is on top, both panes draw their top route as their root and turn
 /// pushes into path writes: inside the window's `NavigationSplitView` a page pushed in a
@@ -178,15 +194,16 @@ struct MacListDetailStack<Root: View>: View {
         let geometry = geometry
         let splitCut: OnDemandSplitPolicy.Cut? = geometry == nil ? nil : cut
         let open = splitCut?.selection != nil
+        let cover = splitCut?.cover ?? .none
         Group {
             if let splitCut {
                 // One backdrop behind both panes while a list page is on top, open
                 // or not (`SplitPaneChrome`).
                 OnDemandSplitLayout(
-                    geometry: open ? geometry : nil,
+                    geometry: open ? geometry : nil, cover: cover,
                     backdrop: SplitPaneChrome.sharesBackdrop ? session.backgroundCoordinator : nil
                 ) {
-                    leadingPane(cut: splitCut, open: open)
+                    leadingPane(cut: splitCut, open: open && cover == .none, covered: cover != .none)
                 } trailing: {
                     if let top = splitCut.detail.last {
                         trailingPane(cut: splitCut, top: top)
@@ -204,7 +221,9 @@ struct MacListDetailStack<Root: View>: View {
             }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-        .onChange(of: open, initial: true) { _, open in onSplitChange(open) }
+        // A covering profile is the page on screen: Go › Back and Edit › Copy treat it
+        // as a full page.
+        .onChange(of: open && cover == .none, initial: true) { _, open in onSplitChange(open) }
     }
 
     /// The leading pane while a list page is on top: the list page as its root (its
@@ -213,9 +232,10 @@ struct MacListDetailStack<Root: View>: View {
     ///
     /// - Parameters:
     ///   - cut: The path's cut.
-    ///   - open: Whether the trailing pane is open.
+    ///   - open: Whether the trailing pane is open beside it.
+    ///   - covered: Whether a profile in the trailing pane covers it.
     /// - Returns: The leading pane.
-    private func leadingPane(cut: OnDemandSplitPolicy.Cut, open: Bool) -> some View {
+    private func leadingPane(cut: OnDemandSplitPolicy.Cut, open: Bool, covered: Bool) -> some View {
         let context = SplitPaneContext(
             paneWidth: nil, role: .leading, selection: cut.selection,
             select: ListDetailSelectAction(section: section, page: cut.page) { route in
@@ -228,7 +248,7 @@ struct MacListDetailStack<Root: View>: View {
             session: session, visibleInstruments: visibleInstruments,
             stackPath: pushes(keeping: cut.list.count), fullPath: $path, isVisible: isVisible,
             rootMaxWidth: MacLayoutPolicy.pageMaxWidth(for: page),
-            paneContext: context, close: closeAction
+            paneContext: context, close: closeAction, isCovered: covered
         ) {
             Group {
                 if let page {
@@ -239,7 +259,8 @@ struct MacListDetailStack<Root: View>: View {
             }
             .id(page)
             .toolbar {
-                if !cut.list.isEmpty {
+                // Covered, the profile's own Back is the only one (issue #352).
+                if !cut.list.isEmpty, !covered {
                     ToolbarItem(placement: .navigation) {
                         // An open item closes first (issue #347).
                         SplitListBackButton {
@@ -252,20 +273,23 @@ struct MacListDetailStack<Root: View>: View {
     }
 
     /// The trailing pane: its top route as root, with Close (the item itself) or Back
-    /// (a page pushed from it) in the window toolbar.
+    /// (a page pushed from it, or a profile covering the list page) in the window toolbar.
     private func trailingPane(cut: OnDemandSplitPolicy.Cut, top: AppRoute) -> some View {
-        MacStack(
+        let covers = cut.cover != .none
+        return MacStack(
             session: session, visibleInstruments: visibleInstruments,
             stackPath: pushes(keeping: path.count), fullPath: $path, isVisible: isVisible,
             providesGlobalToolbar: false, rootMaxWidth: MacLayoutPolicy.pageMaxWidth(for: top),
             // Only the item opened beside the list page knows that page (#342).
-            paneContext: SplitPaneContext(role: .trailing, besideList: cut.detail.count == 1 ? cut.page : nil)
+            paneContext: SplitPaneContext(
+                role: .trailing, besideList: cut.detail.count == 1 && !covers ? cut.page : nil, coversList: covers
+            )
         ) {
             destination(top)
                 .id(top)
                 .toolbar {
                     ToolbarItem(placement: .navigation) {
-                        if cut.detail.count > 1 {
+                        if cut.detail.count > 1 || covers {
                             Button {
                                 path = Array(path.dropLast())
                             } label: {

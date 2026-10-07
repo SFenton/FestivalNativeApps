@@ -181,28 +181,32 @@ extension FocusedValues {
     }
 }
 
-/// Publishes Rank By only from the top page of its column.
+/// Publishes Rank By only from the top page of its column, and not from the list beside
+/// an open trailing pane (Leaderboards beside Full Rankings, issue #352: the detail wins).
 private struct MacRankByPublisher: ViewModifier {
     let commands: MacRankByCommands
     @Environment(\.macPageIsTop) private var isTop
+    @Environment(\.macColumnIsList) private var isList
 
     func body(content: Content) -> some View {
         if MenuBarCommandsSupport.isAvailable {
-            content.focusedSceneValue(\.macRankBy, isTop ? commands : nil)
+            content.focusedSceneValue(\.macRankBy, isTop && !isList ? commands : nil)
         } else {
             content
         }
     }
 }
 
-/// Publishes the instrument switcher only from the top page of its column.
+/// Publishes the instrument switcher only from the top page of its column, and not from
+/// the list beside an open trailing pane (the detail wins, as for Rank By).
 private struct MacInstrumentPublisher: ViewModifier {
     let commands: MacInstrumentCommands
     @Environment(\.macPageIsTop) private var isTop
+    @Environment(\.macColumnIsList) private var isList
 
     func body(content: Content) -> some View {
         if MenuBarCommandsSupport.isAvailable {
-            content.focusedSceneValue(\.macInstrument, isTop ? commands : nil)
+            content.focusedSceneValue(\.macInstrument, isTop && !isList ? commands : nil)
         } else {
             content
         }

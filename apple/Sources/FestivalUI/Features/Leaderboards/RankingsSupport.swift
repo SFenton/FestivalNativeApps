@@ -416,13 +416,15 @@ extension View {
     /// window size) or the text size changes, because both measurements are live.
     ///
     /// - Parameters:
-    ///   - columns: The section's fitted rankings columns (`LeaderboardRowColumns.rankings`).
+    ///   - columns: The section's fitted rankings columns (`LeaderboardRowColumns.rankings`),
+    ///     or nil while the section has no rows (natural widths, nothing to fit), so a
+    ///     card keeps one view structure from loading to loaded.
     ///   - names: Every row's name in the section, including a pinned/spotlight row.
     ///   - rowInset: Total horizontal padding between this view's edges and its rows
     ///     (for example 32 for a page that pads its rows by 16 on each side).
     /// - Returns: This view with the decided columns in its environment.
     func leaderboardSectionColumns(
-        _ columns: LeaderboardRowColumns, hidingCrowdedSongsFor names: [RankingRowName],
+        _ columns: LeaderboardRowColumns?, hidingCrowdedSongsFor names: [RankingRowName],
         rowInset: CGFloat = 0
     ) -> some View {
         modifier(RankingSongsFit(columns: columns, names: names, rowInset: rowInset))
@@ -432,7 +434,7 @@ extension View {
 /// Measures a rankings section and its widest possible row, then hides the songs
 /// column when that row would not fit (`LeaderboardRowColumns.fittingSongs`).
 private struct RankingSongsFit: ViewModifier {
-    let columns: LeaderboardRowColumns
+    let columns: LeaderboardRowColumns?
     let names: [RankingRowName]
     var rowInset: CGFloat = 0
     @State private var availableWidth: CGFloat = 0
@@ -440,17 +442,19 @@ private struct RankingSongsFit: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .leaderboardSectionColumns(columns.fittingSongs(
+            .leaderboardSectionColumns(columns?.fittingSongs(
                 availableWidth: Double(availableWidth > 0 ? max(1, availableWidth - rowInset) : 0),
                 requiredWidth: Double(requiredWidth)
             ))
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { availableWidth = $0 }
             .background(alignment: .topLeading) {
-                RankingRowWidthProbe(columns: columns, names: names)
-                    .fixedSize()
-                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { requiredWidth = $0 }
-                    .hidden()
-                    .accessibilityHidden(true)
+                if let columns {
+                    RankingRowWidthProbe(columns: columns, names: names)
+                        .fixedSize()
+                        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { requiredWidth = $0 }
+                        .hidden()
+                        .accessibilityHidden(true)
+                }
             }
     }
 }
@@ -625,8 +629,8 @@ struct BandRankingRow: View {
 
     var body: some View {
         let songs = entry.songsLabel(for: metric)
-        // Opens Band Detail in the trailing pane where the board can split (Band
-        // Rankings, the Leaderboards band cards), else pushes.
+        // Band Detail is a full page (issue #352): from the Leaderboards band cards it
+        // covers the split, from Band Rankings in the trailing pane it widens that pane.
         ListDetailLink(
             value: Self.route(entry, bandType: bandType)
         ) {

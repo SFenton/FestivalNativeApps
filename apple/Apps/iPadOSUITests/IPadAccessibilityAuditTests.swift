@@ -227,10 +227,9 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         }, splitOnly: true),
         Page(name: "rivals-split", env: ["FST_DEBUG_ROUTE": "rivals"], profile: true, ready: "Rivals",
              open: { app in openSplit(app, prefix: "fst.rivals.row.") }, splitOnly: true),
+        // View All Rankings opens Full Rankings beside the overview (issue #352).
         Page(name: "leaderboards-split", env: ["FST_DEBUG_TAB": "leaderboards"], ready: "Leaderboards",
-             open: { app in openSplit(app, prefix: "fst.rankings.row.") }, splitOnly: true),
-        Page(name: "full-rankings-split", env: ["FST_DEBUG_ROUTE": "fullRankings:Solo_Guitar"],
-             ready: "Lead Rankings", open: { app in openSplit(app, prefix: "fst.rankings.row.") }, splitOnly: true),
+             open: { app in openSplit(app, ids: ["fst.leaderboards.card.Solo_Guitar.view-all"]) }, splitOnly: true),
         Page(name: "settings-split", env: ["FST_DEBUG_TAB": "settings"], ready: "Settings",
              open: { app in openSplit(app, ids: ["fst.settings.licenses"]) }, splitOnly: true),
     ]

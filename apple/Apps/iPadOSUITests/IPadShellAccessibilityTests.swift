@@ -246,15 +246,17 @@ final class IPadShellAccessibilityTests: XCTestCase {
     }
 
     static let splitPages: [SplitPage] = [
-        SplitPage(name: "full-rankings", env: ["FST_DEBUG_ROUTE": "fullRankings:Solo_Guitar"],
-                  ready: "Lead Rankings", row: "fst.rankings.row."),
+        // Leaderboards pushed (it has a Back): View All Rankings opens Full Rankings
+        // beside it (issue #352; a profile is a full page, never a pane).
+        SplitPage(name: "leaderboards-pushed", env: ["FST_DEBUG_ROUTE": "leaderboards"], ready: "Leaderboards",
+                  row: "fst.leaderboards.card.Solo_Guitar.view-all", exact: true),
         SplitPage(name: "rivals", env: ["FST_DEBUG_ROUTE": "rivals"], ready: "Rivals", row: "fst.rivals.row."),
         // iPhone Duo: with a profile `FST_DEBUG_TAB=leaderboards` resolves against the
         // compact tab set and opens Songs (Lane A11Y3's unreached row); the route pushes it.
         SplitPage(name: "leaderboards",
                   env: IPadAccessibilityAuditTests.runningOnDuo
                       ? ["FST_DEBUG_ROUTE": "leaderboards"] : ["FST_DEBUG_TAB": "leaderboards"],
-                  ready: "Leaderboards", row: "fst.rankings.row."),
+                  ready: "Leaderboards", row: "fst.leaderboards.card.Solo_Guitar.view-all", exact: true),
         SplitPage(name: "song-board", env: [:], profile: false, ready: "fst.songs.list",
                   row: "fst.song-detail.leaderboard.Solo_Guitar", exact: true, song: "fixture-pulse"),
         SplitPage(name: "settings", env: ["FST_DEBUG_TAB": "settings"], ready: "Settings",
@@ -359,7 +361,7 @@ final class IPadShellAccessibilityTests: XCTestCase {
     func testSplitBackClosesTrailingPaneFirst() throws {
         if !IPadAccessibilityAuditTests.runningOnDuo { XCUIDevice.shared.orientation = .landscapeLeft }
         let pages: [(SplitPage, String)] = [
-            (Self.splitPages[0], "fst.rankings.row."),
+            (Self.splitPages[0], "fst.leaderboards.card."),
             (Self.splitPages[3], "fst.song-detail.intensity"),
         ]
         for (page, stays) in pages {
