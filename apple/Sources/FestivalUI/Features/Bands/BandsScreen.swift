@@ -77,6 +77,8 @@ struct BandsScreen: View {
             // like Settings and Licenses (iPhone Duo inner display: ~850 pt rows before).
             .modifier(ReadableWidthContainer(isRegularWidth: layout.widthClass == .regular))
             .padding(16)
+            // A scroll while the cards stagger in fades the rest in together (#323).
+            .festivalFadeInScope()
         }
         .festivalBackground(.carousel, session: session)
         .festivalNavigationTitle("Bands")

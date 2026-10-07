@@ -169,9 +169,9 @@ internal const val BAND_MISSING_ID_MESSAGE = "This band link is missing an ID an
 
 /**
  * `/bands` with no band id (web `BandPage` without an id or lookup context): the web's
- * "Band not found" empty state, built with the shared [FestivalEmptyState]. There is no band
- * search (the service's band search can write on a GET, service-safety.md); bands open from a
- * player's band list, Band Rankings, a song's band leaderboard or global search.
+ * "Band not found" empty state, built with the shared [FestivalEmptyState]. Bands are found by
+ * global search (its Bands scope, issue #320) and open from there, a player's band list, Band
+ * Rankings or a song's band leaderboard.
  *
  * The state centres in the viewport and scrolls when large text outgrows it (landscape at
  * font scale 2). Across a separating vertical hinge (half-open book posture) it sits in the

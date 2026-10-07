@@ -193,20 +193,28 @@ internal fun playerBandAnnouncement(entry: PlayerBandEntry): String {
  * A player-band card: members with icons, band-size pill, appearances and the
  * operator's trailing chevron (batch 7.3); the whole card is one "Open band" button.
  *
+ * Global search reuses it for band results (web `SearchModal` renders the same `PlayerBandCard`).
+ *
  * @param entry Wire row.
  * @param onClick Open action.
  * @param modifier Modifier.
+ * @param tag Test tag (player-bands rows by default).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun PlayerBandCard(entry: PlayerBandEntry, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun PlayerBandCard(
+    entry: PlayerBandEntry,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tag: String = "fst.player-bands.row.${entry.key}",
+) {
     val size = BandType.fromWireId(entry.bandType)?.label ?: "Band"
     val appearances = BandFormatting.appearances(entry.appearanceCount)
     val announcement = playerBandAnnouncement(entry)
     GlassCard(
         modifier
             .fillMaxWidth()
-            .testTag("fst.player-bands.row.${entry.key}")
+            .testTag(tag)
             .semantics(mergeDescendants = true) {
                 contentDescription = announcement
                 role = Role.Button

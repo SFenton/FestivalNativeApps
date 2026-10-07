@@ -37,6 +37,53 @@ struct NativeHostedRoot<Content: View>: View {
     }
 }
 
+/// The realized accessibility element with `identifier` under `host`, if any.
+///
+/// - Parameters:
+///   - identifier: The element's accessibility identifier.
+///   - host: The window's hosting view (call `nativeHostedEnableAccessibility()` first).
+/// - Returns: The element, or nil when no realized element has the identifier.
+@MainActor
+func nativeHostedAccessibilityElement(_ identifier: String, in host: NSView) -> NSObject? {
+    var seen = Set<ObjectIdentifier>()
+    func read(_ object: NSObject, _ key: String) -> Any? {
+        object.responds(to: NSSelectorFromString(key)) ? object.value(forKey: key) : nil
+    }
+    func walk(_ node: Any, depth: Int) -> NSObject? {
+        guard depth < 80, let object = node as? NSObject,
+              seen.insert(ObjectIdentifier(object)).inserted else { return nil }
+        if read(object, "accessibilityIdentifier") as? String == identifier { return object }
+        for child in (read(object, "accessibilityChildren") as? [Any]) ?? [] {
+            if let found = walk(child, depth: depth + 1) { return found }
+        }
+        if let view = object as? NSView {
+            for subview in view.subviews {
+                if let found = walk(subview, depth: depth + 1) { return found }
+            }
+        }
+        return nil
+    }
+    return walk(host, depth: 0)
+}
+
+/// Frame, in the host's top-left points, of the accessibility element with `identifier`.
+///
+/// - Parameters:
+///   - identifier: The element's accessibility identifier.
+///   - host: The window's hosting view (call `nativeHostedEnableAccessibility()` first).
+/// - Returns: The element's frame, or nil when no realized element has the identifier.
+@MainActor
+func nativeHostedAccessibilityFrame(_ identifier: String, in host: NSView) -> CGRect? {
+    guard let element = nativeHostedAccessibilityElement(identifier, in: host),
+          element.responds(to: NSSelectorFromString("accessibilityFrame")),
+          let frame = (element.value(forKey: "accessibilityFrame") as? NSValue)?.rectValue,
+          let window = host.window else { return nil }
+    let local = host.convert(window.convertFromScreen(frame), from: nil)
+    return host.isFlipped ? local : CGRect(
+        x: local.minX, y: host.bounds.height - local.maxY, width: local.width, height: local.height
+    )
+}
+
 /// Ask SwiftUI to build its accessibility tree inside this test process.
 ///
 /// SwiftUI on macOS creates no accessibility nodes under an `NSHostingView`

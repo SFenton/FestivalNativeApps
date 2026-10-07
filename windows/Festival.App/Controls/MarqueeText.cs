@@ -60,6 +60,7 @@ public sealed partial class MarqueeText : Panel
     private bool playing;
     private bool wrapped;
     private bool listeningToTextScale;
+    private bool animating;
 
     /// <summary>Creates the control.</summary>
     public MarqueeText()
@@ -255,6 +256,9 @@ public sealed partial class MarqueeText : Panel
         copy.Visibility = Visibility.Visible;
         InvalidateArrange();
         UpdateLayout();
+        // The layout pass can run list bindings that recycle this row and set new text, which stops it re-entrantly
+        // (#276): leave it stopped; the text change queues a fresh evaluation.
+        if (!playing) return;
         var distance = (float)trackDistance;
         foreach (var element in new UIElement[] { primary, copy })
         {
@@ -271,6 +275,7 @@ public sealed partial class MarqueeText : Panel
             visual.Properties.InsertVector3("Translation", Vector3.Zero);
             ElementCompositionPreview.SetIsTranslationEnabled(element, true);
             visual.StartAnimation("Translation.X", animation);
+            animating = true;
             // Web epoch-based negative animation-delay: every marquee sits at the same point of the shared cycle.
             if (visual.TryGetAnimationController("Translation.X") is { } controller)
                 controller.Progress = (float)((DateTimeOffset.UtcNow - Epoch).TotalSeconds % CycleSeconds / CycleSeconds);
@@ -282,11 +287,17 @@ public sealed partial class MarqueeText : Panel
     {
         if (!playing) return;
         playing = false;
-        foreach (var element in new UIElement[] { primary, copy })
+        // Translation.X exists only once Play has enabled it: stopping it earlier throws inside the layout callback
+        // and fail-fasts the app (#276: a row recycled during Play's layout pass).
+        if (animating)
         {
-            var visual = ElementCompositionPreview.GetElementVisual(element);
-            visual.StopAnimation("Translation.X");
-            visual.Properties.InsertVector3("Translation", Vector3.Zero);
+            animating = false;
+            foreach (var element in new UIElement[] { primary, copy })
+            {
+                var visual = ElementCompositionPreview.GetElementVisual(element);
+                visual.StopAnimation("Translation.X");
+                visual.Properties.InsertVector3("Translation", Vector3.Zero);
+            }
         }
         copy.Visibility = Visibility.Collapsed;
         primary.TextTrimming = TextTrimming.CharacterEllipsis;
