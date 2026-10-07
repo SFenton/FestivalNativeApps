@@ -2,7 +2,7 @@
 
 > **What:** section-title hierarchy, card placement, accessibility semantics, and pinned-header handoff. **Read when:** adding a titled group, a grouped list, or a sticky section header.
 
-Status: **current**, 2026-10-06. Provenance: #288, #291, #297, #312, #321.
+Status: **current**, 2026-10-06. Provenance: #288, #291, #297, #312, #321, #343.
 
 ## Intent
 
@@ -28,6 +28,7 @@ The web has no sticky section header. Native sticky behavior is an approved addi
 6. **R6. Keep one accessible title.** The in-list title remains the heading; a visual moving copy is hidden from assistive technology. A section with no title (one unlabeled section, e.g. a player metric sort or a lone Item Shop bucket) exposes no empty heading or group and takes no focus stop (Windows `SongsPage.ApplyGroupHeaderAccess`, #282: WinUI otherwise makes the group header a focusable, unnamed Group that Up from the first row lands on; guarded by the `"scan": true` Axe + focus-sequence pages in `a11y-songs-bucket-headers.json`).
 7. **R7. Keep native implementations, not a shared fake header.** **Approved variants:** Apple `SongsSectionBar`, Android Compose `stickyHeader`, and the Windows clipped header copy are the #288-approved native implementations; all obey R1-R6.
 8. **R8. One View All link per platform.** A section title that opens its full list puts "View All" at the trailing end of the title row, using the platform's shared link, with at least a 44 pt (Apple) or 48 dp (Android) target and a spoken label that starts with "View All" and names the list. The link keeps its own test ID: on Apple, an identified container around it (`DualSourcePane`, Duo Song Detail history cards) sets `.accessibilityElement(children: .contain)` before its identifier (#321). Do not add a second header-link style in a feature folder (#312). The copy is "View All", never "See All" (owner, #321). It stays a link rather than the purple [view-all-cta](view-all-cta.md) button (agent decision, #321, 2026-10-06, view-all-cta R7 and the Android record below; owner may override).
+9. **R9. Keep titles on their side of a fold.** When a two-column layout splits at a separating vertical hinge (book posture half-open), a full-width page or section title, subtitle or message stays in the leading pane and wraps there; it never runs across the fold. Unfolding flat reflows it to the full line without reloading. Material 3: "Never place interactive content or critical information across the hinge area." (must). Android: every full-line item in a hinge-splitting staggered grid is a `foldLaneItem`; the grid provides the pane width through `ProvideFoldLane` (#343).
 
 ## Agent decision (#321, 2026-10-06): rename title-row links, purple CTA only for in-card bottom rows
 
@@ -47,6 +48,7 @@ Chose **A**. Precedence: web behavior beats undocumented native copies, and amon
 | Ordinary section title | `apple/Sources/FestivalUI/Design/SectionHeader.swift` `FestivalSectionHeader` | `android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt` `SectionHeader` | `windows/Festival.App/Themes/Styles.xaml` `FSTSectionHeaderStyle` |
 | Titled content card | `apple/Sources/FestivalUI/Design/GlassSection.swift` `FestivalGlassSection` | `android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt` `SectionHeader` | `windows/Festival.App/Controls/CardHeader.cs` `CardHeader` |
 | Title-row View All (R8) | `apple/Sources/FestivalUI/Design/SectionHeader.swift` `SectionViewAllLink` (Duo pane headers, Duo Song Detail history cards, Profile Bands) | `android/app/src/main/java/com/festivalscoretracker/android/ui/design/SeeAllButton.kt` `SeeAllButton` | `windows/Festival.App/Pages/RivalsPage.xaml` `HyperlinkButton` (also Profile Bands, `Controls/PlayerProfileView.xaml`); copy and label-first name from `windows/Festival.Core/Domain/ViewAllCta.cs` `ListLabel` / `Name` |
+| Title in a fold-split grid (R9) | — | `android/app/src/main/java/com/festivalscoretracker/android/ui/common/FoldLane.kt` `foldLaneItem` / `FoldLane` (provided by `AdaptiveCardGrid`, Suggestions, Item Shop) | — |
 | Pinned Songs handoff | `apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift` `SongsSectionBar` | `android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsScreen.kt` `SongsScreen` | `windows/Festival.App/Pages/SongsPage.xaml` `StickyHeader` |
 
 ## Known debt
@@ -59,6 +61,7 @@ Chose **A**. Precedence: web behavior beats undocumented native copies, and amon
 - `section-headers/apple-songs-bar`
 - `section-headers/android-sticky-header`
 - `section-headers/android-view-all-copy`
+- `section-headers/android-fold-lane`
 - `section-headers/windows-sticky-copy`
 - `section-headers/apple-see-all-copy`
 - `section-headers/windows-view-all-copy`
