@@ -56,7 +56,7 @@ Basis: menus › "Make sure a submenu remains available even when its items are 
 
 | Page | Mac layout | State |
 |---|---|---|
-| Songs + Song Detail (history, Intensity, instrument cards) | Songs full width (single-line rows); Song Detail full width, its full boards and score history open in the trailing half; Sort popover, Filter sheet; row context menu | Done |
+| Songs + Song Detail (history, Intensity, instrument cards) | Songs full width (single-line rows; with a player selected, scored rows ≥ 600 pt show the instrument-card panel on their right half, #340); Song Detail full width, its full boards and score history open in the trailing half; Sort popover, Filter sheet; row context menu | Done |
 | Song leaderboards, Player History, Paths | Pushed in the detail column (Song Detail links, row context menu, Song menu); Paths is a ~700 pt window sheet | Captured live 2026-10-02 (`polish/page-*.png`) |
 | Leaderboards / Compete | Two card columns (Compete: Leaderboards beside Rivals) from 720 pt | Done |
 | Full / Band Rankings + pager | Full Rankings: full width, a player opens in the trailing half, icon title and the shared pinned pager (issue #294), View › Instrument ▸ mirrors the toolbar instrument menu; Band Rankings one column with the floating pager | Done |
