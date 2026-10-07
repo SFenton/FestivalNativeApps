@@ -7,7 +7,7 @@
     <!--
         Player profile body shared by /player/:accountId and the Statistics section (web PlayerPage). Separate cards like
         the web: the player's name as the page title (no avatar or card, issue #97) with Select/Switch/Deselect (never
-        navigates), Overview stat cards, then per Settings-visible instrument a header, its Rank History card, its stat cards and its Percentiles table card, then the Bands link.
+        navigates), Overview stat cards, then per Settings-visible instrument a header, its Rank History card, its stat cards and its Percentiles table card, then the inline Bands section (issue #312).
     -->
     <UserControl.Resources>
         <DataTemplate x:Key="StatTileTemplate" x:DataType="vm:PlayerStatTile">
@@ -171,17 +171,89 @@
                     </ItemsRepeater.ItemTemplate>
                 </ItemsRepeater>
 
-                <!-- Bands: a navigable card row with an in-card chevron (batch 7.3). -->
-                <Button Click="OnBandsClick" Margin="0,8,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="16,14"
-                        Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
-                        CornerRadius="{StaticResource OverlayCornerRadius}"
-                        AutomationProperties.Name="{x:Bind ViewModel.BandsLabel, Mode=OneWay}"
-                        AutomationProperties.AutomationId="fst.player.bands-link" controls:QuickLinkAnchor.Id="bands">
-                    <Grid>
-                        <TextBlock Text="{x:Bind ViewModel.BandsLabel, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                        <FontIcon Glyph="&#xE76C;" FontSize="12" HorizontalAlignment="Right" AutomationProperties.AccessibilityView="Raw" />
-                    </Grid>
-                </Button>
+                <!-- Bands (web PlayerBandsSection, issue #312): "{name}'s Bands" with a View All link, then Duos/Trios/Quads groups of
+                     up to six band cards (BandCardView, as on Player Bands), a No Bands Yet card when empty and View All Bands (N)
+                     when the group has more. Read per group after the profile shows; never holds the page spinner. -->
+                <controls:AccessibleGroup Margin="0,8,0,0" controls:QuickLinkAnchor.Id="bands"
+                                          AutomationProperties.Name="{x:Bind ViewModel.Bands.Title, Mode=OneWay}"
+                                          AutomationProperties.AutomationId="fst.player.bands-section">
+                    <StackPanel Spacing="12">
+                        <!-- Header with the title-row View All link (section-headers R8; same link as the Rivals hub sections). -->
+                        <Grid ColumnSpacing="10" MinHeight="40">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{x:Bind ViewModel.Bands.Title, Mode=OneWay}" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0"
+                                       VerticalAlignment="Center" TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level2"
+                                       AutomationProperties.AutomationId="fst.player.bands" />
+                            <HyperlinkButton Grid.Column="1" Content="{x:Bind vm:PlayerProfileBandsViewModel.ListLinkText}" Click="OnBandsListLinkClick" VerticalAlignment="Center"
+                                             MinHeight="{StaticResource FSTMinTargetSize}"
+                                             AutomationProperties.Name="{x:Bind ViewModel.Bands.ListLinkName, Mode=OneWay}"
+                                             AutomationProperties.AutomationId="fst.player.bands-link" />
+                        </Grid>
+
+                        <!-- Fluent in-card loading, replaced by the groups or the inline status with Retry. -->
+                        <Border Style="{StaticResource FSTCardStyle}" MinHeight="120"
+                                Visibility="{x:Bind ViewModel.Bands.IsLoading, Mode=OneWay, FallbackValue=Collapsed}">
+                            <ProgressRing IsActive="{x:Bind ViewModel.Bands.IsLoading, Mode=OneWay, FallbackValue=False}" Width="32" Height="32"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center" AutomationProperties.Name="Loading bands"
+                                          AutomationProperties.AutomationId="fst.player.bands.loading" />
+                        </Border>
+                        <Border Style="{StaticResource FSTCardStyle}"
+                                Visibility="{x:Bind ViewModel.Bands.ShowError, Mode=OneWay, FallbackValue=Collapsed}">
+                            <controls:ServiceStatusInline Status="{x:Bind ViewModel.Bands.Status, Mode=OneWay}"
+                                                          RetryAutomationId="fst.player.bands.retry" />
+                        </Border>
+
+                        <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled"
+                                       ItemsSource="{x:Bind ViewModel.Bands.Groups, Mode=OneWay}"
+                                       Visibility="{x:Bind ViewModel.Bands.ShowGroups, Mode=OneWay, FallbackValue=Collapsed}">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Spacing="16" />
+                            </ItemsRepeater.Layout>
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="vm:PlayerProfileBandGroup">
+                                    <!-- Named group: band cards repeat across groups, so each group is its own UIA parent. -->
+                                    <controls:AccessibleGroup AutomationProperties.Name="{x:Bind Title}">
+                                        <StackPanel Spacing="8">
+                                            <controls:CardHeader Title="{x:Bind Title}" HeadingLevel="Level3" MinHeight="44"
+                                                                 TitleAutomationId="{x:Bind HeaderAutomationId}" />
+                                            <!-- Rows size to their tallest card (Trios and Quads cards list more members). -->
+                                            <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Cards}" Visibility="{x:Bind HasCards}"
+                                                           controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="120">
+                                                <ItemsRepeater.Layout>
+                                                    <controls:LeaderboardsCardGridLayout MinColumnWidth="320" MaxColumns="3" Spacing="12" />
+                                                </ItemsRepeater.Layout>
+                                                <ItemsRepeater.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:PlayerBandCardViewModel">
+                                                        <controls:BandCardView Card="{x:Bind}" />
+                                                    </DataTemplate>
+                                                </ItemsRepeater.ItemTemplate>
+                                            </ItemsRepeater>
+                                            <!-- Empty group (web InstrumentEmptyState "No bands yet"). -->
+                                            <Border Style="{StaticResource FSTCardStyle}" Visibility="{x:Bind IsEmpty}">
+                                                <StackPanel Spacing="4" HorizontalAlignment="Center">
+                                                    <TextBlock Text="{x:Bind vm:PlayerProfileBandGroup.EmptyTitle}" Style="{StaticResource BodyStrongTextBlockStyle}"
+                                                               TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center"
+                                                               AutomationProperties.AutomationId="{x:Bind EmptyAutomationId}" />
+                                                    <TextBlock Text="{x:Bind vm:PlayerProfileBandGroup.EmptySubtitle}" Style="{StaticResource FSTSecondaryTextStyle}"
+                                                               TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center" />
+                                                </StackPanel>
+                                            </Border>
+                                            <!-- Frosted View All Bands (N) card (surface-materials R7), not the purple
+                                                 leaderboard CTA. -->
+                                            <controls:ViewAllCard Label="{x:Bind ViewAllText}" Tag="{x:Bind ViewAllRoute}" Click="OnBandsViewAllClick"
+                                                                  Visibility="{x:Bind HasMore}"
+                                                                  AutomationProperties.Name="{x:Bind ViewAllName}"
+                                                                  AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
+                                        </StackPanel>
+                                    </controls:AccessibleGroup>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                    </StackPanel>
+                </controls:AccessibleGroup>
             </StackPanel>
         </ScrollViewer>
 

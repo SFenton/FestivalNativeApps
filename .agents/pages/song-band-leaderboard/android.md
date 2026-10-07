@@ -12,6 +12,7 @@
 - Large text (font scale ≥ 1.3, `isLargeText`): a member's score wraps under the name (`BandMemberScoreLine` FlowRow) instead of breaking the name mid-word, and the footer (`BandScoreFooter` FlowRow) wraps accuracy + stars under the team score instead of clipping the stars.
 - Hinge: across a **separating** vertical hinge (half-open book/passport fold) `SongBandLeaderboardLayout` puts the song header and size switcher on the leading side (`.controls-pane`, scrollable) and the rows and pager on the trailing side (`BandLayout.listSplit`), per the M3 foldables rule "Never place interactive content or critical information across the hinge area". Flat folds (book unfolded, tri-fold) keep one column. Unlike `rememberSingleColumn` pages, the split also applies under TalkBack/large text (band-page convention); verified at font 2.0.
 - Shared pager, empty state (`No Band Scores Found` / `No <Size> scores have been recorded for this song yet.`), failure `ServiceStatusView` (fixed height inside the list). Content is centered at ≤840 dp on wide windows.
+- Accessibility edge (issue #306, [scroll-edge](../../patterns/scroll-edge.md) R7): under Increase Contrast, Reduce Transparency or Reduce Motion the shared `RankingsBoardLayout` drops only the fade ramp; rows stay clipped at the pinned band's and pager's top edge, so covered rows never show or take touch/TalkBack focus (tests `BoardFooterFadeDrawUiTest.*CutsRowsAtAHardEdge`, `*HidesCoveredRowsFromTalkBack`).
 
 ## Validation (issue #103, live service)
 
@@ -31,7 +32,7 @@ Seven Nation Army (Duos 9,952 · Trios 9,970 · Quads 9,983) and Butter; capture
 
 ## IDs
 
-`fst.song-band-leaderboard.screen`, `.list`, `.band-type` (header drop-down), `.band-type-menu`, `.band-type.<bandType>`, `.row.<bandId>:<rank>`, `.empty`, `.error`, `.page-first|page-previous|page-info|page-next|page-last`; the shared song header is tagged `.song`. `.subtitle` was removed with the entry count (#317). Tests: `BandsUiTest.songBandLeaderboardUsesTheSoloSongHeaderAndScrollAwayTitle`, `…ShowsTheSongsStaticCover`, `…SwitchesSizesAndOpensBands`, `…FailureKeepsTheSongHeader`; `SongHeaderTitleUiTest.songBandLeaderboardTitleScrollsAcrossTheHeaderAndTheBar`.
+`fst.song-band-leaderboard.screen`, `.list`, `.bottom-bar`, `.spotlight-footer`, `.band-type` (header drop-down), `.band-type-menu`, `.band-type.<bandType>`, `.row.<bandId>:<rank>`, `.empty`, `.error`, `.pager`, `.page-first|page-previous|page-info|page-next|page-last`; the shared song header is tagged `.song`. `.subtitle` was removed with the entry count (#317). Tests: `BandsUiTest.songBandLeaderboardUsesTheSoloSongHeaderAndScrollAwayTitle`, `…ShowsTheSongsStaticCover`, `…SwitchesSizesAndOpensBands`, `…FailureKeepsTheSongHeader`; `SongHeaderTitleUiTest.songBandLeaderboardTitleScrollsAcrossTheHeaderAndTheBar`.
 
 ## Open
 

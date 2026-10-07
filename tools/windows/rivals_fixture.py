@@ -17,6 +17,8 @@ placeholder rows rather than invent songs.
 ``--song-leaderboard anonymous`` (issue #263) blanks the account ID and display name of the rank-3 row in every song's
 Lead (``Solo_Guitar``) chart read, the production case of a top-ten row with no player to open.
 
+``--player-bands fail-once`` (issue #312) answers the first read of each distinct ``/api/player/{id}/bands`` path and
+query with a 500 and passes the identical retry through, so the profile's inline Bands section fails, then recovers.
 ``--song-band-totals`` (issue #317) sets ``showLeaderboardEntryTotals`` on per-size song band board reads
 (``/api/leaderboard/{songId}/bands/{bandType}``), so the band board header's entry-total line is reachable.
 ``--song-band-slow BANDTYPE`` (issue #317 review) answers that band size's per-size reads only after
@@ -366,6 +368,76 @@ def take_song_leaderboard(argv: list[str]) -> tuple[str | None, list[str]]:
 
 # endregion
 
+# region Player bands scenarios
+
+#: Scenarios for ``--player-bands``.
+PLAYER_BANDS_SCENARIOS = ("fail-once",)
+
+
+def player_bands_failure(path: str, seen: set[str]) -> bool:
+    """Whether a player-bands read fails in the ``fail-once`` scenario (issue #312).
+
+    The first read of each distinct path and query answers 500, and the identical retry passes through, so the
+    profile's inline Bands section shows its failure with Retry and then recovers.
+
+    Args:
+        path: Request path with query.
+        seen: Paths already failed once (updated in place).
+
+    Returns:
+        ``True`` when this read should answer 500.
+    """
+    if not mock_service.PLAYER_BANDS.fullmatch(urlsplit(path).path) or path in seen:
+        return False
+    seen.add(path)
+    return True
+
+
+def install_player_bands(scenario: str) -> None:
+    """Serve a player-bands scenario in front of the mock service's handler.
+
+    Args:
+        scenario: One of :data:`PLAYER_BANDS_SCENARIOS`.
+    """
+    original = mock_service.FixtureHandler.do_GET
+    seen: set[str] = set()
+
+    def do_get(self) -> None:  # noqa: ANN001 (stdlib handler signature)
+        if scenario == "fail-once" and player_bands_failure(self.path, seen):
+            self._json(500, {"status": "fixture_player_bands_unavailable"})
+        else:
+            original(self)
+
+    mock_service.FixtureHandler.do_GET = do_get
+
+
+def take_player_bands(argv: list[str]) -> tuple[str | None, list[str]]:
+    """Split ``--player-bands <scenario>`` (or ``=<scenario>``) from the remaining arguments.
+
+    Args:
+        argv: Command-line arguments after the program name.
+
+    Returns:
+        The scenario (``None`` when absent) and the remaining arguments.
+
+    Raises:
+        SystemExit: Missing or unknown scenario.
+    """
+    scenario, rest, items = None, [], iter(argv)
+    for arg in items:
+        if arg == "--player-bands":
+            scenario = next(items, None)
+        elif arg.startswith("--player-bands="):
+            scenario = arg.split("=", 1)[1]
+        else:
+            rest.append(arg)
+            continue
+        if scenario not in PLAYER_BANDS_SCENARIOS:
+            raise SystemExit(f"--player-bands must be one of {', '.join(PLAYER_BANDS_SCENARIOS)}")
+    return scenario, rest
+
+# endregion
+
 # region Song band board entry totals
 
 #: Per-size song band board read (``/api/leaderboard/{songId}/bands/{bandType}``; not ``/bands/all``).
@@ -535,6 +607,7 @@ def main() -> None:
     songs_delay, rest = take_songs_delay(rest)
     song_board, rest = take_song_leaderboard(rest)
     song_band_rows, rest = take_song_band_rows(rest)
+    player_bands, rest = take_player_bands(rest)
     song_band_slow, rest = take_song_band_slow(rest)
     songs_unavailable = "--songs-unavailable" in rest
     song_band_totals_on = "--song-band-totals" in rest
@@ -546,6 +619,8 @@ def main() -> None:
         install_songs_delay(songs_delay)
     if song_board:
         install_song_leaderboard(song_board)
+    if player_bands:
+        install_player_bands(player_bands)
     if songs_unavailable:
         install_songs_unavailable()
     if song_band_rows:
