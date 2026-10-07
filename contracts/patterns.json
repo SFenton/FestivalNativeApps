@@ -188,6 +188,73 @@
       ]
     },
     {
+      "id": "scroll-indicators",
+      "title": "Scroll indicators: system bars on every page",
+      "status": "current",
+      "doc": ".agents/patterns/scroll-indicators.md",
+      "summary": "Every page and sheet keeps the platform's own scroll indicators (Apple SwiftUI .automatic: shown while scrolling, macOS follows System Settings' Show scroll bars); no in-app scroll-bar setting (HIG Settings: don't duplicate global scrolling options; #356 agent decision); only paged carousels, the feedback attachment strip and the Paths chart hide theirs, with .hidden so macOS 'Always' still wins.",
+      "keywords": [
+        "scroll bar",
+        "scrollbar",
+        "scroll indicator",
+        "scrollIndicators",
+        "showsIndicators",
+        "always show scroll bars",
+        "indicator"
+      ],
+      "web": [
+        {
+          "path": "index.css",
+          "symbol": "scrollbar-width: none"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Common/HorizontalCarousel.swift",
+            "symbol": "HorizontalCarousel"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackAttachmentStrip.swift",
+            "symbol": "FeedbackAttachmentStrip"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-hidden",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "scrollIndicators\\(\\s*\\.(hidden|never)|showsIndicators:\\s*false",
+          "allow": [
+            "apple/Sources/FestivalUI/Common/HorizontalCarousel.swift",
+            "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackAttachmentStrip.swift",
+            "apple/Sources/FestivalUI/Features/SongDetail/SongPathsSheet.swift"
+          ],
+          "debt": [],
+          "message": "Pages keep the system scroll indicators; only paged carousels, the attachment strip and the Paths chart hide theirs (scroll-indicators R1, R3)."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "scroll-edge"
+        ],
+        "controls": [
+          "chopt-paths",
+          "feedback-form"
+        ],
+        "pages": [
+          "settings"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        279,
+        332,
+        356
+      ]
+    },
+    {
       "id": "section-jump-landing",
       "title": "Section-jump landing",
       "status": "current",
