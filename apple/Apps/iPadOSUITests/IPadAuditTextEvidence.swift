@@ -61,7 +61,7 @@ enum IPadAuditTextEvidence {
         ) -> XCUIElement? {
             let area = area ?? IPadAuditPageEvidence.ContentArea(rect: app.windows.firstMatch.frame)
             let window = area.rect
-            let origin = app.coordinate(withNormalizedOffset: .zero)
+            let origin = IPadAccessibilityAuditTests.screenOrigin(app)
             // Sixteen: an AX5 comparison launch in a ⅓ window puts a lazy card several
             // screens down (Song Detail's Pro Lead header was never reached in eight).
             var lastTarget: (frame: CGRect, moved: CGFloat)?
@@ -102,7 +102,7 @@ enum IPadAuditTextEvidence {
                 // and page tools (a ⅓ window's Rival Detail "View All" was never reached).
                 if attempt % 2 == 1, area.topBars.count >= 2 {
                     let pane = area.topBars.first { $0.minX <= x && x <= $0.maxX } ?? window
-                    x = pane.maxX - 12
+                    x = IPadAccessibilityAuditTests.dragX(pane.maxX - 12, in: app)
                 }
                 let start = origin.withOffset(CGVector(dx: x, dy: window.midY + distance / 2))
                 let end = origin.withOffset(CGVector(dx: x, dy: window.midY - distance / 2))

@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -98,6 +99,9 @@ class RivalRowUiTest {
         assertTrue(group.children.any { it.config.contains(SemanticsProperties.Heading) })
         rule.onNodeWithTag("see-all").performSemanticsAction(SemanticsActions.OnClick)
         assertEquals(1, opened)
+        // Issue #321: the link says "View All" (label first, then the list), never "See All".
+        assertEquals("View All: Closest Battles", description("see-all"))
+        assertTrue(rule.onAllNodes(hasText("See All", substring = true, ignoreCase = true), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
     }
 
     @Test

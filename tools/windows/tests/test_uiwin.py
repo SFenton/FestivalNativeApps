@@ -77,6 +77,13 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_assertnoscrollbar_takes_an_element_selector(self):
+        step = u.parse_step("assertnoscrollbar:id=fst.paths.image-scroller")
+        self.assertEqual((step["verb"], step["selector"]), ("assertnoscrollbar", {"kind": "id", "value": "fst.paths.image-scroller"}))
+        for bad in ("assertnoscrollbar:5,6", "assertnoscrollbar:"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_paths_resize_and_errors(self):
         shot = u.parse_step("shot:out/a.png@screen")
         self.assertEqual(shot["mode"], "screen")
@@ -175,6 +182,46 @@ class StepTests(unittest.TestCase):
         for bad in ("assertgap:id=a|id=b", "assertgap:id=a|id=b|x", "assertgap:id=a|4", "assertgap:1,2|id=b|4",
                     "assertgap:id=a|id=b|-4"):
             with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_assertpaint(self):
+        step = u.parse_step("assertpaint:id=fst.notifications.row.x|fill:L8,M0=#162133~4|L4,M-10,L5,M10=#1e2a3a"
+                            "|R25,M-24!=@fill~40|C-0.5,B2.5,C20,B-3!=@fill")
+        self.assertEqual(step["verb"], "assertpaint")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.notifications.row.x"})
+        fill, stroke, dot, gap = step["probes"]
+        self.assertEqual(fill, {"text": "fill:L8,M0=#162133~4", "x": {"edge": "L", "off": 8.0},
+                                "y": {"edge": "M", "off": 0.0}, "op": "=", "color": "#162133", "tol": 4, "name": "fill"})
+        self.assertEqual((stroke["x2"], stroke["y2"], stroke["color"], stroke["tol"]),
+                         ({"edge": "L", "off": 5.0}, {"edge": "M", "off": 10.0}, "#1E2A3A", 16))
+        self.assertEqual((dot["op"], dot["ref"], dot["x"]), ("!=", "fill", {"edge": "R", "off": 25.0}))
+        self.assertNotIn("color", dot)
+        self.assertEqual((gap["x"]["off"], gap["y2"]), (-0.5, {"edge": "B", "off": -3.0}))
+        sample = u.parse_step("assertpaint:raw=fst.art|art:L47,M0")["probes"][0]
+        self.assertEqual((sample["name"], "op" in sample), ("art", False))
+        for bad in ("assertpaint:id=a", "assertpaint:id=a|", "assertpaint:1,2|a:L1,T1", "assertpaint:id=a|L1,T1",
+                    "assertpaint:id=a|L1,T1,L2,T2", "assertpaint:id=a|a:L1,T1,L2,T2=#000000",
+                    "assertpaint:id=a|X1,T1=#000000", "assertpaint:id=a|L1,T1=#00000", "assertpaint:id=a|L1,T1=@nope",
+                    "assertpaint:id=a|L1,T1=#000000~256", "assertpaint:id=a|L1,T1=#000000||"):
+            with self.assertRaises(ValueError, msg=bad):
+                u.parse_step(bad)
+
+    def test_parse_probe_names_are_ordered(self):
+        names: set[str] = set()
+        self.assertEqual(u.parse_probe("a:L1,T1", names)["name"], "a")
+        self.assertEqual(names, {"a"})
+        self.assertEqual(u.parse_probe("L2,T2=@a~3", names)["ref"], "a")
+        with self.assertRaises(ValueError):
+            u.parse_probe("L2,T2=@b", names)
+
+    def test_assertbold(self):
+        step = u.parse_step("assertbold:id=fst.notifications.row.x|Lead| Fixture Pulse |201,234")
+        self.assertEqual(step["verb"], "assertbold")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.notifications.row.x"})
+        self.assertEqual(step["runs"], ["Lead", "Fixture Pulse", "201,234"])
+        self.assertEqual(u.parse_step("assertbold:id=a|")["runs"], [])
+        for bad in ("assertbold:id=a", "assertbold:1,2|Lead"):
+            with self.assertRaises(ValueError, msg=bad):
                 u.parse_step(bad)
 
     def test_span(self):

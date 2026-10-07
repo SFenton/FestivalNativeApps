@@ -601,7 +601,12 @@ struct SettingsScreen: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
+        // No `.accessibilityElement(children: .combine)` around the link (the button
+        // already reads as one element): while the Licenses split was open it merged the
+        // button with the selection fill and accent bar into a selected *static text*
+        // and left the inner button exposed as well (landscape Settings split audit:
+        // "Potentially inaccessible element/text", Lane A11Y3/A11Y4). Rivals' split
+        // rows label the link the same way.
         .accessibilityLabel("View Licenses")
         .accessibilityHint("Open source package license details")
         .accessibilityIdentifier("fst.settings.licenses")

@@ -83,6 +83,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ScrollEdgeFade.kt",
             "symbol": "bottomChromeEdgeFade"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsBoardScaffold.kt",
+            "symbol": "RankingsBoardLayout"
           }
         ],
         "windows": [
@@ -174,8 +178,10 @@
         298,
         301,
         305,
+        306,
         308,
-        319
+        319,
+        322
       ]
     },
     {
@@ -407,6 +413,14 @@
           "message": "Pinned section headers belong to the canonical Songs list (section-headers R4)."
         },
         {
+          "id": "android-view-all-copy",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "\"[^\"]*\\bSee [Aa]ll\\b",
+          "allow": [],
+          "debt": [],
+          "message": "The app says \"View All\", never \"See All\"; title-row links use SeeAllButton/ViewAllLinkText (section-headers R8, #321)."
+        },
+        {
           "id": "windows-sticky-copy",
           "glob": "windows/**/*.xaml",
           "regex": "x:Name=\"(StickyHeader|IncomingHeader)\"",
@@ -462,7 +476,8 @@
         "frosted card",
         "card surface",
         "ultraThinMaterial",
-        "transparency"
+        "transparency",
+        "view all"
       ],
       "web": [
         {
@@ -472,6 +487,10 @@
         {
           "path": "pages/leaderboards/components/RankingCard.tsx",
           "symbol": "RankingCard"
+        },
+        {
+          "path": "pages/player/components/PlayerBandsSection.tsx",
+          "symbol": "BandViewAllCard"
         }
       ],
       "canonical": {
@@ -497,6 +516,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/theme/FestivalTheme.kt",
             "symbol": "BrandTokens"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/profile/ProfileBands.kt",
+            "symbol": "ProfileBandsViewAll"
           }
         ],
         "windows": [
@@ -511,6 +534,10 @@
           {
             "path": "windows/Festival.App/Controls/LeaderboardEntryRow.xaml.cs",
             "symbol": "LeaderboardEntryRow"
+          },
+          {
+            "path": "windows/Festival.App/Controls/ViewAllCard.cs",
+            "symbol": "ViewAllCard"
           }
         ]
       },
@@ -545,6 +572,14 @@
           "allow": [],
           "debt": [],
           "message": "An opaque cardBackground plate is FestivalCardModifier's accessibility fallback, not a feature surface; draw cards, rows and custom floating controls with festivalCard / festivalCardCapsule (surface-materials R1, #319)."
+        },
+        {
+          "id": "windows-profile-purple-view-all",
+          "glob": "windows/Festival.App/Controls/PlayerProfileView.xaml",
+          "regex": "FSTViewAllButtonStyle",
+          "allow": [],
+          "debt": [],
+          "message": "The profile's View All Bands (N) is the frosted ViewAllCard (web BandViewAllCard), not the purple leaderboard CTA (surface-materials R7, #312)."
         }
       ],
       "related": {
@@ -552,17 +587,22 @@
           "modal-shell",
           "section-headers"
         ],
-        "controls": [],
+        "controls": [
+          "notifications"
+        ],
         "pages": [
           "songs",
           "song-detail",
-          "leaderboards"
+          "leaderboards",
+          "player-profile"
         ]
       },
       "supersedes": [],
       "supersededBy": null,
       "issues": [
         291,
+        272,
+        312,
         319
       ]
     },
@@ -876,7 +916,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform, one selected-row rule (jump off-page, open the profile on-page) for players and bands, and one measured section-wide score-footer stack plan that never truncates the score.",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform, the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, and one measured section-wide score-footer stack plan that never truncates the score.",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -997,6 +1037,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/SelectedRowNavigation.kt",
             "symbol": "SelectedRowAction"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/RankingFormatting.kt",
+            "symbol": "RankingSpotlight"
           }
         ],
         "windows": [
@@ -1093,6 +1137,7 @@
         "pages": [
           "song-detail",
           "song-leaderboard",
+          "song-band-leaderboard",
           "leaderboards",
           "compete",
           "full-rankings"
@@ -1118,7 +1163,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner; graph card lists run the web out/height/in list sequence and chart swaps keep the card's size; entrances never replay while scrolling and reduced motion removes fades.",
+      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner; graph card lists run the web out/height/in list sequence and chart swaps keep the card's size; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades.",
       "keywords": [
         "loading",
         "spinner",
@@ -1158,6 +1203,10 @@
         {
           "path": "hooks/chart/useListAnimation.ts",
           "symbol": "useListAnimation"
+        },
+        {
+          "path": "hooks/ui/useStaggerRush.ts",
+          "symbol": "useStaggerRush"
         }
       ],
       "canonical": {
@@ -1223,6 +1272,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/GraphCardList.kt",
             "symbol": "GraphCardList"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FadeInOnLoad.kt",
+            "symbol": "FadeInWindow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/SelectedRowRevealEffect.kt",
+            "symbol": "awaitSelectedRowEntrance"
           }
         ],
         "windows": [
@@ -1627,7 +1684,7 @@
       "title": "Chart date axis",
       "status": "current",
       "doc": ".agents/patterns/chart-date-axis.md",
-      "summary": "History bar charts centre each date label horizontally on its own bar on every page and text size, label only visible bars and keep tick text out of the accessibility tree.",
+      "summary": "History bar charts centre each date label on its own bar on every page and text size, keep labels horizontal rather than the web's angled ticks (agent decision #314), pin end labels inside the chart instead of clipping, hide colliding labels (newest kept), label only visible bars and keep tick text out of the accessibility tree.",
       "keywords": [
         "chart",
         "x axis",
@@ -1635,7 +1692,10 @@
         "axis label",
         "bar chart",
         "score history",
-        "rank history"
+        "rank history",
+        "graph",
+        "bar label",
+        "tick"
       ],
       "web": [
         {
@@ -1645,6 +1705,10 @@
         {
           "path": "pages/leaderboards/components/RankHistoryChart.tsx",
           "symbol": "RankHistoryChart"
+        },
+        {
+          "path": "components/common/chartVisuals.ts",
+          "symbol": "CHART_X_AXIS_TICK"
         }
       ],
       "canonical": {
@@ -1656,8 +1720,12 @@
         ],
         "android": [
           {
-            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongHistoryCard.kt",
-            "symbol": "SongHistoryCard"
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/profile/PlayerCharts.kt",
+            "symbol": "bandLabelLefts"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ChartBandLabels.kt",
+            "symbol": "ChartBandLabels"
           }
         ],
         "windows": [
@@ -1681,7 +1749,42 @@
           ],
           "debt": [],
           "message": "Apple chart date axes come from the shared barChartDateAxis, which centres each date on its bar (chart-date-axis R1, R4)."
+        },
+        {
+          "id": "android-local-centring",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "\\(slot\\s*-\\s*\\w+\\.size\\.width\\)\\s*/\\s*2",
+          "allow": [],
+          "debt": [],
+          "message": "Bar-chart date labels are placed by ChartGeometry.bandLabelLefts, not per-chart centring math (chart-date-axis R1, R4-R6)."
+        },
+        {
+          "id": "android-band-labels",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "bandLabelLefts\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/core/profile/PlayerCharts.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ChartBandLabels.kt"
+          ],
+          "debt": [],
+          "message": "Bar-chart dates are laid out by the ChartBandLabels row, whose height follows the text size; canvases don't draw dates in a fixed band (chart-date-axis R4, R5)."
         }
+      ],
+      "related": {
+        "patterns": [
+          "load-transition"
+        ],
+        "controls": [],
+        "pages": [
+          "player-profile",
+          "leaderboards",
+          "song-detail"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        314
       ]
     },
     {
@@ -1701,7 +1804,12 @@
         "pinned title",
         "album art background",
         "song backdrop",
-        "carousel"
+        "carousel",
+        "entry totals",
+        "board line",
+        "band size",
+        "instrument switcher",
+        "static cover"
       ],
       "issues": [
         93,
@@ -1718,6 +1826,10 @@
         {
           "path": "pages/leaderboard/band/SongBandLeaderboardPage.tsx",
           "symbol": "PageBackground"
+        },
+        {
+          "path": "pages/leaderboard/global/LeaderboardPage.tsx",
+          "symbol": "showLeaderboardEntryTotals"
         }
       ],
       "canonical": {
@@ -1739,12 +1851,24 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt",
             "symbol": "SongLeaderboardScreen"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt",
+            "symbol": "SongBoardSwitcher"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/background/SongCoverBackdrop.kt",
+            "symbol": "SongCoverBackdrop"
           }
         ],
         "windows": [
           {
-            "path": "windows/Festival.App/Pages/LeaderboardsSongPage.xaml.cs",
-            "symbol": "LeaderboardsSongPage"
+            "path": "windows/Festival.App/Controls/SongLeaderboardHeader.xaml.cs",
+            "symbol": "SongLeaderboardHeader"
+          },
+          {
+            "path": "windows/Festival.App/Pages/BandsSongLeaderboardPage.xaml.cs",
+            "symbol": "IBackdropPage"
           }
         ]
       },
@@ -1764,6 +1888,35 @@
           "allow": [],
           "debt": [],
           "message": "Song leaderboard bar titles come from the shared SongBarTitleToolbarItem (song-leaderboard-header R3, R5; song-header R4)."
+        },
+        {
+          "id": "android-cover-push",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "\\.pushFocus\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/background/SongCoverBackdrop.kt"
+          ],
+          "debt": [],
+          "message": "Song pages show their static cover through SongCoverBackdrop, each page for itself (song-leaderboard-header R4)."
+        },
+        {
+          "id": "windows-board-title",
+          "glob": "windows/Festival.Core/ViewModels/*Song*Leaderboard*ViewModel.cs",
+          "regex": "\\} (Leaderboard|Scores)\"",
+          "allow": [],
+          "debt": [],
+          "message": "Song leaderboards name the song first; the board is the header's board line, never a '{Board} Leaderboard' title (song-leaderboard-header R1)."
+        },
+        {
+          "id": "windows-page-title",
+          "glob": "windows/Festival.App/Pages/*Song*Page.xaml",
+          "regex": "FSTPageTitleStyle",
+          "allow": [
+            "windows/Festival.App/Pages/SongsPage.xaml",
+            "windows/Festival.App/Pages/SongDetailPage.xaml"
+          ],
+          "debt": [],
+          "message": "Windows song leaderboards take their title from Controls/SongLeaderboardHeader (song-leaderboard-header R5)."
         }
       ],
       "related": {
@@ -1771,7 +1924,10 @@
           "song-leaderboard",
           "song-band-leaderboard"
         ],
-        "controls": [],
+        "controls": [
+          "artwork-background",
+          "instrument-selector"
+        ],
         "patterns": [
           "page-tools-and-nav-chrome",
           "surface-materials",
@@ -1886,7 +2042,8 @@
       "supersedes": [],
       "supersededBy": null,
       "issues": [
-        315
+        315,
+        317
       ]
     },
     {
@@ -1894,7 +2051,7 @@
       "title": "View all call to action",
       "status": "current",
       "doc": ".agents/patterns/view-all-cta.md",
-      "summary": "A card of preview rows ends with one full-width brand-purple button below the rows (View Full Leaderboard, View All Rivals, View All on Rival Detail categories, View All Rankings (N), View All Scores) at the platform minimum target, with no per-consumer overrides, a label-first accessible name and readable contrast-mode colours.",
+      "summary": "A card of preview rows ends with one full-width brand-purple button below the rows (View Full Leaderboard, View All Rivals, View All on Rival Detail categories, View All Rankings (N), View All Scores) at the platform minimum target, with no per-consumer overrides, a label-first accessible name and readable contrast-mode colours. The preview keeps its capped length: the button navigates to the full list's own page (pushed, or the trailing pane in a split; Song Detail View All Scores opens Player History with its sorts) and never expands the card in place (R8, owner #324).",
       "keywords": [
         "view all",
         "view full leaderboard",
@@ -1964,7 +2121,8 @@
           "song-detail",
           "rivals",
           "compete",
-          "leaderboards"
+          "leaderboards",
+          "player-history"
         ]
       },
       "guards": [

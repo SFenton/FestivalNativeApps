@@ -26,28 +26,13 @@
                 <!-- No bottom padding: BoardFooter.Inset already ends the list one row gap (4 epx) above the footer, and
                      padding here doubled it (issue #293). -->
                 <StackPanel x:Name="ScrollContent" Spacing="12" Padding="0,12,0,0">
-                    <Grid ColumnSpacing="16" controls:FadeIn.OnShow="True">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Border x:Name="HeaderArtHost" Width="80" Height="80" CornerRadius="8" Background="{StaticResource FSTSurfaceMutedBrush}">
-                            <Image x:Name="HeaderArt" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
-                        </Border>
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                            <TextBlock Text="{x:Bind ViewModel.Title, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="Wrap"
-                                       AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.song-leaderboard.title" />
-                            <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <controls:InstrumentIcon File="{x:Bind ViewModel.IconFile, Mode=OneWay}" Width="20" Height="20"
-                                                         AutomationProperties.AccessibilityView="Raw" />
-                                <TextBlock Text="{x:Bind ViewModel.InstrumentLabel}" VerticalAlignment="Center"
-                                           AutomationProperties.AutomationId="fst.song-leaderboard.instrument" />
-                            </StackPanel>
-                            <TextBlock Text="{x:Bind ViewModel.TotalText, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
-                                       Visibility="{x:Bind ViewModel.HasTotal, Mode=OneWay}" />
-                        </StackPanel>
-                    </Grid>
+                    <controls:SongLeaderboardHeader x:Name="Header" controls:FadeIn.OnShow="True"
+                                                    Title="{x:Bind ViewModel.Title, Mode=OneWay}" Artist="{x:Bind ViewModel.Subtitle, Mode=OneWay}"
+                                                    BoardIconFile="{x:Bind ViewModel.IconFile, Mode=OneWay}" BoardLabel="{x:Bind ViewModel.InstrumentLabel}"
+                                                    TotalText="{x:Bind ViewModel.TotalText, Mode=OneWay}"
+                                                    TitleAutomationId="fst.song-leaderboard.title" ArtistAutomationId="fst.song-leaderboard.artist"
+                                                    BoardAutomationId="fst.song-leaderboard.instrument" TotalAutomationId="fst.song-leaderboard.total"
+                                                    SongAutomationId="fst.song-leaderboard.song" TitleInvoked="OnSongTitle" />
                     <!-- One frosted row per entry, 4 epx apart (web entryRow list, operator batch 7.7). -->
                     <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="RowsRepeater" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52"
                                    controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
@@ -67,8 +52,8 @@
                 </StackPanel>
             </ScrollViewer>
         </Grid>
-        <!-- Paints BoardFadeSource with its rows faded above the footer while the fade is on; never hit-testable. -->
-        <Border x:Name="BoardFadeHost" Grid.RowSpan="3" IsHitTestVisible="False" />
+        <!-- Paints BoardFadeSource with its rows faded above the footer (BoardFooterFade); never hit-testable, UIA raw view only. -->
+        <controls:EdgeFadeLayer x:Name="BoardFadeHost" Grid.RowSpan="3" AutomationProperties.AutomationId="fst.song-leaderboard.footer-fade" />
         <ProgressRing Width="48" Height="48" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
                       controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Spinner"
                       AutomationProperties.Name="Loading leaderboard" />
@@ -76,8 +61,8 @@
                                     controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                                     Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" />
 
-        <!-- Contrast themes turn the footer fade off; this window-colour plate (footer height, sized in code) hides the rows
-             between and behind the footer's controls instead of letting their text show through. Never hit-testable. -->
+        <!-- Contrast themes: the footer fade cuts the rows hard at the footer's top and this window-colour plate (footer
+             height, sized by BoardFooterFade) backs the footer's controls. Never hit-testable. -->
         <Border x:Name="FooterPlate" Grid.RowSpan="3" VerticalAlignment="Bottom" IsHitTestVisible="False" Visibility="Collapsed"
                 Background="{ThemeResource FSTFloatingBackplateBrush}" />
 
@@ -125,8 +110,6 @@
                     </VisualState.StateTriggers>
                     <VisualState.Setters>
                         <Setter Target="PageRoot.Padding" Value="12,0,12,8" />
-                        <Setter Target="HeaderArtHost.Width" Value="56" />
-                        <Setter Target="HeaderArtHost.Height" Value="56" />
                     </VisualState.Setters>
                 </VisualState>
             </VisualStateGroup>

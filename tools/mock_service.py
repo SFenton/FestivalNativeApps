@@ -143,6 +143,8 @@ BAND_TYPES = frozenset({"Band_Duets", "Band_Trios", "Band_Quad"})
 # `--large-rankings`: enough synthetic rows for multi-page pagers (48 pages of 25).
 LARGE_RANKINGS_ACCOUNTS = 1_200
 LARGE_RANKINGS_TEAMS = 600
+# `--large-rankings` also pads the fixture-pulse Duos song band board to three pages (scores stay positive).
+LARGE_SONG_BAND_ENTRIES = 75
 # `--large-catalogue`: synthetic songs spread over #, A–Z so lists scroll and the section
 # index has every bucket; artwork reuses the generated fixture motifs.
 _CATALOGUE_WORDS = (
@@ -1794,10 +1796,15 @@ class FixtureHandler(BaseHTTPRequestHandler):
             if song_id == "fixture-pulse" and band_type == "Band_Duets":
                 # Ranks 1-29; rank 29 (page 2) is `fixture-player-1`'s band, the row
                 # Song Detail appends to its Duos preview, so its jump lands on a real
-                # row and the pinned footer can jump or open (#307).
+                # row and the pinned footer can jump or open (#307). `--large-rankings`
+                # continues to rank 75 (three pages) for bottom-chrome fade captures (#308).
                 all_entries = [_song_band_leaderboard_entry(rank, band_type)
                                for rank in range(1, SELECTED_SONG_BAND_RANK)]
                 all_entries.append(_selected_song_band_entry("fixture-player-1", band_type))
+                if self.fixture.large_rankings:
+                    all_entries.extend(_song_band_leaderboard_entry(rank, band_type)
+                                       for rank in range(SELECTED_SONG_BAND_RANK + 1,
+                                                         LARGE_SONG_BAND_ENTRIES + 1))
             else:
                 all_entries = []
             # A `fixture-player-*` `accountId` adds that player's rank-29 band as the
@@ -1806,6 +1813,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
             selected = (_selected_song_band_entry(account_ids[0] if account_ids else None, band_type)
                         if all_entries else None)
             total = len(all_entries)
+
             entries = all_entries[offset:offset + top]
             self._json(200, {
                 "songId": song_id, "bandType": band_type, "showLeaderboardEntryTotals": True,
@@ -2132,7 +2140,8 @@ def main() -> None:
     parser.add_argument("--metadata-edge", action="store_true")
     parser.add_argument(
         "--large-rankings", action="store_true",
-        help="pad rankings to 1,200 accounts / 600 teams for multi-page pager captures",
+        help="pad rankings to 1,200 accounts / 600 teams (and the fixture-pulse Duos band board to 75 rows) "
+             "for multi-page pager captures",
     )
     parser.add_argument(
         "--large-catalogue", action="store_true",

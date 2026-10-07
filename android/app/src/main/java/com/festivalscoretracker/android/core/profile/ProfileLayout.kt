@@ -1,5 +1,8 @@
 package com.festivalscoretracker.android.core.profile
 
+import com.festivalscoretracker.android.core.bands.PlayerBandEntry
+import com.festivalscoretracker.android.core.bands.PlayerBandGroup
+import com.festivalscoretracker.android.core.bands.PlayerBandListResponse
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.quicklinks.QuickLinkSection
 import com.festivalscoretracker.android.core.rivals.ColumnSpec
@@ -197,14 +200,61 @@ sealed interface ProfileRow {
         override val key: String get() = "top-songs:${instrument.wireId}"
     }
 
-    /** Link to the player's bands. */
+    /** "{name}'s Bands" heading with See All, plus the preview's loading or failure state (Quick Links target). */
     data object Bands : ProfileRow {
         override val key: String get() = "bands"
     }
 
+    /**
+     * A band-size group's header (web `BandGroupHeader`: "Duos", "Trios", "Quads").
+     *
+     * @property group Group.
+     */
+    data class BandGroupHeader(val group: PlayerBandGroup) : ProfileRow {
+        override val key: String get() = "bands:${group.wireId}"
+    }
+
+    /**
+     * One band card (web `PlayerBandCard`, one grid column like the web's `span: false`).
+     *
+     * @property group Group the card belongs to.
+     * @property index Position in the group (fade-in stagger).
+     * @property entry Band.
+     */
+    data class BandCard(val group: PlayerBandGroup, val index: Int, val entry: PlayerBandEntry) : ProfileRow {
+        override val key: String get() = "bands:${group.wireId}:$index:${entry.key}"
+    }
+
+    /**
+     * "No Bands Yet" for a group without bands (web `InstrumentEmptyState`).
+     *
+     * @property group Group.
+     */
+    data class BandsEmpty(val group: PlayerBandGroup) : ProfileRow {
+        override val key: String get() = "bands:${group.wireId}:empty"
+    }
+
+    /**
+     * "View All Bands (N)" when the group has more bands than its preview.
+     *
+     * @property group Group the full list opens filtered to.
+     * @property total Bands in the group.
+     */
+    data class BandsViewAll(val group: PlayerBandGroup, val total: Int) : ProfileRow {
+        override val key: String get() = "bands:${group.wireId}:view-all"
+    }
+
     /** Whether the row spans every column when no fold splits them. */
-    val fullWidth: Boolean get() = this !is InstrumentStats && this !is TopSongs
+    val fullWidth: Boolean get() = this !is InstrumentStats && this !is TopSongs && this !is BandCard
 }
+
+/**
+ * First page of one band-size group for the player page's Bands preview.
+ *
+ * @property group Group.
+ * @property page First page (`GET /api/player/{id}/bands?group=`).
+ */
+data class ProfileBandGroup(val group: PlayerBandGroup, val page: PlayerBandListResponse)
 
 /** Row order and Quick Links for the player page (web `PlayerContent` quick links). */
 object ProfileSections {
@@ -214,14 +264,33 @@ object ProfileSections {
      * @param visible Settings-visible charts in service order.
      * @param showIdentity Whether an identity action, notice or error needs the [ProfileRow.Identity] row;
      *   without it Overview is the first row, so no empty gap sits under the title.
+     * @param bands Loaded Bands preview groups (web `buildPlayerBandsItems`), or empty while loading or failed.
      * @return Rows in page order.
      */
-    fun rows(visible: List<Instrument>, showIdentity: Boolean = false): List<ProfileRow> =
+    fun rows(visible: List<Instrument>, showIdentity: Boolean = false, bands: List<ProfileBandGroup> = emptyList()): List<ProfileRow> =
         listOfNotNull(ProfileRow.Identity.takeIf { showIdentity }, ProfileRow.Overview) +
             visible.map { ProfileRow.InstrumentStats(it) } +
             ProfileRow.TopSongsHeading +
             visible.map { ProfileRow.TopSongs(it) } +
-            ProfileRow.Bands
+            ProfileRow.Bands +
+            bands.flatMap(::bandRows)
+
+    /**
+     * One group's rows: header, then its cards or "No Bands Yet", then "View All Bands (N)" when the
+     * group has more bands than the preview shows.
+     *
+     * @param group Loaded group.
+     * @return Rows in page order.
+     */
+    fun bandRows(group: ProfileBandGroup): List<ProfileRow> {
+        val entries = group.page.entries
+        return listOf(ProfileRow.BandGroupHeader(group.group)) +
+            (if (entries.isEmpty()) listOf(ProfileRow.BandsEmpty(group.group)) else entries.mapIndexed { i, e -> ProfileRow.BandCard(group.group, i, e) }) +
+            listOfNotNull(ProfileRow.BandsViewAll(group.group, group.page.totalCount).takeIf { group.page.totalCount > entries.size })
+    }
+
+    /** Band-size groups the player page previews, in web order (`PlayerBandsSection` duos, trios, quads). */
+    val BAND_GROUPS: List<PlayerBandGroup> = listOf(PlayerBandGroup.Duos, PlayerBandGroup.Trios, PlayerBandGroup.Quads)
 
     /**
      * Quick Links, in web order: Global Statistics, one per visible chart, Top Songs, Bands.

@@ -119,6 +119,28 @@ class BoardFooterFadeDrawUiTest {
     }
 
     /**
+     * Rows covered by the bottom bar are neither visible nor reachable under each accessibility
+     * hard-edge setting (scroll-edge R7, issue #306): the list still ends at the footer's top.
+     */
+    private fun assertCoveredRowsLeaveTalkBack(accessibility: FestivalAccessibility) {
+        board(fade = true, accessibility)
+        rule.onNodeWithTag("row.0").assertIsDisplayed()
+        rule.onNodeWithTag("row.14").assertIsNotDisplayed()
+        val list = rule.onNodeWithTag("fst.t.list").fetchSemanticsNode().boundsInRoot
+        val footer = rule.onNodeWithTag("fst.t.bottom-bar").fetchSemanticsNode().boundsInRoot
+        assertTrue("the list ends at the footer's top", list.bottom <= footer.top + 1f)
+    }
+
+    @Test
+    fun reduceTransparencyHidesCoveredRowsFromTalkBack() = assertCoveredRowsLeaveTalkBack(FestivalAccessibility(reduceTransparency = true))
+
+    @Test
+    fun increaseContrastHidesCoveredRowsFromTalkBack() = assertCoveredRowsLeaveTalkBack(FestivalAccessibility(increaseContrast = true))
+
+    @Test
+    fun reduceMotionHidesCoveredRowsFromTalkBack() = assertCoveredRowsLeaveTalkBack(FestivalAccessibility(reduceMotion = true))
+
+    /**
      * Rows hidden beneath the footer leave the accessibility tree (issue #104): TalkBack would
      * otherwise skip a row fully covered by the footer and focus hidden rows below it instead
      * of scrolling. Row 14 (736..776 dp, wholly behind the 100 dp footer) is the probe; row 0 stays.

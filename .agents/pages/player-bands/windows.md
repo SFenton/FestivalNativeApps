@@ -4,13 +4,14 @@
 
 ## Implemented
 
-- Route `AppRoute.PlayerBands(accountId)`; read `GET /api/player/{accountId}/bands?group=&page=&pageSize=25` (pure: `GetPlayerBandsList` returns an empty page instead of rebuilding its projection).
-- Title `<Name>'s Bands` from the selected player (same account) or the account's own member row; otherwise `Player Bands`. Subtitle `<Group> · N bands`.
+- Route `AppRoute.PlayerBands(accountId, group, playerName)`, path `/bands/player/{id}[?group=duos|trios|quads]` (web `Routes.playerBands`; `ToPath` omits the query for All). The group preselects the picker before the first read. `PlayerName` is in-memory navigation context (the profile passes it so the page is titled for a viewed player) and `ToPath` never serializes it. `AppRouteParser` also accepts the web's own link shape `?group=all|duos|trios|quads&name=<name>` (case-insensitive group; unknown groups fall back to All) so a web-shaped `--route` launch keeps its title; that incoming `name` is the only way a path sets `PlayerName`. Read `GET /api/player/{accountId}/bands?group=&page=&pageSize=25` (pure: `GetPlayerBandsList` returns an empty page instead of rebuilding its projection).
+- Title `<Name>'s Bands` from the selected player (same account), the route's `name` (passed by the profile's Bands section) or the account's own member row; otherwise `Player Bands`. Subtitle `<Group> · N bands`.
 - Group filter: Fluent `SelectorBar` (All Bands · Duos · Trios · Quads) instead of the web's filter sheet; changing it returns to page 1.
 - Cards (`BandCardView` in `LeaderboardsCardGridLayout`, min 320 epx, at most 3 columns; each row is as tall as its tallest card, non-virtualizing): distinct members with name and 28 px instrument icons, band-size pill, `N appearances`, chevron. The card opens `AppRoute.Band(bandId, bandType, teamKey)`. It is one Narrator stop named `View band: <member>, <instruments>; …. <Size>, N appearances`; its parts are Raw.
 - Paging: the shared board pager (`LeaderboardsPager` over `IBoardPager`, operator batch 7.4; floating over the cards), hidden for one page; a page past the end (list shrank) reloads the last page. Late responses for an older group/page are discarded.
 - States: loading ring, empty (`No bands found` + `No <group> have been recorded for this player yet.`), failure (`ServiceStatusView`, Retry).
 - Load-swap gate (issue #71): first load, group changes and paging run the shared web sequence (300 ms content-out, centered ring, 500 ms ring-out, card stagger). New cards/empty/error state commits while hidden; rapid choices are latest-wins. Reduce Motion swaps immediately.
+- Footer edge (issue #308, web `useScrollFade`, [scroll-edge](../../patterns/scroll-edge.md) R2–R4/R7): Cards end at the floating pager through the shared bottom-chrome ramp `BoardFooterFade.Attach` (`Controls/BoardFooterFade`, the same component as Song Leaderboard): clear at the footer's top, opaque 36 epx above it on a linear ramp, the depth min(remaining scroll, 36) so nothing is dimmed at the end. Contrast themes, Windows transparency effects off, Increase Contrast and Less Transparency make it a hard cut at the footer's top. The source is the `BoardFadeSource` wrapper (the load swap animates the list's own visual) and the raw-view `EdgeFadeLayer` `fst.player-bands.footer-fade` reports `hidden`, `fading:36`, `end` or `hard-edge` (journeys `tools/windows/journeys/a11y-board-footer-fade.json` and `-hard.json`). Before #308 the rows met the pager at a hard edge.
 
 ## Evidence
 
@@ -40,5 +41,4 @@ Journeys: `player-bands-mixed-sizes`, `player-bands-empty`, `player-bands-error`
 
 ## Open
 
-- No `?name=` title carry-through (band search is blocked, so no safe source).
-- Entry point from the player profile page is owned by the Profile lane (`AppRoute.PlayerBands`).
+- Entry points: the profile's Bands section title-row View All (All) and View All Bands (its group); see [player-profile/windows.md](../player-profile/windows.md).

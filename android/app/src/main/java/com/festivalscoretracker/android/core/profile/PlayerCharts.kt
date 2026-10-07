@@ -158,6 +158,42 @@ object ChartGeometry {
     }
 
     /**
+     * Category-axis label positions (web Recharts `XAxis interval="preserveStartEnd"`, ticks
+     * at each band's centre): every label is centred under its band, pinned inside
+     * `[0, totalWidth]` only when centring would clip it at an edge, and labels that would
+     * collide with a shown neighbour are hidden. The newest (last) label always shows, the
+     * first shows unless it collides with the last, and the rest fill in left to right.
+     *
+     * @param widths Measured label widths, one per band, left to right.
+     * @param plotLeft Left edge of the bands within the axis row.
+     * @param plotWidth Width the bands share (`plotWidth / widths.size` per band).
+     * @param totalWidth Width of the whole axis row (labels may extend into the gutters).
+     * @param gap Minimum space between two shown labels.
+     * @return Left edge of each label, or null for a hidden label.
+     */
+    fun bandLabelLefts(widths: List<Float>, plotLeft: Float, plotWidth: Float, totalWidth: Float, gap: Float): List<Float?> {
+        val count = widths.size
+        if (count == 0) return emptyList()
+        val lefts = widths.mapIndexed { i, w ->
+            val centre = plotLeft + plotWidth * (i + 0.5f) / count
+            (centre - w / 2).coerceIn(0f, maxOf(0f, totalWidth - w))
+        }
+        val shown = arrayOfNulls<Float>(count)
+        val last = count - 1
+        shown[last] = lefts[last]
+        val lastLeft = lefts[last]
+        var right = Float.NEGATIVE_INFINITY
+        for (i in 0 until last) {
+            val fits = lefts[i] >= right + gap && lefts[i] + widths[i] + gap <= lastLeft
+            if (fits) {
+                shown[i] = lefts[i]
+                right = lefts[i] + widths[i]
+            }
+        }
+        return shown.toList()
+    }
+
+    /**
      * Visible share of a percentile bar's track (never zero, never over full).
      *
      * @param fraction Count relative to the largest band.
