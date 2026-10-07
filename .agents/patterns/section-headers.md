@@ -2,7 +2,7 @@
 
 > **What:** section-title hierarchy, card placement, accessibility semantics, and pinned-header handoff. **Read when:** adding a titled group, a grouped list, or a sticky section header.
 
-Status: **current**, 2026-10-06. Provenance: #288, #291, #297, #312, #321.
+Status: **current**, 2026-10-07. Provenance: #288, #291, #297, #312, #321, #348.
 
 ## Intent
 
@@ -20,7 +20,7 @@ The web has no sticky section header. Native sticky behavior is an approved addi
 
 ## Rules
 
-1. **R1. Use the canonical heading.** A section title is white, bold/headline, Title Case, leading-aligned, and exposed as a level-two heading; callers supply the already-cased localized title.
+1. **R1. Use the canonical heading.** A section title is white, bold/headline, Title Case, leading-aligned, and exposed as a level-two heading; callers supply the already-cased localized title. Global Search's All-scope Songs/Players/Bands titles are consumers too ([empty-error-states](empty-error-states.md) R3, #348; web `SearchModal` styles them as a small uppercase caption, but the native canonical title wins so every list title in the app looks the same).
 2. **R2. Put card headings outside cards.** A titled content card has its title and optional description above, not inside, the row container. HIG Materials: "Don't use Liquid Glass in the content layer." Use the shared material card rather than per-page glass.
 3. **R3. Preserve readable hierarchy.** Supporting copy is subordinate to the title and wraps rather than truncating the landmark. HIG Typography: "Adjust weight, size and color as needed to emphasize important information and show hierarchy."
 4. **R4. Use native sticky mechanics.** A pinned title stays opaque while rows fade or clip beneath it; an incoming title pushes the pinned title one-for-one and no two titles overlap.

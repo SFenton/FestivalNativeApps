@@ -67,16 +67,21 @@ public sealed partial class SearchPage : Page, IPageFind
     /// Re-arms a section's row stagger when it appears: rows stay collapsed behind the one spinner until every read
     /// settles, which is usually after the stagger armed when the items arrived, so they fade as the spinner clears
     /// (web: "rows fade up with a stagger"; the fade journey in <c>tools/windows/search_journey.py</c> checks it).
+    /// The All scope's section title fades with it (web: the heading takes the section's first stagger slot).
     /// </summary>
     /// <param name="sender">Model.</param>
     /// <param name="section">Section that appeared.</param>
-    private void OnSectionShown(object? sender, SearchScope section) =>
-        FadeIn.Restagger(section switch
+    private void OnSectionShown(object? sender, SearchScope section)
+    {
+        var (heading, list) = section switch
         {
-            SearchScope.Songs => SongsList,
-            SearchScope.Players => PlayersList,
-            _ => BandsList,
-        });
+            SearchScope.Songs => (SongsHeading, (UIElement)SongsList),
+            SearchScope.Players => (PlayersHeading, PlayersList),
+            _ => (BandsHeading, BandsList),
+        };
+        if (ViewModel.ShowSectionTitles) FadeIn.Play(heading);
+        FadeIn.Restagger(list);
+    }
 
     /// <summary>Speaks the settled counts.</summary>
     /// <param name="sender">Model.</param>

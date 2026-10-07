@@ -472,7 +472,8 @@
         291,
         297,
         312,
-        321
+        321,
+        348
       ]
     },
     {
@@ -1630,13 +1631,6 @@
           "regex": "fst\\.global-search\\.(?:retry|players-retry)",
           "allow": [],
           "message": "Global Search reruns from submit or edit; it has no Retry control (empty-error-states R3)."
-        },
-        {
-          "id": "global-search-section-heading",
-          "glob": "apple/Sources/**/*.swift",
-          "regex": "fst\\.global-search\\.section\\.(?:songs|players|bands)",
-          "allow": [],
-          "message": "Global Search scope controls replace redundant result-section headings (empty-error-states R3)."
         }
       ],
       "related": {
@@ -1663,7 +1657,8 @@
         140,
         299,
         312,
-        320
+        320,
+        348
       ]
     },
     {
