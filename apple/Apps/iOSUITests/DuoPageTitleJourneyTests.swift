@@ -35,7 +35,8 @@ final class DuoPageTitleJourneyTests: XCTestCase {
     @MainActor
     func testPlayerRootsShowFullTitle() throws {
         try assertRoot(tab: "suggestions", title: "Suggestions", withPlayer: true)
-        try assertRoot(tab: "statistics", title: Self.player.displayName, withPlayer: true)
+        try assertRoot(tab: "statistics", title: Self.player.displayName, tabLabel: "Statistics",
+                       withPlayer: true)
     }
 
     /// Compete (compact widths) or Leaderboards and Rivals (regular widths), whichever
@@ -55,13 +56,21 @@ final class DuoPageTitleJourneyTests: XCTestCase {
     // MARK: - Helpers
 
     /// Launch on `tab` and require its complete title at the top of the page.
+    ///
+    /// The launch tab is resolved against the first (standard phone) layout before the
+    /// Duo's own one is published, so an unfolded launch can land on another root; the
+    /// root is then selected from its visible tab, as a person would.
     @MainActor
-    private func assertRoot(tab: String, title: String, withPlayer: Bool,
+    private func assertRoot(tab: String, title: String, tabLabel: String? = nil, withPlayer: Bool,
                             file: StaticString = #filePath, line: UInt = #line) throws {
         let app = launch(tab: tab, withPlayer: withPlayer)
         defer { app.terminate() }
+        if !titleElement(title, in: app).waitForExistence(timeout: 15) {
+            let control = SongsUITestSupport.rootControl(tabLabel ?? title, app: app)
+            if control.waitForExistence(timeout: 3), control.isHittable { control.tap() }
+        }
         XCTAssertTrue(
-            titleElement(title, in: app).waitForExistence(timeout: 20),
+            titleElement(title, in: app).waitForExistence(timeout: 10),
             "\(tab): no \"\(title)\" title; navigation bars \(app.navigationBars.allElementsBoundByIndex.map(\.identifier))",
             file: file, line: line
         )
