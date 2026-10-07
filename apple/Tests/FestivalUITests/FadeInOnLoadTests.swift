@@ -384,6 +384,59 @@ private final class StartFlag {
     #expect(!scope.holds(.pastFirstScreen))
 }
 
+/// A selected-row scroll waits while a reload gate's animated reveal is still growing the
+/// page's scroll content (issue #327): a scroll issued then stopped at the content's end of
+/// the moment and stayed there. Nested reveals all have to end, and the reveal's own
+/// re-arm of the scope doesn't forget them.
+@MainActor
+@Test func fadeScopeAutomaticScrollWaitsForTheContentReveal() async {
+    let scope = FestivalFadeInScope()
+    // Nothing growing: no wait.
+    await scope.contentRevealed()
+    #expect(!scope.isRevealingContent)
+    // An extra end never leaves a negative count behind.
+    scope.endContentReveal()
+    scope.beginContentReveal()
+    scope.beginContentReveal()
+    #expect(scope.isRevealingContent)
+    let scrolled = StartFlag()
+    let reveal = Task { @MainActor in
+        await scope.contentRevealed()
+        scrolled.started = true
+    }
+    try? await Task.sleep(for: .milliseconds(50))
+    #expect(!scrolled.started)
+    // The gate's reveal re-arms the scope for its rows in the same update.
+    scope.arm(for: AnyHashable("page-2"))
+    scope.endContentReveal()
+    try? await Task.sleep(for: .milliseconds(50))
+    #expect(!scrolled.started)
+    #expect(scope.isRevealingContent)
+    scope.endContentReveal()
+    await reveal.value
+    #expect(scrolled.started)
+    #expect(!scope.isRevealingContent)
+}
+
+/// A selected-row reveal cancelled while it waits for the content (the page went or
+/// reloaded) stops waiting rather than holding its task.
+@MainActor
+@Test func fadeScopeContentRevealWaitEndsOnCancellation() async {
+    let scope = FestivalFadeInScope()
+    scope.beginContentReveal()
+    let reveal = Task { @MainActor in await scope.contentRevealed() }
+    try? await Task.sleep(for: .milliseconds(50))
+    reveal.cancel()
+    await reveal.value
+    #expect(scope.isRevealingContent)
+    // A later wait still sees the running reveal end.
+    let next = Task { @MainActor in await scope.contentRevealed() }
+    try? await Task.sleep(for: .milliseconds(50))
+    scope.endContentReveal()
+    await next.value
+    #expect(!scope.isRevealingContent)
+}
+
 // MARK: - Selected-row reveal wait (issue #323)
 
 @MainActor

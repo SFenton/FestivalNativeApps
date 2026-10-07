@@ -25,6 +25,11 @@ import FestivalCore
 /// then stays put; only the result inside it leaves and returns, as the web keeps
 /// `SongInfoHeader` outside its `LoadGate` (load-transition R4).
 ///
+/// A gate inside a page's fade scope (``FestivalFadeInScope``, set on the page's scroll
+/// view) tells it while an animated reveal is growing the scroll content to the new rows'
+/// height, so the page's selected-row scroll waits for the full height
+/// (``FestivalFadeInScope/beginContentReveal()``, issue #327).
+///
 /// Reduce Motion (system or in-app) and `festivalFadeInEnabled == false` swap instantly;
 /// with Reduce Motion the spinner still holds 400 ms so it never blinks.
 struct FestivalReloadGate<Key: Equatable, Content: View>: View {
@@ -47,6 +52,8 @@ struct FestivalReloadGate<Key: Equatable, Content: View>: View {
 
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @Environment(\.festivalFadeInEnabled) private var fadeEnabled
+    /// The page's fade scope when the gate sits inside its scroll view, else nil.
+    @Environment(\.festivalFadeInScope) private var fadeScope
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
     @State private var transition: ReloadTransition
     @State private var shownKey: Key
@@ -194,9 +201,15 @@ struct FestivalReloadGate<Key: Equatable, Content: View>: View {
         guard next != transition else { return }
         let reveals = next.phase == .content && transition.phase != .content
         if next.phase != transition.phase, let animation = animation(to: next.phase) {
-            withAnimation(animation) {
+            // A reveal inside the page's scroll view grows its content over this fade:
+            // the page's automatic scroll waits for the full height (issue #327).
+            let growing = reveals ? fadeScope : nil
+            growing?.beginContentReveal()
+            withAnimation(animation, completionCriteria: .removed) {
                 if reveals { onReveal?() }
                 transition = next
+            } completion: {
+                growing?.endContentReveal()
             }
         } else {
             if reveals { onReveal?() }

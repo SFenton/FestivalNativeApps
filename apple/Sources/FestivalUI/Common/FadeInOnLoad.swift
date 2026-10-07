@@ -168,6 +168,11 @@ public final class FestivalFadeInScope {
     /// Waiting fades past the first screen whose delay has elapsed, held for the expected
     /// automatic scroll to rush them.
     private var held: Set<UUID> = []
+    /// Animated reload-gate reveals still growing the page's scroll content
+    /// (``beginContentReveal()``).
+    private var contentReveals = 0
+    /// Automatic scrolls waiting for those reveals to end (``contentRevealed()``).
+    private var contentRevealWaiters: [UUID: CheckedContinuation<Void, Never>] = [:]
 
     /// Whether the content has moved since the scope was (re)armed: a reader who scrolls
     /// before the selected-row scroll starts cancels it (web `userScrolledRef`).
@@ -281,6 +286,48 @@ public final class FestivalFadeInScope {
         if !held.isEmpty || waiters.isEmpty {
             rushedAt = now()
             releaseWaiters()
+        }
+    }
+
+    // MARK: Content reveal
+
+    /// Whether an animated reload-gate reveal is still growing the page's scroll content.
+    public var isRevealingContent: Bool { contentReveals > 0 }
+
+    /// A reload gate inside this page's scroll view starts an animated reveal
+    /// (``FestivalReloadGate``): the scroll content grows to the new rows' height over the
+    /// fade, so until ``endContentReveal()`` the scroll view's extent is still short of
+    /// the rows. A starved main actor can stretch that fade for seconds; a selected-row
+    /// scroll issued meanwhile stopped at the content's end of the moment and stayed there
+    /// (``SelectedRowReveal``, issue #327).
+    ///
+    /// Reveals nest; a reset (``arm(for:)``) leaves them counted, since the gate's reveal
+    /// re-arms the scope in the same update.
+    public func beginContentReveal() {
+        contentReveals += 1
+    }
+
+    /// An animated reveal ``beginContentReveal()`` announced has ended; once none is left,
+    /// waiting automatic scrolls go ahead.
+    public func endContentReveal() {
+        contentReveals = max(0, contentReveals - 1)
+        guard contentReveals == 0 else { return }
+        let waiting = contentRevealWaiters
+        contentRevealWaiters = [:]
+        for continuation in waiting.values { continuation.resume() }
+    }
+
+    /// Wait until no animated reload-gate reveal is growing the page's scroll content, or
+    /// the waiting task is cancelled. Returns at once when none is running.
+    public func contentRevealed() async {
+        guard contentReveals > 0, !Task.isCancelled else { return }
+        let id = UUID()
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                contentRevealWaiters[id] = continuation
+            }
+        } onCancel: {
+            Task { @MainActor in self.contentRevealWaiters.removeValue(forKey: id)?.resume() }
         }
     }
 

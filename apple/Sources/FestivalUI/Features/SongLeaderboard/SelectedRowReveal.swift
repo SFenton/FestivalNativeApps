@@ -16,7 +16,12 @@ import SwiftUI
 /// issue #323). Until the scroll starts, rows past the first screen that the list builds
 /// early are held for it (``FestivalFadeInScope/expectAutomaticScroll()``), so the rows it
 /// reaches have not spent their entrance unseen. Pass the page's scope and the row's
-/// stagger index. A reader
+/// stagger index. It also waits, however long that takes, for a reload gate inside the
+/// page's scroll view to finish growing the content to the rows' height
+/// (``FestivalFadeInScope/contentRevealed()``): `scrollTo` stops at the content's end of
+/// the moment and does not follow it as it grows, so on a starved main actor, where that
+/// 400 ms reveal can run for seconds, the band board's scroll stopped a few rows down
+/// for good (issue #327). A reader
 /// who scrolls first cancels it (web `userScrolledRef`). A page holds at most 25 rows, so
 /// the scroll never builds more than a screenful or two of rows. It is animated only
 /// without Reduce Motion, and then waits only for layout (HIG Accessibility: "When Reduce
@@ -63,7 +68,8 @@ enum SelectedRowReveal {
     ///   - staggerIndex: The row's stagger position, or nil for a block-fade page.
     ///   - fadesEnabled: Whether the page's load fades play (off in frozen UI-test runs).
     ///   - scope: The page's fade scope: a reader who already scrolled cancels the reveal,
-    ///     and rows the scroll realizes fade in with its rush.
+    ///     rows the scroll realizes fade in with its rush, and the scroll waits for the
+    ///     page's content reveal to end.
     /// - Returns: False when the reveal was cancelled before scrolling.
     @discardableResult
     static func reveal<ID: Hashable>(
@@ -75,6 +81,9 @@ enum SelectedRowReveal {
         // Rows past the first screen that the list builds early wait for this scroll.
         let expectation = animates ? scope?.expectAutomaticScroll() : nil
         try? await Task.sleep(for: wait(staggerIndex: staggerIndex, animates: animates))
+        // The rows' full height: a scroll to a row past the content's current end stops
+        // short and stays there.
+        await scope?.contentRevealed()
         guard !Task.isCancelled else {
             scope?.endAutomaticScrollExpectation(expectation)
             return false
