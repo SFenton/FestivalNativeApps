@@ -102,12 +102,16 @@ internal sealed class BoardFooterFade
         uiSettings.ColorValuesChanged -= OnSystemChanged;
     }
 
-    /// <summary>Finds the list's scroll viewer once (a ListView's lives in its template) and follows its scrolling.</summary>
+    /// <summary>Finds the list's scroll viewer once (a ListView's lives in its template) and follows its scrolling and extent.</summary>
     /// <returns>The scroll viewer, or <see langword="null"/> before the template is applied.</returns>
     private ScrollViewer? EnsureScroller()
     {
         if (scroller is null && (scroller = FindScrollViewer(list)) is not null)
+        {
             scroller.ViewChanged += (_, _) => Update();
+            // Rows arriving at rest only grow the extent (no ViewChanged); without this the ramp stays at "end" until the first scroll (issue #283).
+            scroller.RegisterPropertyChangedCallback(ScrollViewer.ScrollableHeightProperty, (_, _) => Update());
+        }
         return scroller;
     }
 
