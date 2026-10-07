@@ -12,7 +12,7 @@ Stage: 5 (journeys 1–5)  Next: operator/device only — the split redesign lan
 ## Delegated decisions for later review (orchestrator default, operator delegated 2026-10-04)
 - **P1** keep 2 Statistics columns in inner portrait (closes R3): ~300 pt tiles keep Rank History legible.
 - **P2** accept Shop cards scrolling under the fold in book pose (centre gutter ~42 pt left of the fold): scrolling content need not avoid the fold [T463/T466]; not realigned to the division region.
-- **P3** fix Songs in outer landscape by insetting the list in compact height: built as a measured top padding (`SongsDrawerOverlap`), not a search-placement change.
+- **P3** fix Songs in outer landscape by insetting the list in compact height: built as a measured top padding (`SongsDrawerOverlap`), not a search-placement change. Superseded by #336 (2026-10-07): removed once #333 took the drawer off Duo; the real overflow was the rigid A–Z index (see [duo.md](.agents/design/apple/duo.md)).
 - ~~P4~~ superseded by the split redesign (2026-10-04); stopped unbuilt (note: the shared row is already one line since #292).
 - **S5** Songs list-column title truncates to "S…" in inner portrait: handed to the split redesign lane (list-column chrome).
 - **S6** Bands capped at the readable width (680 pt) at regular width, like Settings and Licenses.
