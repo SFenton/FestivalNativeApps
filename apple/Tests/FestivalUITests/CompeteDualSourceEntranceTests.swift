@@ -30,3 +30,18 @@ import Testing
             )
     )
 }
+
+/// The Rivals pane derives the leaderboard columns from the regions' width on its first
+/// build (#354 review): the inner display's 669 pt shows two cards, so the Rivals header
+/// waits for both; an unknown width assumes the most a carousel shows, so the header
+/// never shares an entrance with a leaderboard card.
+@Test func competeDuoLeaderboardColumnsComeFromTheRegionWidth() {
+    #expect(CompeteDualSourceEntrance.leaderboardColumns(regionWidth: 669) == 2)
+    #expect(CompeteDualSourceEntrance.leaderboardColumns(regionWidth: 668.6) == 2)
+    #expect(CompeteDualSourceEntrance.leaderboardColumns(regionWidth: 466) == 1)
+    #expect(CompeteDualSourceEntrance.leaderboardColumns(regionWidth: nil) == CarouselPaging.maximumColumns)
+    let header = CompeteDualSourceEntrance.rivalsHeader(
+        instrumentCount: 2, leaderboardColumns: CompeteDualSourceEntrance.leaderboardColumns(regionWidth: 669)
+    )
+    #expect(header == 3)
+}

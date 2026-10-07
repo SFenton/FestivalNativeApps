@@ -57,15 +57,17 @@ struct CompeteLeaderboardsCarousel: View {
 struct CompeteRivalsCarousel: View {
     let instruments: [Instrument]
     let model: CompeteHubModel
-    /// Leaderboard cards the top carousel shows side by side, which precede this pane in
-    /// reading order.
-    let leaderboardColumns: Int
     /// Reads again whatever failed.
     let retry: () -> Void
+    /// The regions' width, known before this pane is first built (the secondary region
+    /// only appears once the layout measured itself), so the first scheduled entrances
+    /// already follow the leaderboard cards on screen.
+    @Environment(\.dualSourceRegionWidth) private var regionWidth
 
     var body: some View {
         let header = CompeteDualSourceEntrance.rivalsHeader(
-            instrumentCount: instruments.count, leaderboardColumns: leaderboardColumns
+            instrumentCount: instruments.count,
+            leaderboardColumns: CompeteDualSourceEntrance.leaderboardColumns(regionWidth: regionWidth)
         )
         DualSourcePane(
             "Rivals", systemImage: "person.2.fill", seeAll: .rivals, identifier: "compete.rivals",
@@ -119,5 +121,18 @@ enum CompeteDualSourceEntrance {
     ///   message when there are no instruments).
     static func rivalsHeader(instrumentCount: Int, leaderboardColumns: Int) -> Int {
         firstLeaderboardCard + max(1, min(instrumentCount, leaderboardColumns))
+    }
+
+    /// Leaderboard cards the top carousel shows side by side: both carousels span the
+    /// dual-source regions' width.
+    ///
+    /// - Parameter regionWidth: ``EnvironmentValues/dualSourceRegionWidth``, or nil
+    ///   before the layout measured itself.
+    /// - Returns: ``CarouselPaging/columns(width:minimumCardWidth:)`` at that width; the
+    ///   most a carousel shows (``CarouselPaging/maximumColumns``) when the width is
+    ///   unknown, so an unmeasured Rivals header never shares an entrance with a card.
+    static func leaderboardColumns(regionWidth: CGFloat?) -> Int {
+        guard let regionWidth else { return CarouselPaging.maximumColumns }
+        return CarouselPaging.columns(width: regionWidth.rounded(), minimumCardWidth: minimumCardWidth)
     }
 }

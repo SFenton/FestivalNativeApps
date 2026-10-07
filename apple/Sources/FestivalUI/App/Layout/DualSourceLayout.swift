@@ -16,6 +16,14 @@ extension EnvironmentValues {
     /// The dual-source region this view sits in, or nil while the page shows its
     /// primary content alone (every pose except the iPhone Duo inner display in portrait).
     @Entry var dualSourceRegion: DualSourceRegion?
+
+    /// Width of the dual-source regions in points (both span the layout's full width),
+    /// or nil while the page shows its primary content alone or before the layout first
+    /// measured itself. The secondary region only appears once measured, so it reads the
+    /// width on its first build: content whose first-load stagger order depends on what
+    /// fits on screen (Compete's Rivals pane header after the leaderboard cards) derives
+    /// it synchronously instead of correcting it after layout (load-transition R5).
+    @Entry var dualSourceRegionWidth: CGFloat?
 }
 
 // MARK: - Layout
@@ -64,10 +72,12 @@ struct DualSourceLayout<Primary: View, Secondary: View>: View {
     var body: some View {
         let regions = regions
         let split = split
+        let regionWidth = regions == nil ? nil : container.width
         VStack(spacing: 0) {
             primary
                 .frame(height: regions?.primary)
                 .environment(\.dualSourceRegion, regions == nil ? nil : .primary)
+                .environment(\.dualSourceRegionWidth, regionWidth)
             if let regions {
                 // The fold (or the flat gutter): never interactive.
                 Color.clear
@@ -77,6 +87,7 @@ struct DualSourceLayout<Primary: View, Secondary: View>: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: regions.secondary)
                     .environment(\.dualSourceRegion, .secondary)
+                    .environment(\.dualSourceRegionWidth, regionWidth)
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("fst.dual.secondary")
                     .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
@@ -87,12 +98,14 @@ struct DualSourceLayout<Primary: View, Secondary: View>: View {
         // exactly as tall as the primary.
         .frame(maxWidth: split ? .infinity : nil, maxHeight: split ? .infinity : nil, alignment: .top)
         .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: regions)
-        // Only the vertical extent matters, and only while split: horizontal motion
-        // (push transitions) and every other pose never re-render the page.
+        // Only the vertical extent and the width matter, and only while split: horizontal
+        // motion (push transitions) and every other pose never re-render the page.
         .onGeometryChange(for: CGRect.self, of: { [split] proxy in
             guard split else { return .zero }
             let frame = proxy.frame(in: .global)
-            return CGRect(x: 0, y: frame.minY.rounded(), width: 0, height: frame.height.rounded())
+            return CGRect(
+                x: 0, y: frame.minY.rounded(), width: frame.width.rounded(), height: frame.height.rounded()
+            )
         }) { measured in
             // The first measurement of a split page places the regions without
             // animation; later changes (fold ↔ flat) animate the divider.

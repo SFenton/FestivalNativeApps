@@ -18,8 +18,6 @@ struct CompeteScreen: View {
     let session: FestivalSession
     @State private var quickLinks = QuickLinksController()
     @State private var model = CompeteHubModel()
-    /// Leaderboard cards the Duo top carousel shows side by side (its reading order).
-    @State private var leaderboardColumns = 1
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var layout
     private var visible = VisibleInstrumentsReader()
@@ -88,24 +86,11 @@ struct CompeteScreen: View {
                 stackedHub
             }
         } secondary: {
-            CompeteRivalsCarousel(
-                instruments: visible.instruments, model: model, leaderboardColumns: leaderboardColumns,
-                retry: retryFailedReads
-            )
+            CompeteRivalsCarousel(instruments: visible.instruments, model: model, retry: retryFailedReads)
         }
         // The Duo panes' one first-load window, rushed by a swipe in either carousel
         // (load-transition R5). The stacked hub installs its own inside its scroll view.
         .festivalNestedFadeInScope()
-        // The carousels span the page's width; the Rivals pane follows the leaderboard
-        // cards on screen in reading order. The secondary region only appears once the
-        // layout has measured itself, so this is known before the Rivals pane fades.
-        .onGeometryChange(for: Int.self) { proxy in
-            CarouselPaging.columns(
-                width: proxy.size.width.rounded(), minimumCardWidth: CompeteDualSourceEntrance.minimumCardWidth
-            )
-        } action: { columns in
-            leaderboardColumns = columns
-        }
     }
 
     /// Read again whatever failed; the page gate shows its spinner until it settles.

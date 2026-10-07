@@ -188,9 +188,12 @@ private let competeDuoPortrait = DeviceLayout.resolve(LayoutSignals(
 
 /// On the Duo dual-source layout the page also loads behind its one spinner, with no
 /// pane header or card behind it, then the panes fade in on the page's reading-order
-/// stagger rather than all at once (load-transition R1, R5; #354 review): the
-/// Leaderboards header (stagger 0) shows well before the rivals card (stagger 4, about
-/// 500 ms later), so a poll catches the header without it.
+/// stagger rather than all at once (load-transition R1, R5; #354 review). The 669 pt
+/// inner display shows both leaderboard cards side by side, so the entrances run strictly
+/// Leaderboards header (stagger 0), Lead card (1), Bass card (2), Rivals header (3),
+/// rivals card (4), 125 ms apart. The Rivals pane reads the regions' width on its first
+/// build; deriving the columns after layout started the Rivals header at stagger 2,
+/// together with the Bass card, which this journey rejects.
 @MainActor
 @Test func competeDuoPanesLoadBehindOneSpinnerThenStagger() async throws {
     let transport = ControlledRankingsTransport(delay: .seconds(3))
@@ -204,37 +207,41 @@ private let competeDuoPortrait = DeviceLayout.resolve(LayoutSignals(
     host.layoutSubtreeIfNeeded()
     let pending = nativeHostedAccessibility(host)
     #expect(pending.identifiers.contains("fst.compete.loading"))
-    for text in ["Leaderboards", "Rivals"] {
-        #expect(!pending.texts.contains(text), "Duo Compete shows the \(text) pane header before the page loaded")
+    for text in ["Leaderboards", "Rivals", "Lead", "Bass"] {
+        #expect(!pending.texts.contains(text), "Duo Compete shows the \(text) header before the page loaded")
     }
     for text in ["Fixture Player 1", "Fixture Rival Golf"] {
         #expect(!pending.contains(text), "Duo Compete shows \"\(text)\" before the page loaded")
     }
 
-    // Each element's first poll after the spinner left.
+    // Each element's first poll (and when) after the spinner left, in reading order.
     enum Element: String, CaseIterable {
-        case leaderboardsHeader, leadCard, rivalsHeader, rivalCard
+        case leaderboardsHeader, leadCard, bassCard, rivalsHeader, rivalCard
     }
-    func visibleElements() -> Set<Element> {
-        let tree = nativeHostedAccessibility(host)
+    func visibleElements(_ tree: NativeHostedAccessibility) -> Set<Element> {
         var shown = Set<Element>()
         if tree.texts.contains("Leaderboards") { shown.insert(.leaderboardsHeader) }
         // The section's container identifier isn't surfaced inside the carousel's
-        // nested scroll views on macOS; its rows are.
-        if tree.contains("Fixture Player 1") { shown.insert(.leadCard) }
+        // nested scroll views on macOS; its instrument header is. Only the leaderboard
+        // cards title themselves "Lead"/"Bass" (rivals cards say "Lead Rivals").
+        if tree.texts.contains("Lead") { shown.insert(.leadCard) }
+        if tree.texts.contains("Bass") { shown.insert(.bassCard) }
         if tree.texts.contains("Rivals") { shown.insert(.rivalsHeader) }
         if tree.contains("Fixture Rival Golf") { shown.insert(.rivalCard) }
         return shown
     }
     var deadline = NativeHostedEvidenceDeadline(limit: .seconds(15))
-    var firstSeen: [Element: Int] = [:]
+    var firstSeen: [Element: (poll: Int, at: ContinuousClock.Instant)] = [:]
     var poll = 0
     do {
         while firstSeen.count < Element.allCases.count {
             host.layoutSubtreeIfNeeded()
             let tree = nativeHostedAccessibility(host)
             if !tree.identifiers.contains("fst.compete.loading") {
-                for element in visibleElements() where firstSeen[element] == nil { firstSeen[element] = poll }
+                let now = ContinuousClock.now
+                for element in visibleElements(tree) where firstSeen[element] == nil {
+                    firstSeen[element] = (poll, now)
+                }
                 poll += 1
             }
             try deadline.check("Duo Compete revealed only \(firstSeen.keys.map(\.rawValue))")
@@ -244,13 +251,24 @@ private let competeDuoPortrait = DeviceLayout.resolve(LayoutSignals(
         nativeHostedRecordExpired(expired)
         return
     }
+    let polls = Element.allCases.map { "\($0.rawValue)=\(firstSeen[$0]?.poll ?? -1)" }.joined(separator: ", ")
     func expectStagger() {
-        let order = Element.allCases.compactMap { firstSeen[$0] }
-        #expect(order == order.sorted(), "the panes reveal in reading order (polls \(firstSeen))")
-        #expect(
-            (firstSeen[.leaderboardsHeader] ?? 0) < (firstSeen[.rivalCard] ?? 0),
-            "the Duo panes stagger in rather than appear together (polls \(firstSeen))"
-        )
+        // Strict: no two entrances share a poll, so none shares a stagger slot.
+        for (earlier, later) in zip(Element.allCases, Element.allCases.dropFirst()) {
+            #expect(
+                (firstSeen[earlier]?.poll ?? 0) < (firstSeen[later]?.poll ?? 0),
+                "\(earlier.rawValue) reveals before \(later.rawValue) (polls \(polls))"
+            )
+        }
+        // A shared slot can still straddle two polls by a frame; one stagger step
+        // (125 ms) can't fit inside one poll, so the Rivals header must trail the last
+        // leaderboard card by most of a step.
+        if let bass = firstSeen[.bassCard]?.at, let rivals = firstSeen[.rivalsHeader]?.at {
+            #expect(
+                rivals - bass >= .milliseconds(60),
+                "the Rivals header waits one stagger step after the Bass card (\(rivals - bass); polls \(polls))"
+            )
+        }
     }
     if let starved = deadline.starved {
         withKnownIssue("Starved host (\(starved)): its polls can't separate the stagger", isIntermittent: true) {
