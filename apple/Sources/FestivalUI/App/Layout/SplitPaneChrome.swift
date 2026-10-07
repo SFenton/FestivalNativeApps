@@ -69,14 +69,19 @@ enum SplitPaneChrome {
     /// stack in the window). The pane's own page margins then apply from the band, as a
     /// full page's apply from a window edge.
     ///
+    /// A trailing pane widened over the list page (a profile, issue #352) has no
+    /// divider: its leading edge is the window's, whose safe area applies.
+    ///
     /// - Parameters:
     ///   - role: The pane, or nil outside a split.
-    ///   - isOpen: Whether the trailing pane is open (the leading pane is half width).
+    ///   - isOpen: Whether the panes sit side by side: for the leading pane, the
+    ///     trailing pane is open (the leading pane is half width); for the trailing pane,
+    ///     it does not cover the list page.
     /// - Returns: The edge set to ignore.
     static func edgesFacingDivider(role: SplitPaneRole?, isOpen: Bool) -> Edge.Set {
         switch role {
         case .leading: isOpen ? .trailing : []
-        case .trailing: .leading
+        case .trailing: isOpen ? .leading : []
         case nil: []
         }
     }

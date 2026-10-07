@@ -94,15 +94,16 @@ private struct MacPageHost<Content: View>: View {
     assertRendersContent(host, image: image, containing: ["Lead", "Bass", "Fixture Rank 1"])
 }
 
-/// Full Rankings starts full width (nothing auto-selected); with a player open it sits
-/// beside the player's profile in the trailing half.
+/// View All Rankings opens Full Rankings in the trailing half beside the Leaderboards
+/// overview (issue #352); a player opened from it covers both halves as a full page.
+/// Nothing is auto-selected either way.
 @MainActor
 @Test func macFullRankingsSplitsOnDemand() async throws {
     let size = CGSize(width: 1060, height: 760)
     let session = macRankingsSession()
     let start = AppRoute.fullRankings(instrument: .lead, rankBy: "totalscore")
     let opened = AppRoute.player(accountId: "fixture-rank-1", displayName: "Fixture Rank 1")
-    for (path, name) in [([start], "full-width"), ([start, opened], "open")] {
+    for (path, name) in [([start], "beside-overview"), ([start, opened], "profile-covers")] {
         let recorder = MacPageRecorder()
         let host = nativeHostedView(
             MacPageHost(path: path, recorder: recorder) { binding in
@@ -118,7 +119,19 @@ private struct MacPageHost<Content: View>: View {
         )
         let window = nativeHostedWindow(host, size: size)
         defer { window.orderOut(nil) }
-        let image = try await nativeHostedSettle(host, untilText: ["Fixture Rank 1"], timeout: .seconds(60))
+        // Beside the overview the board's rows show; a covering profile hides them (the
+        // fixture serves no profile, so it reads Profile Unavailable).
+        let image: CGImage
+        if path.count == 1 {
+            image = try await nativeHostedSettle(host, timeout: .seconds(60)) {
+                nativeHostedAccessibility(host).contains("Fixture Rank 1")
+                    && nativeHostedAccessibilityElement("fst.leaderboards.card.Solo_Guitar.view-all", in: host) != nil
+            }
+        } else {
+            image = try await nativeHostedSettle(host, untilText: ["Profile Unavailable"], timeout: .seconds(60))
+            let list = nativeHostedAccessibility(host)
+            #expect(!list.contains("Lead Rankings"), "the covered board is hidden from VoiceOver")
+        }
         _ = try nativeHostedPNG(image, filename: "mac-full-rankings-\(name).png", environment: "FST_SHELL_RENDER_OUT")
         #expect(recorder.path == path, "Nothing is auto-selected")
     }

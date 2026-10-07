@@ -52,3 +52,20 @@ private func searchedPlayer(_ accountId: String, _ displayName: String) throws
         try SelectedPlayerIdentity(searchResult: broken)
     }
 }
+
+/// A selected band's roster key must be its size's count of distinct account IDs.
+@Test func selectedBandIdentityValidatesRosterAndName() throws {
+    try SelectedBandIdentity(bandType: .duets, teamKey: "a-1:b-2", displayName: "Duo").validate()
+    try SelectedBandIdentity(bandType: .quad, teamKey: "a:b:c:d", displayName: "Quad").validate()
+    let invalid = [
+        SelectedBandIdentity(bandType: .trios, teamKey: "a:b", displayName: "Short"),
+        SelectedBandIdentity(bandType: .duets, teamKey: "a:a", displayName: "Twice"),
+        SelectedBandIdentity(bandType: .duets, teamKey: "a/x:b", displayName: "Path"),
+        SelectedBandIdentity(bandType: .duets, teamKey: "a::b", displayName: "Empty"),
+        SelectedBandIdentity(bandType: .duets, teamKey: "a:b", displayName: " "),
+    ]
+    for band in invalid {
+        #expect(throws: FestivalAPIError.invalidSelectedProfile) { try band.validate() }
+    }
+    #expect(SelectedBandIdentity(bandType: .duets, teamKey: "a:b", displayName: "D").id == "Band_Duets/a:b")
+}

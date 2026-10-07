@@ -29,6 +29,8 @@ public enum PublicEndpoint: Sendable {
     case bandProfile(bandType: String, teamKey: String, combo: String?)
     case bandRankHistory(bandType: String, teamKey: String, combo: String?, days: Int)
     case bandSongExtremes(bandType: String, teamKey: String, combo: String?, limit: Int)
+    /// Every song a band has a published score on (Songs' band score index).
+    case bandSongRows(bandType: String, teamKey: String, combo: String?)
     /// One page of a song's band leaderboard
     /// (`GET /api/leaderboard/{songId}/bands/{bandType}?top=&offset=[&combo=][&accountId=]`).
     /// `accountId` is a query parameter that only asks for the selected player's best
@@ -180,6 +182,14 @@ public enum PublicEndpoint: Sendable {
             segments = ["api", "rankings", "bands", bandType, teamKey, "history"]
             query = [URLQueryItem(name: "days", value: String(days))]
             if let combo { query.append(URLQueryItem(name: "combo", value: combo)) }
+        case let .bandSongRows(bandType, teamKey, combo):
+            guard !bandType.isEmpty, !bandType.contains("/"),
+                  !teamKey.isEmpty, !teamKey.contains("/"),
+                  Self.isValidCombo(combo) else {
+                throw FestivalAPIError.invalidResource
+            }
+            segments = ["api", "rankings", "bands", bandType, teamKey, "song-rows"]
+            if let combo { query = [URLQueryItem(name: "combo", value: combo)] }
         case let .bandSongExtremes(bandType, teamKey, combo, limit):
             guard !bandType.isEmpty, !bandType.contains("/"),
                   !teamKey.isEmpty, !teamKey.contains("/"),

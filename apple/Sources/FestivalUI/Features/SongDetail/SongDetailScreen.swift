@@ -126,12 +126,9 @@ struct SongDetailScreen: View {
     /// - Parameter bandType: Band size.
     /// - Returns: The section's menu entry (web id `band-<bandType>`).
     private static func bandQuickLink(_ bandType: BandType) -> QuickLinkSection {
-        let symbol = switch bandType {
-        case .duets: "person.2.fill"
-        case .trios: "person.3.fill"
-        case .quad: "person.3.sequence.fill"
-        }
-        return QuickLinkSection(id: "band-\(bandType.rawValue)", title: bandType.label, icon: .system(symbol))
+        QuickLinkSection(
+            id: "band-\(bandType.rawValue)", title: bandType.label, icon: .system(bandType.symbolName)
+        )
     }
 
     /// Supply enabled chart links without hiding the PWA's full Intensity grid.
@@ -608,6 +605,18 @@ struct SongDetailCardGrid<Card: View>: View {
                     card(index, instrument)
                 }
             }
+        }
+    }
+}
+
+extension BandType {
+    /// The band size's SF Symbol, shared by Song Details' band Quick Links and the
+    /// Songs band score card (`songs-profile-panel`).
+    var symbolName: String {
+        switch self {
+        case .duets: "person.2.fill"
+        case .trios: "person.3.fill"
+        case .quad: "person.3.sequence.fill"
         }
     }
 }

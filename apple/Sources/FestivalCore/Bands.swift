@@ -361,6 +361,57 @@ public struct BandSongExtremesPayload: Sendable {
     public let isStale: Bool
 }
 
+// MARK: - Band song rows
+
+/// Response for `/api/rankings/bands/{bandType}/{teamKey}/song-rows`: every song the
+/// team has a published band score on (web `BandSongRowsResponse`).
+public struct BandSongRowsResponse: Decodable, Sendable, Equatable {
+    public let bandType: String
+    public let teamKey: String
+    public let comboId: String?
+    public let count: Int
+    public let entries: [BandSongPerformanceEntry]
+
+    /// Index the rows by song after checking they belong to the requested team.
+    ///
+    /// - Parameters:
+    ///   - bandType: Requested band size; the response must echo it.
+    ///   - teamKey: Requested roster key; the response must echo it.
+    ///   - combo: Requested combo filter; the response must echo it.
+    /// - Returns: One performance per song.
+    /// - Throws: `FestivalAPIError.invalidBandProfile` for another team, a count that
+    ///   disagrees with the rows, a duplicate or empty song, or out-of-range values.
+    public func scoreIndex(
+        bandType: BandType, teamKey: String, combo: String? = nil
+    ) throws -> [String: BandSongPerformanceEntry] {
+        guard self.bandType == bandType.rawValue, self.teamKey == teamKey,
+              comboId == combo, count == entries.count else {
+            throw FestivalAPIError.invalidBandProfile
+        }
+        var index: [String: BandSongPerformanceEntry] = [:]
+        for entry in entries {
+            guard !entry.songId.isEmpty, index[entry.songId] == nil,
+                  entry.score >= 0, entry.rank >= 1, entry.totalEntries >= 1,
+                  entry.percentile.isFinite,
+                  entry.accuracy.map({ (0...1_000_000).contains($0) }) ?? true,
+                  entry.stars.map({ (0...6).contains($0) }) ?? true,
+                  entry.season.map({ $0 >= 0 }) ?? true else {
+                throw FestivalAPIError.invalidBandProfile
+            }
+            index[entry.songId] = entry
+        }
+        return index
+    }
+}
+
+/// A band song-rows read together with its offline freshness.
+public struct BandSongRowsPayload: Sendable {
+    public let response: BandSongRowsResponse
+    public let publicationId: Int?
+    public let observedPublicationId: Int
+    public let isStale: Bool
+}
+
 // MARK: - Per-song band leaderboard
 
 /// One band's score on a song-scoped band leaderboard, matching

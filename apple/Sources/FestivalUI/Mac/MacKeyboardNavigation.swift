@@ -351,6 +351,9 @@ struct MacKeyboardNavigation: ViewModifier {
     let isTop: Bool
     /// Closes the trailing pane (Escape while an item is open).
     var close: (() -> Void)?
+    /// False while the page is hidden behind a covering pane (a profile, issue #352): it
+    /// gives up keyboard focus and ignores keys, so Return cannot open a hidden row.
+    var isEnabled = true
     @State private var navigator = MacKeyboardNavigator()
     @State private var autoFocused = false
     @FocusState private var focused: Bool
@@ -364,7 +367,7 @@ struct MacKeyboardNavigation: ViewModifier {
         ScrollViewReader { proxy in
             content
                 .environment(\.macKeyboardNavigator, navigator)
-                .focusable(navigator.hasRows, interactions: .edit)
+                .focusable(isEnabled && navigator.hasRows, interactions: .edit)
                 .focused($focused)
                 .focusEffectDisabled()
                 .onKeyPress(keys: Self.keys) { press in
@@ -376,7 +379,7 @@ struct MacKeyboardNavigation: ViewModifier {
                     // The list takes focus once when its rows first arrive (like Mail's
                     // message list), never later: typing in Filter Songs re-selects
                     // rows and must keep the field's focus.
-                    guard hasRows, isTop, !autoFocused else { return }
+                    guard hasRows, isTop, isEnabled, !autoFocused else { return }
                     autoFocused = true
                     focused = true
                 }
@@ -384,7 +387,7 @@ struct MacKeyboardNavigation: ViewModifier {
                     if let selection, let row = navigator.row(for: selection) { navigator.highlight = row.id }
                 }
                 .onChange(of: navigator.scrollTarget?.serial) { _, _ in scroll(proxy) }
-                .focusedSceneValue(\.macListCommands, isTop && navigator.hasRows ? MacListCommands(
+                .focusedSceneValue(\.macListCommands, isTop && isEnabled && navigator.hasRows ? MacListCommands(
                     scrollToSelection: { scrollToCurrent() }
                 ) : nil)
         }
@@ -400,6 +403,7 @@ struct MacKeyboardNavigation: ViewModifier {
     ///
     /// - Returns: Whether the key was used.
     private func handle(_ key: KeyEquivalent, modifiers: EventModifiers) -> Bool {
+        guard isEnabled else { return false }
         // Command/Option/Control arrows belong to menus and text editing.
         guard modifiers.isDisjoint(with: [.command, .option, .control]) else { return false }
         let move: MacKeyMove

@@ -299,62 +299,78 @@ final class IPadShellJourneyTests: XCTestCase {
         XCTAssertTrue(row.isHittable, "a second Back returns to Songs")
     }
 
-    /// Back on Full Rankings beside an open player closes the player first; a second
-    /// Back returns to the Leaderboards overview (issue #347, every pushed list page).
+    /// View All Rankings opens Full Rankings in the trailing half beside the overview and
+    /// stays selected; portrait pushes it and landscape lifts it back. A player opened
+    /// from it is a full page over both halves; Back returns to the split with the board
+    /// and its selection kept; Close returns to the full-width overview (issue #352).
     @MainActor
-    func testBackClosesRankingsTrailingPaneFirst() throws {
+    func testFullRankingsOpensBesideLeaderboards() throws {
         let app = fixtureApp(profile: false)
         launchFilled(app)
         chooseInFlyout(app, "leaderboards")
         let viewAll = app.buttons.matching(NSPredicate(format: "identifier ENDSWITH '.view-all'")).firstMatch
         XCTAssertTrue(viewAll.waitForExistence(timeout: 15))
-        viewAll.tap()
-        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'fst.rankings.row.'"))
-        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 15))
-        rows.firstMatch.tap()
-        let trailing = element(app, "fst.split.trailing")
-        XCTAssertTrue(trailing.waitForExistence(timeout: 10), "the player opens in the trailing half")
-        let back = app.buttons["fst.split.list-back"]
-        XCTAssertTrue(back.waitForExistence(timeout: 5), "Full Rankings' Back closes the open pane")
-        back.tap()
-        XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "Back closes the player")
-        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5), "Full Rankings stays")
-        XCTAssertTrue(rows.firstMatch.isHittable, "Full Rankings is full width again")
-        XCTAssertFalse(back.exists, "the system Back returns once nothing is open")
-        leadingBack(app).tap()
-        // The overview's cards reuse the rankings rows, so its View All link proves the page.
-        XCTAssertTrue(viewAll.waitForExistence(timeout: 10), "a second Back returns to Leaderboards")
-        XCTAssertTrue(viewAll.isHittable, "Leaderboards is on top again")
-    }
-
-    /// Full Rankings starts full width; a row opens the player in the trailing half and
-    /// stays selected; portrait pushes it; landscape lifts it back; Close returns to full
-    /// width.
-    @MainActor
-    func testFullRankingsSplitsOnDemand() throws {
-        let app = fixtureApp(profile: false)
-        launchFilled(app)
-        chooseInFlyout(app, "leaderboards")
-        let viewAll = app.buttons.matching(NSPredicate(format: "identifier ENDSWITH '.view-all'")).firstMatch
-        XCTAssertTrue(viewAll.waitForExistence(timeout: 15))
-        viewAll.tap()
-        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'fst.rankings.row.'"))
-        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 15))
         let trailing = element(app, "fst.split.trailing")
         XCTAssertFalse(trailing.exists, "starts full width: nothing auto-selected")
-        let first = rows.element(boundBy: 0)
-        first.tap()
-        XCTAssertTrue(trailing.waitForExistence(timeout: 10), "the player opens in the trailing half")
-        XCTAssertTrue(first.waitForSelection(timeout: 5), "the row stays selected")
+        viewAll.tap()
+        XCTAssertTrue(trailing.waitForExistence(timeout: 10), "Full Rankings opens in the trailing half")
+        XCTAssertTrue(viewAll.waitForSelection(timeout: 5), "View All Rankings stays selected")
+        XCTAssertTrue(viewAll.isHittable, "the overview stays beside it")
         XCUIDevice.shared.orientation = .portrait
         XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "portrait pushes")
-        let playerTitle = app.navigationBars.matching(NSPredicate(format: "identifier CONTAINS 'Fixture Player'")).firstMatch
-        XCTAssertTrue(playerTitle.waitForExistence(timeout: 10), "the chosen player stays open, pushed")
         XCUIDevice.shared.orientation = .landscapeLeft
         XCTAssertTrue(trailing.waitForExistence(timeout: 10), "landscape splits again")
+
+        let midX = app.windows.firstMatch.frame.midX
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'fst.rankings.row.'"))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 15))
+        let boardRow = try XCTUnwrap(
+            rows.allElementsBoundByIndex.first { $0.frame.minX > midX && $0.isHittable },
+            "a Full Rankings row in the trailing half"
+        )
+        boardRow.tap()
+        let playerTitle = app.navigationBars.matching(NSPredicate(format: "identifier CONTAINS 'Fixture'")).firstMatch
+        XCTAssertTrue(playerTitle.waitForExistence(timeout: 10), "the player opens")
+        XCTAssertFalse(viewAll.isHittable, "the profile is a full page over the overview")
+        XCTAssertLessThan(trailing.frame.minX, midX - 100, "the profile covers both halves")
+        let back = app.navigationBars.buttons.allElementsBoundByIndex.min { $0.frame.minX < $1.frame.minX }
+        try XCTUnwrap(back, "the profile's Back").tap()
+        XCTAssertTrue(viewAll.waitForSelection(timeout: 10), "Back returns to the split, selection kept")
+        XCTAssertTrue(viewAll.isHittable, "the overview is beside the board again")
+        XCTAssertEqual(trailing.frame.minX, midX, accuracy: 30, "Full Rankings is back in the trailing half")
         element(app, "fst.split.close").tap()
         XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "Close returns to full width")
-        XCTAssertTrue(rows.firstMatch.isHittable, "the list is full width again")
+        XCTAssertTrue(viewAll.isHittable, "the overview is full width again")
+    }
+
+    /// A player row on the Leaderboards overview pushes the full profile page (no
+    /// trailing pane, in either orientation); Back returns to the overview with its
+    /// place kept (issue #352).
+    @MainActor
+    func testLeaderboardsPlayerOpensFullPage() throws {
+        let app = fixtureApp(profile: false)
+        launchFilled(app)
+        chooseInFlyout(app, "leaderboards")
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'fst.rankings.row.'"))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 15))
+        let viewAll = app.buttons.matching(NSPredicate(format: "identifier ENDSWITH '.view-all'")).firstMatch
+        let row = rows.element(boundBy: 0)
+        row.tap()
+        let playerTitle = app.navigationBars.matching(NSPredicate(format: "identifier CONTAINS 'Fixture'")).firstMatch
+        XCTAssertTrue(playerTitle.waitForExistence(timeout: 10), "the player opens")
+        let trailing = element(app, "fst.split.trailing")
+        XCTAssertFalse(trailing.exists, "a profile is a full page, not a trailing pane")
+        XCTAssertFalse(viewAll.isHittable, "the profile covers the overview")
+        XCUIDevice.shared.orientation = .portrait
+        XCTAssertTrue(playerTitle.waitForExistence(timeout: 10), "portrait keeps the profile")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(playerTitle.waitForExistence(timeout: 10), "landscape keeps the profile full width")
+        XCTAssertFalse(trailing.exists, "landscape does not lift the profile into a pane")
+        leadingBack(app).tap()
+        XCTAssertTrue(waitForDisappearance(of: playerTitle, timeout: 10), "Back leaves the profile")
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "Leaderboards is back")
+        XCTAssertTrue(row.isHittable, "the overview is on top, full width")
+        XCTAssertFalse(trailing.exists, "nothing is left open")
     }
 
     /// Narrowing the window (an exact ½ or ⅓ tile) falls back to the phone tab bar and
@@ -413,16 +429,26 @@ final class IPadShellJourneyTests: XCTestCase {
         XCTAssertFalse(app.navigationBars["Search"].exists, "⌘5 leaves Search")
         let viewAll = app.buttons.matching(NSPredicate(format: "identifier ENDSWITH '.view-all'")).firstMatch
         XCTAssertTrue(viewAll.waitForExistence(timeout: 15))
+        // The tapped card's own View All (a profile page may have other View All rows).
+        let cardViewAll = element(app, viewAll.identifier)
         viewAll.tap()
-        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'fst.rankings.row.'"))
-        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 15))
-        rows.firstMatch.tap()
+        // View All opens Full Rankings beside the overview; its player opens full page
+        // over both (issue #352).
         let trailing = element(app, "fst.split.trailing")
         XCTAssertTrue(trailing.waitForExistence(timeout: 10))
+        let rows = trailing.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'fst.rankings.row.'"))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 15))
+        rows.firstMatch.tap()
+        let playerTitle = app.navigationBars.matching(NSPredicate(format: "identifier CONTAINS 'Fixture'")).firstMatch
+        XCTAssertTrue(playerTitle.waitForExistence(timeout: 10), "the player opens")
+        XCTAssertFalse(cardViewAll.isHittable, "the player covers the overview")
         app.typeKey("[", modifierFlags: .command)
-        XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "⌘[ closes the open player")
+        XCTAssertTrue(waitForDisappearance(of: playerTitle, timeout: 10), "⌘[ leaves the player")
+        XCTAssertTrue(cardViewAll.isHittable, "⌘[ returns to the overview beside Full Rankings")
+        XCTAssertTrue(trailing.exists, "Full Rankings is still beside the overview")
         app.typeKey("[", modifierFlags: .command)
-        XCTAssertTrue(app.navigationBars["Leaderboards"].waitForExistence(timeout: 15), "⌘[ goes back")
+        XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "⌘[ closes Full Rankings")
+        XCTAssertTrue(app.navigationBars["Leaderboards"].exists, "⌘[ returns to Leaderboards")
     }
 
     // MARK: - Windows

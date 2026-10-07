@@ -131,6 +131,7 @@ PLAYER_INSTRUMENT_RANKING = re.compile(r"^/api/rankings/([A-Za-z_]+)/(fixture-[a
 BAND_RANKINGS = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)$")
 BAND_HISTORY = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/history$")
 BAND_SONGS = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/songs$")
+BAND_SONG_ROWS = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)/(fixture-[a-z0-9:-]+)/song-rows$")
 PATH_ARTIFACT = re.compile(
     r"^/api/paths/(fixture-[a-z0-9-]+)/([A-Za-z_]+)/([a-z]+)(/data)?$"
 )
@@ -1352,6 +1353,27 @@ class FixtureHandler(BaseHTTPRequestHandler):
             self._json(200, {
                 "bandType": band_type, "teamKey": team_key, "days": days,
                 "history": history, "historyStatus": None, "historyMessage": None,
+            })
+        elif match := BAND_SONG_ROWS.fullmatch(path):
+            # Songs' band score index (#340): `fixture-team-1` scored Pulse only;
+            # `fixture-team-unavailable` is the unpublished-projection 503.
+            band_type, team_key = match.group(1), match.group(2)
+            if band_type not in BAND_TYPES:
+                self._json(404, {"status": "unknown_band_type"})
+                return
+            if team_key == "fixture-team-unavailable":
+                self._json(503, {"title": "Published band song data unavailable"})
+                return
+            combo = query.get("combo", [None])[0]
+            entries = [{
+                "songId": "fixture-pulse", "comboId": combo, "rank": 1,
+                "totalEntries": 10, "percentile": 0.1, "score": 1_234_567,
+                "accuracy": 970_000, "isFullCombo": True, "stars": 6,
+                "season": 10, "endTime": "2026-09-27T00:00:00Z",
+            }] if team_key == "fixture-team-1" else []
+            self._json(200, {
+                "bandType": band_type, "teamKey": team_key, "comboId": combo,
+                "count": len(entries), "entries": entries,
             })
         elif match := BAND_SONGS.fullmatch(path):
             band_type, team_key = match.group(1), match.group(2)
