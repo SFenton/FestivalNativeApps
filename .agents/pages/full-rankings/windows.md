@@ -79,7 +79,7 @@ Band Rankings got the same ungated `ShowContent` fix and a contrast `FooterPlate
 
 ## Pager (operator batch 6.30)
 
-`Controls/LeaderboardsPager` follows the web `Paginator` + `FixedLeaderboardPagination` (refined in operator batch 7.4, see [design/windows.md](../../design/windows.md)): 40 epx circles with double chevrons for first/last and single ones for previous/next either side of a `cardBackground` "page / total" badge, no plate behind them, floating with the pinned selected-player row over the bottom of the rows (`Controls/BoardFooter`). Shared by every paged board.
+`Controls/LeaderboardsPager` follows the web `Paginator` + `FixedLeaderboardPagination` (refined in operator batch 7.4, see [design/windows.md](../../design/windows.md)): 40 epx circles with double chevrons for first/last and single ones for previous/next either side of a "page / total" badge, all on the rows' card surface (`FSTCardSurfaceBrush` + `FSTCardStrokeBrush`, #319) with no plate behind them, floating with the pinned selected-player row over the bottom of the rows (`Controls/BoardFooter`). Shared by every paged board.
 
 ## Two columns (wide)
 

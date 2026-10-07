@@ -536,6 +536,10 @@
             "symbol": "LeaderboardEntryRow"
           },
           {
+            "path": "windows/Festival.App/Controls/LeaderboardsPager.xaml.cs",
+            "symbol": "LeaderboardsPager"
+          },
+          {
             "path": "windows/Festival.App/Controls/ViewAllCard.cs",
             "symbol": "ViewAllCard"
           }
@@ -572,6 +576,14 @@
           "allow": [],
           "debt": [],
           "message": "An opaque cardBackground plate is FestivalCardModifier's accessibility fallback, not a feature surface; draw cards, rows and custom floating controls with festivalCard / festivalCardCapsule (surface-materials R1, #319)."
+        },
+        {
+          "id": "windows-pager-only-plate",
+          "glob": "windows/Festival.App/**/*.xaml",
+          "regex": "FSTPager(?:Button|Badge)Brush",
+          "allow": [],
+          "debt": [],
+          "message": "The board pager draws on the rows' FSTCardSurfaceBrush / FSTCardStrokeBrush, never a pager-only plate (surface-materials R1, #319)."
         },
         {
           "id": "windows-profile-purple-view-all",
@@ -1067,6 +1079,30 @@
             "symbol": "LeaderboardEntryRow"
           },
           {
+            "path": "windows/Festival.Core/Domain/LoadSwap.cs",
+            "symbol": "PinnedRowGate"
+          },
+          {
+            "path": "windows/Festival.App/Controls/LoadSwapGate.cs",
+            "symbol": "LoadSwapGate"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/MotionPolicy.cs",
+            "symbol": "PinnedRowReveal"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/BandsSongLeaderboardViewModel.cs",
+            "symbol": "SongBandSpotlightRow"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/LeaderboardsRows.cs",
+            "symbol": "RankingSpotlightViewModel"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/RankingSpotlight.cs",
+            "symbol": "RankingSpotlight"
+          },
+          {
             "path": "windows/Festival.App/Controls/LeaderboardsPager.xaml.cs",
             "symbol": "LeaderboardsPager"
           },
@@ -1164,6 +1200,8 @@
         293,
         294,
         295,
+        306,
+        307,
         318,
         319
       ]
@@ -1232,6 +1270,10 @@
           {
             "path": "apple/Sources/FestivalUI/Common/FadeInOnLoad.swift",
             "symbol": "FestivalFadeInScope"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SelectedRowReveal.swift",
+            "symbol": "SelectedRowReveal"
           },
           {
             "path": "apple/Sources/FestivalCore/PathSwitchTransition.swift",
@@ -1351,6 +1393,19 @@
           "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."
         },
         {
+          "id": "apple-fade-scope",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "FestivalFadeInScope\\s*\\(",
+          "allow": [
+            "apple/Sources/FestivalUI/Common/FadeInOnLoad.swift",
+            "apple/Sources/FestivalUI/Features/Leaderboards/FullRankingsScreen.swift",
+            "apple/Sources/FestivalUI/Features/SongLeaderboard/SoloLeaderboardScreen.swift",
+            "apple/Sources/FestivalUI/Features/SongLeaderboard/SongBandLeaderboardScreen.swift"
+          ],
+          "debt": [],
+          "message": "Pages install the shared entrance window with festivalFadeInScope(resetKey:) or festivalScrollFadeInScope(_:resetKey:); a page that builds its own FestivalFadeInScope must be listed so its scroll rush and selected-row reveal stay on the shared rules (load-transition R5)."
+        },
+        {
           "id": "apple-page-title",
           "glob": "apple/Sources/**/*.swift",
           "regex": "\\.navigationTitle\\s*\\(",
@@ -1447,7 +1502,8 @@
         169,
         177,
         304,
-        316
+        316,
+        323
       ]
     },
     {
@@ -2245,6 +2301,95 @@
           "debt": [],
           "message": "Settings title/value rows measure their fit in one place: use SettingsValueRow (supporting/trailing slots) instead of another intrinsic-width Layout (settings-value-row R1, R4)."
         }
+      ]
+    },
+    {
+      "id": "back-keeps-place",
+      "title": "Back keeps place",
+      "status": "current",
+      "doc": ".agents/patterns/back-keeps-place.md",
+      "summary": "Back to a cached or back-stack page keeps its loaded content (keyed reload gate; new publication or account reloads, failures retry), rebuilds and replays nothing, moves nothing (Windows pauses focus-follow scrolling and scroll anchoring while away) and, on Windows, returns focus to the opener in its original focus state.",
+      "keywords": [
+        "back",
+        "back navigation",
+        "cached page",
+        "navigationcachemode",
+        "scroll position",
+        "focus return",
+        "reappearance",
+        "jitter",
+        "reload on back",
+        "keeps place"
+      ],
+      "web": [
+        {
+          "path": "hooks/ui/useScrollRestore.ts",
+          "symbol": "useScrollRestore"
+        },
+        {
+          "path": "hooks/ui/usePageTransition.ts",
+          "symbol": "usePageTransition"
+        },
+        {
+          "path": "pages/suggestions/suggestionsScrollRestoration.ts",
+          "symbol": "beginSuggestionsScrollRestoration"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalCore/ReappearanceLoadGate.swift",
+            "symbol": "ReappearanceLoadGate"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/compete/CompeteViewModel.kt",
+            "symbol": "CompeteViewModel"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Services/CachedPageScroll.cs",
+            "symbol": "CachedPageScroll"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/SuggestionsViewModel.cs",
+            "symbol": "SuggestionsViewModel"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "load-transition"
+        ],
+        "pages": [
+          "compete",
+          "leaderboards",
+          "rivals",
+          "songs",
+          "shop",
+          "suggestions",
+          "settings",
+          "licenses"
+        ]
+      },
+      "guards": [
+        {
+          "id": "windows-scroll-pause",
+          "glob": "windows/Festival.App/**/*.cs",
+          "regex": "BringIntoViewOnFocusChange\\s*=\\s*false|VerticalAnchorRatio\\s*=",
+          "allow": [
+            "windows/Festival.App/Services/CachedPageScroll.cs"
+          ],
+          "debt": [],
+          "message": "Cached pages pause focus-follow scrolling and scroll anchoring only through CachedPageScroll, which restores them on return (back-keeps-place R3); extend it instead of pausing scrollers page by page."
+        }
+      ],
+      "issues": [
+        39,
+        82,
+        276
       ]
     }
   ]

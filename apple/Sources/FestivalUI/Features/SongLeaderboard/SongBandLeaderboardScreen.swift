@@ -75,6 +75,13 @@ struct SongBandLeaderboardContent: View {
     @State private var focus: SongBandRowFocus?
     /// The focused row still needs scrolling into view once its page loads.
     @State private var focusPending: Bool
+    /// The cards' first-load fade window: a scroll rushes their stagger, rows the
+    /// focused-row scroll realizes fade in with it, and once it closes recycled cards
+    /// appear without a fade (load-transition R5, issue #323).
+    @State private var fadeScope = FestivalFadeInScope()
+    /// Counts the reload gate's reveals: each revealed page re-arms ``fadeScope`` (web
+    /// `resetRush` on paginate).
+    @State private var rowsReveal = 0
     /// Top edge of the pinned footer and pager in ``pageSpace``; nil without chrome.
     @State private var bottomChromeTop: CGFloat?
     /// Height of the rows' bottom fade, shrinking to 0 at the end of the list (#293).
@@ -211,7 +218,8 @@ struct SongBandLeaderboardContent: View {
                     // and fade the new page in (web usePageTransition, issue #71).
                     FestivalReloadGate(
                         key: requestKey, isLoading: state.isLoading, spinnerLabel: "Loading band scores",
-                        spinnerIdentifier: "fst.song-band-leaderboard.loading"
+                        spinnerIdentifier: "fst.song-band-leaderboard.loading",
+                        onReveal: { rowsReveal += 1 }
                     ) {
                         gatedContent(proxy: proxy)
                     }
@@ -223,6 +231,10 @@ struct SongBandLeaderboardContent: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, Self.rowGap)
             }
+            // One fade window per revealed page (web `resetRush` on paginate): scrolling
+            // while the cards stagger in, or the focused-row scroll, fades the rest in
+            // together (#323).
+            .festivalScrollFadeInScope(fadeScope, resetKey: rowsReveal)
             // Read from the scroll offset, like the solo board's `List` (song-header R4):
             // the header's bottom edge is its padded height less the gap under it.
             .songHeaderScrollAway(headerBottom: max(0, headerHeight - Self.headerBottomGap)) {
@@ -484,13 +496,16 @@ struct SongBandLeaderboardContent: View {
                         .foregroundStyle(FestivalText.primary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                ForEach(payload.leaderboard.entries) { entry in
+                ForEach(Array(payload.leaderboard.entries.enumerated()), id: \.element.id) { index, entry in
                     // The selected player's band, or the band this page was opened
                     // for, gets the purple highlight (web `isSelected`).
                     SongBandPreviewRow(
                         entry: entry, highlighted: isHighlighted(entry, in: payload.leaderboard)
                     )
                     .accessibilityIdentifier("fst.song-band-leaderboard.row.\(entry.id)")
+                    // Web `stagger(index)`; the page scope decides whether it still
+                    // fades (R5).
+                    .festivalFadeIn(staggerIndex: index)
                 }
             }
             // Rows start under the header even when they are fewer than a screen.
@@ -500,12 +515,16 @@ struct SongBandLeaderboardContent: View {
             // Opened for one band's row: scroll it into view once (web `navToPlayer`,
             // issue #307).
             .task(id: focusPending) {
-                guard focusPending,
-                      let target = payload.leaderboard.entries.first(where: isFocused) else {
+                let entries = payload.leaderboard.entries
+                guard focusPending, let targetIndex = entries.firstIndex(where: isFocused) else {
                     focusPending = false
                     return
                 }
-                if await SelectedRowReveal.reveal(target.id, proxy: proxy, reduceMotion: reduceMotion) {
+                // After the card's own entrance (web `navToBand`, #323).
+                if await SelectedRowReveal.reveal(
+                    entries[targetIndex].id, proxy: proxy, reduceMotion: reduceMotion,
+                    staggerIndex: targetIndex, scope: fadeScope
+                ) {
                     focusPending = false
                 }
             }
