@@ -71,9 +71,7 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     {
         base.OnNavigatedTo(e);
         navigatedAt = Stopwatch.GetTimestamp();
-        ViewModel = e.Parameter is AppRoute.PlayerHistory history
-            ? new SongDetailViewModel(App.Session, history)
-            : new SongDetailViewModel(App.Session, (AppRoute.SongDetail)e.Parameter);
+        ViewModel = new SongDetailViewModel(App.Session, (AppRoute.SongDetail)e.Parameter);
         ViewModel.PropertyChanged += OnViewModelChanged;
         ViewModel.History.PropertyChanged += OnHistoryChanged;
         Bindings.Update();
@@ -214,7 +212,6 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
                 if (!animate)
                 {
                     StopSpinner();
-                    AfterReveal();
                     return;
                 }
                 // Content stays transparent (not collapsed, so layout and card realization proceed) until the spinner fades.
@@ -251,7 +248,6 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
                 if (Boards.TryGetElement(i) is UIElement card) FadeIn.Play(card, SongDetailReveal.Card(i, BoardColumns()));
             // Band previews come last, after the final instrument card's slot.
             FadeIn.Play(BandBoards, SongDetailReveal.Card(ViewModel?.Leaderboards.Count ?? 0, BoardColumns()));
-            AfterReveal();
         });
     }
 
@@ -260,17 +256,6 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     {
         Spinner.IsActive = false;
         Spinner.Visibility = Visibility.Collapsed;
-    }
-
-    /// <summary>Post-reveal: the history route scrolls to the history section.</summary>
-    private void AfterReveal()
-    {
-        if (!ViewModel.ScrollToHistory || !ViewModel.History.IsVisible) return;
-        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
-        {
-            var top = HistorySection.TransformToVisual(Scroller.Content as UIElement).TransformPoint(default).Y;
-            Scroller.ChangeView(null, Math.Max(0, top - 64), null, disableAnimation: !Motion.Allowed);
-        });
     }
 
     /// <summary>Cards per row in the leaderboard grid (two from 2 × 320 + 16 epx).</summary>
@@ -336,39 +321,15 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
         if (sender is FrameworkElement { Tag: SongBandPreviewViewModel band }) MainWindow.Instance?.Navigate(band.FullRoute);
     }
 
-    /// <summary>Checks the current mode and direction when the history sort menu opens.</summary>
-    /// <param name="sender">Menu.</param>
+    /// <summary>
+    /// "View All Scores": opens the selected chart's sortable Player History page (view-all-cta R8; the card never
+    /// expands in place, issue #324).
+    /// </summary>
+    /// <param name="sender">Button.</param>
     /// <param name="e">Unused.</param>
-    private void OnSortMenuOpening(object sender, object e)
+    private void OnHistoryViewAll(object sender, RoutedEventArgs e)
     {
-        foreach (var item in SortMenu.Items.OfType<RadioMenuFlyoutItem>())
-        {
-            item.IsChecked = item.Tag switch
-            {
-                "asc" => ViewModel.History.SortAscending,
-                "desc" => !ViewModel.History.SortAscending,
-                string mode => mode == ViewModel.History.SortMode.ToString(),
-                _ => false,
-            };
-        }
-    }
-
-    /// <summary>Applies a history sort key.</summary>
-    /// <param name="sender">Menu item.</param>
-    /// <param name="e">Unused.</param>
-    private void OnSortModeClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is FrameworkElement { Tag: string tag } && Enum.TryParse<PlayerScoreSortMode>(tag, out var mode))
-            ViewModel.History.SortByCommand.Execute(mode);
-    }
-
-    /// <summary>Applies a history sort direction.</summary>
-    /// <param name="sender">Menu item.</param>
-    /// <param name="e">Unused.</param>
-    private void OnSortDirectionClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is FrameworkElement { Tag: string tag } && (tag == "asc") != ViewModel.History.SortAscending)
-            ViewModel.History.ToggleDirectionCommand.Execute(null);
+        if (ViewModel.History.ViewAllRoute is { } route) MainWindow.Instance?.Navigate(route);
     }
 
     /// <summary>Opens the validated official Item Shop page.</summary>

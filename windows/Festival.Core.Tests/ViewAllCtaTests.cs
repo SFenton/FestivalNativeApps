@@ -83,6 +83,21 @@ public class ViewAllCtaTests
     }
 
     [Fact]
+    public void ScoreHistoryViewAll_NavigatesAndTheCardHasNoSort()
+    {
+        // R8 (#324): View All Scores opens Player History (sorting lives there); it never expands the card in place.
+        var page = XDocument.Load(Path.Combine(AppRoot, "Pages", "SongDetailPage.xaml"));
+        var button = page.Descendants().Single(e => Attr(e, "Name") == "HistoryViewAll");
+        Assert.Equal("OnHistoryViewAll", Attr(button, "Click"));
+        Assert.Null(Attr(button, "Command"));
+        Assert.DoesNotContain(page.Descendants(), e => e.Name.LocalName is "DropDownButton" or "MenuFlyout");
+        var code = File.ReadAllText(Path.Combine(AppRoot, "Pages", "SongDetailPage.xaml.cs"));
+        Assert.Contains("MainWindow.Instance?.Navigate(route)", code, StringComparison.Ordinal);
+        var shell = File.ReadAllText(Path.Combine(AppRoot, "MainWindow.xaml.cs"));
+        Assert.Contains("AppRoute.PlayerHistory => typeof(PlayerHistoryPage)", shell, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Consumers_SetNoLayoutOrColourOverrides()
     {
         string[] styled = ["Margin", "Padding", "MinHeight", "Height", "HorizontalAlignment", "HorizontalContentAlignment",

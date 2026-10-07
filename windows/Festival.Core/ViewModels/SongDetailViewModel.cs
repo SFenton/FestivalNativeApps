@@ -23,28 +23,13 @@ public sealed partial class SongDetailViewModel : ObservableObject
     /// <summary>Creates the page model for a route.</summary>
     /// <param name="session">Shared session.</param>
     /// <param name="route">Detail route (song ID and optional initial chart).</param>
-    public SongDetailViewModel(FestivalSession session, AppRoute.SongDetail route) : this(session, route.SongId, route.Instrument, false)
-    {
-    }
-
-    /// <summary>Creates the page model for the score-history route: Song Detail scrolled to the history section.</summary>
-    /// <param name="session">Shared session.</param>
-    /// <param name="route">History route (song and chart).</param>
-    public SongDetailViewModel(FestivalSession session, AppRoute.PlayerHistory route) : this(session, route.SongId, route.Instrument, true)
-    {
-    }
-
-    /// <summary>Shared constructor.</summary>
-    /// <param name="session">Shared session.</param>
-    /// <param name="songId">Song.</param>
-    /// <param name="instrument">Initial chart.</param>
-    /// <param name="scrollToHistory">Whether to open at the history section.</param>
-    private SongDetailViewModel(FestivalSession session, string songId, Instrument? instrument, bool scrollToHistory)
+    public SongDetailViewModel(FestivalSession session, AppRoute.SongDetail route)
     {
         this.session = session;
+        var songId = route.SongId;
+        var instrument = route.Instrument;
         SongId = songId;
         InitialInstrument = instrument;
-        ScrollToHistory = scrollToHistory;
         lastAccount = session.SelectedPlayer?.AccountId;
         History = new SongScoreHistoryViewModel(session, songId, instrument);
         History.PropertyChanged += (_, e) =>
@@ -78,9 +63,6 @@ public sealed partial class SongDetailViewModel : ObservableObject
 
     /// <summary>The selected player's score history section.</summary>
     public SongScoreHistoryViewModel History { get; }
-
-    /// <summary>Whether the page opens scrolled to the history section (the <c>/songs/:id/:instrument/history</c> route).</summary>
-    public bool ScrollToHistory { get; }
 
     /// <summary>Requested song.</summary>
     public string SongId { get; }
