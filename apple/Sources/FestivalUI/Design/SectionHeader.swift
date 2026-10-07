@@ -35,7 +35,7 @@ public struct FestivalSectionHeader: View {
             }
         }
         // Full width, but kept on its own side of an iPhone Duo book-pose fold
-        // (section-headers R9, pattern `hinge-columns`).
+        // (section-headers R10, pattern `hinge-columns`).
         .staysOnHingeSide()
         .textCase(nil)
     }

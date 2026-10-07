@@ -236,7 +236,7 @@ extension View {
     }
 
     /// Keep a full-width title on the side of an iPhone Duo fold it starts on, wrapping
-    /// before the fold (section-headers R9, hinge-columns R3). No effect without an
+    /// before the fold (section-headers R10, hinge-columns R3). No effect without an
     /// active vertical fold through it.
     ///
     /// - Returns: The view, filling the proposed width with its content limited to one side.

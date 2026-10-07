@@ -130,8 +130,11 @@ class GlobalSearchUiTest {
 
         rule.onNodeWithTag(GlobalSearchTags.FIELD).performTextReplacement("synthetic")
         h.waitForTag(GlobalSearchTags.RESULT_PLAYER)
-        // Issue #299: the scope chips already name the scope, so no section titles are drawn.
-        assertEquals(0, rule.onAllNodesWithText("Players", ignoreCase = true).fetchSemanticsNodes().count { it.config.contains(SemanticsProperties.Heading) })
+        // Issue #348: in All each shown category has its web-order title; "synthetic" matches no
+        // songs, so only Players and Bands are titled (empty categories are omitted, like the web).
+        val headings = SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading) and hasAnyAncestor(hasTestTag(GlobalSearchTags.SURFACE))
+        rule.onNodeWithTag(GlobalSearchTags.section(SearchScope.Players)).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading)).assert(hasText("Players"))
+        rule.onNodeWithTag(GlobalSearchTags.section(SearchScope.Songs)).assertDoesNotExist()
         // Counts are announced (polite live region) but never drawn as text (operator batch 6).
         rule.onNodeWithTag(GlobalSearchTags.STATUS).assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("0 songs, 1 player, 2 bands")))
         rule.onNodeWithTag(GlobalSearchTags.STATUS).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion))
@@ -144,7 +147,7 @@ class GlobalSearchUiTest {
 
         rule.onNodeWithTag(GlobalSearchTags.FIELD).performTextReplacement("alpha")
         h.waitForTag(GlobalSearchTags.RESULT_SONG)
-        assertEquals(0, rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading) and hasAnyAncestor(hasTestTag(GlobalSearchTags.SURFACE))).fetchSemanticsNodes().size)
+        rule.onNodeWithTag(GlobalSearchTags.section(SearchScope.Songs)).assert(hasText("Songs"))
 
         // Scope pills: equal shares of the row (two 8 dp gaps), pill-shaped and at least 48 dp to touch.
         val row = rule.onNodeWithTag(GlobalSearchTags.SCOPES).fetchSemanticsNode().boundsInRoot
@@ -159,6 +162,8 @@ class GlobalSearchUiTest {
         h.settle()
         rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).assertIsSelected()
         assertEquals(0, rule.onAllNodesWithTag(GlobalSearchTags.RESULT_PLAYER).fetchSemanticsNodes().size)
+        // Issue #299: a single scope has no section title; its chip already names it.
+        assertEquals(0, rule.onAllNodes(headings).fetchSemanticsNodes().size)
         rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).performClick()
         h.settle()
         rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).assertIsNotSelected()

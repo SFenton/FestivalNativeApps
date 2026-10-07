@@ -150,6 +150,9 @@ object CompeteText {
     const val VIEW_FULL_LEADERBOARDS = "View Full Leaderboards"
     const val VIEW_ALL_RIVALS = "View All Rivals"
 
+    /** The page spinner's TalkBack label (load-transition R1). */
+    const val LOADING = "Loading Compete"
+
     /**
      * `compete.noRivalsSubtitle`.
      *

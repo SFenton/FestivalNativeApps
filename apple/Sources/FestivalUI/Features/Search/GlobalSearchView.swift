@@ -357,9 +357,30 @@ struct GlobalSearchSheet: View {
 /// The sheet's own search field (not `.searchable`, whose active state hid the sheet's
 /// title and Close and added a second X beside the field): magnifier, text, and a clear
 /// button inside the field. Focused when the sheet opens.
+///
+/// Also the iPhone Duo bottom "Filter Songs" field (``SongsBottomFilterField``, issue
+/// #333), which floats over the list on the shared control capsule and waits for a tap.
 struct GlobalSearchField: View {
+    /// The field's backing.
+    enum Surface {
+        /// A faint capsule inside a sheet's header.
+        case inline
+        /// The shared floating-control capsule over scrolling rows (surface-materials R1).
+        case floating
+    }
+
     @Binding var text: String
     let prompt: String
+    /// Spoken name of the field.
+    var accessibilityLabel = "Search songs, players and bands"
+    /// UI-test identifier of the text field.
+    var identifier = "fst.global-search.field"
+    /// UI-test identifier of the clear button.
+    var clearIdentifier = "fst.global-search.clear"
+    /// Focus the field (keyboard up) when it appears.
+    var focusesOnAppear = true
+    /// The field's backing.
+    var surface = Surface.inline
     /// Return/Search was pressed (re-runs a failed or empty search, issue #299).
     var submit: () -> Void = {}
     @FocusState private var focused: Bool
@@ -378,8 +399,9 @@ struct GlobalSearchField: View {
                 .textInputAutocapitalization(.never)
                 #endif
                 .foregroundStyle(FestivalText.primary)
-                .accessibilityLabel("Search songs, players and bands")
-                .accessibilityIdentifier("fst.global-search.field")
+                .accessibilityLabel(accessibilityLabel)
+                .accessibilityAddTraits(surface == .floating ? .isSearchField : [])
+                .accessibilityIdentifier(identifier)
             if !text.isEmpty {
                 Button {
                     text = ""
@@ -389,14 +411,29 @@ struct GlobalSearchField: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Clear Search")
-                .accessibilityIdentifier("fst.global-search.clear")
+                .accessibilityIdentifier(clearIdentifier)
             }
         }
         .padding(.horizontal, 12)
         .frame(minHeight: 44)
-        .background(Color.white.opacity(0.1), in: Capsule())
+        .modifier(GlobalSearchFieldSurface(surface: surface))
         .onAppear {
+            guard focusesOnAppear else { return }
             Task { @MainActor in focused = true }
+        }
+    }
+}
+
+/// The backing for a ``GlobalSearchField/Surface``.
+private struct GlobalSearchFieldSurface: ViewModifier {
+    let surface: GlobalSearchField.Surface
+
+    func body(content: Content) -> some View {
+        switch surface {
+        case .inline:
+            content.background(Color.white.opacity(0.1), in: Capsule())
+        case .floating:
+            content.festivalCardCapsule()
         }
     }
 }
