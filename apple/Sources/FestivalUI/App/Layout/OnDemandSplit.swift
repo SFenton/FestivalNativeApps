@@ -303,7 +303,7 @@ struct OnDemandSplitLayout<Leading: View, Trailing: View>: View {
                     .frame(maxWidth: leadingWidth == nil ? .infinity : nil)
                     .opacity(covered ? 0 : 1)
                     .allowsHitTesting(!covered)
-                    .accessibilityHidden(covered)
+                    .accessibilityHidden(while: covered)
                 if let geometry, cover != .overList {
                     SplitDivider(width: geometry.dividerWidth, topScrimHeight: topScrimHeight)
                         .opacity(covered ? 0 : 1)

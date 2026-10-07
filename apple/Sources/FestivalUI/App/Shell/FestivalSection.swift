@@ -56,15 +56,17 @@ enum FestivalProfileKind: Sendable, Equatable {
 /// Pure rules for which root sections exist, ported from the web `BottomNav`.
 ///
 /// - No profile: Songs · Leaderboards · Settings.
-/// - Player: Songs · Suggestions · Compete · Statistics · Settings on compact widths;
-///   Leaderboards and Rivals replace Compete on regular widths (web ≥ 600 px).
+/// - Player: Songs · Suggestions · Compete · Statistics · Settings on phone tab bars
+///   (iPhone Duo folded or unfolded, issue #337); Leaderboards and Rivals replace
+///   Compete in the iPad/macOS sidebar (web ≥ 600 px).
 /// - Band: Songs · Suggestions · Leaderboards · Statistics · Settings.
 enum FestivalTabPolicy {
     /// Visible root sections in display order.
     ///
     /// - Parameters:
     ///   - profile: Selected profile kind.
-    ///   - regularWidth: True for iPad/macOS sidebars (the web's spacious bottom nav).
+    ///   - regularWidth: True for iPad/macOS sidebars (the web's spacious bottom nav);
+    ///     false for every phone tab bar, the iPhone Duo inner display included.
     /// - Returns: Ordered sections to show as tabs or sidebar rows.
     static func sections(profile: FestivalProfileKind, regularWidth: Bool) -> [FestivalSection] {
         var sections: [FestivalSection] = [.songs]

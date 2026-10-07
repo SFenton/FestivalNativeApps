@@ -205,7 +205,7 @@ struct LeaderboardsScreen: View {
                     widthClass: layout.widthClass, contentWidth: contentWidth,
                     minimumCardWidth: scaledMinimumCardWidth
                 ) {
-                    LazyVGrid(columns: regularWidthColumns, alignment: .leading, spacing: 24) {
+                    HingeGrid(columns: regularWidthColumns, alignment: .leading, spacing: 24) {
                         cards
                     }
                 } else {

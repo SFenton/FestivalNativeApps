@@ -162,7 +162,7 @@ struct PlayerBandsPreviewSection: View {
     @ViewBuilder
     private func cards(_ entries: [PlayerBandEntry]) -> some View {
         if layout.widthClass == .regular {
-            LazyVGrid(
+            HingeGrid(
                 columns: [GridItem(.flexible(), spacing: 6, alignment: .top), GridItem(.flexible(), alignment: .top)],
                 alignment: .leading, spacing: 6
             ) {

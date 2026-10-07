@@ -131,7 +131,7 @@ public enum FestivalFadeInStart: Equatable, Sendable {
 @MainActor
 public final class FestivalFadeInScope {
     /// Content movement (points) that counts as a scroll; absorbs sub-point layout jitter.
-    public static let scrollThreshold: CGFloat = 4
+    nonisolated public static let scrollThreshold: CGFloat = 4
 
     /// The clock this scope was created with, in seconds; injectable for tests.
     private let clock: () -> TimeInterval
@@ -453,6 +453,9 @@ struct FestivalFadeInScopeModifier: ViewModifier {
     let provided: FestivalFadeInScope?
     /// The rows' identity; a change re-arms the scope.
     let resetKey: AnyHashable?
+    /// Whether the content's own position feeds the scope; false for a page that only
+    /// scrolls in nested scroll views (``SwiftUICore/View/festivalNestedFadeInScope(resetKey:)``).
+    var measuresOffset = true
     @State private var owned = FestivalFadeInScope()
     @Environment(\.festivalFadeInFrozenTime) private var frozenTime
 
@@ -461,13 +464,76 @@ struct FestivalFadeInScopeModifier: ViewModifier {
         let _ = scope.freezeClock(at: frozenTime)
         // Re-armed while the body is built, before new rows' `onAppear` schedule fades.
         let _ = scope.arm(for: resetKey)
-        content
-            .environment(\.festivalFadeInScope, scope)
-            .onGeometryChange(for: CGFloat.self) { proxy in
-                proxy.frame(in: .scrollView).minY
-            } action: { offset in
-                scope.noteContentOffset(offset)
-            }
+        let scoped = content.environment(\.festivalFadeInScope, scope)
+        if measuresOffset {
+            scoped
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.frame(in: .scrollView).minY
+                } action: { offset in
+                    scope.noteContentOffset(offset)
+                }
+        } else {
+            scoped
+        }
+    }
+}
+
+// MARK: - Nested scroll views
+
+/// The first movement of a nested scroll view's content (a carousel's track, a card that
+/// scrolls on its own) inside a page's fade scope: pure, so it is unit-tested
+/// (`FadeInOnLoadTests`).
+///
+/// Every movement past ``FestivalFadeInScope/scrollThreshold`` from the last resting
+/// position counts; the scope's ``FestivalFadeInScope/rush()`` acts on the first one of
+/// each arm and ignores the rest, so a scope re-armed for new rows is rushed again.
+public struct FestivalNestedScrollMotion: Equatable, Sendable {
+    /// The content's last resting position along the scroll axis, nil before the first report.
+    public private(set) var resting: CGFloat?
+
+    /// Creates a tracker with no report yet.
+    public init() {}
+
+    /// Record the content's position along its scroll axis.
+    ///
+    /// - Parameter offset: The content's position in its scroll view (`minX` or `minY` in
+    ///   the `.scrollView` space).
+    /// - Returns: True when the content has moved past the scroll threshold since the last
+    ///   resting position, which then becomes this position.
+    public mutating func note(_ offset: CGFloat) -> Bool {
+        guard offset.isFinite else { return false }
+        guard let resting else {
+            self.resting = offset
+            return false
+        }
+        guard abs(offset - resting) > FestivalFadeInScope.scrollThreshold else { return false }
+        self.resting = offset
+        return true
+    }
+}
+
+/// Holds a ``FestivalNestedScrollMotion`` without making its updates re-render the view.
+@MainActor
+private final class FestivalNestedScrollMotionBox {
+    var motion = FestivalNestedScrollMotion()
+}
+
+/// Rushes the enclosing page's ``FestivalFadeInScope`` when this content moves in its own
+/// nearest scroll view.
+struct FestivalFadeInRushOnScrollModifier: ViewModifier {
+    /// The nested scroll view's axis.
+    let axis: Axis
+    @Environment(\.festivalFadeInScope) private var scope
+    @State private var box = FestivalNestedScrollMotionBox()
+
+    func body(content: Content) -> some View {
+        content.onGeometryChange(for: CGFloat.self) { [axis] proxy in
+            let frame = proxy.frame(in: .scrollView)
+            return axis == .horizontal ? frame.minX : frame.minY
+        } action: { offset in
+            guard let scope, box.motion.note(offset) else { return }
+            scope.rush()
+        }
     }
 }
 
@@ -742,5 +808,27 @@ extension View {
     /// - Returns: The scroll view with a page-level fade window.
     public func festivalScrollFadeInScope(_ scope: FestivalFadeInScope? = nil, resetKey: AnyHashable? = nil) -> some View {
         modifier(FestivalScrollFadeInScopeModifier(provided: scope, resetKey: resetKey))
+    }
+
+    /// ``festivalFadeInScope(resetKey:)`` for a page that does not scroll itself but holds
+    /// nested scroll views (the dual-source carousels): the page's position never feeds
+    /// the scope, so a title or region change cannot rush the entrance; each nested scroll
+    /// view rushes it with ``festivalFadeInRushOnScroll(_:)`` (``HorizontalCarousel`` does).
+    ///
+    /// - Parameter resetKey: The content's identity; a change re-arms the window.
+    /// - Returns: The content with a page-level fade window.
+    public func festivalNestedFadeInScope(resetKey: AnyHashable? = nil) -> some View {
+        modifier(FestivalFadeInScopeModifier(provided: nil, resetKey: resetKey, measuresOffset: false))
+    }
+
+    /// Rush the enclosing page's fade window (``FestivalFadeInScope``) when this content
+    /// first moves in its own nearest scroll view, as a page scroll does (load-transition
+    /// R5): apply it to the content directly inside a nested `ScrollView` (a carousel's
+    /// track, a card that scrolls on its own). Outside a page scope it does nothing.
+    ///
+    /// - Parameter axis: The nested scroll view's axis.
+    /// - Returns: The content, rushing its page's entrance when it scrolls.
+    public func festivalFadeInRushOnScroll(_ axis: Axis) -> some View {
+        modifier(FestivalFadeInRushOnScrollModifier(axis: axis))
     }
 }

@@ -81,7 +81,8 @@ func selectionKeepsVisibleTabAndPaths(selected: FestivalSection) {
     #expect(back.paths[.leaderboards] == [.leaderboards, player])
 }
 
-/// Unfolding a Duo (or any regular-width change) on Compete keeps the nested page too.
+/// An iPad window crossing size classes on Compete keeps the nested page too (the Duo
+/// keeps one phone set since #337).
 @Test func sectionSetWidthChangeCarriesComparablePath() {
     let rival = AppRoute.rivalDetail(rivalId: "r1", name: nil, scope: nil)
     let wide = FestivalTabPolicy.sections(profile: .player, regularWidth: true)
