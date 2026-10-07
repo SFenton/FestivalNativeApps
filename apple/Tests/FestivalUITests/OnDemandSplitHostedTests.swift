@@ -160,9 +160,9 @@ private final class FoldPose {
     var folded = false
 }
 
-/// Hosts the shell's section-set deferral (`FestivalShellContent`) around a split whose
-/// window layout and size follow ``FoldPose``, as folding moves the app between the
-/// Duo's displays: display size, size class and tab set change in one update.
+/// Hosts the shell (`FestivalShellContent`) around a split whose window layout and size
+/// follow ``FoldPose``, as folding moves the app between the Duo's displays: display size
+/// and size class change in one update. The tab set stays compact in both poses (#337).
 private struct FoldingSplitHost: View {
     let session: FestivalSession
     let pose: FoldPose
@@ -205,9 +205,9 @@ private func mainQueueTurn() async {
 }
 
 /// Folding with an item open in the split never paints a blank frame: in the fold's own
-/// update the split and the tab set keep their shape, and one main-queue turn later the
-/// open item is pushed in one column. Unfolding mirrors it, and repeated fold/unfold
-/// keeps working and keeps the path (#346).
+/// update the split keeps its shape, and one main-queue turn later the open item is
+/// pushed in one column. Unfolding mirrors it, and repeated fold/unfold keeps working and
+/// keeps the path (#346). The phone tab set never changes across the fold (#337).
 ///
 /// Each phase is captured synchronously, with no sleep, and must paint content. Applying
 /// the split's new shape in the window's own update fails the pending-phase text checks.
@@ -225,7 +225,7 @@ private func mainQueueTurn() async {
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
     let split = ["Fixture List Root", "Root On Top", "No Player Selected", "Rows Select"]
-    try await nativeHostedSettle(host, untilText: split + ["Tabs Regular"], timeout: splitBudget)
+    try await nativeHostedSettle(host, untilText: split + ["Tabs Compact"], timeout: splitBudget)
 
     /// Lay out and draw now (no run-loop turn), capturing only the display the pose
     /// shows, and require painted content and `texts` there.
@@ -246,18 +246,21 @@ private func mainQueueTurn() async {
     for round in 1...2 {
         pose.folded = true
         // The fold's own update: the split keeps its shape (the list fills the outer
-        // display) and the regular tab set.
-        try renders("\(round)-fold-pending", split + ["Tabs Regular"], without: ["Tabs Compact"])
+        // display); the tabs are the compact set throughout (#337).
+        try renders("\(round)-fold-pending", split + ["Tabs Compact"], without: ["Tabs Regular"])
         await mainQueueTurn()
-        // Applied: the open item pushed in one column, with the compact tab set.
-        try renders("\(round)-folded", ["No Player Selected", "Tabs Compact"], without: ["Fixture List Root", "Rows Select"])
+        // Applied: the open item pushed in one column, with the same compact tab set.
+        try renders(
+            "\(round)-folded", ["No Player Selected", "Tabs Compact"],
+            without: ["Fixture List Root", "Rows Select", "Tabs Regular"]
+        )
         #expect(recorder.path == [fixtureRival], "Folding keeps the open item")
 
         pose.folded = false
         // The unfold's own update: still one column with the item pushed.
         try renders("\(round)-unfold-pending", ["No Player Selected", "Tabs Compact"], without: ["Rows Select"])
         await mainQueueTurn()
-        try renders("\(round)-unfolded", split + ["Tabs Regular"])
+        try renders("\(round)-unfolded", split + ["Tabs Compact"], without: ["Tabs Regular"])
         #expect(recorder.path == [fixtureRival], "Unfolding keeps the open item")
     }
 }

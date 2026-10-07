@@ -21,6 +21,7 @@ The registry only lists behaviors the native apps have already needed to share. 
 | Pattern | Owns |
 |---|---|
 | [scroll-edge](scroll-edge.md) | Content fading under pinned chrome: page headers, sheet headers, pinned section headers and bottom chrome |
+| [scroll-indicators](scroll-indicators.md) | Scroll bars: system indicators on every page, no in-app toggle, and the few views allowed to hide them |
 | [section-jump-landing](section-jump-landing.md) | Where Quick Links and the A–Z index land a section, and which section counts as current |
 | [surface-materials](surface-materials.md) | Liquid Glass vs material vs opaque surfaces; cards, rows and custom controls |
 | [page-tools-and-nav-chrome](page-tools-and-nav-chrome.md) | Where page actions, search, Quick Links, the bell and Profile live on each platform |
@@ -36,3 +37,4 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [view-all-cta](view-all-cta.md) | The full-width purple "View all" button below a card's rows: look, placement, copy and accessible name |
 | [back-keeps-place](back-keeps-place.md) | Back to a cached page: no reload, no movement or replayed fade-in, focus back on the opener |
 | [settings-value-row](settings-value-row.md) | Read-only Settings title/value rows (Version, Service Info state): inline when it fits, otherwise the value stacks under the title |
+| [hinge-columns](hinge-columns.md) | Foldable book pose: grid and two-up row gutters on the fold, full-width titles kept on their side, flat layout when unfolded |

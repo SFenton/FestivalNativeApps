@@ -143,14 +143,6 @@ struct DeviceLayout: Sendable, Equatable {
     /// still covers the window, so it keeps the regular-width form size.
     var windowWidthClass: WidthClass { windowWidthClassOverride ?? widthClass }
 
-    /// Regular width *and* regular height: the iPhone Duo inner display in either
-    /// orientation, flat or partially folded (HIG Designing for iPhone Duo: "Use size
-    /// classes: compact width outer, regular width inner"). A large iPhone in landscape
-    /// is regular width but compact height, so it keeps its portrait layout.
-    var isRegularInBothDimensions: Bool {
-        widthClass == .regular && heightClass == .regular
-    }
-
     /// The part of ``overlayInsets`` that the safe area does not already cover: only
     /// hardware occlusions (the outer camera). Use it for controls laid out *inside*
     /// the safe area (a scrubber in a page's content), where ``overlayInsets`` would
@@ -167,14 +159,14 @@ struct DeviceLayout: Sendable, Equatable {
     /// Whether `FestivalTabPolicy` should use its regular-width section set
     /// (Leaderboards and Rivals as separate sections, like the web at ≥ 600 px).
     ///
-    /// Only the sidebar shell (iPad/macOS) and an iPhone Duo inner display qualify
-    /// (operator, 2026-09-28): a large iPhone in landscape is regular width too, but
-    /// keeps its portrait tabs (compact height). Decided by size classes, not the
-    /// hinge pose (`/duo` D2, 2026-10-02). Only the shelved dual-source arrangement
-    /// (``ContentArrangement/dualSource``) would keep the compact set.
+    /// Only the sidebar shell (iPad/macOS) qualifies. Every phone tab bar keeps the
+    /// compact set (Compete), including the iPhone Duo inner display in either
+    /// orientation (owner, issue #337, replacing the 2026-09-28 Duo regular set) and a
+    /// large iPhone in landscape. Folding or unfolding the Duo therefore never changes
+    /// its tabs (HIG Designing for iPhone Duo: "Preserve functionality, element state,
+    /// hierarchy, and access across displays/poses").
     var usesRegularSectionSet: Bool {
         sectionChrome == .sidebar
-            || (isRegularInBothDimensions && contentArrangement != .dualSource)
     }
 
     /// Narrowest column that pages treat as regular width (two-column dashboards,

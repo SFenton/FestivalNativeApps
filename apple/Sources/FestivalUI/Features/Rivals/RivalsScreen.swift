@@ -24,8 +24,9 @@ struct RivalsScreen: View {
     #endif
 
     let session: FestivalSession
-    /// True where Rivals is a tab root (iPad, Duo unfolded): its toolbar then ends
-    /// with the bell and avatar so the avatar stays rightmost. False when pushed.
+    /// True where Rivals is a root section (the iPad flyout, the Mac sidebar): its
+    /// toolbar then ends with the bell and avatar so the avatar stays rightmost. False
+    /// when pushed.
     let showsRootTrailingItems: Bool
     @State private var tab: Tab = .song
     @State private var rankBy: RivalRankMetric = .totalscore
