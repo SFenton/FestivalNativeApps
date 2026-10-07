@@ -6,7 +6,7 @@ namespace Festival.Core.ViewModels;
 
 #region Player bands
 /// <summary>
-/// <c>/bands/player/:accountId</c>: a player's bands filtered by group (All/Duos/Trios/Quads), 25 per page
+/// <c>/bands/player/:accountId[?group=]</c>: a player's bands filtered by group (All/Duos/Trios/Quads, initially the route's), 25 per page
 /// (web <c>PlayerBandsPage</c>). Late responses for a previous group or page are discarded.
 /// </summary>
 public sealed partial class PlayerBandsViewModel : ObservableObject
@@ -16,6 +16,7 @@ public sealed partial class PlayerBandsViewModel : ObservableObject
 
     private readonly FestivalSession session;
     private int version;
+    private bool ready;
 
     /// <summary>Creates the page model.</summary>
     /// <param name="session">Shared session.</param>
@@ -27,6 +28,9 @@ public sealed partial class PlayerBandsViewModel : ObservableObject
         Pager = new BandsPagerViewModel(GoToPageAsync);
         Status = new ServiceStatusViewModel("player-bands:" + route.AccountId, "Failed to load bands", LoadAsync, session.Time);
         if (session.SelectedPlayer is { } player && player.AccountId == AccountId) PlayerName = player.DisplayName;
+        else if (!string.IsNullOrWhiteSpace(route.PlayerName)) PlayerName = route.PlayerName.Trim();
+        Group = route.Group;
+        ready = true;
         LoadSwap = new LoadSwap(session.Time);
         LoadSwap.PropertyChanged += (_, _) =>
         {
@@ -115,6 +119,8 @@ public sealed partial class PlayerBandsViewModel : ObservableObject
     /// <param name="value">New group.</param>
     partial void OnGroupChanged(PlayerBandGroup value)
     {
+        // The route's initial group is applied before the page's first load.
+        if (!ready) return;
         Pager.Page = 1;
         _ = LoadAsync();
     }

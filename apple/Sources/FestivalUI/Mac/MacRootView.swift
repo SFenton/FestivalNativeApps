@@ -239,6 +239,8 @@ public struct MacRootView: View {
                     isVisible: rootIsTop,
                     openShop: { navigation.select(.shop) }
                 )
+                // Skips the page's body when its column re-runs without a change (#325).
+                .equatable()
                 .firstRun(.songs, session: session)
             }
         case .rivals:

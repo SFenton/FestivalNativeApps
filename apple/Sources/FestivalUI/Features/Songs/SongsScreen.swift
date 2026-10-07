@@ -33,7 +33,7 @@ enum FestivalDebugLaunch {
 // MARK: - Song catalogue
 
 /// Native virtualized catalogue with explicit loading, error and offline states.
-struct SongsScreen: View {
+struct SongsScreen: View, Equatable {
     let session: FestivalSession
     let visibleInstruments: Set<Instrument>
     let highContrast: Bool
@@ -337,6 +337,32 @@ struct SongsScreen: View {
         _settledSearch = settledSearch
         _instrument = selectedInstrument
         _navigationNotice = navigationNotice
+    }
+
+    // MARK: - Re-render boundary
+
+    /// Whether two Songs pages show the same thing, so a parent that re-creates the page
+    /// without changing it skips its body (mounted with `.equatable()`).
+    ///
+    /// The iOS 26 tab bar minimizes as the list scrolls down and expands as it returns
+    /// to the top, and each change re-runs the section's navigation stack, which builds
+    /// a new `SongsScreen`. Its `openShop` closure made every copy compare unequal, so
+    /// each pass re-ran the whole filter/sort pipeline and List on the main thread in the
+    /// middle of the gesture, and the large title and first rows jumped (issue #325).
+    /// `openShop` compares always-equal, like `SplitOpenReporter`: the parent re-creates
+    /// it every pass and it only writes parent-owned navigation state. The bindings and
+    /// the page's own state, environment and observed session update it directly.
+    ///
+    /// - Parameters:
+    ///   - lhs: The page currently shown.
+    ///   - rhs: The page the parent built now.
+    /// - Returns: True when the session and every value input match.
+    nonisolated static func == (lhs: SongsScreen, rhs: SongsScreen) -> Bool {
+        lhs.session === rhs.session
+            && lhs.visibleInstruments == rhs.visibleInstruments
+            && lhs.highContrast == rhs.highContrast
+            && lhs.isVisible == rhs.isVisible
+            && (lhs.openShop == nil) == (rhs.openShop == nil)
     }
 
     var body: some View {

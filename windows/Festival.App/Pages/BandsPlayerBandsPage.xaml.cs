@@ -15,6 +15,7 @@ public sealed partial class BandsPlayerBandsPage : Page
     {
         InitializeComponent();
         Controls.BoardFooter.Inset(Footer, Cards);
+        BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Scroller, Footer);
     }
 
     /// <summary>Page model (set on navigation).</summary>

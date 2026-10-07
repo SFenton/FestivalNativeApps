@@ -62,6 +62,8 @@ struct SongNavigationRoot: View {
                 isVisible: isVisible && rootIsTop,
                 openShop: { path.append(.shop) }
             )
+            // Skips the page's body when a tab-bar minimize re-runs the stack (#325).
+            .equatable()
         }
     }
 }

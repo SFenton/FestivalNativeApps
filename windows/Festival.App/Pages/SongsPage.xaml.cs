@@ -66,6 +66,9 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <summary>List width the enabled pills need inline, measured at the current text size.</summary>
     private double metadataRequired = double.PositiveInfinity;
     private readonly TopEdgeFade edgeFade;
+
+    /// <summary>Viewport-relative text tops of the first visible row's section title and the next one (edge-fade cut).</summary>
+    private double? fadeOwnTop, fadeNextTop;
     private readonly Windows.UI.ViewManagement.UISettings fadeUiSettings = new();
 
     /// <summary>Content position that leaves the pinned title unpushed (no incoming title).</summary>
@@ -227,6 +230,7 @@ public sealed partial class SongsPage : Page, IPageBack
         var next = TitleAt(section + 1);
         var push = SongSectionHeader.Push(section, stickyLabels.Length, own?.Top, next?.Top, StickyBar.ActualHeight,
             SongHeaderEdgeFade.Depth);
+        (fadeOwnTop, fadeNextTop) = (own?.Top, next?.Top);
         if (Zoom.IsZoomedInViewActive) stickySection = push.Current;
         var incoming = push.Incoming < 0 ? null : push.Incoming == section ? own : next;
         ShowStickyHeader(push.Current >= 0 ? stickyLabels[push.Current] : "", incoming);
@@ -335,6 +339,7 @@ public sealed partial class SongsPage : Page, IPageBack
         pushProps.InsertScalar("H", 0);
         StartTranslation(StickyHeader, "Vector3(0, Clamp(p.C + s.Translation.Y, -p.H, 0), 0)", scroll, pushProps);
         StartTranslation(IncomingHeader, "Vector3(0, Max(0, p.V + p.C + s.Translation.Y), 0)", scroll, pushProps);
+        edgeFade.Track(scroll);
     }
 
     /// <summary>Drives an element's Translation with an expression over the scroll and push property sets.</summary>
@@ -389,9 +394,10 @@ public sealed partial class SongsPage : Page, IPageBack
     }
 
     /// <summary>
-    /// Fades rows out at the list's top edge under the section header bar (issue #49) while the header shows and the
-    /// list is scrolled, unless a contrast theme, Windows transparency effects off or the in-app Increase Contrast or
-    /// Less Transparency setting asks for the hard edge.
+    /// Fades rows out at the list's top edge under the section header bar (scroll-edge R2–R5, issues #49, #308) while the
+    /// header shows and the list is scrolled, unless a contrast theme, Windows transparency effects off or the in-app
+    /// Increase Contrast or Less Transparency setting asks for the hard edge. The ramp is cut to the nearest section
+    /// title (<see cref="SongHeaderEdgeFade.FadeDepth"/>), which the compositor follows between view changes.
     /// </summary>
     /// <param name="headerShown">Whether the section header bar is visible.</param>
     private void UpdateEdgeFade(bool headerShown)
@@ -399,9 +405,12 @@ public sealed partial class SongsPage : Page, IPageBack
         var settings = App.Session.Settings;
         var enabled = SongHeaderEdgeFade.IsEnabled(ContrastTheme.IsOn, fadeUiSettings.AdvancedEffectsEnabled,
             settings.LessTransparency, settings.MoreContrast);
-        var strength = SongHeaderEdgeFade.Strength(scroller?.VerticalOffset ?? 0);
-        edgeFade.Update(headerShown && enabled ? strength : 0);
-        ListFadeHost.SetStatus(SongHeaderEdgeFade.Status(headerShown, enabled, strength));
+        var offset = scroller?.VerticalOffset ?? 0;
+        var bar = StickyBar.ActualHeight;
+        edgeFade.SetTitles(fadeOwnTop + offset, fadeNextTop + offset, bar);
+        edgeFade.Update(headerShown && enabled && offset > 0);
+        ListFadeHost.SetStatus(SongHeaderEdgeFade.Status(headerShown, enabled, offset,
+            SongHeaderEdgeFade.FadeDepth(offset, fadeOwnTop, fadeNextTop, bar)));
     }
 
     /// <summary>Follows appearance changes that switch the edge fade on or off while the page is shown.</summary>

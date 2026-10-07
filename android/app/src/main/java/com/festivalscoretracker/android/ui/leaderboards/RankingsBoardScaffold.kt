@@ -65,8 +65,8 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  * @param pager Pager.
  * @param fadeAboveFooter Hide rows beneath the bottom-anchored footer and fade them out just
  *   above it ([BoardFooterEdgeFade], the web's `useScrollFade`; issues #93, #308), with a hard cut
- *   in the contrast, transparency and motion modes; hidden rows also leave touch and TalkBack
- *   (issue #104).
+ *   in the contrast, transparency and motion modes that still hides the covered rows (scroll-edge
+ *   R7, issue #306); hidden rows also leave touch and TalkBack (issue #104).
  * @param rows Row items.
  */
 @Composable
@@ -166,6 +166,8 @@ internal fun RankingsBoardLayout(
                     // the last row like another item (issue #293).
                     PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = anchoredDp + itemGap),
                     Modifier
+                        // The clip is the edge itself: accessibility modes only drop the ramp, never the
+                        // cut, so covered rows leave sight, touch and TalkBack in every mode (scroll-edge R7).
                         .then(if (fadeAboveFooter) Modifier.clipAboveFooter { anchoredHeight } else Modifier)
                         .bottomChromeEdgeFade(edge),
                     itemGap,
@@ -274,7 +276,8 @@ private fun BoardList(
 
 /**
  * Clips the full-height list at the floating footer's top edge, where [bottomChromeEdgeFade]
- * already hides the rows: the list keeps its full viewport (scrolling, padding and the fade are
+ * ends its ramp (in the accessibility hard-edge modes the clip is the edge itself, scroll-edge
+ * R7): the list keeps its full viewport (scrolling, padding and the fade are
  * unchanged) but reports the shorter size, so rows beneath the footer and pager leave touch and
  * the accessibility tree. Otherwise TalkBack skips a row fully covered by the footer and focuses
  * hidden rows peeking around the pager instead of scrolling (issue #104).

@@ -34,7 +34,8 @@
         <!-- Selectors (compact): the chart fills the sheet above native ComboBoxes for the instrument (icon + name),
              difficulty and display (Fluent; replaces the web's mobile instrument accordion, issue #88). Each box is as wide
              as its longest option; difficulty and display reflow under the instrument when one row can't fit them
-             (PathSelectorLayout, issue #280). -->
+             (PathSelectorLayout, issue #280). Declared before ChartArea so Tab reaches the selectors before the chart
+             they choose (spec order). -->
         <Grid x:Name="CompactSelectors" Grid.Row="2" ColumnSpacing="8" Visibility="Collapsed" SizeChanged="OnCompactSelectorsSizeChanged">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
@@ -107,9 +108,12 @@
                             <FontIcon Glyph="&#xE8A3;" FontSize="14" />
                         </Button>
                     </StackPanel>
-                    <!-- A tab stop (named, own ID) so keyboard users can pan a zoomed or tall chart with arrow/Page keys. -->
+                    <!-- A tab stop (named, own ID) so keyboard users can pan a zoomed or tall chart with arrow/Page keys.
+                         Bars Hidden (no indicator beside the chart, issues #87/#279) unless Windows always shows scroll
+                         bars (ApplyScrollBars); the scroll modes and zoom stay enabled. -->
                     <ScrollViewer x:Name="ImageScroller" Grid.Row="1" ZoomMode="Enabled" MinZoomFactor="1" MaxZoomFactor="3"
-                                  HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Auto"
+                                  HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"
+                                  HorizontalScrollMode="Auto" VerticalScrollMode="Auto"
                                   IsTabStop="True" AutomationProperties.Name="Path chart" AutomationProperties.AutomationId="fst.paths.image-scroller"
                                   ViewChanged="OnImageViewChanged" SizeChanged="OnImageScrollerSizeChanged">
                         <Image x:Name="PathImage" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Top"
