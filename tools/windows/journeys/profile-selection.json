@@ -262,7 +262,7 @@
       "waitfor:id=fst.profile.scope.bands@5",
       "select:id=fst.profile.scope.bands",
       "assertname:id=fst.profile.search|Find Band",
-      "assertname:id=fst.profile.hint|Band search isn't available: the service's band search can change stored data, so this app doesn't call it. Open a band from a player's Bands list or from Band Rankings.",
+      "assertname:id=fst.profile.hint|Choosing a band as your profile isn't available in the app yet. To find a band, use Search; you can also open one from a player's Bands list or Band Rankings.",
       "waitgone:id=fst.profile.retry",
       "tree:{stem}-tree.json"
     ]

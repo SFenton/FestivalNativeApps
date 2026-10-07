@@ -5,7 +5,7 @@ public class ShellPwaRoutingTests
     public static TheoryData<string> PlayerOnlyPaths => new()
     {
         "/rivals", "/rivals/all?category=common", "/rivals/r1", "/rivals/r1/rivalry?mode=almost_passed",
-        "/compete", "/statistics", "/suggestions", "/songs/s1/Solo_Guitar/history",
+        "/compete", "/statistics", "/suggestions",
     };
 
     public static TheoryData<string> PublicPaths => new()
@@ -13,6 +13,8 @@ public class ShellPwaRoutingTests
         "/songs/s1", "/songs/s1/Solo_Guitar", "/songs/s1/bands/Band_Duets", "/player/acc1", "/bands", "/bands/b1",
         "/bands/player/acc1", "/leaderboards", "/leaderboards/all", "/leaderboards/bands/Band_Duets", "/shop",
         "/settings/licenses", "/search?q=abc",
+        // The history page renders its own no-player state (web PlayerHistoryPage; issue #324).
+        "/songs/s1/Solo_Guitar/history",
     };
 
     [Theory]

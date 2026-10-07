@@ -116,7 +116,7 @@ private final class ScrollEdgeReadingRelay {
     /// Delivers `value` on the next main-actor turn if `onScrollGeometryChange` has not
     /// by then. It sometimes records a changed value without calling its action: a
     /// scroll view that outlived a reload gate's content swap (Song Band's header stays
-    /// through reloads, issue #317) got its taller rows' 0 → 36 pt bottom fade value
+    /// through reloads, issue #317) got its taller rows' 0 → 40 pt bottom fade value
     /// recorded but never delivered, so the rows were cut hard at the pager until the
     /// next change. A normal change is delivered by the action first, so this does
     /// nothing then.

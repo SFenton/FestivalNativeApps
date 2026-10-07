@@ -14,11 +14,18 @@ namespace Festival.App.Controls;
 /// The web's <c>fadeInUp</c> for native content (<see cref="FadeInTiming"/>: 400 ms ease-out from opacity 0 and 12 epx
 /// lower). <c>FadeIn.OnShow</c> fades an element each time it becomes visible (page content bound to a loaded state);
 /// <c>FadeIn.Stagger</c> on an <see cref="ItemsRepeater"/> or <see cref="ListViewBase"/> fades the rows realized just
-/// after its items change, 125 ms apart, for the rows that fit the viewport; the first scroll movement after a load closes
-/// that window (<see cref="StaggerArm"/>, pattern <c>load-transition</c> R5), so rows realized by scrolling just appear,
-/// as on the web. <see cref="Restagger(UIElement, int)"/> re-arms it for an appended batch only, which scrolling reveals
-/// (Suggestions). Both run on
-/// the compositor, leave nothing running when finished, and do nothing while motion is off (<see cref="Motion.Allowed"/>).
+/// after its items change, 125 ms apart for the rows that fit the viewport and with the last of them for the rows below
+/// (<see cref="StaggerArm"/>, pattern <c>load-transition</c> R5). A page's own entrance (sections, headings, cards: Song
+/// Detail, Player Profile) is the same arm owned by the page's <see cref="ScrollViewer"/>
+/// (<see cref="BeginEntrance"/> + <see cref="Enter"/>), and a board's pinned row enters with its rows' arm
+/// (<see cref="Enter"/> with the list as owner): every delayed fade belongs to exactly one entrance. The first scroll
+/// movement while an entrance runs <b>rushes</b> it, like the web <c>useStaggerRush</c> (issue #323): every fade of that
+/// entrance that hasn't started yet starts at once, so the remaining content fades in together and nothing reached by the
+/// scroll is already opaque; a scroll after the entrance never replays it.
+/// <see cref="Restagger(UIElement, int)"/> re-arms it for an appended batch only, which scrolling reveals and never rushes
+/// (Suggestions). <see cref="SelectedRowReveal"/> holds the rows below the first screen for its automatic scroll and
+/// rushes them as it starts. All of it runs on the compositor, leaves nothing running when finished, and does nothing
+/// while motion is off (<see cref="Motion.Allowed"/>).
 /// </summary>
 public static class FadeIn
 {
@@ -46,10 +53,10 @@ public static class FadeIn
     private static void OnShowChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is not FrameworkElement element || e.NewValue is not true) return;
-        element.Loaded += (_, _) => { if (element.Visibility == Visibility.Visible) Play(element, TimeSpan.Zero); };
+        element.Loaded += (_, _) => { if (element.Visibility == Visibility.Visible) Play(element); };
         element.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) =>
         {
-            if (element.IsLoaded && element.Visibility == Visibility.Visible) Play(element, TimeSpan.Zero);
+            if (element.IsLoaded && element.Visibility == Visibility.Visible) Play(element);
         });
     }
     #endregion
@@ -170,14 +177,25 @@ public static class FadeIn
     }
 
     /// <summary>Monotonic time for the stagger window.</summary>
-    private static TimeSpan Now => Stopwatch.GetElapsedTime(0);
+    internal static TimeSpan Now => Stopwatch.GetElapsedTime(0);
+
+    /// <summary>A stagger list's fade window (a selected-row reveal reads its generation and scroll state).</summary>
+    /// <param name="list">Repeater or list view.</param>
+    /// <returns>Arm.</returns>
+    internal static StaggerArm ArmFor(UIElement list) => ArmOf(list);
+
+    /// <summary>Rows of the list that stagger: those that fit the window (web <c>estimateVisibleCount</c>).</summary>
+    /// <param name="list">Repeater or list view.</param>
+    /// <returns>Visible count.</returns>
+    internal static int VisibleRows(FrameworkElement list) =>
+        FadeInTiming.VisibleCount(list.XamlRoot?.Size.Height ?? list.ActualHeight, GetRowHeight(list));
 
     /// <summary>
     /// A new stagger window: <see cref="FadeInTiming.ArmWindow"/>, or the Debug/automation <c>FST_DEBUG_FADE_WINDOW_MS</c>
     /// override, which lets a UI journey's scripted scroll land inside the window (issue #260).
     /// </summary>
     /// <returns>Closed arm.</returns>
-    public static StaggerArm NewArm() => new(WindowOverride);
+    private static StaggerArm NewArm() => new(WindowOverride);
 
     private static readonly TimeSpan? WindowOverride = StaggerArm.ParseWindow(App.LaunchEnvironment("FST_DEBUG_FADE_WINDOW_MS"));
 
@@ -249,9 +267,7 @@ public static class FadeIn
             default:
                 return;
         }
-        var element = (FrameworkElement)d;
-        element.Loaded += (_, _) => TrackerOf(element).Attach();
-        element.Unloaded += (_, _) => TrackerOf(element).Detach();
+        TrackerOf((FrameworkElement)d).Hook();
     }
 
     /// <summary>
@@ -259,33 +275,43 @@ public static class FadeIn
     /// then re-arms the list so rows realized in the next moments continue the sequence.
     /// </summary>
     /// <param name="list">List view.</param>
-    public static void StaggerRealized(ListViewBase list)
-    {
-        Restagger(list);
-        SettleNow(list);
-        var visible = FadeInTiming.VisibleCount(list.XamlRoot?.Size.Height ?? list.ActualHeight, GetRowHeight(list));
-        for (var i = 0; i < FadeInTiming.MaxStaggered; i++)
-        {
-            if (list.ContainerFromIndex(i) is not UIElement container) break;
-            if (FadeInTiming.StaggerDelay(i, visible) is { } delay) PlayRow(list, container, i, delay);
-        }
-    }
+    public static void StaggerRealized(ListViewBase list) =>
+        StaggerRealized(list, list.Items.Count, i => list.ContainerFromIndex(i) as UIElement);
 
     /// <summary>
     /// <see cref="StaggerRealized(ListViewBase)"/> for a repeater (the Shop grid kept hidden until its first tiles' art
     /// decoded, and a List/Grid switch that replays the entrance for the new layout).
     /// </summary>
     /// <param name="repeater">Repeater.</param>
-    public static void StaggerRealized(ItemsRepeater repeater)
+    public static void StaggerRealized(ItemsRepeater repeater) =>
+        StaggerRealized(repeater, repeater.ItemsSourceView?.Count ?? 0, repeater.TryGetElement);
+
+    /// <summary>
+    /// Re-arms the list and fades every row it has realized: the first screen staggered, the rows below it with the last
+    /// staggered row (issue #323), so none of them is opaque when a scroll reaches it during the entrance.
+    /// </summary>
+    /// <param name="list">Repeater or list view.</param>
+    /// <param name="count">Items in the list.</param>
+    /// <param name="realized">The realized element at an index, if any.</param>
+    private static void StaggerRealized(FrameworkElement list, int count, Func<int, UIElement?> realized)
     {
-        Restagger(repeater);
-        SettleNow(repeater);
-        var visible = FadeInTiming.VisibleCount(repeater.XamlRoot?.Size.Height ?? repeater.ActualHeight, GetRowHeight(repeater));
-        var count = repeater.ItemsSourceView?.Count ?? 0;
-        for (var i = 0; i < Math.Min(count, FadeInTiming.MaxStaggered); i++)
+        Restagger(list);
+        SettleNow(list);
+        var arm = ArmOf(list);
+        var (x, y) = TrackerOf(list).Offset();
+        var now = Now;
+        var visible = VisibleRows(list);
+        var found = false;
+        for (var i = 0; i < count; i++)
         {
-            if (repeater.TryGetElement(i) is not UIElement element) continue;
-            if (FadeInTiming.StaggerDelay(i, visible) is { } delay) PlayRow(repeater, element, i, delay);
+            if (realized(i) is not UIElement element)
+            {
+                // Realized rows are contiguous: stop after them, or when none of the first screen is realized.
+                if (found || i >= FadeInTiming.MaxStaggered) break;
+                continue;
+            }
+            found = true;
+            if (arm.Delay(i, visible, now, x, y) is { } delay) PlayRow(list, element, i, delay, arm);
         }
     }
 
@@ -307,13 +333,14 @@ public static class FadeIn
     private static void Prepare(FrameworkElement list, UIElement element, int index)
     {
         var arm = ArmOf(list);
-        var (x, y) = TrackerOf(list).Offset();
+        var tracker = TrackerOf(list);
+        var (x, y) = tracker.Offset();
         var now = Now;
-        if (arm.Scrolled(x, y)) Trace("fade-close", list, $"start={arm.BatchStart} since={arm.SinceArmed(now).TotalMilliseconds:F0}");
-        var visible = FadeInTiming.VisibleCount(list.XamlRoot?.Size.Height ?? list.ActualHeight, GetRowHeight(list));
+        OnScrolled(list, arm, arm.Scrolled(x, y, now), now);
+        var visible = VisibleRows(list);
         if (arm.Delay(index, visible, now, x, y) is { } delay)
         {
-            PlayRow(list, element, index, delay);
+            PlayRow(list, element, index, delay, arm);
             return;
         }
         Reset(element);
@@ -321,21 +348,151 @@ public static class FadeIn
     }
 
     /// <summary>
-    /// A stagger list's scroller (a list view's own, else the nearest scrolling ancestor): its movement closes the
-    /// list's load arm. Attached while the list is loaded only, so a recycled inner list never outlives its page.
+    /// Acts on what a scroll movement did to an entrance's arm: a rush starts every pending fade of the entrance (its
+    /// rows and its direct entrances, such as a board's pinned row) at once; a close only traces.
+    /// </summary>
+    /// <param name="owner">The entrance's list or page scroller.</param>
+    /// <param name="arm">Its arm.</param>
+    /// <param name="scroll">What the movement did.</param>
+    /// <param name="now">Monotonic time.</param>
+    private static void OnScrolled(FrameworkElement owner, StaggerArm arm, ArmScroll scroll, TimeSpan now)
+    {
+        switch (scroll)
+        {
+            case ArmScroll.Rushed:
+                TraceRush(owner, arm, RushPending(owner, arm, now, out var kept), kept, now);
+                break;
+            case ArmScroll.Closed:
+                Trace("fade-close", owner, $"start={arm.BatchStart} since={arm.SinceArmed(now).TotalMilliseconds:F0}");
+                break;
+        }
+    }
+
+    /// <summary>Traces a rush: fades started at once and fades it left on their delay (only an appended batch's).</summary>
+    /// <param name="owner">The entrance's list or page scroller.</param>
+    /// <param name="arm">Its arm.</param>
+    /// <param name="rushed">Fades started at once.</param>
+    /// <param name="kept">Pending fades of the entrance the rush did not reach.</param>
+    /// <param name="now">Monotonic time.</param>
+    private static void TraceRush(FrameworkElement owner, StaggerArm arm, int rushed, int kept, TimeSpan now) =>
+        Trace("fade-rush", owner, $"start={arm.BatchStart} rushed={rushed} kept={kept} since={arm.SinceArmed(now).TotalMilliseconds:F0}");
+
+    /// <summary>
+    /// Rushes a list's load entrance for an automatic scroll about to start (<see cref="SelectedRowReveal"/>): pending
+    /// fades (rows and the pinned row) start now and rows the scroll realizes fade in with them.
+    /// </summary>
+    /// <param name="list">List.</param>
+    /// <param name="lasting">How long the scroll may take.</param>
+    internal static void RushForAutomaticScroll(FrameworkElement list, TimeSpan lasting)
+    {
+        var arm = ArmOf(list);
+        var now = Now;
+        if (!arm.Rush(now, lasting)) return;
+        TraceRush(list, arm, RushPending(list, arm, now, out var kept), kept, now);
+    }
+    #endregion
+
+    #region Entrances
+    /// <summary>
+    /// Starts a page's own first-load entrance (Song Detail's sections and cards, Player Profile's title and Overview):
+    /// a load arm owned by the page's scroller, whose first movement rushes every <see cref="Enter"/> fade of the page
+    /// that hasn't started (a drag, wheel, Quick Links jump or programmatic scroll; web <c>useStaggerRush</c>, issue #323).
+    /// </summary>
+    /// <param name="scroller">The page's scroller.</param>
+    public static void BeginEntrance(ScrollViewer scroller)
+    {
+        TrackerOf(scroller).Hook();
+        Restagger(scroller);
+        SettleNow(scroller);
+    }
+
+    /// <summary>
+    /// Fades an element in as part of an entrance: its own delay while the entrance runs (held to the entrance's last
+    /// start once the window has passed), at once while a scroll rushes it, in place after it (R5). The owner is a page
+    /// scroller after <see cref="BeginEntrance"/>, or a stagger list whose rows the element enters with (a board's pinned
+    /// row, issue #295), so the rush that starts the rows starts it too.
+    /// </summary>
+    /// <param name="owner">The entrance's page scroller or stagger list.</param>
+    /// <param name="element">Section, card or pinned row.</param>
+    /// <param name="natural">Its delay in the entrance's choreography.</param>
+    public static void Enter(FrameworkElement owner, UIElement element, TimeSpan natural)
+    {
+        var arm = ArmOf(owner);
+        var (x, y) = TrackerOf(owner).Offset();
+        var now = Now;
+        // A scroll the scroller hasn't reported yet (an element realized by it) rushes before the element is scheduled.
+        OnScrolled(owner, arm, arm.Scrolled(x, y, now), now);
+        if (arm.Entrance(natural, now) is not { } delay)
+        {
+            Reset(element);
+            return;
+        }
+        Schedule(element, delay, arm, -1);
+        Trace("fade-enter", owner, $"target={NameOf(element)} delay={delay.TotalMilliseconds:F0} motion={(Motion.Allowed ? 1 : 0)}");
+    }
+    #endregion
+
+    #region Automatic scroll and scroll tracking
+
+    /// <summary>
+    /// Announces a list's automatic scroll at <paramref name="at"/>: rows below its first screen whose fades would start
+    /// before then wait for it (<see cref="StaggerArm.ExpectScroll"/>), so the scroll reaches rows still fading in.
+    /// </summary>
+    /// <param name="list">List.</param>
+    /// <param name="at">When the scroll is expected (<see cref="Now"/> time).</param>
+    /// <returns>Token for <see cref="StaggerArm.EndExpectation"/>.</returns>
+    internal static int ExpectAutomaticScroll(FrameworkElement list, TimeSpan at)
+    {
+        var arm = ArmOf(list);
+        var token = arm.ExpectScroll(at);
+        if (arm.ExpectedScroll is null) return token;
+        var now = Now;
+        var visible = VisibleRows(list);
+        var held = 0;
+        foreach (var (element, fade) in Pending.ToArray())
+        {
+            if (fade.Arm != arm || !Current(element, fade) || fade.StartsAt <= now || fade.StartsAt >= at || !arm.IsTail(fade.Index, visible)) continue;
+            PlayCore(element, at - now);
+            Pending[element] = fade with { Token = TokenOf(element), StartsAt = at };
+            held++;
+        }
+        Trace("fade-hold", list, $"held={held} wait={(at - now).TotalMilliseconds:F0}");
+        return token;
+    }
+
+    /// <summary>
+    /// An entrance's scroller (a page entrance's own scroller, a list view's own, else the nearest scrolling ancestor):
+    /// its movement rushes or closes the entrance's load arm. Attached while the owner is loaded only, so a recycled inner
+    /// list never outlives its page.
     /// </summary>
     private sealed class ScrollTracker(FrameworkElement list)
     {
         private ScrollViewer? viewer;
+        private bool hooked;
 
         /// <summary>Whether a layout-settle hook is pending.</summary>
         public bool Settling { get; set; }
+
+        /// <summary>Attaches while the owner is loaded, once.</summary>
+        public void Hook()
+        {
+            if (hooked) return;
+            hooked = true;
+            list.Loaded += (_, _) => Attach();
+            list.Unloaded += (_, _) => Detach();
+            if (list.IsLoaded) Attach();
+        }
 
         /// <summary>Finds the scroller and listens to its view changes.</summary>
         public void Attach()
         {
             Detach();
-            viewer = list is ListViewBase ? Descendant(list) : Ancestor(list);
+            viewer = list switch
+            {
+                ScrollViewer own => own,
+                ListViewBase => Descendant(list),
+                _ => Ancestor(list),
+            };
             if (viewer is null) return;
             viewer.ViewChanging += OnViewChanging;
             viewer.ViewChanged += OnViewChanged;
@@ -366,13 +523,14 @@ public static class FadeIn
             if (viewer is not null) Moved(viewer.HorizontalOffset, viewer.VerticalOffset);
         }
 
-        /// <summary>Closes the list's load arm on movement from its anchor.</summary>
+        /// <summary>Rushes or closes the entrance's load arm on movement from its anchor.</summary>
         /// <param name="x">Horizontal offset.</param>
         /// <param name="y">Vertical offset.</param>
         private void Moved(double x, double y)
         {
-            if (list.GetValue(ArmProperty) is not StaggerArm arm || !arm.Scrolled(x, y)) return;
-            Trace("fade-close", list, $"start={arm.BatchStart} since={arm.SinceArmed(Now).TotalMilliseconds:F0}");
+            if (list.GetValue(ArmProperty) is not StaggerArm arm) return;
+            var now = Now;
+            OnScrolled(list, arm, arm.Scrolled(x, y, now), now);
         }
 
         /// <summary>A list view's template scroller.</summary>
@@ -402,45 +560,145 @@ public static class FadeIn
         }
     }
 
-    /// <summary>Plays a row's stagger fade and traces it.</summary>
+    /// <summary>Plays a row's stagger fade, remembers it until it starts (so a rush can start it early) and traces it.</summary>
     /// <param name="list">Owning list.</param>
     /// <param name="element">Row element.</param>
     /// <param name="index">Row index.</param>
     /// <param name="delay">Stagger delay.</param>
-    private static void PlayRow(FrameworkElement list, UIElement element, int index, TimeSpan delay)
+    /// <param name="arm">The list's arm.</param>
+    private static void PlayRow(FrameworkElement list, UIElement element, int index, TimeSpan delay, StaggerArm arm)
     {
-        Play(element, delay);
+        Schedule(element, delay, arm, index);
         Trace("fade-play", list, $"index={index} delay={delay.TotalMilliseconds:F0} motion={(Motion.Allowed ? 1 : 0)}");
     }
 
     /// <summary>
-    /// Writes a stagger decision to the perf log (<c>--perf-log</c>) for the fade journeys (issue #260): one line per
-    /// re-arm, per row that fades, per load arm a scroll closes and per row that scroll kept from fading inside the
-    /// closed window; never for rows that just appear otherwise, so steady scrolling writes nothing.
+    /// Writes a stagger decision to the perf log (<c>--perf-log</c>) for the fade journeys (issues #260 and #323): one
+    /// line per re-arm, per row that fades, per entrance element scheduled, per load arm a scroll rushes or closes, per
+    /// entrance element a rush started early, per hold for an automatic scroll and per row a scroll kept from fading
+    /// after the rush; never for rows that just appear otherwise, so steady scrolling writes nothing.
     /// </summary>
-    /// <param name="kind">Line kind (<c>fade-arm</c>, <c>fade-play</c>, <c>fade-close</c>, <c>fade-skip</c>).</param>
-    /// <param name="list">List (named by its x:Name, else its AutomationId).</param>
-    /// <param name="detail">Space-separated <c>key=value</c> pairs.</param>
-    private static void Trace(string kind, UIElement list, FormattableString detail)
+    /// <param name="kind">Line kind (<c>fade-arm</c>, <c>fade-play</c>, <c>fade-enter</c>, <c>fade-rush</c>,
+    /// <c>fade-early</c>, <c>fade-close</c>, <c>fade-hold</c>, <c>fade-skip</c>, <c>fade-reveal</c>).</param>
+    /// <param name="list">Entrance owner (named by its x:Name, else its AutomationId).</param>
+    /// <param name="detail">Space-separated <c>key=value</c> pairs (an <c>at=</c> monotonic time in ms is appended).</param>
+    internal static void Trace(string kind, UIElement list, FormattableString detail)
     {
         if (!PerfLog.Enabled) return;
-        var id = (list as FrameworkElement)?.Name;
-        if (string.IsNullOrEmpty(id)) id = Microsoft.UI.Xaml.Automation.AutomationProperties.GetAutomationId(list);
-        PerfLog.Write($"{kind} list={(string.IsNullOrEmpty(id) ? "?" : id)} {FormattableString.Invariant(detail)}");
+        PerfLog.Write($"{kind} list={NameOf(list)} {FormattableString.Invariant(detail)} at={Now.TotalMilliseconds.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)}");
+    }
+
+    /// <summary>An element's trace name: its x:Name, else its AutomationId, else <c>?</c>.</summary>
+    /// <param name="element">Element.</param>
+    /// <returns>Name without spaces.</returns>
+    private static string NameOf(UIElement element)
+    {
+        var id = (element as FrameworkElement)?.Name;
+        if (string.IsNullOrEmpty(id)) id = Microsoft.UI.Xaml.Automation.AutomationProperties.GetAutomationId(element);
+        return string.IsNullOrEmpty(id) ? "?" : id.Replace(' ', '_');
     }
     #endregion
 
     #region Composition
-    /// <summary>Plays <c>fadeInUp</c> on the element's composition visual after <paramref name="delay"/>.</summary>
+    private static readonly DependencyProperty TokenProperty = DependencyProperty.RegisterAttached(
+        "Token", typeof(int), typeof(FadeIn), new PropertyMetadata(0));
+
+    /// <summary>A fade scheduled to start later: a rush or hold may restart it while its token is still current.</summary>
+    /// <param name="Arm">The entrance it belongs to (a list's rows or a page's/board's <see cref="Enter"/> fades).</param>
+    /// <param name="Index">Row index (-1 for an <see cref="Enter"/> fade).</param>
+    /// <param name="Token">The element's fade token when it was scheduled (a later play or reset makes it stale).</param>
+    /// <param name="StartsAt">When the fade starts (<see cref="Now"/> time).</param>
+    private sealed record PendingFade(StaggerArm Arm, int Index, int Token, TimeSpan StartsAt);
+
+    /// <summary>Fades that haven't started yet, by element; pruned as they start or go stale (UI thread only).</summary>
+    private static readonly Dictionary<UIElement, PendingFade> Pending = new(ReferenceEqualityComparer.Instance);
+
+    /// <summary>
+    /// Plays <c>fadeInUp</c> on the element's composition visual now (a pinned row arriving over a revealed board, an
+    /// <c>OnShow</c> element). A delayed fade always belongs to an entrance (<see cref="Enter"/>), so a scroll can rush it.
+    /// </summary>
     /// <param name="element">Element.</param>
-    /// <param name="delay">Start delay (the element stays transparent until then).</param>
-    public static void Play(UIElement element, TimeSpan delay)
+    public static void Play(UIElement element) => PlayCore(element, TimeSpan.Zero);
+
+    /// <summary>Plays a fade and remembers it until it starts.</summary>
+    /// <param name="element">Element.</param>
+    /// <param name="delay">Start delay.</param>
+    /// <param name="arm">Owning entrance.</param>
+    /// <param name="index">Row index, or -1 for an entrance element.</param>
+    private static void Schedule(UIElement element, TimeSpan delay, StaggerArm arm, int index)
+    {
+        if (!PlayCore(element, delay)) return;
+        var now = Now;
+        Prune(now);
+        if (delay > TimeSpan.Zero) Pending[element] = new PendingFade(arm, index, TokenOf(element), now + delay);
+    }
+
+    /// <summary>
+    /// Starts every pending fade of a rushed entrance at once (<see cref="StaggerArm.RushReaches"/>: its rows and its
+    /// entrance elements, never a batch appended into it).
+    /// </summary>
+    /// <param name="owner">The entrance's list or page scroller (for the trace).</param>
+    /// <param name="arm">The rushed entrance.</param>
+    /// <param name="now">Monotonic time.</param>
+    /// <param name="kept">Pending fades of the entrance the rush did not reach.</param>
+    /// <returns>Fades rushed.</returns>
+    private static int RushPending(FrameworkElement owner, StaggerArm arm, TimeSpan now, out int kept)
+    {
+        var rushed = 0;
+        kept = 0;
+        foreach (var (element, fade) in Pending.ToArray())
+        {
+            if (!Current(element, fade) || fade.StartsAt <= now)
+            {
+                Pending.Remove(element);
+                continue;
+            }
+            if (fade.Arm != arm) continue;
+            if (!arm.RushReaches(fade.Index))
+            {
+                kept++;
+                continue;
+            }
+            Pending.Remove(element);
+            PlayCore(element, TimeSpan.Zero);
+            rushed++;
+            if (fade.Index < 0) Trace("fade-early", owner, $"target={NameOf(element)} left={(fade.StartsAt - now).TotalMilliseconds:F0}");
+        }
+        return rushed;
+    }
+
+    /// <summary>Drops fades that started or were replaced.</summary>
+    /// <param name="now">Monotonic time.</param>
+    private static void Prune(TimeSpan now)
+    {
+        if (Pending.Count == 0) return;
+        foreach (var (element, fade) in Pending.ToArray())
+            if (fade.StartsAt <= now || !Current(element, fade)) Pending.Remove(element);
+    }
+
+    /// <summary>Whether a pending fade is still the element's latest.</summary>
+    /// <param name="element">Element.</param>
+    /// <param name="fade">Pending fade.</param>
+    /// <returns><see langword="true"/> while no later play or reset replaced it.</returns>
+    private static bool Current(UIElement element, PendingFade fade) => TokenOf(element) == fade.Token;
+
+    /// <summary>The element's fade token.</summary>
+    /// <param name="element">Element.</param>
+    /// <returns>Token.</returns>
+    private static int TokenOf(UIElement element) => (int)element.GetValue(TokenProperty);
+
+    /// <summary>Starts <c>fadeInUp</c> on the element's composition visual, replacing any fade it had.</summary>
+    /// <param name="element">Element.</param>
+    /// <param name="delay">Start delay.</param>
+    /// <returns><see langword="false"/> when motion is off (the element was shown in place instead).</returns>
+    private static bool PlayCore(UIElement element, TimeSpan delay)
     {
         if (!Motion.Allowed)
         {
             Reset(element);
-            return;
+            return false;
         }
+        element.SetValue(TokenProperty, TokenOf(element) + 1);
         var visual = ElementCompositionPreview.GetElementVisual(element);
         var compositor = visual.Compositor;
         ElementCompositionPreview.SetIsTranslationEnabled(element, true);
@@ -464,6 +722,7 @@ public static class FadeIn
 
         visual.StartAnimation(Opacity, fade);
         visual.StartAnimation(Translation, rise);
+        return true;
     }
 
     /// <summary>Stops any fade and shows the element in place (recycled rows, motion off).</summary>
@@ -472,6 +731,8 @@ public static class FadeIn
     {
         if (element.GetValue(AnimatedProperty) is not true) return;
         element.SetValue(AnimatedProperty, false);
+        element.SetValue(TokenProperty, TokenOf(element) + 1);
+        Pending.Remove(element);
         var visual = ElementCompositionPreview.GetElementVisual(element);
         visual.StopAnimation(Opacity);
         visual.StopAnimation(Translation);

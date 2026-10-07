@@ -414,31 +414,24 @@ public class SongScoreHistoryViewModelTests
         Assert.True(vm.CanViewAll);
         Assert.Contains("Lead score history, 6 of 6 scores", vm.ChartSummary);
         Assert.Equal("No score history for Lead", vm.EmptyMessage);
-        Assert.Equal("Score ↓", vm.SortLabel);
-        Assert.Equal("Sort scores by Score, descending", vm.SortAnnouncement);
         Assert.Equal(("Score History", "View All Scores"), (vm.Title, vm.ViewAllText));
         Assert.Equal(("View All Scores, Lead", "fst.history.view-all"), (vm.ViewAllName, vm.ViewAllAutomationId));
         Assert.StartsWith("Select a bar", vm.Subtitle);
         Assert.False(vm.KeyboardLead);
 
-        vm.ViewAll();
-        Assert.Equal(6, vm.Rows.Count);
-        Assert.False(vm.CanViewAll);
-        vm.SortBy(PlayerScoreSortMode.Date);
-        Assert.Equal([200, 500, 400, 300, 600, 100], vm.Rows.Select(r => r.Point.Score));
-        Assert.True(vm.Rows[4].IsBest);
-        vm.ToggleDirection();
-        Assert.Equal(100, vm.Rows[0].Point.Score);
-        vm.ResetSort();
-        Assert.Equal(600, vm.Rows[0].Point.Score);
+        // View All Scores opens the chart's Player History page; the card never grows in place (view-all-cta R8, #324).
+        Assert.Equal(new AppRoute.PlayerHistory("s1", Instrument.Lead), vm.ViewAllRoute);
+        Assert.Equal(5, vm.Rows.Count);
+        Assert.All(vm.Rows, r => Assert.StartsWith("fst.song-detail.history.row.", r.AutomationId, StringComparison.Ordinal));
 
         var named = new List<string?>();
         vm.PropertyChanged += (_, e) => named.Add(e.PropertyName);
         vm.SelectInstrument(Instrument.Bass);
         Assert.Contains(nameof(vm.ViewAllName), named); // View All Scores' UIA name follows the chart (view-all-cta R4)
+        Assert.Contains(nameof(vm.ViewAllRoute), named);
         Assert.Equal("View All Scores, Bass", vm.ViewAllName);
+        Assert.Equal(new AppRoute.PlayerHistory("s1", Instrument.Bass), vm.ViewAllRoute);
         Assert.Single(vm.Points);
-        Assert.False(vm.ShowAll);
         Assert.False(vm.CanViewAll);
         vm.SelectInstrument(Instrument.Drums); // not in the selector
         Assert.Equal(Instrument.Bass, vm.Selected);
@@ -572,7 +565,7 @@ public class SongScoreHistoryViewModelTests
 public class SongDetailHistoryPageTests
 {
     [Fact]
-    public async Task HistoryRoute_OpensSongDetailAtHistory_WithQuickLink()
+    public async Task InitialChart_SelectsHistory_WithQuickLink()
     {
         var service = new FakeService();
         SongsWire.Install(service, player: true);
@@ -581,14 +574,12 @@ public class SongDetailHistoryPageTests
             ? Wire.Ok(PlayerWire.History(PlayerWire.Id, PlayerWire.HistoryEntry("s1", "Solo_Bass", 50)), ("X-FST-Publication-Id", "7"))
             : inner(r);
         var session = service.Session(settings: new AppSettings { SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "Fixture One") });
-        var vm = new SongDetailViewModel(session, new AppRoute.PlayerHistory("s1", Instrument.Bass));
-        Assert.True(vm.ScrollToHistory);
+        var vm = new SongDetailViewModel(session, new AppRoute.SongDetail("s1", Instrument.Bass));
         Assert.Equal(Instrument.Bass, vm.InitialInstrument);
         await vm.LoadAsync();
         Assert.True(vm.ShowContent);
         Assert.Equal(Instrument.Bass, vm.History.Selected);
         Assert.Equal(["intensity", SongDetailViewModel.HistoryQuickLinkId, "instrument-Solo_Guitar"], vm.QuickLinkSections.Take(3).Select(s => s.Id));
-        Assert.False(new SongDetailViewModel(session, new AppRoute.SongDetail("s1")).ScrollToHistory);
 
         // Another player: history re-reads (per-entity reset); none selected hides it.
         session.SelectPlayer(new PlayerSearchResult(PlayerWire.Other, "Fixture Two"));

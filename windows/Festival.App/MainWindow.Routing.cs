@@ -16,7 +16,10 @@ public sealed partial class MainWindow
     /// <summary>Sets "Festival Score Tracker - &lt;page&gt;" for the taskbar and Alt+Tab (the title-bar caption stays the brand).</summary>
     private void UpdateWindowTitle() => Title = WindowTitles.For(current, CurrentRoute);
 
-    /// <summary>Deselecting on a player-only page (e.g. Player History) redirects to Songs, as the web's guards re-render.</summary>
+    /// <summary>
+    /// Deselecting on a player-only page (e.g. Statistics) redirects to Songs, as the web's guards re-render; Player History
+    /// stays and shows its no-player state.
+    /// </summary>
     /// <param name="sender">Session.</param>
     /// <param name="e">Changed property.</param>
     private void OnRoutePolicySessionChanged(object? sender, PropertyChangedEventArgs e)

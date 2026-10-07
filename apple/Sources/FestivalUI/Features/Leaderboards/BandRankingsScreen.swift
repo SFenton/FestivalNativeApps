@@ -17,7 +17,7 @@ struct BandRankingsScreen: View {
     @State private var board: BoardSummary?
     /// Top edge of the floating pager bar in ``pageSpace``; nil without one.
     @State private var bottomChromeTop: CGFloat?
-    /// Height of the rows' bottom fade: the full 36 pt until the last row arrives
+    /// Height of the rows' bottom fade: the full 40 pt until the last row arrives
     /// above the bar, then shrinking to nothing (issues #293, #305).
     @State private var bottomFadeDistance = ScrollEdgeFade.distance
     @Environment(\.deviceLayout) private var layout

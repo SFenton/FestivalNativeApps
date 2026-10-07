@@ -27,12 +27,13 @@
                     <Border Width="128" Height="128" CornerRadius="8" Background="{StaticResource FSTSurfaceMutedBrush}">
                         <Image x:Name="HeaderArt" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
                     </Border>
+                    <!-- Song header title and artist line: the shared SongHeaderText column (one line each across the column,
+                         scrolling when they overflow, wrapping at large text; song-header R1-R3, issue #315). The actions
+                         below stay page-specific. -->
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
-                        <TextBlock Text="{x:Bind ViewModel.Song.Title, Mode=OneWay}" Style="{StaticResource TitleLargeTextBlockStyle}"
-                                   TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level1"
-                                   AutomationProperties.AutomationId="fst.song-detail.title" />
-                        <TextBlock Text="{x:Bind ViewModel.Song.Subtitle, Mode=OneWay}" Style="{StaticResource BodyLargeTextBlockStyle}"
-                                   Foreground="{ThemeResource FSTSecondaryTextBrush}" TextWrapping="Wrap" />
+                        <controls:SongHeaderText Title="{x:Bind ViewModel.Song.Title, Mode=OneWay}" Artist="{x:Bind ViewModel.Song.Subtitle, Mode=OneWay}"
+                                                 TitleStyle="{StaticResource TitleLargeTextBlockStyle}" ArtistStyle="{StaticResource FSTMarqueeSongHeaderArtistStyle}"
+                                                 Spacing="4" TitleAutomationId="fst.song-detail.title" ArtistAutomationId="fst.song-detail.artist" />
                         <!-- Paths, Item Shop and Quick Links share Fluent's 40 epx touch-target height (FSTMinTargetSize). -->
                         <controls:WrapPanel HorizontalSpacing="8" VerticalSpacing="8" Margin="0,8,0,0">
                             <Button Click="OnPathsClick" Visibility="{x:Bind ViewModel.HasPaths, Mode=OneWay}" Style="{StaticResource AccentButtonStyle}"
@@ -169,29 +170,6 @@
                                                           TitleAutomationId="fst.history.error" RetryAutomationId="fst.history.retry" />
                         </StackPanel>
                     </Border>
-                    <!-- Sort applies to the list (Fluent command menu; web list order is Score, descending). -->
-                    <DropDownButton HorizontalAlignment="Right" Visibility="{x:Bind ViewModel.History.ShowChart, Mode=OneWay}"
-                                    MinHeight="{StaticResource FSTMinTargetSize}"
-                                    AutomationProperties.Name="{x:Bind ViewModel.History.SortAnnouncement, Mode=OneWay}"
-                                    AutomationProperties.AutomationId="fst.history.sort.open">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <FontIcon Glyph="&#xE8CB;" FontSize="14" />
-                            <TextBlock Text="{x:Bind ViewModel.History.SortLabel, Mode=OneWay}" />
-                        </StackPanel>
-                        <DropDownButton.Flyout>
-                            <MenuFlyout x:Name="SortMenu" Placement="BottomEdgeAlignedRight" Opening="OnSortMenuOpening">
-                                <RadioMenuFlyoutItem Text="Date" GroupName="mode" Tag="Date" Click="OnSortModeClick" AutomationProperties.AutomationId="fst.history.sort.mode.date" />
-                                <RadioMenuFlyoutItem Text="Score" GroupName="mode" Tag="Score" Click="OnSortModeClick" AutomationProperties.AutomationId="fst.history.sort.mode.score" />
-                                <RadioMenuFlyoutItem Text="Accuracy" GroupName="mode" Tag="Accuracy" Click="OnSortModeClick" AutomationProperties.AutomationId="fst.history.sort.mode.accuracy" />
-                                <RadioMenuFlyoutItem Text="Season" GroupName="mode" Tag="Season" Click="OnSortModeClick" AutomationProperties.AutomationId="fst.history.sort.mode.season" />
-                                <MenuFlyoutSeparator />
-                                <RadioMenuFlyoutItem Text="Ascending" GroupName="direction" Tag="asc" Click="OnSortDirectionClick" AutomationProperties.AutomationId="fst.history.sort.direction.ascending" />
-                                <RadioMenuFlyoutItem Text="Descending" GroupName="direction" Tag="desc" Click="OnSortDirectionClick" AutomationProperties.AutomationId="fst.history.sort.direction.descending" />
-                                <MenuFlyoutSeparator />
-                                <MenuFlyoutItem Text="Reset" Command="{x:Bind ViewModel.History.ResetSortCommand}" AutomationProperties.AutomationId="fst.history.sort.reset" />
-                            </MenuFlyout>
-                        </DropDownButton.Flyout>
-                    </DropDownButton>
                     <ItemsRepeater x:Name="HistoryRows" ItemsSource="{x:Bind ViewModel.History.Rows, Mode=OneWay}" ItemTemplate="{StaticResource HistoryRowTemplate}"
                                    Visibility="{x:Bind ViewModel.History.ShowChart, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="56"
                                    AutomationProperties.Name="Score history" AutomationProperties.AutomationId="fst.history.rows">
@@ -199,7 +177,7 @@
                             <StackLayout Spacing="8" />
                         </ItemsRepeater.Layout>
                     </ItemsRepeater>
-                    <Button x:Name="HistoryViewAll" Content="{x:Bind ViewModel.History.ViewAllText}" Command="{x:Bind ViewModel.History.ViewAllCommand}"
+                    <Button x:Name="HistoryViewAll" Content="{x:Bind ViewModel.History.ViewAllText}" Click="OnHistoryViewAll"
                             Style="{StaticResource FSTViewAllButtonStyle}" Visibility="{x:Bind ViewModel.History.CanViewAll, Mode=OneWay}"
                             AutomationProperties.Name="{x:Bind ViewModel.History.ViewAllName, Mode=OneWay}"
                             AutomationProperties.AutomationId="{x:Bind ViewModel.History.ViewAllAutomationId}" />
@@ -266,7 +244,8 @@
 
                 <!-- Band previews (web SongBandLeaderboardPreview, iOS SongBandPreviewSection, issue #34/#64): one section per band
                      size after the instrument cards, all from one keyless /bands/all read that never holds the page spinner.
-                     Rows open Band Detail; the selected player's band is purple in place or appended after the top ten. -->
+                     Rows open Band Detail; the selected player's band is purple in place or appended after the top ten, and the
+                     appended row jumps to its page of the full band board and reveals it (leaderboard-row R7, issue #307). -->
                 <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" x:Name="BandBoards" Margin="0,16,0,0"
                                ItemsSource="{x:Bind ViewModel.BandPreviews, Mode=OneWay}">
                     <ItemsRepeater.Layout>
@@ -331,10 +310,10 @@
                 <Border Width="40" Height="40" CornerRadius="6" Background="{StaticResource FSTSurfaceMutedBrush}">
                     <Image x:Name="PinnedArt" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
                 </Border>
-                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <controls:MarqueeText Text="{x:Bind ViewModel.Song.Title, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeTitleStyle}" />
-                    <controls:MarqueeText Text="{x:Bind ViewModel.Song.Subtitle, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeCaptionStyle}" />
-                </StackPanel>
+                <!-- Pinned bar copy of the shared song header text: one marqueeing line at every text size (song-header R4). -->
+                <controls:SongHeaderText Grid.Column="1" VerticalAlignment="Center" Variant="Bar"
+                                         Title="{x:Bind ViewModel.Song.Title, Mode=OneWay}" Artist="{x:Bind ViewModel.Song.Subtitle, Mode=OneWay}"
+                                         TitleAutomationId="fst.song-detail.pinned-title" ArtistAutomationId="fst.song-detail.pinned-artist" />
                 <Button Grid.Column="2" Click="OnPathsClick" Visibility="{x:Bind ViewModel.HasPaths, Mode=OneWay}" Style="{StaticResource AccentButtonStyle}"
                         MinHeight="{StaticResource FSTMinTargetSize}" VerticalAlignment="Center"
                         AutomationProperties.Name="Paths" AutomationProperties.AutomationId="fst.song-detail.pinned-paths">

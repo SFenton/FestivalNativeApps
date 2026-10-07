@@ -64,6 +64,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 #: Package id of the product app (``android/app/build.gradle.kts``).
 DEFAULT_PACKAGE = "com.festivalscoretracker.android"
 
+#: ``versionCode`` of local debug builds (no ``-PfstVersionCode``).
+DEBUG_VERSION_CODE = 1
+
+#: ``adb install -r`` failures that uninstalling the installed app first cures.
+REPLACE_CONFLICTS = ("INSTALL_FAILED_VERSION_DOWNGRADE", "INSTALL_FAILED_UPDATE_INCOMPATIBLE")
+
 #: Console port reserved for FST emulators; the adb serial follows from it.
 FST_PORT = 5580
 FST_SERIAL = f"emulator-{FST_PORT}"
@@ -1368,8 +1374,54 @@ def _install(device: Device, apk: str) -> None:
     path = Path(apk)
     if not path.is_file():
         raise DeviceError(f"no APK at {path}")
-    print(device.adb("install", "-r", "-t", "-g", str(path), cap=180).stdout.strip(),
-          file=sys.stderr)
+    try:
+        result = device.adb("install", "-r", "-t", "-g", str(path), cap=180)
+    except DeviceError as exc:
+        if not is_replace_conflict(str(exc)):
+            raise
+        # Another lane left a newer or differently signed build; replace it rather than fail.
+        print(f"replacing the installed {DEFAULT_PACKAGE} ({exc})", file=sys.stderr)
+        device.adb("uninstall", DEFAULT_PACKAGE, cap=60, check=False)
+        result = device.adb("install", "-r", "-t", "-g", str(path), cap=180)
+    print(result.stdout.strip(), file=sys.stderr)
+
+
+def is_replace_conflict(message: str) -> bool:
+    """Whether an ``adb install -r`` failure is cured by uninstalling first.
+
+    Args:
+        message: The failed install's error text.
+
+    Returns:
+        True for a version-code downgrade or a signature mismatch.
+    """
+    return any(code in message for code in REPLACE_CONFLICTS)
+
+
+def installed_version_code(dumpsys: str) -> int | None:
+    """Parse the installed ``versionCode`` from ``dumpsys package <pkg>`` output.
+
+    Args:
+        dumpsys: The command's output.
+
+    Returns:
+        The highest version code listed, or None when the package isn't installed.
+    """
+    codes = [int(match) for match in re.findall(r"versionCode=(\d+)", dumpsys)]
+    return max(codes) if codes else None
+
+
+def _clear_newer_app(device: Device) -> None:
+    """Uninstall the app when its version code exceeds the debug build's.
+
+    Connected tests install with ``-r``; a release-coded build another lane left
+    behind would fail them with ``INSTALL_FAILED_VERSION_DOWNGRADE``.
+    """
+    code = installed_version_code(device.shell(f"dumpsys package {DEFAULT_PACKAGE}", check=False))
+    if code is not None and code > DEBUG_VERSION_CODE:
+        print(f"uninstalling {DEFAULT_PACKAGE} versionCode {code} (newer than the debug build)",
+              file=sys.stderr)
+        device.adb("uninstall", DEFAULT_PACKAGE, cap=60, check=False)
 
 
 def _prepare(device: Device, args: argparse.Namespace) -> None:
@@ -1571,6 +1623,7 @@ def cmd_test(args: argparse.Namespace) -> int:
         if args.posture:
             # Fold/tri-fold posture or resizable preset for posture-dependent layouts.
             apply_pose(device, args.avd, args.posture)
+        _clear_newer_app(device)
         cmd = find_gradle(project) + gradle_test_args(args.filter, args.task)
         env = dict(os.environ, ANDROID_SERIAL=FST_SERIAL)
         print("+", " ".join(cmd), file=sys.stderr)

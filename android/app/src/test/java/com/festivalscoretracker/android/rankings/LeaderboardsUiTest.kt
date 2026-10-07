@@ -512,7 +512,7 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
     }
 
     @Test
-    fun songLeaderboardPagingReRevealsThePinnedScoreWithTheNewRows() {
+    fun songLeaderboardPagingKeepsThePinnedScoreStill() {
         transport.on("/api/player/${RankingsFixtures.SELECTED}", headers = mapOf("X-FST-Publication-Id" to "7")) {
             ProfileFixtures.profile(RankingsFixtures.SELECTED, "Selected Player", listOf(ProfileFixtures.score("s-alpha", "01", rank = 60, total = 60)))
         }
@@ -525,7 +525,8 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         waitForTag("fst.song-leaderboard.loading")
         val (row, footer) = revealDrift(nextPage)
         assertTrue("the new page's first row is still drifting up", row > 0.5f)
-        assertEquals("the pinned score re-reveals with it", row, footer, frameTolerance())
+        // Issue #190 (owner decision B): only the rows re-enter; the pinned score never moves.
+        assertEquals("the pinned score stays in place", 0f, footer, 0.5f)
     }
 
     @Test
@@ -545,10 +546,11 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
     }
 
     /**
-     * Pages from page 1 (selected score pinned) to a held page 2 and checks the stale pinned row
-     * is hidden from TalkBack and ignores a tap at its old place while the spinner shows (issue #149).
+     * Pages from page 1 (selected score pinned) to a held page 2 and checks the pinned row stays
+     * where it was, readable by TalkBack and usable, while the spinner shows (issue #190, owner
+     * decision B: like the web footer, which re-animates only when `footerAnimKey` changes).
      */
-    private fun assertStalePinnedRowHiddenWhilePaging(reduceMotion: Boolean) {
+    private fun assertPinnedRowStaysWhilePaging(reduceMotion: Boolean) {
         transport.on("/api/player/${RankingsFixtures.SELECTED}", headers = mapOf("X-FST-Publication-Id" to "7")) {
             ProfileFixtures.profile(RankingsFixtures.SELECTED, "Selected Player", listOf(ProfileFixtures.score("s-alpha", "01", rank = 30, total = 60)))
         }
@@ -560,27 +562,50 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         launch("songLeaderboard:s-alpha:Solo_Guitar", selected)
         waitForDescription("Page 1 of 3")
         waitForTag(footerTag)
-        val pinned = node(footerTag).fetchSemanticsNode().boundsInRoot.center
-        assertTrue(rule.onAllNodesWithTag(footerTag).fetchSemanticsNodes().isNotEmpty())
+        val before = node(footerTag).fetchSemanticsNode().boundsInRoot
         click("fst.song-leaderboard.page-next")
         waitForTag("fst.song-leaderboard.loading")
         settle()
-        // The merged tree is what TalkBack reads; the unmerged one still lists cleared descendants.
-        assertTrue("page 1's pinned row must not show under the spinner", rule.onAllNodesWithTag(footerTag).fetchSemanticsNodes().isEmpty())
-        rule.onRoot().performTouchInput { this.click(pinned) }
-        settle()
-        assertTrue("a tap where the pinned row was must not open a player", exists("fst.song-leaderboard.loading"))
+        // The merged tree is what TalkBack reads.
+        val during = rule.onAllNodesWithTag(footerTag).fetchSemanticsNodes()
+        assertEquals("the pinned score stays readable beside the spinner", 1, during.size)
+        assertEquals("…and in place", before, during.single().boundsInRoot)
+        assertTrue("…and usable", during.single().config.contains(SemanticsActions.OnClick))
         nextPage.complete(Unit)
         waitForDescription("Page 2 of 3")
         rule.waitUntil(5_000) { settle(100); !exists("fst.song-leaderboard.loading") }
-        assertTrue("the pinned score returns with the new page", exists(footerTag))
+        assertEquals(before, node(footerTag).fetchSemanticsNode().boundsInRoot)
     }
 
     @Test
-    fun songLeaderboardHidesTheStalePinnedScoreWhileThePageLoads() = assertStalePinnedRowHiddenWhilePaging(reduceMotion = false)
+    fun songLeaderboardKeepsThePinnedScoreWhileThePageLoads() = assertPinnedRowStaysWhilePaging(reduceMotion = false)
 
     @Test
-    fun songLeaderboardHidesTheStalePinnedScoreWhileThePageLoadsUnderReduceMotion() = assertStalePinnedRowHiddenWhilePaging(reduceMotion = true)
+    fun songLeaderboardKeepsThePinnedScoreWhileThePageLoadsUnderReduceMotion() = assertPinnedRowStaysWhilePaging(reduceMotion = true)
+
+    @Test
+    fun songLeaderboardHidesThePinnedScoreWhileALeewayChangeLoads() {
+        transport.on("/api/player/${RankingsFixtures.SELECTED}", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            ProfileFixtures.profile(RankingsFixtures.SELECTED, "Selected Player", listOf(ProfileFixtures.score("s-alpha", "01", rank = 30, total = 60)))
+        }
+        val filtered = CompletableDeferred<Unit>()
+        hold = { request -> filtered.takeIf { request.url.contains("/api/leaderboard/s-alpha/Solo_Guitar") && request.url.contains("leeway=") } }
+        launch("songLeaderboard:s-alpha:Solo_Guitar", selected)
+        waitForDescription("Page 1 of 3")
+        waitForTag(footerTag)
+        val pinned = node(footerTag).fetchSemanticsNode().boundsInRoot.center
+        // Filter Invalid Scores changes what the pinned score shows (web `footerAnimKey`): it is stale now.
+        runBlocking { store.updateData { it.toMutablePreferences().apply { this[booleanPreferencesKey(SettingsRegistry.FILTER_INVALID_SCORES)] = true } } }
+        waitForTag("fst.song-leaderboard.loading")
+        settle()
+        assertTrue("the stale pinned score must not show under the spinner", rule.onAllNodesWithTag(footerTag).fetchSemanticsNodes().isEmpty())
+        rule.onRoot().performTouchInput { this.click(pinned) }
+        settle()
+        assertTrue("a tap where it was must not open a player", exists("fst.song-leaderboard.loading"))
+        filtered.complete(Unit)
+        rule.waitUntil(10_000) { settle(100); !exists("fst.song-leaderboard.loading") }
+        assertTrue("the pinned score returns with the new rows", exists(footerTag))
+    }
 
     // endregion
 

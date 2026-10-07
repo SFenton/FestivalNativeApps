@@ -217,7 +217,7 @@ private func scrollBoard(
     return try await nativeHostedSettle(host)
 }
 
-/// Issue #305: a band board with no player footer scrolls its rows into a 36 pt fade
+/// Issue #305: a band board with no player footer scrolls its rows into a 40 pt fade (issue #329)
 /// above the pinned pager, not a hard cut at (Song Band, whose pager used to sit below
 /// the scroll view) or a leak under it (Band Rankings, which had no mask); at the end
 /// the last row rests fully drawn above the pager. System Reduce Transparency and
@@ -226,7 +226,7 @@ private func scrollBoard(
 ///
 /// Bright samples (row text) are counted in a 9 pt strip 1–10 pt above the chrome's top
 /// at 6 mid-list offsets 9 pt apart, one 54 pt row pitch with no gaps between strip
-/// positions, so every line of row text crosses the strip: with the fade it stays dim (at most ~28% opacity there);
+/// positions, so every line of row text crosses the strip: with the fade it stays dim (at most 25% opacity there);
 /// with a hard edge it shows at full brightness.
 @MainActor
 @Test(.serialized, arguments: BottomChromeBandBoard.allCases, BottomChromeFadeMode.allCases)

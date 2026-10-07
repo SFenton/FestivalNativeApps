@@ -10,7 +10,7 @@ namespace Festival.App.Controls;
 /// <summary>
 /// The one song-first header of a song leaderboard (web <c>SongInfoHeader</c>; pattern <c>song-leaderboard-header</c>):
 /// the solo board names its instrument on the board line, the band board its band size (issue #317). Title and artist
-/// are one-line <see cref="MarqueeText"/>s (pattern <c>song-header</c> R2). The whole header is one flat button that
+/// are the shared <see cref="SongHeaderText"/> column (pattern <c>song-header</c> R1–R3). The whole header is one flat button that
 /// raises <see cref="TitleInvoked"/> (web <c>onTitleClick</c>; pages open Song Detail, <c>song-header</c> R1). Pages keep
 /// the song's static cover as the shell backdrop (<c>IBackdropPage</c>); this control only draws the header's own art
 /// tile, through the shared artwork caches.
@@ -120,12 +120,10 @@ public sealed partial class SongLeaderboardHeader : UserControl
     private void UpdateVisibility()
     {
         var hasSong = Title.Length > 0;
-        TitleBlock.Visibility = hasSong ? Visibility.Visible : Visibility.Collapsed;
-        ArtHost.Visibility = TitleBlock.Visibility;
+        ArtHost.Visibility = hasSong ? Visibility.Visible : Visibility.Collapsed;
         SongButton.IsHitTestVisible = hasSong;
         SongButton.IsTabStop = hasSong;
         AutomationProperties.SetAccessibilityView(SongButton, hasSong ? AccessibilityView.Content : AccessibilityView.Raw);
-        ArtistBlock.Visibility = Artist.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         BoardIcon.Visibility = BoardIconFile.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         TotalBlock.Visibility = TotalText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     }

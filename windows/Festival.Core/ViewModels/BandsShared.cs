@@ -131,13 +131,16 @@ public sealed record BandMemberRow(BandMember Member)
 /// <summary>A band card: members with icons, appearances and a link to Band Detail.</summary>
 public sealed record PlayerBandCardViewModel
 {
-    /// <summary>Creates a card from a player-bands row.</summary>
+    /// <summary>Creates a card from a player-bands or band-search row.</summary>
     /// <param name="entry">Wire row.</param>
-    public PlayerBandCardViewModel(PlayerBandEntry entry)
+    /// <param name="automationId">Shared row ID for a list whose rows are found by kind (global search's
+    /// <c>fst.global-search.result.band</c>); <see langword="null"/> keeps <c>fst.player-bands.row.&lt;key&gt;</c>.</param>
+    public PlayerBandCardViewModel(PlayerBandEntry entry, string? automationId = null)
     {
         Entry = entry;
         Members = [.. entry.Members.DistinctBy(m => m.AccountId, StringComparer.Ordinal).Select(m => new BandMemberRow(m))];
         BandTypeLabel = BandTypeInfo.TryParse(entry.BandType, out var type) ? type.Label() : "Band";
+        AutomationId = automationId ?? "fst.player-bands.row." + entry.Key;
     }
 
     /// <summary>Wire row.</summary>
@@ -159,8 +162,8 @@ public sealed record PlayerBandCardViewModel
     /// <summary>Band Detail route carrying the type and team key (the safe lookup).</summary>
     public AppRoute Route => new AppRoute.Band(Entry.Key, Entry.BandType, Entry.TeamKey);
 
-    /// <summary>Automation ID (<c>fst.player-bands.row.&lt;key&gt;</c>).</summary>
-    public string AutomationId => "fst.player-bands.row." + Entry.Key;
+    /// <summary>Automation ID (<c>fst.player-bands.row.&lt;key&gt;</c> unless the list shares one row ID).</summary>
+    public string AutomationId { get; }
 
     /// <summary>Screen-reader summary: the whole card is one Narrator stop, so it names each member's instruments.</summary>
     public string Announcement =>

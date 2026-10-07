@@ -265,7 +265,7 @@ JOURNEYS = [
             # Tab order: title-bar toggle → search → bell → profile → pane, landing on the selected section
             # (Leaderboards) as NavigationView does for Tab within itself; arrows move within the pane and Enter invokes.
             Phase(steps=["focus:id=PART_PaneToggleButton", "assertfocus:id=PART_PaneToggleButton@3", "key:tab",
-                         "assertfocus:name=Search songs and players@3", "key:tab",
+                         "assertfocus:name=Search songs, players and bands@3", "key:tab",
                          "assertfocus:id=fst.shell.notifications@3", "key:tab", "assertfocus:id=fst.shell.profile@3",
                          "key:tab", "assertfocus:id=fst.nav.leaderboards@3", "key:down", "assertfocus:id=fst.nav.shop@3",
                          "key:enter", "waitfor:id=fst.shop.count@20"],
