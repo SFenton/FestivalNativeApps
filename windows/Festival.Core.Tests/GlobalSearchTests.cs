@@ -78,7 +78,7 @@ public class GlobalSearchResultsTests
     }
 
     [Fact]
-    public void Suggestions_SongsThenPlayersThenSeeAll()
+    public void Suggestions_SongsThenPlayersThenViewAll()
     {
         Assert.Empty(GlobalSearchResults.Suggestions("a", [], []));
         var songs = Enumerable.Range(0, 7).Select(i => new GlobalSongResult($"s{i}", $"T{i}", "Art", null)).ToList();
@@ -90,23 +90,23 @@ public class GlobalSearchResultsTests
         Assert.Equal(before.Take(5), after.Take(5));
         var song = after[0];
         Assert.True(song.IsSong);
-        Assert.False(song.IsPlayer || song.IsSeeAll);
+        Assert.False(song.IsPlayer || song.IsViewAll);
         Assert.Equal(("T0", "Song · Art", "Song, T0 by Art"), (song.Title, song.Subtitle, song.ToString()));
         Assert.Equal(new AppRoute.SongDetail("s0"), song.Route);
         Assert.True(after[5].IsPlayer);
         Assert.Equal("Player, N0", after[5].AccessibleName);
         Assert.Equal("Player, N1, selected, opens Statistics", after[6].AccessibleName);
         Assert.Equal(new AppRoute.Statistics(), after[6].Route);
-        var seeAll = after[^1];
-        Assert.True(seeAll.IsSeeAll);
-        Assert.False(seeAll.HasSubtitle);
+        var viewAll = after[^1];
+        Assert.True(viewAll.IsViewAll);
+        Assert.False(viewAll.HasSubtitle);
         Assert.True(song.HasSubtitle);
-        Assert.Equal("See All Results for “ab”", seeAll.Title);
-        Assert.Equal(new AppRoute.Search("ab"), seeAll.Route);
+        Assert.Equal("View All Results for “ab”", viewAll.Title); // owner #321: never See All
+        Assert.Equal(new AppRoute.Search("ab"), viewAll.Route);
     }
 
     [Fact]
-    public void Suggestions_BandsAfterPlayersBeforeSeeAll_AndBandRetention()
+    public void Suggestions_BandsAfterPlayersBeforeViewAll_AndBandRetention()
     {
         var songs = Enumerable.Range(0, 2).Select(i => new GlobalSongResult($"s{i}", $"T{i}", "Art", null)).ToList();
         var players = Enumerable.Range(0, 2).Select(i => new GlobalPlayerResult($"p{i}", $"N{i}", false)).ToList();
@@ -115,11 +115,11 @@ public class GlobalSearchResultsTests
         Assert.Equal(2 + 2 + GlobalSearchResults.SuggestedBands + 1, list.Count);
         var band = list[4];
         Assert.True(band.IsBand);
-        Assert.False(band.IsSong || band.IsPlayer || band.IsSeeAll);
+        Assert.False(band.IsSong || band.IsPlayer || band.IsViewAll);
         Assert.Equal(("Abba + Mate 0", "Band · Duos", "Band, Abba + Mate 0, Duos"), (band.Title, band.Subtitle, band.AccessibleName));
         Assert.Equal(new AppRoute.Band("b0", "Band_Duets", "acc_a:b0mate"), band.Route);
         Assert.Equal(GlobalSearchResults.BandRoute(bands[0]), band.Route);
-        Assert.True(list[^1].IsSeeAll);
+        Assert.True(list[^1].IsViewAll);
         // Earlier band matches stay while the next search runs only when a member name still matches.
         Assert.True(GlobalSearchResults.BandStillMatches(bands[0], " abb "));
         Assert.True(GlobalSearchResults.BandStillMatches(bands[0], "mate 0"));

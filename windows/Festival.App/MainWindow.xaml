@@ -40,7 +40,7 @@
                                                AutomationProperties.AccessibilityView="Raw" />
                                 <FontIcon Glyph="&#xE716;" FontSize="16" Visibility="{x:Bind IsBand}"
                                           AutomationProperties.AccessibilityView="Raw" />
-                                <FontIcon Glyph="&#xE721;" FontSize="16" Visibility="{x:Bind IsSeeAll}" />
+                                <FontIcon Glyph="&#xE721;" FontSize="16" Visibility="{x:Bind IsViewAll}" />
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                     <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" />
                                     <TextBlock Text="{x:Bind Subtitle}" Visibility="{x:Bind HasSubtitle}" FontSize="12"

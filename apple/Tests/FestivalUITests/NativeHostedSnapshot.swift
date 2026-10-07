@@ -362,6 +362,42 @@ func nativeHostedReadinessBudget(
     inVirtualMachine ? timeout * nativeHostedVirtualMachineTimeoutScale : timeout
 }
 
+/// A readiness bound measured in a wait's own poll time rather than wall-clock time.
+///
+/// Every hosted test shares one main actor. Under `swift test --parallel` it runs
+/// ~99% busy, so a poll that asks for 250 ms resumes seconds later and the screen's
+/// own `.task` loads advance just as slowly. A wall-clock bound then fails whichever
+/// test settles last (three Leaderboards spotlight tests hit 62–80 s against a 60 s
+/// bound) although nothing is wrong. This budget adds up only the sleeps the wait
+/// requested, so main-actor starvation stretches the wall time of both the wait and
+/// the content equally and never spends the budget; a load that never finishes still
+/// ends the wait once the requested polls add up to `limit`.
+struct NativeHostedPollBudget {
+    /// Total requested poll time allowed (already scaled for a VM).
+    let limit: Duration
+    /// Requested poll time spent so far.
+    private(set) var polled: Duration = .zero
+
+    /// - Parameters:
+    ///   - timeout: The wait's budget on a physical Mac.
+    ///   - inVirtualMachine: Whether the process runs in a VM (see `nativeHostedReadinessBudget`).
+    init(_ timeout: Duration, inVirtualMachine: Bool = nativeHostedIsVirtualMachine) {
+        limit = nativeHostedReadinessBudget(timeout, inVirtualMachine: inVirtualMachine)
+    }
+
+    /// Whether the requested poll time has passed the limit.
+    var isExhausted: Bool { polled > limit }
+
+    /// Sleep for one poll interval and charge only the requested interval.
+    ///
+    /// - Parameter interval: Requested poll interval.
+    /// - Throws: Cancellation.
+    mutating func sleep(for interval: Duration) async throws {
+        try await Task.sleep(for: interval)
+        polled += interval
+    }
+}
+
 /// Wait for asynchronously loaded content, then capture it once it stops changing.
 ///
 /// Replaces fixed `Task.sleep` waits: `.task` fixture loads finish at
@@ -373,12 +409,13 @@ func nativeHostedReadinessBudget(
 /// identical captures end the wait; content that keeps animating (a spinner in
 /// a loading-state test) ends it after `animationGrace` instead. Polling backs
 /// off from 20 ms to 250 ms so dozens of concurrently settling tests do not
-/// starve the main actor they are waiting on.
+/// starve the main actor they are waiting on. The timeout counts requested poll
+/// time (`NativeHostedPollBudget`), so a saturated parallel run cannot exhaust it.
 ///
 /// - Parameters:
 ///   - host: Sized host, usually attached to `nativeHostedWindow`.
-///   - timeout: Upper bound for `ready` to become true on a physical Mac
-///     (scaled in a VM, see `nativeHostedReadinessBudget`).
+///   - timeout: Upper bound, in requested poll time, for `ready` to become true on a
+///     physical Mac (scaled in a VM, see `nativeHostedReadinessBudget`).
 ///   - animationGrace: How long a ready-but-still-changing capture may keep changing.
 ///   - sourceLocation: Where a readiness timeout is reported.
 ///   - ready: Fixture-specific readiness, e.g. a session state or visible text.
@@ -395,21 +432,22 @@ func nativeHostedSettle<Content: View>(
 ) async throws -> CGImage {
     let clock = ContinuousClock()
     let start = clock.now
-    let budget = nativeHostedReadinessBudget(timeout)
+    var budget = NativeHostedPollBudget(timeout)
     var interval = Duration.milliseconds(20)
     var readySince: ContinuousClock.Instant?
     var previous: Int?
     while true {
-        try await Task.sleep(for: interval)
+        try await budget.sleep(for: interval)
         interval = min(interval * 3 / 2, .milliseconds(250))
         host.layoutSubtreeIfNeeded()
         host.displayIfNeeded()
         guard ready() else {
             readySince = nil
             previous = nil
-            if clock.now - start > budget {
+            if budget.isExhausted {
+                let wall = clock.now - start
                 Issue.record(
-                    "Hosted view never became ready within \(budget)",
+                    "Hosted view never became ready within \(budget.limit) of polling (\(wall) wall-clock)",
                     sourceLocation: sourceLocation
                 )
                 return try nativeHostedImage(host)

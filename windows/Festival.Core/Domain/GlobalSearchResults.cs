@@ -74,8 +74,8 @@ public enum GlobalSuggestionKind
     Player,
     /// <summary>A band result.</summary>
     Band,
-    /// <summary>"See all results" → the Search page.</summary>
-    SeeAll,
+    /// <summary>"View All Results" → the Search page.</summary>
+    ViewAll,
 }
 
 /// <summary>One title-bar <c>AutoSuggestBox</c> item. <see cref="ToString"/> is the UIA name of its list item.</summary>
@@ -83,7 +83,7 @@ public enum GlobalSuggestionKind
 /// <param name="Title">Primary text.</param>
 /// <param name="Subtitle">Secondary text.</param>
 /// <param name="Art">Song art, if any.</param>
-/// <param name="Route">Destination; for <see cref="GlobalSuggestionKind.SeeAll"/> the Search page.</param>
+/// <param name="Route">Destination; for <see cref="GlobalSuggestionKind.ViewAll"/> the Search page.</param>
 /// <param name="AccessibleName">Spoken name.</param>
 public sealed record GlobalSuggestion(
     GlobalSuggestionKind Kind, string Title, string Subtitle, string? Art, AppRoute Route, string AccessibleName)
@@ -97,8 +97,8 @@ public sealed record GlobalSuggestion(
     /// <summary>Whether this row is a band (shows a people icon).</summary>
     public bool IsBand => Kind == GlobalSuggestionKind.Band;
 
-    /// <summary>Whether this row is the "See all results" command.</summary>
-    public bool IsSeeAll => Kind == GlobalSuggestionKind.SeeAll;
+    /// <summary>Whether this row is the "View All Results" command.</summary>
+    public bool IsViewAll => Kind == GlobalSuggestionKind.ViewAll;
 
     /// <summary>Whether a secondary line is shown.</summary>
     public bool HasSubtitle => Subtitle.Length > 0;
@@ -127,7 +127,7 @@ public static class GlobalSearchResults
     /// <summary>Bands requested and shown (web <c>pageSize=10</c>).</summary>
     public const int BandLimit = 10;
     /// <summary>Bands in the title-bar suggestion list (fewer than songs/players: band titles are the longest rows
-    /// and the popup keeps "See all results" in view; the Search page lists all ten).</summary>
+    /// and the popup keeps "View All Results" in view; the Search page lists all ten).</summary>
     public const int SuggestedBands = 3;
     /// <summary>Shared automation ID of every band result card on the Search page.</summary>
     public const string BandResultId = "fst.global-search.result.band";
@@ -253,7 +253,7 @@ public static class GlobalSearchResults
     /// <summary>
     /// Title-bar suggestions: up to five songs, then up to five players, then up to three bands (each group appended
     /// after the previous one so the highlighted index of an earlier row never moves when a later read returns), then
-    /// "See all results".
+    /// "View All Results".
     /// </summary>
     /// <param name="query">User text.</param>
     /// <param name="songs">Song matches.</param>
@@ -278,8 +278,8 @@ public static class GlobalSearchResults
             list.Add(new(GlobalSuggestionKind.Band, band.MembersLabel, "Band · " + size, null, BandRoute(band),
                 $"Band, {band.MembersLabel}, {size}"));
         }
-        var seeAll = $"See All Results for “{text}”";
-        list.Add(new(GlobalSuggestionKind.SeeAll, seeAll, "", null, new AppRoute.Search(text), seeAll));
+        var viewAll = $"{ViewAllCta.ResultsLabel} for “{text}”";
+        list.Add(new(GlobalSuggestionKind.ViewAll, viewAll, "", null, new AppRoute.Search(text), viewAll));
         return list;
     }
 

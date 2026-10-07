@@ -194,7 +194,8 @@ private let slowedItemFade = Animation.linear(duration: 3)
 ///   - band: The clear vertical band (below the bar, above the pinned chrome's fade).
 ///   - threshold: Bright-sample threshold for row text.
 ///   - rest: Least time from the first in-band capture to the settled one.
-///   - timeout: Upper bound for the row to arrive and settle (scaled in a VM).
+///   - timeout: Upper bound, in requested poll time (`NativeHostedPollBudget`), for the row
+///     to arrive and settle (scaled in a VM).
 /// - Returns: The first in-band and the settled captures, and the poll gap before the first.
 @MainActor
 private func watchReveal<Content: View>(
@@ -202,12 +203,12 @@ private func watchReveal<Content: View>(
     threshold: Int, rest: Duration, timeout: Duration = .seconds(60)
 ) async throws -> RevealWatch {
     let clock = ContinuousClock()
-    let deadline = clock.now + nativeHostedReadinessBudget(timeout)
+    var budget = NativeHostedPollBudget(timeout)
     var first: (sample: RevealSample, at: ContinuousClock.Instant, gap: Duration)?
     var previous: RevealSample?
     var lastPoll = clock.now
     var lastFrame: CGRect?
-    while clock.now < deadline {
+    while !budget.isExhausted {
         let gap = clock.now - lastPoll
         lastPoll = clock.now
         host.layoutSubtreeIfNeeded()
@@ -229,13 +230,13 @@ private func watchReveal<Content: View>(
                     return RevealWatch(first: first.sample, settled: sample, gapBeforeFirst: first.gap)
                 }
                 previous = sample
-                try await Task.sleep(for: .milliseconds(150))
+                try await budget.sleep(for: .milliseconds(150))
                 continue
             }
         } else {
             previous = nil
         }
-        try await Task.sleep(for: .milliseconds(first == nil ? 20 : 100))
+        try await budget.sleep(for: .milliseconds(first == nil ? 20 : 100))
     }
     Issue.record("\(row) never rested in the clear band \(band) (last frame \(String(describing: lastFrame)))")
     throw CancellationError()
@@ -267,13 +268,12 @@ private func runRevealJourney(board: RevealBoard, motion: RevealMotion, size: CG
 
     if board == .fullRankings {
         // Jump from the pinned footer as soon as it offers it, while page 1 still fades.
-        let clock = ContinuousClock()
-        let deadline = clock.now + nativeHostedReadinessBudget(.seconds(30))
+        var budget = NativeHostedPollBudget(.seconds(30))
         var jump: NSObject?
-        while jump == nil, clock.now < deadline {
+        while jump == nil, !budget.isExhausted {
             host.layoutSubtreeIfNeeded()
             jump = nativeHostedAccessibilityElement("fst.full-rankings.spotlight-jump", in: host)
-            if jump == nil { try await Task.sleep(for: .milliseconds(30)) }
+            if jump == nil { try await budget.sleep(for: .milliseconds(30)) }
         }
         let press: AnyObject = try #require(jump, "the footer offers a jump to the player's page")
         #expect(press.accessibilityPerformPress?() == true)
@@ -412,12 +412,12 @@ private struct StaggeredListProbe: View {
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
     let clock = ContinuousClock()
-    let deadline = clock.now + nativeHostedReadinessBudget(.seconds(60))
+    var budget = NativeHostedPollBudget(.seconds(60))
     var samples: [(dim: Int, bright: Int, at: ContinuousClock.Instant)] = []
     var drawnAt: ContinuousClock.Instant?
     let rows = 0..<6
     func frames() -> [[TimeInterval]] { rows.map { RecordingFadeCurve.frames("\(probe).\($0)") } }
-    while clock.now < deadline {
+    while !budget.isExhausted {
         host.layoutSubtreeIfNeeded()
         if let frame = nativeHostedAccessibilityFrame("fst.test.staggered-row.0", in: host) {
             let image = try nativeHostedImage(host)
@@ -436,7 +436,7 @@ private struct StaggeredListProbe: View {
         } else {
             drawnAt = nil
         }
-        try await Task.sleep(for: .milliseconds(30))
+        try await budget.sleep(for: .milliseconds(30))
     }
     let final = try #require(samples.last, "the first row is revealed")
     #expect(final.bright > 100, "the first row ends fully drawn (\(final.bright))")

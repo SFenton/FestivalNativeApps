@@ -79,7 +79,7 @@ public sealed partial class MainWindow
     /// <param name="args">Chosen item.</param>
     private void OnGlobalSuggestionChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
     {
-        if (args.SelectedItem is GlobalSuggestion { IsSeeAll: false } item) sender.Text = item.Title;
+        if (args.SelectedItem is GlobalSuggestion { IsViewAll: false } item) sender.Text = item.Title;
     }
 
     /// <summary>A chosen suggestion opens its destination; typed text (Enter / query icon) opens the Search page.</summary>
