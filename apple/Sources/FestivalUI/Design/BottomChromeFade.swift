@@ -23,8 +23,9 @@ extension View {
     /// Fades a board's scrolling rows out above its pinned bottom chrome, the one
     /// bottom edge every paginated leaderboard shares (issue #305).
     ///
-    /// Rows are opaque until up to 36 pt above the chrome's top, fade to clear at
-    /// that edge and are not drawn beneath it (web `useScrollFade`, issue #93). The
+    /// Rows are opaque until up to ``ScrollEdgeFade/distance`` (40 pt) above the
+    /// chrome's top, fade linearly to clear at that edge and are not drawn beneath it
+    /// (web board pages' `useScrollMask`, issues #93, #329). The
     /// fade shrinks with the remaining scroll, so the last row comes to rest unfaded
     /// (issue #293). It applies whether or not the chrome holds a player footer: a
     /// board without one (band boards, no selected player, no score here) used to

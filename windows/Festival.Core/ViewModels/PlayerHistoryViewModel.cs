@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -26,15 +25,22 @@ public enum PlayerHistoryPhase
 }
 
 /// <summary>
-/// Selected player's score changes for one song and chart (<c>/songs/:songId/:instrument/history</c>), with the web's
-/// sort modes and a native score-over-time chart. Re-reads when the selected player changes.
+/// Selected player's every score for one song and chart (<c>/songs/:songId/:instrument/history</c>, web
+/// <c>PlayerHistoryPage</c>), opened by Song Detail's "View All Scores" (view-all-cta R8, issue #324): the song-first
+/// header, then shared leaderboard rows with the web's sort modes (default Score, descending) and the personal best
+/// highlighted wherever the sort puts it. Re-reads when the selected player changes; re-filters when the invalid-score
+/// settings change.
 /// </summary>
 public sealed partial class PlayerHistoryViewModel : ObservableObject, IDisposable
 {
+    /// <summary>Automation-ID prefix of the page's rows (Song Detail's top five use their own).</summary>
+    public const string RowIdPrefix = "fst.history.row.";
+
     private readonly FestivalSession session;
     private CancellationTokenSource? load;
     private List<ScoreHistoryEntry> entries = [];
     private string? lastAccount;
+    private (bool Filter, double Leeway) lastFilter;
 
     /// <summary>Creates the page model.</summary>
     /// <param name="session">Shared session.</param>
@@ -44,7 +50,9 @@ public sealed partial class PlayerHistoryViewModel : ObservableObject, IDisposab
         this.session = session;
         SongId = route.SongId;
         Instrument = route.Instrument;
+        Song = session.FindSong(SongId);
         lastAccount = session.SelectedPlayer?.AccountId;
+        lastFilter = (session.Settings.FilterInvalidScores, session.Settings.Leeway);
         Status = new ServiceStatusViewModel("player-history", "History unavailable", LoadAsync, session.Time);
         session.PropertyChanged += OnSessionChanged;
     }
@@ -58,33 +66,35 @@ public sealed partial class PlayerHistoryViewModel : ObservableObject, IDisposab
     /// <summary>Failed-read presentation.</summary>
     public ServiceStatusViewModel Status { get; }
 
-    /// <summary>Page title.</summary>
-    public string Title => "Score History";
-
-    /// <summary>"Song · Lead", once the catalogue resolves.</summary>
+    /// <summary>Resolved song (header and invalid-score filtering).</summary>
     [ObservableProperty]
-    private string subtitle = "";
+    [NotifyPropertyChangedFor(nameof(Title), nameof(Subtitle), nameof(IconFile), nameof(Announcement))]
+    private Song? song;
 
-    /// <summary>Instrument icon file.</summary>
-    public string IconFile => Instrument.IconFile(session.FindSong(SongId)?.UsesKeyboardIcon == true);
+    /// <summary>Header title: the song (song-leaderboard-header R1; web <c>SongInfoHeader</c>).</summary>
+    public string Title => Song?.Title ?? "";
 
-    /// <summary>Instrument name.</summary>
+    /// <summary>Header subtitle (artist).</summary>
+    public string Subtitle => Song?.Artist ?? "";
+
+    /// <summary>Chart icon (keys variant for keyboard songs).</summary>
+    public string IconFile => Instrument.IconFile(Song?.UsesKeyboardIcon == true);
+
+    /// <summary>Instrument name (the header's board line).</summary>
     public string InstrumentLabel => Instrument.Label();
+
+    /// <summary>Page announcement: <c>Through the Fire and Flames, Lead score history</c>.</summary>
+    public string Announcement => Title.Length > 0 ? $"{Title}, {InstrumentLabel} score history" : $"{InstrumentLabel} score history";
 
     /// <summary>Phase.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsLoading), nameof(ShowRows), nameof(ShowError), nameof(ShowMessage), nameof(Message),
-        nameof(MessageTitle), nameof(CanRetryMessage))]
+        nameof(MessageTitle), nameof(CanRetryMessage), nameof(CanSelectPlayer))]
     private PlayerHistoryPhase phase = PlayerHistoryPhase.Loading;
 
-    /// <summary>Sorted rows.</summary>
+    /// <summary>Every score in the chosen order, as shared leaderboard rows (web <c>LeaderboardEntry</c>).</summary>
     [ObservableProperty]
-    private List<ScoreHistoryRow> rows = [];
-
-    /// <summary>Score-over-time chart (two or more dated rows).</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasChart))]
-    private ScoreHistoryChartModel? chart;
+    private List<ScoreHistoryListRow> rows = [];
 
     /// <summary>Sort key (default Score).</summary>
     [ObservableProperty]
@@ -99,7 +109,7 @@ public sealed partial class PlayerHistoryViewModel : ObservableObject, IDisposab
     /// <summary>Spinner.</summary>
     public bool IsLoading => Phase == PlayerHistoryPhase.Loading;
 
-    /// <summary>Rows and chart.</summary>
+    /// <summary>Rows and sort.</summary>
     public bool ShowRows => Phase == PlayerHistoryPhase.Loaded;
 
     /// <summary>Service status.</summary>
@@ -110,6 +120,9 @@ public sealed partial class PlayerHistoryViewModel : ObservableObject, IDisposab
 
     /// <summary>Whether a retry is offered with the message (syncing only).</summary>
     public bool CanRetryMessage => Phase == PlayerHistoryPhase.Syncing;
+
+    /// <summary>Whether the message offers Select Player (no player; same action as the Rivals no-player state).</summary>
+    public bool CanSelectPlayer => Phase == PlayerHistoryPhase.NoPlayer;
 
     /// <summary>Message heading.</summary>
     public string MessageTitle => Phase switch
@@ -130,41 +143,40 @@ public sealed partial class PlayerHistoryViewModel : ObservableObject, IDisposab
         _ => "",
     };
 
-    /// <summary>Whether the chart is shown.</summary>
-    public bool HasChart => Chart is not null;
-
     /// <summary>Sort button text, e.g. "Score ↓".</summary>
     public string SortLabel => $"{SortMode.Label()} {(SortAscending ? "↑" : "↓")}";
 
     /// <summary>Sort button accessible name.</summary>
     public string SortAnnouncement => $"Sort by {SortMode.Label()}, {(SortAscending ? "ascending" : "descending")}";
 
-    /// <summary>Loads the selected player's history.</summary>
+    /// <summary>Loads the catalogue song and the selected player's history for the chart.</summary>
     /// <returns>Load task.</returns>
     [RelayCommand]
     public async Task LoadAsync()
     {
         load?.Cancel();
         var token = (load = new CancellationTokenSource()).Token;
-        ResolveSubtitle();
         if (session.SelectedPlayer is not { } player)
         {
             Show(PlayerHistoryPhase.NoPlayer, []);
+            await ResolveSongAsync(token);
             return;
         }
         Show(PlayerHistoryPhase.Loading, []);
+        await ResolveSongAsync(token);
+        if (token.IsCancellationRequested) return;
         try
         {
             var read = await session.Api.GetPlayerHistoryAsync(player.AccountId, SongId, Instrument, token);
             if (token.IsCancellationRequested) return;
             Status.Clear();
-            var matching = read.Entries(SongId, Instrument);
+            var matching = read.State == PlayerHistoryState.Available ? read.Entries(SongId, Instrument) : [];
             Show(read.State switch
             {
                 PlayerHistoryState.Unregistered => PlayerHistoryPhase.Unregistered,
                 PlayerHistoryState.Syncing => PlayerHistoryPhase.Syncing,
-                _ => matching.Count == 0 ? PlayerHistoryPhase.Empty : PlayerHistoryPhase.Loaded,
-            }, read.State == PlayerHistoryState.Available ? matching : []);
+                _ => PlayerHistoryPhase.Loaded,
+            }, matching);
         }
         catch (OperationCanceledException)
         {
@@ -175,15 +187,6 @@ public sealed partial class PlayerHistoryViewModel : ObservableObject, IDisposab
             if (token.IsCancellationRequested) return;
             Show(PlayerHistoryPhase.Failed, []);
             Status.Report(error);
-        }
-        try
-        {
-            await session.LoadCatalogAsync(cancellationToken: token);
-            ResolveSubtitle();
-        }
-        catch (Exception error) when (error is FestivalApiException or OperationCanceledException)
-        {
-            // The subtitle falls back to the chart name.
         }
     }
 
@@ -219,78 +222,68 @@ public sealed partial class PlayerHistoryViewModel : ObservableObject, IDisposab
     /// <param name="value">Direction.</param>
     partial void OnSortAscendingChanged(bool value) => Resort();
 
-    /// <summary>Applies a phase and rows.</summary>
-    /// <param name="next">Phase.</param>
+    /// <summary>Resolves the song from the catalogue (the header and the invalid-score filter need it).</summary>
+    /// <param name="token">Cancellation.</param>
+    /// <returns>Completes when resolved, or when the catalogue read failed (the header stays on the chart name).</returns>
+    private async Task ResolveSongAsync(CancellationToken token)
+    {
+        if (Song is not null) return;
+        try
+        {
+            await session.LoadCatalogAsync(cancellationToken: token);
+            if (!token.IsCancellationRequested) Song = session.FindSong(SongId);
+        }
+        catch (Exception error) when (error is FestivalApiException or OperationCanceledException)
+        {
+            // The header falls back to the chart name; scores still show (unfiltered without a song).
+        }
+    }
+
+    /// <summary>Applies a phase and the chart's raw rows.</summary>
+    /// <param name="next">Phase (Loaded becomes Empty when nothing survives the invalid-score filter).</param>
     /// <param name="loaded">Rows.</param>
     private void Show(PlayerHistoryPhase next, List<ScoreHistoryEntry> loaded)
     {
         entries = loaded;
-        Chart = ScoreHistoryChartModel.Build(entries);
         Resort();
-        Phase = next;
+        Phase = next == PlayerHistoryPhase.Loaded && Rows.Count == 0 ? PlayerHistoryPhase.Empty : next;
     }
 
-    /// <summary>Rebuilds rows in the current order; the personal best follows the sort.</summary>
+    /// <summary>
+    /// Rebuilds rows in the current order after the invalid-score filter (web <c>filterHistory</c>); the personal best
+    /// follows the sort (<see cref="PlayerScoreHistorySort.HighScoreIndex"/>) and every row shares one set of columns.
+    /// </summary>
     private void Resort()
     {
-        var sorted = PlayerScoreHistorySort.Sorted(entries, SortMode, SortAscending);
+        var kept = SongScoreHistory.FilterInvalid(entries, Song, session.Settings.FilterInvalidScores, session.Settings.Leeway);
+        var points = SongScoreHistory.Points(kept, Instrument);
+        var sorted = PlayerScoreHistorySort.Sorted(points.Select(p => p.Entry), SortMode, SortAscending);
         var best = PlayerScoreHistorySort.HighScoreIndex(sorted);
-        Rows = [.. sorted.Select((e, i) => new ScoreHistoryRow(e, i == best))];
+        var rows = sorted
+            .Select((e, i) => new ScoreHistoryListRow(points.First(p => ReferenceEquals(p.Entry, e)), i == best) { RowIdPrefix = RowIdPrefix })
+            .ToList();
+        var section = LeaderboardColumns.Measure(rows);
+        Rows = [.. rows.Select(r => r with { Section = section })];
     }
 
-    /// <summary>"Song · Lead".</summary>
-    private void ResolveSubtitle()
-    {
-        Subtitle = session.FindSong(SongId) is { } song ? $"{song.Title} · {InstrumentLabel}" : InstrumentLabel;
-        OnPropertyChanged(nameof(IconFile));
-    }
-
-    /// <summary>Per-entity reset: re-read when the selected player changes.</summary>
+    /// <summary>Per-entity reset: re-read when the selected player changes; re-filter when the invalid-score settings change.</summary>
     /// <param name="sender">Session.</param>
     /// <param name="e">Changed property.</param>
     private void OnSessionChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(FestivalSession.Settings) || session.SelectedPlayer?.AccountId == lastAccount) return;
-        lastAccount = session.SelectedPlayer?.AccountId;
-        _ = LoadAsync();
-    }
-}
-
-/// <summary>One history row.</summary>
-/// <param name="Entry">Wire row.</param>
-/// <param name="IsHighScore">Highest score in the displayed rows.</param>
-public sealed record ScoreHistoryRow(ScoreHistoryEntry Entry, bool IsHighScore)
-{
-    /// <summary>Date text.</summary>
-    public string Date => Entry.DateText;
-
-    /// <summary>Score.</summary>
-    public string Score => ScoreFormatting.Score(Entry.NewScore);
-
-    /// <summary>"date · Season 9" second line.</summary>
-    public string Detail => Season.Length > 0 ? $"{Date} · {Season}" : Date;
-
-    /// <summary>Accuracy, or empty.</summary>
-    public string Accuracy => ScoreFormatting.Accuracy(Entry.Accuracy);
-
-    /// <summary>Whether accuracy is known.</summary>
-    public bool HasAccuracy => Accuracy.Length > 0;
-
-    /// <summary>Full combo.</summary>
-    public bool IsFullCombo => Entry.IsFullCombo == true;
-
-    /// <summary>"Season 9", or empty.</summary>
-    public string Season => Entry.Season is { } s ? "Season " + s.ToString(CultureInfo.CurrentCulture) : "";
-
-    /// <summary>Service stars (0 when missing), drawn as star images by the row.</summary>
-    public int StarCount => Entry.Stars ?? 0;
-
-    /// <summary>Screen-reader text.</summary>
-    public string Announcement =>
-        string.Join(", ", new[]
+        if (e.PropertyName != nameof(FestivalSession.Settings)) return;
+        if (session.SelectedPlayer?.AccountId != lastAccount)
         {
-            Date, $"score {Score}", HasAccuracy ? $"accuracy {Accuracy}" : "", IsFullCombo ? "full combo" : "",
-            StarRating.From(Entry.Stars) is { } stars ? stars.Announcement : "", Season, IsHighScore ? "personal best" : "",
-        }.Where(p => p.Length > 0));
+            lastAccount = session.SelectedPlayer?.AccountId;
+            _ = LoadAsync();
+            return;
+        }
+        var filter = (session.Settings.FilterInvalidScores, session.Settings.Leeway);
+        if (filter == lastFilter) return;
+        lastFilter = filter;
+        if (Phase is not (PlayerHistoryPhase.Loaded or PlayerHistoryPhase.Empty)) return;
+        Resort();
+        Phase = Rows.Count == 0 ? PlayerHistoryPhase.Empty : PlayerHistoryPhase.Loaded;
+    }
 }
 #endregion

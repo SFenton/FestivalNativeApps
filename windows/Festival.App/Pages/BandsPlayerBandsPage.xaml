@@ -75,6 +75,11 @@
             </StackPanel>
         </Grid>
 
+        <!-- Contrast themes only: the footer fade cuts the cards hard at the pager's top and this window-colour plate (pager
+             height plus its margin, sized by BoardFooterFade) backs its buttons (issue #305). Never hit-testable. -->
+        <Border x:Name="FooterPlate" Grid.Row="2" Grid.RowSpan="2" VerticalAlignment="Bottom" IsHitTestVisible="False"
+                Visibility="Collapsed" Background="{ThemeResource FSTFloatingBackplateBrush}" />
+
         <!-- Shared board pager floating over the cards (web FixedLeaderboardPagination; operator batch 7.4). -->
         <controls:LeaderboardsPager x:Name="Footer" Grid.Row="2" Grid.RowSpan="2" VerticalAlignment="Bottom" Margin="0,0,0,12"
                                     Pager="{x:Bind ViewModel.Pager, Mode=OneWay}" IdPrefix="fst.player-bands" />

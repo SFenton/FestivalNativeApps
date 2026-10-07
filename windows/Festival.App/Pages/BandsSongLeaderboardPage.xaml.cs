@@ -16,7 +16,7 @@ namespace Festival.App.Pages;
 /// </summary>
 public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
 {
-    private int shownPage;
+    private SongBandRow? pendingReveal;
     private bool spotlightShown;
 
     /// <summary>Creates the page.</summary>
@@ -49,7 +49,6 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
             "Loading band leaderboard");
         Bindings.Update();
         SizeBar.SelectedItem = SizeBar.Items[ViewModel.BandTypeIndex];
-        shownPage = ViewModel.Pager.Page;
         spotlightShown = ViewModel.ShowSpotlight;
         ViewModel.Activate();
         ContrastTheme.Changed += OnContrastChanged;
@@ -129,30 +128,32 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
         Rows.ItemsSource = items;
     });
 
-    /// <summary>Shows the resolved song's header art and backdrop; scrolls to the top on a new page.</summary>
+    /// <summary>
+    /// Shows the resolved song's header art and backdrop. On a new page, scrolls to the top, or after a jump or a reveal
+    /// route brings the selected band's highlighted row into view (instantly, as the solo board).
+    /// </summary>
     /// <param name="sender">View model.</param>
     /// <param name="e">Changed property.</param>
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(SongBandLeaderboardViewModel.Rows))
         {
-            // After x:Bind has swapped the items: a page change that brings the selected band (e.g. "Your Page") scrolls it
-            // into view; anything else starts at the top.
-            var pageChanged = ViewModel.Pager.Page != shownPage;
-            shownPage = ViewModel.Pager.Page;
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                if (Rows.Items.Count == 0) return;
-                var target = pageChanged ? ViewModel.Rows.FirstOrDefault(r => r.IsSelected) : null;
-                Rows.ScrollIntoView(target ?? Rows.Items[0], target is null ? ScrollIntoViewAlignment.Default : ScrollIntoViewAlignment.Leading);
-            });
+            // The reveal waits for the load gate to show the list (OnContentRevealed); the flag is spent either way.
+            pendingReveal = ViewModel.RevealSelected ? ViewModel.Rows.FirstOrDefault(r => r.IsSelected) : null;
+            ViewModel.RevealSelected = false;
+            // After x:Bind has swapped the items.
+            if (pendingReveal is null)
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (Rows.Items.Count > 0) Rows.ScrollIntoView(Rows.Items[0]);
+                });
             return;
         }
         if (e.PropertyName == nameof(SongBandLeaderboardViewModel.ShowSpotlight))
         {
             var shown = ViewModel.ShowSpotlight;
             if (PinnedRowReveal.FadesOnArrival(spotlightShown, shown, ViewModel.LoadSwap.Phase))
-                DispatcherQueue.TryEnqueue(() => FadeIn.Play(SpotlightPanel, TimeSpan.Zero));
+                DispatcherQueue.TryEnqueue(() => FadeIn.Play(SpotlightPanel));
             spotlightShown = shown;
             return;
         }
@@ -168,8 +169,10 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
     }
 
     /// <summary>
-    /// Replays the web row entrance after the shared load gate reveals a new page, with the pinned band entering alongside
-    /// the first row when it was gated (issue #295); paging keeps it in place (issue #270).
+    /// After the shared load gate reveals a new page, replays the web row entrance, with the pinned row entering alongside
+    /// the first row when it was gated (issue #295); paging keeps it in place (issue #270). A pending selected band is then
+    /// centred once its own entrance has finished, rushing the rest (<see cref="SelectedRowReveal"/>, web <c>navToBand</c>,
+    /// issues #307 and #323).
     /// </summary>
     /// <param name="sender">Swap.</param>
     /// <param name="e">Unused.</param>
@@ -177,7 +180,60 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
         DispatcherQueue.TryEnqueue(() =>
         {
             FadeIn.StaggerRealized(Rows);
-            if (ViewModel.ShowSpotlight && ViewModel.PinnedGate.IsGated) FadeIn.Play(SpotlightPanel, PinnedRowReveal.RevealDelay);
+            if (ViewModel.ShowSpotlight && ViewModel.PinnedGate.IsGated) FadeIn.Enter(Rows, SpotlightPanel, PinnedRowReveal.RevealDelay);
+            if (pendingReveal is { } reveal)
+            {
+                pendingReveal = null;
+                SelectedRowReveal.Start(Rows, ViewModel.Rows.IndexOf(reveal), () => RevealRow(reveal));
+            }
         });
+
+    /// <summary>Frames <see cref="RevealRow"/> spends bringing the selected row into view before giving up (about a second).</summary>
+    private const int RevealFrames = 60;
+
+    /// <summary>
+    /// Scrolls the selected band's row into view and centres it (without animation). A freshly swapped ListView defers
+    /// <c>ScrollIntoView</c>, and scroll requests made in the same tick or inside <c>LayoutUpdated</c> do not commit (the
+    /// list stays at the top), so this works once per rendered frame, outside layout: it asks the list to realize the row,
+    /// then brings its container into view, and stops once the row lies inside the list's viewport, a newer page replaces
+    /// the rows, the page unloads or the frames run out.
+    /// </summary>
+    /// <param name="row">Selected row.</param>
+    private void RevealRow(SongBandRow row)
+    {
+        var items = ViewModel.Rows;
+        var frames = 0;
+        var asked = false;
+        void OnFrame(object? sender, object e)
+        {
+            if (++frames > RevealFrames || !IsLoaded || !ReferenceEquals(ViewModel.Rows, items))
+            {
+                CompositionTarget.Rendering -= OnFrame;
+                return;
+            }
+            if (Rows.ContainerFromItem(row) is not FrameworkElement container)
+            {
+                Rows.ScrollIntoView(row);
+                return;
+            }
+            if (asked && IsInViewport(container))
+            {
+                CompositionTarget.Rendering -= OnFrame;
+                return;
+            }
+            asked = true;
+            container.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });
+        }
+        CompositionTarget.Rendering += OnFrame;
+    }
+
+    /// <summary>Whether a row container lies wholly inside the list's visible bounds.</summary>
+    /// <param name="container">Row container.</param>
+    /// <returns><see langword="true"/> when the row is fully visible.</returns>
+    private bool IsInViewport(FrameworkElement container)
+    {
+        var top = container.TransformToVisual(Rows).TransformPoint(default).Y;
+        return top >= 0 && top + container.ActualHeight <= Rows.ActualHeight;
+    }
 }
 #endregion

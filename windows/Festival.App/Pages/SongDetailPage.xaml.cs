@@ -15,15 +15,13 @@ namespace Festival.App.Pages;
 #region Song detail page
 /// <summary>
 /// Song Detail: header, Intensity for every charted instrument, the selected player's score history and a top-10 card per
-/// visible chart. Also hosts the score-history route (<c>/songs/:id/:instrument/history</c>), opened scrolled to history.
+/// visible chart. Its View All Scores opens the separate Player History page (<c>/songs/:id/:instrument/history</c>, issue #324).
 /// </summary>
 public sealed partial class SongDetailPage : Page, IBackdropPage
 {
     private readonly QuickLinksViewModel quickLinks = new("Quick Links");
     private CancellationTokenSource headerArt = new();
     private long navigatedAt;
-    /// <summary>The board cards' reveal window: closes at the first scroll (pattern load-transition R5, issue #260).</summary>
-    private readonly StaggerArm boardArm = FadeIn.NewArm();
     private readonly ScoreHistorySwapper historySwap;
     private Storyboard? historyRelease;
 
@@ -71,9 +69,7 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     {
         base.OnNavigatedTo(e);
         navigatedAt = Stopwatch.GetTimestamp();
-        ViewModel = e.Parameter is AppRoute.PlayerHistory history
-            ? new SongDetailViewModel(App.Session, history)
-            : new SongDetailViewModel(App.Session, (AppRoute.SongDetail)e.Parameter);
+        ViewModel = new SongDetailViewModel(App.Session, (AppRoute.SongDetail)e.Parameter);
         ViewModel.PropertyChanged += OnViewModelChanged;
         ViewModel.History.PropertyChanged += OnHistoryChanged;
         Bindings.Update();
@@ -214,7 +210,6 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
                 if (!animate)
                 {
                     StopSpinner();
-                    AfterReveal();
                     return;
                 }
                 // Content stays transparent (not collapsed, so layout and card realization proceed) until the spinner fades.
@@ -241,36 +236,32 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
         batch.Completed += (_, _) => DispatcherQueue.TryEnqueue(() =>
         {
             StopSpinner();
-            boardArm.Arm(0, Stopwatch.GetElapsedTime(0));
-            boardArm.Settle(Scroller.HorizontalOffset, Scroller.VerticalOffset);
-            FadeIn.Play(FullHeader, SongDetailReveal.Header);
-            FadeIn.Play(IntensitySection, SongDetailReveal.Intensity);
-            FadeIn.Play(HistorySection, SongDetailReveal.History);
-            FadeIn.Play(LeaderboardsSection, SongDetailReveal.Leaderboards);
+            FadeIn.BeginEntrance(Scroller);
+            Enter(FullHeader, SongDetailReveal.Header);
+            Enter(IntensitySection, SongDetailReveal.Intensity);
+            Enter(HistorySection, SongDetailReveal.History);
+            Enter(LeaderboardsSection, SongDetailReveal.Leaderboards);
             for (var i = 0; i < (ViewModel?.Leaderboards.Count ?? 0); i++)
-                if (Boards.TryGetElement(i) is UIElement card) FadeIn.Play(card, SongDetailReveal.Card(i, BoardColumns()));
+                if (Boards.TryGetElement(i) is UIElement card) Enter(card, SongDetailReveal.Card(i, BoardColumns()));
             // Band previews come last, after the final instrument card's slot.
-            FadeIn.Play(BandBoards, SongDetailReveal.Card(ViewModel?.Leaderboards.Count ?? 0, BoardColumns()));
-            AfterReveal();
+            Enter(BandBoards, SongDetailReveal.Card(ViewModel?.Leaderboards.Count ?? 0, BoardColumns()));
         });
     }
+
+    /// <summary>
+    /// Fades a section or card in with the page entrance (<see cref="FadeIn.Enter"/> on the page scroller): its own delay
+    /// while the entrance runs, at once while a scroll rushes it (web <c>useStaggerRush</c>, issue #323), in place after
+    /// it (R5).
+    /// </summary>
+    /// <param name="element">Section or card.</param>
+    /// <param name="natural">Its delay in the reveal choreography.</param>
+    private void Enter(UIElement element, TimeSpan natural) => FadeIn.Enter(Scroller, element, natural);
 
     /// <summary>Hides the spinner.</summary>
     private void StopSpinner()
     {
         Spinner.IsActive = false;
         Spinner.Visibility = Visibility.Collapsed;
-    }
-
-    /// <summary>Post-reveal: the history route scrolls to the history section.</summary>
-    private void AfterReveal()
-    {
-        if (!ViewModel.ScrollToHistory || !ViewModel.History.IsVisible) return;
-        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
-        {
-            var top = HistorySection.TransformToVisual(Scroller.Content as UIElement).TransformPoint(default).Y;
-            Scroller.ChangeView(null, Math.Max(0, top - 64), null, disableAnimation: !Motion.Allowed);
-        });
     }
 
     /// <summary>Cards per row in the leaderboard grid (two from 2 × 320 + 16 epx).</summary>
@@ -286,7 +277,6 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     /// <param name="e">Unused.</param>
     private void OnScrollerViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
-        boardArm.Scrolled(Scroller.HorizontalOffset, Scroller.VerticalOffset);
         var pinned = SongDetailLayout.PinsHeader(Scroller.VerticalOffset, FullHeader.ActualHeight);
         var wanted = pinned ? Visibility.Visible : Visibility.Collapsed;
         if (PinnedHeader.Visibility != wanted) PinnedHeader.Visibility = wanted;
@@ -321,11 +311,7 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     private void OnBoardPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
     {
         if (sender.ItemsSourceView?.GetAt(args.Index) is LeaderboardPreviewViewModel card) _ = card.EnsureLoadedAsync();
-        boardArm.Scrolled(Scroller.HorizontalOffset, Scroller.VerticalOffset);
-        if (boardArm.IsOpen(Stopwatch.GetElapsedTime(0)))
-            FadeIn.Play(args.Element, SongDetailReveal.Card(args.Index, BoardColumns()));
-        else
-            FadeIn.Reset(args.Element);
+        Enter(args.Element, SongDetailReveal.Card(args.Index, BoardColumns()));
     }
 
     /// <summary>Opens this song's full band leaderboard for a preview's band size.</summary>
@@ -336,39 +322,15 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
         if (sender is FrameworkElement { Tag: SongBandPreviewViewModel band }) MainWindow.Instance?.Navigate(band.FullRoute);
     }
 
-    /// <summary>Checks the current mode and direction when the history sort menu opens.</summary>
-    /// <param name="sender">Menu.</param>
+    /// <summary>
+    /// "View All Scores": opens the selected chart's sortable Player History page (view-all-cta R8; the card never
+    /// expands in place, issue #324).
+    /// </summary>
+    /// <param name="sender">Button.</param>
     /// <param name="e">Unused.</param>
-    private void OnSortMenuOpening(object sender, object e)
+    private void OnHistoryViewAll(object sender, RoutedEventArgs e)
     {
-        foreach (var item in SortMenu.Items.OfType<RadioMenuFlyoutItem>())
-        {
-            item.IsChecked = item.Tag switch
-            {
-                "asc" => ViewModel.History.SortAscending,
-                "desc" => !ViewModel.History.SortAscending,
-                string mode => mode == ViewModel.History.SortMode.ToString(),
-                _ => false,
-            };
-        }
-    }
-
-    /// <summary>Applies a history sort key.</summary>
-    /// <param name="sender">Menu item.</param>
-    /// <param name="e">Unused.</param>
-    private void OnSortModeClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is FrameworkElement { Tag: string tag } && Enum.TryParse<PlayerScoreSortMode>(tag, out var mode))
-            ViewModel.History.SortByCommand.Execute(mode);
-    }
-
-    /// <summary>Applies a history sort direction.</summary>
-    /// <param name="sender">Menu item.</param>
-    /// <param name="e">Unused.</param>
-    private void OnSortDirectionClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is FrameworkElement { Tag: string tag } && (tag == "asc") != ViewModel.History.SortAscending)
-            ViewModel.History.ToggleDirectionCommand.Execute(null);
+        if (ViewModel.History.ViewAllRoute is { } route) MainWindow.Instance?.Navigate(route);
     }
 
     /// <summary>Opens the validated official Item Shop page.</summary>

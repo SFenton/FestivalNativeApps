@@ -7,7 +7,7 @@
     <!-- Non-content states shared by All Rivals, Rival Detail and Rivalry: loading, scrape-freeze/failure, empty, no player. -->
     <Grid>
         <ProgressRing IsActive="{x:Bind Page.IsLoading, Mode=OneWay}" Width="48" Height="48"
-                      AutomationProperties.Name="Loading" />
+                      AutomationProperties.Name="Loading" AutomationProperties.AutomationId="fst.rivals.page-loading" />
         <local:ServiceStatusView Status="{x:Bind Page.Status, Mode=OneWay}" VerticalAlignment="Center" Margin="16"
                                  Visibility="{x:Bind Page.ShowError, Mode=OneWay}" />
         <StackPanel Visibility="{x:Bind Page.ShowEmpty, Mode=OneWay}" MaxWidth="480" Spacing="8" Margin="16,64,16,0"

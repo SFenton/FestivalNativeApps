@@ -112,6 +112,7 @@ STEP_VERBS = {
     "assertsize": "size", "assertapart": "pair", "assertat": "offset", "tapat": "offset", "clickat": "offset",
     "narrate": "selector", "assertread": "read", "assertorder": "order",
     "assertpaint": "paint", "assertbold": "bold", "assertannouncedcount": "announcedcount",
+    "assertmarquee": "marquee", "assertmarqueesync": "pair",
 }
 
 #: ``assertpaint`` probe: ``[name:]<x>,<y>[,<x2>,<y2>][<op><expect>[~<tol>]]``. ``x`` is ``L``/``R``/``C`` and ``y``
@@ -273,7 +274,8 @@ def parse_step(step: str) -> dict:
     ``markspan:<sel>|<sel>|<name>`` records the distance from the first element's top edge to the second's (epx)
     under ``<name>`` and ``assertspan:<sel>|<sel>|<name>`` fails unless that distance is unchanged within 1 epx
     in the same drive (a card that must keep its height across a transition, measured top to top so scrolling
-    doesn't matter).
+    doesn't matter). ``assertspan:<sel>|<sel>|<name>~<epx>`` widens that tolerance for a mid-transition check whose
+    anchor itself animates (e.g. list rows below a card rising ``FadeInTiming.OffsetY`` = 12 epx as they fade in).
     ``film:<dir>`` starts a background ``PrintWindow`` capture (frames scaled to at most 1280 px, up to 300) while
     the following steps run, and ``filmstop:<dir>`` ends it and writes ``f0000.jpg``… and ``frames.json`` (each
     frame's offset in ms) to ``<dir>``: motion evidence for a short transition such as a fade.
@@ -293,6 +295,14 @@ def parse_step(step: str) -> dict:
     Narrator reads after a combo box's name, e.g. ``Instrument, combo box, Bass``) equals ``<value>``;
     ``pin:<sel>`` records the element's window-relative rectangle and ``assertpinned:<sel>`` (same selector, later in
     the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls;
+    ``assertmarquee:<sel>|moving|<epx>`` fails unless the element is at most ``<epx>`` effective pixels high (one line)
+    and its pixels change across three captures 1.2 s apart (a scrolling marquee), and ``assertmarquee:<sel>|static|<epx>``
+    unless it is one line, unchanged across the captures and ends in an ellipsis, and ``assertmarquee:<sel>|wrapped|<epx>``
+    unless it is at least ``<epx>`` high (wrapped onto more lines) and unchanged (song headers, issue #315; R3 large text),
+    and ``assertmarquee:<sel>|fits|<epx>`` unless it is one line, unchanged and not ellipsized (a line short enough for its
+    column); ``assertmarqueesync:<sel>|<sel>`` crops both lines from captures about 150 ms apart for up to 9 s and fails
+    unless at least four capture pairs show both moving and every pair moved them by the same number of pixels (within
+    2 px or 8%): lockstep marquees that share one scroll distance (song-header R2, web ``useMarqueeSync``);
     ``listen:announcements`` starts recording the window's UIA notification events (the app's screen-reader
     announcements, what Narrator speaks) and a later ``assertannounced:<text>[@<seconds>]`` in the same ``drive`` waits
     (default 5 s) until one equals ``<text>`` (or matches it as a .NET regex when it starts with ``~``);
@@ -372,12 +382,17 @@ def parse_step(step: str) -> dict:
     elif shape == "span":
         first, sep, rest = arg.partition("|")
         second, sep2, name = rest.rpartition("|")
-        if not sep or not sep2 or not re.fullmatch(r"[A-Za-z0-9_.-]+", name.strip()):
-            raise ValueError(f"bad {verb} {arg!r}; use <selector>|<selector>|<name>")
+        name, tilde, slack = name.strip().partition("~")
+        if not sep or not sep2 or not re.fullmatch(r"[A-Za-z0-9_.-]+", name):
+            raise ValueError(f"bad {verb} {arg!r}; use <selector>|<selector>|<name>[~<epx>]")
+        if tilde and (verb != "assertspan" or not re.fullmatch(r"\d+(\.\d+)?", slack) or float(slack) < 1):
+            raise ValueError(f"bad {verb} {arg!r}; only assertspan takes a ~<epx> tolerance of at least 1")
         result["selector"], result["other"] = parse_selector(first), parse_selector(second)
         if "xy" in (result["selector"]["kind"], result["other"]["kind"]):
             raise ValueError(f"{verb} needs element selectors, not coordinates")
-        result["name"] = name.strip()
+        result["name"] = name
+        if tilde:
+            result["tolerance"] = float(slack)
     elif shape == "size":
         selector, sep, size = arg.rpartition("|")
         match = re.fullmatch(r"(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)", size.strip())
@@ -407,6 +422,15 @@ def parse_step(step: str) -> dict:
         result["status"] = status.strip()
         if wait:
             result["timeout"] = float(wait)
+    elif shape == "marquee":
+        selector, sep, rest = arg.partition("|")
+        mode, sep2, epx = rest.partition("|")
+        if not sep or not sep2 or mode.strip() not in ("moving", "static", "fits", "wrapped") or not re.fullmatch(r"\d+(\.\d+)?", epx.strip()):
+            raise ValueError(f"bad assertmarquee {arg!r}; use <selector>|moving|static|fits|wrapped|<height epx: max, or min for wrapped>")
+        result["selector"] = parse_selector(selector)
+        if result["selector"]["kind"] == "xy":
+            raise ValueError("assertmarquee needs an element selector, not coordinates")
+        result["mode"], result["epx"] = mode.strip(), float(epx)
     elif shape == "read":
         body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
         selector, sep, text = body.partition("|")

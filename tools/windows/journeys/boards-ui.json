@@ -109,7 +109,7 @@
       "waitfor:id=fst.song-leaderboard.row.fixture-player-26@15",
       "waitfor:id=fst.song-leaderboard.spotlight-footer@5",
       "assertfocus:id=fst.song-leaderboard.page-next",
-      "assertstatus:id=fst.song-leaderboard.footer-fade|fading:36@5"
+      "assertstatus:id=fst.song-leaderboard.footer-fade|fading:40@5"
     ]
   },
   {

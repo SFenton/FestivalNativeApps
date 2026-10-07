@@ -23,3 +23,20 @@ These checks ran with `a11y_matrix.py --only rival-detail --scan --tabs 30` agai
 | Narrator / UIA | Fixed: Quick Links menu items were Toggle-only, so Narrator's default action didn't jump ([quick-links/windows.md](../../controls/quick-links/windows.md)). Cards are named groups, category titles are Level 2 headings and rows have full names |
 
 The compact song row also had a double space ("you ·  #30") from XAML `Run` whitespace, now fixed. Journeys: `rivals_journey.py` `populated`, `freeze`, `no-player`, `detail-empty` (no shared songs) and `detail-nav` (Quick Links jump via UIA Toggle → song row → Song Detail → Back → View Profile → Player → Back).
+
+## Validation (issue #284, 2026-10)
+
+Re-validation of the #95 fix ("Rivals screens don't load") on the live public service with SFentonX → That_Man_1_2_3_4 (`journeys/a11y-rival-detail-live.json`: `rd-live` deep link, all visible charts; `rd-live-flow` Rivals → Lead View All → All Rivals → rival → Closest Battles View All → Back). Every rival detail read answered 200 (no freeze 503), and the page showed "515 shared songs · 190 ahead / 325 behind" and its category cards. Axe.Windows found 0 errors in every configuration; Tab walks had no stops outside the app and no repeats.
+
+| Configuration | Result |
+|---|---|
+| Compact / medium / wide; maximized; snapped left/right | Pass. Compact stacks View Profile beside Quick Links; from medium the cards use masonry columns |
+| Light / dark system theme (with display 150% / 100%) | Pass. They look identical (dark-only app, documented deviation) |
+| High contrast (Desert) | Pass. Pills drop their fill; sign and bold carry the meaning; View All uses the system highlight |
+| Text 200% | Pass. Title, summary and the View Profile label wrap; the row's rival name ends in an ellipsis on compact, while the row's UIA name keeps it whole |
+| Display 100% / 150% | Pass |
+| Keyboard | Pass (`kb-rival-detail-compact`). Order: title bar → View Profile → Quick Links (compact) → each card's rows (one Tab stop; arrow keys move between rows, XY focus) → that card's View All. A song in two categories (e.g. Closest Battles and Almost Passed) is two tab stops with the same AutomationId, as on the web (`RivalCategorization` overlaps) |
+| Narrator / UIA | Pass. Rows read "<song>, <chart>, you rank N, <rival> ranks M, they lead/you lead"; View All reads "View All, <category>". The loading ring reads "Busy Loading" (ProgressRing peer) and now has the ID `fst.rivals.page-loading` |
+| Load and recovery (fixture) | Covered by `rivals_journey.py` `detail-loading`, `detail-retry` (generic 500 → manual Retry, no countdown → cards), `detail-freeze-fallback` (every detail read a freeze 503 → page rebuilt from `rivals/all`, no status) and the existing `freeze` countdown; Axe scans by the `rival-detail-error`, `rival-detail-freeze` and `rival-detail-fallback` pages in `journeys/a11y.json` |
+
+Design review (`winui-design`): the ring is a bare `ProgressRing` while the layout guidance asks for "progress text or skeleton; not just a spinner with no context". It's kept deliberately: [load-transition](../../patterns/load-transition.md) R1 is one spinner, as the web `LoadGate`, and the ring's UIA name gives Narrator the context. The error state follows the guidance ("cause if known + a retry/repair affordance; never colour-only") through the shared service-status view.

@@ -161,8 +161,9 @@ fun SongBandLeaderboardScreen(
     val song = (songState as? LoadState.Loaded)?.value
     SongCoverBackdrop(background, song?.albumArt)
     // A page or band-size change fades the rows out, shows the spinner and staggers the new
-    // rows in (web PaginatedLeaderboard, issue #71).
-    val swap = rememberLoadSwap(board, board !is LoadState.Loading, key = type to page)
+    // rows in (web PaginatedLeaderboard, issue #71). The pinned band depends on the band size,
+    // never the page (web `footerAnimKey`, issue #190).
+    val swap = rememberLoadSwap(board, board !is LoadState.Loading, key = type to page, pinnedKey = type)
     val listState = rememberLazyListState()
     // The last page of this band size: paging keeps the footer and pager in place while the
     // next page loads, while a size change drops them until its first page arrives.
@@ -246,11 +247,11 @@ fun SongBandLeaderboardScreen(
                         onSelect = viewModel::selectBandType,
                     )
                 },
-                // The pinned band fades out with the page and staggers back in with its first row (issue #295);
-                // while the next page loads the stale row is hidden, unread and untouchable (load-transition R2).
+                // The pinned band fades in with the first rows (issue #295) and stays visible and usable
+                // while another page loads (issue #190); a band-size change hides it beside the spinner (load-transition R2).
                 footer = {
                     footerEntry?.let { entry ->
-                        AnchoredRowCard(with(swap) { Modifier.staggered(0) }.then(swap.pinnedContentModifier)) {
+                        AnchoredRowCard(with(swap) { Modifier.pinnedStaggered(0) }.then(swap.pinnedContentModifier)) {
                             LeaderboardSectionMember(columns, "footer") {
                                 SelectedScoreFooterRow(
                                     entry = entry.footerLeaderboardEntry,

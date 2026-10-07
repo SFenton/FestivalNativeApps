@@ -9,7 +9,10 @@ namespace Festival.App.Controls;
 #region Song band preview row
 /// <summary>
 /// One band row in a Song Detail band preview (<see cref="SongBandPreviewRow"/>): members with instrument icons, rank and
-/// the team score footer; opens Band Detail. The selected player's band uses the purple player-row surface.
+/// the team score footer. Activation navigates to <see cref="SongBandPreviewRow.Route"/>: the selected band appended after
+/// the top rows jumps to the full band leaderboard's page containing its rank and reveals that row (pattern
+/// <c>leaderboard-row</c> R7, issue #307, the same rule as the solo spotlight row); every other row, including the selected
+/// band ranked in the top rows, opens Band Detail. The selected player's band uses the purple player-row surface.
 /// </summary>
 public sealed partial class SongBandPreviewRowView : UserControl
 {
@@ -104,7 +107,7 @@ public sealed partial class SongBandPreviewRowView : UserControl
         for (var i = 0; i < VisualTreeHelper.GetChildrenCount(element); i++) SetAdjustment(VisualTreeHelper.GetChild(element, i), value);
     }
 
-    /// <summary>Opens Band Detail.</summary>
+    /// <summary>Navigates to the row's route: the full band board at its page for the appended selected band, else Band Detail.</summary>
     /// <param name="sender">Button.</param>
     /// <param name="e">Unused.</param>
     private void OnClick(object sender, RoutedEventArgs e)

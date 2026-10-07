@@ -74,11 +74,12 @@
 
         <!-- Web fixed footer: the pinned "your score" row is a full-width row like the list's, so its rank, name, score and
              accuracy line up with them (operator batch 7.9), then the pager; both float over the rows (BoardFooter).
-             "Your Page" sits above the row instead of stealing its width. The pinned row shares the rows' load gate and
-             entrance (issue #295) on the first load and when the invalid-score leeway changes: it fades out with the old page,
-             keeping its slot so the pager and footer fade stay put, and fades in with the first new row. Paging keeps it in
-             place beside the spinner, like the web footer (PinnedGate, load-transition R2, issue #270). While hidden,
-             LoadSwapGate drops the row from UI Automation and the Tab order. The gate (XAML
+             Activating the pinned row jumps to the player's page while it is elsewhere, else opens Statistics (pattern
+             leaderboard-row R7, issue #307; the same rule as the band board's pinned row). The pinned row shares the rows'
+             load gate and entrance (issue #295) on the first load and when the invalid-score leeway changes: it fades out
+             with the old page, keeping its slot so the pager and footer fade stay put, and fades in with the first new row.
+             Paging keeps it in place beside the spinner, like the web footer (PinnedGate, load-transition R2, issue #270).
+             While hidden, LoadSwapGate drops the row from UI Automation and the Tab order. The gate (XAML
              opacity transition) and the entrance (composition visual) sit on separate elements, as for the rows and their
              repeater: one element can't take both. -->
         <StackPanel x:Name="Footer" Grid.RowSpan="3" VerticalAlignment="Bottom" Spacing="8">
@@ -86,17 +87,8 @@
                                    controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                                    controls:LoadSwapVisual.IsGated="{x:Bind ViewModel.PinnedGate.IsGated, Mode=OneWay}">
                 <StackPanel x:Name="SpotlightPanel" Spacing="4">
-                    <Button HorizontalAlignment="Right" MinHeight="32" Command="{x:Bind ViewModel.JumpCommand}"
-                            Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}" Foreground="{ThemeResource FSTSecondaryTextBrush}"
-                            Visibility="{x:Bind ViewModel.CanJump, Mode=OneWay}"
-                            ToolTipService.ToolTip="Jump to your page" AutomationProperties.Name="Jump to your page"
-                            AutomationProperties.AutomationId="fst.song-leaderboard.spotlight-jump">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE8A7;" FontSize="14" />
-                            <TextBlock Text="Your Page" />
-                        </StackPanel>
-                    </Button>
                     <controls:LeaderboardEntryRow Row="{x:Bind ViewModel.Spotlight, Mode=OneWay}" IsFloating="True"
+                                                  Command="{x:Bind ViewModel.JumpCommand}"
                                                   RowAutomationId="fst.song-leaderboard.spotlight-footer" />
                 </StackPanel>
             </controls:LoadSwapGate>

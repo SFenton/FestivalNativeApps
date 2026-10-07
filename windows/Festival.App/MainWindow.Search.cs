@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Windows.System;
 
 namespace Festival.App;
@@ -12,7 +13,7 @@ namespace Festival.App;
 #region Global search
 /// <summary>
 /// Global search in the shell (global-search spec, windows.md): a title-bar <c>AutoSuggestBox</c> at ≥ 720 epx with
-/// mixed song/player suggestions, a magnifier button below that width, Ctrl+E / Ctrl+F, and the Search page.
+/// mixed song/player/band suggestions, a magnifier button below that width, Ctrl+E / Ctrl+F, and the Search page.
 /// </summary>
 public sealed partial class MainWindow
 {
@@ -178,22 +179,41 @@ public sealed partial class MainWindow
         Navigate(new AppRoute.Search());
     }
 
-    /// <summary>Opens a search destination: the selected player → Statistics; a search on the Search page updates it.</summary>
+    /// <summary>
+    /// Opens a search destination (every result and suggestion: songs, players, bands): the selected player →
+    /// Statistics; a search on the Search page updates it. A result opened from the Search page closes it, then
+    /// pushes the destination (global-search spec), so Back returns to the page Search was opened from.
+    /// </summary>
     /// <param name="route">Destination.</param>
     public void OpenSearchRoute(AppRoute route)
     {
-        switch (route)
+        var origin = frames.GetValueOrDefault(current);
+        if (route is AppRoute.Search search && origin?.Content is SearchPage page)
         {
-            case AppRoute.Statistics when session.HasPlayer:
-                Show(AppSection.Statistics);
-                break;
-            case AppRoute.Search search when frames.GetValueOrDefault(current)?.Content is SearchPage page:
-                page.Show(search);
-                break;
-            default:
-                Navigate(route);
-                break;
+            page.Show(search);
+            return;
         }
+        var fromSearchPage = origin?.Content is SearchPage;
+        if (route is AppRoute.Statistics && session.HasPlayer) Show(AppSection.Statistics);
+        else Navigate(route);
+        if (fromSearchPage && origin is not null) CloseSearchPage(origin);
+    }
+
+    /// <summary>Removes the Search page a result was opened from, from its section's stack.</summary>
+    /// <param name="frame">Section frame that showed the Search page.</param>
+    private void CloseSearchPage(Frame frame)
+    {
+        if (frame.Content is SearchPage)
+        {
+            // The result opened another section (the selected player's Statistics): pop Search off the hidden stack.
+            if (frame.CanGoBack) frame.GoBack(new SuppressNavigationTransitionInfo());
+            return;
+        }
+        var back = frame.BackStack;
+        if (back.Count == 0 || back[^1].SourcePageType != typeof(SearchPage)) return;
+        back.RemoveAt(back.Count - 1);
+        if (routeStacks.TryGetValue(frame, out var routes)) GlobalSearchResults.CloseSearchBelowTop(routes);
+        OnFrameNavigated();
     }
     #endregion
 

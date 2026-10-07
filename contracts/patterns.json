@@ -8,7 +8,7 @@
       "title": "Scroll edge: content under pinned chrome",
       "status": "current",
       "doc": ".agents/patterns/scroll-edge.md",
-      "summary": "Content is clear at any pinned edge (page/sheet header, pinned section title, bottom chrome) and ramps opaque over 40 (top) / 36 (bottom) units; pinned titles are never dimmed; one mechanism per edge kind per platform.",
+      "summary": "Content is clear at any pinned edge (page/sheet header, pinned section title, bottom chrome) and ramps opaque over 40 units linear (top edges and every board footer with or without a player row, web Page useScrollMask; Apple and Android boards 40 since #329); accessibility settings give a hard cut, never content behind chrome; pinned titles are never dimmed; one mechanism per edge kind per platform.",
       "keywords": [
         "fade",
         "mask",
@@ -99,10 +99,12 @@
             "symbol": "TopEdgeFade"
           },
           {
-            "path": "windows/Festival.Core/Domain/BoardFooterEdgeFade.cs"
+            "path": "windows/Festival.Core/Domain/BoardFooterEdgeFade.cs",
+            "symbol": "FadeDepth"
           },
           {
-            "path": "windows/Festival.App/Controls/BoardFooterFade.cs"
+            "path": "windows/Festival.App/Controls/BoardFooterFade.cs",
+            "symbol": "Attach"
           }
         ]
       },
@@ -1121,6 +1123,10 @@
             "symbol": "SelectedRowAction"
           },
           {
+            "path": "windows/Festival.App/Controls/SelectedRowReveal.cs",
+            "symbol": "SelectedRowReveal"
+          },
+          {
             "path": "windows/Festival.App/Controls/BandScoreFooterPanel.cs",
             "symbol": "BandScoreFooterPanel"
           },
@@ -1229,7 +1235,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner; graph card lists run the web out/height/in list sequence and chart swaps keep the card's size; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades.",
+      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; graph card lists run the web out/height/in list sequence and chart swaps keep the card's size; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades.",
       "keywords": [
         "loading",
         "spinner",
@@ -1382,6 +1388,10 @@
             "symbol": "StaggerArm"
           },
           {
+            "path": "windows/Festival.App/Controls/SelectedRowReveal.cs",
+            "symbol": "SelectedRowReveal"
+          },
+          {
             "path": "windows/Festival.Core/ViewModels/SongPathsViewModel.cs",
             "symbol": "PathSwapTiming"
           },
@@ -1426,6 +1436,17 @@
           ],
           "debt": [],
           "message": "Pages install the shared entrance window with festivalFadeInScope(resetKey:) or festivalScrollFadeInScope(_:resetKey:); a page that builds its own FestivalFadeInScope must be listed so its scroll rush and selected-row reveal stay on the shared rules (load-transition R5)."
+        },
+        {
+          "id": "windows-stagger-arm",
+          "glob": "windows/Festival.App/**/*.cs",
+          "regex": "FadeIn\\.NewArm\\s*\\(|new\\s+StaggerArm\\s*\\(",
+          "allow": [
+            "windows/Festival.App/Controls/FadeIn.cs",
+            "windows/Festival.App/Pages/SongDetailPage.xaml.cs"
+          ],
+          "debt": [],
+          "message": "Lists get their entrance window from FadeIn.Stagger/Restagger; a page that builds its own StaggerArm must be listed so its scroll rush, replay guard and selected-row reveal stay on the shared rules (load-transition R5, #323)."
         },
         {
           "id": "apple-page-title",
@@ -1633,7 +1654,8 @@
         99,
         140,
         299,
-        312
+        312,
+        320
       ]
     },
     {
@@ -1904,7 +1926,8 @@
         293,
         315,
         316,
-        317
+        317,
+        324
       ],
       "web": [
         {
@@ -2041,7 +2064,10 @@
         "pinned title",
         "top bar title",
         "artist",
-        "hero"
+        "hero",
+        "wrap",
+        "artist line",
+        "lockstep"
       ],
       "web": [
         {
@@ -2098,6 +2124,18 @@
           {
             "path": "windows/Festival.App/Controls/MarqueeText.cs",
             "symbol": "MarqueeText"
+          },
+          {
+            "path": "windows/Festival.App/Controls/SongHeaderText.cs",
+            "symbol": "SongHeaderText"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/MarqueeSync.cs",
+            "symbol": "MarqueeSync"
+          },
+          {
+            "path": "windows/Festival.App/Controls/SongLeaderboardHeader.xaml.cs",
+            "symbol": "SongLeaderboardHeader"
           }
         ]
       },
@@ -2111,6 +2149,14 @@
           ],
           "debt": [],
           "message": "Song headers show the title with the shared SongHeaderText / SongBarTitle (one full-width marqueeing line), not a page-local Text (song-header R1, R5)."
+        },
+        {
+          "id": "windows-no-textblock-title",
+          "glob": "windows/Festival.App/**/*.xaml",
+          "regex": "<(?:TextBlock|controls:MarqueeText)\\b[^>]*Text=\"\\{x:Bind (?:ViewModel\\.)?(?:Song\\.Title|SongTitle)\\b",
+          "allow": [],
+          "debt": [],
+          "message": "Song header titles use the shared SongHeaderText column (one MarqueeText line that scrolls on overflow and wraps in-page at 150%+ text), never a page-local TextBlock or MarqueeText (song-header R1, R2, R3)."
         }
       ],
       "related": {

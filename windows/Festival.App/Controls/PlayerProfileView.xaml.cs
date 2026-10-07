@@ -143,13 +143,17 @@ public sealed partial class PlayerProfileView : UserControl
         else MainWindow.Instance?.Navigate(route);
     }
 
-    /// <summary>Fades the title row, Overview heading and Overview cards in, 125 ms apart (sections stagger themselves).</summary>
+    /// <summary>
+    /// Fades the title row, Overview heading and Overview cards in, 125 ms apart, as the page's own entrance (sections
+    /// stagger themselves): an early drag or Quick Links jump rushes whatever hasn't started (issue #323).
+    /// </summary>
     private void StaggerIn()
     {
         if (Scroller.Visibility != Visibility.Visible || !Scroller.IsLoaded) return;
-        FadeIn.Play(TitleRow, TimeSpan.Zero);
-        FadeIn.Play(OverviewHeading, FadeInTiming.Interval);
-        FadeIn.Play(OverviewGrid, FadeInTiming.Interval * 2);
+        FadeIn.BeginEntrance(Scroller);
+        FadeIn.Enter(Scroller, TitleRow, TimeSpan.Zero);
+        FadeIn.Enter(Scroller, OverviewHeading, FadeInTiming.Interval);
+        FadeIn.Enter(Scroller, OverviewGrid, FadeInTiming.Interval * 2);
     }
 
     /// <summary>Selects directly, or confirms a switch away from another selected player.</summary>

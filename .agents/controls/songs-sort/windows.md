@@ -36,7 +36,7 @@
 | `relaunch-persisted` | `Year ↓` after a restart on the same settings file | `songs-sort-states` (`{relaunch}`) |
 | `instrument-filtered` | Lead filter adds the nine instrument modes; flyout scrolls | `songs-sort-instrument` |
 | `profile` | Selected player adds Last Played | `songs-sort-states` vs `songs-sort-anonymous` |
-| `band` | **Not reachable**: Windows selects only players (band search is a blocked endpoint) | [service-safety](../../platforms/service-safety.md) |
+| `band` | **Not reachable**: Windows selects only players (band selection is not ported; global Search opens band pages since issue #320) | [service-safety](../../platforms/service-safety.md) |
 | `shop-loaded` / `shop-sectioned` | Leaving Tomorrow + In Shop headings, both directions | `songs-sort-shop`, `songs-sort-shop-single` (Not In Shop) |
 | `shop-one-bucket` | A search leaving one bucket: no headings, no Jump | `songs-sort-shop`; Core `SortDraft_HidesShopWhenHidden_AndShopSortGroups` |
 | `shop-empty` | Known-empty feed: one unlabeled Not In Shop section, no notice | `songs-sort-shop-empty` (fixture `shop-empty`) |

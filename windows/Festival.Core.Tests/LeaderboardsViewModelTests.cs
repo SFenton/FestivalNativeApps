@@ -1040,11 +1040,16 @@ public sealed class SongLeaderboardViewModelTests
         Assert.True(pinned.IsSelected);
         Assert.Equal("#60", pinned.RankText);
         Assert.Equal(new AppRoute.Statistics(), pinned.Route);
-        Assert.StartsWith("Your rank, 60th. Fixture One, 5,000 points", pinned.Announcement, StringComparison.Ordinal);
+        Assert.Equal(new SelectedRowAction(3), pinned.PinnedAction);
+        Assert.StartsWith("Your rank, 60th. Jump to your position. Fixture One, 5,000 points", pinned.Announcement, StringComparison.Ordinal);
         Assert.True(vm.CanJump);
         await vm.JumpCommand.ExecuteAsync(null);
         Assert.Equal(3, vm.Page);
         Assert.False(vm.CanJump);
+        // On its page the pinned row opens the profile (pattern leaderboard-row R7).
+        Assert.Equal(new SelectedRowAction(null), vm.Spotlight!.PinnedAction);
+        Assert.StartsWith("Your rank, 60th. Open your statistics. Fixture One", vm.Spotlight.Announcement, StringComparison.Ordinal);
+        Assert.DoesNotContain(vm.Rows, r => r.Announcement.Contains("Jump to", StringComparison.Ordinal));
 
         session.DeselectPlayer();
         await Async.Settle();
@@ -1181,7 +1186,7 @@ public sealed class SongLeaderboardViewModelTests
         await vm.LoadAsync();
         Assert.Equal("—", vm.Spotlight!.RankText);
         Assert.Equal(4000, vm.Spotlight.Entry.Score);
-        Assert.StartsWith("Your score. Fixture One", vm.Spotlight.Announcement, StringComparison.Ordinal);
+        Assert.StartsWith("Your score. Open your statistics. Fixture One", vm.Spotlight.Announcement, StringComparison.Ordinal);
         Assert.False(vm.CanJump);
 
         var none = new SongLeaderboardViewModel(session, new AppRoute.SongLeaderboard("s2", Instrument.Lead));

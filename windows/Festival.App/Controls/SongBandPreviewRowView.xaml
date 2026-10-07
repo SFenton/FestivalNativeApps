@@ -7,8 +7,11 @@
     <!--
         A Song Detail band preview row (web SongBandLeaderboardPreview row, iOS SongBandPreviewSection): rank and the members
         with their instrument icons, then a footer with the team score, FC, accuracy and stars; an in-card chevron because
-        the row opens Band Detail. One UIA stop per row: the Button's name reads everything (prefixed "Your band, " for the
-        selected player's band) and its parts are Raw. The selected player's band gets the purple player-row surface. The
+        the row drills in. The selected band appended after the top rows jumps to the full band leaderboard's page containing
+        its rank and reveals that row (leaderboard-row R7, issue #307, as the solo spotlight row); every other row, including
+        the selected band ranked in the top rows, opens Band Detail. One UIA stop per row: the Button's name reads everything
+        (prefixed "Your band, " for the selected player's band and ending with its destination, "Jump to your band's
+        position" or "Open band") and its parts are Raw. The selected player's band gets the purple player-row surface. The
         surface is a Border behind a transparent Button, so hover/press tint on top of it (as LeaderboardEntryRow).
     -->
     <Grid>

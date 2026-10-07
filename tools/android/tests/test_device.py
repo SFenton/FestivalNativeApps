@@ -298,5 +298,49 @@ class GradleAndParserTests(unittest.TestCase):
             self.assertEqual(d.main(["install", missing]), 3)
 
 
+class InstallConflictTests(unittest.TestCase):
+    """Replacing a newer or differently signed app another lane left installed."""
+
+    def test_downgrade_and_signature_failures_are_replace_conflicts(self):
+        self.assertTrue(d.is_replace_conflict(
+            "adb.exe: failed to install a.apk: Failure [INSTALL_FAILED_VERSION_DOWNGRADE: "
+            "Downgrade detected: Update version code 1 is older than current 261006185]"))
+        self.assertTrue(d.is_replace_conflict("Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: ...]"))
+        self.assertFalse(d.is_replace_conflict("Failure [INSTALL_FAILED_INSUFFICIENT_STORAGE]"))
+
+    def test_installed_version_code(self):
+        dumpsys = ("Packages:\n  Package [com.festivalscoretracker.android] (abc):\n"
+                   "    versionCode=261006185 minSdk=26 targetSdk=36\n")
+        self.assertEqual(d.installed_version_code(dumpsys), 261006185)
+        self.assertIsNone(d.installed_version_code("Unable to find package: x\n"))
+
+    def test_install_uninstalls_then_retries_on_a_conflict(self):
+        calls = []
+
+        class FakeDevice:
+            def adb(self, *args, cap=60.0, check=True):
+                calls.append(args[0])
+                if args[0] == "install" and calls.count("install") == 1:
+                    raise d.DeviceError("Failure [INSTALL_FAILED_VERSION_DOWNGRADE: x]")
+                return argparse.Namespace(stdout="Success")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            apk = Path(tmp) / "a.apk"
+            apk.write_bytes(b"")
+            d._install(FakeDevice(), str(apk))
+        self.assertEqual(calls, ["install", "uninstall", "install"])
+
+    def test_install_raises_other_failures(self):
+        class FakeDevice:
+            def adb(self, *args, cap=60.0, check=True):
+                raise d.DeviceError("Failure [INSTALL_FAILED_INSUFFICIENT_STORAGE]")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            apk = Path(tmp) / "a.apk"
+            apk.write_bytes(b"")
+            with self.assertRaises(d.DeviceError):
+                d._install(FakeDevice(), str(apk))
+
+
 if __name__ == "__main__":
     unittest.main()

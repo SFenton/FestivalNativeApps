@@ -39,7 +39,7 @@ struct FullRankingsScreen: View {
     @State private var titleHidden = false
     /// Top edge of the pinned footer and pager in ``pageSpace``; nil without chrome.
     @State private var bottomChromeTop: CGFloat?
-    /// Height of the rows' bottom fade: the full 36 pt until the last row arrives
+    /// Height of the rows' bottom fade: the full 40 pt until the last row arrives
     /// above the chrome, then shrinking to nothing (Song Leaderboard, issue #293).
     @State private var bottomFadeDistance = ScrollEdgeFade.distance
     /// The pinned footer jumped to the player's page: bring their row into view once
@@ -208,9 +208,9 @@ struct FullRankingsScreen: View {
                 // scrolling while the rows stagger in, or the selected-row scroll, fades
                 // the rest in together (#323).
                 .festivalScrollFadeInScope(fadeScope, resetKey: rowsReveal)
-                // Rows fade out over up to 36 pt above the pinned footer and pager and
+                // Rows fade out over up to 40 pt above the pinned footer and pager and
                 // are not drawn beneath them, exactly like Song Leaderboard (issue #294;
-                // web `useScrollFade`, issue #93). The fade shrinks away as the last row
+                // web board `useScrollMask`, issues #93, #329). The fade shrinks away as the last row
                 // arrives, so the list ends one row gap above the chrome with no
                 // reserved margin (issue #293).
                 .bottomChromeFade(

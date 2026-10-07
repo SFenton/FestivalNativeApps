@@ -181,4 +181,91 @@ class LoadSwapUiTest {
         rule.mainClock.advanceTimeByFrame()
         assertTrue(shows("Page 1 refreshed") && !spinner())
     }
+
+    // region Pinned content (load-transition R2, issue #190)
+
+    private var pinnedKey by mutableStateOf<Any?>("Guitar")
+    private var pinnedSwap: LoadSwap<String?>? = null
+
+    /** A board: rows swapped by page, a pinned row beside them keyed by [pinnedKey] (or every reload when [keyed] is false). */
+    private fun setBoard(keyed: Boolean = true) {
+        rule.setContent {
+            FestivalTheme {
+                CompositionLocalProvider(LocalFestivalAccessibility provides FestivalAccessibility(reduceMotion = reduce)) {
+                    val swap = if (keyed) rememberLoadSwap(data, data != null, pinnedKey = pinnedKey) else rememberLoadSwap(data, data != null)
+                    pinnedSwap = swap
+                    androidx.compose.foundation.layout.Column {
+                        if (swap.showsContent) with(swap) { Text(swap.shown.orEmpty(), Modifier.staggered(0).testTag("row")) }
+                        if (swap.showsSpinner) Text("spinner", Modifier.testTag(LOAD_SWAP_SPINNER_TAG))
+                        with(swap) { Text("Your score", Modifier.pinnedStaggered(0).then(swap.pinnedContentModifier).testTag("pinned")) }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun pinnedShows() = count("pinned") == 1
+
+    @Test
+    fun pinnedContentStaysInPlaceWhileOnlyThePageReloads() {
+        rule.mainClock.autoAdvance = false
+        setBoard()
+        rule.mainClock.advanceTimeByFrame()
+        // First load: hidden beside the spinner, then enters with the first rows (#295).
+        assertTrue(spinner() && !pinnedShows() && pinnedSwap!!.pinnedStale)
+        data = "Page 1"; Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(1_500)
+        assertTrue(shows("Page 1") && pinnedShows() && pinnedSwap!!.pinnedEnters)
+
+        // Page change: the rows swap; the pinned row stays readable and usable (web footer, #93).
+        data = null; Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(100)
+        assertTrue(pinnedShows() && !pinnedSwap!!.pinnedStale)
+        rule.mainClock.advanceTimeBy(400)
+        assertTrue(spinner() && pinnedShows())
+        data = "Page 2"; Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(1_500)
+        assertTrue(shows("Page 2") && pinnedShows())
+        assertTrue("no re-entrance on a page-only swap", !pinnedSwap!!.pinnedEnters)
+
+        // Pinned key change (instrument, metric, leeway): hidden beside the spinner, then re-enters.
+        pinnedKey = "Bass"; data = null; Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(500)
+        assertTrue(spinner() && !pinnedShows() && pinnedSwap!!.pinnedStale)
+        data = "Bass page 1"; Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(1_500)
+        assertTrue(shows("Bass page 1") && pinnedShows() && pinnedSwap!!.pinnedEnters && !pinnedSwap!!.pinnedStale)
+    }
+
+    @Test
+    fun pinnedContentStaysUnderReduceMotionPaging() {
+        rule.mainClock.autoAdvance = false
+        reduce = true; data = "Page 1"; Snapshot.sendApplyNotifications()
+        setBoard()
+        rule.mainClock.advanceTimeByFrame()
+        data = null; Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeByFrame()
+        rule.mainClock.advanceTimeByFrame()
+        assertTrue(spinner() && pinnedShows())
+        pinnedKey = "Bass"; Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeByFrame()
+        assertTrue("a key change mid-load hides it", spinner() && !pinnedShows())
+    }
+
+    @Test
+    fun unkeyedPinnedContentHidesOnEveryReload() {
+        rule.mainClock.autoAdvance = false
+        data = "Page 1"; Snapshot.sendApplyNotifications()
+        setBoard(keyed = false)
+        rule.mainClock.advanceTimeByFrame()
+        assertTrue(pinnedShows() && !pinnedSwap!!.pinnedStale)
+        data = null; Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(500)
+        assertTrue(spinner() && !pinnedShows() && pinnedSwap!!.pinnedStale)
+        data = "Page 2"; Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(1_500)
+        assertTrue(pinnedShows() && pinnedSwap!!.pinnedEnters)
+    }
+
+    // endregion
 }
