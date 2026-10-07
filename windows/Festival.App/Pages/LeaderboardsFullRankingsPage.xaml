@@ -126,9 +126,7 @@
                                    controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                                    controls:LoadSwapVisual.IsGated="{x:Bind ViewModel.PinnedGate.IsGated, Mode=OneWay}">
                 <controls:LeaderboardsSpotlight x:Name="FooterSpotlight" Spotlight="{x:Bind ViewModel.Spotlight, Mode=OneWay}"
-                                                FocusedJump="OnFocusedJump"
-                                                IdPrefix="fst.full-rankings.spotlight-footer"
-                                                JumpAutomationId="fst.full-rankings.spotlight-jump" IsFloating="True" />
+                                                IdPrefix="fst.full-rankings.spotlight-footer" IsFloating="True" />
             </controls:LoadSwapGate>
             <controls:LeaderboardsPager Pager="{x:Bind ViewModel.Pager}"
                                         Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" />

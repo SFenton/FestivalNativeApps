@@ -22,6 +22,7 @@ public sealed partial class LeaderboardEntryRow : UserControl
     private double width = double.NaN;
     private bool current;
     private string? rowAutomationId;
+    private System.Windows.Input.ICommand? command;
 
     /// <summary>Row model: any <see cref="ILeaderboardEntryRow"/>.</summary>
     public static readonly DependencyProperty RowProperty = DependencyProperty.Register(
@@ -39,9 +40,19 @@ public sealed partial class LeaderboardEntryRow : UserControl
         {
             ContrastTheme.Changed -= OnColorsChanged;
             ContrastTheme.Changed += OnColorsChanged;
+            if (command is not null)
+            {
+                command.CanExecuteChanged -= OnCommandCanExecuteChanged;
+                command.CanExecuteChanged += OnCommandCanExecuteChanged;
+                Update();
+            }
             ApplySurface();
         };
-        Unloaded += (_, _) => ContrastTheme.Changed -= OnColorsChanged;
+        Unloaded += (_, _) =>
+        {
+            ContrastTheme.Changed -= OnColorsChanged;
+            if (command is not null) command.CanExecuteChanged -= OnCommandCanExecuteChanged;
+        };
     }
 
     /// <summary>Re-applies the row's brushes on the UI thread after a system colour change.</summary>
@@ -77,6 +88,30 @@ public sealed partial class LeaderboardEntryRow : UserControl
             Update();
         }
     }
+
+    /// <summary>
+    /// The pinned selected row's in-page action (pattern <c>leaderboard-row</c> R7, issue #307): while it can execute,
+    /// activating the row runs it (jump to the page containing the row) instead of opening <see cref="Route"/> (the
+    /// profile). The row's announcement names whichever destination applies.
+    /// </summary>
+    public System.Windows.Input.ICommand? Command
+    {
+        get => command;
+        set
+        {
+            if (ReferenceEquals(command, value)) return;
+            if (command is not null) command.CanExecuteChanged -= OnCommandCanExecuteChanged;
+            command = value;
+            // Subscribed only while loaded: a cached page model's command must not keep an unloaded row alive.
+            if (command is not null && IsLoaded) command.CanExecuteChanged += OnCommandCanExecuteChanged;
+            Update();
+        }
+    }
+
+    /// <summary>Refreshes interactivity when the in-page action turns on or off.</summary>
+    /// <param name="sender">Command.</param>
+    /// <param name="e">Unused.</param>
+    private void OnCommandCanExecuteChanged(object? sender, EventArgs e) => Update();
 
     /// <summary>Moves focus to the row's button (a no-op for a row without a destination, which is not a tab stop).</summary>
     /// <param name="state">How focus arrives.</param>
@@ -165,10 +200,11 @@ public sealed partial class LeaderboardEntryRow : UserControl
         AutomationProperties.SetAutomationId(RowButton, string.IsNullOrEmpty(rowAutomationId) ? row.AutomationId : rowAutomationId);
         // Rows without a usable identity (production serves some empty account IDs) are shown but not interactive, and
         // UIA reads them as text rather than an invokable button.
-        RowButton.IsHitTestVisible = RowButton.IsTabStop = RowButton.IsActionable = row.Route is not null;
+        var actionable = row.Route is not null || command?.CanExecute(null) == true;
+        RowButton.IsHitTestVisible = RowButton.IsTabStop = RowButton.IsActionable = actionable;
         // The section reserves the chevron slot (UpdateColumns); a row without a destination leaves it blank so its
         // values stay in line with openable rows (issue #209).
-        Chevron.Opacity = row.Route is not null ? 1 : 0;
+        Chevron.Opacity = actionable ? 1 : 0;
         ApplyWeights(row);
         ApplySurface();
         UpdateColumns();
@@ -357,11 +393,16 @@ public sealed partial class LeaderboardEntryRow : UserControl
         UpdateColumns();
     }
 
-    /// <summary>Opens the row's destination (in the page's detail column when it hosts one).</summary>
+    /// <summary>Runs the in-page action when it applies, else opens the row's destination (in the page's detail column when it hosts one).</summary>
     /// <param name="sender">Button.</param>
     /// <param name="e">Unused.</param>
     private void OnClick(object sender, RoutedEventArgs e)
     {
+        if (command?.CanExecute(null) == true)
+        {
+            command.Execute(null);
+            return;
+        }
         if (Route is not { } route) return;
         for (DependencyObject? node = this; node is not null; node = VisualTreeHelper.GetParent(node))
             if (node is IRouteHost host && host.TryShow(route)) return;

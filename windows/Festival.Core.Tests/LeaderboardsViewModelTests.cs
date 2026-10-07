@@ -222,6 +222,9 @@ public sealed class LeaderboardsOverviewTests
         Assert.Equal("#120", lead.Row!.RankText);
         Assert.True(lead.Row.IsSelected);
         Assert.False(lead.CanJump);
+        // Overview cards have no jump: their spotlight row only opens the profile and announces no destination (#318).
+        Assert.Null(lead.Row.PinnedAction);
+        Assert.StartsWith("Your rank, 120th. Player 120.", lead.Row.Announcement);
         // The pinned "#120" widens every rank column of the card so names line up (operator batch 7.9).
         Assert.All(vm.InstrumentCards[0].Rows, r => Assert.Equal(4, r.Section!.RankChars));
         Assert.Same(vm.InstrumentCards[0].Rows[0].Section, lead.Row.Section);
@@ -606,6 +609,9 @@ public sealed class FullRankingsViewModelTests
         Assert.True(vm.Spotlight.ShowRow);
         Assert.True(vm.Spotlight.CanJump);
         Assert.True(vm.Spotlight.JumpCommand.CanExecute(null));
+        // leaderboard-row R7 (#318): the pinned row itself jumps while its row is on another page, and says so.
+        Assert.Equal(new SelectedRowAction(2), vm.Spotlight.Row!.PinnedAction);
+        Assert.StartsWith("Your rank, 30th. Jump to your position. Player 30.", vm.Spotlight.Row.Announcement);
         await vm.Spotlight.JumpCommand.ExecuteAsync(null);
         Assert.Equal(2, vm.Page);
         Assert.True(vm.Rows.Single(r => r.Entry.AccountId == "acct30").IsSelected);
@@ -615,7 +621,11 @@ public sealed class FullRankingsViewModelTests
         Assert.Equal("#30", vm.Spotlight.Row!.RankText);
         Assert.False(vm.Spotlight.CanJump);
         Assert.False(vm.Spotlight.JumpCommand.CanExecute(null));
+        Assert.Equal(new SelectedRowAction(null), vm.Spotlight.Row.PinnedAction);
+        Assert.StartsWith("Your rank, 30th. Open your statistics. Player 30.", vm.Spotlight.Row.Announcement);
         Assert.Equal(new AppRoute.Player("acct30", "Player 30"), vm.Spotlight.Row.Route);
+        // The page's own copy of the row is not the pinned control and announces no destination.
+        Assert.Null(vm.Rows.Single(r => r.Entry.AccountId == "acct30").PinnedAction);
 
         // Switching instrument builds a fresh spotlight for that board.
         var old = vm.Spotlight;

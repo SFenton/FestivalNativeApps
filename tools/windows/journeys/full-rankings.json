@@ -15,7 +15,7 @@
       "waitfor:id=fst.rankings.row.fixture-player-2@20",
       "waitfor:id=fst.full-rankings.page-info@5",
       "waitfor:id=fst.full-rankings.spotlight-footer@10",
-      "waitgone:id=fst.full-rankings.spotlight-jump@2"
+      "assertname:id=fst.full-rankings.spotlight-footer@5|Your rank, 2nd. Open your statistics. *"
     ]
   },
   {
@@ -24,7 +24,8 @@
     "profile": "fixture-rank-40:Fixture Rank 40",
     "ready": [
       "waitfor:id=fst.rankings.row.fixture-player-1@20",
-      "waitfor:id=fst.full-rankings.spotlight-jump@10"
+      "waitfor:id=fst.full-rankings.spotlight-footer@10",
+      "assertname:id=fst.full-rankings.spotlight-footer@5|Your rank, 40th. Jump to your position. *"
     ]
   },
   {
@@ -32,14 +33,33 @@
     "route": "/leaderboards/all?instrument=Solo_Guitar",
     "profile": "fixture-rank-40:Fixture Rank 40",
     "ready": [
-      "waitfor:id=fst.full-rankings.spotlight-jump@20"
+      "waitfor:id=fst.full-rankings.spotlight-footer@20",
+      "assertname:id=fst.full-rankings.spotlight-footer@5|Your rank, 40th. Jump to your position. *"
     ],
     "after_ready": [
-      "invoke:id=fst.full-rankings.spotlight-jump",
-      "waitgone:id=fst.full-rankings.spotlight-jump@10",
+      "invoke:id=fst.full-rankings.spotlight-footer",
       "waitfor:id=fst.rankings.row.fixture-rank-40@10",
       "waitfor:id=fst.full-rankings.spotlight-footer@5",
+      "assertname:id=fst.full-rankings.spotlight-footer@10|Your rank, 40th. Open your statistics. *",
       "wait:2"
+    ]
+  },
+  {
+    "name": "fr-pinned-opens-profile",
+    "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "profile": "fixture-rank-40:Fixture Rank 40",
+    "ready": [
+      "waitfor:id=fst.full-rankings.spotlight-footer@20",
+      "assertname:id=fst.full-rankings.spotlight-footer@5|Your rank, 40th. Jump to your position. *"
+    ],
+    "after_ready": [
+      "invoke:id=fst.full-rankings.spotlight-footer",
+      "waitfor:id=fst.rankings.row.fixture-rank-40@10",
+      "assertname:id=fst.full-rankings.spotlight-footer@10|Your rank, 40th. Open your statistics. *",
+      "wait:1",
+      "invoke:id=fst.full-rankings.spotlight-footer",
+      "waitfor:id=fst.player@10",
+      "wait:1"
     ]
   },
   {

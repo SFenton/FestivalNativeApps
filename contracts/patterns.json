@@ -1044,6 +1044,10 @@
             "symbol": "LeaderboardsPager"
           },
           {
+            "path": "windows/Festival.Core/Domain/SelectedRowNavigation.cs",
+            "symbol": "SelectedRowAction"
+          },
+          {
             "path": "windows/Festival.App/Controls/BandScoreFooterPanel.cs",
             "symbol": "BandScoreFooterPanel"
           },
