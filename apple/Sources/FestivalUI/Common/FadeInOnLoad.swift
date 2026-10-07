@@ -133,8 +133,16 @@ public final class FestivalFadeInScope {
     /// Content movement (points) that counts as a scroll; absorbs sub-point layout jitter.
     public static let scrollThreshold: CGFloat = 4
 
-    /// The clock, in seconds; injectable for tests.
-    private let now: () -> TimeInterval
+    /// The clock this scope was created with, in seconds; injectable for tests.
+    private let clock: () -> TimeInterval
+    /// The time the page froze the clock at (``SwiftUICore/EnvironmentValues/festivalFadeInFrozenTime``),
+    /// else nil.
+    private var frozenTime: TimeInterval?
+    /// The clock in use.
+    private var now: () -> TimeInterval {
+        if let frozenTime { return { frozenTime } }
+        return clock
+    }
 
     /// The content's resting position, captured from the first report after (re)arming.
     private var restingOffset: CGFloat?
@@ -169,7 +177,7 @@ public final class FestivalFadeInScope {
     ///
     /// - Parameter now: The clock in seconds (defaults to the system uptime).
     public init(now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
-        self.now = now
+        self.clock = now
     }
 
     /// Whether fades on this page may still animate: not closed, and not past a rush.
@@ -282,6 +290,14 @@ public final class FestivalFadeInScope {
         releaseWaiters()
     }
 
+    /// Freeze the scope's clock at the page's time (``SwiftUICore/EnvironmentValues/festivalFadeInFrozenTime``);
+    /// nil restores the clock the scope was created with.
+    ///
+    /// - Parameter time: The frozen time, in seconds, or nil.
+    func freezeClock(at time: TimeInterval?) {
+        frozenTime = time
+    }
+
     /// Re-arm the scope for a new set of rows when `key` differs from the armed one.
     ///
     /// - Parameter key: The rows' identity (nil keeps a scope that is never reset).
@@ -391,9 +407,11 @@ struct FestivalFadeInScopeModifier: ViewModifier {
     /// The rows' identity; a change re-arms the scope.
     let resetKey: AnyHashable?
     @State private var owned = FestivalFadeInScope()
+    @Environment(\.festivalFadeInFrozenTime) private var frozenTime
 
     func body(content: Content) -> some View {
         let scope = provided ?? owned
+        let _ = scope.freezeClock(at: frozenTime)
         // Re-armed while the body is built, before new rows' `onAppear` schedule fades.
         let _ = scope.arm(for: resetKey)
         content
@@ -413,9 +431,11 @@ struct FestivalScrollFadeInScopeModifier: ViewModifier {
     let provided: FestivalFadeInScope?
     let resetKey: AnyHashable?
     @State private var owned = FestivalFadeInScope()
+    @Environment(\.festivalFadeInFrozenTime) private var frozenTime
 
     func body(content: Content) -> some View {
         let scope = provided ?? owned
+        let _ = scope.freezeClock(at: frozenTime)
         let _ = scope.arm(for: resetKey)
         content
             .environment(\.festivalFadeInScope, scope)
@@ -438,6 +458,14 @@ extension EnvironmentValues {
     /// stretch it so a capture can land mid-fade; timings (stagger, scope, reveal) are
     /// unchanged.
     @Entry public var festivalFadeInItemCurve: Animation? = nil
+
+    /// Freezes the clock of every page fade scope below this point
+    /// (``FestivalFadeInScope``: its stagger tail, rush window and close) at this time,
+    /// in seconds; nil, the default, keeps the scope's own clock (the system uptime).
+    /// Hosted animation tests freeze it, so a host stalled for seconds between a
+    /// scroll's start and its first movement cannot close the rush window that rows the
+    /// scroll reaches fade in with (issue #327).
+    @Entry public var festivalFadeInFrozenTime: TimeInterval? = nil
 
     /// The enclosing page's fade window, or nil outside a scoped page (fades always play
     /// on their own schedule).

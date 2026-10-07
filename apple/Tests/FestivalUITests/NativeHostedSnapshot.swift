@@ -409,6 +409,37 @@ struct NativeHostedPollBudget {
     }
 }
 
+/// Wait until the shared main actor wakes promptly again: `streak` consecutive 10 ms
+/// sleeps each resume within `lag` of their deadline (issue #327).
+///
+/// The whole UI bundle runs in parallel on one main actor. At its peak a 20 ms poll
+/// resumes about once a second, SwiftUI evaluates almost no animation frames, and an
+/// animated commit can render straight at its final value. A test whose evidence is an
+/// animation's rendered frames (not merely its end state) waits here first. The wait is
+/// a condition, not a fixed sleep: about a third of a second on a responsive host, and in
+/// the parallel bundle until most other hosted tests have finished. After `limit` the
+/// test proceeds anyway and its own assertions decide.
+///
+/// - Parameters:
+///   - lag: How late a wake-up may be and still count as prompt.
+///   - streak: Prompt wake-ups in a row that make the host responsive.
+///   - limit: The longest wait before proceeding regardless.
+/// - Throws: Cancellation.
+@MainActor
+func nativeHostedAwaitResponsiveMainActor(
+    lag: Duration = .milliseconds(25), streak: Int = 25, limit: Duration = .seconds(600)
+) async throws {
+    let clock = ContinuousClock()
+    let end = clock.now + limit
+    let interval = Duration.milliseconds(10)
+    var prompt = 0
+    while prompt < streak, clock.now < end {
+        let asleep = clock.now
+        try await Task.sleep(for: interval)
+        prompt = clock.now - asleep <= interval + lag ? prompt + 1 : 0
+    }
+}
+
 /// Wait for asynchronously loaded content, then capture it once it stops changing.
 ///
 /// Replaces fixed `Task.sleep` waits: `.task` fixture loads finish at
