@@ -423,6 +423,16 @@
           "message": "The app says \"View All\", never \"See All\"; title-row links use SeeAllButton/ViewAllLinkText (section-headers R8, #321)."
         },
         {
+          "id": "windows-view-all-copy",
+          "glob": "windows/Festival.*/**/*.*",
+          "regex": "[\"'>]See [Aa]ll\\b",
+          "allow": [
+            "windows/Festival.*.Tests/**"
+          ],
+          "debt": [],
+          "message": "The Windows app says \"View All\", never \"See All\"; take the copy from ViewAllCta (ListLabel, ResultsLabel) (section-headers R8, view-all-cta R4; #321)."
+        },
+        {
           "id": "windows-sticky-copy",
           "glob": "windows/**/*.xaml",
           "regex": "x:Name=\"(StickyHeader|IncomingHeader)\"",

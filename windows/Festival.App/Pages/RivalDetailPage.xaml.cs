@@ -7,7 +7,7 @@ using Festival.App.Services;
 namespace Festival.App.Pages;
 
 #region Rival detail page
-/// <summary>Rival Detail (<c>/rivals/:rivalId</c>): head-to-head summary and category cards with See All links.</summary>
+/// <summary>Rival Detail (<c>/rivals/:rivalId</c>): head-to-head summary and category cards, each ending with the shared View All button.</summary>
 public sealed partial class RivalDetailPage : Page
 {
     /// <summary>Creates the page.</summary>
@@ -52,7 +52,7 @@ public sealed partial class RivalDetailPage : Page
     /// <param name="e">Unused.</param>
     private void OnViewProfile(object sender, RoutedEventArgs e) => MainWindow.Instance?.Navigate(ViewModel.ProfileRoute);
 
-    /// <summary>Navigates to a song or See All route.</summary>
+    /// <summary>Navigates to a song or a category's View All route.</summary>
     /// <param name="sender">Element whose <c>Tag</c> is an <see cref="AppRoute"/>.</param>
     /// <param name="e">Unused.</param>
     private void OnRouteClick(object sender, RoutedEventArgs e)

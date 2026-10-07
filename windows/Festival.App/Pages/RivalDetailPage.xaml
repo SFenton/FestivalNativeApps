@@ -82,7 +82,7 @@
                                 <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
                                            Foreground="{ThemeResource FSTSecondaryTextBrush}" />
                             </StackPanel>
-                            <Border Style="{StaticResource FSTCardStyle}" Padding="8,8,8,8">
+                            <Border Style="{StaticResource FSTCardStyle}" Padding="8,8,8,12">
                                 <StackPanel Spacing="4">
                                     <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Preview}">
                                         <ItemsRepeater.Layout>
@@ -98,8 +98,11 @@
                                             </DataTemplate>
                                         </ItemsRepeater.ItemTemplate>
                                     </ItemsRepeater>
-                                    <HyperlinkButton Content="{x:Bind SeeAllText}" Tag="{x:Bind SeeAllRoute}" Click="OnRouteClick" Margin="4,0,0,0"
-                                                     AutomationProperties.AutomationId="fst.rival-detail.see-all" />
+                                    <!-- The shared View All button after the rows, like the hub's View All Rivals (view-all-cta R6, #321). -->
+                                    <Button Content="{x:Bind ViewAllText}" Tag="{x:Bind ViewAllRoute}" Click="OnRouteClick"
+                                            Style="{StaticResource FSTViewAllButtonStyle}"
+                                            AutomationProperties.Name="{x:Bind ViewAllName}"
+                                            AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                 </StackPanel>
                             </Border>
                             </StackPanel>
