@@ -1087,6 +1087,10 @@
             "symbol": "LeaderboardRowMetrics"
           },
           {
+            "path": "windows/Festival.Core/ViewModels/LeaderboardEntryRows.cs",
+            "symbol": "LeaderboardSkeletonRow"
+          },
+          {
             "path": "windows/Festival.App/Controls/LeaderboardEntryRow.xaml.cs",
             "symbol": "LeaderboardEntryRow"
           },

@@ -55,6 +55,94 @@ public static class LeaderboardRowMetrics
     /// <param name="rows">Row count; zero or less is an empty block.</param>
     /// <returns>Block height in epx.</returns>
     public static double BlockHeight(int rows) => rows <= 0 ? 0 : rows * MinHeight + (rows - 1) * Spacing;
+
+    /// <summary>Placeholder rows in an overview card's loading skeleton.</summary>
+    public const int SkeletonRowCount = 5;
+
+    /// <summary>
+    /// The section a rankings card's skeleton fits like loaded rows (issue #281): a top-ten rank (<c>#10</c>) and the
+    /// widest plausible songs label and rating for <paramref name="metric"/>, so at large text or in a narrow card the
+    /// skeleton stacks whenever the loaded rows would (<c>leaderboard-row</c> R2).
+    /// </summary>
+    /// <param name="metric">Card metric (band cards pass their metric's account equivalent).</param>
+    /// <returns>Section content for <see cref="LeaderboardColumnLayout.Fit"/>.</returns>
+    public static LeaderboardSection SkeletonSection(RankingMetric metric)
+    {
+        var rating = metric switch
+        {
+            RankingMetric.Adjusted or RankingMetric.Weighted => RankingFormatting.Percentile(0.0099),
+            RankingMetric.FcRate or RankingMetric.MaxScore => RankingFormatting.Percentage(1),
+            _ => RankingFormatting.WholeNumber(999_999_999),
+        };
+        return new LeaderboardSection(LeaderboardRowKind.Ranking, ScoreFormatting.Rank(LeaderboardPaging.CardSize).Length,
+            RankingFormatting.Songs(999, 999).Length, rating.Length, false, false);
+    }
+
+    /// <summary>An overview card's skeleton rows: <see cref="SkeletonRowCount"/> placeholders sharing one section.</summary>
+    /// <param name="metric">Card metric.</param>
+    /// <param name="automationIdPrefix">Card automation ID; rows get <c>&lt;prefix&gt;.skeleton.&lt;n&gt;</c> in the raw view.</param>
+    /// <returns>Placeholder rows.</returns>
+    public static IReadOnlyList<LeaderboardSkeletonRow> SkeletonRows(RankingMetric metric, string automationIdPrefix)
+    {
+        var section = SkeletonSection(metric);
+        return Enumerable.Range(0, SkeletonRowCount)
+            .Select(i => new LeaderboardSkeletonRow(section, metric.IsPercentile(), $"{automationIdPrefix}.skeleton.{i}", i))
+            .ToList();
+    }
+}
+
+/// <summary>
+/// A loading placeholder drawn by the same row control as loaded rows (issue #281), so it takes their column plan, stacked
+/// lines and percentile caption line at every text size and width instead of a fixed 48 epx: rows don't jump when data
+/// arrives (<c>leaderboard-row</c> R2). Its text is invisible and it has no destination; the row control hides it from
+/// Narrator and draws placeholder bars (or nothing, under a loading ring) in the text's cells.
+/// </summary>
+/// <param name="section">Columns to fit, like the loaded rows' section.</param>
+/// <param name="hasBayesian">Whether loaded rows carry the percentile metrics' second value line.</param>
+/// <param name="automationId">Raw-view automation ID, for UI tests.</param>
+/// <param name="index">Position in its block (the name bar shortens down the block).</param>
+/// <param name="showBars">Whether to draw placeholder bars (false under the spotlight's loading ring).</param>
+public sealed class LeaderboardSkeletonRow(LeaderboardSection section, bool hasBayesian, string automationId, int index = 0, bool showBars = true)
+    : ILeaderboardRankingRow
+{
+    /// <summary>Invisible stand-in text: a value gives each column a line, and its width comes from the section.</summary>
+    private const string Placeholder = "0";
+
+    /// <summary>Position in its block.</summary>
+    public int Index { get; } = index;
+
+    /// <summary>Whether placeholder bars are drawn.</summary>
+    public bool ShowBars { get; } = showBars;
+
+    /// <inheritdoc />
+    public string RankText => "#" + Placeholder;
+
+    /// <summary>A no-break space: one line that never overflows, so the name never scrolls in a placeholder.</summary>
+    public string Name => "\u00A0";
+
+    /// <inheritdoc />
+    public bool IsSelected => false;
+
+    /// <inheritdoc />
+    public LeaderboardSection? Section { get; } = section;
+
+    /// <inheritdoc />
+    public AppRoute? Route => null;
+
+    /// <inheritdoc />
+    public string AutomationId { get; } = automationId;
+
+    /// <inheritdoc />
+    public string Announcement => "";
+
+    /// <inheritdoc />
+    public string SongsText => Placeholder;
+
+    /// <inheritdoc />
+    public string RatingText => Placeholder;
+
+    /// <inheritdoc />
+    public string BayesianText { get; } = hasBayesian ? Placeholder : "";
 }
 
 /// <summary>A score row (web <c>LeaderboardEntry</c>): season, score, accuracy badge and stars.</summary>
