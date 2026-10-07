@@ -22,7 +22,7 @@ struct FeedbackAttachmentStrip: View {
     @State private var previewURL: URL?
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        ScrollView(.horizontal) {
             HStack(spacing: 12) {
                 ForEach(Array(attachments.enumerated()), id: \.element.id) { index, attachment in
                     FeedbackAttachmentTile(
@@ -33,6 +33,7 @@ struct FeedbackAttachmentStrip: View {
             }
             .padding(.vertical, 4)
         }
+        .scrollIndicators(.hidden)
         .accessibilityIdentifier("fst.settings.feedback.attachments")
         #if os(iOS)
         .quickLookPreview($previewURL, in: attachments.map(\.fileURL))

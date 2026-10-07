@@ -1,4 +1,5 @@
 import CoreGraphics
+import FestivalCore
 import SwiftUI
 import Testing
 @testable import FestivalUI
@@ -93,16 +94,56 @@ func duoFoldedKeepsCompactTabs(layout: DeviceLayout) {
     #expect(presentation == ShellPresentation(navigation: .tabs, usesRegularSectionSet: false))
 }
 
-/// The Duo inner display (flat, partially folded, or portrait) splits Compete into
-/// Leaderboards and Rivals while keeping the tab shell for continuity with folded.
+/// The Duo inner display (flat, partially folded, landscape or portrait) keeps the
+/// folded tabs (issue #337): Compete rather than Leaderboards and Rivals, and, with a
+/// player selected, no Statistics tab (the Profile button and the drawer open it).
 @Test(arguments: [Layouts.duoUnfolded, Layouts.duoPartiallyFolded, Layouts.duoUnfoldedPortrait])
-func duoInnerDisplayUsesRegularSections(layout: DeviceLayout) {
+func duoInnerDisplayKeepsCompactSections(layout: DeviceLayout) {
     let presentation = ShellPresentation.resolve(layout: layout, usesSidebarShell: false)
-    #expect(presentation.navigation == .tabs)
+    #expect(presentation == ShellPresentation(navigation: .tabs, usesRegularSectionSet: false))
     #expect(presentation.usesDrawer)
-    #expect(presentation.sections(profile: .player)
-        == [.songs, .suggestions, .leaderboards, .rivals, .statistics, .settings])
+    #expect(presentation.sections(profile: .player) == [.songs, .suggestions, .compete, .settings])
     #expect(presentation.sections(profile: .none) == [.songs, .leaderboards, .settings])
+}
+
+/// Folding or unfolding the Duo never changes the tabs, so the selected section and
+/// its pushed pages stay put (HIG Designing for iPhone Duo: "Preserve functionality,
+/// element state, hierarchy, and access across displays/poses").
+@Test(arguments: [Layouts.duoUnfolded, Layouts.duoPartiallyFolded, Layouts.duoUnfoldedPortrait])
+func duoFoldAndUnfoldKeepTheSelectedSection(inner: DeviceLayout) {
+    for outer in Layouts.foldedRotations {
+        for profile in [FestivalProfileKind.none, .player] {
+            let folded = ShellPresentation.resolve(layout: outer, usesSidebarShell: false).sections(profile: profile)
+            let unfolded = ShellPresentation.resolve(layout: inner, usesSidebarShell: false).sections(profile: profile)
+            #expect(folded == unfolded)
+            for section in folded {
+                let paths: [FestivalSection: [AppRoute]] = [section: [.statistics]]
+                let adapted = FestivalTabPolicy.adapt(selected: section, paths: paths, to: unfolded)
+                #expect(adapted.selected == section)
+                #expect(adapted.paths == paths)
+            }
+        }
+    }
+}
+
+/// With a player selected on the unfolded Duo, the Profile button pushes Statistics
+/// on the current section, as on the folded Duo and iPhone.
+@Test func duoInnerProfileButtonOpensStatistics() throws {
+    let player = try SelectedPlayerIdentity(
+        searchResult: PlayerSearchResult(accountId: "fixture-player-1", displayName: "Fixture Player 1")
+    )
+    let visible = ShellPresentation.resolve(layout: Layouts.duoUnfolded, usesSidebarShell: false)
+        .sections(profile: .player)
+    let action = ProfileButtonAction.resolve(
+        selectedPlayer: player,
+        statisticsVisible: visible.contains(.statistics),
+        selected: .compete, searchActive: false, topRoute: nil
+    )
+    #expect(action == .navigate(.push(.statistics)))
+    let row = DrawerMenu.browse(profile: .player, visibleSections: visible, hideShop: false)
+    #expect(row.contains { $0.intent == .push(.statistics) })
+    #expect(row.contains { $0.intent == .push(.rivals) })
+    #expect(row.contains { $0.intent == .push(.leaderboards) })
 }
 
 /// The wide shell always uses the regular set, even before the first geometry pass
@@ -133,24 +174,14 @@ func sidebarShellUsesRegularSections(layout: DeviceLayout) {
     #expect(phone.last?.intent == .push(.shop))
 }
 
-/// Folding and unfolding swap Compete and Leaderboards in place (same slot).
-@Test func foldTransitionKeepsEquivalentSection() {
-    let folded = ShellPresentation.resolve(layout: Layouts.duoFoldedPortrait, usesSidebarShell: false)
-        .sections(profile: .player)
-    let unfolded = ShellPresentation.resolve(layout: Layouts.duoUnfolded, usesSidebarShell: false)
-        .sections(profile: .player)
-    #expect(FestivalTabPolicy.resolve(.compete, in: unfolded) == .leaderboards)
-    #expect(FestivalTabPolicy.resolve(.leaderboards, in: folded) == .compete)
-    #expect(FestivalTabPolicy.resolve(.rivals, in: folded) == .compete)
-}
-
-/// Once Leaderboards and Rivals are tabs (Duo unfolded) their drawer rows switch tabs.
-@Test func unfoldedDrawerDropsSplitTabs() {
-    let visible = ShellPresentation.resolve(layout: Layouts.duoUnfolded, usesSidebarShell: false)
-        .sections(profile: .player)
-    let items = DrawerMenu.browse(profile: .player, visibleSections: visible, hideShop: false)
-    #expect(items.first { $0.id == "rivals" }?.intent == .select(.rivals))
-    #expect(items.first { $0.id == "leaderboards" }?.intent == .select(.leaderboards))
+/// Crossing between the wide and phone section sets (an iPad window narrowing to
+/// compact width) swaps Compete and Leaderboards in place (same slot).
+@Test func sectionSetChangeKeepsEquivalentSection() {
+    let phone = FestivalTabPolicy.fittingSearchTab(FestivalTabPolicy.sections(profile: .player, regularWidth: false))
+    let wide = FestivalTabPolicy.sections(profile: .player, regularWidth: true)
+    #expect(FestivalTabPolicy.resolve(.compete, in: wide) == .leaderboards)
+    #expect(FestivalTabPolicy.resolve(.leaderboards, in: phone) == .compete)
+    #expect(FestivalTabPolicy.resolve(.rivals, in: phone) == .compete)
 }
 
 // MARK: - Drawer placement
@@ -357,10 +388,10 @@ func drawerCutoutSitsOnThePanel(layout: DeviceLayout) {
 
 // MARK: - Deferred section-set changes
 
-/// A fold or unfold changes the tabs one run-loop turn after the size class (the
-/// inner-portrait fold crashed UIKit's tab rebuild when both changed together):
-/// the applied set wins for tabs, the resolved set until one is applied, and the
-/// sidebar shell never defers.
+/// A section-set change lands one run-loop turn after the size class (an
+/// inner-portrait fold crashed UIKit's tab rebuild when both changed together, before
+/// the Duo kept one set in #337): the applied set wins for tabs, the resolved set until
+/// one is applied, and the sidebar shell never defers.
 @Test func pendingSectionSetKeepsTheAppliedTabs() {
     let folded = ShellPresentation.resolve(layout: Layouts.duoFoldedPortrait, usesSidebarShell: false)
     let unfolded = ShellPresentation.resolve(layout: Layouts.duoUnfolded, usesSidebarShell: false)

@@ -188,6 +188,73 @@
       ]
     },
     {
+      "id": "scroll-indicators",
+      "title": "Scroll indicators: system bars on every page",
+      "status": "current",
+      "doc": ".agents/patterns/scroll-indicators.md",
+      "summary": "Every page and sheet keeps the platform's own scroll indicators (Apple SwiftUI .automatic: shown while scrolling, macOS follows System Settings' Show scroll bars); no in-app scroll-bar setting (HIG Settings: don't duplicate global scrolling options; #356 agent decision); only paged carousels, the feedback attachment strip and the Paths chart hide theirs, with .hidden so macOS 'Always' still wins.",
+      "keywords": [
+        "scroll bar",
+        "scrollbar",
+        "scroll indicator",
+        "scrollIndicators",
+        "showsIndicators",
+        "always show scroll bars",
+        "indicator"
+      ],
+      "web": [
+        {
+          "path": "index.css",
+          "symbol": "scrollbar-width: none"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Common/HorizontalCarousel.swift",
+            "symbol": "HorizontalCarousel"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackAttachmentStrip.swift",
+            "symbol": "FeedbackAttachmentStrip"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-hidden",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "scrollIndicators\\(\\s*\\.(hidden|never)|showsIndicators:\\s*false",
+          "allow": [
+            "apple/Sources/FestivalUI/Common/HorizontalCarousel.swift",
+            "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackAttachmentStrip.swift",
+            "apple/Sources/FestivalUI/Features/SongDetail/SongPathsSheet.swift"
+          ],
+          "debt": [],
+          "message": "Pages keep the system scroll indicators; only paged carousels, the attachment strip and the Paths chart hide theirs (scroll-indicators R1, R3)."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "scroll-edge"
+        ],
+        "controls": [
+          "chopt-paths",
+          "feedback-form"
+        ],
+        "pages": [
+          "settings"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        279,
+        332,
+        356
+      ]
+    },
+    {
       "id": "section-jump-landing",
       "title": "Section-jump landing",
       "status": "current",
@@ -706,8 +773,24 @@
             "symbol": "RootProfileButton"
           },
           {
+            "path": "apple/Sources/FestivalUI/App/Shell/FestivalSection.swift",
+            "symbol": "FestivalTabPolicy"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Shell/ShellPresentation.swift",
+            "symbol": "ShellPresentation"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/Songs/SongsBottomFilterField.swift",
             "symbol": "SongsFilterFieldPlacement"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Search/BottomSearchField.swift",
+            "symbol": "BottomSearchFieldPlacement"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchTab.swift",
+            "symbol": "GlobalSearchFieldPlacement"
           }
         ],
         "android": [
@@ -820,7 +903,8 @@
         160,
         271,
         300,
-        309
+        309,
+        337
       ]
     },
     {
@@ -988,7 +1072,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform, the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, and one measured section-wide score-footer stack plan that never truncates the score.",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, off the Duo hinge when unfolded, #345), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, and one measured section-wide score-footer stack plan that never truncates the score.",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -1187,6 +1271,14 @@
         ]
       },
       "guards": [
+        {
+          "id": "apple-no-toolbar-pager",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "struct\\s+\\w*Pager\\w*\\s*:\\s*ToolbarContent\\b",
+          "allow": [],
+          "debt": [],
+          "message": "Board pagination stays in the content under the board as RankingsPagerView, never as toolbar or rail items (leaderboard-row R5, #345)."
+        },
         {
           "id": "apple-name-owner",
           "glob": "apple/Sources/**/*.swift",
@@ -2427,7 +2519,7 @@
       "title": "Back keeps place",
       "status": "current",
       "doc": ".agents/patterns/back-keeps-place.md",
-      "summary": "Back to a cached or back-stack page keeps its loaded content (keyed reload gate; new publication or account reloads, failures retry), rebuilds and replays nothing, moves nothing (Windows pauses focus-follow scrolling and scroll anchoring while away) and, on Windows, returns focus to the opener in its original focus state.",
+      "summary": "Back to a cached or back-stack page keeps its loaded content (keyed reload gate; new publication or account reloads, failures retry), rebuilds and replays nothing, moves nothing (Windows pauses focus-follow scrolling and scroll anchoring while away) and, on Windows, returns focus to the opener in its original focus state. In an Apple on-demand split, Back on the leading page closes the open trailing pane first and keeps the page; a second Back leaves it.",
       "keywords": [
         "back",
         "back navigation",
@@ -2438,7 +2530,9 @@
         "reappearance",
         "jitter",
         "reload on back",
-        "keeps place"
+        "keeps place",
+        "split view",
+        "trailing pane"
       ],
       "web": [
         {
@@ -2459,6 +2553,14 @@
           {
             "path": "apple/Sources/FestivalCore/ReappearanceLoadGate.swift",
             "symbol": "ReappearanceLoadGate"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/OnDemandSplitPolicy.swift",
+            "symbol": "pathAfterListBack"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/OnDemandSplit.swift",
+            "symbol": "SplitListBackButton"
           }
         ],
         "android": [
@@ -2490,7 +2592,8 @@
           "shop",
           "suggestions",
           "settings",
-          "licenses"
+          "licenses",
+          "song-detail"
         ]
       },
       "guards": [
@@ -2508,7 +2611,8 @@
       "issues": [
         39,
         82,
-        276
+        276,
+        347
       ]
     }
   ]

@@ -311,16 +311,6 @@ struct SongBandLeaderboardContent: View {
             if pageTools == nil {
                 ToolbarItem(placement: .festivalPageAction) { bandTypeMenu }
             }
-            #if os(iOS)
-            if let payload = chromePayload {
-                RankingsPagerToolbarContent(
-                    page: page, totalPages: payload.leaderboard.pageCount,
-                    idPrefix: "fst.song-band-leaderboard"
-                ) { destination in
-                    page = destination
-                }
-            }
-            #endif
         }
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -394,7 +384,7 @@ struct SongBandLeaderboardContent: View {
         PinnedChromeSpacing.resolve(
             rowGap: Double(Self.rowGap), rowBottomInset: Double(Self.rowGap), edgePadding: 8,
             hasFooter: footerEntry != nil,
-            hasPager: chromePayload != nil && !layout.sectionChrome.isVerticalBar
+            hasPager: chromePayload != nil
         )
     }
 

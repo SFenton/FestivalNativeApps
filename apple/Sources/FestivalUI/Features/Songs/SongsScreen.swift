@@ -505,13 +505,17 @@ struct SongsScreen: View, Equatable {
             }
         }
         // iPhone Duo: the Filter field sits at the bottom of the page, on the trailing
-        // page across a vertical hinge (owner, issue #333; ``SongsFilterFieldPlacement``).
-        // A bottom safe-area inset, so the list's last rows and the A–Z scrubber end
-        // above it and the keyboard lifts it.
+        // page across a book-pose fold (owner, issues #333, #349;
+        // ``SongsFilterFieldPlacement``, ``BottomSearchField``). A bottom safe-area
+        // inset, so the list's last rows and the A–Z scrubber end above it and the
+        // keyboard lifts it.
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if filterPlacement == .bottom {
-                SongsBottomFilterField(
-                    text: $searchText, hinge: deviceLayout.splitHinge, space: Self.pageSpace
+                BottomSearchField(
+                    text: $searchText, prompt: "Filter Songs", accessibilityLabel: "Filter Songs",
+                    identifier: "fst.songs.filter-field", clearIdentifier: "fst.songs.filter-clear",
+                    hinge: BottomSearchFieldPlacement.pageHinge(for: deviceLayout),
+                    space: Self.pageSpace
                 ) { top in
                     if top != bottomFilterTop { bottomFilterTop = top }
                 }
@@ -1202,7 +1206,7 @@ struct SongsScreen: View, Equatable {
                 .scrollContentBackground(.hidden)
                 // iPhone Duo: rows fade out above the bottom Filter field and are not
                 // drawn beneath it (scroll-edge R1, issue #333).
-                .modifier(SongsBottomFieldFade(
+                .modifier(BottomSearchFieldFade(
                     chromeTop: bottomFieldTop, enabled: filterPlacement == .bottom,
                     space: Self.pageSpace
                 ))
