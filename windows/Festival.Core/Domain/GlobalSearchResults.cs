@@ -72,8 +72,8 @@ public enum GlobalSuggestionKind
     Song,
     /// <summary>A player result.</summary>
     Player,
-    /// <summary>"See all results" → the Search page.</summary>
-    SeeAll,
+    /// <summary>"View All Results" → the Search page.</summary>
+    ViewAll,
 }
 
 /// <summary>One title-bar <c>AutoSuggestBox</c> item. <see cref="ToString"/> is the UIA name of its list item.</summary>
@@ -81,7 +81,7 @@ public enum GlobalSuggestionKind
 /// <param name="Title">Primary text.</param>
 /// <param name="Subtitle">Secondary text.</param>
 /// <param name="Art">Song art, if any.</param>
-/// <param name="Route">Destination; for <see cref="GlobalSuggestionKind.SeeAll"/> the Search page.</param>
+/// <param name="Route">Destination; for <see cref="GlobalSuggestionKind.ViewAll"/> the Search page.</param>
 /// <param name="AccessibleName">Spoken name.</param>
 public sealed record GlobalSuggestion(
     GlobalSuggestionKind Kind, string Title, string Subtitle, string? Art, AppRoute Route, string AccessibleName)
@@ -92,8 +92,8 @@ public sealed record GlobalSuggestion(
     /// <summary>Whether this row is a player (shows a person picture).</summary>
     public bool IsPlayer => Kind == GlobalSuggestionKind.Player;
 
-    /// <summary>Whether this row is the "See all results" command.</summary>
-    public bool IsSeeAll => Kind == GlobalSuggestionKind.SeeAll;
+    /// <summary>Whether this row is the "View All Results" command.</summary>
+    public bool IsViewAll => Kind == GlobalSuggestionKind.ViewAll;
 
     /// <summary>Whether a secondary line is shown.</summary>
     public bool HasSubtitle => Subtitle.Length > 0;
@@ -230,7 +230,7 @@ public static class GlobalSearchResults
 
     /// <summary>
     /// Title-bar suggestions: up to five songs, then up to five players (appended after the songs so the highlighted
-    /// index of a song never moves when players arrive), then "See all results".
+    /// index of a song never moves when players arrive), then "View All Results".
     /// </summary>
     /// <param name="query">User text.</param>
     /// <param name="songs">Song matches.</param>
@@ -247,8 +247,8 @@ public static class GlobalSearchResults
         foreach (var player in players.Take(SuggestedPlayers))
             list.Add(new(GlobalSuggestionKind.Player, player.DisplayName, player.Subtitle, null, player.Route,
                 player.IsSelected ? $"Player, {player.DisplayName}, selected, opens Statistics" : $"Player, {player.DisplayName}"));
-        var seeAll = $"See All Results for “{text}”";
-        list.Add(new(GlobalSuggestionKind.SeeAll, seeAll, "", null, new AppRoute.Search(text), seeAll));
+        var viewAll = $"{ViewAllCta.ResultsLabel} for “{text}”";
+        list.Add(new(GlobalSuggestionKind.ViewAll, viewAll, "", null, new AppRoute.Search(text), viewAll));
         return list;
     }
 

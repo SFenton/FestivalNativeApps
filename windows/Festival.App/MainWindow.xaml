@@ -38,7 +38,7 @@
                                 <controls:SongArt Art="{x:Bind Art}" Width="32" Height="32" Visibility="{x:Bind IsSong}" />
                                 <PersonPicture Width="28" Height="28" DisplayName="{x:Bind Title}" Visibility="{x:Bind IsPlayer}"
                                                AutomationProperties.AccessibilityView="Raw" />
-                                <FontIcon Glyph="&#xE721;" FontSize="16" Visibility="{x:Bind IsSeeAll}" />
+                                <FontIcon Glyph="&#xE721;" FontSize="16" Visibility="{x:Bind IsViewAll}" />
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                     <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" />
                                     <TextBlock Text="{x:Bind Subtitle}" Visibility="{x:Bind HasSubtitle}" FontSize="12"

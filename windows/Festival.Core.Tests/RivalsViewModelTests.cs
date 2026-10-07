@@ -89,7 +89,8 @@ public class RivalsViewModelTests
         Assert.True(lead.HasIcon);
         Assert.Equal("instrument_guitar.png", lead.IconFile);
         Assert.Equal("fst.rivals.section.Solo_Guitar", lead.AutomationId);
-        Assert.Equal("See All Lead Rivals", lead.SeeAllName);
+        // Title-row link (section-headers R8, #321): "View All", spoken label first, distinct from View All Rivals.
+        Assert.Equal(("View All", "View All, Lead Rivals"), (RivalSectionViewModel.ListLinkText, lead.ListLinkName));
         Assert.Equal(("View All Rivals", "View All Rivals, Lead Rivals"), (lead.ViewAllText, lead.ViewAllName));
         Assert.Equal("fst.rivals.section.Solo_Guitar.view-all", lead.ViewAllAutomationId);
         Assert.False(hub.Sections[0].HasIcon);
@@ -516,9 +517,12 @@ public class RivalsViewModelTests
             detail.QuickLinkSections.Select(s => s.Id));
         Assert.Equal(detail.Categories[0].Title, detail.QuickLinkSections[0].Title);
         var closest = detail.Categories[0];
-        Assert.Equal("View All 4 Songs", closest.SeeAllText);
-        Assert.Equal("View 1 Song", detail.Categories[1].SeeAllText);
-        Assert.Equal(new AppRoute.Rivalry(Rival, "closest_battles", "Fixture Rival Golf", scope), closest.SeeAllRoute);
+        // Each category ends with the shared View All button (view-all-cta R6, #321), whatever its song count.
+        Assert.Equal(("View All", "View All, Closest Battles"), (closest.ViewAllText, closest.ViewAllName));
+        Assert.Equal(("View All", "fst.rival-detail.category.almost_passed.view-all"),
+            (detail.Categories[1].ViewAllText, detail.Categories[1].ViewAllAutomationId));
+        Assert.Equal("fst.rival-detail.category.closest_battles.view-all", closest.ViewAllAutomationId);
+        Assert.Equal(new AppRoute.Rivalry(Rival, "closest_battles", "Fixture Rival Golf", scope), closest.ViewAllRoute);
         Assert.Equal("fst.rival-detail.category.closest_battles", closest.AutomationId);
         Assert.Equal(RivalCategorySentiment.Neutral, closest.Sentiment);
         Assert.NotEmpty(closest.Title + closest.Subtitle);
@@ -538,7 +542,7 @@ public class RivalsViewModelTests
         var found = await Loaded(new RivalDetailViewModel(session, new AppRoute.RivalDetail(Rival, "Hint", AllowLiveFallback: true)));
         Assert.Equal(2, fake.Service.Handler.Requests.Count(Live));
         Assert.NotEmpty(found.Categories);
-        Assert.All(found.Categories, c => Assert.True(c.SeeAllRoute.AllowLiveFallback));
+        Assert.All(found.Categories, c => Assert.True(c.ViewAllRoute.AllowLiveFallback));
         // A deep link can never ask for it: the flag is navigation state, not part of the path.
         Assert.Equal($"/rivals/{Rival}?name=Hint", new AppRoute.RivalDetail(Rival, "Hint", AllowLiveFallback: true).ToPath());
 
