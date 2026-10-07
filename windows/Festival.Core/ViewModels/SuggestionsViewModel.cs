@@ -88,6 +88,9 @@ public sealed partial class SuggestionsViewModel : ObservableObject
     private string? sourceAccount;
     private IReadOnlyDictionary<string, IReadOnlyDictionary<Instrument, SuggestionScore>>? scores;
     private CancellationTokenSource? rivalsLoad;
+
+    /// <summary>Latest best-effort rivals read (the view awaits nothing; exposed so tests can wait deterministically).</summary>
+    internal Task? RivalsTask { get; private set; }
     private int loadVersion;
 
     /// <summary>Creates the page model.</summary>
@@ -260,7 +263,7 @@ public sealed partial class SuggestionsViewModel : ObservableObject
         generator.SetSource(catalog.Songs, scores);
         HasMore = true;
         Generate(InitialBatch);
-        _ = LoadRivalsAsync(accountId, generator);
+        RivalsTask = LoadRivalsAsync(accountId, generator);
     }
 
     /// <summary>Best-effort <c>/rivals/all</c> read; spliced into the running generator when it answers.</summary>

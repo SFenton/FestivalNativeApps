@@ -1,5 +1,7 @@
 package com.festivalscoretracker.android.ui.songdetail
 
+import com.festivalscoretracker.android.ui.common.rememberPageFadeInWindow
+import com.festivalscoretracker.android.ui.leaderboards.awaitSelectedRowEntrance
 import com.festivalscoretracker.android.ui.design.popupTestTags
 import androidx.compose.ui.semantics.selected
 import androidx.compose.runtime.setValue
@@ -58,6 +60,9 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
+import com.festivalscoretracker.android.presentation.BackgroundController
+import com.festivalscoretracker.android.ui.background.SongCoverBackdrop
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.core.model.LeaderboardEntry
@@ -119,6 +124,7 @@ fun SongLeaderboardRouteScreen(container: AppContainer, settings: AppSettings, r
     }
     SongLeaderboardScreen(
         boardViewModel, settings.selectedPlayer?.accountId, container.selectedProfile.state, leeway, settings.visibleInstruments, api::artworkUrl,
+        background = container.background,
         revealSelected = route.navToPlayer,
         // Revealed once: Back or a recreated entry keeps the scroll position instead (web clears `navToPlayer`).
         onRevealed = { routeState?.set("navToPlayer", false) },
@@ -138,6 +144,7 @@ fun SongLeaderboardRouteScreen(container: AppContainer, settings: AppSettings, r
  * @param visibleInstruments Settings-visible charts (the header's instrument switcher).
  * @param leeway Filter Invalid Scores leeway (the page is read with it; the spotlight shows the next valid score), or null.
  * @param artworkUrl Artwork resolver for the song header.
+ * @param background Shared backdrop: shows the song's static cover while the board is visible (pattern `song-leaderboard-header` R4, issue #317), or null.
  * @param revealSelected Opened for the selected player's row (web `navToPlayer`): bring it into view once its page shows.
  * @param onRevealed Called once that reveal has run (or found no row), so the route stops asking for it.
  */
@@ -150,10 +157,12 @@ fun SongLeaderboardScreen(
     leeway: Double? = null,
     visibleInstruments: Set<Instrument> = Instrument.entries.toSet(),
     artworkUrl: (String?) -> String? = { null },
+    background: BackgroundController? = null,
     revealSelected: Boolean = false,
     onRevealed: () -> Unit = {},
 ) {
     val song by viewModel.song.collectAsStateWithLifecycle()
+    SongCoverBackdrop(background, (song as? LoadState.Loaded)?.value?.albumArt)
     val board by viewModel.board.collectAsStateWithLifecycle()
     val page by viewModel.page.collectAsStateWithLifecycle()
     val navigate = LocalShellActions.current.navigate
@@ -187,6 +196,8 @@ fun SongLeaderboardScreen(
     var revealPending by rememberSaveable { mutableStateOf(revealSelected) }
     val anchor = remember { SelectedRowAnchor() }
     val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
+    // The page's fade window, here so the reveal can rush the rows its scroll reaches (load-transition R5).
+    val fadeIn = rememberPageFadeInWindow()
 
     // The rows and the pinned footer share one column plan, fitted to the narrower of the two (issue #37, 7.9).
     val columns = rememberScoreColumns(loaded?.entries.orEmpty() + listOfNotNull(footer))
@@ -196,9 +207,13 @@ fun SongLeaderboardScreen(
     LaunchedEffect(revealPending, pageShown, loaded) {
         if (!revealPending || !pageShown) return@LaunchedEffect
         if (selectedOnPage) {
-            withFrameNanos { }
-            val bounds = anchor.bounds()
-            if (bounds != null) listState.revealSelectedRow("rows", null, bounds.first, bounds.second, animate = !reduceMotion)
+            // Like the web's navToPlayer: scroll once the row's own entrance has finished (issue #323).
+            val index = loaded.entries.indexOfFirst { RankingSpotlight.isSelected(selectedAccountId, it.accountId) }
+            if (awaitSelectedRowEntrance(fadeIn, fadeInStagger(index), reduceMotion)) {
+                withFrameNanos { }
+                val bounds = anchor.bounds()
+                if (bounds != null) listState.revealSelectedRow("rows", null, bounds.first, bounds.second, animate = !reduceMotion)
+            }
         }
         revealPending = false
         onRevealed()
@@ -213,6 +228,7 @@ fun SongLeaderboardScreen(
         scrolled = headerGone,
         marqueeTitle = true,
         modifier = Modifier.semantics { testTagsAsResourceId = true },
+        fadeInWindow = fadeIn,
     ) { padding ->
         val failed = board as? LoadState.Failed
         if (failed != null) {
@@ -351,10 +367,8 @@ private fun SongLeaderboardRow(
 
 
 /**
- * The header's instrument (web instrument switcher): icon and name; with more
- * than one visible chart it is a 48 dp drop-down (TalkBack "drop down list") whose
- * menu switches the board and checks the current chart. With a single chart it is
- * plain text, not a disabled control (issue #104).
+ * The header's instrument (web instrument switcher): icon and name, on the shared
+ * [SongBoardSwitcher].
  *
  * @param current Board's chart.
  * @param charts Settings-visible charts the song supports, in display order.
@@ -362,8 +376,47 @@ private fun SongLeaderboardRow(
  */
 @Composable
 internal fun InstrumentSwitcher(current: Instrument, charts: List<Instrument>, onSelect: (Instrument) -> Unit) {
+    SongBoardSwitcher(
+        current = current,
+        options = charts,
+        label = Instrument::label,
+        id = Instrument::wireId,
+        clickLabel = "Switch instrument",
+        tag = "fst.song-leaderboard.instrument",
+        icon = { chart, size -> InstrumentIcon(chart, size = size, decorative = true) },
+        onSelect = onSelect,
+    )
+}
+
+/**
+ * The board line under a song leaderboard's [SongHeader] (pattern `song-leaderboard-header` R1): the
+ * board's instrument on the solo board, its band size on the band board (issue #317).
+ * With more than one option it is a 48 dp drop-down (TalkBack "drop down list") whose
+ * menu switches the board and checks the current option; with a single option it is
+ * plain text, not a disabled control (issue #104).
+ *
+ * @param current Board's option.
+ * @param options Options in display order.
+ * @param label Visible name.
+ * @param id Stable wire ID for item test tags (`<tag>.<id>`).
+ * @param clickLabel TalkBack click label of the anchor.
+ * @param tag Anchor test tag; the menu is `<tag>-menu`.
+ * @param icon Optional leading glyph (32 dp in the header, 24 dp in the menu), or null for text only.
+ * @param onSelect Opens the board for another option.
+ */
+@Composable
+internal fun <T> SongBoardSwitcher(
+    current: T,
+    options: List<T>,
+    label: (T) -> String,
+    id: (T) -> String,
+    clickLabel: String,
+    tag: String,
+    icon: (@Composable (T, Dp) -> Unit)? = null,
+    onSelect: (T) -> Unit,
+) {
     var open by remember { mutableStateOf(false) }
-    val switchable = charts.size > 1
+    val switchable = options.size > 1
     Box {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -371,34 +424,34 @@ internal fun InstrumentSwitcher(current: Instrument, charts: List<Instrument>, o
                 .heightIn(min = 48.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .then(
-                    if (switchable) Modifier.clickable(role = Role.DropdownList, onClickLabel = "Switch instrument") { open = true }
+                    if (switchable) Modifier.clickable(role = Role.DropdownList, onClickLabel = clickLabel) { open = true }
                     else Modifier,
                 )
                 .padding(end = 8.dp)
-                .testTag("fst.song-leaderboard.instrument"),
+                .testTag(tag),
         ) {
-            InstrumentIcon(current, size = 32.dp, decorative = true)
+            icon?.invoke(current, 32.dp)
             Text(
-                current.label,
+                label(current),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = BrandTokens.textPrimary,
-                modifier = Modifier.padding(start = 10.dp),
+                modifier = if (icon != null) Modifier.padding(start = 10.dp) else Modifier,
             )
             if (switchable) Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = BrandTokens.textPrimary)
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.popupTestTags().testTag("fst.song-leaderboard.instrument-menu")) {
-            charts.forEach { chart ->
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.popupTestTags().testTag("$tag-menu")) {
+            options.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(chart.label, fontWeight = if (chart == current) FontWeight.Bold else null) },
-                    leadingIcon = { InstrumentIcon(chart, size = 24.dp, decorative = true) },
+                    text = { Text(label(option), fontWeight = if (option == current) FontWeight.Bold else null) },
+                    leadingIcon = icon?.let { draw -> { draw(option, 24.dp) } },
                     // Same single-choice cue as the rankings' top-bar pickers.
-                    trailingIcon = if (chart == current) ({ Icon(Icons.Filled.Check, contentDescription = null) }) else null,
+                    trailingIcon = if (option == current) ({ Icon(Icons.Filled.Check, contentDescription = null) }) else null,
                     onClick = {
                         open = false
-                        if (chart != current) onSelect(chart)
+                        if (option != current) onSelect(option)
                     },
-                    modifier = Modifier.testTag("fst.song-leaderboard.instrument.${chart.wireId}").semantics { selected = chart == current },
+                    modifier = Modifier.testTag("$tag.${id(option)}").semantics { selected = option == current },
                 )
             }
         }

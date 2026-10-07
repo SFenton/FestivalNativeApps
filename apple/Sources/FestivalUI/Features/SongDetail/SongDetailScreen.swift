@@ -10,14 +10,13 @@ import FestivalDesign
 /// Like the web `SongDetailPage`, only a spinner shows until every visible chart's top
 /// ten and (with a selected player) the song's score history have loaded; then the
 /// page fades in and its sections stagger (operator batch 6.41). The selected player's
-/// score history is a section of this page (batch 6.39), after Intensity.
+/// score history is a section of this page (batch 6.39), after Intensity: the best five
+/// scores, with View All Scores opening the separate ``PlayerHistoryScreen`` (issue #324).
 struct SongDetailScreen: View {
     let song: Song
     let session: FestivalSession
     let visibleInstruments: Set<Instrument>
-    /// Deep link to `/songs/:id/:instrument/history`: open scrolled to Score History on
-    /// this instrument, every score listed.
-    let historyFocus: Instrument?
+    /// Settings → Filter invalid scores: hide over-threshold scores in the previews.
     @AppStorage("fst.settings.filterInvalidScores") private var filterInvalidScores = false
     @AppStorage("fst.settings.leeway") private var leeway = 1.0
     /// Every card's first read (and the history) finished: the page may appear.
@@ -25,7 +24,6 @@ struct SongDetailScreen: View {
     @State private var previewPreloads: [Instrument: SongScorePreview.LoadState] = [:]
     @State private var historyEntries: [ScoreHistoryEntry] = []
     @State private var historyInstrument: Instrument?
-    @State private var historyExpanded = false
     @State private var loadedGate: GateKey?
     /// Duos/Trios/Quads previews from the one `/bands/all` read.
     @State private var bandPreviews: SongBandPreviewState = .loading
@@ -41,6 +39,9 @@ struct SongDetailScreen: View {
     /// Whether the hero title has scrolled under the navigation bar (gap #6). Only
     /// the Bool changes while scrolling, so the page body is not re-evaluated every frame.
     @State private var heroTitleHidden = false
+    /// The hero title's bottom edge in the scroll content: scrolling past it pins the
+    /// title in the bar (`songHeaderScrollAway`, like the song leaderboards).
+    @State private var heroTitleBottom: CGFloat = 0
     /// The page's width (the web viewport), for Score History's season column (issue #32).
     @State private var pageWidth: CGFloat = 0
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -48,9 +49,6 @@ struct SongDetailScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Section chrome: the iPhone Duo vertical bar needs a titled symbol Shop item.
     @Environment(\.deviceLayout) private var deviceLayout
-    /// Set while Song Detail can split: its full boards and score history open in the
-    /// trailing pane (`OnDemandSplitPolicy`).
-    @Environment(\.listDetailSelect) private var splitSelect
     /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
     @Environment(\.pageToolsRegistry) private var pageTools
 
@@ -76,14 +74,6 @@ struct SongDetailScreen: View {
     }
 
     private var previewInstruments: [Instrument] { charted.filter(visibleInstruments.contains) }
-
-    /// Opens an instrument's score history in the trailing pane while Song Detail can
-    /// split, else nil (the section expands in place).
-    private var openFullHistory: ((Instrument) -> Void)? {
-        guard let splitSelect, splitSelect.accepts(.playerHistory(song, .lead)) else { return nil }
-        let song = song
-        return { instrument in splitSelect(.playerHistory(song, instrument)) }
-    }
 
     /// Whether the Score History section is drawn (a selected player with rows).
     private var showsScoreHistory: Bool { session.selectedPlayer != nil && !historyEntries.isEmpty }
@@ -151,18 +141,13 @@ struct SongDetailScreen: View {
     ///   - song: Catalog record opened from the Songs route.
     ///   - session: Process-lifetime client and artwork state.
     ///   - visibleInstruments: Solo charts enabled in Settings.
-    ///   - historyFocus: Open scrolled to Score History on this instrument (deep link).
     init(
         song: Song, session: FestivalSession,
-        visibleInstruments: Set<Instrument> = Set(Instrument.allCases),
-        historyFocus: Instrument? = nil
+        visibleInstruments: Set<Instrument> = Set(Instrument.allCases)
     ) {
         self.song = song
         self.session = session
         self.visibleInstruments = visibleInstruments
-        self.historyFocus = historyFocus
-        _historyInstrument = State(initialValue: historyFocus)
-        _historyExpanded = State(initialValue: historyFocus != nil)
     }
 
     var body: some View {
@@ -190,6 +175,7 @@ struct SongDetailScreen: View {
         .detailFadeTestSafe()
         .festivalBackground(.song(song.albumArt), session: session)
         .festivalNavigationTitle(song.title)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: heroTitleHidden)
         .toolbar { detailToolbar }
         // iPhone tab-bar accessory (issue #92): Item Shop, then Paths, then Quick Links.
         .festivalPageTool(
@@ -262,9 +248,10 @@ struct SongDetailScreen: View {
     private var detailToolbar: some ToolbarContent {
         #if os(iOS)
         if !deviceLayout.sectionChrome.isVerticalBar {
-            ToolbarItem(placement: .principal) {
-                pinnedTitle
-            }
+            SongBarTitleToolbarItem(
+                song: song, session: session, caption: nil, isShown: heroTitleHidden,
+                identifier: "fst.song-detail.pinned-title"
+            )
         }
         #endif
         if pageTools == nil, let offer = shopOffer {
@@ -313,30 +300,21 @@ struct SongDetailScreen: View {
     /// The loaded page: header, Intensity, Score History, then the chart cards, fading
     /// in with the web's stagger.
     private var loadedScroll: some View {
-        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .top, spacing: 16) {
                     ArtworkTile(raw: song.albumArt, session: session, size: 96)
                         .id(song.albumArt)
                         .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 8) {
-                        MarqueeText(song.title, font: .title.bold())
-                            .onGeometryChange(for: Bool.self) { proxy in
-                                SongDetailPinnedTitlePolicy.isHeroHidden(
-                                    titleMaxY: proxy.frame(in: .scrollView).maxY
-                                )
-                            } action: { hidden in
-                                heroTitleHidden = hidden
-                            }
-                        MarqueeText(song.artist, font: .body)
-                            .foregroundStyle(FestivalText.primary)
+                    SongHeaderText(
+                        title: song.title, artist: song.artist, titleFont: .title.bold(), spacing: 8,
+                        onTitleBottomChange: { heroTitleBottom = $0 }
+                    ) {
                         if let year = song.year {
                             Text(year.formatted(.number.grouping(.never)))
                                 .foregroundStyle(FestivalText.primary)
                         }
                     }
-                    .marqueeSync()
                 }
                 .accessibilityElement(children: .combine)
                 // The page's h1 (spec "Accessibility order"): the rotor's first heading.
@@ -381,11 +359,9 @@ struct SongDetailScreen: View {
 
                 if showsScoreHistory {
                     SongScoreHistorySection(
-                        entries: historyEntries, pool: previewInstruments,
-                        keyboardIcon: song.usesKeyboardIcon,
-                        instrument: $historyInstrument, expanded: $historyExpanded,
-                        viewportWidth: pageWidth, currentSeason: session.catalogCurrentSeason,
-                        openFullHistory: openFullHistory
+                        song: song, entries: historyEntries, pool: previewInstruments,
+                        instrument: $historyInstrument,
+                        viewportWidth: pageWidth, currentSeason: session.catalogCurrentSeason
                     )
                     .festivalFadeIn(isLoaded: true, index: 2)
                     .id(SongScoreHistorySection.anchor)
@@ -437,21 +413,14 @@ struct SongDetailScreen: View {
                 }
             }
             .padding(16)
+            .songHeaderContentSpace()
             // Only what is on screen at load fades; lazily built cards scrolled into
             // view afterwards appear without a fade (issue #30).
             .festivalFadeInScope()
         }
+        .songHeaderScrollAway(headerBottom: heroTitleBottom) { heroTitleHidden = $0 }
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width.rounded() }) { width in
             pageWidth = width
-        }
-        .onAppear {
-            // Deep link (`/history`): land on the Score History section.
-            guard historyFocus != nil, !historyEntries.isEmpty else { return }
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(150))
-                proxy.scrollTo(SongScoreHistorySection.anchor, anchor: .top)
-            }
-        }
         }
     }
 
@@ -561,46 +530,6 @@ extension SongDetailScreen {
             .accessibilityIdentifier("fst.song-detail.shop")
         }
     }
-
-    /// Compact art + title shown in the navigation bar once the hero title scrolls
-    /// under it: the native form of the PWA's pinned song header.
-    ///
-    /// Built only while the hero is scrolled away, so the title is never announced
-    /// twice. A transparent copy kept in the tree was still read (and audited as
-    /// invisible, fixed-size text) on iPadOS: the bar hosts this view outside SwiftUI's
-    /// accessibility hiding. A `.hidden()` placeholder of the same text keeps the bar's
-    /// layout from jumping as the title appears.
-    private var pinnedTitle: some View {
-        ZStack(alignment: .leading) {
-            Text(song.title)
-                .font(.headline)
-                .lineLimit(1)
-                .padding(.leading, 36)
-                .hidden()
-            if heroTitleHidden {
-                HStack(spacing: 8) {
-                    ArtworkTile(raw: song.albumArt, session: session, size: 28)
-                        .accessibilityHidden(true)
-                    MarqueeText(song.title)
-                        .font(.headline)
-                        .foregroundStyle(FestivalText.primary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
-                .transition(.opacity)
-                .accessibilityElement(children: .combine)
-                .accessibilityAddTraits(.isHeader)
-                // The bar caps its text size at accessibility sizes: a long press shows
-                // the title in the Large Content Viewer, as system bar titles do.
-                .accessibilityShowsLargeContentViewer()
-                .accessibilityIdentifier("fst.song-detail.pinned-title")
-            }
-        }
-        .frame(maxWidth: 240)
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: heroTitleHidden)
-        // A bar title stays on one line at every text size.
-        .environment(\.marqueeWrapsAtAccessibilitySizes, false)
-    }
 }
 
 /// High visibility priority for Song Detail's page-unique actions (iOS 27+).
@@ -645,7 +574,8 @@ enum SongDetailShopActionStyle: Equatable, Sendable {
     }
 }
 
-/// Decide when Song Detail's navigation bar should carry the song's identity.
+/// Decide when Full Rankings' navigation bar should carry the page title (Song Details
+/// now uses ``SwiftUI/View/songHeaderScrollAway(headerBottom:legacy:action:)``).
 enum SongDetailPinnedTitlePolicy {
     /// The hero counts as scrolled away once its title's bottom edge passes the top
     /// of the scroll view.

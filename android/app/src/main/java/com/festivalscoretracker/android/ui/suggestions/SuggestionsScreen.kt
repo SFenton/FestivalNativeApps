@@ -23,12 +23,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,6 +65,8 @@ import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlinx.coroutines.flow.distinctUntilChanged
+import com.festivalscoretracker.android.ui.common.rememberMeasuredPx
+import com.festivalscoretracker.android.ui.common.shellPosture
 
 // region Screen
 
@@ -250,8 +250,8 @@ private fun SuggestionsGrid(
     val gridState = rememberLazyStaggeredGridState()
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
-    val hinge = currentWindowAdaptiveInfo().windowPosture.hingeList.firstOrNull { it.isSeparating && it.isVertical }
-    var gridLeft by remember { mutableFloatStateOf(0f) }
+    val hinge = shellPosture().hingeList.firstOrNull { it.isSeparating && it.isVertical }
+    var gridLeft by rememberMeasuredPx(0f)
     val cardCount = state.cards.size
 
     LaunchedEffect(state.mixId) { if (gridState.firstVisibleItemIndex > 0) gridState.scrollToItem(0) }
@@ -259,9 +259,14 @@ private fun SuggestionsGrid(
     // cards already revealed (or scrolled back into view) show at once.
     var revealedCount by remember(state.mixId) { mutableIntStateOf(0) }
     var batchStart by remember(state.mixId) { mutableIntStateOf(0) }
+    // The first batch is the page's entrance, which a scroll rushes (load-transition R5); later
+    // batches arrive while the reader scrolls and keep their own stagger, like the web, whose
+    // `useStaggerRush` fires once per page.
+    var firstBatchEnd by remember(state.mixId) { mutableIntStateOf(-1) }
     LaunchedEffect(state.mixId, cardCount) {
         if (cardCount > revealedCount) {
             batchStart = revealedCount
+            if (revealedCount == 0) firstBatchEnd = cardCount
             withFrameNanos {}
         }
         revealedCount = cardCount
@@ -305,7 +310,11 @@ private fun SuggestionsGrid(
                         columns.narrow,
                         artworkUrl,
                         onSong,
-                        Modifier.festivalFadeIn(index < revealedCount, fadeInStagger(index - batchStart)),
+                        Modifier.festivalFadeIn(
+                            index < revealedCount,
+                            fadeInStagger(index - batchStart),
+                            rushOnScroll = firstBatchEnd < 0 || index < firstBatchEnd,
+                        ),
                     )
                 }
             }

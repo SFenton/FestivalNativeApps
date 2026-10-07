@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.compete
 
+import com.festivalscoretracker.android.ui.common.rememberPageFadeInWindow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -18,8 +19,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +26,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import com.festivalscoretracker.android.ui.design.readingGroup
 import com.festivalscoretracker.android.ui.leaderboards.rememberAccountColumns
+import com.festivalscoretracker.android.ui.leaderboards.rememberRankingRowWidth
 import com.festivalscoretracker.android.ui.leaderboards.RowSeparator
 import com.festivalscoretracker.android.ui.leaderboards.LocalRankingColumns
 import androidx.compose.runtime.CompositionLocalProvider
@@ -48,7 +48,6 @@ import com.festivalscoretracker.android.core.rankings.RankingNavigation
 import com.festivalscoretracker.android.core.rankings.RankingSpotlight
 import com.festivalscoretracker.android.core.rivals.RivalQuickLinks
 import com.festivalscoretracker.android.core.rivals.RivalRoutes
-import com.festivalscoretracker.android.core.rivals.RivalText
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.compete.CompeteBoard
 import com.festivalscoretracker.android.presentation.compete.CompeteSection
@@ -92,7 +91,9 @@ fun CompeteScreen(viewModel: CompeteViewModel, isRoot: Boolean) {
     val rivalsIndex = 1 + content.sections.size
     // Web: the two groups once the page has content (no full-page failure).
     val sections = if (content.fullPageIssue == null) RivalQuickLinks.compete() else emptyList()
-    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections) { id ->
+    // The page's fade window, here so Quick Links jumps rush it (load-transition R5).
+    val fadeIn = rememberPageFadeInWindow()
+    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections, fadeInWindow = fadeIn) { id ->
         when (id) {
             RivalQuickLinks.COMPETE_LEADERBOARDS -> 0
             RivalQuickLinks.COMPETE_RIVALS -> rivalsIndex
@@ -102,6 +103,7 @@ fun CompeteScreen(viewModel: CompeteViewModel, isRoot: Boolean) {
     FestivalScreen(
         title = CompeteText.TITLE,
         isRoot = isRoot,
+        fadeInWindow = fadeIn,
         actions = { QuickLinksAction(quickLinks, windowWidthDp().toInt()) },
     ) { padding ->
         val issue = content.fullPageIssue
@@ -163,8 +165,8 @@ private fun ScopeHeader(scope: CompeteScope, onSeeAll: (() -> Unit)?, tag: Strin
             color = BrandTokens.textPrimary,
             modifier = Modifier.weight(1f).semantics { heading() },
         )
-        // The shared "See All ›" link (white, bold, chevron; read once as "See All: <scope>").
-        if (onSeeAll != null) SeeAllButton(onClick = onSeeAll, modifier = Modifier.testTag(tag), spokenLabel = "${RivalText.SEE_ALL}: ${scope.label}")
+        // The shared "View All ›" link (white, bold, chevron; read once as "View All: <scope>").
+        if (onSeeAll != null) SeeAllButton(onClick = onSeeAll, section = scope.label, modifier = Modifier.testTag(tag))
     }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val stacked = CompeteHeaderLayout.stacks(maxWidth.value, scope.instruments.size, onSeeAll != null, isLargeText())
@@ -217,7 +219,7 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
                 } else {
                     GlassCard(Modifier.fillMaxWidth()) {
                         // Rows fill this column, so its inner width is the row width the songs column must fit in (issue #38).
-                        var rowWidth by remember { mutableFloatStateOf(Float.NaN) }
+                        var rowWidth by rememberRankingRowWidth()
                         val density = LocalDensity.current
                         val columns = rememberAccountColumns(value.entries + listOfNotNull(value.spotlight), RankingMetric.TotalScore, fitNamesTo = rowWidth)
                         CompositionLocalProvider(LocalRankingColumns provides columns) {
@@ -255,6 +257,7 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
                             modifier = Modifier.festivalFadeIn(revealed, fadeInStagger(value.entries.size + 1)),
                             label = CompeteText.VIEW_FULL_LEADERBOARDS,
                             testTag = "fst.compete.view-full-leaderboards",
+                            cardName = scope.label,
                         )
                     }
                 }
@@ -284,6 +287,7 @@ private fun RivalsCard(section: CompeteSection, viewModel: CompeteViewModel, nav
                     onViewAll = seeAll,
                     viewAllLabel = CompeteText.VIEW_ALL_RIVALS,
                     revealed = revealed,
+                    cardName = scope.label,
                 )
             }
         }

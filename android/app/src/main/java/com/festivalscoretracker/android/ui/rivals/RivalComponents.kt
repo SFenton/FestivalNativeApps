@@ -209,15 +209,15 @@ private fun Modifier.rivalTintBar(color: Color): Modifier = drawBehind {
 // region Section card
 
 /**
- * A titled group with a "See All" action (web section header card).
+ * A titled group with a "View All" link (web section header card).
  *
  * @param title Title Case heading.
  * @param modifier Modifier.
  * @param instrument Leading chart icon.
  * @param description Secondary line.
  * @param titleColor Heading color (category sentiment).
- * @param onSeeAll "See All" action, or null to hide it.
- * @param seeAllTag Test tag for "See All".
+ * @param onSeeAll "View All" action, or null to hide it.
+ * @param seeAllTag Test tag for "View All".
  */
 @Composable
 fun RivalSectionHeader(
@@ -232,7 +232,7 @@ fun RivalSectionHeader(
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         if (instrument != null) InstrumentIcon(instrument, size = 36.dp, decorative = true)
         // Traversal group: TalkBack reads the title and its description before the
-        // vertically centred See All, which otherwise sorts between them.
+        // vertically centred View All, which otherwise sorts between them.
         Column(Modifier.weight(1f).semantics { isTraversalGroup = true }) {
             Text(
                 title,
@@ -246,9 +246,8 @@ fun RivalSectionHeader(
         if (onSeeAll != null) {
             SeeAllButton(
                 onClick = onSeeAll,
+                section = title,
                 modifier = if (seeAllTag != null) Modifier.testTag(seeAllTag) else Modifier,
-                label = RivalText.SEE_ALL,
-                spokenLabel = "${RivalText.SEE_ALL}: $title",
             )
         }
     }
@@ -263,6 +262,7 @@ fun RivalSectionHeader(
  * @param onViewAll "View all rivals".
  * @param viewAllLabel Button text.
  * @param revealed Whether the rows have finished loading ([festivalFadeIn]: web `nextStagger`).
+ * @param cardName The card's title, spoken after the button label (`view-all-cta` R4).
  */
 @Composable
 fun RivalPreviewRows(
@@ -271,6 +271,7 @@ fun RivalPreviewRows(
     onViewAll: (() -> Unit)?,
     viewAllLabel: String = RivalText.VIEW_ALL_RIVALS,
     revealed: Boolean = true,
+    cardName: String? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         rows.forEachIndexed { index, entry ->
@@ -284,6 +285,7 @@ fun RivalPreviewRows(
                 modifier = Modifier.festivalFadeIn(revealed, fadeInStagger(rows.size + 1)),
                 label = viewAllLabel,
                 testTag = "fst.rivals.view-all",
+                cardName = cardName,
             )
         }
     }

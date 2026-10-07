@@ -12,6 +12,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -107,20 +108,20 @@ class CompeteLogicTest {
 
     @Test
     fun scopeHeaderStacksInNarrowLanesAndLargeText() {
-        // Phone card (~379 dp): a combo board without See All keeps its title beside the icons...
+        // Phone card (~379 dp): a combo board without View All keeps its title beside the icons...
         assertFalse(CompeteHeaderLayout.stacks(379f, 4, hasSeeAll = false, largeText = false))
-        // ...but beside See All the title would wrap to three lines, so the icons stack.
+        // ...but beside View All the title would wrap to three lines, so the icons stack.
         assertTrue(CompeteHeaderLayout.stacks(379f, 4, hasSeeAll = true, largeText = false))
         // Half-open book fold panel (~260 dp): the combo title would get a few dp, so the icons stack above it.
         assertTrue(CompeteHeaderLayout.stacks(260f, 4, hasSeeAll = true, largeText = false))
         assertTrue(CompeteHeaderLayout.stacks(250f, 4, hasSeeAll = false, largeText = false))
-        // One instrument plus See All still fits that panel.
+        // One instrument plus View All still fits that panel.
         assertFalse(CompeteHeaderLayout.stacks(260f, 1, hasSeeAll = true, largeText = false))
-        // Boundaries: combo icons 4×36 + 3×2, gap 8, combo title 140, gap 8 + link 80; single icon 36, gap 8, title 100, link 88.
-        assertFalse(CompeteHeaderLayout.stacks(386f, 4, hasSeeAll = true, largeText = false))
-        assertTrue(CompeteHeaderLayout.stacks(385.9f, 4, hasSeeAll = true, largeText = false))
-        assertFalse(CompeteHeaderLayout.stacks(232f, 1, hasSeeAll = true, largeText = false))
-        assertTrue(CompeteHeaderLayout.stacks(231.9f, 1, hasSeeAll = true, largeText = false))
+        // Boundaries: combo icons 4×36 + 3×2, gap 8, combo title 140, gap 8 + link 88; single icon 36, gap 8, title 100, link 96.
+        assertFalse(CompeteHeaderLayout.stacks(394f, 4, hasSeeAll = true, largeText = false))
+        assertTrue(CompeteHeaderLayout.stacks(393.9f, 4, hasSeeAll = true, largeText = false))
+        assertFalse(CompeteHeaderLayout.stacks(240f, 1, hasSeeAll = true, largeText = false))
+        assertTrue(CompeteHeaderLayout.stacks(239.9f, 1, hasSeeAll = true, largeText = false))
         assertFalse(CompeteHeaderLayout.stacks(108f, 0, hasSeeAll = false, largeText = false))
         // Large text always stacks.
         assertTrue(CompeteHeaderLayout.stacks(2000f, 1, hasSeeAll = false, largeText = true))
@@ -328,6 +329,8 @@ class CompeteUiTest {
         waitForTag("fst.compete.leaderboard-card.Solo_Guitar")
         rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag("fst.compete.spotlight.Solo_Guitar"))
         rule.onNodeWithTag("fst.compete.spotlight.Solo_Guitar").assertIsDisplayed()
+        // Issue #321: the board header link reads "View All", label first.
+        rule.onNodeWithTag("fst.compete.board.see-all.Solo_Guitar").assert(hasContentDescription("View All: Lead"))
         rule.onNodeWithTag("fst.compete.board.see-all.Solo_Guitar").performSemanticsAction(SemanticsActions.OnClick)
         rule.waitUntil(10_000) {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
@@ -522,6 +525,31 @@ class CompeteUiTest {
     }
 
     @Test
+    fun viewAllRivalsMatchesViewFullLeaderboardsAndOpensTheList() {
+        launch(DebugLaunch(route = CompeteRoute, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true))
+        val boardButton = hasTestTag("fst.compete.view-full-leaderboards").and(hasAnyAncestor(hasTestTag("fst.compete.leaderboard-card.Solo_Guitar")))
+        awaitInCard("fst.compete.leaderboard-card.Solo_Guitar", boardButton)
+        rule.onNodeWithTag("fst.compete.grid").performScrollToNode(boardButton)
+        val board = rule.onNode(boardButton).fetchSemanticsNode()
+        // Read now: the board card leaves composition once the grid scrolls to the rivals card.
+        val boardSize = board.size
+        val boardLeft = board.boundsInRoot.left
+        // Issues #68/#176: Compete's View All Rivals is the same shared button as View Full Leaderboards.
+        val rivalsButton = hasTestTag("fst.rivals.view-all").and(hasAnyAncestor(hasTestTag("fst.compete.rivals-card.Solo_Guitar")))
+        awaitInCard("fst.compete.rivals-card.Solo_Guitar", rivalsButton)
+        rule.onNodeWithTag("fst.compete.grid").performScrollToNode(rivalsButton)
+        val rivals = rule.onNode(rivalsButton).fetchSemanticsNode()
+        assertEquals(boardSize, rivals.size)
+        assertEquals(boardLeft, rivals.boundsInRoot.left)
+        assertEquals(androidx.compose.ui.semantics.Role.Button, rivals.config[SemanticsProperties.Role])
+        // view-all-cta R4: both CTAs read their label, then the card.
+        assertEquals(listOf("View All Rivals, Lead"), rivals.config[SemanticsProperties.ContentDescription])
+        assertEquals(listOf("View Full Leaderboards, Lead"), board.config[SemanticsProperties.ContentDescription])
+        rule.onNode(rivalsButton).performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.all-rivals.list")
+    }
+
+    @Test
     fun emptyRivalsCardShowsWebCopy() {
         launch(DebugLaunch(route = CompeteRoute, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true))
         waitForTag("fst.compete.leaderboard-card.0f")
@@ -562,7 +590,7 @@ class CompeteNarrowUiTest {
         }
         fun header(kind: String, card: String) = hasTestTag("fst.compete.scope-header.$kind").and(hasAnyAncestor(hasTestTag(card)))
         rule.onNode(header("stacked", "fst.compete.leaderboard-card.0f")).assertIsDisplayed()
-        // One instrument and its See All link still fit beside each other.
+        // One instrument and its View All link still fit beside each other.
         rule.onNodeWithTag("fst.compete.grid").performScrollToNode(header("row", "fst.compete.leaderboard-card.Solo_Guitar"))
         rule.onNode(header("row", "fst.compete.leaderboard-card.Solo_Guitar")).assertIsDisplayed()
     }

@@ -653,6 +653,97 @@ public sealed class FullRankingsViewModelTests
     }
 
     [Fact]
+    public async Task InstrumentSwitchKeepsThePinnedRowUntilTheNewBoardCommits()
+    {
+        var fake = new RankingsFake { TotalAccounts = 60 };
+        var reader = new FakeReader { Result = (_, _) => RankingsWire.Account(30, "acct30") };
+        var gate = new TaskCompletionSource();
+        var respond = fake.Service.Handler.Responder;
+        fake.Service.Handler.Responder = async (request, token) =>
+        {
+            if (request.RequestUri!.AbsolutePath == "/api/rankings/Solo_Bass") await gate.Task;
+            return await respond(request, token);
+        };
+        var vm = new FullRankingsViewModel(fake.Session(RankingsFake.Selected("acct30")), new AppRoute.FullRankings(Instrument.Lead, "totalscore"), reader.Read);
+        await vm.LoadAsync();
+        var old = vm.Spotlight;
+        Assert.True(old.ShowRow);
+
+        // Issue #270 (load-transition R2): the old pinned row stays in its gated slot and fades out with the old rows,
+        // rather than vanishing when the switch starts; the new board's spotlight replaces it at the commit.
+        var switching = vm.SelectInstrumentAsync(Instrument.Bass);
+        await Async.Until(() => vm.IsLoading);
+        Assert.Same(old, vm.Spotlight);
+        Assert.True(old.IsVisible);
+        gate.SetResult();
+        await switching;
+        Assert.NotSame(old, vm.Spotlight);
+        Assert.True(vm.Spotlight.ShowRow);
+        Assert.Equal(Instrument.Bass, reader.Calls[^1].Item1);
+    }
+
+    [Fact]
+    public async Task FailedInstrumentSwitchDropsTheOldBoardsPinnedRow()
+    {
+        var fake = new RankingsFake { TotalAccounts = 60 };
+        var reader = new FakeReader { Result = (_, _) => RankingsWire.Account(30, "acct30") };
+        var vm = new FullRankingsViewModel(fake.Session(RankingsFake.Selected("acct30")), new AppRoute.FullRankings(Instrument.Lead, "totalscore"), reader.Read);
+        await vm.LoadAsync();
+        var old = vm.Spotlight;
+        fake.Failing.Add("/api/rankings/Solo_Bass");
+
+        await vm.SelectInstrumentAsync(Instrument.Bass);
+        Assert.True(vm.ShowError);
+        Assert.NotSame(old, vm.Spotlight);
+        Assert.False(vm.Spotlight.IsVisible);
+
+        // Same-instrument reloads keep the spotlight (its own read is per instrument).
+        fake.Failing.Clear();
+        await vm.LoadAsync();
+        var bass = vm.Spotlight;
+        await vm.SelectMetricAsync(RankingMetric.FcRate);
+        Assert.Same(bass, vm.Spotlight);
+    }
+
+    [Fact]
+    public async Task PinnedRowGatesOnInstrumentAndRankByButNotOnPaging()
+    {
+        var fake = new RankingsFake { TotalAccounts = 60 };
+        var reader = new FakeReader { Result = (_, _) => RankingsWire.Account(60, "acct60") };
+        var vm = new FullRankingsViewModel(fake.Session(RankingsFake.Selected("acct60")), new AppRoute.FullRankings(Instrument.Lead, "totalscore"), reader.Read);
+        await vm.LoadAsync();
+        Assert.True(vm.PinnedGate.IsGated);
+        Assert.True(vm.Spotlight.IsVisible);
+
+        // Web PaginatedLeaderboard keys the footer on instrument and metric (footerAnimKey), not the page.
+        var gated = new List<bool>();
+        vm.PinnedGate.PropertyChanged += (_, _) => gated.Add(vm.PinnedGate.IsGated);
+        var paging = vm.GoToPageAsync(2);
+        Assert.False(vm.PinnedGate.IsGated);
+        await paging;
+        await vm.LoadAsync();
+        Assert.False(vm.PinnedGate.IsGated);
+        Assert.DoesNotContain(true, gated);
+        Assert.True(vm.Spotlight.IsVisible);
+
+        var metric = vm.SelectMetricAsync(RankingMetric.FcRate);
+        Assert.True(vm.PinnedGate.IsGated);
+        await metric;
+        await vm.GoToPageAsync(2);
+        Assert.False(vm.PinnedGate.IsGated);
+        var instrument = vm.SelectInstrumentAsync(Instrument.Bass);
+        Assert.True(vm.PinnedGate.IsGated);
+        await instrument;
+
+        // Paging off the player's own page brings the pinned row back mid-reload: it joins the gate.
+        await vm.GoToPageAsync(3);
+        Assert.False(vm.Spotlight.IsVisible);
+        await vm.GoToPageAsync(1);
+        Assert.True(vm.Spotlight.IsVisible);
+        Assert.True(vm.PinnedGate.IsGated);
+    }
+
+    [Fact]
     public async Task RefreshSelectionFollowsDeselection()
     {
         var fake = new RankingsFake();
@@ -905,6 +996,7 @@ public sealed class SongLeaderboardViewModelTests
         Assert.False(vm.ShowRows);
         Assert.True(vm.ShowContent);
         Assert.True(vm.ShowSpotlight);
+        Assert.False(vm.PinnedGate.IsGated);
         Assert.Equal(1, vm.Pager.Page);
         Assert.DoesNotContain(nameof(SongLeaderboardViewModel.ShowContent), changes);
 
@@ -913,6 +1005,11 @@ public sealed class SongLeaderboardViewModelTests
         Assert.True(vm.ShowRows);
         Assert.True(vm.ShowContent);
         Assert.Equal(2, vm.Pager.Page);
+
+        // A new invalid-score leeway can change the pinned score: that reload gates it (issue #270).
+        session.UpdateSettings(s => s with { FilterInvalidScores = true });
+        Assert.True(vm.PinnedGate.IsGated);
+        await Async.Until(() => vm.ShowRows);
         vm.Deactivate();
     }
 

@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.bands
 
+import com.festivalscoretracker.android.ui.common.rememberPageFadeInWindow
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
@@ -32,10 +33,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -95,6 +94,8 @@ import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.ScrollQuickLinkSections
 import com.festivalscoretracker.android.ui.quicklinks.rememberScrollQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.common.rememberMeasuredPx
+import com.festivalscoretracker.android.ui.common.shellPosture
 
 // region Screen
 
@@ -117,12 +118,15 @@ fun BandDetailScreen(viewModel: BandDetailViewModel, routeName: String?, artwork
     // Quick Links (web BandPage) while the page is one scrolling column; two panes show everything side by side.
     val scroll = rememberScrollState()
     // One pane decision drives both the layout and the Quick Links action, so they cannot disagree.
-    val separatingHinge = currentWindowAdaptiveInfo().windowPosture.hingeList.any { it.isVertical && it.isSeparating }
+    val separatingHinge = shellPosture().hingeList.any { it.isVertical && it.isSeparating }
     val twoPane = BandLayout.splits(windowWidthDp(), separatingHinge, rememberSingleColumn())
-    val (quickLinks, anchors) = rememberScrollQuickLinks(scroll, "Quick Links", if (detail != null && !twoPane) BandQuickLinks.sections() else emptyList())
+    // The page's fade window, here so Quick Links jumps rush it (load-transition R5).
+    val fadeIn = rememberPageFadeInWindow()
+    val (quickLinks, anchors) = rememberScrollQuickLinks(scroll, "Quick Links", if (detail != null && !twoPane) BandQuickLinks.sections() else emptyList(), fadeIn)
     FestivalScreen(
         title = "Band",
         isRoot = false,
+        fadeInWindow = fadeIn,
         modifier = Modifier.testTag("fst.band.screen"),
         actions = { QuickLinksAction(quickLinks, windowWidthDp().toInt()) },
     ) { padding ->
@@ -166,7 +170,7 @@ private fun BandDetailContent(
     val bestSong = songsState?.let { state -> state.response.best.firstOrNull()?.let { state.songsById[it.songId] } }
     val summary = remember(detail, type) { BandDetailProjection.summary(detail, type) }
     val statistics = remember(detail, type, metric, bestSong) { BandDetailProjection.statistics(detail, type, metric, bestSong) }
-    var contentLeft by remember { mutableFloatStateOf(0f) }
+    var contentLeft by rememberMeasuredPx(0f)
     val mark: (String) -> Modifier = { id -> if (!twoPane) with(anchors) { Modifier.section(id) } else Modifier }
     val leading: @Composable ColumnScope.() -> Unit = {
         BandPageHeader(title, "${type.label} · ${BandFormatting.appearances(detail.songsPlayed)}", "fst.band")

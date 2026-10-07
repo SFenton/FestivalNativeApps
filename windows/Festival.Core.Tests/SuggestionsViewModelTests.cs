@@ -181,7 +181,8 @@ public sealed class SuggestionsViewModelTests
         await model.LoadAsync();
         Assert.DoesNotContain(model.Cards, c => c.Category.Type == SuggestionCategoryType.SongRivals);
         harness.RivalsGate.SetResult();
-        await Async.Settle();
+        // Wait for the splice itself: a fixed settle raced the rivals continuation under a loaded test host.
+        await model.RivalsTask!.WaitAsync(TimeSpan.FromSeconds(10));
         for (var i = 0; i < 20 && !model.Cards.Any(c => c.Category.Type == SuggestionCategoryType.SongRivals); i++) model.LoadMore();
         Assert.Contains(model.Cards, c => c.Category.Type == SuggestionCategoryType.SongRivals &&
             c.Rows.Any(r => r.Presentation.Layout == SuggestionRowLayout.Rival));

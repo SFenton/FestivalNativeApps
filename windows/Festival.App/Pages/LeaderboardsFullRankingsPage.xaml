@@ -73,25 +73,30 @@
             </StackPanel>
         </Grid>
 
-        <!-- One frosted row per entry, 4 epx apart (web entryRow list, operator batch 7.7); the rows scroll on beneath the
-             floating footer (BoardFooter). -->
-        <ScrollViewer x:Name="Scroller" Grid.Row="1" Grid.RowSpan="3" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
-                      controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
-                      AutomationProperties.AutomationId="fst.full-rankings.list">
-            <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="RowsRepeater" Margin="0,4,0,0" VerticalAlignment="Top"
-                           ElementPrepared="OnRowPrepared" BringIntoViewRequested="OnRowsBringIntoViewRequested"
-                           controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52"
-                           ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}">
-                <ItemsRepeater.Layout>
-                    <StackLayout Spacing="4" />
-                </ItemsRepeater.Layout>
-                <ItemsRepeater.ItemTemplate>
-                    <DataTemplate x:DataType="vm:RankingRowViewModel">
-                        <controls:LeaderboardEntryRow Row="{x:Bind}" />
-                    </DataTemplate>
-                </ItemsRepeater.ItemTemplate>
-            </ItemsRepeater>
-        </ScrollViewer>
+        <!-- One frosted row per entry, 4 epx apart (web entryRow list, operator batch 7.7); the rows end at the floating
+             footer (BoardFooter) through the bottom-chrome ramp (BoardFooterFade, issue #308). The wrapper is the fade
+             source because the load swap animates the ScrollViewer's own visual. -->
+        <Grid x:Name="BoardFadeSource" Grid.Row="1" Grid.RowSpan="3">
+            <ScrollViewer x:Name="Scroller" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
+                          controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
+                          AutomationProperties.AutomationId="fst.full-rankings.list">
+                <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="RowsRepeater" Margin="0,4,0,0" VerticalAlignment="Top"
+                               ElementPrepared="OnRowPrepared" BringIntoViewRequested="OnRowsBringIntoViewRequested"
+                               controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52"
+                               ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}">
+                    <ItemsRepeater.Layout>
+                        <StackLayout Spacing="4" />
+                    </ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="vm:RankingRowViewModel">
+                            <controls:LeaderboardEntryRow Row="{x:Bind}" />
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+            </ScrollViewer>
+        </Grid>
+        <!-- Paints BoardFadeSource with its rows faded above the footer; never hit-testable, UIA raw view only. -->
+        <controls:EdgeFadeLayer x:Name="BoardFadeHost" Grid.Row="1" Grid.RowSpan="3" AutomationProperties.AutomationId="fst.full-rankings.footer-fade" />
         <TextBlock Grid.Row="1" Text="No ranked players yet." Style="{StaticResource FSTSecondaryTextStyle}"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
@@ -103,19 +108,28 @@
                                     controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                                     Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" />
 
-        <!-- Contrast themes: this window-colour plate (footer height, sized in code) hides the rows between and behind the
-             floating footer's controls instead of letting their text show through (issue #208, as the song leaderboard).
-             Never hit-testable; other themes keep the web's rows-under-footer look. -->
+        <!-- Contrast themes: the footer fade cuts the rows hard at the footer's top and this window-colour plate (footer
+             height, sized by BoardFooterFade) backs the footer's controls (issue #208, as the song leaderboard). Never
+             hit-testable. -->
         <Border x:Name="FooterPlate" Grid.Row="1" Grid.RowSpan="3" VerticalAlignment="Bottom" IsHitTestVisible="False" Visibility="Collapsed"
                 Background="{ThemeResource FSTFloatingBackplateBrush}" />
 
-        <!-- Web fixed footer: the pinned "your rank" row, then the pager, floating over the rows. -->
+        <!-- Web fixed footer: the pinned "your rank" row, then the pager, floating over the rows. The pinned row shares the
+             rows' load gate (song board SpotlightGate, load-transition R2, issue #270) on the first load and when the
+             instrument or Rank By changes: it fades out with the old page so the old value never shows beside the spinner,
+             and enters with the first row. Paging, F5 and retry keep it in place, like the web footer (footerAnimKey is the
+             instrument and metric, not the page); PinnedGate decides. A row that newly appears mid-reload joins the gate.
+             LoadSwapGate keeps the slot and, while hidden, drops the row from UI Automation and the Tab order.
+             The gate (opacity) and the entrance (composition) sit on separate elements (0xc000027b, issue #295). -->
         <StackPanel x:Name="Footer" Grid.Row="1" Grid.RowSpan="3" VerticalAlignment="Bottom" Spacing="8">
-            <controls:LeaderboardsSpotlight x:Name="FooterSpotlight" Spotlight="{x:Bind ViewModel.Spotlight, Mode=OneWay}"
-                                            FocusedJump="OnFocusedJump"
-                                            IdPrefix="fst.full-rankings.spotlight-footer"
-                                            JumpAutomationId="fst.full-rankings.spotlight-jump" IsFloating="True"
-                                            Visibility="{x:Bind ViewModel.Spotlight.IsVisible, Mode=OneWay}" />
+            <controls:LoadSwapGate x:Name="SpotlightGate" Visibility="{x:Bind ViewModel.Spotlight.IsVisible, Mode=OneWay}"
+                                   controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
+                                   controls:LoadSwapVisual.IsGated="{x:Bind ViewModel.PinnedGate.IsGated, Mode=OneWay}">
+                <controls:LeaderboardsSpotlight x:Name="FooterSpotlight" Spotlight="{x:Bind ViewModel.Spotlight, Mode=OneWay}"
+                                                FocusedJump="OnFocusedJump"
+                                                IdPrefix="fst.full-rankings.spotlight-footer"
+                                                JumpAutomationId="fst.full-rankings.spotlight-jump" IsFloating="True" />
+            </controls:LoadSwapGate>
             <controls:LeaderboardsPager Pager="{x:Bind ViewModel.Pager}"
                                         Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" />
         </StackPanel>

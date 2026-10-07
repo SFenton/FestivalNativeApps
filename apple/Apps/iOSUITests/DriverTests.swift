@@ -39,6 +39,10 @@ import UIKit
 /// - `tree:<path>` — write `app.debugDescription` (the accessibility
 ///   hierarchy — the fastest way for an agent to discover identifiers) to
 ///   an absolute host path.
+/// - `audit:<path>` — run `performAccessibilityAudit(for: .all)` on the app as it is
+///   and write one line per issue (type, summary, element type, identifier, label,
+///   frame) to an absolute host path (`none` when clean). For bisecting an audit
+///   finding without the full audit journey; it never fails the drive.
 /// - `rotate:<portrait|portraitUpsideDown|landscapeLeft|landscapeRight|faceUp|faceDown>`.
 /// - `home[:<icon label>]` — press Home; with a label, page the Home Screen until an
 ///   icon with that label is on screen (Home Screen captures of the just-installed app).
@@ -85,6 +89,7 @@ enum DriverStep {
     case back
     case shot(String)
     case tree(String)
+    case audit(String)
     case rotate(UIDeviceOrientation)
     case home(String?)
     case resize(Double)
@@ -182,6 +187,9 @@ enum DriverStep {
         case "tree":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .tree(arg)
+        case "audit":
+            guard !arg.isEmpty else { throw ParseError.malformed(raw) }
+            return .audit(arg)
         case "fill":
             return .fill
         case "systemHold":
@@ -494,6 +502,20 @@ final class DriverTests: XCTestCase {
             try writeScreenshot(to: path)
         case let .tree(path):
             try app.debugDescription.write(toFile: path, atomically: true, encoding: .utf8)
+        case let .audit(path):
+            var lines: [String] = []
+            try app.performAccessibilityAudit(for: .all) { issue in
+                let element = (try? issue.element?.snapshot()).map { $0 as any XCUIElementAttributes }
+                lines.append([
+                    String(describing: issue.auditType), issue.compactDescription,
+                    element.map { "type=\($0.elementType.rawValue)" } ?? "no element",
+                    "id=\(element?.identifier ?? "")", "label=\(element?.label ?? "")",
+                    "frame=\(element.map { NSCoder.string(for: $0.frame) } ?? "")",
+                ].joined(separator: " | "))
+                return true
+            }
+            try (lines.isEmpty ? "none" : lines.joined(separator: "\n"))
+                .write(toFile: path, atomically: true, encoding: .utf8)
         case let .systemTap(identifier), let .systemHold(identifier):
             let target = XCUIApplication(bundleIdentifier: "com.apple.springboard")
                 .descendants(matching: .any).matching(

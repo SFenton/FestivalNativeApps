@@ -84,6 +84,44 @@ private func fixtureEntry(accountId: String, rank: Int = 1) throws -> AccountRan
     )
 }
 
+// MARK: - Full board pinned footer (issue #318)
+
+@Test func pinnedFooterIsNoneWithoutSelection() throws {
+    let page = try [fixtureEntry(accountId: "a")]
+    #expect(RankingSpotlight.pinnedFooter(selectedAccountId: nil, visibleEntries: page, source: .notLoaded) == .none)
+    #expect(RankingSpotlight.pinnedFooter(selectedAccountId: " ", visibleEntries: page, source: .notLoaded) == .none)
+}
+
+@Test func pinnedFooterStaysWhenThePlayerIsOnThePage() throws {
+    let onPage = try fixtureEntry(accountId: "Selected-ID", rank: 4)
+    let own = try fixtureEntry(accountId: "selected-id", rank: 4)
+    let page = try [fixtureEntry(accountId: "a"), onPage]
+    // Never `.inline`: the board pins the row on the player's own page too.
+    #expect(
+        RankingSpotlight.pinnedFooter(selectedAccountId: "selected-id", visibleEntries: page, source: .available(own))
+            == .footer(own)
+    )
+    // The page's row stands in until the per-account row arrives (or if it fails).
+    #expect(
+        RankingSpotlight.pinnedFooter(selectedAccountId: "selected-id", visibleEntries: page, source: .notLoaded)
+            == .footer(onPage)
+    )
+    #expect(
+        RankingSpotlight.pinnedFooter(selectedAccountId: "selected-id", visibleEntries: page, source: .unranked)
+            == .footer(onPage)
+    )
+}
+
+@Test func pinnedFooterOffThePageFollowsTheOwnRow() throws {
+    let page = try [fixtureEntry(accountId: "a")]
+    let own = try fixtureEntry(accountId: "far", rank: 57)
+    let stale = try fixtureEntry(accountId: "stale", rank: 3)
+    #expect(RankingSpotlight.pinnedFooter(selectedAccountId: "far", visibleEntries: page, source: .available(own)) == .footer(own))
+    #expect(RankingSpotlight.pinnedFooter(selectedAccountId: "far", visibleEntries: page, source: .notLoaded) == .pending)
+    #expect(RankingSpotlight.pinnedFooter(selectedAccountId: "far", visibleEntries: page, source: .unranked) == .unranked)
+    #expect(RankingSpotlight.pinnedFooter(selectedAccountId: "far", visibleEntries: page, source: .available(stale)) == .pending)
+}
+
 // MARK: - Ordinal formatting
 
 @Test func ordinalFormatsGroupedRanks() {

@@ -1,5 +1,8 @@
 package com.festivalscoretracker.android.ui.bands
 
+import com.festivalscoretracker.android.ui.common.rememberPageFadeInWindow
+import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.leaderboards.awaitSelectedRowEntrance
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.lazy.LazyListState
@@ -23,7 +26,10 @@ import com.festivalscoretracker.android.ui.leaderboards.RankingsPager
 import com.festivalscoretracker.android.ui.leaderboards.rememberScoreColumns
 import com.festivalscoretracker.android.ui.leaderboards.revealSelectedRow
 import com.festivalscoretracker.android.ui.songdetail.SelectedScoreFooterRow
-import com.festivalscoretracker.android.ui.songdetail.SongHeader as SharedSongHeader
+import com.festivalscoretracker.android.ui.songdetail.SongBoardSwitcher
+import com.festivalscoretracker.android.ui.songdetail.SongHeader
+import com.festivalscoretracker.android.ui.background.SongCoverBackdrop
+import androidx.compose.runtime.derivedStateOf
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -32,7 +38,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -61,7 +66,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -99,12 +103,11 @@ import com.festivalscoretracker.android.core.bands.BandMember
 import com.festivalscoretracker.android.core.bands.BandPaging
 import com.festivalscoretracker.android.core.bands.BandType
 import com.festivalscoretracker.android.core.bands.SongBandLeaderboardEntry
-import com.festivalscoretracker.android.core.bands.SongBandLeaderboardResponse
 import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.core.nav.AppRoute
-import com.festivalscoretracker.android.core.nav.BandRoute
 import com.festivalscoretracker.android.core.nav.SongDetailRoute
+import com.festivalscoretracker.android.core.nav.BandRoute
 import com.festivalscoretracker.android.presentation.BackgroundController
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.bands.SongBandLeaderboardViewModel
@@ -119,12 +122,15 @@ import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.RowChevron
 import com.festivalscoretracker.android.ui.design.StarRating
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.common.rememberMeasuredPx
 
 // region Screen
 
 /**
- * `/songs/:songId/bands/:bandType`: song header, in-place band-size switcher,
- * 25-row pages of band scores. Rows open Band Detail with the type and team key.
+ * `/songs/:songId/bands/:bandType`: the solo board's song header with the band size
+ * (a drop-down) where the instrument goes, over the song's static cover, then 25-row
+ * pages of band scores (pattern `song-leaderboard-header`, issue #317). Rows open Band Detail with
+ * the type and team key.
  *
  * With a selected player, their best band is highlighted on its page and pinned above the
  * pager as one solo-style row (web `SongBandLeaderboardPage` footer, Apple
@@ -153,10 +159,7 @@ fun SongBandLeaderboardScreen(
     val type by viewModel.bandType.collectAsStateWithLifecycle()
     val page by viewModel.page.collectAsStateWithLifecycle()
     val song = (songState as? LoadState.Loaded)?.value
-    DisposableEffect(song?.albumArt) {
-        val token = background.pushFocus(song?.albumArt)
-        onDispose { background.popFocus(token) }
-    }
+    SongCoverBackdrop(background, song?.albumArt)
     // A page or band-size change fades the rows out, shows the spinner and staggers the new
     // rows in (web PaginatedLeaderboard, issue #71).
     val swap = rememberLoadSwap(board, board !is LoadState.Loading, key = type to page)
@@ -175,6 +178,8 @@ fun SongBandLeaderboardScreen(
     }
     var revealPending by rememberSaveable { mutableStateOf(revealSelected) }
     val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
+    // The page's fade window, here so the reveal can rush the rows its scroll reaches (load-transition R5).
+    val fadeIn = rememberPageFadeInWindow()
     val footerRows = remember(footerEntry) { listOfNotNull(footerEntry?.footerLeaderboardEntry) }
     // One plan for the board (`leaderboard-row` R1, R5): the rank column fits the page and the
     // pinned band (an off-page #9,968 too), and the member cards start their rank and names
@@ -188,7 +193,8 @@ fun SongBandLeaderboardScreen(
     // Opened (or jumped) to the band's page: centre its highlighted row once it shows.
     LaunchedEffect(revealPending, pageShown, shown) {
         if (!revealPending || !pageShown) return@LaunchedEffect
-        if (selectedIndex >= 0) {
+        // Like the web's navToBand: scroll once the row's own entrance has finished (issue #323).
+        if (selectedIndex >= 0 && awaitSelectedRowEntrance(fadeIn, fadeInStagger(selectedIndex), reduceMotion)) {
             withFrameNanos { }
             // Single pane: the header and size switcher are the list's first item.
             val index = selectedIndex + if (twoPane) 0 else 1
@@ -198,8 +204,19 @@ fun SongBandLeaderboardScreen(
         onRevealed()
     }
 
-    FestivalScreen(title = "${type.label} Leaderboard", isRoot = false, modifier = Modifier.testTag("fst.song-band-leaderboard.screen")) { padding ->
-        var contentLeft by remember { mutableFloatStateOf(0f) }
+    // Like the solo board (pattern `song-leaderboard-header` R3, issue #317): the song header and band size
+    // scroll with the rows and the top bar takes the song title once they have scrolled away.
+    // Across a hinge the header stays in the leading pane, so the bar stays empty.
+    val headerGone by remember(listState) { derivedStateOf { !twoPane && listState.firstVisibleItemIndex > 0 } }
+    FestivalScreen(
+        title = if (headerGone) song?.title.orEmpty() else "",
+        isRoot = false,
+        scrolled = headerGone,
+        marqueeTitle = true,
+        modifier = Modifier.testTag("fst.song-band-leaderboard.screen"),
+        fadeInWindow = fadeIn,
+    ) { padding ->
+        var contentLeft by rememberMeasuredPx(0f)
         BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { contentLeft = it.positionInWindow().x }) {
             val split = BandLayout.listSplit(rememberBandHinge(contentLeft, maxWidth))
             SideEffect { twoPane = split.twoPane && split.leadingWidth != null }
@@ -208,14 +225,25 @@ fun SongBandLeaderboardScreen(
                 padding = padding,
                 listState = listState,
                 controls = {
-                    SongHeader(song, swap.shown, type, artworkUrl, onNavigate)
-                    BandSegmentedControl(
+                    // The solo board's header, with the band size where the instrument goes (web `SongInfoHeader`;
+                    // its `onTitleClick` opens Song Detail, issue #315).
+                    song?.let {
+                        SongHeader(
+                            it,
+                            artworkUrl(it.albumArt),
+                            artSize = 64.dp,
+                            onTitleClick = { onNavigate(SongDetailRoute(it.songId)) },
+                            tag = "fst.song-band-leaderboard.song",
+                        )
+                    }
+                    SongBoardSwitcher(
+                        current = type,
                         options = BandType.entries,
-                        selected = type,
-                        label = { it.label },
-                        tag = { "fst.song-band-leaderboard.band-type.${it.wireId}" },
+                        label = BandType::label,
+                        id = BandType::wireId,
+                        clickLabel = "Switch band size",
+                        tag = "fst.song-band-leaderboard.band-type",
                         onSelect = viewModel::selectBandType,
-                        modifier = Modifier.padding(vertical = 4.dp).testTag("fst.song-band-leaderboard.band-type-menu"),
                     )
                 },
                 // The pinned band fades out with the page and staggers back in with its first row (issue #295);
@@ -358,46 +386,6 @@ internal fun SongBandLeaderboardLayout(
                 fadeAboveFooter = true,
                 itemGap = 8.dp,
                 rows = rows,
-            )
-        }
-    }
-}
-
-/**
- * The song header: the shared [com.festivalscoretracker.android.ui.songdetail.SongHeader] (web
- * `SongInfoHeader` with `onTitleClick` and `subtitle2`), so the title takes the full width and
- * marquees like every song page (`song-header`, issue #315). Art and text open Song Detail.
- */
-@Composable
-private fun SongHeader(
-    song: Song?,
-    board: LoadState<SongBandLeaderboardResponse>,
-    type: BandType,
-    artworkUrl: (String?) -> String?,
-    onNavigate: (AppRoute) -> Unit,
-) {
-    val total = (board as? LoadState.Loaded)?.value?.population
-    val entries = total?.let { "${type.label} · ${BandFormatting.count(it.toLong())} ${if (it == 1) "entry" else "entries"}" }
-    if (song != null) {
-        SharedSongHeader(
-            song,
-            artworkUrl(song.albumArt),
-            artSize = 64.dp,
-            subtitle2 = entries,
-            onTitleClick = { onNavigate(SongDetailRoute(song.songId)) },
-            tag = "fst.song-band-leaderboard.song",
-            subtitle2Tag = "fst.song-band-leaderboard.subtitle",
-        )
-        return
-    }
-    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Box(Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(BrandTokens.surfaceMuted))
-        if (entries != null) {
-            Text(
-                entries,
-                style = MaterialTheme.typography.bodyLarge,
-                color = BrandTokens.textSecondary,
-                modifier = Modifier.testTag("fst.song-band-leaderboard.subtitle"),
             )
         }
     }

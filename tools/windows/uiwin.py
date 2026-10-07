@@ -109,13 +109,24 @@ STEP_VERBS = {
     "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state",
     "markspan": "span", "assertspan": "span", "film": "path", "filmstop": "path", "pin": "selector",
     "assertpinned": "selector", "foreground": "onoff", "listen": "listen", "assertannounced": "announced",
+    "assertpaint": "paint", "assertbold": "bold", "assertannouncedcount": "announcedcount",
 }
+
+#: ``assertpaint`` probe: ``[name:]<x>,<y>[,<x2>,<y2>][<op><expect>[~<tol>]]``. ``x`` is ``L``/``R``/``C`` and ``y``
+#: ``T``/``B``/``M`` plus a signed epx offset (from the left/top edge, inward from the right/bottom edge, or from the
+#: centre); ``op`` is ``=`` or ``!=``; ``expect`` is ``#RRGGBB`` or ``@name`` (an earlier named point probe's colour).
+PROBE = re.compile(
+    r"(?:(?P<name>[a-z][a-z0-9_-]*):)?(?P<x>[LRC]-?\d+(?:\.\d+)?),(?P<y>[TBM]-?\d+(?:\.\d+)?)"
+    r"(?:,(?P<x2>[LRC]-?\d+(?:\.\d+)?),(?P<y2>[TBM]-?\d+(?:\.\d+)?))?"
+    r"(?:(?P<op>!=|=)(?P<expect>#[0-9A-Fa-f]{6}|@[a-z][a-z0-9_-]*)(?:~(?P<tol>\d{1,3}))?)?")
 
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text; ``scroll`` takes a rounded
 #: vertical scroll percent, ``0``-``100`` or ``-1`` when the content fits; ``type`` the lower-case UIA control type such as
-#: ``button`` or ``text``; ``invoke`` whether the Invoke pattern is offered; ``focusable`` UIA IsKeyboardFocusable).
+#: ``button`` or ``text``; ``invoke`` whether the Invoke pattern is offered; ``focusable`` UIA IsKeyboardFocusable;
+#: ``value`` the UIA Value, else the name of the Selection pattern's selected item, e.g. a combo box's current option).
 STATE_KEYS = {"toggle": ("on", "off", "indeterminate"), "enabled": ("true", "false"), "selected": ("true", "false"),
-              "name": None, "scroll": None, "type": None, "invoke": ("true", "false"), "focusable": ("true", "false")}
+              "name": None, "scroll": None, "type": None, "invoke": ("true", "false"), "focusable": ("true", "false"),
+              "value": None}
 
 # endregion
 
@@ -177,6 +188,54 @@ def parse_keys(combo: str) -> list[int]:
     return codes
 
 
+def parse_probe(text: str, names: set[str]) -> dict:
+    """Parse one ``assertpaint`` probe (see :data:`PROBE`).
+
+    Args:
+        text: Probe text, e.g. ``fill:L8,M0=#162133~6``, ``R25,M-24=#FACC15~40`` or ``L87,T8,R40,B8=#6D28D9~12``.
+        names: Names of the earlier point probes in the same step; this probe's name is added to it.
+
+    Returns:
+        ``{"text", "x", "y"}`` (each ``{"edge", "off"}``) plus ``x2``/``y2`` for an area, ``op``, ``color`` (``#RRGGBB``)
+        or ``ref`` (a name), ``tol`` (per-channel, default 16) and ``name`` when given.
+
+    Raises:
+        ValueError: Malformed probe, an area or unnamed point without a check, a named area, or an unknown ``@name``.
+    """
+    match = PROBE.fullmatch(text.strip())
+    if not match:
+        raise ValueError(f"bad paint probe {text!r}; use [name:]<L|R|C><epx>,<T|B|M><epx>[,<x2>,<y2>][=|!=<#RRGGBB|@name>[~tol]]")
+
+    def coord(token: str) -> dict:
+        return {"edge": token[0], "off": float(token[1:])}
+
+    result: dict = {"text": text.strip(), "x": coord(match["x"]), "y": coord(match["y"])}
+    area = match["x2"] is not None
+    if area:
+        result["x2"], result["y2"] = coord(match["x2"]), coord(match["y2"])
+    if match["op"] is None:
+        if area or match["name"] is None:
+            raise ValueError(f"paint probe {text!r} checks nothing; an area needs =/!= and a bare point needs a name")
+    else:
+        result["op"] = match["op"]
+        expect = match["expect"]
+        if expect.startswith("@"):
+            if expect[1:] not in names:
+                raise ValueError(f"paint probe {text!r} refers to {expect}, which no earlier point probe names")
+            result["ref"] = expect[1:]
+        else:
+            result["color"] = "#" + expect[1:].upper()
+        result["tol"] = int(match["tol"]) if match["tol"] else 16
+        if result["tol"] > 255:
+            raise ValueError(f"paint probe tolerance must be 0-255, not {match['tol']}")
+    if match["name"] is not None:
+        if area:
+            raise ValueError(f"paint probe {text!r}: only a point probe can be named")
+        names.add(match["name"])
+        result["name"] = match["name"]
+    return result
+
+
 def parse_step(step: str) -> dict:
     """Validate one ``verb:argument`` step and expand it for the driver.
 
@@ -218,19 +277,29 @@ def parse_step(step: str) -> dict:
     ``assertstatus:<sel>|<status>[@<seconds>]`` waits until the element's UIA ItemStatus equals
     ``<status>`` (or matches it as a .NET regex when it starts with ``~``; no ``;`` since steps split on it)
     (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``; a status containing
-    ``not-visible`` or ``=background`` is read without bringing the window to the front);
+    ``not-visible``, ``=background`` or ``pulse=held`` is read without bringing the window to the front);
     ``foreground:on`` activates the app window and ``foreground:off`` hands activation to the taskbar, leaving the window
     visible and uncovered but inactive (e.g. a first-run demo's ``rotation=background``; while the console is locked
     both send ``WM_ACTIVATE`` instead);
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
     (``on``/``off``/``indeterminate``), ``enabled`` (``true``/``false``), ``selected`` (UIA SelectionItem
     ``IsSelected``: ``true``/``false``, e.g. a list's current item), ``scroll`` (UIA Scroll pattern vertical percent,
-    rounded: ``0`` is a list back at its top) or ``name`` equals ``<value>``;
+    rounded: ``0`` is a list back at its top), ``name`` or ``value`` (UIA Value, else the selected item's name: what
+    Narrator reads after a combo box's name, e.g. ``Instrument, combo box, Bass``) equals ``<value>``;
     ``pin:<sel>`` records the element's window-relative rectangle and ``assertpinned:<sel>`` (same selector, later in
     the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls;
     ``listen:announcements`` starts recording the window's UIA notification events (the app's screen-reader
     announcements, what Narrator speaks) and a later ``assertannounced:<text>[@<seconds>]`` in the same ``drive`` waits
-    (default 5 s) until one equals ``<text>`` (or matches it as a .NET regex when it starts with ``~``).
+    (default 5 s) until one equals ``<text>`` (or matches it as a .NET regex when it starts with ``~``);
+    ``assertannouncedcount:<n>|<text>`` fails unless exactly ``<n>`` recorded announcements match ``<text>`` so far
+    (no wait), e.g. a value announced once and not repeated on later reads.
+    ``assertpaint:<sel>|<probe>|<probe>…`` captures the window (``PrintWindow``) and waits (up to 3 s) until every
+    probe matches the pixels at an epx offset from the element's edges (see :func:`parse_probe`): a point is within the
+    tolerance of the colour (``=``) or not (``!=``); an area has at least 4 epx² of such pixels (``=``) or fewer
+    (``!=``). It pins decorative, raw-view paint (a card's fill and stroke, a dot's position, a pill's colour).
+    ``assertbold:<sel>|<run>|<run>…`` waits (5 s) until the bold runs (UIA TextPattern font weight ≥ 600, trimmed) of
+    the element's text, or of its first descendant with a Text pattern, are exactly those runs in order
+    (``assertbold:<sel>|`` expects none).
 
     Args:
         step: A step string.
@@ -304,7 +373,7 @@ def parse_step(step: str) -> dict:
         key, eq, value = assertion.partition("=")
         key, value = key.strip().lower(), value.strip()
         if not sep or not eq or key not in STATE_KEYS or not value:
-            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name|scroll|type|invoke|focusable=<value>[@<seconds>]")
+            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name|value|scroll|type|invoke|focusable=<value>[@<seconds>]")
         allowed = STATE_KEYS[key]
         if allowed is not None and value.lower() not in allowed:
             raise ValueError(f"assertstate {key} must be one of {allowed}, not {value!r}")
@@ -362,6 +431,26 @@ def parse_step(step: str) -> dict:
         result["text"] = text.strip()
         if wait:
             result["timeout"] = float(wait)
+    elif shape in ("paint", "bold"):
+        selector, sep, rest = arg.partition("|")
+        if not sep:
+            raise ValueError(f"bad {verb} {arg!r}; use <selector>|<{'probe' if shape == 'paint' else 'run'}>|…")
+        result["selector"] = parse_selector(selector)
+        if result["selector"]["kind"] == "xy":
+            raise ValueError(f"{verb} needs an element selector, not coordinates")
+        parts = [part.strip() for part in rest.split("|")]
+        if shape == "bold":
+            result["runs"] = [part for part in parts if part]
+        else:
+            if not all(parts):
+                raise ValueError(f"bad assertpaint {arg!r}: empty probe")
+            names: set[str] = set()
+            result["probes"] = [parse_probe(part, names) for part in parts]
+    elif shape == "announcedcount":
+        count, _, text = arg.partition("|")
+        if not re.fullmatch(r"\d+", count.strip()) or not text.strip():
+            raise ValueError(f"bad assertannouncedcount {arg!r}; use <count>|<text>")
+        result["count"], result["text"] = int(count), text.strip()
     elif shape == "path" and verb == "shot" and arg.endswith("@screen"):
         result["arg"], result["mode"] = arg[: -len("@screen")], "screen"
     elif shape == "preset":

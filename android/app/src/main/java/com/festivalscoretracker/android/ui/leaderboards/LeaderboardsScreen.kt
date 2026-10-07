@@ -19,7 +19,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -27,13 +26,11 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -53,6 +50,7 @@ import com.festivalscoretracker.android.core.rankings.AccountRankingEntry
 import com.festivalscoretracker.android.core.rankings.LeaderboardsLayoutPolicy
 import com.festivalscoretracker.android.core.rankings.PlayerRankingResult
 import com.festivalscoretracker.android.core.rankings.RankingMetric
+import com.festivalscoretracker.android.core.rankings.asRankingMetric
 import com.festivalscoretracker.android.core.rankings.RankingNavigation
 import com.festivalscoretracker.android.core.rankings.RankingSpotlight
 import com.festivalscoretracker.android.core.rankings.RankingSpotlightPlacement
@@ -78,6 +76,7 @@ import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import java.text.NumberFormat
+import com.festivalscoretracker.android.ui.common.shellPosture
 
 // region Overview
 
@@ -107,14 +106,17 @@ fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
     val windowWidthDp = with(density) { currentWindowSize().width.toDp().value.toInt() }
     // One column under TalkBack or at large text (see rememberSingleColumn).
     val singleColumn = rememberSingleColumn()
-    val folded = !singleColumn && currentWindowAdaptiveInfo().windowPosture.hingeList.any { it.isSeparating && it.isVertical }
+    val folded = !singleColumn && shellPosture().hingeList.any { it.isSeparating && it.isVertical }
     val scrolled by remember(listState) { derivedStateOf { listState.canScrollBackward } }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val columns = if (singleColumn) 1 else LeaderboardsLayoutPolicy.columns(maxWidth.value.toInt(), folded)
         val layout = remember(ready, instruments, selected, columns, folded) {
             if (ready) OverviewLayout(instruments, showHistory = selected != null && instruments.isNotEmpty(), columns, pairHistory = folded) else null
         }
-        val quickLinks = rememberQuickLinks(listState, QUICK_LINKS_TITLE, layout?.sections.orEmpty()) { id -> layout?.indexOf(id) }
+        // Cards still loading (or reloading for a new Rank By) after the list has scrolled show
+        // in place; only what is visible at load fades in. Quick Links jumps rush it (load-transition R5).
+        val fadeWindow = rememberFadeInWindow(listState)
+        val quickLinks = rememberQuickLinks(listState, QUICK_LINKS_TITLE, layout?.sections.orEmpty(), fadeInWindow = fadeWindow) { id -> layout?.indexOf(id) }
         FestivalScreen(
             title = "Leaderboards",
             isRoot = isRoot,
@@ -126,27 +128,28 @@ fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
             },
         ) { padding ->
             PullToRefreshBox(isRefreshing = refreshing, onRefresh = viewModel::refresh, modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
-                // Until settings arrive the instrument list is empty; composing the band cards
-                // first would anchor the list on them once instrument rows are inserted above.
-                if (layout == null) return@PullToRefreshBox
-                // Web load phase (operator batch 6, 6.41): a spinner until the first card has
-                // data, then the page fades in and its rows stagger. A Rank By change first fades
-                // the old cards out (issue #71). The list stays composed (hidden) under the
-                // spinner so its cards load meanwhile.
-                val lead = layout.instruments.firstOrNull()?.let { viewModel.card(it) }?.collectAsStateWithLifecycle()
-                val contentReady = lead == null || lead.value !is LoadState.Loading
+                // Web load phase (operator batch 6, 6.41): a spinner until settings are read and
+                // the first card has data, then the page fades in and its rows stagger. A Rank By
+                // change first fades the old cards out (issue #71). The list stays composed
+                // (hidden) under the spinner so its cards load meanwhile.
+                val lead = layout?.instruments?.firstOrNull()?.let { viewModel.card(it) }?.collectAsStateWithLifecycle()
+                val contentReady = layout != null && (lead == null || lead.value !is LoadState.Loading)
                 val swap = rememberLoadSwap(metric, contentReady, key = metric)
-                // Cards still loading (or reloading for a new Rank By) after the list has
-                // scrolled show in place; only what is visible at load fades in.
-                val fadeWindow = rememberFadeInWindow(listState)
+                // Under the spinner the hidden list is silent to TalkBack and ignores touches, so a
+                // tap on the spinner never opens a card nobody can see (load-transition R2, #178).
                 val pageModifier = when (swap.phase) {
                     LoadSwapPhase.ContentIn -> Modifier.festivalFadeIn(swap.revealed)
                     LoadSwapPhase.ContentOut -> swap.contentModifier
-                    LoadSwapPhase.Loading, LoadSwapPhase.SpinnerOut -> Modifier.alpha(0f)
+                    LoadSwapPhase.Loading, LoadSwapPhase.SpinnerOut -> swap.pinnedContentModifier
                 }
-                Box(Modifier.fillMaxSize().then(pageModifier)) {
-                    CompositionLocalProvider(LocalFadeInWindow provides fadeWindow, LocalHoldCards provides (swap.phase == LoadSwapPhase.ContentOut)) {
-                        OverviewList(viewModel, layout, swap.shown, selected, listState, padding, shell.navigate)
+                // Until settings arrive the instrument list is empty; composing the band cards
+                // first would anchor the list on them once instrument rows are inserted above,
+                // so only the swap's spinner shows (load-transition R1, #178).
+                if (layout != null) {
+                    Box(Modifier.fillMaxSize().then(pageModifier)) {
+                        CompositionLocalProvider(LocalFadeInWindow provides fadeWindow, LocalHoldCards provides (swap.phase == LoadSwapPhase.ContentOut)) {
+                            OverviewList(viewModel, layout, swap.shown, selected, listState, padding, shell.navigate)
+                        }
                     }
                 }
                 if (swap.showsSpinner) {
@@ -371,11 +374,11 @@ private fun InstrumentCard(instrument: Instrument, viewModel: LeaderboardsViewMo
         CardHeader(instrument.label) { InstrumentIcon(instrument, size = 40.dp, decorative = true) }
         GlassCard(Modifier.fillMaxWidth()) {
         // Rows fill this column, so its inner width is the width their names must not collapse in (issue #114).
-        var rowWidth by remember { mutableFloatStateOf(Float.NaN) }
+        var rowWidth by rememberRankingRowWidth()
         val density = LocalDensity.current
         Column(Modifier.padding(8.dp).onSizeChanged { rowWidth = with(density) { it.width.toDp().value } }, verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP)) {
             when (val current = state) {
-                LoadState.Loading -> RankingsSkeletonRows(5)
+                LoadState.Loading -> RankingsSkeletonRows(5, bayesian = metric.isPercentile)
                 is LoadState.Failed -> ServiceStatusInline(current.issue, "${instrument.label} rankings unavailable", current.countdown, { viewModel.retryCard(instrument) }, Modifier.padding(horizontal = 8.dp))
                 is LoadState.Loaded -> CompositionLocalProvider(LocalRankingColumns provides rememberAccountColumns(current.value.rankings.entries + pinnedEntry(viewModel, instrument, selected), metric, rowWidth = rowWidth)) {
                     val entries = current.value.rankings.entries
@@ -481,11 +484,11 @@ private fun BandCard(bandType: BandType, viewModel: LeaderboardsViewModel, metri
     Column(Modifier.fillMaxWidth().testTag(tag)) {
         CardHeader(bandType.label)
         GlassCard(Modifier.fillMaxWidth()) {
-        var rowWidth by remember { mutableFloatStateOf(Float.NaN) }
+        var rowWidth by rememberRankingRowWidth()
         val density = LocalDensity.current
         Column(Modifier.padding(8.dp).onSizeChanged { rowWidth = with(density) { it.width.toDp().value } }, verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP)) {
             when (val current = state) {
-                LoadState.Loading -> RankingsSkeletonRows(5)
+                LoadState.Loading -> RankingsSkeletonRows(5, bayesian = bandMetric.asRankingMetric.isPercentile, nameLines = stackedBandNameLines(bandType.memberCount))
                 is LoadState.Failed -> ServiceStatusInline(current.issue, "${bandType.label} rankings unavailable", current.countdown, { viewModel.retryBand(bandType) }, Modifier.padding(horizontal = 8.dp))
                 is LoadState.Loaded -> CompositionLocalProvider(LocalRankingColumns provides rememberBandColumns(current.value.rankings.entries, bandMetric, rowWidth = rowWidth)) {
                     val entries = current.value.rankings.entries

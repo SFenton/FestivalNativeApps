@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.songs
 
+import com.festivalscoretracker.android.ui.common.rememberPageFadeInWindow
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -113,6 +114,7 @@ import com.festivalscoretracker.android.presentation.SongsViewModel
 import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LoadingView
+import com.festivalscoretracker.android.ui.common.coveredByModal
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.festivalEmptyStateItem
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
@@ -176,7 +178,9 @@ fun SongsScreen(
     val linkSections = remember(state.headers, listed) { if (listed) state.headers.map { it.quickLink } else emptyList() }
     // Headers are their own (sticky) items, so a header's list index counts the headers before it.
     // They pin under the top bar, so jumps land them flush rather than 32 dp down (#51).
-    val quickLinks = rememberQuickLinks(listState, state.quickLinksTitle, linkSections, pinnedHeaders = true) { id ->
+    // The page's fade window, here so Quick Links jumps rush it (load-transition R5).
+    val fadeIn = rememberPageFadeInWindow()
+    val quickLinks = rememberQuickLinks(listState, state.quickLinksTitle, linkSections, pinnedHeaders = true, fadeInWindow = fadeIn) { id ->
         state.headers.indexOfFirst { it.id == id }.takeIf { it >= 0 }?.let { ordinal -> leading + state.headers[ordinal].firstIndex + ordinal }
     }
     val density = LocalDensity.current
@@ -188,6 +192,7 @@ fun SongsScreen(
         FestivalScreen(
             title = "Songs",
             isRoot = true,
+            fadeInWindow = fadeIn,
             scrolled = scrolled,
             // Sort, Filter and Quick Links stay reachable while the list scrolls (issue #52).
             pinActions = true,
@@ -249,8 +254,8 @@ fun SongsScreen(
 }
 
 /**
- * Quick Links, Sort and Filter (selected player only): the page's own tools, in the floating
- * toolbar on phones and the top app bar elsewhere.
+ * Quick Links, Sort and Filter (always; General filters only without a player): the page's own tools, in the floating
+ * toolbar on phones and the top app bar elsewhere. Sort and Filter speak their state, not only their gold tint.
  *
  * @param state Songs state (gold tints for a changed sort / active filters).
  * @param quickLinks Sort-bucket Quick Links.
@@ -265,7 +270,9 @@ private fun SongsPageTools(state: SongsUiState, quickLinks: QuickLinksController
     IconButton(onClick = onSort, modifier = Modifier.testTag("fst.songs.sort.open").semantics { stateDescription = sortState }) {
         Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort songs", tint = if (state.sortChanged) BrandTokens.gold else BrandTokens.textPrimary)
     }
-    IconButton(onClick = onFilter, modifier = Modifier.testTag("fst.songs.filter.open")) {
+    // The spoken state carries what the gold tint shows (issue #181; Item Shop precedent #145).
+    val filterState = state.filterStateDescription
+    IconButton(onClick = onFilter, modifier = Modifier.testTag("fst.songs.filter.open").semantics { stateDescription = filterState }) {
         Icon(
             Icons.Filled.FilterList,
             contentDescription = "Filter songs",
@@ -385,7 +392,7 @@ private fun SongList(
     val endPadding = if (showIndex) 28.dp else 16.dp
     val density = LocalDensity.current
     // Rows fade out below the pinned bucket header, or meet it at a hard edge under the contrast,
-    // transparency and motion settings (rememberPinnedHeaderHardEdge). Bucket headers record their
+    // transparency and motion settings (rememberScrollEdgeHardEdge). Bucket headers record their
     // drawing into the edge's layers; the list redraws them over the cut and band (issues #91, #288).
     val firstHeaderKey = state.headers.firstOrNull()?.let { headerKey(it) }
     val headerEdge = rememberPinnedHeaderEdge(listState, firstHeaderKey, LIST_SPACING, IS_HEADER_KEY)
@@ -472,7 +479,8 @@ private fun SongList(
 @Composable
 internal fun rememberShopPulse(active: Boolean): () -> Float {
     val still = LocalFestivalAccessibility.current.reduceMotion
-    if (!active || still) return STILL_PULSE
+    // Behind a newer modal the outline holds its reduced-motion frame (`modal-shell` R10, issue #186).
+    if (!active || still || coveredByModal()) return STILL_PULSE
     val transition = rememberInfiniteTransition(label = "shopPulse")
     val alpha = transition.animateFloat(
         initialValue = 0f,
@@ -502,7 +510,7 @@ private val STILL_PULSE: () -> Float = { SHOP_PULSE_PEAK }
 @Composable
 internal fun rememberShopBreathe(active: Boolean): () -> Float {
     val still = LocalFestivalAccessibility.current.reduceMotion
-    if (!active || still) return STILL_BREATHE
+    if (!active || still || coveredByModal()) return STILL_BREATHE
     val fraction = rememberInfiniteTransition(label = "shopBreathe").animateFloat(
         initialValue = 0f,
         targetValue = 1f,

@@ -20,7 +20,6 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -50,6 +49,7 @@ import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.RowChevron
 import com.festivalscoretracker.android.ui.leaderboards.RankingsPager
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.common.shellPosture
 
 // region Layout
 
@@ -66,7 +66,7 @@ internal val BAND_CONTENT_MAX = 840.dp
 @Composable
 internal fun rememberBandHinge(contentLeftPx: Float, contentWidth: Dp): BandLayout.Hinge? {
     val density = LocalDensity.current
-    val hinges = currentWindowAdaptiveInfo().windowPosture.hingeList.filter { it.isVertical }.mapNotNull { hinge ->
+    val hinges = shellPosture().hingeList.filter { it.isVertical }.mapNotNull { hinge ->
         with(density) {
             BandLayout.hingeInContent(
                 hinge.bounds.left.toDp().value,
@@ -91,7 +91,7 @@ internal fun rememberBandHinge(contentLeftPx: Float, contentWidth: Dp): BandLayo
 @Composable
 internal fun rememberBandTabletopHinge(contentTopPx: Float, contentHeight: Dp): BandLayout.Hinge? {
     val density = LocalDensity.current
-    val hinges = currentWindowAdaptiveInfo().windowPosture.hingeList.filter { !it.isVertical && it.isSeparating }.mapNotNull { hinge ->
+    val hinges = shellPosture().hingeList.filter { !it.isVertical && it.isSeparating }.mapNotNull { hinge ->
         with(density) {
             BandLayout.hingeInContent(
                 hinge.bounds.top.toDp().value,
@@ -364,26 +364,6 @@ internal fun BandEmptyState(title: String, message: String, tag: String) {
     ) {
         Text(title, style = MaterialTheme.typography.titleMedium, color = BrandTokens.textPrimary)
         Text(message, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary)
-    }
-}
-
-/**
- * A tappable text link with a 48 dp target.
- *
- * @param text Link text.
- * @param tag Test tag.
- * @param onClick Action.
- */
-@Composable
-internal fun BandTextLink(text: String, tag: String, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .heightIn(min = 48.dp)
-            .clickable(role = Role.Button, onClick = onClick)
-            .testTag(tag),
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        Text(text, style = MaterialTheme.typography.labelLarge, color = BrandTokens.accentBlue, fontWeight = FontWeight.SemiBold)
     }
 }
 

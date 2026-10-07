@@ -6,14 +6,22 @@ import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isHeading
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertTouchHeightIsEqualTo
 import androidx.compose.ui.test.assertTouchWidthIsEqualTo
+import android.graphics.Canvas
+import android.view.View
+import com.festivalscoretracker.android.presentation.songs.PathSwapTiming
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -205,6 +213,106 @@ class SongPathsSheetUiTest {
         assertEquals(0, count("fst.paths.table.header"))
         rule.onNodeWithText("BEAT").assertDoesNotExist()
         assertEquals(listOf("text:Lead:Expert"), calls)
+    }
+
+    /**
+     * Mean pixel brightness (0–1) of the node tagged [tag], drawn in software from the sheet's
+     * window (Robolectric's `captureToImage` never gets a frame with the clock paused).
+     */
+    private fun brightness(tag: String): Float {
+        val b = rule.onNodeWithTag(tag).fetchSemanticsNode().boundsInWindow
+        val global = Class.forName("android.view.WindowManagerGlobal")
+        val instance = global.getMethod("getInstance").invoke(null)
+        @Suppress("UNCHECKED_CAST")
+        val window = (global.getDeclaredField("mViews").apply { isAccessible = true }.get(instance) as List<View>).last()
+        val whole = Bitmap.createBitmap(window.width, window.height, Bitmap.Config.ARGB_8888)
+        rule.runOnUiThread { window.draw(Canvas(whole)) }
+        val top = b.top.toInt().coerceAtLeast(0)
+        val bottom = b.bottom.toInt().coerceAtMost(whole.height)
+        assertTrue("$tag is on screen", top < bottom)
+        var sum = 0f
+        for (x in b.left.toInt() until b.right.toInt()) for (y in top until bottom) {
+            val p = whole.getPixel(x, y)
+            sum += (android.graphics.Color.red(p) + android.graphics.Color.green(p) + android.graphics.Color.blue(p)) / (3f * 255f)
+        }
+        return sum / ((b.right.toInt() - b.left.toInt()) * (bottom - top))
+    }
+
+    /** Release a gated load with the clock paused and step to the frame its content commits. */
+    private fun commitGated(gate: CompletableDeferred<Unit>, loaded: String) {
+        rule.mainClock.autoAdvance = false
+        gate.complete(Unit)
+        var frames = 0
+        while (status() != loaded && frames++ < 200) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(16))
+            rule.mainClock.advanceTimeByFrame()
+        }
+        assertEquals(loaded, status())
+    }
+
+    @Test
+    fun textRowsStaggerInAfterTheSpinnerLikeWebTextStagger() {
+        assertEquals(listOf(0, 60, 120, 600), listOf(0, 1, 2, 10).map(PathSwapTiming::rowStagger))
+        val gate = CompletableDeferred<Unit>()
+        show(viewModel(display = PathDisplayMode.Text, loadText = { _, _ -> gate.await(); text() }))
+        commitGated(gate, "Lead Expert path loaded, 3 activations")
+        // The table mounts with every row hidden (no container fade, no stale rows).
+        rule.mainClock.advanceTimeByFrame()
+        val hidden = listOf("fst.paths.row.1", "fst.paths.row.2").map(::brightness)
+        // 100 ms in: row 1 is well into its fade, row 2 (60 ms later) has barely started.
+        rule.mainClock.advanceTimeBy(100)
+        val mid = listOf("fst.paths.row.1", "fst.paths.row.2").map(::brightness)
+        rule.mainClock.advanceTimeBy(1_500)
+        val full = listOf("fst.paths.row.1", "fst.paths.row.2").map(::brightness)
+        val revealed = (0..1).map { (mid[it] - hidden[it]) / (full[it] - hidden[it]) }
+        assertTrue("rows draw once revealed ($hidden → $full)", full.indices.all { full[it] > hidden[it] + 0.02f })
+        assertTrue("row 1 leads row 2 by the 60 ms stagger ($revealed)", revealed[0] > revealed[1] + 0.1f)
+        assertTrue("row 1 is mid-fade at 100 ms ($revealed)", revealed[0] in 0.15f..0.85f)
+    }
+
+    @Test
+    fun reducedMotionShowsTextRowsWithoutStagger() {
+        val gate = CompletableDeferred<Unit>()
+        show(viewModel(display = PathDisplayMode.Text, loadText = { _, _ -> gate.await(); text() }), reduceMotion = true)
+        commitGated(gate, "Lead Expert path loaded, 3 activations")
+        rule.mainClock.advanceTimeByFrame()
+        val first = listOf("fst.paths.row.1", "fst.paths.row.2").map(::brightness)
+        rule.mainClock.advanceTimeBy(1_500)
+        val later = listOf("fst.paths.row.1", "fst.paths.row.2").map(::brightness)
+        (0..1).forEach { assertEquals("row ${it + 1} fully shown on its first frame", later[it], first[it], 0.01f) }
+    }
+
+    /**
+     * The image fades in, and out on a switch, on web `opacity 300ms ease` (Compose [androidx.compose.animation.core.Ease],
+     * load-transition R3, #177 decision): halfway through the fade CSS `ease` is ~80% done (75–85% within
+     * a frame either way) where linear would be 50%, so a regression to `LinearEasing` fails.
+     */
+    @Test
+    fun imageSwitchFadesOnTheWebEaseCurve() {
+        val expert = CompletableDeferred<Unit>()
+        val hard = CompletableDeferred<Unit>()
+        val vm = viewModel(loadImage = { _, difficulty -> (if (difficulty == PathDifficulty.Expert) expert else hard).await(); image() })
+        show(vm)
+        commitGated(expert, "Lead Expert path image loaded")
+        // The decoded chart commits fully transparent (no spinner, no stale image), then eases in.
+        rule.mainClock.advanceTimeByFrame()
+        val hidden = brightness("fst.paths.image")
+        rule.mainClock.advanceTimeBy(PathSwapTiming.FADE_MILLIS / 2)
+        val mid = brightness("fst.paths.image")
+        rule.mainClock.advanceTimeBy(1_000)
+        val shown = brightness("fst.paths.image")
+        assertTrue("the chart draws once faded in ($hidden → $shown)", shown > hidden + 0.02f)
+        val fadedIn = (mid - hidden) / (shown - hidden)
+        assertTrue("fade-in at 150 ms follows CSS ease, not linear ($fadedIn)", fadedIn in 0.68f..0.95f)
+
+        // Difficulty switch: the old chart fades out on the same curve before the spinner.
+        vm.selectDifficulty(PathDifficulty.Hard)
+        shadowOf(Looper.getMainLooper()).idle()
+        rule.mainClock.advanceTimeByFrame()
+        assertEquals("Loading Lead Hard path", status())
+        rule.mainClock.advanceTimeBy(PathSwapTiming.FADE_MILLIS / 2)
+        val left = (brightness("fst.paths.image") - hidden) / (shown - hidden)
+        assertTrue("fade-out at 150 ms follows CSS ease, not linear ($left)", left in 0.05f..0.32f)
     }
 
     @Test
@@ -473,6 +581,60 @@ class SongPathsSheetUiTest {
         rule.waitUntil(10_000) { settle(100); bounds("fst.song-detail.paths").right <= hinge }
         assertTrue("row ends before the hinge", bounds("fst.paths.row.1").right <= hinge)
         assertTrue("controls end before the hinge", bounds("fst.paths.selectors").right <= hinge)
+    }
+
+    // endregion
+
+    // region Swipe to dismiss (issues #96, #192)
+
+    /** Drag down from [node]'s centre past the bottom of the window, like a finger pulling the sheet away. */
+    private fun swipeDownFrom(node: SemanticsNodeInteraction) {
+        node.performTouchInput {
+            swipeDown(startY = centerY, endY = centerY + rule.activity.window.decorView.height, durationMillis = 250)
+        }
+        settle(800)
+    }
+
+    private fun waitForDismiss() = rule.waitUntil(10_000) { settle(100); dismissed == 1 }
+
+    @Test
+    fun swipeDownOnTheTextTableDismisses() {
+        show(viewModel(display = PathDisplayMode.Text))
+        waitForTag("fst.paths.row.1")
+        swipeDownFrom(rule.onNodeWithTag("fst.paths.row.1"))
+        waitForDismiss()
+    }
+
+    @Test
+    fun swipeDownOnTheImageDismisses() {
+        show(viewModel())
+        waitForTag("fst.paths.image")
+        swipeDownFrom(rule.onNodeWithTag("fst.paths.image"))
+        waitForDismiss()
+    }
+
+    @Test
+    fun swipeDownOnTheHeaderDismisses() {
+        show(viewModel())
+        waitForTag("fst.paths.close")
+        swipeDownFrom(rule.onNode(hasText("Paths") and isHeading()))
+        waitForDismiss()
+    }
+
+    @Test
+    fun zoomedImageScrolledDownReturnsToTheTopBeforeDismissing() {
+        val tall = Bitmap.createBitmap(100, 2000, Bitmap.Config.ARGB_8888).apply { eraseColor(android.graphics.Color.BLUE) }
+        val png = ByteArrayOutputStream().also { tall.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+        show(viewModel(loadImage = { _, _ -> SongPathImagePayload(png, 100, 2000, 7, 7) }))
+        rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithContentDescription("Lead Expert CHOpt path").fetchSemanticsNodes().isNotEmpty() }
+        repeat(2) { click("fst.paths.zoom-in") }
+        rule.onNodeWithText("200%").assertExists()
+        rule.onNodeWithTag("fst.paths.image").performTouchInput { swipeUp(startY = bottom - 10f, endY = top + 10f, durationMillis = 400) }
+        settle(800)
+        assertEquals("panning the zoomed image keeps the sheet open", 0, dismissed)
+        // Nested scroll: the image consumes the drag until it is back at the top, then the sheet takes it.
+        repeat(4) { if (dismissed == 0) swipeDownFrom(rule.onNodeWithTag("fst.paths.image")) }
+        waitForDismiss()
     }
 
     // endregion

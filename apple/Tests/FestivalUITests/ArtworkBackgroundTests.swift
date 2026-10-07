@@ -483,3 +483,14 @@ func artworkEngineStopsAfterPoolFailureBudget() async throws {
     let after = try #require(renderer.cgImage)
     #expect(after.width == 320 && after.height == 568)
 }
+
+/// The song cover's Canvas draws like `scaledToFill`: a square cover on a portrait iPad
+/// window is screen-height square and centred (the {-188, 0, 1210, 1210} frame the old
+/// `Image` view reported; Lane A11Y4).
+@Test func coverAspectFillCoversAndCentres() {
+    let rect = CoverLayerView.aspectFill(CGSize(width: 1024, height: 1024), in: CGSize(width: 834, height: 1210))
+    #expect(rect == CGRect(x: -188, y: 0, width: 1210, height: 1210))
+    let wide = CoverLayerView.aspectFill(CGSize(width: 200, height: 100), in: CGSize(width: 100, height: 100))
+    #expect(wide == CGRect(x: -50, y: 0, width: 200, height: 100))
+    #expect(CoverLayerView.aspectFill(.zero, in: CGSize(width: 10, height: 20)) == CGRect(x: 0, y: 0, width: 10, height: 20))
+}

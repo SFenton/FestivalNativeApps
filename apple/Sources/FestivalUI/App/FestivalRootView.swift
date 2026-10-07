@@ -87,6 +87,7 @@ public struct FestivalRootView: View {
         #if DEBUG
         let debug = DebugLaunchRoute(environment: ProcessInfo.processInfo.environment)
         if let tab = debug.section { initialSection = tab }
+        _searchActive = State(initialValue: debug.opensSearch)
         initialRoute = debug.route
         _drawerPresented = State(initialValue: debug.opensDrawer)
         _rootProfilePresented = State(initialValue: debug.opensProfileSheet)
@@ -745,7 +746,7 @@ public struct FestivalRootView: View {
     private func dismissDrawer() {
         closeDrawer()
         drawerFocus = AccessibilityFocusRequest(
-            target: .identifier("fst.shell.drawer.open"), screenChanged: false,
+            target: .identifier("fst.shell.drawer.open", fallbackLabel: "More"), screenChanged: false,
             token: (drawerFocus?.token ?? 0) + 1
         )
     }
@@ -1007,6 +1008,9 @@ private struct ShellCommandsPublisher: ViewModifier {
 /// `leaderboard:<instrument>:<rankBy>` or `combo:<token>:<instrument>[,<instrument>…]`.
 /// Song routes need a loaded `Song`; the Songs lane handles `FST_DEBUG_SONG` itself.
 ///
+/// `FST_DEBUG_TAB=search` opens the Search tab over Songs (iPhone Duo's rail Search
+/// button is not reachable by XCUITest taps on the inner display; Lane A11Y4).
+///
 /// Shell extras: `FST_DEBUG_DRAWER=1` opens the hamburger drawer, `FST_DEBUG_SHEET=profile`
 /// opens profile selection, and `FST_DEBUG_PROFILE=<accountId>:<displayName>` selects a
 /// player **in memory only** before the session loads (so profile-only tabs can be
@@ -1017,6 +1021,8 @@ private struct ShellCommandsPublisher: ViewModifier {
 /// corner radii (read by `FestivalDrawer`, not here).
 struct DebugLaunchRoute {
     let section: FestivalSection?
+    /// `FST_DEBUG_TAB=search`: start on the Search tab.
+    let opensSearch: Bool
     let route: AppRoute?
     let opensDrawer: Bool
     let opensProfileSheet: Bool
@@ -1028,6 +1034,7 @@ struct DebugLaunchRoute {
     /// - Parameter environment: Process environment.
     init(environment: [String: String]) {
         section = environment["FST_DEBUG_TAB"].flatMap(FestivalSection.init(rawValue:))
+        opensSearch = environment["FST_DEBUG_TAB"] == "search"
         opensDrawer = environment["FST_DEBUG_DRAWER"] == "1"
         opensProfileSheet = environment["FST_DEBUG_SHEET"] == "profile"
         anonymous = environment["FST_DEBUG_ANONYMOUS"] == "1"

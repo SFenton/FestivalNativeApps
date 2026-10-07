@@ -5,11 +5,11 @@ import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -35,6 +35,7 @@ import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
+import com.festivalscoretracker.android.ui.common.spinnerShowsDuring
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
 import okhttp3.OkHttpClient
@@ -146,6 +147,43 @@ class RivalsUiTest {
         rule.onAllNodesWithTag("fst.rivals.row.${ids[0]}")[0].performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.rival-detail.title")
         assertEquals(1, transport.sent("/api/player/${RivalsFixtures.PLAYER}/leaderboard-rivals/Solo_Guitar/${ids[0]}").size)
+    }
+
+    @Test
+    fun tabSwitchFadesThroughTheSpinner() {
+        launch(DebugLaunch(route = RivalsRoute, profile = player, stillBackground = true))
+        waitForTag("fst.rivals.section.Solo_Guitar")
+        // Issue #71: the old tab fades out and the spinner shows before the new tab's cards.
+        assertTrue(rule.spinnerShowsDuring("fst.rivals.loading") { rule.onNodeWithTag("fst.rivals.tab.leaderboard").performSemanticsAction(SemanticsActions.OnClick) })
+        waitForTag("fst.rivals.section.leaderboard.Solo_Guitar")
+        rule.waitUntil(5_000) { settle(100); rule.onAllNodesWithTag("fst.rivals.loading").fetchSemanticsNodes().isEmpty() }
+    }
+
+    @Test
+    fun viewAllRivalsOpensEachCardsScopeList() {
+        launch(DebugLaunch(route = RivalsRoute, profile = player, stillBackground = true))
+        waitForTag("fst.rivals.section.Solo_Guitar")
+        // Issues #68/#176: every hub card ends with the shared purple button, which opens its own list.
+        val leadViewAll = hasTestTag("fst.rivals.view-all") and hasAnyAncestor(hasTestTag("fst.rivals.section.Solo_Guitar"))
+        rule.onNodeWithTag("fst.rivals.grid").performScrollToNode(leadViewAll)
+        settle(100)
+        // view-all-cta R4: TalkBack reads the visible label, then the card.
+        rule.onNode(leadViewAll).assertIsDisplayed()
+        rule.onNode(leadViewAll).assertContentDescriptionEquals("View All Rivals, Lead Rivals")
+        rule.onNode(leadViewAll).performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.all-rivals.list")
+        rule.onNode(hasText("Lead Rivals") and hasAnyAncestor(hasTestTag("fst.nav.top-bar"))).assertIsDisplayed()
+        rule.onNodeWithTag("fst.nav.back").performClick()
+        waitForTag("fst.rivals.tab.leaderboard")
+        rule.onNodeWithTag("fst.rivals.tab.leaderboard").performClick()
+        waitForTag("fst.rivals.section.leaderboard.Solo_Guitar")
+        val boardViewAll = hasTestTag("fst.rivals.view-all") and hasAnyAncestor(hasTestTag("fst.rivals.section.leaderboard.Solo_Guitar"))
+        rule.onNodeWithTag("fst.rivals.grid").performScrollToNode(boardViewAll)
+        settle(100)
+        rule.onNode(boardViewAll).assertIsDisplayed()
+        rule.onNode(boardViewAll).assertContentDescriptionEquals("View All Rivals, Lead Rivals")
+        rule.onNode(boardViewAll).performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.all-rivals.list")
     }
 
     @Test
