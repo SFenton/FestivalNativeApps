@@ -9,7 +9,7 @@
         pager-only plate. Rows fade out above the footer (BoardFooterFade), so nothing scrolls under the glyphs.
         Like LeaderboardEntryRow, the surface is a Border behind a transparent Button, so hover/press tint the card instead
         of replacing it. 40 epx circle buttons with textSecondary chevrons (double chevrons for first/last), disabled at 30%
-        opacity, around a 40 epx badge (10 epx radius). Hidden with a single page, like the web. « and » drop below 380 epx.
+        opacity (GrayText glyph on an opaque card under a contrast theme), around a 40 epx badge (10 epx radius). Hidden with a single page, like the web. « and » drop below 380 epx.
         Keyboard: Left/Right (and Home/End) page while focus is in the pager (web keyboard ArrowLeft/ArrowRight); Ctrl+Left /
         Ctrl+Right page from anywhere on the page.
     -->
@@ -37,7 +37,8 @@
     <StackPanel x:Name="Root" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" PreviewKeyDown="OnPreviewKeyDown">
         <StackPanel.Resources>
             <!-- Hover/press tint the card like a row (values mirror FSTRowHoverBrush / FSTRowPressedBrush); disabled buttons
-                 keep the card and dim as a whole (web Opacity.dimmed) instead of Fluent's gray; contrast themes skip the opacity dim, so their disabled glyphs take GrayText. Theme dictionaries rather
+                 keep the card and dim as a whole (web Opacity.dimmed) instead of Fluent's gray. Under a contrast theme the host
+                 stays fully opaque (PagerDimming: solid Window surface, visible rim) and only the glyph takes GrayText. Theme dictionaries rather
                  than StaticResource aliases, which keep the old theme's brush across a live contrast switch (issue #242). -->
             <ResourceDictionary>
                 <ResourceDictionary.ThemeDictionaries>

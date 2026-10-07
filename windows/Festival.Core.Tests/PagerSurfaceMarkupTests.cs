@@ -52,8 +52,15 @@ public class PagerSurfaceMarkupTests
         // Page 1's First/Previous start disabled without an IsEnabledChanged, so the dim must also follow the model.
         var code = File.ReadAllText(Path.Combine(AppRoot, "Controls", "LeaderboardsPager.xaml.cs"));
         Assert.Contains("pager.CanGoBack : pager.CanGoForward", code);
-        Assert.Contains("foreach (var button in Buttons) Host(button).Opacity = IsAvailable(button) ? 1 : DimmedOpacity;", code);
+        Assert.Contains("foreach (var button in Buttons) ApplyDimming(button);", code);
         Assert.DoesNotContain("button.Parent", code);
+        // Every host opacity goes through PagerDimming, which keeps a contrast theme's host (Window surface, WindowText rim)
+        // fully opaque (surface-materials R4), and a live contrast switch re-applies it.
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(code, @"\.Opacity\s*="));
+        Assert.Contains("Host(button).Opacity = PagerDimming.HostOpacity(available, contrast);", code);
+        Assert.Contains("PagerDimming.GrayTextGlyph(available, contrast)", code);
+        Assert.Contains("ContrastTheme.Changed += OnColorsChanged;", code);
+        Assert.Contains("Unloaded += (_, _) => ContrastTheme.Changed -= OnColorsChanged;", code);
         // Contrast themes ignore the opacity dim; GrayText on Window is the system disabled cue there.
         var xaml = File.ReadAllText(Path.Combine(AppRoot, "Controls", "LeaderboardsPager.xaml"));
         Assert.Contains("x:Key=\"ButtonForegroundDisabled\" Color=\"{ThemeResource SystemColorGrayTextColor}\"", xaml);
