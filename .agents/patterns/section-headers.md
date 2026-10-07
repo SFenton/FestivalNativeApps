@@ -35,7 +35,7 @@ Question: the owner asked that Rivals' "See All" match "other 'View All' buttons
 
 | Option | What you see | Guidance (strength) | Web / pattern precedent | Trade-offs |
 |---|---|---|---|---|
-| **A (chosen)** | Title-row links stay the shared trailing link, now "View All ›" (spoken "View All: <section>"). Only in-card bottom "See All" rows (Apple and iPhone Duo Rival Detail) become the purple CTA. Android, Windows and web Rival Detail have no bottom row, so they keep the header link. | M3 Text Button: "Lowest emphasis. Inline actions … less important options" (should). M3 Filled Button: "Primary action, highest emphasis" (should). M3 button a11y: "Minimum touch target 48x48dp" (must; `SeeAllButton` already meets it). WCAG 2.5.3 Label in Name: the spoken label starts with the visible "View All" (must). | Web `RivalsPage.tsx` and `RivalDetailPage.tsx` (web master `35fb548`): each card header is a clickable title row with `common.viewAll` ("View All") and `IoChevronForward`. The hub adds `viewAllButton` (`rivals.viewAllRivals`) below the rows; Rival Detail has no bottom button. Android `SeeAllButton` is the one shared title-row link (#312); [view-all-cta](view-all-cta.md) R6 already treats title-row links as not the CTA. | Least churn. The hub keeps one purple button per card, not two. |
+| **A (chosen)** | Title-row links stay the shared trailing link, now "View All ›" (spoken "View All: <section>"). Only in-card bottom "See All" rows (Apple and iPhone Duo Rival Detail) become the purple CTA. Android and web Rival Detail have no bottom row, so they keep the header link. Windows Rival Detail had an in-card bottom text link and no header link, so its Windows check (#321) made that row the purple CTA. | M3 Text Button: "Lowest emphasis. Inline actions … less important options" (should). M3 Filled Button: "Primary action, highest emphasis" (should). M3 button a11y: "Minimum touch target 48x48dp" (must; `SeeAllButton` already meets it). WCAG 2.5.3 Label in Name: the spoken label starts with the visible "View All" (must). | Web `RivalsPage.tsx` and `RivalDetailPage.tsx` (web master `35fb548`): each card header is a clickable title row with `common.viewAll` ("View All") and `IoChevronForward`. The hub adds `viewAllButton` (`rivals.viewAllRivals`) below the rows; Rival Detail has no bottom button. Android `SeeAllButton` is the one shared title-row link (#312); [view-all-cta](view-all-cta.md) R6 already treats title-row links as not the CTA. | Least churn. The hub keeps one purple button per card, not two. |
 | B | Every title-row link becomes a full-width purple CTA below the rows, so Rival Detail cards look the same on every platform. | M3 Filled Button "highest emphasis" (should): Rival Detail would show up to six, and each hub card two (the header link and View All Rivals) opening the same list. | No web precedent: the web keeps the header link on both pages. | Diverges from web semantics and from R8. Adds high-emphasis buttons where the web uses a link. |
 
 Chose **A**. Precedence: web behavior beats undocumented native copies, and among tied options prefer the existing pattern. The owner's explicit choice (the purple button for Rivals' in-card "See All") is honoured where that control exists (Apple Rival Detail bottom rows). The copy pass ("View All", never "See All") applies to every platform. Owner may override with `/choose B`.
@@ -46,14 +46,13 @@ Chose **A**. Precedence: web behavior beats undocumented native copies, and amon
 |---|---|---|---|
 | Ordinary section title | `apple/Sources/FestivalUI/Design/SectionHeader.swift` `FestivalSectionHeader` | `android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt` `SectionHeader` | `windows/Festival.App/Themes/Styles.xaml` `FSTSectionHeaderStyle` |
 | Titled content card | `apple/Sources/FestivalUI/Design/GlassSection.swift` `FestivalGlassSection` | `android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt` `SectionHeader` | `windows/Festival.App/Controls/CardHeader.cs` `CardHeader` |
-| Title-row View All (R8) | `apple/Sources/FestivalUI/Design/SectionHeader.swift` `SectionViewAllLink` (Duo pane headers, Duo Song Detail history cards, Profile Bands) | `android/app/src/main/java/com/festivalscoretracker/android/ui/design/SeeAllButton.kt` `SeeAllButton` | `windows/Festival.App/Pages/RivalsPage.xaml` `HyperlinkButton` |
+| Title-row View All (R8) | `apple/Sources/FestivalUI/Design/SectionHeader.swift` `SectionViewAllLink` (Duo pane headers, Duo Song Detail history cards, Profile Bands) | `android/app/src/main/java/com/festivalscoretracker/android/ui/design/SeeAllButton.kt` `SeeAllButton` | `windows/Festival.App/Pages/RivalsPage.xaml` `HyperlinkButton` (also Profile Bands, `Controls/PlayerProfileView.xaml`); copy and label-first name from `windows/Festival.Core/Domain/ViewAllCta.cs` `ListLabel` / `Name` |
 | Pinned Songs handoff | `apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift` `SongsSectionBar` | `android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsScreen.kt` `SongsScreen` | `windows/Festival.App/Pages/SongsPage.xaml` `StickyHeader` |
 
 ## Known debt
 
 | Debt | Breaks | Plan |
 |---|---|---|
-| Windows `RivalsPage`/`RivalDetailPage` links still say "See All" (Android `SeeAllButton` and the web say "View All", #321) | R8 | Windows check of #321 |
 
 ## Guards (`tools/pattern_guard.py`)
 
@@ -62,3 +61,4 @@ Chose **A**. Precedence: web behavior beats undocumented native copies, and amon
 - `section-headers/android-view-all-copy`
 - `section-headers/windows-sticky-copy`
 - `section-headers/apple-see-all-copy`
+- `section-headers/windows-view-all-copy`
