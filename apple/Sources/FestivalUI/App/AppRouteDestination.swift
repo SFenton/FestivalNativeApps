@@ -198,6 +198,9 @@ struct FestivalTabStack<Root: View>: View {
     /// The leading pane's context while the window allows an on-demand split
     /// (`OnDemandSplitStack`), applied to every page; nil on iPhone and in portrait.
     let paneContext: SplitPaneContext?
+    /// Closes the trailing pane, while one is open beside this stack: the top pushed
+    /// page's Back runs it instead of popping (issue #347).
+    let closeTrailing: (() -> Void)?
     let root: Root
 
     /// Create a tab stack.
@@ -208,10 +211,12 @@ struct FestivalTabStack<Root: View>: View {
     ///   - path: This tab's navigation path.
     ///   - isVisible: Whether this tab is currently selected.
     ///   - paneContext: Split pane context for every page, or nil.
+    ///   - closeTrailing: Closes the open trailing pane, or nil while none is open.
     ///   - root: Tab root screen.
     init(
         session: FestivalSession, visibleInstruments: Set<Instrument>,
         path: Binding<[AppRoute]>, isVisible: Bool, paneContext: SplitPaneContext? = nil,
+        closeTrailing: (() -> Void)? = nil,
         @ViewBuilder root: () -> Root
     ) {
         self.session = session
@@ -219,6 +224,7 @@ struct FestivalTabStack<Root: View>: View {
         _path = path
         self.isVisible = isVisible
         self.paneContext = paneContext
+        self.closeTrailing = closeTrailing
         self.root = root()
     }
 
@@ -246,6 +252,7 @@ struct FestivalTabStack<Root: View>: View {
                 .modifier(TopEdgeScrim())
                 .menuBarColumn(isTop: isVisible && path.last == route, isList: isListPane)
                 .splitPaneContext(paneContext)
+                .splitListBack(path.last == route ? closeTrailing : nil)
                 .rootTabBarVisibility()
             }
         }

@@ -2388,7 +2388,7 @@
       "title": "Back keeps place",
       "status": "current",
       "doc": ".agents/patterns/back-keeps-place.md",
-      "summary": "Back to a cached or back-stack page keeps its loaded content (keyed reload gate; new publication or account reloads, failures retry), rebuilds and replays nothing, moves nothing (Windows pauses focus-follow scrolling and scroll anchoring while away) and, on Windows, returns focus to the opener in its original focus state.",
+      "summary": "Back to a cached or back-stack page keeps its loaded content (keyed reload gate; new publication or account reloads, failures retry), rebuilds and replays nothing, moves nothing (Windows pauses focus-follow scrolling and scroll anchoring while away) and, on Windows, returns focus to the opener in its original focus state. In an Apple on-demand split, Back on the leading page closes the open trailing pane first and keeps the page; a second Back leaves it.",
       "keywords": [
         "back",
         "back navigation",
@@ -2399,7 +2399,9 @@
         "reappearance",
         "jitter",
         "reload on back",
-        "keeps place"
+        "keeps place",
+        "split view",
+        "trailing pane"
       ],
       "web": [
         {
@@ -2420,6 +2422,14 @@
           {
             "path": "apple/Sources/FestivalCore/ReappearanceLoadGate.swift",
             "symbol": "ReappearanceLoadGate"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/OnDemandSplitPolicy.swift",
+            "symbol": "pathAfterListBack"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/OnDemandSplit.swift",
+            "symbol": "SplitListBackButton"
           }
         ],
         "android": [
@@ -2451,7 +2461,8 @@
           "shop",
           "suggestions",
           "settings",
-          "licenses"
+          "licenses",
+          "song-detail"
         ]
       },
       "guards": [
@@ -2469,7 +2480,8 @@
       "issues": [
         39,
         82,
-        276
+        276,
+        347
       ]
     }
   ]

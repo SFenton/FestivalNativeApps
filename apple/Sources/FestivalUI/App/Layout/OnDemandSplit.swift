@@ -429,7 +429,8 @@ struct OnDemandSplitStack<Root: View>: View {
         }
         return FestivalTabStack(
             session: session, visibleInstruments: visibleInstruments,
-            path: binding, isVisible: isVisible, paneContext: context
+            path: binding, isVisible: isVisible, paneContext: context,
+            closeTrailing: paneWidth == nil ? nil : { close() }
         ) {
             root(binding.wrappedValue.isEmpty)
         }
@@ -535,6 +536,57 @@ struct SplitCloseButton: View {
         .keyboardShortcut(.escape, modifiers: [])
         .help("Close (Esc)")
         .accessibilityIdentifier("fst.split.close")
+    }
+}
+
+/// Back on the leading pane's pushed list page (Song Detail, Full Rankings, …): it
+/// closes the open item first and pops the page only once nothing is open (issue #347;
+/// split-view.md "Close, Escape, ⌘[ or Back" closes the trailing pane). The standard
+/// chevron with no text, as the system Back (HIG Toolbars: "prefer their standard
+/// symbols without text labels").
+struct SplitListBackButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label("Back", systemImage: "chevron.backward")
+        }
+        .help("Back (⌘[)")
+        .accessibilityIdentifier("fst.split.list-back")
+    }
+}
+
+extension View {
+    /// While the trailing pane is open, replace the leading page's system Back (which
+    /// would pop the list page and the open item together) with ``SplitListBackButton``
+    /// running `close`. A no-op with no action, so the system Back and its edge swipe
+    /// stay while nothing is open, and on iPhone.
+    ///
+    /// - Parameter close: Closes the trailing pane, or nil while nothing is open.
+    /// - Returns: The page.
+    func splitListBack(_ close: (() -> Void)?) -> some View {
+        modifier(SplitListBack(close: close))
+    }
+}
+
+/// Implementation of ``SwiftUI/View/splitListBack(_:)``.
+private struct SplitListBack: ViewModifier {
+    let close: (() -> Void)?
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content
+            .navigationBarBackButtonHidden(close != nil)
+            .toolbar {
+                if let close {
+                    ToolbarItem(placement: .topBarLeading) {
+                        SplitListBackButton(action: close)
+                    }
+                }
+            }
+        #else
+        content
+        #endif
     }
 }
 
