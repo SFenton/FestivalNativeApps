@@ -101,6 +101,8 @@ struct SongBandLeaderboardContent: View {
     /// issue #316).
     @State private var rowsAtTop = false
     @Environment(\.deviceLayout) private var layout
+    /// The list page beside this board in a split (Song Detail drops the song header, #342).
+    @Environment(\.splitDetailBesideList) private var besideList
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
     @Environment(\.pageToolsRegistry) private var pageTools
@@ -288,15 +290,23 @@ struct SongBandLeaderboardContent: View {
         .festivalBackground(.song(song.albumArt), session: session)
         // Kept for the back menu and window title; the principal item below holds the
         // bar empty until the header scrolls away (issue #93).
-        .festivalNavigationTitle(song.title)
+        .festivalNavigationTitle(showsSongHeader ? song.title : bandType.label)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: headerHidden)
         .toolbar {
             // iOS and iPadOS: the Mac keeps its window title (song-header R4).
             #if os(iOS)
-            SongBarTitleToolbarItem(
-                song: song, session: session, caption: bandType.label, isShown: headerHidden,
-                identifier: "fst.song-band-leaderboard.pinned-title"
-            )
+            if showsSongHeader {
+                SongBarTitleToolbarItem(
+                    song: song, session: session, caption: bandType.label, isShown: headerHidden,
+                    identifier: "fst.song-band-leaderboard.pinned-title"
+                )
+            } else if !layout.sectionChrome.isVerticalBar {
+                // Beside Song Detail: the band size alone (#342), as the solo board.
+                InstrumentPageTitleToolbarItem(
+                    instrument: nil, title: bandType.label, isShown: headerHidden,
+                    identifier: "fst.song-band-leaderboard.pinned-title"
+                )
+            }
             #endif
             if pageTools == nil {
                 ToolbarItem(placement: .festivalPageAction) { bandTypeMenu }
@@ -452,16 +462,36 @@ struct SongBandLeaderboardContent: View {
     /// The line names the band size chosen now, so it reads "Trios" the moment Trios is
     /// picked; the entry total joins only once a Trios page has answered (a Duos total
     /// never sits under "Trios").
+    ///
+    /// Beside Song Detail in a split it is the band size's own title instead
+    /// (``InstrumentPageTitle`` with no artwork, the entry total under it; #342).
+    @ViewBuilder
     private var songHeader: some View {
         let loaded = shown.flatMap { $0.key.bandType == bandType ? $0.payload.leaderboard : nil }
-        return SongHeaderRow(song: song, session: session) {
-            MarqueeText(SongLeaderboardBoardLine.text(
-                name: bandType.label, totalEntries: loaded?.totalEntries,
-                showsTotals: loaded?.showLeaderboardEntryTotals
-            ))
-            .foregroundStyle(FestivalText.primary)
+        if showsSongHeader {
+            SongHeaderRow(song: song, session: session) {
+                MarqueeText(SongLeaderboardBoardLine.text(
+                    name: bandType.label, totalEntries: loaded?.totalEntries,
+                    showsTotals: loaded?.showLeaderboardEntryTotals
+                ))
+                .foregroundStyle(FestivalText.primary)
+            }
+            .accessibilityIdentifier("fst.song-band-leaderboard.header")
+        } else {
+            InstrumentPageTitle(
+                instrument: nil, title: bandType.label,
+                subtitle: SongLeaderboardBoardLine.totalText(
+                    totalEntries: loaded?.totalEntries, showsTotals: loaded?.showLeaderboardEntryTotals
+                ),
+                style: .header, identifier: "fst.song-band-leaderboard.board-title"
+            )
         }
-        .accessibilityIdentifier("fst.song-band-leaderboard.header")
+    }
+
+    /// Whether the song header leads the board: not in a split beside Song Detail,
+    /// where the song is on screen already (owner-approved variant, #342).
+    private var showsSongHeader: Bool {
+        SongLeaderboardBoardLine.showsSongHeader(besideList: besideList)
     }
 
     // MARK: Gated rows

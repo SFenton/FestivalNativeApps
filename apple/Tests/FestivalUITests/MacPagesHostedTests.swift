@@ -123,7 +123,50 @@ private struct MacPageHost<Content: View>: View {
         #expect(recorder.path == path, "Nothing is auto-selected")
     }
 }
-/// The accessibility node with an identifier (selector-checked KVC, as
+
+/// Song Detail → View full leaderboard in the Mac split: the trailing pane is titled by
+/// the instrument and never repeats the song header; a board pushed deeper inside that
+/// pane is a page of its own and keeps the song header (owner-approved variant, #342).
+@MainActor
+@Test(arguments: [false, true])
+func macSongBoardBesideSongDetailIsTitledByItsInstrument(pushedDeeper: Bool) async throws {
+    let size = CGSize(width: 1280, height: 820)
+    let client = try FestivalAPI(
+        baseURL: try await RivalsMockService.shared.baseURL(), transport: URLSessionHTTPTransport()
+    )
+    let session = FestivalSession(factory: { client })
+    let song = try #require(try await session.catalog().catalog.songs.first { $0.songId == "fixture-pulse" })
+    var path: [AppRoute] = [.songDetail(song), .songLeaderboard(song, .lead, 1)]
+    if pushedDeeper { path.append(.songLeaderboard(song, .bass, 1)) }
+    let host = nativeHostedView(
+        MacPageHost(path: path, recorder: MacPageRecorder()) { binding in
+            MacListDetailStack(
+                section: .songs, session: session, visibleInstruments: Set(Instrument.allCases),
+                path: binding, isVisible: true, onSplitChange: { _ in }
+            ) { _ in Text("Songs Root") }
+        }
+        .frame(width: size.width, height: size.height)
+        .preferredColorScheme(.dark)
+        .macHostedStorage(),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let expected = pushedDeeper ? "fst.song-leaderboard.header" : "fst.song-leaderboard.board-title"
+    let absent = pushedDeeper ? "fst.song-leaderboard.board-title" : "fst.song-leaderboard.header"
+    let image = try await nativeHostedSettle(host, timeout: .seconds(60)) {
+        let tree = nativeHostedAccessibility(host)
+        return tree.identifiers.contains("fst.split.trailing") && tree.identifiers.contains(expected)
+    }
+    _ = try nativeHostedPNG(
+        image, filename: "mac-song-board-split-\(pushedDeeper ? "deeper" : "beside").png",
+        environment: "FST_SHELL_RENDER_OUT"
+    )
+    let tree = nativeHostedAccessibility(host)
+    #expect(tree.identifiers.contains(expected))
+    #expect(!tree.identifiers.contains(absent))
+}
+
 /// `nativeHostedAccessibility` does).
 @MainActor
 private func macAccessibilityNode(_ root: Any, identifier: String, depth: Int = 0) -> NSObject? {

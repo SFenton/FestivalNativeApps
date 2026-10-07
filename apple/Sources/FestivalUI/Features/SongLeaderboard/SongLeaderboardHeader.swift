@@ -25,4 +25,32 @@ enum SongLeaderboardBoardLine {
         guard showsTotals == true, let totalEntries else { return name }
         return "\(name) · \(totalEntries.formatted()) entries"
     }
+
+    // MARK: Split pane beside Song Detail
+
+    /// Whether a song board shows the song header (art, title, artist, board line).
+    ///
+    /// Owner-approved split-pane variant (issue #342): a board opened in a split's
+    /// trailing pane beside Song Detail is part of that song's page, so it drops the
+    /// song header and is titled by its board instead (``InstrumentPageTitle``). Pushed
+    /// boards, and boards pushed deeper inside the trailing pane, keep the header.
+    ///
+    /// - Parameter besideList: The list page beside the board
+    ///   (`EnvironmentValues.splitDetailBesideList`), nil outside a split's detail root.
+    /// - Returns: False only beside Song Detail.
+    static func showsSongHeader(besideList: OnDemandSplitPolicy.ListPage?) -> Bool {
+        besideList != .songDetail
+    }
+
+    /// The entry total under a board title beside Song Detail, on the same terms as the
+    /// board line (``text(name:totalEntries:showsTotals:)``).
+    ///
+    /// - Parameters:
+    ///   - totalEntries: Ranked entries on the board; nil while it loads.
+    ///   - showsTotals: The response's `showLeaderboardEntryTotals`.
+    /// - Returns: "1,234 entries" with totals, otherwise nil.
+    static func totalText(totalEntries: Int?, showsTotals: Bool?) -> String? {
+        guard showsTotals == true, let totalEntries else { return nil }
+        return "\(totalEntries.formatted()) entries"
+    }
 }

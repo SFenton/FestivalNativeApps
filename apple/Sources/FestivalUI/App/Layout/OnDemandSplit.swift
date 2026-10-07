@@ -28,6 +28,11 @@ extension EnvironmentValues {
     @Entry var hidesRootTabBar = false
     /// The row to give assistive-technology focus back to after the trailing pane closed.
     @Entry var listDetailFocusReturn: ListDetailFocusReturn?
+    /// The list page beside this page while it is the root of a split's trailing pane;
+    /// nil full width, in the leading pane and on pages pushed inside the trailing pane.
+    /// Song Detail's boards drop the repeated song header beside it (#342;
+    /// ``SongLeaderboardBoardLine/showsSongHeader(besideList:)``).
+    @Entry var splitDetailBesideList: OnDemandSplitPolicy.ListPage?
 }
 
 /// Asks the leading pane's row for `route` to take assistive-technology focus: the
@@ -131,10 +136,22 @@ struct SplitPaneContext: Equatable {
     var topScrim: SplitTopScrim?
     /// The row to refocus after the trailing pane closed (leading pane only).
     var focusReturn: ListDetailFocusReturn?
+    /// The list page beside the pane (trailing pane's detail root only; pages pushed
+    /// after it get nil through ``pushedPage``).
+    var besideList: OnDemandSplitPolicy.ListPage?
+
+    /// The context for a page pushed inside this pane: the same pane, but no longer the
+    /// item opened beside the list page.
+    var pushedPage: SplitPaneContext {
+        var context = self
+        context.besideList = nil
+        return context
+    }
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.paneWidth == rhs.paneWidth && lhs.role == rhs.role && lhs.selection == rhs.selection
             && lhs.select == rhs.select && lhs.topScrim === rhs.topScrim && lhs.focusReturn == rhs.focusReturn
+            && lhs.besideList == rhs.besideList
     }
 }
 
@@ -171,6 +188,9 @@ private struct SplitPaneContextModifier: ViewModifier {
             }
             .transformEnvironment(\.listDetailFocusReturn) { focusReturn in
                 if let context { focusReturn = context.focusReturn }
+            }
+            .transformEnvironment(\.splitDetailBesideList) { page in
+                if let context { page = context.besideList }
             }
             // One backdrop behind both panes: the page draws none and its navigation
             // container is clear (`SplitPaneChrome`).
@@ -466,7 +486,7 @@ struct OnDemandSplitStack<Root: View>: View {
     ///   - width: The trailing pane's width.
     /// - Returns: The trailing stack.
     private func trailingStack(cut: OnDemandSplitPolicy.Cut, selection: AppRoute, width: CGFloat) -> some View {
-        let context = SplitPaneContext(paneWidth: width, role: .trailing, topScrim: topScrim)
+        let context = SplitPaneContext(paneWidth: width, role: .trailing, topScrim: topScrim, besideList: cut.page)
         return NavigationStack(path: detailTail) {
             destination(selection)
                 .id(selection)
@@ -483,7 +503,7 @@ struct OnDemandSplitStack<Root: View>: View {
                 .navigationDestination(for: AppRoute.self) { route in
                     destination(route)
                         .modifier(TopEdgeScrim())
-                        .splitPaneContext(context)
+                        .splitPaneContext(context.pushedPage)
                         .rootTabBarVisibility()
                         .menuBarColumn(isTop: isVisible && cut.detail.last == route)
                 }
