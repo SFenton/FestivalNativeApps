@@ -1504,7 +1504,8 @@
             "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt",
             "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/BandListScreens.kt",
             "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/SongBandLeaderboardScreen.kt",
-            "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalsScreen.kt"
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalsScreen.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/compete/CompeteScreen.kt"
           ],
           "debt": [],
           "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."
