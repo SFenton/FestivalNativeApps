@@ -2,7 +2,7 @@
 
 > **What:** loading, no-result, unavailable and placeholder outcomes, including their copy, centring and retry behavior. **Read when:** a query or page can return no content or fail.
 
-Status: **current**, 2026-10-05. Provenance: #35, #65, #99, #140, #299.
+Status: **current**, 2026-10-05. Provenance: #35, #65, #99, #140, #299, #320.
 
 ## Intent
 

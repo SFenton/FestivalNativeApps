@@ -348,7 +348,7 @@ Fixed:
 
 ## Global Search validation (issue #234, 2026-10-04)
 
-Evidence: `a11y_matrix.py --pages tools/windows/journeys/a11y-search.json --fixture tools/windows/profile_fixture.py --scan --tabs 30` covers all 11 state pages: closed, suggestions, open-hint, loading, results All/Songs/Players, empty, error, bands-unavailable and navigated. It ran at compact, medium, wide, maximized and snapped, then under Desert, light and dark theme, text 200%, and display 100% and 150%. The Search page scanned with 0 Axe errors throughout; the suggestion popup hits only item 8. The keyboard pages `kb-global-search` and `kb-titlebar-order(-compact)` pass, and live public-service screenshots were taken.
+Evidence: `a11y_matrix.py --pages tools/windows/journeys/a11y-search.json --fixture tools/windows/profile_fixture.py --scan --tabs 30` covers all 11 state pages: closed, suggestions, open-hint, loading, results All/Songs/Players/Bands, empty, error and navigated (issue #320 replaced bands-unavailable with results-bands). It ran at compact, medium, wide, maximized and snapped, then under Desert, light and dark theme, text 200%, and display 100% and 150%. The Search page scanned with 0 Axe errors throughout; the suggestion popup hits only item 8. The keyboard pages `kb-global-search` and `kb-titlebar-order(-compact)` pass, and live public-service screenshots were taken.
 
 Fixed: Ctrl+E is now reported as the UIA AcceleratorKey of the compact search button, the title-bar box and its inner TextBox, so Narrator announces the shortcut.
 

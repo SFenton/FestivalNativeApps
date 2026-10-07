@@ -4,7 +4,7 @@
 
 ## Implemented
 
-- `/bands` with no band ID shows the web `BandPage` error state (operator 2026-09-28, [windows-gaps](../../testing/pwa-reference/windows-gaps.md) row 3): page title **Band**, centred **Band not found** (heading level 2) and "This band link is missing an ID and cannot be resolved." (web `band.notFound` / `band.missingId` through `EmptyState`). No hub, no search: `/api/bands/search` can write server state on a GET ([service-safety](../../platforms/service-safety.md)). The page makes no service request.
+- `/bands` with no band ID shows the web `BandPage` error state (operator 2026-09-28, [windows-gaps](../../testing/pwa-reference/windows-gaps.md) row 3): page title **Band**, centred **Band not found** (heading level 2) and "This band link is missing an ID and cannot be resolved." (web `band.notFound` / `band.missingId` through `EmptyState`). No hub and no search on this page (web parity); bands are found through global Search since issue #320. The page makes no service request.
 - The message sits in a vertical `ScrollViewer` (centred while it fits, like the Search empty state), so large text in a short window scrolls rather than clips.
 - Narrator: on load the page speaks "Band not found. This band link is missing an ID and cannot be resolved." (`ScreenReader.Announce` with `Announcement.Failure`, as `ServiceStatusView` does for errors); navigation alone reads only focus and the title.
 - Back (title-bar button or Alt+Left) from a deep-linked `/bands` opens the Leaderboards section root.
