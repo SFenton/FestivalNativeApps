@@ -602,8 +602,8 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
 
     #region Drive
 
-    /// <summary>Steps that send real mouse/keyboard input and so need the target in front.</summary>
-    private static readonly HashSet<string> InputVerbs = ["click", "rightclick", "hover", "type", "key", "scroll", "tabwalk"];
+    /// <summary>Steps that send real mouse/keyboard input, or hit-test screen points (<c>assertat</c>), and so need the target in front.</summary>
+    private static readonly HashSet<string> InputVerbs = ["click", "rightclick", "hover", "type", "key", "scroll", "tabwalk", "assertat", "tapat", "clickat"];
 
     /// <summary>Keyboard steps that <see cref="postKeys"/> posts to the window instead (no foreground needed).</summary>
     private static readonly HashSet<string> KeyVerbs = ["type", "key", "tabwalk"];
@@ -625,7 +625,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         var result = Describe(window).AsObject();
         if (announcementHandler is not null)
             response["announcements"] = new JsonArray([.. announcements.Select(a => (JsonNode)JsonValue.Create(a)!)]);
-        foreach (var key in new[] { "focus", "scans", "aligned", "pinned", "announcements", "paint", "bold" })
+        foreach (var key in new[] { "focus", "scans", "aligned", "pinned", "announcements", "sizes", "apart", "hits", "presses", "narration", "read", "orders", "paint", "bold" })
         {
             if (response[key] is not JsonArray collected) continue;
             response.Remove(key);
@@ -781,6 +781,28 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 break;
             case "assertannounced":
                 AssertAnnounced(step);
+                break;
+            case "assertsize":
+                AssertSize(window, step);
+                break;
+            case "assertapart":
+                AssertApart(window, step);
+                break;
+            case "assertat":
+                AssertAt(window, step);
+                break;
+            case "tapat":
+            case "clickat":
+                PressAt(window, step, verb == "tapat");
+                break;
+            case "narrate":
+                Narrate(window, step);
+                break;
+            case "assertread":
+                AssertRead(window, step);
+                break;
+            case "assertorder":
+                AssertOrder(window, step);
                 break;
             case "assertpaint":
                 AssertPaint(window, step);
@@ -1371,6 +1393,167 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         response["gaps"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["epx"] = Math.Round(gap, 1) });
     }
 
+    #region Hit targets
+
+    /// <summary>
+    /// Fails unless the element's UIA bounds are at least <c>width</c> x <c>height</c> effective pixels (window DPI),
+    /// allowing one device pixel: e.g. Fluent's 40x40 epx touch target (issue #271). UIA reports whole device pixels and
+    /// rounds each edge separately, so an element laid out on a half pixel (a 746 px wide window at 150%) reads one pixel
+    /// short: two adjacent 40 epx title-bar buttons measured 59 and 60 px (119 px together).
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a <c>selector</c>, <c>width</c> and <c>height</c>.</param>
+    /// <exception cref="InvalidOperationException">The element is smaller.</exception>
+    private void AssertSize(Window window, JsonObject step)
+    {
+        var rect = Find(window, step).BoundingRectangle;
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        double width = rect.Width / scale, height = rect.Height / scale;
+        double minWidth = (double)step["width"]!, minHeight = (double)step["height"]!;
+        response["sizes"] ??= new JsonArray();
+        response["sizes"]!.AsArray().Add(new JsonObject
+        {
+            ["arg"] = (string)step["arg"]!, ["width"] = Math.Round(width, 1), ["height"] = Math.Round(height, 1),
+        });
+        if (rect.Width < minWidth * scale - 1.01 || rect.Height < minHeight * scale - 1.01)
+            throw new InvalidOperationException(
+                $"{(string)step["arg"]!}: {width:0.#}x{height:0.#} epx is smaller than {minWidth:0.#}x{minHeight:0.#} epx");
+    }
+
+    /// <summary>
+    /// Fails if two on-screen elements' UIA bounds overlap (neighbouring hit targets must not share pixels). Records the
+    /// gap between them in epx (0 when they touch).
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c> and <c>other</c>.</param>
+    /// <exception cref="InvalidOperationException">The rectangles intersect.</exception>
+    private void AssertApart(Window window, JsonObject step)
+    {
+        var a = Find(window, step).BoundingRectangle;
+        var b = Find(window, step, "other").BoundingRectangle;
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        var horizontal = Math.Max(b.Left - a.Right, a.Left - b.Right);
+        var vertical = Math.Max(b.Top - a.Bottom, a.Top - b.Bottom);
+        var gap = Math.Max(horizontal, vertical) / scale;
+        response["apart"] ??= new JsonArray();
+        response["apart"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["gap_epx"] = Math.Round(gap, 1) });
+        if (horizontal < 0 && vertical < 0)
+            throw new InvalidOperationException($"{(string)step["arg"]!}: bounds overlap ({a} and {b}, physical px)");
+    }
+
+    /// <summary>
+    /// Hit-tests the point <c>dx</c>,<c>dy</c> effective pixels from the element's centre without input, so it also runs
+    /// on a locked console: the point must be client, outside the title bar's non-client caption region (where a press
+    /// drags the window instead; <see cref="Native.NonClientAt"/>), and UIA <c>ElementFromPoint</c> (XAML hit testing)
+    /// must return the element or one of its
+    /// parts; where another process covers the point (a locked console), the point must lie inside the element's bounds
+    /// instead (<c>method</c> in the result says which). A tap there activates the element. A point one device pixel
+    /// off the caption edge passes when the pixel next to it toward the centre is client (<c>edge_pixel</c>): the title
+    /// bar rounds its passthrough rects to whole pixels.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a <c>selector</c>, <c>dx</c> and <c>dy</c>.</param>
+    /// <exception cref="InvalidOperationException">The point is non-client or hits another element.</exception>
+    private void AssertAt(Window window, JsonObject step)
+    {
+        var target = Find(window, step);
+        var rect = target.BoundingRectangle;
+        var hwnd = window.Properties.NativeWindowHandle.Value;
+        var point = OffsetPoint(window, rect, step);
+        var nonClient = Native.NonClientAt(hwnd, point);
+        string? edge = null;
+        if (nonClient is not null)
+        {
+            // TitleBar truncates its passthrough rects to whole device pixels, so they can sit one pixel off the
+            // element's (rounded) UIA bounds; allow that one pixel toward the centre, like AssertSize.
+            var nudged = new Point(point.X - Math.Sign((double)step["dx"]!), point.Y - Math.Sign((double)step["dy"]!));
+            if (Native.NonClientAt(hwnd, nudged) is null)
+            {
+                edge = nonClient;
+                nonClient = null;
+            }
+        }
+        var hit = automation.FromPoint(point);
+        var hitLabel = hit is null ? "nothing" : $"{Role(hit)} \"{hit.Properties.Name.ValueOrDefault}\" id={hit.Properties.AutomationId.ValueOrDefault}";
+        bool inside;
+        string method;
+        if (hit is not null && hit.Properties.ProcessId.ValueOrDefault == window.Properties.ProcessId.ValueOrDefault)
+        {
+            method = "xaml";
+            inside = false;
+            var walker = automation.TreeWalkerFactory.GetRawViewWalker();
+            for (var e = hit; e is not null && !inside; e = walker.GetParent(e)) inside = automation.Compare(e, target);
+        }
+        else
+        {
+            // Another process covers the point (a locked console's lock screen, another lane's window): XAML hit
+            // testing is unreachable, so fall back to the element's bounds, which a templated control fills with a
+            // hit-testable background.
+            method = "bounds";
+            inside = point.X >= rect.Left && point.X < rect.Right && point.Y >= rect.Top && point.Y < rect.Bottom;
+            hitLabel = $"covered by {hitLabel}";
+        }
+        response["hits"] ??= new JsonArray();
+        response["hits"]!.AsArray().Add(new JsonObject
+        {
+            ["arg"] = (string)step["arg"]!, ["x"] = point.X, ["y"] = point.Y, ["nonclient"] = nonClient, ["inside"] = inside,
+            ["method"] = method, ["hit"] = hitLabel, ["edge_pixel"] = edge,
+        });
+        if (nonClient is not null)
+            throw new InvalidOperationException($"{(string)step["arg"]!}: the point {point} is in the window's {nonClient} (non-client: the tap would miss the button; element {rect}, region band {Native.RegionRectAt(hwnd, point)})");
+        if (!inside)
+            throw new InvalidOperationException($"{(string)step["arg"]!}: the point {point} hits {hitLabel}, not the element");
+    }
+
+    /// <summary>The screen point <c>dx</c>,<c>dy</c> effective pixels (window DPI) from a rectangle's centre.</summary>
+    /// <param name="window">App window.</param>
+    /// <param name="rect">Element bounds (physical pixels).</param>
+    /// <param name="step">Step with <c>dx</c> and <c>dy</c>.</param>
+    /// <returns>Screen point (physical pixels).</returns>
+    private static Point OffsetPoint(Window window, Rectangle rect, JsonObject step)
+    {
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        return new Point(
+            (int)Math.Round(rect.Left + rect.Width / 2.0 + (double)step["dx"]! * scale),
+            (int)Math.Round(rect.Top + rect.Height / 2.0 + (double)step["dy"]! * scale));
+    }
+
+    /// <summary>
+    /// Sends a real pointer press at the point <c>dx</c>,<c>dy</c> effective pixels from the element's centre: a touch
+    /// tap (<c>tapat</c>, injected touch input) or a left mouse click (<c>clickat</c>), e.g. just off a title-bar button's
+    /// glyph (issue #271). Unlike <c>assertat</c> the press really happens, so the title bar's caption region, XAML hit
+    /// testing and the control's own pointer handling decide the outcome; the journey's next steps assert it (a flyout, a
+    /// page, focus). Needs an unlocked console, and the app's own window must be the topmost window at the point, so the
+    /// input never reaches another lane's window. Results in <c>presses</c>.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a <c>selector</c>, <c>dx</c> and <c>dy</c>.</param>
+    /// <param name="touch">Touch tap rather than a mouse click.</param>
+    /// <exception cref="InvalidOperationException">The console is locked (injected and posted pointer input never reach
+    /// the app then: tried for #271) or another process's window covers the point.</exception>
+    private void PressAt(Window window, JsonObject step, bool touch)
+    {
+        var arg = (string)step["arg"]!;
+        if (PostedInput.IsSessionLocked())
+            throw new InvalidOperationException($"{arg}: a real pointer press needs an unlocked console (the session is locked)");
+        var rect = Find(window, step).BoundingRectangle;
+        var hwnd = window.Properties.NativeWindowHandle.Value;
+        var point = OffsetPoint(window, rect, step);
+        var owner = Native.ProcessAt(point);
+        if (owner != window.Properties.ProcessId.ValueOrDefault)
+            throw new InvalidOperationException($"{arg}: the point {point} is covered by process {owner}; no input sent");
+        response["presses"] ??= new JsonArray();
+        response["presses"]!.AsArray().Add(new JsonObject
+        {
+            ["arg"] = arg, ["kind"] = touch ? "touch" : "mouse", ["x"] = point.X, ["y"] = point.Y,
+            ["nonclient"] = Native.NonClientAt(hwnd, point),
+        });
+        if (touch) Touch.Tap(point);
+        else Mouse.Click(point, MouseButton.Left);
+    }
+
+    #endregion
+
     /// <summary>
     /// Waits (up to 3 s, for a settling jump) until the first element's top edge is <c>epx</c> effective pixels (window
     /// DPI) below the second's top edge, within 1 epx: e.g. a Quick Links section landed on its scroller's landing line.
@@ -1551,6 +1734,118 @@ internal static class Native
     [DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hwnd);
+
+    /// <summary>
+    /// Which Windows App SDK non-client input window takes a screen point. With a custom title bar the window's caption
+    /// is an <c>InputNonClientPointerSource</c> child whose window region excludes the interactive title-bar elements'
+    /// passthrough areas; <c>ReunionWindowingCaptionControls</c> holds minimize/maximize/close. A point outside both
+    /// reaches the XAML content (client). Reads window regions only, so it works on a locked console.
+    /// </summary>
+    /// <param name="hwnd">Top-level window.</param>
+    /// <param name="point">Screen point (physical pixels).</param>
+    /// <returns><c>"caption"</c> (a press drags the window), <c>"caption buttons"</c>, or <c>null</c> for client.</returns>
+    public static string? NonClientAt(IntPtr hwnd, System.Drawing.Point point)
+    {
+        string? found = null;
+        EnumChildWindows(hwnd, (child, _) =>
+        {
+            if (!IsWindowVisible(child) || !GetWindowRect(child, out var rect)
+                || point.X < rect.Left || point.X >= rect.Right || point.Y < rect.Top || point.Y >= rect.Bottom)
+                return true;
+            var name = new StringBuilder(64);
+            _ = GetClassNameW(child, name, name.Capacity);
+            var kind = name.ToString() switch
+            {
+                "ReunionWindowingCaptionControls" => "caption buttons",
+                "InputNonClientPointerSource" => "caption",
+                _ => null,
+            };
+            if (kind is null) return true;
+            var region = CreateRectRgn(0, 0, 0, 0);
+            try
+            {
+                // ERROR (0) means no region: the whole window rect takes input.
+                if (GetWindowRgn(child, region) == 0 || PtInRegion(region, point.X - rect.Left, point.Y - rect.Top))
+                {
+                    found = kind;
+                    return kind != "caption buttons";
+                }
+            }
+            finally
+            {
+                DeleteObject(region);
+            }
+            return true;
+        }, IntPtr.Zero);
+        return found;
+    }
+    /// <summary>The screen rectangle of the title-bar caption region band that contains a point (failure diagnostics).</summary>
+    /// <param name="hwnd">Top-level window.</param>
+    /// <param name="point">Screen point (physical pixels).</param>
+    /// <returns><c>left,top,right,bottom</c>, or <c>"none"</c>.</returns>
+    public static string RegionRectAt(IntPtr hwnd, System.Drawing.Point point)
+    {
+        var found = "none";
+        EnumChildWindows(hwnd, (child, _) =>
+        {
+            var name = new StringBuilder(64);
+            _ = GetClassNameW(child, name, name.Capacity);
+            if (name.ToString() != "InputNonClientPointerSource" || !GetWindowRect(child, out var rect)) return true;
+            var region = CreateRectRgn(0, 0, 0, 0);
+            try
+            {
+                if (GetWindowRgn(child, region) == 0) return true;
+                var size = GetRegionData(region, 0, IntPtr.Zero);
+                var data = Marshal.AllocHGlobal((int)size);
+                try
+                {
+                    if (GetRegionData(region, size, data) == 0) return true;
+                    var count = Marshal.ReadInt32(data, 8);
+                    for (var i = 0; i < count; i++)
+                    {
+                        var at = 32 + i * 16;
+                        int l = Marshal.ReadInt32(data, at) + rect.Left, tp = Marshal.ReadInt32(data, at + 4) + rect.Top;
+                        int r = Marshal.ReadInt32(data, at + 8) + rect.Left, b = Marshal.ReadInt32(data, at + 12) + rect.Top;
+                        if (point.X >= l && point.X < r && point.Y >= tp && point.Y < b)
+                        {
+                            found = $"{l},{tp},{r},{b}";
+                            return false;
+                        }
+                    }
+                }
+                finally
+                {
+                    Marshal.FreeHGlobal(data);
+                }
+            }
+            finally
+            {
+                DeleteObject(region);
+            }
+            return true;
+        }, IntPtr.Zero);
+        return found;
+    }
+    /// <summary>The process that owns the topmost window at a screen point (0 when none), i.e. where real input lands.</summary>
+    /// <param name="point">Screen point (physical pixels).</param>
+    /// <returns>Process id.</returns>
+    public static int ProcessAt(System.Drawing.Point point)
+    {
+        var hwnd = WindowFromPoint(new POINT { X = point.X, Y = point.Y });
+        if (hwnd == IntPtr.Zero) return 0;
+        GetWindowThreadProcessId(hwnd, out var pid);
+        return (int)pid;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT { public int X, Y; }
+    [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(POINT point);
+    [DllImport("gdi32.dll")] private static extern uint GetRegionData(IntPtr region, uint count, IntPtr data);
+    [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr hwnd, EnumWindowsProc callback, IntPtr data);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassNameW(IntPtr hwnd, StringBuilder name, int max);
+    [DllImport("user32.dll")] private static extern int GetWindowRgn(IntPtr hwnd, IntPtr region);
+    [DllImport("gdi32.dll")] private static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
+    [DllImport("gdi32.dll")] private static extern bool PtInRegion(IntPtr region, int x, int y);
+    [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr handle);
     [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
     [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
