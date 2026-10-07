@@ -33,6 +33,24 @@ class FixtureTests(unittest.TestCase):
             # The loaded fixture object itself is untouched.
             self.assertEqual(next(s for s in original["songs"] if s["songId"] == f.SONG_ID)["title"], "Fixture Pulse")
 
+    def test_short_artist_keeps_demo_artist(self):
+        with mock.patch.object(mock_service, "DEMO_SONGS", mock_service.DEMO_SONGS), \
+                mock.patch.object(mock_service, "SONGS_ETAG", mock_service.SONGS_ETAG):
+            demo_artist = next(s for s in mock_service.DEMO_SONGS["songs"] if s["songId"] == f.SONG_ID)["artist"]
+            f.install(short_artist=True)
+            song = next(s for s in mock_service.DEMO_SONGS["songs"] if s["songId"] == f.SONG_ID)
+            self.assertEqual((song["title"], song["artist"]), (f.LONG_TITLE, demo_artist))
+            self.assertLess(len(demo_artist), 30)
+            self.assertEqual(mock_service.SONGS_ETAG, f.SHORT_ARTIST_ETAG)
+
+    def test_main_strips_short_artist_flag(self):
+        with mock.patch.object(f, "install") as install, mock.patch.object(f.mock_service, "main") as main, \
+                mock.patch.object(sys, "argv", ["song_header_fixture.py", "--port", "0", "--short-artist"]):
+            f.main()
+            install.assert_called_once_with(True)
+            main.assert_called_once()
+            self.assertEqual(sys.argv, ["song_header_fixture.py", "--port", "0"])
+
     def test_long_text_overflows_compact_headers(self):
         # 500 epx window minus page padding and 80-128 epx art: no header column is wider than ~330 epx, and these
         # strings are far wider than that at every header type size.
@@ -55,11 +73,17 @@ class JourneyTests(unittest.TestCase):
         checks: dict[str, set[str]] = {}
         for journey in self.journeys:
             reduced = "--reduce-motion" in journey.get("args", [])
+            lone = "--short-artist" in journey.get("fixture", [])
             self.assertEqual(journey["preset"], "compact")
             self.assertIn("--no-art", journey["args"])  # a static backdrop: only the marquee can change pixels
             for step in journey["steps"]:
                 if step.startswith("assertmarquee:"):
                     parsed = u.parse_step(step)
+                    if lone:
+                        # Only the title overflows: it scrolls on its own while the short artist stays still.
+                        expected = "fits" if parsed["selector"]["value"].endswith("artist") else "moving"
+                        self.assertEqual(parsed["mode"], expected, step)
+                        continue
                     self.assertEqual(parsed["mode"], "static" if reduced else "moving", step)
                     checks.setdefault(parsed["selector"]["value"], set()).add(parsed["mode"])
         expected = {"fst.song-detail.title", "fst.song-detail.artist", "fst.song-detail.pinned-title",
@@ -72,6 +96,22 @@ class JourneyTests(unittest.TestCase):
         for journey in history:
             self.assertTrue(any(s.startswith("assertmarquee:id=fst.song-detail.pinned-title") for s in journey["steps"]))
         self.assertTrue(all(modes == {"moving", "static"} for modes in checks.values()), checks)
+
+    def test_two_overflowing_lines_scroll_in_lockstep(self):
+        """Every header whose title and artist both scroll checks they move the same pixels (song-header R2)."""
+        synced: set[tuple[str, str]] = set()
+        for journey in self.journeys:
+            moving = "--reduce-motion" not in journey.get("args", []) and "--short-artist" not in journey.get("fixture", [])
+            for step in journey["steps"]:
+                if step.startswith("assertmarqueesync:"):
+                    self.assertTrue(moving, f"{journey['name']}: lockstep needs two moving lines")
+                    parsed = u.parse_step(step)
+                    synced.add((parsed["selector"]["value"], parsed["other"]["value"]))
+        self.assertEqual(synced, {(f"fst.{h}.title", f"fst.{h}.artist") for h in
+                                  ("song-detail", "song-leaderboard", "song-band-leaderboard")}
+                         | {("fst.song-detail.pinned-title", "fst.song-detail.pinned-artist")})
+        lone = [j for j in self.journeys if "--short-artist" in j.get("fixture", [])]
+        self.assertEqual({j["route"] for j in lone}, {"/songs/fixture-pulse", "/songs/fixture-pulse/Solo_Guitar"})
 
 
 if __name__ == "__main__":

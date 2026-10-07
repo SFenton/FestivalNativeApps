@@ -271,8 +271,19 @@ class StepTests(unittest.TestCase):
         self.assertEqual((still["mode"], still["epx"]), ("static", 28.5))
         wrapped = u.parse_step("assertmarquee:id=fst.song-detail.title|wrapped|90")
         self.assertEqual((wrapped["mode"], wrapped["epx"]), ("wrapped", 90.0))
+        fits = u.parse_step("assertmarquee:id=fst.song-detail.artist|fits|32")
+        self.assertEqual((fits["mode"], fits["epx"]), ("fits", 32.0))
         for bad in ("assertmarquee:id=x", "assertmarquee:id=x|moving", "assertmarquee:id=x|wrap|44",
                     "assertmarquee:id=x|static|tall", "assertmarquee:10,20|moving|44"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_assertmarqueesync(self):
+        step = u.parse_step("assertmarqueesync:id=fst.song-detail.title|id=fst.song-detail.artist")
+        self.assertEqual(step["verb"], "assertmarqueesync")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.song-detail.title"})
+        self.assertEqual(step["other"], {"kind": "id", "value": "fst.song-detail.artist"})
+        for bad in ("assertmarqueesync:id=x", "assertmarqueesync:10,20|id=y"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 

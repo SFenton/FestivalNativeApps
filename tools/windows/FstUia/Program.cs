@@ -625,7 +625,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         var result = Describe(window).AsObject();
         if (announcementHandler is not null)
             response["announcements"] = new JsonArray([.. announcements.Select(a => (JsonNode)JsonValue.Create(a)!)]);
-        foreach (var key in new[] { "focus", "scans", "aligned", "pinned", "announcements", "paint", "bold", "marquees" })
+        foreach (var key in new[] { "focus", "scans", "aligned", "pinned", "announcements", "paint", "bold", "marquees", "marqueesyncs" })
         {
             if (response[key] is not JsonArray collected) continue;
             response.Remove(key);
@@ -778,6 +778,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 break;
             case "assertmarquee":
                 AssertMarquee(window, step);
+                break;
+            case "assertmarqueesync":
+                AssertMarqueeSync(window, step);
                 break;
             case "listen":
                 Listen(window);
@@ -1378,12 +1381,13 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// Single-line marquee check (song headers, issue #315). Fails unless the element is at most <c>epx</c> effective
     /// pixels high (one line, so a wrapping text view fails) and, for <c>moving</c>, its rendered pixels change between
     /// some two of three captures 1.2 s apart (the shared marquee's 8 s cycle dwells only 0.8 s at its ends), or, for
-    /// <c>static</c>, all three captures match and the line ends in an ellipsis (see <see cref="EndsInEllipsis"/>). For
+    /// <c>static</c>, all three captures match and the line ends in an ellipsis (see <see cref="EndsInEllipsis"/>), or, for
+    /// <c>fits</c> (a line short enough for its column), all three match and it does not end in an ellipsis. For
     /// <c>wrapped</c> (song-header R3, in-page titles at 150%+ text) <c>epx</c> is instead the minimum height (two or
     /// more lines) and all three captures must match: the full text wraps with no marquee.
     /// </summary>
     /// <param name="window">App window.</param>
-    /// <param name="step">Step with a <c>selector</c>, <c>mode</c> (<c>moving</c>/<c>static</c>/<c>wrapped</c>) and <c>epx</c> (maximum height, or minimum for <c>wrapped</c>).</param>
+    /// <param name="step">Step with a <c>selector</c>, <c>mode</c> (<c>moving</c>/<c>static</c>/<c>fits</c>/<c>wrapped</c>) and <c>epx</c> (maximum height, or minimum for <c>wrapped</c>).</param>
     /// <exception cref="InvalidOperationException">Taller than one line, not wrapped, not moving, moving, or not ellipsized.</exception>
     private void AssertMarquee(Window window, JsonObject step)
     {
@@ -1414,6 +1418,8 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 throw new InvalidOperationException($"{label} moved while motion is off ({changed:P2} of its pixels changed)");
             if (mode == "static" && !EndsInEllipsis(frames[0], out var detail))
                 throw new InvalidOperationException($"{label} is static but not ellipsized: {detail}");
+            if (mode == "fits" && EndsInEllipsis(frames[0], out _))
+                throw new InvalidOperationException($"{label} should fit its column but is ellipsized");
             response["marquees"] ??= new JsonArray();
             response["marquees"]!.AsArray().Add(new JsonObject
             {
