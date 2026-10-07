@@ -58,6 +58,24 @@ This pass re-checked the shared column fitter (issue #37, `LeaderboardColumnLayo
 
 Design review (`winui-design`, `winui-code-review`): keep system-colour contrast roles and follow live theme changes (design/windows.md, Live contrast switch). The one-Button row and the custom pager stay as deliberate deviations (above, #197). The journey `song-detail-preview-row-opens-player` now brings the Drums card into view with `scrollinto:`, because `scroll:` uses real mouse input, which the locked console sends to the lock screen.
 
+## Validation (issue #283, 2026-10-07)
+
+This pass re-checked the #93 behaviours (no bar title before scrolling, a floating footer, rows fading under the pinned row, chrome kept while paging). Setup: Debug build against the live public service (no `--base-url`), Through the Fire and Flames / Lead, with `SFentonX` selected (#28, pinned, page 1 of 402) and with no player. Matrix: `a11y_matrix.py --live --scan --tabs 25`. Axe.Windows reported 0 errors in every live run.
+
+| Configuration | Result |
+|---|---|
+| Compact / medium / wide, maximized, snapped left/right | ✅ selected and anonymous, 12/12. No opaque band: the rows fade over 40 epx above **Your Page** and the pinned row. With no player the rows run to the pager. AC1 (bar title) doesn't apply: the Windows title bar has no page title, and the song header scrolls with the rows |
+| Paging (next, previous, Home, End), live | ✅ the header, the pinned row and the pager stay in place, and only the rows fade out and back (live recording). A committed page change scrolls to the top (variant, see `song-leaderboard-header`) |
+| Paging fails (fixture-only: 5xx on a page change) | **Failed, fixed:** the whole board collapsed into a full-page error with the song header gone, the pinned row stayed, and focus fell to the title-bar Back button. The header now stays, an inline **Leaderboard unavailable** card with Retry replaces the rows, and the pinned row and pager hide (load-transition R4, web `EmptyState`). Retry takes focus, and focus returns to the pager on success (`FailedReloadFocus`). Full Rankings and Band Rankings get the same treatment. A failed first load still fills the page |
+| Light system theme | The app is dark-only by design (deviation as in #197); unchanged, Axe 0 at C/M/W |
+| Contrast themes Desert / Night sky | ✅ C/M/W: the rows hard-cut at the footer over a Window-colour plate, and the pinned row uses Highlight/HighlightText |
+| Transparency effects off | ✅ C/M/W, no band, rows readable |
+| Text size 200% | ✅ C/M/W: at compact the rows stack, the title marquees and the pager fits |
+| Display scale 100% / 150% | ✅ C/M/W |
+| Keyboard | Tab stops: selected 11 (compact, snaps) / 13; anonymous 8 / 10. None leaves the window and none repeats. The pager arrow keys page while focus stays on the pager. Fixture journeys: `boards-ui.json` (paging keeps chrome, failed page keeps header, header, pager keys, end gaps, rankings rows) and `band-rankings.json` pager and error pass. `full-rankings-keyboard.json` passes 4/4. `full-rankings.json` error, off-page and last-page pass; Axe 0 except open item 8 (tooltip `PopupHost`) |
+| UIA / Narrator | Order: header → rows → **Your Page** → pinned row (`fst.song-leaderboard.spotlight-footer`) → pager. The inline error is the shared service-status card, with Retry as a named Button (`fst.service-status.retry`). Spoken audio can't be checked on the locked console |
+
+Design review (`winui-design`, `winui-code-review` on the change): errors appear inline where the content would be and keep the user's context, and the Retry action takes focus. Theme brushes and the 4 px grid; no issues found. The custom pager and the one-Button rows stay as deliberate deviations (#197).
 ## IDs
 
 `fst.song-leaderboard.title`, `.artist`, `.instrument`, `.total` (only when shown), `.list`, `.row.<accountId>`, `.spotlight-footer`, `.spotlight-jump`, `.page-first|page-previous|page-info|page-next|page-last`.
