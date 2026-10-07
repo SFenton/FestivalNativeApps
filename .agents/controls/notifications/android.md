@@ -92,7 +92,7 @@ Re-checks the #76 web row design (media rail, bold values, colour-coded flags) w
   - TalkBack reads "Unread. Title. Message. Flags. Time", naming every pill in words (per chart for flag groups). Album art is decorative.
   - White text on every flag colour is at least 4.5:1 (`flagColoursMatchTheWeb`).
   - Connected `NotificationsDeviceTest` passes 3/3 on FST_Phone and on FST_Book_Fold half-open: ATF checks, reading order, 48 dp targets and the hinge.
-- The AVDs are shared: other lanes install their own builds, and one older build showed the pre-fix rows. Always drive evidence with `device.py drive --apk …`. When a higher `versionCode` is installed, uninstall it first in a separate `shell:pm uninstall` drive (`INSTALL_FAILED_VERSION_DOWNGRADE`).
+- The AVDs are shared: other lanes install their own builds, and one older build showed the pre-fix rows. Always drive evidence with `device.py drive --apk …`. A higher installed `versionCode` no longer needs a manual uninstall: `device.py` replaces it ([android.md](../../platforms/android.md), issue #190).
 - M3 deviations (deliberate; web parity): Label Medium pills instead of the chip's Label Large; non-interactive pills instead of `AssistChip`. Otherwise as in #136.
 
 ## Open
