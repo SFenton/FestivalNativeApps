@@ -1,13 +1,16 @@
 package com.festivalscoretracker.android.search
 
+import com.festivalscoretracker.android.core.bands.BandMember
+import com.festivalscoretracker.android.core.bands.PlayerBandEntry
 import com.festivalscoretracker.android.core.model.PlayerSearchResult
-import com.festivalscoretracker.android.core.nav.BandRankingsRoute
+import com.festivalscoretracker.android.core.nav.BandRoute
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.nav.FestivalSection
 import com.festivalscoretracker.android.core.nav.PlayerRoute
 import com.festivalscoretracker.android.core.nav.SongDetailRoute
 import com.festivalscoretracker.android.core.search.GlobalSearchLayout
 import com.festivalscoretracker.android.core.search.GlobalSearchResults
+import com.festivalscoretracker.android.core.search.GlobalSearchResults.Count
 import com.festivalscoretracker.android.core.search.PxRect
 import com.festivalscoretracker.android.core.search.SearchDestination
 import com.festivalscoretracker.android.core.search.SearchPresentation
@@ -85,13 +88,34 @@ class GlobalSearchCoreTest {
     }
 
     @Test
+    fun bandsRouteToTheBandPageAndCapAtTen() {
+        val entry = PlayerBandEntry(
+            bandId = "band-1",
+            teamKey = "${Fixtures.ACCOUNT_A}:${Fixtures.ACCOUNT_B}",
+            bandType = "Band_Trios",
+            appearanceCount = 1,
+            members = listOf(BandMember(Fixtures.ACCOUNT_A, "One"), BandMember(Fixtures.ACCOUNT_B, "Two")),
+        )
+        val band = GlobalSearchResults.bands(listOf(entry)).single()
+        assertEquals("band-1", band.key)
+        assertEquals(SearchDestination.Push(BandRoute("band-1", "One + Two", "Band_Trios", entry.teamKey)), band.destination)
+        assertEquals("One + Two, Trios, 1 appearance", band.accessibleName)
+        // A row without a band ID routes by its team key (same as player-bands rows).
+        val keyed = GlobalSearchResults.bands(listOf(entry.copy(bandId = ""))).single()
+        assertEquals(SearchDestination.Push(BandRoute(entry.teamKey, "One + Two", "Band_Trios", entry.teamKey)), keyed.destination)
+        assertEquals(10, GlobalSearchResults.bands(List(15) { entry.copy(bandId = "b$it") }).size)
+        assertEquals("Search songs, players, or bands", GlobalSearchResults.PLACEHOLDER)
+    }
+
+    @Test
     fun announcements() {
-        assertEquals("3 songs, 10 players", GlobalSearchResults.announcement(3, 10))
-        assertEquals("1 song, 1 player", GlobalSearchResults.announcement(1, 1))
-        assertEquals(GlobalSearchResults.NO_RESULTS, GlobalSearchResults.announcement(0, 0))
-        assertEquals("2 songs, player search failed", GlobalSearchResults.announcement(2, null))
-        assertEquals("song search failed, 0 players", GlobalSearchResults.announcement(null, 0))
-        assertEquals(BandRankingsRoute("Band_Duets"), GlobalSearchResults.bandRankings)
+        assertEquals("3 songs, 10 players", GlobalSearchResults.announcement(Count.Of(3), Count.Of(10)))
+        assertEquals("1 song, 1 player, 1 band", GlobalSearchResults.announcement(Count.Of(1), Count.Of(1), Count.Of(1)))
+        assertEquals("1 song, 0 players, 2 bands", GlobalSearchResults.announcement(Count.Of(1), Count.Of(0), Count.Of(2)))
+        assertEquals(GlobalSearchResults.NO_RESULTS, GlobalSearchResults.announcement(Count.Of(0), Count.Of(0), Count.Of(0)))
+        assertEquals("2 songs, player search failed, 0 bands", GlobalSearchResults.announcement(Count.Of(2), Count.Failed, Count.Of(0)))
+        assertEquals("0 songs, 0 players, band search failed", GlobalSearchResults.announcement(Count.Of(0), Count.Of(0), Count.Failed))
+        assertEquals("song search failed, 0 players", GlobalSearchResults.announcement(Count.Failed, Count.Of(0)))
     }
 
     @Test

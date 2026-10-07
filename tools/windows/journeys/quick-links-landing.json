@@ -114,7 +114,15 @@
       "waitgone:id=fst.quick-links.item.instrument:Solo_Drums@5",
       "assertinset:id=fst.player.section.Solo_Drums|id=fst.player.available|40",
       "assertstate:id=fst.quick-links.open|name=Quick Links, current section Drums@5",
-      "shot:{stem}-drums.png"
+      "shot:{stem}-drums.png",
+      "scrollinto:id=fst.quick-links.open@5",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.bands@5",
+      "toggle:id=fst.quick-links.item.bands",
+      "waitgone:id=fst.quick-links.item.bands@5",
+      "assertinset:id=fst.player.bands-section|id=fst.player.available|32",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Bands@5",
+      "shot:{stem}-bands.png"
     ]
   },
   {
@@ -134,7 +142,11 @@
       "assertstate:id=fst.quick-links.item.instrument:Solo_Drums|selected=true@5",
       "shot:{stem}-drums.png",
       "invoke:id=fst.quick-links.item.instrument:Solo_PeripheralGuitar",
-      "assertstate:id=fst.quick-links.item.instrument:Solo_PeripheralGuitar|selected=true@5"
+      "assertstate:id=fst.quick-links.item.instrument:Solo_PeripheralGuitar|selected=true@5",
+      "invoke:id=fst.quick-links.item.bands",
+      "assertinset:id=fst.player.bands-section|id=fst.player.available|32",
+      "assertstate:id=fst.quick-links.item.bands|selected=true@5",
+      "shot:{stem}-bands.png"
     ]
   },
   {

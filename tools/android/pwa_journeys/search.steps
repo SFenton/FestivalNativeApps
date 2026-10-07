@@ -1,4 +1,4 @@
-# Global search and profile sheet: open/close only. Typing would query /api/bands/search (blocked).
+# Global search and profile sheet: open/close only. Typing would query production /api/bands/search (blocked until the #320 read-only service fix is live).
 route:/songs
 ?click:aria=Clear Search@1   # a leftover songs filter persists across journeys
 wait:2.5

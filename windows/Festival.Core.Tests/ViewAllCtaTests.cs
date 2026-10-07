@@ -65,13 +65,16 @@ public class ViewAllCtaTests
         Assert.Equal("View All Rivals", ViewAllCta.RivalsLabel);
         Assert.Equal("View All Rankings", ViewAllCta.RankingsLabel);
         Assert.Equal("View All Scores", ViewAllCta.ScoresLabel);
+        Assert.Equal("View All Bands", ViewAllCta.BandsLabel);
+        Assert.Equal("View All", ViewAllCta.ListLabel);
     }
 
     [Fact]
     public void RivalsAndSongDetail_UseTheSharedButton()
     {
         var consumers = Consumers();
-        // Song Detail Score History + instrument + band cards, Leaderboards solo + band cards, the Rivals hub cards.
+        // Song Detail Score History + instrument + band cards, Leaderboards solo + band cards and the Rivals hub cards.
+        // The profile's Bands groups use the frosted ViewAllCard instead (surface-materials R7, issue #312).
         Assert.Equal(["LeaderboardsPage.xaml", "LeaderboardsPage.xaml", "RivalsPage.xaml", "SongDetailPage.xaml", "SongDetailPage.xaml",
             "SongDetailPage.xaml"],
             consumers.Select(c => c.File).Order(StringComparer.Ordinal));

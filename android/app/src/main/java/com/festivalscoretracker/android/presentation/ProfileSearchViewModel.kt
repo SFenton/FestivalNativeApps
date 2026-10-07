@@ -21,8 +21,8 @@ import kotlinx.coroutines.flow.stateIn
 // region Profile search
 
 /**
- * Profile search targets. Band search is never requested: the service's band
- * search GET can rebuild membership state (service-safety.md).
+ * Profile search targets. The Bands target requests nothing: selecting a band as the
+ * profile isn't supported yet, and global search is where bands are found (issue #320).
  *
  * @property label Segment label.
  * @property placeholder Search field prompt.
