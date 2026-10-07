@@ -83,6 +83,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ScrollEdgeFade.kt",
             "symbol": "bottomChromeEdgeFade"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsBoardScaffold.kt",
+            "symbol": "RankingsBoardLayout"
           }
         ],
         "windows": [
@@ -174,6 +178,7 @@
         298,
         301,
         305,
+        306,
         308,
         319,
         322
@@ -1132,6 +1137,7 @@
         "pages": [
           "song-detail",
           "song-leaderboard",
+          "song-band-leaderboard",
           "leaderboards",
           "compete",
           "full-rankings"
