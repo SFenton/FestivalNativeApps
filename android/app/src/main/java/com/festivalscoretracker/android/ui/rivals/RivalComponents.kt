@@ -263,6 +263,8 @@ fun RivalSectionHeader(
  * @param viewAllLabel Button text.
  * @param revealed Whether the rows have finished loading ([festivalFadeIn]: web `nextStagger`).
  * @param cardName The card's title, spoken after the button label (`view-all-cta` R4).
+ * @param firstStagger Entrance index of the first row; the rest and the button follow it (Compete
+ *   continues its page-wide order, web `useStagger().next()`).
  */
 @Composable
 fun RivalPreviewRows(
@@ -272,17 +274,18 @@ fun RivalPreviewRows(
     viewAllLabel: String = RivalText.VIEW_ALL_RIVALS,
     revealed: Boolean = true,
     cardName: String? = null,
+    firstStagger: Int = 1,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         rows.forEachIndexed { index, entry ->
             androidx.compose.runtime.key(entry.key(index)) {
-                RivalRow(entry, onClick = { onRival(entry) }, modifier = Modifier.festivalFadeIn(revealed, fadeInStagger(index + 1)))
+                RivalRow(entry, onClick = { onRival(entry) }, modifier = Modifier.festivalFadeIn(revealed, fadeInStagger(firstStagger + index)))
             }
         }
         if (onViewAll != null) {
             ViewFullLeaderboardButton(
                 onClick = onViewAll,
-                modifier = Modifier.festivalFadeIn(revealed, fadeInStagger(rows.size + 1)),
+                modifier = Modifier.festivalFadeIn(revealed, fadeInStagger(firstStagger + rows.size)),
                 label = viewAllLabel,
                 testTag = "fst.rivals.view-all",
                 cardName = cardName,
