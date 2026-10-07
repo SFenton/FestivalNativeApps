@@ -89,7 +89,7 @@ public sealed partial class PlayerHistoryViewModel : ObservableObject, IDisposab
     /// <summary>Phase.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsLoading), nameof(ShowRows), nameof(ShowError), nameof(ShowMessage), nameof(Message),
-        nameof(MessageTitle), nameof(CanRetryMessage))]
+        nameof(MessageTitle), nameof(CanRetryMessage), nameof(CanSelectPlayer))]
     private PlayerHistoryPhase phase = PlayerHistoryPhase.Loading;
 
     /// <summary>Every score in the chosen order, as shared leaderboard rows (web <c>LeaderboardEntry</c>).</summary>
@@ -120,6 +120,9 @@ public sealed partial class PlayerHistoryViewModel : ObservableObject, IDisposab
 
     /// <summary>Whether a retry is offered with the message (syncing only).</summary>
     public bool CanRetryMessage => Phase == PlayerHistoryPhase.Syncing;
+
+    /// <summary>Whether the message offers Select Player (no player; same action as the Rivals no-player state).</summary>
+    public bool CanSelectPlayer => Phase == PlayerHistoryPhase.NoPlayer;
 
     /// <summary>Message heading.</summary>
     public string MessageTitle => Phase switch

@@ -80,6 +80,9 @@
                 <TextBlock Text="{x:Bind ViewModel.Message, Mode=OneWay}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                 <Button Content="Retry" Command="{x:Bind ViewModel.LoadCommand}" Visibility="{x:Bind ViewModel.CanRetryMessage, Mode=OneWay}"
                         AutomationProperties.Name="Retry score history" AutomationProperties.AutomationId="fst.history.retry" />
+                <Button Content="Select Player" Style="{StaticResource AccentButtonStyle}" Click="OnSelectPlayer"
+                        Visibility="{x:Bind ViewModel.CanSelectPlayer, Mode=OneWay}"
+                        MinHeight="{StaticResource FSTMinTargetSize}" AutomationProperties.AutomationId="fst.history.select-player" />
             </StackPanel>
         </Border>
 

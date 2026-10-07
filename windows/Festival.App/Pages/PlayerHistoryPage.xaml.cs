@@ -112,5 +112,10 @@ public sealed partial class PlayerHistoryPage : Page, IBackdropPage
     /// <param name="sender">Menu item.</param>
     /// <param name="e">Unused.</param>
     private void OnSortResetClick(object sender, RoutedEventArgs e) => ViewModel.ResetSortCommand.Execute(null);
+
+    /// <summary>Opens the profile picker from the no-player state (same action as Rivals' Select Player).</summary>
+    /// <param name="sender">Button.</param>
+    /// <param name="e">Unused.</param>
+    private void OnSelectPlayer(object sender, RoutedEventArgs e) => MainWindow.Instance?.OpenProfilePicker();
 }
 #endregion

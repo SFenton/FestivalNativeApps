@@ -220,15 +220,17 @@ JOURNEYS = [
         expect=[["fst.service-status.title", "fst.history.title"]],
         forbid=[["fst.history.list", "fst.history.message"]],
     ),
-    # Without a player, a history link is a player-only route and opens Songs (AppRouteParser.RequiresPlayer); Song
-    # Detail then hides the card (web: no chart, no message).
+    # Without a player, a history link opens the page's own no-player state (web PlayerHistoryPage, issue #324): song
+    # header, "No Player Selected" + Select Player, no request; the header's song opens Song Detail, which hides the card.
     Journey(
         name="history-anonymous",
         launch=["--route", HISTORY_ROUTE, *ANONYMOUS],
-        steps=[["waitfor:id=fst.songs.list@15", "wait:2"],
-               ["invoke:id=fst.songs.row.fixture-pulse", "waitfor:id=fst.song-detail.title@15", "wait:3"]],
-        expect=[["fst.songs.list"], ["fst.song-detail.title"]],
-        forbid=[["Score History", "fst.history."], ["Score History", "fst.history."]],
+        steps=[["waitfor:id=fst.history.message@15", "waitfor:id=fst.history.select-player@5", "wait:1"],
+               ["invoke:id=fst.history.song", "waitfor:id=fst.song-detail.title@15", "wait:3"]],
+        expect=[["No Player Selected", "Select a player profile", "fst.history.select-player", "fst.history.title"],
+                ["fst.song-detail.title"]],
+        forbid=[["fst.history.list", "fst.history.sort.open", "fst.history.retry", "fst.songs.list"],
+                ["Score History", "fst.history."]],
     ),
     # An unregistered player (404): Song Detail hides the card; the history page says why (web registered-users copy).
     Journey(

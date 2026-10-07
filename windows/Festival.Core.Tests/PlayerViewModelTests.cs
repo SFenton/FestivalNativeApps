@@ -493,6 +493,8 @@ public class PlayerHistoryViewModelTests
         Assert.True(vm.ShowMessage);
         Assert.Equal("No Player Selected", vm.MessageTitle);
         Assert.Contains("Select a player", vm.Message);
+        Assert.True(vm.CanSelectPlayer);
+        Assert.False(vm.CanRetryMessage);
         Assert.Empty(fake.Service.Handler.To($"/api/player/{PlayerWire.Id}/history"));
     }
 
@@ -617,6 +619,20 @@ public class PlayerHistoryViewModelTests
         session.UpdateSettings(s => s with { SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "One") });
         await Async.Settle();
         Assert.Equal(PlayerHistoryPhase.NoPlayer, vm.Phase);
+    }
+
+    [Fact]
+    public async Task NoPlayer_SelectingAPlayerLoadsTheHistoryInPlace()
+    {
+        var fake = new PlayerFakeService();
+        var session = fake.Session();
+        using var vm = new PlayerHistoryViewModel(session, Route);
+        await vm.LoadAsync();
+        Assert.True(vm.CanSelectPlayer);
+        session.UpdateSettings(s => s with { SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "One") });
+        await Async.Until(() => vm.Phase != PlayerHistoryPhase.NoPlayer && vm.Phase != PlayerHistoryPhase.Loading);
+        Assert.False(vm.CanSelectPlayer);
+        Assert.Single(fake.Service.Handler.To($"/api/player/{PlayerWire.Id}/history"));
     }
 }
 
