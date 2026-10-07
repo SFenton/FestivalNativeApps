@@ -4,6 +4,8 @@
 
 Source: the service contract `docs/components/in-app-feedback.md` and `FSTService/Api/FeedbackEndpoints.cs` in the service repo (branch `report/78-service` when written). The pinned web revision has no form yet (contract anchor: App Settings, `FortniteFestivalWeb/src/pages/settings/SettingsPage.tsx:516`); the in-progress web form is `FortniteFestivalWeb/src/pages/settings/feedback/FeedbackModal.tsx` on `report/78-web`. The service document wins on any difference.
 
+Rollout: production turns `feedback` on through the release machine's declared feature rollout ([release machine](../../workflow/release-machine.md#service-feature-flags)), not through a client change.
+
 ## Service contract (summary)
 
 | Call | Use |
