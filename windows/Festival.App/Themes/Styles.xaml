@@ -5,7 +5,8 @@
 <ResourceDictionary
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:services="using:Festival.App.Services">
+    xmlns:services="using:Festival.App.Services"
+    xmlns:controls="using:Festival.App.Controls">
 
     <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Default">
@@ -374,6 +375,23 @@
         <Setter Property="MinHeight" Value="{StaticResource FSTMinTargetSize}" />
         <Setter Property="Margin" Value="0,4,0,0" />
         <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- Frosted "View all" card (surface-materials R7; web PlayerBandsSection BandViewAllCard, frostedCard at
+         Layout.entryRowHeight 48 px): the canonical card surface and stroke, full width, 48 epx minimum height; the
+         control centres its label and chevron and swaps in the card hover/press fills. Profile Bands' View All Bands (N)
+         (issue #312). Consumers set no layout or colour overrides (ViewAllCardTests). -->
+    <x:Double x:Key="FSTViewAllCardMinHeight">48</x:Double>
+    <Style TargetType="controls:ViewAllCard">
+        <Setter Property="Background" Value="{ThemeResource FSTCardSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource FSTCardStrokeBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="MinHeight" Value="{StaticResource FSTViewAllCardMinHeight}" />
+        <Setter Property="Padding" Value="16,8" />
     </Style>
 
     <!-- Instrument / band header above a card (web InstrumentHeader MD): 36 epx icon, bold title, optional subtitle. -->

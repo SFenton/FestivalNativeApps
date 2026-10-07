@@ -83,6 +83,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ScrollEdgeFade.kt",
             "symbol": "bottomChromeEdgeFade"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsBoardScaffold.kt",
+            "symbol": "RankingsBoardLayout"
           }
         ],
         "windows": [
@@ -174,6 +178,7 @@
         298,
         301,
         305,
+        306,
         308,
         319,
         322
@@ -533,6 +538,10 @@
           {
             "path": "windows/Festival.App/Controls/LeaderboardsPager.xaml.cs",
             "symbol": "LeaderboardsPager"
+          },
+          {
+            "path": "windows/Festival.App/Controls/ViewAllCard.cs",
+            "symbol": "ViewAllCard"
           }
         ]
       },
@@ -575,6 +584,14 @@
           "allow": [],
           "debt": [],
           "message": "The board pager draws on the rows' FSTCardSurfaceBrush / FSTCardStrokeBrush, never a pager-only plate (surface-materials R1, #319)."
+        },
+        {
+          "id": "windows-profile-purple-view-all",
+          "glob": "windows/Festival.App/Controls/PlayerProfileView.xaml",
+          "regex": "FSTViewAllButtonStyle",
+          "allow": [],
+          "debt": [],
+          "message": "The profile's View All Bands (N) is the frosted ViewAllCard (web BandViewAllCard), not the purple leaderboard CTA (surface-materials R7, #312)."
         }
       ],
       "related": {
@@ -1132,6 +1149,7 @@
         "pages": [
           "song-detail",
           "song-leaderboard",
+          "song-band-leaderboard",
           "leaderboards",
           "compete",
           "full-rankings"
