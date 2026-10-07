@@ -93,7 +93,8 @@ class FixtureServerTests(unittest.TestCase):
     def test_slow_board_answers_the_normal_page_late(self):
         started = time.monotonic()
         status, body = self.get("/api/rankings/Solo_Vocals?page=1&pageSize=10")
-        self.assertGreaterEqual(time.monotonic() - started, 0.2)
+        # Windows' monotonic clock ticks about every 16 ms, so a 0.2 s sleep can measure slightly short.
+        self.assertGreaterEqual(time.monotonic() - started, 0.15)
         self.assertEqual((status, body["totalAccounts"]), (200, 3))
 
 

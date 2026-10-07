@@ -23,6 +23,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.festivalscoretracker.android.core.compete.CompeteText
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.CompeteRoute
 import com.festivalscoretracker.android.core.nav.DebugLaunch
@@ -93,32 +94,34 @@ class CompeteDeviceJourneyTest {
     }
 
     /**
-     * While its reads are in flight every card shows a labelled, indeterminate Material 3
-     * progress indicator that TalkBack reads, and rows replace it once they arrive (#65, #173).
+     * Issue #354 (web `CompetePage` `usePageTransition`, load-transition R1): while any read is
+     * in flight Compete shows one labelled, indeterminate Material 3 progress indicator that
+     * TalkBack reads, and no headers or cards; once every read settles the spinner gives way to
+     * the headers and cards, and no card ever shows its own spinner.
      */
     @Test
-    fun cardsShowLabelledProgressUntilRowsArrive() {
+    fun pageShowsOneLabelledSpinnerUntilEveryReadSettles() {
         val gate = CompletableDeferred<Unit>()
         transport.beforeRespond = { request -> if ("/api/rankings" in request.url || "/rivals/" in request.url) gate.await() }
         h.enableAccessibilityChecks()
         h.launch(debug(), transport)
-        val comboLoading = "fst.compete.leaderboard-card.0f.loading"
-        h.waitForTag(comboLoading)
-        scrollUntil(hasTestTag("$leadCard.loading"))
-        rule.onNode(hasContentDescription("Loading Lead leaderboard"), useUnmergedTree = true)
+        h.waitForTag(PAGE_LOADING)
+        rule.onNode(hasContentDescription(CompeteText.LOADING), useUnmergedTree = true)
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo.Indeterminate))
-        h.awaitAccessibilityTree(present = "$leadCard.loading")
+        h.awaitAccessibilityTree(present = PAGE_LOADING)
         val spoken = h.readingOrder("compete-loading")
-        assertTrue("TalkBack never reaches the Lead spinner: $spoken", spoken.any { it.startsWith("Loading Lead leaderboard") })
-        h.assertNothingStraddles(comboLoading, "$leadCard.loading")
+        assertTrue("TalkBack never reaches the page spinner: $spoken", spoken.any { it.startsWith(CompeteText.LOADING) })
+        listOf(GRID, "fst.compete.section.leaderboards", "fst.compete.leaderboard-card.0f", "$leadCard.loading").forEach { tag ->
+            assertTrue("$tag shown while Compete loads", !h.exists(tag))
+        }
 
         gate.complete(Unit)
+        h.waitForTag("fst.compete.section.leaderboards")
+        h.waitGone(PAGE_LOADING)
         scrollUntil(hasTestTag("fst.compete.spotlight.Solo_Guitar"))
-        assertTrue("Lead spinner stayed after its rows arrived", !h.exists("$leadCard.loading"))
-        h.waitGone(comboLoading)
+        assertTrue("A card showed its own spinner", !h.exists("$leadCard.loading"))
         h.assertAccessible()
     }
-
     @Test
     fun leaderboardsGroupOpensTheFullBoardAndComesBack() {
         launch()
@@ -203,6 +206,7 @@ class CompeteDeviceJourneyTest {
 
     private companion object {
         const val GRID = "fst.compete.grid"
+        const val PAGE_LOADING = "fst.compete.loading"
 
         /** A board row's `X / Y` songs cell (issue #38). */
         val SONGS_CELL = SemanticsMatcher("songs cell") { node ->

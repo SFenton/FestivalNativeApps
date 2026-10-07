@@ -58,6 +58,8 @@ import com.festivalscoretracker.android.core.rankings.RankingSpotlightSource
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.leaderboards.LeaderboardsViewModel
 import com.festivalscoretracker.android.core.shell.LoadSwapPhase
+import com.festivalscoretracker.android.ui.common.FoldLane
+import com.festivalscoretracker.android.ui.common.ProvideFoldLane
 import com.festivalscoretracker.android.ui.common.LoadSwapSpinner
 import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.common.FestivalScreen
@@ -241,6 +243,8 @@ private fun OverviewList(
     val columns = layout.columns
     val gap = LeaderboardsLayoutPolicy.GAP_DP.dp
     val rowHinge = hinge?.let { HingeSplit(it.start - gap, it.end - gap) }
+    // The Bands header keeps to the leading card's pane while rows split at the hinge (section-headers R9).
+    val leadingPane = rowHinge?.takeIf { columns == 2 }?.let { (it.start - gap / 2).coerceAtLeast(0.dp) }
     val instrumentCards: List<@Composable () -> Unit> = layout.gridInstruments.map { instrument ->
         { InstrumentCard(instrument, viewModel, metric, selected, navigate) }
     }
@@ -272,7 +276,9 @@ private fun OverviewList(
             item(key = "instruments-$columns-$index") { CardGridRow(row, columns, rowHinge, gap) }
         }
         // `/bands` without a band is "Band not found" (web parity), so the link opens Band Rankings.
-        item(key = "bands-header") { BandsHeader { navigate(BandRankingsRoute(BandType.entries.first().wireId)) } }
+        item(key = "bands-header") {
+            ProvideFoldLane(leadingPane) { FoldLane { BandsHeader { navigate(BandRankingsRoute(BandType.entries.first().wireId)) } } }
+        }
         bandCards.chunked(columns).forEachIndexed { index, row ->
             item(key = "bands-$columns-$index") { CardGridRow(row, columns, rowHinge, gap) }
         }
@@ -287,7 +293,7 @@ private fun OverviewList(
  */
 @Composable
 private fun BandsHeader(onBrowse: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp).testTag("fst.leaderboards.bands-header")) {
         Text(
             "Bands",
             style = MaterialTheme.typography.headlineSmall,

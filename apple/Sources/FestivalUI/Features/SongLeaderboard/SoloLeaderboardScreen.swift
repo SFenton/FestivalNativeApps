@@ -31,6 +31,8 @@ struct SoloLeaderboardScreen: View {
     /// The chart's measured width, for the section's fitted columns (issue #37).
     @State private var chartWidth: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The list page beside this board in a split (Song Detail drops the song header, #342).
+    @Environment(\.splitDetailBesideList) private var besideList
     /// The last loaded page: keeps the pager's page count and the footer's columns
     /// while the next page loads, so neither disappears (issue #93).
     @State private var shownPayload: LeaderboardPayload?
@@ -296,22 +298,23 @@ struct SoloLeaderboardScreen: View {
         .coordinateSpace(.named(Self.pageSpace))
         .detailFadeTestSafe()
         .festivalBackground(.song(song.albumArt), session: session)
-        .festivalNavigationTitle(song.title)
+        .festivalNavigationTitle(showsSongHeader ? song.title : instrument.label)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: headerHidden)
         .toolbar {
             #if os(iOS)
             // iOS and iPadOS: the Mac keeps its window title (song-header R4).
-            SongBarTitleToolbarItem(
-                song: song, session: session, caption: instrument.label, isShown: headerHidden,
-                identifier: "fst.song-leaderboard.pinned-title"
-            )
-            if let shownPayload {
-                RankingsPagerToolbarContent(
-                    page: page, totalPages: shownPayload.leaderboard.pageCount,
-                    idPrefix: "fst.song-leaderboard"
-                ) { destination in
-                    move(to: destination)
-                }
+            if showsSongHeader {
+                SongBarTitleToolbarItem(
+                    song: song, session: session, caption: instrument.label, isShown: headerHidden,
+                    identifier: "fst.song-leaderboard.pinned-title"
+                )
+            } else if !layout.sectionChrome.isVerticalBar {
+                // Beside Song Detail: the board's own title (#342); the Duo rail draws
+                // the system inline title instead, as on Full Rankings.
+                InstrumentPageTitleToolbarItem(
+                    instrument: instrument, title: instrument.label, isShown: headerHidden,
+                    identifier: "fst.song-leaderboard.pinned-title"
+                )
             }
             #endif
         }
@@ -396,7 +399,7 @@ struct SoloLeaderboardScreen: View {
         PinnedChromeSpacing.resolve(
             rowGap: Double(Self.rowGap), rowBottomInset: Double(Self.rowInset), edgePadding: 8,
             hasFooter: session.selectedPlayer != nil && selectedPlayerEntry() != nil,
-            hasPager: shownPayload != nil && !layout.sectionChrome.isVerticalBar
+            hasPager: shownPayload != nil
         )
     }
 
@@ -535,21 +538,44 @@ struct SoloLeaderboardScreen: View {
     /// (the shared ``SongHeaderRow``, issue #315: the title used to wrap beside empty
     /// space).
     ///
+    /// Beside Song Detail in a split it is the board's own title instead
+    /// (``InstrumentPageTitle``: instrument artwork and name, the entry total under it).
+    ///
     /// - Parameter payload: Current chart, including its optional totals disclosure.
     /// - Returns: The shared song header with the instrument's board line.
+    @ViewBuilder
     private func scoreHeader(_ payload: LeaderboardPayload) -> some View {
-        SongHeaderRow(song: song, session: session, onHeightChange: { headerHeight = $0 }) {
-            HStack(spacing: 6) {
-                InstrumentIcon(instrument, size: 20)
-                    .accessibilityHidden(true)
-                MarqueeText(SongLeaderboardBoardLine.text(
-                    name: instrument.label, totalEntries: payload.leaderboard.totalEntries,
-                    showsTotals: payload.leaderboard.showLeaderboardEntryTotals
-                ))
-                .foregroundStyle(FestivalText.primary)
+        if showsSongHeader {
+            SongHeaderRow(song: song, session: session, onHeightChange: { headerHeight = $0 }) {
+                HStack(spacing: 6) {
+                    InstrumentIcon(instrument, size: 20)
+                        .accessibilityHidden(true)
+                    MarqueeText(SongLeaderboardBoardLine.text(
+                        name: instrument.label, totalEntries: payload.leaderboard.totalEntries,
+                        showsTotals: payload.leaderboard.showLeaderboardEntryTotals
+                    ))
+                    .foregroundStyle(FestivalText.primary)
+                }
             }
+            .accessibilityIdentifier("fst.song-leaderboard.header")
+        } else {
+            // Beside Song Detail the song is already on screen: the board's title only.
+            InstrumentPageTitle(
+                instrument: instrument, title: instrument.label,
+                subtitle: SongLeaderboardBoardLine.totalText(
+                    totalEntries: payload.leaderboard.totalEntries,
+                    showsTotals: payload.leaderboard.showLeaderboardEntryTotals
+                ),
+                style: .header, identifier: "fst.song-leaderboard.board-title"
+            )
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
         }
-        .accessibilityIdentifier("fst.song-leaderboard.header")
+    }
+
+    /// Whether the song header leads the board: not in a split beside Song Detail,
+    /// where the song is on screen already (owner-approved variant, #342).
+    private var showsSongHeader: Bool {
+        SongLeaderboardBoardLine.showsSongHeader(besideList: besideList)
     }
 
     /// Load a specific page and reject late responses from a previous selection.

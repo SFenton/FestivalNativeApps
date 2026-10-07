@@ -16,12 +16,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.rivals.ColumnSpec
 import com.festivalscoretracker.android.core.rivals.HingeColumns
+import com.festivalscoretracker.android.ui.common.ProvideFoldLane
 import com.festivalscoretracker.android.ui.common.rememberSingleColumn
 import kotlin.math.roundToInt
 import com.festivalscoretracker.android.ui.common.rememberMeasuredBounds
@@ -53,7 +56,8 @@ private class SpecCells(private val spec: ColumnSpec) : StaggeredGridCells {
  * A masonry card grid for Rivals/Compete: 1–[maxColumns] columns of at least
  * [minColumn], or exactly two columns meeting at a separating vertical hinge
  * (book/passport foldables half-open) so no card straddles the fold. Only the
- * WindowManager hinge and the grid's own window bounds are used.
+ * WindowManager hinge and the grid's own window bounds are used. Full-line items
+ * belong in `foldLaneItem`, which keeps them in the leading pane while split.
  *
  * @param contentPadding Padding inside the scrolling area (top clears the app bar, bottom the nav bar).
  * @param modifier Modifier.
@@ -93,22 +97,27 @@ fun AdaptiveCardGrid(
     // One column under TalkBack or at large text (see rememberSingleColumn).
     val singleColumn = rememberSingleColumn()
     val cells = remember(spec, singleColumn) { if (bounds == null || singleColumn) StaggeredGridCells.Fixed(1) else SpecCells(spec) }
-    LazyVerticalStaggeredGrid(
-        columns = cells,
-        state = state,
-        contentPadding = contentPadding,
-        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(with(density) { spec.spacing.toDp() }),
-        verticalItemSpacing = 16.dp,
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = horizontalPadding)
-            .onGloballyPositioned { coordinates ->
-                val next = coordinates.positionInWindow().x.roundToInt() to coordinates.size.width
-                if (next != bounds) bounds = next
-            }
-            .let { if (testTag != null) it.testTag(testTag) else it },
-        content = content,
-    )
+    // Full-line items (foldLaneItem) stay in the leading pane while the columns split at the hinge.
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val leadingPane = if (bounds == null || singleColumn) null else spec.leadingPane(rtl)?.let { with(density) { it.toDp() } }
+    ProvideFoldLane(leadingPane) {
+        LazyVerticalStaggeredGrid(
+            columns = cells,
+            state = state,
+            contentPadding = contentPadding,
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(with(density) { spec.spacing.toDp() }),
+            verticalItemSpacing = 16.dp,
+            modifier = modifier
+                .fillMaxSize()
+                .padding(horizontal = horizontalPadding)
+                .onGloballyPositioned { coordinates ->
+                    val next = coordinates.positionInWindow().x.roundToInt() to coordinates.size.width
+                    if (next != bounds) bounds = next
+                }
+                .let { if (testTag != null) it.testTag(testTag) else it },
+            content = content,
+        )
+    }
 }
 
 // endregion

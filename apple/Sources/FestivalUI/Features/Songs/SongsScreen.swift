@@ -66,6 +66,8 @@ struct SongsScreen: View, Equatable {
     /// ``SongsDrawerOverlap``).
     @State private var drawerBarBottom = CGFloat.nan
     @State private var listSafeTop = CGFloat.nan
+    /// The iPhone Duo bottom Filter field's top in ``pageSpace`` (issue #333).
+    @State private var bottomFilterTop: CGFloat?
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var deviceLayout
     /// Song to scroll back to after an iPhone Duo fold/unfold rebuilt this list (`/duo` D6).
@@ -366,6 +368,10 @@ struct SongsScreen: View, Equatable {
     }
 
     var body: some View {
+        // Read here, not only inside the reload gate's content, so measuring the Duo
+        // bottom field always rebuilds the list's fade mask (issues #294, #333).
+        let filterTop = bottomFilterTop
+        let filterPlacement = self.filterPlacement
         VStack(spacing: 0) {
             let _ = MainThreadStallMonitor.count("songs.body")
             if let navigationNotice {
@@ -491,7 +497,10 @@ struct SongsScreen: View, Equatable {
                         }
                     }
                 } else {
-                    populatedList(payload: payload, visible: visible, effectiveMode: effectiveMode)
+                    populatedList(
+                        payload: payload, visible: visible, effectiveMode: effectiveMode,
+                        bottomFieldTop: filterPlacement == .bottom ? filterTop : nil
+                    )
                 }
                 }
                 }
@@ -500,15 +509,33 @@ struct SongsScreen: View, Equatable {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        // iPhone Duo: the Filter field sits at the bottom of the page, on the trailing
+        // page across a book-pose fold (owner, issues #333, #349;
+        // ``SongsFilterFieldPlacement``, ``BottomSearchField``). A bottom safe-area
+        // inset, so the list's last rows and the A–Z scrubber end above it and the
+        // keyboard lifts it.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if filterPlacement == .bottom {
+                BottomSearchField(
+                    text: $searchText, prompt: "Filter Songs", accessibilityLabel: "Filter Songs",
+                    identifier: "fst.songs.filter-field", clearIdentifier: "fst.songs.filter-clear",
+                    hinge: BottomSearchFieldPlacement.pageHinge(for: deviceLayout),
+                    space: Self.pageSpace
+                ) { top in
+                    if top != bottomFilterTop { bottomFilterTop = top }
+                }
+            }
+        }
+        .coordinateSpace(.named(Self.pageSpace))
         .festivalBackground(.carousel, session: session, visible: isVisible)
         .navigationTitle("Songs")
         // Filter this list: an inline field pinned above it (issue #92; HIG Search
         // fields: "Use an inline field when adjacency clarifies that it filters one view
-        // rather than searches globally"). Global search is the Search tab.
-        .searchable(
-            text: $searchText, placement: Self.filterFieldPlacement,
-            prompt: Text("Filter Songs")
-        )
+        // rather than searches globally"). Global search is the Search tab. Not on
+        // iPhone Duo, which shows its own field at the bottom (issue #333).
+        .modifier(SongsSystemFilterField(
+            text: $searchText, enabled: filterPlacement == .system
+        ))
         // Sort, Filter and Quick Links, then the account group: in the iPhone tab-bar
         // accessory on iOS 26.1+, the navigation bar elsewhere (issue #92); Sort and
         // Filter fold into one menu where there is too little room.
@@ -653,9 +680,22 @@ struct SongsScreen: View, Equatable {
         }
     }
 
+    /// Coordinate space shared by the Duo bottom Filter field and the faded list.
+    static let pageSpace = "fst.songs.page"
+
+    /// Where this window shows the Filter Songs field (issue #333): the system field
+    /// everywhere but iPhone Duo, which has its own at the bottom of the page.
+    private var filterPlacement: SongsFilterFieldPlacement {
+        #if os(iOS)
+        SongsFilterFieldPlacement.resolve(pose: deviceLayout.pose)
+        #else
+        .system
+        #endif
+    }
+
     /// Where the `.searchable` Filter Songs field sits.
     ///
-    /// iOS (iPhone, iPhone Duo, iPad): the navigation-bar drawer, always displayed, so the
+    /// iOS (iPhone, iPad): the navigation-bar drawer, always displayed, so the
     /// field sits above the list and stays pinned while it scrolls (issue #92; HIG Search
     /// fields: "Put a top inline field above its list and consider pinning it to the top
     /// toolbar while scrolling"). The system placement elsewhere; there `.automatic`
@@ -1071,8 +1111,18 @@ struct SongsScreen: View, Equatable {
         #endif
     }
 
+    /// The loaded catalogue's list, section bar, A–Z scrubber and Quick Links.
+    ///
+    /// - Parameters:
+    ///   - payload: The loaded catalogue.
+    ///   - visible: Songs left after search and filters, in sort order.
+    ///   - effectiveMode: The sort in force.
+    ///   - bottomFieldTop: The iPhone Duo bottom Filter field's top in ``pageSpace``,
+    ///     read in `body`; nil elsewhere (no bottom fade).
+    /// - Returns: The list.
     private func populatedList(
-        payload: CatalogPayload, visible: [Song], effectiveMode: SongSortMode
+        payload: CatalogPayload, visible: [Song], effectiveMode: SongSortMode,
+        bottomFieldTop: CGFloat?
     ) -> some View {
         let indexSections = SongSectionIndex.sections(visible, mode: effectiveMode)
         let showsIndex = indexSections.count > 1
@@ -1182,6 +1232,12 @@ struct SongsScreen: View, Equatable {
                     scrollChrome.setScrolled(scrolled)
                 })
                 .scrollContentBackground(.hidden)
+                // iPhone Duo: rows fade out above the bottom Filter field and are not
+                // drawn beneath it (scroll-edge R1, issue #333).
+                .modifier(BottomSearchFieldFade(
+                    chromeTop: bottomFieldTop, enabled: filterPlacement == .bottom,
+                    space: Self.pageSpace
+                ))
                 // iPhone Duo outer landscape: start below the pinned Filter field (`/duo` P3).
                 .safeAreaPadding(.top, drawerOverlap)
                 // Reserve room for the trailing section-index scrubber so its glass

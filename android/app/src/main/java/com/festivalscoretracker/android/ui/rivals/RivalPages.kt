@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.selection.selectableGroup
@@ -59,6 +58,7 @@ import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.foldLaneItem
 import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.popupTestTags
@@ -125,7 +125,7 @@ fun AllRivalsScreen(viewModel: AllRivalsViewModel) {
                     val icon = RivalScopes.singleInstrument(scope)
                     val subtitle = content.subtitle
                     if (subtitle != null) {
-                        item(key = "header", span = StaggeredGridItemSpan.FullLine) {
+                        foldLaneItem(key = "header") {
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -196,7 +196,7 @@ fun RivalDetailScreen(viewModel: RivalDetailViewModel, route: RivalDetailRoute, 
                     state = gridState,
                     testTag = "fst.rival-detail.grid",
                 ) {
-                    item(key = "header", span = StaggeredGridItemSpan.FullLine) {
+                    foldLaneItem(key = "header") {
                         Column(Modifier.padding(bottom = 4.dp)) {
                             Text(
                                 "${player ?: "You"} vs. ${content.rivalName ?: name ?: "…"}",
@@ -209,7 +209,7 @@ fun RivalDetailScreen(viewModel: RivalDetailViewModel, route: RivalDetailRoute, 
                         }
                     }
                     if (content.categories.isEmpty()) {
-                        item(key = "empty", span = StaggeredGridItemSpan.FullLine) {
+                        foldLaneItem(key = "empty") {
                             RivalsMessage(RivalText.NO_SONGS, null, "fst.rival-detail.empty")
                         }
                     }
@@ -343,7 +343,7 @@ fun RivalryScreen(viewModel: RivalDetailViewModel, rivalId: String, mode: String
                     state = gridState,
                     testTag = "fst.rivalry.list",
                 ) {
-                    item(key = "header", span = StaggeredGridItemSpan.FullLine) {
+                    foldLaneItem(key = "header") {
                         Column(Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
                             Text(
                                 "vs. ${content.rivalName ?: name ?: "…"}",

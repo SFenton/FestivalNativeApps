@@ -23,6 +23,10 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.window.layout.FoldingFeature
+import androidx.window.testing.layout.FoldingFeature as TestFoldingFeature
+import androidx.window.testing.layout.TestWindowLayoutInfo
+import androidx.window.testing.layout.WindowLayoutInfoPublisherRule
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
@@ -57,7 +61,7 @@ import org.robolectric.annotation.Config
 
 /** Shared harness for the Leaderboards journeys on Robolectric against synthetic rankings. */
 abstract class LeaderboardsHarness {
-    @get:Rule
+    @get:Rule(order = 1)
     val rule = createAndroidComposeRule<ComponentActivity>()
 
     protected val transport: FakeTransport = RankingsFixtures.install(
@@ -875,6 +879,49 @@ class FullRankingsTitleIconUiTest : LeaderboardsHarness() {
         waitForText("Lead Leaderboards")
         assertTitleIcon("Solo_Guitar")
         assertTrue(with(rule.density) { bounds("fst.full-rankings.title-icon.Solo_Guitar").height.toDp() } > 36.dp)
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "w790dp-h840dp-xhdpi")
+class LeaderboardsBookFoldUiTest : LeaderboardsHarness() {
+    @get:Rule(order = 0)
+    val windowInfo = WindowLayoutInfoPublisherRule()
+
+    private fun fold(state: FoldingFeature.State) {
+        windowInfo.overrideWindowLayoutInfo(
+            TestWindowLayoutInfo(listOf(TestFoldingFeature(rule.activity, state = state, orientation = FoldingFeature.Orientation.VERTICAL))),
+        )
+        settle()
+    }
+
+    private fun window(tag: String) = node(tag).fetchSemanticsNode().boundsInWindow
+
+    /**
+     * Issue #343 (section-headers R9): on a half-open book fold the Duos/Trios/Quads cards
+     * split at the hinge and the Bands header (title and Band Rankings action) stays in the
+     * leading pane; unfolding flat gives it the full line again.
+     */
+    @Test
+    fun halfOpenBookFoldKeepsTheBandsHeaderInTheLeadingPane() {
+        launch("leaderboards")
+        fold(FoldingFeature.State.HALF_OPENED)
+        waitForTag("fst.leaderboards.card.Solo_Bass")
+        scrollTo("fst.leaderboards", "fst.leaderboards.band-card.Band_Trios")
+        val hinge = rule.activity.window.decorView.width / 2f
+        val duos = window("fst.leaderboards.band-card.Band_Duets")
+        val trios = window("fst.leaderboards.band-card.Band_Trios")
+        assertTrue("band cards split at the hinge ($duos | $trios @ $hinge)", duos.right <= hinge && trios.left >= hinge)
+        scrollTo("fst.leaderboards", "fst.leaderboards.bands-header")
+        val header = window("fst.leaderboards.bands-header")
+        assertTrue("Bands header [${header.left}, ${header.right}] ends before the hinge at $hinge", header.right <= hinge)
+        assertTrue("Band Rankings stays before the hinge", window("fst.leaderboards.bands-link").right <= hinge)
+
+        fold(FoldingFeature.State.FLAT)
+        rule.waitUntil(10_000) {
+            scrollTo("fst.leaderboards", "fst.leaderboards.bands-header")
+            window("fst.leaderboards.bands-header").right > hinge
+        }
     }
 }
 

@@ -35,6 +35,8 @@ import com.festivalscoretracker.android.ui.settings.rememberHingeSplit
 import com.festivalscoretracker.android.ui.common.rememberSingleColumn
 import kotlin.math.roundToInt
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.FoldLane
+import com.festivalscoretracker.android.ui.common.ProvideFoldLane
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
@@ -400,25 +402,27 @@ private fun ShopContent(
             val columns = ShopColumnPolicy.resolve(pageWidth - 2 * side, cells.gutterPx, contentHinge?.first, contentHinge?.second, cells.minPanePx) { 1 }
             if (columns.split) with(density) { (columns.positions[0] + columns.sizes[0]).toDp() } else null
         }
-        LazyVerticalGrid(
-            columns = cells,
-            contentPadding = contentPadding,
-            horizontalArrangement = cells,
-            verticalArrangement = Arrangement.spacedBy(if (grid) 10.dp else 6.dp),
-            modifier = Modifier.fillMaxSize().testTag(if (grid) "fst.shop.grid" else "fst.shop.list"),
-        ) {
-            // Always present: a stable first key keeps the list anchored at the top when offers change.
-            item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
-                Box(if (leadingWidth != null) Modifier.width(leadingWidth) else Modifier.fillMaxWidth()) {
-                    if (state.detailsUnavailable) DetailsUnavailable(onRetryCatalog)
+        ProvideFoldLane(leadingWidth) {
+            LazyVerticalGrid(
+                columns = cells,
+                contentPadding = contentPadding,
+                horizontalArrangement = cells,
+                verticalArrangement = Arrangement.spacedBy(if (grid) 10.dp else 6.dp),
+                modifier = Modifier.fillMaxSize().testTag(if (grid) "fst.shop.grid" else "fst.shop.list"),
+            ) {
+                // Always present: a stable first key keeps the list anchored at the top when offers change.
+                item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
+                    FoldLane {
+                        if (state.detailsUnavailable) DetailsUnavailable(onRetryCatalog)
+                    }
                 }
-            }
-            itemsIndexed(state.offers, key = { _, item -> item.offer.songId }) { index, item ->
-                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
-                    if (grid) {
-                        ShopGridCard(item, artworkUrl(item.offer.albumArt), pulse, { openOfficial(item) }, { openDetail(item) })
-                    } else {
-                        ShopListRow(item, artworkUrl(item.offer.albumArt), pulse, { openOfficial(item) }, { openDetail(item) })
+                itemsIndexed(state.offers, key = { _, item -> item.offer.songId }) { index, item ->
+                    Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                        if (grid) {
+                            ShopGridCard(item, artworkUrl(item.offer.albumArt), pulse, { openOfficial(item) }, { openDetail(item) })
+                        } else {
+                            ShopListRow(item, artworkUrl(item.offer.albumArt), pulse, { openOfficial(item) }, { openDetail(item) })
+                        }
                     }
                 }
             }

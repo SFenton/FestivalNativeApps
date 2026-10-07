@@ -715,12 +715,11 @@ extension View {
 /// (``View/bottomChromeFade(chromeTop:distance:in:legacyScrollTracking:)``), so no
 /// row text sits under its glyphs.
 ///
-/// On the iPhone Duo vertical bar this footer alone ran ≈150 of 678 pt (B2,
-/// `.agents/design/apple/duo.md`), so it renders nothing there: the caller also adds
-/// ``RankingsPagerToolbarContent`` to its own `.toolbar { … }`, which shows the same
-/// four actions as compact `.bottomBar` symbol items instead. iPhone (horizontal bar)
-/// keeps this footer — a bottom toolbar there would collide with the floating tab bar
-/// (`.agents/design/apple/iphone.md`).
+/// Every layout keeps this one in-content pager under the board, the iPhone Duo
+/// vertical bar included (issue #345: never rail toolbar items; HIG Designing for
+/// iPhone Duo: "Keep controls near the content they affect"). Where a vertical hinge
+/// crosses the board (Duo unfolded or book pose in landscape) it sits on the screen
+/// beside the vertical bar instead of on the hinge (``PagerScreenPlacement``).
 struct RankingsPagerView: View {
     let page: Int
     let totalPages: Int
@@ -729,50 +728,45 @@ struct RankingsPagerView: View {
     /// row rests one row gap above the pager (issue #293).
     var topPadding: CGFloat = 8
     let onChange: (Int) -> Void
-    @Environment(\.deviceLayout) private var layout
 
     var body: some View {
-        if layout.sectionChrome.isVerticalBar {
-            EmptyView()
-        } else {
-            // Web `FixedLeaderboardPagination` / `Paginator`: one centred row of
-            // frosted circle arrows around a "page / total" badge (operator batch 7.5).
-            HStack(spacing: 10) {
-                arrow("chevron.backward.2", "First page", id: "page-first", enabled: page > 1) { onChange(1) }
-                arrow("chevron.backward", "Previous page", id: "page-previous", enabled: page > 1) { onChange(page - 1) }
-                Text("\(page) / \(totalPages)")
-                    .font(.body.weight(.semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(FestivalText.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .padding(.horizontal, 14)
-                    .frame(minHeight: 44)
-                    // The row card itself (12 pt corners like the rows), not a capsule:
-                    // the badge's whole accessibility frame stays on the card (issue #319).
-                    .festivalCard(cornerRadius: 12)
-                    .accessibilityElement()
-                    .accessibilityLabel("Page")
-                    .accessibilityValue(pagerState.accessibilityValue)
-                    .accessibilityAdjustableAction { direction in
-                        let action: RankingsPagerAction? = switch direction {
-                        case .increment: .next
-                        case .decrement: .previous
-                        @unknown default: nil
-                        }
-                        if let action, let destination = pagerState.destination(for: action) {
-                            onChange(destination)
-                        }
+        // Web `FixedLeaderboardPagination` / `Paginator`: one centred row of
+        // frosted circle arrows around a "page / total" badge (operator batch 7.5).
+        HStack(spacing: 10) {
+            arrow("chevron.backward.2", "First page", id: "page-first", enabled: page > 1) { onChange(1) }
+            arrow("chevron.backward", "Previous page", id: "page-previous", enabled: page > 1) { onChange(page - 1) }
+            Text("\(page) / \(totalPages)")
+                .font(.body.weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(FestivalText.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 44)
+                // The row card itself (12 pt corners like the rows), not a capsule:
+                // the badge's whole accessibility frame stays on the card (issue #319).
+                .festivalCard(cornerRadius: 12)
+                .accessibilityElement()
+                .accessibilityLabel("Page")
+                .accessibilityValue(pagerState.accessibilityValue)
+                .accessibilityAdjustableAction { direction in
+                    let action: RankingsPagerAction? = switch direction {
+                    case .increment: .next
+                    case .decrement: .previous
+                    @unknown default: nil
                     }
-                    .accessibilityIdentifier("\(idPrefix).page-info")
-                arrow("chevron.forward", "Next page", id: "page-next", enabled: page < totalPages) { onChange(page + 1) }
-                arrow("chevron.forward.2", "Last page", id: "page-last", enabled: page < totalPages) { onChange(totalPages) }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.top, topPadding)
-            .padding(.bottom, 8)
-            .padding(.horizontal, 16)
+                    if let action, let destination = pagerState.destination(for: action) {
+                        onChange(destination)
+                    }
+                }
+                .accessibilityIdentifier("\(idPrefix).page-info")
+            arrow("chevron.forward", "Next page", id: "page-next", enabled: page < totalPages) { onChange(page + 1) }
+            arrow("chevron.forward.2", "Last page", id: "page-last", enabled: page < totalPages) { onChange(totalPages) }
         }
+        .padding(.horizontal, 16)
+        .pagerScreenPlacement()
+        .padding(.top, topPadding)
+        .padding(.bottom, 8)
     }
 
     /// Clamped page facts for the spoken value and the adjustable action.
@@ -807,6 +801,82 @@ struct RankingsPagerView: View {
     }
 }
 
+// MARK: - Pager screen placement
+
+/// Which side of an iPhone Duo hinge a board's pager sits on (issue #345).
+///
+/// Unfolded (or in book pose) in landscape the inner display's hinge runs down the
+/// middle of a full-width board, so a centred pager would straddle it. The pager moves
+/// to the screen beside the vertical bar instead (the right screen in the usual
+/// landscape), within thumb reach of the rail, as Android's unfolded song band board
+/// puts its pager on the trailing side. HIG Designing for iPhone Duo: "use
+/// reserved-region APIs to keep important elements clear of the center" and "move only
+/// what's necessary": the rows and the pinned selected row keep their full width.
+enum PagerScreenPlacement {
+    /// Narrowest screen side the pager moves into; a narrower side keeps the whole
+    /// container (the pager's four 44 pt arrows, its badge and 16 pt margins).
+    static let minimumRegion: CGFloat = 320
+
+    /// The rectangle, in the container's own coordinates, to centre the pager in.
+    ///
+    /// - Parameters:
+    ///   - container: The pager container's frame in window coordinates (leading-edge x).
+    ///   - hinge: ``DeviceLayout/splitHinge``: the fold, the flat hinge, or the inner
+    ///     display's middle line; nil without a hinge.
+    ///   - preferredEdge: The vertical bar's edge (the pager's screen); `.trailing`
+    ///     when there is no vertical bar.
+    /// - Returns: Nil (centre in the whole container) unless a vertical hinge crosses
+    ///   the container; otherwise the preferred side of the hinge, or the other side
+    ///   when the preferred one is narrower than ``minimumRegion``.
+    static func region(container: CGRect, hinge: CGRect?, preferredEdge: HorizontalEdge) -> CGRect? {
+        guard let hinge, hinge.height >= hinge.width,
+              hinge.minX > container.minX, hinge.maxX < container.maxX,
+              hinge.maxY > container.minY, hinge.minY < container.maxY else { return nil }
+        let leading = CGRect(x: 0, y: 0, width: hinge.minX - container.minX, height: container.height)
+        let trailing = CGRect(
+            x: hinge.maxX - container.minX, y: 0,
+            width: container.maxX - hinge.maxX, height: container.height
+        )
+        let sides = preferredEdge == .trailing ? [trailing, leading] : [leading, trailing]
+        return sides.first { $0.width >= minimumRegion }
+    }
+}
+
+/// Centres the pager on one screen of an iPhone Duo hinge (``PagerScreenPlacement``),
+/// else across the whole width. Measures its own full-width frame, so the placement
+/// never feeds back into the measurement.
+private struct PagerScreenPlacementModifier: ViewModifier {
+    @Environment(\.deviceLayout) private var layout
+    @State private var container: CGRect = .zero
+
+    func body(content: Content) -> some View {
+        let region = PagerScreenPlacement.region(
+            container: container, hinge: layout.splitHinge, preferredEdge: preferredEdge
+        )
+        content
+            .frame(width: region?.width)
+            .padding(.leading, region?.minX ?? 0)
+            .frame(maxWidth: .infinity, alignment: region == nil ? .center : .leading)
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { container = $0 }
+    }
+
+    /// The vertical bar's edge, else trailing.
+    private var preferredEdge: HorizontalEdge {
+        if case let .verticalBar(edge) = layout.sectionChrome { return edge }
+        return .trailing
+    }
+}
+
+extension View {
+    /// Spread the pager across the board, or onto the screen beside the vertical bar
+    /// where an iPhone Duo hinge crosses it (issue #345).
+    ///
+    /// - Returns: The pager, full width, with its content placed.
+    func pagerScreenPlacement() -> some View {
+        modifier(PagerScreenPlacementModifier())
+    }
+}
+
 // MARK: - Floating pager
 
 /// Floating bottom bar for Band Rankings: a material pager
@@ -816,8 +886,9 @@ struct RankingsPagerView: View {
 /// Place it with `.safeAreaInset(edge: .bottom)` on the page: inside a `TabView` the
 /// page's bottom safe area already ends above the floating tab bar, so the bar sits
 /// above it and the scroll content insets under it. On the iPhone Duo vertical bar it
-/// renders nothing: ``RankingsPagerToolbarContent`` puts the pager in the rail (B2)
-/// and the caller keeps its switcher menu in the toolbar.
+/// shows the pager alone (issue #345: the pager never moves into the rail), because
+/// the caller keeps its switcher menu in the rail there (`/duo` J1); unfolded, it sits
+/// on the screen beside the vertical bar (``PagerScreenPlacement``).
 ///
 /// Layout falls back in order: one row with the menu's title, one row with an
 /// icon-only menu, then pager above menu (large Dynamic Type).
@@ -831,10 +902,10 @@ struct RankingsFloatingBar<SwitcherMenu: View>: View {
     @Environment(\.deviceLayout) private var layout
 
     var body: some View {
-        if layout.sectionChrome.isVerticalBar {
-            EmptyView()
-        } else {
-            Group {
+        Group {
+            if layout.sectionChrome.isVerticalBar {
+                pagerView
+            } else {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 8) {
                         pagerView
@@ -850,10 +921,10 @@ struct RankingsFloatingBar<SwitcherMenu: View>: View {
                     }
                 }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 16)
-            .padding(.bottom, 8)
         }
+        .padding(.horizontal, 16)
+        .pagerScreenPlacement()
+        .padding(.bottom, 8)
     }
 
     @ViewBuilder
@@ -1011,101 +1082,6 @@ struct RankingsCountHeader: View {
             .accessibilityIdentifier(id)
     }
 }
-
-// MARK: - Pager (vertical bar toolbar content)
-
-/// Compact vertical-bar equivalent of ``RankingsFloatingBar``'s pager (B2): First,
-/// Previous, Next and Last as `.bottomBar` symbol items (system-placed at the bottom
-/// of the rail, above the tab bar), with the page label as a low-priority item so it
-/// overflows into the system `…` menu first and still reads as "Page 3 of 34,770"
-/// there; Next carries `.high` so it stays in the rail (`/duo` D5: the folded rail fits
-/// one bottom item beside 5 tabs, and Next is the action a first page needs).
-/// Every item is a `Label(title, systemImage:)`: a title-only item would force
-/// the system to keep a horizontal bar just for it (`.agents/design/apple/duo.md`).
-///
-/// Add alongside ``RankingsFloatingBar`` (in the same page); both read
-/// `\.deviceLayout` themselves, so exactly one of the two renders anything for a
-/// given chrome.
-///
-/// iOS-only: `.bottomBar` and `visibilityPriority` don't exist on macOS, and macOS
-/// never resolves a vertical-bar `\.deviceLayout` chrome, so there is nothing for
-/// this type to do there. Callers wrap their own use of it in `#if os(iOS)`.
-#if os(iOS)
-struct RankingsPagerToolbarContent: ToolbarContent {
-    let page: Int
-    let totalPages: Int
-    let idPrefix: String
-    let onChange: (Int) -> Void
-    @Environment(\.deviceLayout) private var layout
-
-    private var previousButton: some View {
-        Button { onChange(page - 1) } label: {
-            Label("Previous", systemImage: "chevron.backward")
-        }
-        .disabled(page <= 1)
-        .accessibilityIdentifier("\(idPrefix).page-previous")
-    }
-
-    private var nextButton: some View {
-        Button { onChange(page + 1) } label: {
-            Label("Next", systemImage: "chevron.forward")
-        }
-        .disabled(page >= totalPages)
-        .accessibilityIdentifier("\(idPrefix).page-next")
-    }
-
-    var body: some ToolbarContent {
-        if layout.sectionChrome.isVerticalBar {
-            ToolbarItem(placement: .bottomBar) {
-                Button { onChange(1) } label: {
-                    Label("First", systemImage: "chevron.backward.to.line")
-                }
-                .disabled(page <= 1)
-                .accessibilityIdentifier("\(idPrefix).page-first")
-            }
-            ToolbarItem(placement: .bottomBar) { previousButton }
-            if #available(iOS 27.0, *) {
-                ToolbarItem(placement: .bottomBar) {
-                    pageIndicator
-                }
-                .visibilityPriority(.low)
-            } else {
-                ToolbarItem(placement: .bottomBar) {
-                    pageIndicator
-                }
-            }
-            // `/duo` D5: Next stays in the rail. Folded with 5 tabs the rail fits one
-            // bottom item; with Previous `.high` too it kept the disabled Previous on
-            // page 1 and overflowed Next (measured 2026-10-02).
-            if #available(iOS 27.0, *) {
-                ToolbarItem(placement: .bottomBar) { nextButton }
-                    .visibilityPriority(.high)
-            } else {
-                ToolbarItem(placement: .bottomBar) { nextButton }
-            }
-            ToolbarItem(placement: .bottomBar) {
-                Button { onChange(totalPages) } label: {
-                    Label("Last", systemImage: "chevron.forward.to.line")
-                }
-                .disabled(page >= totalPages)
-                .accessibilityIdentifier("\(idPrefix).page-last")
-            }
-        }
-    }
-
-    /// Disabled, informational "Page X of Y": not an action, but still a
-    /// `Label(title, systemImage:)` so it can go vertical instead of forcing a
-    /// horizontal bar just for its title.
-    private var pageIndicator: some View {
-        Button {
-        } label: {
-            Label("Page \(page) of \(totalPages)", systemImage: "number")
-        }
-        .disabled(true)
-        .accessibilityIdentifier("\(idPrefix).page-info")
-    }
-}
-#endif
 
 // MARK: - Metric picker
 
