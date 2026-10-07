@@ -14,6 +14,7 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
 {
     private int shownPage;
     private bool spotlightShown;
+    private int? pendingReveal;
 
     /// <summary>Creates the page.</summary>
     public LeaderboardsSongPage()
@@ -79,21 +80,17 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
         {
             shownPage = ViewModel.Page;
             Scroller.ChangeView(null, 0, null, true);
+            // The reveal waits for the load gate to show the rows and the row's own entrance (OnContentRevealed).
             var selected = ViewModel.Rows.FindIndex(r => r.IsSelected);
-            if (selected >= 0)
-            {
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    if (RowsRepeater.GetOrCreateElement(selected) is Microsoft.UI.Xaml.UIElement row)
-                        row.StartBringIntoView(new Microsoft.UI.Xaml.BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });
-                });
-            }
+            pendingReveal = selected >= 0 ? selected : null;
         }
     }
 
     /// <summary>
     /// Replays the web row entrance after the shared load gate reveals a new page, with the pinned "your score" row
-    /// entering alongside the first row when it was gated (issue #295); paging keeps it in place (issue #270).
+    /// entering alongside the first row when it was gated (issue #295); paging keeps it in place (issue #270). A pending
+    /// selected row is then brought into view (centred, without animation) once its own entrance has finished, rushing
+    /// the rest (<see cref="FadeIn.RevealSelected"/>, issue #307).
     /// </summary>
     /// <param name="sender">Swap.</param>
     /// <param name="e">Unused.</param>
@@ -102,6 +99,14 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
         {
             FadeIn.StaggerRealized(RowsRepeater);
             if (ViewModel.ShowSpotlight && ViewModel.PinnedGate.IsGated) FadeIn.Play(SpotlightPanel, PinnedRowReveal.RevealDelay);
+            if (pendingReveal is not { } selected) return;
+            pendingReveal = null;
+            var rows = ViewModel.Rows;
+            FadeIn.RevealSelected(RowsRepeater, selected, () =>
+            {
+                if (ReferenceEquals(ViewModel.Rows, rows) && RowsRepeater.GetOrCreateElement(selected) is UIElement row)
+                    row.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });
+            });
         });
 
     /// <summary>Opens Song Detail from the song header (web <c>onTitleClick={goToSongDetail}</c>).</summary>

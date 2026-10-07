@@ -118,26 +118,29 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
         var selected = ViewModel.Rows.FindIndex(r => r.IsSelected);
         revealSelected = selected < 0 ? null : (selected, jumpFocus);
         jumpFocus = FocusState.Unfocused;
-        if (ViewModel.ShowRows) RevealSelected();
+        // Rows normally arrive while the load swap hides the list, and OnContentRevealed reveals them after the entrance.
+        if (ViewModel.ShowRows) DispatcherQueue.TryEnqueue(RevealSelected);
     }
 
     /// <summary>
     /// Brings the selected player's row into view on a newly shown page and, after a focused "Your Page", moves focus
-    /// to it. Rows arrive while the list is still hidden by the load swap, so this runs again once content is revealed.
+    /// to it. A pointer or UI Automation jump waits for the row's own entrance and rushes the rest
+    /// (<see cref="FadeIn.RevealSelected"/>, issue #307); a focused jump moves focus at once (the collapsing button
+    /// would otherwise drop it), still rushing the fades that haven't begun.
     /// </summary>
     private void RevealSelected()
     {
-        if (revealSelected is not { } pending) return;
+        if (revealSelected is not { } pending || !ViewModel.ShowRows) return;
+        revealSelected = null;
         var (index, focus) = pending;
-        DispatcherQueue.TryEnqueue(() =>
+        var rows = ViewModel.Rows;
+        FadeIn.RevealSelected(RowsRepeater, index, () =>
         {
-            if (!ViewModel.ShowRows || revealSelected != pending) return;
-            revealSelected = null;
-            if (RowsRepeater.GetOrCreateElement(index) is not LeaderboardEntryRow row) return;
+            if (!ReferenceEquals(ViewModel.Rows, rows) || RowsRepeater.GetOrCreateElement(index) is not LeaderboardEntryRow row) return;
             // Focus first: its own minimal bring-into-view would otherwise override the centring below.
             if (focus != FocusState.Unfocused) row.FocusRow(focus);
             row.StartBringIntoView(new Microsoft.UI.Xaml.BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });
-        });
+        }, immediate: focus != FocusState.Unfocused);
     }
 
     /// <summary>
@@ -164,19 +167,18 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
 
     /// <summary>
     /// Replays the web row entrance after the shared load gate reveals a new page, with the pinned "your rank" row
-    /// entering alongside the first row when it was gated (issue #270, as the song board's #295); paging keeps it in place.
+    /// entering alongside the first row when it was gated (issue #270, as the song board's #295); paging keeps it in
+    /// place. A pending selected row is revealed after the entrance starts (<see cref="RevealSelected"/>).
     /// </summary>
     /// <param name="sender">Swap.</param>
     /// <param name="e">Unused.</param>
-    private void OnContentRevealed(object? sender, EventArgs e)
-    {
+    private void OnContentRevealed(object? sender, EventArgs e) =>
         DispatcherQueue.TryEnqueue(() =>
         {
             FadeIn.StaggerRealized(RowsRepeater);
             if (ViewModel.Spotlight.IsVisible && ViewModel.PinnedGate.IsGated) FadeIn.Play(FooterSpotlight, PinnedRowReveal.RevealDelay);
+            RevealSelected();
         });
-        RevealSelected();
-    }
 
     #region Split layout
     /// <summary>

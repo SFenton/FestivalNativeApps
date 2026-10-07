@@ -1065,6 +1065,10 @@
             "symbol": "SelectedRowAction"
           },
           {
+            "path": "windows/Festival.App/Controls/FadeIn.cs",
+            "symbol": "RevealSelected"
+          },
+          {
             "path": "windows/Festival.App/Controls/BandScoreFooterPanel.cs",
             "symbol": "BandScoreFooterPanel"
           },
@@ -1310,6 +1314,10 @@
           {
             "path": "windows/Festival.Core/Domain/MotionPolicy.cs",
             "symbol": "StaggerArm"
+          },
+          {
+            "path": "windows/Festival.App/Controls/FadeIn.cs",
+            "symbol": "RevealSelected"
           },
           {
             "path": "windows/Festival.Core/ViewModels/SongPathsViewModel.cs",

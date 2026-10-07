@@ -176,21 +176,22 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
     }
 
     /// <summary>
-    /// After the shared load gate reveals a new page, brings a pending selected row into view (centred, without animation)
-    /// and replays the web row entrance, with the pinned row entering alongside the first row (issue #295).
+    /// After the shared load gate reveals a new page, replays the web row entrance, with the pinned row entering alongside
+    /// the first row (issue #295), then brings a pending selected row into view (centred, without animation) once its own
+    /// entrance has finished, rushing the rest (<see cref="FadeIn.RevealSelected"/>, issue #307).
     /// </summary>
     /// <param name="sender">Swap.</param>
     /// <param name="e">Unused.</param>
     private void OnContentRevealed(object? sender, EventArgs e) =>
         DispatcherQueue.TryEnqueue(() =>
         {
+            FadeIn.StaggerRealized(Rows);
+            if (ViewModel.ShowSpotlight && ViewModel.PinnedGate.IsGated) FadeIn.Play(SpotlightRow, PinnedRowReveal.RevealDelay);
             if (pendingReveal is { } reveal)
             {
                 pendingReveal = null;
-                RevealRow(reveal);
+                FadeIn.RevealSelected(Rows, ViewModel.Rows.IndexOf(reveal), () => RevealRow(reveal));
             }
-            FadeIn.StaggerRealized(Rows);
-            if (ViewModel.ShowSpotlight && ViewModel.PinnedGate.IsGated) FadeIn.Play(SpotlightRow, PinnedRowReveal.RevealDelay);
         });
 
     /// <summary>Frames <see cref="RevealRow"/> spends bringing the selected row into view before giving up (about a second).</summary>
