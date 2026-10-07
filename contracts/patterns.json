@@ -799,6 +799,10 @@
             "symbol": "SongsFilterFieldPlacement"
           },
           {
+            "path": "apple/Sources/FestivalUI/App/Shell/RootChrome.swift",
+            "symbol": "VerticalBarActionItem"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/Search/BottomSearchField.swift",
             "symbol": "BottomSearchFieldPlacement"
           },
@@ -939,7 +943,8 @@
         309,
         337,
         338,
-        341
+        341,
+        351
       ]
     },
     {
