@@ -62,9 +62,9 @@
             </StackPanel>
         </Grid>
 
-        <!-- One frosted row per band, 4 epx apart (web entryRow list, operator batch 7.7), scrolling on beneath the
-             floating pager (BoardFooter) and fading out above it (BoardFooterFade, issue #305). The wrapper is the fade
-             source: the scroller keeps its own visual for the load swap. -->
+        <!-- One frosted row per band, 4 epx apart (web entryRow list, operator batch 7.7), ending at the floating pager
+             (BoardFooter) through the bottom-chrome ramp (BoardFooterFade, issue #308). The wrapper is the fade source
+             because the load swap animates the ScrollViewer's own visual. -->
         <Grid x:Name="BoardFadeSource" Grid.Row="1" Grid.RowSpan="2">
             <ScrollViewer x:Name="Scroller" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
                           controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
@@ -83,8 +83,8 @@
                 </ItemsRepeater>
             </ScrollViewer>
         </Grid>
-        <!-- Paints BoardFadeSource with its rows faded above the pager (or cut hard at its top with reduced transparency); never hit-testable. Raw-view ItemStatus names the edge state for UI tests (hidden, fading, end, hard-edge, plate). -->
-        <controls:EdgeFadeLayer x:Name="BoardFadeHost" Grid.Row="1" Grid.RowSpan="2" AutomationProperties.AutomationId="fst.band-rankings.footer-edge" />
+        <!-- Paints BoardFadeSource with its rows faded above the pager; never hit-testable, UIA raw view only. -->
+        <controls:EdgeFadeLayer x:Name="BoardFadeHost" Grid.Row="1" Grid.RowSpan="2" AutomationProperties.AutomationId="fst.band-rankings.footer-fade" />
         <TextBlock Grid.Row="1" Text="{x:Bind ViewModel.EmptyText, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
                    HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"
                    AutomationProperties.AutomationId="fst.band-rankings.empty"
@@ -97,9 +97,9 @@
                                     controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                                     Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" />
 
-        <!-- Contrast themes turn the fade off: a window-colour plate (pager height, sized by BoardFooterFade) hides the rows between and behind the
-             floating pager's buttons instead of letting their borders and text show through (issue #209, as the song
-             leaderboard's #197 plate). Never hit-testable. -->
+        <!-- Contrast themes only: the footer fade cuts the rows hard at the pager's top and this window-colour plate (pager
+             height, sized by BoardFooterFade) backs its buttons (issue #209, as the song leaderboard's #197 plate). Never
+             hit-testable. -->
         <Border x:Name="FooterPlate" Grid.Row="1" Grid.RowSpan="2" VerticalAlignment="Bottom" IsHitTestVisible="False"
                 Visibility="Collapsed" Background="{ThemeResource FSTFloatingBackplateBrush}" />
         <controls:LeaderboardsPager x:Name="Footer" Grid.Row="1" Grid.RowSpan="2" VerticalAlignment="Bottom" Pager="{x:Bind ViewModel.Pager}"

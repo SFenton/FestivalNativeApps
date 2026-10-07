@@ -182,9 +182,9 @@ object CompeteText {
 /**
  * Whether a Compete card's scope header stacks its instrument icons above the title.
  *
- * Side by side, the 36 dp icons and the optional "See All" link take a fixed width; in a
+ * Side by side, the 36 dp icons and the optional "View All" link take a fixed width; in a
  * narrow lane (a half-open book fold's panel, a 360 dp cover screen, a phone card with
- * See All) a four-instrument combo title was left a few dp and broke after every word.
+ * View All) a four-instrument combo title was left a few dp and broke after every word.
  * Large text always stacks.
  */
 object CompeteHeaderLayout {
@@ -206,15 +206,15 @@ object CompeteHeaderLayout {
      */
     const val MIN_COMBO_TITLE_DP = 140f
 
-    /** Width of the "See All ›" text button at the default font scale. */
-    const val SEE_ALL_DP = 80f
+    /** Width budget for the "View All ›" link: the #120 calibration for "See All" (80 dp) plus the 8 dp the longer label adds (#321). */
+    const val SEE_ALL_DP = 88f
 
     /**
      * Decide whether the header stacks.
      *
      * @param widthDp Header width in dp.
      * @param instruments Instrument icons in the header.
-     * @param hasSeeAll Whether the "See All" link is shown.
+     * @param hasSeeAll Whether the "View All" link is shown.
      * @param largeText Whether the app's large-text mode is on (`isLargeText()`).
      * @return True to put the icons on their own line above the title.
      */

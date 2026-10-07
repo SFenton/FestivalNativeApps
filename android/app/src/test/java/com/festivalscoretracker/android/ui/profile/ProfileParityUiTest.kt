@@ -17,9 +17,10 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
-import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -31,6 +32,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.height
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.model.Instrument
@@ -45,12 +47,15 @@ import com.festivalscoretracker.android.core.songs.SongPlayerScoreFilter
 import com.festivalscoretracker.android.core.songs.SongStarsBucket
 import com.festivalscoretracker.android.data.HttpResult
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
+import com.festivalscoretracker.android.presentation.profile.PlayerIdentityAction
+import com.festivalscoretracker.android.presentation.profile.PlayerProfileUiState
 import com.festivalscoretracker.android.testing.BandFixtures
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.ProfileFixtures
 import com.festivalscoretracker.android.ui.design.SeeAllVisibleLabelKey
 import com.festivalscoretracker.android.ui.shell.FestivalApp
+import com.festivalscoretracker.android.ui.theme.FestivalTheme
 import java.time.Duration
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -141,6 +146,8 @@ class ProfileParityUiTest {
         journey.tap("fst.quick-links.item.bands")
         journey.waitForTag("fst.player.bands-link")
         rule.onNodeWithTag("fst.player.bands-link").assertIsDisplayed()
+        // Issue #321: the title-row link reads "View All", label first.
+        rule.onNodeWithTag("fst.player.bands-link").assert(hasContentDescription("View All: ", substring = true))
     }
 
     @Test
@@ -333,10 +340,10 @@ class ProfileParityUiTest {
         installGroupedBands()
         journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
         journey.scrollTo("fst.player.bands")
-        // `section-headers` R8: the title-row link shows "View All" and TalkBack hears "View All {name}'s Bands".
+        // `section-headers` R8: the title-row link shows "View All" and TalkBack hears "View All: {name}'s Bands".
         val spoken = rule.onNodeWithTag("fst.player.bands-link").fetchSemanticsNode().config[SemanticsProperties.ContentDescription].single()
-        assertTrue(spoken, Regex("View All .+'s Bands").matches(spoken))
-        rule.onNodeWithText(spoken.removePrefix("View All ")).assertIsDisplayed()
+        assertTrue(spoken, Regex("View All: .+'s Bands").matches(spoken))
+        rule.onNodeWithText(spoken.removePrefix("View All: ")).assertIsDisplayed()
         rule.onNodeWithTag("fst.player.bands-link").assert(SemanticsMatcher.expectValue(SeeAllVisibleLabelKey, "View All"))
         assertTrue(rule.onAllNodes(hasText("See All", substring = true), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
         assertTrue(rule.onAllNodes(hasContentDescription("See All", substring = true)).fetchSemanticsNodes().isEmpty())
@@ -424,6 +431,32 @@ class ProfileParityUiTest {
         val grid = rule.onNodeWithTag("fst.player.available").fetchSemanticsNode().boundsInRoot
         val overview = rule.onNodeWithTag("fst.player.overview").fetchSemanticsNode().boundsInRoot
         assertTrue("Overview starts within the grid's top padding", overview.top - grid.top < 400f)
+    }
+
+    @Test
+    fun actionErrorShowsWithoutANameCard() {
+        // Issue #193: a failed Select (publication raced the tap) keeps its error and Reload
+        // in the identity row, with no avatar/name chip around them.
+        var reloads = 0
+        val state = PlayerProfileUiState(
+            accountId = Fixtures.ACCOUNT_B,
+            displayName = "Other",
+            identity = PlayerIdentityAction.Select,
+            actionError = "This profile could not be selected. Reload the page and try again.",
+        )
+        rule.setContent { FestivalTheme { IdentityActions(state, onSelect = {}, onReload = { reloads++ }) } }
+        rule.onNodeWithTag("fst.player.action-error").assertIsDisplayed()
+            .assert(hasText("Reload the page and try again.", substring = true))
+        rule.onNodeWithTag("fst.player.select").assertIsDisplayed()
+        assertEquals(0, rule.onAllNodesWithTag("fst.player.name").fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag("fst.player.identity-notice").fetchSemanticsNodes().size)
+        val select = rule.onNodeWithTag("fst.player.select").fetchSemanticsNode().boundsInRoot
+        val error = rule.onNodeWithTag("fst.player.action-error").fetchSemanticsNode().boundsInRoot
+        val reload = rule.onNodeWithTag("fst.player.reload").fetchSemanticsNode().boundsInRoot
+        assertTrue("Select, then the error, then Reload", select.bottom <= error.top && error.bottom <= reload.top)
+        assertTrue(rule.onNodeWithTag("fst.player.reload").getUnclippedBoundsInRoot().height >= 48.dp)
+        rule.onNodeWithTag("fst.player.reload").performSemanticsAction(SemanticsActions.OnClick)
+        assertEquals(1, reloads)
     }
 
     @Test

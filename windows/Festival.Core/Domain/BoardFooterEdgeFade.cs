@@ -2,114 +2,63 @@ namespace Festival.Core.Domain;
 
 #region Board footer edge fade
 /// <summary>
-/// The soft edge above a leaderboard's floating footer (the pinned "your score" row and the pager, issue #93). The web
-/// ends the scroll viewport at the footer's top (<c>useLeaderboardFooterScrollMargin</c>) and masks its bottom
-/// <see cref="Depth"/> px while more rows lie below (<c>useScrollMask</c>), so rows fade out just above the footer instead
-/// of running on underneath it. The band eases out over the last <see cref="Depth"/> epx of scroll, so the last row is
-/// fully clear at the end. Windows transparency effects off and the in-app Increase Contrast / Less Transparency settings
-/// turn the ramp into a hard cut at the footer's top; a contrast theme draws a window-colour plate behind the footer
-/// (<see cref="Treatment"/>, scroll-edge R7). Depth is the board/page mask (web <c>Page.tsx</c> <c>useScrollMask</c>,
-/// 40), not the 36-unit per-row <c>useScrollFade</c> (scroll-edge R3).
+/// The one bottom-chrome ramp above a leaderboard's floating footer (the pinned "your score" row and the pager; issues
+/// #93, #308). Like the web's <c>useScrollFade</c>, rows are fully clear at the footer's top and fully opaque
+/// <see cref="Depth"/> epx above it, linear (<see cref="SongHeaderEdgeFade.Stops"/> reversed), and nothing shows beneath
+/// the footer. The ramp's depth is <c>min(scroll left, Depth)</c> (<see cref="FadeDepth"/>), so at the end of the list
+/// the last row is fully opaque. Contrast themes, Windows transparency effects off and the in-app Increase Contrast /
+/// Less Transparency settings (<see cref="SongHeaderEdgeFade.IsEnabled"/>) get depth 0: a hard cut at the footer's top,
+/// with no row text between or behind the footer's controls (scroll-edge R7).
 /// </summary>
 public static class BoardFooterEdgeFade
 {
-    /// <summary>Band depth in epx (web <c>useScrollMask</c> <c>DEFAULT_SIZE</c>: 40 px).</summary>
-    public const double Depth = 40;
+    /// <summary>Ramp depth in epx (web <c>useScrollFade</c> <c>DEFAULT_DISTANCE</c>: 36 px). The only bottom-ramp constant.</summary>
+    public const double Depth = 36;
 
-    /// <summary>Fade strength for the scroll left below the viewport: 0 at the end (nothing more below) to 1.</summary>
+    /// <summary>The ramp's depth for the scroll left below the viewport: 0 at the end (nothing more below) up to <see cref="Depth"/>.</summary>
     /// <param name="scrollableHeight">Scroll extent minus viewport, epx.</param>
     /// <param name="verticalOffset">Current offset, epx.</param>
-    /// <returns>Strength in [0, 1].</returns>
-    public static double Strength(double scrollableHeight, double verticalOffset)
+    /// <param name="enabled">Whether the settings allow the ramp; <see langword="false"/> gives the hard cut (0).</param>
+    /// <returns>Depth in [0, <see cref="Depth"/>].</returns>
+    public static double FadeDepth(double scrollableHeight, double verticalOffset, bool enabled = true)
     {
         var remaining = scrollableHeight - verticalOffset;
-        return double.IsNaN(remaining) ? 0 : Math.Clamp(remaining / Depth, 0, 1);
+        return !enabled || double.IsNaN(remaining) ? 0 : Math.Clamp(remaining, 0, Depth);
     }
 
     /// <summary>
-    /// What a board draws where its rows meet the floating footer. Every board with a floating footer (pinned row and/or
-    /// pager) gets the same treatment whether or not the selected player has a pinned row (issue #305). Rows never show
-    /// behind a shown footer (scroll-edge R7): reduced transparency or contrast cuts them hard at the footer's top, and a
-    /// contrast theme draws a window-colour plate behind the footer.
+    /// Mask stops for a gradient from <c>depth</c> epx above the footer's top to the footer's top (clamped beyond both
+    /// ends): opaque above the ramp, clear from the footer's top down.
     /// </summary>
-    /// <param name="footerShown">The rows and a non-empty footer are on screen.</param>
-    /// <param name="contrastTheme">A Windows contrast theme is on.</param>
-    /// <param name="transparencyEffects">Windows transparency effects are on.</param>
-    /// <param name="lessTransparency">The in-app Less Transparency setting is on.</param>
-    /// <param name="moreContrast">The in-app Increase Contrast setting is on.</param>
-    /// <returns>The treatment.</returns>
-    public static BoardFooterTreatment Treatment(bool footerShown, bool contrastTheme, bool transparencyEffects, bool lessTransparency, bool moreContrast)
-    {
-        if (!footerShown) return BoardFooterTreatment.None;
-        if (contrastTheme) return BoardFooterTreatment.Plate;
-        return SongHeaderEdgeFade.IsEnabled(contrastTheme, transparencyEffects, lessTransparency, moreContrast)
-            ? BoardFooterTreatment.Fade
-            : BoardFooterTreatment.Cut;
-    }
+    public static IReadOnlyList<(float Offset, float Alpha)> Stops { get; } =
+        [.. SongHeaderEdgeFade.Stops.Select(s => (s.Offset, 1 - s.Alpha))];
 
-    /// <summary>Mask strength for a treatment: the scroll-driven <paramref name="strength"/> for the fade, 0 (a hard cut at
-    /// the footer's top, <see cref="Stops"/>) for <see cref="BoardFooterTreatment.Cut"/>.</summary>
-    /// <param name="treatment">Treatment.</param>
-    /// <param name="strength">Scroll strength from <see cref="Strength"/>.</param>
-    /// <returns>Mask strength in [0, 1].</returns>
-    public static double MaskStrength(BoardFooterTreatment treatment, double strength) =>
-        treatment == BoardFooterTreatment.Fade ? Math.Clamp(strength, 0, 1) : 0;
+    #region UI Automation state
+    /// <summary>UIA ItemStatus while no mask is drawn: no rows (loading, empty, error) or no floating footer.</summary>
+    public const string StatusHidden = "hidden";
 
-    /// <summary>UIA ItemStatus when the board shows no footer (loading, empty or error).</summary>
-    public const string StatusHidden = SongHeaderEdgeFade.StatusHidden;
+    /// <summary>UIA ItemStatus for the accessibility hard cut at the footer's top (R7).</summary>
+    public const string StatusHardEdge = "hard-edge";
 
-    /// <summary>UIA ItemStatus while rows fade out above the footer.</summary>
-    public const string StatusFading = SongHeaderEdgeFade.StatusFading;
-
-    /// <summary>UIA ItemStatus at the end of the list: the last row sits fully clear above the footer.</summary>
+    /// <summary>UIA ItemStatus with nothing left below (the end of the list, or rows that fit): nothing is dimmed (R4).</summary>
     public const string StatusEnd = "end";
 
-    /// <summary>UIA ItemStatus when reduced transparency or contrast cuts rows hard at the footer's top.</summary>
-    public const string StatusHardEdge = SongHeaderEdgeFade.StatusHardEdge;
-
-    /// <summary>UIA ItemStatus when a contrast theme draws the window-colour plate behind the footer.</summary>
-    public const string StatusPlate = "plate";
-
-    /// <summary>The edge state UI tests read from a board's raw-view <c>fst.&lt;board&gt;.footer-edge</c> element.</summary>
-    /// <param name="treatment">Current treatment.</param>
-    /// <param name="strength">Scroll strength from <see cref="Strength"/>.</param>
-    /// <returns>One of the <c>Status*</c> values.</returns>
-    public static string Status(BoardFooterTreatment treatment, double strength) => treatment switch
-    {
-        BoardFooterTreatment.Fade => strength > 0 ? StatusFading : StatusEnd,
-        BoardFooterTreatment.Cut => StatusHardEdge,
-        BoardFooterTreatment.Plate => StatusPlate,
-        _ => StatusHidden,
-    };
+    /// <summary>Prefix of the UIA ItemStatus while rows fade above the footer; the drawn ramp depth in whole epx follows.</summary>
+    public const string StatusFadingPrefix = "fading:";
 
     /// <summary>
-    /// Mask stops for a gradient from <see cref="Depth"/> epx above the footer's top to 1 epx below it: opaque at the
-    /// band's start, a linear ramp (web <c>useScrollMask</c>: <c>linear-gradient(black bottom-40px, transparent
-    /// bottom)</c>) to <c>1 − strength</c> at the footer's top, then clear from the footer's top down so no row shows
-    /// beneath the footer. Not the Songs header's smoothstep (<see cref="SongHeaderEdgeFade.Stops"/>, scroll-edge R3).
+    /// The board footer edge state that the fade layer publishes to UI Automation, from the mask actually drawn, so a
+    /// UI test can tell the 36 epx ramp, the end state and the R7 hard cut apart without reading pixels.
     /// </summary>
-    /// <param name="strength">Fade strength from <see cref="Strength"/>.</param>
-    /// <returns>Offsets along that gradient with their mask alpha.</returns>
-    public static IReadOnlyList<(float Offset, float Alpha)> Stops(double strength)
-    {
-        var footerTop = (float)(Depth / (Depth + 1));
-        return [(0f, 1f), (footerTop, (float)(1 - Math.Clamp(strength, 0, 1))), (1f, 0f)];
-    }
-}
-
-/// <summary>How a board's rows meet its floating footer (<see cref="BoardFooterEdgeFade.Treatment"/>).</summary>
-public enum BoardFooterTreatment
-{
-    /// <summary>Plain rows: no footer on screen.</summary>
-    None,
-
-    /// <summary>Rows fade out over <see cref="BoardFooterEdgeFade.Depth"/> epx above the footer and are hidden beneath it.</summary>
-    Fade,
-
-    /// <summary>Reduced transparency or contrast: rows stay opaque and are cut hard at the footer's top.</summary>
-    Cut,
-
-    /// <summary>Contrast theme: a window-colour plate the footer's height hides the rows behind it.</summary>
-    Plate,
+    /// <param name="drawn">Whether the mask is drawn (rows and a floating footer are shown).</param>
+    /// <param name="enabled">Whether the settings allow the ramp (<see cref="SongHeaderEdgeFade.IsEnabled"/>).</param>
+    /// <param name="drawnDepth">The drawn gradient's span above the footer's top, epx.</param>
+    /// <returns><see cref="StatusHidden"/>, <see cref="StatusHardEdge"/>, <see cref="StatusEnd"/> or <c>fading:&lt;epx&gt;</c>.</returns>
+    public static string Status(bool drawn, bool enabled, double drawnDepth) =>
+        !drawn ? StatusHidden
+        : !enabled ? StatusHardEdge
+        : !(drawnDepth >= 1) ? StatusEnd
+        : StatusFadingPrefix + Math.Round(drawnDepth).ToString(System.Globalization.CultureInfo.InvariantCulture);
+    #endregion
 }
 #endregion

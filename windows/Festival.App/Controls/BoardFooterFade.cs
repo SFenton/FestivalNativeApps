@@ -12,209 +12,161 @@ namespace Festival.App.Controls;
 
 #region Board footer fade
 /// <summary>
-/// Fades a board's rows out just above its floating footer and hides them beneath it (issue #93, web
-/// <c>useScrollMask</c> over a viewport that ends at the footer). Same composition opacity-mask technique as
-/// <see cref="TopEdgeFade"/>: a <see cref="CompositionVisualSurface"/> renders <c>source</c>'s visual, a
-/// <see cref="CompositionMaskBrush"/> multiplies it by <see cref="BoardFooterEdgeFade.Stops"/> (the web's linear 40 epx
-/// ramp) placed at the footer's top,
-/// and a sprite on <c>host</c> (a hit-test-invisible sibling over the same cell) paints the result while the source's own
-/// visual is hidden. Hit testing, keyboard focus and UI Automation still use the source. With reduced transparency the
-/// same mask runs at zero strength: a hard cut at the footer's top. Turned off, the source shows directly and the sprite
-/// is hidden.
+/// The one bottom-chrome ramp for every board with a floating footer (scroll-edge R1–R4, R7; issues #93, #308, web
+/// <c>useScrollFade</c>): rows are clear at the footer's top, opaque <see cref="BoardFooterEdgeFade.FadeDepth"/> epx above
+/// it, and hidden beneath it; depth 0 is the end of the list (nothing dimmed) or, under a contrast theme, Windows
+/// transparency effects off, or in-app Increase Contrast / Less Transparency, the accessibility hard cut at the footer's
+/// top. Pages call <see cref="Attach"/> once; it follows scrolling, sizes, visibility and the appearance settings itself.
 /// </summary>
 /// <remarks>
-/// The one bottom-chrome edge treatment for every board with a floating footer (song and band song leaderboards, Full
-/// Rankings, Band Rankings, a player's bands): pages call <see cref="Attach"/>, never build their own fade or plate. The
-/// footer may hold the pinned "your score" row, the pager or both; the fade is the same with or without the pinned row
-/// (issue #305).
+/// WinUI 3 has no <c>UIElement.OpacityMask</c>, so this is the composition opacity-mask technique shared with
+/// <see cref="TopEdgeFade"/>: a <see cref="CompositionVisualSurface"/> renders <c>source</c>'s visual, a
+/// <see cref="CompositionMaskBrush"/> multiplies it by <see cref="BoardFooterEdgeFade.Stops"/> placed above the footer's
+/// top, and a sprite on the <see cref="EdgeFadeLayer"/> host (a hit-test-invisible sibling over the same cell) paints the
+/// result while the source's own visual is hidden. Hit testing, keyboard focus and UI Automation still use the source.
+/// The host publishes the drawn state (<see cref="BoardFooterEdgeFade.Status"/>) in the UIA raw view for UI tests.
 /// </remarks>
 internal sealed class BoardFooterFade
 {
-    private readonly UIElement source;
-    private readonly UIElement host;
+    private readonly FrameworkElement source;
+    private readonly EdgeFadeLayer host;
+    private readonly FrameworkElement list;
+    private readonly FrameworkElement footer;
+    private readonly FrameworkElement? plate;
+    private readonly Windows.UI.ViewManagement.UISettings uiSettings = new();
+    private ScrollViewer? scroller;
+    private bool following;
     private Visual? sourceVisual;
     private CompositionVisualSurface? surface;
     private SpriteVisual? sprite;
     private CompositionLinearGradientBrush? gradient;
-    private CompositionColorGradientStop[] stops = [];
     private bool active;
     private double cut = double.NaN;
-    private double strength = double.NaN;
+    private double depth = double.NaN;
 
     /// <summary>Creates the fade; composition objects are built on first use.</summary>
-    /// <param name="source">Element whose rows fade (its XAML opacity is left alone).</param>
-    /// <param name="host">Hit-test-invisible element over the same area that hosts the masked copy.</param>
-    private BoardFooterFade(FrameworkElement source, UIElement host)
+    /// <param name="source">Wrapper whose rows fade (never the load-swap element itself: the fade hides this visual).</param>
+    /// <param name="host">Fade layer over the same cell that paints the masked copy.</param>
+    /// <param name="list">The scrolled list: a <see cref="ScrollViewer"/> or a control holding one (a <see cref="ListView"/>); while it is collapsed nothing is masked.</param>
+    /// <param name="footer">The floating footer (pinned row and/or pager), bottom-aligned over the rows.</param>
+    /// <param name="plate">Optional window-colour plate that backs the footer under a contrast theme (issues #197, #208, #209).</param>
+    private BoardFooterFade(FrameworkElement source, EdgeFadeLayer host, FrameworkElement list, FrameworkElement footer, FrameworkElement? plate)
     {
-        this.source = source;
-        this.host = host;
+        (this.source, this.host, this.list, this.footer, this.plate) = (source, host, list, footer, plate);
         source.SizeChanged += (_, e) =>
         {
             if (surface is not null) surface.SourceSize = new Vector2((float)e.NewSize.Width, (float)e.NewSize.Height);
+            Update();
         };
+        footer.SizeChanged += (_, _) => Update();
+        footer.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) => Update());
+        list.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) => Update());
+        source.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) => Update());
+        source.Loaded += (_, _) => Follow(true);
+        source.Unloaded += (_, _) => Follow(false);
     }
 
-    /// <summary>Whether the fade is currently drawn.</summary>
+    /// <summary>Gives a board the bottom-chrome ramp above its floating footer.</summary>
+    /// <param name="source">Wrapper whose rows fade (never the load-swap element itself: the fade hides this visual).</param>
+    /// <param name="host">Fade layer over the same cell that paints the masked copy (give it a <c>….footer-fade</c> AutomationId).</param>
+    /// <param name="list">The scrolled list: a <see cref="ScrollViewer"/> or a control holding one (a <see cref="ListView"/>).</param>
+    /// <param name="footer">The floating footer.</param>
+    /// <param name="plate">Optional contrast-theme plate behind the footer.</param>
+    /// <returns>The fade.</returns>
+    public static BoardFooterFade Attach(FrameworkElement source, EdgeFadeLayer host, FrameworkElement list, FrameworkElement footer,
+                                         FrameworkElement? plate = null) =>
+        new(source, host, list, footer, plate);
+
+    /// <summary>Whether the mask is currently drawn.</summary>
     public bool IsActive => active;
 
-    #region Attach
-    /// <summary>
-    /// Gives a board its bottom edge: rows fade out above <paramref name="footer"/> while more lie below and are hidden
-    /// beneath it. Windows transparency effects off or the in-app Increase Contrast or Less Transparency setting turn the
-    /// ramp into a hard cut at the footer's top; under a contrast theme <paramref name="plate"/> (a window-colour border
-    /// bottom-aligned in the footer's cell) is sized to the footer and shown instead (scroll-edge R7: rows never show
-    /// behind the footer). Follows scrolling, size, visibility and appearance changes while <paramref name="host"/> is
-    /// loaded, and publishes the edge state (<see cref="BoardFooterEdgeFade.Status"/>) as the host's ItemStatus.
-    /// </summary>
-    /// <param name="source">Wrapper around the scrolled rows, in the same cell as the footer. Its own composition visual is
-    /// hidden while the fade draws, so it must not carry a load-swap or entrance animation itself.</param>
-    /// <param name="host">Raw-view layer over the same cell that paints the faded rows; give it a
-    /// <c>fst.&lt;board&gt;.footer-edge</c> AutomationId for UI tests.</param>
-    /// <param name="footer">The floating footer (pinned row and/or pager), bottom-aligned in the same cell.</param>
-    /// <param name="rows">The scrolling element: a <see cref="ScrollViewer"/>, or a control that scrolls inside its
-    /// template (a <see cref="ListView"/>). It hides while the board loads or fails, which turns the edge off.</param>
-    /// <param name="plate">Contrast-theme plate behind the footer.</param>
-    /// <returns>The fade.</returns>
-    public static BoardFooterFade Attach(FrameworkElement source, EdgeFadeLayer host, FrameworkElement footer, FrameworkElement rows,
-        FrameworkElement plate)
+    #region Following
+    /// <summary>Starts or stops following scrolling and the appearance settings while the board is in the tree.</summary>
+    /// <param name="on">Whether the board is loaded.</param>
+    private void Follow(bool on)
     {
-        var fade = new BoardFooterFade(source, host);
-        var binding = new EdgeBinding(fade, source, host, footer, rows, plate);
-        // The host is never collapsed, so it loads with the page even while the rows wait for content.
-        host.Loaded += (_, _) => binding.Start();
-        host.Unloaded += (_, _) => binding.Stop();
-        return fade;
-    }
-
-    /// <summary>Keeps one board's edge in step with its scroll position, layout and appearance settings.</summary>
-    private sealed class EdgeBinding
-    {
-        private readonly BoardFooterFade fade;
-        private readonly FrameworkElement source;
-        private readonly EdgeFadeLayer host;
-        private readonly FrameworkElement footer;
-        private readonly FrameworkElement rows;
-        private readonly FrameworkElement plate;
-        private readonly Windows.UI.ViewManagement.UISettings uiSettings = new();
-        private ScrollViewer? scroller;
-        private bool started;
-
-        /// <summary>Wires layout and visibility changes; appearance settings follow <see cref="Start"/>.</summary>
-        /// <param name="fade">Fade.</param>
-        /// <param name="source">Rows wrapper.</param>
-        /// <param name="host">Layer that paints the masked rows and reports the edge state.</param>
-        /// <param name="footer">Footer.</param>
-        /// <param name="rows">Scrolling element.</param>
-        /// <param name="plate">Contrast plate.</param>
-        public EdgeBinding(BoardFooterFade fade, FrameworkElement source, EdgeFadeLayer host, FrameworkElement footer, FrameworkElement rows,
-            FrameworkElement plate)
+        if (on == following) return;
+        following = on;
+        if (on)
         {
-            this.fade = fade;
-            this.source = source;
-            this.host = host;
-            this.footer = footer;
-            this.rows = rows;
-            this.plate = plate;
-            footer.SizeChanged += (_, _) => Update();
-            source.SizeChanged += (_, _) => Update();
-            footer.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) => Update());
-            source.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) => Update());
-            if (!ReferenceEquals(rows, source))
-            {
-                rows.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) => Update());
-                rows.SizeChanged += (_, _) => Update();
-            }
-        }
-
-        /// <summary>Starts following appearance changes and the rows' scroller.</summary>
-        public void Start()
-        {
-            if (started) return;
-            started = true;
-            App.Session.PropertyChanged += OnSettingsChanged;
+            App.Session.PropertyChanged += OnSessionChanged;
             uiSettings.AdvancedEffectsEnabledChanged += OnSystemChanged;
             // HighContrastChanged needs a CoreWindow; a contrast-theme switch raises ColorValuesChanged instead.
             uiSettings.ColorValuesChanged += OnSystemChanged;
-            FindScroller();
+            EnsureScroller();
             Update();
+            return;
         }
+        App.Session.PropertyChanged -= OnSessionChanged;
+        uiSettings.AdvancedEffectsEnabledChanged -= OnSystemChanged;
+        uiSettings.ColorValuesChanged -= OnSystemChanged;
+    }
 
-        /// <summary>Stops following appearance changes.</summary>
-        public void Stop()
+    /// <summary>Finds the list's scroll viewer once (a ListView's lives in its template) and follows its scrolling.</summary>
+    /// <returns>The scroll viewer, or <see langword="null"/> before the template is applied.</returns>
+    private ScrollViewer? EnsureScroller()
+    {
+        if (scroller is null && (scroller = FindScrollViewer(list)) is not null)
         {
-            if (!started) return;
-            started = false;
-            App.Session.PropertyChanged -= OnSettingsChanged;
-            uiSettings.AdvancedEffectsEnabledChanged -= OnSystemChanged;
-            uiSettings.ColorValuesChanged -= OnSystemChanged;
-        }
-
-        /// <summary>
-        /// Finds the scroller (a <see cref="ListView"/>'s lives in its template, realized once loaded) and follows its
-        /// offset and extent: rows arriving grow the extent without a scroll, and the band must appear then too.
-        /// </summary>
-        private void FindScroller()
-        {
-            if (scroller is not null) return;
-            scroller = rows as ScrollViewer ?? Descendant(rows);
-            if (scroller is null) return;
             scroller.ViewChanged += (_, _) => Update();
+            // Rows arriving (or a page swap) change the extent without a scroll; a board that loads long shows the
+            // ramp at once, with or without the selected player's pinned row (issue #305).
             scroller.RegisterPropertyChangedCallback(ScrollViewer.ScrollableHeightProperty, (_, _) => Update());
         }
-
-        /// <summary>First <see cref="ScrollViewer"/> below <paramref name="root"/>, depth first.</summary>
-        /// <param name="root">Element to search.</param>
-        /// <returns>The scroller, or <see langword="null"/> before the template is applied.</returns>
-        private static ScrollViewer? Descendant(DependencyObject root)
-        {
-            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
-            {
-                var child = VisualTreeHelper.GetChild(root, i);
-                if ((child as ScrollViewer ?? Descendant(child)) is { } found) return found;
-            }
-            return null;
-        }
-
-        /// <summary>Shows the fade, the contrast plate or neither. Runs on scroll, size and setting changes only.</summary>
-        private void Update()
-        {
-            if (!started) return;
-            FindScroller();
-            var settings = App.Session.Settings;
-            var shown = source.Visibility == Visibility.Visible && rows.Visibility == Visibility.Visible &&
-                        footer.Visibility == Visibility.Visible && footer.ActualHeight > 0;
-            var treatment = BoardFooterEdgeFade.Treatment(shown, ContrastTheme.IsOn, uiSettings.AdvancedEffectsEnabled,
-                settings.LessTransparency, settings.MoreContrast);
-            plate.Visibility = treatment == BoardFooterTreatment.Plate ? Visibility.Visible : Visibility.Collapsed;
-            if (treatment == BoardFooterTreatment.Plate) plate.Height = footer.ActualHeight + footer.Margin.Bottom;
-            var masked = treatment is BoardFooterTreatment.Fade or BoardFooterTreatment.Cut;
-            double? top = masked ? footer.TransformToVisual(source).TransformPoint(default).Y : null;
-            var strength = scroller is null ? 0 : BoardFooterEdgeFade.Strength(scroller.ScrollableHeight, scroller.VerticalOffset);
-            fade.Update(top, BoardFooterEdgeFade.MaskStrength(treatment, strength));
-            host.SetStatus(BoardFooterEdgeFade.Status(treatment, strength));
-        }
-
-        /// <summary>Re-evaluates when the in-app settings change.</summary>
-        /// <param name="sender">Session.</param>
-        /// <param name="e">Changed property.</param>
-        private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName == "Settings") source.DispatcherQueue.TryEnqueue(Update);
-        }
-
-        /// <summary>Re-evaluates when Windows transparency effects or the contrast theme change (any thread).</summary>
-        /// <param name="sender">Settings source.</param>
-        /// <param name="args">Ignored.</param>
-        private void OnSystemChanged(Windows.UI.ViewManagement.UISettings sender, object args) =>
-            source.DispatcherQueue.TryEnqueue(Update);
+        return scroller;
     }
+
+    /// <summary>Depth-first search for the first scroll viewer at or under <paramref name="root"/>.</summary>
+    /// <param name="root">Search root.</param>
+    /// <returns>The scroll viewer, or <see langword="null"/>.</returns>
+    private static ScrollViewer? FindScrollViewer(DependencyObject root)
+    {
+        if (root is ScrollViewer viewer) return viewer;
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+            if (FindScrollViewer(VisualTreeHelper.GetChild(root, i)) is { } nested) return nested;
+        return null;
+    }
+
+    /// <summary>Re-evaluates when the in-app settings change.</summary>
+    /// <param name="sender">Session.</param>
+    /// <param name="e">Changed property.</param>
+    private void OnSessionChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == "Settings") source.DispatcherQueue.TryEnqueue(Update);
+    }
+
+    /// <summary>Re-evaluates when Windows transparency effects or the contrast theme change (any thread).</summary>
+    /// <param name="sender">Settings source.</param>
+    /// <param name="args">Ignored.</param>
+    private void OnSystemChanged(Windows.UI.ViewManagement.UISettings sender, object args) => source.DispatcherQueue.TryEnqueue(Update);
     #endregion
 
     #region Drawing
-    /// <summary>Shows the fade with the footer's top at <paramref name="footerTop"/>, or turns it off.</summary>
-    /// <param name="footerTop">Footer top in the source's coordinates, epx; <see langword="null"/> turns the fade off.</param>
-    /// <param name="value">Band strength from <see cref="BoardFooterEdgeFade.Strength"/>.</param>
-    public void Update(double? footerTop, double value)
+    /// <summary>Places (or removes) the ramp for the current scroll position, footer and settings, then publishes the state.</summary>
+    private void Update()
+    {
+        if (!following) return;
+        var settings = App.Session.Settings;
+        var contrast = ContrastTheme.IsOn;
+        var shown = source.Visibility == Visibility.Visible && list.Visibility == Visibility.Visible &&
+                    footer.Visibility == Visibility.Visible && footer.ActualHeight > 0;
+        if (plate is not null)
+        {
+            plate.Visibility = contrast && shown ? Visibility.Visible : Visibility.Collapsed;
+            if (contrast && shown) plate.Height = footer.ActualHeight + footer.Margin.Bottom;
+        }
+        var enabled = SongHeaderEdgeFade.IsEnabled(contrast, uiSettings.AdvancedEffectsEnabled, settings.LessTransparency, settings.MoreContrast);
+        double? top = shown ? footer.TransformToVisual(source).TransformPoint(default).Y : null;
+        var viewer = EnsureScroller();
+        Apply(top, viewer is null ? 0 : BoardFooterEdgeFade.FadeDepth(viewer.ScrollableHeight, viewer.VerticalOffset, enabled));
+        var drawn = active && gradient is not null ? gradient.EndPoint.Y - gradient.StartPoint.Y : 0;
+        host.SetStatus(BoardFooterEdgeFade.Status(active, enabled, drawn));
+    }
+
+    /// <summary>Draws the mask with the footer's top at <paramref name="footerTop"/>, or turns it off.</summary>
+    /// <param name="footerTop">Footer top in the source's coordinates, epx; <see langword="null"/> turns the mask off.</param>
+    /// <param name="value">Ramp depth from <see cref="BoardFooterEdgeFade.FadeDepth"/> (0 = cut at the footer's top).</param>
+    private void Apply(double? footerTop, double value)
     {
         if (footerTop is not { } top)
         {
@@ -225,19 +177,13 @@ internal sealed class BoardFooterFade
             return;
         }
         Build();
-        if (top != cut)
+        value = Math.Clamp(value, 0, BoardFooterEdgeFade.Depth);
+        if (top != cut || value != depth)
         {
-            cut = top;
-            gradient!.StartPoint = new Vector2(0, (float)(top - BoardFooterEdgeFade.Depth));
-            gradient.EndPoint = new Vector2(0, (float)(top + 1));
-        }
-        value = Math.Clamp(value, 0, 1);
-        if (value != strength)
-        {
-            strength = value;
-            var alphas = BoardFooterEdgeFade.Stops(value);
-            for (var i = 0; i < stops.Length; i++)
-                stops[i].Color = Windows.UI.Color.FromArgb((byte)Math.Round(255 * alphas[i].Alpha), 0, 0, 0);
+            (cut, depth) = (top, value);
+            // A sub-pixel floor keeps the gradient non-degenerate: depth 0 is a hard cut at the footer's top.
+            gradient!.StartPoint = new Vector2(0, (float)(top - Math.Max(value, 0.01)));
+            gradient.EndPoint = new Vector2(0, (float)top);
         }
         if (active) return;
         active = true;
@@ -261,8 +207,8 @@ internal sealed class BoardFooterFade
         gradient = compositor.CreateLinearGradientBrush();
         gradient.MappingMode = CompositionMappingMode.Absolute;
         gradient.ExtendMode = CompositionGradientExtendMode.Clamp;
-        stops = [.. BoardFooterEdgeFade.Stops(1).Select(s => compositor.CreateColorGradientStop(s.Offset, Microsoft.UI.Colors.Black))];
-        foreach (var stop in stops) gradient.ColorStops.Add(stop);
+        foreach (var (offset, alpha) in BoardFooterEdgeFade.Stops)
+            gradient.ColorStops.Add(compositor.CreateColorGradientStop(offset, Windows.UI.Color.FromArgb((byte)Math.Round(255 * alpha), 0, 0, 0)));
         var mask = compositor.CreateMaskBrush();
         mask.Source = content;
         mask.Mask = gradient;

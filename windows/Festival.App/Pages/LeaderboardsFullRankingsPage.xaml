@@ -73,9 +73,9 @@
             </StackPanel>
         </Grid>
 
-        <!-- One frosted row per entry, 4 epx apart (web entryRow list, operator batch 7.7); the rows scroll on beneath the
-             floating footer (BoardFooter) and fade out above it, with or without the pinned row (BoardFooterFade, issues
-             #93, #305). The wrapper is the fade source: the scroller keeps its own visual for the load swap. -->
+        <!-- One frosted row per entry, 4 epx apart (web entryRow list, operator batch 7.7); the rows end at the floating
+             footer (BoardFooter) through the bottom-chrome ramp (BoardFooterFade, issue #308). The wrapper is the fade
+             source because the load swap animates the ScrollViewer's own visual. -->
         <Grid x:Name="BoardFadeSource" Grid.Row="1" Grid.RowSpan="3">
             <ScrollViewer x:Name="Scroller" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
                           controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
@@ -95,8 +95,8 @@
                 </ItemsRepeater>
             </ScrollViewer>
         </Grid>
-        <!-- Paints BoardFadeSource with its rows faded above the footer (or cut hard at its top with reduced transparency); never hit-testable. Raw-view ItemStatus names the edge state for UI tests (hidden, fading, end, hard-edge, plate). -->
-        <controls:EdgeFadeLayer x:Name="BoardFadeHost" Grid.Row="1" Grid.RowSpan="3" AutomationProperties.AutomationId="fst.full-rankings.footer-edge" />
+        <!-- Paints BoardFadeSource with its rows faded above the footer; never hit-testable, UIA raw view only. -->
+        <controls:EdgeFadeLayer x:Name="BoardFadeHost" Grid.Row="1" Grid.RowSpan="3" AutomationProperties.AutomationId="fst.full-rankings.footer-fade" />
         <TextBlock Grid.Row="1" Text="No ranked players yet." Style="{StaticResource FSTSecondaryTextStyle}"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
@@ -108,9 +108,9 @@
                                     controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                                     Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" />
 
-        <!-- Contrast themes turn the footer fade off; this window-colour plate (footer height, sized by BoardFooterFade) hides
-             the rows between and behind the floating footer's controls instead of letting their text show through (issue
-             #208, as the song leaderboard). Never hit-testable. -->
+        <!-- Contrast themes: the footer fade cuts the rows hard at the footer's top and this window-colour plate (footer
+             height, sized by BoardFooterFade) backs the footer's controls (issue #208, as the song leaderboard). Never
+             hit-testable. -->
         <Border x:Name="FooterPlate" Grid.Row="1" Grid.RowSpan="3" VerticalAlignment="Bottom" IsHitTestVisible="False" Visibility="Collapsed"
                 Background="{ThemeResource FSTFloatingBackplateBrush}" />
 

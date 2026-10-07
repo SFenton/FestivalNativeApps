@@ -33,8 +33,8 @@ public sealed partial class LeaderboardsBandRankingsPage : Page, IRouteHost
     {
         InitializeComponent();
         BoardFooter.Inset(Footer, RowsRepeater);
+        BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Scroller, Footer, FooterPlate);
         SizeChanged += (_, e) => ApplySplit(e.NewSize.Width >= SplitWidth);
-        BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Footer, Scroller, FooterPlate);
     }
 
     /// <summary>Page model (set on navigation).</summary>

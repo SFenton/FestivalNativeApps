@@ -64,6 +64,7 @@ import com.festivalscoretracker.android.core.profile.RankHistoryWindow
 import com.festivalscoretracker.android.ui.leaderboards.FrostedPagerButton
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlin.math.abs
+import com.festivalscoretracker.android.ui.common.ChartBandLabels
 import com.festivalscoretracker.android.ui.common.chartAxisTextStyle
 
 // region Rank history
@@ -202,11 +203,14 @@ private fun Plot(window: RankHistoryWindow, totalAccounts: Int, onChange: (RankH
             }
             AxisColumn(plot.rankTicks, TextAlign.Start)
         }
-        // Axis dates are in the chart's own description; TalkBack skips them.
-        Row(Modifier.fillMaxWidth().padding(horizontal = AXIS_WIDTH.dp, vertical = 4.dp).clearAndSetSemantics { }, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(RankHistoryPlot.displayDate(visible.first()), style = MaterialTheme.typography.labelSmall, color = BrandTokens.textMuted)
-            if (visible.size > 1) Text(RankHistoryPlot.displayDate(visible.last()), style = MaterialTheme.typography.labelSmall, color = BrandTokens.textMuted)
-        }
+        // One date centred under each bar; the dates are in the chart's own description, so TalkBack skips them.
+        ChartBandLabels(
+            visible.map { RankHistoryPlot.displayDate(it) },
+            plotInset = AXIS_WIDTH.dp,
+            style = MaterialTheme.typography.labelSmall,
+            color = BrandTokens.textMuted,
+            modifier = Modifier.padding(vertical = 4.dp).testTag("fst.player.rank-history.dates"),
+        )
     }
 }
 

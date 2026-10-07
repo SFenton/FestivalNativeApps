@@ -7,11 +7,11 @@ namespace Festival.App.Controls;
 
 #region Edge fade layer
 /// <summary>
-/// The hit-test-invisible host that paints an edge fade's masked copy of a list: <see cref="TopEdgeFade"/> under the
-/// Songs header and <see cref="BoardFooterFade"/> above every board's floating footer. Decorative: it is in the UIA raw
-/// view only (Narrator and the control view skip it) and reports the edge state (<see cref="SongHeaderEdgeFade.Status"/>
-/// or <see cref="BoardFooterEdgeFade.Status"/>) as ItemStatus, so UI tests can assert the fade, the hard-edge fallback and
-/// the hidden state without reading pixels.
+/// The hit-test-invisible host that paints a scroll-edge mask's copy of a list: <see cref="TopEdgeFade"/> under the Songs
+/// pinned section title and <see cref="BoardFooterFade"/> above every board's floating footer. Decorative: it is in the
+/// UIA raw view only (Narrator and the control view skip it) and reports the edge state
+/// (<see cref="SongHeaderEdgeFade.Status"/> or <see cref="BoardFooterEdgeFade.Status"/>) as ItemStatus, so UI tests can
+/// assert the fade, the end of the list, the hard-edge fallback and the hidden state without reading pixels.
 /// </summary>
 public sealed partial class EdgeFadeLayer : Grid
 {

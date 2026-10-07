@@ -20,7 +20,7 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
     {
         InitializeComponent();
         BoardFooter.Inset(Footer, ScrollContent);
-        BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Footer, Scroller, FooterPlate);
+        BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Scroller, Footer, FooterPlate);
     }
 
     /// <summary>Page model (set on navigation).</summary>
