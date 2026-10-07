@@ -18,6 +18,8 @@ public static class BandWire
         return $$"""{"accountId":"{{accountId}}","group":"all","totalCount":{{total}},"entries":[{{entries}}]}""";
     }
 
+    /// <summary>Per-size song board page; <paramref name="selectedRank"/> appends that band as <c>selectedPlayerEntry</c>
+    /// (of <paramref name="selectedType"/> when set) and <paramref name="showTotals"/> sets <c>showLeaderboardEntryTotals</c>.</summary>
     public static string SongBands(string songId, string bandType, int count, int total, int offset = 0, int? selectedRank = null, string? selectedType = null, bool? showTotals = null)
     {
         var entries = string.Join(",", Enumerable.Range(offset + 1, count).Select(i => SongBandEntry(bandType, i)));
@@ -26,6 +28,7 @@ public static class BandWire
         return $$"""{"songId":"{{songId}}","bandType":"{{bandType}}",{{totals}}"count":{{count}},"totalEntries":{{total}},"localEntries":{{total}},"entries":[{{entries}}]{{selected}}}""";
     }
 
+    /// <summary>The band ranked <paramref name="i"/> on a synthetic per-size song board (members <c>t{i}a</c>, <c>t{i}b</c>).</summary>
     public static string SongBandEntry(string bandType, int i) =>
         $$"""{"bandId":"sb{{i}}","bandType":"{{bandType}}","teamKey":"t{{i}}a:t{{i}}b","comboId":null,"members":[{"accountId":"t{{i}}a","displayName":"Lead {{i}}","instruments":["Solo_Guitar"],"score":500,"accuracy":990000,"isFullCombo":true,"stars":5,"difficulty":3,"season":9},{"accountId":"t{{i}}b","displayName":"","instruments":["Solo_Bass"]}],"score":{{100000 - i}},"rank":{{i}},"accuracy":{{(i == 1 ? "990000" : "null")}},"isFullCombo":{{(i == 1 ? "true" : "false")}},"stars":{{(i == 1 ? "6" : "0")}},"season":9,"difficulty":3,"percentile":0.1,"endTime":null}""";
 }

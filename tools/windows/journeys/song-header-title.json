@@ -108,13 +108,12 @@
     "args": ["--no-art"],
     "extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1"},
     "steps": [
-      "waitfor:id=fst.history@30",
-      "waitfor:id=fst.song-detail.pinned-title@10",
+      "waitfor:id=fst.history.title@30",
       "wait:1.5",
-      "assertname:id=fst.song-detail.pinned-title|Fixture Pulse and the Extraordinarily Long Song Title That Never Fits on One Line",
-      "assertmarquee:id=fst.song-detail.pinned-title|moving|28",
-      "assertmarquee:id=fst.song-detail.pinned-artist|moving|22",
-      "assertmarqueesync:id=fst.song-detail.pinned-title|id=fst.song-detail.pinned-artist",
+      "assertname:id=fst.history.title|Fixture Pulse and the Extraordinarily Long Song Title That Never Fits on One Line",
+      "assertmarquee:id=fst.history.title|moving|44",
+      "assertmarquee:id=fst.history.artist|moving|26",
+      "assertmarqueesync:id=fst.history.title|id=fst.history.artist",
       "shot:{shots}\\player-history-moving.png"
     ]
   },
@@ -125,12 +124,11 @@
     "args": ["--no-art", "--reduce-motion"],
     "extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1"},
     "steps": [
-      "waitfor:id=fst.history@30",
-      "waitfor:id=fst.song-detail.pinned-title@10",
+      "waitfor:id=fst.history.title@30",
       "wait:1.5",
-      "assertname:id=fst.song-detail.pinned-title|Fixture Pulse and the Extraordinarily Long Song Title That Never Fits on One Line",
-      "assertmarquee:id=fst.song-detail.pinned-title|static|28",
-      "assertmarquee:id=fst.song-detail.pinned-artist|static|22",
+      "assertname:id=fst.history.title|Fixture Pulse and the Extraordinarily Long Song Title That Never Fits on One Line",
+      "assertmarquee:id=fst.history.title|static|44",
+      "assertmarquee:id=fst.history.artist|static|26",
       "shot:{shots}\\player-history-static.png"
     ]
   },

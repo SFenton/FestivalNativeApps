@@ -218,6 +218,7 @@ public sealed partial class RankingCardViewModel : ObservableObject
         this.session = session;
         Instrument = instrument;
         Metric = metric;
+        SkeletonRows = LeaderboardRowMetrics.SkeletonRows(metric, AutomationId);
         Status = new ServiceStatusViewModel($"leaderboards.{instrument.ServiceId()}", $"{instrument.Label()} unavailable",
             () => LoadAsync(), session.Time);
         Spotlight = new RankingSpotlightViewModel(instrument, reader, session.Time, $"leaderboards.spotlight.{instrument.ServiceId()}");
@@ -281,6 +282,9 @@ public sealed partial class RankingCardViewModel : ObservableObject
     /// <summary>Top rows.</summary>
     [ObservableProperty]
     private List<RankingRowViewModel> rows = [];
+
+    /// <summary>Loading skeleton rows, fitted like this card's loaded rows (issue #281).</summary>
+    public IReadOnlyList<LeaderboardSkeletonRow> SkeletonRows { get; }
 
     /// <summary>Whether the skeleton is shown.</summary>
     public bool IsLoading => State is LoadState.Idle or LoadState.Loading;
@@ -366,6 +370,7 @@ public sealed partial class BandRankingCardViewModel : ObservableObject
         this.session = session;
         BandType = bandType;
         Metric = metric;
+        SkeletonRows = LeaderboardRowMetrics.SkeletonRows(metric.ToRankingMetric(), AutomationId);
         Status = new ServiceStatusViewModel($"leaderboards.{bandType.ServiceId()}", $"{bandType.Label()} unavailable",
             () => LoadAsync(), session.Time);
     }
@@ -413,6 +418,9 @@ public sealed partial class BandRankingCardViewModel : ObservableObject
     /// <summary>Top rows.</summary>
     [ObservableProperty]
     private List<BandRankingRowViewModel> rows = [];
+
+    /// <summary>Loading skeleton rows, fitted like this card's loaded rows (issue #281).</summary>
+    public IReadOnlyList<LeaderboardSkeletonRow> SkeletonRows { get; }
 
     /// <summary>Whether the skeleton is shown.</summary>
     public bool IsLoading => State is LoadState.Idle or LoadState.Loading;

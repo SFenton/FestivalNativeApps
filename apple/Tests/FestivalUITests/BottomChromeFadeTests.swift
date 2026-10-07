@@ -5,7 +5,7 @@ import Testing
 
 /// Scroll-edge R7 for the shared bottom-chrome fade (``BottomChromeFade``) on the Solo
 /// chart, Full Rankings and the band boards, including the full band leaderboard's
-/// selected-band footer (issue #306): the web's 36-point fade normally, a hard cut at
+/// selected-band footer (issue #306): the web board pages' 40-point linear fade normally (issue #329), a hard cut at
 /// the chrome's top edge under Reduce Transparency, Less Transparency or Increase
 /// Contrast (system or in-app).
 struct BottomChromeFadeTests {
@@ -14,7 +14,7 @@ struct BottomChromeFadeTests {
             ScrollEdgeFade.distance, systemReduceTransparency: false, lessTransparency: false,
             systemContrast: .standard, moreContrast: false
         )
-        #expect(distance == 36)
+        #expect(distance == 40)
         let stops = ScrollEdgeFade.bottom(height: 800, obscured: 200, distance: distance)
         #expect(stops.fadeStart < stops.fadeEnd)
     }

@@ -169,8 +169,9 @@ fun SongLeaderboardScreen(
     val listState = rememberLazyListState()
     val title = (song as? LoadState.Loaded)?.value?.title ?: "Leaderboard"
     // Page reloads fade the rows out, show the spinner and stagger the new page in, like the
-    // web's PaginatedLeaderboard (issue #71).
-    val swap = rememberLoadSwap(board, board !is LoadState.Loading, key = page)
+    // web's PaginatedLeaderboard (issue #71). The pinned score depends on the chart and the
+    // invalid-score leeway, never the page (web `footerAnimKey`, issue #190).
+    val swap = rememberLoadSwap(board, board !is LoadState.Loading, key = page, pinnedKey = viewModel.instrument to leeway)
     val payload = (swap.shown as? LoadState.Loaded)?.value
     val loaded = payload?.leaderboard
     val profile = selectedProfile?.collectAsStateWithLifecycle()?.value
@@ -247,12 +248,13 @@ fun SongLeaderboardScreen(
                     loadedSong?.let { navigate(SongLeaderboardRoute(it.songId, chart.wireId)) }
                 }
             },
-            // The pinned score fades out with the page and staggers back in with its first row (issue #295);
-            // its slot and the pager stay in place while the next page loads (issue #93), the stale row
-            // hidden, unread and untouchable under the spinner (issue #149).
+            // The pinned score fades in with the first rows on the first load (issue #295) and
+            // stays visible and usable in place with the pager while another page loads, like the
+            // web footer (issues #93, #190). A leeway change hides it, unread and untouchable,
+            // beside the spinner (issue #149) and re-reveals it with the new rows.
             footer = {
                 footer?.let { entry ->
-                    AnchoredRowCard(with(swap) { Modifier.staggered(0) }.then(swap.pinnedContentModifier)) {
+                    AnchoredRowCard(with(swap) { Modifier.pinnedStaggered(0) }.then(swap.pinnedContentModifier)) {
                         LeaderboardSectionMember(columns, "footer") {
                             SelectedScoreFooterRow(
                                 entry = entry,

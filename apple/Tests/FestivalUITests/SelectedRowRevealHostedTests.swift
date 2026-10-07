@@ -363,7 +363,7 @@ private func runRevealJourney(board: RevealBoard, motion: RevealMotion, size: CG
         #expect(press.accessibilityPerformPress?() == true)
     }
 
-    // Below the bar and above the pinned footer/pager and their 36 pt fade.
+    // Below the bar and above the pinned footer/pager and their 40 pt fade.
     let band: ClosedRange<CGFloat> = 90...(size.height - 230)
     var watch = try await watchReveal(
         host, row: board.rowId, band: band, threshold: board.threshold, fade: fade, deadline: &deadline

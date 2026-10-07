@@ -493,48 +493,79 @@ public class PlayerHistoryViewModelTests
         Assert.True(vm.ShowMessage);
         Assert.Equal("No Player Selected", vm.MessageTitle);
         Assert.Contains("Select a player", vm.Message);
+        Assert.True(vm.CanSelectPlayer);
+        Assert.False(vm.CanRetryMessage);
         Assert.Empty(fake.Service.Handler.To($"/api/player/{PlayerWire.Id}/history"));
     }
 
     [Fact]
-    public async Task Loaded_SortsTracksBestAndCharts()
+    public async Task Loaded_ShowsEveryScoreUnderTheSongHeader_SortsAndTracksBest()
     {
         var fake = new PlayerFakeService();
         var session = fake.Session(new SelectedPlayer(PlayerWire.Id, "One"));
         using var vm = new PlayerHistoryViewModel(session, Route);
-        Assert.Equal("Score History", vm.Title);
         await vm.LoadAsync();
         Assert.True(vm.ShowRows);
-        Assert.Equal("Alpha · Lead", vm.Subtitle);
+        // Song-first header (song-leaderboard-header R1): song title, artist, then the chart on the board line.
+        Assert.Equal("Alpha", vm.Title);
+        Assert.Equal("Zed Band", vm.Subtitle);
+        Assert.Equal("Lead", vm.InstrumentLabel);
         Assert.Equal("instrument_guitar.png", vm.IconFile);
-        Assert.Equal([1200L, 1000, 900], vm.Rows.Select(r => r.Entry.NewScore));
-        Assert.True(vm.Rows[0].IsHighScore);
-        Assert.Contains("↓", vm.SortLabel);
+        Assert.Equal("Alpha, Lead score history", vm.Announcement);
+        // Every score (no top-five cap), default Score descending, personal best first.
+        Assert.Equal([1200, 1000, 900], vm.Rows.Select(r => r.Point.Score));
+        Assert.True(vm.Rows[0].IsBest);
+        Assert.Equal("Score ↓", vm.SortLabel);
         Assert.Equal("Sort by Score, descending", vm.SortAnnouncement);
-        Assert.True(vm.HasChart);
-        Assert.Equal(3, vm.Chart!.Points.Count);
+        // Shared leaderboard rows: one set of columns, page-specific automation IDs.
+        Assert.All(vm.Rows, r => Assert.Same(vm.Rows[0].Section, r.Section));
+        Assert.NotNull(vm.Rows[0].Section);
+        Assert.All(vm.Rows, r => Assert.StartsWith(PlayerHistoryViewModel.RowIdPrefix, r.AutomationId, StringComparison.Ordinal));
+        Assert.Contains("personal best", vm.Rows[0].Announcement);
 
         vm.SortBy(PlayerScoreSortMode.Date);
-        Assert.Equal([900L, 1000, 1200], vm.Rows.Select(r => r.Entry.NewScore).Reverse());
+        Assert.Equal([1200, 1000, 900], vm.Rows.Select(r => r.Point.Score));
         vm.ToggleDirection();
         Assert.True(vm.SortAscending);
-        Assert.Equal([900L, 1000, 1200], vm.Rows.Select(r => r.Entry.NewScore));
-        Assert.True(vm.Rows[2].IsHighScore);
+        Assert.Equal("Date ↑", vm.SortLabel);
+        Assert.Equal([900, 1000, 1200], vm.Rows.Select(r => r.Point.Score));
+        Assert.True(vm.Rows[2].IsBest); // the highlight follows the personal best
+        Assert.False(vm.Rows[0].IsBest);
+        vm.SortBy(PlayerScoreSortMode.Accuracy);
+        Assert.Equal([900, 1000, 1200], vm.Rows.Select(r => r.Point.Score));
+        vm.SortBy(PlayerScoreSortMode.Season);
+        Assert.Equal(PlayerScoreSortMode.Season, vm.SortMode);
         vm.ResetSort();
         Assert.Equal(PlayerScoreSortMode.Score, vm.SortMode);
         Assert.False(vm.SortAscending);
+        Assert.Equal([1200, 1000, 900], vm.Rows.Select(r => r.Point.Score));
+    }
 
-        var best = vm.Rows[0];
-        Assert.True(best.IsFullCombo);
-        Assert.Equal("99%", best.Accuracy);
-        Assert.True(best.HasAccuracy);
-        Assert.Equal("Season 9", best.Season);
-        Assert.EndsWith(" · Season 9", best.Detail);
-        Assert.Equal(new StarRating(5, false), StarRating.From(best.StarCount));
-        Assert.Contains("personal best", best.Announcement);
-        Assert.Contains("full combo", best.Announcement);
-        Assert.NotEmpty(best.Date);
-        Assert.NotEmpty(best.Score);
+    [Fact]
+    public async Task InvalidScores_AreFilteredAndRefilteredOnSettingsChange()
+    {
+        var fake = new PlayerFakeService();
+        var session = fake.Session(new SelectedPlayer(PlayerWire.Id, "One"), new AppSettings { FilterInvalidScores = true, Leeway = 1 });
+        using var vm = new PlayerHistoryViewModel(session, Route);
+        await vm.LoadAsync();
+        // Alpha's Lead maximum is 1000 (1010 with 1% leeway): the 1200 score is hidden, so 1000 is the best shown.
+        Assert.Equal([1000, 900], vm.Rows.Select(r => r.Point.Score));
+        Assert.True(vm.Rows[0].IsBest);
+
+        session.UpdateSettings(s => s with { FilterInvalidScores = false });
+        Assert.Equal([1200, 1000, 900], vm.Rows.Select(r => r.Point.Score));
+        Assert.Single(fake.Service.Handler.To($"/api/player/{PlayerWire.Id}/history")); // re-filtered, not re-read
+
+        session.UpdateSettings(s => s with { FilterInvalidScores = true, Leeway = -5 });
+        Assert.Equal([900], vm.Rows.Select(r => r.Point.Score)); // 950 threshold
+
+        // Nothing survives: the empty state, never a blank list; showing invalid scores brings the rows back.
+        fake.HistoryBody = PlayerWire.History(PlayerWire.Id, PlayerWire.HistoryEntry("s1", score: 1200, achieved: "2026-09-05T10:00:00Z"));
+        await vm.LoadAsync();
+        Assert.Equal(PlayerHistoryPhase.Empty, vm.Phase);
+        session.UpdateSettings(s => s with { FilterInvalidScores = false });
+        Assert.Equal(PlayerHistoryPhase.Loaded, vm.Phase);
+        Assert.Equal([1200], vm.Rows.Select(r => r.Point.Score));
     }
 
     [Fact]
@@ -547,7 +578,8 @@ public class PlayerHistoryViewModelTests
         await vm.LoadAsync();
         Assert.Equal(PlayerHistoryPhase.Unregistered, vm.Phase);
         Assert.Contains("registered users", vm.Message);
-        Assert.Equal("Bass", vm.Subtitle);
+        Assert.Equal("", vm.Title); // unknown song: the header keeps the chart name
+        Assert.Equal("Bass score history", vm.Announcement);
 
         fake.HistoryStatus = HttpStatusCode.Accepted;
         fake.HistoryBody = """{"accountId":"fixtureplayer1","status":"syncing","notYetPublished":true,"count":0,"history":[]}""";
@@ -563,7 +595,7 @@ public class PlayerHistoryViewModelTests
         Assert.Equal(PlayerHistoryPhase.Empty, vm.Phase);
         Assert.Contains("Bass", vm.Message);
         Assert.Equal("No History Yet", vm.MessageTitle);
-        Assert.False(vm.HasChart);
+        Assert.Empty(vm.Rows);
 
         fake.HistoryStatus = HttpStatusCode.InternalServerError;
         await vm.LoadAsync();
@@ -590,22 +622,17 @@ public class PlayerHistoryViewModelTests
     }
 
     [Fact]
-    public void Row_OptionalFields()
+    public async Task NoPlayer_SelectingAPlayerLoadsTheHistoryInPlace()
     {
-        var row = new ScoreHistoryRow(new ScoreHistoryEntry { NewScore = 5, Stars = 6, ChangedAt = "x" }, false);
-        Assert.Equal("", row.Accuracy);
-        Assert.False(row.HasAccuracy);
-        Assert.Equal("", row.Season);
-        Assert.Equal(row.Date, row.Detail);
-        Assert.Equal(new StarRating(5, true), StarRating.From(row.StarCount));
-        Assert.Equal(0, new ScoreHistoryRow(new ScoreHistoryEntry { ChangedAt = "x" }, false).StarCount);
-        Assert.DoesNotContain("personal best", row.Announcement);
-        // Six stars read as the five gold images drawn (issue #221), and 0 / missing read nothing (no star images).
-        Assert.Contains(", 5 gold stars", row.Announcement, StringComparison.Ordinal);
-        Assert.DoesNotContain("6 stars", row.Announcement, StringComparison.Ordinal);
-        Assert.Contains(", 1 star", new ScoreHistoryRow(new ScoreHistoryEntry { NewScore = 5, Stars = 1, ChangedAt = "x" }, false).Announcement, StringComparison.Ordinal);
-        Assert.DoesNotContain("star", new ScoreHistoryRow(new ScoreHistoryEntry { NewScore = 5, Stars = 0, ChangedAt = "x" }, false).Announcement, StringComparison.Ordinal);
-        Assert.DoesNotContain("star", new ScoreHistoryRow(new ScoreHistoryEntry { NewScore = 5, ChangedAt = "x" }, false).Announcement, StringComparison.Ordinal);
+        var fake = new PlayerFakeService();
+        var session = fake.Session();
+        using var vm = new PlayerHistoryViewModel(session, Route);
+        await vm.LoadAsync();
+        Assert.True(vm.CanSelectPlayer);
+        session.UpdateSettings(s => s with { SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "One") });
+        await Async.Until(() => vm.Phase != PlayerHistoryPhase.NoPlayer && vm.Phase != PlayerHistoryPhase.Loading);
+        Assert.False(vm.CanSelectPlayer);
+        Assert.Single(fake.Service.Handler.To($"/api/player/{PlayerWire.Id}/history"));
     }
 }
 
@@ -650,24 +677,6 @@ public class PlayerChartTests
         Assert.Equal("Top 1%: 1 song", bars[0].Announcement);
         Assert.Equal("Top 10%: 4 songs", bars[1].Announcement);
         Assert.Empty(PercentileBar.Build([]));
-    }
-
-    [Fact]
-    public void ScoreHistory_NeedsTwoDatedRows()
-    {
-        Assert.Null(ScoreHistoryChartModel.Build([new ScoreHistoryEntry { NewScore = 1, ChangedAt = "2026-01-01T00:00:00Z" },
-            new ScoreHistoryEntry { NewScore = 2, ChangedAt = "nope" }]));
-        var chart = ScoreHistoryChartModel.Build([
-            new ScoreHistoryEntry { NewScore = 200, ChangedAt = "2026-01-03T00:00:00Z" },
-            new ScoreHistoryEntry { NewScore = 100, ChangedAt = "2026-01-01T00:00:00Z" },
-        ])!;
-        Assert.Equal(0, chart.Points[0].X);
-        Assert.Equal(1, chart.Points[1].X);
-        Assert.True(chart.Points[1].Highlight);
-        Assert.False(chart.Points[0].Highlight);
-        Assert.True(chart.Points[1].Y < chart.Points[0].Y);
-        Assert.Equal(3, chart.Ticks.Count);
-        Assert.Contains("2 score changes", chart.Summary);
     }
 }
 

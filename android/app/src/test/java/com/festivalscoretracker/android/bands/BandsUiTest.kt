@@ -524,26 +524,27 @@ class BandsUiTest {
     }
 
     @Test
-    fun songBandLeaderboardHidesTheStalePinnedBandWhileThePageLoads() {
-        // Same rule as the solo board's pinned score (load-transition R2, issue #149).
+    fun songBandLeaderboardKeepsThePinnedBandWhileThePageLoads() {
+        // Same rule as the solo board's pinned score (load-transition R2, issue #190 owner decision B):
+        // a page-only reload keeps the pinned band readable, usable and in place.
         val footerTag = "fst.song-band-leaderboard.spotlight-footer"
         selectedDuoAt(12)
         val nextPage = CompletableDeferred<Unit>()
         hold = { request -> nextPage.takeIf { "/api/leaderboard/s-alpha/bands/Band_Duets" in request.url && "offset=25" in request.url } }
         launch("songBandLeaderboard:s-alpha:Band_Duets", player)
         waitForTag(footerTag)
-        val pinned = rule.onNodeWithTag(footerTag).fetchSemanticsNode().boundsInRoot.center
+        val before = rule.onNodeWithTag(footerTag).fetchSemanticsNode().boundsInRoot
         click("fst.song-band-leaderboard.page-next")
         waitForTag("fst.song-band-leaderboard.loading")
         settle()
         // The merged tree is what TalkBack reads.
-        assertTrue("page 1's pinned band must not show under the spinner", rule.onAllNodesWithTag(footerTag).fetchSemanticsNodes().isEmpty())
-        rule.onRoot().performTouchInput { this.click(pinned) }
-        settle()
-        assertTrue("a tap where the pinned band was must not open it", exists("fst.song-band-leaderboard.loading") && !exists("fst.band.screen"))
+        val during = rule.onAllNodesWithTag(footerTag).fetchSemanticsNodes()
+        assertEquals("the pinned band stays readable beside the spinner", 1, during.size)
+        assertEquals("…and in place", before, during.single().boundsInRoot)
+        assertTrue("…and usable", during.single().config.contains(androidx.compose.ui.semantics.SemanticsActions.OnClick))
         nextPage.complete(Unit)
         rule.waitUntil(10_000) { settle(100); !exists("fst.song-band-leaderboard.loading") }
-        assertTrue("the pinned band returns with the new page", rule.onAllNodesWithTag(footerTag).fetchSemanticsNodes().isNotEmpty())
+        assertEquals(before, rule.onNodeWithTag(footerTag).fetchSemanticsNode().boundsInRoot)
     }
 
     @Test

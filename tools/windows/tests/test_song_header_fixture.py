@@ -88,13 +88,14 @@ class JourneyTests(unittest.TestCase):
                     checks.setdefault(parsed["selector"]["value"], set()).add(parsed["mode"])
         expected = {"fst.song-detail.title", "fst.song-detail.artist", "fst.song-detail.pinned-title",
                     "fst.song-detail.pinned-artist", "fst.song-leaderboard.title", "fst.song-leaderboard.artist",
-                    "fst.song-band-leaderboard.title", "fst.song-band-leaderboard.artist"}
+                    "fst.song-band-leaderboard.title", "fst.song-band-leaderboard.artist",
+                    "fst.history.title", "fst.history.artist"}
         self.assertEqual(set(checks), expected)
-        # The Player History route opens Song Detail at Score History, under its pinned title bar.
+        # The Player History route is its own page again (issue #324) with the shared SongLeaderboardHeader.
         history = [j for j in self.journeys if j["route"].endswith("/history")]
         self.assertEqual(len(history), 2)
         for journey in history:
-            self.assertTrue(any(s.startswith("assertmarquee:id=fst.song-detail.pinned-title") for s in journey["steps"]))
+            self.assertTrue(any(s.startswith("assertmarquee:id=fst.history.title") for s in journey["steps"]))
         self.assertTrue(all(modes == {"moving", "static"} for modes in checks.values()), checks)
 
     def test_two_overflowing_lines_scroll_in_lockstep(self):
@@ -108,7 +109,7 @@ class JourneyTests(unittest.TestCase):
                     parsed = u.parse_step(step)
                     synced.add((parsed["selector"]["value"], parsed["other"]["value"]))
         self.assertEqual(synced, {(f"fst.{h}.title", f"fst.{h}.artist") for h in
-                                  ("song-detail", "song-leaderboard", "song-band-leaderboard")}
+                                  ("song-detail", "song-leaderboard", "song-band-leaderboard", "history")}
                          | {("fst.song-detail.pinned-title", "fst.song-detail.pinned-artist")})
         lone = [j for j in self.journeys if "--short-artist" in j.get("fixture", [])]
         self.assertEqual({j["route"] for j in lone}, {"/songs/fixture-pulse", "/songs/fixture-pulse/Solo_Guitar"})

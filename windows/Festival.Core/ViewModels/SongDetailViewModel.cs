@@ -23,28 +23,13 @@ public sealed partial class SongDetailViewModel : ObservableObject
     /// <summary>Creates the page model for a route.</summary>
     /// <param name="session">Shared session.</param>
     /// <param name="route">Detail route (song ID and optional initial chart).</param>
-    public SongDetailViewModel(FestivalSession session, AppRoute.SongDetail route) : this(session, route.SongId, route.Instrument, false)
-    {
-    }
-
-    /// <summary>Creates the page model for the score-history route: Song Detail scrolled to the history section.</summary>
-    /// <param name="session">Shared session.</param>
-    /// <param name="route">History route (song and chart).</param>
-    public SongDetailViewModel(FestivalSession session, AppRoute.PlayerHistory route) : this(session, route.SongId, route.Instrument, true)
-    {
-    }
-
-    /// <summary>Shared constructor.</summary>
-    /// <param name="session">Shared session.</param>
-    /// <param name="songId">Song.</param>
-    /// <param name="instrument">Initial chart.</param>
-    /// <param name="scrollToHistory">Whether to open at the history section.</param>
-    private SongDetailViewModel(FestivalSession session, string songId, Instrument? instrument, bool scrollToHistory)
+    public SongDetailViewModel(FestivalSession session, AppRoute.SongDetail route)
     {
         this.session = session;
+        var songId = route.SongId;
+        var instrument = route.Instrument;
         SongId = songId;
         InitialInstrument = instrument;
-        ScrollToHistory = scrollToHistory;
         lastAccount = session.SelectedPlayer?.AccountId;
         History = new SongScoreHistoryViewModel(session, songId, instrument);
         History.PropertyChanged += (_, e) =>
@@ -78,9 +63,6 @@ public sealed partial class SongDetailViewModel : ObservableObject
 
     /// <summary>The selected player's score history section.</summary>
     public SongScoreHistoryViewModel History { get; }
-
-    /// <summary>Whether the page opens scrolled to the history section (the <c>/songs/:id/:instrument/history</c> route).</summary>
-    public bool ScrollToHistory { get; }
 
     /// <summary>Requested song.</summary>
     public string SongId { get; }
@@ -494,8 +476,10 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
             })
             {
                 IsSelectedPlayer = true,
-                // Web spotlight row: the full board at the player's page (25 rows a page).
-                Route = new AppRoute.SongLeaderboard(Song.SongId, Instrument, (detail.Rank.Value - 1) / 25 + 1),
+                // Web spotlight row (navToPlayer): the full board at the player's page, revealing the highlighted row; the
+                // same rule as the selected band appended to a band preview (pattern leaderboard-row R7, issue #307).
+                SelectedAction = SelectedRowAction.Preview(detail.Rank.Value, isAppended: true),
+                Route = new AppRoute.SongLeaderboard(Song.SongId, Instrument, LeaderboardPaging.PageForRank(detail.Rank.Value), RevealSelected: true),
             });
         }
         // One set of columns for the card, including row eleven (web computeRankWidth / scoreWidth; issue #37).
@@ -638,6 +622,9 @@ public sealed record LeaderboardRow(LeaderboardEntry Entry) : ILeaderboardScoreR
     /// <summary>Where the row leads (player profile, or the full board for the player's own row eleven).</summary>
     public AppRoute? Route { get; init; }
 
+    /// <summary>The appended row eleven's selected-row action (its jump), named last in <see cref="Announcement"/>.</summary>
+    public SelectedRowAction? SelectedAction { get; init; }
+
     /// <summary>Badge UIA ID (<c>fst.score.accuracy.preview.&lt;instrument&gt;.&lt;accountId&gt;</c>), unique across chart cards.</summary>
     public string BadgeAutomationId => $"fst.score.accuracy.preview.{InstrumentId}." +
                                        (string.IsNullOrEmpty(Entry.AccountId) ? "rank-" + Entry.Rank : Entry.AccountId);
@@ -650,11 +637,12 @@ public sealed record LeaderboardRow(LeaderboardEntry Entry) : ILeaderboardScoreR
 
     /// <summary>Builds the screen-reader summary.</summary>
     /// <param name="season">Whether to read the season.</param>
-    /// <returns>Rank, name, score, accuracy, full combo, season, then "you" on the selected player's row.</returns>
+    /// <returns>Rank, name, score, accuracy, full combo, season, "you" on the selected player's row, then its destination.</returns>
     private string Announce(bool season) => $"Rank {Entry.Rank}, {Name}, {Score} points" +
                                   (Accuracy.Length > 0 ? $", {Accuracy} accuracy" : "") +
                                   (IsFullCombo ? ", " + ScoreFormatting.FullComboAnnouncement(HasAccuracy) : "") +
                                   (season && Entry.Season is { } s ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $", season {s}") : "") +
-                                  (IsSelectedPlayer ? ", you" : "");
+                                  (IsSelectedPlayer ? ", you" : "") +
+                                  (SelectedAction is { } action ? $". {action.Destination(SelectedRowSubject.Player)}" : "");
 }
 #endregion

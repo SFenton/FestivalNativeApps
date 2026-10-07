@@ -831,7 +831,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// Brings the target on screen without real input (works on a locked console): an existing target is scrolled into view
     /// through UIA ScrollItem; otherwise (or if that is not enough) its vertical scroller is stepped through the UIA Scroll
     /// pattern from the top, a viewport at a time. Virtualized targets need not exist yet: the window's first vertically
-    /// scrollable element is used then.
+    /// scrollable Pane or List is used then.
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector and an optional timeout (at most 2 s is spent waiting for the target to appear).</param>
@@ -863,7 +863,10 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         {
             if (parent.Patterns.Scroll.IsSupported && parent.Patterns.Scroll.Pattern.VerticallyScrollable.ValueOrDefault) { scroller = parent; break; }
         }
-        scroller ??= window.FindAllDescendants(automation.ConditionFactory.ByControlType(FlaUI.Core.Definitions.ControlType.Pane))
+        // A ListView exposes its Scroll pattern on the List itself (no inner Pane), e.g. the grouped Songs list.
+        var cf = automation.ConditionFactory;
+        scroller ??= window.FindAllDescendants(cf.ByControlType(FlaUI.Core.Definitions.ControlType.Pane)
+                .Or(cf.ByControlType(FlaUI.Core.Definitions.ControlType.List)))
             .FirstOrDefault(e => e.Patterns.Scroll.IsSupported && e.Patterns.Scroll.Pattern.VerticallyScrollable.ValueOrDefault)
             ?? throw new InvalidOperationException("reveal found no vertical scroller");
         var scroll = scroller.Patterns.Scroll.Pattern;
@@ -1770,7 +1773,8 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         }
         if (!spans.TryGetValue(name, out var marked))
             throw new InvalidOperationException($"assertspan {name}: no markspan recorded it");
-        if (Math.Abs(span - marked) > 1)
+        var tolerance = (double?)step["tolerance"] ?? 1;
+        if (Math.Abs(span - marked) > tolerance)
             throw new InvalidOperationException($"span {name} is {span:0.#} epx, not the marked {marked:0.#} epx ({(string)step["arg"]!})");
     }
 

@@ -170,29 +170,6 @@
                                                           TitleAutomationId="fst.history.error" RetryAutomationId="fst.history.retry" />
                         </StackPanel>
                     </Border>
-                    <!-- Sort applies to the list (Fluent command menu; web list order is Score, descending). -->
-                    <DropDownButton HorizontalAlignment="Right" Visibility="{x:Bind ViewModel.History.ShowChart, Mode=OneWay}"
-                                    MinHeight="{StaticResource FSTMinTargetSize}"
-                                    AutomationProperties.Name="{x:Bind ViewModel.History.SortAnnouncement, Mode=OneWay}"
-                                    AutomationProperties.AutomationId="fst.history.sort.open">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <FontIcon Glyph="&#xE8CB;" FontSize="14" />
-                            <TextBlock Text="{x:Bind ViewModel.History.SortLabel, Mode=OneWay}" />
-                        </StackPanel>
-                        <DropDownButton.Flyout>
-                            <MenuFlyout x:Name="SortMenu" Placement="BottomEdgeAlignedRight" Opening="OnSortMenuOpening">
-                                <RadioMenuFlyoutItem Text="Date" GroupName="mode" Tag="Date" Click="OnSortModeClick" AutomationProperties.AutomationId="fst.history.sort.mode.date" />
-                                <RadioMenuFlyoutItem Text="Score" GroupName="mode" Tag="Score" Click="OnSortModeClick" AutomationProperties.AutomationId="fst.history.sort.mode.score" />
-                                <RadioMenuFlyoutItem Text="Accuracy" GroupName="mode" Tag="Accuracy" Click="OnSortModeClick" AutomationProperties.AutomationId="fst.history.sort.mode.accuracy" />
-                                <RadioMenuFlyoutItem Text="Season" GroupName="mode" Tag="Season" Click="OnSortModeClick" AutomationProperties.AutomationId="fst.history.sort.mode.season" />
-                                <MenuFlyoutSeparator />
-                                <RadioMenuFlyoutItem Text="Ascending" GroupName="direction" Tag="asc" Click="OnSortDirectionClick" AutomationProperties.AutomationId="fst.history.sort.direction.ascending" />
-                                <RadioMenuFlyoutItem Text="Descending" GroupName="direction" Tag="desc" Click="OnSortDirectionClick" AutomationProperties.AutomationId="fst.history.sort.direction.descending" />
-                                <MenuFlyoutSeparator />
-                                <MenuFlyoutItem Text="Reset" Command="{x:Bind ViewModel.History.ResetSortCommand}" AutomationProperties.AutomationId="fst.history.sort.reset" />
-                            </MenuFlyout>
-                        </DropDownButton.Flyout>
-                    </DropDownButton>
                     <ItemsRepeater x:Name="HistoryRows" ItemsSource="{x:Bind ViewModel.History.Rows, Mode=OneWay}" ItemTemplate="{StaticResource HistoryRowTemplate}"
                                    Visibility="{x:Bind ViewModel.History.ShowChart, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="56"
                                    AutomationProperties.Name="Score history" AutomationProperties.AutomationId="fst.history.rows">
@@ -200,7 +177,7 @@
                             <StackLayout Spacing="8" />
                         </ItemsRepeater.Layout>
                     </ItemsRepeater>
-                    <Button x:Name="HistoryViewAll" Content="{x:Bind ViewModel.History.ViewAllText}" Command="{x:Bind ViewModel.History.ViewAllCommand}"
+                    <Button x:Name="HistoryViewAll" Content="{x:Bind ViewModel.History.ViewAllText}" Click="OnHistoryViewAll"
                             Style="{StaticResource FSTViewAllButtonStyle}" Visibility="{x:Bind ViewModel.History.CanViewAll, Mode=OneWay}"
                             AutomationProperties.Name="{x:Bind ViewModel.History.ViewAllName, Mode=OneWay}"
                             AutomationProperties.AutomationId="{x:Bind ViewModel.History.ViewAllAutomationId}" />
@@ -267,7 +244,8 @@
 
                 <!-- Band previews (web SongBandLeaderboardPreview, iOS SongBandPreviewSection, issue #34/#64): one section per band
                      size after the instrument cards, all from one keyless /bands/all read that never holds the page spinner.
-                     Rows open Band Detail; the selected player's band is purple in place or appended after the top ten. -->
+                     Rows open Band Detail; the selected player's band is purple in place or appended after the top ten, and the
+                     appended row jumps to its page of the full band board and reveals it (leaderboard-row R7, issue #307). -->
                 <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" x:Name="BandBoards" Margin="0,16,0,0"
                                ItemsSource="{x:Bind ViewModel.BandPreviews, Mode=OneWay}">
                     <ItemsRepeater.Layout>

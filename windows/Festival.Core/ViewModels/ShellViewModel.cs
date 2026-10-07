@@ -24,10 +24,11 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Profile search debounce (web <c>useUnifiedSearch</c>: 250 ms; the global-search engine's).</summary>
     public static readonly TimeSpan SearchDebounce = GlobalSearchViewModel.Debounce;
 
-    /// <summary>Band-search explanation.</summary>
+    /// <summary>Profile flyout Bands target: a band can't be the selected profile yet, so it points to global search,
+    /// which finds and opens bands (issue #320; same copy as Android).</summary>
     public const string BandSearchExplanation =
-        "Band search isn't available: the service's band search can change stored data, so this app doesn't call it. " +
-        "Open a band from a player's Bands list or from Band Rankings.";
+        "Choosing a band as your profile isn't available in the app yet. " +
+        "To find a band, use Search; you can also open one from a player's Bands list or Band Rankings.";
 
     private readonly FestivalSession session;
     private string? selectedAccount;
@@ -93,7 +94,7 @@ public sealed partial class ShellViewModel : ObservableObject
         set => ProfileSearch.Query = value;
     }
 
-    /// <summary>Whether the Bands target is chosen (band search is blocked: its GET can write).</summary>
+    /// <summary>Whether the Bands target is chosen (choosing a band as the profile isn't built; no band request here).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ProfileHint), nameof(SearchPlaceholder), nameof(IsPlayerScope), nameof(CanRetrySearch), nameof(ProfileResults))]
     private bool isBandScope;
