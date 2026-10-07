@@ -1943,7 +1943,8 @@
         "artist",
         "hero",
         "wrap",
-        "artist line"
+        "artist line",
+        "lockstep"
       ],
       "web": [
         {
@@ -2004,6 +2005,10 @@
           {
             "path": "windows/Festival.App/Controls/SongHeaderText.cs",
             "symbol": "SongHeaderText"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/MarqueeSync.cs",
+            "symbol": "MarqueeSync"
           },
           {
             "path": "windows/Festival.App/Controls/SongLeaderboardHeader.xaml.cs",
