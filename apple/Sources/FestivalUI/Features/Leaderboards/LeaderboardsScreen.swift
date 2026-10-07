@@ -39,6 +39,10 @@ struct LeaderboardsScreen: View {
     /// 6.41). A Rank By, instrument or player change fades the cards out and back in
     /// (issue #71); pull to refresh leaves this alone so the cards stay up.
     @State private var settledKey: String?
+    /// The overview's measured width, or nil before its first layout.
+    @State private var contentWidth: CGFloat?
+    /// ``minimumCardWidth`` scaled with Dynamic Type, so larger text drops to one column.
+    @ScaledMetric(relativeTo: .body) private var scaledMinimumCardWidth = Self.minimumCardWidth
 
     /// Create the screen.
     ///
@@ -104,7 +108,40 @@ struct LeaderboardsScreen: View {
     /// use 2-column grids"). Compact windows (iPhone, Duo folded) keep the single
     /// column unchanged.
     private var regularWidthColumns: [GridItem] {
-        [GridItem(.flexible(), spacing: 20, alignment: .top), GridItem(.flexible(), spacing: 20, alignment: .top)]
+        [
+            GridItem(.flexible(), spacing: Self.cardSpacing, alignment: .top),
+            GridItem(.flexible(), spacing: Self.cardSpacing, alignment: .top),
+        ]
+    }
+
+    /// Horizontal gap between the two card columns.
+    static let cardSpacing: CGFloat = 20
+    /// Page padding around the cards, per side.
+    static let pagePadding: CGFloat = 16
+    /// Narrowest card the two-column grid may draw, at the default text size: the
+    /// Android overview's 340 dp card minimum (`LeaderboardsPolicy.MIN_CARD_DP`;
+    /// Windows uses 360 epx). Narrower cards cut every name to a few characters, as the
+    /// ~276 pt cards in a landscape iPad split's leading pane did (issue #352).
+    static let minimumCardWidth: CGFloat = 340
+
+    /// Whether the overview lays its cards out in two columns.
+    ///
+    /// A regular-width window or split column (``DeviceLayout/column(width:)``) gets
+    /// two columns only while each card stays at least `minimumCardWidth` wide;
+    /// otherwise one column, as on iPhone.
+    ///
+    /// - Parameters:
+    ///   - widthClass: The page's width class.
+    ///   - contentWidth: The overview's measured width, or nil before layout (the
+    ///     width class alone decides).
+    ///   - minimumCardWidth: The narrowest card, scaled with Dynamic Type.
+    /// - Returns: True for two columns.
+    static func usesTwoColumns(
+        widthClass: WidthClass, contentWidth: CGFloat?, minimumCardWidth: CGFloat = minimumCardWidth
+    ) -> Bool {
+        guard widthClass == .regular else { return false }
+        guard let contentWidth, contentWidth > 0 else { return true }
+        return (contentWidth - 2 * pagePadding - cardSpacing) / 2 >= minimumCardWidth
     }
 
     @ViewBuilder
@@ -164,7 +201,10 @@ struct LeaderboardsScreen: View {
     private var loadedScroll: some View {
         ScrollView {
             Group {
-                if layout.widthClass == .regular {
+                if Self.usesTwoColumns(
+                    widthClass: layout.widthClass, contentWidth: contentWidth,
+                    minimumCardWidth: scaledMinimumCardWidth
+                ) {
                     LazyVGrid(columns: regularWidthColumns, alignment: .leading, spacing: 24) {
                         cards
                     }
@@ -174,10 +214,11 @@ struct LeaderboardsScreen: View {
                     }
                 }
             }
-            .padding(16)
+            .padding(Self.pagePadding)
             .festivalFadeInScope()
             .macKeyboardRows(keyboardRows)
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
         .debugPageScrollStress()
         .quickLinks(quickLinks, title: "Leaderboards Quick Links", sections: quickLinkSections)
         .festivalRefreshable { await loadAll() }
@@ -267,7 +308,12 @@ struct LeaderboardsScreen: View {
         // `AccountRankingRow`'s `fst.rankings.row.<accountId>` never reaches the
         // accessibility tree. `.contain` keeps each child its own element while
         // still letting the card itself carry an identifier.
-        .leaderboardSectionColumns(instrumentColumns(instrument))
+        // A half-width card (two cards per row in a split's leading pane, issue #352)
+        // drops songs played/total on every row when it would truncate a name, as the
+        // Compete cards and Full Rankings do (issue #38, `/duo` J2).
+        .leaderboardSectionColumns(
+            instrumentColumns(instrument), hidingCrowdedSongsFor: instrumentNames(instrument)
+        )
         .festivalFadeIn(isLoaded: true, index: fadeIndex)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.leaderboards.card.\(instrument.rawValue)")
@@ -346,6 +392,22 @@ struct LeaderboardsScreen: View {
         return .rankings(rows, metric: rankBy)
     }
 
+    /// Every name an instrument card draws (its top ten and spotlight footer row), bold
+    /// for the selected player's, for the card's songs-column fit (issue #38).
+    ///
+    /// - Parameter instrument: Card's instrument.
+    /// - Returns: The card's row names, or none until its rows load.
+    private func instrumentNames(_ instrument: Instrument) -> [RankingRowName] {
+        guard case let .loaded(payload) = instrumentStates[instrument] else { return [] }
+        var rows = payload.rankings.entries
+        if case let .footer(entry) = spotlightPlacement(instrument: instrument, entries: rows) {
+            rows.append(entry)
+        }
+        return rows.map {
+            RankingRowName(name: AccountRankingRow.displayName($0), emphasized: isSelectedAccount($0.accountId))
+        }
+    }
+
     /// Show the selected player's own row below one instrument's top ten when they
     /// are not already visible among `entries`, mirroring the web client's
     /// `RankingCard` spotlight footer (`RankingCard.tsx:97-102`).
@@ -409,7 +471,10 @@ struct LeaderboardsScreen: View {
                                 .macKeyboardRow("\(bandType.rawValue)|\(entry.teamKey)")
                         }
                     }
-                    .leaderboardSectionColumns(.bandRankings(payload.rankings.entries, metric: metric))
+                    .leaderboardSectionColumns(
+                        .bandRankings(payload.rankings.entries, metric: metric),
+                        hidingCrowdedSongsFor: payload.rankings.entries.map { RankingRowName(name: $0.membersLabel) }
+                    )
                     .festivalFadeInOnAppear()
                     viewAllLink(
                         AppRoute.bandRankings(bandType: bandType.rawValue),
