@@ -57,6 +57,13 @@ enum ProfileIdentityAction: Hashable {
 
     /// Deselect is drawn red, like the web's danger button.
     var isDestructive: Bool { self == .deselect }
+
+    /// The prominent fill every placement draws behind the action (header button and
+    /// iPhone Duo rail item alike, issue #351): accent blue for Select and Switch, red
+    /// for Deselect (web `btnDanger`, `Colors.statusRed`).
+    var prominentFill: Color {
+        isDestructive ? BrandTokens.statusRed : AccentText.prominentFill
+    }
 }
 
 // MARK: - Header button
@@ -92,6 +99,6 @@ struct ProfileIdentityToolbarItem: ToolbarContent {
         .accessibilityIdentifier(isEnabled ? action.accessibilityIdentifier : action.accessibilityIdentifier + ".pending")
         .disabled(!isEnabled)
         base.buttonStyle(.borderedProminent)
-            .tint(action.isDestructive ? BrandTokens.statusRed : AccentText.prominentFill)
+            .tint(action.prominentFill)
     }
 }

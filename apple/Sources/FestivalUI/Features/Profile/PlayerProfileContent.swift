@@ -250,6 +250,7 @@ struct PlayerProfileContent: View {
                         VerticalBarActionItem(
                             title: identity.title, systemImage: identity.systemImage,
                             identifier: identity.railAccessibilityIdentifier,
+                            prominentFill: identity.prominentFill,
                             action: { perform(identity) }
                         )
                     } else {
