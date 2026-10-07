@@ -63,7 +63,7 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
         base.OnNavigatedFrom(e);
     }
 
-    /// <summary>Loads art once the song resolves, reveals the selected row (else scrolls to the top) on page changes and fades in a late pinned row.</summary>
+    /// <summary>Loads art once the song resolves, queues the selected row's reveal (else scrolls to the top) on page changes and fades in a late pinned row.</summary>
     /// <param name="sender">View model.</param>
     /// <param name="e">Changed property.</param>
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
@@ -73,10 +73,10 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
         {
             var shown = ViewModel.ShowSpotlight;
             if (PinnedRowReveal.FadesOnArrival(spotlightShown, shown, ViewModel.LoadSwap.Phase))
-                DispatcherQueue.TryEnqueue(() => FadeIn.Play(SpotlightPanel, TimeSpan.Zero));
+                DispatcherQueue.TryEnqueue(() => FadeIn.Play(SpotlightPanel));
             spotlightShown = shown;
         }
-        else if (e.PropertyName == nameof(SongLeaderboardViewModel.Rows) && ViewModel.Page != shownPage)
+        else if (e.PropertyName == nameof(SongLeaderboardViewModel.Rows))
         {
             shownPage = ViewModel.Page;
             Scroller.ChangeView(null, 0, null, true);
@@ -89,8 +89,8 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
     /// <summary>
     /// Replays the web row entrance after the shared load gate reveals a new page, with the pinned "your score" row
     /// entering alongside the first row when it was gated (issue #295); paging keeps it in place (issue #270). A pending
-    /// selected row is then brought into view (centred, without animation) once its own entrance has finished, rushing
-    /// the rest (<see cref="FadeIn.RevealSelected"/>, issue #307).
+    /// selected row is then centred once its own entrance has finished, rushing the rest (<see cref="SelectedRowReveal"/>,
+    /// web <c>navToPlayer</c>, issues #307 and #323).
     /// </summary>
     /// <param name="sender">Swap.</param>
     /// <param name="e">Unused.</param>
@@ -98,11 +98,11 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
         DispatcherQueue.TryEnqueue(() =>
         {
             FadeIn.StaggerRealized(RowsRepeater);
-            if (ViewModel.ShowSpotlight && ViewModel.PinnedGate.IsGated) FadeIn.Play(SpotlightPanel, PinnedRowReveal.RevealDelay);
+            if (ViewModel.ShowSpotlight && ViewModel.PinnedGate.IsGated) FadeIn.Enter(RowsRepeater, SpotlightPanel, PinnedRowReveal.RevealDelay);
             if (pendingReveal is not { } selected) return;
             pendingReveal = null;
             var rows = ViewModel.Rows;
-            FadeIn.RevealSelected(RowsRepeater, selected, () =>
+            SelectedRowReveal.Start(RowsRepeater, selected, () =>
             {
                 if (ReferenceEquals(ViewModel.Rows, rows) && RowsRepeater.GetOrCreateElement(selected) is UIElement row)
                     row.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });

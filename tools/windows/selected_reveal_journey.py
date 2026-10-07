@@ -4,12 +4,13 @@
 
 A board opened on the selected row (Song Detail's "Jump to your band's position" -> ``navToBand``; its solo spotlight
 row -> ``navToPlayer``) must replay its row entrance first and bring that row into view only once the row's own fade
-has finished, starting every fade that hasn't begun together rather than letting the jump cut the stagger short.
+has finished (``SelectedRowReveal``, issues #307 and #323), holding the rows below the first screen and starting every
+fade that hasn't begun together rather than letting the jump cut the stagger short.
 Each scenario launches this worktree's Debug build on the board with ``--perf-log`` against the loopback fixture
 service (``mock_service.py --large-rankings``: the fixture-pulse Duos board pads to 75 bands, ``fixture-player-1``'s
 band at rank 29, page 2 row 3; solo ``fixture-player-N`` ranks N), waits for the selected row, and judges the
-``fade-reveal``/``fade-rush`` lines with :func:`fade_trace.check_reveal`. The Reduce Motion scenario must reveal at
-once and rush nothing. Journeys never touch production.
+``fade-arm``/``fade-hold``/``fade-rush``/``fade-reveal`` lines with :func:`fade_trace.check_reveal`. The Reduce Motion
+scenario must reveal at once and hold, rush or fade nothing. Journeys never touch production.
 
 Usage::
 
@@ -98,8 +99,7 @@ def run(scenario: Scenario, port: int, shots: Path) -> list[str]:
 
     phase = fade_trace.Phase(
         "open", [f"waitfor:{scenario.row}@20", REVEAL_WAIT_STEP, f"assertname:{scenario.row}|{scenario.row_name}"],
-        lambda events: fade_trace.check_reveal(events, scenario.list_id, scenario.index, motion=scenario.motion,
-                                               require_rush=scenario.motion and scenario.name == "band"))
+        lambda events: fade_trace.check_reveal(events, scenario.list_id, scenario.index, motion=scenario.motion))
     try:
         failures = fade_trace.run_phases(drive, log, [phase])
         ui_journey.uiwin("shot", str(shots / f"reveal-{scenario.name}.png"))

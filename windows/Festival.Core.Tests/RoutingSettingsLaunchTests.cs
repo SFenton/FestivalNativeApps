@@ -10,6 +10,7 @@ public class RoutingTests
         { new AppRoute.SongDetail("s1", Instrument.Bass), "/songs/s1?instrument=Solo_Bass", AppSection.Songs },
         { new AppRoute.SongLeaderboard("s1", Instrument.Lead), "/songs/s1/Solo_Guitar", AppSection.Songs },
         { new AppRoute.SongLeaderboard("s1", Instrument.Lead, 3), "/songs/s1/Solo_Guitar?page=3", AppSection.Songs },
+        { new AppRoute.SongLeaderboard("s1", Instrument.Lead, RevealSelected: true), "/songs/s1/Solo_Guitar?page=1&navToPlayer=true", AppSection.Songs },
         { new AppRoute.SongBandLeaderboard("s1", "Band_Duets"), "/songs/s1/bands/Band_Duets", AppSection.Songs },
         // Pattern leaderboard-row R7 (#307): the selected row's jump reveals it, as web navToPlayer / navToBand.
         { new AppRoute.SongLeaderboard("s1", Instrument.Lead, 3, RevealSelected: true), "/songs/s1/Solo_Guitar?page=3&navToPlayer=true", AppSection.Songs },
@@ -60,6 +61,16 @@ public class RoutingTests
     {
         Assert.True(AppRouteParser.TryParse(path, out var route, out _));
         Assert.Equal(new AppRoute.PlayerBands("acc1", group, name), route);
+    }
+
+    [Theory]
+    [InlineData("/songs/s1/Solo_Guitar?navToPlayer=false", false)]
+    [InlineData("/songs/s1/Solo_Guitar?navToPlayer=1", false)]
+    [InlineData("/songs/s1/Solo_Guitar?page=2&navToPlayer=true", true)]
+    public void Parser_SongLeaderboardRevealsOnlyWhenNavToPlayerIsTrue(string path, bool navToPlayer)
+    {
+        Assert.True(AppRouteParser.TryParse(path, out var route, out _));
+        Assert.Equal(navToPlayer, Assert.IsType<AppRoute.SongLeaderboard>(route).RevealSelected);
     }
 
     [Fact]
