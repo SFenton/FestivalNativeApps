@@ -11,8 +11,9 @@ namespace Festival.App.Controls;
 /// Keeps keyboard focus on a paged board when a reload hides the control that had it. A board's pager and pinned row
 /// hide when a page fails (load-transition R4), and its failure's Retry hides while it reloads; WinUI then drops focus on
 /// the first focusable element, the title bar's Back button, far from the board. Once the reload settles this moves
-/// focus to the failure's Retry, or back into the pager when the board loaded (issue #283). Focus that you move away
-/// yourself is left alone.
+/// focus to the failure's Retry, or back into the pager when the board loaded: to the pager button that lost focus (the
+/// one you pressed) while it is still enabled, otherwise the pager's first enabled button (issue #283). Focus that you
+/// move away yourself is left alone.
 /// </summary>
 internal sealed class FailedReloadFocus
 {
@@ -20,6 +21,7 @@ internal sealed class FailedReloadFocus
     private readonly Control pager;
     private readonly Func<bool> settled;
     private readonly Func<bool> failed;
+    private Control? returnTo;
     private bool pending;
 
     /// <summary>Follows the footer and the failure for hidden focus.</summary>
@@ -54,6 +56,7 @@ internal sealed class FailedReloadFocus
     private void OnLosingFocus(LosingFocusEventArgs args, UIElement root)
     {
         if (args.OldFocusedElement is not UIElement old || IsShown(old, root)) return;
+        if (old is Control button && IsWithin(button, pager)) returnTo = button;
         pending = true;
         Settle();
     }
@@ -64,10 +67,28 @@ internal sealed class FailedReloadFocus
         if (!pending || !settled()) return;
         pending = false;
         if (failed()) status.FocusRetryWhenShown();
-        else status.DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
-        {
-            if (FocusManager.FindFirstFocusableElement(pager) is Control first) first.Focus(FocusState.Programmatic);
-        });
+        else status.DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, FocusPager);
+    }
+
+    /// <summary>Focuses the pager button that lost focus if it can take it again, otherwise the pager's first enabled button.</summary>
+    private void FocusPager()
+    {
+        var pressed = returnTo;
+        returnTo = null;
+        if (pressed is { IsEnabled: true, Visibility: Visibility.Visible } && IsWithin(pressed, pager)
+            && pressed.Focus(FocusState.Programmatic)) return;
+        if (FocusManager.FindFirstFocusableElement(pager) is Control first) first.Focus(FocusState.Programmatic);
+    }
+
+    /// <summary>Whether <paramref name="element"/> is <paramref name="ancestor"/> or inside it.</summary>
+    /// <param name="element">Element to locate.</param>
+    /// <param name="ancestor">Container.</param>
+    /// <returns><see langword="true"/> when <paramref name="ancestor"/> is on the element's parent chain.</returns>
+    private static bool IsWithin(DependencyObject element, DependencyObject ancestor)
+    {
+        for (DependencyObject? node = element; node is not null; node = VisualTreeHelper.GetParent(node))
+            if (ReferenceEquals(node, ancestor)) return true;
+        return false;
     }
 
     /// <summary>Whether <paramref name="element"/> and its ancestors up to <paramref name="root"/> are all visible.</summary>

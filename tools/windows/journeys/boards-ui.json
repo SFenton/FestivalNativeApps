@@ -139,6 +139,65 @@
     ]
   },
   {
+    "name": "song-board-failed-page-retry-recovers",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "preset": "medium",
+    "extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1"},
+    "fixture": ["--song-leaderboard-paging", "--large-rankings", "--board-pages", "flaky"],
+    "steps": [
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-2@20",
+      "waitfor:id=fst.song-leaderboard.spotlight-footer@10",
+      "focus:id=fst.song-leaderboard.page-next",
+      "key:enter",
+      "waitfor:id=fst.service-status.retry@15",
+      "waitgone:id=fst.song-leaderboard.page-next@5",
+      "assertfocus:id=fst.service-status.retry@5",
+      "key:enter",
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-26@15",
+      "waitgone:id=fst.service-status.retry@5",
+      "waitfor:id=fst.song-leaderboard.spotlight-footer@5",
+      "waitfor:name=Page 2 of 4@5",
+      "assertfocus:id=fst.song-leaderboard.page-next@5"
+    ]
+  },
+  {
+    "name": "full-rankings-failed-page-retry-recovers",
+    "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "preset": "medium",
+    "fixture": ["--song-leaderboard-paging", "--large-rankings", "--board-pages", "flaky"],
+    "steps": [
+      "waitfor:id=fst.rankings.row.fixture-player-1@20",
+      "focus:id=fst.full-rankings.page-next",
+      "key:enter",
+      "waitfor:id=fst.service-status.retry@15",
+      "waitgone:id=fst.full-rankings.page-next@5",
+      "assertfocus:id=fst.service-status.retry@5",
+      "key:enter",
+      "waitfor:id=fst.rankings.row.fixture-rank-26@15",
+      "waitgone:id=fst.service-status.retry@5",
+      "assertfocus:id=fst.full-rankings.page-next@5"
+    ]
+  },
+  {
+    "name": "band-rankings-failed-page-retry-recovers",
+    "route": "/leaderboards/bands/Band_Duets",
+    "preset": "medium",
+    "fixture": ["--song-leaderboard-paging", "--large-rankings", "--board-pages", "flaky"],
+    "steps": [
+      "waitfor:id=fst.band-rankings.row.fixture-team-1@20",
+      "focus:id=fst.band-rankings.page-next",
+      "key:enter",
+      "waitfor:id=fst.service-status.retry@15",
+      "waitgone:id=fst.band-rankings.page-next@5",
+      "assertfocus:id=fst.service-status.retry@5",
+      "key:enter",
+      "waitfor:id=fst.band-rankings.row.fixture-team-26@15",
+      "waitgone:id=fst.service-status.retry@5",
+      "waitfor:name=Page 2 of 24@5",
+      "assertfocus:id=fst.band-rankings.page-next@5"
+    ]
+  },
+  {
     "name": "rankings-rows-open-profile",
     "route": "/leaderboards/all?instrument=Solo_Guitar",
     "preset": "compact",
