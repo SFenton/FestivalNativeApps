@@ -243,7 +243,7 @@ JOURNEYS = [
         launch=["--tab", "songs", *ANONYMOUS],
         steps=[["invoke:id=fst.shell.profile", "waitfor:id=fst.profile.scope.bands@5",
                 "select:id=fst.profile.scope.bands", "wait:1"]],
-        expect=[["Find Band", "Band search isn"]],
+        expect=[["Find Band", "Choosing a band as your profile isn"]],
         forbid=[["fst.profile.retry"]],
     ),
     # Inline Bands section (issue #312, .agents/pages/player-profile/windows.md): fixture-player-1 has 18 duos,

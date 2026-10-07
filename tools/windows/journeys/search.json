@@ -28,10 +28,11 @@
       "waitfor:id=fst.global-search.result.song@5",
       "waitgone:id=fst.global-search.result.player@5",
       "select:id=fst.global-search.scope.bands",
-      "waitfor:id=fst.global-search.bands-unavailable.rankings@5",
+      "waitfor:id=fst.global-search.result.band@10",
+      "waitgone:id=fst.global-search.result.song@5",
       "shot:{shots}\\search-bands-wide.png",
-      "invoke:id=fst.global-search.bands-unavailable.rankings",
-      "waitfor:id=fst.band-rankings.list@15",
+      "invoke:id=fst.global-search.result.band",
+      "waitfor:id=fst.band.title@15",
       "key:alt+left",
       "waitfor:id=fst.global-search.field@10"
     ]
@@ -142,10 +143,16 @@
       "assertname:id=fst.global-search.hint|Enter at least two characters to search for players.",
       "select:id=fst.global-search.scope.bands",
       "assertname:id=fst.global-search.hint|Enter at least two characters to search for bands.",
-      "waitgone:id=fst.global-search.bands-unavailable",
       "setvalue:id=fst.global-search.field|ab",
-      "waitfor:id=fst.global-search.bands-unavailable.rankings@5",
+      "waitfor:id=fst.global-search.empty.title@10",
+      "assertname:id=fst.global-search.empty.title|No bands found",
       "waitgone:id=fst.global-search.hint",
+      "waitgone:id=fst.global-search.retry",
+      "setvalue:id=fst.global-search.field|fixture",
+      "waitfor:id=fst.global-search.result.band@10",
+      "waitgone:id=fst.global-search.result.player@5",
+      "waitgone:id=fst.global-search.empty.title",
+      "shot:{shots}\\search-320-bands.png",
       "select:id=fst.global-search.scope.all",
       "setvalue:id=fst.global-search.field|slow",
       "waitfor:id=fst.global-search.loading@5",
@@ -169,7 +176,12 @@
       "setvalue:id=fst.global-search.field|busy",
       "waitfor:id=fst.service-status.title@10",
       "waitgone:id=fst.service-status.retry",
-      "shot:{shots}\\search-299-players-error.png"
+      "shot:{shots}\\search-299-players-error.png",
+      "select:id=fst.global-search.scope.bands",
+      "waitfor:id=fst.service-status.title@5",
+      "waitgone:id=fst.service-status.retry",
+      "waitgone:id=fst.global-search.empty.title",
+      "shot:{shots}\\search-320-bands-error.png"
     ]
   }
 ]

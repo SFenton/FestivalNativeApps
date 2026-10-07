@@ -41,7 +41,7 @@ WIRING: tuple[tuple[str, str, str], ...] = (
      r"SectionShown\s*\+=\s*OnSectionShown",
      "Search rows held behind the spinner appear without a fade (journey fade-delayed-results)"),
     ("windows/Festival.App/Pages/SearchPage.xaml.cs",
-     r"FadeIn\.Restagger\(section == SearchScope\.Songs \? SongsList : PlayersList\)",
+     r"FadeIn\.Restagger\(section switch\s*\{\s*SearchScope\.Songs\s*=>\s*SongsList,\s*SearchScope\.Players\s*=>\s*PlayersList,\s*_\s*=>\s*BandsList",
      "Search rows held behind the spinner appear without a fade (journey fade-delayed-results)"),
     ("windows/Festival.App/Controls/FadeIn.cs",
      r"viewer\.ViewChanging\s*\+=\s*OnViewChanging",

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Run the global-search UI journeys and prove no band search reached the fixture service.
+"""Run the global-search UI journeys and prove both keyless searches reached the fixture service.
 
 Wraps ``ui_journey.py``: the loopback fixture service additionally records each request
 *path* (no query string, so no search text) to ``<shots>/fixture-paths.log`` and answers the
 account search for ``slow`` and ``fixt`` after a few seconds (a deterministic loading state), every journey
 gets a fresh isolated settings file (``--settings-path``) so selecting a player never
 touches real settings, and after the run the path log must contain at least one
-``/api/account/search`` and no ``/api/bands/search``. ``--axe`` also opens the Search page
+``/api/account/search`` and one ``/api/bands/search`` (issue #320: band search is read-only since the service
+fix, so global search requests it with players; the fixture answers ``busy`` with 503 and matches member names). ``--axe`` also opens the Search page
 with results and runs an Axe.Windows scan (``tools/windows/axe_scan.ps1``) into ``<shots>/axe``.
 The last journey, ``fade-delayed-results`` (issue #260), runs with ``--perf-log`` and checks the
 ``FadeIn`` lines (``fade_trace.py``): song rows that waited behind the spinner for the delayed
@@ -176,7 +177,8 @@ def fade_phases() -> list[fade_trace.Phase]:
             "waitgone:id=fst.global-search.loading@15",
             "waitfor:id=fst.global-search.result.song@5",
             "waitfor:id=fst.global-search.result.player@5",
-        ], lambda events: fade_trace.check_load(events, "SongsList") + fade_trace.check_load(events, "PlayersList")),
+            "waitfor:id=fst.global-search.result.band@5",
+        ], lambda events: sum((fade_trace.check_load(events, name) for name in ("SongsList", "PlayersList", "BandsList")), [])),
         fade_trace.Phase("idle", ["wait:1", "waitfor:id=fst.global-search.result.song@5"], fade_trace.check_none),
     ]
 
@@ -230,14 +232,14 @@ def check_paths(paths: Path) -> list[str]:
         paths: Path log.
 
     Returns:
-        Problems (empty when the log proves the safety rule).
+        Problems (empty when both keyless searches were logged).
     """
     seen = paths.read_text(encoding="utf-8").splitlines()
     problems = []
-    if any(p.startswith(BAND_SEARCH) for p in seen):
-        problems.append(f"{BAND_SEARCH} was requested")
     if ACCOUNT_SEARCH not in seen:
         problems.append(f"no {ACCOUNT_SEARCH} request was logged (the log proves nothing)")
+    if BAND_SEARCH not in seen:
+        problems.append(f"no {BAND_SEARCH} request was logged (global search must search bands)")
     print(f"fixture paths: {len(seen)} requests, {seen.count(ACCOUNT_SEARCH)} account searches, "
           f"{sum(p.startswith(BAND_SEARCH) for p in seen)} band searches")
     return problems
@@ -250,7 +252,7 @@ def main(argv: list[str] | None = None) -> int:
         argv: Arguments (default ``sys.argv[1:]``).
 
     Returns:
-        0 when every journey passed and no band search was requested, 1 otherwise.
+        0 when every journey passed and both searches were requested, 1 otherwise.
     """
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--journeys", type=Path, default=JOURNEYS)
@@ -291,7 +293,7 @@ def main(argv: list[str] | None = None) -> int:
         mock.kill()
     problems = check_paths(paths)
     for problem in problems:
-        print(f"FAIL safety: {problem}")
+        print(f"FAIL paths: {problem}")
     print(f"{len(selected) - failures}/{len(selected)} journeys passed; screenshots and path log in {shots}")
     return 1 if failures or problems else 0
 
