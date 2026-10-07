@@ -1890,7 +1890,10 @@ def _run_uitest_batch(
             # Duo down, and it boots closed in its default orientation.
             # Still booted from this run's previous batch: the pose (and any rotation)
             # stands; only a fresh boot or a mismatch sets it again.
-            problem = require_pose(udid, pose, False) if was_booted else "boot"
+            # A fresh boot comes up folded in its default orientation, so `folded`
+            # without rotations is verified by detection alone (no Device Hub needed).
+            verifiable = was_booted or (pose == "folded" and not rotate)
+            problem = require_pose(udid, pose, False) if verifiable else "boot"
             reset = problem is not None and set_pose
             if reset:
                 problem = require_pose(udid, pose, True)

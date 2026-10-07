@@ -729,7 +729,7 @@
       "title": "Page tools and navigation chrome",
       "status": "current",
       "doc": ".agents/patterns/page-tools-and-nav-chrome.md",
-      "summary": "Native shell navigation owns destinations; page tools use the approved Apple tab accessory, Android compact floating toolbar or Windows title/page-header placement rather than a parallel command surface.",
+      "summary": "Native shell navigation owns destinations; page tools use the approved Apple tab accessory, Android compact floating toolbar or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose.",
       "keywords": [
         "navigation",
         "page tools",
@@ -741,7 +741,9 @@
         "profile",
         "hit target",
         "drawer",
-        "hamburger"
+        "hamburger",
+        "page title",
+        "navigation title"
       ],
       "web": [
         {
@@ -782,6 +784,10 @@
           {
             "path": "apple/Sources/FestivalUI/App/Shell/ShellPresentation.swift",
             "symbol": "ShellPresentation"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/PageTitle.swift",
+            "symbol": "festivalNavigationTitle"
           },
           {
             "path": "apple/Sources/FestivalUI/Features/Songs/SongsBottomFilterField.swift",
@@ -894,6 +900,13 @@
             "apple/Sources/FestivalUI/App/Shell/RootChrome.swift"
           ],
           "message": "Only the shell's profile item hides its toolbar glass, through profileItemBackground (page-tools-and-nav-chrome R8)."
+        },
+        {
+          "id": "apple-nav-bar-visible",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "navigationBarHidden\\(|\\.(toolbar|toolbarVisibility)\\(\\s*\\.hidden\\s*,\\s*for:\\s*\\.navigationBar",
+          "allow": [],
+          "message": "Pages keep the system navigation bar and its title in every pose; don't hide it (page-tools-and-nav-chrome R14, #341)."
         }
       ],
       "related": {
@@ -925,6 +938,7 @@
         309,
         337,
         338,
+        341,
         351
       ]
     },
@@ -2735,6 +2749,75 @@
       "supersedes": [],
       "issues": [
         343
+      ]
+    },
+    {
+      "id": "split-panes",
+      "title": "Split panes",
+      "status": "current",
+      "doc": ".agents/patterns/split-panes.md",
+      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (a fold, or a 1 pt midpoint band plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under Increase Contrast, and the split's one backdrop and top gradient run unbroken across the band.",
+      "keywords": [
+        "split view",
+        "split",
+        "divider",
+        "splitter",
+        "hairline",
+        "separator",
+        "list detail",
+        "pane",
+        "panes",
+        "hinge band",
+        "vertical divider"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/OnDemandSplitPolicy.swift",
+            "symbol": "drawsDividerLine"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/OnDemandSplit.swift",
+            "symbol": "OnDemandSplitLayout"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/SplitPaneChrome.swift",
+            "symbol": "SplitPaneChrome"
+          }
+        ],
+        "android": [],
+        "windows": []
+      },
+      "related": {
+        "patterns": [
+          "hinge-columns",
+          "surface-materials",
+          "back-keeps-place"
+        ],
+        "pages": [
+          "rivals",
+          "leaderboards",
+          "song-detail",
+          "settings",
+          "songs"
+        ]
+      },
+      "guards": [
+        {
+          "id": "android-vertical-divider",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "\\bVerticalDivider\\s*\\(",
+          "allow": [],
+          "debt": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/shell/FestivalApp.kt"
+          ],
+          "message": "Split panes are separated by space, not a drawn divider; a hairline only under high contrast at a midpoint (split-panes R1, R2)."
+        }
+      ],
+      "supersedes": [],
+      "issues": [
+        344
       ]
     }
   ]
