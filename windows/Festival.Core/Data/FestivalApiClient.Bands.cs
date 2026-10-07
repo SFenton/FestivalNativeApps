@@ -89,8 +89,8 @@ public sealed partial class FestivalApiClient
 
     /// <summary>
     /// Reads one page of a song's band leaderboard. The selected player is sent only as the <c>accountId</c> query, which
-    /// makes the service add that player's best band of this size (<c>selectedPlayerEntry</c>, a pure read); never as a
-    /// selected-profile header.
+    /// makes the service add that player's best band of this size (<c>selectedPlayerEntry</c>, a pure SELECT) for the pinned
+    /// footer; never as a selected-profile header.
     /// </summary>
     /// <param name="songId">Catalogue song.</param>
     /// <param name="bandType">Band size.</param>

@@ -228,6 +228,36 @@ public class BandsApiTests
     }
 
     [Fact]
+    public async Task SongBandLeaderboard_AccountReadBuildsTheQuery_AndValidatesSelectedEntries()
+    {
+        var origin = new Uri(Wire.BaseUrl);
+        Assert.Equal($"https://festivalscoretracker.com/api/leaderboard/s1/bands/Band_Trios?top=25&offset=25&accountId={PlayerWire.Id}",
+            BandEndpoints.SongBandLeaderboard(origin, "s1", BandType.Trios, 25, 25, PlayerWire.Id).AbsoluteUri);
+        Assert.Equal("https://festivalscoretracker.com/api/leaderboard/s1/bands/Band_Trios?top=25&offset=0",
+            BandEndpoints.SongBandLeaderboard(origin, "s1", BandType.Trios, 25, 0, null).AbsoluteUri);
+        Assert.Throws<FestivalApiException>(() => BandEndpoints.SongBandLeaderboard(origin, "s1", BandType.Trios, 25, 0, "bad id"));
+
+        var bands = new BandService();
+        var client = bands.Service.Client();
+        var board = await client.GetSongBandLeaderboardAsync("fixture-pulse", BandType.Duets, 1, 25, "t40a");
+        Assert.Equal(40, board.PinnedEntry("t40a")!.Rank);
+        Assert.Null(board.SelectedBandEntry);
+        Assert.DoesNotContain(board.Entries, e => SongBandPreview.IsSameBand(e, board.SelectedPlayerEntry!));
+        var sent = bands.Service.Handler.To("/api/leaderboard/fixture-pulse/bands/Band_Duets").Single();
+        Assert.DoesNotContain(sent.Headers.Keys, h => h.StartsWith("x-fst-selected", StringComparison.OrdinalIgnoreCase) || h == "X-API-Key");
+
+        // A selected band entry of another size is a malformed response, not a footer; a selected band entry (teamKey
+        // query, not sent by natives) is never pinned.
+        var body = BandWire.SongBands("fixture-pulse", "Band_Duets", 1, 1);
+        bands.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal)
+            ? BandService.Ok(body[..^1] + ",\"selectedBandEntry\":" + BandWire.SongBandEntry("Band_Trios", 3) + "}") : null;
+        Assert.Equal(FestivalApiErrorKind.InvalidResponse, (await Fails(() => client.GetSongBandLeaderboardAsync("fixture-pulse", BandType.Duets, 4, 25, "t3a"))).Kind);
+        bands.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal)
+            ? BandService.Ok(body[..^1] + ",\"selectedBandEntry\":" + BandWire.SongBandEntry("Band_Duets", 7) + "}") : null;
+        Assert.Null((await client.GetSongBandLeaderboardAsync("fixture-pulse", BandType.Duets, 3, 25, "t7a")).PinnedEntry("t7a"));
+    }
+
+    [Fact]
     public async Task SongBandLeaderboard_SendsAccountIdAndReadsSelectedPlayerEntry()
     {
         var bands = new BandService();

@@ -122,6 +122,63 @@ class LoadThenScrollTests(unittest.TestCase):
         self.assertIn("[4]", f.check_load_then_scroll(events(*kept, "fade-play list=A index=4"), "A")[0])
 
 
+class RevealTests(unittest.TestCase):
+    """Issue #307: the selected row is revealed after its own entrance, and the jump rushes the waiting fades."""
+
+    STAGGER = ["fade-arm list=Rows start=0"] + [
+        f"fade-play list=Rows index={i} delay={125 * (i + 1)} motion=1" for i in range(10)]
+
+    def reveal(self, after=905, rushed=(7, 8, 9), **extra):
+        values = {"index": 3, "faded": 1, "delay": 500, "after": after, "scrolled": 0, "rushed": len(rushed),
+                  "motion": 1, **extra}
+        line = "fade-reveal list=Rows " + " ".join(f"{k}={v}" for k, v in values.items())
+        return [line] + [f"fade-rush list=Rows index={i} delay={125 * (i + 1)}" for i in rushed]
+
+    def test_parses_reveal_and_rush_lines(self):
+        parsed = events(*self.reveal())
+        self.assertEqual(["reveal", "rush", "rush", "rush"], [e.kind for e in parsed])
+        self.assertEqual(905, parsed[0].values["after"])
+
+    def test_passes_after_the_entrance_with_the_rest_rushed(self):
+        self.assertEqual([], f.check_reveal(events(*self.STAGGER, *self.reveal()), "Rows", 3, require_rush=True))
+
+    def test_catches_a_reveal_before_the_rows_entrance(self):
+        # The #307 review's regression: the jump runs while the row is still inside its stagger delay.
+        found = f.check_reveal(events(*self.STAGGER, *self.reveal(after=40, rushed=range(10))), "Rows", 3)
+        self.assertTrue(any("before its 500 ms delay" in x for x in found), found)
+        # The jump scheduled ahead of the stagger: no play before the reveal, nothing waited for.
+        found = f.check_reveal(events(*self.reveal(faded=0, delay=0, after=0, rushed=()), *self.STAGGER), "Rows", 3)
+        self.assertTrue(any("never faded before" in x for x in found), found)
+        self.assertTrue(any("faded=0" in x for x in found), found)
+
+    def test_catches_rows_left_to_fade_after_the_jump(self):
+        found = f.check_reveal(events(*self.STAGGER, *self.reveal(rushed=(8, 9))), "Rows", 3)
+        self.assertIn("rows [7] kept their stagger delay", found[0])
+        self.assertIn("rushed no fade", f.check_reveal(events(*self.STAGGER, *self.reveal(after=1300, rushed=())),
+                                                       "Rows", 3, require_rush=True)[0])
+
+    def test_catches_rushing_a_running_fade(self):
+        found = f.check_reveal(events(*self.STAGGER, *self.reveal(rushed=(5, 7, 8, 9))), "Rows", 3)
+        self.assertIn("[5] whose fades had already started", found[0])
+
+    def test_catches_missing_double_scrolled_and_mismatched_reveals(self):
+        self.assertIn("never revealed", f.check_reveal(events(*self.STAGGER), "Rows", 3)[0])
+        self.assertIn("never revealed", f.check_reveal(events(*self.reveal(cancelled=1)), "Rows", 3)[0])
+        twice = f.check_reveal(events(*self.STAGGER, *self.reveal(), *self.reveal(after=950, rushed=())), "Rows", 3)
+        self.assertIn("revealed 2 times", twice[0])
+        self.assertIn("scrolled=1", f.check_reveal(events(*self.STAGGER, *self.reveal(scrolled=1, rushed=())), "Rows", 3)[-1])
+        lost = events(*self.STAGGER, *self.reveal()[:2])
+        self.assertTrue(any("logged 1 rushes" in x for x in f.check_reveal(lost, "Rows", 3)))
+
+    def test_reduce_motion_reveals_at_once_without_rushing(self):
+        still = ["fade-arm list=Rows start=0", "fade-play list=Rows index=3 delay=500 motion=0"]
+        immediate = self.reveal(faded=0, delay=0, after=0, rushed=(), motion=0)
+        self.assertEqual([], f.check_reveal(events(*still, *immediate), "Rows", 3, motion=False))
+        found = f.check_reveal(events(*still, *self.reveal()), "Rows", 3, motion=False)
+        self.assertTrue(any("motion=1" in x for x in found), found)
+        self.assertTrue(any("waited or rushed" in x for x in found), found)
+
+
 class RunPhasesTests(unittest.TestCase):
     def test_each_phase_sees_only_its_own_lines(self):
         with tempfile.TemporaryDirectory() as folder:

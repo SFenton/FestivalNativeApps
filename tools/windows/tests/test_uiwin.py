@@ -262,6 +262,31 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_assertmarquee(self):
+        moving = u.parse_step("assertmarquee:id=fst.song-detail.title|moving|44")
+        self.assertEqual(moving["selector"], {"kind": "id", "value": "fst.song-detail.title"})
+        self.assertEqual((moving["mode"], moving["epx"]), ("moving", 44.0))
+        still = u.parse_step("assertmarquee:raw=fst.song-band-leaderboard.song-title|static|28.5")
+        self.assertEqual(still["selector"]["kind"], "raw")
+        self.assertEqual((still["mode"], still["epx"]), ("static", 28.5))
+        wrapped = u.parse_step("assertmarquee:id=fst.song-detail.title|wrapped|90")
+        self.assertEqual((wrapped["mode"], wrapped["epx"]), ("wrapped", 90.0))
+        fits = u.parse_step("assertmarquee:id=fst.song-detail.artist|fits|32")
+        self.assertEqual((fits["mode"], fits["epx"]), ("fits", 32.0))
+        for bad in ("assertmarquee:id=x", "assertmarquee:id=x|moving", "assertmarquee:id=x|wrap|44",
+                    "assertmarquee:id=x|static|tall", "assertmarquee:10,20|moving|44"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_assertmarqueesync(self):
+        step = u.parse_step("assertmarqueesync:id=fst.song-detail.title|id=fst.song-detail.artist")
+        self.assertEqual(step["verb"], "assertmarqueesync")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.song-detail.title"})
+        self.assertEqual(step["other"], {"kind": "id", "value": "fst.song-detail.artist"})
+        for bad in ("assertmarqueesync:id=x", "assertmarqueesync:10,20|id=y"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_assertinset(self):
         step = u.parse_step("assertinset:name=Show Instruments&class=TextBlock|id=fst.settings|40")
         self.assertEqual(step["verb"], "assertinset")
@@ -280,6 +305,76 @@ class StepTests(unittest.TestCase):
         self.assertEqual(step["epx"], 8.0)
         for bad in ("scrollinset:id=a|id=b", "scrollinset:id=a|id=b|-8", "scrollinset:id=a|1,2|8",
                     "scrollinset:id=a|id=b|0"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_assertsize(self):
+        step = u.parse_step("assertsize:id=fst.global-search.open|40x40")
+        self.assertEqual(step["verb"], "assertsize")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.global-search.open"})
+        self.assertEqual((step["width"], step["height"]), (40.0, 40.0))
+        self.assertEqual(u.parse_step("assertsize:id=fst.quick-links.open|0x40.5")["height"], 40.5)
+        for bad in ("assertsize:id=a", "assertsize:id=a|40", "assertsize:id=a|-1x40", "assertsize:10,20|40x40"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_assertat(self):
+        step = u.parse_step("assertat:id=fst.shell.profile|0,-18.5")
+        self.assertEqual(step["verb"], "assertat")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.shell.profile"})
+        self.assertEqual((step["dx"], step["dy"]), (0.0, -18.5))
+        self.assertEqual(u.parse_step("assertat:id=a| 12 , 3 ")["dx"], 12.0)
+        for bad in ("assertat:id=a", "assertat:id=a|1", "assertat:id=a|x,1", "assertat:10,20|0,0"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_tapat_and_clickat(self):
+        for verb in ("tapat", "clickat"):
+            step = u.parse_step(f"{verb}:id=fst.shell.profile|0,18.5")
+            self.assertEqual(step["verb"], verb)
+            self.assertEqual(step["selector"], {"kind": "id", "value": "fst.shell.profile"})
+            self.assertEqual((step["dx"], step["dy"]), (0.0, 18.5))
+            for bad in (f"{verb}:id=a", f"{verb}:id=a|1", f"{verb}:10,20|0,0"):
+                with self.assertRaises(ValueError):
+                    u.parse_step(bad)
+
+    def test_assertapart(self):
+        step = u.parse_step("assertapart:id=fst.songs.sort|id=fst.songs.filter")
+        self.assertEqual(step["verb"], "assertapart")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.songs.sort"})
+        self.assertEqual(step["other"], {"kind": "id", "value": "fst.songs.filter"})
+        with self.assertRaises(ValueError):
+            u.parse_step("assertapart:id=fst.songs.sort")
+
+    def test_narrate(self):
+        step = u.parse_step("narrate:id=fst.shell.titlebar@10")
+        self.assertEqual(step["verb"], "narrate")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.shell.titlebar"})
+        self.assertEqual(step["timeout"], 10.0)
+        with self.assertRaises(ValueError):
+            u.parse_step("narrate:10,20")
+
+    def test_assertread(self):
+        step = u.parse_step("assertread:id=fst.shell.profile|Select a player profile, button@8")
+        self.assertEqual(step["verb"], "assertread")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.shell.profile"})
+        self.assertEqual(step["text"], "Select a player profile, button")
+        self.assertEqual(step["timeout"], 8.0)
+        regex = u.parse_step("assertread:id=fst.songs.sort|~^Sort Songs, button, collapsed")
+        self.assertEqual(regex["text"], "~^Sort Songs, button, collapsed")
+        self.assertNotIn("timeout", regex)
+        for bad in ("assertread:id=a", "assertread:id=a| ", "assertread:10,20|x"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_assertorder(self):
+        step = u.parse_step("assertorder:id=fst.global-search.open|id=fst.shell.notifications|id=fst.shell.profile@6")
+        self.assertEqual(step["verb"], "assertorder")
+        self.assertEqual([s["value"] for s in step["selectors"]],
+                         ["fst.global-search.open", "fst.shell.notifications", "fst.shell.profile"])
+        self.assertEqual(step["timeout"], 6.0)
+        self.assertNotIn("timeout", u.parse_step("assertorder:id=a|name=b"))
+        for bad in ("assertorder:id=a", "assertorder:id=a||id=b", "assertorder:id=a|1,2"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 

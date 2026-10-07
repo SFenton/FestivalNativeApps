@@ -31,23 +31,26 @@ private struct TintedGlassProbe: View {
     #expect(nativeHostedReadinessBudget(.seconds(60), inVirtualMachine: true) == .seconds(240))
 }
 
-/// A poll budget charges the requested interval, not the wall time a starved main actor
-/// adds, so a saturated parallel run stretches a readiness wait instead of failing it.
+/// A poll budget charges the requested interval and the wait's own work, but not the
+/// time a starved main actor delays the poll, so a saturated parallel run stretches a
+/// readiness wait instead of failing it.
 @MainActor
-@Test func hostedPollBudgetChargesRequestedPollTimeNotWallClock() async throws {
+@Test func hostedPollBudgetChargesOwnTimeNotStarvation() async throws {
     var budget = NativeHostedPollBudget(.milliseconds(100), inVirtualMachine: false)
     #expect(budget.limit == .milliseconds(100))
     let start = ContinuousClock.now
-    // Hold the main actor far longer than the whole budget while one poll sleeps.
+    // Another job holds the main actor far longer than the whole budget while one poll sleeps.
     let blocker = Task { @MainActor in _ = usleep(300_000) }
     try await budget.sleep(for: .milliseconds(20))
     await blocker.value
     #expect(ContinuousClock.now - start >= .milliseconds(300))
-    #expect(budget.polled == .milliseconds(20))
-    #expect(!budget.isExhausted)
-    for _ in 0..<4 { try await budget.sleep(for: .milliseconds(20)) }
-    #expect(!budget.isExhausted, "exactly the limit is still within budget")
     try await budget.sleep(for: .milliseconds(20))
+    #expect(budget.spent < .milliseconds(100), "starvation is not charged: \(budget.spent)")
+    #expect(!budget.isExhausted)
+    // The wait's own work between polls is charged.
+    _ = usleep(80_000)
+    try await budget.sleep(for: .milliseconds(20))
+    #expect(budget.spent >= .milliseconds(140))
     #expect(budget.isExhausted)
 }
 
