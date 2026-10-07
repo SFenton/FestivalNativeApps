@@ -206,6 +206,8 @@ enum OnDemandSplitPolicy {
         let trailingWidth: CGFloat
         /// The divider band's centre in window coordinates.
         let dividerMidX: CGFloat
+        /// Whether the band is a vertical hinge (iPhone Duo) rather than a midpoint.
+        var isHinge = false
     }
 
     /// What the split needs to know about its container and window.
@@ -220,8 +222,24 @@ enum OnDemandSplitPolicy {
         var hinge: CGRect?
     }
 
-    /// The width of the divider drawn at a midpoint (no hinge).
+    /// The width of the divider band at a midpoint (no hinge).
     static let midpointDividerWidth: CGFloat = 1
+
+    /// Whether the divider band draws its 1 pt hairline.
+    ///
+    /// The panes are separated by the band's space and each pane's full-page margins, not
+    /// by a drawn line (owner #344: "Split View should not have visible vertical splitter
+    /// component"). Increase Contrast restores the hairline at a midpoint (HIG
+    /// Accessibility: provide a higher-contrast scheme when Increase Contrast is on); a
+    /// hinge never draws one, the fold itself divides the panes.
+    ///
+    /// - Parameters:
+    ///   - geometry: The open split's geometry.
+    ///   - increasedContrast: Whether the system's Increase Contrast setting is on.
+    /// - Returns: True to draw the hairline at the band's centre.
+    static func drawsDividerLine(_ geometry: Geometry, increasedContrast: Bool) -> Bool {
+        increasedContrast && !geometry.isHinge
+    }
 
     /// The panes for a container, or nil when the split does not apply.
     ///
@@ -237,9 +255,11 @@ enum OnDemandSplitPolicy {
         let box = context.container
         guard context.isLandscape, context.isRegular, box.width > 0 else { return nil }
         var band: ClosedRange<CGFloat>
+        var isHinge = false
         if let hinge = context.hinge, hinge.height >= hinge.width,
            hinge.midX > box.minX, hinge.midX < box.maxX {
             band = hinge.minX...hinge.maxX
+            isHinge = true
         } else {
             band = box.midX...box.midX
         }
@@ -252,7 +272,8 @@ enum OnDemandSplitPolicy {
         guard leading >= minimumPaneWidth, trailing >= minimumPaneWidth else { return nil }
         return Geometry(
             leadingWidth: leading, dividerWidth: band.upperBound - band.lowerBound,
-            trailingWidth: trailing, dividerMidX: (band.lowerBound + band.upperBound) / 2
+            trailingWidth: trailing, dividerMidX: (band.lowerBound + band.upperBound) / 2,
+            isHinge: isHinge
         )
     }
 
