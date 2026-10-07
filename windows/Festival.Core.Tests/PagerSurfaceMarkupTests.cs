@@ -5,7 +5,8 @@ namespace Festival.Core.Tests;
 /// <summary>
 /// Guards issue #319 (surface-materials R1, leaderboard-row R5): the board pager's arrow buttons and <c>page / total</c>
 /// badge draw on the rows' card surface (<c>FSTCardSurfaceBrush</c> + <c>FSTCardStrokeBrush</c>), never a pager-only
-/// opaque plate, and the song boards' Your Page jump buttons do too (Full Rankings has none since #318: its pinned row jumps).
+/// opaque plate. No board has a separate Your Page button: every pinned row is its own jump (song boards #307, Full
+/// Rankings #318).
 /// </summary>
 public class PagerSurfaceMarkupTests
 {
@@ -101,15 +102,20 @@ public class PagerSurfaceMarkupTests
         Assert.Equal(CardStroke, Attr(badge, "BorderBrush"));
     }
 
+    /// <summary>
+    /// The song and song band boards have no Your Page button: their floating pinned row is itself the jump-or-open control
+    /// (leaderboard-row R7, issue #307), so the footer adds no separate surface.
+    /// </summary>
+    /// <param name="file">Board page.</param>
     [Theory]
-    [InlineData("Pages/LeaderboardsSongPage.xaml", "Jump to your page")]
-    [InlineData("Pages/BandsSongLeaderboardPage.xaml", "Jump to your band's page")]
-    public void YourPageButton_DrawsOnTheRowCardSurface(string file, string name)
+    [InlineData("Pages/LeaderboardsSongPage.xaml")]
+    [InlineData("Pages/BandsSongLeaderboardPage.xaml")]
+    public void SongBoardPinnedRow_IsTheJumpControl(string file)
     {
-        var jump = Load(file).Descendants().Single(e => e.Name.LocalName == "Button"
-            && Attr(e, "AutomationProperties.Name") == name);
-        Assert.Equal(CardSurface, Attr(jump, "Background"));
-        Assert.Equal(CardStroke, Attr(jump, "BorderBrush"));
+        var doc = Load(file);
+        Assert.DoesNotContain(doc.Descendants(), e => e.Name.LocalName == "Button" && Attr(e, "Command") == "{x:Bind ViewModel.JumpCommand}");
+        var row = doc.Descendants().Single(e => e.Name.LocalName == "LeaderboardEntryRow" && Attr(e, "IsFloating") == "True");
+        Assert.Equal("{x:Bind ViewModel.JumpCommand}", Attr(row, "Command"));
     }
 
     [Fact]

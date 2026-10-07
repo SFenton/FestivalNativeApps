@@ -85,13 +85,17 @@ public static class FadeInTiming
 /// scrolling (even within <see cref="FadeInTiming.ArmWindow"/>) just appear; an appended batch (Suggestions' incremental
 /// loading, <c>batchStart</c> &gt; 0) is revealed by scrolling and stays open for its window. The scroll position is
 /// anchored once the arm's first layout settles (<see cref="Settle"/>), so a page's own reset to the top as part of the
-/// reload doesn't count as the reader scrolling.
+/// reload doesn't count as the reader scrolling. It also remembers when each row's fade starts (<see cref="Played"/>),
+/// so a selected-row reveal can wait for that row's own entrance and then rush the fades that haven't begun
+/// (<see cref="RevealWait"/>, <see cref="Rush"/>; patterns <c>leaderboard-row</c> R7 and <c>load-transition</c> R5,
+/// issue #307).
 /// </summary>
 public sealed class StaggerArm
 {
     /// <summary>Scroll movement (epx) that counts as the reader scrolling; smaller changes are layout rounding.</summary>
     public const double ScrollSlop = 1;
 
+    private readonly Dictionary<int, (TimeSpan ScheduledAt, TimeSpan Delay)> entrances = [];
     private TimeSpan armedAt;
     private bool armed;
     private bool closed;
@@ -118,11 +122,23 @@ public sealed class StaggerArm
     /// <summary>First row of the newest batch (rows before it never fade).</summary>
     public int BatchStart { get; private set; }
 
+    /// <summary>Counts arms, so work scheduled for one load (a selected-row reveal) can tell a newer load replaced it.</summary>
+    public int Generation { get; private set; }
+
+    /// <summary>Whether the reader scrolled the list since its last load arm (a reveal then leaves the list alone).</summary>
+    public bool ScrolledSinceLoad { get; private set; }
+
     /// <summary>Arms the window for a load (<paramref name="batchStart"/> 0) or an appended batch.</summary>
     /// <param name="batchStart">Index of the batch's first row (0 when the whole list is new).</param>
     /// <param name="now">Monotonic time.</param>
     public void Arm(int batchStart, TimeSpan now)
     {
+        Generation++;
+        if (batchStart <= 0)
+        {
+            entrances.Clear();
+            ScrolledSinceLoad = false;
+        }
         var open = IsOpen(now);
         // What a purely time-based window (no scroll close) would stagger from: kept only to trace R5's suppressions.
         timeOnlyStart = armed && Within(now) ? Math.Min(timeOnlyStart, batchStart) : batchStart;
@@ -168,6 +184,7 @@ public sealed class StaggerArm
         if (!closesOnScroll || closed || anchor is not { } at) return false;
         if (!(Math.Abs(x - at.X) >= ScrollSlop || Math.Abs(y - at.Y) >= ScrollSlop)) return false;
         closesOnScroll = false;
+        ScrolledSinceLoad = true;
         if (appendedStart is { } start)
         {
             BatchStart = start;
@@ -219,6 +236,54 @@ public sealed class StaggerArm
     {
         Scrolled(x, y);
         return IsOpen(now) ? FadeInTiming.BatchDelay(index, BatchStart, visible) : null;
+    }
+
+    /// <summary>Records a row's fade (it starts <paramref name="delay"/> after <paramref name="now"/>).</summary>
+    /// <param name="index">Row index.</param>
+    /// <param name="delay">Stagger delay.</param>
+    /// <param name="now">Monotonic time.</param>
+    public void Played(int index, TimeSpan delay, TimeSpan now) => entrances[index] = (now, delay < TimeSpan.Zero ? TimeSpan.Zero : delay);
+
+    /// <summary>Forgets a row's fade: it was shown in place (recycled, motion off) or its element is gone.</summary>
+    /// <param name="index">Row index.</param>
+    public void Shown(int index) => entrances.Remove(index);
+
+    /// <summary>A row's recorded fade.</summary>
+    /// <param name="index">Row index.</param>
+    /// <param name="now">Monotonic time.</param>
+    /// <returns>Its stagger delay and the time since it was scheduled, or <see langword="null"/> for a row that never faded.</returns>
+    public (TimeSpan Delay, TimeSpan Since)? Entrance(int index, TimeSpan now) =>
+        entrances.TryGetValue(index, out var e) ? (e.Delay, now - e.ScheduledAt) : null;
+
+    /// <summary>
+    /// How long a selected-row reveal waits: until that row's own fade has finished (its stagger delay plus
+    /// <see cref="FadeInTiming.Duration"/>), like web <c>navToPlayer</c>/<c>navToBand</c> (<c>load-transition</c> R5).
+    /// </summary>
+    /// <param name="index">Selected row index.</param>
+    /// <param name="now">Monotonic time.</param>
+    /// <returns>Time left; zero for a row without a running fade.</returns>
+    public TimeSpan RevealWait(int index, TimeSpan now)
+    {
+        if (!entrances.TryGetValue(index, out var e)) return TimeSpan.Zero;
+        var left = e.ScheduledAt + e.Delay + FadeInTiming.Duration - now;
+        return left > TimeSpan.Zero ? left : TimeSpan.Zero;
+    }
+
+    /// <summary>
+    /// Starts every recorded fade that hasn't begun yet now (web <c>useStaggerRush</c>, <c>load-transition</c> R5): the
+    /// caller replays them without delay, so the rest of the entrance fades in together. Fades already running keep going.
+    /// </summary>
+    /// <param name="now">Monotonic time.</param>
+    /// <returns>Rushed rows in index order, each with the stagger delay it had.</returns>
+    public IReadOnlyList<(int Index, TimeSpan Delay)> Rush(TimeSpan now)
+    {
+        var pending = entrances
+            .Where(e => e.Value.ScheduledAt + e.Value.Delay > now)
+            .OrderBy(e => e.Key)
+            .Select(e => (e.Key, e.Value.Delay))
+            .ToList();
+        foreach (var (index, _) in pending) entrances[index] = (now, TimeSpan.Zero);
+        return pending;
     }
 }
 #endregion

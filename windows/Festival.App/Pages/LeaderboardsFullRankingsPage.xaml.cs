@@ -117,23 +117,23 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
         revealSelected = selected < 0 ? null : selected;
         // A pending scroll-to-top can land after the centring below and leave the selected row off screen.
         if (revealSelected is null) Scroller.ChangeView(null, 0, null, true);
-        // During a load swap the rows are not laid out yet; OnContentRevealed centres them once they are.
-        if (ViewModel.ShowRows && ViewModel.LoadSwap.Phase == LoadSwapPhase.ContentIn) RevealSelected();
+        // During a load swap the rows are not laid out yet; OnContentRevealed reveals them after the entrance.
+        if (ViewModel.ShowRows && ViewModel.LoadSwap.Phase == LoadSwapPhase.ContentIn) DispatcherQueue.TryEnqueue(RevealSelected);
     }
 
     /// <summary>
     /// Centres the selected player's row on a newly shown page (pattern <c>leaderboard-row</c> R7). Keyboard focus stays
-    /// on the pinned row that jumped, which remains in place, so a second Enter opens the profile. Rows arrive while the
-    /// list is still hidden by the load swap, so this runs again once content is revealed.
+    /// on the pinned row that jumped, which remains in place, so a second Enter opens the profile. The reveal waits for
+    /// the row's own entrance and rushes the rest (<see cref="FadeIn.RevealSelected"/>, issue #307).
     /// </summary>
     private void RevealSelected()
     {
-        if (revealSelected is not { } index) return;
-        DispatcherQueue.TryEnqueue(() =>
+        if (revealSelected is not { } index || !ViewModel.ShowRows) return;
+        revealSelected = null;
+        var rows = ViewModel.Rows;
+        FadeIn.RevealSelected(RowsRepeater, index, () =>
         {
-            if (!ViewModel.ShowRows || revealSelected != index) return;
-            revealSelected = null;
-            if (RowsRepeater.GetOrCreateElement(index) is not LeaderboardEntryRow row) return;
+            if (!ReferenceEquals(ViewModel.Rows, rows) || RowsRepeater.GetOrCreateElement(index) is not LeaderboardEntryRow row) return;
             // A freshly realized row has no arranged position yet; bringing it into view before layout is a no-op.
             row.UpdateLayout();
             row.StartBringIntoView(new Microsoft.UI.Xaml.BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });
@@ -156,19 +156,18 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
 
     /// <summary>
     /// Replays the web row entrance after the shared load gate reveals a new page, with the pinned "your rank" row
-    /// entering alongside the first row when it was gated (issue #270, as the song board's #295); paging keeps it in place.
+    /// entering alongside the first row when it was gated (issue #270, as the song board's #295); paging keeps it in
+    /// place. A pending selected row is revealed after the entrance starts (<see cref="RevealSelected"/>).
     /// </summary>
     /// <param name="sender">Swap.</param>
     /// <param name="e">Unused.</param>
-    private void OnContentRevealed(object? sender, EventArgs e)
-    {
+    private void OnContentRevealed(object? sender, EventArgs e) =>
         DispatcherQueue.TryEnqueue(() =>
         {
             FadeIn.StaggerRealized(RowsRepeater);
             if (ViewModel.Spotlight.IsVisible && ViewModel.PinnedGate.IsGated) FadeIn.Play(FooterSpotlight, PinnedRowReveal.RevealDelay);
+            RevealSelected();
         });
-        RevealSelected();
-    }
 
     #region Split layout
     /// <summary>
