@@ -18,8 +18,20 @@ struct GlobalSearchResults: View {
     /// Navigate to a result (Song Detail, player profile or Statistics).
     let open: (AppRoute) -> Void
     /// Draw the sheet's own ``GlobalSearchField``; false where the Search tab's system
-    /// `.searchable` field holds the query (issue #92).
+    /// `.searchable` field holds the query (issue #92) or its bottom field does (iPhone
+    /// Duo inner display, issue #349).
     var showsField = true
+    /// The Search tab shows ``BottomSearchField`` (iPhone Duo inner display, issue
+    /// #349): the scope bar takes the field's column, so both share their edges (full
+    /// width, or the trailing page across a book-pose fold), and result rows fade out
+    /// above the field. False elsewhere: 16 pt margins, no bottom fade.
+    var hasBottomField = false
+    /// ``BottomSearchFieldPlacement/pageHinge(for:)`` for that column.
+    var bottomFieldHinge: CGRect?
+    /// The bottom field's top in ``bottomFieldSpace``, for the rows' fade.
+    var bottomFieldTop: CGFloat?
+    /// Coordinate space shared with the bottom field.
+    var bottomFieldSpace = "fst.global-search.page"
     /// Result set whose staggered fade has finished: rows the List rebuilds after that
     /// (scrolled away and back) appear without a fade (issue #30).
     @State private var fadeSettledResults: [String]?
@@ -41,7 +53,9 @@ struct GlobalSearchResults: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .padding(.horizontal, 16)
+            .modifier(GlobalSearchScopeColumn(
+                alignsWithBottomField: hasBottomField, hinge: bottomFieldHinge
+            ))
             .accessibilityIdentifier("fst.global-search.scope")
             results
         }
@@ -104,6 +118,11 @@ struct GlobalSearchResults: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.immediately)
+        // iPhone Duo inner display: rows fade out above the bottom field and are not
+        // drawn beneath it (scroll-edge R1, issue #349), as on Songs.
+        .modifier(BottomSearchFieldFade(
+            chromeTop: bottomFieldTop, enabled: hasBottomField, space: bottomFieldSpace
+        ))
         // Each result set's fade window (web `SearchModal` `resetRush`): scrolling while
         // it staggers in fades the rest in together (#323).
         .festivalScrollFadeInScope(resetKey: resultFadeKey)
@@ -358,8 +377,9 @@ struct GlobalSearchSheet: View {
 /// title and Close and added a second X beside the field): magnifier, text, and a clear
 /// button inside the field. Focused when the sheet opens.
 ///
-/// Also the iPhone Duo bottom "Filter Songs" field (``SongsBottomFilterField``, issue
-/// #333), which floats over the list on the shared control capsule and waits for a tap.
+/// Also the iPhone Duo bottom search field (``BottomSearchField``): Songs' "Filter
+/// Songs" (issue #333), which floats over the list on the shared control capsule and
+/// waits for a tap, and the Search tab's field on the inner display (issue #349).
 struct GlobalSearchField: View {
     /// The field's backing.
     enum Surface {
@@ -377,7 +397,8 @@ struct GlobalSearchField: View {
     var identifier = "fst.global-search.field"
     /// UI-test identifier of the clear button.
     var clearIdentifier = "fst.global-search.clear"
-    /// Focus the field (keyboard up) when it appears.
+    /// Focus the field (keyboard up) when it appears, and again whenever this turns on
+    /// (the iPhone Duo Search tab passes its selection, so re-choosing the tab focuses it).
     var focusesOnAppear = true
     /// The field's backing.
     var surface = Surface.inline
@@ -420,6 +441,24 @@ struct GlobalSearchField: View {
         .onAppear {
             guard focusesOnAppear else { return }
             Task { @MainActor in focused = true }
+        }
+        .onChange(of: focusesOnAppear) { _, focuses in
+            if focuses { focused = true }
+        }
+    }
+}
+
+/// The scope bar's horizontal margins: the standard 16 pt, or the iPhone Duo bottom
+/// search field's column so the bar and the field share their edges (issue #349).
+private struct GlobalSearchScopeColumn: ViewModifier {
+    let alignsWithBottomField: Bool
+    let hinge: CGRect?
+
+    func body(content: Content) -> some View {
+        if alignsWithBottomField {
+            content.bottomSearchFieldColumn(hinge: hinge)
+        } else {
+            content.padding(.horizontal, 16)
         }
     }
 }
