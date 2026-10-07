@@ -32,7 +32,7 @@ Issue #92 removed the header Search button and the custom accessory dock (`Float
 
 ## Drawer
 
-Mirrors the web sidebar: Songs, Suggestions*, Statistics*, Rivals*, Leaderboards, Item Shop (*player; a visible tab switches, otherwise pushes), current destination highlighted (`DrawerMenu.isCurrent`); footer pinned at the bottom: the profile row (name → profile, Deselect) or Select Profile, then Settings. No Bands or Licenses rows (operator, 2026-09-28).
+Mirrors the web sidebar: Songs, Suggestions*, Statistics*, Rivals*, Leaderboards, Item Shop (*player; a visible tab switches, otherwise pushes), current destination highlighted (`DrawerMenu.isCurrent`); footer pinned at the bottom: the profile row (name → profile, Deselect) or Select Profile, then Settings. No Bands or Licenses rows (operator, 2026-09-28). The drawer stays (agent decision #338, [page-tools-and-nav-chrome R13](../../patterns/page-tools-and-nav-chrome.md)): on the phone it is the only route to Item Shop and, with a player, to the Leaderboards and Rivals overviews and Deselect; tabs and the Profile button cover the rest.
 
 The player row uses `DrawerRow`'s metrics (`.body`, primary text, avatar in the 26 pt symbol column, 14 pt gap) and shows only the name: no "Selected Player" caption (issue #16, 2026-10-01). VoiceOver still reads "‹name›, Selected Player" (`DrawerMenu.selectedPlayerAccessibilityLabel`).
 

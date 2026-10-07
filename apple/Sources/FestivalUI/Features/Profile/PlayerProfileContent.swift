@@ -340,7 +340,7 @@ struct PlayerProfileContent: View {
                     // iPad): each instrument's stats card and charts read as one
                     // dashboard tile instead of stretching full width
                     // (`.agents/design/apple/duo.md`).
-                    LazyVGrid(columns: instrumentGridColumns, alignment: .leading, spacing: 20) {
+                    HingeGrid(columns: instrumentGridColumns, alignment: .leading, spacing: 20) {
                         ForEach(Array(visibleInstruments.enumerated()), id: \.element) { index, instrument in
                             instrumentTile(payload, instrument: instrument)
                                 .festivalFadeIn(isLoaded: true, index: first + 2 + index)

@@ -125,7 +125,7 @@ public struct FestivalRootView: View {
         if let windowRoute { initialSection = windowRoute.section }
         // A deep link or restored tab may name a section the stored profile hides. The
         // first geometry pass has not published a layout yet; `shell(_:)`'s
-        // `onChange(of: sections)` re-resolves once it has (e.g. Duo unfolded).
+        // `onChange(of: sections)` re-resolves once it has.
         let profile: FestivalProfileKind = session.selectedPlayer == nil ? .none : .player
         let visible = ShellPresentation.resolve(
             layout: .standardPhone, usesSidebarShell: Self.supportsSidebar
