@@ -1464,7 +1464,8 @@
             "apple/Sources/FestivalUI/Features/Leaderboards/LeaderboardsScreen.swift",
             "apple/Sources/FestivalUI/Features/Leaderboards/FullRankingsScreen.swift",
             "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
-            "apple/Sources/FestivalUI/Features/Shop/ShopScreen.swift"
+            "apple/Sources/FestivalUI/Features/Shop/ShopScreen.swift",
+            "apple/Sources/FestivalUI/Features/Compete/CompeteScreen.swift"
           ],
           "debt": [],
           "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."

@@ -93,36 +93,101 @@ private func anonymousCompeteSession() async throws -> FestivalSession {
     )
 }
 
-// MARK: - Loading
+// MARK: - Loading (#354)
 
-/// Captured before the per-instrument `.task` loads settle: every section's initial
-/// `@State` is `.loading`, so the Leaderboards previews (not only the off-screen
-/// Rivals sections) must show a system spinner rather than redacted placeholder
-/// bars (#35). The loaded/error tests below exclude "Loading", proving the spinners
-/// leave once content or an error appears.
+/// Holds or fails Compete's leaderboard reads, forwarding everything else to the real
+/// loopback fixture.
+private actor ControlledRankingsTransport: HTTPTransport {
+    private let inner = URLSessionHTTPTransport()
+    private let delay: Duration
+    private let failsRankings: Bool
+
+    init(delay: Duration = .zero, failsRankings: Bool = false) {
+        self.delay = delay
+        self.failsRankings = failsRankings
+    }
+
+    func send(_ request: URLRequest) async throws -> HTTPResult {
+        guard request.url?.path.hasPrefix("/api/rankings/") == true else { return try await inner.send(request) }
+        try await Task.sleep(for: delay)
+        if failsRankings { return HTTPResult(status: 503, data: Data(#"{"error":"unavailable"}"#.utf8)) }
+        return try await inner.send(request)
+    }
+}
+
 @MainActor
-@Test func competeScreenRendersSpinnersWhileSectionsLoad() async throws {
-    let (session, storage, suite) = try await competeFixtureSession(
-        accountId: "fixture-riv", visible: ["fst.settings.showLead", "fst.settings.showBass"]
-    )
-    defer { storage.removePersistentDomain(forName: suite) }
+private func controlledCompeteHost(
+    _ transport: ControlledRankingsTransport, visible: Set<String>, size: CGSize
+) async throws -> (host: NSHostingView<some View>, window: NSWindow, cleanup: () -> Void) {
+    let baseURL = try await RivalsMockService.shared.baseURL()
+    let client = try FestivalAPI(baseURL: baseURL, transport: transport)
+    let suite = "fst.tests.compete.\(UUID().uuidString)"
+    let storage = try #require(UserDefaults(suiteName: suite))
+    let identity: [String: String] = ["accountId": "fixture-riv", "displayName": "Fixture Viewer"]
+    storage.set(try JSONSerialization.data(withJSONObject: identity), forKey: SelectedPlayerIdentity.storageKey)
+    for key in allInstrumentKeys { storage.set(visible.contains(key), forKey: key) }
+    let session = FestivalSession(factory: { client }, selectionStorage: storage)
     let host = nativeHostedView(
         NavigationStack { CompeteScreen(session: session) }
             .defaultAppStorage(storage)
             .preferredColorScheme(.dark),
-        size: CGSize(width: 402, height: 1400)
+        size: size
     )
-    let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1400))
-    defer { window.orderOut(nil) }
-    // Capture synchronously, before any `.task` load can resolve (no settle: the
-    // loopback fixture answers within one poll).
+    let window = nativeHostedWindow(host, size: size)
+    return (host, window, {
+        window.orderOut(nil)
+        storage.removePersistentDomain(forName: suite)
+    })
+}
+
+/// Like the web's `CompetePage`, the page loads behind one centred spinner: no section
+/// or instrument header, and no per-card spinner, shows until every leaderboard and
+/// rivals read settles (load-transition R1). It used to show its headers at once with a
+/// spinner inside each card (#35, superseded by #354).
+@MainActor
+@Test func competeScreenShowsOnePageSpinnerUntilEveryReadSettles() async throws {
+    let transport = ControlledRankingsTransport(delay: .seconds(4))
+    let (host, _, cleanup) = try await controlledCompeteHost(
+        transport, visible: ["fst.settings.showLead", "fst.settings.showBass"], size: CGSize(width: 402, height: 1400)
+    )
+    defer { cleanup() }
+    let loading = try await nativeHostedSettle(host, untilText: ["Loading Compete"], timeout: .seconds(30))
+    _ = try nativeHostedPNG(loading, filename: "compete-loading.png", environment: "FST_COMPETE_RENDER_OUT")
+    // Rivals (no delay) settle first; the page still waits for the held leaderboards.
+    try await Task.sleep(for: .milliseconds(500))
     host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
-    _ = try nativeHostedPNG(image, filename: "compete-loading.png", environment: "FST_COMPETE_RENDER_OUT")
+    let pending = nativeHostedAccessibility(host)
+    #expect(pending.contains("Loading Compete"))
+    #expect(pending.identifiers.contains("fst.compete.loading"))
+    for text in ["Leaderboards", "Rivals", "Lead", "Bass", "Fixture Rival Golf", "Loading Lead leaderboard"] {
+        #expect(!pending.contains(text), "Compete shows \"\(text)\" before the page loaded")
+    }
+
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Leaderboards", "Rivals", "Fixture Player 1", "Fixture Rival Golf"],
+        excluding: ["Loading"], timeout: .seconds(30)
+    )
     assertRendersContent(
-        host, image: image,
-        containing: ["Leaderboards", "Loading Lead leaderboard", "Loading Bass leaderboard"],
-        notContaining: ["Fixture Player 1", "Leaderboards Overview"]
+        host, image: image, containing: ["Leaderboards", "Fixture Player 1", "Fixture Rival Golf"],
+        notContaining: ["Loading"]
+    )
+}
+
+/// Every leaderboard failing shows one page-wide error, as the web's
+/// `allLeaderboardsErrored` empty state does, instead of a header over each failed card.
+@MainActor
+@Test func competeScreenShowsPageErrorWhenEveryLeaderboardFails() async throws {
+    let transport = ControlledRankingsTransport(failsRankings: true)
+    let (host, _, cleanup) = try await controlledCompeteHost(
+        transport, visible: ["fst.settings.showLead"], size: CGSize(width: 402, height: 900)
+    )
+    defer { cleanup() }
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Compete unavailable"], excluding: ["Loading"], timeout: .seconds(30)
+    )
+    _ = try nativeHostedPNG(image, filename: "compete-page-error.png", environment: "FST_COMPETE_RENDER_OUT")
+    assertRendersContent(
+        host, image: image, containing: ["Compete unavailable"], notContaining: ["Leaderboards", "Loading"]
     )
 }
 
@@ -156,8 +221,8 @@ private func anonymousCompeteSession() async throws -> FestivalSession {
 }
 
 /// A 503 from the Rivals endpoints must not blank the Leaderboards cards next to
-/// it: each `CompeteInstrumentLeaderboardSection`/`RivalInstrumentSongSection`
-/// pair owns its own independent load state.
+/// it: the page reveals once every read settled, and each failed card shows its own
+/// inline error beside the loaded ones (web `CompetePage` keeps per-card errors too).
 @MainActor
 @Test func competeScreenRendersRivalsSectionErrorWithLeaderboardsStillLoaded() async throws {
     let (session, storage, suite) = try await competeFixtureSession(
@@ -231,7 +296,8 @@ private actor CountingTransport: HTTPTransport {
 /// Back from View Full Leaderboard used to restart every section's `.task(id:)`, which
 /// reset it to a spinner and read the rankings again: the cards collapsed, then
 /// re-expanded and re-faded under the pop, shifting the page (#39). A reappearance with
-/// the same instrument, account and publication must keep the loaded rows.
+/// the same instruments, account and publication must keep the loaded page, with no
+/// page spinner (#354; `CompeteHubModel`'s `ReappearanceLoadGate`).
 ///
 /// On iOS a `NavigationStack` push makes the root disappear and Back makes it appear
 /// again. A hosted macOS stack keeps its root appeared, so the test takes the host out

@@ -12,11 +12,15 @@ import FestivalDesign
 ///   #36): each card's View Full Leaderboard opens that instrument's board.
 /// - Bottom: one rivals card per Settings-visible instrument.
 ///
-/// Both reuse the phone hub's own sections (`CompeteInstrumentLeaderboardSection`,
-/// `RivalInstrumentSongSection`), so the cards match the stacked page exactly.
+/// Both reuse the phone hub's own cards (`CompeteInstrumentLeaderboardSection`,
+/// `RivalInstrumentSongCard`) with the page's reads (``CompeteHubModel``), so the cards
+/// match the stacked page exactly and appear only after the page's one spinner (#354).
 struct CompeteLeaderboardsCarousel: View {
     let session: FestivalSession
     let instruments: [Instrument]
+    let model: CompeteHubModel
+    /// Reads again whatever failed.
+    let retry: () -> Void
 
     var body: some View {
         pane
@@ -40,8 +44,11 @@ struct CompeteLeaderboardsCarousel: View {
                 HorizontalCarousel("Leaderboards", items: instruments, minimumCardWidth: 300) { instrument in
                     // The section pads itself 16 pt on each side for the stacked
                     // page; the carousel already insets its cards.
-                    CompeteInstrumentLeaderboardSection(session: session, instrument: instrument)
-                        .padding(.horizontal, -16)
+                    CompeteInstrumentLeaderboardSection(
+                        session: session, instrument: instrument,
+                        state: model.boards[instrument] ?? .loading, retry: retry
+                    )
+                    .padding(.horizontal, -16)
                 }
             }
         }
@@ -50,8 +57,10 @@ struct CompeteLeaderboardsCarousel: View {
 
 /// Compete's bottom region: one rivals card per Settings-visible instrument.
 struct CompeteRivalsCarousel: View {
-    let session: FestivalSession
     let instruments: [Instrument]
+    let model: CompeteHubModel
+    /// Reads again whatever failed.
+    let retry: () -> Void
 
     var body: some View {
         DualSourcePane(
@@ -64,9 +73,10 @@ struct CompeteRivalsCarousel: View {
                 )
             } else {
                 HorizontalCarousel("Rivals", items: instruments, minimumCardWidth: 300) { instrument in
-                    RivalInstrumentSongSection(
-                        session: session, instrument: instrument, registersQuickLink: false,
-                        emptyMessage: "No rivals found for \(instrument.label) yet."
+                    RivalInstrumentSongCard(
+                        instrument: instrument, state: model.rivals[instrument] ?? .loading,
+                        registersQuickLink: false,
+                        emptyMessage: "No rivals found for \(instrument.label) yet.", retry: retry
                     )
                     .padding(.horizontal, -16)
                 }
