@@ -375,16 +375,26 @@ final class IPadShellJourneyTests: XCTestCase {
         XCTAssertFalse(app.navigationBars["Search"].exists, "⌘5 leaves Search")
         let viewAll = app.buttons.matching(NSPredicate(format: "identifier ENDSWITH '.view-all'")).firstMatch
         XCTAssertTrue(viewAll.waitForExistence(timeout: 15))
+        // The tapped card's own View All (a profile page may have other View All rows).
+        let cardViewAll = element(app, viewAll.identifier)
         viewAll.tap()
-        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'fst.rankings.row.'"))
-        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 15))
-        rows.firstMatch.tap()
+        // View All opens Full Rankings beside the overview; its player opens full page
+        // over both (issue #352).
         let trailing = element(app, "fst.split.trailing")
         XCTAssertTrue(trailing.waitForExistence(timeout: 10))
+        let rows = trailing.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'fst.rankings.row.'"))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 15))
+        rows.firstMatch.tap()
+        let playerTitle = app.navigationBars.matching(NSPredicate(format: "identifier CONTAINS 'Fixture'")).firstMatch
+        XCTAssertTrue(playerTitle.waitForExistence(timeout: 10), "the player opens")
+        XCTAssertFalse(cardViewAll.isHittable, "the player covers the overview")
         app.typeKey("[", modifierFlags: .command)
-        XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "⌘[ closes the open player")
+        XCTAssertTrue(waitForDisappearance(of: playerTitle, timeout: 10), "⌘[ leaves the player")
+        XCTAssertTrue(cardViewAll.isHittable, "⌘[ returns to the overview beside Full Rankings")
+        XCTAssertTrue(trailing.exists, "Full Rankings is still beside the overview")
         app.typeKey("[", modifierFlags: .command)
-        XCTAssertTrue(app.navigationBars["Leaderboards"].waitForExistence(timeout: 15), "⌘[ goes back")
+        XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "⌘[ closes Full Rankings")
+        XCTAssertTrue(app.navigationBars["Leaderboards"].exists, "⌘[ returns to Leaderboards")
     }
 
     // MARK: - Windows
