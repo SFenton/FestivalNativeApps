@@ -228,10 +228,10 @@ public sealed partial class SuggestionsViewModel : ObservableObject
                 case SelectedProfileStatus.Available when session.SelectedScoreIndex is { } index && session.SelectedProfile is { } profile:
                     Status.Clear();
                     var identity = (player.AccountId, catalog, profile.ObservedPublicationId);
+                    // The same source keeps the shown cards: Settings and filter changes re-derive them as they happen,
+                    // so Back to the cached page must not rebuild the list and replay its fade-in (#276).
                     if (generator is null || force || !Equals(identity, sourceIdentity))
                         StartMix(identity, catalog, index, player.AccountId);
-                    else
-                        Refilter();
                     return;
                 default:
                     Phase = SuggestionsPhase.Loading;

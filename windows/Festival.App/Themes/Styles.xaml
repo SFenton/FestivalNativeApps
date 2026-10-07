@@ -5,7 +5,8 @@
 <ResourceDictionary
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:services="using:Festival.App.Services">
+    xmlns:services="using:Festival.App.Services"
+    xmlns:controls="using:Festival.App.Controls">
 
     <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Default">
@@ -40,12 +41,11 @@
             <SolidColorBrush x:Key="FSTPlayerRowTextBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="FSTCurrentRowBrush" Color="#E6223047" />
             <SolidColorBrush x:Key="FSTRatingTextBrush" Color="#FF4C7DFF" />
-            <!-- Board pager (web Paginator): textSecondary chevrons and page text, cardBackground page badge. -->
+            <!-- Board pager (web Paginator): textSecondary chevrons and page text. Its buttons and badge draw on the rows'
+                 FSTCardSurfaceBrush (surface-materials R1, issue #319), never a pager-only plate. -->
             <SolidColorBrush x:Key="FSTPagerGlyphBrush" Color="#FFD7DEE8" />
-            <SolidColorBrush x:Key="FSTPagerBadgeBrush" Color="#FF0B1220" />
-            <!-- Opaque stand-ins for the web's frosted surfaces on controls that float over scrolling rows (pager buttons,
-                 pinned row backplate): a solid colour instead of a per-frame backdrop blur. -->
-            <SolidColorBrush x:Key="FSTPagerButtonBrush" Color="#FF121826" />
+            <!-- Opaque backplate under the pinned row's frosted surface (issue #208): a solid colour instead of a per-frame
+                 backdrop blur. -->
             <SolidColorBrush x:Key="FSTFloatingBackplateBrush" Color="#FF0B1220" />
             <!-- Contrast roles (design/windows.md, Contrast themes): brand hues here, system colours under a contrast theme.
                  Status chips, emphasis (gold) text and outlines, stat values, Top 1% and current-season pills, accuracy/difficulty
@@ -199,9 +199,8 @@
             <SolidColorBrush x:Key="FSTPlayerRowTextBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
             <SolidColorBrush x:Key="FSTCurrentRowBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="FSTRatingTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
-            <SolidColorBrush x:Key="FSTPagerGlyphBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
-            <SolidColorBrush x:Key="FSTPagerBadgeBrush" Color="{ThemeResource SystemColorWindowColor}" />
-            <SolidColorBrush x:Key="FSTPagerButtonBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <!-- Pager glyphs sit on the card's Window surface like row text (WindowText on Window). -->
+            <SolidColorBrush x:Key="FSTPagerGlyphBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTFloatingBackplateBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <!-- Contrast roles: Highlight/HighlightText = emphasis and selection, ButtonFace/ButtonText = pills and buttons,
                  Window/WindowText = surfaces and text, GrayText = absent. Meaning never rests on hue alone (shape, text, UIA name). -->
@@ -376,6 +375,23 @@
         <Setter Property="MinHeight" Value="{StaticResource FSTMinTargetSize}" />
         <Setter Property="Margin" Value="0,4,0,0" />
         <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- Frosted "View all" card (surface-materials R7; web PlayerBandsSection BandViewAllCard, frostedCard at
+         Layout.entryRowHeight 48 px): the canonical card surface and stroke, full width, 48 epx minimum height; the
+         control centres its label and chevron and swaps in the card hover/press fills. Profile Bands' View All Bands (N)
+         (issue #312). Consumers set no layout or colour overrides (ViewAllCardTests). -->
+    <x:Double x:Key="FSTViewAllCardMinHeight">48</x:Double>
+    <Style TargetType="controls:ViewAllCard">
+        <Setter Property="Background" Value="{ThemeResource FSTCardSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource FSTCardStrokeBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="MinHeight" Value="{StaticResource FSTViewAllCardMinHeight}" />
+        <Setter Property="Padding" Value="16,8" />
     </Style>
 
     <!-- Instrument / band header above a card (web InstrumentHeader MD): 36 epx icon, bold title, optional subtitle. -->

@@ -102,7 +102,7 @@
                             <!-- Named UIA group: the same rival in several sections is not an ambiguous sibling. -->
                             <controls:AccessibleGroup AutomationProperties.Name="{x:Bind Title}" controls:QuickLinkAnchor.Id="{x:Bind Id}">
                                 <StackPanel Spacing="8">
-                                <!-- Header above the card (web sectionHeaderClickable): icon, title, See All. -->
+                                <!-- Header above the card (web sectionHeaderClickable): icon, title, View All link (section-headers R8). -->
                                     <Grid Padding="4,0,0,0" ColumnSpacing="10" MinHeight="40">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -114,8 +114,8 @@
                                     <TextBlock Grid.Column="1" Text="{x:Bind Title}" Style="{StaticResource FSTSectionHeaderStyle}"
                                                Margin="0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                                                AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="{x:Bind AutomationId}" />
-                                    <HyperlinkButton Grid.Column="2" Content="See All" Tag="{x:Bind ViewAllRoute}" Click="OnRouteClick"
-                                                     AutomationProperties.Name="{x:Bind SeeAllName}"
+                                    <HyperlinkButton Grid.Column="2" Content="{x:Bind vm:RivalSectionViewModel.ListLinkText}" Tag="{x:Bind ViewAllRoute}" Click="OnRouteClick"
+                                                     AutomationProperties.Name="{x:Bind ListLinkName}"
                                                      AutomationProperties.AutomationId="fst.rivals.see-all" />
                                 </Grid>
                                 <Border Style="{StaticResource FSTCardStyle}" Padding="8,8,8,12">
@@ -131,7 +131,9 @@
                                         <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}"
                                                        controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52">
                                             <ItemsRepeater.Layout>
-                                                <StackLayout Spacing="2" />
+                                                <!-- One non-virtualizing column: rows stay realized while the page is cached, so Back
+                                                     never re-estimates them and moves the page (#276). -->
+                                                <controls:LeaderboardsCardGridLayout MinColumnWidth="0" MaxColumns="1" Spacing="2" />
                                             </ItemsRepeater.Layout>
                                             <ItemsRepeater.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:RivalRowItem">

@@ -167,6 +167,29 @@ public class BandsApiTests
         Assert.Equal(FestivalApiErrorKind.InvalidResponse, (await Fails(() => client.GetSongBandLeaderboardAsync("fixture-pulse", BandType.Duets, 1, 1))).Kind);
     }
 
+    [Fact]
+    public async Task SongBandLeaderboard_SendsAccountIdAndReadsSelectedPlayerEntry()
+    {
+        var bands = new BandService();
+        var client = bands.Service.Client();
+        var board = await client.GetSongBandLeaderboardAsync("s1", BandType.Duets, 1, 25, "t30a");
+        var sent = bands.Service.Handler.To("/api/leaderboard/s1/bands/Band_Duets").Single();
+        Assert.Equal("?top=25&offset=0&accountId=t30a", sent.Uri.Query);
+        Assert.Equal(30, board.SelectedPlayerEntry!.Rank);
+        Assert.Equal("t30a:t30b", board.PinnedEntry("T30A")!.TeamKey);
+        Assert.Null(board.PinnedEntry("t31a"));
+        Assert.Null(board.PinnedEntry(null));
+        Assert.Null(board.SelectedBandEntry);
+        Assert.Equal(FestivalApiErrorKind.InvalidResource, (await Fails(() => client.GetSongBandLeaderboardAsync("s1", BandType.Duets, 1, 25, "a/b"))).Kind);
+        Assert.Equal(FestivalApiErrorKind.InvalidResource, (await Fails(() => client.GetSongBandLeaderboardAsync("s1", BandType.Duets, 1, 25, ""))).Kind);
+        bands.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal)
+            ? BandService.Ok(BandWire.SongBands("s1", "Band_Duets", 1, 1, 0, 1, "Band_Quad")) : null;
+        Assert.Equal(FestivalApiErrorKind.InvalidResponse, (await Fails(() => client.GetSongBandLeaderboardAsync("s1", BandType.Duets, 1, 25, "t1a"))).Kind);
+        bands.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal)
+            ? BandService.Ok("""{"songId":"s1","bandType":"Band_Duets","count":0,"totalEntries":0,"entries":[],"selectedPlayerEntry":{"bandType":"Band_Duets","teamKey":"a:b","members":null}}""") : null;
+        Assert.Equal(FestivalApiErrorKind.InvalidResponse, (await Fails(() => client.GetSongBandLeaderboardAsync("s1", BandType.Duets, 1, 25, "a"))).Kind);
+    }
+
     [Theory]
     [InlineData("a:b", true)]
     [InlineData("a:b:c:d", true)]

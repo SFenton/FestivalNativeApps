@@ -75,8 +75,14 @@ extension IPadAccessibilityAuditTests {
 
         // 1. Visible contrast issues and page evidence.
         let lines = capture.map(IPadAuditPageEvidence.recognizedLines(in:)) ?? []
+        let labels = findings.map(\.label)
+        let measurableHere = { (index: Int) in
+            content.contains(frames[index]) || IPadAuditPageEvidence.labelDrawnInside(
+                frames[index], label: labels[index], lines: lines, content: content
+            )
+        }
         for index in findings.indices where isContrast(index) && !findings[index].frame.isEmpty
-            && content.contains(frames[index]) {
+            && measurableHere(index) {
             if let capture {
                 findings[index].rendered = IPadAuditPageEvidence.reading(
                     for: frames[index], label: findings[index].label, lines: lines, capture: capture
@@ -96,7 +102,7 @@ extension IPadAccessibilityAuditTests {
             (isDynamicType($0) || isClipped($0)) && !findings[$0].label.isEmpty && !findings[$0].frame.isEmpty
         }
         let cutContrast = findings.indices.filter {
-            isContrast($0) && !findings[$0].frame.isEmpty && !content.contains(frames[$0])
+            isContrast($0) && !findings[$0].frame.isEmpty && !measurableHere($0)
         }
         var locators: [Int: IPadAuditTextEvidence.Locator] = [:]
         for index in heuristic + cutContrast {

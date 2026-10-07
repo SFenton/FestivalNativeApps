@@ -161,6 +161,10 @@ class FakeTransport(private val routes: MutableMap<String, (HttpRequest) -> Http
                 }
             }
             on("/api/account/search") { """{"results":[{"accountId":"${Fixtures.ACCOUNT_A}","displayName":"Synthetic Player"},{"accountId":"bad/id","displayName":"Invalid"}]}""" }
+            on("/api/bands/search") { request ->
+                val query = java.net.URLDecoder.decode(Regex("[?&]q=([^&]*)").find(request.url)?.groupValues?.get(1).orEmpty(), "UTF-8")
+                BandFixtures.bandSearch(query)
+            }
         }
     }
 }

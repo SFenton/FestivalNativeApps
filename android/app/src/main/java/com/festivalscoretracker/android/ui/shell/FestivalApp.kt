@@ -117,7 +117,6 @@ import com.festivalscoretracker.android.core.nav.SongsTab
 import com.festivalscoretracker.android.core.nav.StatisticsRoute
 import com.festivalscoretracker.android.core.nav.StatisticsTab
 import com.festivalscoretracker.android.core.search.GlobalSearchLayout
-import com.festivalscoretracker.android.core.search.GlobalSearchResults
 import com.festivalscoretracker.android.core.search.PxRect
 import com.festivalscoretracker.android.core.search.SearchDestination
 import com.festivalscoretracker.android.core.search.ShellShortcut
@@ -129,6 +128,7 @@ import com.festivalscoretracker.android.core.shell.ListHead
 import com.festivalscoretracker.android.core.shell.ProfileChipAction
 import com.festivalscoretracker.android.core.shell.ProfileChipPolicy
 import com.festivalscoretracker.android.core.shell.ProfileRoutePolicy
+import com.festivalscoretracker.android.data.bands.searchBands
 import com.festivalscoretracker.android.data.notifications.playerNotifications
 import com.festivalscoretracker.android.data.serviceinfo.serviceInfo
 import com.festivalscoretracker.android.data.serviceinfo.serviceVersion
@@ -360,6 +360,7 @@ private fun FestivalShell(
         GlobalSearchViewModel(
             loadCatalog = { container.api.catalog().catalog.songs },
             searchPlayers = { query, limit -> container.api.searchPlayers(query, limit) },
+            searchBands = { query, limit -> container.api.searchBands(query, limit) },
             selectedAccountId = { shellViewModel.settings.value?.selectedPlayer?.accountId },
             backoff = container.backoff,
             savedState = createSavedStateHandle(),
@@ -652,7 +653,6 @@ private fun FestivalShell(
         anchor = anchor,
         artworkUrl = container.api::artworkUrl,
         onOpen = openDestination,
-        onBandRankings = { navController.navigate(GlobalSearchResults.bandRankings) },
     )
     if (showProfile) {
         val searchViewModel: ProfileSearchViewModel = viewModel { ProfileSearchViewModel { query -> container.api.searchPlayers(query) } }

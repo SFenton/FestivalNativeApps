@@ -293,6 +293,39 @@ public sealed class LeaderboardsOverviewTests
     }
 
     [Fact]
+    public async Task ReturningWithNothingChangedKeepsCardsAndReloadsAfterAPlayerChange()
+    {
+        // Back from View All re-activates the cached overview (issues #82, #276): same cards, no reads, no jump.
+        var fake = new RankingsFake();
+        var reader = new FakeReader();
+        var session = fake.Session(RankingsFake.Selected("me", [Instrument.Lead, Instrument.Bass]));
+        var vm = new LeaderboardsViewModel(session, reader.Read);
+        await vm.ActivateAsync();
+        var cards = vm.InstrumentCards.ToList();
+        var bands = vm.BandCards.ToList();
+        var rows = vm.InstrumentCards[0].Rows.ToList();
+        var requests = fake.Service.Handler.Requests.Count;
+        var reads = reader.Calls.Count;
+
+        vm.Deactivate();
+        await vm.ActivateAsync();
+        Assert.Equal(cards, vm.InstrumentCards, ReferenceEqualityComparer.Instance);
+        Assert.Equal(bands, vm.BandCards, ReferenceEqualityComparer.Instance);
+        Assert.Equal(rows, vm.InstrumentCards[0].Rows, ReferenceEqualityComparer.Instance);
+        Assert.True(vm.IsReady);
+        Assert.Equal(requests, fake.Service.Handler.Requests.Count);
+        Assert.Equal(reads, reader.Calls.Count);
+
+        // A different player chosen while away reloads on return.
+        vm.Deactivate();
+        session.UpdateSettings(s => s with { SelectedPlayer = new SelectedPlayer("other", "Other") });
+        await vm.ActivateAsync();
+        Assert.True(fake.Service.Handler.Requests.Count > requests);
+        Assert.Contains(reader.Calls, c => c.Item2 == "other");
+        vm.Deactivate();
+    }
+
+    [Fact]
     public async Task DeactivatingMidLoadCancelsAndReloadsOnReturn()
     {
         var fake = new RankingsFake();

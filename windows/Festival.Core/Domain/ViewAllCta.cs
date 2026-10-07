@@ -21,6 +21,18 @@ public static class ViewAllCta
     /// <summary>Song Detail Score History list (web <c>chart.viewAllScores</c>, Title Case).</summary>
     public const string ScoresLabel = "View All Scores";
 
+    /// <summary>Profile Bands groups before the count (web <c>player.viewAllBands</c>, Title Case; issue #312). Shown on the
+    /// frosted <c>ViewAllCard</c> (surface-materials R7), not the accent button; only the label and name rule are shared.</summary>
+    public const string BandsLabel = "View All Bands";
+
+    /// <summary>Plain label where the title already names the list: title-row links (Rivals hub cards, Profile Bands;
+    /// section-headers R8) and Rival Detail's category buttons (owner #321: the app reads View All, never See All).</summary>
+    public const string ListLabel = "View All";
+
+    /// <summary>The title-bar search's last suggestion, before <c>for “query”</c> (owner #321). A command row, not this
+    /// button (view-all-cta R6); only the copy is shared.</summary>
+    public const string ResultsLabel = "View All Results";
+
     /// <summary>Accessible name that starts with the visible label so voice control and Narrator match it (WCAG 2.5.3),
     /// then names the card so equal buttons in different cards stay distinct.</summary>
     /// <param name="label">Visible button text.</param>

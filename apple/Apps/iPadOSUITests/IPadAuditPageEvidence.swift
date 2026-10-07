@@ -124,7 +124,11 @@ enum IPadAuditPageEvidence {
                 guard drawn, content.contains(frame) else { continue }
             }
             let locator = IPadAuditTextEvidence.Locator.make(node, among: isText ? texts : measurable)
-            guard content.contains(frame) else {
+            // A header whose frame starts in a bar's scroll-edge band but whose glyphs are
+            // clear of it is measured in place (a pane-top header cannot scroll further
+            // down: Song Leaderboard's header in the split, Lane A11Y4).
+            guard content.contains(frame)
+                    || labelDrawnInside(frame, label: node.label, lines: lines, content: content) else {
                 visible.obscured.append(locator)
                 continue
             }
@@ -335,6 +339,35 @@ enum IPadAuditPageEvidence {
         return IPadAuditRenderedContrast.Measurement(
             ratio: weakest.ratio, glyphPixels: readings.reduce(0) { $0 + $1.glyphPixels }
         )
+    }
+
+    /// Whether the whole label is drawn where text is measurable although the element's
+    /// frame is not: a list section header's frame starts at its bar's bottom edge, inside
+    /// the scroll-edge band, while its glyphs sit below it (folded iPhone Duo
+    /// Notifications' "New", Lane A11Y4). Such an element cannot be scrolled clear (it is
+    /// already at the top) and is measured where it is.
+    ///
+    /// - Parameters:
+    ///   - frame: The element's frame.
+    ///   - label: Its label.
+    ///   - lines: Recognized lines of the capture.
+    ///   - content: The measurable area.
+    /// - Returns: True when the recognized words of the label inside `frame` spell the
+    ///   whole label and each lies in `content`.
+    static func labelDrawnInside(
+        _ frame: CGRect, label: String, lines: [Line], content: ContentArea
+    ) -> Bool {
+        let wanted = IPadAuditTextEvidence.normalized(label)
+        guard !wanted.isEmpty else { return false }
+        let bounds = frame.insetBy(dx: -2, dy: -2)
+        let words = lines.flatMap(\.words).filter { word in
+            guard bounds.contains(CGPoint(x: word.frame.midX, y: word.frame.midY)) else { return false }
+            let seen = IPadAuditTextEvidence.normalized(word.text)
+            return !seen.isEmpty
+                && IPadAuditTextEvidence.approximateSubstringDistance(seen, in: wanted) <= max(1, seen.count / 4)
+        }
+        let spelled = words.reduce(0) { $0 + IPadAuditTextEvidence.normalized($1.text).count }
+        return spelled >= wanted.count && words.allSatisfy { content.contains($0.frame) }
     }
 
     /// Height of the drawn text inside `frame`: the tallest recognized word of the label.

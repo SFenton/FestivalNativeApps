@@ -148,12 +148,15 @@ final class IPadShellAccessibilityTests: XCTestCase {
             } else {
                 // The scrim right of the panel, in screen points from the window (iPhone
                 // Duo: `app.coordinate` taps never reached the inner display).
-                // Midway between the panel and the window's trailing edge, clear of the
-                // Duo's system vertical bar.
+                // Midway between the panel and the scrim's trailing edge: the window's,
+                // or on iPhone Duo the start of the system vertical bar the scrim leaves
+                // uncovered (folded: panel ends at 329 pt, bar from ≈ 375 pt).
                 let window = app.windows.firstMatch.frame
                 let panel = element(app, "fst.shell.drawer").frame
-                let x = panel.width > 0 && panel.maxX < window.maxX - 80
-                    ? (panel.maxX + window.maxX) / 2 : window.minX + window.width * 0.9
+                let right = IPadAccessibilityAuditTests.runningOnDuo
+                    ? window.maxX - IPadAccessibilityAuditTests.duoVerticalBarClearance : window.maxX
+                let x = panel.width > 0 && panel.maxX < right - 16
+                    ? (panel.maxX + right) / 2 : window.minX + window.width * 0.9
                 IPadAccessibilityAuditTests.screenOrigin(app)
                     .withOffset(CGVector(dx: x, dy: window.midY)).tap()
             }

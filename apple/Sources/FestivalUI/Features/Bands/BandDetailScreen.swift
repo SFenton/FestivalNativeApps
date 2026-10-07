@@ -143,6 +143,9 @@ struct BandDetailScreen: View {
                     songsSection(detail).festivalFadeIn(isLoaded: true, index: 4)
                 }
                 .padding(16)
+                // Scrolling or a Quick Links jump while the sections stagger in fades the
+                // rest in together (#323).
+                .festivalFadeInScope()
             }
             .quickLinks(quickLinks, title: "Quick Links")
             .festivalRefreshable {
