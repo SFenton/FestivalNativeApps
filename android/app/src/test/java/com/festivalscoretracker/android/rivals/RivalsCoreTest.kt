@@ -359,6 +359,18 @@ class RivalsCoreTest {
         assertEquals(1, HingeColumns.resolve(0, 0, null, null, 360, 16, 0).count)
     }
 
+    @Test
+    fun fullLineItemsKeepToTheLeadingPaneOnlyWhenSplit() {
+        // Issue #343: titles and subtitles stay on their side of a separating hinge.
+        val split = HingeColumns.resolve(100, 1800, 1000, 1020, 360, 16, 3)
+        assertTrue(split.split)
+        assertEquals(900, split.leadingPane(rtl = false))
+        assertEquals(880, split.leadingPane(rtl = true))
+        // Flat (no hinge) and a fold too near the edge to split fill the line.
+        assertNull(HingeColumns.resolve(0, 2000, null, null, 360, 16, 3).leadingPane(rtl = false))
+        assertNull(HingeColumns.resolve(0, 400, 390, 400, 360, 16, 3).leadingPane(rtl = false))
+    }
+
     // endregion
 
     // region Routes

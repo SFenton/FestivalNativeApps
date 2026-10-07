@@ -212,7 +212,7 @@ class ProfileParityCoreTest {
     fun oneHingeSplitsTwoColumnsAtTheFold() {
         // Grid starts at x=100; a 20 px hinge at 600–620 window pixels.
         val grid = ProfileColumns.resolve(100, 1000, listOf(600 to 620), 340, 16, 3)
-        assertEquals(ColumnSpec(listOf(500, 480), 20), grid.spec)
+        assertEquals(ColumnSpec(listOf(500, 480), 20, split = true), grid.spec)
         assertTrue(grid.splitAtFold)
         // A hinge outside the grid is ignored.
         val outside = ProfileColumns.resolve(100, 400, listOf(1200 to 1200), 340, 16, 3)

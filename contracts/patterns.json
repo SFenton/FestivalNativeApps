@@ -330,7 +330,9 @@
         "card header",
         "heading",
         "see all",
-        "view all link"
+        "view all link",
+        "fold",
+        "hinge"
       ],
       "web": [
         {
@@ -381,6 +383,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsScreen.kt",
             "symbol": "SongsScreen"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FoldLane.kt",
+            "symbol": "foldLaneItem"
           }
         ],
         "windows": [
@@ -426,6 +432,17 @@
           "allow": [],
           "debt": [],
           "message": "The app says \"View All\", never \"See All\"; title-row links use SeeAllButton/ViewAllLinkText (section-headers R8, #321)."
+        },
+        {
+          "id": "android-fold-lane",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "StaggeredGridItemSpan\\.FullLine",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FoldLane.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/profile/PlayerProfileScreen.kt"
+          ],
+          "debt": [],
+          "message": "Full-line items in hinge-splitting staggered grids use foldLaneItem so titles stay on their side of the fold (section-headers R10, #343). Player Profile drops full-line rows to one lane when split."
         },
         {
           "id": "windows-view-all-copy",
