@@ -30,7 +30,14 @@ class ParseTests(unittest.TestCase):
         self.assertEqual([], f.plays(parsed, "SongsList"))
 
     def test_ignores_malformed_lines(self):
-        self.assertEqual([], f.parse(["fade-play", "fade-play list=", "fade-other list=A index=1", "fade-arm list=A start=x"]))
+        self.assertEqual([], f.parse(["fade-play", "fade-play list=", "fade-other list=A index=1", "fade-arm list=A start="]))
+
+    def test_reads_entrance_targets_and_the_clock(self):
+        parsed = f.parse(["fade-enter list=RowsRepeater target=SpotlightPanel delay=125 motion=1 at=5122",
+                          "fade-early list=Scroller target=BandBoards left=830 at=5600"])
+        self.assertEqual(["enter", "early"], [e.kind for e in parsed])
+        self.assertEqual({"target": "SpotlightPanel", "delay": 125, "motion": 1, "at": 5122}, parsed[0].values)
+        self.assertEqual("BandBoards", parsed[1].values["target"])
 
 
 class CheckTests(unittest.TestCase):
@@ -140,6 +147,137 @@ class LoadThenScrollTests(unittest.TestCase):
         self.assertIn("[4]", f.check_load_then_scroll(events(*kept, "fade-play list=A index=4 delay=125"), "A")[0])
 
 
+PAGE = ["fade-arm list=Scroller start=0 at=1000",
+        "fade-enter list=Scroller target=TitleRow delay=0 motion=1 at=1000",
+        "fade-enter list=Scroller target=OverviewHeading delay=125 motion=1 at=1000",
+        "fade-enter list=Scroller target=OverviewGrid delay=1650 motion=1 at=1000"]
+"""A page entrance whose last element (OverviewGrid) is still pending when a scroll at 1500 ms rushes it."""
+EARLY_RUSH = ["fade-early list=Scroller target=OverviewGrid left=1150 at=1500",
+              "fade-rush list=Scroller start=0 rushed=1 kept=0 since=500 at=1500"]
+
+
+class EntranceRushTests(unittest.TestCase):
+    def test_enrolled(self):
+        self.assertEqual([], f.check_enrolled(events(*PAGE), "Scroller", ["TitleRow", "OverviewGrid"]))
+        # A pinned row faded outside its board's entrance (review #358: a sibling of the list's scroller).
+        found = f.check_enrolled(events("fade-arm list=RowsRepeater start=0",
+                                        "fade-enter list=Page target=SpotlightPanel delay=125"),
+                                 "RowsRepeater", ["SpotlightPanel"])
+        self.assertIn("SpotlightPanel did not fade in with its entrance", found[0])
+        self.assertIn("entered with Page", found[0])
+        self.assertIn("no fade-enter", f.check_enrolled([], "RowsRepeater", ["FooterSpotlight"])[0])
+
+    def test_a_rush_that_starts_every_pending_fade_passes(self):
+        self.assertEqual([], f.check_entrance_rush(events(*PAGE, *EARLY_RUSH), "Scroller", ["OverviewGrid"]))
+        # Fades that had started before the rush need nothing; later entrances start at once.
+        done = PAGE[:3] + ["fade-rush list=Scroller start=0 rushed=0 kept=0 since=500 at=1500",
+                           "fade-enter list=Scroller target=Card delay=0 motion=1 at=1600"]
+        self.assertEqual([], f.check_entrance_rush(events(*done), "Scroller"))
+
+    def test_a_pending_fade_that_keeps_its_delay_fails(self):
+        # The rush did not start the still-pending OverviewGrid (no fade-early): the review's Player Profile regression.
+        found = f.check_entrance_rush(events(*PAGE, EARLY_RUSH[1].replace("rushed=1", "rushed=0")), "Scroller")
+        self.assertIn("kept their delay through the rush: ['OverviewGrid']", found[0])
+        self.assertIn("started 0 fade(s) but 1 were still pending", found[1])
+        # A pending fade of the entrance the rush did not reach.
+        found = f.check_entrance_rush(events(*PAGE, EARLY_RUSH[0], EARLY_RUSH[1].replace("kept=0", "kept=1")), "Scroller")
+        self.assertIn("kept 1 pending fade(s)", found[0])
+        # A pending row of a board still due after the rush, not counted in rushed.
+        rows = ["fade-arm list=A start=0 at=1000", "fade-play list=A index=9 delay=1250 motion=1 at=1000",
+                "fade-rush list=A start=0 rushed=0 kept=0 since=300 at=1300"]
+        self.assertIn("1 were still pending", f.check_entrance_rush(events(*rows), "A")[0])
+
+    def test_a_fade_scheduled_after_the_rush_with_a_delay_fails(self):
+        late = [*PAGE, *EARLY_RUSH, "fade-enter list=Scroller target=BandBoards delay=300 motion=1 at=1600",
+                "fade-play list=Scroller index=2 delay=250 motion=1 at=1600"]
+        found = f.check_entrance_rush(events(*late), "Scroller")
+        self.assertIn("['BandBoards', 'index 2']", found[0])
+        # A re-arm from 0 starts a new entrance, which may stagger again.
+        rearmed = [*PAGE, *EARLY_RUSH, "fade-arm list=Scroller start=0 at=9000",
+                   "fade-enter list=Scroller target=TitleRow delay=125 motion=1 at=9000"]
+        self.assertEqual([], f.check_entrance_rush(events(*rearmed), "Scroller"))
+
+    def test_the_rushed_entrance_is_the_last_arm_before_the_scroll(self):
+        # Song Details reloading in place (another song) arms again; only the entrance the scroll hit must hold targets.
+        earlier = ["fade-arm list=Scroller start=0 at=0", "fade-enter list=Scroller target=Gone delay=0 motion=1 at=0"]
+        self.assertEqual([], f.check_entrance_rush(events(*earlier, *PAGE, *EARLY_RUSH), "Scroller", ["OverviewGrid"]))
+        stale = [*PAGE[:1], "fade-enter list=Scroller target=OverviewGrid delay=0 motion=1 at=1000",
+                 "fade-arm list=Scroller start=0 at=1100", *EARLY_RUSH[1:]]
+        self.assertIn("OverviewGrid did not fade in", f.check_entrance_rush(events(*stale), "Scroller", ["OverviewGrid"])[0])
+
+    def test_the_scroll_must_rush_not_close(self):
+        self.assertIn("fade-rush missing", f.check_entrance_rush(events(*PAGE), "Scroller")[0])
+        closed = [*PAGE, "fade-close list=Scroller start=0 since=500 at=1500"]
+        self.assertIn("rush is missing", f.check_entrance_rush(events(*closed), "Scroller", window_ms=4000)[0])
+        self.assertIn("not exercised", f.check_entrance_rush(
+            events(*PAGE, "fade-close list=Scroller start=0 since=5000"), "Scroller", window_ms=4000)[0])
+
+
+BOARD = ["fade-arm list=RowsRepeater start=0 at=1000",
+         "fade-play list=RowsRepeater index=0 delay=125 motion=1 at=1000",
+         "fade-play list=RowsRepeater index=9 delay=1250 motion=1 at=1000",
+         "fade-play list=RowsRepeater index=12 delay=2400 motion=1 at=1000",
+         "fade-enter list=RowsRepeater target=SpotlightPanel delay=125 motion=1 at=1001",
+         "fade-hold list=RowsRepeater held=2 wait=2025 at=1002",
+         "fade-rush list=RowsRepeater start=0 rushed=1 kept=0 since=2030 at=3030",
+         "fade-reveal list=RowsRepeater index=16 wait=2025 scrolled=1 at=3030",
+         "fade-play list=RowsRepeater index=17 delay=0 motion=1 at=3100"]
+"""Song Detail → player score: the board loads, holds its tail, rushes row 12 and scrolls to row 16."""
+
+
+class RevealTests(unittest.TestCase):
+    def test_the_reveal_rushes_the_board_then_scrolls(self):
+        self.assertEqual([], f.check_reveal(events(*BOARD), "RowsRepeater", 16, ["SpotlightPanel"]))
+        # An earlier board load (another page) before the last arm is ignored.
+        self.assertEqual([], f.check_reveal(events("fade-arm list=RowsRepeater start=0 at=10",
+                                                   "fade-play list=RowsRepeater index=0 delay=900 at=10", *BOARD),
+                                            "RowsRepeater", 16))
+
+    def test_each_regression_is_caught(self):
+        self.assertIn("fade-reveal missing", f.check_reveal(events(*BOARD[:7]), "RowsRepeater")[0])
+        # The pinned row faded outside the board's entrance.
+        unpinned = [line for line in BOARD if "SpotlightPanel" not in line]
+        self.assertIn("SpotlightPanel did not fade", f.check_reveal(events(*unpinned), "RowsRepeater", 16, ["SpotlightPanel"])[0])
+        # Scrolled without a rush, or the rush left the tail row on its delay.
+        self.assertIn("without rushing", f.check_reveal(events(*BOARD[:6], *BOARD[7:]), "RowsRepeater")[0])
+        unrushed = [line.replace("rushed=1", "rushed=0") for line in BOARD]
+        self.assertIn("1 were still pending", f.check_reveal(events(*unrushed), "RowsRepeater")[0])
+        # Scrolled before the row's own entrance finished.
+        hasty = [line.replace("index=16 wait=2025 scrolled=1 at=3030", "index=16 wait=2025 scrolled=1 at=1500") for line in BOARD]
+        self.assertIn("before the row's own entrance", f.check_reveal(events(*hasty), "RowsRepeater")[0])
+        # Went to another row, or did not scroll.
+        self.assertIn("row 16, expected 15", f.check_reveal(events(*BOARD), "RowsRepeater", 15)[0])
+        still = [line.replace("scrolled=1", "scrolled=0") for line in BOARD]
+        self.assertIn("did not scroll", f.check_reveal(events(*still), "RowsRepeater")[0])
+        # A row the scroll realized kept a stagger.
+        staggered = [*BOARD[:-1], "fade-play list=RowsRepeater index=17 delay=375 motion=1 at=3100"]
+        self.assertIn("['index 17']", f.check_reveal(events(*staggered), "RowsRepeater")[0])
+        self.assertIn("never armed", f.check_reveal(events(*BOARD[7:]), "RowsRepeater")[0])
+
+
+class DelayedPlayTests(unittest.TestCase):
+    """Every delayed fade belongs to an entrance: no direct ``FadeIn.Play(element, delay)`` (review #358)."""
+
+    def test_the_windows_sources_play_no_delayed_fade_directly(self):
+        self.assertEqual([], f.delayed_play_problems())
+
+    def test_a_direct_delayed_play_is_reported(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            page = root / "windows" / "Festival.App" / "Pages" / "Board.xaml.cs"
+            page.parent.mkdir(parents=True)
+            page.write_text("FadeIn.Play(SpotlightPanel);\n"
+                            "// FadeIn.Play(Old, TimeSpan.Zero);\n"
+                            "DispatcherQueue.TryEnqueue(() => FadeIn.Play(Footer, PinnedRowReveal.RevealDelay));\n"
+                            "FadeIn.Play(Items(0), FadeInTiming.Interval * 2);\n", encoding="utf-8")
+            built = root / "windows" / "Festival.App" / "obj" / "Gen.cs"
+            built.parent.mkdir(parents=True)
+            built.write_text("FadeIn.Play(X, Y);\n", encoding="utf-8")
+            problems = f.delayed_play_problems(root)
+        self.assertEqual(["windows/Festival.App/Pages/Board.xaml.cs:3", "windows/Festival.App/Pages/Board.xaml.cs:4"],
+                         [p.split(": ")[0] for p in problems])
+
+
 class RunPhasesTests(unittest.TestCase):
     def test_each_phase_sees_only_its_own_lines(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -190,6 +328,28 @@ class WiringTests(unittest.TestCase):
         self.assertEqual(2, len(problems))
         self.assertIn("SuggestionsPage", problems[0])
         self.assertIn("SearchPage", problems[1])
+
+    def test_a_pinned_row_or_profile_fading_outside_its_entrance_is_reported(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            for rel, _, _ in f.WIRING:
+                source = (f.ROOT / rel).read_text(encoding="utf-8")
+                (root / rel).parent.mkdir(parents=True, exist_ok=True)
+                (root / rel).write_text(source, encoding="utf-8")
+            board = root / "windows/Festival.App/Pages/LeaderboardsFullRankingsPage.xaml.cs"
+            board.write_text(board.read_text(encoding="utf-8").replace(
+                "FadeIn.Enter(RowsRepeater, FooterSpotlight, PinnedRowReveal.RevealDelay)",
+                "FadeIn.Play(FooterSpotlight, PinnedRowReveal.RevealDelay)"), encoding="utf-8")
+            profile = root / "windows/Festival.App/Controls/PlayerProfileView.xaml.cs"
+            profile.write_text(profile.read_text(encoding="utf-8").replace("FadeIn.BeginEntrance(Scroller);", ""),
+                               encoding="utf-8")
+            problems = f.wiring_problems(root)
+            direct = f.delayed_play_problems(root)
+        self.assertEqual(2, len(problems))
+        self.assertIn("PlayerProfileView", problems[0])
+        self.assertIn("LeaderboardsFullRankingsPage", problems[1])
+        self.assertEqual(1, len(direct))
+        self.assertIn("LeaderboardsFullRankingsPage", direct[0])
 
 
 if __name__ == "__main__":
