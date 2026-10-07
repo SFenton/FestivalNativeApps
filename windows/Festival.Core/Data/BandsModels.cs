@@ -377,7 +377,7 @@ public sealed record SongBandLeaderboardEntry
     [JsonIgnore] public string MembersLabel => BandMember.JoinNames(Members);
 }
 
-/// <summary>Page from <c>GET /api/leaderboard/{songId}/bands/{bandType}?top=&amp;offset=</c>.</summary>
+/// <summary>Page from <c>GET /api/leaderboard/{songId}/bands/{bandType}?top=&amp;offset=[&amp;accountId=]</c>.</summary>
 public sealed record SongBandLeaderboardResponse
 {
     /// <summary>Echoed song.</summary>
@@ -397,6 +397,22 @@ public sealed record SongBandLeaderboardResponse
     [JsonPropertyName("showLeaderboardEntryTotals")] public bool? ShowLeaderboardEntryTotals { get; init; }
     /// <summary>Rows.</summary>
     [JsonPropertyName("entries")] public IReadOnlyList<SongBandLeaderboardEntry> Entries { get; init; } = [];
+    /// <summary>The selected player's best band on this song and size (<c>accountId</c> query; a pure read).</summary>
+    [JsonPropertyName("selectedPlayerEntry")] public SongBandLeaderboardEntry? SelectedPlayerEntry { get; init; }
+    /// <summary>A selected band's own row (<c>teamKey</c> query, not sent by natives yet).</summary>
+    [JsonPropertyName("selectedBandEntry")] public SongBandLeaderboardEntry? SelectedBandEntry { get; init; }
+
+    /// <summary>
+    /// The pinned footer's row (web <c>SongBandLeaderboardPage</c> <c>selectedPlayerEntry</c>): the selected player's best
+    /// band, only when it actually includes that player. <see cref="SelectedBandEntry"/> answers a <c>teamKey</c> query
+    /// natives don't send, so it is never pinned.
+    /// </summary>
+    /// <param name="accountId">Selected player, or <see langword="null"/>.</param>
+    /// <returns>Pinned row, or <see langword="null"/>.</returns>
+    public SongBandLeaderboardEntry? PinnedEntry(string? accountId) =>
+        !string.IsNullOrEmpty(accountId) && SelectedPlayerEntry is { } own &&
+        own.Members.Any(m => string.Equals(m.AccountId, accountId, StringComparison.OrdinalIgnoreCase))
+            ? own : null;
 
     /// <summary>Paging population (<c>localEntries ?? totalEntries</c>, never negative).</summary>
     [JsonIgnore] public int Population => Math.Max(0, LocalEntries ?? TotalEntries);
@@ -406,7 +422,7 @@ public sealed record SongBandLeaderboardResponse
     /// <returns>Page count.</returns>
     public int PageCount(int pageSize) => Population == 0 ? 1 : (Population - 1) / Math.Max(1, pageSize) + 1;
 
-    /// <summary>Rejects a response for another board or with impossible counts.</summary>
+    /// <summary>Rejects a response for another board, with impossible counts or with a selected row of another size.</summary>
     /// <param name="songId">Requested song.</param>
     /// <param name="bandType">Requested size.</param>
     /// <param name="top">Requested page size.</param>
@@ -415,6 +431,9 @@ public sealed record SongBandLeaderboardResponse
     {
         if (SongId != songId || BandType != bandType.ServiceId() || Entries is null || Count != Entries.Count ||
             Count > top || TotalEntries < 0 || LocalEntries is < 0 || Entries.Any(e => e is null || e.Members is null))
+            throw new FestivalApiException(FestivalApiErrorKind.InvalidResponse);
+        IEnumerable<SongBandLeaderboardEntry?> selected = [SelectedPlayerEntry, SelectedBandEntry];
+        if (selected.OfType<SongBandLeaderboardEntry>().Any(e => e.BandType != BandType || e.Members is null))
             throw new FestivalApiException(FestivalApiErrorKind.InvalidResponse);
     }
 }
