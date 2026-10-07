@@ -143,6 +143,10 @@ Builds run for every `windows/v<YYMM.DD.NN>` tag that `version-bump` creates (ho
 
 The mode is always **Manual** (there is no option): certification runs, and the package waits in `PendingPublication` until someone presses *Publish now*. That state counts as in review, so a newer build waits too.
 
+## Service feature flags
+
+A feature that ships dark behind `GET /api/features` (today `feedback` and `appManual`) is lit up by the release machine, not by a client release or a hand edit. Each key the service exposes must be declared in the tracker's `config/machine.json` `features` block: `desired: true` with its compose `env` variable, `requires_env` secrets and `services`, or `desired: false` with a `note`. An undeclared key is reported as `undeclared` in `fst-machine status`. For a desired feature, the machine waits for the code, the owner's secrets (for `feedback`, `install/set-feedback-token.sh`) and a service safe point. It then sets the `.env` flag, recreates the service and checks `/api/features`, rolling back if the flag doesn't come on (tracker `docs/design.md` §8a). Clients gate on the same key, so a work item that adds a flag must add its declaration too; otherwise the feature never reaches users. That gap kept in-app feedback dark until October 2026.
+
 ## Enabling other platforms
 
 Set the repository variable `FST_RELEASE_<ANDROID|MACOS>_ENABLED=true` only after implementing the TODO steps in the scaffold workflow, then flip `release.<platform>.enabled` in the tracker's `config/machine.json`. Windows needs only the [prerequisites above](#windows-microsoft-store) plus that tracker flag.
