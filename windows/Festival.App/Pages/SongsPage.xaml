@@ -449,6 +449,7 @@
                                     <DataTemplate x:DataType="pages:SongGroup">
                                         <TextBlock Text="{x:Bind Label}" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0,12,0,8"
                                                    Visibility="{x:Bind ShowInlineHeader}"
+                                                   Loaded="OnGroupHeaderLoaded" DataContextChanged="OnGroupHeaderDataContextChanged"
                                                    AutomationProperties.AutomationId="{x:Bind AutomationId}"
                                                    AutomationProperties.HeadingLevel="Level2" />
                                     </DataTemplate>

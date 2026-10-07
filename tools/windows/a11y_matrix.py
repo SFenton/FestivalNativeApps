@@ -25,9 +25,13 @@ fixture cannot reach; pages with the same script and flags share one fixture ser
 ``--live`` drops ``--base-url`` so the app uses its default keyless public origin (evidence runs) and skips
 fixture-only pages (a ``fixture`` wrapper or a ``fixture-…`` player).
 
+A page with ``"scan": true`` is always scanned and fails on any Axe error, with or without ``--scan``: a regression
+check whose point is the scan (e.g. an unlabeled Songs section header, issue #282). Errors from every scan in the
+drive count, including ``scan:`` steps a page runs mid-journey.
+
 Outputs in ``--out``: ``<page>-<size>[-<mode>].png``, ``results.json`` and ``summary.md`` (page × size:
 Axe errors, tab stops, stops outside the app, repeated stops). Exit code 1 when any page failed to load
-or (with ``--scan``) any scan reported errors.
+or (with ``--scan``, or on a ``"scan": true`` page) any scan reported errors.
 
 Usage::
 
@@ -148,7 +152,7 @@ def page_steps(page: dict, size: str, out: Path, suffix: str, scan: bool, tabs: 
         size: Window preset.
         out: Output directory.
         suffix: File-name suffix for the mode (``""`` for normal).
-        scan: Run an Axe.Windows scan.
+        scan: Run an Axe.Windows scan (a page's ``"scan": true`` always does).
         tabs: Default Tab presses (page ``tabs`` overrides; 0 skips the walk).
 
     Returns:
@@ -158,7 +162,7 @@ def page_steps(page: dict, size: str, out: Path, suffix: str, scan: bool, tabs: 
     steps = [f"resize:{size}", "wait:1.5", *page.get("setup", []), *page.get("ready", []),
              *page.get("after_ready", []), "wait:0.5",
              f"shot:{out / (stem + '.png')}"]
-    if scan:
+    if scan or page.get("scan"):
         steps.append(f"scan:{out / 'axe' / stem}")
     count = page.get("tabs", tabs)
     if count:
@@ -296,6 +300,32 @@ def summarize_focus(focus: list[dict]) -> dict:
             "repeats": sum(1 for e in focus if e.get("repeat")), "order": order}
 
 
+def scan_totals(scans: list[dict]) -> tuple[int, list]:
+    """Axe errors and findings over every scan in one drive.
+
+    Args:
+        scans: The drive's ``scans`` results, in order.
+
+    Returns:
+        Total errors and all findings.
+    """
+    return (sum(int(s.get("errors") or 0) for s in scans),
+            [finding for s in scans for finding in s.get("findings") or []])
+
+
+def scan_failed(record: dict, scan: bool) -> bool:
+    """Whether a loaded page/size fails on its Axe results.
+
+    Args:
+        record: Result record (``axe_errors``; ``scan_required`` from the page's ``"scan": true``).
+        scan: ``--scan`` was given.
+
+    Returns:
+        ``True`` when scans count for this page and reported errors.
+    """
+    return bool(record.get("axe_errors")) and (scan or bool(record.get("scan_required")))
+
+
 def summary_table(results: list[dict]) -> str:
     """Markdown summary of a run.
 
@@ -404,7 +434,7 @@ def run_size(page: dict, mode: str, size: str, exe: Path, port: int | None, out:
     if warning:
         print(f"warning: {warning}", file=sys.stderr)
     args = launch_args(port, page, settings)
-    record: dict = {"page": page["name"], "size": size, "mode": mode, "ok": False}
+    record: dict = {"page": page["name"], "size": size, "mode": mode, "ok": False, "scan_required": bool(page.get("scan"))}
     lock = uiwin.HostLock("desktop", purpose=f"a11y {page['name']} {size} {mode} [{REPO_ROOT.name}]",
                           hold_seconds=hold, wait_seconds=1800)
     with lock:
@@ -432,8 +462,7 @@ def run_size(page: dict, mode: str, size: str, exe: Path, port: int | None, out:
             record["ok"] = True
             scans = result.get("scans") or []
             if scans:
-                record["axe_errors"] = scans[0]["errors"]
-                record["axe_findings"] = scans[0]["findings"]
+                record["axe_errors"], record["axe_findings"] = scan_totals(scans)
             if "focus" in result:
                 record["focus"] = summarize_focus(result["focus"])
                 record["focus_raw"] = [e["line"] for e in result["focus"]]
@@ -458,8 +487,9 @@ def run_size(page: dict, mode: str, size: str, exe: Path, port: int | None, out:
             if previous:
                 uiwin.run_driver({"command": "sysset", "set": previous}, lock)
                 RESTORE_FILE.unlink(missing_ok=True)
-    print(f"{'PASS' if record['ok'] else 'FAIL'} {page['name']} {size} {mode}"
-          + (f" axe={record.get('axe_errors')}" if scan and record["ok"] else "")
+    passed = record["ok"] and not scan_failed(record, scan)
+    print(f"{'PASS' if passed else 'FAIL'} {page['name']} {size} {mode}"
+          + (f" axe={record.get('axe_errors')}" if (scan or record["scan_required"]) and record["ok"] else "")
           + (f": {record.get('error')}" if not record["ok"] else ""), flush=True)
     return record
 
@@ -535,7 +565,7 @@ def main(argv: list[str] | None = None) -> int:
     (out / name.replace(".json", ".md").replace("results", "summary")).write_text(summary_table(results),
                                                                                  encoding="utf-8")
     print(summary_table(results))
-    failed = [r for r in results if not r["ok"] or (args.scan and r.get("axe_errors"))]
+    failed = [r for r in results if not r["ok"] or scan_failed(r, args.scan)]
     return 1 if failed else 0
 
 # endregion
