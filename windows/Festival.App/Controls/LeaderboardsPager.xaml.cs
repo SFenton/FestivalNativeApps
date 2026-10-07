@@ -62,7 +62,7 @@ public sealed partial class LeaderboardsPager : UserControl
     {
         compact = availableSize.Width < FullWidth;
         var visibility = compact ? Visibility.Collapsed : Visibility.Visible;
-        if (First.Visibility != visibility) First.Visibility = Last.Visibility = visibility;
+        if (FirstHost.Visibility != visibility) FirstHost.Visibility = LastHost.Visibility = visibility;
         return base.MeasureOverride(availableSize);
     }
 
@@ -105,19 +105,40 @@ public sealed partial class LeaderboardsPager : UserControl
         Info.Text = pager.InfoText;
         AutomationProperties.SetName(Info, pager.InfoAnnouncement);
         Root.Visibility = pager.IsPaged ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var button in Buttons) Host(button).Opacity = IsAvailable(button) ? 1 : DimmedOpacity;
     }
 
     /// <summary>
-    /// Disabled buttons dim as a whole (web <c>Opacity.dimmed</c>). A focused button that just became disabled (Next on
-    /// reaching the last page) hands focus to an enabled one so keyboard paging can continue.
+    /// Whether a button can page right now: enabled and allowed by the model's <see cref="IBoardPager.CanGoBack"/> /
+    /// <see cref="IBoardPager.CanGoForward"/>. Reading the model as well keeps page 1's First/Previous dimmed even when
+    /// the command's initial disabled state raises no <c>IsEnabledChanged</c>.
+    /// </summary>
+    /// <param name="button">Button.</param>
+    /// <returns>Whether it is shown at full opacity.</returns>
+    private bool IsAvailable(Button button)
+    {
+        if (!button.IsEnabled) return false;
+        if (Pager is not { } pager) return true;
+        return button == First || button == Previous ? pager.CanGoBack : pager.CanGoForward;
+    }
+
+    /// <summary>The card-surface host (surface Border + Button) of a pager button.</summary>
+    /// <param name="button">Button.</param>
+    /// <returns>Its host grid.</returns>
+    private FrameworkElement Host(Button button) =>
+        button == First ? FirstHost : button == Previous ? PreviousHost : button == Next ? NextHost : LastHost;
+
+    /// <summary>
+    /// Disabled buttons dim as a whole, card surface included (web <c>Opacity.dimmed</c>). A focused button that just became
+    /// disabled (Next on reaching the last page) hands focus to an enabled one so keyboard paging can continue.
     /// </summary>
     /// <param name="button">Button.</param>
     private void Dim(Button button)
     {
-        button.Opacity = button.IsEnabled ? 1 : DimmedOpacity;
+        Host(button).Opacity = IsAvailable(button) ? 1 : DimmedOpacity;
         if (button.IsEnabled || button.FocusState == FocusState.Unfocused) return;
         foreach (var candidate in new[] { Previous, Next, First, Last })
-            if (candidate.IsEnabled && candidate.Visibility == Visibility.Visible && candidate.Focus(FocusState.Keyboard)) return;
+            if (candidate.IsEnabled && Host(candidate).Visibility == Visibility.Visible && candidate.Focus(FocusState.Keyboard)) return;
     }
 
     /// <summary>Left/Right (Home/End) page while focus is in the pager, like the web's keyboard Paginator.</summary>

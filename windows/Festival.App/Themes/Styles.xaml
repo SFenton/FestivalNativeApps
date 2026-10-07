@@ -40,12 +40,11 @@
             <SolidColorBrush x:Key="FSTPlayerRowTextBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="FSTCurrentRowBrush" Color="#E6223047" />
             <SolidColorBrush x:Key="FSTRatingTextBrush" Color="#FF4C7DFF" />
-            <!-- Board pager (web Paginator): textSecondary chevrons and page text, cardBackground page badge. -->
+            <!-- Board pager (web Paginator): textSecondary chevrons and page text. Its buttons and badge draw on the rows'
+                 FSTCardSurfaceBrush (surface-materials R1, issue #319), never a pager-only plate. -->
             <SolidColorBrush x:Key="FSTPagerGlyphBrush" Color="#FFD7DEE8" />
-            <SolidColorBrush x:Key="FSTPagerBadgeBrush" Color="#FF0B1220" />
-            <!-- Opaque stand-ins for the web's frosted surfaces on controls that float over scrolling rows (pager buttons,
-                 pinned row backplate): a solid colour instead of a per-frame backdrop blur. -->
-            <SolidColorBrush x:Key="FSTPagerButtonBrush" Color="#FF121826" />
+            <!-- Opaque backplate under the pinned row's frosted surface (issue #208): a solid colour instead of a per-frame
+                 backdrop blur. -->
             <SolidColorBrush x:Key="FSTFloatingBackplateBrush" Color="#FF0B1220" />
             <!-- Contrast roles (design/windows.md, Contrast themes): brand hues here, system colours under a contrast theme.
                  Status chips, emphasis (gold) text and outlines, stat values, Top 1% and current-season pills, accuracy/difficulty
@@ -199,9 +198,8 @@
             <SolidColorBrush x:Key="FSTPlayerRowTextBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
             <SolidColorBrush x:Key="FSTCurrentRowBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="FSTRatingTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
-            <SolidColorBrush x:Key="FSTPagerGlyphBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
-            <SolidColorBrush x:Key="FSTPagerBadgeBrush" Color="{ThemeResource SystemColorWindowColor}" />
-            <SolidColorBrush x:Key="FSTPagerButtonBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <!-- Pager glyphs sit on the card's Window surface like row text (WindowText on Window). -->
+            <SolidColorBrush x:Key="FSTPagerGlyphBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTFloatingBackplateBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <!-- Contrast roles: Highlight/HighlightText = emphasis and selection, ButtonFace/ButtonText = pills and buttons,
                  Window/WindowText = surfaces and text, GrayText = absent. Meaning never rests on hue alone (shape, text, UIA name). -->

@@ -529,6 +529,10 @@
           {
             "path": "windows/Festival.App/Controls/LeaderboardEntryRow.xaml.cs",
             "symbol": "LeaderboardEntryRow"
+          },
+          {
+            "path": "windows/Festival.App/Controls/LeaderboardsPager.xaml.cs",
+            "symbol": "LeaderboardsPager"
           }
         ]
       },
@@ -563,6 +567,14 @@
           "allow": [],
           "debt": [],
           "message": "An opaque cardBackground plate is FestivalCardModifier's accessibility fallback, not a feature surface; draw cards, rows and custom floating controls with festivalCard / festivalCardCapsule (surface-materials R1, #319)."
+        },
+        {
+          "id": "windows-pager-only-plate",
+          "glob": "windows/Festival.App/**/*.xaml",
+          "regex": "FSTPager(?:Button|Badge)Brush",
+          "allow": [],
+          "debt": [],
+          "message": "The board pager draws on the rows' FSTCardSurfaceBrush / FSTCardStrokeBrush, never a pager-only plate (surface-materials R1, #319)."
         }
       ],
       "related": {

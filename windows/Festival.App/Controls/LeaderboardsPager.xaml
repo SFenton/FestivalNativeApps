@@ -3,77 +3,109 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <!--
-        The one board pager (operator batch 7.4; web Paginator in FixedLeaderboardPagination): « ‹ [page / total] › »,
-        each a separate frosted-look surface (opaque #121826 + glassBorder: it floats over scrolling rows, so a solid colour
-        stands in for the web's backdrop blur, which would be recomputed every frame).
-        40 epx circle buttons with textSecondary chevrons (double chevrons for first/last), disabled at 30% opacity, around
-        a 40 epx cardBackground badge (10 epx radius). Hidden with a single page, like the web. « and » drop below 380 epx.
+        The one board pager (operator batch 7.4; web Paginator in FixedLeaderboardPagination): « ‹ [page / total] › ».
+        Every control wears the rows' card surface (FSTCardSurfaceBrush + FSTCardStrokeBrush, surface-materials R1, issue
+        #319; web Paginator spreads frostedCard): same fill, translucency and contrast fallback as the board's rows, never a
+        pager-only plate. Rows fade out above the footer (BoardFooterFade), so nothing scrolls under the glyphs.
+        Like LeaderboardEntryRow, the surface is a Border behind a transparent Button, so hover/press tint the card instead
+        of replacing it. 40 epx circle buttons with textSecondary chevrons (double chevrons for first/last), disabled at 30%
+        opacity, around a 40 epx badge (10 epx radius). Hidden with a single page, like the web. « and » drop below 380 epx.
         Keyboard: Left/Right (and Home/End) page while focus is in the pager (web keyboard ArrowLeft/ArrowRight); Ctrl+Left /
         Ctrl+Right page from anywhere on the page.
     -->
     <UserControl.Resources>
+        <Style x:Key="PagerSurfaceStyle" TargetType="Border">
+            <Setter Property="Width" Value="40" />
+            <Setter Property="Height" Value="40" />
+            <Setter Property="CornerRadius" Value="20" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+            <Setter Property="Background" Value="{ThemeResource FSTCardSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource FSTCardStrokeBrush}" />
+        </Style>
         <Style x:Key="PagerButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
             <Setter Property="Width" Value="40" />
             <Setter Property="Height" Value="40" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="CornerRadius" Value="20" />
-            <Setter Property="Background" Value="{ThemeResource FSTPagerButtonBrush}" />
-            <Setter Property="BorderBrush" Value="{ThemeResource FSTCardStrokeBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="Foreground" Value="{ThemeResource FSTPagerGlyphBrush}" />
         </Style>
     </UserControl.Resources>
     <StackPanel x:Name="Root" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" PreviewKeyDown="OnPreviewKeyDown">
         <StackPanel.Resources>
-            <!-- Disabled buttons keep their frosted surface and dim as a whole (web Opacity.dimmed) instead of Fluent's gray.
-                 Theme dictionaries (values mirror FSTPagerButtonBrush, FSTCardStrokeBrush and FSTPagerGlyphBrush) rather
+            <!-- Hover/press tint the card like a row (values mirror FSTRowHoverBrush / FSTRowPressedBrush); disabled buttons
+                 keep the card and dim as a whole (web Opacity.dimmed) instead of Fluent's gray; contrast themes skip the opacity dim, so their disabled glyphs take GrayText. Theme dictionaries rather
                  than StaticResource aliases, which keep the old theme's brush across a live contrast switch (issue #242). -->
             <ResourceDictionary>
                 <ResourceDictionary.ThemeDictionaries>
                     <ResourceDictionary x:Key="Default">
-                        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#FF121826" />
-                        <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="#14FFFFFF" />
+                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#1AFFFFFF" />
+                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#0FFFFFFF" />
+                        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="Transparent" />
+                        <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="Transparent" />
+                        <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent" />
+                        <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="Transparent" />
                         <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="#FFD7DEE8" />
                     </ResourceDictionary>
                     <ResourceDictionary x:Key="HighContrast">
-                        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="{ThemeResource SystemColorButtonFaceColor}" />
-                        <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="{ThemeResource SystemColorWindowTextColor}" />
-                        <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="{ThemeResource SystemColorButtonTextColor}" />
+                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{ThemeResource SystemColorHighlightColor}" />
+                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="{ThemeResource SystemColorHighlightColor}" />
+                        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="Transparent" />
+                        <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="Transparent" />
+                        <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent" />
+                        <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="Transparent" />
+                        <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="{ThemeResource SystemColorGrayTextColor}" />
                     </ResourceDictionary>
                 </ResourceDictionary.ThemeDictionaries>
             </ResourceDictionary>
         </StackPanel.Resources>
-        <Button x:Name="First" Style="{StaticResource PagerButtonStyle}" ToolTipService.ToolTip="First page"
-                AutomationProperties.Name="First page">
-            <Grid>
-                <FontIcon Glyph="&#xE76B;" FontSize="12" Margin="0,0,8,0" />
-                <FontIcon Glyph="&#xE76B;" FontSize="12" Margin="8,0,0,0" />
-            </Grid>
-        </Button>
-        <Button x:Name="Previous" Style="{StaticResource PagerButtonStyle}" ToolTipService.ToolTip="Previous page (Ctrl+Left)"
-                AutomationProperties.Name="Previous page">
-            <Button.KeyboardAccelerators>
-                <KeyboardAccelerator Key="Left" Modifiers="Control" />
-            </Button.KeyboardAccelerators>
-            <FontIcon Glyph="&#xE76B;" FontSize="14" />
-        </Button>
+        <Grid x:Name="FirstHost">
+            <Border Style="{StaticResource PagerSurfaceStyle}" />
+            <Button x:Name="First" Style="{StaticResource PagerButtonStyle}" ToolTipService.ToolTip="First page"
+                    AutomationProperties.Name="First page">
+                <Grid>
+                    <FontIcon Glyph="&#xE76B;" FontSize="12" Margin="0,0,8,0" />
+                    <FontIcon Glyph="&#xE76B;" FontSize="12" Margin="8,0,0,0" />
+                </Grid>
+            </Button>
+        </Grid>
+        <Grid x:Name="PreviousHost">
+            <Border Style="{StaticResource PagerSurfaceStyle}" />
+            <Button x:Name="Previous" Style="{StaticResource PagerButtonStyle}" ToolTipService.ToolTip="Previous page (Ctrl+Left)"
+                    AutomationProperties.Name="Previous page">
+                <Button.KeyboardAccelerators>
+                    <KeyboardAccelerator Key="Left" Modifiers="Control" />
+                </Button.KeyboardAccelerators>
+                <FontIcon Glyph="&#xE76B;" FontSize="14" />
+            </Button>
+        </Grid>
         <Border Height="40" Padding="12,0" CornerRadius="10" BorderThickness="1" MinWidth="72"
-                Background="{ThemeResource FSTPagerBadgeBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}">
+                Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}">
             <TextBlock x:Name="Info" VerticalAlignment="Center" TextAlignment="Center" FontSize="12"
                        Foreground="{ThemeResource FSTPagerGlyphBrush}" AutomationProperties.LiveSetting="Polite" />
         </Border>
-        <Button x:Name="Next" Style="{StaticResource PagerButtonStyle}" ToolTipService.ToolTip="Next page (Ctrl+Right)"
-                AutomationProperties.Name="Next page">
-            <Button.KeyboardAccelerators>
-                <KeyboardAccelerator Key="Right" Modifiers="Control" />
-            </Button.KeyboardAccelerators>
-            <FontIcon Glyph="&#xE76C;" FontSize="14" />
-        </Button>
-        <Button x:Name="Last" Style="{StaticResource PagerButtonStyle}" ToolTipService.ToolTip="Last page"
-                AutomationProperties.Name="Last page">
-            <Grid>
-                <FontIcon Glyph="&#xE76C;" FontSize="12" Margin="0,0,8,0" />
-                <FontIcon Glyph="&#xE76C;" FontSize="12" Margin="8,0,0,0" />
-            </Grid>
-        </Button>
+        <Grid x:Name="NextHost">
+            <Border Style="{StaticResource PagerSurfaceStyle}" />
+            <Button x:Name="Next" Style="{StaticResource PagerButtonStyle}" ToolTipService.ToolTip="Next page (Ctrl+Right)"
+                    AutomationProperties.Name="Next page">
+                <Button.KeyboardAccelerators>
+                    <KeyboardAccelerator Key="Right" Modifiers="Control" />
+                </Button.KeyboardAccelerators>
+                <FontIcon Glyph="&#xE76C;" FontSize="14" />
+            </Button>
+        </Grid>
+        <Grid x:Name="LastHost">
+            <Border Style="{StaticResource PagerSurfaceStyle}" />
+            <Button x:Name="Last" Style="{StaticResource PagerButtonStyle}" ToolTipService.ToolTip="Last page"
+                    AutomationProperties.Name="Last page">
+                <Grid>
+                    <FontIcon Glyph="&#xE76C;" FontSize="12" Margin="0,0,8,0" />
+                    <FontIcon Glyph="&#xE76C;" FontSize="12" Margin="8,0,0,0" />
+                </Grid>
+            </Button>
+        </Grid>
     </StackPanel>
 </UserControl>
