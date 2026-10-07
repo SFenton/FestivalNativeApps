@@ -24,7 +24,7 @@ The web has no focus return: the browser moves focus to the document on Back. Na
 2. **R2. Back doesn't rebuild or replay.** Settings and filter changes made while the page was away are applied when they happen, not by rebuilding the list on reappearance. A returning page keeps its item objects, so it replays no entrance fade or stagger ([load-transition](load-transition.md) R5; web `usePageTransition` `hasCachedData`). Suggestions keeps its mix and its cards (#276).
 3. **R3. Back doesn't move anything.** After Back, the opener and the card or section around it keep their window position and size (UIA tolerance 1 px), immediately and 1.5 s later. Pause any platform behavior that moves content on return: Windows focus-follow scrolling (`ScrollViewer.BringIntoViewOnFocusChange`) and scroll anchoring (`VerticalAnchorRatio` NaN) while the page is away. Inner lists that would re-estimate row heights on return stay realized (Windows `LeaderboardsCardGridLayout` as a one-column stack, #276).
 4. **R4. Focus returns to the opener (Windows).** When a cached root is left, remember the focused control and its `FocusState`. On Back, after layout, focus it again in that state (pointer focus shows no rectangle; keyboard focus does). If the control was recycled, prefer the visible control with the same automation ID bound to the same item, else the first visible one; skip collapsed or stale containers. Don't take focus back if the reader has already moved it to the navigation pane, and never scroll for it: a partly visible opener scrolls in on the next key press. Agent decision (#276, 2026-10-06), see below.
-5. **R5. Every consumer has a regression journey.** Each cached root that can push a page has a fixture journey in `tools/windows/journeys/back-keeps-place.json` that pins the opener and its container, goes Back, asserts both stayed put twice and asserts focus on the opener. Live checks (`--live`) cover Leaderboards and Rivals with the public `SFentonX` profile.
+5. **R5. Every consumer has a regression journey.** Each cached root that can push a page has a fixture journey in `tools/windows/journeys/back-keeps-place.json`. Every Back round pins the opener and its card or section, goes Back, asserts both immediately and again after `wait:1.5`, then asserts focus on the opener. The container pin must stay on screen at every size and text scale (the driver only measures on-screen elements): pin a card by its named UIA group (`name=<title>&class=AccessibleGroup`), which stays on screen while any part shows, rather than its heading; use the list or grid (`fst.songs.list`, `fst.shop.grid`) or the adjacent section (Settings' First Run Guides row) where the opener has no card. `tools/windows/tests/test_back_keeps_place.py` enforces this shape. Live checks (`--live`) cover Leaderboards and Rivals with the public `SFentonX` profile.
 
 ## Decision: return focus to the opener (agent decision, #276, 2026-10-06; owner may override with `/choose`)
 
@@ -47,14 +47,14 @@ Grounds, by strength: `winui-design` (**must** for custom navigation): "Build cu
 
 ### Windows consumers (#276 sweep)
 
-| Cached root | Pushed page | Journey | Status |
-|---|---|---|---|
-| Leaderboards | Full Rankings, Band Rankings, player | `back-leaderboards-instrument`, `-band`, `-selected`, `back-leaderboards-live` | ✅ |
-| Rivals | All Rivals, Rival Detail | `back-rivals-view-all`, `back-rivals-row`, `back-rivals-live` | ✅ |
-| Songs | Song Detail | `back-songs-row` | ✅ |
-| Item Shop | Song Detail | `back-shop-song` | ✅ |
-| Suggestions | Song Detail | `back-suggestions-row` | ✅ **Fixed (#276):** Back rebuilt every card and replayed the fade-in (R2), and focus fell to the Back button because the re-realized card left a collapsed copy (R4) |
-| Settings | Licenses | `back-settings-licenses` | ✅ |
+| Cached root | Pushed page | Journey | Pinned container (R5) | Status |
+|---|---|---|---|---|
+| Leaderboards | Full Rankings, Band Rankings, player | `back-leaderboards-instrument`, `-band`, `-selected`, `back-leaderboards-live` | The instrument or band card's group | ✅ |
+| Rivals | All Rivals, Rival Detail | `back-rivals-view-all`, `back-rivals-row`, `back-rivals-live` | The section card's group (Lead, Common or Drums Rivals) | ✅ |
+| Songs | Song Detail | `back-songs-row` | The song list | ✅ |
+| Item Shop | Song Detail | `back-shop-song` | The tile grid | ✅ |
+| Suggestions | Song Detail | `back-suggestions-row` | The category card | ✅ **Fixed (#276):** Back rebuilt every card and replayed the fade-in (R2), and focus fell to the Back button because the re-realized card left a collapsed copy (R4) |
+| Settings | Licenses | `back-settings-licenses` | The First Run Guides row above Licenses | ✅ |
 
 Out of scope: pushed pages (Song Detail, Full Rankings, Rival Detail, Licenses …) aren't cached, so they rebuild on Back and don't keep focus or scroll (the deferred option above). Statistics isn't cached and pushes nothing.
 
