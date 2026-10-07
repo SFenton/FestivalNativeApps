@@ -13,7 +13,9 @@
     "profile": "fixture-player-2:Fixture Player 2",
     "ready": [
       "waitfor:id=fst.rankings.row.fixture-player-2@20",
-      "waitfor:id=fst.full-rankings.page-info@5"
+      "waitfor:id=fst.full-rankings.page-info@5",
+      "waitfor:id=fst.full-rankings.spotlight-footer@10",
+      "waitgone:id=fst.full-rankings.spotlight-jump@2"
     ]
   },
   {
@@ -36,6 +38,7 @@
       "invoke:id=fst.full-rankings.spotlight-jump",
       "waitgone:id=fst.full-rankings.spotlight-jump@10",
       "waitfor:id=fst.rankings.row.fixture-rank-40@10",
+      "waitfor:id=fst.full-rankings.spotlight-footer@5",
       "wait:2"
     ]
   },

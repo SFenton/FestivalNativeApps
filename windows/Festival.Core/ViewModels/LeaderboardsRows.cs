@@ -166,13 +166,15 @@ public delegate Task<AccountRankingEntry?> OwnRankingReader(Instrument instrumen
 
 /// <summary>
 /// The selected player's spotlight on one board: highlighted in place, loading, failed (inline retry),
-/// unranked, or a separate "your rank" row with an optional jump to its page.
+/// unranked, or a separate "your rank" row with an optional jump to its page. A pinned spotlight (Full Rankings) never
+/// goes inline: the row stays above the pager on every page (pattern <c>leaderboard-row</c> R7, issue #318).
 /// </summary>
 public sealed partial class RankingSpotlightViewModel : ObservableObject
 {
     private readonly OwnRankingReader? reader;
     private readonly Instrument instrument;
     private readonly Func<int, Task>? jump;
+    private readonly bool pinned;
     private string? loadedFor;
     private bool ownLoaded;
     private AccountRankingEntry? own;
@@ -188,11 +190,17 @@ public sealed partial class RankingSpotlightViewModel : ObservableObject
     /// <param name="time">Clock for the inline status.</param>
     /// <param name="scope">Backoff scope.</param>
     /// <param name="jump">Page change for "Jump to your page" (Full Rankings only).</param>
-    public RankingSpotlightViewModel(Instrument instrument, OwnRankingReader? reader, TimeProvider time, string scope, Func<int, Task>? jump = null)
+    /// <param name="pinned">
+    /// Whether the row is pinned on every page, the player's own page included (<see cref="RankingSpotlight.PlacePinned"/>,
+    /// Full Rankings); otherwise a visible player is only highlighted in place (<see cref="RankingSpotlight.Place"/>, overview cards).
+    /// </param>
+    public RankingSpotlightViewModel(Instrument instrument, OwnRankingReader? reader, TimeProvider time, string scope, Func<int, Task>? jump = null,
+        bool pinned = false)
     {
         this.instrument = instrument;
         this.reader = reader;
         this.jump = jump;
+        this.pinned = pinned;
         Status = new ServiceStatusViewModel(scope, "Your rank unavailable", RetryAsync, time);
     }
 
@@ -233,13 +241,17 @@ public sealed partial class RankingSpotlightViewModel : ObservableObject
     /// <summary>Unranked text.</summary>
     public string UnrankedText => $"Not yet ranked on {instrument.Label()}.";
 
-    /// <summary>Whether "Jump to your page" applies (Full Rankings, row on another page).</summary>
+    /// <summary>
+    /// Whether "Jump to your page" applies (Full Rankings, row on another page). On the player's own page the pinned row
+    /// only opens the profile (pattern <c>leaderboard-row</c> R7).
+    /// </summary>
     public bool CanJump => jump is not null && Row is not null &&
-                           LeaderboardPaging.PageForRank(Row.Rank, pageSize) != currentPage;
+                           LeaderboardPaging.PageForRank(Row.Rank, pageSize) != currentPage &&
+                           !visible.Any(e => RankingSpotlight.SameAccount(e.AccountId, Row.Entry.AccountId));
 
     /// <summary>Loads the own row once per account (skipped when <paramref name="needed"/> is false).</summary>
     /// <param name="accountId">Selected player, or <see langword="null"/>.</param>
-    /// <param name="needed">Whether the row is off the visible rows (the web always reads; natives skip when visible).</param>
+    /// <param name="needed">Whether the row is needed: off the visible rows, or always for a pinned board (the web always reads).</param>
     /// <param name="cancellationToken">Cancellation.</param>
     /// <returns>Load task.</returns>
     public async Task EnsureLoadedAsync(string? accountId, bool needed, CancellationToken cancellationToken = default)
@@ -311,10 +323,12 @@ public sealed partial class RankingSpotlightViewModel : ObservableObject
         return EnsureLoadedAsync(account, true);
     }
 
-    /// <summary>Applies <see cref="RankingSpotlight.Place"/>.</summary>
+    /// <summary>Applies <see cref="RankingSpotlight.Place"/> (or <see cref="RankingSpotlight.PlacePinned"/> when pinned).</summary>
     private void Recompute()
     {
-        var placement = RankingSpotlight.Place(selected, visible, ownLoaded, own);
+        var placement = pinned
+            ? RankingSpotlight.PlacePinned(selected, visible, ownLoaded, own)
+            : RankingSpotlight.Place(selected, visible, ownLoaded, own);
         Row = placement.Entry is { } entry ? new RankingRowViewModel(entry, metric, true) : null;
         Kind = placement.Kind;
         OnPropertyChanged(nameof(CanJump));
