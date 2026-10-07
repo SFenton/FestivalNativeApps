@@ -6,7 +6,8 @@ namespace Festival.Core.ViewModels;
 /// <summary>
 /// One band size's preview on Song Detail (web <c>SongBandLeaderboardPreview</c>, iOS <c>SongBandPreviewSection</c>): a
 /// header, up to ten band rows that open Band Detail, the selected player's band highlighted in place or appended after the
-/// ten, then View Full Leaderboard. Every size is filled from the page's single <c>/bands/all</c> read
+/// ten (the appended row jumps to its page of the full band board instead; <see cref="SongBandPreviewRow"/>), then View
+/// Full Leaderboard. Every size is filled from the page's single <c>/bands/all</c> read
 /// (<see cref="SongDetailViewModel"/>); loading, empty and failed states each sit on the section's own card.
 /// </summary>
 public sealed partial class SongBandPreviewViewModel : ObservableObject

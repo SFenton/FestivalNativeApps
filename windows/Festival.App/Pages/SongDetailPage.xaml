@@ -266,7 +266,8 @@
 
                 <!-- Band previews (web SongBandLeaderboardPreview, iOS SongBandPreviewSection, issue #34/#64): one section per band
                      size after the instrument cards, all from one keyless /bands/all read that never holds the page spinner.
-                     Rows open Band Detail; the selected player's band is purple in place or appended after the top ten. -->
+                     Rows open Band Detail; the selected player's band is purple in place or appended after the top ten, and the
+                     appended row jumps to its page of the full band board and reveals it (leaderboard-row R7, issue #307). -->
                 <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" x:Name="BandBoards" Margin="0,16,0,0"
                                ItemsSource="{x:Bind ViewModel.BandPreviews, Mode=OneWay}">
                     <ItemsRepeater.Layout>
