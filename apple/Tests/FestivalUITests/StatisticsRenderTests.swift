@@ -54,10 +54,9 @@ private final class PublishedPageTitle {
 }
 
 /// Every root page keeps its system title in every iPhone Duo pose (pattern
-/// page-tools-and-nav-chrome R12, issue #341), including Statistics' brief no-profile
-/// state, which the shell never routes to (`ProfileRoutePolicy`), so no Duo journey can
-/// reach it. The title modifier is pose-independent; `DuoPageTitleJourneyTests` checks
-/// that the system shows such titles in full, folded and unfolded.
+/// page-tools-and-nav-chrome R12, issue #341), including Statistics' momentary no-profile
+/// state. `DuoPageTitleJourneyTests.testNoProfileStatisticsShowsFullTitle` holds that
+/// state open in the real shell and requires the whole visible system title per pose.
 @MainActor
 @Test func statisticsScreenNoProfileGuardKeepsStatisticsTitle() async throws {
     let (session, _, _) = try await statisticsFixtureSession(selected: false)

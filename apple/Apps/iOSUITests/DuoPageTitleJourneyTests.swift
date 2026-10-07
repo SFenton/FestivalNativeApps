@@ -9,12 +9,12 @@ import XCTest
 /// ```
 /// python3 tools/mock_service.py --port 18341 &
 /// python3 tools/ios_sim.py uitest --device duo --pose folded --set-pose --only DuoPageTitleJourneyTests
-/// python3 tools/ios_sim.py uitest --device duo --pose unfolded --set-pose --only DuoPageTitleJourneyTests
+/// python3 tools/ios_sim.py uitest --device duo --pose unfolded --set-pose --rotate right --only DuoPageTitleJourneyTests
 /// ```
 ///
 /// On an ordinary iPhone it checks the same rule under the horizontal bar.
-/// Statistics' no-profile state is not routable (`ProfileRoutePolicy`); its title is
-/// pinned by `statisticsScreenNoProfileGuardKeepsStatisticsTitle` instead.
+/// Statistics' no-profile state (momentary between Deselect and the tab disappearing) is
+/// held open with the Debug `FST_DEBUG_KEEP_PROFILE_ROUTES=1` launch flag.
 final class DuoPageTitleJourneyTests: XCTestCase {
     /// Loopback fixture service; `FST_TITLE_FIXTURE_URL` overrides the default port.
     private static let fixtureURL =
@@ -37,6 +37,16 @@ final class DuoPageTitleJourneyTests: XCTestCase {
         try assertRoot(tab: "suggestions", title: "Suggestions", withPlayer: true)
         try assertRoot(tab: "statistics", title: Self.player.displayName, tabLabel: "Statistics",
                        withPlayer: true)
+    }
+
+    /// Statistics without a player (its "No Profile Selected" state) is titled
+    /// "Statistics": the title comes from `festivalNavigationTitle("Statistics")` on that
+    /// state alone, so dropping it fails here in both poses.
+    @MainActor
+    func testNoProfileStatisticsShowsFullTitle() throws {
+        try assertRoot(tab: "statistics", title: "Statistics", withPlayer: false,
+                       extraEnvironment: ["FST_DEBUG_KEEP_PROFILE_ROUTES": "1"],
+                       requiredElement: "fst.statistics.empty")
     }
 
     /// Compete (compact widths) or Leaderboards and Rivals (regular widths), whichever
@@ -62,9 +72,16 @@ final class DuoPageTitleJourneyTests: XCTestCase {
     /// root is then selected from its visible tab, as a person would.
     @MainActor
     private func assertRoot(tab: String, title: String, tabLabel: String? = nil, withPlayer: Bool,
+                            extraEnvironment: [String: String] = [:], requiredElement: String? = nil,
                             file: StaticString = #filePath, line: UInt = #line) throws {
-        let app = launch(tab: tab, withPlayer: withPlayer)
+        let app = launch(tab: tab, withPlayer: withPlayer, extraEnvironment: extraEnvironment)
         defer { app.terminate() }
+        if let requiredElement {
+            XCTAssertTrue(
+                app.descendants(matching: .any)[requiredElement].waitForExistence(timeout: 15),
+                "\(tab): the \(requiredElement) state never appeared", file: file, line: line
+            )
+        }
         if !titleElement(title, in: app).waitForExistence(timeout: 15) {
             let control = SongsUITestSupport.rootControl(tabLabel ?? title, app: app)
             if control.waitForExistence(timeout: 3), control.isHittable { control.tap() }
@@ -79,8 +96,10 @@ final class DuoPageTitleJourneyTests: XCTestCase {
 
     /// Launch the fixture app on a root tab, anonymous or with the fixture player.
     @MainActor
-    private func launch(tab: String, withPlayer: Bool) -> XCUIApplication {
+    private func launch(tab: String, withPlayer: Bool,
+                        extraEnvironment: [String: String] = [:]) -> XCUIApplication {
         var env = ["FST_API_BASE_URL": Self.fixtureURL, "FST_DEBUG_TAB": tab]
+        env.merge(extraEnvironment) { _, extra in extra }
         if withPlayer {
             env["FST_DEBUG_PROFILE"] = "\(Self.player.accountId):\(Self.player.displayName)"
         } else {

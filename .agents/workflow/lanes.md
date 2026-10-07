@@ -19,7 +19,7 @@
 | Integrate to `master` (rebase, `swift build --build-tests`, iOS build, push, retry ×5) | `tools/lane_integrate.sh` (`--test` also runs `swift test`) |
 | Check docs structure | `python3 .agents/_tools/check_docs.py` |
 
-Debug launch extras: `FST_DEBUG_DRAWER`, `FST_DEBUG_SHEET=profile`, `FST_DEBUG_PROFILE`, `FST_DEBUG_ANONYMOUS`. Deep links: `FST_DEBUG_TAB` / `FST_DEBUG_ROUTE` are parsed by `DebugLaunchRoute` in `apple/Sources/FestivalUI/App/FestivalRootView.swift` (routes: `player:<id>`, `playerBands:<id>`, `leaderboards`, `fullRankings`, `bandRankings:<type>`, `shop`, `rivals`, `statistics`, `suggestions`, `compete`, `bands`, `band:<id>`, `manual`, `licenses`).
+Debug launch extras: `FST_DEBUG_DRAWER`, `FST_DEBUG_SHEET=profile`, `FST_DEBUG_PROFILE`, `FST_DEBUG_ANONYMOUS`, `FST_DEBUG_KEEP_PROFILE_ROUTES=1` (profile-only tabs and routes stay without a player, so Statistics' momentary no-profile state can be held open). Deep links: `FST_DEBUG_TAB` / `FST_DEBUG_ROUTE` are parsed by `DebugLaunchRoute` in `apple/Sources/FestivalUI/App/FestivalRootView.swift` (routes: `player:<id>`, `playerBands:<id>`, `leaderboards`, `fullRankings`, `bandRankings:<type>`, `shop`, `rivals`, `statistics`, `suggestions`, `compete`, `bands`, `band:<id>`, `manual`, `licenses`).
 
 ## Rules
 
