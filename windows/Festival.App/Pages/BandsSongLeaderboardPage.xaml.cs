@@ -18,6 +18,7 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
 {
     private int shownPage;
     private bool spotlightShown;
+    private int pendingReveal = -1;
 
     /// <summary>Creates the page.</summary>
     public BandsSongLeaderboardPage()
@@ -136,15 +137,14 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
     {
         if (e.PropertyName == nameof(SongBandLeaderboardViewModel.Rows))
         {
-            // After x:Bind has swapped the items: a page change that brings the selected band (e.g. "Your Page") scrolls it
-            // into view; anything else starts at the top.
+            // After x:Bind has swapped the items: every new page starts at the top; one that brings the selected band
+            // (e.g. "Your Page") centres it once its entrance has finished (OnContentRevealed, issue #323).
             var pageChanged = ViewModel.Pager.Page != shownPage;
             shownPage = ViewModel.Pager.Page;
+            pendingReveal = pageChanged ? ViewModel.Rows.Select((r, i) => r.IsSelected ? i : -1).FirstOrDefault(i => i >= 0, -1) : -1;
             DispatcherQueue.TryEnqueue(() =>
             {
-                if (Rows.Items.Count == 0) return;
-                var target = pageChanged ? ViewModel.Rows.FirstOrDefault(r => r.IsSelected) : null;
-                Rows.ScrollIntoView(target ?? Rows.Items[0], target is null ? ScrollIntoViewAlignment.Default : ScrollIntoViewAlignment.Leading);
+                if (Rows.Items.Count > 0) Rows.ScrollIntoView(Rows.Items[0]);
             });
             return;
         }
@@ -169,7 +169,8 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
 
     /// <summary>
     /// Replays the web row entrance after the shared load gate reveals a new page, with the pinned band entering alongside
-    /// the first row when it was gated (issue #295); paging keeps it in place (issue #270).
+    /// the first row when it was gated (issue #295); paging keeps it in place (issue #270). A queued selected band is
+    /// centred once its own entrance has finished (<see cref="SelectedRowReveal"/>, web <c>navToBand</c>, issue #323).
     /// </summary>
     /// <param name="sender">Swap.</param>
     /// <param name="e">Unused.</param>
@@ -178,6 +179,17 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
         {
             FadeIn.StaggerRealized(Rows);
             if (ViewModel.ShowSpotlight && ViewModel.PinnedGate.IsGated) FadeIn.Play(SpotlightPanel, PinnedRowReveal.RevealDelay);
+            var index = pendingReveal;
+            pendingReveal = -1;
+            if (index < 0 || index >= Rows.Items.Count) return;
+            SelectedRowReveal.Start(Rows, index, animate =>
+            {
+                if (index >= Rows.Items.Count) return;
+                if (Rows.ContainerFromIndex(index) is UIElement row)
+                    row.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = animate });
+                else
+                    Rows.ScrollIntoView(Rows.Items[index], ScrollIntoViewAlignment.Leading);
+            });
         });
 }
 #endregion

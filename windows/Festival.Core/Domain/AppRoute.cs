@@ -92,17 +92,24 @@ public abstract record AppRoute
         public override string ToPath() => $"/songs/{Esc(SongId)}" + (Instrument is { } i ? $"?instrument={i.ServiceId()}" : "");
     }
 
-    /// <summary><c>/songs/:songId/:instrument[?page=]</c>.</summary>
+    /// <summary><c>/songs/:songId/:instrument[?page=][&amp;navToPlayer=true]</c>.</summary>
     /// <param name="SongId">Song.</param>
     /// <param name="Instrument">Chart.</param>
     /// <param name="Page">One-based page.</param>
-    public sealed record SongLeaderboard(string SongId, Instrument Instrument, int Page = 1) : AppRoute
+    /// <param name="NavToPlayer">Scroll to the selected player's row once it has faded in (web
+    /// <c>leaderboardAtSelectedPlayer</c>, from Song Details' player score; issue #323).</param>
+    public sealed record SongLeaderboard(string SongId, Instrument Instrument, int Page = 1, bool NavToPlayer = false) : AppRoute
     {
         /// <inheritdoc />
         public override AppSection Section => AppSection.Songs;
         /// <inheritdoc />
-        public override string ToPath() =>
-            $"/songs/{Esc(SongId)}/{Instrument.ServiceId()}" + (Page > 1 ? $"?page={Page.ToString(CultureInfo.InvariantCulture)}" : "");
+        public override string ToPath()
+        {
+            var query = new List<string>();
+            if (Page > 1) query.Add($"page={Page.ToString(CultureInfo.InvariantCulture)}");
+            if (NavToPlayer) query.Add("navToPlayer=true");
+            return $"/songs/{Esc(SongId)}/{Instrument.ServiceId()}" + (query.Count > 0 ? "?" + string.Join('&', query) : "");
+        }
     }
 
     /// <summary><c>/songs/:songId/bands/:bandType</c>.</summary>

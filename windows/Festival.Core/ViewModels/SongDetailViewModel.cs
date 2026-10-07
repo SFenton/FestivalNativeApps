@@ -494,8 +494,9 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
             })
             {
                 IsSelectedPlayer = true,
-                // Web spotlight row: the full board at the player's page (25 rows a page).
-                Route = new AppRoute.SongLeaderboard(Song.SongId, Instrument, (detail.Rank.Value - 1) / 25 + 1),
+                // Web spotlight row (leaderboardAtSelectedPlayer): the full board at the player's page (25 rows a
+                // page), scrolled to the player's row once it has faded in.
+                Route = new AppRoute.SongLeaderboard(Song.SongId, Instrument, (detail.Rank.Value - 1) / 25 + 1, NavToPlayer: true),
             });
         }
         // One set of columns for the card, including row eleven (web computeRankWidth / scoreWidth; issue #37).

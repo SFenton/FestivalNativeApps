@@ -118,12 +118,12 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
         var selected = ViewModel.Rows.FindIndex(r => r.IsSelected);
         revealSelected = selected < 0 ? null : (selected, jumpFocus);
         jumpFocus = FocusState.Unfocused;
-        if (ViewModel.ShowRows) RevealSelected();
     }
 
     /// <summary>
-    /// Brings the selected player's row into view on a newly shown page and, after a focused "Your Page", moves focus
-    /// to it. Rows arrive while the list is still hidden by the load swap, so this runs again once content is revealed.
+    /// Centres the selected player's row on a newly revealed page once its own entrance has finished
+    /// (<see cref="SelectedRowReveal"/>, issue #323) and, after a focused "Your Page", moves focus to it at once (the
+    /// entrance is rushed rather than keeping a keyboard user waiting). Runs after the load swap reveals the rows.
     /// </summary>
     private void RevealSelected()
     {
@@ -133,10 +133,14 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
         {
             if (!ViewModel.ShowRows || revealSelected != pending) return;
             revealSelected = null;
-            if (RowsRepeater.GetOrCreateElement(index) is not LeaderboardEntryRow row) return;
-            // Focus first: its own minimal bring-into-view would otherwise override the centring below.
-            if (focus != FocusState.Unfocused) row.FocusRow(focus);
-            row.StartBringIntoView(new Microsoft.UI.Xaml.BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });
+            var focused = focus != FocusState.Unfocused;
+            SelectedRowReveal.Start(RowsRepeater, index, animate =>
+            {
+                if (index >= ViewModel.Rows.Count || RowsRepeater.GetOrCreateElement(index) is not LeaderboardEntryRow row) return;
+                // Focus first: its own minimal bring-into-view would otherwise override the centring below.
+                if (focused) row.FocusRow(focus);
+                row.StartBringIntoView(new Microsoft.UI.Xaml.BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = animate });
+            }, immediate: focused);
         });
     }
 

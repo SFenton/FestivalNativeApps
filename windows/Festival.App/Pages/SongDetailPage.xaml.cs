@@ -243,16 +243,39 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
             StopSpinner();
             boardArm.Arm(0, Stopwatch.GetElapsedTime(0));
             boardArm.Settle(Scroller.HorizontalOffset, Scroller.VerticalOffset);
-            FadeIn.Play(FullHeader, SongDetailReveal.Header);
-            FadeIn.Play(IntensitySection, SongDetailReveal.Intensity);
-            FadeIn.Play(HistorySection, SongDetailReveal.History);
-            FadeIn.Play(LeaderboardsSection, SongDetailReveal.Leaderboards);
+            Enter(FullHeader, SongDetailReveal.Header);
+            Enter(IntensitySection, SongDetailReveal.Intensity);
+            Enter(HistorySection, SongDetailReveal.History);
+            Enter(LeaderboardsSection, SongDetailReveal.Leaderboards);
             for (var i = 0; i < (ViewModel?.Leaderboards.Count ?? 0); i++)
-                if (Boards.TryGetElement(i) is UIElement card) FadeIn.Play(card, SongDetailReveal.Card(i, BoardColumns()));
+                if (Boards.TryGetElement(i) is UIElement card) Enter(card, SongDetailReveal.Card(i, BoardColumns()));
             // Band previews come last, after the final instrument card's slot.
-            FadeIn.Play(BandBoards, SongDetailReveal.Card(ViewModel?.Leaderboards.Count ?? 0, BoardColumns()));
+            Enter(BandBoards, SongDetailReveal.Card(ViewModel?.Leaderboards.Count ?? 0, BoardColumns()));
             AfterReveal();
         });
+    }
+
+    /// <summary>
+    /// Fades a section or card in with the page entrance: its own delay while the entrance runs, at once while a scroll
+    /// rushes it (web <c>useStaggerRush</c>, issue #323), in place after it (R5).
+    /// </summary>
+    /// <param name="element">Section or card.</param>
+    /// <param name="natural">Its delay in the reveal choreography.</param>
+    private void Enter(UIElement element, TimeSpan natural)
+    {
+        if (boardArm.Entrance(natural, Stopwatch.GetElapsedTime(0)) is { } delay) FadeIn.Play(element, delay);
+        else FadeIn.Reset(element);
+    }
+
+    /// <summary>
+    /// Rushes the page entrance when the scroller moved while it runs (a drag, wheel, Quick Links jump or the history
+    /// route's scroll): every section and card fade that hasn't started starts now.
+    /// </summary>
+    private void RushOnScroll()
+    {
+        var now = Stopwatch.GetElapsedTime(0);
+        if (boardArm.Scrolled(Scroller.HorizontalOffset, Scroller.VerticalOffset, now) == ArmScroll.Rushed)
+            FadeIn.RushPage(Scroller);
     }
 
     /// <summary>Hides the spinner.</summary>
@@ -286,7 +309,7 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     /// <param name="e">Unused.</param>
     private void OnScrollerViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
-        boardArm.Scrolled(Scroller.HorizontalOffset, Scroller.VerticalOffset);
+        RushOnScroll();
         var pinned = SongDetailLayout.PinsHeader(Scroller.VerticalOffset, FullHeader.ActualHeight);
         var wanted = pinned ? Visibility.Visible : Visibility.Collapsed;
         if (PinnedHeader.Visibility != wanted) PinnedHeader.Visibility = wanted;
@@ -321,11 +344,8 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     private void OnBoardPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
     {
         if (sender.ItemsSourceView?.GetAt(args.Index) is LeaderboardPreviewViewModel card) _ = card.EnsureLoadedAsync();
-        boardArm.Scrolled(Scroller.HorizontalOffset, Scroller.VerticalOffset);
-        if (boardArm.IsOpen(Stopwatch.GetElapsedTime(0)))
-            FadeIn.Play(args.Element, SongDetailReveal.Card(args.Index, BoardColumns()));
-        else
-            FadeIn.Reset(args.Element);
+        RushOnScroll();
+        Enter(args.Element, SongDetailReveal.Card(args.Index, BoardColumns()));
     }
 
     /// <summary>Opens this song's full band leaderboard for a preview's band size.</summary>
