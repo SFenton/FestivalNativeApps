@@ -274,8 +274,16 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     private void RushOnScroll()
     {
         var now = Stopwatch.GetElapsedTime(0);
-        if (boardArm.Scrolled(Scroller.HorizontalOffset, Scroller.VerticalOffset, now) == ArmScroll.Rushed)
-            FadeIn.RushPage(Scroller);
+        switch (boardArm.Scrolled(Scroller.HorizontalOffset, Scroller.VerticalOffset, now))
+        {
+            case ArmScroll.Rushed:
+                var rushed = FadeIn.RushPage(Scroller);
+                FadeIn.Trace("fade-rush", Scroller, $"start=0 rushed={rushed} since={boardArm.SinceArmed(now).TotalMilliseconds:F0}");
+                break;
+            case ArmScroll.Closed:
+                FadeIn.Trace("fade-close", Scroller, $"start=0 since={boardArm.SinceArmed(now).TotalMilliseconds:F0}");
+                break;
+        }
     }
 
     /// <summary>Hides the spinner.</summary>

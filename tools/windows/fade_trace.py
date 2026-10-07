@@ -58,7 +58,7 @@ WIRING: tuple[tuple[str, str, str], ...] = (
      r"case ArmScroll\.Rushed:\s*\n\s*var rushed = RushPending\(",
      "pending fades keep trickling in after a scroll instead of fading in together (issue #323, load-scroll)"),
     ("windows/Festival.App/Pages/SongDetailPage.xaml.cs",
-     r"==\s*ArmScroll\.Rushed\)\s*\n\s*FadeIn\.RushPage\(Scroller\)",
+     r"case ArmScroll\.Rushed:\s*\n\s*var rushed = FadeIn\.RushPage\(Scroller\)",
      "Song Detail sections and cards keep their stagger after an early scroll or Quick Links jump (issue #323)"),
     ("windows/Festival.App/Pages/SongDetailPage.xaml.cs",
      r"RushOnScroll\(\);\s*\n\s*Enter\(args\.Element",
