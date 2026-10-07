@@ -23,7 +23,7 @@ Never player-stats: overview/instrument stats and percentile buckets are compute
 - Charts are static XAML shapes redrawn only on data or size change. Sections live in a virtualizing repeater: rank/history reads start when a section is realized (near the viewport); unplayed charts read nothing.
 - Motion (web page load): spinner until the profile read lands, then the title row, Overview heading and Overview grid fade up 125 ms apart (`FadeIn.Play`) while instrument sections stagger through `FadeIn.Stagger`; nothing runs when motion is off.
 - Full Combos use the web notation: "N (x.x%)", or the bare count in gold at 100% (never "FC 100%"). Confirmation dialog titles are Title Case ("Deselect Profile?", "Switch Selected Profile?").
-- Title row (`TitleRow`, no card or avatar since issue #97): the name as the page's H1 (`FSTPageTitleStyle`, like other pages' in-content titles, `fst.player.name`) with no subtitle (operator 2026-09-28); under it **Select Profile** accent button, **Deselect Profile** solid `#C62828` (web `btnDanger`) and the Quick Links menu, then the paused-selection notice and action error. Overview follows directly.
+- Title row (`TitleRow`, no card or avatar since issue #97): the name as the page's H1 (`FSTPageTitleStyle`, like other pages' in-content titles, `fst.player.name`) with no subtitle (operator 2026-09-28); under it **Select Profile** accent button, **Deselect Profile** solid `#C62828` (web `btnDanger`) and the Quick Links menu, then the paused-selection notice and action error. Overview follows directly. The buttons sit in the shared `controls:WrapPanel` (`TitleActions`, 8 epx both ways, like Rivals' `Commands`), never a horizontal `StackPanel`. A StackPanel can't wrap, so at 225% text in a compact window it clipped Quick Links (issue #285). The notice stays an emphasis `TextBlock` rather than a Fluent `InfoBar`, so it matches the web and the other platforms.
 
 ## Stat links (web `StatBox.onClick`; Apple AP3 table)
 
@@ -76,6 +76,12 @@ UIA gotcha: `Border`, `StackPanel`, `ItemsRepeater` and `UserControl` are not in
   - **statistics-\***: the Statistics page journeys ([statistics/windows.md](../statistics/windows.md#validation-issue-204)).
 - The `history*` journeys in the same file drive the Song Detail score history (`AppRoute.PlayerHistory` opens Song Detail, history sort and states); they belong to that page's validation.
 - Accessibility pages in `journeys/a11y.json`: `player`, `statistics`, `player-lead` (the Lead section, revealed) and `player-empty` (an empty instrument).
+- Title row (issue #285): `PlayerTitleMarkupTests.cs` checks there is no `PersonPicture`/card, the H1 comes first, the actions sit in the `TitleActions` WrapPanel (select → deselect → Quick Links) and the notice and error follow. `journeys/a11y-profile-title.json` (checked by `tools/windows/tests/test_profile_title_journey.py`) has one page per identity state:
+  - `pt-switch`, `pt-anonymous`, `pt-selected` and `pt-notice` (`profile_fixture.py` rollover): name → action or notice → Overview, the H1 12 epx under the title bar, and no other action.
+  - `pt-actions-row` (one row at normal text) and `pt-actions-wrap` (Quick Links below Select at 225% compact).
+  - `pt-keyboard-*`: Tab order, plus focus returning after the menu and confirmation dialog.
+  - `pt-live-*`: SFentonX on the live service.
+  - Run the fixture pages with `--only` (the live pages need `--live --only pt-live-anonymous,pt-live-selected`).
 
 ## Validation (issue #199, 2026-10-03)
 
@@ -91,6 +97,24 @@ The live public service was viewed as `SFentonX` with no selected-profile header
 | Keyboard | UIA only (as in #196): every tile, row, chart pager and link is a focusable Button or Image, and SendInput Tab walks can't run on a locked console |
 | Narrator / UIA | ✅ (fixed) Each stat tile and percentile row is one stop whose name holds the value. The child texts are Raw: they used to be read twice in scan mode. The Lead chart's Older/Newer buttons kept the previous instrument's IDs after the section repeater recycled them; the IDs are now re-forwarded when they change |
 | Automated | Core 1549 tests, coverage 98.9% logic / 97.9% UX; 7/7 player journeys |
+
+## Validation (issue #285, 2026-10-07)
+
+This validates #97's card removal. Live runs viewed `SFentonX` on the public service (anonymous, and as the selected player on Statistics) with no selected-profile headers. Fixture runs used `rivals_fixture.py` and `profile_fixture.py`, with every state in `journeys/a11y-profile-title.json`. The host runs at 300% display scale and the console was unlocked, so real Tab walks ran.
+
+| Configuration | Result |
+|---|---|
+| Compact 500, medium 900 and wide 1440 epx; maximized; snapped left and right | ✅ Live and fixture: 0 Axe errors. There is no avatar or card: the H1 name sits 12 epx under the title bar, then the action row, then Overview, with no gap |
+| Light / Dark | Dark ✅. The app is dark-only (brand decision, as in #199). The light-theme mode run still passes with 0 Axe errors |
+| Contrast themes Desert and Night sky | ✅ Live and fixture: 0 Axe errors. Buttons, the notice and tiles use system colours |
+| Text 200% (compact, medium, snap-left) | ✅ 0 Axe errors. The actions still fit on one row |
+| Text 225% (compact) | ✅ (fixed) "Switch to This Profile" + Quick Links used to clip Quick Links at the window edge in a horizontal `StackPanel`. They now wrap (`TitleActions` WrapPanel), so Quick Links sits below. Live "Select Profile" still fits on one row |
+| Display 100% / 150% | ✅ 0 Axe errors at compact, medium and wide (`scale-100`/`scale-150` modes) |
+| Keyboard | ✅ Tab goes Select/Switch or Deselect → Quick Links → first Overview tile. Esc from the Quick Links menu and from the Switch/Deselect dialog returns focus to the button that opened it |
+| Narrator / UIA | ✅ Reading order: name ("Fixture Player 2", heading level 1), "Switch to This Profile, button", "Quick Links, current section Global Statistics, button, collapsed", "Overview", then the tiles. The paused notice is read between the name and Overview. There is no avatar or image stop |
+| Motion | ✅ Live: the title row fades in, then the Overview heading, then the grid (125 ms apart), with no leftover gap |
+| Identity states | ✅ Select, Switch, Deselect and the paused notice (fixture rollover) each show only their own action. The action error is reached only through a selection race; markup and view-model tests cover it |
+| Automated | Core 2110 tests, coverage 99.0% logic / 98.2% UX; tool tests 403 |
 
 ## Gaps
 
