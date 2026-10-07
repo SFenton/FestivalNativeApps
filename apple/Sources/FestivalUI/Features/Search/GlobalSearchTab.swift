@@ -12,6 +12,11 @@ import FestivalCore
 /// scope bar and results are the shared ``GlobalSearchResults``. Dismissing the field
 /// returns to the previous tab; a result opens there too
 /// (``RootTabTransition/openResult(_:)``).
+///
+/// On the iPhone Duo inner display the system field left the bottom trailing ~370 pt of
+/// the page, out of line with the full-width scope bar, so the tab shows the shared
+/// ``BottomSearchField`` instead, with the scope bar in the same column
+/// (``GlobalSearchFieldPlacement``, issue #349).
 struct GlobalSearchTab: View {
     let session: FestivalSession
     @Bindable var model: GlobalSearchModel
@@ -27,16 +32,46 @@ struct GlobalSearchTab: View {
     /// The field was dismissed: return to the previous tab.
     let dismiss: () -> Void
     @State private var fieldPresented = false
+    @Environment(\.deviceLayout) private var layout
+    /// The bottom field's top in ``pageSpace``, for the result rows' fade.
+    @State private var bottomFieldTop: CGFloat?
+
+    /// Coordinate space shared by the bottom field and the faded result rows.
+    static let pageSpace = "fst.global-search.page"
 
     var body: some View {
+        let hasBottomField = GlobalSearchFieldPlacement.resolve(pose: layout.pose, asTab: asTab) == .bottom
+        let hinge = BottomSearchFieldPlacement.pageHinge(for: layout)
         NavigationStack {
-            GlobalSearchResults(model: model, session: session, open: open, showsField: false)
+            GlobalSearchResults(
+                model: model, session: session, open: open, showsField: false,
+                hasBottomField: hasBottomField, bottomFieldHinge: hinge,
+                bottomFieldTop: bottomFieldTop, bottomFieldSpace: Self.pageSpace
+            )
+                // iPhone Duo inner display: the field at the bottom, full width, or on the
+                // trailing page across a book-pose fold (owner, issue #349). A bottom
+                // safe-area inset, so results end above it and the keyboard lifts it.
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if hasBottomField {
+                        BottomSearchField(
+                            text: $model.query, prompt: GlobalSearch.prompt(for: model.scope),
+                            accessibilityLabel: "Search songs, players and bands",
+                            identifier: "fst.global-search.field",
+                            clearIdentifier: "fst.global-search.clear", hinge: hinge,
+                            focusesOnAppear: isSelected, submit: { model.submit() },
+                            space: Self.pageSpace
+                        ) { top in
+                            if top != bottomFieldTop { bottomFieldTop = top }
+                        }
+                    }
+                }
+                .coordinateSpace(.named(Self.pageSpace))
                 .navigationTitle("Search")
                 .festivalBackground(.carousel, session: session, visible: isSelected)
-                .searchable(
+                .modifier(GlobalSearchSystemField(
                     text: $model.query, isPresented: $fieldPresented,
-                    prompt: Text(GlobalSearch.prompt(for: model.scope))
-                )
+                    prompt: GlobalSearch.prompt(for: model.scope), enabled: !hasBottomField
+                ))
                 // No Retry button (issue #299): Search re-runs a failed or empty search.
                 .onSubmit(of: .search) { model.submit() }
                 .modifier(KeepSearchTitleWhileSearching())
@@ -52,6 +87,61 @@ struct GlobalSearchTab: View {
         }
         .onChange(of: fieldPresented) { wasPresented, presented in
             if asTab, wasPresented, !presented, isSelected { dismiss() }
+        }
+    }
+}
+
+// MARK: - Field placement
+
+/// Where the Search tab's field sits (issue #349).
+///
+/// The system `.searchable` field everywhere but the iPhone Duo inner display. There,
+/// beside the vertical tab bar, the system field took only the bottom trailing ~370 pt
+/// and rose centred over the keyboard while the scope bar spanned the page. The owner
+/// asked for a field across the full bottom width when flat, on the right page when
+/// book-folded ("search bar when keyboard is closed and unfolded should take full
+/// bottom width. Can stay on right side if hinge is unfolded but device is not
+/// completely unfolded"), which no system search API sets, so the tab shows the shared
+/// ``BottomSearchField`` (Songs' Duo field, issue #333) and the scope bar shares its
+/// column. HIG Search fields: "Place search at the bottom if there's room; this keeps
+/// priority search easy to reach". The folded outer display keeps the system field,
+/// which already spans its bottom like an iPhone's.
+enum GlobalSearchFieldPlacement: Equatable {
+    /// The system `.searchable` field of the Search tab (or the iPad sidebar page).
+    case system
+    /// The tab's own ``BottomSearchField`` (iPhone Duo inner display).
+    case bottom
+
+    /// The placement for a device pose.
+    ///
+    /// - Parameters:
+    ///   - pose: The window's ``DeviceLayout/pose``.
+    ///   - asTab: Whether search is the phone Search tab (false: the iPad sidebar page).
+    /// - Returns: `.bottom` for the Search tab on an unfolded or partially folded iPhone
+    ///   Duo, else `.system`.
+    nonisolated static func resolve(pose: DeviceLayout.Pose, asTab: Bool) -> GlobalSearchFieldPlacement {
+        guard asTab else { return .system }
+        switch pose {
+        case .unfolded, .partiallyFolded: return .bottom
+        case .standard, .folded: return .system
+        }
+    }
+}
+
+/// The system `.searchable` Search field, left off where the tab shows its own bottom
+/// field (iPhone Duo inner display, issue #349).
+private struct GlobalSearchSystemField: ViewModifier {
+    @Binding var text: String
+    @Binding var isPresented: Bool
+    let prompt: String
+    /// Whether this window uses the system field (``GlobalSearchFieldPlacement/system``).
+    let enabled: Bool
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.searchable(text: $text, isPresented: $isPresented, prompt: Text(prompt))
+        } else {
+            content
         }
     }
 }

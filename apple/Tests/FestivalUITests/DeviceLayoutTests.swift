@@ -57,7 +57,8 @@ private enum Duo {
     #expect(layout.sectionChrome == .verticalBar(.leading))
 }
 
-/// Unfolded landscape: bar stays vertical, pages become list/detail, regular section set.
+/// Unfolded landscape: bar stays vertical, pages become list/detail; the compact
+/// section set stays, as folded (issue #337).
 @Test func unfoldedLandscapeIsListDetail() {
     let layout = DeviceLayout.resolve(LayoutSignals(
         size: Duo.innerLandscape, widthClass: .regular,
@@ -67,11 +68,11 @@ private enum Duo {
     #expect(layout.orientation == .landscape)
     #expect(layout.sectionChrome == .verticalBar(.trailing))
     #expect(layout.contentArrangement == .listDetail)
-    #expect(layout.usesRegularSectionSet)
+    #expect(!layout.usesRegularSectionSet)
 }
 
 /// Unfolded portrait: the system returns to horizontal bars (no vertical-bar edge);
-/// list/detail and the regular section set, as in landscape (dual-source shelved).
+/// list/detail and the compact section set, as in landscape (dual-source shelved).
 @Test func unfoldedPortraitReturnsToTabBar() {
     let layout = DeviceLayout.resolve(LayoutSignals(
         size: Duo.innerPortrait, widthClass: .regular, verticalBarEdge: nil, hinge: .fullyOpen
@@ -79,7 +80,7 @@ private enum Duo {
     #expect(layout.pose == .unfolded)
     #expect(layout.sectionChrome == .tabBar)
     #expect(layout.contentArrangement == .listDetail)
-    #expect(layout.usesRegularSectionSet)
+    #expect(!layout.usesRegularSectionSet)
 }
 
 /// Operator 2026-09-28: half-open portrait is the normal portrait layout too.
@@ -90,7 +91,7 @@ private enum Duo {
     ))
     #expect(!DualSourcePolicy.isEnabled)
     #expect(layout.contentArrangement == .listDetail)
-    #expect(layout.usesRegularSectionSet)
+    #expect(!layout.usesRegularSectionSet)
 }
 
 /// Shelved path (flag on): the fold runs across the screen; two stacked regions.
@@ -113,7 +114,7 @@ private enum Duo {
         hinge: .partiallyOpen, divisions: [CGRect(x: 455, y: 0, width: 41, height: 669)]
     ))
     #expect(layout.contentArrangement == .listDetail)
-    #expect(layout.usesRegularSectionSet)
+    #expect(!layout.usesRegularSectionSet)
 }
 
 /// Other portrait windows never stack regions: iPhone, folded Duo, iPad sidebar.
@@ -245,4 +246,47 @@ func verticalBarFallbackPose(widthClass: WidthClass, expected: DeviceLayout.Pose
     #expect(folded.cutoutInsets.trailing == 0)
     #expect(folded.cutoutInsets.top == Duo.cameraTopTrailing.maxY)
     #expect(DeviceLayout.standardPhone.cutoutInsets == EdgeInsets())
+}
+
+// MARK: - Debug simulated Duo window (#337 journey)
+
+/// `FST_DEBUG_DUO_WINDOW` values and Darwin notification names parse to the same window.
+@Test func debugDuoWindowParsesLaunchValuesAndNotificationNames() {
+    for window in DebugDuoWindow.allCases {
+        #expect(DebugDuoWindow.parse(window.rawValue) == window)
+        #expect(DebugDuoWindow.parse(window.notificationName) == window)
+    }
+    #expect(DebugDuoWindow.parse("com.festival.debug.duo-window.half") == nil)
+    #expect(DebugDuoWindow.parse("unfolded") == nil)
+    #expect(DebugDuoWindow.parse(nil) == nil)
+}
+
+/// Each simulated window resolves to the real pose's layout, and none to the wide
+/// section set, from whatever window the simulator really has.
+@Test func debugDuoWindowResolvesEachPoseWithThePhoneSectionSet() {
+    let observed = LayoutSignals(
+        size: Duo.outerPortrait, widthClass: .compact,
+        safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 84),
+        verticalBarEdge: .trailing, hinge: .closed, occlusions: [Duo.cameraTopTrailing]
+    )
+    let folded = DeviceLayout.resolve(DebugDuoWindow.folded.apply(to: observed))
+    #expect(folded.pose == .folded)
+    #expect(folded.widthClass == .compact)
+    #expect(folded.sectionChrome == .verticalBar(.trailing))
+
+    let landscape = DeviceLayout.resolve(DebugDuoWindow.unfoldedLandscape.apply(to: observed))
+    #expect(landscape.pose == .unfolded)
+    #expect(landscape.size == Duo.innerLandscape)
+    #expect(landscape.widthClass == .regular)
+    #expect(landscape.sectionChrome == .verticalBar(.trailing))
+
+    let portrait = DeviceLayout.resolve(DebugDuoWindow.unfoldedPortrait.apply(to: observed))
+    #expect(portrait.size == Duo.innerPortrait)
+    #expect(portrait.widthClass == .regular)
+    #expect(portrait.sectionChrome == .tabBar)
+
+    for layout in [folded, landscape, portrait] {
+        #expect(!layout.usesRegularSectionSet)
+        #expect(layout.foldFrame == nil)
+    }
 }

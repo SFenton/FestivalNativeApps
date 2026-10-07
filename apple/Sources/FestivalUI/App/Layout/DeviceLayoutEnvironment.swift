@@ -1,5 +1,8 @@
 import CoreGraphics
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 
 // MARK: - Environment
 
@@ -58,15 +61,25 @@ struct DeviceLayoutPublisher: ViewModifier {
             usesSidebarShell: usesSidebarShell
         )
         #if DEBUG
-        return DebugDuoPose.launch?.apply(to: observed) ?? observed
+        let posed = DebugDuoPose.launch?.apply(to: observed) ?? observed
+        #if os(iOS)
+        return DebugDuoWindowRemote.shared.window?.apply(to: posed) ?? posed
+        #else
+        return posed
+        #endif
         #else
         return observed
         #endif
     }
 
     func body(content: Content) -> some View {
+        let layout = DeviceLayout.resolve(signals)
         content
-            .environment(\.deviceLayout, DeviceLayout.resolve(signals))
+            .environment(\.deviceLayout, layout)
+            #if DEBUG && os(iOS)
+            .overlay(alignment: .bottomLeading) { DebugDuoWindowRemote.Readout(layout: layout) }
+            .onAppear { DebugDuoWindowRemote.shared.start() }
+            #endif
             .background {
                 Color.clear
                     .ignoresSafeArea()
@@ -215,3 +228,141 @@ enum DebugDuoPose: String, Sendable {
         return result
     }
 }
+
+// MARK: - Debug simulated Duo window
+
+/// A whole simulated iPhone Duo window (size, size classes, hinge and vertical bar) for
+/// journeys that must fold and unfold while the app keeps running: neither `simctl` nor
+/// XCTest can change the Duo pose, and Device Hub needs UI scripting
+/// (`.agents/design/apple/duo.md`, B8). Debug builds only.
+///
+/// Unlike ``DebugDuoPose`` it replaces the window's geometry too, so the layout model
+/// sees the inner display while the real window keeps its size. It is shell evidence
+/// (tabs, selection, stacks, UIKit's tab-bar rebuild under real size-class changes), not
+/// a capture of the inner display.
+enum DebugDuoWindow: String, Sendable, CaseIterable {
+    /// Outer display, portrait: compact width, vertical bar on the trailing edge.
+    case folded
+    /// Inner display, landscape: regular width, the vertical bar stays trailing.
+    case unfoldedLandscape = "unfolded-landscape"
+    /// Inner display, portrait: regular width, the system horizontal tab bar.
+    case unfoldedPortrait = "unfolded-portrait"
+
+    /// Darwin notification name prefix a UI test posts to switch the window.
+    static let notificationPrefix = "com.festival.debug.duo-window."
+
+    /// Darwin notification that selects this window.
+    var notificationName: String { Self.notificationPrefix + rawValue }
+
+    /// Window size in points (iPhone Duo outer 466×678, inner 951×669).
+    var size: CGSize {
+        switch self {
+        case .folded: CGSize(width: 466, height: 678)
+        case .unfoldedLandscape: CGSize(width: 951, height: 669)
+        case .unfoldedPortrait: CGSize(width: 669, height: 951)
+        }
+    }
+
+    /// Horizontal size class: compact outer display, regular inner display.
+    var widthClass: WidthClass { self == .folded ? .compact : .regular }
+
+    /// Parse a launch value or a notification name.
+    ///
+    /// - Parameter raw: `FST_DEBUG_DUO_WINDOW` value, or a full notification name.
+    /// - Returns: The window, or nil when absent or unknown.
+    static func parse(_ raw: String?) -> DebugDuoWindow? {
+        guard let raw else { return nil }
+        let value = raw.hasPrefix(notificationPrefix) ? String(raw.dropFirst(notificationPrefix.count)) : raw
+        return DebugDuoWindow(rawValue: value)
+    }
+
+    /// Replace the window geometry, size classes, hinge and vertical bar in observed signals.
+    ///
+    /// - Parameter signals: Signals observed from the real window (safe area and shell kept).
+    /// - Returns: Signals describing this simulated window.
+    func apply(to signals: LayoutSignals) -> LayoutSignals {
+        var result = signals
+        result.size = size
+        result.widthClass = widthClass
+        result.heightClass = .regular
+        result.hinge = self == .folded ? .closed : .fullyOpen
+        result.verticalBarEdge = self == .unfoldedPortrait ? nil : .trailing
+        result.occlusions = []
+        result.divisions = []
+        result.hinges = []
+        return result
+    }
+}
+
+#if DEBUG && os(iOS)
+/// Switches the simulated ``DebugDuoWindow`` while the app runs, from Darwin
+/// notifications a UI test posts (`DuoShellJourneyTests`).
+///
+/// Enabled by `FST_DEBUG_DUO_WINDOW_REMOTE=1`; `FST_DEBUG_DUO_WINDOW=<window>` picks the
+/// first one. Each switch also overrides the root view controllers' size classes, so
+/// SwiftUI and the `UITabBarController` behind the `TabView` go through the same trait
+/// change a real fold or unfold pushes (the 2026-10-04 tab-rebuild crash path).
+@MainActor @Observable
+final class DebugDuoWindowRemote {
+    /// The process-wide switch.
+    static let shared = DebugDuoWindowRemote()
+
+    /// Whether the launch environment enabled the switch.
+    static let isEnabled = ProcessInfo.processInfo.environment["FST_DEBUG_DUO_WINDOW_REMOTE"] == "1"
+
+    /// The simulated window, or nil to use the real one.
+    private(set) var window: DebugDuoWindow?
+    @ObservationIgnored private var started = false
+
+    private init() {
+        window = Self.isEnabled ? DebugDuoWindow.parse(ProcessInfo.processInfo.environment["FST_DEBUG_DUO_WINDOW"]) : nil
+    }
+
+    /// Observe the switch notifications and apply the launch window's traits (once).
+    func start() {
+        guard Self.isEnabled, !started else { return }
+        started = true
+        let center = CFNotificationCenterGetDarwinNotifyCenter()
+        for window in DebugDuoWindow.allCases {
+            CFNotificationCenterAddObserver(center, nil, { _, _, name, _, _ in
+                guard let window = DebugDuoWindow.parse(name?.rawValue as String?) else { return }
+                Task { @MainActor in DebugDuoWindowRemote.shared.select(window) }
+            }, window.notificationName as CFString, nil, .deliverImmediately)
+        }
+        if let window { applyTraits(window) }
+    }
+
+    /// Switch to a simulated window.
+    ///
+    /// - Parameter window: The window to simulate.
+    func select(_ window: DebugDuoWindow) {
+        self.window = window
+        applyTraits(window)
+    }
+
+    /// Override every root view controller's size classes to the window's.
+    private func applyTraits(_ window: DebugDuoWindow) {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        for root in scenes.flatMap(\.windows).compactMap(\.rootViewController) {
+            root.traitOverrides.horizontalSizeClass = window.widthClass == .regular ? .regular : .compact
+            root.traitOverrides.verticalSizeClass = .regular
+        }
+    }
+
+    /// The applied window and resolved layout, readable by UI tests
+    /// (`fst.shell.debug.duo-window`); empty unless the switch is enabled.
+    struct Readout: View {
+        let layout: DeviceLayout
+
+        var body: some View {
+            if DebugDuoWindowRemote.isEnabled, let window = DebugDuoWindowRemote.shared.window {
+                Text("\(window.rawValue) width=\(layout.widthClass) chrome=\(String(describing: layout.sectionChrome)) regularSet=\(layout.usesRegularSectionSet)")
+                    .font(.system(size: 6))
+                    .foregroundStyle(.yellow)
+                    .allowsHitTesting(false)
+                    .accessibilityIdentifier("fst.shell.debug.duo-window")
+            }
+        }
+    }
+}
+#endif
