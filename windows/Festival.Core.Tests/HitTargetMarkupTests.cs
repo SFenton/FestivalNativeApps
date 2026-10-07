@@ -55,7 +55,7 @@ public class HitTargetMarkupTests
     [InlineData("Pages/SongsPage.xaml", "fst.songs.filter", false)]
     [InlineData("Pages/SongsPage.xaml", "fst.songs.section-index-button", true)]
     [InlineData("Pages/SuggestionsPage.xaml", "fst.suggestions.filter-button", false)]
-    [InlineData("Pages/SongDetailPage.xaml", "fst.history.sort.open", false)]
+    [InlineData("Pages/PlayerHistoryPage.xaml", "fst.history.sort.open", false)]
     [InlineData("Pages/LeaderboardsPage.xaml", "fst.rankings.rank-by-menu", false)]
     [InlineData("Pages/ShopPage.xaml", "fst.shop.filter", false)]
     [InlineData("Pages/ShopPage.xaml", "fst.shop.view-toggle", false)]

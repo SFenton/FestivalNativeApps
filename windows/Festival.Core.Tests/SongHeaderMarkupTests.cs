@@ -79,6 +79,7 @@ public class SongHeaderMarkupTests
     [Theory]
     [InlineData("Pages/LeaderboardsSongPage.xaml")]
     [InlineData("Pages/BandsSongLeaderboardPage.xaml")]
+    [InlineData("Pages/PlayerHistoryPage.xaml")]
     public void SongLeaderboards_UseTheSharedHeader(string file)
     {
         var doc = Load(file);
@@ -87,12 +88,5 @@ public class SongHeaderMarkupTests
         Assert.Equal("{x:Bind ViewModel.Subtitle, Mode=OneWay}", Attr(header, "Artist"));
         Assert.DoesNotContain(doc.Descendants(), e => Attr(e, "Text") is { } text
             && (text.Contains("ViewModel.Title,", StringComparison.Ordinal) || text.Contains("ViewModel.Subtitle,", StringComparison.Ordinal)));
-    }
-
-    [Fact]
-    public void RetiredPlayerHistoryPage_IsGone()
-    {
-        // The Player History route opens Song Detail at Score History; the old page's own song line is not kept around.
-        Assert.False(File.Exists(AppPath("Pages/PlayerHistoryPage.xaml")));
     }
 }

@@ -141,41 +141,6 @@ public abstract partial class PlayerLineChart : Grid
 }
 #endregion
 
-#region Score history chart
-/// <summary>Score over time; the personal best is gold.</summary>
-public sealed partial class ScoreHistoryChart : PlayerLineChart
-{
-    /// <summary>Chart model.</summary>
-    public static readonly DependencyProperty ModelProperty = DependencyProperty.Register(
-        nameof(Model), typeof(ScoreHistoryChartModel), typeof(ScoreHistoryChart), new PropertyMetadata(null, (d, _) => ((ScoreHistoryChart)d).Redraw()));
-
-    /// <summary>Creates a 160 px plot.</summary>
-    public ScoreHistoryChart() : base(160, 0) { }
-
-    /// <summary>Chart model.</summary>
-    public ScoreHistoryChartModel? Model
-    {
-        get => (ScoreHistoryChartModel?)GetValue(ModelProperty);
-        set => SetValue(ModelProperty, value);
-    }
-
-    /// <inheritdoc />
-    protected override IReadOnlyList<ChartPoint> Points => Model?.Points ?? [];
-
-    /// <inheritdoc />
-    protected override IReadOnlyList<ChartTick> Ticks => Model?.Ticks ?? [];
-
-    /// <inheritdoc />
-    protected override string StartLabel => Model?.StartLabel ?? "";
-
-    /// <inheritdoc />
-    protected override string EndLabel => Model?.EndLabel ?? "";
-
-    /// <inheritdoc />
-    protected override string Summary => Model?.Summary ?? "";
-}
-#endregion
-
 #region Brushes
 /// <summary>x:Bind helpers for tinted stat values.</summary>
 public static class PlayerBrushes

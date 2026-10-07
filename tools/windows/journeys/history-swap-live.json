@@ -1,7 +1,7 @@
 [
   {
     "name": "history-swap-live",
-    "route": "/songs/d58d8501-a33e-46f5-81bd-157306d5987e/Solo_Guitar/history",
+    "route": "/songs/d58d8501-a33e-46f5-81bd-157306d5987e",
     "profile": "195e93ef108143b2975ee46662d4d0e1:SFentonX",
     "sizes": [
       "medium",
@@ -13,41 +13,41 @@
     "ready": [
       "waitfor:id=fst.history.chart@30",
       "scrollinto:id=fst.history.chart@10",
-      "scrollinto:id=fst.history.sort.open@10"
+      "scrollinset:id=fst.history.instrument.group|id=fst.song-detail|72"
     ],
     "after_ready": [
-      "markspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "markspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "shot:{stem}-0-lead.png",
       "toggle:id=fst.history.instrument.Solo_Bass",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card~12",
       "wait:0.8",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "assertstate:id=fst.history.instrument.Solo_Bass|toggle=on",
       "shot:{stem}-1-bass.png",
       "tree:{stem}-bass.txt",
       "toggle:id=fst.history.instrument.Solo_Drums",
       "wait:0.8",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "toggle:id=fst.history.instrument.Solo_Guitar",
       "toggle:id=fst.history.instrument.Solo_PeripheralGuitar",
       "toggle:id=fst.history.instrument.Solo_Vocals",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card~12",
       "wait:0.8",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "assertstate:id=fst.history.instrument.Solo_Vocals|toggle=on",
       "assertstate:id=fst.history.instrument.Solo_PeripheralGuitar|toggle=off",
       "tree:{stem}-vocals.txt",
       "shot:{stem}-2-vocals.png",
       "toggle:id=fst.history.instrument.Solo_Guitar",
       "wait:0.8",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "waitfor:id=fst.history.page-back@3"
     ],
     "tabs": 0
   },
   {
     "name": "history-swap-live-compact",
-    "route": "/songs/d58d8501-a33e-46f5-81bd-157306d5987e/Solo_Guitar/history",
+    "route": "/songs/d58d8501-a33e-46f5-81bd-157306d5987e",
     "profile": "195e93ef108143b2975ee46662d4d0e1:SFentonX",
     "sizes": [
       "compact"
@@ -55,36 +55,36 @@
     "ready": [
       "waitfor:id=fst.history.chart@30",
       "scrollinto:id=fst.history.chart@10",
-      "scrollinto:id=fst.history.sort.open@10"
+      "scrollinset:id=fst.history.instrument.group|id=fst.song-detail|72"
     ],
     "after_ready": [
-      "markspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "markspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "invoke:id=fst.history.instrument.next",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card~12",
       "wait:0.8",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "assertname:id=fst.history.instrument.compact|Bass",
       "shot:{stem}-1-bass.png",
       "tree:{stem}-bass.txt",
       "invoke:id=fst.history.instrument.next",
       "invoke:id=fst.history.instrument.next",
       "invoke:id=fst.history.instrument.previous",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card~12",
       "wait:0.8",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "assertname:id=fst.history.instrument.compact|Drums",
       "tree:{stem}-drums.txt",
       "invoke:id=fst.history.instrument.previous",
       "invoke:id=fst.history.instrument.previous",
       "wait:0.8",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "assertname:id=fst.history.instrument.compact|Lead"
     ],
     "tabs": 0
   },
   {
     "name": "history-swap-live-film",
-    "route": "/songs/d58d8501-a33e-46f5-81bd-157306d5987e/Solo_Guitar/history",
+    "route": "/songs/d58d8501-a33e-46f5-81bd-157306d5987e",
     "profile": "195e93ef108143b2975ee46662d4d0e1:SFentonX",
     "sizes": [
       "medium"
@@ -95,26 +95,26 @@
     "ready": [
       "waitfor:id=fst.history.chart@30",
       "scrollinto:id=fst.history.chart@10",
-      "scrollinto:id=fst.history.sort.open@10"
+      "scrollinset:id=fst.history.instrument.group|id=fst.song-detail|72"
     ],
     "after_ready": [
-      "markspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "markspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "wait:1",
       "film:{stem}-film",
       "wait:1",
       "toggle:id=fst.history.instrument.Solo_Bass",
       "wait:1.5",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "toggle:id=fst.history.instrument.Solo_Drums",
       "wait:1.5",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "toggle:id=fst.history.instrument.Solo_Guitar",
       "wait:1.5",
       "focus:id=fst.history.instrument.Solo_Guitar",
       "keys:right space right space right space",
       "wait:1.5",
       "filmstop:{stem}-film",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "assertstate:id=fst.history.instrument.Solo_Vocals|toggle=on",
       "assertstate:id=fst.history.instrument.Solo_Drums|toggle=off"
     ],
@@ -122,7 +122,7 @@
   },
   {
     "name": "history-swap-live-detail",
-    "route": "/songs/d58d8501-a33e-46f5-81bd-157306d5987e/Solo_Guitar/history",
+    "route": "/songs/d58d8501-a33e-46f5-81bd-157306d5987e",
     "profile": "195e93ef108143b2975ee46662d4d0e1:SFentonX",
     "sizes": [
       "medium",
@@ -134,33 +134,33 @@
     "ready": [
       "waitfor:id=fst.history.chart@30",
       "scrollinto:id=fst.history.chart@10",
-      "scrollinto:id=fst.history.sort.open@10"
+      "scrollinset:id=fst.history.instrument.group|id=fst.song-detail|72"
     ],
     "after_ready": [
       "toggle:id=fst.history.bar.24",
       "waitfor:id=fst.history.detail@5",
-      "scrollinto:id=fst.history.sort.open@5",
-      "markspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "scrollinset:id=fst.history.subtitle|id=fst.song-detail|72",
+      "markspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "shot:{stem}-0-detail.png",
       "toggle:id=fst.history.instrument.Solo_Bass",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card~12",
       "wait:0.8",
       "waitgone:id=fst.history.detail@3",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "shot:{stem}-1-bass.png",
       "toggle:id=fst.history.instrument.Solo_Drums",
       "toggle:id=fst.history.instrument.Solo_Guitar",
       "toggle:id=fst.history.instrument.Solo_Vocals",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card~12",
       "wait:0.8",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "assertstate:id=fst.history.instrument.Solo_Vocals|toggle=on"
     ],
     "tabs": 0
   },
   {
     "name": "history-swap-live-detail-film",
-    "route": "/songs/d58d8501-a33e-46f5-81bd-157306d5987e/Solo_Guitar/history",
+    "route": "/songs/d58d8501-a33e-46f5-81bd-157306d5987e",
     "profile": "195e93ef108143b2975ee46662d4d0e1:SFentonX",
     "sizes": [
       "medium"
@@ -171,27 +171,27 @@
     "ready": [
       "waitfor:id=fst.history.chart@30",
       "scrollinto:id=fst.history.chart@10",
-      "scrollinto:id=fst.history.sort.open@10"
+      "scrollinset:id=fst.history.instrument.group|id=fst.song-detail|72"
     ],
     "after_ready": [
       "toggle:id=fst.history.bar.24",
       "waitfor:id=fst.history.detail@5",
-      "scrollinto:id=fst.history.sort.open@5",
-      "markspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "scrollinset:id=fst.history.subtitle|id=fst.song-detail|72",
+      "markspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "wait:1",
       "film:{stem}-film",
       "wait:1",
       "toggle:id=fst.history.instrument.Solo_Bass",
       "wait:1.5",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "toggle:id=fst.history.instrument.Solo_Drums",
       "wait:1.5",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "toggle:id=fst.history.instrument.Solo_Guitar",
       "toggle:id=fst.history.instrument.Solo_Vocals",
       "wait:1.5",
       "filmstop:{stem}-film",
-      "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
+      "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
       "assertstate:id=fst.history.instrument.Solo_Vocals|toggle=on"
     ],
     "tabs": 0

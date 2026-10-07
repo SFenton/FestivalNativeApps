@@ -70,6 +70,7 @@ def _profile(value: str) -> list[str]:
 
 
 ANONYMOUS = ["--arg=--anonymous"]
+SONG_ROUTE = "/songs/fixture-pulse"
 HISTORY_ROUTE = "/songs/fixture-pulse/Solo_Guitar/history"
 
 JOURNEYS = [
@@ -114,100 +115,151 @@ JOURNEYS = [
         expect=[["fst.player.stat.overview.full-combos", "fst.player.select"], ["fst.songs.filter", "fst.nav.statistics"]],
         forbid=[[], ["fst.player.select"]],
     ),
-    # Player History is Song Detail's Score History section (operator 6.39); the route scrolls to it. The tall
-    # portrait-tablet window keeps the chart, sort button and rows on screen without real scrolling (issue #198).
+    # Song Detail's Score History card: the chart and its top five rows, no sort (issue #324). The tall portrait-tablet
+    # window keeps the chart and rows on screen without real scrolling (issue #198).
     Journey(
         name="history",
-        launch=["--route", HISTORY_ROUTE, *_profile("fixture-player-1:Fixture Player 1")],
+        launch=["--route", SONG_ROUTE, *_profile("fixture-player-1:Fixture Player 1")],
         preset="portrait-tablet",
         steps=[
-            ["waitfor:id=fst.history.chart@15", "waitfor:id=fst.history.bar.0@5", "waitfor:id=fst.history.sort.open@5"],
+            ["waitfor:id=fst.history.chart@15", "waitfor:id=fst.history.bar.0@5", "scrollinto:id=fst.song-detail.history.row.20240101000000@5"],
             ["toggle:id=fst.history.bar.0", "waitfor:id=fst.history.detail@5"],
             ["toggle:id=fst.history.bar.0", "wait:1"],
+        ],
+        expect=[
+            ["Score History", "score history, 2 of 2 scores",
+             "id=fst.history.bar.1", "patterns=Toggle", "personal best", "fst.song-detail.history.row.20240105"],
+            ["fst.history.detail"],
+            ["fst.history.bar.0"],
+        ],
+        forbid=[["fst.history.detail", "fst.history.view-all", "fst.history.page-back", "fst.history.retry",
+                 "fst.history.sort.open"],
+                [], ["fst.history.detail"]],
+    ),
+    # /songs/:id/:instrument/history is the separate Player History page again (issue #324, web PlayerHistoryPage):
+    # the song header, the page's Sort and every score as a leaderboard row.
+    Journey(
+        name="history-page",
+        launch=["--route", HISTORY_ROUTE, *_profile("fixture-player-1:Fixture Player 1")],
+        steps=[
+            ["waitfor:id=fst.history.sort.open@15", "waitfor:id=fst.history.list@5"],
             ["invoke:id=fst.history.sort.open", "waitfor:id=fst.history.sort.mode.date@5",
              "toggle:id=fst.history.sort.mode.date", "wait:1"],
             ["invoke:id=fst.history.sort.open", "waitfor:id=fst.history.sort.direction.ascending@5",
              "toggle:id=fst.history.sort.direction.ascending", "wait:1"],
             ["invoke:id=fst.history.sort.open", "waitfor:id=fst.history.sort.reset@5",
              "invoke:id=fst.history.sort.reset", "wait:1"],
+            ["invoke:id=fst.history.song", "waitfor:id=fst.song-detail.title@10", "wait:1"],
         ],
         expect=[
-            ["Score History", "score history, 2 of 2 scores",
-             "id=fst.history.bar.1", "patterns=Toggle", "Sort scores by Score, descending", "personal best",
-             "fst.song-detail.history.row.20240105"],
-            ["fst.history.detail"],
-            ["fst.history.bar.0"],
-            ["Sort scores by Date, descending"],
-            ["Sort scores by Date, ascending"],
-            ["Sort scores by Score, descending"],
+            ["fst.history.title", "fst.history.instrument", "Sort by Score, descending", "personal best", "fst.history.list",
+             "fst.history.row.20240105"],
+            ["Sort by Date, descending"],
+            ["Sort by Date, ascending"],
+            ["Sort by Score, descending"],
+            ["fst.song-detail.title"],
         ],
-        forbid=[["fst.history.detail", "fst.history.view-all", "fst.history.page-back", "fst.history.retry"],
-                [], ["fst.history.detail"]],
+        forbid=[["fst.history.chart", "fst.history.instrument.Solo_Guitar", "fst.history.message"],
+                [], [], [], ["fst.history.sort.open"]],
     ),
     Journey(
         name="history-paging",
-        launch=["--route", HISTORY_ROUTE, *_profile("fixture-history-multi:History Multi")],
+        launch=["--route", SONG_ROUTE, *_profile("fixture-history-multi:History Multi")],
         preset="portrait-tablet",
         steps=[
-            ["waitfor:id=fst.history.chart@15", "waitfor:id=fst.history.bar.7@5", "waitfor:id=fst.history.page-back@5"],
+            ["waitfor:id=fst.history.chart@15", "waitfor:id=fst.history.bar.7@5", "scrollinto:id=fst.history.page-back@5"],
             ["invoke:id=fst.history.entry-back", "waitfor:id=fst.history.bar.2@5"],
             ["invoke:id=fst.history.entry-forward", "waitfor:id=fst.history.bar.7@5"],
-            ["reveal:id=fst.history.view-all", "invoke:id=fst.history.view-all", "wait:1"],
             ["reveal:id=fst.history.instrument.Solo_Bass", "toggle:id=fst.history.instrument.Solo_Bass", "wait:1",
              "waitfor:id=fst.history.bar.1@5"],
             ["toggle:id=fst.history.instrument.Solo_Drums", "wait:1", "waitfor:id=fst.history.bar.0@5"],
+            ["toggle:id=fst.history.instrument.Solo_Guitar", "wait:1", "waitfor:id=fst.history.bar.7@5",
+             "reveal:id=fst.history.view-all", "invoke:id=fst.history.view-all", "waitfor:id=fst.history.sort.open@10",
+             "wait:1"],
         ],
         expect=[
             ["fst.history.instrument.Solo_Bass", "fst.history.instrument.Solo_Drums", "5 of 8 scores",
              "fst.history.entry-back", "fst.history.page-forward", "fst.history.view-all", "View All Scores, Lead"],
             ["fst.history.bar.2"],
             ["fst.history.bar.7"],
-            ["610,000"],
             ["Bass score history, 2 of 2 scores"],
             ["Drums score history"],
+            ["fst.history.sort.open", "610,000"],
         ],
-        forbid=[["fst.history.bar.2"], ["fst.history.bar.7"], ["fst.history.bar.2"], ["fst.history.view-all"],
-                ["fst.history.entry-back", "fst.history.view-all"]],
+        forbid=[["fst.history.bar.2"], ["fst.history.bar.7"], ["fst.history.bar.2"],
+                ["fst.history.entry-back", "fst.history.view-all"], [], ["fst.history.chart", "fst.history.view-all"]],
     ),
     Journey(
         name="history-syncing",
-        launch=["--route", HISTORY_ROUTE, *_profile("fixture-syncing:Syncing Player")],
+        launch=["--route", SONG_ROUTE, *_profile("fixture-syncing:Syncing Player")],
         steps=[["waitfor:id=fst.history.message@15", "waitfor:id=fst.history.retry@5"],
                ["invoke:id=fst.history.retry", "wait:1", "waitfor:id=fst.history.message@15"]],
         expect=[["still being prepared", "Retry score history"], ["still being prepared"]],
-        forbid=[["fst.history.chart", "fst.history.rows", "fst.history.error"], ["fst.history.chart"]],
+        forbid=[["fst.history.chart", "fst.song-detail.history.row.", "fst.history.error"], ["fst.history.chart"]],
+    ),
+    Journey(
+        name="history-page-syncing",
+        launch=["--route", HISTORY_ROUTE, *_profile("fixture-syncing:Syncing Player")],
+        steps=[["waitfor:id=fst.history.message@15", "waitfor:id=fst.history.retry@5"],
+               ["invoke:id=fst.history.retry", "wait:1", "waitfor:id=fst.history.message@15"]],
+        expect=[["Still Syncing", "still being prepared", "Retry score history"], ["still being prepared"]],
+        forbid=[["fst.history.list", "fst.history.sort.open"], ["fst.history.list"]],
     ),
     Journey(
         name="history-failed",
-        launch=["--route", HISTORY_ROUTE, *_profile("fixture-history-fail:History Fail")],
+        launch=["--route", SONG_ROUTE, *_profile("fixture-history-fail:History Fail")],
         steps=[["waitfor:id=fst.history.error@15", "waitfor:id=fst.history.retry@5"],
                ["invoke:id=fst.history.retry", "wait:1", "waitfor:id=fst.history.error@15"]],
         expect=[["fst.history.retry"], ["fst.history.error"]],
-        forbid=[["fst.history.chart", "fst.history.rows", "fst.history.message"], ["fst.history.chart"]],
+        forbid=[["fst.history.chart", "fst.song-detail.history.row.", "fst.history.message"], ["fst.history.chart"]],
     ),
-    # No player, an unregistered player (404) and a song without rows all hide the section (web: no chart, no message).
-    # A history link without a player is a player-only route and opens Songs (AppRouteParser.RequiresPlayer).
+    Journey(
+        name="history-page-failed",
+        launch=["--route", HISTORY_ROUTE, *_profile("fixture-history-fail:History Fail")],
+        steps=[["waitfor:id=fst.service-status.retry@15"]],
+        expect=[["fst.service-status.title", "fst.history.title"]],
+        forbid=[["fst.history.list", "fst.history.message"]],
+    ),
+    # Without a player, a history link opens the page's own no-player state (web PlayerHistoryPage, issue #324): song
+    # header, "No Player Selected" + Select Player, no request; the header's song opens Song Detail, which hides the card.
     Journey(
         name="history-anonymous",
         launch=["--route", HISTORY_ROUTE, *ANONYMOUS],
-        steps=[["waitfor:id=fst.songs.list@15", "wait:2"],
-               ["invoke:id=fst.songs.row.fixture-pulse", "waitfor:id=fst.song-detail.title@15", "wait:3"]],
-        expect=[["fst.songs.list"], ["fst.song-detail.title"]],
-        forbid=[["Score History", "fst.history."], ["Score History", "fst.history."]],
+        steps=[["waitfor:id=fst.history.message@15", "waitfor:id=fst.history.select-player@5", "wait:1"],
+               ["invoke:id=fst.history.song", "waitfor:id=fst.song-detail.title@15", "wait:3"]],
+        expect=[["No Player Selected", "Select a player profile", "fst.history.select-player", "fst.history.title"],
+                ["fst.song-detail.title"]],
+        forbid=[["fst.history.list", "fst.history.sort.open", "fst.history.retry", "fst.songs.list"],
+                ["Score History", "fst.history."]],
     ),
+    # An unregistered player (404): Song Detail hides the card; the history page says why (web registered-users copy).
     Journey(
         name="history-unregistered",
-        launch=["--route", HISTORY_ROUTE, *_profile("fixture-player-2:Fixture Player 2")],
+        launch=["--route", SONG_ROUTE, *_profile("fixture-player-2:Fixture Player 2")],
         steps=[["waitfor:id=fst.song-detail.title@15", "wait:3"]],
         expect=[["fst.song-detail.title"]],
         forbid=[["Score History", "fst.history."]],
+    ),
+    Journey(
+        name="history-page-unregistered",
+        launch=["--route", HISTORY_ROUTE, *_profile("fixture-player-2:Fixture Player 2")],
+        steps=[["waitfor:id=fst.history.message@15"]],
+        expect=[["History Unavailable", "only available for registered users"]],
+        forbid=[["fst.history.list", "fst.history.retry"]],
     ),
     Journey(
         name="history-no-rows",
-        launch=["--route", "/songs/fixture-orbit/Solo_Guitar/history", *_profile("fixture-player-1:Fixture Player 1")],
+        launch=["--route", "/songs/fixture-orbit", *_profile("fixture-player-1:Fixture Player 1")],
         steps=[["waitfor:id=fst.song-detail.title@15", "wait:3"]],
         expect=[["fst.song-detail.title"]],
         forbid=[["Score History", "fst.history."]],
+    ),
+    Journey(
+        name="history-page-empty",
+        launch=["--route", "/songs/fixture-orbit/Solo_Guitar/history", *_profile("fixture-player-1:Fixture Player 1")],
+        steps=[["waitfor:id=fst.history.message@15"]],
+        expect=[["No History Yet", "No score history for Lead on this song."]],
+        forbid=[["fst.history.list", "fst.history.sort.open", "fst.history.retry"]],
     ),
     Journey(
         name="rank-history",
