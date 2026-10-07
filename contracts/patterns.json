@@ -83,6 +83,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ScrollEdgeFade.kt",
             "symbol": "bottomChromeEdgeFade"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsBoardScaffold.kt",
+            "symbol": "RankingsBoardLayout"
           }
         ],
         "windows": [
@@ -174,6 +178,7 @@
         298,
         301,
         305,
+        306,
         308,
         319,
         322
@@ -529,6 +534,10 @@
           {
             "path": "windows/Festival.App/Controls/LeaderboardEntryRow.xaml.cs",
             "symbol": "LeaderboardEntryRow"
+          },
+          {
+            "path": "windows/Festival.App/Controls/ViewAllCard.cs",
+            "symbol": "ViewAllCard"
           }
         ]
       },
@@ -563,6 +572,14 @@
           "allow": [],
           "debt": [],
           "message": "An opaque cardBackground plate is FestivalCardModifier's accessibility fallback, not a feature surface; draw cards, rows and custom floating controls with festivalCard / festivalCardCapsule (surface-materials R1, #319)."
+        },
+        {
+          "id": "windows-profile-purple-view-all",
+          "glob": "windows/Festival.App/Controls/PlayerProfileView.xaml",
+          "regex": "FSTViewAllButtonStyle",
+          "allow": [],
+          "debt": [],
+          "message": "The profile's View All Bands (N) is the frosted ViewAllCard (web BandViewAllCard), not the purple leaderboard CTA (surface-materials R7, #312)."
         }
       ],
       "related": {
@@ -1120,6 +1137,7 @@
         "pages": [
           "song-detail",
           "song-leaderboard",
+          "song-band-leaderboard",
           "leaderboards",
           "compete",
           "full-rankings"
@@ -1775,7 +1793,11 @@
         "album art background",
         "song backdrop",
         "carousel",
-        "entry totals"
+        "entry totals",
+        "board line",
+        "band size",
+        "instrument switcher",
+        "static cover"
       ],
       "issues": [
         93,
@@ -1817,6 +1839,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt",
             "symbol": "SongLeaderboardScreen"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt",
+            "symbol": "SongBoardSwitcher"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/background/SongCoverBackdrop.kt",
+            "symbol": "SongCoverBackdrop"
           }
         ],
         "windows": [
@@ -1848,6 +1878,16 @@
           "message": "Song leaderboard bar titles come from the shared SongBarTitleToolbarItem (song-leaderboard-header R3, R5; song-header R4)."
         },
         {
+          "id": "android-cover-push",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "\\.pushFocus\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/background/SongCoverBackdrop.kt"
+          ],
+          "debt": [],
+          "message": "Song pages show their static cover through SongCoverBackdrop, each page for itself (song-leaderboard-header R4)."
+        },
+        {
           "id": "windows-board-title",
           "glob": "windows/Festival.Core/ViewModels/*Song*Leaderboard*ViewModel.cs",
           "regex": "\\} (Leaderboard|Scores)\"",
@@ -1872,7 +1912,10 @@
           "song-leaderboard",
           "song-band-leaderboard"
         ],
-        "controls": [],
+        "controls": [
+          "artwork-background",
+          "instrument-selector"
+        ],
         "patterns": [
           "page-tools-and-nav-chrome",
           "surface-materials",
@@ -2005,7 +2048,8 @@
       "supersedes": [],
       "supersededBy": null,
       "issues": [
-        315
+        315,
+        317
       ]
     },
     {
