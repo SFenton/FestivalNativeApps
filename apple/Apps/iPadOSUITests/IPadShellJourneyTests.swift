@@ -205,6 +205,74 @@ final class IPadShellJourneyTests: XCTestCase {
         XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "Close returns to full width")
     }
 
+    /// The leading pane's Back: the split's own while the trailing pane is open (issue
+    /// #347), else the system Back of the leading pane's bar.
+    @MainActor
+    private func leadingBack(_ app: XCUIApplication) -> XCUIElement {
+        let split = app.buttons["fst.split.list-back"]
+        if split.exists { return split }
+        let midX = app.windows.firstMatch.frame.midX
+        let buttons = app.navigationBars.buttons.allElementsBoundByIndex.filter { $0.frame.maxX < midX }
+        return buttons.min { $0.frame.minX < $1.frame.minX } ?? app.navigationBars.buttons.firstMatch
+    }
+
+    /// Back on Song Detail beside its open leaderboard closes the leaderboard and keeps
+    /// Song Detail; a second Back returns to Songs (issue #347).
+    @MainActor
+    func testBackClosesSongDetailTrailingPaneFirst() throws {
+        let app = fixtureApp(profile: false)
+        launchFilled(app)
+        let row = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(row.waitForExistence(timeout: 20))
+        row.tap()
+        let board = app.buttons["fst.song-detail.leaderboard.Solo_Guitar"]
+        XCTAssertTrue(board.waitForExistence(timeout: 20))
+        board.tap()
+        let trailing = element(app, "fst.split.trailing")
+        XCTAssertTrue(trailing.waitForExistence(timeout: 10), "the board opens in the trailing half")
+        let back = app.buttons["fst.split.list-back"]
+        XCTAssertTrue(back.waitForExistence(timeout: 5), "Song Detail's Back closes the open pane")
+        back.tap()
+        XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "Back closes the leaderboard")
+        let hero = element(app, "fst.song-detail.hero-title")
+        XCTAssertTrue(hero.waitForExistence(timeout: 5), "Song Detail stays")
+        XCTAssertFalse(app.buttons["fst.songs.row.fixture-pulse"].isHittable, "Songs is still covered")
+        let secondBack = leadingBack(app)
+        XCTAssertTrue(secondBack.waitForExistence(timeout: 5))
+        secondBack.tap()
+        XCTAssertTrue(waitForDisappearance(of: hero, timeout: 10), "a second Back leaves Song Detail")
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertTrue(row.isHittable, "a second Back returns to Songs")
+    }
+
+    /// Back on Full Rankings beside an open player closes the player first; a second
+    /// Back returns to the Leaderboards overview (issue #347, every pushed list page).
+    @MainActor
+    func testBackClosesRankingsTrailingPaneFirst() throws {
+        let app = fixtureApp(profile: false)
+        launchFilled(app)
+        chooseInFlyout(app, "leaderboards")
+        let viewAll = app.buttons.matching(NSPredicate(format: "identifier ENDSWITH '.view-all'")).firstMatch
+        XCTAssertTrue(viewAll.waitForExistence(timeout: 15))
+        viewAll.tap()
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'fst.rankings.row.'"))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 15))
+        rows.firstMatch.tap()
+        let trailing = element(app, "fst.split.trailing")
+        XCTAssertTrue(trailing.waitForExistence(timeout: 10), "the player opens in the trailing half")
+        let back = app.buttons["fst.split.list-back"]
+        XCTAssertTrue(back.waitForExistence(timeout: 5), "Full Rankings' Back closes the open pane")
+        back.tap()
+        XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "Back closes the player")
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5), "Full Rankings stays")
+        XCTAssertTrue(rows.firstMatch.isHittable, "Full Rankings is full width again")
+        XCTAssertFalse(back.exists, "the system Back returns once nothing is open")
+        leadingBack(app).tap()
+        // The overview's cards reuse the rankings rows, so its View All link proves the page.
+        XCTAssertTrue(viewAll.waitForExistence(timeout: 10), "a second Back returns to Leaderboards")
+        XCTAssertTrue(viewAll.isHittable, "Leaderboards is on top again")
+    }
+
     /// Full Rankings starts full width; a row opens the player in the trailing half and
     /// stays selected; portrait pushes it; landscape lifts it back; Close returns to full
     /// width.

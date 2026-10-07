@@ -351,4 +351,52 @@ final class IPadShellAccessibilityTests: XCTestCase {
                 .write(to: URL(fileURLWithPath: dir).appendingPathComponent("split-structure.json"))
         }
     }
+
+    /// Back on a pushed list page beside an open item closes the trailing pane, keeps the
+    /// list page and gives focus back to the opened row; the system Back returns once
+    /// nothing is open (issue #347). iPad landscape and the iPhone Duo inner display.
+    @MainActor
+    func testSplitBackClosesTrailingPaneFirst() throws {
+        if !IPadAccessibilityAuditTests.runningOnDuo { XCUIDevice.shared.orientation = .landscapeLeft }
+        let pages: [(SplitPage, String)] = [
+            (Self.splitPages[0], "fst.rankings.row."),
+            (Self.splitPages[3], "fst.song-detail.intensity"),
+        ]
+        for (page, stays) in pages {
+            let app = makeApp(profile: page.profile, env: page.env)
+            launch(app)
+            XCTAssertTrue(element(app, page.ready).waitForExistence(timeout: 25), "\(page.name) loads")
+            let window = app.windows.firstMatch.frame
+            guard window.width > window.height else {
+                XCTFail("\(page.name): the window is not landscape (\(window)); no split to check")
+                app.terminate()
+                continue
+            }
+            if let song = page.song {
+                XCTAssertTrue(IPadAccessibilityAuditTests.openSong(app, song), "\(page.name): Song Detail opens")
+            }
+            guard IPadAccessibilityAuditTests.openSplit(
+                app, ids: page.exact ? [page.row] : [], prefix: page.exact ? nil : page.row
+            ) != nil, IPadAccessibilityAuditTests.trailingPane(app) != nil else {
+                XCTFail("\(page.name): the trailing pane did not open")
+                app.terminate()
+                continue
+            }
+            let back = element(app, "fst.split.list-back")
+            XCTAssertTrue(back.waitForExistence(timeout: 5), "\(page.name): the leading page's Back")
+            XCTAssertLessThan(back.frame.maxX, window.midX, "\(page.name): Back sits in the leading pane")
+            back.tap()
+            let deadline = Date.now.addingTimeInterval(10)
+            while IPadAccessibilityAuditTests.trailingPane(app) != nil, Date.now < deadline { Thread.sleep(forTimeInterval: 0.3) }
+            XCTAssertNil(IPadAccessibilityAuditTests.trailingPane(app), "\(page.name): Back closes the trailing pane")
+            let list = app.descendants(matching: .any).matching(NSPredicate(
+                format: "identifier BEGINSWITH %@", stays
+            )).firstMatch
+            XCTAssertTrue(list.waitForExistence(timeout: 5), "\(page.name): the list page stays")
+            XCTAssertTrue(waitForTrace(app) { $0.hasPrefix("row: ") }.hasPrefix("row: "),
+                          "\(page.name): focus returns to the opened row")
+            XCTAssertTrue(waitForDisappearance(of: back, timeout: 5), "\(page.name): the system Back returns")
+            app.terminate()
+        }
+    }
 }

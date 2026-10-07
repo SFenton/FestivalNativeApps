@@ -261,8 +261,9 @@ struct MacAccessibilityTreeTests {
         }
     }
 
-    /// With a split open, the window toolbar carries the trailing pane's Close button,
-    /// named and tooltipped with its shortcut, and no two items share a label.
+    /// With a split open, the window toolbar carries the trailing pane's Close button and
+    /// the leading page's Back, named and tooltipped with their shortcuts, and no two
+    /// items share a label.
     @Test func macTreeSplitToolbarNamesClose() async throws {
         let size = MacWindowMetrics.defaultSize
         let model = MacAppModel(session: try await macTreeSession(player: true), storage: nil, initial: .leaderboards)
@@ -285,6 +286,10 @@ struct MacAccessibilityTreeTests {
         let labels = items.map(\.label)
         let close = try #require(items.first { $0.label == "Close" }, "Close in \(labels)")
         #expect(close.toolTip == "Close (Esc)")
+        // The leading page's Back closes the open item first (issue #347; the rule is
+        // `OnDemandSplitPolicy.pathAfterListBack`).
+        let back = try #require(items.first { $0.label == "Back" }, "Back in \(labels)")
+        #expect(back.toolTip == "Back (⌘[)")
         #expect(Set(labels).count == labels.count, "no two toolbar items share a label: \(labels)")
     }
 

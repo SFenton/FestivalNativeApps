@@ -181,6 +181,19 @@ enum OnDemandSplitPolicy {
         return cut.list
     }
 
+    /// The section path after Back on the leading pane's page (issue #347): an open
+    /// item closes first and the list page stays; with nothing open, the list page pops.
+    ///
+    /// - Parameters:
+    ///   - path: Current section path.
+    ///   - section: Section owning the path.
+    /// - Returns: The new path, or nil when the leading pane is at its section root.
+    static func pathAfterListBack(_ path: [AppRoute], section: FestivalSection) -> [AppRoute]? {
+        if let closed = pathClosingDetail(path, section: section) { return closed }
+        let list = cut(section: section, path: path)?.list ?? path
+        return list.isEmpty ? nil : Array(list.dropLast())
+    }
+
     // MARK: Geometry
 
     /// Where the two panes sit in the split's container.
