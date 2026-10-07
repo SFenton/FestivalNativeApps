@@ -73,14 +73,21 @@ public sealed partial class SearchPage : Page, IPageFind
     /// <param name="section">Section that appeared.</param>
     private void OnSectionShown(object? sender, SearchScope section)
     {
-        var (heading, list) = section switch
+        if (ViewModel.ShowSectionTitles)
         {
-            SearchScope.Songs => (SongsHeading, (UIElement)SongsList),
-            SearchScope.Players => (PlayersHeading, PlayersList),
-            _ => (BandsHeading, BandsList),
-        };
-        if (ViewModel.ShowSectionTitles) FadeIn.Play(heading);
-        FadeIn.Restagger(list);
+            FadeIn.Play(section switch
+            {
+                SearchScope.Songs => SongsHeading,
+                SearchScope.Players => PlayersHeading,
+                _ => BandsHeading,
+            });
+        }
+        FadeIn.Restagger(section switch
+        {
+            SearchScope.Songs => SongsList,
+            SearchScope.Players => PlayersList,
+            _ => BandsList,
+        });
     }
 
     /// <summary>Speaks the settled counts.</summary>
