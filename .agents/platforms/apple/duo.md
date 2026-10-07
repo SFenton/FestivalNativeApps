@@ -83,7 +83,7 @@ Portrait and both landscapes were captured natively (2026-10-04, `~/FestivalShow
 | Landscape (first Rotate Right) | — | trailing (right) | native capture `o1-1-rot1` |
 | Landscape (third Rotate Right) | — | leading (left) | native capture `o1-3-rot3` |
 
-The top safe inset is 0 in outer portrait although the camera sits in the top-right corner. Only the vertical bar's inset protects that corner, so **any custom overlay that spans the full width (drawer, banners, scrubbers) must use `DeviceLayout.overlayInsets`, not just the safe area.**
+The top safe inset is 0 in outer portrait although the camera sits in the top-right corner. Only the vertical bar's inset protects that corner, so **any custom overlay laid out outside the safe area across the full width (drawer, banners) must use `DeviceLayout.overlayInsets`.** An overlay inside the content's safe area (the Songs A–Z scrubber) is already clear of the bar and adds only `DeviceLayout.cutoutInsets`; `overlayInsets` there counts the bar twice.
 
 ## W1 shell captures (2026-09-28)
 
