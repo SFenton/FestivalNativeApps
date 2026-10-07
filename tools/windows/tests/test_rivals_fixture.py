@@ -164,6 +164,55 @@ class PlayerBandsScenarioTests(unittest.TestCase):
                 f.take_player_bands(bad)
 
 
+class BoardPagesScenarioTests(unittest.TestCase):
+    """``--board-pages flaky`` (issue #283) fails each later board page once per pair of reads."""
+
+    SONG = "/api/leaderboard/fixture-pulse/Solo_Guitar?top=25&offset=25"
+    FULL = "/api/rankings/Solo_Guitar?rankBy=totalscore&page=2&pageSize=25"
+    BAND = "/api/rankings/bands/Band_Duets?rankBy=totalscore&page=2&pageSize=25"
+
+    def test_only_later_pages_of_paged_boards(self):
+        for path in (self.SONG, self.FULL, self.BAND):
+            self.assertTrue(f.is_later_board_page(path), path)
+        for path in ("/api/leaderboard/fixture-pulse/Solo_Guitar?top=25&offset=0",
+                     "/api/leaderboard/fixture-pulse/Solo_Guitar?top=25",
+                     "/api/leaderboard/fixture-pulse/all?top=10",
+                     "/api/leaderboard/fixture-pulse/bands/Band_Duets?top=25&offset=25",
+                     "/api/rankings/Solo_Guitar?rankBy=totalscore&page=1&pageSize=25",
+                     "/api/rankings/Solo_Guitar/fixture-player-1",
+                     "/api/rankings/bands/Band_Duets?teamKey=fixture-team-1&page=2",
+                     "/api/rankings/Solo_Guitar?page=two", "/api/songs"):
+            self.assertFalse(f.is_later_board_page(path), path)
+
+    def test_each_page_fails_then_its_retry_passes(self):
+        reads: dict[str, int] = {}
+        sequence = (self.SONG, self.FULL, self.SONG, self.FULL, self.BAND, self.BAND, self.SONG)
+        self.assertEqual([f.board_page_fails(p, reads) for p in sequence], [True, True, False, False, True, False, True])
+        self.assertFalse(f.board_page_fails("/api/rankings/Solo_Guitar?page=1", reads))
+
+    def test_install_answers_500_then_defers(self):
+        original = ms.FixtureHandler.do_GET
+        served, answered = [], []
+        ms.FixtureHandler.do_GET = lambda handler: served.append(handler.path)
+        try:
+            f.install_board_pages("flaky")
+            handler = type("H", (), {"_json": lambda self, status, body: answered.append((self.path, status))})
+            for p in (self.BAND, self.BAND, "/api/songs"):
+                ms.FixtureHandler.do_GET(type("H", (handler,), {"path": p})())
+        finally:
+            ms.FixtureHandler.do_GET = original
+        self.assertEqual(answered, [(self.BAND, 500)])
+        self.assertEqual(served, [self.BAND, "/api/songs"])
+
+    def test_take_board_pages(self):
+        self.assertEqual(f.take_board_pages(["--port", "0"]), (None, ["--port", "0"]))
+        self.assertEqual(f.take_board_pages(["--board-pages", "flaky", "--port", "0"]), ("flaky", ["--port", "0"]))
+        self.assertEqual(f.take_board_pages(["--board-pages=flaky"]), ("flaky", []))
+        for bad in (["--board-pages"], ["--board-pages", "down"], ["--board-pages="]):
+            with self.assertRaises(SystemExit):
+                f.take_board_pages(bad)
+
+
 class SongBandTotalsTests(unittest.TestCase):
     """``--song-band-totals`` flags only per-size song band board reads (issue #317)."""
 

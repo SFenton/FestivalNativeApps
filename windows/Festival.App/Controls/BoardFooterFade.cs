@@ -102,7 +102,7 @@ internal sealed class BoardFooterFade
         uiSettings.ColorValuesChanged -= OnSystemChanged;
     }
 
-    /// <summary>Finds the list's scroll viewer once (a ListView's lives in its template) and follows its scrolling.</summary>
+    /// <summary>Finds the list's scroll viewer once (a ListView's lives in its template) and follows its scrolling and extent.</summary>
     /// <returns>The scroll viewer, or <see langword="null"/> before the template is applied.</returns>
     private ScrollViewer? EnsureScroller()
     {
@@ -110,7 +110,7 @@ internal sealed class BoardFooterFade
         {
             scroller.ViewChanged += (_, _) => Update();
             // Rows arriving (or a page swap) change the extent without a scroll; a board that loads long shows the
-            // ramp at once, with or without the selected player's pinned row (issue #305).
+            // ramp at once, with or without the selected player's pinned row (issues #283, #305).
             scroller.RegisterPropertyChangedCallback(ScrollViewer.ScrollableHeightProperty, (_, _) => Update());
         }
         return scroller;

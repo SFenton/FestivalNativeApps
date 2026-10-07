@@ -28,6 +28,7 @@ public sealed partial class ServiceStatusView : UserControl
         nameof(IdPrefix), typeof(string), typeof(ServiceStatusView), new PropertyMetadata(DefaultIdPrefix, OnIdPrefixChanged));
 
     private string? lastAnnouncement;
+    private bool focusRetryWhenShown;
 
     /// <summary>Creates the view.</summary>
     public ServiceStatusView()
@@ -39,7 +40,33 @@ public sealed partial class ServiceStatusView : UserControl
         SizeChanged += (_, e) =>
         {
             if (e.PreviousSize.Height <= 0) QueueAnnouncement();
+            if (focusRetryWhenShown && e.NewSize.Height > 0) DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () => TryFocusRetry());
         };
+    }
+
+    /// <summary>
+    /// Moves keyboard focus to Retry now, or as soon as this view is laid out, when a failed reload hid the control
+    /// that had focus (<see cref="FailedReloadFocus"/>, issue #283).
+    /// </summary>
+    public void FocusRetryWhenShown()
+    {
+        focusRetryWhenShown = true;
+        DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () => TryFocusRetry());
+    }
+
+    /// <summary>Focuses Retry once it is visible and laid out, then stops waiting.</summary>
+    /// <returns>Whether Retry took focus.</returns>
+    private bool TryFocusRetry()
+    {
+        if (!focusRetryWhenShown) return false;
+        if (Status is not { HasIssue: true })
+        {
+            focusRetryWhenShown = false;
+            return false;
+        }
+        if (!IsLoaded || ActualHeight <= 0 || RetryButton.Visibility != Visibility.Visible) return false;
+        focusRetryWhenShown = false;
+        return RetryButton.Focus(FocusState.Programmatic);
     }
 
     /// <summary>Status to render.</summary>
@@ -88,7 +115,9 @@ public sealed partial class ServiceStatusView : UserControl
 
     private void OnStatusPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(ServiceStatusViewModel.Issue) or nameof(ServiceStatusViewModel.HasIssue)) QueueAnnouncement();
+        if (e.PropertyName is not (nameof(ServiceStatusViewModel.Issue) or nameof(ServiceStatusViewModel.HasIssue))) return;
+        if (Status is not { HasIssue: true }) focusRetryWhenShown = false;
+        QueueAnnouncement();
     }
 
     /// <summary>After layout (so collapsed ancestors are known), speaks the issue once while it is visible.</summary>

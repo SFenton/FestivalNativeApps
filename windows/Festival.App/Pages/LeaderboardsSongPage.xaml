@@ -20,8 +20,9 @@
 
         <!-- The fade source: its composition visual is hidden while BoardFadeHost paints the rows faded out above the
              footer (BoardFooterFade, issue #93). The header and pager stay while another page loads; only the rows swap
-             for the spinner (web PaginatedLeaderboard). -->
-        <Grid x:Name="BoardFadeSource" Grid.RowSpan="3" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}">
+             for the spinner (web PaginatedLeaderboard). A failed reload keeps the header too, with the failure and Retry
+             in the rows' place (load-transition R4, issue #283). -->
+        <Grid x:Name="BoardFadeSource" Grid.RowSpan="3" Visibility="{x:Bind ViewModel.ShowHeader, Mode=OneWay}">
             <ScrollViewer x:Name="Scroller" AutomationProperties.AutomationId="fst.song-leaderboard.list">
                 <!-- No bottom padding: BoardFooter.Inset already ends the list one row gap (4 epx) above the footer, and
                      padding here doubled it (issue #293). -->
@@ -49,6 +50,11 @@
                     <TextBlock Text="No scores yet." Style="{StaticResource FSTSecondaryTextStyle}" HorizontalAlignment="Center" Margin="0,48"
                                controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                                Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" />
+                    <!-- A failed reload: the failure replaces only the rows; the pinned row and pager hide (web EmptyState
+                         in place of PaginatedLeaderboard) and FailedReloadFocus moves focus here from a hidden pager. -->
+                    <controls:ServiceStatusView x:Name="RowsStatus" Status="{x:Bind ViewModel.Status}" Margin="0,24"
+                                                controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
+                                                Visibility="{x:Bind ViewModel.ShowRowsError, Mode=OneWay}" />
                 </StackPanel>
             </ScrollViewer>
         </Grid>
@@ -59,7 +65,7 @@
                       AutomationProperties.Name="Loading leaderboard" />
         <controls:ServiceStatusView Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
                                     controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
-                                    Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" />
+                                    Visibility="{x:Bind ViewModel.ShowPageError, Mode=OneWay}" />
 
         <!-- Contrast themes: the footer fade cuts the rows hard at the footer's top and this window-colour plate (footer
              height, sized by BoardFooterFade) backs the footer's controls. Never hit-testable. -->
@@ -86,7 +92,7 @@
                                                   RowAutomationId="fst.song-leaderboard.spotlight-footer" />
                 </StackPanel>
             </controls:LoadSwapGate>
-            <controls:LeaderboardsPager Pager="{x:Bind ViewModel.Pager}" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" />
+            <controls:LeaderboardsPager x:Name="BoardPager" Pager="{x:Bind ViewModel.Pager}" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" />
         </StackPanel>
 
         <VisualStateManager.VisualStateGroups>
