@@ -707,6 +707,14 @@
           {
             "path": "apple/Sources/FestivalUI/App/Shell/RootChrome.swift",
             "symbol": "VerticalBarActionItem"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Search/BottomSearchField.swift",
+            "symbol": "BottomSearchFieldPlacement"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchTab.swift",
+            "symbol": "GlobalSearchFieldPlacement"
           }
         ],
         "android": [
@@ -988,7 +996,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform, the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, and one measured section-wide score-footer stack plan that never truncates the score.",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, off the Duo hinge when unfolded, #345), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, and one measured section-wide score-footer stack plan that never truncates the score.",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -1187,6 +1195,14 @@
         ]
       },
       "guards": [
+        {
+          "id": "apple-no-toolbar-pager",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "struct\\s+\\w*Pager\\w*\\s*:\\s*ToolbarContent\\b",
+          "allow": [],
+          "debt": [],
+          "message": "Board pagination stays in the content under the board as RankingsPagerView, never as toolbar or rail items (leaderboard-row R5, #345)."
+        },
         {
           "id": "apple-name-owner",
           "glob": "apple/Sources/**/*.swift",

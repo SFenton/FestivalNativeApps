@@ -316,14 +316,6 @@ struct SoloLeaderboardScreen: View {
                     identifier: "fst.song-leaderboard.pinned-title"
                 )
             }
-            if let shownPayload {
-                RankingsPagerToolbarContent(
-                    page: page, totalPages: shownPayload.leaderboard.pageCount,
-                    idPrefix: "fst.song-leaderboard"
-                ) { destination in
-                    move(to: destination)
-                }
-            }
             #endif
         }
         #if os(iOS)
@@ -407,7 +399,7 @@ struct SoloLeaderboardScreen: View {
         PinnedChromeSpacing.resolve(
             rowGap: Double(Self.rowGap), rowBottomInset: Double(Self.rowInset), edgePadding: 8,
             hasFooter: session.selectedPlayer != nil && selectedPlayerEntry() != nil,
-            hasPager: shownPayload != nil && !layout.sectionChrome.isVerticalBar
+            hasPager: shownPayload != nil
         )
     }
 

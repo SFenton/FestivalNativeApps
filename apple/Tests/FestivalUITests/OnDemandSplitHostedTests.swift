@@ -152,6 +152,116 @@ private let duoInnerPortrait = DeviceLayout.resolve(LayoutSignals(
     try await nativeHostedSettle(boards, untilText: ["Fixture List Root", "Rows Select"], timeout: splitBudget)
 }
 
+// MARK: - Fold and unfold
+
+/// The Duo pose a hosted split sees: the inner display (landscape) or the outer one.
+@MainActor @Observable
+private final class FoldPose {
+    var folded = false
+}
+
+/// Hosts the shell's section-set deferral (`FestivalShellContent`) around a split whose
+/// window layout and size follow ``FoldPose``, as folding moves the app between the
+/// Duo's displays: display size, size class and tab set change in one update.
+private struct FoldingSplitHost: View {
+    let session: FestivalSession
+    let pose: FoldPose
+    @State var path: [AppRoute]
+    let recorder: PathRecorder
+
+    var body: some View {
+        let size = pose.folded ? CGSize(width: 466, height: 678) : CGSize(width: 951, height: 669)
+        FestivalShellContent(usesSidebarShell: false) { presentation, _ in
+            OnDemandSplitStack(
+                section: .rivals, session: session, visibleInstruments: Set(Instrument.allCases),
+                path: $path, isVisible: true
+            ) { rootIsTop in
+                List {
+                    Text("Fixture List Root")
+                    Text(rootIsTop ? "Root On Top" : "Root Covered")
+                    SelectModeProbe()
+                }
+            }
+            .overlay(alignment: .bottom) {
+                // The tab set the shell has applied, standing in for the tab bar.
+                Text(presentation.usesRegularSectionSet ? "Tabs Regular" : "Tabs Compact")
+                    .padding(4)
+            }
+        }
+        .environment(\.deviceLayout, pose.folded ? duoOuter : duoInner)
+        .frame(width: size.width, height: size.height)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onChange(of: path, initial: true) { _, new in recorder.path = new }
+    }
+}
+
+/// Resume after every main-queue block already enqueued has run: the split and the shell
+/// defer a window change with `DispatchQueue.main.async`, so this is the turn they apply.
+@MainActor
+private func mainQueueTurn() async {
+    await withCheckedContinuation { continuation in
+        DispatchQueue.main.async { continuation.resume() }
+    }
+}
+
+/// Folding with an item open in the split never paints a blank frame: in the fold's own
+/// update the split and the tab set keep their shape, and one main-queue turn later the
+/// open item is pushed in one column. Unfolding mirrors it, and repeated fold/unfold
+/// keeps working and keeps the path (#346).
+///
+/// Each phase is captured synchronously, with no sleep, and must paint content. Applying
+/// the split's new shape in the window's own update fails the pending-phase text checks.
+@MainActor
+@Test func foldingAnOpenSplitPushesTheItemAndUnfoldingSplitsAgain() async throws {
+    let size = CGSize(width: 951, height: 678)
+    let pose = FoldPose()
+    let recorder = PathRecorder()
+    let host = nativeHostedView(
+        FoldingSplitHost(session: offlineSession(), pose: pose, path: [fixtureRival], recorder: recorder)
+            .frame(width: size.width, height: size.height)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let split = ["Fixture List Root", "Root On Top", "No Player Selected", "Rows Select"]
+    try await nativeHostedSettle(host, untilText: split + ["Tabs Regular"], timeout: splitBudget)
+
+    /// Lay out and draw now (no run-loop turn), capturing only the display the pose
+    /// shows, and require painted content and `texts` there.
+    func renders(
+        _ phase: String, _ texts: [String], without absent: [String] = [],
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) throws {
+        let display = pose.folded ? CGSize(width: 466, height: 678) : CGSize(width: 951, height: 669)
+        let image = try nativeHostedImage(host, in: CGRect(origin: .zero, size: display))
+        if ProcessInfo.processInfo.environment["FST_SHELL_RENDER_OUT"] != nil {
+            _ = try nativeHostedPNG(image, filename: "split-fold-\(phase).png", environment: "FST_SHELL_RENDER_OUT")
+        }
+        assertRendersContent(
+            host, image: image, containing: texts, notContaining: absent, sourceLocation: sourceLocation
+        )
+    }
+
+    for round in 1...2 {
+        pose.folded = true
+        // The fold's own update: the split keeps its shape (the list fills the outer
+        // display) and the regular tab set.
+        try renders("\(round)-fold-pending", split + ["Tabs Regular"], without: ["Tabs Compact"])
+        await mainQueueTurn()
+        // Applied: the open item pushed in one column, with the compact tab set.
+        try renders("\(round)-folded", ["No Player Selected", "Tabs Compact"], without: ["Fixture List Root", "Rows Select"])
+        #expect(recorder.path == [fixtureRival], "Folding keeps the open item")
+
+        pose.folded = false
+        // The unfold's own update: still one column with the item pushed.
+        try renders("\(round)-unfold-pending", ["No Player Selected", "Tabs Compact"], without: ["Rows Select"])
+        await mainQueueTurn()
+        try renders("\(round)-unfolded", split + ["Tabs Regular"])
+        #expect(recorder.path == [fixtureRival], "Unfolding keeps the open item")
+    }
+}
+
 // MARK: - Selected row
 
 /// A row whose route is the current selection gets the selected treatment; others do not.
