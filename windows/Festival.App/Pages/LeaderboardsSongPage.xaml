@@ -81,7 +81,7 @@
                                    controls:LoadSwapVisual.IsGated="{x:Bind ViewModel.PinnedGate.IsGated, Mode=OneWay}">
                 <StackPanel x:Name="SpotlightPanel" Spacing="4">
                     <Button HorizontalAlignment="Right" MinHeight="32" Command="{x:Bind ViewModel.JumpCommand}"
-                            Background="{ThemeResource FSTPagerButtonBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
+                            Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}" Foreground="{ThemeResource FSTSecondaryTextBrush}"
                             Visibility="{x:Bind ViewModel.CanJump, Mode=OneWay}"
                             ToolTipService.ToolTip="Jump to your page" AutomationProperties.Name="Jump to your page"
                             AutomationProperties.AutomationId="fst.song-leaderboard.spotlight-jump">

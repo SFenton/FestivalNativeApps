@@ -31,7 +31,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 /**
  * Allowlisted keyless GETs (`.agents/platforms/service-safety.md`). Add a read by
  * adding a case here after proving it side-effect free; blocked routes (band
- * search, band detail, player stats, band sync-status) must never appear.
+ * detail, player stats, band sync-status) must never appear. Band search is allowed
+ * since its fallback became read-only (FortniteFestivalLeaderboardScraper#170).
  */
 sealed interface ServiceEndpoint {
     /** Whether the read is publication-bound and may be pinned/ETag-cached. */

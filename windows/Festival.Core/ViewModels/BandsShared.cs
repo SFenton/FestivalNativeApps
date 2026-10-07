@@ -114,6 +114,9 @@ public sealed record BandMemberRow(BandMember Member)
     /// <summary>Whether a per-song member score is shown.</summary>
     public bool HasScore => ScoreText.Length > 0;
 
+    /// <summary>Whether the member sits on the selected player's highlighted band card (text follows the player-row fill).</summary>
+    public bool OnPlayerRow { get; init; }
+
     /// <summary>Player profile route, when the account ID is safe.</summary>
     public AppRoute? Route => Member.HasValidAccount
         ? new AppRoute.Player(Member.AccountId, string.IsNullOrWhiteSpace(Member.DisplayName) ? null : Name) : null;

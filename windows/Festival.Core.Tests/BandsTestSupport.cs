@@ -18,13 +18,16 @@ public static class BandWire
         return $$"""{"accountId":"{{accountId}}","group":"all","totalCount":{{total}},"entries":[{{entries}}]}""";
     }
 
-    public static string SongBands(string songId, string bandType, int count, int total, int offset = 0, bool? showTotals = null)
+    public static string SongBands(string songId, string bandType, int count, int total, int offset = 0, int? selectedRank = null, string? selectedType = null, bool? showTotals = null)
     {
-        var entries = string.Join(",", Enumerable.Range(offset + 1, count).Select(i =>
-            $$"""{"bandId":"sb{{i}}","bandType":"{{bandType}}","teamKey":"t{{i}}a:t{{i}}b","comboId":null,"members":[{"accountId":"t{{i}}a","displayName":"Lead {{i}}","instruments":["Solo_Guitar"],"score":500,"accuracy":990000,"isFullCombo":true,"stars":5,"difficulty":3,"season":9},{"accountId":"t{{i}}b","displayName":"","instruments":["Solo_Bass"]}],"score":{{100000 - i}},"rank":{{i}},"accuracy":{{(i == 1 ? "990000" : "null")}},"isFullCombo":{{(i == 1 ? "true" : "false")}},"stars":{{(i == 1 ? "6" : "0")}},"season":9,"difficulty":3,"percentile":0.1,"endTime":null}"""));
+        var entries = string.Join(",", Enumerable.Range(offset + 1, count).Select(i => SongBandEntry(bandType, i)));
+        var selected = selectedRank is { } rank ? $$""","selectedPlayerEntry":{{SongBandEntry(selectedType ?? bandType, rank)}}""" : "";
         var totals = showTotals is { } show ? "\"showLeaderboardEntryTotals\":" + (show ? "true," : "false,") : "";
-        return $$"""{"songId":"{{songId}}","bandType":"{{bandType}}",{{totals}}"count":{{count}},"totalEntries":{{total}},"localEntries":{{total}},"entries":[{{entries}}]}""";
+        return $$"""{"songId":"{{songId}}","bandType":"{{bandType}}",{{totals}}"count":{{count}},"totalEntries":{{total}},"localEntries":{{total}},"entries":[{{entries}}]{{selected}}}""";
     }
+
+    public static string SongBandEntry(string bandType, int i) =>
+        $$"""{"bandId":"sb{{i}}","bandType":"{{bandType}}","teamKey":"t{{i}}a:t{{i}}b","comboId":null,"members":[{"accountId":"t{{i}}a","displayName":"Lead {{i}}","instruments":["Solo_Guitar"],"score":500,"accuracy":990000,"isFullCombo":true,"stars":5,"difficulty":3,"season":9},{"accountId":"t{{i}}b","displayName":"","instruments":["Solo_Bass"]}],"score":{{100000 - i}},"rank":{{i}},"accuracy":{{(i == 1 ? "990000" : "null")}},"isFullCombo":{{(i == 1 ? "true" : "false")}},"stars":{{(i == 1 ? "6" : "0")}},"season":9,"difficulty":3,"percentile":0.1,"endTime":null}""";
 }
 
 /// <summary>A <see cref="FakeService"/> that also serves band routes from overridable bodies.</summary>
@@ -61,7 +64,10 @@ public sealed class BandService
                 var parts = path.Split('/');
                 var offset = int.Parse(Query(query, "offset") ?? "0", CultureInfo.InvariantCulture);
                 const int total = 60;
-                return Ok(BandWire.SongBands(parts[3], parts[5], Math.Clamp(total - offset, 0, 25), total, offset));
+                // Like the service: an accountId that leads a band ("t{rank}a") adds that band as selectedPlayerEntry.
+                int? selected = Query(query, "accountId") is { Length: > 2 } account && account[0] == 't' && account[^1] == 'a' &&
+                                int.TryParse(account[1..^1], NumberStyles.None, CultureInfo.InvariantCulture, out var rank) && rank <= total ? rank : null;
+                return Ok(BandWire.SongBands(parts[3], parts[5], Math.Clamp(total - offset, 0, 25), total, offset, selected));
             }
             return null;
         };

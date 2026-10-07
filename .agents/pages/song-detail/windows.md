@@ -87,7 +87,7 @@ Rechecked #63 on the live public service ("Through the Fire and Flames", anonymo
 
 Automated coverage (UIA): `journeys/boards-ui.json` → `song-detail-preview-row-roles` and `song-detail-preview-row-anonymous` (`rivals_fixture.py --song-leaderboard anonymous`), and `journeys/a11y-keyboard.json` → `kb-detail-row-opens-profile` and `kb-detail-anonymous-row` (with Axe scans).
 
-Observed, not changed: Song Detail isn't a cached page, so Back rebuilds it at the top with focus on the title-bar Back button rather than on the row that was opened. #63 only requires returning to the Song page. Restoring scroll and focus on pushed pages is a navigation-wide behaviour (`CachedPageScroll` covers section roots only) and needs its own decision.
+Observed, not changed: Song Detail isn't a cached page, so Back rebuilds it at the top with focus on the title-bar Back button rather than on the row that was opened. #63 only requires returning to the Song page. Back to a cached section root (Songs, Shop, …) returns focus to the row that opened Song Detail (#276, [Compete notes](../compete/windows.md)). Restoring scroll and focus on pushed pages themselves, which are rebuilt on Back, is still a separate navigation-wide decision.
 
 ## Validation (issue #264)
 

@@ -99,6 +99,8 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     struct Page {
         let name: String
         var env: [String: String] = [:]
+        /// Replaces `env` in a compact ⅓ window, where some sections are not phone tabs.
+        var compactEnv: [String: String]?
         /// Needs the fixture player selected.
         var profile = false
         /// Any element identifier (navigation bars use their title) that proves the page loaded.
@@ -186,9 +188,12 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     /// Pages that need a selected player.
     static let profile: [Page] = [
         // The overview section, not the title: the iPhone Duo bar does not expose it.
-        // iPhone Duo has no Statistics tab: the route pushes the same page (Lane A11Y4).
+        // iPhone Duo and a ⅓ window have no Statistics tab: the route pushes the same page
+        // (Lane A11Y4; in a ⅓ window the tab launch fell back to Compete, which earlier
+        // audits recorded as "statistics").
         Page(name: "statistics",
              env: runningOnDuo ? ["FST_DEBUG_ROUTE": "statistics"] : ["FST_DEBUG_TAB": "statistics"],
+             compactEnv: ["FST_DEBUG_ROUTE": "statistics"],
              profile: true, ready: "fst.player.overview"),
         Page(name: "suggestions", env: ["FST_DEBUG_TAB": "suggestions"], profile: true, ready: "Suggestions"),
         Page(name: "rivals", env: ["FST_DEBUG_ROUTE": "rivals"], profile: true, ready: "Rivals"),
@@ -544,7 +549,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             "FST_UI_TEST_CLEAR_PROFILE": "1",
         ]
         if page.profile { env["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1" }
-        env.merge(page.env) { _, new in new }
+        env.merge(mode.isCompact ? page.compactEnv ?? page.env : page.env) { _, new in new }
         let app = FestivalApp.makeApp(env)
         // Pin Sort to Title per launch (never the saved preference).
         app.launchArguments += ["-fst.songs.sortMode", "title", "-fst.songs.sortAscending", "YES"]

@@ -132,6 +132,9 @@ struct RivalDetailScreen: View {
                         }
                     }
                     .padding(.vertical, 12)
+                    // Scrolling or a Quick Links jump while the cards stagger in fades
+                    // the rest in together (#323).
+                    .festivalFadeInScope()
                 }
                 .quickLinks(quickLinks, title: "Quick Links")
             }

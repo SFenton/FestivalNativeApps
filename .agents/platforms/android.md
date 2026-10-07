@@ -139,7 +139,7 @@ String intent extras, same names as Apple: `FST_DEBUG_TAB`, `FST_DEBUG_ROUTE` (`
 | `python tools/android/fst_android.py coverage --min-logic 95 [--files]` | Gate/summary from the JaCoCo XML |
 | `python tools/android/licenses.py [--check]` | Regenerate (or verify) `assets/licenses.json` from the release runtime graph; run with every dependency change ([licenses](../pages/licenses/android.md)) |
 | `python tools/android/fst_android.py session --avd FST_Phone "out.png\|posture\|wait\|KEY=V,KEY=V" …` | Installs the debug APK and takes every listed screenshot inside **one** shared-lock hold (with `device.py` JSON sidecars) |
-| `python tools/android/search_journey.py [phone book-fold …]` | Global search + shell journeys per form factor/posture against a request-path-logging fixture (one hold each); fails on any `/api/bands/search` |
+| `python tools/android/search_journey.py [phone book-fold …]` | Global search + shell journeys per form factor/posture against a request-path-logging fixture (one hold each); requires the fixture's `/api/bands/search` (never production) |
 | `python tools/android/talkback_walk.py --avd … --route … --name … --out …` | Real TalkBack walk of one screen (or a sheet opened with `--before`), what it says in order ([testing](../testing/android.md#accessibility-tooling)) |
 | `python tools/android/frame_stats.py --avd … --steps "swipe:up;…" --name … --out …` | Frame timing of one scenario from `gfxinfo framestats` (UI-thread and total percentiles) ([results](#performance)) |
 | `python tools/android/fst_android.py device <install\|shot\|launch\|drive\|posture\|features\|list> …` | Forwards to the shared FIFO-locked `tools/android/device.py` (device-lab lane) with this app's package/activity |
