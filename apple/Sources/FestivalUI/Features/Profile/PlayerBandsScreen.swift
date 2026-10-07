@@ -35,7 +35,7 @@ struct PlayerBandsScreen: View {
 
     /// Includes `accountId` so a reused view identity can never keep, or accept a
     /// late response for, another player's bands.
-    private struct RequestKey: Equatable {
+    private struct RequestKey: Hashable {
         let accountId: String
         let group: PlayerBandGroup
         let page: Int
@@ -104,6 +104,9 @@ struct PlayerBandsScreen: View {
                             .padding(.horizontal, 16)
                             .padding(.top, 4)
                             .padding(.bottom, Self.rowGap)
+                            // Scrolling while the cards stagger in fades the rest in
+                            // together (load-transition R5, #323).
+                            .festivalFadeInScope(resetKey: requestKey)
                         }
                         .task(id: requestKey) {
                             await FadeStagger.settle(afterRevealing: payload.list.entries.count) {

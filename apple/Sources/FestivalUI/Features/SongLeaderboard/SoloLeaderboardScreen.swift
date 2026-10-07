@@ -18,8 +18,11 @@ struct SoloLeaderboardScreen: View {
     @State private var page: Int
     @State private var state: LoadState
     @State private var lastRequest: RequestKey?
-    /// First staggered reveal of this page finished; recycled rows then appear instantly.
-    @State private var staggerSettled = false
+    /// The rows' first-load fade window: a scroll rushes their stagger (issue #323), rows
+    /// the selected-row scroll realizes fade in with it, and once it closes recycled rows
+    /// appear without a fade (R5). The selected-row reveal reads whether the reader
+    /// scrolled first.
+    @State private var fadeScope = FestivalFadeInScope()
     /// The song header has scrolled under the bar: the bar shows art, title and
     /// instrument instead (operator batch 7.2, like Song Detail).
     @State private var headerHidden = false
@@ -195,7 +198,8 @@ struct SoloLeaderboardScreen: View {
                                 .accessibilityIdentifier(
                                     "fst.song-leaderboard.row.\(entry.accountId)"
                                 )
-                                .detailStaggeredFadeIn(index: index, settled: staggerSettled)
+                                // The page scope decides whether it still fades (R5).
+                                .festivalFadeIn(staggerIndex: index)
                                 .listRowInsets(EdgeInsets(
                                     top: Self.rowInset, leading: 16, bottom: Self.rowInset, trailing: 16
                                 ))
@@ -205,6 +209,10 @@ struct SoloLeaderboardScreen: View {
                         }
                         .listStyle(.plain)
                         .scrollContentBackground(.hidden)
+                        // One fade window per revealed page (web `resetRush` on
+                        // paginate): scrolling while its rows stagger in, or the
+                        // selected-row scroll, fades the rest in together (#323).
+                        .festivalScrollFadeInScope(fadeScope, resetKey: revealedRowsKey)
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
                             listHeight = height
                         }
@@ -233,13 +241,17 @@ struct SoloLeaderboardScreen: View {
                         // its page is revealed (web `navToPlayer`, issue #307).
                         .task(id: FocusRequest(pending: focusPending, rows: revealedRowsKey)) {
                             guard focusPending, let rows else { return }
-                            guard let target = rows.leaderboard.entries.first(where: {
+                            guard let targetIndex = rows.leaderboard.entries.firstIndex(where: {
                                 isSelectedAccount($0.accountId)
                             }) else {
                                 focusPending = false
                                 return
                             }
-                            if await SelectedRowReveal.reveal(target.id, proxy: proxy, reduceMotion: reduceMotion) {
+                            // After the row's own entrance (web `navToPlayer`, #323).
+                            if await SelectedRowReveal.reveal(
+                                rows.leaderboard.entries[targetIndex].id, proxy: proxy,
+                                reduceMotion: reduceMotion, staggerIndex: targetIndex, scope: fadeScope
+                            ) {
                                 focusPending = false
                             }
                         }
@@ -255,13 +267,6 @@ struct SoloLeaderboardScreen: View {
                         .bottomChromeFade(
                             chromeTop: chromeTop, distance: $bottomFadeDistance, in: Self.pageSpace
                         )
-                    }
-                }
-                // The settle timer runs from each page's reveal, not from its load.
-                .task(id: revealedRowsKey) {
-                    guard let rows else { return }
-                    await FadeStagger.settle(afterRevealing: rows.leaderboard.entries.count) {
-                        staggerSettled = true
                     }
                 }
             } else if case let .failed(issue) = state, reveal.showsResult {
@@ -289,9 +294,6 @@ struct SoloLeaderboardScreen: View {
             chartWidth = width
         }
         .coordinateSpace(.named(Self.pageSpace))
-        // New rows stagger in again; the gate reveals them after its spinner, so the
-        // settle timer runs from the reveal (inside the gated content).
-        .onChange(of: loadedRowsKey) { _, _ in staggerSettled = false }
         .detailFadeTestSafe()
         .festivalBackground(.song(song.albumArt), session: session)
         .festivalNavigationTitle(song.title)

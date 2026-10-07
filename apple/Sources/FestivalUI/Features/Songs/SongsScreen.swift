@@ -1146,6 +1146,9 @@ struct SongsScreen: View, Equatable {
                     }
                 }
                 .listStyle(.plain)
+                // The reveal's fade window: a scroll or section jump while the first rows
+                // stagger in fades the rest in together (web `resetRush`, #323).
+                .festivalScrollFadeInScope(resetKey: fadeLoadedAt)
                 .modifier(ListJumpFadeEffect(fade: jumpFade))
                 // Mac: ↑/↓ walk every song in list order, built or not.
                 .macKeyboardRows((groups?.flatMap(\.songs) ?? visible).map {
@@ -1481,10 +1484,24 @@ struct SongsScreen: View, Equatable {
             ForEach(songs) { song in
                 songLink(
                     for: song, catalogueObservation: catalogueObservation,
-                    fadeIndex: fadeOrder[song.songId]
+                    fadeIndex: Self.fadeIndex(song.songId, in: fadeOrder)
                 )
             }
         }
+    }
+
+    /// A row's stagger index while the first rows are revealed: its place among them, or
+    /// past the first screen for every other row, so rows a scroll or a section jump
+    /// reaches during the reveal fade in with the rest instead of appearing opaque
+    /// (load-transition R5, #323). Nil once the reveal is over (the plain row path).
+    ///
+    /// - Parameters:
+    ///   - songId: The row's song.
+    ///   - fadeOrder: Stagger index per first-screen song id; empty after the reveal.
+    /// - Returns: The index to hand `festivalFadeIn(staggerIndex:)`.
+    static func fadeIndex(_ songId: String, in fadeOrder: [String: Int]) -> Int? {
+        guard !fadeOrder.isEmpty else { return nil }
+        return fadeOrder[songId] ?? FestivalFadeIn.maxStaggeredItems
     }
 
     /// One grid row: up to `columns` cards of equal width (a short last row keeps its
@@ -1496,7 +1513,7 @@ struct SongsScreen: View, Equatable {
             ForEach(songs) { song in
                 songCell(
                     for: song, catalogueObservation: catalogueObservation,
-                    fadeIndex: fadeOrder[song.songId], windowMenu: false, gridCard: true
+                    fadeIndex: Self.fadeIndex(song.songId, in: fadeOrder), windowMenu: false, gridCard: true
                 )
                 .accessibilityIdentifier("fst.songs.row.\(song.songId)")
                     .frame(maxWidth: .infinity)

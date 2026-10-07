@@ -54,10 +54,10 @@ class Scenario:
 
 SCENARIOS = (
     Scenario("band", "/songs/fixture-pulse/bands/Band_Duets?page=2&navToBand=true", "fixture-player-1:Fixture Player 1",
-             "Rows", 3, "id=fst.song-band-leaderboard.row.fixture-band-fixture-player-1:29", "Your band, *"),
+             "Rows", 3, "id=fst.song-band-leaderboard.row.fixture-band-fixture-player-1:29", "Your band. *"),
     Scenario("band-reduce-motion", "/songs/fixture-pulse/bands/Band_Duets?page=2&navToBand=true",
              "fixture-player-1:Fixture Player 1", "Rows", 3,
-             "id=fst.song-band-leaderboard.row.fixture-band-fixture-player-1:29", "Your band, *",
+             "id=fst.song-band-leaderboard.row.fixture-band-fixture-player-1:29", "Your band. *",
              motion=False, args=["--reduce-motion"]),
     Scenario("solo", "/songs/fixture-pulse/Solo_Guitar?page=1&navToPlayer=true", "fixture-player-6:Fixture Player 6",
              "RowsRepeater", 5, "id=fst.song-leaderboard.row.fixture-player-6", "*"),

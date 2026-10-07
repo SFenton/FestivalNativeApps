@@ -137,6 +137,31 @@ public sealed class SuggestionsViewModelTests
     }
 
     [Fact]
+    public async Task AppearingAgainWithTheSameSourceKeepsEveryCardInPlace()
+    {
+        var harness = new Harness();
+        var model = harness.Model();
+        await model.AppearCommand.ExecuteAsync(null);
+        var cards = model.Cards.ToList();
+        var starts = new List<int>();
+        model.CardsAdded += (_, start) => starts.Add(start);
+        var changes = 0;
+        model.Cards.CollectionChanged += (_, _) => changes++;
+
+        // Back to the cached page (#276): no rebuild, so the list keeps its containers and doesn't fade in again.
+        await model.AppearCommand.ExecuteAsync(null);
+        Assert.Equal(cards, model.Cards);
+        Assert.Equal(0, changes);
+        Assert.Empty(starts);
+        Assert.Equal(SuggestionsPhase.Loaded, model.Phase);
+
+        // A Settings change still re-derives the cards at once, while the page is away.
+        harness.Session.UpdateSettings(s => s.WithInstrumentVisible(Instrument.Lead, false));
+        Assert.Equal([0], starts);
+        Assert.DoesNotContain(model.Cards, c => c.Rows.Any(r => r.Presentation.Instrument == Instrument.Lead));
+    }
+
+    [Fact]
     public async Task SameSeedGivesTheSameMixAsTheGenerator()
     {
         var harness = new Harness();

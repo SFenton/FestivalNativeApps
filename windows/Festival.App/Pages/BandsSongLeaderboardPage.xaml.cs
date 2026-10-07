@@ -4,31 +4,27 @@ using Festival.App.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
 
 namespace Festival.App.Pages;
 
 #region Song band leaderboard page
-/// <summary><c>/songs/:songId/bands/:bandType</c>: a song's band scores with an in-place band-size switcher and paging.</summary>
+/// <summary>
+/// <c>/songs/:songId/bands/:bandType</c>: a song's band scores with an in-place band-size switcher and paging, and the
+/// selected player's band highlighted in place and pinned above the pager (issue #306).
+/// </summary>
 public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
 {
     private SongBandRow? pendingReveal;
+    private bool spotlightShown;
 
     /// <summary>Creates the page.</summary>
     public BandsSongLeaderboardPage()
     {
         InitializeComponent();
         Controls.BoardFooter.Inset(Footer, Rows);
-        BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Rows, Footer);
-        // The selected-band surface is set from code, so a contrast-theme switch must re-resolve it (issue #242).
-        Loaded += (_, _) =>
-        {
-            ContrastTheme.Changed -= OnColorsChanged;
-            ContrastTheme.Changed += OnColorsChanged;
-        };
-        Unloaded += (_, _) => ContrastTheme.Changed -= OnColorsChanged;
+        BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Rows, Footer, FooterPlate);
     }
 
     /// <summary>Page model (set on navigation).</summary>
@@ -53,6 +49,9 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
             "Loading band leaderboard");
         Bindings.Update();
         SizeBar.SelectedItem = SizeBar.Items[ViewModel.BandTypeIndex];
+        spotlightShown = ViewModel.ShowSpotlight;
+        ViewModel.Activate();
+        ContrastTheme.Changed += OnContrastChanged;
         await ViewModel.LoadAsync();
     }
 
@@ -61,6 +60,8 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
     {
         ViewModel.PropertyChanged -= OnViewModelChanged;
         ViewModel.LoadSwap.ContentRevealed -= OnContentRevealed;
+        ViewModel.Deactivate();
+        ContrastTheme.Changed -= OnContrastChanged;
         base.OnNavigatedFrom(e);
     }
 
@@ -88,8 +89,8 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
     }
 
     /// <summary>
-    /// Names each row container for UI Automation, so a row is one Narrator stop that reads the whole card, and paints the
-    /// selected player's band in the player-row surface (web <c>isPlayer</c>, as the Song Detail preview row).
+    /// Names each row container for UI Automation, so a row is one Narrator stop that reads the whole card, and gives the
+    /// selected player's band the player-row text (names, scores and chevron inherit it; HighlightText under a contrast theme).
     /// </summary>
     /// <param name="sender">List.</param>
     /// <param name="args">Container.</param>
@@ -98,49 +99,33 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
         if (args.InRecycleQueue || args.Item is not SongBandRow row) return;
         AutomationProperties.SetName(args.ItemContainer, row.PageAnnouncement);
         AutomationProperties.SetAutomationId(args.ItemContainer, row.AutomationId);
-        ApplySurface(args.ItemContainer, row.IsSelected);
+        if (row.IsSelected) args.ItemContainer.Foreground = ContrastTheme.Brush("FSTPlayerRowTextBrush");
+        else args.ItemContainer.ClearValue(Control.ForegroundProperty);
     }
 
-    /// <summary>
-    /// Paints a row card: the purple player-row fill, stroke and text for the selected band, else the plain card. Always
-    /// set, because containers are recycled between rows.
-    /// </summary>
-    /// <param name="container">Row container.</param>
+    /// <summary>Card fill: the purple player row for the selected player's band (web <c>isSelected</c>), else the card surface.</summary>
     /// <param name="selected">Whether the row is the selected player's band.</param>
-    private static void ApplySurface(SelectorItem container, bool selected)
-    {
-        if (container.ContentTemplateRoot is not Grid card) return;
-        card.Background = ContrastTheme.Brush(selected ? "FSTPlayerRowBrush" : "FSTCardSurfaceBrush");
-        card.BorderBrush = ContrastTheme.Brush(selected ? "FSTPlayerRowStrokeBrush" : "FSTCardStrokeBrush");
-        var rank = card.Children.OfType<TextBlock>().FirstOrDefault();
-        if (selected)
-        {
-            var text = ContrastTheme.Brush("FSTPlayerRowTextBrush");
-            container.Foreground = text;
-            if (rank is not null)
-            {
-                rank.Foreground = text;
-                rank.FontWeight = Microsoft.UI.Text.FontWeights.Bold;
-            }
-        }
-        else
-        {
-            container.ClearValue(Control.ForegroundProperty);
-            if (rank is not null)
-            {
-                rank.Foreground = ContrastTheme.Brush("FSTSecondaryTextBrush");
-                rank.ClearValue(TextBlock.FontWeightProperty);
-            }
-        }
-    }
+    /// <returns>Brush for the current theme.</returns>
+    public static Brush Surface(bool selected) => ContrastTheme.Brush(selected ? "FSTPlayerRowBrush" : "FSTCardSurfaceBrush");
 
-    /// <summary>Re-applies the row surfaces after a system colour change.</summary>
+    /// <summary>Card outline for <see cref="Surface"/>.</summary>
+    /// <param name="selected">Whether the row is the selected player's band.</param>
+    /// <returns>Brush for the current theme.</returns>
+    public static Brush Stroke(bool selected) => ContrastTheme.Brush(selected ? "FSTPlayerRowStrokeBrush" : "FSTCardStrokeBrush");
+
+    /// <summary>Secondary text (rank, member scores), following the player-row fill on the selected band.</summary>
+    /// <param name="selected">Whether the text sits on the selected player's band.</param>
+    /// <returns>Brush for the current theme.</returns>
+    public static Brush Secondary(bool selected) => ContrastTheme.Brush(selected ? "FSTPlayerRowTextBrush" : "FSTSecondaryTextBrush");
+
+    /// <summary>Re-templates the rows so their looked-up brushes follow a contrast theme switch.</summary>
     /// <param name="sender">Unused.</param>
     /// <param name="e">Unused.</param>
-    private void OnColorsChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(() =>
+    private void OnContrastChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(() =>
     {
-        foreach (var item in Rows.Items)
-            if (item is SongBandRow row && Rows.ContainerFromItem(item) is SelectorItem container) ApplySurface(container, row.IsSelected);
+        var items = Rows.ItemsSource;
+        Rows.ItemsSource = null;
+        Rows.ItemsSource = items;
     });
 
     /// <summary>
@@ -162,6 +147,14 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
                 {
                     if (Rows.Items.Count > 0) Rows.ScrollIntoView(Rows.Items[0]);
                 });
+            return;
+        }
+        if (e.PropertyName == nameof(SongBandLeaderboardViewModel.ShowSpotlight))
+        {
+            var shown = ViewModel.ShowSpotlight;
+            if (PinnedRowReveal.FadesOnArrival(spotlightShown, shown, ViewModel.LoadSwap.Phase))
+                DispatcherQueue.TryEnqueue(() => FadeIn.Play(SpotlightPanel, TimeSpan.Zero));
+            spotlightShown = shown;
             return;
         }
         if (e.PropertyName == nameof(SongBandLeaderboardViewModel.Song)) ShowSong();
@@ -186,7 +179,7 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
         DispatcherQueue.TryEnqueue(() =>
         {
             FadeIn.StaggerRealized(Rows);
-            if (ViewModel.ShowSpotlight && ViewModel.PinnedGate.IsGated) FadeIn.Play(SpotlightRow, PinnedRowReveal.RevealDelay);
+            if (ViewModel.ShowSpotlight && ViewModel.PinnedGate.IsGated) FadeIn.Play(SpotlightPanel, PinnedRowReveal.RevealDelay);
             if (pendingReveal is { } reveal)
             {
                 pendingReveal = null;

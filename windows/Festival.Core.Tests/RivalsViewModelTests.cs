@@ -225,6 +225,31 @@ public class RivalsViewModelTests
     }
 
     [Fact]
+    public async Task Hub_ReturningWithNothingChangedKeepsSectionsWithoutReading()
+    {
+        // Back from View All or a rival re-activates the cached hub (issues #82, #276): same sections, no reads.
+        var fake = new RivalsFakeService();
+        var hub = new RivalsHubViewModel(fake.Session());
+        hub.Activate();
+        await Async.Until(() => hub.State == RivalsHubState.Loaded && hub.Sections.All(s => s.State == LoadState.Loaded));
+        var sections = hub.Sections.ToList();
+        var rows = hub.Sections[2].Rows.ToList();
+        var lead = fake.Count($"/api/player/{Me}/rivals/Solo_Guitar");
+        var combo = fake.Count($"/api/player/{Me}/rivals/03");
+
+        hub.Deactivate();
+        hub.Activate();
+        await Async.Settle();
+        Assert.Equal(RivalsHubState.Loaded, hub.State);
+        Assert.Equal(sections, hub.Sections, ReferenceEqualityComparer.Instance);
+        Assert.Equal(rows, hub.Sections[2].Rows, ReferenceEqualityComparer.Instance);
+        Assert.All(hub.Sections, s => Assert.False(s.IsLoading));
+        Assert.Equal(lead, fake.Count($"/api/player/{Me}/rivals/Solo_Guitar"));
+        Assert.Equal(combo, fake.Count($"/api/player/{Me}/rivals/03"));
+        hub.Deactivate();
+    }
+
+    [Fact]
     public async Task Hub_RebuildsOnSettingsAndRefresh()
     {
         var fake = new RivalsFakeService();

@@ -131,7 +131,9 @@
                                         <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}"
                                                        controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52">
                                             <ItemsRepeater.Layout>
-                                                <StackLayout Spacing="2" />
+                                                <!-- One non-virtualizing column: rows stay realized while the page is cached, so Back
+                                                     never re-estimates them and moves the page (#276). -->
+                                                <controls:LeaderboardsCardGridLayout MinColumnWidth="0" MaxColumns="1" Spacing="2" />
                                             </ItemsRepeater.Layout>
                                             <ItemsRepeater.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:RivalRowItem">

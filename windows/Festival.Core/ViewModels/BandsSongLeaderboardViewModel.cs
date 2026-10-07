@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Festival.Core.Domain;
@@ -7,10 +9,11 @@ namespace Festival.Core.ViewModels;
 #region Song band leaderboard
 /// <summary>
 /// <c>/songs/:songId/bands/:bandType</c>: a song's band scores for one band size, 25 per page, with an in-place
-/// band-size switcher (web <c>SongBandLeaderboardPage</c>). Rows open Band Detail with the safe type/team-key lookup. The
-/// selected player's best band of the size is highlighted in place and pinned as a footer row that follows the solo
-/// board's rule (pattern <c>leaderboard-row</c> R7, issue #307): it jumps to its page when that page isn't shown, else
-/// opens Band Detail.
+/// band-size switcher (web <c>SongBandLeaderboardPage</c>). Rows open Band Detail with the safe type/team-key lookup.
+/// With a selected player the page is read with <c>accountId=</c>, and their best band of this size is highlighted in
+/// place and pinned above the pager on every page (web <c>FixedLeaderboardPlayerFooter</c>, issue #306). The pinned row
+/// follows the solo board's rule (pattern <c>leaderboard-row</c> R7, issue #307): it jumps to its page when that page
+/// isn't shown, else opens Band Detail.
 /// </summary>
 public sealed partial class SongBandLeaderboardViewModel : ObservableObject
 {
@@ -19,6 +22,8 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
 
     private readonly FestivalSession session;
     private int version;
+    private bool attached;
+    private string? loadedAccount;
 
     /// <summary>Creates the page model.</summary>
     /// <param name="session">Shared session.</param>
@@ -62,8 +67,9 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
     public LoadSwap LoadSwap { get; }
 
     /// <summary>
-    /// Whether the pinned band row follows <see cref="LoadSwap"/>: only for the first load and a band-size change (which
-    /// changes the row), like the solo board and the web footer; paging keeps it beside the spinner (load-transition R2).
+    /// Whether the pinned band row follows <see cref="LoadSwap"/>: only on the first load and when the band size or the
+    /// selected player changes (which changes the row), like the web footer; paging keeps it beside the spinner
+    /// (load-transition R2, issue #270).
     /// </summary>
     public PinnedRowGate PinnedGate { get; } = new();
 
@@ -92,17 +98,11 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
     [ObservableProperty]
     private List<SongBandRow> rows = [];
 
-    /// <summary>The selected player's best band of this size, pinned below the list, or <see langword="null"/>.</summary>
+    /// <summary>The selected player's pinned band, when the response carried one for them.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowSpotlight))]
+    [NotifyPropertyChangedFor(nameof(ShowSpotlight), nameof(CanJump))]
     [NotifyCanExecuteChangedFor(nameof(JumpCommand))]
     private SongBandSpotlightRow? spotlight;
-
-    /// <summary>Whether the pinned footer row shows.</summary>
-    public bool ShowSpotlight => Spotlight is not null;
-
-    /// <summary>Whether the footer row jumps to its page (the shown page doesn't contain it).</summary>
-    public bool CanJump => Spotlight?.Action.Jumps == true;
 
     /// <summary>Paging population, once known.</summary>
     [ObservableProperty]
@@ -159,6 +159,33 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
     /// <summary>Whether the failure is shown.</summary>
     public bool ShowError => State == LoadState.Failed && LoadSwap.ContentVisible;
 
+    /// <summary>Whether the pinned band row is shown (on every page while the response carries it, web <c>hasSelectedFooter</c>).</summary>
+    public bool ShowSpotlight => Spotlight is not null;
+
+    /// <summary>
+    /// Whether the pinned row jumps to its page (ranked, on another page) rather than opening Band Detail (pattern
+    /// <c>leaderboard-row</c> R7, as the Solo board).
+    /// </summary>
+    public bool CanJump => Spotlight?.Action.Jumps == true;
+
+    /// <summary>Starts following the selected player; call when the page is shown.</summary>
+    public void Activate()
+    {
+        if (attached) return;
+        session.PropertyChanged += OnSessionChanged;
+        attached = true;
+    }
+
+    /// <summary>Stops following the session (page left).</summary>
+    public void Deactivate()
+    {
+        if (attached) session.PropertyChanged -= OnSessionChanged;
+        attached = false;
+    }
+
+    /// <summary>The selected player's account when it is safe to send as <c>accountId</c>.</summary>
+    private string? SelectedAccount => session.SelectedPlayer?.AccountId is { } id && ProfileText.IsValidAccountId(id) ? id : null;
+
     /// <summary>
     /// Switching size returns to page one and drops the old size's entry total at once: the board line names the new size
     /// immediately, and its total appears only when that size's response commits (song-leaderboard-header R5).
@@ -172,14 +199,23 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
         _ = LoadAsync();
     }
 
+    /// <summary>A pinned band that newly appears joins <see cref="PinnedGate"/> while a reload is in flight.</summary>
+    /// <param name="oldValue">Previous pinned band.</param>
+    /// <param name="newValue">New pinned band.</param>
+    partial void OnSpotlightChanged(SongBandSpotlightRow? oldValue, SongBandSpotlightRow? newValue)
+    {
+        if (oldValue is null && newValue is not null) PinnedGate.Arrived(LoadSwap.Phase);
+    }
+
     /// <summary>Loads the song header (best effort) and the current page.</summary>
     /// <returns>Load task.</returns>
     [RelayCommand]
     public async Task LoadAsync()
     {
         var requested = ++version;
-        var (type, page) = (BandType, Pager.Page);
-        PinnedGate.Begin(type, LoadSwap.Phase);
+        var (type, page, account) = (BandType, Pager.Page, SelectedAccount);
+        var key = (type, account);
+        PinnedGate.Begin(key, LoadSwap.Phase);
         var swap = LoadSwap.BeginReloadAsync(AnimateLoadSwaps(), State is LoadState.Loaded or LoadState.Empty or LoadState.Failed && LoadSwap.ContentVisible);
         if (State is LoadState.Idle) State = LoadState.Loading;
         try
@@ -196,7 +232,7 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
                     // The header stays empty; the board can still load.
                 }
             }
-            var board = await session.Api.GetSongBandLeaderboardAsync(SongId, type, page, PageSize, session.SelectedPlayer?.AccountId);
+            var board = await session.Api.GetSongBandLeaderboardAsync(SongId, type, page, PageSize, account);
             if (requested != version) return;
             var pages = board.PageCount(PageSize);
             if (page > pages)
@@ -206,20 +242,20 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
                 await LoadAsync();
                 return;
             }
+            var pinned = board.PinnedEntry(account);
             var swapRequest = await swap;
             await LoadSwap.CommitAsync(swapRequest, () =>
             {
                 Status.Clear();
-                PinnedGate.Commit(type);
+                PinnedGate.Commit(key);
+                loadedAccount = account;
                 Population = board.Population;
                 TotalText = board.ShowLeaderboardEntryTotals == true && board.TotalEntries > 0
                     ? $"{BandFormatting.Count(board.TotalEntries)} {type.Label()} {(board.TotalEntries == 1 ? "entry" : "entries")}" : "";
                 Pager.PageCount = pages;
-                Rows = [.. board.Entries.Select(e => new SongBandRow(e) { IsSelected = board.IsSelected(e) })];
-                Spotlight = board.SelectedEntry is { } selected
-                    ? new SongBandSpotlightRow(selected, SelectedRowAction.Footer(selected.Rank,
-                        board.Entries.Any(board.IsSelected) || LeaderboardPaging.PageForRank(selected.Rank, PageSize) == page, PageSize))
-                    : null;
+                Rows = [.. board.Entries.Select(e => new SongBandRow(e, pinned is not null && SongBandPreview.IsSameBand(e, pinned)))];
+                Spotlight = pinned is null ? null : SongBandSpotlightRow.Pinned(pinned, SelectedRowAction.Footer(pinned.Rank,
+                    Rows.Any(r => r.IsSelected) || LeaderboardPaging.PageForRank(pinned.Rank, PageSize) == page, PageSize), board.Entries);
                 State = Rows.Count == 0 ? LoadState.Empty : LoadState.Loaded;
             }, AnimateLoadSwaps());
         }
@@ -229,7 +265,7 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
             var swapRequest = await swap;
             await LoadSwap.CommitAsync(swapRequest, () =>
             {
-                PinnedGate.Commit(type);
+                PinnedGate.Commit(key);
                 Status.Report(error);
                 Spotlight = null;
                 State = LoadState.Failed;
@@ -237,15 +273,10 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
         }
     }
 
-    /// <summary>A pinned row that newly appears joins <see cref="PinnedGate"/> while a reload is in flight.</summary>
-    /// <param name="oldValue">Previous pinned row.</param>
-    /// <param name="newValue">New pinned row.</param>
-    partial void OnSpotlightChanged(SongBandSpotlightRow? oldValue, SongBandSpotlightRow? newValue)
-    {
-        if (oldValue is null && newValue is not null) PinnedGate.Arrived(LoadSwap.Phase);
-    }
-
-    /// <summary>Footer row: loads the page containing the selected band's rank and asks the view to reveal it.</summary>
+    /// <summary>
+    /// Pinned row: loads the page containing the selected band's rank and asks the view to reveal it (Solo board rule,
+    /// leaderboard-row R7).
+    /// </summary>
     /// <returns>Load task.</returns>
     [RelayCommand(CanExecute = nameof(CanJump))]
     private Task JumpAsync()
@@ -253,6 +284,15 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
         if (Spotlight?.Action.JumpPage is not { } page) return Task.CompletedTask;
         RevealSelected = true;
         return GoToPageAsync(page);
+    }
+
+    /// <summary>Re-reads the current size and page in place when another player is selected or the player is cleared.</summary>
+    /// <param name="sender">Session.</param>
+    /// <param name="e">Changed property.</param>
+    private void OnSessionChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(FestivalSession.Settings) || State is LoadState.Idle || SelectedAccount == loadedAccount) return;
+        _ = LoadAsync();
     }
 
     /// <summary>Loads a page (pager commands).</summary>
@@ -270,17 +310,19 @@ public sealed record SongBandRow
 {
     /// <summary>Creates a row.</summary>
     /// <param name="entry">Wire row.</param>
-    public SongBandRow(SongBandLeaderboardEntry entry)
+    /// <param name="isSelected">Whether this is the selected player's band.</param>
+    public SongBandRow(SongBandLeaderboardEntry entry, bool isSelected = false)
     {
         Entry = entry;
-        Members = [.. entry.Members.DistinctBy(m => m.AccountId, StringComparer.Ordinal).Select(m => new BandMemberRow(m))];
+        IsSelected = isSelected;
+        Members = [.. entry.Members.DistinctBy(m => m.AccountId, StringComparer.Ordinal).Select(m => new BandMemberRow(m) { OnPlayerRow = isSelected })];
     }
 
     /// <summary>Wire row.</summary>
     public SongBandLeaderboardEntry Entry { get; }
 
-    /// <summary>Whether this is the selected player's band (purple highlight, web <c>isPlayer</c>).</summary>
-    public bool IsSelected { get; init; }
+    /// <summary>Whether this is the selected player's pinned band (web <c>isSelected</c>: player-row fill in place).</summary>
+    public bool IsSelected { get; }
 
     /// <summary>Members with icons.</summary>
     public List<BandMemberRow> Members { get; }
@@ -321,7 +363,7 @@ public sealed record SongBandRow
     /// Song Band Leaderboard row name in visual order (rank, each member's name, instruments and per-song score, then the
     /// team footer), so the single Narrator stop carries everything the card shows.
     /// </summary>
-    public string PageAnnouncement => (IsSelected ? "Your band, " : "") + Spoken(memberScores: true);
+    public string PageAnnouncement => (IsSelected ? "Your band. " : "") + Spoken(memberScores: true);
 
     /// <summary>
     /// Song Detail band preview row name in visual order (rank, each member's name and instruments, then the team footer).
@@ -340,60 +382,80 @@ public sealed record SongBandRow
 }
 
 /// <summary>
-/// The selected player's band pinned below a song band board, drawn by the same <c>LeaderboardEntryRow</c> as the solo
-/// board's pinned row (pattern <c>leaderboard-row</c> R5/R7, Apple <c>LeaderboardEntry(selectedBand:)</c>).
+/// The selected player's band pinned above the song band board's pager (web <c>FixedLeaderboardPlayerFooter</c>), drawn by
+/// the shared floating leaderboard row like the Solo board's pinned row: rank, the joined roster (marquee when long),
+/// season, score, accuracy/FC badge and stars. Like the Solo row (pattern <c>leaderboard-row</c> R7, issue #307) it jumps
+/// to its page while that page isn't shown, else opens Band Detail (web <c>getBandProfileRoute</c>).
 /// </summary>
-/// <param name="Entry">Wire row with its board rank.</param>
-/// <param name="Action">Jump to its page, or open Band Detail when it is on the shown page.</param>
-public sealed record SongBandSpotlightRow(SongBandLeaderboardEntry Entry, SelectedRowAction Action) : ILeaderboardScoreRow
+/// <param name="Entry">The selected player's best band of this size.</param>
+/// <param name="Action">Jump to its page, or open Band Detail when it is on the shown page (default).</param>
+public sealed record SongBandSpotlightRow(SongBandLeaderboardEntry Entry, SelectedRowAction Action = default) : ILeaderboardScoreRow
 {
-    /// <inheritdoc />
-    public string RankText => Entry.Rank > 0 ? BandFormatting.Rank(Entry.Rank) : "\u2014";
+    /// <summary><c>#1,234</c>, or an em dash when unranked.</summary>
+    public string RankText => Entry.Rank > 0 ? ScoreFormatting.Rank(Entry.Rank) : "—";
 
-    /// <inheritdoc />
+    /// <summary>Joined member names (<c>A + B</c>).</summary>
     public string Name => Entry.MembersLabel;
 
-    /// <inheritdoc />
+    /// <summary>Always the selected player's band (purple highlight, bold).</summary>
     public bool IsSelected => true;
 
-    /// <inheritdoc />
-    public LeaderboardSection? Section => null;
+    /// <summary>Grouped score.</summary>
+    public string Score => ScoreFormatting.Score(Entry.Score);
 
-    /// <summary>Band Detail with the safe lookup keys; a jump is the view's command (<see cref="Action"/>).</summary>
-    public AppRoute? Route => new AppRoute.Band(Entry.BandId.Length > 0 ? Entry.BandId : Entry.TeamKey, Entry.BandType, Entry.TeamKey);
+    /// <summary>Accuracy text.</summary>
+    public string Accuracy => ScoreFormatting.Accuracy(Entry.Accuracy);
 
-    /// <inheritdoc />
-    public string AutomationId => "fst.song-band-leaderboard.spotlight-footer";
-
-    /// <inheritdoc />
-    public string Season => "";
-
-    /// <inheritdoc />
-    public string Score => BandFormatting.Count(Entry.Score);
-
-    /// <inheritdoc />
-    public string Accuracy => Entry.Accuracy is > 0 ? BandFormatting.Accuracy(Entry.Accuracy) : "";
-
-    /// <inheritdoc />
+    /// <summary>Whether the accuracy is shown.</summary>
     public bool HasAccuracy => Accuracy.Length > 0;
 
-    /// <inheritdoc />
-    public double AccuracyValue => Entry.Accuracy ?? 0;
-
-    /// <inheritdoc />
+    /// <summary>Explicit full combo.</summary>
     public bool IsFullCombo => Entry.IsFullCombo == true;
 
-    /// <inheritdoc />
-    public string BadgeAutomationId => "fst.score.accuracy.song-band-spotlight";
+    /// <summary>Accuracy in ten-thousandths of a percent, for the badge tint.</summary>
+    public double AccuracyValue => Entry.Accuracy ?? 0;
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Columns measured over the page's entries plus this row (web <c>widthEntries</c>; leaderboard-row R1), so a wider rank
+    /// or score elsewhere on the board sizes the pinned row; <see langword="null"/> = this row's own content.
+    /// </summary>
+    public LeaderboardSection? Section { get; init; }
+
+    /// <summary>The pinned row with its columns fitted to <paramref name="page"/> and itself (leaderboard-row R1).</summary>
+    /// <param name="entry">The selected player's band.</param>
+    /// <param name="action">Its jump-or-open action (leaderboard-row R7).</param>
+    /// <param name="page">The current page's entries.</param>
+    /// <returns>Pinned row.</returns>
+    public static SongBandSpotlightRow Pinned(SongBandLeaderboardEntry entry, SelectedRowAction action, IEnumerable<SongBandLeaderboardEntry> page)
+    {
+        var row = new SongBandSpotlightRow(entry, action);
+        return row with { Section = LeaderboardColumns.Measure([.. page.Select(e => new SongBandSpotlightRow(e)), row]) };
+    }
+
+    /// <summary>Service stars (0 when missing).</summary>
     public int StarCount => Entry.Stars ?? 0;
 
-    /// <summary>"Your band's rank, 29th. Jump to your band's position. …" then members and score details.</summary>
+    /// <summary>Season text (<c>S15</c>), or empty.</summary>
+    public string Season => Entry.Season is { } s ? string.Create(CultureInfo.InvariantCulture, $"S{s}") : "";
+
+    /// <summary>Band Detail with the safe lookup keys (as the in-list row); a jump is the page's command (<see cref="Action"/>).</summary>
+    public AppRoute? Route => new AppRoute.Band(Entry.BandId.Length > 0 ? Entry.BandId : Entry.TeamKey, Entry.BandType, Entry.TeamKey);
+
+    /// <summary>UIA automation ID.</summary>
+    public string AutomationId => "fst.song-band-leaderboard.spotlight-footer";
+
+    /// <summary>Badge UIA ID.</summary>
+    public string BadgeAutomationId => "fst.score.accuracy.band-spotlight";
+
+    /// <summary>
+    /// Screen-reader name (Solo pinned-row wording) naming the destination: "Your band's rank, 29th. Jump to your band's
+    /// position. …" or "… Open band. …".
+    /// </summary>
     public string Announcement =>
         (Entry.Rank > 0 ? $"Your band's rank, {RankingFormatting.Ordinal(Entry.Rank)}. " : "Your band. ") +
-        $"{Action.Destination(SelectedRowSubject.Band)}. {Name}, {Score} points" +
-        (HasAccuracy ? $", {Accuracy} accuracy" : "") + (IsFullCombo ? ", full combo" : "") +
+        $"{Action.Destination(SelectedRowSubject.Band)}. {Name}" +
+        $", {Score} points" + (HasAccuracy ? $", {Accuracy} accuracy" : "") +
+        (IsFullCombo ? ", " + ScoreFormatting.FullComboAnnouncement(HasAccuracy) : "") +
         (StarRating.From(Entry.Stars) is { } stars ? $", {stars.Announcement}" : "");
 }
 #endregion

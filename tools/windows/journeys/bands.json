@@ -188,6 +188,33 @@
     ]
   },
   {
+    "name": "song-band-leaderboard-pinned-band",
+    "route": "/songs/fixture-pulse/bands/Band_Duets",
+    "preset": "wide",
+    "extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Demo Player"},
+    "steps": [
+      "waitfor:id=fst.song-band-leaderboard.spotlight-footer@15",
+      "assertname:id=fst.song-band-leaderboard.spotlight-footer@5|Your band's rank, 29th. Jump to your band's position. *",
+      "shot:{shots}\\song-band-leaderboard-pinned.png",
+      "invoke:id=fst.song-band-leaderboard.page-next",
+      "waitfor:id=fst.song-band-leaderboard.spotlight-footer@1",
+      "assertname:id=fst.song-band-leaderboard.spotlight-footer@10|Your band's rank, 29th. Open band. *",
+      "waitfor:id=fst.song-band-leaderboard.spotlight-footer@5",
+      "shot:{shots}\\song-band-leaderboard-pinned-own-page.png",
+      "select:id=fst.song-band-leaderboard.band-type.Band_Trios",
+      "waitfor:id=fst.song-band-leaderboard.empty@10",
+      "waitgone:id=fst.song-band-leaderboard.spotlight-footer@5",
+      "select:id=fst.song-band-leaderboard.band-type.Band_Duets",
+      "waitfor:id=fst.song-band-leaderboard.spotlight-footer@10",
+      "assertname:id=fst.song-band-leaderboard.spotlight-footer@5|Your band's rank, 29th. Jump to your band's position. *",
+      "invoke:id=fst.song-band-leaderboard.spotlight-footer",
+      "waitfor:id=fst.song-band-leaderboard.row.fixture-band-fixture-player-1:29@15",
+      "assertname:id=fst.song-band-leaderboard.spotlight-footer@10|Your band's rank, 29th. Open band. *",
+      "invoke:id=fst.song-band-leaderboard.spotlight-footer",
+      "waitgone:id=fst.song-band-leaderboard.title@10"
+    ]
+  },
+  {
     "name": "song-band-leaderboard-error",
     "route": "/songs/missing-song/bands/Band_Trios",
     "preset": "medium",

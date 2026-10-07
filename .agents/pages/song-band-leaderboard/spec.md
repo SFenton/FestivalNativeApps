@@ -45,7 +45,7 @@ Natives may title-case empty-state titles to platform convention ([empty-error-s
 
 - **Band size** (native control): new board → page 1, scroll to top with the header in view, rows reload; header and backdrop stay.
 - **Page**: rows reload; the web scrolls to the top. Natives keep the header scrolled away when it was under the bar (song-leaderboard-header R3).
-- **Selected footer**: on this page → opens the Band page; elsewhere → jumps to the page holding its rank with `navToBand`, then centres and highlights the row (leaderboard-row R5, R7). Song Detail's appended selected-band row opens the board the same way.
+- **Selected footer**: on this page → opens the Band page; elsewhere → jumps to the page holding its rank with `navToBand`, then centres and highlights the row (leaderboard-row R5, R7). Song Detail's appended selected-band row opens the board the same way. Windows still splits this (leaderboard-row Known debt): its pinned row always opens the Band page and a "Your Page" button above it jumps.
 - **Row** → Band page (`getBandProfileRoute`: band ID, size, team key, names). **Header title** → Song Detail. **Back** → the previous page (usually Song Detail's band section "View full leaderboard").
 - Responses for an older size, page or selected profile are discarded (latest wins).
 
@@ -65,7 +65,7 @@ Web: `song-band-leaderboard-list`, `song-band-leaderboard-entry-{rank}`, `song-b
 | Bar title after scroll | `SongBarTitleToolbarItem` (`songHeaderScrollAway`) | `FestivalScreen(scrolled, marqueeTitle = true)` | — (window title) |
 | Song backdrop | `festivalBackground(.song(albumArt))` | `SongCoverBackdrop` | `IBackdropPage.BackdropArt` |
 | Reload gate | `FestivalReloadGate` | `rememberLoadSwap` / `LoadSwap` | shared load-swap gate |
-| Selected band footer + pager | `SelectedScoreFooterRow` + `RankingsPagerView` | `SelectedScoreFooterRow` in `RankingsBoardLayout` | `LeaderboardsPager` (no footer yet) |
+| Selected band footer + pager | `SelectedScoreFooterRow` + `RankingsPagerView` | `SelectedScoreFooterRow` in `RankingsBoardLayout` | floating `LeaderboardEntryRow` (`SongBandSpotlightRow`, pinned on every page) directly above `LeaderboardsPager`; "Your Page" jumps (leaderboard-row Known debt) |
 | Failure | `ServiceStatusView` | `ServiceStatusView` | `ServiceStatusView` |
 
 The pattern docs own these rows; update them there first.
