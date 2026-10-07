@@ -2,7 +2,7 @@
 
 > **What:** section-title hierarchy, card placement, accessibility semantics, and pinned-header handoff. **Read when:** adding a titled group, a grouped list, or a sticky section header.
 
-Status: **current**, 2026-10-06. Provenance: #288, #291, #297, #312, #321.
+Status: **current**, 2026-10-07. Provenance: #288, #291, #297, #312, #321, #343.
 
 ## Intent
 
@@ -28,6 +28,7 @@ The web has no sticky section header. Native sticky behavior is an approved addi
 6. **R6. Keep one accessible title.** The in-list title remains the heading; a visual moving copy is hidden from assistive technology. A section with no title (one unlabeled section, e.g. a player metric sort or a lone Item Shop bucket) exposes no empty heading or group and takes no focus stop (Windows `SongsPage.ApplyGroupHeaderAccess`, #282: WinUI otherwise makes the group header a focusable, unnamed Group that Up from the first row lands on; guarded by the `"scan": true` Axe + focus-sequence pages in `a11y-songs-bucket-headers.json`).
 7. **R7. Keep native implementations, not a shared fake header.** **Approved variants:** Apple `SongsSectionBar`, Android Compose `stickyHeader`, and the Windows clipped header copy are the #288-approved native implementations; all obey R1-R6.
 8. **R8. One View All link per platform.** A section title that opens its full list puts "View All" at the trailing end of the title row, using the platform's shared link, with at least a 44 pt (Apple) or 48 dp (Android) target and a spoken label that starts with "View All" and names the list. The link keeps its own test ID: on Apple, an identified container around it (`DualSourcePane`, Duo Song Detail history cards) sets `.accessibilityElement(children: .contain)` before its identifier (#321). Do not add a second header-link style in a feature folder (#312). The copy is "View All", never "See All" (owner, #321). It stays a link rather than the purple [view-all-cta](view-all-cta.md) button (agent decision, #321, 2026-10-06, view-all-cta R7 and the Android record below; owner may override).
+9. **R9. Titles stay on their side of a fold.** On a foldable in book pose, a full-width title and its description wrap on the side of the fold they start on instead of running across it ([hinge-columns](hinge-columns.md) R3, #343). Apple `FestivalSectionHeader` applies `staysOnHingeSide()`, so every titled card gets it; callers add nothing. HIG Designing for iPhone Duo: "use reserved-region APIs to keep important elements clear of the center" (should).
 
 ## Agent decision (#321, 2026-10-06): rename title-row links, purple CTA only for in-card bottom rows
 

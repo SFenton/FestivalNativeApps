@@ -1,0 +1,51 @@
+# Hinge columns
+
+> **What:** where two-column layouts (grids, side-by-side rows) put their centre gutter and where full-width titles wrap when a foldable is partially folded with a vertical fold (iPhone Duo book pose, Android book posture). **Read when:** adding a grid, a two-up row or a full-width title to a page that can show on a foldable's inner display, or changing column counts on the Duo inner display.
+
+Status: **current**, 2026-10-07. Provenance: #343 (split from #332); Android precedent from the Rivals, Shop, Songs and Settings hinge work.
+
+## Intent
+
+A partially folded device has a physical crease. Content that straddles it is hard to read and to tap, and a grid that splits at half its own width (left of the iPhone Duo vertical bar) puts its gutter beside the crease rather than on it. While a vertical fold crosses a layout, columns meet at the fold and titles stay on the side they start on. Fully open, folded and on every other device, the flat layout is unchanged; unfolding reflows the same views in place and reloads nothing.
+
+## Web source (behavior reference)
+
+The web app has no fold. This is a native platform requirement (HIG Designing for iPhone Duo; Material foldable guidance), not web parity. The flat layouts keep their web-derived column counts.
+
+## Rules
+
+1. **R1. Columns meet at the fold.** While an active vertical fold (Apple `DeviceLayout.foldFrame`, Android a separating vertical `FoldingFeature`) crosses a grid or two-up row, the leading columns end at the fold clearance and the trailing columns start after it. The clearance is the fold's width, at least the layout's normal gutter, centred on the fold. Each side fills its own physical side, so the sides may differ in width (the iPhone Duo vertical bar stays inside the trailing side, like the on-demand split panes in [split-view](../design/apple/split-view.md)). HIG Designing for iPhone Duo: "If the system doesn't move a custom component automatically, use reserved-region APIs to keep important elements clear of the center" (should).
+2. **R2. Even column counts.** Apple keeps the same column count on each side: half the flat count for a fixed grid, or as many as fit the narrower side for an adaptive grid. HIG Designing for iPhone Duo: "Prefer a layout container that adapts automatically, and even grid column counts" (should). Android's `ShopColumnPolicy` may fit each pane separately (approved variant, Material guidance).
+3. **R3. Titles stay on their side.** A full-width section title or subtitle that starts on the leading side of the fold wraps before it, at least 16 pt clear of the fold's centre line; it never truncates the landmark ([section-headers](section-headers.md) R3, R9). A title that starts within 160 pt of the fold keeps its width.
+4. **R4. Only what's necessary.** No split without an active fold through the layout's interior; a horizontal fold, a layout entirely on one side (a split pane, a half column) or a side narrower than the grid's minimum column (Apple 120 pt or the adaptive minimum) keeps the flat layout. HIG Designing for iPhone Duo: "Avoid extreme changes: move only what's necessary to keep elements visible and easy to tap" (should).
+5. **R5. Reflow in place.** Fold changes swap column widths on the same grid or row view; they never change view identity, restart a load or replay a fade-in.
+6. **R6. One component per platform.** Grids and two-up rows use the canonical component below and pass their flat columns; pages never measure the fold themselves. A new `LazyVGrid` on Apple is a review failure unless it is listed under the guard's allowed files.
+
+## Agent decision (#343, 2026-10-07): each side fills its half; P2 overridden
+
+The owner asked that, partially unfolded, "the 'vertical split' of the app should be the hinge, not the 50/50 of visible content to the left of the rail". That overrides delegated decision P2 (Shop cards may scroll under the fold in book pose, [duo.md](../design/apple/duo.md)). Open question: equal column widths placed symmetrically about the hinge, or each side filling its physical side?
+
+| Option | What you see | Guidance (strength) | Precedent | Trade-offs |
+|---|---|---|---|---|
+| **A (chosen)** | Leading columns run from the content edge to the fold; trailing columns from the fold to the vertical bar, ~84 pt narrower. | HIG Duo "use reserved-region APIs to keep important elements clear of the center" (should); "move only what's necessary" (should). | Apple `OnDemandSplitPolicy` panes end at the fold's edges; Android `HingeColumns.resolve` (unequal sides). | Columns differ in width in book pose; content edges stay where they are. |
+| B | Equal columns symmetric about the hinge, padding the leading edge by the bar's width. | Same clauses; HIG "split columns adjust width/margins for inner-display symmetry" (describes system split views). | None in the native apps. | An empty ~84 pt strip at the leading edge; grids no longer line up with full-width cards above them. |
+
+Chose **A**: the existing native split and the Android precedent already fill each side, and it moves less. Owner may override with `/choose B`.
+
+## Canonical implementation
+
+| Sub-behavior | Apple | Android | Windows |
+|---|---|---|---|
+| Pure policy (band, per-side counts, title width) | `apple/Sources/FestivalUI/App/Layout/HingeColumns.swift` `HingeColumns` | `android/app/src/main/java/com/festivalscoretracker/android/core/rivals/HingeColumns.kt` `HingeColumns`; `core/shop/ShopColumns.kt` `ShopColumnPolicy` | — (no foldable target) |
+| Card grid | `apple/Sources/FestivalUI/App/Layout/HingeColumns.swift` `HingeGrid` (Statistics instrument tiles, Leaderboards, Suggestions, Item Shop, Profile bands, Song Detail Intensity and instrument cards); `Features/Profile/PlayerStatGrid.swift` `StatTileGridLayout` (Global Statistics tiles) | `android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/AdaptiveCardGrid.kt` `AdaptiveCardGrid` | — |
+| Two-up row | `apple/Sources/FestivalUI/App/Layout/HingeColumns.swift` `HingeRow` (Songs two-card rows, Compete halves) | `android/app/src/main/java/com/festivalscoretracker/android/ui/settings/HingeSplit.kt` `rememberHingeSplit` | — |
+| Title side (R3) | `apple/Sources/FestivalUI/App/Layout/HingeColumns.swift` `staysOnHingeSide` (in `FestivalSectionHeader`, so `FestivalGlassSection` too) | Not yet verified (Android check for #343) | — |
+
+## Known debt
+
+| Debt | Breaks | Plan |
+|---|---|---|
+
+## Guards (`tools/pattern_guard.py`)
+
+- `hinge-columns/apple-lazy-grid`
