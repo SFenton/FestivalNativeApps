@@ -24,8 +24,7 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
     private int shownPage;
     private bool spotlightShown;
     private RankingSpotlightViewModel? watchedSpotlight;
-    private FocusState jumpFocus = FocusState.Unfocused;
-    private (int Index, FocusState Focus)? revealSelected;
+    private int? revealSelected;
     private bool split;
     private string? detailAccountId;
 
@@ -103,7 +102,7 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
     #endregion
 
     /// <summary>
-    /// When a new page of rows arrives, brings the selected player's row into view (after "Jump to your page"),
+    /// When a new page of rows arrives, brings the selected player's row into view (after the pinned row's jump),
     /// otherwise scrolls to the top.
     /// </summary>
     /// <param name="sender">View model.</param>
@@ -114,33 +113,31 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
         if (e.PropertyName is nameof(FullRankingsViewModel.Rows) or nameof(FullRankingsViewModel.ShowRows)) EnsureSplitSelection();
         if (e.PropertyName != nameof(FullRankingsViewModel.Rows) || ViewModel.Page == shownPage) return;
         shownPage = ViewModel.Page;
-        Scroller.ChangeView(null, 0, null, true);
         var selected = ViewModel.Rows.FindIndex(r => r.IsSelected);
-        revealSelected = selected < 0 ? null : (selected, jumpFocus);
-        jumpFocus = FocusState.Unfocused;
-        // Rows normally arrive while the load swap hides the list, and OnContentRevealed reveals them after the entrance.
-        if (ViewModel.ShowRows) DispatcherQueue.TryEnqueue(RevealSelected);
+        revealSelected = selected < 0 ? null : selected;
+        // A pending scroll-to-top can land after the centring below and leave the selected row off screen.
+        if (revealSelected is null) Scroller.ChangeView(null, 0, null, true);
+        // During a load swap the rows are not laid out yet; OnContentRevealed reveals them after the entrance.
+        if (ViewModel.ShowRows && ViewModel.LoadSwap.Phase == LoadSwapPhase.ContentIn) DispatcherQueue.TryEnqueue(RevealSelected);
     }
 
     /// <summary>
-    /// Brings the selected player's row into view on a newly shown page and, after a focused "Your Page", moves focus
-    /// to it. A pointer or UI Automation jump waits for the row's own entrance and rushes the rest
-    /// (<see cref="FadeIn.RevealSelected"/>, issue #307); a focused jump moves focus at once (the collapsing button
-    /// would otherwise drop it), still rushing the fades that haven't begun.
+    /// Centres the selected player's row on a newly shown page (pattern <c>leaderboard-row</c> R7). Keyboard focus stays
+    /// on the pinned row that jumped, which remains in place, so a second Enter opens the profile. The reveal waits for
+    /// the row's own entrance and rushes the rest (<see cref="FadeIn.RevealSelected"/>, issue #307).
     /// </summary>
     private void RevealSelected()
     {
-        if (revealSelected is not { } pending || !ViewModel.ShowRows) return;
+        if (revealSelected is not { } index || !ViewModel.ShowRows) return;
         revealSelected = null;
-        var (index, focus) = pending;
         var rows = ViewModel.Rows;
         FadeIn.RevealSelected(RowsRepeater, index, () =>
         {
             if (!ReferenceEquals(ViewModel.Rows, rows) || RowsRepeater.GetOrCreateElement(index) is not LeaderboardEntryRow row) return;
-            // Focus first: its own minimal bring-into-view would otherwise override the centring below.
-            if (focus != FocusState.Unfocused) row.FocusRow(focus);
+            // A freshly realized row has no arranged position yet; bringing it into view before layout is a no-op.
+            row.UpdateLayout();
             row.StartBringIntoView(new Microsoft.UI.Xaml.BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });
-        }, immediate: focus != FocusState.Unfocused);
+        });
     }
 
     /// <summary>
@@ -156,14 +153,6 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
         args.TargetRect = new Windows.Foundation.Rect(target.X, target.Y, target.Width,
             LeaderboardPaging.RevealAboveFooter(target.Height, RowsRepeater.Margin.Bottom));
     }
-
-    /// <summary>
-    /// "Your Page" was invoked while focused: it collapses once the player's row is on the page, so the arriving page
-    /// hands that focus to the player's row rather than letting it fall back to the title bar.
-    /// </summary>
-    /// <param name="sender">Spotlight.</param>
-    /// <param name="state">The jump button's focus kind.</param>
-    private void OnFocusedJump(object? sender, FocusState state) => jumpFocus = state;
 
     /// <summary>
     /// Replays the web row entrance after the shared load gate reveals a new page, with the pinned "your rank" row

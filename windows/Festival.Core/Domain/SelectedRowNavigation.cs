@@ -12,11 +12,11 @@ public enum SelectedRowSubject
 }
 
 /// <summary>
-/// What activating the selected profile's own row does, one rule for the solo and band song boards (pattern
-/// <c>leaderboard-row</c> R7, issue #307; web <c>getLeaderboardPageForRank</c> + <c>navToPlayer</c>/<c>navToBand</c>,
-/// Apple <c>SelectedRowAction</c>). A row shown apart from its page (Song Detail's appended row, a pinned footer while the
-/// row is on another page) jumps to the page containing its rank; a row already on screen, or one without a rank, opens
-/// the profile (Statistics for a player, Band Detail for a band).
+/// What activating the selected profile's own row does, one rule for the solo and band song boards and Full Rankings
+/// (pattern <c>leaderboard-row</c> R7, issues #307 and #318; web <c>getLeaderboardPageForRank</c> +
+/// <c>navToPlayer</c>/<c>navToBand</c>, Apple <c>SelectedRowAction</c>). A row shown apart from its page (Song Detail's
+/// appended row, a pinned footer while the row is on another page) jumps to the page containing its rank; a row already
+/// on screen, or one without a rank, opens the profile (Statistics for a player, Band Detail for a band).
 /// </summary>
 /// <param name="JumpPage">Page to jump to, or <see langword="null"/> to open the profile.</param>
 public readonly record struct SelectedRowAction(int? JumpPage)

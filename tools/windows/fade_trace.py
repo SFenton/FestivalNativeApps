@@ -74,7 +74,7 @@ WIRING: tuple[tuple[str, str, str], ...] = (
      "the solo board's navToPlayer reveal scrolls before its rows' entrance (journey selected-reveal: solo)"),
     ("windows/Festival.App/Pages/LeaderboardsFullRankingsPage.xaml.cs",
      r"FadeIn\.StaggerRealized\(RowsRepeater\);[\s\S]{0,400}?RevealSelected\(\);",
-     "Full Rankings' Your Page reveal scrolls before its rows' entrance (leaderboard-row R7)"),
+     "Full Rankings' pinned-row jump reveal scrolls before its rows' entrance (leaderboard-row R7)"),
 )
 
 # region Parsing

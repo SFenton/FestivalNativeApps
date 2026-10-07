@@ -5,7 +5,8 @@ namespace Festival.Core.Tests;
 /// <summary>
 /// Guards issue #319 (surface-materials R1, leaderboard-row R5): the board pager's arrow buttons and <c>page / total</c>
 /// badge draw on the rows' card surface (<c>FSTCardSurfaceBrush</c> + <c>FSTCardStrokeBrush</c>), never a pager-only
-/// opaque plate, and Full Rankings' Your Page jump button does too (the song boards' pinned row is the jump, #307).
+/// opaque plate. No board has a separate Your Page button: every pinned row is its own jump (song boards #307, Full
+/// Rankings #318).
 /// </summary>
 public class PagerSurfaceMarkupTests
 {
@@ -101,16 +102,6 @@ public class PagerSurfaceMarkupTests
         Assert.Equal(CardStroke, Attr(badge, "BorderBrush"));
     }
 
-    [Theory]
-    [InlineData("Controls/LeaderboardsSpotlight.xaml", "Jump to your page")]
-    public void YourPageButton_DrawsOnTheRowCardSurface(string file, string name)
-    {
-        var jump = Load(file).Descendants().Single(e => e.Name.LocalName == "Button"
-            && Attr(e, "AutomationProperties.Name") == name);
-        Assert.Equal(CardSurface, Attr(jump, "Background"));
-        Assert.Equal(CardStroke, Attr(jump, "BorderBrush"));
-    }
-
     /// <summary>
     /// The song and song band boards have no Your Page button: their floating pinned row is itself the jump-or-open control
     /// (leaderboard-row R7, issue #307), so the footer adds no separate surface.
@@ -125,6 +116,16 @@ public class PagerSurfaceMarkupTests
         Assert.DoesNotContain(doc.Descendants(), e => e.Name.LocalName == "Button" && Attr(e, "Command") == "{x:Bind ViewModel.JumpCommand}");
         var row = doc.Descendants().Single(e => e.Name.LocalName == "LeaderboardEntryRow" && Attr(e, "IsFloating") == "True");
         Assert.Equal("{x:Bind ViewModel.JumpCommand}", Attr(row, "Command"));
+    }
+
+    [Fact]
+    public void FullRankingsPinnedRow_IsItsOwnJumpControl()
+    {
+        // #318: Full Rankings' pinned row runs the jump itself (leaderboard-row R7), so it has no Your page button.
+        var doc = Load(Path.Combine("Controls", "LeaderboardsSpotlight.xaml"));
+        Assert.DoesNotContain(doc.Descendants(), e => e.Name.LocalName == "Button");
+        var row = doc.Descendants().Single(e => Attr(e, "Name") == "PinnedRow");
+        Assert.Equal("{x:Bind Spotlight.JumpCommand, Mode=OneWay}", Attr(row, "Command"));
     }
 
     [Fact]

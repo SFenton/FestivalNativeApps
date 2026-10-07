@@ -1135,6 +1135,10 @@
           {
             "path": "windows/Festival.Core/Domain/BandScoreFooterLayout.cs",
             "symbol": "BandScoreFooterSection"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/RankingSpotlight.cs",
+            "symbol": "RankingSpotlight"
           }
         ]
       },

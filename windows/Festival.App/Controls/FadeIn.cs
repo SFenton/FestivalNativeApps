@@ -452,25 +452,23 @@ public static class FadeIn
     /// scheduled; then for the row's stagger delay plus its fade. It does nothing if the reader scrolled the list
     /// meanwhile or a newer load replaced the rows, and otherwise starts every fade that hasn't begun together
     /// (<see cref="StaggerArm.Rush"/>) before calling <paramref name="reveal"/>, so the reveal's scroll never cuts the
-    /// stagger short. A row without a running fade (motion off, or beyond the staggered rows), or
-    /// <paramref name="immediate"/> (a keyboard jump that must move focus at once), reveals as soon as it is realized,
-    /// still rushing.
+    /// stagger short. A row without a running fade (motion off, or beyond the staggered rows) reveals as soon as it is
+    /// realized, still rushing.
     /// </summary>
     /// <param name="list">Stagger list (<see cref="ListViewBase"/> or <see cref="ItemsRepeater"/>).</param>
     /// <param name="index">Selected row index.</param>
-    /// <param name="reveal">Scrolls the row into view (and focuses it when asked).</param>
-    /// <param name="immediate">Reveal without waiting for the row's entrance.</param>
-    public static void RevealSelected(FrameworkElement list, int index, Action reveal, bool immediate = false)
+    /// <param name="reveal">Scrolls the row into view.</param>
+    public static void RevealSelected(FrameworkElement list, int index, Action reveal)
     {
         (list.GetValue(PendingRevealProperty) as PendingReveal)?.Stop();
         var arm = ArmOf(list);
-        var pending = new PendingReveal(list, arm, index, reveal, immediate);
+        var pending = new PendingReveal(list, arm, index, reveal);
         list.SetValue(PendingRevealProperty, pending);
         pending.Start();
     }
 
     /// <summary>One selected-row reveal waiting for its row's realization and entrance (<see cref="RevealSelected"/>).</summary>
-    private sealed class PendingReveal(FrameworkElement list, StaggerArm arm, int index, Action reveal, bool immediate)
+    private sealed class PendingReveal(FrameworkElement list, StaggerArm arm, int index, Action reveal)
     {
         private readonly int generation = arm.Generation;
         private DispatcherQueueTimer? timer;
@@ -512,7 +510,7 @@ public static class FadeIn
             var realized = list.IsLoaded && (ElementAt(list, index) is not null || ElementAt(list, 0) is not null);
             if (!realized && ++frames < RealizeFrames) return;
             Stop();
-            var wait = immediate || !Motion.Allowed ? TimeSpan.Zero : arm.RevealWait(index, Now);
+            var wait = !Motion.Allowed ? TimeSpan.Zero : arm.RevealWait(index, Now);
             if (wait <= TimeSpan.Zero)
             {
                 Finish(checkScroll: false);
