@@ -435,11 +435,23 @@ struct HingeEagerGridLayout: Layout {
 
 // MARK: - One row
 
-/// One row of equal cells (Songs' two-card list rows) whose gutter sits on an iPhone
-/// Duo fold in book pose; equal widths otherwise, like an `HStack` of
-/// `.frame(maxWidth: .infinity)` cells.
+/// One row of equal cells whose gutter sits on an iPhone Duo fold in book pose; equal
+/// widths otherwise, like an `HStack` of `.frame(maxWidth: .infinity)` cells. Page
+/// columns in wide landscape (Songs' and Search's two-card rows, pattern `wide-columns`)
+/// pass ``Hinge/page`` so the gutter meets the hinge while flat too.
 struct HingeRow<Content: View>: View {
+    /// Which hinge the gutter follows.
+    enum Hinge: Sendable {
+        /// Only an active fold (book pose); flat rows keep equal cells (R4).
+        case fold
+        /// The page's hinge (``DeviceLayout/splitHinge``): the fold, else the flat
+        /// inner display's hinge, like the on-demand split's divider (pattern
+        /// `wide-columns` R3, issue #350).
+        case page
+    }
+
     private let spacing: CGFloat
+    private let hinge: Hinge
     private let content: Content
     @Environment(\.deviceLayout) private var layout
     @State private var span: HorizontalSpan?
@@ -448,15 +460,18 @@ struct HingeRow<Content: View>: View {
     ///
     /// - Parameters:
     ///   - spacing: Gap between cells (and the narrowest clearance over the fold).
+    ///   - hinge: Which hinge the gutter follows (default ``Hinge/fold``).
     ///   - content: The cells, an even count (pad a short row with clear cells).
-    init(spacing: CGFloat, @ViewBuilder content: () -> Content) {
+    init(spacing: CGFloat, hinge: Hinge = .fold, @ViewBuilder content: () -> Content) {
         self.spacing = spacing
+        self.hinge = hinge
         self.content = content()
     }
 
     var body: some View {
         let band = HingeColumns.band(
-            span: span, fold: layout.foldFrame, gutter: spacing, minimumSide: HingeColumns.minimumSide
+            span: span, fold: hinge == .page ? layout.splitHinge : layout.foldFrame,
+            gutter: spacing, minimumSide: HingeColumns.minimumSide
         )
         HingeRowLayout(spacing: spacing, band: band) { content }
             .measuresHorizontalSpan($span)

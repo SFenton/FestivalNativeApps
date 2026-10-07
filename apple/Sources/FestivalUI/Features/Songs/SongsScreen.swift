@@ -1561,12 +1561,12 @@ struct SongsScreen: View, Equatable {
     }
 
     /// One grid row: up to `columns` cards of equal width (a short last row keeps its
-    /// card at column width), each its own accessible link. In book pose the gutter sits
-    /// on the fold (``HingeRow``, pattern `hinge-columns`).
+    /// card at column width), each its own accessible link. On iPhone Duo the gutter sits
+    /// on the hinge, flat or folded (``HingeRow`` page hinge, pattern `wide-columns` R3).
     private func songGridRow(
         _ songs: [Song], columns: Int, catalogueObservation: Int, fadeOrder: [String: Int]
     ) -> some View {
-        HingeRow(spacing: SongGridPolicy.spacing) {
+        HingeRow(spacing: SongGridPolicy.spacing, hinge: .page) {
             ForEach(songs) { song in
                 songCell(
                     for: song, catalogueObservation: catalogueObservation,
@@ -2372,10 +2372,11 @@ private struct SongCellWindowMenu: ViewModifier {
 
 // MARK: - Landscape grid policy
 
-/// Pure rules for the Songs landscape grid (`.agents/design/apple/split-view.md`).
+/// Pure rules for the Songs landscape grid (`.agents/design/apple/split-view.md`): the
+/// app-wide ``WideColumns`` rule (pattern `wide-columns`, issue #350).
 enum SongGridPolicy {
     /// Gap between the two cards of a grid row.
-    static let spacing: CGFloat = 12
+    static let spacing: CGFloat = WideColumns.spacing
 
     /// Cards per row: two in a landscape window that is regular in both dimensions (iPad
     /// landscape, iPhone Duo inner display in landscape), else one (iPhone, portrait,
@@ -2384,8 +2385,7 @@ enum SongGridPolicy {
     /// - Parameter layout: The page's device layout.
     /// - Returns: 1 or 2.
     static func columns(layout: DeviceLayout) -> Int {
-        layout.orientation == .landscape && layout.windowWidthClass == .regular
-            && layout.heightClass == .regular ? 2 : 1
+        WideColumns.count(layout: layout)
     }
 
     /// Chunk a section's songs into rows of `columns`, keeping order (row-major).
@@ -2395,7 +2395,6 @@ enum SongGridPolicy {
     ///   - columns: Cards per row (at least 1).
     /// - Returns: The rows; only the last may be short.
     static func rows<Item>(_ songs: [Item], columns: Int) -> [[Item]] {
-        let size = max(1, columns)
-        return stride(from: 0, to: songs.count, by: size).map { Array(songs[$0..<min($0 + size, songs.count)]) }
+        WideColumns.rows(songs, columns: columns)
     }
 }
