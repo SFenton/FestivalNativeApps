@@ -6,13 +6,13 @@ namespace Festival.Core.Domain;
 /// <summary>Global search scope (web <c>SearchTarget</c> order; <see cref="All"/> is the web's no-chip state).</summary>
 public enum SearchScope
 {
-    /// <summary>Every live scope (Songs → Players).</summary>
+    /// <summary>Every scope (Songs → Players → Bands).</summary>
     All,
     /// <summary>Songs from the loaded catalogue.</summary>
     Songs,
     /// <summary>Players from <c>GET /api/account/search</c>.</summary>
     Players,
-    /// <summary>Bands: shown but blocked (the service's band search GET can write).</summary>
+    /// <summary>Bands from <c>GET /api/bands/search</c> (read-only since the #320 service fix).</summary>
     Bands,
 }
 
@@ -72,6 +72,8 @@ public enum GlobalSuggestionKind
     Song,
     /// <summary>A player result.</summary>
     Player,
+    /// <summary>A band result.</summary>
+    Band,
     /// <summary>"See all results" → the Search page.</summary>
     SeeAll,
 }
@@ -91,6 +93,9 @@ public sealed record GlobalSuggestion(
 
     /// <summary>Whether this row is a player (shows a person picture).</summary>
     public bool IsPlayer => Kind == GlobalSuggestionKind.Player;
+
+    /// <summary>Whether this row is a band (shows a people icon).</summary>
+    public bool IsBand => Kind == GlobalSuggestionKind.Band;
 
     /// <summary>Whether this row is the "See all results" command.</summary>
     public bool IsSeeAll => Kind == GlobalSuggestionKind.SeeAll;
@@ -119,11 +124,18 @@ public static class GlobalSearchResults
     public const int SuggestedSongs = 5;
     /// <summary>Players in the title-bar suggestion list.</summary>
     public const int SuggestedPlayers = 5;
+    /// <summary>Bands requested and shown (web <c>pageSize=10</c>).</summary>
+    public const int BandLimit = 10;
+    /// <summary>Bands in the title-bar suggestion list (fewer than songs/players: band titles are the longest rows
+    /// and the popup keeps "See all results" in view; the Search page lists all ten).</summary>
+    public const int SuggestedBands = 3;
+    /// <summary>Shared automation ID of every band result card on the Search page.</summary>
+    public const string BandResultId = "fst.global-search.result.band";
 
-    /// <summary>Field placeholder (only live scopes are named; web <c>search.placeholders.songsPlayers</c>).</summary>
-    public const string Placeholder = "Search songs or players";
+    /// <summary>Field placeholder naming every scope (web <c>search.placeholders.songsPlayersBands</c>).</summary>
+    public const string Placeholder = "Search songs, players, or bands";
     /// <summary>Field accessible name.</summary>
-    public const string FieldName = "Search songs and players";
+    public const string FieldName = "Search songs, players and bands";
     /// <summary>Short-query hint of the players-only pickers (web <c>search.enterQuery</c>).</summary>
     public const string EnterQueryHint = "Enter at least two characters to search.";
     /// <summary>Search page short-query hint in All (issue #299: every scope names what it searches).</summary>
@@ -141,7 +153,7 @@ public static class GlobalSearchResults
     /// <summary>All-scope empty-state title (issue #99: centred title and subtitle, like the web <c>EmptyState</c>).</summary>
     public const string EmptyAllTitle = "No results found";
     /// <summary>All-scope empty-state subtitle.</summary>
-    public const string EmptyAllSubtitle = "Check the spelling or try a different song, artist or player.";
+    public const string EmptyAllSubtitle = "Check the spelling or try a different song, artist, player or band.";
     /// <summary>Songs-scope empty-state title.</summary>
     public const string EmptySongsTitle = "No songs found";
     /// <summary>Songs-scope empty-state subtitle.</summary>
@@ -150,18 +162,14 @@ public static class GlobalSearchResults
     public const string EmptyPlayersTitle = "No players found";
     /// <summary>Players-scope empty-state subtitle.</summary>
     public const string EmptyPlayersSubtitle = "Check the spelling or try a different player name.";
+    /// <summary>Bands-scope empty-state title (issue #320).</summary>
+    public const string EmptyBandsTitle = "No bands found";
+    /// <summary>Bands-scope empty-state subtitle.</summary>
+    public const string EmptyBandsSubtitle = "Check the spelling or try a different band member's name.";
     /// <summary>Players-only picker progress text.</summary>
     public const string Searching = "Searching…";
     /// <summary>Catalogue failure text in the Songs section.</summary>
     public const string SongsFailed = "Search failed. Try again.";
-
-    /// <summary>Bands explanation (global-search spec, "Band scope (blocked)").</summary>
-    public const string BandsUnavailable =
-        "Band search isn't available in the app yet. The service's band search can change stored band data, so the app " +
-        "won't call it until a read-only version exists. Browse bands in Leaderboards → Band Rankings, or from a player's Bands.";
-
-    /// <summary>Band Rankings destination offered by the Bands explanation.</summary>
-    public static AppRoute BandRankingsRoute { get; } = new AppRoute.BandRankings("Band_Duets");
 
     /// <summary>Search page short-query hint for a scope (issue #299).</summary>
     /// <param name="scope">Selected scope.</param>
@@ -191,6 +199,20 @@ public static class GlobalSearchResults
     {
         var text = Normalize(query);
         return text.Length < MinQueryLength ? [] : [.. players.Where(p => p.DisplayName.Contains(text, StringComparison.OrdinalIgnoreCase))];
+    }
+
+    /// <summary>
+    /// Whether an earlier band match still fits the new text, so it stays while the next band search runs (the same
+    /// rule as <see cref="RetainMatching"/>: the band search matches member names).
+    /// </summary>
+    /// <param name="band">Previous match.</param>
+    /// <param name="query">New user text.</param>
+    /// <returns><see langword="true"/> when a member name contains the trimmed text (two or more characters).</returns>
+    public static bool BandStillMatches(PlayerBandEntry band, string? query)
+    {
+        var text = Normalize(query);
+        return text.Length >= MinQueryLength &&
+               band.Members.Any(m => m.ResolvedName.Contains(text, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>Whether the trimmed query is long enough to search.</summary>
@@ -229,39 +251,58 @@ public static class GlobalSearchResults
             string.Equals(r.AccountId, selectedAccountId, StringComparison.OrdinalIgnoreCase)))];
 
     /// <summary>
-    /// Title-bar suggestions: up to five songs, then up to five players (appended after the songs so the highlighted
-    /// index of a song never moves when players arrive), then "See all results".
+    /// Title-bar suggestions: up to five songs, then up to five players, then up to three bands (each group appended
+    /// after the previous one so the highlighted index of an earlier row never moves when a later read returns), then
+    /// "See all results".
     /// </summary>
     /// <param name="query">User text.</param>
     /// <param name="songs">Song matches.</param>
     /// <param name="players">Player matches (empty while pending).</param>
+    /// <param name="bands">Band matches (empty while pending or for the players-only pickers).</param>
     /// <returns>Suggestions; empty for a short query.</returns>
-    public static List<GlobalSuggestion> Suggestions(string? query, IReadOnlyList<GlobalSongResult> songs, IReadOnlyList<GlobalPlayerResult> players)
+    public static List<GlobalSuggestion> Suggestions(string? query, IReadOnlyList<GlobalSongResult> songs,
+        IReadOnlyList<GlobalPlayerResult> players, IReadOnlyList<PlayerBandEntry>? bands = null)
     {
         var text = Normalize(query);
         if (text.Length < MinQueryLength) return [];
-        var list = new List<GlobalSuggestion>(SuggestedSongs + SuggestedPlayers + 1);
+        var list = new List<GlobalSuggestion>(SuggestedSongs + SuggestedPlayers + SuggestedBands + 1);
         foreach (var song in songs.Take(SuggestedSongs))
             list.Add(new(GlobalSuggestionKind.Song, song.Title, "Song · " + song.Artist, song.Art, song.Route,
                 $"Song, {song.Title} by {song.Artist}"));
         foreach (var player in players.Take(SuggestedPlayers))
             list.Add(new(GlobalSuggestionKind.Player, player.DisplayName, player.Subtitle, null, player.Route,
                 player.IsSelected ? $"Player, {player.DisplayName}, selected, opens Statistics" : $"Player, {player.DisplayName}"));
+        foreach (var band in (bands ?? []).Take(SuggestedBands))
+        {
+            var size = BandTypeInfo.TryParse(band.BandType, out var type) ? type.Label() : "Band";
+            list.Add(new(GlobalSuggestionKind.Band, band.MembersLabel, "Band · " + size, null, BandRoute(band),
+                $"Band, {band.MembersLabel}, {size}"));
+        }
         var seeAll = $"See All Results for “{text}”";
         list.Add(new(GlobalSuggestionKind.SeeAll, seeAll, "", null, new AppRoute.Search(text), seeAll));
         return list;
     }
 
-    /// <summary>Polite result-count announcement ("3 songs, 10 players").</summary>
+    /// <summary>
+    /// Band result destination: its band page with the type and team key the row carried (the safe lookup). The web
+    /// opens Statistics for the selected band; Windows has no selected band yet, so a band always opens its page.
+    /// </summary>
+    /// <param name="band">Validated band-search row.</param>
+    /// <returns>Band route.</returns>
+    public static AppRoute BandRoute(PlayerBandEntry band) => new AppRoute.Band(band.Key, band.BandType, band.TeamKey);
+
+    /// <summary>Polite result-count announcement ("3 songs, 10 players, 2 bands").</summary>
     /// <param name="songs">Song count, or <see langword="null"/> when the catalogue failed.</param>
     /// <param name="players">Player count, or <see langword="null"/> when the account search failed.</param>
+    /// <param name="bands">Band count, or <see langword="null"/> when the band search failed.</param>
     /// <returns>Announcement text.</returns>
-    public static string Announcement(int? songs, int? players)
+    public static string Announcement(int? songs, int? players, int? bands)
     {
-        if (songs == 0 && players == 0) return NoResults;
+        if (songs == 0 && players == 0 && bands == 0) return NoResults;
         var songText = songs is { } s ? Count(s, "song", "songs") : "song search failed";
         var playerText = players is { } p ? Count(p, "player", "players") : "player search failed";
-        return $"{songText}, {playerText}";
+        var bandText = bands is { } b ? Count(b, "band", "bands") : "band search failed";
+        return $"{songText}, {playerText}, {bandText}";
     }
 
     /// <summary>

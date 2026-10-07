@@ -24,9 +24,9 @@
             <!-- Global search (fst.global-search.*, MainWindow.Search.cs): centred box at >= 720 epx, button below. -->
             <TitleBar.Content>
                 <AutoSuggestBox x:Name="GlobalSearchBox" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="240" MaxWidth="580"
-                                QueryIcon="Find" PlaceholderText="Search songs or players" UpdateTextOnSelect="False"
-                                ToolTipService.ToolTip="Search songs and players (Ctrl+E)"
-                                AutomationProperties.Name="Search songs and players"
+                                QueryIcon="Find" PlaceholderText="Search songs, players, or bands" UpdateTextOnSelect="False"
+                                ToolTipService.ToolTip="Search songs, players and bands (Ctrl+E)"
+                                AutomationProperties.Name="Search songs, players and bands"
                                 AutomationProperties.AutomationId="fst.global-search.open">
                     <AutoSuggestBox.ItemTemplate>
                         <DataTemplate x:DataType="domain:GlobalSuggestion">
@@ -38,6 +38,8 @@
                                 <controls:SongArt Art="{x:Bind Art}" Width="32" Height="32" Visibility="{x:Bind IsSong}" />
                                 <PersonPicture Width="28" Height="28" DisplayName="{x:Bind Title}" Visibility="{x:Bind IsPlayer}"
                                                AutomationProperties.AccessibilityView="Raw" />
+                                <FontIcon Glyph="&#xE716;" FontSize="16" Visibility="{x:Bind IsBand}"
+                                          AutomationProperties.AccessibilityView="Raw" />
                                 <FontIcon Glyph="&#xE721;" FontSize="16" Visibility="{x:Bind IsSeeAll}" />
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                     <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" />
@@ -53,8 +55,8 @@
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <Button x:Name="GlobalSearchButton" Visibility="Collapsed" Padding="8" Background="Transparent" BorderThickness="0"
                         MinWidth="{StaticResource FSTMinTargetSize}" MinHeight="{StaticResource FSTMinTargetSize}"
-                        VerticalAlignment="Center" ToolTipService.ToolTip="Search songs and players (Ctrl+E)"
-                        AutomationProperties.Name="Search songs and players"
+                        VerticalAlignment="Center" ToolTipService.ToolTip="Search songs, players and bands (Ctrl+E)"
+                        AutomationProperties.Name="Search songs, players and bands"
                         AutomationProperties.AutomationId="fst.global-search.open">
                     <FontIcon Glyph="&#xE721;" FontSize="16" />
                 </Button>

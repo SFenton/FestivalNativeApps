@@ -12,7 +12,7 @@ namespace Festival.App;
 #region Global search
 /// <summary>
 /// Global search in the shell (global-search spec, windows.md): a title-bar <c>AutoSuggestBox</c> at ≥ 720 epx with
-/// mixed song/player suggestions, a magnifier button below that width, Ctrl+E / Ctrl+F, and the Search page.
+/// mixed song/player/band suggestions, a magnifier button below that width, Ctrl+E / Ctrl+F, and the Search page.
 /// </summary>
 public sealed partial class MainWindow
 {

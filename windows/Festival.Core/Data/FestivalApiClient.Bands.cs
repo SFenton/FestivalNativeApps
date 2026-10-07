@@ -6,7 +6,8 @@ namespace Festival.Core.Data;
 /// <summary>
 /// Keyless, publication-bound band reads. Every route here only <c>SELECT</c>s (verified in FSTService):
 /// <c>GetPlayerBandsList</c> degrades to an empty page instead of rebuilding its projection, and Band Detail uses the
-/// rankings board filtered by <c>teamKey</c> (<c>GetBandTeamRanking</c>). Band search, <c>/api/bands/{bandId}</c> and
+/// rankings board filtered by <c>teamKey</c> (<c>GetBandTeamRanking</c>). Band search serves only its projection since
+/// the #320 service fix (unpinned, like the account search). <c>/api/bands/{bandId}</c> and
 /// <c>/api/rankings/bands/{bandType}/{teamKey}</c> can write on a GET and have no builder.
 /// </summary>
 public sealed partial class FestivalApiClient
@@ -129,6 +130,24 @@ public sealed partial class FestivalApiClient
         previews.Validate(songId, top);
         return previews;
     }
+
+    /// <summary>
+    /// Searches bands by member name (<c>GET /api/bands/search</c>, first page). Like the account search it is not
+    /// pinned to a publication: the rows only open band pages, which pin their own reads.
+    /// </summary>
+    /// <param name="query">User text (trimmed here; 2–200 characters).</param>
+    /// <param name="pageSize">Rows, 1–100 (global search asks for 10, like the web).</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>Validated page.</returns>
+    public async Task<BandSearchResponse> SearchBandsAsync(string query, int pageSize = 10, CancellationToken cancellationToken = default)
+    {
+        using var request = RequestGate.CreateGet(BandEndpoints.BandSearch(BaseUri, query.Trim(), pageSize));
+        var response = await gate.SendAsync(request, 512_000, cancellationToken).ConfigureAwait(false);
+        RequestGate.MapStatus(response, acceptsSyncing: false);
+        var page = Decode(response.Body, BandsJsonContext.Default.BandSearchResponse);
+        page.Validate(pageSize);
+        return page;
+    }
 }
 #endregion
 
@@ -233,6 +252,24 @@ public static class BandEndpoints
         List<(string, string)> query = [("top", Text(top))];
         if (accountId is not null) query.Add(("accountId", accountId));
         return ServiceEndpoints.Build(baseUri, ["api", "leaderboard", songId, "bands", "all"], [.. query]);
+    }
+
+    /// <summary>
+    /// <c>GET /api/bands/search?q=&amp;page=1&amp;pageSize=</c>: first page only, keyless (read-only since the #320
+    /// service fix; see <c>.agents/platforms/service-safety.md</c>).
+    /// </summary>
+    /// <param name="baseUri">Validated origin.</param>
+    /// <param name="query">Trimmed 2–200 character query without control characters.</param>
+    /// <param name="pageSize">Rows, 1–100.</param>
+    /// <returns>Endpoint URL.</returns>
+    /// <exception cref="FestivalApiException">With <see cref="FestivalApiErrorKind.InvalidResource"/>.</exception>
+    public static Uri BandSearch(Uri baseUri, string query, int pageSize)
+    {
+        if (query.Length is < 2 or > 200 || query != query.Trim() || ProfileText.ContainsUnsafeCharacter(query) ||
+            pageSize is < 1 or > 100)
+            throw new FestivalApiException(FestivalApiErrorKind.InvalidResource);
+        return ServiceEndpoints.Build(baseUri, ["api", "bands", "search"],
+            [("q", query), ("page", "1"), ("pageSize", Text(pageSize))]);
     }
 
     /// <summary>Whether a team key is a <c>:</c>-joined list of 1–4 valid account IDs (the service joins the sorted

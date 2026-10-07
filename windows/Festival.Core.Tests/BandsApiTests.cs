@@ -59,6 +59,66 @@ public class BandsApiTests
     }
 
     [Fact]
+    public async Task BandSearch_BuildsKeylessUrlDecodesAndDoesNotPin()
+    {
+        var bands = new BandService
+        {
+            Band = (p, _) => p == GlobalSearchBand.Path
+                ? BandService.Ok(GlobalSearchBand.Page(GlobalSearchBand.Row("b1", "Band_Duets", "Fixture Player 1", "Fixture Player 2")))
+                : null,
+        };
+        var client = bands.Service.Client();
+        var page = await client.SearchBandsAsync("fixture player");
+        var sent = Assert.Single(bands.Service.Handler.To(GlobalSearchBand.Path));
+        Assert.Equal("?q=fixture%20player&page=1&pageSize=10", sent.Uri.Query);
+        Assert.DoesNotContain(sent.Headers.Keys, h => h.StartsWith("x-fst-selected", StringComparison.OrdinalIgnoreCase) || h == "X-API-Key");
+        var band = Assert.Single(page.Results);
+        Assert.Equal(("b1", "Band_Duets", "acc_a:b1mate", 12), (band.Key, band.BandType, band.TeamKey, band.AppearanceCount));
+        Assert.Equal("Fixture Player 1 + Fixture Player 2", band.MembersLabel);
+        Assert.Equal(1, page.TotalCount);
+    }
+
+    [Fact]
+    public async Task BandSearch_RejectsMalformedPagesAndBadArguments()
+    {
+        var body = "";
+        var bands = new BandService { Band = (p, _) => p == GlobalSearchBand.Path ? BandService.Ok(body) : null };
+        var client = bands.Service.Client();
+        var good = GlobalSearchBand.Row("b1", "Band_Duets", "Alpha", "Beta");
+        foreach (var bad in new[]
+                 {
+                     """{"page":1,"pageSize":10,"totalCount":-1,"results":[]}""",
+                     """{"page":1,"pageSize":10,"totalCount":1,"results":null}""",
+                     GlobalSearchBand.Page(good, good),
+                     GlobalSearchBand.Page(GlobalSearchBand.Row("b2", "Band_Octets", "Alpha", "Beta")),
+                     GlobalSearchBand.Page(GlobalSearchBand.Row("b/2", "Band_Duets", "Alpha", "Beta")),
+                     GlobalSearchBand.Page(GlobalSearchBand.Row("b2", "Band_Duets", "Alpha\\u0000", "Beta")),
+                     GlobalSearchBand.Page(good.Replace("acc_a:b1mate", "acc a", StringComparison.Ordinal)),
+                     GlobalSearchBand.Page(good.Replace("\"appearanceCount\":12", "\"appearanceCount\":-1", StringComparison.Ordinal)),
+                     """{"page":1,"pageSize":10,"totalCount":1,"results":[{"bandId":"b3","bandType":"Band_Duets","teamKey":"a:b","members":[]}]}""",
+                     "not json",
+                 })
+        {
+            body = bad;
+            Assert.Equal(FestivalApiErrorKind.InvalidResponse, (await Fails(() => client.SearchBandsAsync("alpha"))).Kind);
+        }
+        body = GlobalSearchBand.Page(Enumerable.Range(0, 3).Select(i => GlobalSearchBand.Row($"b{i}", "Band_Duets", "A", "B")).ToArray());
+        Assert.Equal(FestivalApiErrorKind.InvalidResponse, (await Fails(() => client.SearchBandsAsync("alpha", 2))).Kind);
+        var sent = bands.Service.Handler.To(GlobalSearchBand.Path).Count();
+        foreach (var call in new Func<Task>[]
+                 {
+                     () => client.SearchBandsAsync("a"),
+                     () => client.SearchBandsAsync(" a "),
+                     () => client.SearchBandsAsync(new string('q', 201)),
+                     () => client.SearchBandsAsync("ab\u0001"),
+                     () => client.SearchBandsAsync("ab", 0),
+                     () => client.SearchBandsAsync("ab", 101),
+                 })
+            Assert.Equal(FestivalApiErrorKind.InvalidResource, (await Fails(call)).Kind);
+        Assert.Equal(sent, bands.Service.Handler.To(GlobalSearchBand.Path).Count());
+    }
+
+    [Fact]
     public async Task BandProfile_UsesRankingsBoardNeverBandsById()
     {
         var bands = new BandService();

@@ -135,6 +135,52 @@ public sealed record PlayerBandListResponse
 }
 #endregion
 
+#region Band search
+/// <summary>
+/// Page from <c>GET /api/bands/search?q=&amp;page=1&amp;pageSize=</c> (<c>BandSearchResponseDto</c>; read-only since the
+/// #320 service fix). Rows carry the same shape as a player's band rows, so the canonical band card renders them.
+/// </summary>
+public sealed record BandSearchResponse
+{
+    /// <summary>Echoed page.</summary>
+    [JsonPropertyName("page")] public int Page { get; init; }
+    /// <summary>Echoed page size.</summary>
+    [JsonPropertyName("pageSize")] public int PageSize { get; init; }
+    /// <summary>Matches across all pages.</summary>
+    [JsonPropertyName("totalCount")] public int TotalCount { get; init; }
+    /// <summary>This page's bands, best match first.</summary>
+    [JsonPropertyName("results")] public IReadOnlyList<PlayerBandEntry> Results { get; init; } = [];
+
+    /// <summary>
+    /// Rejects the whole page when any row is unusable (spec "Band scope": a malformed page fails instead of
+    /// silently dropping rows): an unknown band type, an unsafe band ID or team key, no members, an invalid member
+    /// account, an unsafe member name, a duplicate band, a negative count or more rows than requested.
+    /// </summary>
+    /// <param name="pageSize">Requested page size.</param>
+    /// <exception cref="FestivalApiException">With <see cref="FestivalApiErrorKind.InvalidResponse"/>.</exception>
+    public void Validate(int pageSize)
+    {
+        if (Results is null || TotalCount < 0 || Results.Count > pageSize)
+            throw new FestivalApiException(FestivalApiErrorKind.InvalidResponse);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var band in Results)
+        {
+            if (band is null || !BandTypeInfo.TryParse(band.BandType, out _) || !BandEndpoints.IsValidTeamKey(band.TeamKey) ||
+                band.BandId.Length > 200 || band.BandId.Contains('/') || band.BandId.Contains('\\') ||
+                ProfileText.ContainsUnsafeCharacter(band.BandId) || band.AppearanceCount < 0 ||
+                band.Members is not { Count: > 0 } || !seen.Add(band.Key))
+                throw new FestivalApiException(FestivalApiErrorKind.InvalidResponse);
+            foreach (var member in band.Members)
+            {
+                if (member is null || !member.HasValidAccount ||
+                    member.DisplayName is { } name && (name.Length > 200 || ProfileText.ContainsUnsafeCharacter(name)))
+                    throw new FestivalApiException(FestivalApiErrorKind.InvalidResponse);
+            }
+        }
+    }
+}
+#endregion
+
 #region Band detail
 /// <summary>One observed instrument-combo configuration (<c>BandConfigurationDto</c>); Duos with a combo only.</summary>
 public sealed record BandConfiguration
