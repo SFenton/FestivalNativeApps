@@ -7,7 +7,8 @@
 | Layout | Entry point | Surface |
 |---|---|---|
 | iPhone (iOS 18+) | Trailing `Tab(value: RootTab.search, role: .search)`: the separate round Search button beside the tab capsule on iOS 26 | `GlobalSearchTab`: system `.searchable` field focused on selection (keyboard up), scope bar and results below |
-| iPhone Duo (vertical bar) | The Search tab, separate at the end of the rail | `GlobalSearchTab` |
+| iPhone Duo folded (vertical bar) | The Search tab, separate at the end of the rail | `GlobalSearchTab`: system `.searchable` field across the bottom |
+| iPhone Duo inner display (flat or book-folded) | The Search tab in the rail (landscape) or tab bar (portrait) | `GlobalSearchTab` with `BottomSearchField` (#349): the field at the bottom, focused when the tab appears; it and the scope bar share one column, full width flat and the right page in book pose |
 | iPhone iOS 17 | Search tab via `.tag(RootTab.search)` (no search role) | `GlobalSearchTab` |
 | Any, hardware keyboard | ⌘K or ⌘F select the Search tab | `GlobalSearchTab` |
 
@@ -19,7 +20,9 @@ Issue #92 (owner, 2026-10-04) replaced the header Search button and the tab-bar 
 
 **Five-tab limit:** the search tab counts toward the iPhone's five tabs (iOS 26.5: five sections + Search showed **More**). `FestivalTabPolicy.fittingSearchTab` drops Statistics from compact phone tabs (player: Songs · Suggestions · Compete · Settings · Search); the drawer's Statistics row pushes it. The Duo inner display keeps its regular set and the system overflow.
 
-`GlobalSearchSheet` (own `GlobalSearchField`, inline title, Close) is now used only by the Mac window. `GlobalSearchField` itself (with `surface: .floating`, its own identifiers and no focus on appear) is also the iPhone Duo Songs bottom Filter field (#333), so the app has one custom search-field look.
+`GlobalSearchSheet` (own `GlobalSearchField`, inline title, Close) is now used only by the Mac window. `GlobalSearchField` itself (with `surface: .floating`) is also the iPhone Duo bottom search field, `BottomSearchField`: Songs' Filter field (#333) and the Search tab's field on the inner display (#349), so the app has one custom search-field look.
+
+**iPhone Duo inner display (#349; [pattern R2](../../patterns/page-tools-and-nav-chrome.md)):** beside the vertical bar the system field took only the bottom trailing ~370 pt and rose centred over the keyboard, out of line with the full-width scope bar, and no system search API sets its width. So `GlobalSearchFieldPlacement.resolve(pose:asTab:)` gives the Search tab `BottomSearchField` there (identifier `fst.global-search.field`, clear `fst.global-search.clear`, the scope's prompt, Return re-runs the search). The scope bar takes the same column (`bottomSearchFieldColumn(hinge:)`): owner, full bottom width when flat and the right page when book-folded; agent decision, the scope bar shares that column at the top of the results. Rows fade above the field (`BottomSearchFieldFade`). With no system field there is no system Close: the rail or tab bar leaves Search. HIG: Search fields (`search-fields.md`), "Place search at the bottom if there's room" and "Consider a scope bar in the results area"; Designing for iPhone Duo (`designing-for-iphone-duo.md`), "use reserved-region APIs to keep important elements clear of the center" and "Keep controls near the content they affect". Tests: `BottomSearchFieldPlacementTests` (policy, fold rule) and hosted `searchScopeBarAndBottomFieldShareOneColumn` (flat and book).
 
 ## Songs: filter stays separate
 
@@ -49,7 +52,7 @@ Songs keeps its own list filter: the **inline** `.searchable(placement: .navigat
 
 ## Test IDs (Apple)
 
-`fst.global-search.open` (Mac toolbar button only), `fst.nav.sidebar.search` (iPad sidebar row), `fst.global-search.surface`, `fst.global-search.scope`, `fst.global-search.hint` (short-query hint and empty state), `fst.global-search.loading`, `fst.global-search.result.{song,player,band}`, `fst.global-search.{songs,players,bands}-error`, `fst.global-search.close`. The system search field has no settable identifier: tests find the search field whose placeholder is the scope prompt ("Search songs, players, or bands"). `GlobalSearchJourneyTests` runs against `python3 tools/mock_service.py --port 18936` started from the current revision (the shared `:8765` listener may predate band search) and skips when it is missing.
+`fst.global-search.open` (Mac toolbar button only), `fst.nav.sidebar.search` (iPad sidebar row), `fst.global-search.surface`, `fst.global-search.scope`, `fst.global-search.hint` (short-query hint and empty state), `fst.global-search.loading`, `fst.global-search.result.{song,player,band}`, `fst.global-search.{songs,players,bands}-error`, `fst.global-search.close`, `fst.global-search.field` / `fst.global-search.clear` (Mac sheet and the iPhone Duo inner display's bottom field). The system search field has no settable identifier: tests find the search field whose placeholder is the scope prompt ("Search songs, players, or bands"). `GlobalSearchJourneyTests` runs against `python3 tools/mock_service.py --port 18936` started from the current revision (the shared `:8765` listener may predate band search) and skips when it is missing.
 
 ## Open
 
