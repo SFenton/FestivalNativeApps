@@ -97,6 +97,35 @@ extension FestivalAPI {
         )
     }
 
+    /// Request every song a band has a published score on (the web Songs page's band
+    /// score index, `api.getBandSongRows`).
+    ///
+    /// `GET /api/rankings/bands/{bandType}/{teamKey}/song-rows[?combo=]` is a pure read
+    /// (`MetaDatabase.GetPublishedBandSongPerformances`, only `SELECT`s); it 503s with
+    /// `Retry-After` while the published band-song projection is not promoted, surfaced
+    /// as `FestivalAPIError.unavailable`.
+    ///
+    /// - Parameters:
+    ///   - bandType: Band size the team belongs to.
+    ///   - teamKey: Stable member-account-id roster key.
+    ///   - combo: Optional instrument-combo filter.
+    /// - Returns: Validated rows (``BandSongRowsResponse/scoreIndex(bandType:teamKey:combo:)``)
+    ///   and explicit offline freshness.
+    /// - Throws: Invalid parameters, service failures or malformed wire responses.
+    public func bandSongRows(
+        bandType: BandType, teamKey: String, combo: String? = nil
+    ) async throws -> BandSongRowsPayload {
+        let payload = try await read(
+            PublicEndpoint.bandSongRows(bandType: bandType.rawValue, teamKey: teamKey, combo: combo)
+        )
+        let response = try JSONDecoder().decode(BandSongRowsResponse.self, from: payload.data)
+        _ = try response.scoreIndex(bandType: bandType, teamKey: teamKey, combo: combo)
+        return BandSongRowsPayload(
+            response: response, publicationId: payload.publicationId,
+            observedPublicationId: payload.observedPublicationId, isStale: payload.isStale
+        )
+    }
+
     /// Request a band's best- and worst-performing songs.
     ///
     /// `GET /api/rankings/bands/{bandType}/{teamKey}/songs?limit=` is a pure read
