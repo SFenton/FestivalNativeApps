@@ -141,18 +141,6 @@ struct PlayerBandsScreen: View {
         .coordinateSpace(.named(Self.pageSpace))
         .festivalBackground(.carousel, session: session)
         .festivalNavigationTitle(displayName.map { "\($0)'s Bands" } ?? "Bands")
-        .toolbar {
-            #if os(iOS)
-            if case let .loaded(payload) = state {
-                RankingsPagerToolbarContent(
-                    page: page, totalPages: payload.list.pageCount(pageSize: 25),
-                    idPrefix: "fst.player-bands"
-                ) { destination in
-                    page = destination
-                }
-            }
-            #endif
-        }
         .onChange(of: group) { _, _ in page = 1 }
         .task(id: requestKey) { await load() }
     }

@@ -41,7 +41,7 @@ A screen showing one account, band or rival must reset its state when that entit
 SwiftUI restarts `.task(id:)` each time a view reappears in a `NavigationStack` (Back from a pushed page, a tab switch), even with an unchanged id. A load that starts with `state = .loading` therefore swaps loaded rows for a shorter spinner and re-fades them, shifting the page under the pop transition (#39: Compete › View Full Leaderboard › Back).
 
 - Guard such loads with a remembered key: `ReappearanceLoadGate` (FestivalCore). Skip while `needsLoad(for:)` is false and call `markLoaded(_:)` only after a successful read, so a failure or cancellation retries on the next appearance.
-- The key holds everything the read depends on. Compete/Rivals sections use `CompeteSectionLoadKey`: instrument, selected account and `session.publicationRevision`.
+- The key holds everything the read depends on. Rivals hub sections use `CompeteSectionLoadKey` (instrument, selected account and `session.publicationRevision`); Compete keys the whole page with `CompetePageLoadKey` (visible instruments, account, revision) in `CompeteHubModel`.
 - Earlier inline variants: Leaderboards `loadedKey`, `PlayerProfileContent`/`InstrumentStatsCard`/`PlayerProfileCharts` `loadedKey`, Suggestions `handled*Revision`.
 - Hosted macOS `NavigationStack`s keep the root appeared across a push. To test the cycle, take the host out of its window and back (`competeKeepsLoadedLeaderboardsWhenItReappears`).
 

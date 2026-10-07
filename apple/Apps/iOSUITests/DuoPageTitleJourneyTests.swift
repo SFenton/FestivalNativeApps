@@ -2,7 +2,7 @@ import UIKit
 import XCTest
 
 /// Every root page shows its complete system navigation title (pattern
-/// page-tools-and-nav-chrome R12, issue #341), in whichever iPhone Duo pose the
+/// page-tools-and-nav-chrome R14, issue #341), in whichever iPhone Duo pose the
 /// simulator is in: run it once folded (the vertical bar, title at the top of the
 /// page) and once unfolded (inner portrait, horizontal bar):
 ///
@@ -13,8 +13,10 @@ import XCTest
 /// ```
 ///
 /// On an ordinary iPhone it checks the same rule under the horizontal bar.
-/// Statistics' no-profile state (momentary between Deselect and the tab disappearing) is
-/// held open with the Debug `FST_DEBUG_KEEP_PROFILE_ROUTES=1` launch flag.
+/// Statistics, which phones push from the Profile button and drawer rather than show as a
+/// tab (pattern R12, #337), opens through the same launch route the drawer uses. Its
+/// no-profile state (momentary after Deselect) is held open with the Debug
+/// `FST_DEBUG_KEEP_PROFILE_ROUTES=1` launch flag.
 final class DuoPageTitleJourneyTests: XCTestCase {
     /// Loopback fixture service; `FST_TITLE_FIXTURE_URL` overrides the default port.
     private static let fixtureURL =
@@ -31,7 +33,7 @@ final class DuoPageTitleJourneyTests: XCTestCase {
         }
     }
 
-    /// Profile-only roots: Suggestions, and Statistics titled with the player's name.
+    /// Profile-only pages: Suggestions, and Statistics titled with the player's name.
     @MainActor
     func testPlayerRootsShowFullTitle() throws {
         try assertRoot(tab: "suggestions", title: "Suggestions", withPlayer: true)
@@ -49,8 +51,8 @@ final class DuoPageTitleJourneyTests: XCTestCase {
                        requiredElement: "fst.statistics.empty")
     }
 
-    /// Compete (compact widths) or Leaderboards and Rivals (regular widths), whichever
-    /// the pose's tab policy shows for a selected player.
+    /// Compete (every phone shell, Duo included) or Leaderboards and Rivals (the iPad
+    /// sidebar set), whichever the tab policy shows for a selected player.
     @MainActor
     func testPlayerCompeteRootsShowFullTitle() throws {
         let app = launch(tab: "compete", withPlayer: true)

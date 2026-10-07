@@ -54,7 +54,7 @@ private final class PublishedPageTitle {
 }
 
 /// Every root page keeps its system title in every iPhone Duo pose (pattern
-/// page-tools-and-nav-chrome R12, issue #341), including Statistics' momentary no-profile
+/// page-tools-and-nav-chrome R14, issue #341), including Statistics' momentary no-profile
 /// state. `DuoPageTitleJourneyTests.testNoProfileStatisticsShowsFullTitle` holds that
 /// state open in the real shell and requires the whole visible system title per pose.
 @MainActor

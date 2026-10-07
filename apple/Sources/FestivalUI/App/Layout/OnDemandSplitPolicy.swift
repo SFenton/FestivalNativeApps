@@ -256,6 +256,50 @@ enum OnDemandSplitPolicy {
         )
     }
 
+    // MARK: - Window changes (fold, rotation, resize)
+
+    /// Whether the window allows a split, and whether its container has been measured.
+    struct WindowState: Sendable, Equatable {
+        /// The split container has a non-zero measured width.
+        var measured: Bool
+        /// ``geometry(_:)`` returns panes for the window.
+        var allowsSplit: Bool
+    }
+
+    /// Whether a change in what the window allows waits a run-loop turn before the
+    /// stacks change shape.
+    ///
+    /// Folding iPhone Duo with a split open (#346) moved the window to the outer display,
+    /// changed its size class, pushed the open item onto the leading stack and removed the
+    /// trailing stack, all in one animated update: the outer display stayed black until
+    /// unfolded. As for the tab set (`ShellPresentation.applying`), the split keeps its
+    /// shape while the window changes and applies the new one, unanimated, a turn later.
+    /// The first measurement applies at once, so launch never shows a pushed frame first.
+    ///
+    /// - Parameters:
+    ///   - old: The window state before the change.
+    ///   - new: The window state after it.
+    /// - Returns: True when the change should apply one run-loop turn later.
+    static func defersWindowChange(from old: WindowState, to new: WindowState) -> Bool {
+        old.measured && new.measured && old.allowsSplit != new.allowsSplit
+    }
+
+    /// The panes to lay out while a window change may be pending.
+    ///
+    /// - Parameters:
+    ///   - live: The panes the window allows now, or nil.
+    ///   - held: The last panes the window allowed, or nil.
+    ///   - applied: Whether the applied shape is split; nil before the first one.
+    /// - Returns: `live` once applied; while a collapse is pending, `held` (the stacks keep
+    ///   their shape); while an expansion is pending, nil (one stack).
+    static func appliedGeometry(live: Geometry?, held: Geometry?, applied: Bool?) -> Geometry? {
+        switch applied {
+        case nil: live
+        case true?: live ?? held
+        case false?: nil
+        }
+    }
+
     /// The context an iOS split reads from the published window layout.
     ///
     /// - Parameters:

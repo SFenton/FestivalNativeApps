@@ -121,4 +121,59 @@ func pagerSurfaceTurnsOpaqueWithTheRowCard(mode: PagerSurfaceMode) throws {
     let coolShare = Double(cool.pager.filter { distance($0, opaqueRow) <= 10 }.count) / Double(max(1, cool.pager.count))
     #expect(warmShare >= 0.85 && coolShare >= 0.85, "\(mode): warm \(warmShare), cool \(coolShare)")
 }
+
+// MARK: - Duo placement (issue #345)
+
+/// The horizontal span (points) of the pager's controls rendered `width` wide under `layout`.
+@MainActor
+private func pagerSpan(width: CGFloat, layout: DeviceLayout) async throws -> ClosedRange<CGFloat> {
+    let size = CGSize(width: width, height: pagerHeight)
+    let backdrop = Color(red: 0.85, green: 0.3, blue: 0.2)
+    let content = ZStack(alignment: .top) {
+        backdrop
+        RankingsPagerView(page: 2, totalPages: 48, idPrefix: "fst.test-pager") { _ in }
+            .frame(height: pagerHeight)
+    }
+    .environment(\.deviceLayout, layout)
+    .preferredColorScheme(.dark)
+    let host = nativeHostedView(content, size: size, forceGlassFallback: false)
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(host)
+    let width = image.width, height = image.height
+    var pixels = [UInt8](repeating: 0, count: width * height * 4)
+    let context = try #require(CGContext(
+        data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+        space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    ))
+    context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+    let scale = CGFloat(height) / size.height
+    let y = height - 1 - Int(((8 + 22) * scale).rounded())
+    func rgb(_ x: Int) -> (Int, Int, Int) {
+        let i = (y * width + x) * 4
+        return (Int(pixels[i]), Int(pixels[i + 1]), Int(pixels[i + 2]))
+    }
+    let page = rgb(1)
+    let columns = (0..<width).filter { distance(rgb($0), page) > 24 }
+    let first = try #require(columns.first), last = try #require(columns.last)
+    return CGFloat(first) / scale...CGFloat(last) / scale
+}
+
+/// Unfolded in landscape the pager sits whole on the screen beside the trailing
+/// vertical bar, clear of the hinge (issue #345); elsewhere it stays centred.
+@MainActor
+@Test func pagerMovesBesideTheVerticalBarWhenUnfolded() async throws {
+    let unfolded = DeviceLayout.resolve(LayoutSignals(
+        size: CGSize(width: 951, height: 669), widthClass: .regular,
+        verticalBarEdge: .trailing, hinge: .fullyOpen
+    ))
+    let hinge = try #require(unfolded.splitHinge)
+    let moved = try await pagerSpan(width: 880, layout: unfolded)
+    #expect(moved.lowerBound > hinge.maxX, "pager \(moved) overlaps the hinge at \(hinge.minX)")
+    // Centred on the trailing screen (475.5…880), within a point or two.
+    #expect(abs((moved.lowerBound + moved.upperBound) / 2 - (hinge.maxX + 880) / 2) <= 2)
+
+    let centred = try await pagerSpan(width: 880, layout: .standardPhone)
+    #expect(abs((centred.lowerBound + centred.upperBound) / 2 - 440) <= 2)
+}
 #endif
