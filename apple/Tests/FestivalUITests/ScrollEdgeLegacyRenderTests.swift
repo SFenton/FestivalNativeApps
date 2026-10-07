@@ -239,8 +239,8 @@ func modalTopFadeGrowsTheSharedRampOnEveryScrollPath(legacy: Bool) async throws 
 
 /// Design review of #308: before iOS 18 / macOS 15 the bottom-chrome fade read no
 /// remaining scroll, so Full Rankings (a `ScrollView`) and Song Leaderboard (a `List`)
-/// kept the full 36 pt fade at the end of the list. On both scroll paths and both scroll
-/// kinds the fade is 36 pt mid-list, with row content dim just above the chrome, and 0 at
+/// kept the full bottom fade at the end of the list. On both scroll paths and both scroll
+/// kinds the fade is the full 40 pt mid-list (issue #329), with row content dim just above the chrome, and 0 at
 /// the end, where the last row is drawn fully up to the chrome (R4).
 @MainActor
 @Test(arguments: [true, false], [false, true])
