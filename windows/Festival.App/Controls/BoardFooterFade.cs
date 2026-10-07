@@ -12,8 +12,8 @@ namespace Festival.App.Controls;
 
 #region Board footer fade
 /// <summary>
-/// The one bottom-chrome ramp for every board with a floating footer (scroll-edge R1–R4, R7; issues #93, #308, web
-/// <c>useScrollFade</c>): rows are clear at the footer's top, opaque <see cref="BoardFooterEdgeFade.FadeDepth"/> epx above
+/// The one bottom-chrome ramp for every board with a floating footer (scroll-edge R1–R4, R7, R9; issues #93, #305, #308,
+/// web board pages' <c>useScrollMask</c>): rows are clear at the footer's top, opaque <see cref="BoardFooterEdgeFade.FadeDepth"/> epx above
 /// it, and hidden beneath it; depth 0 is the end of the list (nothing dimmed) or, under a contrast theme, Windows
 /// transparency effects off, or in-app Increase Contrast / Less Transparency, the accessibility hard cut at the footer's
 /// top. Pages call <see cref="Attach"/> once; it follows scrolling, sizes, visibility and the appearance settings itself.
