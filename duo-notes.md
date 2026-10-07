@@ -14,7 +14,7 @@ Stage: 5 (journeys 1–5)  Next: operator/device only — the split redesign lan
 - **P2** accept Shop cards scrolling under the fold in book pose (centre gutter ~42 pt left of the fold): scrolling content need not avoid the fold [T463/T466]; not realigned to the division region.
 - **P3** fix Songs in outer landscape by insetting the list in compact height: built as a measured top padding (`SongsDrawerOverlap`), not a search-placement change.
 - ~~P4~~ superseded by the split redesign (2026-10-04); stopped unbuilt (note: the shared row is already one line since #292).
-- **S5** Songs list-column title truncates to "S…" in inner portrait: handed to the split redesign lane (list-column chrome).
+- ~~**S5** Songs list-column title truncates to "S…" in inner portrait~~: resolved by #341 (2026-10-07). It was the superseded always-on split column; inner portrait now pushes full-width pages, and every page keeps its system title in every pose ([page-tools-and-nav-chrome](.agents/patterns/page-tools-and-nav-chrome.md) R12).
 - **S6** Bands capped at the readable width (680 pt) at regular width, like Settings and Licenses.
 - **S7** What's New opens as a centered sheet on the inner display (cover stays on iPhone, folded Duo, iPad) [T462/T466: inner sheets centered; don't stretch the iPhone page].
 - **S8** rail overflow of Bell/Profile on inner-landscape pushed pages (Bands: Back + `…`) accepted as system compression with six tabs.
