@@ -21,7 +21,7 @@ The web has no sticky section header. Native sticky behavior is an approved addi
 
 ## Rules
 
-1. **R1. Use the canonical heading.** A section title is white, bold/headline, Title Case, leading-aligned, and exposed as a level-two heading; callers supply the already-cased localized title.
+1. **R1. Use the canonical heading.** A section title is white, bold/headline, Title Case, leading-aligned, and exposed as a level-two heading; callers supply the already-cased localized title. Global Search's All-scope Songs/Players/Bands titles are consumers too (R9, #348).
 2. **R2. Put card headings outside cards.** A titled content card has its title and optional description above, not inside, the row container. HIG Materials: "Don't use Liquid Glass in the content layer." Use the shared material card rather than per-page glass.
 3. **R3. Preserve readable hierarchy.** Supporting copy is subordinate to the title and wraps rather than truncating the landmark. HIG Typography: "Adjust weight, size and color as needed to emphasize important information and show hierarchy."
 4. **R4. Use native sticky mechanics.** A pinned title stays opaque while rows fade or clip beneath it; an incoming title pushes the pinned title one-for-one and no two titles overlap.
@@ -46,7 +46,7 @@ Chose **A**. Precedence: web behavior beats undocumented native copies, and amon
 
 | Sub-behavior | Apple | Android | Windows |
 |---|---|---|---|
-| Ordinary section title | `apple/Sources/FestivalUI/Design/SectionHeader.swift` `FestivalSectionHeader` | `android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt` `SectionHeader` (Global Search All sections, R9: `ui/search/GlobalSearch.kt` `sectionTitle`) | `windows/Festival.App/Themes/Styles.xaml` `FSTSectionHeaderStyle` |
+| Ordinary section title | `apple/Sources/FestivalUI/Design/SectionHeader.swift` `FestivalSectionHeader` | `android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt` `SectionHeader` (Global Search All sections, R9: `ui/search/GlobalSearch.kt` `sectionTitle`) | `windows/Festival.App/Themes/Styles.xaml` `FSTSectionHeaderStyle` (Global Search All sections, R9: `Pages/SearchPage.xaml` `SongsHeading` / `PlayersHeading` / `BandsHeading`) |
 | Titled content card | `apple/Sources/FestivalUI/Design/GlassSection.swift` `FestivalGlassSection` | `android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt` `SectionHeader` | `windows/Festival.App/Controls/CardHeader.cs` `CardHeader` |
 | Title-row View All (R8) | `apple/Sources/FestivalUI/Design/SectionHeader.swift` `SectionViewAllLink` (Duo pane headers, Duo Song Detail history cards, Profile Bands) | `android/app/src/main/java/com/festivalscoretracker/android/ui/design/SeeAllButton.kt` `SeeAllButton` | `windows/Festival.App/Pages/RivalsPage.xaml` `HyperlinkButton` (also Profile Bands, `Controls/PlayerProfileView.xaml`); copy and label-first name from `windows/Festival.Core/Domain/ViewAllCta.cs` `ListLabel` / `Name` |
 | Pinned Songs handoff | `apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift` `SongsSectionBar` | `android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsScreen.kt` `SongsScreen` | `windows/Festival.App/Pages/SongsPage.xaml` `StickyHeader` |

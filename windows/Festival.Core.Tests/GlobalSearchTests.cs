@@ -381,6 +381,37 @@ public class GlobalSearchViewModelTests
     }
 
     [Fact]
+    public async Task SectionTitles_OnlyInAll_AboveEachShownSection()
+    {
+        var (_, time, session) = Create();
+        await session.LoadCatalogAsync();
+        var vm = new GlobalSearchViewModel(session);
+        var changed = new List<string?>();
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        // Issue #348: All titles each shown section (web SearchModal h3 per rendered target); empty Bands is omitted.
+        await Type(vm, time, "alph");
+        await Async.Until(() => vm.IsSettled);
+        Assert.True(vm.ShowSectionTitles);
+        Assert.True(vm.ShowSongsSection && vm.ShowPlayersSection);
+        Assert.False(vm.ShowBandsSection || vm.HasEmptyState);
+
+        // Issue #299: a single scope stays untitled (the scope bar names it), and every switch re-evaluates the titles.
+        foreach (var single in new[] { SearchScope.Songs, SearchScope.Players, SearchScope.Bands })
+        {
+            changed.Clear();
+            vm.Scope = single;
+            Assert.False(vm.ShowSectionTitles);
+            Assert.Contains(nameof(GlobalSearchViewModel.ShowSectionTitles), changed);
+        }
+        // An empty single scope shows its own centred no-results state, not a titled empty section.
+        Assert.True(vm.HasEmptyState);
+        Assert.Equal(GlobalSearchResults.EmptyBandsTitle, vm.EmptyTitle);
+        vm.Scope = SearchScope.All;
+        Assert.True(vm.ShowSectionTitles);
+    }
+
+    [Fact]
     public async Task LateResultsAreDropped()
     {
         var first = new TaskCompletionSource<HttpResponseMessage>();
