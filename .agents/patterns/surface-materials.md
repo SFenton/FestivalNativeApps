@@ -27,6 +27,7 @@ Content must remain legible and cheap to scroll over animated artwork. Use one p
 - **R6. Avoid nesting surfaces.** A group owns one card; its rows, pills, badges and meters use flat fills. System sheets own their own material and must not contain a second glass card.
 - **R7. A "View all" call to action takes the web's surface.** Where the web frosts it (player page `BandViewAllCard`), it is a full-width frosted card on the canonical surface: 48 dp/pt/epx minimum height, centred Title Case label and the in-card chevron, one button named by its label. The purple filled leaderboard CTA is an **approved variant** only where the operator chose it over the web's frosted fill (6.29: leaderboard, song, ranking and rivals cards); do not extend it to new View-all rows.
   - Agent decision (#312, 2026-10-06): Android's player-page "View All Bands (N)" is a clickable `GlassCard` (web frosted card), not `ViewFullLeaderboardButton`; owner may override with `/choose`.
+  - Windows (#312 review): the profile Bands groups' "View All Bands (N)" is `Controls/ViewAllCard` on its implicit `Themes/Styles.xaml` style (`FSTCardSurfaceBrush`/`FSTCardStrokeBrush`, `FSTViewAllCardMinHeight` 48 epx, card hover/press fills), never `FSTViewAllButtonStyle`; `ViewAllCardTests`, the `windows-profile-purple-view-all` guard and the `profile.py` `bands-section` paint probe (no purple fill, white chevron right of the label) hold it.
 
 ## Canonical implementation
 
@@ -35,8 +36,8 @@ Content must remain legible and cheap to scroll over animated artwork. Use one p
 | Content card and row | `FestivalUI/Design/RowCardSurface.swift` `FestivalCardModifier`, `festivalCard`, `festivalRowCard` | `ui/design/DesignPrimitives.kt` `GlassCard` | `Festival.App/Themes/Styles.xaml` `FSTCardSurfaceBrush`; `Controls/SongRowCard.xaml.cs` `SongRowCard` |
 | Group and floating capsule | `FestivalUI/Design/GlassSection.swift` `FestivalGlassSection`; `RowCardSurface.swift` `festivalCardCapsule` | `ui/design/DesignPrimitives.kt` `GlassCard` | `Controls/LeaderboardEntryRow.xaml.cs` `LeaderboardEntryRow`; `Themes/Styles.xaml` `FSTFloatingBackplateBrush` |
 | Glass exception | `FestivalUI/Design/GlassSurface.swift` `FestivalGlassModifier` | Native navigation chrome | Native pane/overlay chrome |
-| Frosted View-all card (R7) | — (not yet ported) | `ui/profile/ProfileBands.kt` `ProfileBandsViewAll` (`GlassCard(onClick)` + `RowChevron`) | — (not yet ported) |
-| Purple View-all CTA (approved variant, 6.29) | `Features/Leaderboards/PurpleActionButton.swift` | `ui/design/ViewFullLeaderboardButton.kt` | — |
+| Frosted View-all card (R7) | — (not yet ported) | `ui/profile/ProfileBands.kt` `ProfileBandsViewAll` (`GlassCard(onClick)` + `RowChevron`) | `Festival.App/Controls/ViewAllCard.cs` `ViewAllCard` (implicit style in `Themes/Styles.xaml`) |
+| Purple View-all CTA (approved variant, 6.29) | `Features/Leaderboards/PurpleActionButton.swift` | `ui/design/ViewFullLeaderboardButton.kt` | `Themes/Styles.xaml` `FSTViewAllButtonStyle` |
 
 ### Agent decision: Windows notification row cards (#272)
 
@@ -61,3 +62,4 @@ Why B: R6 forbids a second *material*, not a flat fill, and the web's dropdown r
 - `surface-materials/apple-glass-effect`
 - `surface-materials/apple-raw-material-background` — approved allows: `PurpleActionButton`, the pre-26 First Run sheet fallback, and First Run's matching purple demo control.
 - `surface-materials/apple-feature-opaque-card` — no feature draws `.background(BrandTokens.cardBackground, in:)`: that opaque plate is `FestivalCardModifier`'s accessibility fallback (#319 removed the pager's private `PagerPlate`).
+- `surface-materials/windows-profile-purple-view-all` — the Windows profile's View All Bands (N) never takes `FSTViewAllButtonStyle` (R7, #312).

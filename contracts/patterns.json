@@ -83,6 +83,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ScrollEdgeFade.kt",
             "symbol": "bottomChromeEdgeFade"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsBoardScaffold.kt",
+            "symbol": "RankingsBoardLayout"
           }
         ],
         "windows": [
@@ -174,6 +178,7 @@
         298,
         301,
         305,
+        306,
         308,
         319,
         322
@@ -529,6 +534,10 @@
           {
             "path": "windows/Festival.App/Controls/LeaderboardEntryRow.xaml.cs",
             "symbol": "LeaderboardEntryRow"
+          },
+          {
+            "path": "windows/Festival.App/Controls/ViewAllCard.cs",
+            "symbol": "ViewAllCard"
           }
         ]
       },
@@ -563,6 +572,14 @@
           "allow": [],
           "debt": [],
           "message": "An opaque cardBackground plate is FestivalCardModifier's accessibility fallback, not a feature surface; draw cards, rows and custom floating controls with festivalCard / festivalCardCapsule (surface-materials R1, #319)."
+        },
+        {
+          "id": "windows-profile-purple-view-all",
+          "glob": "windows/Festival.App/Controls/PlayerProfileView.xaml",
+          "regex": "FSTViewAllButtonStyle",
+          "allow": [],
+          "debt": [],
+          "message": "The profile's View All Bands (N) is the frosted ViewAllCard (web BandViewAllCard), not the purple leaderboard CTA (surface-materials R7, #312)."
         }
       ],
       "related": {
@@ -1339,6 +1356,18 @@
           ],
           "debt": [],
           "message": "Pages inside PublicationRefreshBoundary set their title with festivalNavigationTitle so the VoiceOver page anchor can name them during a publication refresh (load-transition R9)."
+        },
+        {
+          "id": "apple-focus-state-owner",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "@AccessibilityFocusState",
+          "allow": [
+            "apple/Sources/FestivalUI/Common/PublicationRefreshBoundary.swift",
+            "apple/Sources/FestivalUI/App/Layout/OnDemandSplit.swift",
+            "apple/Sources/FestivalUI/Features/FirstRun/FirstRunCarouselView.swift"
+          ],
+          "debt": [],
+          "message": "@AccessibilityFocusState invalidates the view that owns it while lists scroll; keep it on a small leaf view or modifier, never on a view that builds a page's content (load-transition R9, #325)."
         },
         {
           "id": "android-load-swap",

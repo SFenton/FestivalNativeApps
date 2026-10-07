@@ -86,6 +86,20 @@ public class PlayerBandsViewModelTests
     }
 
     [Fact]
+    public async Task RouteGroupAndNameApplyBeforeTheFirstRead()
+    {
+        var bands = new BandService();
+        var vm = new PlayerBandsViewModel(bands.Service.Session(), new AppRoute.PlayerBands("acc", PlayerBandGroup.Duos, " Route Name "));
+        Assert.Equal(PlayerBandGroup.Duos, vm.Group);
+        Assert.Equal(1, vm.GroupIndex);
+        Assert.Equal("Route Name's Bands", vm.Title);
+        Assert.DoesNotContain(bands.Service.Handler.Requests, r => r.Uri.AbsolutePath.EndsWith("/bands", StringComparison.Ordinal));
+        await vm.LoadAsync();
+        Assert.Single(bands.Service.Handler.Requests, r => r.Uri.AbsolutePath.EndsWith("/bands", StringComparison.Ordinal));
+        Assert.Contains(bands.Service.Handler.Requests, r => r.Uri.Query == "?group=duos&page=1&pageSize=25");
+    }
+
+    [Fact]
     public async Task SelectedPlayerNameEmptyFailureAndClamp()
     {
         var bands = new BandService();

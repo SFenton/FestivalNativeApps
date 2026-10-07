@@ -62,7 +62,7 @@ public sealed partial class PlayerProfileViewModel : ObservableObject, IDisposab
 
     /// <summary>Shown account.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsSelected), nameof(DisplayName), nameof(BandsRoute), nameof(HasAccount))]
+    [NotifyPropertyChangedFor(nameof(IsSelected), nameof(DisplayName), nameof(HasAccount))]
     private string accountId;
 
     /// <summary>Load lifecycle (Empty = syncing).</summary>
@@ -171,11 +171,13 @@ public sealed partial class PlayerProfileViewModel : ObservableObject, IDisposab
     /// <summary>Switch confirmation body.</summary>
     public string SwitchMessage => $"Scores and profile-dependent pages will update to {DisplayName}.";
 
-    /// <summary>Route to this player's bands.</summary>
-    public AppRoute BandsRoute => new AppRoute.PlayerBands(AccountId);
 
-    /// <summary>Bands link text.</summary>
-    public string BandsLabel => $"View {DisplayName}'s Bands";
+    /// <summary>
+    /// Inline "{name}'s Bands" section after the instrument cards (issue #312), created with the profile content and
+    /// loaded separately so it never holds the page; <see langword="null"/> while no profile shows.
+    /// </summary>
+    [ObservableProperty]
+    private PlayerProfileBandsViewModel? bands;
 
     /// <summary>Loads (or re-reads) the shown account.</summary>
     /// <returns>Load task.</returns>
@@ -246,6 +248,7 @@ public sealed partial class PlayerProfileViewModel : ObservableObject, IDisposab
         load?.Cancel();
         session.PropertyChanged -= OnSessionChanged;
         foreach (var section in Instruments) section.Cancel();
+        Bands?.Cancel();
     }
 
     /// <summary>Retry: forces a fresh read.</summary>
@@ -305,6 +308,8 @@ public sealed partial class PlayerProfileViewModel : ObservableObject, IDisposab
     private void Clear(LoadState next)
     {
         foreach (var section in Instruments) section.Cancel();
+        Bands?.Cancel();
+        Bands = null;
         Payload = null;
         Overview = [];
         Instruments = [];
@@ -340,6 +345,12 @@ public sealed partial class PlayerProfileViewModel : ObservableObject, IDisposab
                 link: stats.BestRankSongId is { } song && stats.BestRankInstrument is { } chart ? new PlayerStatLink.SongDetail(song, chart) : null),
         ];
         Instruments = [.. visible.Select(i => new PlayerInstrumentViewModel(session, AccountId, profile, i, catalogSize))];
+        if (Bands?.AccountId != AccountId)
+        {
+            Bands?.Cancel();
+            Bands = new PlayerProfileBandsViewModel(session, AccountId, DisplayName);
+            _ = Bands.LoadAsync();
+        }
         RefreshLinks();
     }
 
@@ -389,9 +400,10 @@ public sealed partial class PlayerProfileViewModel : ObservableObject, IDisposab
     {
         foreach (var name in (string[])[nameof(IsSelected), nameof(DisplayName), nameof(IdentityAction),
                      nameof(CanSelect), nameof(CanDeselect), nameof(SelectNeedsConfirmation), nameof(SelectLabel),
-                     nameof(IdentityNotice), nameof(HasIdentityNotice), nameof(SwitchMessage), nameof(BandsLabel),
+                     nameof(IdentityNotice), nameof(HasIdentityNotice), nameof(SwitchMessage),
                      nameof(SyncingMessage)])
             OnPropertyChanged(name);
+        if (Bands is { } section) section.PlayerName = DisplayName;
         RefreshLinks();
     }
 
