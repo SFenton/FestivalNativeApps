@@ -674,6 +674,14 @@
           {
             "path": "apple/Sources/FestivalUI/App/Shell/RootChrome.swift",
             "symbol": "RootProfileButton"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Shell/FestivalSection.swift",
+            "symbol": "FestivalTabPolicy"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Shell/ShellPresentation.swift",
+            "symbol": "ShellPresentation"
           }
         ],
         "android": [
@@ -786,7 +794,8 @@
         160,
         271,
         300,
-        309
+        309,
+        337
       ]
     },
     {

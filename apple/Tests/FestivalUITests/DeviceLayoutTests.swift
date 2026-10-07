@@ -57,7 +57,8 @@ private enum Duo {
     #expect(layout.sectionChrome == .verticalBar(.leading))
 }
 
-/// Unfolded landscape: bar stays vertical, pages become list/detail, regular section set.
+/// Unfolded landscape: bar stays vertical, pages become list/detail; the compact
+/// section set stays, as folded (issue #337).
 @Test func unfoldedLandscapeIsListDetail() {
     let layout = DeviceLayout.resolve(LayoutSignals(
         size: Duo.innerLandscape, widthClass: .regular,
@@ -67,11 +68,11 @@ private enum Duo {
     #expect(layout.orientation == .landscape)
     #expect(layout.sectionChrome == .verticalBar(.trailing))
     #expect(layout.contentArrangement == .listDetail)
-    #expect(layout.usesRegularSectionSet)
+    #expect(!layout.usesRegularSectionSet)
 }
 
 /// Unfolded portrait: the system returns to horizontal bars (no vertical-bar edge);
-/// list/detail and the regular section set, as in landscape (dual-source shelved).
+/// list/detail and the compact section set, as in landscape (dual-source shelved).
 @Test func unfoldedPortraitReturnsToTabBar() {
     let layout = DeviceLayout.resolve(LayoutSignals(
         size: Duo.innerPortrait, widthClass: .regular, verticalBarEdge: nil, hinge: .fullyOpen
@@ -79,7 +80,7 @@ private enum Duo {
     #expect(layout.pose == .unfolded)
     #expect(layout.sectionChrome == .tabBar)
     #expect(layout.contentArrangement == .listDetail)
-    #expect(layout.usesRegularSectionSet)
+    #expect(!layout.usesRegularSectionSet)
 }
 
 /// Operator 2026-09-28: half-open portrait is the normal portrait layout too.
@@ -90,7 +91,7 @@ private enum Duo {
     ))
     #expect(!DualSourcePolicy.isEnabled)
     #expect(layout.contentArrangement == .listDetail)
-    #expect(layout.usesRegularSectionSet)
+    #expect(!layout.usesRegularSectionSet)
 }
 
 /// Shelved path (flag on): the fold runs across the screen; two stacked regions.
@@ -113,7 +114,7 @@ private enum Duo {
         hinge: .partiallyOpen, divisions: [CGRect(x: 455, y: 0, width: 41, height: 669)]
     ))
     #expect(layout.contentArrangement == .listDetail)
-    #expect(layout.usesRegularSectionSet)
+    #expect(!layout.usesRegularSectionSet)
 }
 
 /// Other portrait windows never stack regions: iPhone, folded Duo, iPad sidebar.
