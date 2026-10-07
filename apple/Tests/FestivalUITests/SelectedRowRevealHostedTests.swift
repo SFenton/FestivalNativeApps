@@ -288,13 +288,15 @@ private func watchReveal<Content: View>(
         )
     }
 
-    var first: RevealSample?
+    // Each loop looks once more before it gives up: a starved poll can resume past the
+    // deadline with the row already in place.
+    var first = try capture()
     while first == nil {
         try deadline.check(
             "\(row) had not lain wholly in the clear band \(band) (frame \(String(describing: nativeHostedAccessibilityFrame(row, in: host))))"
         )
+        try await deadline.sleep(for: .milliseconds(20))
         first = try capture()
-        if first == nil { try await deadline.sleep(for: .milliseconds(20)) }
     }
     guard let first else { throw CancellationError() }
 
@@ -352,12 +354,15 @@ private func runRevealJourney(board: RevealBoard, motion: RevealMotion, size: CG
 
     if board == .fullRankings {
         // Jump from the pinned footer as soon as it offers it, while page 1 still fades.
-        var jump: NSObject?
+        func findJump() -> NSObject? {
+            host.layoutSubtreeIfNeeded()
+            return nativeHostedAccessibilityElement("fst.full-rankings.spotlight-jump", in: host)
+        }
+        var jump = findJump()
         while jump == nil {
             try deadline.check("the footer had not offered its jump to the player's page")
-            host.layoutSubtreeIfNeeded()
-            jump = nativeHostedAccessibilityElement("fst.full-rankings.spotlight-jump", in: host)
-            if jump == nil { try await deadline.sleep(for: .milliseconds(30)) }
+            try await deadline.sleep(for: .milliseconds(30))
+            jump = findJump()
         }
         let press: AnyObject = try #require(jump, "the footer offers a jump to the player's page")
         #expect(press.accessibilityPerformPress?() == true)
@@ -525,9 +530,6 @@ private struct StaggeredListProbe: View {
     func frames() -> [[TimeInterval]] { rows.map { RecordingFadeCurve.frames("\(probe).\($0)") } }
     do {
         while true {
-            try deadline.check(
-                "the first row had not stayed drawn for a whole fade (samples \(samples.map { "\($0.dim)/\($0.bright)" }))"
-            )
             let from = clock.now
             host.layoutSubtreeIfNeeded()
             if let frame = nativeHostedAccessibilityFrame("fst.test.staggered-row.0", in: host) {
@@ -549,6 +551,9 @@ private struct StaggeredListProbe: View {
             } else {
                 drawnAt = nil
             }
+            try deadline.check(
+                "the first row had not stayed drawn for a whole fade (samples \(samples.map { "\($0.dim)/\($0.bright)" }))"
+            )
             try await deadline.sleep(for: .milliseconds(30))
         }
     } catch let expired as NativeHostedEvidenceExpired {

@@ -48,6 +48,12 @@ jobs:
       - name: Swift unit tests (macOS host, no simulator)
         working-directory: apple
         run: swift test --parallel --enable-code-coverage
+      - name: Animation-evidence tests, alone
+        # Their evidence is rendered animation frames (#327). The parallel bundle starves the shared main actor, so
+        # there they end at their 10 s evidence deadline as intermittent known issues; alone they are judged
+        # strictly. Reuses the coverage build and leaves its profile alone. Filter: testing/apple/hosted-snapshots.md.
+        working-directory: apple
+        run: swift test --skip-build --filter 'selectedRowRevealFadesTheRowItReaches|staggeredListRowsFadeInRatherThanPop'
       - name: Upload hosted render captures
         if: failure()
         uses: actions/upload-artifact@v4
