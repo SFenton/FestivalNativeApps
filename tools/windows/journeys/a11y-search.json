@@ -11,7 +11,7 @@
     "tabs": 0,
     "sizes": ["medium", "wide", "maximized"],
     "ready": ["waitfor:id=fst.songs.row.fixture-pulse@20"],
-    "after_ready": ["key:ctrl+e", "assertfocus:name=Search songs and players@3", "type:fix",
+    "after_ready": ["key:ctrl+e", "assertfocus:name=Search songs, players and bands@3", "type:fix",
                     "waitfor:name=Player, Fixture Player 1@10"],
     "teardown": ["key:esc", "key:esc", "key:esc"]
   },
@@ -63,11 +63,10 @@
     "after_ready": ["waitgone:id=fst.global-search.result.player"]
   },
   {
-    "name": "search-bands-unavailable",
-    "route": "/search?q=fixture",
-    "ready": ["waitfor:id=fst.global-search.result.player@20"],
-    "after_ready": ["select:id=fst.global-search.scope.bands", "waitfor:id=fst.global-search.bands-unavailable.rankings@5",
-                    "waitgone:id=fst.global-search.result.song@5"]
+    "name": "search-results-bands",
+    "route": "/search?q=fixture&scope=bands",
+    "ready": ["waitfor:id=fst.global-search.result.band@20"],
+    "after_ready": ["waitgone:id=fst.global-search.result.song@5", "waitgone:id=fst.global-search.result.player@5"]
   },
   {
     "name": "search-navigated",

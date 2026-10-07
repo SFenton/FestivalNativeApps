@@ -241,10 +241,10 @@ class MatrixTests(unittest.TestCase):
         pages = json.loads((m.PAGES.parent / "a11y-search.json").read_text(encoding="utf-8"))
         names = {page["name"] for page in pages}
         # Every reachable Global Search state (issue #234): closed, open-hint, loading, results-all/-scoped, empty,
-        # error, bands-unavailable and navigated, plus the title-bar suggestion popup.
+        # error, results-bands and navigated, plus the title-bar suggestion popup.
         self.assertLessEqual({"search-closed", "search-suggestions", "search-open-hint", "search-loading",
                               "search-results-all", "search-results-songs", "search-results-players", "search-empty",
-                              "search-error", "search-bands-unavailable", "search-navigated"}, names)
+                              "search-error", "search-results-bands", "search-navigated"}, names)
         for page in pages:
             for size in page.get("sizes", []):
                 self.assertIn(size, u.PRESETS, page["name"])
