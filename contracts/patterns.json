@@ -2662,7 +2662,8 @@
       "related": {
         "patterns": [
           "surface-materials",
-          "load-transition"
+          "load-transition",
+          "hinge-columns"
         ],
         "pages": [
           "songs"

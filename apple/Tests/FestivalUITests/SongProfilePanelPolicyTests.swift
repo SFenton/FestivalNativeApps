@@ -231,3 +231,22 @@ private func pulseScores() throws -> [Instrument: PlayerScore] {
         visibility: SongMetadataVisibility(), order: MetadataField.allCases
     ).isEmpty)
 }
+
+/// In iPhone Duo book pose the cards get the trailing side of the fold (`hinge-columns`
+/// R1), so the one-line fit uses that width; without a matching band, half the content.
+@Test func profilePanelWidthFollowsTheFold() throws {
+    // Row content 24–843 (inside 12 pt padding) under a 40 pt fold at 455–495.
+    let span = HorizontalSpan(minX: 24, maxX: 843)
+    let fold = CGRect(x: 455, y: 0, width: 40, height: 669)
+    let band = try #require(HingeColumns.band(
+        span: span, fold: fold, gutter: SongProfilePanelPolicy.gap, minimumSide: HingeColumns.minimumSide
+    ))
+    #expect(band == HingeBand(leadingWidth: 431, gap: 40, trailingWidth: 348))
+    #expect(SongProfilePanelPolicy.panelWidth(contentWidth: span.width, band: band) == 348)
+    // Flat: the halves split the content evenly.
+    #expect(SongProfilePanelPolicy.panelWidth(contentWidth: span.width, band: nil)
+            == SongProfilePanelPolicy.halfWidth(contentWidth: span.width))
+    // A stale band from another width is ignored, as HingeRowLayout ignores it.
+    #expect(SongProfilePanelPolicy.panelWidth(contentWidth: 900, band: band)
+            == SongProfilePanelPolicy.halfWidth(contentWidth: 900))
+}

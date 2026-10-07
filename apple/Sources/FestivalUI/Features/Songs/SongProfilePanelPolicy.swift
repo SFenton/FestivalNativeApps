@@ -196,6 +196,21 @@ enum SongProfilePanelPolicy {
         max(0, (contentWidth - gap) / 2)
     }
 
+    /// Width of the score cards' (trailing) side of a split row. While an iPhone Duo
+    /// fold crosses the row, the halves meet at the fold (``HingeRow``, `hinge-columns`
+    /// R1) and the cards get the trailing side; otherwise half the content.
+    ///
+    /// - Parameters:
+    ///   - contentWidth: Row width inside the card's padding.
+    ///   - band: The fold's band across the row content (``HingeColumns/band(span:fold:gutter:minimumSide:)``), or nil.
+    /// - Returns: The cards' width, the one-line fit is measured against it.
+    static func panelWidth(contentWidth: CGFloat, band: HingeBand?) -> CGFloat {
+        if let band, abs(band.width - contentWidth) < 0.5 {
+            return HingeColumns.spec(band: band, spacing: gap, perSide: .columns(1)).trailingColumnWidth
+        }
+        return halfWidth(contentWidth: contentWidth)
+    }
+
     /// The scored charts' cards, in the chips' stable instrument order.
     ///
     /// - Parameters:

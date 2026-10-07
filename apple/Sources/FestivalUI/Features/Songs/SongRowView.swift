@@ -95,7 +95,11 @@ struct SongRowView: View {
     /// Dynamic Type scale for the profile panel's pill-width estimates.
     @ScaledMetric(relativeTo: .body) private var panelScale: CGFloat = 1
     /// The card's content width, measured only where one-line or split rows are allowed.
+    @Environment(\.deviceLayout) private var deviceLayout
     @State private var rowWidth: CGFloat = 0
+    /// Row content's window span, measured only when the profile panel may show (its
+    /// halves meet at an iPhone Duo fold, `hinge-columns` R1).
+    @State private var rowSpan: HorizontalSpan?
 
     /// Decorate one real Shop offer without turning it into a new navigation action.
     ///
@@ -502,24 +506,33 @@ struct SongRowView: View {
         }
         guard let tiles, !tiles.isEmpty,
               let arrangement = SongProfilePanelPolicy.arrangement(
-                  width: SongProfilePanelPolicy.halfWidth(contentWidth: rowWidth), tiles: tiles,
+                  width: SongProfilePanelPolicy.panelWidth(contentWidth: rowWidth, band: panelFoldBand), tiles: tiles,
                   overview: band != nil || instrument == nil, scale: panelScale
               ) else { return nil }
         return (tiles, arrangement)
     }
 
+    /// The iPhone Duo fold's band across the row content, the same band ``HingeRow``
+    /// splits the panel row at; nil without a fold through it.
+    private var panelFoldBand: HingeBand? {
+        HingeColumns.band(
+            span: rowSpan, fold: deviceLayout.foldFrame, gutter: SongProfilePanelPolicy.gap,
+            minimumSide: HingeColumns.minimumSide
+        )
+    }
+
     /// Wide split row: the song (and a player's status chips) on the left half, the
-    /// selected profile's score cards on the right half (issue #340).
+    /// selected profile's score cards on the right half (issue #340). The halves meet at
+    /// an iPhone Duo fold in book pose (``HingeRow``, `hinge-columns` R1).
     ///
     /// - Parameters:
     ///   - tiles: Non-empty scored cards.
     ///   - arrangement: Their one-line columns.
-    /// - Returns: Two equal halves inside the one row card.
+    /// - Returns: Two halves inside the one row card.
     private func profilePanelRow(
         _ tiles: [SongProfilePanelTile], arrangement: SongProfilePanelPolicy.Arrangement
     ) -> some View {
-        let half = SongProfilePanelPolicy.halfWidth(contentWidth: rowWidth)
-        return HStack(alignment: .top, spacing: SongProfilePanelPolicy.gap) {
+        HingeRow(spacing: SongProfilePanelPolicy.gap) {
             HStack(alignment: .top, spacing: 12) {
                 artworkTile
                 VStack(alignment: .leading, spacing: 4) {
@@ -536,7 +549,6 @@ struct SongRowView: View {
                 songId: song.songId, tiles: tiles, arrangement: arrangement,
                 keyboard: song.usesKeyboardIcon, highContrast: highContrast
             )
-            .frame(width: half)
         }
     }
 
@@ -607,6 +619,9 @@ struct SongRowView: View {
         .onGeometryChange(for: CGFloat.self) {
             allowsSingleLine || allowsProfilePanel ? $0.size.width : 0
         } action: { rowWidth = $0 }
+        .onGeometryChange(for: HorizontalSpan?.self) {
+            allowsProfilePanel ? HorizontalSpan($0.frame(in: .global)) : nil
+        } action: { if rowSpan != $0 { rowSpan = $0 } }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .festivalRowCard(cornerRadius: 12)

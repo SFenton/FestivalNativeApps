@@ -24,7 +24,7 @@ The web has no wide split row; its desktop row puts the same pills inline. The p
 3. **R3. Compact cards keep one line, or the row stays plain.** "All instruments" and band cards show only Score, Accuracy/FC, Percentile and Stars (where enabled), in the saved Settings order. They use equal columns, take the most columns that fit, and drop Stars only to fit their line or save a line (VoiceOver still hears them). If even a starless compact card can't fit one line in the half (estimated per field, scaled by Dynamic Type), the row stays plain: at default text the 600 pt row's 282 pt half is below a six-digit card's 302 pt, so such rows split from about 640 pt. A single filtered chart's card shows every enabled field, takes the whole half and wraps its pills like the one-chart Songs row.
 4. **R4. Player cards.** One card per Settings-visible, charted chart with a positive score, in the status chips' instrument order, with the chart icon. A song with no positive score on the shown charts keeps the plain row.
 5. **R5. Band card.** One card for the selected band's song row (score > 0), with the band-size symbol (`BandType.symbolName`, shared with Song Details' band Quick Links). Bands have no chart, so no Intensity or game difficulty. The band index comes only from the mutation-free `GET /api/rankings/bands/{bandType}/{teamKey}/song-rows` ([service safety](../platforms/service-safety.md)), validated for team, combo, count and value ranges. The plain (narrow or gated) band row shows the band's pills like the player's one-chart row.
-6. **R6. Grid.** While a profile is selected (and, for a player, Filter Invalid Scores is off), the landscape two-card grid shows one song per row so each row has the width (`SongProfilePanelPolicy.gridColumns`).
+6. **R6. Grid and fold.** While a profile is selected (and, for a player, Filter Invalid Scores is off), the landscape two-card grid shows one song per row so each row has the width (`SongProfilePanelPolicy.gridColumns`). The row's two halves are a two-up row: in iPhone Duo book pose they meet at the fold (`HingeRow`, [hinge-columns](hinge-columns.md) R1), and R3's fit uses the cards' trailing side (`SongProfilePanelPolicy.panelWidth`).
 7. **R7. Surfaces.** Cards are flat `surfaceMuted` 35 % fills, 8 pt radius, a stroke under Increase Contrast, inside the one row card; no second material ([surface-materials](surface-materials.md) R6).
 8. **R8. Accessibility and IDs.** Each card is one VoiceOver element ("Lead: Score 270,007, Full combo, …"; "The Duo, Duos band: Score 1,234,567, …"), read after the song; the row stays one combined link. Test IDs: `fst.songs.profile-panel.<songId>` and `fst.songs.profile-panel.<songId>.<instrument rawValue | band>`.
 9. **R9. One component.** Consumers never build their own split: `SongRowView.profilePanel` asks `SongProfilePanelPolicy` (gate, tiles, arrangement) and renders `SongProfilePanel`.
@@ -33,12 +33,12 @@ The web has no wide split row; its desktop row puts the same pills inline. The p
 
 | Sub-behavior | Apple | Android | Windows |
 |---|---|---|---|
-| Gate, fit, tiles, grid (R1–R6) | `apple/Sources/FestivalUI/Features/Songs/SongProfilePanelPolicy.swift` `SongProfilePanelPolicy` (`allows`, `arrangement`, `tiles`, `bandTiles`, `gridColumns`) | not ported | not ported |
+| Gate, fit, tiles, grid (R1–R6) | `apple/Sources/FestivalUI/Features/Songs/SongProfilePanelPolicy.swift` `SongProfilePanelPolicy` (`allows`, `arrangement`, `panelWidth`, `tiles`, `bandTiles`, `gridColumns`) | not ported | not ported |
 | Panel view (R7, R8) | `apple/Sources/FestivalUI/Features/Songs/SongProfilePanel.swift` `SongProfilePanel` | — | — |
-| Row integration | `apple/Sources/FestivalUI/Features/Songs/SongRowView.swift` `profilePanel` | — | — |
+| Row integration | `apple/Sources/FestivalUI/Features/Songs/SongRowView.swift` `profilePanel` (halves in `HingeRow`) | — | — |
 | Band index (R2, R5) | `apple/Sources/FestivalCore/FestivalAPI+Bands.swift` `bandSongRows`; `apple/Sources/FestivalUI/App/FestivalSession.swift` `refreshSelectedBand` | — | — |
 
-Tests: `SongProfilePanelPolicyTests` (gate, fit including the 600 pt threshold, player and band tiles), `SelectedBandSessionTests` (band index load, publication gate, 503), `SelectedSongRowRenderTests` (`wideSongRowsSplitOnlyForASelectedPlayersScores`, `wideSongRowsAtTheBreakpointKeepCompactCardsOnOneLine`, `wideSongRowsShowTheSelectedBandsScoreCard`), `FestivalAPIBandsTests` (`bandSongRows…`), `OnDemandSplitPolicyTests.songsGridColumnsWithSelectedPlayer`.
+Tests: `SongProfilePanelPolicyTests` (gate, fit including the 600 pt threshold, the fold's trailing width, player and band tiles), `SelectedBandSessionTests` (band index load, publication gate, 503), `SelectedSongRowRenderTests` (`wideSongRowsSplitOnlyForASelectedPlayersScores`, `wideSongRowsAtTheBreakpointKeepCompactCardsOnOneLine`, `wideSongRowsShowTheSelectedBandsScoreCard`), `FestivalAPIBandsTests` (`bandSongRows…`), `OnDemandSplitPolicyTests.songsGridColumnsWithSelectedPlayer`.
 
 ## Agent decision (#340, 2026-10-07)
 
@@ -61,7 +61,6 @@ Band sub-decision: the band card ships with this pattern, fed by the read-only `
 | Debt | Breaks | Plan |
 |---|---|---|
 | Apple has no user-facing "select band" entry yet; a band is selected only through `FST_DEBUG_BAND` and tests. The web's band selection flow is unported. | Reach of R5 | Port band selection (separate issue); the panel needs no change. |
-| On the iPhone Duo inner display the halves meet at the display midpoint, but the system's 40 pt hinge band (455–495 pt) is wider than the 12 pt gap, as in the two-card grid. | R1 on Duo | Duo hinge pass. |
 | Android and Windows wide Songs rows have no panel. | Parity | Their own issues. |
 
 ## Guards (`tools/pattern_guard.py`)
