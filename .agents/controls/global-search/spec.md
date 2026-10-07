@@ -132,6 +132,7 @@ The former `bands-unavailable` state was retired by #320 on every platform and r
 | `fst.global-search.hint` | Short-query / empty / error message |
 | `fst.global-search.empty` | Centred empty state (Android/Windows; title `.empty.title`, subtitle `.empty.subtitle` on Windows) |
 | `fst.global-search.section.{songs,players,bands}` | All-scope section title (heading) for each rendered category (issue #348; Android and Apple tag the title itself). Absent in a single scope (issue #299) |
+| `fst.global-search.section.{songs,players,bands}` | All-scope section title (heading) for each rendered category (issue #348; Android tags the title itself, Windows the `FSTSectionHeaderStyle` heading). Absent in a single scope (issue #299) |
 | `fst.global-search.result.song`, `fst.global-search.result.player`, `fst.global-search.result.band` | Each result row (repeated; accessible name = title/artist, display name, or members and song count) |
 | `fst.global-search.loading` | The one centred search spinner (Android, Windows, Apple) |
 | `fst.global-search.players-loading` | Players inline progress; removed on Android, Windows and Apple by issue #299 |
@@ -141,7 +142,7 @@ The former `bands-unavailable` state was retired by #320 on every platform and r
 
 ## Test matrix
 
-Open from a tab root and from a detail page in every layout · <2 chars · debounce (fast typing = one request) · songs-only match, players-only match, both · diacritics/punctuation song match · players empty envelope + centred empty state without Retry, re-run by submitting the same text (Players scope; hidden section in All when songs match) · all-empty centred title + subtitle · players 503 freeze · players transport error with songs still shown · scope toggle on/off · bands match (cards with members and song count) in Bands and All · bands empty envelope + centred empty state · bands 503 failure distinct from empty · band request is first-page only with no selected-profile header · tap song/player/selected player/band → destination and Back · close by Escape/back gesture restores focus to the opener · screen-reader names, no section titles, scope-specific short-query hint, one centred spinner and count announcement · Songs filter text untouched by global search and vice versa.
+Open from a tab root and from a detail page in every layout · <2 chars · debounce (fast typing = one request) · songs-only match, players-only match, both · diacritics/punctuation song match · players empty envelope + centred empty state without Retry, re-run by submitting the same text (Players scope; hidden section in All when songs match) · all-empty centred title + subtitle · players 503 freeze · players transport error with songs still shown · scope toggle on/off · bands match (cards with members and song count) in Bands and All · bands empty envelope + centred empty state · bands 503 failure distinct from empty · band request is first-page only with no selected-profile header · tap song/player/selected player/band → destination and Back · close by Escape/back gesture restores focus to the opener · screen-reader names, section titles in All only (none in a single scope), scope-specific short-query hint, one centred spinner and count announcement · Songs filter text untouched by global search and vice versa.
 
 ## Open questions (operator)
 

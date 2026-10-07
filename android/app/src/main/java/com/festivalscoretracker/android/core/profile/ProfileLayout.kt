@@ -64,7 +64,7 @@ object ProfileColumns {
         }
         val edges = listOf(0) + cuts + width
         val widths = edges.chunked(2).map { (start, end) -> end - start }
-        return if (widths.all { it >= minColumn / 2 }) ColumnSpec(widths, spacing) else null
+        return if (widths.all { it >= minColumn / 2 }) ColumnSpec(widths, spacing, split = true) else null
     }
 
     /** Whether a gap between two columns covers a fold (grid-relative pixels). */

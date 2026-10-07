@@ -301,15 +301,18 @@ func songScoreHistoryRowsShowTheSeasonOnlyOnWidePages(width: Double, shows: Bool
 ///   - session: Fixture session.
 ///   - instrument: Chart to show.
 ///   - size: Window size.
+///   - besideList: The list page beside it in a split's trailing pane, or nil.
 /// - Returns: The hosting view.
 @MainActor
 private func hostedHistoryPage(
     _ session: FestivalSession, instrument: Instrument = .lead,
-    size: CGSize = CGSize(width: 420, height: 900)
+    size: CGSize = CGSize(width: 420, height: 900),
+    besideList: OnDemandSplitPolicy.ListPage? = nil
 ) -> NSHostingView<some View> {
     nativeHostedView(
         NavigationStack {
             PlayerHistoryScreen(session: session, song: fixtureSong, instrument: instrument)
+                .splitPaneContext(besideList.map { SplitPaneContext(role: .trailing, besideList: $0) })
         }
         .frame(width: size.width, height: size.height)
         .preferredColorScheme(.dark),
@@ -343,6 +346,23 @@ private func hostedHistoryPage(
     #expect(tree.texts.filter { $0.contains("best score") }.count == 1)
     #expect(tree.identifiers.contains("fst.history"))
     #expect(tree.identifiers.contains("fst.history.row.5"))
+}
+
+/// Beside Song Detail in a split, Score History is titled by its chart and never
+/// repeats the song's title or artist (owner-approved variant, #342).
+@MainActor
+@Test func playerHistoryScreenBesideSongDetailIsTitledByItsChart() async throws {
+    let session = hostedHistorySession(transport: HostedHistoryTransport())
+    let host = hostedHistoryPage(session, besideList: .songDetail)
+    let window = nativeHostedWindow(host, size: CGSize(width: 420, height: 900))
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(host, untilText: ["score 850,000"], timeout: .seconds(60))
+    _ = try nativeHostedPNG(image, filename: "player-history-split-title.png", environment: "FST_HISTORY_RENDER_OUT")
+    let tree = nativeHostedAccessibility(host)
+    #expect(tree.identifiers.contains("fst.history.board-title"))
+    #expect(!tree.identifiers.contains("fst.history.header"))
+    #expect(tree.contains("Lead") && tree.contains("Score History"))
+    #expect(!tree.contains("Fixture Anthem") && !tree.contains("The Fixtures"), "texts: \(tree.texts)")
 }
 
 /// A chart without scores reads the web's empty copy.

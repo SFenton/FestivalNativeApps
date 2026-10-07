@@ -2,7 +2,7 @@
 
 > **What:** section-title hierarchy, card placement, accessibility semantics, and pinned-header handoff. **Read when:** adding a titled group, a grouped list, or a sticky section header.
 
-Status: **current**, 2026-10-07. Provenance: #288, #291, #297, #312, #321, #348.
+Status: **current**, 2026-10-07. Provenance: #288, #291, #297, #312, #321, #343, #348.
 
 ## Intent
 
@@ -21,7 +21,7 @@ The web has no sticky section header. Native sticky behavior is an approved addi
 
 ## Rules
 
-1. **R1. Use the canonical heading.** A section title is white, bold/headline, Title Case, leading-aligned, and exposed as a level-two heading; callers supply the already-cased localized title.
+1. **R1. Use the canonical heading.** A section title is white, bold/headline, Title Case, leading-aligned, and exposed as a level-two heading; callers supply the already-cased localized title. Global Search's All-scope Songs/Players/Bands titles are consumers too (R9, #348).
 2. **R2. Put card headings outside cards.** A titled content card has its title and optional description above, not inside, the row container. HIG Materials: "Don't use Liquid Glass in the content layer." Use the shared material card rather than per-page glass.
 3. **R3. Preserve readable hierarchy.** Supporting copy is subordinate to the title and wraps rather than truncating the landmark. HIG Typography: "Adjust weight, size and color as needed to emphasize important information and show hierarchy."
 4. **R4. Use native sticky mechanics.** A pinned title stays opaque while rows fade or clip beneath it; an incoming title pushes the pinned title one-for-one and no two titles overlap.
@@ -30,6 +30,7 @@ The web has no sticky section header. Native sticky behavior is an approved addi
 7. **R7. Keep native implementations, not a shared fake header.** **Approved variants:** Apple `SongsSectionBar`, Android Compose `stickyHeader`, and the Windows clipped header copy are the #288-approved native implementations; all obey R1-R6.
 8. **R8. One View All link per platform.** A section title that opens its full list puts "View All" at the trailing end of the title row, using the platform's shared link, with at least a 44 pt (Apple) or 48 dp (Android) target and a spoken label that starts with "View All" and names the list. The link keeps its own test ID: on Apple, an identified container around it (`DualSourcePane`, Duo Song Detail history cards) sets `.accessibilityElement(children: .contain)` before its identifier (#321). Do not add a second header-link style in a feature folder (#312). The copy is "View All", never "See All" (owner, #321). It stays a link rather than the purple [view-all-cta](view-all-cta.md) button (agent decision, #321, 2026-10-06, view-all-cta R7 and the Android record below; owner may override).
 9. **R9. Global Search titles its categories only in All.** In the All scope, each category that renders (rows or a failure) has its Songs / Players / Bands title above its rows, in that order, so mixed results stay distinguishable (web `SearchModal` `<h3>`, owner #348). A selected scope has no title because its chip names it (#299). Empty categories and their titles are omitted ([empty-error-states](empty-error-states.md) R3). The title is the platform's ordinary R1 heading (`fst.global-search.section.{songs,players,bands}`), not the web's small uppercase muted label (agent decision, #348, 2026-10-07: R1 is the registered native section-title style and keeps the heading readable at large text sizes; owner may override).
+10. **R10. Keep titles on their side of a fold.** When a two-column layout splits at a separating vertical hinge (book posture half-open), a full-width page or section title, subtitle or message stays in the leading pane and wraps there; it never runs across the fold. Unfolding flat reflows it to the full line without reloading. Material 3: "Never place interactive content or critical information across the hinge area." (must). Android: every full-line item in a hinge-splitting staggered grid is a `foldLaneItem`; the grid provides the pane width through `ProvideFoldLane`. A list of hinge-split rows (Leaderboards `CardGridRow`) provides the leading card's width and wraps its full-width header in `FoldLane` (#343).
 
 ## Agent decision (#321, 2026-10-06): rename title-row links, purple CTA only for in-card bottom rows
 
@@ -47,8 +48,10 @@ Chose **A**. Precedence: web behavior beats undocumented native copies, and amon
 | Sub-behavior | Apple | Android | Windows |
 |---|---|---|---|
 | Ordinary section title | `apple/Sources/FestivalUI/Design/SectionHeader.swift` `FestivalSectionHeader` (Global Search All sections, R9: `Features/Search/GlobalSearchView.swift` `sectionTitle`) | `android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt` `SectionHeader` (Global Search All sections, R9: `ui/search/GlobalSearch.kt` `sectionTitle`) | `windows/Festival.App/Themes/Styles.xaml` `FSTSectionHeaderStyle` |
+| Ordinary section title | `apple/Sources/FestivalUI/Design/SectionHeader.swift` `FestivalSectionHeader` | `android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt` `SectionHeader` (Global Search All sections, R9: `ui/search/GlobalSearch.kt` `sectionTitle`) | `windows/Festival.App/Themes/Styles.xaml` `FSTSectionHeaderStyle` (Global Search All sections, R9: `Pages/SearchPage.xaml` `SongsHeading` / `PlayersHeading` / `BandsHeading`) |
 | Titled content card | `apple/Sources/FestivalUI/Design/GlassSection.swift` `FestivalGlassSection` | `android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt` `SectionHeader` | `windows/Festival.App/Controls/CardHeader.cs` `CardHeader` |
 | Title-row View All (R8) | `apple/Sources/FestivalUI/Design/SectionHeader.swift` `SectionViewAllLink` (Duo pane headers, Duo Song Detail history cards, Profile Bands) | `android/app/src/main/java/com/festivalscoretracker/android/ui/design/SeeAllButton.kt` `SeeAllButton` | `windows/Festival.App/Pages/RivalsPage.xaml` `HyperlinkButton` (also Profile Bands, `Controls/PlayerProfileView.xaml`); copy and label-first name from `windows/Festival.Core/Domain/ViewAllCta.cs` `ListLabel` / `Name` |
+| Title in a fold-split grid (R10) | — | `android/app/src/main/java/com/festivalscoretracker/android/ui/common/FoldLane.kt` `foldLaneItem` / `FoldLane` (provided by `AdaptiveCardGrid`, Suggestions, Item Shop; Leaderboards `OverviewList` for its Bands header) | — |
 | Pinned Songs handoff | `apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift` `SongsSectionBar` | `android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsScreen.kt` `SongsScreen` | `windows/Festival.App/Pages/SongsPage.xaml` `StickyHeader` |
 
 ## Known debt
@@ -61,6 +64,7 @@ Chose **A**. Precedence: web behavior beats undocumented native copies, and amon
 - `section-headers/apple-songs-bar`
 - `section-headers/android-sticky-header`
 - `section-headers/android-view-all-copy`
+- `section-headers/android-fold-lane`
 - `section-headers/windows-sticky-copy`
 - `section-headers/apple-see-all-copy`
 - `section-headers/windows-view-all-copy`

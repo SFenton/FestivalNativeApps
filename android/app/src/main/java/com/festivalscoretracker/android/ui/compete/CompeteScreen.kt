@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridScope
 import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -64,6 +63,7 @@ import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.foldLaneItem
 import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.bands.windowWidthDp
 import com.festivalscoretracker.android.ui.design.GlassCard
@@ -171,9 +171,8 @@ private fun CompeteGrid(content: CompeteContent, padding: PaddingValues, gridSta
 }
 
 private fun LazyStaggeredGridScope.groupHeader(id: String, title: String, revealed: Boolean, stagger: Int) {
-    item(key = "header:$id", span = StaggeredGridItemSpan.FullLine) {
-        // A full-line item spans a separating hinge; the Box lets the heading (and its TalkBack
-        // focus) hug the text in the first panel instead.
+    // Full-line, but kept in the leading pane while the grid splits at a hinge (issue #343).
+    foldLaneItem(key = "header:$id") {
         Box(Modifier.festivalFadeIn(revealed, fadeInStagger(stagger))) {
             Text(
                 title,

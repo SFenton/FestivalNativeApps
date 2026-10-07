@@ -19,7 +19,7 @@ Issue #92 (owner, 2026-10-04) replaced the header Search button and the tab-bar 
 
 **Five-tab limit:** the search tab counts toward the iPhone's five tabs (iOS 26.5: five sections + Search showed **More**). `FestivalTabPolicy.fittingSearchTab` drops Statistics from compact phone tabs (player: Songs · Suggestions · Compete · Settings · Search); the drawer's Statistics row pushes it. The Duo inner display keeps its regular set and the system overflow.
 
-`GlobalSearchSheet` (own `GlobalSearchField`, inline title, Close) is now used only by the Mac window.
+`GlobalSearchSheet` (own `GlobalSearchField`, inline title, Close) is now used only by the Mac window. `GlobalSearchField` itself (with `surface: .floating`, its own identifiers and no focus on appear) is also the iPhone Duo Songs bottom Filter field (#333), so the app has one custom search-field look.
 
 ## Songs: filter stays separate
 

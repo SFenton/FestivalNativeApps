@@ -7,8 +7,9 @@
     xmlns:vm="using:Festival.Core.ViewModels"
     Background="Transparent">
 
-    <!-- Global search results (fst.global-search.*): field, All/Songs/Players/Bands scopes, then Songs → Players → Bands
-         rows with no section titles (issue #299: the scope bar names the scope). -->
+    <!-- Global search results (fst.global-search.*): field, All/Songs/Players/Bands scopes, then Songs → Players → Bands.
+         In All each shown section has its canonical Level 2 title (issue #348, web SearchModal h3 per rendered target);
+         a single scope has none (issue #299: the scope bar names it). Empty sections are hidden in All. -->
     <Grid Padding="24,12,24,0" RowSpacing="8" MaxWidth="768" HorizontalAlignment="Stretch"
           AutomationProperties.AutomationId="fst.global-search.surface">
         <Grid.RowDefinitions>
@@ -44,6 +45,9 @@
                 <StackPanel HorizontalAlignment="Stretch" Spacing="16" Padding="0,4,0,24">
                     <!-- Songs -->
                     <StackPanel Spacing="4" Visibility="{x:Bind ViewModel.ShowSongsSection, Mode=OneWay}">
+                        <TextBlock x:Name="SongsHeading" Text="Songs" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0,0,0,4"
+                                   Visibility="{x:Bind ViewModel.ShowSectionTitles, Mode=OneWay}" AutomationProperties.HeadingLevel="Level2"
+                                   AutomationProperties.AutomationId="fst.global-search.section.songs" />
                         <TextBlock Text="{x:Bind ViewModel.SongsFailedText}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap"
                                    Visibility="{x:Bind ViewModel.SongsFailed, Mode=OneWay}" />
                         <Border Style="{StaticResource FSTRowsCardStyle}" Visibility="{x:Bind ViewModel.HasSongRows, Mode=OneWay}">
@@ -85,6 +89,9 @@
 
                     <!-- Players -->
                     <StackPanel Spacing="4" Visibility="{x:Bind ViewModel.ShowPlayersSection, Mode=OneWay}">
+                        <TextBlock x:Name="PlayersHeading" Text="Players" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0,0,0,4"
+                                   Visibility="{x:Bind ViewModel.ShowSectionTitles, Mode=OneWay}" AutomationProperties.HeadingLevel="Level2"
+                                   AutomationProperties.AutomationId="fst.global-search.section.players" />
                         <Border Style="{StaticResource FSTRowsCardStyle}" Visibility="{x:Bind ViewModel.HasPlayerRows, Mode=OneWay}">
                             <ListView x:Name="PlayersList" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="48" ItemsSource="{x:Bind ViewModel.Players, Mode=OneWay}" SelectionMode="None"
                                       IsItemClickEnabled="True" ItemClick="OnPlayerClick" ContainerContentChanging="OnPlayerContainer"
@@ -129,6 +136,9 @@
                     <!-- Bands (issue #320): the canonical band card (player Bands), one Narrator stop each, opening the band page.
                          Same states as Players: failure card without Retry, an empty envelope never renders a section. -->
                     <StackPanel Spacing="4" Visibility="{x:Bind ViewModel.ShowBandsSection, Mode=OneWay}">
+                        <TextBlock x:Name="BandsHeading" Text="Bands" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0,0,0,4"
+                                   Visibility="{x:Bind ViewModel.ShowSectionTitles, Mode=OneWay}" AutomationProperties.HeadingLevel="Level2"
+                                   AutomationProperties.AutomationId="fst.global-search.section.bands" />
                         <ItemsRepeater x:Name="BandsList" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Bands, Mode=OneWay}"
                                        controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="120"
                                        Visibility="{x:Bind ViewModel.HasBandRows, Mode=OneWay}" AutomationProperties.Name="Bands">

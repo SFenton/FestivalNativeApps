@@ -24,7 +24,7 @@ Operator verdict (2026-10-04): the always-on split layouts on iPad, Duo and Mac 
 | Rivals hub, All Rivals | rivals list → Rival Detail (Rivalry pushes inside the trailing pane) |
 | Leaderboards overview | cards → selected player's profile; "View all rankings" pushes Full Rankings full width |
 | Full Rankings, Band Rankings | rankings → player profile / band detail |
-| Song Detail | song page → full instrument **Song Leaderboard** or **score history** (operator 2026-10-04) |
+| Song Detail | song page → full instrument **Song Leaderboard** or **score history** (operator 2026-10-04); the trailing board drops the song header and is titled by its instrument (owner, #342; [song-leaderboard-header](../../patterns/song-leaderboard-header.md) Variants) |
 | Settings (iPad/Duo) | settings list → sub-page (Licenses, First Run Guides, Service Info, …); Mac keeps its Settings window panes |
 
 | Never split (full width, push navigation) | Landscape treatment |
