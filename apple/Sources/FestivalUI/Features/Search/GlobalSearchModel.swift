@@ -182,7 +182,7 @@ final class GlobalSearchModel {
     }
 
     /// Every section's outcome for the shared rules.
-    private var outcomes: GlobalSearch.Outcomes {
+    var outcomes: GlobalSearch.Outcomes {
         GlobalSearch.Outcomes(
             songs: Self.outcome(songState, count: songs.count),
             players: Self.outcome(playerState, count: players.count),

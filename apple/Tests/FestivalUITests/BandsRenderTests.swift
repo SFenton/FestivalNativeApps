@@ -241,6 +241,33 @@ private func fixtureSong(_ session: FestivalSession, songId: String) async throw
 
 private let songBandHeaderID = "fst.song-band-leaderboard.header"
 
+/// Beside Song Detail in a split the band board is titled by its band size alone and
+/// never repeats the song's art, title or artist (owner-approved variant, #342).
+@MainActor
+@Test func songBandLeaderboardBesideSongDetailIsTitledByBandSize() async throws {
+    let (session, _, _) = try await bandsFixtureSession()
+    let song = try await fixtureSong(session, songId: "fixture-pulse")
+    let host = nativeHostedView(
+        NavigationStack {
+            SongBandLeaderboardScreen(session: session, song: song, bandType: "Band_Duets")
+                .splitPaneContext(SplitPaneContext(role: .trailing, besideList: .songDetail))
+        }
+        .preferredColorScheme(.dark),
+        size: CGSize(width: 520, height: 900)
+    )
+    let window = nativeHostedWindow(host, size: CGSize(width: 520, height: 900))
+    defer { window.orderOut(nil) }
+    await settle(host)
+    let image = try nativeHostedImage(host)
+    _ = try nativeHostedPNG(image, filename: "song-band-leaderboard-split-title.png", environment: "FST_BANDS_RENDER_OUT")
+    let tree = nativeHostedAccessibility(host)
+    #expect(tree.identifiers.contains("fst.song-band-leaderboard.board-title"))
+    #expect(!tree.identifiers.contains(songBandHeaderID))
+    #expect(!tree.contains(song.title) && !tree.contains(song.artist), "texts: \(tree.texts)")
+    #expect(tree.contains("Duos"))
+    #expect(tree.contains("29 entries"))
+}
+
 /// The header's board line names the board and adds the entry total only when the
 /// service asks for totals, for the solo and band boards alike (issue #317).
 @Test func songLeaderboardBoardLineAddsTotalsOnlyWhenAsked() {

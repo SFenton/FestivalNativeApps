@@ -183,7 +183,8 @@
         306,
         308,
         319,
-        322
+        322,
+        335
       ]
     },
     {
@@ -329,7 +330,9 @@
         "card header",
         "heading",
         "see all",
-        "view all link"
+        "view all link",
+        "fold",
+        "hinge"
       ],
       "web": [
         {
@@ -343,6 +346,10 @@
         {
           "path": "pages/player/components/PlayerBandsSection.tsx",
           "symbol": "buildPlayerBandsItems"
+        },
+        {
+          "path": "components/search/SearchModal.tsx",
+          "symbol": "renderResults"
         }
       ],
       "canonical": {
@@ -376,6 +383,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsScreen.kt",
             "symbol": "SongsScreen"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FoldLane.kt",
+            "symbol": "foldLaneItem"
           }
         ],
         "windows": [
@@ -423,6 +434,17 @@
           "message": "The app says \"View All\", never \"See All\"; title-row links use SeeAllButton/ViewAllLinkText (section-headers R8, #321)."
         },
         {
+          "id": "android-fold-lane",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "StaggeredGridItemSpan\\.FullLine",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FoldLane.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/profile/PlayerProfileScreen.kt"
+          ],
+          "debt": [],
+          "message": "Full-line items in hinge-splitting staggered grids use foldLaneItem so titles stay on their side of the fold (section-headers R10, #343). Player Profile drops full-line rows to one lane when split."
+        },
+        {
           "id": "windows-view-all-copy",
           "glob": "windows/Festival.*/**/*.*",
           "regex": "[\"'>]See [Aa]ll\\b",
@@ -455,11 +477,13 @@
         "patterns": [
           "scroll-edge",
           "section-jump-landing",
-          "quick-links"
+          "quick-links",
+          "empty-error-states"
         ],
         "controls": [
           "quick-links",
-          "songs-section-index"
+          "songs-section-index",
+          "global-search"
         ],
         "pages": [
           "songs"
@@ -472,7 +496,8 @@
         291,
         297,
         312,
-        321
+        321,
+        348
       ]
     },
     {
@@ -674,6 +699,10 @@
           {
             "path": "apple/Sources/FestivalUI/App/Shell/RootChrome.swift",
             "symbol": "RootProfileButton"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongsBottomFilterField.swift",
+            "symbol": "SongsFilterFieldPlacement"
           }
         ],
         "android": [
@@ -1505,7 +1534,8 @@
             "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt",
             "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/BandListScreens.kt",
             "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/SongBandLeaderboardScreen.kt",
-            "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalsScreen.kt"
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalsScreen.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/compete/CompeteScreen.kt"
           ],
           "debt": [],
           "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."
@@ -1638,19 +1668,13 @@
           "regex": "fst\\.global-search\\.(?:retry|players-retry)",
           "allow": [],
           "message": "Global Search reruns from submit or edit; it has no Retry control (empty-error-states R3)."
-        },
-        {
-          "id": "global-search-section-heading",
-          "glob": "apple/Sources/**/*.swift",
-          "regex": "fst\\.global-search\\.section\\.(?:songs|players|bands)",
-          "allow": [],
-          "message": "Global Search scope controls replace redundant result-section headings (empty-error-states R3)."
         }
       ],
       "related": {
         "patterns": [
           "load-transition",
-          "modal-shell"
+          "modal-shell",
+          "section-headers"
         ],
         "controls": [
           "global-search",
@@ -1671,7 +1695,8 @@
         140,
         299,
         312,
-        320
+        320,
+        348
       ]
     },
     {
@@ -1918,7 +1943,7 @@
       "title": "Song leaderboard header",
       "status": "current",
       "doc": ".agents/patterns/song-leaderboard-header.md",
-      "summary": "A song-scoped leaderboard (instrument or band size) names the song first in an in-page header with the board on the line under the artist, keeps that header on screen through board, page and player reloads (only the rows reload), keeps the bar title empty until the header scrolls away, and sits on the song's static dimmed album art.",
+      "summary": "A song-scoped leaderboard (instrument or band size) names the song first in an in-page header with the board on the line under the artist, keeps that header on screen through board, page and player reloads (only the rows reload), keeps the bar title empty until the header scrolls away, and sits on the song's static dimmed album art. Owner-approved variant (#342): a board opened beside Song Detail in a split's trailing pane drops the song header and is titled by its instrument icon and name (or band size).",
       "keywords": [
         "song header",
         "band leaderboard",
@@ -1935,7 +1960,10 @@
         "board line",
         "band size",
         "instrument switcher",
-        "static cover"
+        "static cover",
+        "split pane",
+        "split view",
+        "trailing pane"
       ],
       "issues": [
         93,
@@ -1943,7 +1971,8 @@
         315,
         316,
         317,
-        324
+        324,
+        342
       ],
       "web": [
         {
@@ -1972,6 +2001,14 @@
           {
             "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardHeader.swift",
             "symbol": "SongLeaderboardBoardLine"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/InstrumentPageTitle.swift",
+            "symbol": "InstrumentPageTitle"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/InstrumentPageTitle.swift",
+            "symbol": "InstrumentPageTitleToolbarItem"
           }
         ],
         "android": [
@@ -2014,7 +2051,7 @@
           "regex": "ToolbarItem\\(\\s*placement:\\s*\\.principal",
           "allow": [],
           "debt": [],
-          "message": "Song leaderboard bar titles come from the shared SongBarTitleToolbarItem (song-leaderboard-header R3, R5; song-header R4)."
+          "message": "Song leaderboard bar titles come from the shared SongBarTitleToolbarItem, or InstrumentPageTitleToolbarItem beside Song Detail (song-leaderboard-header R3, R5, Variants #342; song-header R4)."
         },
         {
           "id": "android-cover-push",
@@ -2193,7 +2230,8 @@
       "supersededBy": null,
       "issues": [
         315,
-        317
+        317,
+        342
       ]
     },
     {
@@ -2392,7 +2430,7 @@
       "title": "Back keeps place",
       "status": "current",
       "doc": ".agents/patterns/back-keeps-place.md",
-      "summary": "Back to a cached or back-stack page keeps its loaded content (keyed reload gate; new publication or account reloads, failures retry), rebuilds and replays nothing, moves nothing (Windows pauses focus-follow scrolling and scroll anchoring while away) and, on Windows, returns focus to the opener in its original focus state.",
+      "summary": "Back to a cached or back-stack page keeps its loaded content (keyed reload gate; new publication or account reloads, failures retry), rebuilds and replays nothing, moves nothing (Windows pauses focus-follow scrolling and scroll anchoring while away) and, on Windows, returns focus to the opener in its original focus state. In an Apple on-demand split, Back on the leading page closes the open trailing pane first and keeps the page; a second Back leaves it.",
       "keywords": [
         "back",
         "back navigation",
@@ -2403,7 +2441,9 @@
         "reappearance",
         "jitter",
         "reload on back",
-        "keeps place"
+        "keeps place",
+        "split view",
+        "trailing pane"
       ],
       "web": [
         {
@@ -2424,6 +2464,14 @@
           {
             "path": "apple/Sources/FestivalCore/ReappearanceLoadGate.swift",
             "symbol": "ReappearanceLoadGate"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/OnDemandSplitPolicy.swift",
+            "symbol": "pathAfterListBack"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/OnDemandSplit.swift",
+            "symbol": "SplitListBackButton"
           }
         ],
         "android": [
@@ -2455,7 +2503,8 @@
           "shop",
           "suggestions",
           "settings",
-          "licenses"
+          "licenses",
+          "song-detail"
         ]
       },
       "guards": [
@@ -2473,7 +2522,8 @@
       "issues": [
         39,
         82,
-        276
+        276,
+        347
       ]
     }
   ]

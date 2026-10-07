@@ -180,6 +180,13 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     public bool ShowSongsSection => ShowsResults && Scope is SearchScope.All or SearchScope.Songs &&
                                     (Songs.Count > 0 || SongsState == LoadState.Failed);
 
+    /// <summary>
+    /// Whether each shown section carries its Songs/Players/Bands title (issue #348, web <c>SearchModal</c>
+    /// <c>renderResults</c>: one <c>h3</c> per rendered target in All). A single scope stays untitled because the scope
+    /// bar already names it (issue #299).
+    /// </summary>
+    public bool ShowSectionTitles => Scope == SearchScope.All;
+
     /// <summary>Whether song rows are shown (their card is hidden otherwise).</summary>
     public bool HasSongRows => Songs.Count > 0;
 
@@ -571,7 +578,7 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     /// <summary>Derived property names.</summary>
     private static readonly string[] DerivedProperties =
     [
-        nameof(IsShortQuery), nameof(ShowSongsSection), nameof(SongsFailed), nameof(ShowPlayersSection),
+        nameof(IsShortQuery), nameof(ShowSectionTitles), nameof(ShowSongsSection), nameof(SongsFailed), nameof(ShowPlayersSection),
         nameof(PlayersLoading), nameof(PlayersFailed), nameof(PlayersEmpty), nameof(Hint), nameof(HasHint),
         nameof(HasEmptyState), nameof(EmptyTitle), nameof(EmptySubtitle), nameof(ShowBandsSection), nameof(BandsLoading),
         nameof(BandsFailed), nameof(BandsEmpty), nameof(HasBandRows),
