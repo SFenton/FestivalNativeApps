@@ -2609,6 +2609,68 @@
         276,
         347
       ]
+    },
+    {
+      "id": "songs-profile-panel",
+      "title": "Songs profile panel",
+      "status": "current",
+      "doc": ".agents/patterns/songs-profile-panel.md",
+      "summary": "On wide Songs rows (iPad, iPhone Duo inner display, Mac) with a selected player or band whose score index is available and publication-matched, the row splits: song on the left, that profile's compact score cards (per scored instrument, or one band card) on the right. Compact cards keep one line or the row stays plain; loading, paused, failed, Filter Invalid Scores, accessibility sizes and Shop rows keep today's row.",
+      "keywords": [
+        "profile panel",
+        "wide row",
+        "split row",
+        "instrument cards",
+        "band score card",
+        "selected profile",
+        "songs row",
+        "one line",
+        "fit"
+      ],
+      "web": [
+        {
+          "path": "pages/songs/SongsPage.tsx",
+          "symbol": "bandPerformanceToPlayerScore"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongProfilePanelPolicy.swift",
+            "symbol": "SongProfilePanelPolicy"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongProfilePanelPolicy.swift",
+            "symbol": "bandTiles"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongProfilePanel.swift",
+            "symbol": "SongProfilePanel"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongRowView.swift",
+            "symbol": "profilePanel"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/FestivalSession.swift",
+            "symbol": "refreshSelectedBand"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "surface-materials",
+          "load-transition"
+        ],
+        "pages": [
+          "songs"
+        ],
+        "controls": [
+          "song-score-metadata",
+          "songs-instrument-status-chips"
+        ]
+      },
+      "guards": []
     }
   ]
 }
