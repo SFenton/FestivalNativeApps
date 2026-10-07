@@ -21,6 +21,14 @@ public static class ViewAllCta
     /// <summary>Song Detail Score History list (web <c>chart.viewAllScores</c>, Title Case).</summary>
     public const string ScoresLabel = "View All Scores";
 
+    /// <summary>Profile Bands groups before the count (web <c>player.viewAllBands</c>, Title Case; issue #312). Shown on the
+    /// frosted <c>ViewAllCard</c> (surface-materials R7), not the accent button; only the label and name rule are shared.</summary>
+    public const string BandsLabel = "View All Bands";
+
+    /// <summary>Plain label where the title already names the list, e.g. the Profile Bands title-row link
+    /// (section-headers R8; "View All", never "See All", owner #321).</summary>
+    public const string ListLabel = "View All";
+
     /// <summary>Accessible name that starts with the visible label so voice control and Narrator match it (WCAG 2.5.3),
     /// then names the card so equal buttons in different cards stay distinct.</summary>
     /// <param name="label">Visible button text.</param>
