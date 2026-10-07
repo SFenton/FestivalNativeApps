@@ -61,11 +61,6 @@ struct SongsScreen: View, Equatable {
     @State private var scrollChrome = SongsScrollChrome()
     /// Far programmatic jumps teleport behind this fade (``ListJump``).
     @State private var jumpFade = ListJumpFade()
-    /// The navigation bar's bottom edge and the list's SwiftUI safe-area top (window
-    /// points), measured in compact height only (iPhone Duo outer landscape,
-    /// ``SongsDrawerOverlap``).
-    @State private var drawerBarBottom = CGFloat.nan
-    @State private var listSafeTop = CGFloat.nan
     /// The iPhone Duo bottom Filter field's top in ``pageSpace`` (issue #333).
     @State private var bottomFilterTop: CGFloat?
     @Environment(\.openProfile) private var openProfile
@@ -1088,29 +1083,6 @@ struct SongsScreen: View, Equatable {
         max(0, scrubberTrailingReserve - songRowInsets.trailing)
     }
 
-    /// Top padding that clears the pinned Filter field where SwiftUI lays the list out
-    /// above the navigation bar's bottom (iPhone Duo outer landscape, `/duo` P3).
-    private var drawerOverlap: CGFloat {
-        SongsDrawerOverlap.padding(
-            barBottom: drawerBarBottom, safeTop: listSafeTop,
-            compactHeight: deviceLayout.heightClass == .compact
-        )
-    }
-
-    /// Measures the bar bottom and the list's safe-area top, in compact height only.
-    @ViewBuilder private var drawerOverlapReader: some View {
-        #if os(iOS)
-        if deviceLayout.heightClass == .compact {
-            SongsDrawerBarReader { barBottom in
-                if barBottom != drawerBarBottom { drawerBarBottom = barBottom }
-            }
-            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { top in
-                listSafeTop = top
-            }
-        }
-        #endif
-    }
-
     /// The loaded catalogue's list, section bar, A–Z scrubber and Quick Links.
     ///
     /// - Parameters:
@@ -1238,8 +1210,6 @@ struct SongsScreen: View, Equatable {
                     chromeTop: bottomFieldTop, enabled: filterPlacement == .bottom,
                     space: Self.pageSpace
                 ))
-                // iPhone Duo outer landscape: start below the pinned Filter field (`/duo` P3).
-                .safeAreaPadding(.top, drawerOverlap)
                 // Reserve room for the trailing section-index scrubber so its glass
                 // capsule never overlaps a row's own trailing content (difficulty
                 // meter, Shop badge, instrument-status chips) — the scrubber is an
@@ -1274,7 +1244,6 @@ struct SongsScreen: View, Equatable {
                 }
             }
             .animation(.easeInOut(duration: 0.2), value: showsIndex)
-            .background { drawerOverlapReader }
             // Any reordering (sort mode, direction, filters) starts at the top of the new
             // order (operator, 2026-09-28).
             .onChange(of: reorderKey) { _, _ in

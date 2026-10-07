@@ -127,4 +127,30 @@ private func renderScrubber(
         environment: "FST_SECTION_INDEX_RENDER_OUT"
     )
 }
+
+/// Issue #336: offered less height than its 27 labels need, the strip stays inside it
+/// and condenses. A rigid 378 pt strip forced the whole Songs page taller than the
+/// iPhone Duo outer display in landscape.
+@MainActor
+@Test func sectionIndexScrubberNeverOutgrowsItsOfferedHeight() async throws {
+    let labels = ["#"] + (65...90).map { String(UnicodeScalar($0)!) }
+    let sections = labels.enumerated().map { SongSection(id: $0.offset, label: $0.element, songs: []) }
+    let scrubber = SongSectionIndexScrubber(sections: sections, onSelect: { _ in })
+        .defaultAppStorage(deterministicScrubberGlassDefaults())
+    let offered = CGSize(width: 40, height: 200)
+    #expect(NSHostingController(rootView: scrubber).sizeThatFits(in: offered).height <= offered.height)
+
+    let host = nativeHostedView(
+        scrubber.preferredColorScheme(.dark).background(BrandTokens.appBackground), size: offered
+    )
+    let window = nativeHostedWindow(host, size: offered)
+    var capsule: CGRect?
+    let image = try await nativeHostedSettle(host) {
+        capsule = nativeHostedAccessibilityFrame("fst.songs.section-index", in: host)
+        return capsule.map { $0.height > 0 && $0.height <= offered.height } ?? false
+    }
+    #expect(capsule.map { $0.minY >= -0.5 && $0.maxY <= offered.height + 0.5 } == true)
+    #expect(nativeHostedControlPixels(image).bright > 4)
+    withExtendedLifetime(window) {}
+}
 #endif
