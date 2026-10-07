@@ -39,7 +39,7 @@
                 <TextBlock Text="{x:Bind ViewModel.TotalText, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" />
             </StackPanel>
             <StackPanel x:Name="Actions" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <DropDownButton AutomationProperties.Name="{x:Bind ViewModel.BandTypeButtonName, Mode=OneWay}"
+                <DropDownButton MinHeight="{StaticResource FSTMinTargetSize}" AutomationProperties.Name="{x:Bind ViewModel.BandTypeButtonName, Mode=OneWay}"
                                 AutomationProperties.AutomationId="fst.band-rankings.band-type-menu">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xE716;" FontSize="18" />
@@ -49,7 +49,7 @@
                         <MenuFlyout x:Name="BandTypeMenu" Placement="BottomEdgeAlignedRight" Opening="OnBandTypeMenuOpening" />
                     </DropDownButton.Flyout>
                 </DropDownButton>
-                <DropDownButton AutomationProperties.Name="{x:Bind ViewModel.MetricButtonName, Mode=OneWay}"
+                <DropDownButton MinHeight="{StaticResource FSTMinTargetSize}" AutomationProperties.Name="{x:Bind ViewModel.MetricButtonName, Mode=OneWay}"
                                 AutomationProperties.AutomationId="fst.band-rankings.rank-by-menu">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xE8CB;" FontSize="18" />
@@ -62,24 +62,29 @@
             </StackPanel>
         </Grid>
 
-        <!-- One frosted row per band, 4 epx apart (web entryRow list, operator batch 7.7), scrolling on beneath the
-             floating pager (BoardFooter). -->
-        <ScrollViewer x:Name="Scroller" Grid.Row="1" Grid.RowSpan="2" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
-                      controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
-                      AutomationProperties.AutomationId="fst.band-rankings.list">
-            <ItemsRepeater x:Name="RowsRepeater" XYFocusKeyboardNavigation="Enabled" Margin="0,4,0,0" VerticalAlignment="Top"
-                           ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52"
-                           ElementPrepared="OnRowPrepared">
-                <ItemsRepeater.Layout>
-                    <StackLayout Spacing="4" />
-                </ItemsRepeater.Layout>
-                <ItemsRepeater.ItemTemplate>
-                    <DataTemplate x:DataType="vm:BandRankingRowViewModel">
-                        <controls:LeaderboardEntryRow Row="{x:Bind}" />
-                    </DataTemplate>
-                </ItemsRepeater.ItemTemplate>
-            </ItemsRepeater>
-        </ScrollViewer>
+        <!-- One frosted row per band, 4 epx apart (web entryRow list, operator batch 7.7), ending at the floating pager
+             (BoardFooter) through the bottom-chrome ramp (BoardFooterFade, issue #308). The wrapper is the fade source
+             because the load swap animates the ScrollViewer's own visual. -->
+        <Grid x:Name="BoardFadeSource" Grid.Row="1" Grid.RowSpan="2">
+            <ScrollViewer x:Name="Scroller" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
+                          controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
+                          AutomationProperties.AutomationId="fst.band-rankings.list">
+                <ItemsRepeater x:Name="RowsRepeater" XYFocusKeyboardNavigation="Enabled" Margin="0,4,0,0" VerticalAlignment="Top"
+                               ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52"
+                               ElementPrepared="OnRowPrepared">
+                    <ItemsRepeater.Layout>
+                        <StackLayout Spacing="4" />
+                    </ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="vm:BandRankingRowViewModel">
+                            <controls:LeaderboardEntryRow Row="{x:Bind}" />
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+            </ScrollViewer>
+        </Grid>
+        <!-- Paints BoardFadeSource with its rows faded above the pager; never hit-testable, UIA raw view only. -->
+        <controls:EdgeFadeLayer x:Name="BoardFadeHost" Grid.Row="1" Grid.RowSpan="2" AutomationProperties.AutomationId="fst.band-rankings.footer-fade" />
         <TextBlock Grid.Row="1" Text="{x:Bind ViewModel.EmptyText, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
                    HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"
                    AutomationProperties.AutomationId="fst.band-rankings.empty"
@@ -92,13 +97,13 @@
                                     controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                                     Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" />
 
-        <!-- Contrast themes only: a window-colour plate (pager height, sized in code) hides the rows between and behind the
-             floating pager's buttons instead of letting their borders and text show through (issue #209, as the song
-             leaderboard's #197 plate). Never hit-testable. -->
+        <!-- Contrast themes only: the footer fade cuts the rows hard at the pager's top and this window-colour plate (pager
+             height, sized by BoardFooterFade) backs its buttons (issue #209, as the song leaderboard's #197 plate). Never
+             hit-testable. -->
         <Border x:Name="FooterPlate" Grid.Row="1" Grid.RowSpan="2" VerticalAlignment="Bottom" IsHitTestVisible="False"
                 Visibility="Collapsed" Background="{ThemeResource FSTFloatingBackplateBrush}" />
         <controls:LeaderboardsPager x:Name="Footer" Grid.Row="1" Grid.RowSpan="2" VerticalAlignment="Bottom" Pager="{x:Bind ViewModel.Pager}"
-                                    Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" SizeChanged="OnFooterSizeChanged" />
+                                    Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" />
 
         <Frame x:Name="DetailFrame" Grid.Column="1" Grid.RowSpan="3" Margin="12,-12,-24,-12" Visibility="Collapsed"
                IsNavigationStackEnabled="False" AutomationProperties.Name="Band details"

@@ -99,6 +99,30 @@ class LeaderboardsComponentsUiTest {
     }
 
     @Test
+    fun firstLoadShowsTheSpinnerUntilSettingsAndTheLeadCardArriveThenRevealsTheCards() {
+        // Settings not read yet and the top-ten reads held: the overview has no layout.
+        settings.value = null
+        fake.hold = CompletableDeferred()
+        overview()
+        val spinner = "fst.leaderboards.loading"
+        val row = "fst.rankings.row.${RankingsFixtures.accountId(1)}"
+        // Load-transition R1 (issue #178): the shared spinner, never an empty body.
+        assertTrue("the spinner must show before settings arrive", exists(spinner))
+        assertTrue(!exists("fst.leaderboards"))
+        // Settings arrive: the cards compose (and start loading) hidden under the same spinner.
+        settings.value = AppSettings(visibleInstruments = setOf(Instrument.Lead))
+        settle()
+        assertTrue("the spinner must stay while the lead card loads", exists(spinner))
+        assertTrue(exists("fst.leaderboards"))
+        assertTrue("cards must not be read under the spinner", rule.onAllNodesWithTag("fst.leaderboards.card.Solo_Guitar").fetchSemanticsNodes().isEmpty())
+        // The lead card's data lands: the spinner fades out and the cards reveal after it.
+        fake.hold!!.complete(Unit)
+        rule.waitUntil(5_000) { settle(); !exists(spinner) }
+        rule.waitUntil(5_000) { settle(); rule.onAllNodesWithTag(row).fetchSemanticsNodes().isNotEmpty() }
+        assertTrue(rule.onAllNodesWithTag("fst.leaderboards.card.Solo_Guitar").fetchSemanticsNodes().isNotEmpty())
+    }
+
+    @Test
     fun emptyBoardsAndFailedBandsRenderInline() {
         fake.accounts = 0
         fake.failBands = FestivalApiException.HttpStatus(500)
@@ -159,6 +183,11 @@ class LeaderboardsComponentsUiTest {
         rule.waitUntil(5_000) { settle(); text("Rank History") && exists("fst.leaderboards.rank-history.picker") }
         rule.waitUntil(5_000) { settle(); rule.onAllNodesWithContentDescription("Rank history chart", substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
         assertTrue(text("Total Score"))
+        // The date row spans the plot and both axis gutters, so each date can centre under its bar (#314).
+        val plotBounds = rule.onNodeWithTag("fst.leaderboards.rank-history.plot").fetchSemanticsNode().boundsInRoot
+        val dateBounds = rule.onNodeWithTag("fst.leaderboards.rank-history.dates").fetchSemanticsNode().boundsInRoot
+        assertTrue(dateBounds.height > 0f && dateBounds.left < plotBounds.left && dateBounds.right > plotBounds.right)
+        assertTrue(dateBounds.top >= plotBounds.bottom)
         // The window pages and swipes like the profile chart; tapping a bar shows its detail.
         rule.onNodeWithTag("fst.leaderboards.rank-history.back-page").performSemanticsAction(SemanticsActions.OnClick)
         settle()

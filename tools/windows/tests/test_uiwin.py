@@ -77,6 +77,13 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_assertnoscrollbar_takes_an_element_selector(self):
+        step = u.parse_step("assertnoscrollbar:id=fst.paths.image-scroller")
+        self.assertEqual((step["verb"], step["selector"]), ("assertnoscrollbar", {"kind": "id", "value": "fst.paths.image-scroller"}))
+        for bad in ("assertnoscrollbar:5,6", "assertnoscrollbar:"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_paths_resize_and_errors(self):
         shot = u.parse_step("shot:out/a.png@screen")
         self.assertEqual(shot["mode"], "screen")
@@ -106,7 +113,10 @@ class StepTests(unittest.TestCase):
         self.assertEqual((role["key"], role["value"], role["timeout"]), ("type", "text", 5.0))
         self.assertEqual(u.parse_step("assertstate:id=x|invoke=False")["value"], "false")
         self.assertEqual(u.parse_step("assertstate:id=x|focusable=true")["value"], "true")
-        for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe",
+        # Issue #280: a combo box's current option keeps its case (Narrator reads "Instrument, combo box, Pro Bass").
+        current = u.parse_step("assertstate:id=fst.paths.instrument.compact|value=Pro Bass@5")
+        self.assertEqual((current["key"], current["value"], current["timeout"]), ("value", "Pro Bass", 5.0))
+        for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe", "assertstate:id=x|value=",
                     "assertstate:id=x|enabled=yes", "assertstate:id=x|color=red", "assertstate:@1,2|toggle=on",
                     "assertstate:id=x|name=", "assertstate:id=x|selected=on", "assertstate:id=x|scroll=top",
                     "assertstate:id=x|scroll=101", "assertstate:id=x|scroll=2.5", "assertstate:id=x|scroll=-2",
@@ -174,6 +184,46 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_assertpaint(self):
+        step = u.parse_step("assertpaint:id=fst.notifications.row.x|fill:L8,M0=#162133~4|L4,M-10,L5,M10=#1e2a3a"
+                            "|R25,M-24!=@fill~40|C-0.5,B2.5,C20,B-3!=@fill")
+        self.assertEqual(step["verb"], "assertpaint")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.notifications.row.x"})
+        fill, stroke, dot, gap = step["probes"]
+        self.assertEqual(fill, {"text": "fill:L8,M0=#162133~4", "x": {"edge": "L", "off": 8.0},
+                                "y": {"edge": "M", "off": 0.0}, "op": "=", "color": "#162133", "tol": 4, "name": "fill"})
+        self.assertEqual((stroke["x2"], stroke["y2"], stroke["color"], stroke["tol"]),
+                         ({"edge": "L", "off": 5.0}, {"edge": "M", "off": 10.0}, "#1E2A3A", 16))
+        self.assertEqual((dot["op"], dot["ref"], dot["x"]), ("!=", "fill", {"edge": "R", "off": 25.0}))
+        self.assertNotIn("color", dot)
+        self.assertEqual((gap["x"]["off"], gap["y2"]), (-0.5, {"edge": "B", "off": -3.0}))
+        sample = u.parse_step("assertpaint:raw=fst.art|art:L47,M0")["probes"][0]
+        self.assertEqual((sample["name"], "op" in sample), ("art", False))
+        for bad in ("assertpaint:id=a", "assertpaint:id=a|", "assertpaint:1,2|a:L1,T1", "assertpaint:id=a|L1,T1",
+                    "assertpaint:id=a|L1,T1,L2,T2", "assertpaint:id=a|a:L1,T1,L2,T2=#000000",
+                    "assertpaint:id=a|X1,T1=#000000", "assertpaint:id=a|L1,T1=#00000", "assertpaint:id=a|L1,T1=@nope",
+                    "assertpaint:id=a|L1,T1=#000000~256", "assertpaint:id=a|L1,T1=#000000||"):
+            with self.assertRaises(ValueError, msg=bad):
+                u.parse_step(bad)
+
+    def test_parse_probe_names_are_ordered(self):
+        names: set[str] = set()
+        self.assertEqual(u.parse_probe("a:L1,T1", names)["name"], "a")
+        self.assertEqual(names, {"a"})
+        self.assertEqual(u.parse_probe("L2,T2=@a~3", names)["ref"], "a")
+        with self.assertRaises(ValueError):
+            u.parse_probe("L2,T2=@b", names)
+
+    def test_assertbold(self):
+        step = u.parse_step("assertbold:id=fst.notifications.row.x|Lead| Fixture Pulse |201,234")
+        self.assertEqual(step["verb"], "assertbold")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.notifications.row.x"})
+        self.assertEqual(step["runs"], ["Lead", "Fixture Pulse", "201,234"])
+        self.assertEqual(u.parse_step("assertbold:id=a|")["runs"], [])
+        for bad in ("assertbold:id=a", "assertbold:1,2|Lead"):
+            with self.assertRaises(ValueError, msg=bad):
+                u.parse_step(bad)
+
     def test_span(self):
         step = u.parse_step("markspan:id=fst.history.instrument.group|id=fst.history.sort.open|card")
         self.assertEqual(step["verb"], "markspan")
@@ -212,6 +262,31 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_assertmarquee(self):
+        moving = u.parse_step("assertmarquee:id=fst.song-detail.title|moving|44")
+        self.assertEqual(moving["selector"], {"kind": "id", "value": "fst.song-detail.title"})
+        self.assertEqual((moving["mode"], moving["epx"]), ("moving", 44.0))
+        still = u.parse_step("assertmarquee:raw=fst.song-band-leaderboard.song-title|static|28.5")
+        self.assertEqual(still["selector"]["kind"], "raw")
+        self.assertEqual((still["mode"], still["epx"]), ("static", 28.5))
+        wrapped = u.parse_step("assertmarquee:id=fst.song-detail.title|wrapped|90")
+        self.assertEqual((wrapped["mode"], wrapped["epx"]), ("wrapped", 90.0))
+        fits = u.parse_step("assertmarquee:id=fst.song-detail.artist|fits|32")
+        self.assertEqual((fits["mode"], fits["epx"]), ("fits", 32.0))
+        for bad in ("assertmarquee:id=x", "assertmarquee:id=x|moving", "assertmarquee:id=x|wrap|44",
+                    "assertmarquee:id=x|static|tall", "assertmarquee:10,20|moving|44"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_assertmarqueesync(self):
+        step = u.parse_step("assertmarqueesync:id=fst.song-detail.title|id=fst.song-detail.artist")
+        self.assertEqual(step["verb"], "assertmarqueesync")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.song-detail.title"})
+        self.assertEqual(step["other"], {"kind": "id", "value": "fst.song-detail.artist"})
+        for bad in ("assertmarqueesync:id=x", "assertmarqueesync:10,20|id=y"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_assertinset(self):
         step = u.parse_step("assertinset:name=Show Instruments&class=TextBlock|id=fst.settings|40")
         self.assertEqual(step["verb"], "assertinset")
@@ -230,6 +305,76 @@ class StepTests(unittest.TestCase):
         self.assertEqual(step["epx"], 8.0)
         for bad in ("scrollinset:id=a|id=b", "scrollinset:id=a|id=b|-8", "scrollinset:id=a|1,2|8",
                     "scrollinset:id=a|id=b|0"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_assertsize(self):
+        step = u.parse_step("assertsize:id=fst.global-search.open|40x40")
+        self.assertEqual(step["verb"], "assertsize")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.global-search.open"})
+        self.assertEqual((step["width"], step["height"]), (40.0, 40.0))
+        self.assertEqual(u.parse_step("assertsize:id=fst.quick-links.open|0x40.5")["height"], 40.5)
+        for bad in ("assertsize:id=a", "assertsize:id=a|40", "assertsize:id=a|-1x40", "assertsize:10,20|40x40"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_assertat(self):
+        step = u.parse_step("assertat:id=fst.shell.profile|0,-18.5")
+        self.assertEqual(step["verb"], "assertat")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.shell.profile"})
+        self.assertEqual((step["dx"], step["dy"]), (0.0, -18.5))
+        self.assertEqual(u.parse_step("assertat:id=a| 12 , 3 ")["dx"], 12.0)
+        for bad in ("assertat:id=a", "assertat:id=a|1", "assertat:id=a|x,1", "assertat:10,20|0,0"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_tapat_and_clickat(self):
+        for verb in ("tapat", "clickat"):
+            step = u.parse_step(f"{verb}:id=fst.shell.profile|0,18.5")
+            self.assertEqual(step["verb"], verb)
+            self.assertEqual(step["selector"], {"kind": "id", "value": "fst.shell.profile"})
+            self.assertEqual((step["dx"], step["dy"]), (0.0, 18.5))
+            for bad in (f"{verb}:id=a", f"{verb}:id=a|1", f"{verb}:10,20|0,0"):
+                with self.assertRaises(ValueError):
+                    u.parse_step(bad)
+
+    def test_assertapart(self):
+        step = u.parse_step("assertapart:id=fst.songs.sort|id=fst.songs.filter")
+        self.assertEqual(step["verb"], "assertapart")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.songs.sort"})
+        self.assertEqual(step["other"], {"kind": "id", "value": "fst.songs.filter"})
+        with self.assertRaises(ValueError):
+            u.parse_step("assertapart:id=fst.songs.sort")
+
+    def test_narrate(self):
+        step = u.parse_step("narrate:id=fst.shell.titlebar@10")
+        self.assertEqual(step["verb"], "narrate")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.shell.titlebar"})
+        self.assertEqual(step["timeout"], 10.0)
+        with self.assertRaises(ValueError):
+            u.parse_step("narrate:10,20")
+
+    def test_assertread(self):
+        step = u.parse_step("assertread:id=fst.shell.profile|Select a player profile, button@8")
+        self.assertEqual(step["verb"], "assertread")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.shell.profile"})
+        self.assertEqual(step["text"], "Select a player profile, button")
+        self.assertEqual(step["timeout"], 8.0)
+        regex = u.parse_step("assertread:id=fst.songs.sort|~^Sort Songs, button, collapsed")
+        self.assertEqual(regex["text"], "~^Sort Songs, button, collapsed")
+        self.assertNotIn("timeout", regex)
+        for bad in ("assertread:id=a", "assertread:id=a| ", "assertread:10,20|x"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_assertorder(self):
+        step = u.parse_step("assertorder:id=fst.global-search.open|id=fst.shell.notifications|id=fst.shell.profile@6")
+        self.assertEqual(step["verb"], "assertorder")
+        self.assertEqual([s["value"] for s in step["selectors"]],
+                         ["fst.global-search.open", "fst.shell.notifications", "fst.shell.profile"])
+        self.assertEqual(step["timeout"], 6.0)
+        self.assertNotIn("timeout", u.parse_step("assertorder:id=a|name=b"))
+        for bad in ("assertorder:id=a", "assertorder:id=a||id=b", "assertorder:id=a|1,2"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 

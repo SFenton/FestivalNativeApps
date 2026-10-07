@@ -222,6 +222,9 @@ public sealed class LeaderboardsOverviewTests
         Assert.Equal("#120", lead.Row!.RankText);
         Assert.True(lead.Row.IsSelected);
         Assert.False(lead.CanJump);
+        // Overview cards have no jump: their spotlight row only opens the profile and announces no destination (#318).
+        Assert.Null(lead.Row.PinnedAction);
+        Assert.StartsWith("Your rank, 120th. Player 120.", lead.Row.Announcement);
         // The pinned "#120" widens every rank column of the card so names line up (operator batch 7.9).
         Assert.All(vm.InstrumentCards[0].Rows, r => Assert.Equal(4, r.Section!.RankChars));
         Assert.Same(vm.InstrumentCards[0].Rows[0].Section, lead.Row.Section);
@@ -287,6 +290,39 @@ public sealed class LeaderboardsOverviewTests
         await Async.Settle();
         Assert.Equal(count, fake.Service.Handler.Requests.Count);
         Assert.Equal(Instrument.Lead, vm.InstrumentCards[0].Instrument);
+    }
+
+    [Fact]
+    public async Task ReturningWithNothingChangedKeepsCardsAndReloadsAfterAPlayerChange()
+    {
+        // Back from View All re-activates the cached overview (issues #82, #276): same cards, no reads, no jump.
+        var fake = new RankingsFake();
+        var reader = new FakeReader();
+        var session = fake.Session(RankingsFake.Selected("me", [Instrument.Lead, Instrument.Bass]));
+        var vm = new LeaderboardsViewModel(session, reader.Read);
+        await vm.ActivateAsync();
+        var cards = vm.InstrumentCards.ToList();
+        var bands = vm.BandCards.ToList();
+        var rows = vm.InstrumentCards[0].Rows.ToList();
+        var requests = fake.Service.Handler.Requests.Count;
+        var reads = reader.Calls.Count;
+
+        vm.Deactivate();
+        await vm.ActivateAsync();
+        Assert.Equal(cards, vm.InstrumentCards, ReferenceEqualityComparer.Instance);
+        Assert.Equal(bands, vm.BandCards, ReferenceEqualityComparer.Instance);
+        Assert.Equal(rows, vm.InstrumentCards[0].Rows, ReferenceEqualityComparer.Instance);
+        Assert.True(vm.IsReady);
+        Assert.Equal(requests, fake.Service.Handler.Requests.Count);
+        Assert.Equal(reads, reader.Calls.Count);
+
+        // A different player chosen while away reloads on return.
+        vm.Deactivate();
+        session.UpdateSettings(s => s with { SelectedPlayer = new SelectedPlayer("other", "Other") });
+        await vm.ActivateAsync();
+        Assert.True(fake.Service.Handler.Requests.Count > requests);
+        Assert.Contains(reader.Calls, c => c.Item2 == "other");
+        vm.Deactivate();
     }
 
     [Fact]
@@ -606,11 +642,23 @@ public sealed class FullRankingsViewModelTests
         Assert.True(vm.Spotlight.ShowRow);
         Assert.True(vm.Spotlight.CanJump);
         Assert.True(vm.Spotlight.JumpCommand.CanExecute(null));
+        // leaderboard-row R7 (#318): the pinned row itself jumps while its row is on another page, and says so.
+        Assert.Equal(new SelectedRowAction(2), vm.Spotlight.Row!.PinnedAction);
+        Assert.StartsWith("Your rank, 30th. Jump to your position. Player 30.", vm.Spotlight.Row.Announcement);
         await vm.Spotlight.JumpCommand.ExecuteAsync(null);
         Assert.Equal(2, vm.Page);
         Assert.True(vm.Rows.Single(r => r.Entry.AccountId == "acct30").IsSelected);
-        Assert.Equal(SpotlightPlacementKind.Inline, vm.Spotlight.Kind);
+        // Issue #318 (leaderboard-row R7): the row stays pinned above the pager on its own page, where it opens the profile.
+        Assert.Equal(SpotlightPlacementKind.Footer, vm.Spotlight.Kind);
+        Assert.True(vm.Spotlight.ShowRow);
+        Assert.Equal("#30", vm.Spotlight.Row!.RankText);
         Assert.False(vm.Spotlight.CanJump);
+        Assert.False(vm.Spotlight.JumpCommand.CanExecute(null));
+        Assert.Equal(new SelectedRowAction(null), vm.Spotlight.Row.PinnedAction);
+        Assert.StartsWith("Your rank, 30th. Open your statistics. Player 30.", vm.Spotlight.Row.Announcement);
+        Assert.Equal(new AppRoute.Player("acct30", "Player 30"), vm.Spotlight.Row.Route);
+        // The page's own copy of the row is not the pinned control and announces no destination.
+        Assert.Null(vm.Rows.Single(r => r.Entry.AccountId == "acct30").PinnedAction);
 
         // Switching instrument builds a fresh spotlight for that board.
         var old = vm.Spotlight;
@@ -702,12 +750,83 @@ public sealed class FullRankingsViewModelTests
         Assert.True(vm.PinnedGate.IsGated);
         await instrument;
 
-        // Paging off the player's own page brings the pinned row back mid-reload: it joins the gate.
+        // Issue #318: the row stays pinned on the player's own page too, so paging onto and off it never hides or regates it.
+        gated.Clear();
+        var shown = new List<bool>();
+        vm.Spotlight.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(RankingSpotlightViewModel.IsVisible)) shown.Add(vm.Spotlight.IsVisible);
+        };
         await vm.GoToPageAsync(3);
-        Assert.False(vm.Spotlight.IsVisible);
+        Assert.True(vm.Spotlight.ShowRow);
         await vm.GoToPageAsync(1);
-        Assert.True(vm.Spotlight.IsVisible);
-        Assert.True(vm.PinnedGate.IsGated);
+        Assert.True(vm.Spotlight.ShowRow);
+        Assert.DoesNotContain(false, shown);
+        Assert.DoesNotContain(true, gated);
+    }
+
+    [Fact]
+    public async Task PinnedRowStaysOnThePlayersOwnPage()
+    {
+        // Issue #318: SFenton at #4 on page 1 is highlighted in the list and also pinned above the pager (web FullRankingsPage).
+        var fake = new RankingsFake { TotalAccounts = 60 };
+        var reader = new FakeReader { Result = (_, id) => RankingsWire.Account(4, id), Gate = new TaskCompletionSource() };
+        var vm = new FullRankingsViewModel(fake.Session(RankingsFake.Selected("acct4")), new AppRoute.FullRankings(Instrument.Lead, "totalscore"), reader.Read);
+        var load = vm.LoadAsync();
+        await Async.Until(() => vm.ShowRows);
+
+        // While the own read is in flight, the page's row stands in: no loading ring for a player already on screen.
+        Assert.Equal(SpotlightPlacementKind.Footer, vm.Spotlight.Kind);
+        Assert.Equal("#4", vm.Spotlight.Row!.RankText);
+        Assert.True(vm.Spotlight.Row.IsSelected);
+        Assert.True(vm.Rows[3].IsSelected);
+        Assert.False(vm.Spotlight.CanJump);
+        Assert.Single(reader.Calls);
+
+        reader.Gate.SetResult();
+        await load;
+        Assert.True(vm.Spotlight.ShowRow);
+        Assert.Equal("#4", vm.Spotlight.Row!.RankText);
+        // The pinned row shares the page rows' column plan (leaderboard-row R1).
+        Assert.Equal(vm.Rows[0].Section, vm.Spotlight.Row.Section);
+
+        // Off its page the pinned row stays and offers the jump back.
+        await vm.GoToPageAsync(2);
+        Assert.True(vm.Spotlight.ShowRow);
+        Assert.True(vm.Spotlight.CanJump);
+        Assert.Single(reader.Calls);
+        await vm.Spotlight.JumpCommand.ExecuteAsync(null);
+        Assert.Equal(1, vm.Page);
+        Assert.True(vm.Spotlight.ShowRow);
+        Assert.False(vm.Spotlight.CanJump);
+    }
+
+    [Fact]
+    public async Task PinnedRowFallsBackToThePageRowWhenTheOwnReadFails()
+    {
+        var fake = new RankingsFake { TotalAccounts = 60 };
+        var reader = new FakeReader { Fail = true };
+        var vm = new FullRankingsViewModel(fake.Session(RankingsFake.Selected("acct4")), new AppRoute.FullRankings(Instrument.Lead, "totalscore"), reader.Read);
+        await vm.LoadAsync();
+        Assert.True(vm.Spotlight.ShowRow);
+        Assert.False(vm.Spotlight.ShowFailed);
+        Assert.Equal("#4", vm.Spotlight.Row!.RankText);
+
+        // Off the page there is nothing to stand in: the inline failure with Retry shows, as before.
+        await vm.GoToPageAsync(2);
+        Assert.True(vm.Spotlight.ShowFailed);
+        Assert.False(vm.Spotlight.ShowRow);
+    }
+
+    [Fact]
+    public async Task UnrankedPlayerKeepsTheUnrankedFooter()
+    {
+        var fake = new RankingsFake { TotalAccounts = 60 };
+        var reader = new FakeReader { Result = (_, _) => null };
+        var vm = new FullRankingsViewModel(fake.Session(RankingsFake.Selected("nobody")), new AppRoute.FullRankings(Instrument.Lead, "totalscore"), reader.Read);
+        await vm.LoadAsync();
+        Assert.True(vm.Spotlight.ShowUnranked);
+        Assert.False(vm.Spotlight.ShowRow);
     }
 
     [Fact]

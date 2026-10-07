@@ -17,9 +17,19 @@ placeholder rows rather than invent songs.
 ``--song-leaderboard anonymous`` (issue #263) blanks the account ID and display name of the rank-3 row in every song's
 Lead (``Solo_Guitar``) chart read, the production case of a top-ten row with no player to open.
 
+``--player-bands fail-once`` (issue #312) answers the first read of each distinct ``/api/player/{id}/bands`` path and
+query with a 500 and passes the identical retry through, so the profile's inline Bands section fails, then recovers.
+``--song-band-totals`` (issue #317) sets ``showLeaderboardEntryTotals`` on per-size song band board reads
+(``/api/leaderboard/{songId}/bands/{bandType}``), so the band board header's entry-total line is reachable.
+``--song-band-slow BANDTYPE`` (issue #317 review) answers that band size's per-size reads only after
+``SLOW_SONG_BAND_SECONDS``, so a size switch stays in its load gate long enough for UIA to check the header meanwhile.
+
 A selected account containing ``-slow`` (``fixture-player-slow``, ``fixture-player-slow-503``; issue #265) gets its
 song and leaderboard rivals lists only after ``SLOW_RIVALS_SECONDS``, so the Rivals hub's per-card loading rings stay
 on screen for UIA checks and scans before rows (or the ``-503`` inline freeze) replace them.
+
+``--song-band-rows N`` (issue #305) serves every fixture song's band leaderboards with ``N`` entries, so the band
+song board scrolls under its floating pager.
 
 Usage: ``python tools/windows/rivals_fixture.py --port 8765`` (same flags as mock_service.py), then launch the
 app with ``--base-url http://127.0.0.1:8765/`` and ``FST_DEBUG_PROFILE=fixture-player-1:Demo Player``.
@@ -201,6 +211,90 @@ def install_songs_unavailable() -> None:
 
 # endregion
 
+# region Long song band board
+
+#: Song band leaderboard route lengthened by ``--song-band-rows``.
+SONG_BAND_ROWS_BOARD = re.compile(r"^/api/leaderboard/(fixture-[a-z0-9-]+)/bands/(Band_[A-Za-z]+)$")
+
+
+def song_band_board_response(path: str, rows: int) -> dict | None:
+    """A ``rows``-entry song band leaderboard page, or ``None`` to defer to the mock service.
+
+    Args:
+        path: Request path with query (``top``/``offset`` paging).
+        rows: Total entries on the board.
+
+    Returns:
+        The page body, or ``None`` for any other request or invalid paging (the mock service answers those).
+    """
+    parsed = urlsplit(path)
+    match = SONG_BAND_ROWS_BOARD.fullmatch(parsed.path)
+    if not match or match.group(2) not in mock_service.BAND_TYPES:
+        return None
+    query = parse_qs(parsed.query)
+    try:
+        top = int(query.get("top", ["25"])[0])
+        offset = int(query.get("offset", ["0"])[0])
+    except ValueError:
+        return None
+    if not 1 <= top <= 100 or offset < 0:
+        return None
+    band_type = match.group(2)
+    entries = [mock_service._song_band_leaderboard_entry(rank, band_type)
+               for rank in range(offset + 1, min(rows, offset + top) + 1)]
+    return {"songId": match.group(1), "bandType": band_type, "count": len(entries),
+            "totalEntries": rows, "localEntries": rows, "entries": entries}
+
+
+def install_song_band_rows(rows: int) -> None:
+    """Serve every fixture song's band leaderboards with ``rows`` entries (a board long enough to scroll).
+
+    Args:
+        rows: Total entries on each board.
+    """
+    original = mock_service.FixtureHandler.do_GET
+
+    def do_get(self) -> None:  # noqa: ANN001 (stdlib handler signature)
+        body = song_band_board_response(self.path, rows)
+        if body is None:
+            original(self)
+        else:
+            self._json(200, body)
+
+    mock_service.FixtureHandler.do_GET = do_get
+
+
+def take_song_band_rows(argv: list[str]) -> tuple[int | None, list[str]]:
+    """Split ``--song-band-rows <count>`` (or ``=<count>``) from the remaining arguments.
+
+    Args:
+        argv: Command-line arguments after the program name.
+
+    Returns:
+        The row count (``None`` when absent) and the remaining arguments.
+
+    Raises:
+        SystemExit: Missing, non-numeric or non-positive count.
+    """
+    count, rest, items = None, [], iter(argv)
+    for arg in items:
+        if arg == "--song-band-rows":
+            value = next(items, None)
+        elif arg.startswith("--song-band-rows="):
+            value = arg.split("=", 1)[1]
+        else:
+            rest.append(arg)
+            continue
+        try:
+            count = int(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            count = 0
+        if count < 1:
+            raise SystemExit("--song-band-rows needs a positive row count")
+    return count, rest
+
+# endregion
+
 # region Song leaderboard scenarios
 
 #: Per-chart song leaderboard read changed by ``--song-leaderboard`` (Song Detail falls back to it without ``/all``).
@@ -274,6 +368,175 @@ def take_song_leaderboard(argv: list[str]) -> tuple[str | None, list[str]]:
 
 # endregion
 
+# region Player bands scenarios
+
+#: Scenarios for ``--player-bands``.
+PLAYER_BANDS_SCENARIOS = ("fail-once",)
+
+
+def player_bands_failure(path: str, seen: set[str]) -> bool:
+    """Whether a player-bands read fails in the ``fail-once`` scenario (issue #312).
+
+    The first read of each distinct path and query answers 500, and the identical retry passes through, so the
+    profile's inline Bands section shows its failure with Retry and then recovers.
+
+    Args:
+        path: Request path with query.
+        seen: Paths already failed once (updated in place).
+
+    Returns:
+        ``True`` when this read should answer 500.
+    """
+    if not mock_service.PLAYER_BANDS.fullmatch(urlsplit(path).path) or path in seen:
+        return False
+    seen.add(path)
+    return True
+
+
+def install_player_bands(scenario: str) -> None:
+    """Serve a player-bands scenario in front of the mock service's handler.
+
+    Args:
+        scenario: One of :data:`PLAYER_BANDS_SCENARIOS`.
+    """
+    original = mock_service.FixtureHandler.do_GET
+    seen: set[str] = set()
+
+    def do_get(self) -> None:  # noqa: ANN001 (stdlib handler signature)
+        if scenario == "fail-once" and player_bands_failure(self.path, seen):
+            self._json(500, {"status": "fixture_player_bands_unavailable"})
+        else:
+            original(self)
+
+    mock_service.FixtureHandler.do_GET = do_get
+
+
+def take_player_bands(argv: list[str]) -> tuple[str | None, list[str]]:
+    """Split ``--player-bands <scenario>`` (or ``=<scenario>``) from the remaining arguments.
+
+    Args:
+        argv: Command-line arguments after the program name.
+
+    Returns:
+        The scenario (``None`` when absent) and the remaining arguments.
+
+    Raises:
+        SystemExit: Missing or unknown scenario.
+    """
+    scenario, rest, items = None, [], iter(argv)
+    for arg in items:
+        if arg == "--player-bands":
+            scenario = next(items, None)
+        elif arg.startswith("--player-bands="):
+            scenario = arg.split("=", 1)[1]
+        else:
+            rest.append(arg)
+            continue
+        if scenario not in PLAYER_BANDS_SCENARIOS:
+            raise SystemExit(f"--player-bands must be one of {', '.join(PLAYER_BANDS_SCENARIOS)}")
+    return scenario, rest
+
+# endregion
+
+# region Song band board entry totals
+
+#: Per-size song band board read (``/api/leaderboard/{songId}/bands/{bandType}``; not ``/bands/all``).
+SONG_BAND_BOARD = re.compile(r"^/api/leaderboard/fixture-[a-z0-9-]+/bands/(?!all$)[A-Za-z_]+$")
+
+
+def song_band_totals(path: str, body: dict | None) -> dict | None:
+    """Turn on ``showLeaderboardEntryTotals`` in a per-size song band board read (``--song-band-totals``, issue #317).
+
+    The mock omits the flag there (the app treats it as false), so only the band-size header line is reachable; with
+    it on the header also names the entry total.
+
+    Args:
+        path: Request path with query.
+        body: Response body the mock service built (``None`` for an empty response).
+
+    Returns:
+        The body, flagged when ``path`` is a per-size song band board read.
+    """
+    if body and SONG_BAND_BOARD.fullmatch(urlsplit(path).path):
+        body["showLeaderboardEntryTotals"] = True
+    return body
+
+
+def install_song_band_totals() -> None:
+    """Serve per-size song band boards with entry totals on."""
+    original = mock_service.FixtureHandler.do_GET
+
+    def do_get(self) -> None:  # noqa: ANN001 (stdlib handler signature)
+        send = self._json
+        self._json = lambda status, body, *rest, **kw: send(status, song_band_totals(self.path, body), *rest, **kw)
+        try:
+            original(self)
+        finally:
+            del self._json
+
+    mock_service.FixtureHandler.do_GET = do_get
+
+
+#: Delay before a slowed band size's per-size song band board answers (``--song-band-slow``); under the 30 s timeout.
+SLOW_SONG_BAND_SECONDS = 5.0
+
+
+def take_song_band_slow(argv: list[str]) -> tuple[str | None, list[str]]:
+    """Split ``--song-band-slow <bandType>`` (or ``=<bandType>``) from the remaining arguments.
+
+    Args:
+        argv: Command-line arguments after the program name.
+
+    Returns:
+        The slowed band type (``None`` when absent) and the remaining arguments.
+
+    Raises:
+        SystemExit: Missing or malformed band type.
+    """
+    band, rest, items = None, [], iter(argv)
+    for arg in items:
+        if arg == "--song-band-slow":
+            value = next(items, None)
+        elif arg.startswith("--song-band-slow="):
+            value = arg.split("=", 1)[1]
+        else:
+            rest.append(arg)
+            continue
+        if not value or not re.fullmatch(r"Band_[A-Za-z]+", value):
+            raise SystemExit("--song-band-slow needs a band type such as Band_Quad")
+        band = value
+    return band, rest
+
+
+def song_band_delay(path: str, band: str | None) -> float:
+    """Delay for a per-size song band board read of the slowed band size.
+
+    Args:
+        path: Request path with query.
+        band: Slowed band type, or ``None``.
+
+    Returns:
+        :data:`SLOW_SONG_BAND_SECONDS` for a slowed read, else ``0``.
+    """
+    route = urlsplit(path).path
+    if band and SONG_BAND_BOARD.fullmatch(route) and route.rsplit("/", 1)[1] == band:
+        return SLOW_SONG_BAND_SECONDS
+    return 0.0
+
+
+def install_song_band_slow(band: str) -> None:
+    """Hold one band size's per-size song band board reads (``--song-band-slow``)."""
+    original = mock_service.FixtureHandler.do_GET
+
+    def do_get(self) -> None:  # noqa: ANN001 (stdlib handler signature)
+        if delay := song_band_delay(self.path, band):
+            time.sleep(delay)
+        original(self)
+
+    mock_service.FixtureHandler.do_GET = do_get
+
+# endregion
+
 # region Slow rivals lists
 
 #: A viewing account ID containing this marker (``fixture-player-slow``, ``fixture-player-slow-503``) gets slow lists.
@@ -343,8 +606,12 @@ def main() -> None:
     scenario, rest = take_band_rankings(sys.argv[1:])
     songs_delay, rest = take_songs_delay(rest)
     song_board, rest = take_song_leaderboard(rest)
+    song_band_rows, rest = take_song_band_rows(rest)
+    player_bands, rest = take_player_bands(rest)
+    song_band_slow, rest = take_song_band_slow(rest)
     songs_unavailable = "--songs-unavailable" in rest
-    rest = [arg for arg in rest if arg != "--songs-unavailable"]
+    song_band_totals_on = "--song-band-totals" in rest
+    rest = [arg for arg in rest if arg not in ("--songs-unavailable", "--song-band-totals")]
     sys.argv[1:] = rest
     if scenario:
         install_band_rankings(scenario)
@@ -352,8 +619,16 @@ def main() -> None:
         install_songs_delay(songs_delay)
     if song_board:
         install_song_leaderboard(song_board)
+    if player_bands:
+        install_player_bands(player_bands)
     if songs_unavailable:
         install_songs_unavailable()
+    if song_band_rows:
+        install_song_band_rows(song_band_rows)
+    if song_band_totals_on:
+        install_song_band_totals()
+    if song_band_slow:
+        install_song_band_slow(song_band_slow)
     install_slow_rivals()
     names: dict[str, str] = {}
     for payload in (

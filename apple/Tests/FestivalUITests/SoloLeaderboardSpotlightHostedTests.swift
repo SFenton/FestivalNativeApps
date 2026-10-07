@@ -48,7 +48,7 @@ private actor HostedSoloSpotlightTransport: HTTPTransport {
 }
 
 /// Decode a minimal charted song without network-dependent artwork.
-private func spotlightFixtureSong() throws -> Song {
+func spotlightFixtureSong() throws -> Song {
     try JSONDecoder().decode(Song.self, from: Data("""
     {"songId":"fixture-pulse","title":"Fixture Pulse","artist":"Fixture Artist",
      "year":2026,"difficulty":{"guitar":3,"bass":3}}
@@ -57,12 +57,12 @@ private func spotlightFixtureSong() throws -> Song {
 
 /// Build a 25-row Lead chart page, optionally including the spotlighted account.
 ///
-/// - Parameter includeSpotlightAccount: When true, one row is
-///   `fixture-spotlight-player` (their row is then visible on this page).
+/// - Parameter spotlightRank: The rank whose row is `fixture-spotlight-player` (their
+///   row is then on this page), or nil to leave them off it.
 /// - Returns: A validated, freshly-pinned chart page.
-private func spotlightFixtureLeaderboard(includeSpotlightAccount: Bool) throws -> LeaderboardPayload {
+func spotlightFixtureLeaderboard(spotlightRank: Int?) throws -> LeaderboardPayload {
     let rows: [String] = (1...25).map { rank in
-        let accountId = (includeSpotlightAccount && rank == 3)
+        let accountId = rank == spotlightRank
             ? "fixture-spotlight-player" : "fixture-other-\(rank)"
         return #"{"accountId":"\#(accountId)","displayName":"Row \#(rank)","score":\#(99_000 - rank),"rank":\#(rank)}"#
     }
@@ -83,7 +83,7 @@ private func spotlightFixtureLeaderboard(includeSpotlightAccount: Bool) throws -
 ///
 /// - Returns: A session with the fixture player selected and its score index loaded.
 @MainActor
-private func spotlightSelectedSession() async throws -> FestivalSession {
+func spotlightSelectedSession() async throws -> FestivalSession {
     let transport = HostedSoloSpotlightTransport()
     let client = try FestivalAPI(transport: transport)
     let session = FestivalSession(factory: { client })
@@ -103,7 +103,7 @@ private func spotlightSelectedSession() async throws -> FestivalSession {
 @Test func soloLeaderboardHighlightsVisibleSelectedRowWithoutJumpControl() async throws {
     let session = try await spotlightSelectedSession()
     let song = try spotlightFixtureSong()
-    let payload = try spotlightFixtureLeaderboard(includeSpotlightAccount: true)
+    let payload = try spotlightFixtureLeaderboard(spotlightRank: 3)
     let size = CGSize(width: 402, height: 900)
     let host = nativeHostedView(
         NavigationStack {
@@ -134,7 +134,7 @@ private func spotlightSelectedSession() async throws -> FestivalSession {
 @Test func soloLeaderboardShowsJumpControlWhenSelectedRowIsOffPage() async throws {
     let session = try await spotlightSelectedSession()
     let song = try spotlightFixtureSong()
-    let payload = try spotlightFixtureLeaderboard(includeSpotlightAccount: false)
+    let payload = try spotlightFixtureLeaderboard(spotlightRank: nil)
     let size = CGSize(width: 402, height: 900)
     let host = nativeHostedView(
         NavigationStack {
@@ -165,7 +165,7 @@ private func spotlightSelectedSession() async throws -> FestivalSession {
 @Test func soloLeaderboardShowsNoSpotlightWithoutASelectedScore() async throws {
     let session = FestivalSession(factory: { throw FestivalAPIError.invalidResource })
     let song = try spotlightFixtureSong()
-    let payload = try spotlightFixtureLeaderboard(includeSpotlightAccount: false)
+    let payload = try spotlightFixtureLeaderboard(spotlightRank: nil)
     let size = CGSize(width: 402, height: 900)
     let host = nativeHostedView(
         NavigationStack {

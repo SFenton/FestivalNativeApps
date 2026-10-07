@@ -839,10 +839,10 @@ final class SongDetailJourneyTests: XCTestCase {
         XCTAssertTrue(app.buttons["BackButton"].waitForExistence(timeout: 10))
     }
 
-    /// Score history lives on the song page (operator batch 6.39): with a selected
-    /// player the Score History section appears after Intensity with the shared
+    /// Score history's preview lives on the song page (operator batch 6.39): with a
+    /// selected player the Score History section appears after Intensity with the shared
     /// instrument selector, the chart and the best scores; there is no per-card history
-    /// link and no separate page.
+    /// link, and two scores need no View All Scores (issue #324: only more than five do).
     ///
     /// - Throws: A missing section, selector, chart or row, or a navigation away.
     @MainActor
@@ -872,7 +872,68 @@ final class SongDetailJourneyTests: XCTestCase {
         XCTAssertTrue(any("fst.song-detail.history.row.0").exists, "No best-score row")
         XCTAssertFalse(app.buttons["fst.song-detail.history.Solo_Guitar"].exists, "The old per-card history link is back")
         XCTAssertTrue(any("fst.song-detail.intensity").exists, "Score history navigated away from the song page")
+        XCTAssertFalse(any("fst.song-detail.history.view-all").exists, "Two scores offered View All Scores")
         SongsUITestSupport.record(app, name: "song-detail-score-history")
+    }
+
+    /// View All Scores (issue #324, web `ScoreHistoryChart` → `PlayerHistoryPage`): with
+    /// more than five Lead scores the song page lists the best five and pushes a separate
+    /// Score History page listing all eight, best first, with Sort (Date, Score, Accuracy,
+    /// Season) in the page tools; choosing Date reorders the rows. Needs
+    /// `tools/mock_service.py --port 18831` (its `fixture-history-multi` account).
+    ///
+    /// - Throws: A missing button, page, row or sort control.
+    @MainActor
+    func testViewAllScoresOpensTheSortableHistoryPage() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = FestivalApp.makeApp([
+            "FST_UI_TEST_RESET_SONG_CARDS": "1",
+            "FST_DEBUG_PROFILE": "fixture-history-multi:Multi History",
+            "FST_API_BASE_URL": "http://127.0.0.1:18831",
+        ])
+        app.launch()
+        let song = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        song.tap()
+        func any(_ identifier: String) -> XCUIElement {
+            app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+        }
+        XCTAssertTrue(any("fst.song-detail.intensity").waitForExistence(timeout: 20))
+        let viewAll = any("fst.song-detail.history.view-all")
+        for _ in 0..<8 where !viewAll.isHittable { app.swipeUp() }
+        XCTAssertTrue(viewAll.waitForExistence(timeout: 10), "No View All Scores (is the 18831 fixture running?)")
+        XCTAssertTrue(any("fst.song-detail.history.row.4").exists, "The song page lists five scores")
+        XCTAssertFalse(any("fst.song-detail.history.row.5").exists, "The song page grew past five scores")
+        viewAll.tap()
+
+        XCTAssertTrue(any("fst.history").waitForExistence(timeout: 10), "View All Scores did not open the page")
+        XCTAssertTrue(any("fst.history.row.0").waitForExistence(timeout: 10), "The history page has no rows")
+        XCTAssertTrue(any("fst.history.row.0").label.contains("best score"), "Score descending puts the best first")
+        XCTAssertFalse(any("fst.song-detail.intensity").exists, "View All Scores expanded the song page")
+        let lastRow = any("fst.history.row.7")
+        for _ in 0..<4 where !lastRow.exists { app.swipeUp() }
+        XCTAssertTrue(lastRow.exists, "The history page lists all eight Lead scores")
+        SongsUITestSupport.record(app, name: "player-history-page")
+
+        let sort = app.buttons["fst.history.sort.open"]
+        XCTAssertTrue(sort.waitForExistence(timeout: 5), "Sort is missing")
+        sort.tap()
+        XCTAssertTrue(app.staticTexts["Sort Player Scores"].waitForExistence(timeout: 5))
+        for mode in ["Date", "Score", "Accuracy", "Season"] {
+            XCTAssertTrue(app.buttons[mode].exists || app.staticTexts[mode].exists, "\(mode) mode is missing")
+        }
+        (app.buttons["Date"].exists ? app.buttons["Date"] : app.staticTexts["Date"]).tap()
+        app.buttons["fst.history.sort.direction.ascending"].tap()
+        SongsUITestSupport.record(app, name: "player-history-sort")
+        app.buttons["fst.history.sort.close"].tap()
+        XCTAssertTrue(sort.waitForExistence(timeout: 5))
+        XCTAssertEqual(sort.value as? String, "Date, ascending")
+        // The fixture's oldest Lead score is its lowest; the best moves to the end.
+        let first = any("fst.history.row.0")
+        XCTAssertTrue(first.waitForExistence(timeout: 5))
+        XCTAssertTrue(first.label.contains("610,000"), "Oldest first: \(first.label)")
+        XCTAssertFalse(first.label.contains("best score"), "The highlight stayed on the first row")
     }
 
     /// Switching the Score History instrument (issue #31) swaps the graph inside a card of

@@ -37,6 +37,53 @@ struct NativeHostedRoot<Content: View>: View {
     }
 }
 
+/// The realized accessibility element with `identifier` under `host`, if any.
+///
+/// - Parameters:
+///   - identifier: The element's accessibility identifier.
+///   - host: The window's hosting view (call `nativeHostedEnableAccessibility()` first).
+/// - Returns: The element, or nil when no realized element has the identifier.
+@MainActor
+func nativeHostedAccessibilityElement(_ identifier: String, in host: NSView) -> NSObject? {
+    var seen = Set<ObjectIdentifier>()
+    func read(_ object: NSObject, _ key: String) -> Any? {
+        object.responds(to: NSSelectorFromString(key)) ? object.value(forKey: key) : nil
+    }
+    func walk(_ node: Any, depth: Int) -> NSObject? {
+        guard depth < 80, let object = node as? NSObject,
+              seen.insert(ObjectIdentifier(object)).inserted else { return nil }
+        if read(object, "accessibilityIdentifier") as? String == identifier { return object }
+        for child in (read(object, "accessibilityChildren") as? [Any]) ?? [] {
+            if let found = walk(child, depth: depth + 1) { return found }
+        }
+        if let view = object as? NSView {
+            for subview in view.subviews {
+                if let found = walk(subview, depth: depth + 1) { return found }
+            }
+        }
+        return nil
+    }
+    return walk(host, depth: 0)
+}
+
+/// Frame, in the host's top-left points, of the accessibility element with `identifier`.
+///
+/// - Parameters:
+///   - identifier: The element's accessibility identifier.
+///   - host: The window's hosting view (call `nativeHostedEnableAccessibility()` first).
+/// - Returns: The element's frame, or nil when no realized element has the identifier.
+@MainActor
+func nativeHostedAccessibilityFrame(_ identifier: String, in host: NSView) -> CGRect? {
+    guard let element = nativeHostedAccessibilityElement(identifier, in: host),
+          element.responds(to: NSSelectorFromString("accessibilityFrame")),
+          let frame = (element.value(forKey: "accessibilityFrame") as? NSValue)?.rectValue,
+          let window = host.window else { return nil }
+    let local = host.convert(window.convertFromScreen(frame), from: nil)
+    return host.isFlipped ? local : CGRect(
+        x: local.minX, y: host.bounds.height - local.maxY, width: local.width, height: local.height
+    )
+}
+
 /// Ask SwiftUI to build its accessibility tree inside this test process.
 ///
 /// SwiftUI on macOS creates no accessibility nodes under an `NSHostingView`
@@ -315,6 +362,53 @@ func nativeHostedReadinessBudget(
     inVirtualMachine ? timeout * nativeHostedVirtualMachineTimeoutScale : timeout
 }
 
+/// A readiness bound measured in a wait's own time rather than wall-clock time.
+///
+/// Every hosted test shares one main actor. Under `swift test --parallel` it runs
+/// ~99% busy, so a poll that asks for 250 ms resumes seconds later and the screen's
+/// own `.task` loads advance just as slowly. A wall-clock bound then fails whichever
+/// test settles last (three Leaderboards spotlight tests hit 62–80 s against a 60 s
+/// bound) although nothing is wrong. This budget charges the sleeps the wait requested
+/// plus the wait's own work between them (layout, accessibility walks, captures), and
+/// leaves out only the queueing delay before each poll resumes. Starvation therefore
+/// stretches the wait without spending its budget, while a loop whose own polls are
+/// expensive still ends after about `limit` of its own time.
+struct NativeHostedPollBudget {
+    /// The wait's own time allowed (already scaled for a VM).
+    let limit: Duration
+    /// Requested sleeps plus the wait's own work so far.
+    private(set) var spent: Duration = .zero
+    /// When the last poll resumed; the work since then is charged on the next sleep.
+    private var resumedAt: ContinuousClock.Instant?
+
+    /// - Parameters:
+    ///   - timeout: The wait's budget on a physical Mac.
+    ///   - inVirtualMachine: Whether the process runs in a VM (see `nativeHostedReadinessBudget`).
+    init(_ timeout: Duration, inVirtualMachine: Bool = nativeHostedIsVirtualMachine) {
+        limit = nativeHostedReadinessBudget(timeout, inVirtualMachine: inVirtualMachine)
+    }
+
+    /// Whether the wait's own time has passed the limit.
+    var isExhausted: Bool { spent > limit }
+
+    /// Charge the work since the last poll, then sleep one interval and charge it,
+    /// but not the delay before the poll resumes.
+    ///
+    /// Main-actor isolated so the resume instant is taken back on the main actor;
+    /// a nonisolated method would resume on the cooperative pool and charge the hop back.
+    ///
+    /// - Parameter interval: Requested poll interval.
+    /// - Throws: Cancellation.
+    @MainActor
+    mutating func sleep(for interval: Duration) async throws {
+        let clock = ContinuousClock()
+        if let resumedAt { spent += clock.now - resumedAt }
+        try await Task.sleep(for: interval)
+        spent += interval
+        resumedAt = clock.now
+    }
+}
+
 /// Wait for asynchronously loaded content, then capture it once it stops changing.
 ///
 /// Replaces fixed `Task.sleep` waits: `.task` fixture loads finish at
@@ -326,12 +420,13 @@ func nativeHostedReadinessBudget(
 /// identical captures end the wait; content that keeps animating (a spinner in
 /// a loading-state test) ends it after `animationGrace` instead. Polling backs
 /// off from 20 ms to 250 ms so dozens of concurrently settling tests do not
-/// starve the main actor they are waiting on.
+/// starve the main actor they are waiting on. The timeout counts the wait's own
+/// time (`NativeHostedPollBudget`), so a saturated parallel run cannot exhaust it.
 ///
 /// - Parameters:
 ///   - host: Sized host, usually attached to `nativeHostedWindow`.
-///   - timeout: Upper bound for `ready` to become true on a physical Mac
-///     (scaled in a VM, see `nativeHostedReadinessBudget`).
+///   - timeout: Upper bound, in the wait's own time, for `ready` to become true on a
+///     physical Mac (scaled in a VM, see `nativeHostedReadinessBudget`).
 ///   - animationGrace: How long a ready-but-still-changing capture may keep changing.
 ///   - sourceLocation: Where a readiness timeout is reported.
 ///   - ready: Fixture-specific readiness, e.g. a session state or visible text.
@@ -348,21 +443,22 @@ func nativeHostedSettle<Content: View>(
 ) async throws -> CGImage {
     let clock = ContinuousClock()
     let start = clock.now
-    let budget = nativeHostedReadinessBudget(timeout)
+    var budget = NativeHostedPollBudget(timeout)
     var interval = Duration.milliseconds(20)
     var readySince: ContinuousClock.Instant?
     var previous: Int?
     while true {
-        try await Task.sleep(for: interval)
+        try await budget.sleep(for: interval)
         interval = min(interval * 3 / 2, .milliseconds(250))
         host.layoutSubtreeIfNeeded()
         host.displayIfNeeded()
         guard ready() else {
             readySince = nil
             previous = nil
-            if clock.now - start > budget {
+            if budget.isExhausted {
+                let wall = clock.now - start
                 Issue.record(
-                    "Hosted view never became ready within \(budget)",
+                    "Hosted view never became ready within \(budget.limit) of polling (\(wall) wall-clock)",
                     sourceLocation: sourceLocation
                 )
                 return try nativeHostedImage(host)

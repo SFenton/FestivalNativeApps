@@ -216,6 +216,20 @@ private func hostedRankingsSessionWithSelection(
     )
 }
 
+// MARK: - Hosted navigation
+
+/// The overview inside a `NavigationStack`, as the app hosts it. Outside one, its
+/// `NavigationLink` rows are disabled and drawn at 50% opacity, and `cacheDisplay`
+/// composites every translucent layer through a full-size transparency layer: ~150 of
+/// them cost 1.35 s of main actor per capture, which starved every parallel hosted test.
+///
+/// - Parameter session: Fixture-backed session.
+/// - Returns: The overview in a navigation stack.
+@MainActor
+private func hostedLeaderboardsOverview(_ session: FestivalSession) -> some View {
+    NavigationStack { LeaderboardsScreen(session: session) }
+}
+
 // MARK: - Hosted storage
 
 private extension View {
@@ -239,7 +253,7 @@ private extension View {
     let session = hostedRankingsSession(transport: transport)
     let size = CGSize(width: 402, height: 1200)
     let host = nativeHostedView(
-        LeaderboardsScreen(session: session)
+        hostedLeaderboardsOverview(session)
             .frame(width: size.width, height: size.height)
             .preferredColorScheme(.dark)
             .leaderboardsHostedStorage(),
@@ -262,7 +276,7 @@ private extension View {
     let session = hostedRankingsSession(transport: transport)
     let size = CGSize(width: 402, height: 1200)
     let host = nativeHostedView(
-        LeaderboardsScreen(session: session)
+        hostedLeaderboardsOverview(session)
             .frame(width: size.width, height: size.height)
             .preferredColorScheme(.dark)
             .leaderboardsHostedStorage(),
@@ -334,7 +348,7 @@ private extension View {
     )
     let size = CGSize(width: 402, height: 1200)
     let host = nativeHostedView(
-        LeaderboardsScreen(session: session)
+        hostedLeaderboardsOverview(session)
             .frame(width: size.width, height: size.height)
             .preferredColorScheme(.dark)
             .leaderboardsHostedStorage(),
@@ -365,7 +379,7 @@ private extension View {
     )
     let size = CGSize(width: 402, height: 1200)
     let host = nativeHostedView(
-        LeaderboardsScreen(session: session)
+        hostedLeaderboardsOverview(session)
             .frame(width: size.width, height: size.height)
             .preferredColorScheme(.dark)
             .leaderboardsHostedStorage(),
@@ -390,7 +404,7 @@ private extension View {
     )
     let size = CGSize(width: 402, height: 1200)
     let host = nativeHostedView(
-        LeaderboardsScreen(session: session)
+        hostedLeaderboardsOverview(session)
             .frame(width: size.width, height: size.height)
             .preferredColorScheme(.dark)
             .leaderboardsHostedStorage(),
@@ -415,7 +429,7 @@ private extension View {
     )
     let size = CGSize(width: 402, height: 1200)
     let host = nativeHostedView(
-        LeaderboardsScreen(session: session)
+        hostedLeaderboardsOverview(session)
             .frame(width: size.width, height: size.height)
             .preferredColorScheme(.dark)
             .leaderboardsHostedStorage(),
@@ -445,7 +459,7 @@ private extension View {
     )
     let size = CGSize(width: 402, height: 1200)
     let host = nativeHostedView(
-        LeaderboardsScreen(session: session)
+        hostedLeaderboardsOverview(session)
             .frame(width: size.width, height: size.height)
             .preferredColorScheme(.dark)
             .leaderboardsHostedStorage(),

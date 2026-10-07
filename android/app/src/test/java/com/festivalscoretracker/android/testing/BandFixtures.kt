@@ -42,9 +42,10 @@ object BandFixtures {
      * @param pageSize Page size.
      * @param group Group echoed.
      * @param accountId Account echoed.
+     * @param idPrefix Prefix for band IDs, so several groups' pages on one screen keep distinct row tags.
      * @return JSON.
      */
-    fun playerBands(total: Int, page: Int, pageSize: Int, group: String = "all", accountId: String = PLAYER): String {
+    fun playerBands(total: Int, page: Int, pageSize: Int, group: String = "all", accountId: String = PLAYER, idPrefix: String = ""): String {
         val start = (page - 1) * pageSize
         val rows = (start until minOf(total, start + pageSize)).joinToString(",") { index ->
             val (type, members) = when {
@@ -53,10 +54,56 @@ object BandFixtures {
                 else -> "Band_Quad" to duoMembers + member("0000000000000000000000000000000$index".takeLast(32), "Synthetic Drums $index", listOf("Solo_Drums")) + member("", null)
             }
             val key = if (index == 0) DUO_KEY else "${Fixtures.ACCOUNT_A}:team$index"
-            val id = if (index == 0) DUO_ID else "band-$index"
+            val id = idPrefix + if (index == 0) DUO_ID else "band-$index"
             """{"bandId":"$id","teamKey":"$key","bandType":"$type","appearanceCount":${10 + index},"members":[${members.joinToString(",")}]}"""
         }
         return """{"accountId":"$accountId","group":"$group","totalCount":$total,"entries":[$rows]}"""
+    }
+
+    /** The trio's team key in [bandSearch]. */
+    const val TRIO_KEY = "${Fixtures.ACCOUNT_A}:${Fixtures.ACCOUNT_B}:0000000000000000000000000000000c"
+
+    /**
+     * One `/api/bands/search` row (`BandSearchResultDto`).
+     *
+     * @param bandId Band hash.
+     * @param teamKey Roster key.
+     * @param bandType Band size.
+     * @param appearances Appearance count.
+     * @param members Member JSON objects.
+     * @return JSON.
+     */
+    fun searchRow(bandId: String, teamKey: String, bandType: String, appearances: Int, members: List<String>): String =
+        """{"bandId":"$bandId","teamKey":"$teamKey","bandType":"$bandType","appearanceCount":$appearances,"members":[${members.joinToString(",")}],"ranking":null,"matchedInterpretationIds":[],"matchedAccountIds":[]}"""
+
+    /**
+     * A `/api/bands/search` page (`BandSearchResponseDto`) with [rows].
+     *
+     * @param query Query echoed.
+     * @param rows Row JSON objects.
+     * @param pageSize Page size echoed.
+     * @return JSON.
+     */
+    fun bandSearchPage(query: String, rows: List<String>, pageSize: Int = 10): String =
+        """{"query":"$query","normalizedQuery":"${query.lowercase()}","bandType":null,"comboId":null,"rankBy":"appearance","page":1,"pageSize":$pageSize,"totalCount":${rows.size},"isAmbiguous":false,"needsDisambiguation":false,"interpretations":[],"results":[${rows.joinToString(",")}]}"""
+
+    /**
+     * The default `/api/bands/search` answer: the duo and a trio, or nothing for a
+     * query containing `zz`.
+     *
+     * @param query Query echoed.
+     * @return JSON.
+     */
+    fun bandSearch(query: String): String {
+        if ("zz" in query.lowercase()) return bandSearchPage(query, emptyList())
+        val trio = duoMembers + member("0000000000000000000000000000000c", "Synthetic Drums", listOf("Solo_Drums"))
+        return bandSearchPage(
+            query,
+            listOf(
+                searchRow(DUO_ID, DUO_KEY, "Band_Duets", 12, duoMembers),
+                searchRow("band-trio-hash", TRIO_KEY, "Band_Trios", 1, trio),
+            ),
+        )
     }
 
     /**

@@ -75,8 +75,14 @@ extension IPadAccessibilityAuditTests {
 
         // 1. Visible contrast issues and page evidence.
         let lines = capture.map(IPadAuditPageEvidence.recognizedLines(in:)) ?? []
+        let labels = findings.map(\.label)
+        let measurableHere = { (index: Int) in
+            content.contains(frames[index]) || IPadAuditPageEvidence.labelDrawnInside(
+                frames[index], label: labels[index], lines: lines, content: content
+            )
+        }
         for index in findings.indices where isContrast(index) && !findings[index].frame.isEmpty
-            && content.contains(frames[index]) {
+            && measurableHere(index) {
             if let capture {
                 findings[index].rendered = IPadAuditPageEvidence.reading(
                     for: frames[index], label: findings[index].label, lines: lines, capture: capture
@@ -96,7 +102,7 @@ extension IPadAccessibilityAuditTests {
             (isDynamicType($0) || isClipped($0)) && !findings[$0].label.isEmpty && !findings[$0].frame.isEmpty
         }
         let cutContrast = findings.indices.filter {
-            isContrast($0) && !findings[$0].frame.isEmpty && !content.contains(frames[$0])
+            isContrast($0) && !findings[$0].frame.isEmpty && !measurableHere($0)
         }
         var locators: [Int: IPadAuditTextEvidence.Locator] = [:]
         for index in heuristic + cutContrast {
@@ -149,6 +155,7 @@ extension IPadAccessibilityAuditTests {
                 guard let element = locator.resolve(in: app, within: content),
                       let shot = IPadAuditRenderedContrast.Capture.screen() else {
                     visible?.evidence.textsUnmeasured += 1
+                    visible?.evidence.unmeasured.append("\(locator.label.prefix(40)) (not scrolled clear)")
                     continue
                 }
                 let shotLines = IPadAuditPageEvidence.recognizedLines(in: shot)
@@ -159,9 +166,11 @@ extension IPadAccessibilityAuditTests {
                     visible?.evidence.add(label: locator.label, ratio: reading.ratio)
                 } else {
                     visible?.evidence.textsUnmeasured += 1
+                    visible?.evidence.unmeasured.append("\(locator.label.prefix(40)) (no glyphs read)")
                 }
             }
             visible?.evidence.textsUnmeasured += max(0, obscured.count - 16)
+            visible?.evidence.unmeasured += obscured.dropFirst(16).map { "\($0.label.prefix(40)) (over 16)" }
         }
         app.terminate()
 

@@ -80,6 +80,8 @@ struct NotificationsSheet: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .pinnedHeaderEdgeFadeList(pinnedFade, showsHeaders: !unread.isEmpty)
+        // Scrolling while the rows stagger in fades the rest in together (#323).
+        .festivalScrollFadeInScope(resetKey: center.notifications.count)
         .task(id: center.notifications.count) {
             await FadeStagger.settle(afterRevealing: min(center.notifications.count, 12)) {
                 fadeSettled = true

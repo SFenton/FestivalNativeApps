@@ -234,9 +234,9 @@ struct MacAccessibilityTreeTests {
             window.setFrame(NSRect(x: -10_000, y: -10_000, width: size.width, height: size.height), display: false)
             window.orderOut(nil)
             defer { window.close() }
-            let deadline = ContinuousClock.now + nativeHostedReadinessBudget(.seconds(20))
-            while (window.toolbar?.items.count ?? 0) < (player ? 6 : 5), ContinuousClock.now < deadline {
-                try await Task.sleep(for: .milliseconds(100))
+            var budget = NativeHostedPollBudget(.seconds(20))
+            while (window.toolbar?.items.count ?? 0) < (player ? 6 : 5), !budget.isExhausted {
+                try await budget.sleep(for: .milliseconds(100))
             }
             let items = try #require(window.toolbar?.items)
             let labels = items.map(\.label)
@@ -277,14 +277,41 @@ struct MacAccessibilityTreeTests {
         window.setFrame(NSRect(x: -10_000, y: -10_000, width: size.width, height: size.height), display: false)
         window.orderOut(nil)
         defer { window.close() }
-        let deadline = ContinuousClock.now + nativeHostedReadinessBudget(.seconds(20))
-        while !(window.toolbar?.items.contains { $0.label == "Close" } ?? false), ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(100))
+        var budget = NativeHostedPollBudget(.seconds(20))
+        while !(window.toolbar?.items.contains { $0.label == "Close" } ?? false), !budget.isExhausted {
+            try await budget.sleep(for: .milliseconds(100))
         }
         let items = try #require(window.toolbar?.items)
         let labels = items.map(\.label)
         let close = try #require(items.first { $0.label == "Close" }, "Close in \(labels)")
         #expect(close.toolTip == "Close (Esc)")
+        #expect(Set(labels).count == labels.count, "no two toolbar items share a label: \(labels)")
+    }
+
+    /// Score history in the trailing pane (issue #324): its Sort page action reaches the
+    /// window toolbar beside Close, named and tooltipped, and no two items share a label.
+    @Test func macTreeScoreHistoryToolbarOffersSort() async throws {
+        let size = MacWindowMetrics.defaultSize
+        let session = try await macTreeSession(player: true)
+        let song = try #require(try await session.catalog().catalog.songs.first { $0.songId == "fixture-pulse" })
+        let model = MacAppModel(session: session, storage: nil, initial: .songs)
+        model.navigation.paths[.songs] = [.songDetail(song), .playerHistory(song, .lead)]
+        let controller = NSHostingController(rootView: MacRootView(model: model).frame(width: size.width, height: size.height))
+        controller.sceneBridgingOptions = [.toolbars, .title]
+        let window = NSWindow(contentViewController: controller)
+        window.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
+        window.setFrame(NSRect(x: -10_000, y: -10_000, width: size.width, height: size.height), display: false)
+        window.orderOut(nil)
+        defer { window.close() }
+        var budget = NativeHostedPollBudget(.seconds(20))
+        while !(window.toolbar?.items.contains { $0.label == "Sort" } ?? false), !budget.isExhausted {
+            try await budget.sleep(for: .milliseconds(100))
+        }
+        let items = try #require(window.toolbar?.items)
+        let labels = items.map(\.label)
+        let sort = try #require(items.first { $0.label == "Sort" }, "Sort in \(labels)")
+        #expect(sort.toolTip == "Sort Scores")
+        #expect(labels.contains("Close"), "Close in \(labels)")
         #expect(Set(labels).count == labels.count, "no two toolbar items share a label: \(labels)")
     }
 
@@ -379,9 +406,9 @@ struct MacAccessibilityTreeTests {
         #expect(macAccessibilityFindings(elements) == [], "\(name)")
     }
 
-    /// Song Detail beside its score history: the standalone history page carries the
-    /// registered `fst.history` page root (as on Android/Windows, issue #302) and its
-    /// section keeps its own identifiers.
+    /// Song Detail beside its score history: the sortable history page (issue #324)
+    /// carries the registered `fst.history` page root (as on Android/Windows, issue #302)
+    /// and its rows.
     @Test func macTreeScoreHistoryPageKeepsChildIdentifiers() async throws {
         let session = try await macTreeSession(player: true)
         let songs = try await session.catalog().catalog.songs
@@ -391,13 +418,14 @@ struct MacAccessibilityTreeTests {
         model.navigation.paths[.songs] = [.songDetail(song), .playerHistory(song, .lead)]
         _ = try await nativeHostedSettle(host, timeout: macTreeBudget, until: {
             let ids = nativeHostedAccessibility(host).identifiers
-            return ids.contains("fst.split.trailing") && ids.contains("fst.song-detail.history.chart")
+            return ids.contains("fst.split.trailing") && ids.contains("fst.history.row.0")
         })
         let nodes = macAccessibilityTree(host)
         macAccessibilityDump(nodes, name: "song-detail-score-history-split")
         let ids = Set(nodes.map(\.identifier))
         #expect(ids.contains("fst.history"), "the history page root is identified")
-        #expect(ids.contains("fst.song-detail.history.row.0"), "the history rows keep their identifiers")
+        #expect(ids.contains("fst.history.row.0"), "the history rows keep their identifiers")
+        #expect(macAccessibilityFindings(nodes.filter(\.isElement)) == [])
         #expect(!ids.contains("fst.score-history.page"), "the unregistered identifier is gone")
     }
 }

@@ -446,6 +446,64 @@ class SongHistoryCardUiTest {
         assertTrue("one-line row is $height dp", height < 60f)
     }
 
+    /** Horizontal runs (left, right, px in the row) and vertical extent of the date row's text ink. */
+    private class DateInk(val runs: List<IntRange>, val top: Int, val bottom: Int)
+
+    /** Draws the window and finds the muted date text in [row] (window px), from the plot's bottom [plotBottom]. */
+    private fun dateInk(row: androidx.compose.ui.geometry.Rect, plotBottom: Float): DateInk {
+        val root = rule.activity.window.decorView
+        val bitmap = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
+        rule.runOnUiThread { root.draw(Canvas(bitmap)) }
+        // Textmuted 0x8899AA; anti-aliased edges fall outside the tolerance, which keeps the runs symmetric.
+        fun ink(x: Int, y: Int): Boolean {
+            val p = bitmap.getPixel(x, y)
+            return kotlin.math.abs(((p shr 16) and 0xFF) - 0x88) + kotlin.math.abs(((p shr 8) and 0xFF) - 0x99) + kotlin.math.abs((p and 0xFF) - 0xAA) < 60
+        }
+        // Scan from the plot's bottom edge to past the row (short of the legend), so text drawn
+        // past (or cut at) the row's edges shows.
+        val left = row.left.toInt()
+        val top = plotBottom.toInt()
+        val bottom = (row.bottom + 12).toInt().coerceAtMost(bitmap.height)
+        val columns = (left until row.right.toInt()).filter { x -> (top until bottom).any { y -> ink(x, y) } }
+        val rows = (top until bottom).filter { y -> (left until row.right.toInt()).any { x -> ink(x, y) } }
+        val runs = mutableListOf<IntRange>()
+        columns.forEach { x ->
+            val last = runs.lastOrNull()
+            // Glyphs of one date are a few px apart; two shown dates are at least 8 dp (24 px).
+            if (last != null && x - last.last <= 16) runs[runs.lastIndex] = last.first..x else runs += x..x
+        }
+        return DateInk(runs.map { (it.first - left)..(it.last - left) }, rows.firstOrNull() ?: -1, rows.lastOrNull() ?: -1)
+    }
+
+    @Test
+    fun largeTextDatesStayWholeAndCentredUnderTheirBars() {
+        // #314 review: at 200% the dates outgrew a fixed 18 dp canvas band and were cut off.
+        // The date row now grows with the text, and each date stays centred under its bar.
+        // A 411 dp card fits all three bars on one page.
+        showAt(411, fontScale = 2f)
+        val chart = rule.onNodeWithTag("fst.song-detail.history.chart").fetchSemanticsNode().boundsInWindow
+        val row = rule.onNodeWithTag("fst.song-detail.history.dates").fetchSemanticsNode().boundsInWindow
+        assertTrue("dates sit under the plot", row.top >= chart.bottom)
+        assertEquals(chart.left, row.left, 0.5f)
+        assertEquals(chart.width, row.width, 0.5f)
+        val ink = dateInk(row, chart.bottom)
+        // 10 sp at 200% on xxhdpi: 60 px type, so digits are well over 30 px tall.
+        assertTrue("date glyphs are ${ink.bottom - ink.top + 1} px tall", ink.bottom - ink.top + 1 >= 30)
+        assertTrue("dates start inside the row (${ink.top} vs ${row.top})", ink.top > row.top)
+        assertTrue("dates end inside the row (${ink.bottom} vs ${row.bottom})", ink.bottom < row.bottom - 1)
+        // Three bars, three whole dates: none reaches the row's ends.
+        assertEquals("runs ${ink.runs} in ${row.width}", 3, ink.runs.size)
+        assertTrue(ink.runs.first().first > 0 && ink.runs.last().last < row.width.toInt() - 1)
+        val axis = 40 * 3f
+        val slot = (row.width - 2 * axis) / 3
+        ink.runs.forEachIndexed { i, run ->
+            val bar = axis + slot * (i + 0.5f)
+            val centre = (run.first + run.last) / 2f
+            // Within glyph side bearings (4 dp).
+            assertEquals("date $i centre", bar, centre, 12f)
+        }
+    }
+
     @Test
     fun axisHelpersRoundAndFormat() {
         assertEquals(1L, niceMax(0))

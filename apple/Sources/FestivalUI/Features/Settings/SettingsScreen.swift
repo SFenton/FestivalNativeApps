@@ -100,6 +100,8 @@ struct SettingsScreen: View {
             .padding(.top, pane == nil ? 8 : 20)
             .padding(.bottom, 32)
             .modifier(ReadableWidthContainer(isRegularWidth: layout.widthClass == .regular))
+            // A scroll while the cards stagger in fades the rest in together (#323).
+            .festivalFadeInScope()
         }
         .debugPageScrollStress()
         .scrollDisabled(reorderDragging)
@@ -181,7 +183,8 @@ struct SettingsScreen: View {
                 if SettingsFixtureTools.isEnabled() {
                     SettingsFixtureToolsSection(session: session)
                 }
-                // Past the first screenful: `festivalFadeIn` shows these without a delay.
+                // Past the first screenful: these fade in with the last staggered card,
+                // or together with the rest when the page is scrolled (#323).
                 FirstRunSettingsSection(session: session)
                     .quickLinkSection(id: "first-run", title: "First Run Guides", symbol: "sparkles")
                     .festivalFadeIn(isLoaded: true, index: 8)
@@ -601,7 +604,12 @@ struct SettingsScreen: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
+        // No `.accessibilityElement(children: .combine)` around the link (the button
+        // already reads as one element): while the Licenses split was open it merged the
+        // button with the selection fill and accent bar into a selected *static text*
+        // and left the inner button exposed as well (landscape Settings split audit:
+        // "Potentially inaccessible element/text", Lane A11Y3/A11Y4). Rivals' split
+        // rows label the link the same way.
         .accessibilityLabel("View Licenses")
         .accessibilityHint("Open source package license details")
         .accessibilityIdentifier("fst.settings.licenses")

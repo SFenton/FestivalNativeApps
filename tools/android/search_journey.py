@@ -6,8 +6,9 @@ query strings, so no search text), then runs one ``device.py drive`` hold per jo
 install the debug APK, cold-start against ``FST_ORIGIN=http://10.0.2.2:<port>`` (the
 emulator's alias for the host loopback), and step through search on that form factor
 and posture, screenshotting each state. Afterwards the path log must contain at least
-one ``/api/account/search`` and **no** ``/api/bands/search`` (the service's band search
-GET can write; see ``.agents/platforms/service-safety.md``).
+one ``/api/account/search`` and one ``/api/bands/search`` (served by the fixture only;
+production band search is allowed only once the #320 read-only service fix is live, see
+``.agents/platforms/service-safety.md``).
 
 Usage::
 
@@ -70,7 +71,9 @@ JOURNEYS = [
         type:fixture; wait:3; shot:{{out}}-search-results.png
         tap:id=fst.global-search.scope.players; wait:1; shot:{{out}}-search-players.png
         tap:id=fst.global-search.scope.bands; wait:1; shot:{{out}}-search-bands.png
-        tap:id=fst.global-search.scope.bands; wait:1
+        tap:id=fst.global-search.result.band; waitfor:id=fst.band.screen@20; wait:1; shot:{{out}}-band.png
+        back; wait:1
+        {OPEN}; type:fixture; wait:3
         tap:id=fst.global-search.result.song; waitfor:id=fst.song-detail.intensity@20; wait:1; shot:{{out}}-song-detail.png
         {OPEN}; type:busy; wait:3; shot:{{out}}-search-players-error.png
         tap:id=fst.global-search.close; wait:2; shot:{{out}}-detail-after-search.png
@@ -163,12 +166,12 @@ def check_paths(paths: Path) -> list[str]:
         paths: Path log.
 
     Returns:
-        Problems (empty when the log proves the safety rule).
+        Problems (empty when both remote searches were logged).
     """
     seen = paths.read_text(encoding="utf-8").splitlines()
     problems = []
-    if BAND_SEARCH in seen or any(p.startswith(BAND_SEARCH) for p in seen):
-        problems.append(f"{BAND_SEARCH} was requested")
+    if BAND_SEARCH not in seen:
+        problems.append(f"no {BAND_SEARCH} request was logged (band results were never fetched)")
     if ACCOUNT_SEARCH not in seen:
         problems.append(f"no {ACCOUNT_SEARCH} request was logged (the log proves nothing)")
     print(f"fixture paths: {len(seen)} requests, {seen.count(ACCOUNT_SEARCH)} account searches, "
@@ -225,7 +228,7 @@ def main(argv: list[str] | None = None) -> int:
         argv: Arguments.
 
     Returns:
-        0 when every journey passed and the path log proves no band search.
+        0 when every journey passed and the path log shows both remote searches.
     """
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("journeys", nargs="*", help="journey names (default: all)")

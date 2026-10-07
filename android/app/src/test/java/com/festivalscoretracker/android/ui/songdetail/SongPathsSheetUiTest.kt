@@ -6,9 +6,14 @@ import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isHeading
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
@@ -576,6 +581,60 @@ class SongPathsSheetUiTest {
         rule.waitUntil(10_000) { settle(100); bounds("fst.song-detail.paths").right <= hinge }
         assertTrue("row ends before the hinge", bounds("fst.paths.row.1").right <= hinge)
         assertTrue("controls end before the hinge", bounds("fst.paths.selectors").right <= hinge)
+    }
+
+    // endregion
+
+    // region Swipe to dismiss (issues #96, #192)
+
+    /** Drag down from [node]'s centre past the bottom of the window, like a finger pulling the sheet away. */
+    private fun swipeDownFrom(node: SemanticsNodeInteraction) {
+        node.performTouchInput {
+            swipeDown(startY = centerY, endY = centerY + rule.activity.window.decorView.height, durationMillis = 250)
+        }
+        settle(800)
+    }
+
+    private fun waitForDismiss() = rule.waitUntil(10_000) { settle(100); dismissed == 1 }
+
+    @Test
+    fun swipeDownOnTheTextTableDismisses() {
+        show(viewModel(display = PathDisplayMode.Text))
+        waitForTag("fst.paths.row.1")
+        swipeDownFrom(rule.onNodeWithTag("fst.paths.row.1"))
+        waitForDismiss()
+    }
+
+    @Test
+    fun swipeDownOnTheImageDismisses() {
+        show(viewModel())
+        waitForTag("fst.paths.image")
+        swipeDownFrom(rule.onNodeWithTag("fst.paths.image"))
+        waitForDismiss()
+    }
+
+    @Test
+    fun swipeDownOnTheHeaderDismisses() {
+        show(viewModel())
+        waitForTag("fst.paths.close")
+        swipeDownFrom(rule.onNode(hasText("Paths") and isHeading()))
+        waitForDismiss()
+    }
+
+    @Test
+    fun zoomedImageScrolledDownReturnsToTheTopBeforeDismissing() {
+        val tall = Bitmap.createBitmap(100, 2000, Bitmap.Config.ARGB_8888).apply { eraseColor(android.graphics.Color.BLUE) }
+        val png = ByteArrayOutputStream().also { tall.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+        show(viewModel(loadImage = { _, _ -> SongPathImagePayload(png, 100, 2000, 7, 7) }))
+        rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithContentDescription("Lead Expert CHOpt path").fetchSemanticsNodes().isNotEmpty() }
+        repeat(2) { click("fst.paths.zoom-in") }
+        rule.onNodeWithText("200%").assertExists()
+        rule.onNodeWithTag("fst.paths.image").performTouchInput { swipeUp(startY = bottom - 10f, endY = top + 10f, durationMillis = 400) }
+        settle(800)
+        assertEquals("panning the zoomed image keeps the sheet open", 0, dismissed)
+        // Nested scroll: the image consumes the drag until it is back at the top, then the sheet takes it.
+        repeat(4) { if (dismissed == 0) swipeDownFrom(rule.onNodeWithTag("fst.paths.image")) }
+        waitForDismiss()
     }
 
     // endregion

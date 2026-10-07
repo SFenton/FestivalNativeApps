@@ -31,31 +31,42 @@
             </controls:FlowPanel>
         </StackPanel>
 
-        <!-- Selectors (compact): the chart fills the sheet above one bottom row of native ComboBoxes for the instrument
-             (icon + name), difficulty and display (Fluent; replaces the web's mobile instrument accordion, issue #88). -->
-        <Grid x:Name="CompactSelectors" Grid.Row="2" ColumnSpacing="8" Visibility="Collapsed">
+        <!-- Selectors (compact): the chart fills the sheet above native ComboBoxes for the instrument (icon + name),
+             difficulty and display (Fluent; replaces the web's mobile instrument accordion, issue #88). Each box is as wide
+             as its longest option; difficulty and display reflow under the instrument when one row can't fit them
+             (PathSelectorLayout, issue #280). Declared before ChartArea so Tab reaches the selectors before the chart
+             they choose (spec order). -->
+        <Grid x:Name="CompactSelectors" Grid.Row="2" ColumnSpacing="8" Visibility="Collapsed" SizeChanged="OnCompactSelectorsSizeChanged">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <ComboBox x:Name="CompactInstrumentPicker" MinWidth="120" MaxWidth="200" ItemsSource="{x:Bind ViewModel.InstrumentOptions}"
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <ComboBox x:Name="CompactInstrumentPicker" MinWidth="120" HorizontalAlignment="Stretch" ItemsSource="{x:Bind ViewModel.InstrumentOptions}"
                       SelectedIndex="{x:Bind ViewModel.InstrumentIndex, Mode=TwoWay}"
                       AutomationProperties.Name="Instrument" AutomationProperties.AutomationId="fst.paths.instrument.compact">
                 <ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:PathInstrumentOption">
-                        <StackPanel Orientation="Horizontal" Spacing="8" AutomationProperties.Name="{x:Bind Label}">
+                        <Grid ColumnSpacing="8" AutomationProperties.Name="{x:Bind Label}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
                             <controls:InstrumentIcon File="{x:Bind IconFile}" Width="24" Height="24" VerticalAlignment="Center"
                                                      AutomationProperties.AccessibilityView="Raw" />
-                            <TextBlock Text="{x:Bind Label}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
+                            <TextBlock Grid.Column="1" Text="{x:Bind Label}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        </Grid>
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
             </ComboBox>
-            <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ItemsSource="{x:Bind ViewModel.DifficultyLabels}"
+            <ComboBox x:Name="CompactDifficultyPicker" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ItemsSource="{x:Bind ViewModel.DifficultyLabels}"
                       SelectedIndex="{x:Bind ViewModel.DifficultyIndex, Mode=TwoWay}"
                       AutomationProperties.Name="Difficulty" AutomationProperties.AutomationId="fst.paths.difficulty.compact" />
-            <ComboBox Grid.Column="2" MinWidth="96" VerticalAlignment="Stretch" SelectedIndex="{x:Bind ViewModel.DisplayIndex, Mode=TwoWay}"
+            <ComboBox x:Name="CompactDisplayPicker" Grid.Column="2" MinWidth="96" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" SelectedIndex="{x:Bind ViewModel.DisplayIndex, Mode=TwoWay}"
                       AutomationProperties.Name="Display" AutomationProperties.AutomationId="fst.paths.display.compact">
                 <x:String>Image</x:String>
                 <x:String>Text</x:String>
@@ -97,9 +108,12 @@
                             <FontIcon Glyph="&#xE8A3;" FontSize="14" />
                         </Button>
                     </StackPanel>
-                    <!-- A tab stop (named, own ID) so keyboard users can pan a zoomed or tall chart with arrow/Page keys. -->
+                    <!-- A tab stop (named, own ID) so keyboard users can pan a zoomed or tall chart with arrow/Page keys.
+                         Bars Hidden (no indicator beside the chart, issues #87/#279) unless Windows always shows scroll
+                         bars (ApplyScrollBars); the scroll modes and zoom stay enabled. -->
                     <ScrollViewer x:Name="ImageScroller" Grid.Row="1" ZoomMode="Enabled" MinZoomFactor="1" MaxZoomFactor="3"
-                                  HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Auto"
+                                  HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"
+                                  HorizontalScrollMode="Auto" VerticalScrollMode="Auto"
                                   IsTabStop="True" AutomationProperties.Name="Path chart" AutomationProperties.AutomationId="fst.paths.image-scroller"
                                   ViewChanged="OnImageViewChanged" SizeChanged="OnImageScrollerSizeChanged">
                         <Image x:Name="PathImage" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Top"

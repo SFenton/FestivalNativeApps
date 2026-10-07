@@ -138,9 +138,15 @@ struct SongsSortSheet: View {
 
 /// Web-style direction control: the current direction described on the left, inline
 /// ↑ / ↓ buttons on the right with a purple background behind the selected one
-/// (`SortModal.tsx` direction row).
+/// (`SortModal.tsx` direction row). Shared by every sort sheet (Songs, Score History).
 struct SortDirectionControl: View {
     @Binding var ascending: Bool
+    /// Identifier of the control; its buttons append `.ascending` / `.descending`.
+    var identifier = "fst.songs.sort.direction"
+    /// Subtitle for ascending (the sheet's own web copy).
+    var ascendingDetail = "A–Z, low to high"
+    /// Subtitle for descending.
+    var descendingDetail = "Z–A, high to low"
 
     var body: some View {
         HStack(spacing: 12) {
@@ -148,7 +154,7 @@ struct SortDirectionControl: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(ascending ? "Ascending" : "Descending")
                     .foregroundStyle(FestivalText.primary)
-                Text(ascending ? "A–Z, low to high" : "Z–A, high to low")
+                Text(ascending ? ascendingDetail : descendingDetail)
                     .font(.footnote)
                     .foregroundStyle(FestivalText.primary)
             }
@@ -162,7 +168,7 @@ struct SortDirectionControl: View {
             .background(BrandTokens.surfaceMuted, in: Capsule())
         }
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("fst.songs.sort.direction")
+        .accessibilityIdentifier(identifier)
     }
 
     private func button(up: Bool) -> some View {
@@ -180,7 +186,7 @@ struct SortDirectionControl: View {
         .buttonStyle(.plain)
         .accessibilityLabel(up ? "Ascending" : "Descending")
         .accessibilityAddTraits(selected ? .isSelected : [])
-        .accessibilityIdentifier("fst.songs.sort.direction.\(up ? "ascending" : "descending")")
+        .accessibilityIdentifier("\(identifier).\(up ? "ascending" : "descending")")
     }
 }
 

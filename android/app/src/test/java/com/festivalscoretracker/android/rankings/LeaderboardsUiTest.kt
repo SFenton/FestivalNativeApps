@@ -34,6 +34,7 @@ import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.ProfileFixtures
+import com.festivalscoretracker.android.ui.common.spinnerShowsDuring
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
 import java.time.LocalDate
@@ -71,6 +72,8 @@ abstract class LeaderboardsHarness {
     /** Holds a matching request until the returned deferred completes (null = answer at once). */
     protected var hold: (HttpRequest) -> CompletableDeferred<Unit>? = { null }
 
+    protected lateinit var container: AppContainer
+
     protected fun launch(route: String, profile: SelectedPlayer? = null) {
         val debug = DebugLaunch(route = DebugLaunch.parseRoute(route), profile = profile, stillBackground = true)
         val gated = object : HttpTransport {
@@ -79,7 +82,7 @@ abstract class LeaderboardsHarness {
                 return transport.send(request)
             }
         }
-        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = gated, settingsStore = store)
+        container = AppContainer(rule.activity, OkHttpClient(), debug, transport = gated, settingsStore = store)
         rule.setContent { FestivalApp(container, debug) }
         settle()
     }
@@ -188,13 +191,20 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
     }
 
     @Test
-    fun fullRankingsPinsTheSelectedRowUntilItsPageIsShown() {
+    fun fullRankingsPinsTheSelectedRowOnEveryPage() {
         launch("fullRankings:Solo_Guitar", selected)
-        waitForTag("fst.full-rankings.spotlight-footer")
-        click("fst.full-rankings.page-next")
+        val footer = "fst.full-rankings.spotlight-footer"
+        waitForTag(footer)
+        // Leaderboard-row R7: off this page, the pinned row jumps to the player's page.
+        assertEquals("Jump to your position", clickLabel(footer))
+        click(footer)
         waitForDescription("Page 2 of 3")
         waitForTag("fst.rankings.row.${RankingsFixtures.SELECTED}")
-        rule.waitUntil(5_000) { settle(100); !exists("fst.full-rankings.spotlight-footer") }
+        // Issue #318: on the player's own page the row stays pinned (like the song boards) and opens Statistics.
+        rule.waitUntil(5_000) { settle(100); clickLabel(footer) == "Open your statistics" }
+        assertTrue(exists(footer))
+        click(footer)
+        rule.waitUntil(10_000) { settle(100); !exists("fst.full-rankings.list") }
     }
 
     @Test
@@ -231,6 +241,64 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         waitForTag("fst.rankings.row.${RankingsFixtures.accountId(26)}")
         rule.waitUntil(5_000) { settle(100); !exists("fst.full-rankings.loading") }
     }
+
+    @Test
+    fun bandRankingsPageChangesFadeThroughTheSpinner() {
+        launch("bandRankings:Band_Trios")
+        waitForDescription("Page 1 of 2")
+        assertTrue(rule.spinnerShowsDuring("fst.band-rankings.loading") { node("fst.band-rankings.page-next").performSemanticsAction(SemanticsActions.OnClick) })
+        waitForDescription("Page 2 of 2")
+        rule.waitUntil(5_000) { settle(100); !exists("fst.band-rankings.loading") }
+    }
+
+    @Test
+    fun rankHistoryChartSwitchFadesThroughTheSpinner() {
+        launch("leaderboards", selected)
+        waitForTag("fst.leaderboards.rank-history")
+        waitForText(LocalDate.now().format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.US)))
+        assertTrue(rule.spinnerShowsDuring("fst.leaderboards.rank-history.loading") { node("fst.leaderboards.rank-history.picker.Solo_Bass").performSemanticsAction(SemanticsActions.OnClick) })
+        waitForText("No rank history for Bass")
+        rule.waitUntil(5_000) { settle(100); !exists("fst.leaderboards.rank-history.loading") }
+    }
+
+    /**
+     * Changes Rank By with the new lead card held: the overview fades through its spinner, and
+     * the old cards kept composed beneath it are hidden from TalkBack and ignore a tap where a
+     * row was (load-transition R2, issue #178).
+     */
+    private fun assertOverviewRankByHidesTheOldCards(reduceMotion: Boolean) {
+        if (reduceMotion) {
+            runBlocking { store.updateData { it.toMutablePreferences().apply { this[booleanPreferencesKey(SettingsRegistry.REDUCE_MOTION)] = true } } }
+        }
+        val fcRate = CompletableDeferred<Unit>()
+        hold = { request -> fcRate.takeIf { request.url.contains("/api/rankings/Solo_Guitar") && request.url.contains("rankBy=fcrate") } }
+        launch("leaderboards")
+        val row = "fst.rankings.row.${RankingsFixtures.accountId(1)}"
+        waitForTag(row)
+        val place = node(row).fetchSemanticsNode().boundsInRoot.center
+        click("fst.rankings.rank-by-menu")
+        // The old rows stay up and fade with the page until the spinner shows: they never cut to
+        // the new Rank By's empty loading rows first (issue #178).
+        val keepsOldRows = { assertTrue("the old rows must fade out, not vanish, before the spinner", exists(row)) }
+        assertTrue(rule.spinnerShowsDuring("fst.leaderboards.loading", beforeSpinner = keepsOldRows) { node("fst.rankings.rank-by.fcrate").performSemanticsAction(SemanticsActions.OnClick) })
+        settle()
+        assertTrue(exists("fst.leaderboards.loading"))
+        // The merged tree is what TalkBack reads; the unmerged one still lists cleared descendants.
+        assertTrue("the old cards must not be read under the spinner", rule.onAllNodesWithTag(row).fetchSemanticsNodes().isEmpty())
+        rule.onRoot().performTouchInput { this.click(place) }
+        settle()
+        assertTrue("a tap where a row was must not open a profile", exists("fst.leaderboards.loading"))
+        fcRate.complete(Unit)
+        rule.waitUntil(10_000) { settle(100); !exists("fst.leaderboards.loading") }
+        waitForTag(row)
+        assertTrue(isClickable(row))
+    }
+
+    @Test
+    fun overviewRankByFadesThroughTheSpinnerAndHidesTheOldCards() = assertOverviewRankByHidesTheOldCards(reduceMotion = false)
+
+    @Test
+    fun overviewRankByHidesTheOldCardsUnderReduceMotion() = assertOverviewRankByHidesTheOldCards(reduceMotion = true)
 
     @Test
     fun rankHistoryAndQuickLinksOnTheOverview() {
@@ -555,6 +623,18 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         waitForDescription("Page 1 of 3")
         assertFalse(isClickable("fst.song-leaderboard.instrument"))
         assertEquals(null, node("fst.song-leaderboard.instrument").fetchSemanticsNode().config.getOrNull(SemanticsProperties.Role))
+    }
+
+    @Test
+    fun songLeaderboardShowsTheSongsStaticCover() {
+        // Issue #317: the solo board pushes its own static cover (Song Detail's push is popped
+        // when the destination changes), like the band board. The class default strips the art.
+        transport.on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson }
+        launch("songLeaderboard:s-alpha:Solo_Guitar")
+        waitForTag("fst.song-leaderboard.instrument")
+        val cover = container.api.artworkUrl("alpha-512.jpg")
+        assertTrue(cover != null)
+        rule.waitUntil(5_000) { settle(100); container.background.focus.value == cover }
     }
 
     @Test

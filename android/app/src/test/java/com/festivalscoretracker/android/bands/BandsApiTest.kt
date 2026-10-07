@@ -10,6 +10,7 @@ import com.festivalscoretracker.android.data.bands.bandProfile
 import com.festivalscoretracker.android.data.bands.bandRankHistory
 import com.festivalscoretracker.android.data.bands.bandSongExtremes
 import com.festivalscoretracker.android.data.bands.playerBands
+import com.festivalscoretracker.android.data.bands.searchBands
 import com.festivalscoretracker.android.data.bands.songBandLeaderboard
 import com.festivalscoretracker.android.testing.BandFixtures
 import com.festivalscoretracker.android.testing.FakeTransport
@@ -28,6 +29,17 @@ class BandsApiTest {
     private val base = "https://fixture.test".toHttpUrl()
     private val transport = BandFixtures.install(FakeTransport.standard())
     private val api = FestivalApi("https://fixture.test", transport)
+
+    private suspend inline fun <reified T : Throwable> expect(label: String, noinline block: suspend () -> Unit): T {
+        try {
+            block()
+        } catch (error: Throwable) {
+            if (error is T) return error
+            throw AssertionError(label, error)
+        }
+        fail("$label: expected ${T::class.simpleName}")
+        throw IllegalStateException()
+    }
 
     private suspend inline fun <reified T : Throwable> expect(noinline block: suspend () -> Unit): T {
         try {
@@ -107,6 +119,68 @@ class BandsApiTest {
         assertTrue(paths.none { it.startsWith("/api/bands/") })
         assertTrue(paths.none { Regex("^/api/rankings/bands/[^/]+/[^/]+$").matches(it) })
         assertTrue(paths.none { "/sync-status" in it || it.startsWith("/api/bands/search") })
+    }
+
+    @Test
+    fun bandSearchEndpointIsKeylessAndValidated() {
+        assertEquals(
+            "https://fixture.test/api/bands/search?q=synthetic%20lead&page=1&pageSize=10",
+            BandEndpoints.bandSearch("synthetic lead", 1, 10).url(base),
+        )
+        // Only the query, page and size are sent: no accountIds/combo filters, never pinned.
+        assertFalse(BandEndpoints.bandSearch("ab", 1, 10).pinned)
+        listOf(
+            { BandEndpoints.bandSearch("ab", 0, 10) },
+            { BandEndpoints.bandSearch("ab", 1, 0) },
+            { BandEndpoints.bandSearch("ab", 1, 101) },
+        ).forEach { assertThrows(FestivalApiException.InvalidResource::class.java) { it() } }
+        listOf("a", "x".repeat(201), "a\u202eb").forEach { query ->
+            assertThrows(FestivalApiException.InvalidSearchQuery::class.java) { BandEndpoints.bandSearch(query, 1, 10) }
+        }
+    }
+
+    @Test
+    fun bandSearchDecodesTheCardsKeyless() = runTest {
+        val bands = api.searchBands("synthetic", 10)
+        assertEquals(listOf(BandFixtures.DUO_ID, "band-trio-hash"), bands.map { it.key })
+        assertEquals("Synthetic Lead + Synthetic Bass", bands.first().membersLabel)
+        assertEquals(12, bands.first().appearanceCount)
+        assertEquals(BandFixtures.TRIO_KEY, bands[1].teamKey)
+        assertTrue(api.searchBands("zzzz", 10).isEmpty())
+        val sent = transport.sent("/api/bands/search")
+        assertEquals(2, sent.size)
+        sent.forEach { request ->
+            RequestGate.validateKeyless(request)
+            assertTrue(request.headers.keys.none { it.equals("X-API-Key", true) || it.lowercase().startsWith("x-fst-selected") })
+        }
+    }
+
+    @Test
+    fun malformedBandSearchPagesFailWhole() = runTest {
+        val duo = BandFixtures.searchRow(BandFixtures.DUO_ID, BandFixtures.DUO_KEY, "Band_Duets", 12, BandFixtures.duoMembers)
+        fun row(bandId: String = "other", teamKey: String = "${Fixtures.ACCOUNT_B}:${Fixtures.ACCOUNT_A}", type: String = "Band_Duets", count: Int = 1, members: List<String> = BandFixtures.duoMembers) =
+            BandFixtures.searchRow(bandId, teamKey, type, count, members)
+        val bad = listOf(
+            "unknown size" to listOf(duo, row(type = "Band_Octets")),
+            "unsafe team key" to listOf(row(teamKey = "../x")),
+            "band ID with a slash" to listOf(row(bandId = "a/b")),
+            "negative count" to listOf(row(count = -1)),
+            "no members" to listOf(row(members = emptyList())),
+            "unsafe member ID" to listOf(row(members = listOf(BandFixtures.member("bad/id", "Name", listOf("Solo_Guitar"))))),
+            "unsafe display name" to listOf(row(members = listOf(BandFixtures.member(Fixtures.ACCOUNT_A, "Evil\u202eName", listOf("Solo_Guitar"))))),
+            "repeated band" to listOf(duo, duo),
+        )
+        bad.forEach { (label, rows) ->
+            transport.on("/api/bands/search") { BandFixtures.bandSearchPage("synthetic", rows) }
+            expect<FestivalApiException.InvalidResponse>(label) { api.searchBands("synthetic", 10) }
+        }
+        transport.on("/api/bands/search") { BandFixtures.bandSearchPage("synthetic", listOf(duo, row())) }
+        expect<FestivalApiException.InvalidResponse>("more rows than requested") { api.searchBands("synthetic", 1) }
+        assertEquals(2, api.searchBands("synthetic", 2).size)
+        transport.on("/api/bands/search") { """{"page":0,"totalCount":1,"results":[]}""" }
+        expect<FestivalApiException.InvalidResponse>("page 0") { api.searchBands("synthetic", 10) }
+        transport.on("/api/bands/search", status = 500) { "{}" }
+        expect<FestivalApiException>("server error") { api.searchBands("synthetic", 10) }
     }
 
     @Test

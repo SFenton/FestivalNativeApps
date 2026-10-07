@@ -13,7 +13,7 @@ import FestivalDesign
 /// #305): a 60-team Band Rankings board and a 60-band Song Band leaderboard, 25 rows a
 /// page so each page scrolls behind its pager. Rejects the privileged key,
 /// selected-profile headers, writes and any other route.
-private actor LongBandBoardsTransport: HTTPTransport {
+actor LongBandBoardsTransport: HTTPTransport {
     private let generation = 23
     static let songId = "fade-song"
     static let total = 60
@@ -162,38 +162,6 @@ private func boardScrollView(in view: NSView) -> NSScrollView? {
     return nil
 }
 
-/// Frame, in the host's top-left points, of the accessibility element with `identifier`.
-@MainActor
-private func accessibilityFrame(_ identifier: String, in host: NSView) -> CGRect? {
-    var seen = Set<ObjectIdentifier>()
-    func read(_ object: NSObject, _ key: String) -> Any? {
-        object.responds(to: NSSelectorFromString(key)) ? object.value(forKey: key) : nil
-    }
-    func walk(_ node: Any, depth: Int) -> CGRect? {
-        guard depth < 80, let object = node as? NSObject,
-              seen.insert(ObjectIdentifier(object)).inserted else { return nil }
-        if read(object, "accessibilityIdentifier") as? String == identifier,
-           let frame = (read(object, "accessibilityFrame") as? NSValue)?.rectValue,
-           let window = host.window {
-            let inWindow = window.convertFromScreen(frame)
-            let local = host.convert(inWindow, from: nil)
-            return host.isFlipped ? local : CGRect(
-                x: local.minX, y: host.bounds.height - local.maxY, width: local.width, height: local.height
-            )
-        }
-        for child in (read(object, "accessibilityChildren") as? [Any]) ?? [] {
-            if let found = walk(child, depth: depth + 1) { return found }
-        }
-        if let view = object as? NSView {
-            for subview in view.subviews {
-                if let found = walk(subview, depth: depth + 1) { return found }
-            }
-        }
-        return nil
-    }
-    return walk(host, depth: 0)
-}
-
 // MARK: - Journey
 
 /// Mean channel value (0–255) above which a sample is row text: the rows' light grey
@@ -315,8 +283,8 @@ func bandBoardRowsFadeAbovePagerWithoutPlayerFooter(board: BottomChromeBandBoard
     _ = try nativeHostedPNG(
         image, filename: "\(board.rawValue)-end-\(mode.rawValue).png", environment: "FST_LEADERBOARDS_RENDER_OUT"
     )
-    let last = try #require(accessibilityFrame(board.rowId(25), in: host))
-    let previous = try #require(accessibilityFrame(board.rowId(24), in: host))
+    let last = try #require(nativeHostedAccessibilityFrame(board.rowId(25), in: host))
+    let previous = try #require(nativeHostedAccessibilityFrame(board.rowId(24), in: host))
     #expect(last.maxY <= chromeTop + 0.5, "the last row is not under the pager")
     #expect(last.maxY >= chromeTop - 12, "the last row rests just above the pager")
     let lastBright = nativeHostedBrightSamples(in: last, of: image, hostSize: size, threshold: rowTextThreshold)

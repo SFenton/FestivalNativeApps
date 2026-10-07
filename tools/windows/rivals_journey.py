@@ -55,7 +55,12 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
             "waitfor:id=fst.rival-detail.category.closest_battles@15",
             "waitfor:id=fst.rival-detail.view-profile@10",
             "{shot:detail}",
-            "invoke:id=fst.rival-detail.see-all",
+            # Each category ends with the shared View All button (view-all-cta R6, #321).
+            "scrollinto:id=fst.rival-detail.category.closest_battles.view-all@10",
+            "assertstate:id=fst.rival-detail.category.closest_battles.view-all|type=button",
+            "assertstate:id=fst.rival-detail.category.closest_battles.view-all|name=View All, Closest Battles",
+            "{shot:detail-view-all}",
+            "invoke:id=fst.rival-detail.category.closest_battles.view-all",
             "waitfor:id=fst.rivalry.list@15",
             "waitfor:id=fst.rivalry.song.fixture-pulse.Solo_Guitar@10",
             "expand:id=fst.rivalry.sort",
@@ -67,6 +72,8 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
             "waitfor:id=fst.rival-detail.title@10",
             "key:alt+left",
             "waitfor:id=fst.rivals.see-all@10",
+            # The header link reads View All, label first (section-headers R8, #321).
+            "assertstate:id=fst.rivals.see-all|name=View All, Common Rivals",
             "invoke:id=fst.rivals.see-all",
             "waitfor:id=fst.all-rivals.list@15",
             f"waitfor:id=fst.all-rivals.row.{RIVAL}@10",

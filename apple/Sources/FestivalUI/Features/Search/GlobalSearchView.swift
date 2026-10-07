@@ -104,6 +104,9 @@ struct GlobalSearchResults: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.immediately)
+        // Each result set's fade window (web `SearchModal` `resetRush`): scrolling while
+        // it staggers in fades the rest in together (#323).
+        .festivalScrollFadeInScope(resetKey: resultFadeKey)
         .task(id: resultFadeKey) {
             let key = resultFadeKey
             await FadeStagger.settle(afterRevealing: key.count) { fadeSettledResults = key }

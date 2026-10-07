@@ -178,7 +178,12 @@ func selectionKeepsVisibleTabAndPaths(selected: FestivalSection) {
 @Test func debugLaunchRouteParsesShellExtras() {
     for section in FestivalSection.allCases {
         #expect(DebugLaunchRoute(environment: ["FST_DEBUG_TAB": section.rawValue]).section == section)
+        #expect(!DebugLaunchRoute(environment: ["FST_DEBUG_TAB": section.rawValue]).opensSearch)
     }
+    // The Search tab is not a section (iPhone Duo audits open it this way, Lane A11Y4).
+    let search = DebugLaunchRoute(environment: ["FST_DEBUG_TAB": "search"])
+    #expect(search.opensSearch)
+    #expect(search.section == nil)
     let debug = DebugLaunchRoute(environment: [
         "FST_DEBUG_DRAWER": "1", "FST_DEBUG_SHEET": "profile",
         "FST_DEBUG_PROFILE": "f1c7fea37bf9b1069250832ae4211461:Some Name",

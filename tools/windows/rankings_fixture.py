@@ -12,8 +12,8 @@ that the shared mock service does not have:
 ``--rankings-delay SECONDS`` answers every board read (``/api/rankings/{instrument}``, not the selected player's
 own-rank read) after that delay, so a journey can assert what a reload shows while the spinner is up (issue #270).
 
-Selected-player spotlight states come from the mock's own accounts: ``fixture-rank-40`` (page 2: pinned row and
-Your Page), ``fixture-rank-fail`` (inline failure) and any other unknown ``fixture-*`` ID (404: not ranked).
+Selected-player spotlight states come from the mock's own accounts: ``fixture-rank-40`` (page 2: the pinned row
+jumps there, then opens the profile), ``fixture-rank-fail`` (inline failure) and any other unknown ``fixture-*`` ID (404: not ranked).
 
 Usage: ``python tools/windows/rankings_fixture.py --port 0`` (same flags as ``mock_service.py``), or
 ``a11y_matrix.py --fixture tools/windows/rankings_fixture.py --pages tools/windows/journeys/full-rankings.json``.

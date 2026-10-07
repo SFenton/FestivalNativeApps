@@ -39,7 +39,7 @@ enum class RivalsHubTab(val title: String) {
  * @property id Quick-link and test ID: `common`, `combo`, a chart wire ID, or `leaderboard.<wireId>`.
  * @property title Title Case card title.
  * @property instrument Header icon, for single-chart cards.
- * @property seeAll Scope opened by "See All" / "View all rivals".
+ * @property seeAll Scope opened by "View All" / "View All Rivals".
  * @property rowScope Scope carried by a tapped row into Rival Detail.
  * @property state Loading, failed, or the preview rows (empty cards are omitted once loaded).
  */

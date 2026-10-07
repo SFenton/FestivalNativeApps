@@ -1,0 +1,60 @@
+<UserControl
+    x:Class="Festival.App.Controls.SongLeaderboardHeader"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Festival.App.Controls"
+    IsTabStop="False">
+    <!-- Song-first header of every song leaderboard (web SongInfoHeader; song-leaderboard-header pattern): static cover,
+         the shared song title (heading 1) and artist column (SongHeaderText: one-line marquees that wrap at large text,
+         song-header R1-R3), then the board line (instrument icon + name, or the band size) and the optional entry total
+         (issue #317). The whole block is one flat button that opens Song Detail, like the web's pressable title area
+         (onTitleClick; song-header R1). -->
+    <Grid x:Name="Host">
+        <Button x:Name="SongButton" Click="OnSongClick" Padding="0" BorderThickness="0" CornerRadius="8" Background="Transparent"
+                HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Center"
+                AutomationProperties.Name="{x:Bind Title, Mode=OneWay}" AutomationProperties.HelpText="Opens Song Details"
+                AutomationProperties.AutomationId="{x:Bind SongAutomationId, Mode=OneWay}">
+            <Grid x:Name="Root" ColumnSpacing="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border x:Name="ArtHost" Width="80" Height="80" CornerRadius="8" Background="{StaticResource FSTSurfaceMutedBrush}">
+                    <Image x:Name="Art" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
+                </Border>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                    <controls:SongHeaderText Title="{x:Bind Title, Mode=OneWay}" Artist="{x:Bind Artist, Mode=OneWay}" Spacing="2"
+                                             TitleAutomationId="{x:Bind TitleAutomationId, Mode=OneWay}"
+                                             ArtistAutomationId="{x:Bind ArtistAutomationId, Mode=OneWay}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <controls:InstrumentIcon x:Name="BoardIcon" File="{x:Bind BoardIconFile, Mode=OneWay}" Width="20" Height="20"
+                                                 AutomationProperties.AccessibilityView="Raw" />
+                        <TextBlock x:Name="BoardBlock" Text="{x:Bind BoardLabel, Mode=OneWay}" VerticalAlignment="Center"
+                                   AutomationProperties.AutomationId="{x:Bind BoardAutomationId, Mode=OneWay}" />
+                    </StackPanel>
+                    <TextBlock x:Name="TotalBlock" Text="{x:Bind TotalText, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap"
+                               AutomationProperties.AutomationId="{x:Bind TotalAutomationId, Mode=OneWay}" />
+                </StackPanel>
+            </Grid>
+        </Button>
+
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup>
+                <VisualState x:Name="Wide">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="760" />
+                    </VisualState.StateTriggers>
+                </VisualState>
+                <VisualState x:Name="Compact">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="0" />
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="ArtHost.Width" Value="56" />
+                        <Setter Target="ArtHost.Height" Value="56" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+    </Grid>
+</UserControl>

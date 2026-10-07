@@ -86,6 +86,20 @@ public class PlayerBandsViewModelTests
     }
 
     [Fact]
+    public async Task RouteGroupAndNameApplyBeforeTheFirstRead()
+    {
+        var bands = new BandService();
+        var vm = new PlayerBandsViewModel(bands.Service.Session(), new AppRoute.PlayerBands("acc", PlayerBandGroup.Duos, " Route Name "));
+        Assert.Equal(PlayerBandGroup.Duos, vm.Group);
+        Assert.Equal(1, vm.GroupIndex);
+        Assert.Equal("Route Name's Bands", vm.Title);
+        Assert.DoesNotContain(bands.Service.Handler.Requests, r => r.Uri.AbsolutePath.EndsWith("/bands", StringComparison.Ordinal));
+        await vm.LoadAsync();
+        Assert.Single(bands.Service.Handler.Requests, r => r.Uri.AbsolutePath.EndsWith("/bands", StringComparison.Ordinal));
+        Assert.Contains(bands.Service.Handler.Requests, r => r.Uri.Query == "?group=duos&page=1&pageSize=25");
+    }
+
+    [Fact]
     public async Task SelectedPlayerNameEmptyFailureAndClamp()
     {
         var bands = new BandService();
@@ -367,6 +381,185 @@ public class BandDetailViewModelTests
 
 public class SongBandLeaderboardViewModelTests
 {
+    private static AppSettings Player(string accountId) => new() { SelectedPlayer = new SelectedPlayer(accountId, "Me") };
+
+    [Fact]
+    public async Task PinsSelectedPlayersBand_OnEveryPage_WithJumpAndInPlaceHighlight()
+    {
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        var bands = new BandService();
+        var vm = new SongBandLeaderboardViewModel(bands.Service.Session(settings: Player("t30a")), new AppRoute.SongBandLeaderboard("s1", "Band_Duets"));
+        await vm.LoadAsync();
+        Assert.Contains(bands.Service.Handler.Requests, r => r.Uri.Query == "?top=25&offset=0&accountId=t30a");
+        Assert.DoesNotContain(bands.Service.Handler.Requests, r => r.Headers.Keys.Any(k => k.StartsWith("X-FST-Selected", StringComparison.OrdinalIgnoreCase)));
+        Assert.True(vm.ShowSpotlight);
+        var pin = vm.Spotlight!;
+        Assert.Equal("#30", pin.RankText);
+        Assert.Equal("Lead 30 + Unknown User", pin.Name);
+        Assert.True(pin.IsSelected);
+        Assert.Equal("99,970", pin.Score);
+        Assert.Equal("S9", pin.Season);
+        Assert.False(pin.HasAccuracy || pin.IsFullCombo);
+        Assert.Equal(0, pin.StarCount);
+        // R1: fitted with the page (rank 1's accuracy and stars reserve those columns on the pin, as web widthEntries).
+        Assert.Equal(new LeaderboardSection(LeaderboardRowKind.Score, 3, 2, 6, true, true, true), pin.Section);
+        Assert.Equal(new LeaderboardSection(LeaderboardRowKind.Score, 3, 2, 6, false, false, true), new SongBandSpotlightRow(pin.Entry).Section ?? LeaderboardColumns.Measure([pin with { Section = null }]));
+        Assert.Equal(new AppRoute.Band("sb30", "Band_Duets", "t30a:t30b"), pin.Route);
+        Assert.Equal("fst.song-band-leaderboard.spotlight-footer", pin.AutomationId);
+        Assert.Equal("fst.score.accuracy.band-spotlight", pin.BadgeAutomationId);
+        Assert.Equal("Your band's rank, 30th. Lead 30 + Unknown User, 99,970 points", pin.Announcement);
+        Assert.DoesNotContain(vm.Rows, r => r.IsSelected);
+        Assert.True(vm.CanJump);
+        Assert.True(vm.JumpCommand.CanExecute(null));
+
+        await vm.JumpCommand.ExecuteAsync(null);
+        Assert.Equal(2, vm.Pager.Page);
+        Assert.Contains(bands.Service.Handler.Requests, r => r.Uri.Query == "?top=25&offset=25&accountId=t30a");
+        var own = Assert.Single(vm.Rows, r => r.IsSelected);
+        Assert.Equal(30, own.Entry.Rank);
+        Assert.All(own.Members, m => Assert.True(m.OnPlayerRow));
+        Assert.All(vm.Rows.Where(r => !r.IsSelected).SelectMany(r => r.Members), m => Assert.False(m.OnPlayerRow));
+        Assert.StartsWith("Your band. Rank 30. ", own.PageAnnouncement, StringComparison.Ordinal);
+        Assert.True(vm.ShowSpotlight); // Still pinned on the band's own page (web hasSelectedFooter).
+        Assert.False(vm.CanJump);
+        Assert.False(vm.JumpCommand.CanExecute(null));
+        await vm.JumpCommand.ExecuteAsync(null); // A no-op when it doesn't apply.
+        Assert.Equal(2, vm.Pager.Page);
+
+        await vm.Pager.LastCommand.ExecuteAsync(null);
+        Assert.True(vm.ShowSpotlight && vm.CanJump);
+
+        vm.BandTypeIndex = 1;
+        await Async.Until(() => vm.ShowRows && vm.BandType == BandType.Trios && vm.Pager.Page == 1);
+        Assert.Contains(bands.Service.Handler.Requests, r => r.Uri.AbsolutePath.EndsWith("/Band_Trios", StringComparison.Ordinal) && r.Uri.Query == "?top=25&offset=0&accountId=t30a");
+        Assert.Equal(new AppRoute.Band("sb30", "Band_Trios", "t30a:t30b"), vm.Spotlight!.Route);
+
+        var first = new SongBandSpotlightRow(new SongBandLeaderboardEntry
+        {
+            BandType = "Band_Duets", TeamKey = "a:b", Rank = 1, Score = 1234, Accuracy = 990000, IsFullCombo = true, Stars = 6,
+            Members = [new BandMember { AccountId = "a", DisplayName = "Ann" }, new BandMember { AccountId = "b", DisplayName = "Bo" }],
+        });
+        Assert.Equal("Your band's rank, 1st. Ann + Bo, 1,234 points, 99% accuracy, full combo, 5 gold stars", first.Announcement);
+        Assert.Equal(new AppRoute.Band("a:b", "Band_Duets", "a:b"), first.Route);
+        Assert.Equal("", first.Season);
+        Assert.Equal(990000, first.AccuracyValue);
+        var unranked = first with { Entry = first.Entry with { Rank = 0 } };
+        Assert.Equal("—", unranked.RankText);
+        Assert.StartsWith("Your band. Ann + Bo", unranked.Announcement, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task NoPin_WithoutPlayer_WithoutBandScore_ForAnotherPlayer_OrOnFailure()
+    {
+        var bands = new BandService();
+        var anonymous = new SongBandLeaderboardViewModel(bands.Service.Session(), new AppRoute.SongBandLeaderboard("s1", "Band_Duets"));
+        await anonymous.LoadAsync();
+        Assert.Contains(bands.Service.Handler.Requests, r => r.Uri.Query == "?top=25&offset=0");
+        Assert.False(anonymous.ShowSpotlight || anonymous.CanJump);
+        Assert.DoesNotContain(anonymous.Rows, r => r.IsSelected);
+
+        var unsafeId = new SongBandLeaderboardViewModel(bands.Service.Session(settings: Player("bad id")), new AppRoute.SongBandLeaderboard("s1", "Band_Duets"));
+        await unsafeId.LoadAsync();
+        Assert.True(unsafeId.ShowRows);
+        Assert.DoesNotContain(bands.Service.Handler.Requests, r => r.Uri.Query.Contains("accountId=bad", StringComparison.Ordinal));
+
+        var noScore = new SongBandLeaderboardViewModel(bands.Service.Session(settings: Player("nobody")), new AppRoute.SongBandLeaderboard("s1", "Band_Duets"));
+        await noScore.LoadAsync();
+        Assert.True(noScore.ShowRows);
+        Assert.False(noScore.ShowSpotlight);
+
+        // A selected entry that doesn't include the requested player is not pinned.
+        bands.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal) ? BandService.Ok(BandWire.SongBands("s1", "Band_Duets", 25, 60, 0, 40)) : null;
+        var other = new SongBandLeaderboardViewModel(bands.Service.Session(settings: Player("t30a")), new AppRoute.SongBandLeaderboard("s1", "Band_Duets"));
+        await other.LoadAsync();
+        Assert.False(other.ShowSpotlight);
+
+        bands.Band = null;
+        var vm = new SongBandLeaderboardViewModel(bands.Service.Session(settings: Player("t3a")), new AppRoute.SongBandLeaderboard("s1", "Band_Duets"));
+        await vm.LoadAsync();
+        Assert.True(vm.ShowSpotlight);
+        Assert.False(vm.CanJump);
+        Assert.Single(vm.Rows, r => r.IsSelected);
+        bands.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal) ? Wire.Response(HttpStatusCode.InternalServerError) : null;
+        await vm.LoadAsync();
+        Assert.True(vm.ShowError);
+        Assert.False(vm.ShowSpotlight);
+    }
+
+    [Fact]
+    public async Task SelectedEntryOfAnotherSize_IsRejected()
+    {
+        var bands = new BandService();
+        bands.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal)
+            ? BandService.Ok(BandWire.SongBands("s1", "Band_Duets", 25, 60, 0, 3, "Band_Trios")) : null;
+        var vm = new SongBandLeaderboardViewModel(bands.Service.Session(settings: Player("t3a")), new AppRoute.SongBandLeaderboard("s1", "Band_Duets"));
+        await vm.LoadAsync();
+        Assert.True(vm.ShowError);
+        Assert.False(vm.ShowSpotlight);
+    }
+
+    [Fact]
+    public async Task PinnedBandGatesOnSizeAndPlayerButNotOnPaging()
+    {
+        var bands = new BandService();
+        var session = bands.Service.Session(settings: Player("t30a"));
+        var vm = new SongBandLeaderboardViewModel(session, new AppRoute.SongBandLeaderboard("s1", "Band_Duets"));
+        vm.Activate();
+        await vm.LoadAsync();
+        Assert.True(vm.PinnedGate.IsGated);
+        Assert.True(vm.ShowSpotlight);
+
+        // Web PaginatedLeaderboard keys the footer's entrance on what it shows (footerAnimKey), not the page (#270).
+        var gated = new List<bool>();
+        vm.PinnedGate.PropertyChanged += (_, _) => gated.Add(vm.PinnedGate.IsGated);
+        var paging = vm.JumpCommand.ExecuteAsync(null);
+        Assert.False(vm.PinnedGate.IsGated);
+        await paging;
+        await vm.LoadAsync();
+        Assert.Equal(2, vm.Pager.Page);
+        Assert.False(vm.PinnedGate.IsGated);
+        Assert.DoesNotContain(true, gated);
+        Assert.True(vm.ShowSpotlight);
+
+        vm.BandTypeIndex = 1;
+        Assert.True(vm.PinnedGate.IsGated);
+        await Async.Until(() => vm.ShowRows && vm.BandType == BandType.Trios && vm.Pager.Page == 1);
+        await vm.Pager.LastCommand.ExecuteAsync(null);
+        Assert.False(vm.PinnedGate.IsGated);
+
+        session.UpdateSettings(s => s with { SelectedPlayer = new SelectedPlayer("t5a", "Five") });
+        Assert.True(vm.PinnedGate.IsGated);
+        await Async.Until(() => vm.Spotlight?.RankText == "#5");
+        vm.Deactivate();
+    }
+
+    [Fact]
+    public async Task FollowsSelectedPlayerWhileActive()
+    {
+        var bands = new BandService();
+        var session = bands.Service.Session(settings: Player("t30a"));
+        var vm = new SongBandLeaderboardViewModel(session, new AppRoute.SongBandLeaderboard("s1", "Band_Duets"));
+        vm.Activate();
+        vm.Activate();
+        session.UpdateSettings(s => s with { SelectedPlayer = new SelectedPlayer("t5a", "Five") }); // Idle: nothing loaded yet.
+        Assert.Empty(bands.Service.Handler.To("/api/leaderboard/s1/bands/Band_Duets"));
+        await vm.LoadAsync();
+        Assert.Equal("#5", vm.Spotlight!.RankText);
+
+        session.UpdateSettings(s => s with { SelectedPlayer = new SelectedPlayer("t7a", "Seven") });
+        await Async.Until(() => vm.Spotlight?.RankText == "#7");
+        session.UpdateSettings(s => s with { SelectedPlayer = null });
+        await Async.Until(() => !vm.ShowSpotlight && vm.ShowRows);
+        var reads = bands.Service.Handler.To("/api/leaderboard/s1/bands/Band_Duets").Count();
+        session.UpdateSettings(s => s with { SelectedPlayer = null }); // Unchanged player: no re-read.
+        vm.Deactivate();
+        vm.Deactivate();
+        session.UpdateSettings(s => s with { SelectedPlayer = new SelectedPlayer("t9a", "Nine") });
+        await Async.Settle();
+        Assert.Equal(reads, bands.Service.Handler.To("/api/leaderboard/s1/bands/Band_Duets").Count());
+        Assert.False(vm.ShowSpotlight);
+    }
+
     [Fact]
     public async Task LoadsSwitchesAndPages()
     {
@@ -374,14 +567,19 @@ public class SongBandLeaderboardViewModelTests
         var bands = new BandService();
         var vm = new SongBandLeaderboardViewModel(bands.Service.Session(), new AppRoute.SongBandLeaderboard("fixture-pulse", "Band_Trios"));
         Assert.Equal(BandType.Trios, vm.BandType);
-        Assert.Equal("Trios Leaderboard", vm.Title);
-        Assert.Equal("Trios", vm.Subtitle);
-        Assert.Equal("", vm.SongTitle);
+        // Song-first header like the solo board (issue #317): the band size sits where the solo board names its instrument.
+        Assert.Equal("", vm.Title);
+        Assert.Equal("", vm.Subtitle);
+        Assert.Equal("Trios", vm.BoardLabel);
+        Assert.Equal("Trios leaderboard", vm.LeaderboardName);
         await vm.LoadAsync();
         Assert.True(vm.ShowRows);
-        Assert.Equal("Pulse", vm.SongTitle);
-        Assert.Equal("Fixture Artist · 2024 · 3:20", vm.SongSubtitle);
-        Assert.Equal("Trios · 60 entries", vm.Subtitle);
+        Assert.Equal("Pulse", vm.Title);
+        Assert.Equal("Fixture Artist", vm.Subtitle);
+        Assert.Equal("Pulse, Trios leaderboard", vm.LeaderboardName);
+        // No showLeaderboardEntryTotals: no entry total, as on the solo board.
+        Assert.Equal("", vm.TotalText);
+        Assert.False(vm.HasTotal);
         Assert.Equal("1 / 3", vm.Pager.PageText);
         var row = vm.Rows[0];
         Assert.Equal("#1", row.Rank);
@@ -416,6 +614,8 @@ public class SongBandLeaderboardViewModelTests
         await Async.Until(() => vm.ShowRows && vm.Pager.Page == 1);
         Assert.Equal(BandType.Quad, vm.BandType);
         Assert.Equal(2, vm.BandTypeIndex);
+        Assert.Equal("Quads", vm.BoardLabel);
+        Assert.Equal("Pulse", vm.Title);
         Assert.Equal("Band size: Quads", vm.SwitcherName);
         Assert.Contains(bands.Service.Handler.Requests, r => r.Uri.AbsolutePath.EndsWith("/Band_Quad", StringComparison.Ordinal) && r.Uri.Query == "?top=25&offset=0");
         vm.BandTypeIndex = -1;
@@ -434,18 +634,35 @@ public class SongBandLeaderboardViewModelTests
         Assert.Equal(BandType.Duets, vm.BandType);
         await vm.LoadAsync();
         Assert.True(vm.ShowEmpty);
-        Assert.Equal("", vm.SongTitle);
-        Assert.Equal("Duos · 0 entries", vm.Subtitle);
+        Assert.Equal("", vm.Title);
+        Assert.Equal("Duos leaderboard", vm.LeaderboardName);
+        Assert.Equal("Duos", vm.BoardLabel);
+        Assert.Equal("", vm.TotalText);
         Assert.Equal("No Duos scores have been recorded for this song yet.", vm.EmptyMessage);
         Assert.False(vm.Pager.IsVisible);
 
-        bands.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal) ? BandService.Ok(BandWire.SongBands("s1", "Band_Duets", 1, 1)) : null;
+        bands.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal) ? BandService.Ok(BandWire.SongBands("s1", "Band_Duets", 1, 1, showTotals: true)) : null;
         vm.Pager.PageCount = 5;
         vm.Pager.Page = 5;
         await vm.LoadAsync();
         Assert.Equal(1, vm.Pager.Page);
         Assert.True(vm.ShowRows);
-        Assert.Equal("Duos · 1 entry", vm.Subtitle);
+        Assert.Equal("1 Duos entry", vm.TotalText);
+        Assert.True(vm.HasTotal);
+
+        bands.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal) ? BandService.Ok(BandWire.SongBands("s1", "Band_Duets", 1, 2, showTotals: true)) : null;
+        await vm.LoadAsync();
+        Assert.Equal("2 Duos entries", vm.TotalText);
+
+        // The live service sends false for band boards today: the header then names only the band size.
+        bands.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal) ? BandService.Ok(BandWire.SongBands("s1", "Band_Duets", 1, 2, showTotals: false)) : null;
+        await vm.LoadAsync();
+        Assert.Equal("", vm.TotalText);
+
+        bands.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal) ? BandService.Ok(BandWire.SongBands("s1", "Band_Duets", 0, 0, showTotals: true)) : null;
+        await vm.LoadAsync();
+        Assert.True(vm.ShowEmpty);
+        Assert.Equal("", vm.TotalText);
 
         bands.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal) ? Wire.Response(HttpStatusCode.NotFound) : null;
         await vm.LoadAsync();
@@ -488,5 +705,57 @@ public class SongBandLeaderboardViewModelTests
         gate2.SetResult();
         await Async.Settle();
         Assert.True(vm.ShowRows);
+    }
+
+    [Fact]
+    public async Task SizeSwitchDropsTheOldTotalUntilTheNewSizeCommits()
+    {
+        var bands = new BandService();
+        var quads = new TaskCompletionSource();
+        var quadsFail = false;
+        var route = bands.Service.Handler.Responder;
+        bands.Service.Handler.Responder = async (request, token) =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path.StartsWith("/api/leaderboard/", StringComparison.Ordinal) && path.Contains("/bands/", StringComparison.Ordinal))
+            {
+                var type = path.Split('/')[5];
+                if (type == "Band_Quad")
+                {
+                    await quads.Task;
+                    if (quadsFail) return Wire.Response(HttpStatusCode.InternalServerError);
+                }
+                return BandService.Ok(BandWire.SongBands("fixture-pulse", type, 2, type == "Band_Quad" ? 7 : 29, showTotals: true));
+            }
+            return await route(request, token);
+        };
+        var vm = new SongBandLeaderboardViewModel(bands.Service.Session(), new AppRoute.SongBandLeaderboard("fixture-pulse", "Band_Duets"));
+        await vm.LoadAsync();
+        Assert.Equal("29 Duos entries", vm.TotalText);
+
+        // Selecting Quads names Quads at once and never shows the Duos total under it while Quads loads (issue #317 review).
+        vm.BandTypeIndex = 2;
+        Assert.Equal("Quads", vm.BoardLabel);
+        Assert.Equal("", vm.TotalText);
+        Assert.False(vm.HasTotal);
+        await Async.Settle();
+        Assert.Equal("", vm.TotalText);
+        Assert.Equal("Pulse", vm.Title);
+        quads.SetResult();
+        await Async.Until(() => vm.ShowRows && vm.TotalText.Length > 0);
+        Assert.Equal("7 Quads entries", vm.TotalText);
+
+        // A failed read of the new size keeps the total empty.
+        vm.BandType = BandType.Duets;
+        await Async.Until(() => vm.ShowRows && vm.TotalText == "29 Duos entries");
+        quads = new TaskCompletionSource();
+        quadsFail = true;
+        vm.BandType = BandType.Quad;
+        Assert.Equal("", vm.TotalText);
+        quads.SetResult();
+        await Async.Until(() => vm.ShowError);
+        Assert.Equal("", vm.TotalText);
+        Assert.Equal("Quads", vm.BoardLabel);
+        Assert.Equal("Pulse", vm.Title);
     }
 }

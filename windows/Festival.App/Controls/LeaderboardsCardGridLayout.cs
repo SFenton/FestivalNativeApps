@@ -10,7 +10,10 @@ namespace Festival.App.Controls;
 /// <see cref="MinColumnWidth"/> (one at compact widths), each row as tall as its tallest card. Unlike
 /// <see cref="UniformGridLayout"/>, which sizes every item from the first, cards of different heights
 /// (spotlight rows, failures, three- and four-member band rows) never clip. Non-virtualizing: the Leaderboards
-/// overview has at most twelve cards and Song Detail at most one per instrument and band size.
+/// overview has at most twelve cards and Song Detail at most one per instrument and band size. With
+/// <see cref="MaxColumns"/> 1 and <see cref="MinColumnWidth"/> 0 it is a plain non-virtualizing stack, used for the
+/// top-ten rows inside cached pages' cards: a virtualizing <see cref="StackLayout"/> drops off-screen rows while the
+/// page is away and re-estimates their heights on Back, which moved the page (#276).
 /// </summary>
 public sealed partial class LeaderboardsCardGridLayout : NonVirtualizingLayout
 {

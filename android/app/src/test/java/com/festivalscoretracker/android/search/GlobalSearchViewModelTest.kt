@@ -1,10 +1,14 @@
 package com.festivalscoretracker.android.search
 
 import androidx.lifecycle.SavedStateHandle
+import com.festivalscoretracker.android.core.bands.BandMember
+import com.festivalscoretracker.android.core.bands.PlayerBandEntry
 import com.festivalscoretracker.android.core.model.FestivalApiException
 import com.festivalscoretracker.android.core.model.PlayerSearchResult
 import com.festivalscoretracker.android.core.model.Song
+import com.festivalscoretracker.android.core.nav.BandRoute
 import com.festivalscoretracker.android.core.search.GlobalSearchResults
+import com.festivalscoretracker.android.core.search.SearchDestination
 import com.festivalscoretracker.android.core.search.SearchScope
 import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
@@ -47,13 +51,30 @@ class GlobalSearchViewModelTest {
         }
     }
 
+    private class BandRecorder(var respond: suspend (String) -> List<PlayerBandEntry>) {
+        val queries = mutableListOf<String>()
+        suspend fun search(query: String, limit: Int): List<PlayerBandEntry> {
+            queries += "$query/$limit"
+            return respond(query)
+        }
+    }
+
+    private val duo = PlayerBandEntry(
+        bandId = "band-1",
+        teamKey = "${Fixtures.ACCOUNT_A}:${Fixtures.ACCOUNT_B}",
+        bandType = "Band_Duets",
+        appearanceCount = 12,
+        members = listOf(BandMember(Fixtures.ACCOUNT_A, "Alpha Player"), BandMember(Fixtures.ACCOUNT_B, "Beta Player")),
+    )
+
     private fun model(
         players: Recorder = Recorder { listOf(PlayerSearchResult(Fixtures.ACCOUNT_A, "Alpha Player")) },
         catalog: suspend () -> List<Song> = { songs },
         selected: String? = null,
         saved: SavedStateHandle = SavedStateHandle(),
         backoff: ServiceRetryBackoff = ServiceRetryBackoff { 0L },
-    ) = GlobalSearchViewModel(catalog, players::search, { selected }, backoff, saved)
+        bands: BandRecorder = BandRecorder { emptyList() },
+    ) = GlobalSearchViewModel(catalog, players::search, bands::search, { selected }, backoff, saved)
 
     private fun TestScope.settle() {
         advanceTimeBy(GlobalSearchResults.DEBOUNCE_MS + 1)
@@ -106,7 +127,7 @@ class GlobalSearchViewModelTest {
         assertEquals("alph", vm.ui.settledQuery)
         assertEquals(listOf("s-alpha"), vm.ui.songs.map { it.songId })
         assertEquals(SectionPhase.Loaded, vm.ui.playersPhase)
-        assertEquals("1 song, 1 player", vm.ui.announcement)
+        assertEquals("1 song, 1 player, 0 bands", vm.ui.announcement)
         assertTrue(vm.ui.showSongsSection)
         assertTrue(vm.ui.showPlayersSection)
         assertNull(vm.ui.hint)
@@ -201,7 +222,8 @@ class GlobalSearchViewModelTest {
     fun playerFailureKeepsSongsAndSearchRunsItAgain() = runTest(main.dispatcher) {
         var fail = true
         val players = Recorder { if (fail) throw IOException("down") else listOf(PlayerSearchResult(Fixtures.ACCOUNT_A, "Alpha Player")) }
-        val vm = model(players)
+        // Bands found, so only the players failure makes Search run the query again.
+        val vm = model(players, bands = BandRecorder { listOf(duo) })
         vm.onQueryChange("alpha")
         settle()
         advanceUntilIdle()
@@ -209,7 +231,7 @@ class GlobalSearchViewModelTest {
         assertEquals(ServiceIssue.Offline, vm.ui.playersIssue)
         assertTrue(vm.ui.showSongsSection)
         assertTrue(vm.ui.showPlayersSection)
-        assertEquals("1 song, player search failed", vm.ui.announcement)
+        assertEquals("1 song, player search failed, 1 band", vm.ui.announcement)
         fail = false
         vm.submit()
         advanceUntilIdle()
@@ -233,7 +255,7 @@ class GlobalSearchViewModelTest {
         runCurrent()
         assertTrue(vm.ui.playersIssue is ServiceIssue.ScrapeInProgress)
         assertEquals(2, vm.ui.playersCountdown)
-        assertEquals("1 song, player search failed", vm.ui.announcement)
+        assertEquals("1 song, player search failed, 0 bands", vm.ui.announcement)
         frozen = false
         advanceTimeBy(2_001)
         runCurrent()
@@ -250,24 +272,127 @@ class GlobalSearchViewModelTest {
         assertEquals(SectionPhase.Failed, vm.ui.songsPhase)
         assertTrue(vm.ui.showSongsSection)
         assertEquals(SectionPhase.Loaded, vm.ui.playersPhase)
-        assertEquals("song search failed, 1 player", vm.ui.announcement)
+        assertEquals("song search failed, 1 player, 0 bands", vm.ui.announcement)
     }
 
     @Test
-    fun bandsScopeNeverRequestsAndHidesResults() = runTest(main.dispatcher) {
+    fun bandsSearchInParallelAndOpenTheBandPage() = runTest(main.dispatcher) {
         val players = Recorder { emptyList() }
-        val vm = model(players)
+        val bands = BandRecorder { listOf(duo) }
+        val vm = model(players, bands = bands)
+        vm.toggleScope(SearchScope.Bands)
+        vm.onQueryChange(" alpha ")
+        settle()
+        advanceUntilIdle()
+        // Web useUnifiedSearch: one debounced players request and one bands request (pageSize 10).
+        assertEquals(listOf("alpha/10"), players.queries)
+        assertEquals(listOf("alpha/10"), bands.queries)
+        assertNull(vm.ui.hint)
+        assertTrue(vm.ui.showBandsSection)
+        assertFalse(vm.ui.showSongsSection)
+        assertFalse(vm.ui.showPlayersSection)
+        assertFalse(vm.ui.isBusy)
+        assertNull(vm.ui.emptyState)
+        assertEquals("1 song, 0 players, 1 band", vm.ui.announcement)
+        val band = vm.ui.bands.single()
+        assertEquals("Alpha Player + Beta Player, Duos, 12 appearances", band.accessibleName)
+        // No selected-band profile on Android: every band opens its Band page.
+        assertEquals(
+            SearchDestination.Push(BandRoute("band-1", "Alpha Player + Beta Player", "Band_Duets", duo.teamKey)),
+            band.destination,
+        )
+        // Switching scope shows what was already fetched; no new request.
+        vm.toggleScope(SearchScope.Bands)
+        assertTrue(vm.ui.showSongsSection)
+        assertTrue(vm.ui.showBandsSection)
+        assertEquals(1, bands.queries.size)
+    }
+
+    @Test
+    fun bandsScopeWaitsOnlyForBandsBehindOneSpinner() = runTest(main.dispatcher) {
+        val pending = CompletableDeferred<List<PlayerBandEntry>>()
+        val vm = model(bands = BandRecorder { pending.await() })
+        vm.onQueryChange("alpha")
+        settle()
+        assertEquals(SectionPhase.Loaded, vm.ui.playersPhase)
+        assertEquals(SectionPhase.Loading, vm.ui.bandsPhase)
+        // All waits for every scope; Players and Songs do not wait for bands; Bands does.
+        assertTrue(vm.ui.isBusy)
+        assertNull(vm.ui.announcement)
+        vm.toggleScope(SearchScope.Players)
+        assertFalse(vm.ui.isBusy)
+        vm.toggleScope(SearchScope.Bands)
+        assertTrue(vm.ui.isBusy)
+        pending.complete(listOf(duo))
+        advanceUntilIdle()
+        assertFalse(vm.ui.isBusy)
+        assertEquals("1 song, 1 player, 1 band", vm.ui.announcement)
+    }
+
+    @Test
+    fun emptyBandsShowNoBandsFoundAndSearchRunsItAgain() = runTest(main.dispatcher) {
+        val bands = BandRecorder { emptyList() }
+        val vm = model(bands = bands)
         vm.toggleScope(SearchScope.Bands)
         vm.onQueryChange("alpha")
         settle()
         advanceUntilIdle()
-        assertTrue(vm.ui.isBandsScope)
-        assertNull(vm.ui.hint)
-        assertFalse(vm.ui.showSongsSection)
-        assertFalse(vm.ui.showPlayersSection)
-        assertFalse(vm.ui.isBusy)
-        // Only the account search ran (players, not bands); nothing band-shaped exists in the engine.
-        assertEquals(listOf("alpha/10"), players.queries)
+        assertEquals(SectionPhase.Empty, vm.ui.bandsPhase)
+        assertFalse(vm.ui.showBandsSection)
+        assertEquals(
+            SearchEmptyState(GlobalSearchResults.EMPTY_BANDS_TITLE, GlobalSearchResults.EMPTY_BANDS_SUBTITLE),
+            vm.ui.emptyState,
+        )
+        vm.submit()
+        advanceUntilIdle()
+        assertEquals(2, bands.queries.size)
+        // In All, empty bands simply leave no section, like empty players.
+        vm.toggleScope(SearchScope.Bands)
+        assertNull(vm.ui.emptyState)
+        assertFalse(vm.ui.showBandsSection)
+    }
+
+    @Test
+    fun bandFailureIsSeparateFromEmptyWithoutRetry() = runTest(main.dispatcher) {
+        var fail = true
+        val bands = BandRecorder { if (fail) throw IOException("down") else listOf(duo) }
+        val vm = model(Recorder { emptyList() }, catalog = { emptyList() }, bands = bands)
+        vm.toggleScope(SearchScope.Bands)
+        vm.onQueryChange("alpha")
+        settle()
+        advanceUntilIdle()
+        assertEquals(SectionPhase.Failed, vm.ui.bandsPhase)
+        assertEquals(ServiceIssue.Offline, vm.ui.bandsIssue)
+        assertTrue(vm.ui.showBandsSection)
+        assertNull(vm.ui.emptyState)
+        // All isn't "No results" when bands failed: the failure stays visible.
+        vm.toggleScope(SearchScope.Bands)
+        assertNull(vm.ui.emptyState)
+        assertTrue(vm.ui.showBandsSection)
+        assertEquals("0 songs, 0 players, band search failed", vm.ui.announcement)
+        fail = false
+        vm.submit()
+        advanceUntilIdle()
+        assertEquals(SectionPhase.Loaded, vm.ui.bandsPhase)
+        assertEquals(2, bands.queries.size)
+    }
+
+    @Test
+    fun bandScrapeFreezeCountsDownOnItsOwn() = runTest(main.dispatcher) {
+        var frozen = true
+        val bands = BandRecorder { if (frozen) throw FestivalApiException.PublicReadFrozen("scrape", "2") else listOf(duo) }
+        val vm = model(bands = bands)
+        vm.onQueryChange("alpha")
+        settle()
+        runCurrent()
+        assertTrue(vm.ui.bandsIssue is ServiceIssue.ScrapeInProgress)
+        assertEquals(2, vm.ui.bandsCountdown)
+        assertEquals(SectionPhase.Loaded, vm.ui.playersPhase)
+        frozen = false
+        advanceTimeBy(2_001)
+        runCurrent()
+        assertEquals(SectionPhase.Loaded, vm.ui.bandsPhase)
+        assertEquals(2, bands.queries.size)
     }
 
     @Test
@@ -282,7 +407,7 @@ class GlobalSearchViewModelTest {
     @Test
     fun submitSkipsDebounceAndClearResets() = runTest(main.dispatcher) {
         val players = Recorder { listOf(PlayerSearchResult(Fixtures.ACCOUNT_B, "Beta Player")) }
-        val vm = model(players)
+        val vm = model(players, bands = BandRecorder { listOf(duo) })
         vm.onQueryChange("beta")
         vm.submit()
         runCurrent()
@@ -341,5 +466,6 @@ class GlobalSearchViewModelTest {
         advanceUntilIdle()
         assertTrue(players.queries.isEmpty())
         assertEquals(SectionPhase.Empty, vm.ui.playersPhase)
+        assertEquals(SectionPhase.Empty, vm.ui.bandsPhase)
     }
 }

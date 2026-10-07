@@ -48,7 +48,7 @@
                 </StackPanel>
             </Grid>
             <StackPanel x:Name="Actions" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <DropDownButton AutomationProperties.Name="{x:Bind ViewModel.InstrumentButtonName, Mode=OneWay}"
+                <DropDownButton MinHeight="{StaticResource FSTMinTargetSize}" AutomationProperties.Name="{x:Bind ViewModel.InstrumentButtonName, Mode=OneWay}"
                                 AutomationProperties.AutomationId="fst.full-rankings.instrument-menu">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <controls:InstrumentIcon File="{x:Bind ViewModel.IconFile, Mode=OneWay}" Width="18" Height="18"
@@ -59,7 +59,7 @@
                         <MenuFlyout x:Name="InstrumentMenu" Placement="BottomEdgeAlignedRight" Opening="OnInstrumentMenuOpening" />
                     </DropDownButton.Flyout>
                 </DropDownButton>
-                <DropDownButton AutomationProperties.Name="{x:Bind ViewModel.MetricButtonName, Mode=OneWay}"
+                <DropDownButton MinHeight="{StaticResource FSTMinTargetSize}" AutomationProperties.Name="{x:Bind ViewModel.MetricButtonName, Mode=OneWay}"
                                 AutomationProperties.AutomationId="fst.rankings.rank-by-menu">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <!-- Same 18 epx height as the instrument icon beside it (operator 2026-09-28): the icon is never shrunk. -->
@@ -73,25 +73,30 @@
             </StackPanel>
         </Grid>
 
-        <!-- One frosted row per entry, 4 epx apart (web entryRow list, operator batch 7.7); the rows scroll on beneath the
-             floating footer (BoardFooter). -->
-        <ScrollViewer x:Name="Scroller" Grid.Row="1" Grid.RowSpan="3" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
-                      controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
-                      AutomationProperties.AutomationId="fst.full-rankings.list">
-            <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="RowsRepeater" Margin="0,4,0,0" VerticalAlignment="Top"
-                           ElementPrepared="OnRowPrepared" BringIntoViewRequested="OnRowsBringIntoViewRequested"
-                           controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52"
-                           ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}">
-                <ItemsRepeater.Layout>
-                    <StackLayout Spacing="4" />
-                </ItemsRepeater.Layout>
-                <ItemsRepeater.ItemTemplate>
-                    <DataTemplate x:DataType="vm:RankingRowViewModel">
-                        <controls:LeaderboardEntryRow Row="{x:Bind}" />
-                    </DataTemplate>
-                </ItemsRepeater.ItemTemplate>
-            </ItemsRepeater>
-        </ScrollViewer>
+        <!-- One frosted row per entry, 4 epx apart (web entryRow list, operator batch 7.7); the rows end at the floating
+             footer (BoardFooter) through the bottom-chrome ramp (BoardFooterFade, issue #308). The wrapper is the fade
+             source because the load swap animates the ScrollViewer's own visual. -->
+        <Grid x:Name="BoardFadeSource" Grid.Row="1" Grid.RowSpan="3">
+            <ScrollViewer x:Name="Scroller" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
+                          controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
+                          AutomationProperties.AutomationId="fst.full-rankings.list">
+                <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="RowsRepeater" Margin="0,4,0,0" VerticalAlignment="Top"
+                               ElementPrepared="OnRowPrepared" BringIntoViewRequested="OnRowsBringIntoViewRequested"
+                               controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52"
+                               ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}">
+                    <ItemsRepeater.Layout>
+                        <StackLayout Spacing="4" />
+                    </ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="vm:RankingRowViewModel">
+                            <controls:LeaderboardEntryRow Row="{x:Bind}" />
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+            </ScrollViewer>
+        </Grid>
+        <!-- Paints BoardFadeSource with its rows faded above the footer; never hit-testable, UIA raw view only. -->
+        <controls:EdgeFadeLayer x:Name="BoardFadeHost" Grid.Row="1" Grid.RowSpan="3" AutomationProperties.AutomationId="fst.full-rankings.footer-fade" />
         <TextBlock Grid.Row="1" Text="No ranked players yet." Style="{StaticResource FSTSecondaryTextStyle}"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
@@ -103,9 +108,9 @@
                                     controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                                     Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" />
 
-        <!-- Contrast themes: this window-colour plate (footer height, sized in code) hides the rows between and behind the
-             floating footer's controls instead of letting their text show through (issue #208, as the song leaderboard).
-             Never hit-testable; other themes keep the web's rows-under-footer look. -->
+        <!-- Contrast themes: the footer fade cuts the rows hard at the footer's top and this window-colour plate (footer
+             height, sized by BoardFooterFade) backs the footer's controls (issue #208, as the song leaderboard). Never
+             hit-testable. -->
         <Border x:Name="FooterPlate" Grid.Row="1" Grid.RowSpan="3" VerticalAlignment="Bottom" IsHitTestVisible="False" Visibility="Collapsed"
                 Background="{ThemeResource FSTFloatingBackplateBrush}" />
 
@@ -121,9 +126,7 @@
                                    controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                                    controls:LoadSwapVisual.IsGated="{x:Bind ViewModel.PinnedGate.IsGated, Mode=OneWay}">
                 <controls:LeaderboardsSpotlight x:Name="FooterSpotlight" Spotlight="{x:Bind ViewModel.Spotlight, Mode=OneWay}"
-                                                FocusedJump="OnFocusedJump"
-                                                IdPrefix="fst.full-rankings.spotlight-footer"
-                                                JumpAutomationId="fst.full-rankings.spotlight-jump" IsFloating="True" />
+                                                IdPrefix="fst.full-rankings.spotlight-footer" IsFloating="True" />
             </controls:LoadSwapGate>
             <controls:LeaderboardsPager Pager="{x:Bind ViewModel.Pager}"
                                         Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" />

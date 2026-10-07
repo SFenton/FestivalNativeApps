@@ -100,7 +100,7 @@ STEP_VERBS = {
     "click": "selector", "rightclick": "selector", "hover": "selector", "invoke": "selector",
     "toggle": "selector", "select": "selector", "expand": "selector",
     "collapse": "selector", "focus": "selector", "reveal": "selector", "waitfor": "selector", "waitgone": "selector",
-    "scrollinto": "selector",
+    "scrollinto": "selector", "assertnoscrollbar": "selector",
     "type": "text", "key": "keys", "keys": "keyseq", "scroll": "scroll", "wait": "seconds",
     "shot": "path", "tree": "path", "resize": "preset",
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
@@ -109,14 +109,27 @@ STEP_VERBS = {
     "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state",
     "markspan": "span", "assertspan": "span", "film": "path", "filmstop": "path", "pin": "selector",
     "assertpinned": "selector", "foreground": "onoff", "listen": "listen", "assertannounced": "announced",
-    "assertannouncedcount": "announcedcount",
+    "assertsize": "size", "assertapart": "pair", "assertat": "offset", "tapat": "offset", "clickat": "offset",
+    "narrate": "selector", "assertread": "read", "assertorder": "order",
+    "assertpaint": "paint", "assertbold": "bold", "assertannouncedcount": "announcedcount",
+    "assertmarquee": "marquee", "assertmarqueesync": "pair",
 }
+
+#: ``assertpaint`` probe: ``[name:]<x>,<y>[,<x2>,<y2>][<op><expect>[~<tol>]]``. ``x`` is ``L``/``R``/``C`` and ``y``
+#: ``T``/``B``/``M`` plus a signed epx offset (from the left/top edge, inward from the right/bottom edge, or from the
+#: centre); ``op`` is ``=`` or ``!=``; ``expect`` is ``#RRGGBB`` or ``@name`` (an earlier named point probe's colour).
+PROBE = re.compile(
+    r"(?:(?P<name>[a-z][a-z0-9_-]*):)?(?P<x>[LRC]-?\d+(?:\.\d+)?),(?P<y>[TBM]-?\d+(?:\.\d+)?)"
+    r"(?:,(?P<x2>[LRC]-?\d+(?:\.\d+)?),(?P<y2>[TBM]-?\d+(?:\.\d+)?))?"
+    r"(?:(?P<op>!=|=)(?P<expect>#[0-9A-Fa-f]{6}|@[a-z][a-z0-9_-]*)(?:~(?P<tol>\d{1,3}))?)?")
 
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text; ``scroll`` takes a rounded
 #: vertical scroll percent, ``0``-``100`` or ``-1`` when the content fits; ``type`` the lower-case UIA control type such as
-#: ``button`` or ``text``; ``invoke`` whether the Invoke pattern is offered; ``focusable`` UIA IsKeyboardFocusable).
+#: ``button`` or ``text``; ``invoke`` whether the Invoke pattern is offered; ``focusable`` UIA IsKeyboardFocusable;
+#: ``value`` the UIA Value, else the name of the Selection pattern's selected item, e.g. a combo box's current option).
 STATE_KEYS = {"toggle": ("on", "off", "indeterminate"), "enabled": ("true", "false"), "selected": ("true", "false"),
-              "name": None, "scroll": None, "type": None, "invoke": ("true", "false"), "focusable": ("true", "false")}
+              "name": None, "scroll": None, "type": None, "invoke": ("true", "false"), "focusable": ("true", "false"),
+              "value": None}
 
 # endregion
 
@@ -178,6 +191,54 @@ def parse_keys(combo: str) -> list[int]:
     return codes
 
 
+def parse_probe(text: str, names: set[str]) -> dict:
+    """Parse one ``assertpaint`` probe (see :data:`PROBE`).
+
+    Args:
+        text: Probe text, e.g. ``fill:L8,M0=#162133~6``, ``R25,M-24=#FACC15~40`` or ``L87,T8,R40,B8=#6D28D9~12``.
+        names: Names of the earlier point probes in the same step; this probe's name is added to it.
+
+    Returns:
+        ``{"text", "x", "y"}`` (each ``{"edge", "off"}``) plus ``x2``/``y2`` for an area, ``op``, ``color`` (``#RRGGBB``)
+        or ``ref`` (a name), ``tol`` (per-channel, default 16) and ``name`` when given.
+
+    Raises:
+        ValueError: Malformed probe, an area or unnamed point without a check, a named area, or an unknown ``@name``.
+    """
+    match = PROBE.fullmatch(text.strip())
+    if not match:
+        raise ValueError(f"bad paint probe {text!r}; use [name:]<L|R|C><epx>,<T|B|M><epx>[,<x2>,<y2>][=|!=<#RRGGBB|@name>[~tol]]")
+
+    def coord(token: str) -> dict:
+        return {"edge": token[0], "off": float(token[1:])}
+
+    result: dict = {"text": text.strip(), "x": coord(match["x"]), "y": coord(match["y"])}
+    area = match["x2"] is not None
+    if area:
+        result["x2"], result["y2"] = coord(match["x2"]), coord(match["y2"])
+    if match["op"] is None:
+        if area or match["name"] is None:
+            raise ValueError(f"paint probe {text!r} checks nothing; an area needs =/!= and a bare point needs a name")
+    else:
+        result["op"] = match["op"]
+        expect = match["expect"]
+        if expect.startswith("@"):
+            if expect[1:] not in names:
+                raise ValueError(f"paint probe {text!r} refers to {expect}, which no earlier point probe names")
+            result["ref"] = expect[1:]
+        else:
+            result["color"] = "#" + expect[1:].upper()
+        result["tol"] = int(match["tol"]) if match["tol"] else 16
+        if result["tol"] > 255:
+            raise ValueError(f"paint probe tolerance must be 0-255, not {match['tol']}")
+    if match["name"] is not None:
+        if area:
+            raise ValueError(f"paint probe {text!r}: only a point probe can be named")
+        names.add(match["name"])
+        result["name"] = match["name"]
+    return result
+
+
 def parse_step(step: str) -> dict:
     """Validate one ``verb:argument`` step and expand it for the driver.
 
@@ -198,6 +259,9 @@ def parse_step(step: str) -> dict:
     ``assertname:<sel>|<text>`` waits (default 5 s) until the element's UIA Name is exactly the text (each ``*`` matches
     any run of characters, so ``|*<text>`` waits until it ends with the text, for names that start with a local-time date);
     ``assertaligned:<sel>|<sel>`` fails unless both elements' horizontal centres are within 2 px (a column);
+    ``assertnoscrollbar:<sel>`` fails if the scroller contains a UIA ScrollBar, shown or idle: a WinUI ``Auto`` bar
+    stays in the tree (drawn as soon as pointer input scrolls), a ``Hidden`` one is collapsed out of it, so this
+    proves no indicator can render even on a locked console where no pointer input reaches the app;
     ``assertbelow:<sel>|<sel>`` fails unless the first element's vertical centre is at least 8 px below the second's,
     and ``assertlevel:<sel>|<sel>`` unless both vertical centres are within 4 px (a line);
     ``assertgap:<sel>|<sel>|<epx>`` fails unless the gap from the first element's bottom edge to the second's top
@@ -226,14 +290,47 @@ def parse_step(step: str) -> dict:
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
     (``on``/``off``/``indeterminate``), ``enabled`` (``true``/``false``), ``selected`` (UIA SelectionItem
     ``IsSelected``: ``true``/``false``, e.g. a list's current item), ``scroll`` (UIA Scroll pattern vertical percent,
-    rounded: ``0`` is a list back at its top) or ``name`` equals ``<value>``;
+    rounded: ``0`` is a list back at its top), ``name`` or ``value`` (UIA Value, else the selected item's name: what
+    Narrator reads after a combo box's name, e.g. ``Instrument, combo box, Bass``) equals ``<value>``;
     ``pin:<sel>`` records the element's window-relative rectangle and ``assertpinned:<sel>`` (same selector, later in
     the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls;
+    ``assertmarquee:<sel>|moving|<epx>`` fails unless the element is at most ``<epx>`` effective pixels high (one line)
+    and its pixels change across three captures 1.2 s apart (a scrolling marquee), and ``assertmarquee:<sel>|static|<epx>``
+    unless it is one line, unchanged across the captures and ends in an ellipsis, and ``assertmarquee:<sel>|wrapped|<epx>``
+    unless it is at least ``<epx>`` high (wrapped onto more lines) and unchanged (song headers, issue #315; R3 large text),
+    and ``assertmarquee:<sel>|fits|<epx>`` unless it is one line, unchanged and not ellipsized (a line short enough for its
+    column); ``assertmarqueesync:<sel>|<sel>`` crops both lines from captures about 150 ms apart for up to 9 s and fails
+    unless at least four capture pairs show both moving and every pair moved them by the same number of pixels (within
+    2 px or 8%): lockstep marquees that share one scroll distance (song-header R2, web ``useMarqueeSync``);
     ``listen:announcements`` starts recording the window's UIA notification events (the app's screen-reader
     announcements, what Narrator speaks) and a later ``assertannounced:<text>[@<seconds>]`` in the same ``drive`` waits
     (default 5 s) until one equals ``<text>`` (or matches it as a .NET regex when it starts with ``~``);
     ``assertannouncedcount:<n>|<text>`` fails unless exactly ``<n>`` recorded announcements match ``<text>`` so far
-    (no wait), e.g. a value announced once and not repeated on later reads.
+    (no wait), e.g. a value announced once and not repeated on later reads;
+    ``assertsize:<sel>|<w>x<h>`` fails unless the element's UIA bounds are at least ``<w>`` x ``<h>`` effective pixels
+    (one device pixel rounding allowance; results in ``sizes``), e.g. Fluent's 40x40 epx touch target (issue #271);
+    ``assertapart:<sel>|<sel>`` fails if the two elements' bounds overlap (results in ``apart``, the gap in epx);
+    ``assertat:<sel>|<dx>,<dy>`` hit-tests the point ``<dx>``,``<dy>`` epx from the element's centre without input
+    (outside the title bar's non-client caption region, where a press drags the window, and UIA ``ElementFromPoint``
+    must return the element or one of its parts, or the point must be inside its bounds when another process covers
+    it, e.g. a locked console; results in ``hits``), so an off-centre tap's target is checked without input;
+    ``tapat:<sel>|<dx>,<dy>`` and ``clickat:<sel>|<dx>,<dy>`` send a real pointer press at that point (an injected touch
+    tap, or a left mouse click; unlocked console only, and only when the app's own window is topmost at the point;
+    results in ``presses``), and the following steps assert what it activated (e.g. ``waitfor:`` a flyout item), so
+    the title bar's caption region and the control's own pointer handling decide the outcome.
+    Narrator model (Narrator itself can't be scripted; issue #271): ``narrate:<sel>`` records Narrator's scan-mode
+    reading order under the element with each item's phrase (results in ``narration``); ``assertread:<sel>|<phrase>[@<seconds>]``
+    waits (default 5 s) until the element's Narrator phrase (name, role, state, value, status, help text, shortcut,
+    comma-separated) equals ``<phrase>`` (or matches it as a .NET regex when it starts with ``~``); and
+    ``assertorder:<sel>|<sel>[|<sel>…][@<seconds>]`` fails unless the elements come in that order in the window's
+    reading order (results in ``orders``).
+    ``assertpaint:<sel>|<probe>|<probe>…`` captures the window (``PrintWindow``) and waits (up to 3 s) until every
+    probe matches the pixels at an epx offset from the element's edges (see :func:`parse_probe`): a point is within the
+    tolerance of the colour (``=``) or not (``!=``); an area has at least 4 epx² of such pixels (``=``) or fewer
+    (``!=``). It pins decorative, raw-view paint (a card's fill and stroke, a dot's position, a pill's colour).
+    ``assertbold:<sel>|<run>|<run>…`` waits (5 s) until the bold runs (UIA TextPattern font weight ≥ 600, trimmed) of
+    the element's text, or of its first descendant with a Text pattern, are exactly those runs in order
+    (``assertbold:<sel>|`` expects none).
 
     Args:
         step: A step string.
@@ -290,6 +387,24 @@ def parse_step(step: str) -> dict:
         if "xy" in (result["selector"]["kind"], result["other"]["kind"]):
             raise ValueError(f"{verb} needs element selectors, not coordinates")
         result["name"] = name.strip()
+    elif shape == "size":
+        selector, sep, size = arg.rpartition("|")
+        match = re.fullmatch(r"(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)", size.strip())
+        if not sep or not match:
+            raise ValueError(f"bad {verb} {arg!r}; use <selector>|<width>x<height>")
+        result["selector"] = parse_selector(selector)
+        if result["selector"]["kind"] == "xy":
+            raise ValueError(f"{verb} needs an element selector, not coordinates")
+        result["width"], result["height"] = float(match.group(1)), float(match.group(2))
+    elif shape == "offset":
+        selector, sep, offset = arg.rpartition("|")
+        match = re.fullmatch(r"(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)", offset.replace(" ", ""))
+        if not sep or not match:
+            raise ValueError(f"bad {verb} {arg!r}; use <selector>|<dx>,<dy>")
+        result["selector"] = parse_selector(selector)
+        if result["selector"]["kind"] == "xy":
+            raise ValueError(f"{verb} needs an element selector, not coordinates")
+        result["dx"], result["dy"] = float(match.group(1)), float(match.group(2))
     elif shape == "status":
         body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
         selector, sep, status = body.partition("|")
@@ -301,13 +416,43 @@ def parse_step(step: str) -> dict:
         result["status"] = status.strip()
         if wait:
             result["timeout"] = float(wait)
+    elif shape == "marquee":
+        selector, sep, rest = arg.partition("|")
+        mode, sep2, epx = rest.partition("|")
+        if not sep or not sep2 or mode.strip() not in ("moving", "static", "fits", "wrapped") or not re.fullmatch(r"\d+(\.\d+)?", epx.strip()):
+            raise ValueError(f"bad assertmarquee {arg!r}; use <selector>|moving|static|fits|wrapped|<height epx: max, or min for wrapped>")
+        result["selector"] = parse_selector(selector)
+        if result["selector"]["kind"] == "xy":
+            raise ValueError("assertmarquee needs an element selector, not coordinates")
+        result["mode"], result["epx"] = mode.strip(), float(epx)
+    elif shape == "read":
+        body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
+        selector, sep, text = body.partition("|")
+        if not sep or not text.strip():
+            raise ValueError(f"bad assertread {arg!r}; use <selector>|<phrase>[@<seconds>]")
+        result["selector"] = parse_selector(selector)
+        if result["selector"]["kind"] == "xy":
+            raise ValueError("assertread needs an element selector, not coordinates")
+        result["text"] = text.strip()
+        if wait:
+            result["timeout"] = float(wait)
+    elif shape == "order":
+        body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
+        parts = body.split("|")
+        if len(parts) < 2 or not all(part.strip() for part in parts):
+            raise ValueError(f"bad assertorder {arg!r}; use <selector>|<selector>[|<selector>...][@<seconds>]")
+        result["selectors"] = [parse_selector(part) for part in parts]
+        if any(sel["kind"] == "xy" for sel in result["selectors"]):
+            raise ValueError("assertorder needs element selectors, not coordinates")
+        if wait:
+            result["timeout"] = float(wait)
     elif shape == "state":
         body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
         selector, sep, assertion = body.partition("|")
         key, eq, value = assertion.partition("=")
         key, value = key.strip().lower(), value.strip()
         if not sep or not eq or key not in STATE_KEYS or not value:
-            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name|scroll|type|invoke|focusable=<value>[@<seconds>]")
+            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name|value|scroll|type|invoke|focusable=<value>[@<seconds>]")
         allowed = STATE_KEYS[key]
         if allowed is not None and value.lower() not in allowed:
             raise ValueError(f"assertstate {key} must be one of {allowed}, not {value!r}")
@@ -365,6 +510,21 @@ def parse_step(step: str) -> dict:
         result["text"] = text.strip()
         if wait:
             result["timeout"] = float(wait)
+    elif shape in ("paint", "bold"):
+        selector, sep, rest = arg.partition("|")
+        if not sep:
+            raise ValueError(f"bad {verb} {arg!r}; use <selector>|<{'probe' if shape == 'paint' else 'run'}>|…")
+        result["selector"] = parse_selector(selector)
+        if result["selector"]["kind"] == "xy":
+            raise ValueError(f"{verb} needs an element selector, not coordinates")
+        parts = [part.strip() for part in rest.split("|")]
+        if shape == "bold":
+            result["runs"] = [part for part in parts if part]
+        else:
+            if not all(parts):
+                raise ValueError(f"bad assertpaint {arg!r}: empty probe")
+            names: set[str] = set()
+            result["probes"] = [parse_probe(part, names) for part in parts]
     elif shape == "announcedcount":
         count, _, text = arg.partition("|")
         if not re.fullmatch(r"\d+", count.strip()) or not text.strip():

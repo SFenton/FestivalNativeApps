@@ -1,10 +1,13 @@
 package com.festivalscoretracker.android.core.search
 
+import com.festivalscoretracker.android.core.bands.BandFormatting
+import com.festivalscoretracker.android.core.bands.BandType
+import com.festivalscoretracker.android.core.bands.PlayerBandEntry
 import com.festivalscoretracker.android.core.model.PlayerSearchResult
 import com.festivalscoretracker.android.core.model.ProfileSearchText
 import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.core.nav.AppRoute
-import com.festivalscoretracker.android.core.nav.BandRankingsRoute
+import com.festivalscoretracker.android.core.nav.BandRoute
 import com.festivalscoretracker.android.core.nav.FestivalSection
 import com.festivalscoretracker.android.core.nav.PlayerRoute
 import com.festivalscoretracker.android.core.nav.SongDetailRoute
@@ -18,7 +21,7 @@ import com.festivalscoretracker.android.core.songs.SongSearch
  * @property title Chip label.
  */
 enum class SearchScope(val title: String) {
-    /** Every live scope (Songs → Players). */
+    /** Every scope (Songs → Players → Bands). */
     All("All"),
 
     /** Songs from the loaded catalogue. */
@@ -27,7 +30,7 @@ enum class SearchScope(val title: String) {
     /** Players from `GET /api/account/search`. */
     Players("Players"),
 
-    /** Bands: shown but blocked (the service's band search GET can write). */
+    /** Bands from `GET /api/bands/search` (a pure read since FortniteFestivalLeaderboardScraper#170). */
     Bands("Bands");
 
     /** Lowercase token used in test tags and saved state. */
@@ -115,6 +118,27 @@ data class GlobalPlayerResult(val accountId: String, val displayName: String, va
     val accessibleName: String get() = if (isSelected) "$displayName, selected player, opens Statistics" else displayName
 }
 
+/**
+ * One band result, shown as the player-bands card (web `SearchModal` renders `PlayerBandCard`).
+ *
+ * Android has no selected-band profile yet, so every band opens its Band page; the web's
+ * "selected band → Statistics" branch has no Android counterpart.
+ *
+ * @property entry Validated band row (safe team key, known band size).
+ */
+data class GlobalBandResult(val entry: PlayerBandEntry) {
+    /** Stable row key. */
+    val key: String get() = entry.key
+
+    /** Destination: Band Detail (same route as player-bands rows). */
+    val destination: SearchDestination
+        get() = SearchDestination.Push(BandRoute(entry.key, entry.membersLabel, entry.bandType, entry.teamKey))
+
+    /** Spoken name ("A + B, Duos, 12 appearances"), matching the player-bands card. */
+    val accessibleName: String
+        get() = "${entry.membersLabel}, ${BandType.fromWireId(entry.bandType)?.label ?: "Band"}, ${BandFormatting.appearances(entry.appearanceCount)}"
+}
+
 /** Pure global-search rules: limits, song matching, routing and announcements (global-search spec). */
 object GlobalSearchResults {
     /** Shortest searchable (trimmed) query. */
@@ -126,14 +150,17 @@ object GlobalSearchResults {
     /** Players requested and shown. */
     const val PLAYER_LIMIT = 10
 
+    /** Bands requested and shown (web `bandLimit`). */
+    const val BAND_LIMIT = 10
+
     /** Keystroke debounce (web `DEBOUNCE_MS`). */
     const val DEBOUNCE_MS = 250L
 
-    /** Field placeholder; only live scopes are named (web `search.placeholders.songsPlayers`). */
-    const val PLACEHOLDER = "Search songs or players"
+    /** Field placeholder naming every scope (web `search.placeholders.default`). */
+    const val PLACEHOLDER = "Search songs, players, or bands"
 
     /** Field accessible name. */
-    const val FIELD_NAME = "Search songs and players"
+    const val FIELD_NAME = "Search songs, players and bands"
 
     /** Short-query hint in All (issue #299: every scope names what it searches). */
     const val ENTER_QUERY_HINT_ALL = "Enter at least two characters to search for songs, players, or bands."
@@ -167,7 +194,7 @@ object GlobalSearchResults {
     const val EMPTY_ALL_TITLE = "No results found"
 
     /** All-scope empty-state subtitle. */
-    const val EMPTY_ALL_SUBTITLE = "Check the spelling or try a different song, artist or player."
+    const val EMPTY_ALL_SUBTITLE = "Check the spelling or try a different song, artist, player or band."
 
     /** Songs-scope empty-state title. */
     const val EMPTY_SONGS_TITLE = "No songs found"
@@ -181,19 +208,20 @@ object GlobalSearchResults {
     /** Players-scope empty-state subtitle. */
     const val EMPTY_PLAYERS_SUBTITLE = "Check the spelling or try a different player name."
 
+    /** Bands-scope empty-state title (web `search.noResults.bands`). */
+    const val EMPTY_BANDS_TITLE = "No bands found"
+
+    /** Bands-scope empty-state subtitle. */
+    const val EMPTY_BANDS_SUBTITLE = "Check the spelling or try a different band member's name."
+
     /** Catalogue failure text in the Songs section. */
     const val SONGS_FAILED = "Search failed. Try again."
 
     /** Players failure fallback title. */
     const val PLAYERS_UNAVAILABLE = "Player search unavailable"
 
-    /** Bands explanation (global-search spec, "Band scope (blocked)"). */
-    const val BANDS_UNAVAILABLE =
-        "Band search isn't available in the app yet. The service's band search can change stored band data, so the app " +
-            "won't call it until a read-only version exists. Browse bands in Leaderboards → Band Rankings, or from a player's Bands."
-
-    /** Band Rankings destination offered by the Bands explanation. */
-    val bandRankings: AppRoute = BandRankingsRoute("Band_Duets")
+    /** Bands failure fallback title. */
+    const val BANDS_UNAVAILABLE = "Bands unavailable"
 
     /**
      * Trimmed query.
@@ -250,17 +278,45 @@ object GlobalSearchResults {
         }
 
     /**
-     * Polite result-count announcement ("3 songs, 10 players").
+     * Project band-search rows (already validated and de-duplicated by the read).
      *
-     * @param songs Song count, or null when the catalogue failed.
-     * @param players Player count, or null when the account search failed.
+     * @param entries Band rows.
+     * @return At most [BAND_LIMIT] results.
+     */
+    fun bands(entries: List<PlayerBandEntry>): List<GlobalBandResult> = entries.take(BAND_LIMIT).map(::GlobalBandResult)
+
+    /**
+     * Polite result-count announcement for the scopes searched ("3 songs, 10 players, 2 bands").
+     * A scope that wasn't searched is left out.
+     *
+     * @param songs Song outcome.
+     * @param players Player outcome.
+     * @param bands Band outcome.
      * @return Announcement text.
      */
-    fun announcement(songs: Int?, players: Int?): String {
-        if (songs == 0 && players == 0) return NO_RESULTS
-        val songText = songs?.let { count(it, "song", "songs") } ?: "song search failed"
-        val playerText = players?.let { count(it, "player", "players") } ?: "player search failed"
-        return "$songText, $playerText"
+    fun announcement(songs: Count, players: Count, bands: Count = Count.Skipped): String {
+        val parts = listOf(songs to ("song" to "songs"), players to ("player" to "players"), bands to ("band" to "bands"))
+            .filter { it.first != Count.Skipped }
+        if (parts.all { it.first == Count.Of(0) }) return NO_RESULTS
+        return parts.joinToString(", ") { (value, words) ->
+            if (value is Count.Of) count(value.value, words.first, words.second) else "${words.first} search failed"
+        }
+    }
+
+    /** One scope's outcome in [announcement]. */
+    sealed interface Count {
+        /** Not searched in this scope. */
+        data object Skipped : Count
+
+        /** The read failed. */
+        data object Failed : Count
+
+        /**
+         * Rows found.
+         *
+         * @property value Row count.
+         */
+        data class Of(val value: Int) : Count
     }
 
     private fun count(value: Int, one: String, many: String): String = "$value ${if (value == 1) one else many}"

@@ -45,6 +45,13 @@ struct FullRankingsScreen: View {
     /// The pinned footer jumped to the player's page: bring their row into view once
     /// that page is shown (leaderboard-row R7, issue #318).
     @State private var focusPending = false
+    /// The rows' first-load fade window: a scroll rushes their stagger, rows the
+    /// selected-row scroll realizes fade in with it, and once it closes recycled rows
+    /// appear without a fade (load-transition R5, issue #323).
+    @State private var fadeScope = FestivalFadeInScope()
+    /// Counts the reload gate's reveals: each revealed page re-arms ``fadeScope`` (web
+    /// `resetRush` on paginate).
+    @State private var rowsReveal = 0
     @Environment(\.deviceLayout) private var layout
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
@@ -141,7 +148,10 @@ struct FullRankingsScreen: View {
         let chromeTop = bottomChromeTop
         // Instrument, metric and page changes fade the board out, show the spinner and
         // fade the new page in (web LoadGate, issue #71).
-        FestivalReloadGate(key: requestKey, isLoading: state.isLoading, spinnerLabel: "Loading rankings") {
+        FestivalReloadGate(
+            key: requestKey, isLoading: state.isLoading, spinnerLabel: "Loading rankings",
+            onReveal: { rowsReveal += 1 }
+        ) {
             switch state {
             case .loading:
                 EmptyView()
@@ -153,8 +163,11 @@ struct FullRankingsScreen: View {
                 ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: Self.rowGap) {
+                        // The title and count fade in at once, like the web page header;
+                        // the rows stagger beneath them.
                         RankingsPageTitle(instrument: instrument, title: Self.title(for: instrument), style: .header)
                             .padding(.top, 8)
+                            .festivalFadeInOnAppear()
                             .onGeometryChange(for: Bool.self) { proxy in
                                 SongDetailPinnedTitlePolicy.isHeroHidden(
                                     titleMaxY: proxy.frame(in: .scrollView).maxY
@@ -167,27 +180,34 @@ struct FullRankingsScreen: View {
                                 text: RankingsCountText.rankedPlayers(board.totalAccounts),
                                 id: "fst.full-rankings.ranked-count"
                             )
+                            .festivalFadeInOnAppear()
                         }
                         if payload.rankings.entries.isEmpty {
                             Text("No ranked players yet.")
                                 .foregroundStyle(FestivalText.primary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                                .festivalFadeInOnAppear()
                         }
-                        ForEach(payload.rankings.entries) { entry in
+                        ForEach(Array(payload.rankings.entries.enumerated()), id: \.element.id) { index, entry in
                             AccountRankingRow(
                                 entry: entry, metric: rankBy,
                                 isSelected: isSelectedAccount(entry.accountId), cardSurface: true
                             )
                             .macKeyboardRow(entry.id)
+                            // Web `PaginatedLeaderboard` row stagger; the page scope
+                            // decides whether it still fades (R5).
+                            .festivalFadeIn(staggerIndex: index)
                         }
                     }
                     .macKeyboardRows(AccountRankingRow.keyRows(payload.rankings.entries))
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
                     .padding(.bottom, Self.rowGap)
-                    // Each loaded page fades in once (web load-in), not per row on scroll.
-                    .festivalFadeInOnAppear()
                 }
+                // One fade window per revealed page (web `resetRush` on paginate):
+                // scrolling while the rows stagger in, or the selected-row scroll, fades
+                // the rest in together (#323).
+                .festivalScrollFadeInScope(fadeScope, resetKey: rowsReveal)
                 // Rows fade out over up to 36 pt above the pinned footer and pager and
                 // are not drawn beneath them, exactly like Song Leaderboard (issue #294;
                 // web `useScrollFade`, issue #93). The fade shrinks away as the last row
@@ -200,13 +220,18 @@ struct FullRankingsScreen: View {
                 // once the page is shown, as Song Leaderboard does (R7, issue #318).
                 .task(id: FocusRequest(pending: focusPending, rows: rowsKey(payload))) {
                     guard focusPending else { return }
-                    guard let target = payload.rankings.entries.first(where: {
+                    let entries = payload.rankings.entries
+                    guard let targetIndex = entries.firstIndex(where: {
                         isSelectedAccount($0.accountId)
                     }) else {
                         focusPending = false
                         return
                     }
-                    if await SelectedRowReveal.reveal(target.id, proxy: proxy, reduceMotion: reduceMotion) {
+                    // After the row's own entrance (web `navToPlayer`, #323).
+                    if await SelectedRowReveal.reveal(
+                        entries[targetIndex].id, proxy: proxy, reduceMotion: reduceMotion,
+                        staggerIndex: targetIndex, scope: fadeScope
+                    ) {
                         focusPending = false
                     }
                 }

@@ -31,23 +31,29 @@
         </SelectorBar>
 
         <Grid Grid.Row="2" Grid.RowSpan="2">
-            <ScrollViewer Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}" x:Name="Scroller"
-                          controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
-                          AutomationProperties.AutomationId="fst.player-bands.list">
-                <ItemsRepeater x:Name="Cards" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Entries, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="120" Margin="0,4,0,16" MaxWidth="1200">
-                    <ItemsRepeater.Layout>
-                        <!-- Rows size to their tallest card: All Bands mixes two-, three- and four-member cards, which
-                             UniformGridLayout (every item sized from the first) clipped. Non-virtualizing (25 cards per
-                             page), so every card is realized for arrow keys and UI Automation. -->
-                        <controls:LeaderboardsCardGridLayout MinColumnWidth="320" MaxColumns="3" Spacing="12" />
-                    </ItemsRepeater.Layout>
-                    <ItemsRepeater.ItemTemplate>
-                        <DataTemplate x:DataType="vm:PlayerBandCardViewModel">
-                            <controls:BandCardView Card="{x:Bind}" />
-                        </DataTemplate>
-                    </ItemsRepeater.ItemTemplate>
-                </ItemsRepeater>
-            </ScrollViewer>
+            <!-- The cards end at the floating pager through the bottom-chrome ramp (BoardFooterFade, issue #308). The wrapper
+                 is the fade source because the load swap animates the ScrollViewer's own visual. -->
+            <Grid x:Name="BoardFadeSource">
+                <ScrollViewer Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}" x:Name="Scroller"
+                              controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
+                              AutomationProperties.AutomationId="fst.player-bands.list">
+                    <ItemsRepeater x:Name="Cards" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Entries, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="120" Margin="0,4,0,16" MaxWidth="1200">
+                        <ItemsRepeater.Layout>
+                            <!-- Rows size to their tallest card: All Bands mixes two-, three- and four-member cards, which
+                                 UniformGridLayout (every item sized from the first) clipped. Non-virtualizing (25 cards per
+                                 page), so every card is realized for arrow keys and UI Automation. -->
+                            <controls:LeaderboardsCardGridLayout MinColumnWidth="320" MaxColumns="3" Spacing="12" />
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="vm:PlayerBandCardViewModel">
+                                <controls:BandCardView Card="{x:Bind}" />
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                </ScrollViewer>
+            </Grid>
+            <!-- Paints BoardFadeSource with its cards faded above the pager; never hit-testable, UIA raw view only. -->
+            <controls:EdgeFadeLayer x:Name="BoardFadeHost" AutomationProperties.AutomationId="fst.player-bands.footer-fade" />
 
             <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="48" Height="48"
                           controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Spinner"
@@ -68,6 +74,11 @@
                            TextWrapping="Wrap" />
             </StackPanel>
         </Grid>
+
+        <!-- Contrast themes only: the footer fade cuts the cards hard at the pager's top and this window-colour plate (pager
+             height plus its margin, sized by BoardFooterFade) backs its buttons (issue #305). Never hit-testable. -->
+        <Border x:Name="FooterPlate" Grid.Row="2" Grid.RowSpan="2" VerticalAlignment="Bottom" IsHitTestVisible="False"
+                Visibility="Collapsed" Background="{ThemeResource FSTFloatingBackplateBrush}" />
 
         <!-- Shared board pager floating over the cards (web FixedLeaderboardPagination; operator batch 7.4). -->
         <controls:LeaderboardsPager x:Name="Footer" Grid.Row="2" Grid.RowSpan="2" VerticalAlignment="Bottom" Margin="0,0,0,12"
