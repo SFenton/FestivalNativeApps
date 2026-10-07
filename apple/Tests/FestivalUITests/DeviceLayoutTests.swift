@@ -247,3 +247,46 @@ func verticalBarFallbackPose(widthClass: WidthClass, expected: DeviceLayout.Pose
     #expect(folded.cutoutInsets.top == Duo.cameraTopTrailing.maxY)
     #expect(DeviceLayout.standardPhone.cutoutInsets == EdgeInsets())
 }
+
+// MARK: - Debug simulated Duo window (#337 journey)
+
+/// `FST_DEBUG_DUO_WINDOW` values and Darwin notification names parse to the same window.
+@Test func debugDuoWindowParsesLaunchValuesAndNotificationNames() {
+    for window in DebugDuoWindow.allCases {
+        #expect(DebugDuoWindow.parse(window.rawValue) == window)
+        #expect(DebugDuoWindow.parse(window.notificationName) == window)
+    }
+    #expect(DebugDuoWindow.parse("com.festival.debug.duo-window.half") == nil)
+    #expect(DebugDuoWindow.parse("unfolded") == nil)
+    #expect(DebugDuoWindow.parse(nil) == nil)
+}
+
+/// Each simulated window resolves to the real pose's layout, and none to the wide
+/// section set, from whatever window the simulator really has.
+@Test func debugDuoWindowResolvesEachPoseWithThePhoneSectionSet() {
+    let observed = LayoutSignals(
+        size: Duo.outerPortrait, widthClass: .compact,
+        safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 84),
+        verticalBarEdge: .trailing, hinge: .closed, occlusions: [Duo.cameraTopTrailing]
+    )
+    let folded = DeviceLayout.resolve(DebugDuoWindow.folded.apply(to: observed))
+    #expect(folded.pose == .folded)
+    #expect(folded.widthClass == .compact)
+    #expect(folded.sectionChrome == .verticalBar(.trailing))
+
+    let landscape = DeviceLayout.resolve(DebugDuoWindow.unfoldedLandscape.apply(to: observed))
+    #expect(landscape.pose == .unfolded)
+    #expect(landscape.size == Duo.innerLandscape)
+    #expect(landscape.widthClass == .regular)
+    #expect(landscape.sectionChrome == .verticalBar(.trailing))
+
+    let portrait = DeviceLayout.resolve(DebugDuoWindow.unfoldedPortrait.apply(to: observed))
+    #expect(portrait.size == Duo.innerPortrait)
+    #expect(portrait.widthClass == .regular)
+    #expect(portrait.sectionChrome == .tabBar)
+
+    for layout in [folded, landscape, portrait] {
+        #expect(!layout.usesRegularSectionSet)
+        #expect(layout.foldFrame == nil)
+    }
+}
