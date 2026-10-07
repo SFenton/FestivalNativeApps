@@ -34,7 +34,7 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * Pixels of the board's footer edge (issues #93, #308): rows are hidden beneath a transparent
- * floating footer and fade out over the 36 dp linear ramp above it (the web's `useScrollFade`),
+ * floating footer and fade out over the 40 dp linear ramp above it (the web board's `useScrollMask`),
  * unless the board opts out. Accessibility modes keep the cut with no ramp (scroll-edge R7).
  */
 @RunWith(AndroidJUnit4::class)
@@ -84,13 +84,13 @@ class BoardFooterFadeDrawUiTest {
         val image = board(fade = true)
         val cut = rule.onNodeWithTag("fst.t.bottom-bar").fetchSemanticsNode().positionInWindow.y.toInt() - image.y
         assertFalse("no row shows beneath the footer", image.redIn(cut + 1 until 800))
-        assertTrue("rows above the band are untouched", (cut - 200 until cut - 37).all { image.redAt(it).let { r -> r > 0.95f || r < 0.02f } })
-        assertTrue(image.redIn(cut - 200 until cut - 37))
-        // The 36 dp linear ramp fades out towards the cut (rows sit 12 dp apart, so gaps read 0).
-        val band = (cut - 36 until cut).filter { image.redAt(it) > 0.01f }
+        assertTrue("rows above the band are untouched", (cut - 200 until cut - 41).all { image.redAt(it).let { r -> r > 0.95f || r < 0.02f } })
+        assertTrue(image.redIn(cut - 200 until cut - 41))
+        // The 40 dp linear ramp fades out towards the cut (rows sit 12 dp apart, so gaps read 0).
+        val band = (cut - 40 until cut).filter { image.redAt(it) > 0.01f }
         assertTrue(band.size > 20)
         assertTrue(band.zipWithNext().all { (a, b) -> image.redAt(b) <= image.redAt(a) + 0.01f })
-        assertTrue("never above the linear ramp", (cut - 36 until cut).all { image.redAt(it) <= (cut - it) / 36f + 0.05f })
+        assertTrue("never above the linear ramp", (cut - 40 until cut).all { image.redAt(it) <= (cut - it) / 40f + 0.05f })
         assertTrue("linear, not eased", band.any { image.redAt(it) in 0.3f..0.7f })
         assertTrue(image.redAt(cut - 1) < 0.1f)
     }

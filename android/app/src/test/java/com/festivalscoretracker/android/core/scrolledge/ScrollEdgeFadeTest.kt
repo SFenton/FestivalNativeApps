@@ -6,11 +6,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ScrollEdgeFadeTest {
-    /** R3: the web's ramps, `useScrollMask` 40 px at the top and `useScrollFade` 36 px at the bottom. */
+    /** R3: the web's `useScrollMask` 40 px at the top and at a board's footer (#305 review, #190). */
     @Test
     fun rampsMatchTheWeb() {
         assertEquals(40f, ScrollEdgeFade.TOP_DP)
-        assertEquals(36f, ScrollEdgeFade.BOTTOM_DP)
+        assertEquals(40f, ScrollEdgeFade.BOTTOM_DP)
     }
 
     @Test
