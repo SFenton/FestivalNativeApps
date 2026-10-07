@@ -11,6 +11,10 @@ enum CarouselPaging {
     static let maximumDots = 10
     /// Load the next page once a card this close to the end appears.
     static let loadMoreThreshold = 2
+    /// Gap between cards, in points.
+    static let spacing: CGFloat = 12
+    /// Leading/trailing content margin, in points.
+    static let margin: CGFloat = 16
 
     /// How many cards fit side by side.
     ///
@@ -25,6 +29,17 @@ enum CarouselPaging {
         guard usable > 0, minimumCardWidth > 0 else { return 1 }
         let fit = Int(((usable + spacing) / (minimumCardWidth + spacing)).rounded(.down))
         return min(max(fit, 1), maximumColumns)
+    }
+
+    /// How many cards a ``HorizontalCarousel`` of this width shows side by side, with its
+    /// own spacing and margins.
+    ///
+    /// - Parameters:
+    ///   - width: Carousel width in points.
+    ///   - minimumCardWidth: Narrowest readable card.
+    /// - Returns: At least one, at most ``maximumColumns``.
+    static func columns(width: CGFloat, minimumCardWidth: CGFloat) -> Int {
+        columns(width: width, minimumCardWidth: minimumCardWidth, spacing: spacing, margin: margin)
     }
 
     /// The page an adjustable (VoiceOver swipe up/down) or button step lands on.
@@ -99,12 +114,17 @@ enum CarouselPaging {
 ///   adjustable element ("Suggestions, Page 3 of 12") that pages with swipe up/down.
 /// - Reduce Motion (system or the app's setting): programmatic paging jumps without
 ///   animation.
+/// - Entrance: the carousel fades in when it appears; with `entranceIndex`, inside a page's
+///   fade scope, its cards instead fade in on the page's reading-order stagger, and a
+///   swipe (or a card's own scroll) rushes the page's pending fades like a page scroll
+///   (load-transition R5).
 struct HorizontalCarousel<Item: Identifiable, Card: View>: View {
     private let title: String
     private let items: [Item]
     private let minimumCardWidth: CGFloat
     private let hasMore: Bool
     private let onNearEnd: (() -> Void)?
+    private let entranceIndex: Int?
     private let card: (Item) -> Card
 
     @State private var position: Item.ID?
@@ -112,8 +132,8 @@ struct HorizontalCarousel<Item: Identifiable, Card: View>: View {
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
 
-    private let spacing: CGFloat = 12
-    private let margin: CGFloat = 16
+    private let spacing = CarouselPaging.spacing
+    private let margin = CarouselPaging.margin
 
     /// Create a carousel.
     ///
@@ -123,11 +143,14 @@ struct HorizontalCarousel<Item: Identifiable, Card: View>: View {
     ///   - minimumCardWidth: Narrowest card; decides how many show side by side.
     ///   - hasMore: True while an endless source can load more.
     ///   - onNearEnd: Called when a card near the end appears (load the next page).
+    ///   - entranceIndex: The first card's position in the page's first-load stagger
+    ///     (card `n` fades at `entranceIndex + n`, the indicator with the first card), or
+    ///     nil to fade the whole carousel in when it appears.
     ///   - card: Builds one card's content (the carousel adds no card chrome, so pass
     ///     `FestivalGlassSection` or `festivalCard` cards).
     init(
         _ title: String, items: [Item], minimumCardWidth: CGFloat = 300,
-        hasMore: Bool = false, onNearEnd: (() -> Void)? = nil,
+        hasMore: Bool = false, onNearEnd: (() -> Void)? = nil, entranceIndex: Int? = nil,
         @ViewBuilder card: @escaping (Item) -> Card
     ) {
         self.title = title
@@ -135,6 +158,7 @@ struct HorizontalCarousel<Item: Identifiable, Card: View>: View {
         self.minimumCardWidth = minimumCardWidth
         self.hasMore = hasMore
         self.onNearEnd = onNearEnd
+        self.entranceIndex = entranceIndex
         self.card = card
     }
 
@@ -161,9 +185,11 @@ struct HorizontalCarousel<Item: Identifiable, Card: View>: View {
                         ScrollView(.vertical) {
                             card(item)
                                 .frame(maxWidth: .infinity, alignment: .top)
+                                .festivalFadeInRushOnScroll(.vertical)
                         }
                         .scrollIndicators(.hidden)
                         .scrollBounceBehavior(.basedOnSize)
+                        .festivalFadeIn(staggerIndex: entranceIndex.map { $0 + offset })
                         .containerRelativeFrame(.horizontal, count: columns, span: 1, spacing: spacing)
                         .onAppear {
                             if CarouselPaging.shouldLoadMore(appearing: offset, count: items.count, hasMore: hasMore) {
@@ -173,6 +199,7 @@ struct HorizontalCarousel<Item: Identifiable, Card: View>: View {
                     }
                 }
                 .scrollTargetLayout()
+                .festivalFadeInRushOnScroll(.horizontal)
             }
             .scrollIndicators(.hidden)
             .scrollTargetBehavior(.viewAligned)
@@ -182,11 +209,12 @@ struct HorizontalCarousel<Item: Identifiable, Card: View>: View {
             // horizontal scroll view otherwise draws its content under it.
             .clipped()
             .accessibilityIdentifier(scrollIdentifier)
-            .festivalFadeInOnAppear()
+            .modifier(CarouselTrackEntrance(staggersCards: entranceIndex != nil))
             .onGeometryChange(for: CGFloat.self, of: { $0.size.width.rounded() }) { width = $0 }
 
             if items.count > columns || hasMore {
                 indicator
+                    .festivalFadeIn(staggerIndex: entranceIndex)
             }
         }
     }
@@ -233,6 +261,22 @@ struct HorizontalCarousel<Item: Identifiable, Card: View>: View {
             position = items[target].id
         } else {
             withAnimation(.smooth) { position = items[target].id }
+        }
+    }
+}
+
+// MARK: - Entrance
+
+/// The carousel track's own fade: the whole track when it appears, or none when its cards
+/// carry the page's staggered entrances.
+private struct CarouselTrackEntrance: ViewModifier {
+    let staggersCards: Bool
+
+    func body(content: Content) -> some View {
+        if staggersCards {
+            content
+        } else {
+            content.festivalFadeInOnAppear()
         }
     }
 }

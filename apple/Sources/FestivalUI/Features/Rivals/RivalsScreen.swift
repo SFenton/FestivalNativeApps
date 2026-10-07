@@ -397,34 +397,76 @@ struct RivalComboSection: View {
 
 // MARK: - Per-instrument song section
 
-/// One instrument's "shared songs" rivals, loaded independently of its siblings.
-///
-/// Shared verbatim by `CompeteScreen`, which registers its own coarser "Rivals"
-/// Quick Links section instead of one per instrument — pass
-/// `registersQuickLink: false` there so this view's own per-instrument tag
-/// doesn't also register into the enclosing page's controller.
+/// One instrument's "shared songs" rivals on the Rivals hub, loaded independently of its
+/// siblings; it renders ``RivalInstrumentSongCard``. Compete reads its rivals for the
+/// whole page instead (``CompeteHubModel``, #354) and uses the card directly.
 struct RivalInstrumentSongSection: View {
     let session: FestivalSession
     let instrument: Instrument
     /// Scope a tapped rival opens with. `RivalsScreen` passes the Settings scope,
     /// as the web's `RivalsPage.navigateToRival` does for every hub section.
-    /// `CompeteScreen` leaves it nil, so a row opens this instrument's comparison
+    var detailScope: RivalScope? = nil
+    @State private var state: RivalsLoadState<RivalsListResponse> = .loading
+    /// Skips the reload `.task(id:)` starts on every reappearance (Back from a pushed
+    /// page), which flashed the rows to a spinner and shifted the page (#39).
+    @State private var gate = ReappearanceLoadGate<CompeteSectionLoadKey>()
+
+    private var loadKey: CompeteSectionLoadKey {
+        CompeteSectionLoadKey(instrument: instrument, session: session)
+    }
+
+    var body: some View {
+        RivalInstrumentSongCard(
+            instrument: instrument, state: state, detailScope: detailScope
+        ) { Task { await load() } }
+        .task(id: loadKey) {
+            guard gate.needsLoad(for: loadKey) else { return }
+            await load()
+        }
+    }
+
+    @MainActor
+    private func load() async {
+        let key = loadKey
+        state = .loading
+        do {
+            state = .loaded(try await session.rivalsList(instrument: instrument))
+            gate.markLoaded(key)
+        } catch is CancellationError {
+        } catch {
+            state = .failed(ServiceIssue(error))
+        }
+    }
+}
+
+// MARK: - Per-instrument song card
+
+/// One instrument's "shared songs" rivals card: its instrument header, the material card
+/// of rows (or its spinner, empty copy or error), and "View All Rivals" below it.
+///
+/// Shared by the Rivals hub (``RivalInstrumentSongSection``, which loads it) and Compete
+/// (which passes the page's state and its stagger position).
+struct RivalInstrumentSongCard: View {
+    let instrument: Instrument
+    let state: RivalsLoadState<RivalsListResponse>
+    /// Scope a tapped rival opens with; nil opens this instrument's comparison
     /// (web `CompetePage`: `combo: scope.queryValue`).
     var detailScope: RivalScope? = nil
+    /// Whether the card registers its own Quick Links section. Compete passes false: it
+    /// registers one coarser "Rivals" section instead.
     var registersQuickLink = true
     /// When set, an empty result renders this sentence instead of hiding the
     /// section entirely. `RivalsScreen` leaves this nil — its per-instrument
     /// sections are meant to be skipped when empty (`.agents/pages/rivals/ios.md`).
     /// `CompeteScreen` sets it: its coarse "Rivals" header must never show
-    /// nothing underneath (previously every instrument going empty left a bare
-    /// header), matching the web's `compete.noRivalsSubtitle` copy and how its
-    /// own Leaderboards section always renders a per-instrument card even when
-    /// empty (`CompeteInstrumentLeaderboardSection`).
+    /// nothing underneath, matching the web's `compete.noRivalsSubtitle` copy and how its
+    /// own Leaderboards section always renders a per-instrument card even when empty.
     var emptyMessage: String? = nil
-    @State private var state: RivalsLoadState<RivalsListResponse> = .loading
-    /// Skips the reload `.task(id:)` starts on every reappearance (Back from a pushed
-    /// page), which flashed the rows to a spinner and shifted Compete (#39).
-    @State private var gate = ReappearanceLoadGate<CompeteSectionLoadKey>()
+    /// The card's place in the page's first-load stagger (Compete, #354); nil fades only
+    /// loaded rows in as they arrive (the Rivals hub's independent sections).
+    var entranceIndex: Int? = nil
+    /// Reads the rivals again after a failure.
+    let retry: () -> Void
 
     private let previewCount = 3
 
@@ -432,31 +474,20 @@ struct RivalInstrumentSongSection: View {
         detailScope ?? .song(instruments: [instrument.rawValue])
     }
 
-    private var loadKey: CompeteSectionLoadKey {
-        CompeteSectionLoadKey(instrument: instrument, session: session)
-    }
-
     var body: some View {
-        content.task(id: loadKey) {
-            guard gate.needsLoad(for: loadKey) else { return }
-            await load()
-        }
-    }
-
-    @ViewBuilder private var content: some View {
         switch state {
         case .loading:
             shell { FestivalLoadingView(accessibilityLabel: "Loading").frame(maxWidth: .infinity).padding(.vertical, 12) }
         case let .failed(issue):
-            shell { ServiceStatusInline(issue, scope: "rivals.song.\(instrument.rawValue)") { Task { await load() } } }
+            entrance(shell { ServiceStatusInline(issue, scope: "rivals.song.\(instrument.rawValue)", retry: retry) })
         case let .loaded(response) where response.isEmpty:
             if let emptyMessage {
-                shell { FestivalFootnote(emptyMessage) }
+                entrance(shell { FestivalFootnote(emptyMessage) })
             } else {
                 EmptyView()
             }
         case let .loaded(response):
-            taggedShell(viewAll: RivalsViewAllButton(
+            entrance(taggedShell(viewAll: RivalsViewAllButton(
                 route: AppRoute.allRivals(scope: .song(instruments: [instrument.rawValue])),
                 identifier: "fst.rivals.song.\(instrument.rawValue).view-all"
             )) {
@@ -481,8 +512,24 @@ struct RivalInstrumentSongSection: View {
                         scope: rowDetailScope
                     ))
                 )
-            })
-            .festivalFadeIn(isLoaded: true)
+            }), loadedOnly: true)
+        }
+    }
+
+    /// The card's entrance: its place in the page stagger when it has one; otherwise
+    /// loaded rows fade in as they arrive and messages appear at once.
+    ///
+    /// - Parameters:
+    ///   - content: The settled card.
+    ///   - loadedOnly: Whether this is the loaded rows (faded without a page stagger).
+    /// - Returns: The card with its entrance fade.
+    @ViewBuilder private func entrance<Content: View>(_ content: Content, loadedOnly: Bool = false) -> some View {
+        if let entranceIndex {
+            content.festivalFadeIn(isLoaded: true, index: entranceIndex)
+        } else if loadedOnly {
+            content.festivalFadeIn(isLoaded: true)
+        } else {
+            content
         }
     }
 
@@ -527,19 +574,6 @@ struct RivalInstrumentSongSection: View {
             ))
         } else {
             shell(viewAll: viewAll, content)
-        }
-    }
-
-    @MainActor
-    private func load() async {
-        let key = loadKey
-        state = .loading
-        do {
-            state = .loaded(try await session.rivalsList(instrument: instrument))
-            gate.markLoaded(key)
-        } catch is CancellationError {
-        } catch {
-            state = .failed(ServiceIssue(error))
         }
     }
 }
