@@ -96,7 +96,7 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
     {
         var shown = ViewModel.Spotlight.IsVisible;
         if (PinnedRowReveal.FadesOnArrival(spotlightShown, shown, ViewModel.LoadSwap.Phase))
-            DispatcherQueue.TryEnqueue(() => FadeIn.Play(FooterSpotlight, TimeSpan.Zero));
+            DispatcherQueue.TryEnqueue(() => FadeIn.Play(FooterSpotlight));
         spotlightShown = shown;
     }
     #endregion
@@ -122,16 +122,16 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
     }
 
     /// <summary>
-    /// Centres the selected player's row on a newly shown page (pattern <c>leaderboard-row</c> R7). Keyboard focus stays
-    /// on the pinned row that jumped, which remains in place, so a second Enter opens the profile. The reveal waits for
-    /// the row's own entrance and rushes the rest (<see cref="FadeIn.RevealSelected"/>, issue #307).
+    /// Centres the selected player's row on a newly shown page (pattern <c>leaderboard-row</c> R7) once its own entrance
+    /// has finished, rushing the rest (<see cref="SelectedRowReveal"/>, issues #307 and #323). Keyboard focus stays on the
+    /// pinned row that jumped, which remains in place, so a second Enter opens the profile.
     /// </summary>
     private void RevealSelected()
     {
         if (revealSelected is not { } index || !ViewModel.ShowRows) return;
         revealSelected = null;
         var rows = ViewModel.Rows;
-        FadeIn.RevealSelected(RowsRepeater, index, () =>
+        SelectedRowReveal.Start(RowsRepeater, index, () =>
         {
             if (!ReferenceEquals(ViewModel.Rows, rows) || RowsRepeater.GetOrCreateElement(index) is not LeaderboardEntryRow row) return;
             // A freshly realized row has no arranged position yet; bringing it into view before layout is a no-op.
@@ -165,7 +165,7 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
         DispatcherQueue.TryEnqueue(() =>
         {
             FadeIn.StaggerRealized(RowsRepeater);
-            if (ViewModel.Spotlight.IsVisible && ViewModel.PinnedGate.IsGated) FadeIn.Play(FooterSpotlight, PinnedRowReveal.RevealDelay);
+            if (ViewModel.Spotlight.IsVisible && ViewModel.PinnedGate.IsGated) FadeIn.Enter(RowsRepeater, FooterSpotlight, PinnedRowReveal.RevealDelay);
             RevealSelected();
         });
 

@@ -344,5 +344,85 @@ class DetailNameTests(unittest.TestCase):
         self.assertEqual(payload["rival"]["displayName"], "Demo Rival 2")
 
 
+class RivalDetailStateTests(unittest.TestCase):
+    """Rival Detail's loading, flaky, frozen and down accounts (issue #284) touch only song-rival detail reads."""
+
+    RIVAL = "f1c749eb07c32578cfa3e59ec38c03a8"
+
+    def test_state_comes_from_the_viewing_account(self):
+        for account, state in (("fixture-player-detail-loading", "slow"), ("fixture-player-detail-flaky", "flaky"),
+                               ("fixture-player-detail-frozen", "frozen"), ("fixture-player-detail-down", "down"),
+                               ("fixture-player-1", None)):
+            path = f"/api/player/{account}/rivals/Solo_Guitar/{self.RIVAL}?limit=0&sort=closest"
+            self.assertEqual(f.rival_detail_state(path), state, account)
+        for path in ("/api/player/fixture-player-detail-frozen/rivals/Solo_Guitar",
+                     "/api/player/fixture-player-detail-frozen/rivals/all",
+                     f"/api/player/fixture-player-detail-frozen/leaderboard-rivals/Solo_Guitar/{self.RIVAL}", "/api/songs"):
+            self.assertIsNone(f.rival_detail_state(path), path)
+
+    def test_loading_marker_does_not_slow_the_lists(self):
+        self.assertEqual(f.rivals_list_delay("/api/player/fixture-player-detail-loading/rivals/Solo_Guitar"), 0.0)
+        self.assertTrue(0 < f.SLOW_DETAIL_SECONDS < 30)
+
+    def test_flaky_reads_alternate_per_path(self):
+        reads: dict[str, int] = {}
+        a, b = "/a", "/b"
+        self.assertEqual([f.flaky_detail_fails(p, reads) for p in (a, a, b, a, a, b)], [True, False, True, True, False, False])
+
+    def test_rivals_all_rebuilds_the_demo_detail(self):
+        body = f.rivals_all_body("fixture-player-detail-frozen")
+        detail = ms.RIVAL_DETAIL_DEMO
+        entry = body["combos"][0]["above"][0]
+        self.assertEqual((body["accountId"], entry["accountId"]), ("fixture-player-detail-frozen", detail["rival"]["accountId"]))
+        self.assertEqual(len(entry["samples"]), len(detail["songs"]))
+        for sample, row in zip(entry["samples"], detail["songs"]):
+            self.assertEqual((body["songs"][sample["s"]], sample["i"], sample["ur"], sample["rr"]),
+                             (row["songId"], row["instrument"], row["userRank"], row["rivalRank"]))
+        self.assertEqual(entry["aheadCount"] + entry["behindCount"], entry["sharedSongCount"])
+
+    def test_install_serves_each_state(self):
+        original = ms.FixtureHandler.do_GET
+        served, answered, statuses, slept = [], [], [], []
+        ms.FixtureHandler.do_GET = lambda handler: served.append(handler.path)
+        real_sleep = f.time.sleep
+        f.time.sleep = slept.append
+        f._detail_reads.clear()
+
+        class Handler:
+            def _json(self, status, body):
+                answered.append((self.path, status, body))
+
+            def send_response(self, status):
+                statuses.append((self.path, status))
+
+            def send_header(self, *_):
+                pass
+
+            def end_headers(self):
+                pass
+
+        detail = f"/rivals/Solo_Guitar/{self.RIVAL}?limit=0&sort=closest"
+        try:
+            f.install_rival_detail_states()
+            for path in (f"/api/player/fixture-player-detail-loading{detail}",
+                         f"/api/player/fixture-player-detail-flaky{detail}", f"/api/player/fixture-player-detail-flaky{detail}",
+                         f"/api/player/fixture-player-detail-frozen{detail}", "/api/player/fixture-player-detail-frozen/rivals/all",
+                         "/api/player/fixture-player-1/rivals/all", f"/api/player/fixture-player-detail-down{detail}",
+                         f"/api/player/fixture-player-detail-down{detail}"):
+                ms.FixtureHandler.do_GET(type("H", (Handler,), {"path": path})())
+        finally:
+            ms.FixtureHandler.do_GET = original
+            f.time.sleep = real_sleep
+        self.assertEqual(slept, [f.SLOW_DETAIL_SECONDS])
+        self.assertEqual(served, [f"/api/player/fixture-player-detail-loading{detail}",
+                                  f"/api/player/fixture-player-detail-flaky{detail}", "/api/player/fixture-player-1/rivals/all"])
+        self.assertEqual([(p, s) for p, s, _ in answered],
+                         [(f"/api/player/fixture-player-detail-flaky{detail}", 500),
+                          ("/api/player/fixture-player-detail-frozen/rivals/all", 200),
+                          (f"/api/player/fixture-player-detail-down{detail}", 500),
+                          (f"/api/player/fixture-player-detail-down{detail}", 500)])
+        self.assertEqual(statuses, [(f"/api/player/fixture-player-detail-frozen{detail}", 503)])
+
+
 if __name__ == "__main__":
     unittest.main()
