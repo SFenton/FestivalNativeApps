@@ -165,7 +165,10 @@ struct FullRankingsScreen: View {
                     LazyVStack(spacing: Self.rowGap) {
                         // The title and count fade in at once, like the web page header;
                         // the rows stagger beneath them.
-                        RankingsPageTitle(instrument: instrument, title: Self.title(for: instrument), style: .header)
+                        InstrumentPageTitle(
+                            instrument: instrument, title: Self.title(for: instrument), style: .header,
+                            identifier: "fst.full-rankings.title"
+                        )
                             .padding(.top, 8)
                             .festivalFadeInOnAppear()
                             .onGeometryChange(for: Bool.self) { proxy in
@@ -266,9 +269,10 @@ struct FullRankingsScreen: View {
             // The rail of the iPhone Duo vertical bar never draws a custom title view
             // (Song Detail, `/duo` D4), so the in-list title stays the only one there.
             if !layout.sectionChrome.isVerticalBar {
-                ToolbarItem(placement: .principal) {
-                    pinnedTitle
-                }
+                InstrumentPageTitleToolbarItem(
+                    instrument: instrument, title: Self.title(for: instrument), isShown: showsPinnedTitle,
+                    identifier: "fst.full-rankings.pinned-title"
+                )
             }
             #endif
             // The instrument and Rank By are two titled items in one group, so the Duo
@@ -322,29 +326,6 @@ struct FullRankingsScreen: View {
         focusPending = false
         board = nil
         shownEntries = nil
-    }
-
-    // MARK: Title
-
-    /// The bar's icon and title once the in-list title has scrolled away.
-    ///
-    /// Built only while shown: a hidden (opacity 0) copy was still audited, and its
-    /// icon failed Dynamic Type on Song Leaderboard. Until then an empty, unspoken
-    /// placeholder holds the slot, so the bar does not fall back to `navigationTitle`
-    /// above the in-list title (issue #93).
-    @ViewBuilder
-    private var pinnedTitle: some View {
-        if showsPinnedTitle {
-            RankingsPageTitle(instrument: instrument, title: Self.title(for: instrument), style: .pinned)
-                .frame(maxWidth: 260)
-                // A bar title stays on one line at every text size.
-                .environment(\.marqueeWrapsAtAccessibilitySizes, false)
-                .transition(.opacity)
-        } else {
-            Color.clear
-                .frame(width: 1, height: 1)
-                .accessibilityHidden(true)
-        }
     }
 
     // MARK: Pinned bottom chrome
@@ -649,55 +630,4 @@ struct FullRankingsScreen: View {
 private struct InstrumentToolToken: Hashable {
     let selected: Instrument
     let choices: [Instrument]
-}
-
-// MARK: - Page title
-
-/// A rankings page title with the instrument artwork to its left (issue #294): the
-/// large heading at the top of the list, and the compact copy the bar shows once that
-/// heading has scrolled under it.
-///
-/// The artwork is decorative (the title already names the instrument), so it is hidden
-/// from VoiceOver, and it scales with the title's text style so it keeps matching the
-/// text at every Dynamic Type size (HIG Icons: "Match icon weight to adjacent text").
-/// The artwork's visible disc fills about 84% of its square, so a square slightly
-/// taller than the font's point size reads as the same height as the capitals.
-struct RankingsPageTitle: View {
-    /// Where the title is drawn.
-    enum Style {
-        /// The page's large heading, first in the scrolling content.
-        case header
-        /// The navigation bar's principal title after the heading scrolls away.
-        case pinned
-    }
-
-    let instrument: Instrument
-    let title: String
-    let style: Style
-    @ScaledMetric(relativeTo: .largeTitle) private var headerIconSide: CGFloat = 36
-    @ScaledMetric(relativeTo: .headline) private var pinnedIconSide: CGFloat = 24
-
-    var body: some View {
-        HStack(spacing: style == .header ? 10 : 6) {
-            InstrumentIcon(instrument, size: style == .header ? headerIconSide : pinnedIconSide)
-                .fixedSize()
-                .accessibilityHidden(true)
-            switch style {
-            case .header:
-                Text(title)
-                    .font(.largeTitle.bold())
-                    .foregroundStyle(FestivalText.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            case .pinned:
-                MarqueeText(title)
-                    .font(.headline)
-                    .foregroundStyle(FestivalText.primary)
-                    .lineLimit(1)
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isHeader)
-        .accessibilityIdentifier(style == .header ? "fst.full-rankings.title" : "fst.full-rankings.pinned-title")
-    }
 }

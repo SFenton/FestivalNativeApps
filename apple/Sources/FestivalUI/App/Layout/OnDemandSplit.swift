@@ -28,6 +28,11 @@ extension EnvironmentValues {
     @Entry var hidesRootTabBar = false
     /// The row to give assistive-technology focus back to after the trailing pane closed.
     @Entry var listDetailFocusReturn: ListDetailFocusReturn?
+    /// The list page beside this page while it is the root of a split's trailing pane;
+    /// nil full width, in the leading pane and on pages pushed inside the trailing pane.
+    /// Song Detail's boards drop the repeated song header beside it (#342;
+    /// ``SongLeaderboardBoardLine/showsSongHeader(besideList:)``).
+    @Entry var splitDetailBesideList: OnDemandSplitPolicy.ListPage?
 }
 
 /// Asks the leading pane's row for `route` to take assistive-technology focus: the
@@ -131,10 +136,22 @@ struct SplitPaneContext: Equatable {
     var topScrim: SplitTopScrim?
     /// The row to refocus after the trailing pane closed (leading pane only).
     var focusReturn: ListDetailFocusReturn?
+    /// The list page beside the pane (trailing pane's detail root only; pages pushed
+    /// after it get nil through ``pushedPage``).
+    var besideList: OnDemandSplitPolicy.ListPage?
+
+    /// The context for a page pushed inside this pane: the same pane, but no longer the
+    /// item opened beside the list page.
+    var pushedPage: SplitPaneContext {
+        var context = self
+        context.besideList = nil
+        return context
+    }
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.paneWidth == rhs.paneWidth && lhs.role == rhs.role && lhs.selection == rhs.selection
             && lhs.select == rhs.select && lhs.topScrim === rhs.topScrim && lhs.focusReturn == rhs.focusReturn
+            && lhs.besideList == rhs.besideList
     }
 }
 
@@ -171,6 +188,9 @@ private struct SplitPaneContextModifier: ViewModifier {
             }
             .transformEnvironment(\.listDetailFocusReturn) { focusReturn in
                 if let context { focusReturn = context.focusReturn }
+            }
+            .transformEnvironment(\.splitDetailBesideList) { page in
+                if let context { page = context.besideList }
             }
             // One backdrop behind both panes: the page draws none and its navigation
             // container is clear (`SplitPaneChrome`).
@@ -429,7 +449,8 @@ struct OnDemandSplitStack<Root: View>: View {
         }
         return FestivalTabStack(
             session: session, visibleInstruments: visibleInstruments,
-            path: binding, isVisible: isVisible, paneContext: context
+            path: binding, isVisible: isVisible, paneContext: context,
+            closeTrailing: paneWidth == nil ? nil : { close() }
         ) {
             root(binding.wrappedValue.isEmpty)
         }
@@ -466,7 +487,7 @@ struct OnDemandSplitStack<Root: View>: View {
     ///   - width: The trailing pane's width.
     /// - Returns: The trailing stack.
     private func trailingStack(cut: OnDemandSplitPolicy.Cut, selection: AppRoute, width: CGFloat) -> some View {
-        let context = SplitPaneContext(paneWidth: width, role: .trailing, topScrim: topScrim)
+        let context = SplitPaneContext(paneWidth: width, role: .trailing, topScrim: topScrim, besideList: cut.page)
         return NavigationStack(path: detailTail) {
             destination(selection)
                 .id(selection)
@@ -483,7 +504,7 @@ struct OnDemandSplitStack<Root: View>: View {
                 .navigationDestination(for: AppRoute.self) { route in
                     destination(route)
                         .modifier(TopEdgeScrim())
-                        .splitPaneContext(context)
+                        .splitPaneContext(context.pushedPage)
                         .rootTabBarVisibility()
                         .menuBarColumn(isTop: isVisible && cut.detail.last == route)
                 }
@@ -535,6 +556,59 @@ struct SplitCloseButton: View {
         .keyboardShortcut(.escape, modifiers: [])
         .help("Close (Esc)")
         .accessibilityIdentifier("fst.split.close")
+    }
+}
+
+/// Back on the leading pane's pushed list page (Song Detail, Full Rankings, …): it
+/// closes the open item first and pops the page only once nothing is open (issue #347;
+/// split-view.md "Close, Escape, ⌘[ or Back" closes the trailing pane). The standard
+/// chevron with no text, as the system Back (HIG Toolbars: "prefer their standard
+/// symbols without text labels").
+struct SplitListBackButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label("Back", systemImage: "chevron.backward")
+        }
+        .help("Back (⌘[)")
+        .accessibilityIdentifier("fst.split.list-back")
+    }
+}
+
+extension View {
+    /// While the trailing pane is open, replace the leading page's system Back (which
+    /// would pop the list page and the open item together) with ``SplitListBackButton``
+    /// running `close`. A no-op with no action, so the system Back and its edge swipe
+    /// stay while nothing is open, and on iPhone.
+    ///
+    /// - Parameter close: Closes the trailing pane, or nil while nothing is open.
+    /// - Returns: The page.
+    func splitListBack(_ close: (() -> Void)?) -> some View {
+        modifier(SplitListBack(close: close))
+    }
+}
+
+/// Implementation of ``SwiftUI/View/splitListBack(_:)``.
+private struct SplitListBack: ViewModifier {
+    let close: (() -> Void)?
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content
+            .navigationBarBackButtonHidden(close != nil)
+            .toolbar {
+                if let close {
+                    ToolbarItem(placement: .topBarLeading) {
+                        // The system Back's label colour, not the accent tint.
+                        SplitListBackButton(action: close)
+                            .tint(BrandTokens.textPrimary)
+                    }
+                }
+            }
+        #else
+        content
+        #endif
     }
 }
 

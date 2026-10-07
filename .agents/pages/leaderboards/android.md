@@ -86,7 +86,7 @@ Material 3 review (Compose): rows are 48 dp touch targets ("touch targets (~48dp
 
 ## IDs
 
-`fst.leaderboards` (list), `fst.leaderboards.loading`, `fst.leaderboards.rank-history` (`.picker`, `.picker.<instrument>`, `.loading`, `.empty`), `fst.quick-links.open|sheet|menu|item.<id>` (ids `rank-history`, `instrument:<wire>`, `band:<wire>`), `fst.leaderboards.card.<instrument>`, `.view-all`, `.spotlight`, `.spotlight.loading`, `.spotlight.unranked`, `fst.leaderboards.band-card.<bandType>`, `.view-all`, `fst.leaderboards.bands-link`, `fst.rankings.rank-by-menu`, `fst.rankings.rank-by.<metric>`, `fst.rankings.row.<accountId|anonymous-…>`, `fst.band-rankings.row.<teamKey>`. Screens set `testTagsAsResourceId` so `device.py drive` can use `id=`.
+`fst.leaderboards` (list), `fst.leaderboards.loading`, `fst.leaderboards.rank-history` (`.picker`, `.picker.<instrument>`, `.loading`, `.empty`), `fst.quick-links.open|sheet|menu|item.<id>` (ids `rank-history`, `instrument:<wire>`, `band:<wire>`), `fst.leaderboards.card.<instrument>`, `.view-all`, `.spotlight`, `.spotlight.loading`, `.spotlight.unranked`, `fst.leaderboards.band-card.<bandType>`, `.view-all`, `fst.leaderboards.bands-header` (kept in the leading pane on a half-open book fold, section-headers R10), `fst.leaderboards.bands-link`, `fst.rankings.rank-by-menu`, `fst.rankings.rank-by.<metric>`, `fst.rankings.row.<accountId|anonymous-…>`, `fst.band-rankings.row.<teamKey>`. Screens set `testTagsAsResourceId` so `device.py drive` can use `id=`.
 
 ## Open
 

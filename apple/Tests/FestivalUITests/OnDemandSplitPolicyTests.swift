@@ -152,6 +152,26 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
     #expect(OnDemandSplitPolicy.path(settingDetailTail: [], in: [rankings], section: .leaderboards) == [rankings])
 }
 
+/// Back on the leading pane's page closes an open item first, keeping the list page;
+/// with nothing open it pops the list page; at the section root there is no Back
+/// (issue #347).
+@Test func listBackClosesTheOpenItemFirst() throws {
+    let detail = try AppRoute.songDetail(song("s"))
+    let board = try AppRoute.songLeaderboard(song("s"), .lead, 1)
+    #expect(OnDemandSplitPolicy.pathAfterListBack([detail, board], section: .songs) == [detail])
+    #expect(OnDemandSplitPolicy.pathAfterListBack([detail], section: .songs) == [])
+    // A page pushed in the trailing pane closes with the item it was pushed from.
+    let open = [rankings, player("a"), .playerBands(accountId: "a", displayName: nil)]
+    #expect(OnDemandSplitPolicy.pathAfterListBack(open, section: .leaderboards) == [rankings])
+    #expect(OnDemandSplitPolicy.pathAfterListBack([detail, board, player("p")], section: .songs) == [detail])
+    #expect(OnDemandSplitPolicy.pathAfterListBack([rankings], section: .leaderboards) == [])
+    // A section root list page (Rivals) closes its item; at the root there is no Back.
+    #expect(OnDemandSplitPolicy.pathAfterListBack([rival("r")], section: .rivals) == [])
+    #expect(OnDemandSplitPolicy.pathAfterListBack([], section: .rivals) == nil)
+    // A page that never splits pops normally.
+    #expect(OnDemandSplitPolicy.pathAfterListBack([.bands, player("p")], section: .statistics) == [.bands])
+}
+
 // MARK: - Eligibility and geometry
 
 /// Landscape regular windows split; portrait, compact, large iPhone landscape and

@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material.icons.Icons
@@ -48,6 +47,7 @@ import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.ui.design.readingGroup
@@ -63,6 +63,9 @@ import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.ProvideFoldLane
+import com.festivalscoretracker.android.ui.common.foldLaneItem
+import com.festivalscoretracker.android.core.rivals.ColumnSpec
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlinx.coroutines.flow.distinctUntilChanged
 import com.festivalscoretracker.android.ui.common.rememberMeasuredPx
@@ -236,8 +239,10 @@ internal data class HingeSplitCells(val firstPx: Int) : StaggeredGridCells {
 /**
  * Card columns for the current window: split at a separating vertical hinge,
  * otherwise as many ≥ [MIN_COLUMN] columns as fit.
+ *
+ * @property leadingPane Leading pane width while split at the hinge (full-line items stay in it), or null.
  */
-private data class GridColumns(val cells: StaggeredGridCells, val gap: Dp, val narrow: Boolean)
+private data class GridColumns(val cells: StaggeredGridCells, val gap: Dp, val narrow: Boolean, val leadingPane: Dp? = null)
 
 @Composable
 private fun SuggestionsGrid(
@@ -289,52 +294,56 @@ private fun SuggestionsGrid(
             if (hingeStart != null && hingeStart > MIN_HALF && hingeStart < available - MIN_HALF) {
                 val gap = maxOf(hingeWidth, side)
                 val first = hingeStart - (gap - hingeWidth) / 2
-                GridColumns(HingeSplitCells(first.roundToPx()), gap, first < NARROW)
+                val panes = ColumnSpec(listOf(first.roundToPx(), (available - gap - first).roundToPx()), gap.roundToPx(), split = true)
+                GridColumns(HingeSplitCells(first.roundToPx()), gap, first < NARROW, panes.leadingPane(direction == LayoutDirection.Rtl)?.toDp())
             } else {
                 val count = maxOf(1, ((available + side) / (MIN_COLUMN + side)).toInt())
                 GridColumns(StaggeredGridCells.Fixed(count), side, (available - side * (count - 1)) / count < NARROW)
             }
         }
-        LazyVerticalStaggeredGrid(
-            columns = columns.cells,
-            state = gridState,
-            contentPadding = PaddingValues(start = start, end = end, top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(columns.gap),
-            verticalItemSpacing = 24.dp,
-            modifier = Modifier.fillMaxSize().testTag("fst.suggestions.list"),
-        ) {
-            itemsIndexed(state.cards, key = { _, card -> card.id }, contentType = { _, _ -> "card" }) { index, card ->
-                Box(Modifier.readingGroup()) {
-                    SuggestionCardView(
-                        card,
-                        columns.narrow,
-                        artworkUrl,
-                        onSong,
-                        Modifier.festivalFadeIn(
-                            index < revealedCount,
-                            fadeInStagger(index - batchStart),
-                            rushOnScroll = firstBatchEnd < 0 || index < firstBatchEnd,
-                        ),
-                    )
-                }
-            }
-            if (state.hasMore) {
-                item(key = "more", contentType = "more", span = StaggeredGridItemSpan.FullLine) {
-                    Box(Modifier.fillMaxWidth().padding(16.dp).testTag("fst.suggestions.loading-more"), contentAlignment = Alignment.Center) {
-                        FestivalLoading("Loading more suggestions")
+        // Full-line items (foldLaneItem) stay in the leading pane while split at the hinge.
+        ProvideFoldLane(columns.leadingPane) {
+            LazyVerticalStaggeredGrid(
+                columns = columns.cells,
+                state = gridState,
+                contentPadding = PaddingValues(start = start, end = end, top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(columns.gap),
+                verticalItemSpacing = 24.dp,
+                modifier = Modifier.fillMaxSize().testTag("fst.suggestions.list"),
+            ) {
+                itemsIndexed(state.cards, key = { _, card -> card.id }, contentType = { _, _ -> "card" }) { index, card ->
+                    Box(Modifier.readingGroup()) {
+                        SuggestionCardView(
+                            card,
+                            columns.narrow,
+                            artworkUrl,
+                            onSong,
+                            Modifier.festivalFadeIn(
+                                index < revealedCount,
+                                fadeInStagger(index - batchStart),
+                                rushOnScroll = firstBatchEnd < 0 || index < firstBatchEnd,
+                            ),
+                        )
                     }
                 }
-            }
-            if (state.reachedLimit) {
-                item(key = "limit", contentType = "limit", span = StaggeredGridItemSpan.FullLine) {
-                    Column(
-                        Modifier.fillMaxWidth().padding(16.dp).testTag("fst.suggestions.mix-limit"),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Text("You've reached 1,000 suggestions in this mix.", color = BrandTokens.textSecondary, textAlign = TextAlign.Center)
-                        FilledTonalButton(onClick = actions.startNewMix, modifier = Modifier.heightIn(min = 48.dp).testTag("fst.suggestions.start-new-mix")) {
-                            Text("Start a New Mix")
+                if (state.hasMore) {
+                    foldLaneItem(key = "more", contentType = "more") {
+                        Box(Modifier.fillMaxWidth().padding(16.dp).testTag("fst.suggestions.loading-more"), contentAlignment = Alignment.Center) {
+                            FestivalLoading("Loading more suggestions")
+                        }
+                    }
+                }
+                if (state.reachedLimit) {
+                    foldLaneItem(key = "limit", contentType = "limit") {
+                        Column(
+                            Modifier.fillMaxWidth().padding(16.dp).testTag("fst.suggestions.mix-limit"),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Text("You've reached 1,000 suggestions in this mix.", color = BrandTokens.textSecondary, textAlign = TextAlign.Center)
+                            FilledTonalButton(onClick = actions.startNewMix, modifier = Modifier.heightIn(min = 48.dp).testTag("fst.suggestions.start-new-mix")) {
+                                Text("Start a New Mix")
+                            }
                         }
                     }
                 }
