@@ -356,6 +356,11 @@ struct OnDemandSplitStack<Root: View>: View {
     @State private var focusToken = 0
     /// The item most recently open in the trailing pane (the row to refocus on close).
     @State private var lastSelection: AppRoute?
+    /// Whether the stacks are split-shaped; trails the window by a run-loop turn when a
+    /// fold, rotation or resize changes what it allows (``OnDemandSplitPolicy/defersWindowChange(from:to:)``).
+    @State private var appliedSplit: Bool?
+    /// The last panes the window allowed, kept while a collapse is pending.
+    @State private var heldGeometry: OnDemandSplitPolicy.Geometry?
 
     /// Create a section stack.
     ///
@@ -380,10 +385,20 @@ struct OnDemandSplitStack<Root: View>: View {
 
     private var cut: OnDemandSplitPolicy.Cut? { OnDemandSplitPolicy.cut(section: section, path: path) }
 
-    /// The panes the window allows for the list page on top, or nil.
+    /// The panes the window allows now, whatever page is on top, or nil.
+    private var windowGeometry: OnDemandSplitPolicy.Geometry? {
+        OnDemandSplitPolicy.geometry(OnDemandSplitPolicy.context(layout: layout, container: container))
+    }
+
+    /// What the window allows now, for deferring shape changes.
+    private var windowState: OnDemandSplitPolicy.WindowState {
+        OnDemandSplitPolicy.WindowState(measured: container.width > 0, allowsSplit: windowGeometry != nil)
+    }
+
+    /// The panes for the list page on top, or nil, as the stacks have applied them.
     private var geometry: OnDemandSplitPolicy.Geometry? {
         guard cut != nil else { return nil }
-        return OnDemandSplitPolicy.geometry(OnDemandSplitPolicy.context(layout: layout, container: container))
+        return OnDemandSplitPolicy.appliedGeometry(live: windowGeometry, held: heldGeometry, applied: appliedSplit)
     }
 
     var body: some View {
@@ -407,6 +422,22 @@ struct OnDemandSplitStack<Root: View>: View {
         }
         .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { frame in
             if frame != container { container = frame }
+        }
+        .onChange(of: windowGeometry, initial: true) { _, live in
+            if let live { heldGeometry = live }
+        }
+        .onChange(of: windowState, initial: true) { old, new in
+            guard appliedSplit != nil, OnDemandSplitPolicy.defersWindowChange(from: old, to: new) else {
+                appliedSplit = new.allowsSplit
+                return
+            }
+            // Fold, rotation or resize: let the window's own update (size class, display,
+            // tab bar) finish first, then push or split without animation (#346).
+            DispatchQueue.main.async {
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { appliedSplit = new.allowsSplit }
+            }
         }
         .onChange(of: open, initial: true) { wasOpen, open in
             if isVisible { openReporter?(section, isOpen: open) }
@@ -449,7 +480,8 @@ struct OnDemandSplitStack<Root: View>: View {
         }
         return FestivalTabStack(
             session: session, visibleInstruments: visibleInstruments,
-            path: binding, isVisible: isVisible, paneContext: context
+            path: binding, isVisible: isVisible, paneContext: context,
+            closeTrailing: paneWidth == nil ? nil : { close() }
         ) {
             root(binding.wrappedValue.isEmpty)
         }
@@ -555,6 +587,59 @@ struct SplitCloseButton: View {
         .keyboardShortcut(.escape, modifiers: [])
         .help("Close (Esc)")
         .accessibilityIdentifier("fst.split.close")
+    }
+}
+
+/// Back on the leading pane's pushed list page (Song Detail, Full Rankings, …): it
+/// closes the open item first and pops the page only once nothing is open (issue #347;
+/// split-view.md "Close, Escape, ⌘[ or Back" closes the trailing pane). The standard
+/// chevron with no text, as the system Back (HIG Toolbars: "prefer their standard
+/// symbols without text labels").
+struct SplitListBackButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label("Back", systemImage: "chevron.backward")
+        }
+        .help("Back (⌘[)")
+        .accessibilityIdentifier("fst.split.list-back")
+    }
+}
+
+extension View {
+    /// While the trailing pane is open, replace the leading page's system Back (which
+    /// would pop the list page and the open item together) with ``SplitListBackButton``
+    /// running `close`. A no-op with no action, so the system Back and its edge swipe
+    /// stay while nothing is open, and on iPhone.
+    ///
+    /// - Parameter close: Closes the trailing pane, or nil while nothing is open.
+    /// - Returns: The page.
+    func splitListBack(_ close: (() -> Void)?) -> some View {
+        modifier(SplitListBack(close: close))
+    }
+}
+
+/// Implementation of ``SwiftUI/View/splitListBack(_:)``.
+private struct SplitListBack: ViewModifier {
+    let close: (() -> Void)?
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content
+            .navigationBarBackButtonHidden(close != nil)
+            .toolbar {
+                if let close {
+                    ToolbarItem(placement: .topBarLeading) {
+                        // The system Back's label colour, not the accent tint.
+                        SplitListBackButton(action: close)
+                            .tint(BrandTokens.textPrimary)
+                    }
+                }
+            }
+        #else
+        content
+        #endif
     }
 }
 

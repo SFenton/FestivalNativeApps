@@ -82,8 +82,8 @@ final class GlobalSearchJourneyTests: XCTestCase {
         XCTAssertGreaterThan(title.frame.minY, 0, "Search title is off screen")
     }
 
-    /// Assert no "Songs", "Players" or "Bands" section title shows below the scope bar
-    /// (issue #299: the scope bar already names the scope).
+    /// Assert no "Songs", "Players" or "Bands" section title shows below the scope bar in
+    /// a single scope (issue #299: the scope bar already names the scope).
     ///
     /// - Parameter app: The running app with the Search tab open.
     @MainActor
@@ -104,6 +104,26 @@ final class GlobalSearchJourneyTests: XCTestCase {
         let tagged = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.global-search.section"))
         XCTAssertEqual(tagged.count, 0, "Section title element shown in results")
+    }
+
+    /// Assert "All" titles its Songs, Players and Bands results in that order, each
+    /// title directly above its section's first row (issue #348).
+    ///
+    /// - Parameters:
+    ///   - app: The running app with All results shown.
+    ///   - rows: The first song, player and band rows, in that order.
+    @MainActor
+    private func assertSectionTitles(in app: XCUIApplication, above rows: [XCUIElement]) {
+        var previousBottom = app.segmentedControls["fst.global-search.scope"].frame.maxY
+        for (section, row) in zip(["songs", "players", "bands"], rows) {
+            let title = app.descendants(matching: .any)
+                .matching(identifier: "fst.global-search.section.\(section)").firstMatch
+            XCTAssertTrue(title.waitForExistence(timeout: 5), "\(section) title missing in All")
+            XCTAssertEqual(title.label, section.capitalized)
+            XCTAssertGreaterThanOrEqual(title.frame.minY, previousBottom - 1, "\(section) title out of order")
+            XCTAssertLessThanOrEqual(title.frame.maxY, row.frame.minY + 1, "\(section) title not above its rows")
+            previousBottom = row.frame.maxY
+        }
     }
 
     /// The system Search tab focuses the field, raises the keyboard, keeps its "Search"
@@ -157,7 +177,13 @@ final class GlobalSearchJourneyTests: XCTestCase {
         let band = app.buttons.matching(identifier: "fst.global-search.result.band").firstMatch
         XCTAssertTrue(band.waitForExistence(timeout: 15), "Band results never arrived")
         XCTAssertGreaterThan(band.frame.minY, player.frame.minY, "Bands are not after players")
+        assertSectionTitles(in: app, above: [song, player, band])
+        // A single scope drops the titles again (issue #299).
+        app.segmentedControls["fst.global-search.scope"].buttons["Players"].tap()
+        XCTAssertTrue(player.waitForExistence(timeout: 10))
         assertNoSectionTitles(in: app)
+        app.segmentedControls["fst.global-search.scope"].buttons["All"].tap()
+        XCTAssertTrue(song.waitForExistence(timeout: 10))
         song.tap()
         XCTAssertFalse(field.waitForExistence(timeout: 2) && field.isHittable, "Search stayed open")
         XCTAssertTrue(app.navigationBars.buttons["BackButton"].waitForExistence(timeout: 10))
@@ -332,12 +358,18 @@ final class GlobalSearchJourneyTests: XCTestCase {
                 .waitForExistence(timeout: 10)
         )
         // The fixture has no player named "Pulse": once players settle, All shows only
-        // the song rows, with no Players row, title or empty message.
+        // the Songs title and rows, with no Players or Bands row, title or empty message
+        // (issue #348: web `shouldRenderGlobalSection`).
         let player = app.buttons.matching(identifier: "fst.global-search.result.player").firstMatch
         XCTAssertFalse(player.exists)
         let empty = app.descendants(matching: .any).matching(identifier: "fst.global-search.hint").firstMatch
         XCTAssertFalse(empty.exists, "All showed an empty Players message")
-        assertNoSectionTitles(in: app)
+        let section = { (id: String) in
+            app.descendants(matching: .any).matching(identifier: "fst.global-search.section.\(id)").firstMatch
+        }
+        XCTAssertTrue(section("songs").waitForExistence(timeout: 5), "Songs title missing in All")
+        XCTAssertFalse(section("players").exists, "All titled an empty Players section")
+        XCTAssertFalse(section("bands").exists, "All titled an empty Bands section")
 
         let scope = app.segmentedControls["fst.global-search.scope"]
         scope.buttons["Players"].tap()

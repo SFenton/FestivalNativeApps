@@ -2,7 +2,7 @@
 
 > **What:** how a page you return to with Back (from View All, a rival, a song, Licenses) comes back: no reload, no movement, no replayed fade-in, and focus on the control that opened the pushed page. **Read when:** making a page cacheable or kept on the back stack, changing what a page does when it appears again, or adding a pushed page reached from a cached root.
 
-Status: **current**, 2026-10-06. Provenance: #39 (iOS), #82 (Android, Windows), #276 (Windows).
+Status: **current**, 2026-10-08. Provenance: #39 (iOS), #82 (Android, Windows), #276 (Windows), #347 (Apple splits).
 
 ## Intent
 
@@ -26,6 +26,8 @@ The web has no focus return: the browser moves focus to the document on Back. Na
 4. **R4. Focus returns to the opener (Windows).** When a cached root is left, remember the focused control and its `FocusState`. On Back, after layout, focus it again in that state (pointer focus shows no rectangle; keyboard focus does). If the control was recycled, prefer the visible control with the same automation ID bound to the same item, else the first visible one; skip collapsed or stale containers. Don't take focus back if the reader has already moved it to the navigation pane, and never scroll for it: a partly visible opener scrolls in on the next key press. Agent decision (#276, 2026-10-06), see below.
 5. **R5. Every consumer has a regression journey.** Each cached root that can push a page has a fixture journey in `tools/windows/journeys/back-keeps-place.json`. Every Back round pins the opener and its card or section, goes Back, asserts both immediately and again after `wait:1.5`, then asserts focus on the opener. The container pin must stay on screen at every size and text scale (the driver only measures on-screen elements): pin a card by its named UIA group (`name=<title>&class=AccessibleGroup`), which stays on screen while any part shows, rather than its heading; use the list or grid (`fst.songs.list`, `fst.shop.grid`) or the adjacent section (Settings' First Run Guides row) where the opener has no card. `tools/windows/tests/test_back_keeps_place.py` enforces this shape. Live checks (`--live`) cover Leaderboards and Rivals with the public `SFentonX` profile.
 
+6. **R6. Back closes an open split pane first (Apple on-demand split).** While a trailing pane is open next to a pushed list page (Song Detail with its full leaderboard or score history, Full or Band Rankings, All Rivals, Leaderboards pushed in Compete), the leading pane's Back closes the trailing pane and keeps the list page; only the next Back pops it. Back, Close, Escape and ⌘[ all go through `OnDemandSplitPolicy` (`pathAfterListBack` / `pathClosingDetail`), and focus returns to the row that opened the pane. On iOS the leading page's system Back is replaced by `SplitListBackButton` (`fst.split.list-back`, chevron, "Back (⌘[)") only while the pane is open, which also stops the edge swipe from popping the page; once the pane closes, the system Back returns. A section-root list page (Rivals, Leaderboards, Settings) has no Back. HIG toolbars.md: "The standard Back button retraces an information hierarchy"; "A custom version should retain the standard appearance, expected behavior". Owner #347.
+
 ## Decision: return focus to the opener (agent decision, #276, 2026-10-06; owner may override with `/choose`)
 
 After #82 paused focus-follow scrolling, Back left keyboard focus on the pane's Toggle Navigation button, so a keyboard or Narrator reader lost their place.
@@ -43,6 +45,7 @@ Grounds, by strength: `winui-design` (**must** for custom navigation): "Build cu
 | Sub-behavior | Apple | Android | Windows |
 |---|---|---|---|
 | Keyed reload gate (R1) | `apple/Sources/FestivalCore/ReappearanceLoadGate.swift` `ReappearanceLoadGate` | `android/app/src/main/java/com/festivalscoretracker/android/presentation/compete/CompeteViewModel.kt` `CompeteViewModel` | Each page model's key gate (`LeaderboardsViewModel`, `RivalsHubViewModel`, `SuggestionsViewModel.LoadAsync`) |
+| Split Back closes the pane first (R6) | `apple/Sources/FestivalUI/App/Layout/OnDemandSplitPolicy.swift` `OnDemandSplitPolicy.pathAfterListBack`, `OnDemandSplit.swift` `SplitListBackButton` (iOS leading pane and Mac `MacListDetailStack` toolbar) | Not applicable (no on-demand split) | Not applicable (no on-demand split) |
 | No movement, focus return (R3, R4) | `NavigationStack` (system) | Navigation back stack (system) | `windows/Festival.App/Services/CachedPageScroll.cs` `CachedPageScroll`, attached to every section `Frame` in `MainWindow` |
 
 ### Windows consumers (#276 sweep)
