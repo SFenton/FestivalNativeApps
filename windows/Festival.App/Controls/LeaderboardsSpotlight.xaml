@@ -37,7 +37,7 @@
              (operator batch 7.9); "Your Page" sits above it instead of taking its width. -->
         <StackPanel x:Name="RowHost" Spacing="4" Visibility="{x:Bind Spotlight.ShowRow, Mode=OneWay, FallbackValue=Collapsed}">
             <Button x:Name="Jump" HorizontalAlignment="Right" MinHeight="32"
-                        Background="{ThemeResource FSTPagerButtonBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
+                        Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}" Foreground="{ThemeResource FSTSecondaryTextBrush}"
                     Command="{x:Bind Spotlight.JumpCommand, Mode=OneWay}" Click="OnJumpClick"
                     Visibility="{x:Bind Spotlight.CanJump, Mode=OneWay, FallbackValue=Collapsed}"
                     ToolTipService.ToolTip="Jump to your page" AutomationProperties.Name="Jump to your page">
