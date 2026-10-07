@@ -92,7 +92,7 @@ struct MacStack<Root: View>: View {
                         selection: paneContext?.selection, select: paneContext?.select, push: push,
                         isTop: stackPath.last == route, close: close
                     ))
-                    .splitPaneContext(paneContext)
+                    .splitPaneContext(paneContext?.pushedPage)
                     .environment(\.macPageIsTop, stackPath.last == route)
                     .environment(\.macColumnIsList, isList)
                     .modifier(MacPageWidth(maxWidth: MacLayoutPolicy.pageMaxWidth(for: route)))
@@ -261,7 +261,8 @@ struct MacListDetailStack<Root: View>: View {
             session: session, visibleInstruments: visibleInstruments,
             stackPath: pushes(keeping: path.count), fullPath: $path, isVisible: isVisible,
             providesGlobalToolbar: false, rootMaxWidth: MacLayoutPolicy.pageMaxWidth(for: top),
-            paneContext: SplitPaneContext(role: .trailing)
+            // Only the item opened beside the list page knows that page (#342).
+            paneContext: SplitPaneContext(role: .trailing, besideList: cut.detail.count == 1 ? cut.page : nil)
         ) {
             destination(top)
                 .id(top)

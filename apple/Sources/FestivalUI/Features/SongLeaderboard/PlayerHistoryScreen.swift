@@ -40,6 +40,8 @@ struct PlayerHistoryScreen: View {
     @Environment(\.openProfile) private var openProfile
     @Environment(\.pageToolsRegistry) private var pageTools
     @Environment(\.deviceLayout) private var layout
+    /// The list page beside this page in a split (Song Detail drops the song header, #342).
+    @Environment(\.splitDetailBesideList) private var besideList
 
     /// Scroll target at the top of the page (the song header).
     private static let topAnchor = "fst.history.top"
@@ -129,15 +131,23 @@ struct PlayerHistoryScreen: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .detailFadeTestSafe()
         .festivalBackground(.song(song.albumArt), session: session)
-        .festivalNavigationTitle(song.title)
+        .festivalNavigationTitle(showsSongHeader ? song.title : caption)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: headerHidden)
         .toolbar {
             #if os(iOS)
             // iOS and iPadOS: the Mac keeps its window title (song-header R4).
-            SongBarTitleToolbarItem(
-                song: song, session: session, caption: caption, isShown: headerHidden,
-                identifier: "fst.history.pinned-title"
-            )
+            if showsSongHeader {
+                SongBarTitleToolbarItem(
+                    song: song, session: session, caption: caption, isShown: headerHidden,
+                    identifier: "fst.history.pinned-title"
+                )
+            } else if !layout.sectionChrome.isVerticalBar {
+                // Beside Song Detail: the chart's own title (#342), as the song board.
+                InstrumentPageTitleToolbarItem(
+                    instrument: instrument, title: caption, isShown: headerHidden,
+                    identifier: "fst.history.pinned-title"
+                )
+            }
             #endif
             // With the iPhone tab-bar accessory, Sort is there instead.
             if pageTools == nil, sortAvailable {
@@ -178,17 +188,33 @@ struct PlayerHistoryScreen: View {
     /// "Lead · Score History": the board line under the song title.
     private var caption: String { "\(instrument.label) · Score History" }
 
-    /// The shared song header with the instrument and "Score History".
+    /// The shared song header with the instrument and "Score History"; beside Song
+    /// Detail in a split, the chart's own title instead (``InstrumentPageTitle``, #342).
+    @ViewBuilder
     private var header: some View {
-        SongHeaderRow(song: song, session: session, onHeightChange: { headerHeight = $0 }) {
-            HStack(spacing: 6) {
-                InstrumentIcon(instrument, size: 20)
-                    .accessibilityHidden(true)
-                MarqueeText(caption)
-                    .foregroundStyle(FestivalText.primary)
+        if showsSongHeader {
+            SongHeaderRow(song: song, session: session, onHeightChange: { headerHeight = $0 }) {
+                HStack(spacing: 6) {
+                    InstrumentIcon(instrument, size: 20)
+                        .accessibilityHidden(true)
+                    MarqueeText(caption)
+                        .foregroundStyle(FestivalText.primary)
+                }
             }
+            .accessibilityIdentifier("fst.history.header")
+        } else {
+            InstrumentPageTitle(
+                instrument: instrument, title: instrument.label, subtitle: "Score History",
+                style: .header, identifier: "fst.history.board-title"
+            )
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
         }
-        .accessibilityIdentifier("fst.history.header")
+    }
+
+    /// Whether the song header leads the page: not in a split beside Song Detail, where
+    /// the song is on screen already (owner-approved variant, #342).
+    private var showsSongHeader: Bool {
+        SongLeaderboardBoardLine.showsSongHeader(besideList: besideList)
     }
 
     // MARK: Rows

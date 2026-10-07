@@ -197,6 +197,10 @@ final class IPadShellJourneyTests: XCTestCase {
         XCTAssertTrue(trailing.waitForExistence(timeout: 10), "the board opens in the trailing half")
         XCTAssertTrue(element(app, "fst.song-detail.intensity").exists, "the song page stays beside it")
         XCTAssertEqual(trailing.frame.minX, app.windows.firstMatch.frame.midX, accuracy: 2, "split at the midpoint")
+        // Beside its song the board is titled by its instrument, never a second song
+        // header (owner-approved song-leaderboard-header variant, #342).
+        XCTAssertTrue(element(app, "fst.song-leaderboard.board-title").waitForExistence(timeout: 10))
+        XCTAssertFalse(element(app, "fst.song-leaderboard.header").exists, "no repeated song header")
         element(app, "fst.split.close").tap()
         XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "Close returns to full width")
     }

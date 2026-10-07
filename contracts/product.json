@@ -349,6 +349,7 @@
     "fst.leaderboards.loading": "leaderboards",
     "fst.song-leaderboard.pinned-title": "song-leaderboard",
     "fst.song-leaderboard.header": "song-leaderboard",
+    "fst.song-leaderboard.board-title": "song-leaderboard",
     "fst.song-leaderboard.loading": "song-leaderboard",
     "fst.compete.leaderboard-card.*": "compete",
     "fst.stars": "star-rating",
