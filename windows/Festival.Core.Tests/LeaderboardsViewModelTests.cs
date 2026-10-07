@@ -1105,6 +1105,73 @@ public sealed class SongLeaderboardViewModelTests
     }
 
     [Fact]
+    public async Task FailedPageKeepsHeaderAndDropsPinnedRowAndPagerUntilRetry()
+    {
+        var service = new FakeService();
+        var profile = PlayerWire.Profile(PlayerWire.Id, "Fixture One", PlayerWire.Score("s1", "01", 5000, 990, true, 6, 60, 100, 1.0));
+        PlayerWire.Install(service, new() { [PlayerWire.Id] = (HttpStatusCode.OK, profile) });
+        var fail = true;
+        var respond = service.Handler.Responder;
+        service.Handler.Responder = (request, token) =>
+            fail && request.RequestUri!.Query.Contains("offset=25", StringComparison.Ordinal)
+                ? Task.FromResult(Wire.Response(HttpStatusCode.ServiceUnavailable))
+                : respond(request, token);
+        var session = Session(service, new AppSettings { SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "Fixture One") });
+        var vm = new SongLeaderboardViewModel(session, new AppRoute.SongLeaderboard("s1", Instrument.Lead));
+        await vm.ActivateAsync();
+        await Async.Until(() => vm.ShowSpotlight);
+        Assert.True(vm.ShowHeader);
+        Assert.False(vm.ShowRowsError);
+        Assert.False(vm.ShowPageError);
+
+        // Load-transition R4 (issue #283): the failure replaces only the rows under the kept header; the pinned row and
+        // pager go with the rows, as the web EmptyState replaces PaginatedLeaderboard and its footer.
+        await vm.GoToPageAsync(2);
+        Assert.Equal(LoadState.Failed, vm.State);
+        Assert.True(vm.ShowHeader);
+        Assert.NotEmpty(vm.Title);
+        Assert.True(vm.ShowError);
+        Assert.True(vm.ShowRowsError);
+        Assert.False(vm.ShowPageError);
+        Assert.False(vm.ShowRows);
+        Assert.False(vm.ShowContent);
+        Assert.False(vm.ShowSpotlight);
+        Assert.NotNull(vm.Spotlight);
+
+        // Retry brings the pinned row back with the new rows, not beside the spinner.
+        fail = false;
+        var retry = vm.Status.RetryCommand.ExecuteAsync(null);
+        Assert.True(vm.PinnedGate.IsGated);
+        await retry;
+        await Async.Until(() => vm.ShowRows);
+        Assert.True(vm.ShowSpotlight);
+        Assert.True(vm.ShowContent);
+        Assert.False(vm.ShowRowsError);
+        Assert.Equal(2, vm.Pager.Page);
+
+        // A later page change over the same leeway keeps the pinned row in place again.
+        _ = vm.GoToPageAsync(1);
+        Assert.False(vm.PinnedGate.IsGated);
+        await Async.Until(() => vm.ShowRows && vm.Page == 1);
+        vm.Deactivate();
+    }
+
+    [Fact]
+    public async Task FailedFirstLoadFillsThePage()
+    {
+        var service = new FakeService
+        {
+            Override = r => r.RequestUri!.AbsolutePath == "/api/leaderboard/s1/Solo_Guitar" ? Wire.Response(HttpStatusCode.ServiceUnavailable) : null,
+        };
+        var vm = new SongLeaderboardViewModel(Session(service), new AppRoute.SongLeaderboard("s1", Instrument.Lead));
+        await vm.LoadAsync();
+        Assert.True(vm.ShowPageError);
+        Assert.False(vm.ShowRowsError);
+        Assert.False(vm.ShowHeader);
+        Assert.False(vm.ShowContent);
+    }
+
+    [Fact]
     public async Task InvalidScoreFallsBackToValidVariantWhenFiltering()
     {
         var service = new FakeService();

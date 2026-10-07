@@ -19,6 +19,9 @@ Lead (``Solo_Guitar``) chart read, the production case of a top-ten row with no 
 
 ``--player-bands fail-once`` (issue #312) answers the first read of each distinct ``/api/player/{id}/bands`` path and
 query with a 500 and passes the identical retry through, so the profile's inline Bands section fails, then recovers.
+``--board-pages flaky`` (issue #283) fails the 1st, 3rd, … read of each later page of a paged board (a solo song
+board read with ``offset`` > 0, or a Full or Band Rankings list read with ``page`` > 1) with a generic 500, and passes
+the next, so a page change fails and its Retry loads the page. Page one and every other read are the mock's.
 ``--song-band-totals`` (issue #317) sets ``showLeaderboardEntryTotals`` on per-size song band board reads
 (``/api/leaderboard/{songId}/bands/{bandType}``), so the band board header's entry-total line is reachable.
 ``--song-band-slow BANDTYPE`` (issue #317 review) answers that band size's per-size reads only after
@@ -444,6 +447,101 @@ def take_player_bands(argv: list[str]) -> tuple[str | None, list[str]]:
 
 # endregion
 
+# region Board page scenarios
+
+#: Scenarios for ``--board-pages``.
+BOARD_PAGES_SCENARIOS = ("flaky",)
+
+
+def is_later_board_page(path: str) -> bool:
+    """Whether a read is a paged board's page after the first (``--board-pages``, issue #283).
+
+    Args:
+        path: Request path with query.
+
+    Returns:
+        ``True`` for a solo song board read with ``offset`` > 0, or a Full or Band Rankings list read (not a band's
+        ``?teamKey=`` lookup) with ``page`` > 1.
+    """
+    parsed = urlsplit(path)
+    query = parse_qs(parsed.query)
+
+    def number(name: str) -> int:
+        try:
+            return int(query.get(name, ["0"])[0])
+        except ValueError:
+            return 0
+
+    if mock_service.LEADERBOARD.fullmatch(parsed.path):
+        return number("offset") > 0
+    if mock_service.BAND_RANKINGS.fullmatch(parsed.path) or mock_service.RANKINGS.fullmatch(parsed.path):
+        return "teamKey" not in query and number("page") > 1
+    return False
+
+
+def board_page_fails(path: str, reads: dict[str, int]) -> bool:
+    """Whether a ``flaky`` board page read fails: the 1st, 3rd, … read of each later page answers 500, the next passes.
+
+    A page change therefore fails and its Retry loads the page, and a journey's rerun sees the same sequence.
+
+    Args:
+        path: Request path with query.
+        reads: Reads so far per later-page path (updated in place).
+
+    Returns:
+        ``True`` when this read should answer 500.
+    """
+    if not is_later_board_page(path):
+        return False
+    reads[path] = reads.get(path, 0) + 1
+    return reads[path] % 2 == 1
+
+
+def install_board_pages(scenario: str) -> None:
+    """Serve a board-pages scenario in front of the mock service's handler.
+
+    Args:
+        scenario: One of :data:`BOARD_PAGES_SCENARIOS`.
+    """
+    original = mock_service.FixtureHandler.do_GET
+    reads: dict[str, int] = {}
+
+    def do_get(self) -> None:  # noqa: ANN001 (stdlib handler signature)
+        if scenario == "flaky" and board_page_fails(self.path, reads):
+            self._json(500, {"status": "fixture_board_page_unavailable"})
+        else:
+            original(self)
+
+    mock_service.FixtureHandler.do_GET = do_get
+
+
+def take_board_pages(argv: list[str]) -> tuple[str | None, list[str]]:
+    """Split ``--board-pages <scenario>`` (or ``=<scenario>``) from the remaining arguments.
+
+    Args:
+        argv: Command-line arguments after the program name.
+
+    Returns:
+        The scenario (``None`` when absent) and the remaining arguments.
+
+    Raises:
+        SystemExit: Missing or unknown scenario.
+    """
+    scenario, rest, items = None, [], iter(argv)
+    for arg in items:
+        if arg == "--board-pages":
+            scenario = next(items, None)
+        elif arg.startswith("--board-pages="):
+            scenario = arg.split("=", 1)[1]
+        else:
+            rest.append(arg)
+            continue
+        if scenario not in BOARD_PAGES_SCENARIOS:
+            raise SystemExit(f"--board-pages must be one of {', '.join(BOARD_PAGES_SCENARIOS)}")
+    return scenario, rest
+
+# endregion
+
 # region Song band board entry totals
 
 #: Per-size song band board read (``/api/leaderboard/{songId}/bands/{bandType}``; not ``/bands/all``).
@@ -719,6 +817,7 @@ def main() -> None:
     song_band_rows, rest = take_song_band_rows(rest)
     player_bands, rest = take_player_bands(rest)
     song_band_slow, rest = take_song_band_slow(rest)
+    board_pages, rest = take_board_pages(rest)
     songs_unavailable = "--songs-unavailable" in rest
     song_band_totals_on = "--song-band-totals" in rest
     rest = [arg for arg in rest if arg not in ("--songs-unavailable", "--song-band-totals")]
@@ -739,6 +838,8 @@ def main() -> None:
         install_song_band_totals()
     if song_band_slow:
         install_song_band_slow(song_band_slow)
+    if board_pages:
+        install_board_pages(board_pages)
     install_slow_rivals()
     install_rival_detail_states()
     names: dict[str, str] = {}

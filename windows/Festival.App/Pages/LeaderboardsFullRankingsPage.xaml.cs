@@ -21,6 +21,7 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
     /// <summary>Rankings column width in the split layout.</summary>
     private const double SplitListWidth = 560;
 
+    private readonly FailedReloadFocus reloadFocus;
     private int shownPage;
     private bool spotlightShown;
     private RankingSpotlightViewModel? watchedSpotlight;
@@ -34,6 +35,8 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
         InitializeComponent();
         BoardFooter.Inset(Footer, RowsRepeater);
         BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Scroller, Footer, FooterPlate);
+        reloadFocus = FailedReloadFocus.Attach(Footer, BoardPager, RowsStatus, () => ViewModel?.LoadSwap.Phase == LoadSwapPhase.ContentIn,
+            () => ViewModel?.State == LoadState.Failed);
         SizeChanged += (_, e) => ApplySplit(e.NewSize.Width >= SplitWidth);
     }
 
@@ -164,6 +167,7 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
     private void OnContentRevealed(object? sender, EventArgs e) =>
         DispatcherQueue.TryEnqueue(() =>
         {
+            reloadFocus.Settle();
             FadeIn.StaggerRealized(RowsRepeater);
             if (ViewModel.Spotlight.IsVisible && ViewModel.PinnedGate.IsGated) FadeIn.Enter(RowsRepeater, FooterSpotlight, PinnedRowReveal.RevealDelay);
             RevealSelected();

@@ -1384,6 +1384,10 @@
             "symbol": "PinnedRowGate"
           },
           {
+            "path": "windows/Festival.App/Controls/FailedReloadFocus.cs",
+            "symbol": "FailedReloadFocus"
+          },
+          {
             "path": "windows/Festival.App/Controls/FadeIn.cs",
             "symbol": "FadeIn"
           },

@@ -144,6 +144,18 @@ public class PinnedRowGateTests
     }
 
     [Fact]
+    public void HiddenRow_ReturnsWithTheRowsOnASameKeyRetry()
+    {
+        var gate = new PinnedRowGate();
+        gate.Commit("lead");
+        gate.Begin("lead", LoadSwapPhase.ContentIn, hidden: true);
+        Assert.True(gate.IsGated);
+        gate.Commit("lead");
+        gate.Begin("lead", LoadSwapPhase.ContentIn);
+        Assert.False(gate.IsGated);
+    }
+
+    [Fact]
     public void Arrival_JoinsTheGateOnlyBeforeReveal()
     {
         var gate = new PinnedRowGate();
