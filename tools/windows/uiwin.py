@@ -109,6 +109,8 @@ STEP_VERBS = {
     "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state",
     "markspan": "span", "assertspan": "span", "film": "path", "filmstop": "path", "pin": "selector",
     "assertpinned": "selector", "foreground": "onoff", "listen": "listen", "assertannounced": "announced",
+    "assertsize": "size", "assertapart": "pair", "assertat": "offset", "tapat": "offset", "clickat": "offset",
+    "narrate": "selector", "assertread": "read", "assertorder": "order",
     "assertpaint": "paint", "assertbold": "bold", "assertannouncedcount": "announcedcount",
 }
 
@@ -295,7 +297,24 @@ def parse_step(step: str) -> dict:
     announcements, what Narrator speaks) and a later ``assertannounced:<text>[@<seconds>]`` in the same ``drive`` waits
     (default 5 s) until one equals ``<text>`` (or matches it as a .NET regex when it starts with ``~``);
     ``assertannouncedcount:<n>|<text>`` fails unless exactly ``<n>`` recorded announcements match ``<text>`` so far
-    (no wait), e.g. a value announced once and not repeated on later reads.
+    (no wait), e.g. a value announced once and not repeated on later reads;
+    ``assertsize:<sel>|<w>x<h>`` fails unless the element's UIA bounds are at least ``<w>`` x ``<h>`` effective pixels
+    (one device pixel rounding allowance; results in ``sizes``), e.g. Fluent's 40x40 epx touch target (issue #271);
+    ``assertapart:<sel>|<sel>`` fails if the two elements' bounds overlap (results in ``apart``, the gap in epx);
+    ``assertat:<sel>|<dx>,<dy>`` hit-tests the point ``<dx>``,``<dy>`` epx from the element's centre without input
+    (outside the title bar's non-client caption region, where a press drags the window, and UIA ``ElementFromPoint``
+    must return the element or one of its parts, or the point must be inside its bounds when another process covers
+    it, e.g. a locked console; results in ``hits``), so an off-centre tap's target is checked without input;
+    ``tapat:<sel>|<dx>,<dy>`` and ``clickat:<sel>|<dx>,<dy>`` send a real pointer press at that point (an injected touch
+    tap, or a left mouse click; unlocked console only, and only when the app's own window is topmost at the point;
+    results in ``presses``), and the following steps assert what it activated (e.g. ``waitfor:`` a flyout item), so
+    the title bar's caption region and the control's own pointer handling decide the outcome.
+    Narrator model (Narrator itself can't be scripted; issue #271): ``narrate:<sel>`` records Narrator's scan-mode
+    reading order under the element with each item's phrase (results in ``narration``); ``assertread:<sel>|<phrase>[@<seconds>]``
+    waits (default 5 s) until the element's Narrator phrase (name, role, state, value, status, help text, shortcut,
+    comma-separated) equals ``<phrase>`` (or matches it as a .NET regex when it starts with ``~``); and
+    ``assertorder:<sel>|<sel>[|<sel>…][@<seconds>]`` fails unless the elements come in that order in the window's
+    reading order (results in ``orders``).
     ``assertpaint:<sel>|<probe>|<probe>…`` captures the window (``PrintWindow``) and waits (up to 3 s) until every
     probe matches the pixels at an epx offset from the element's edges (see :func:`parse_probe`): a point is within the
     tolerance of the colour (``=``) or not (``!=``); an area has at least 4 epx² of such pixels (``=``) or fewer
@@ -359,6 +378,24 @@ def parse_step(step: str) -> dict:
         if "xy" in (result["selector"]["kind"], result["other"]["kind"]):
             raise ValueError(f"{verb} needs element selectors, not coordinates")
         result["name"] = name.strip()
+    elif shape == "size":
+        selector, sep, size = arg.rpartition("|")
+        match = re.fullmatch(r"(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)", size.strip())
+        if not sep or not match:
+            raise ValueError(f"bad {verb} {arg!r}; use <selector>|<width>x<height>")
+        result["selector"] = parse_selector(selector)
+        if result["selector"]["kind"] == "xy":
+            raise ValueError(f"{verb} needs an element selector, not coordinates")
+        result["width"], result["height"] = float(match.group(1)), float(match.group(2))
+    elif shape == "offset":
+        selector, sep, offset = arg.rpartition("|")
+        match = re.fullmatch(r"(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)", offset.replace(" ", ""))
+        if not sep or not match:
+            raise ValueError(f"bad {verb} {arg!r}; use <selector>|<dx>,<dy>")
+        result["selector"] = parse_selector(selector)
+        if result["selector"]["kind"] == "xy":
+            raise ValueError(f"{verb} needs an element selector, not coordinates")
+        result["dx"], result["dy"] = float(match.group(1)), float(match.group(2))
     elif shape == "status":
         body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
         selector, sep, status = body.partition("|")
@@ -368,6 +405,27 @@ def parse_step(step: str) -> dict:
         if result["selector"]["kind"] == "xy":
             raise ValueError("assertstatus needs an element selector, not coordinates")
         result["status"] = status.strip()
+        if wait:
+            result["timeout"] = float(wait)
+    elif shape == "read":
+        body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
+        selector, sep, text = body.partition("|")
+        if not sep or not text.strip():
+            raise ValueError(f"bad assertread {arg!r}; use <selector>|<phrase>[@<seconds>]")
+        result["selector"] = parse_selector(selector)
+        if result["selector"]["kind"] == "xy":
+            raise ValueError("assertread needs an element selector, not coordinates")
+        result["text"] = text.strip()
+        if wait:
+            result["timeout"] = float(wait)
+    elif shape == "order":
+        body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
+        parts = body.split("|")
+        if len(parts) < 2 or not all(part.strip() for part in parts):
+            raise ValueError(f"bad assertorder {arg!r}; use <selector>|<selector>[|<selector>...][@<seconds>]")
+        result["selectors"] = [parse_selector(part) for part in parts]
+        if any(sel["kind"] == "xy" for sel in result["selectors"]):
+            raise ValueError("assertorder needs element selectors, not coordinates")
         if wait:
             result["timeout"] = float(wait)
     elif shape == "state":

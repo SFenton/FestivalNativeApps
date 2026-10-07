@@ -5,7 +5,7 @@ namespace Festival.Core.Tests;
 /// <summary>
 /// Guards issue #319 (surface-materials R1, leaderboard-row R5): the board pager's arrow buttons and <c>page / total</c>
 /// badge draw on the rows' card surface (<c>FSTCardSurfaceBrush</c> + <c>FSTCardStrokeBrush</c>), never a pager-only
-/// opaque plate, and the Your Page jump button in the board footer does too.
+/// opaque plate, and the song boards' Your Page jump buttons do too (Full Rankings has none since #318: its pinned row jumps).
 /// </summary>
 public class PagerSurfaceMarkupTests
 {
@@ -102,7 +102,6 @@ public class PagerSurfaceMarkupTests
     }
 
     [Theory]
-    [InlineData("Controls/LeaderboardsSpotlight.xaml", "Jump to your page")]
     [InlineData("Pages/LeaderboardsSongPage.xaml", "Jump to your page")]
     [InlineData("Pages/BandsSongLeaderboardPage.xaml", "Jump to your band's page")]
     public void YourPageButton_DrawsOnTheRowCardSurface(string file, string name)
@@ -111,6 +110,16 @@ public class PagerSurfaceMarkupTests
             && Attr(e, "AutomationProperties.Name") == name);
         Assert.Equal(CardSurface, Attr(jump, "Background"));
         Assert.Equal(CardStroke, Attr(jump, "BorderBrush"));
+    }
+
+    [Fact]
+    public void FullRankingsPinnedRow_IsItsOwnJumpControl()
+    {
+        // #318: Full Rankings' pinned row runs the jump itself (leaderboard-row R7), so it has no Your page button.
+        var doc = Load(Path.Combine("Controls", "LeaderboardsSpotlight.xaml"));
+        Assert.DoesNotContain(doc.Descendants(), e => e.Name.LocalName == "Button");
+        var row = doc.Descendants().Single(e => Attr(e, "Name") == "PinnedRow");
+        Assert.Equal("{x:Bind Spotlight.JumpCommand, Mode=OneWay}", Attr(row, "Command"));
     }
 
     [Fact]

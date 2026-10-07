@@ -706,6 +706,14 @@
           {
             "path": "windows/Festival.App/MainWindow.xaml",
             "symbol": "ProfileButton"
+          },
+          {
+            "path": "windows/Festival.App/MainWindow.TitleBar.cs",
+            "symbol": "QueueDragRegionRefresh"
+          },
+          {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "FSTMinTargetSize"
           }
         ]
       },
@@ -768,9 +776,11 @@
       "supersededBy": null,
       "issues": [
         52,
+        72,
         84,
         92,
         160,
+        271,
         300,
         309
       ]
@@ -1109,6 +1119,10 @@
             "symbol": "LeaderboardsPager"
           },
           {
+            "path": "windows/Festival.Core/Domain/SelectedRowNavigation.cs",
+            "symbol": "SelectedRowAction"
+          },
+          {
             "path": "windows/Festival.App/Controls/BandScoreFooterPanel.cs",
             "symbol": "BandScoreFooterPanel"
           },
@@ -1119,6 +1133,10 @@
           {
             "path": "windows/Festival.Core/Domain/BandScoreFooterLayout.cs",
             "symbol": "BandScoreFooterSection"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/RankingSpotlight.cs",
+            "symbol": "RankingSpotlight"
           }
         ]
       },

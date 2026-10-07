@@ -78,9 +78,20 @@ public sealed partial class RankingRowViewModel : ObservableObject, ILeaderboard
     /// <summary>UIA automation ID (<c>fst.rankings.row.&lt;accountId&gt;</c>, or <c>…row.rank-&lt;n&gt;</c> without an ID).</summary>
     public string AutomationId => "fst.rankings.row." + (Entry.HasProfile ? Entry.AccountId : "rank-" + Rank);
 
-    /// <summary>Screen-reader name; the selected row leads with "Your rank, 12th." like Apple's VoiceOver label.</summary>
-    public string Announcement => (IsSelected ? $"Your rank, {RankingFormatting.Ordinal(Rank)}. {Name}." : $"Rank {RankText}, {Name}.") +
-                                  $" {Metric.Label()} {RatingText}{(HasBayesian ? $" ({BayesianText})" : "")}, {SongsText} songs";
+    /// <summary>
+    /// For Full Rankings' pinned footer row only: jump to the player's page or open their profile (pattern
+    /// <c>leaderboard-row</c> R7, issue #318); the view runs the jump through the spotlight's command and the open through
+    /// <see cref="Route"/>.
+    /// </summary>
+    public SelectedRowAction? PinnedAction { get; init; }
+
+    /// <summary>
+    /// Screen-reader name; the selected row leads with "Your rank, 12th." like Apple's VoiceOver label, and a pinned row
+    /// then names its destination ("Jump to your position." / "Open your statistics.").
+    /// </summary>
+    public string Announcement => (IsSelected ? $"Your rank, {RankingFormatting.Ordinal(Rank)}. " : $"Rank {RankText}, ") +
+                                  (PinnedAction is { } action ? $"{action.Destination(SelectedRowSubject.Player)}. " : "") +
+                                  $"{Name}. {Metric.Label()} {RatingText}{(HasBayesian ? $" ({BayesianText})" : "")}, {SongsText} songs";
 }
 #endregion
 
@@ -166,13 +177,15 @@ public delegate Task<AccountRankingEntry?> OwnRankingReader(Instrument instrumen
 
 /// <summary>
 /// The selected player's spotlight on one board: highlighted in place, loading, failed (inline retry),
-/// unranked, or a separate "your rank" row with an optional jump to its page.
+/// unranked, or a separate "your rank" row. A pinned spotlight (Full Rankings) never
+/// goes inline: the row stays above the pager on every page and is itself the control, jumping to the player's page while it is elsewhere and opening their profile once it is shown (pattern <c>leaderboard-row</c> R7, issue #318).
 /// </summary>
 public sealed partial class RankingSpotlightViewModel : ObservableObject
 {
     private readonly OwnRankingReader? reader;
     private readonly Instrument instrument;
     private readonly Func<int, Task>? jump;
+    private readonly bool pinned;
     private string? loadedFor;
     private bool ownLoaded;
     private AccountRankingEntry? own;
@@ -187,12 +200,18 @@ public sealed partial class RankingSpotlightViewModel : ObservableObject
     /// <param name="reader">Own-row reader; <see langword="null"/> keeps the spotlight pending.</param>
     /// <param name="time">Clock for the inline status.</param>
     /// <param name="scope">Backoff scope.</param>
-    /// <param name="jump">Page change for "Jump to your page" (Full Rankings only).</param>
-    public RankingSpotlightViewModel(Instrument instrument, OwnRankingReader? reader, TimeProvider time, string scope, Func<int, Task>? jump = null)
+    /// <param name="jump">Page change run by the pinned row while the player's row is on another page (Full Rankings only).</param>
+    /// <param name="pinned">
+    /// Whether the row is pinned on every page, the player's own page included (<see cref="RankingSpotlight.PlacePinned"/>,
+    /// Full Rankings); otherwise a visible player is only highlighted in place (<see cref="RankingSpotlight.Place"/>, overview cards).
+    /// </param>
+    public RankingSpotlightViewModel(Instrument instrument, OwnRankingReader? reader, TimeProvider time, string scope, Func<int, Task>? jump = null,
+        bool pinned = false)
     {
         this.instrument = instrument;
         this.reader = reader;
         this.jump = jump;
+        this.pinned = pinned;
         Status = new ServiceStatusViewModel(scope, "Your rank unavailable", RetryAsync, time);
     }
 
@@ -233,13 +252,15 @@ public sealed partial class RankingSpotlightViewModel : ObservableObject
     /// <summary>Unranked text.</summary>
     public string UnrankedText => $"Not yet ranked on {instrument.Label()}.";
 
-    /// <summary>Whether "Jump to your page" applies (Full Rankings, row on another page).</summary>
-    public bool CanJump => jump is not null && Row is not null &&
-                           LeaderboardPaging.PageForRank(Row.Rank, pageSize) != currentPage;
+    /// <summary>
+    /// Whether activating the pinned row jumps to the player's page (Full Rankings, row on another page) rather than opening
+    /// their profile (pattern <c>leaderboard-row</c> R7, issue #318; <see cref="SelectedRowAction.Footer"/>).
+    /// </summary>
+    public bool CanJump => jump is not null && Row?.PinnedAction is { Jumps: true };
 
     /// <summary>Loads the own row once per account (skipped when <paramref name="needed"/> is false).</summary>
     /// <param name="accountId">Selected player, or <see langword="null"/>.</param>
-    /// <param name="needed">Whether the row is off the visible rows (the web always reads; natives skip when visible).</param>
+    /// <param name="needed">Whether the row is needed: off the visible rows, or always for a pinned board (the web always reads).</param>
     /// <param name="cancellationToken">Cancellation.</param>
     /// <returns>Load task.</returns>
     public async Task EnsureLoadedAsync(string? accountId, bool needed, CancellationToken cancellationToken = default)
@@ -296,10 +317,11 @@ public sealed partial class RankingSpotlightViewModel : ObservableObject
         Recompute();
     }
 
-    /// <summary>Moves the owning board to the selected player's page.</summary>
+    /// <summary>Pinned row: moves the owning board to the selected player's page (the view then reveals their row).</summary>
     /// <returns>Page change task.</returns>
     [RelayCommand(CanExecute = nameof(CanJump))]
-    private Task JumpAsync() => CanJump ? jump!(LeaderboardPaging.PageForRank(Row!.Rank, pageSize)) : Task.CompletedTask;
+    private Task JumpAsync() =>
+        jump is not null && Row?.PinnedAction?.JumpPage is { } page ? jump(page) : Task.CompletedTask;
 
     /// <summary>Retries the own-row read.</summary>
     /// <returns>Load task.</returns>
@@ -311,14 +333,29 @@ public sealed partial class RankingSpotlightViewModel : ObservableObject
         return EnsureLoadedAsync(account, true);
     }
 
-    /// <summary>Applies <see cref="RankingSpotlight.Place"/>.</summary>
+    /// <summary>Applies <see cref="RankingSpotlight.Place"/> (or <see cref="RankingSpotlight.PlacePinned"/> when pinned).</summary>
     private void Recompute()
     {
-        var placement = RankingSpotlight.Place(selected, visible, ownLoaded, own);
-        Row = placement.Entry is { } entry ? new RankingRowViewModel(entry, metric, true) : null;
+        var placement = pinned
+            ? RankingSpotlight.PlacePinned(selected, visible, ownLoaded, own)
+            : RankingSpotlight.Place(selected, visible, ownLoaded, own);
+        Row = placement.Entry is { } entry
+            ? new RankingRowViewModel(entry, metric, true) { PinnedAction = jump is null ? null : PinnedAction(entry) }
+            : null;
         Kind = placement.Kind;
         OnPropertyChanged(nameof(CanJump));
         JumpCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>The pinned row's action: jump unless the shown page holds (or should hold) the selected player's row.</summary>
+    /// <param name="entry">Selected player's entry.</param>
+    /// <returns>Shared selected-row action.</returns>
+    private SelectedRowAction PinnedAction(AccountRankingEntry entry)
+    {
+        var rank = entry.Rank(metric);
+        return SelectedRowAction.Footer(rank,
+            LeaderboardPaging.PageForRank(rank, pageSize) == currentPage ||
+            visible.Any(e => RankingSpotlight.SameAccount(e.AccountId, entry.AccountId)), pageSize);
     }
 }
 #endregion

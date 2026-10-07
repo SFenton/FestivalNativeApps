@@ -174,6 +174,36 @@ public sealed class RankingSpotlightTests
     }
 
     [Fact]
+    public void PinnedPlacementNeverGoesInline()
+    {
+        // Issue #318 (leaderboard-row R7): a full board pins the player's row on their own page too.
+        Assert.Equal(SpotlightPlacementKind.None, RankingSpotlight.PlacePinned(null, Top, true, null).Kind);
+        Assert.Equal(SpotlightPlacementKind.None, RankingSpotlight.PlacePinned(" ", Top, true, null).Kind);
+
+        var visible = RankingSpotlight.PlacePinned("A2", Top, false, null);
+        Assert.Equal(SpotlightPlacementKind.Footer, visible.Kind);
+        Assert.Same(Top[1], visible.Entry);
+
+        // The own read wins over the page's row once loaded; a stale read for someone else never shows.
+        var own = RankingsWire.Account(2, "a2");
+        Assert.Same(own, RankingSpotlight.PlacePinned("a2", Top, true, own).Entry);
+        Assert.Same(Top[1], RankingSpotlight.PlacePinned("a2", Top, true, RankingsWire.Account(9, "other")).Entry);
+        Assert.Same(Top[1], RankingSpotlight.PlacePinned("a2", Top, true, null).Entry);
+    }
+
+    [Fact]
+    public void PinnedPlacementOffThePageMatchesTheCardRule()
+    {
+        Assert.Equal(SpotlightPlacementKind.Pending, RankingSpotlight.PlacePinned("me", Top, false, null).Kind);
+        Assert.Equal(SpotlightPlacementKind.Unranked, RankingSpotlight.PlacePinned("me", Top, true, null).Kind);
+        Assert.Equal(SpotlightPlacementKind.Pending, RankingSpotlight.PlacePinned("me", Top, true, RankingsWire.Account(9, "other")).Kind);
+        var own = RankingsWire.Account(500, "ME");
+        var placed = RankingSpotlight.PlacePinned("me", Top, true, own);
+        Assert.Equal(SpotlightPlacementKind.Footer, placed.Kind);
+        Assert.Same(own, placed.Entry);
+    }
+
+    [Fact]
     public void SameAccountHandlesNulls()
     {
         Assert.False(RankingSpotlight.SameAccount(null, "a"));
