@@ -8,7 +8,10 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.datastore.preferences.core.mutablePreferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -147,5 +150,30 @@ class SongPathsDeviceTest {
         h.waitGone("fst.paths.close")
         assertTrue(h.exists("fst.song-detail.paths.open"))
         h.assertAccessible()
+    }
+
+    /** Drag from [tag]'s centre past the bottom of the screen, as a finger pulls the sheet away. */
+    private fun swipeSheetDownFrom(tag: String) {
+        rule.onNodeWithTag(tag).performTouchInput {
+            swipeDown(startY = centerY, endY = centerY + rule.activity.window.decorView.height, durationMillis = 300)
+        }
+        h.waitGone("fst.paths.close")
+        assertTrue(h.exists("fst.song-detail.paths.open"))
+    }
+
+    /** Issues #96/#192: swiping the sheet down closes it in image and text modes instead of bouncing back. */
+    @Test
+    fun swipeDownDismissesInImageAndTextModes() {
+        open()
+        h.tap("fst.paths.warning.ok")
+        h.waitForTag("fst.paths.image")
+        swipeSheetDownFrom("fst.paths.image")
+
+        h.tap("fst.song-detail.paths.open")
+        h.tap("fst.paths.warning.ok")
+        h.tap("fst.paths.display.open")
+        h.tap("fst.paths.display.text")
+        h.waitForTag("fst.paths.row.3")
+        swipeSheetDownFrom("fst.paths.row.1")
     }
 }

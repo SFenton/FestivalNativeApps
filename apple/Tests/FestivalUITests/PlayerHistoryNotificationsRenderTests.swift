@@ -15,6 +15,8 @@ import FestivalDesign
 actor HostedHistoryTransport: HTTPTransport {
     private let generation = 7
     var historyStatus = 200
+    /// Extra Lead scores after the three fixture rows (six or more shows View All Scores).
+    var extraLeadScores: [Int] = []
     var notificationsBody = Data("""
     {"generatedAt":"2024-01-05T00:00:00Z","expiresAfterHours":72,"sourceRunId":1,
      "sourceCompletedAt":"2024-01-05T00:00:00Z","notificationsGenerated":true,"items":[
@@ -40,6 +42,20 @@ actor HostedHistoryTransport: HTTPTransport {
     /// - Parameter body: Raw JSON envelope bytes to serve for subsequent requests.
     func setNotificationsBody(_ body: Data) {
         notificationsBody = body
+    }
+
+    /// Serve `/api/player/fixture-1/history` with this status (200 or 202).
+    ///
+    /// - Parameter status: HTTP status for subsequent history reads.
+    func setHistoryStatus(_ status: Int) {
+        historyStatus = status
+    }
+
+    /// Add Lead scores (dated before the fixture rows) to the history response.
+    ///
+    /// - Parameter scores: Extra `newScore` values.
+    func setExtraLeadScores(_ scores: [Int]) {
+        extraLeadScores = scores
     }
 
     func send(_ request: URLRequest) async throws -> HTTPResult {
@@ -80,10 +96,18 @@ actor HostedHistoryTransport: HTTPTransport {
                  "count":0,"history":[]}
                 """.utf8))
             }
+            let extra = extraLeadScores.enumerated().map { index, score in
+                """
+                ,{"songId":"fixture-song","instrument":"Solo_Guitar","newScore":\(score),
+                  "newRank":20,"accuracy":880000,"isFullCombo":false,"season":38,
+                  "scoreAchievedAt":"2023-11-\(String(format: "%02d", index + 1))T00:00:00Z",
+                  "changedAt":"2023-11-\(String(format: "%02d", index + 1))T00:00:00Z"}
+                """
+            }.joined()
             return HTTPResult(
                 status: 200,
                 data: Data("""
-                {"accountId":"fixture-1","count":3,"history":[
+                {"accountId":"fixture-1","count":\(3 + extraLeadScores.count),"history":[
                   {"songId":"fixture-song","instrument":"Solo_Guitar","newScore":850000,
                    "newRank":4,"accuracy":991200,"isFullCombo":true,"season":40,
                    "scoreAchievedAt":"2024-01-05T00:00:00Z","changedAt":"2024-01-05T00:00:00Z"},
@@ -93,6 +117,7 @@ actor HostedHistoryTransport: HTTPTransport {
                   {"songId":"fixture-song","instrument":"Solo_Guitar","newScore":600000,
                    "newRank":15,"accuracy":901000,"isFullCombo":false,"season":39,
                    "scoreAchievedAt":"2023-12-20T00:00:00Z","changedAt":"2023-12-20T00:00:00Z"}
+                  \(extra)
                 ]}
                 """.utf8),
                 headers: ["X-FST-Publication-Id": String(generation)]
@@ -109,19 +134,29 @@ actor HostedHistoryTransport: HTTPTransport {
 }
 
 /// Build a session with a stored selected profile against the fixture transport.
+///
+/// - Parameters:
+///   - transport: Fixture transport.
+///   - accountId: Selected player; nil selects nobody. Accounts other than
+///     `fixture-1` get the service's 404 (unregistered).
+/// - Returns: The session.
 @MainActor
-private func hostedHistorySession(transport: HostedHistoryTransport) -> FestivalSession {
+private func hostedHistorySession(
+    transport: HostedHistoryTransport, accountId: String? = "fixture-1"
+) -> FestivalSession {
     let client = try! FestivalAPI(
         baseURL: URL(string: "http://localhost")!, transport: transport
     )
     let suite = "fst.tests.history.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
-    defaults.set(
-        Data("""
-        {"accountId":"fixture-1","displayName":"Fixture Player"}
-        """.utf8),
-        forKey: SelectedPlayerIdentity.storageKey
-    )
+    if let accountId {
+        defaults.set(
+            Data("""
+            {"accountId":"\(accountId)","displayName":"Fixture Player"}
+            """.utf8),
+            forKey: SelectedPlayerIdentity.storageKey
+        )
+    }
     return FestivalSession(factory: { client }, selectionStorage: defaults)
 }
 
@@ -153,7 +188,8 @@ private let fixtureSong = Song(
 // MARK: - Player History
 
 /// Score history is a section of the song page: the selector, the chart and the best
-/// scores (highest first, the best marked), expanding to every score in place.
+/// scores (highest first, the best marked). With five or fewer scores there is no View
+/// All Scores button (web `chartData.length > 5`).
 @MainActor
 @Test func songScoreHistorySectionRendersChartAndBestScores() async throws {
     let transport = HostedHistoryTransport()
@@ -165,8 +201,8 @@ private let fixtureSong = Song(
     let host = nativeHostedView(
         ScrollView {
             SongScoreHistorySection(
-                entries: entries, pool: [.lead, .bass], keyboardIcon: false,
-                instrument: .constant(nil), expanded: .constant(false)
+                song: fixtureSong, entries: entries, pool: [.lead, .bass],
+                instrument: .constant(nil)
             )
             .padding(16)
         }
@@ -179,7 +215,45 @@ private let fixtureSong = Song(
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(host, untilText: ["Score History", "score 850,000"])
     _ = try nativeHostedPNG(image, filename: "song-score-history.png", environment: "FST_HISTORY_RENDER_OUT")
-    assertRendersContent(host, image: image, containing: ["Score History", "score 850,000"])
+    assertRendersContent(
+        host, image: image, containing: ["Score History", "score 850,000"],
+        notContaining: ["View All Scores"]
+    )
+}
+
+/// Issue #324: with more than five scores the section still lists only the best five and
+/// ends with View All Scores (which opens the Score History page), never expanding in
+/// place.
+@MainActor
+@Test func songScoreHistorySectionCapsAtFiveWithViewAllScores() async throws {
+    let transport = HostedHistoryTransport()
+    await transport.setExtraLeadScores([500_000, 400_000, 300_000])
+    let session = hostedHistorySession(transport: transport)
+    let entries = try await session.songHistory(accountId: "fixture-1", songId: "fixture-song").response.history
+    #expect(entries.count == 6)
+    let size = CGSize(width: 420, height: 1100)
+    let host = nativeHostedView(
+        NavigationStack {
+            ScrollView {
+                SongScoreHistorySection(
+                    song: fixtureSong, entries: entries, pool: [.lead], instrument: .constant(nil)
+                )
+                .padding(16)
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .background(BrandTokens.appBackground)
+        .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(host, untilText: ["score 400,000", "View All Scores"])
+    assertRendersContent(
+        host, image: image,
+        containing: ["score 850,000", "score 400,000", "View All Scores, Lead Score History"],
+        notContaining: ["score 300,000", "Show top scores"]
+    )
 }
 
 /// Issue #32: Score History list rows show the season only when the page is at least
@@ -194,8 +268,8 @@ func songScoreHistoryRowsShowTheSeasonOnlyOnWidePages(width: Double, shows: Bool
     let host = nativeHostedView(
         ScrollView {
             SongScoreHistorySection(
-                entries: entries, pool: [.lead], keyboardIcon: false,
-                instrument: .constant(nil), expanded: .constant(false),
+                song: fixtureSong, entries: entries, pool: [.lead],
+                instrument: .constant(nil),
                 viewportWidth: size.width, currentSeason: 40
             )
             .padding(16)
@@ -217,6 +291,129 @@ func songScoreHistoryRowsShowTheSeasonOnlyOnWidePages(width: Double, shows: Bool
     } else {
         assertRendersContent(host, image: image, containing: ["score 850,000"], notContaining: ["season 39", "season 40"])
     }
+}
+
+// MARK: - Score History page (issue #324)
+
+/// Host the Score History page in a navigation stack.
+///
+/// - Parameters:
+///   - session: Fixture session.
+///   - instrument: Chart to show.
+///   - size: Window size.
+/// - Returns: The hosting view.
+@MainActor
+private func hostedHistoryPage(
+    _ session: FestivalSession, instrument: Instrument = .lead,
+    size: CGSize = CGSize(width: 420, height: 900)
+) -> NSHostingView<some View> {
+    nativeHostedView(
+        NavigationStack {
+            PlayerHistoryScreen(session: session, song: fixtureSong, instrument: instrument)
+        }
+        .frame(width: size.width, height: size.height)
+        .preferredColorScheme(.dark),
+        size: size
+    )
+}
+
+/// Every score of the chart, Score descending by default (web `useSortedScoreHistory`),
+/// the best one highlighted; Sort is offered and the song header names the chart.
+@MainActor
+@Test func playerHistoryScreenListsEveryScoreBestFirst() async throws {
+    let transport = HostedHistoryTransport()
+    await transport.setExtraLeadScores([500_000, 400_000, 300_000])
+    let session = hostedHistorySession(transport: transport)
+    let host = hostedHistoryPage(session, size: CGSize(width: 420, height: 1000))
+    let window = nativeHostedWindow(host, size: CGSize(width: 420, height: 1000))
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(
+        host, untilText: ["score 850,000", "score 300,000"], timeout: .seconds(60)
+    )
+    _ = try nativeHostedPNG(image, filename: "player-history-page.png", environment: "FST_HISTORY_RENDER_OUT")
+    assertRendersContent(
+        host, image: image,
+        containing: ["Fixture Anthem", "Lead · Score History", "score 850,000", "best score", "score 300,000"]
+    )
+    let tree = nativeHostedAccessibility(host)
+    let order = [850_000, 700_000, 600_000, 500_000, 400_000, 300_000].map { score in
+        tree.texts.firstIndex { $0.contains("score \(score.formatted())") } ?? -1
+    }
+    #expect(order == order.sorted() && !order.contains(-1), "Score descending: \(order)")
+    #expect(tree.texts.filter { $0.contains("best score") }.count == 1)
+    #expect(tree.identifiers.contains("fst.history"))
+    #expect(tree.identifiers.contains("fst.history.row.5"))
+}
+
+/// A chart without scores reads the web's empty copy.
+@MainActor
+@Test func playerHistoryScreenShowsEmptyInstrument() async throws {
+    let session = hostedHistorySession(transport: HostedHistoryTransport())
+    let host = hostedHistoryPage(session, instrument: .drums)
+    let window = nativeHostedWindow(host, size: CGSize(width: 420, height: 900))
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(host, untilText: ["No score history for this instrument."])
+    assertRendersContent(host, image: image, containing: ["No Score History"], notContaining: ["score 850,000"])
+}
+
+/// 202: the history is still syncing (web `PlayerHistoryPage` syncing state).
+@MainActor
+@Test func playerHistoryScreenShowsSyncing() async throws {
+    let transport = HostedHistoryTransport()
+    await transport.setHistoryStatus(202)
+    let session = hostedHistorySession(transport: transport)
+    let host = hostedHistoryPage(session)
+    let window = nativeHostedWindow(host, size: CGSize(width: 420, height: 900))
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(host, untilText: ["History Is Syncing"])
+    assertRendersContent(host, image: image, containing: ["still syncing"])
+}
+
+/// 404: only registered users have score history.
+@MainActor
+@Test func playerHistoryScreenShowsUnregistered() async throws {
+    let session = hostedHistorySession(transport: HostedHistoryTransport(), accountId: "fixture-unregistered")
+    let host = hostedHistoryPage(session)
+    let window = nativeHostedWindow(host, size: CGSize(width: 420, height: 900))
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(host, untilText: ["only available for registered users"])
+    assertRendersContent(host, image: image, containing: ["History Unavailable"])
+}
+
+/// No selected player: the web's "Select a player" message with Choose Profile.
+@MainActor
+@Test func playerHistoryScreenAsksForAPlayer() async throws {
+    let session = hostedHistorySession(transport: HostedHistoryTransport(), accountId: nil)
+    let host = hostedHistoryPage(session)
+    let window = nativeHostedWindow(host, size: CGSize(width: 420, height: 900))
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(host, untilText: ["Select a player to view score history."])
+    assertRendersContent(host, image: image, containing: ["Choose Profile", "Fixture Anthem"])
+}
+
+/// The sort sheet offers the web's four modes, the direction control with the web's
+/// score-history copy and the red Reset.
+@MainActor
+@Test func playerHistorySortSheetOffersTheWebModes() async throws {
+    let size = CGSize(width: 400, height: 640)
+    let host = nativeHostedView(
+        PlayerHistorySortSheet(mode: .score, ascending: false) { _, _ in }
+            .environment(\.festivalModalPreview, true)
+            .formStyle(.grouped)
+            .frame(width: size.width, height: size.height)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(host, untilText: ["Reset Sort Settings", "Newest first, high to low"])
+    assertRendersContent(
+        host, image: image,
+        containing: ["Date", "Score", "Accuracy", "Season", "Sort Direction", "Descending"]
+    )
+    let ids = nativeHostedAccessibility(host).identifiers
+    #expect(ids.contains("fst.history.sort.direction.ascending"))
+    #expect(ids.contains("fst.history.sort.reset"))
 }
 
 /// Issue #32: a top-score row draws the season pill only when its card turns the

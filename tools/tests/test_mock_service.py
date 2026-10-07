@@ -220,6 +220,13 @@ class MockServiceTests(unittest.TestCase):
                 bands = json.load(response)
             self.assertEqual(bands["totalTeams"], 600)
             self.assertEqual(len(bands["entries"]), 25)
+            with urlopen(base + "/api/leaderboard/fixture-pulse/bands/Band_Duets?top=25&offset=50"
+                         "&accountId=fixture-player-1") as response:
+                song_bands = json.load(response)
+            self.assertEqual(song_bands["totalEntries"], 75)
+            self.assertEqual(song_bands["entries"][-1]["rank"], 75)
+            self.assertTrue(all(e["score"] > 0 for e in song_bands["entries"]))
+            self.assertIsNotNone(song_bands["selectedPlayerEntry"])
         finally:
             large.shutdown()
             large.server_close()

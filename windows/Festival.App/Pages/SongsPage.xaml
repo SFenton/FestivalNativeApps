@@ -390,7 +390,8 @@
             <!-- Sticky section header (operator batches 3 + 5): the current section's label sits in its own row above the
                  list's viewport, so rows scroll away beneath the list's top edge and never show through it. The in-list
                  headers scroll up into it; the first section's in-list header is omitted (this bar names it). Rows fade
-                 out over 28 epx at the list's top edge once scrolled (TopEdgeFade on ListFadeSource, issue #49). -->
+                 out over a 40 epx linear ramp at the list's top edge once scrolled, cut short near a section title (TopEdgeFade
+                 on ListFadeSource, issues #49, #308). -->
             <!-- A level-2 heading for UIA too: it is the only header of the first section and names the current one.
                  StickyBar clips it so the next section's title can push it up and out (issue #288). -->
             <Grid x:Name="StickyBar" SizeChanged="OnStickyBarSizeChanged">
@@ -487,9 +488,9 @@
             </SemanticZoom>
             </Grid>
             <!-- Paints ListFadeSource with its top edge faded while the fade is on (TopEdgeFade); never hit-testable. Raw-view
-                 ItemStatus names the edge state for UI tests (hidden, hard-edge, top, fading). -->
+                 ItemStatus names the edge state for UI tests (hidden, hard-edge, top, clear, fading). -->
             <controls:EdgeFadeLayer x:Name="ListFadeHost" Grid.Row="1" AutomationProperties.AutomationId="fst.songs.edge-fade" />
-            <!-- Issue #288: the next section's title, drawn here from the edge fade's depth up to the bar, where it pushes
+            <!-- Issue #288: the next section's title, drawn here from the edge fade's full depth (40 epx) up to the bar, where it pushes
                  StickyHeader out (the in-list heading turns transparent meanwhile but stays the UIA heading, so this copy
                  is Raw). Positions follow the scroll on the compositor; nothing animates on its own. -->
             <Canvas x:Name="PushLayer" Grid.RowSpan="2" IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw">

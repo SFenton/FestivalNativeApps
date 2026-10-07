@@ -18,11 +18,12 @@ public static class BandWire
         return $$"""{"accountId":"{{accountId}}","group":"all","totalCount":{{total}},"entries":[{{entries}}]}""";
     }
 
-    public static string SongBands(string songId, string bandType, int count, int total, int offset = 0)
+    public static string SongBands(string songId, string bandType, int count, int total, int offset = 0, bool? showTotals = null)
     {
         var entries = string.Join(",", Enumerable.Range(offset + 1, count).Select(i =>
             $$"""{"bandId":"sb{{i}}","bandType":"{{bandType}}","teamKey":"t{{i}}a:t{{i}}b","comboId":null,"members":[{"accountId":"t{{i}}a","displayName":"Lead {{i}}","instruments":["Solo_Guitar"],"score":500,"accuracy":990000,"isFullCombo":true,"stars":5,"difficulty":3,"season":9},{"accountId":"t{{i}}b","displayName":"","instruments":["Solo_Bass"]}],"score":{{100000 - i}},"rank":{{i}},"accuracy":{{(i == 1 ? "990000" : "null")}},"isFullCombo":{{(i == 1 ? "true" : "false")}},"stars":{{(i == 1 ? "6" : "0")}},"season":9,"difficulty":3,"percentile":0.1,"endTime":null}"""));
-        return $$"""{"songId":"{{songId}}","bandType":"{{bandType}}","count":{{count}},"totalEntries":{{total}},"localEntries":{{total}},"entries":[{{entries}}]}""";
+        var totals = showTotals is { } show ? "\"showLeaderboardEntryTotals\":" + (show ? "true," : "false,") : "";
+        return $$"""{"songId":"{{songId}}","bandType":"{{bandType}}",{{totals}}"count":{{count}},"totalEntries":{{total}},"localEntries":{{total}},"entries":[{{entries}}]}""";
     }
 }
 

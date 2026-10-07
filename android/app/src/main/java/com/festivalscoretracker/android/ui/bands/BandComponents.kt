@@ -375,24 +375,4 @@ internal fun BandEmptyState(title: String, message: String, tag: String) {
     }
 }
 
-/**
- * A tappable text link with a 48 dp target.
- *
- * @param text Link text.
- * @param tag Test tag.
- * @param onClick Action.
- */
-@Composable
-internal fun BandTextLink(text: String, tag: String, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .heightIn(min = 48.dp)
-            .clickable(role = Role.Button, onClick = onClick)
-            .testTag(tag),
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        Text(text, style = MaterialTheme.typography.labelLarge, color = BrandTokens.accentBlue, fontWeight = FontWeight.SemiBold)
-    }
-}
-
 // endregion

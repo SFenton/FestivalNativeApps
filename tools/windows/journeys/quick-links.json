@@ -356,7 +356,8 @@
       "assertstate:id=fst.quick-links.open|name=Quick Links, current section Bands@5",
       "wait:1",
       "assertstate:id=fst.quick-links.open|name=Quick Links, current section Bands",
-      "waitfor:id=fst.player.bands-link@3"
+      "waitfor:id=fst.player.bands@3",
+      "assertinset:id=fst.player.bands-section|id=fst.player.available|32"
     ]
   },
   {
@@ -453,7 +454,8 @@
       "assertstate:id=fst.quick-links.open|name=Quick Links, current section Bands@5",
       "wait:2",
       "assertstate:id=fst.quick-links.open|name=Quick Links, current section Bands",
-      "waitfor:id=fst.player.bands-link@3"
+      "waitfor:id=fst.player.bands@3",
+      "assertinset:id=fst.player.bands-section|id=fst.player.available|32"
     ]
   }
 ]

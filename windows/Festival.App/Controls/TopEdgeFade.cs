@@ -8,23 +8,35 @@ namespace Festival.App.Controls;
 
 #region Top edge fade
 /// <summary>
-/// Fades <c>source</c>'s top edge over <see cref="SongHeaderEdgeFade.Depth"/> epx (the Songs list under its section
-/// header bar, issue #49). WinUI 3 has no <c>OpacityMask</c>, so this uses the composition opacity-mask technique (as in
-/// the Windows Community Toolkit's <c>OpacityMaskView</c>). A <see cref="CompositionVisualSurface"/> renders the
-/// source's visual, a <see cref="CompositionMaskBrush"/> multiplies it by an eased linear gradient, and a sprite on
-/// <c>host</c> (a hit-test-invisible sibling over the same cell) paints the result while the source's own visual is
-/// hidden. Composition opacity is not XAML opacity, so hit testing, keyboard focus and the UI Automation tree still
-/// use the source unchanged. With the fade off, the source shows directly and the sprite is hidden.
+/// The pinned-section-title row fade (scroll-edge R2–R5; issues #49, #308): rows are clear at <c>source</c>'s top edge and
+/// opaque <see cref="SongHeaderEdgeFade.FadeDepth"/> epx below it, linear. WinUI 3 has no <c>OpacityMask</c>, so this
+/// uses the composition opacity-mask technique (as in the Windows Community Toolkit's <c>OpacityMaskView</c>). A
+/// <see cref="CompositionVisualSurface"/> renders the source's visual, a <see cref="CompositionMaskBrush"/> multiplies it
+/// by a linear gradient, and a sprite on <c>host</c> (a hit-test-invisible sibling over the same cell) paints the result
+/// while the source's own visual is hidden. Composition opacity is not XAML opacity, so hit testing, keyboard focus and
+/// the UI Automation tree still use the source unchanged. The gradient's end (the ramp's depth) is an expression over
+/// the scroll viewer's manipulation property set, so it follows the rows in the same frame; <see cref="SetTitles"/>
+/// supplies the section titles it is cut to. Off, the source shows directly and the sprite is hidden (the hard edge).
 /// </summary>
 internal sealed class TopEdgeFade
 {
+    /// <summary>
+    /// <see cref="SongHeaderEdgeFade.FadeDepth"/> on the compositor. Live scroll offset o = -s.Translation.Y and live
+    /// title tops A + s.Translation.Y / B + s.Translation.Y (A, B: content tops). The floor keeps the gradient non-degenerate.
+    /// </summary>
+    private const string DepthExpression =
+        "Vector2(0, Max(0.01, Min(p.R, Min(-s.Translation.Y, Min(" +
+        "Max(Max(p.A + s.Translation.Y, -(p.A + s.Translation.Y) - p.H), 0), " +
+        "Max(Max(p.B + s.Translation.Y, -(p.B + s.Translation.Y) - p.H), 0))))))";
+
     private readonly UIElement source;
     private readonly UIElement host;
     private Visual? sourceVisual;
     private CompositionVisualSurface? surface;
     private SpriteVisual? sprite;
-    private CompositionColorGradientStop[] stops = [];
-    private double strength;
+    private CompositionPropertySet? props;
+    private CompositionPropertySet? scroll;
+    private bool active;
 
     /// <summary>Creates the fade; composition objects are built on first use.</summary>
     /// <param name="source">Element whose top edge fades (its XAML opacity is left alone).</param>
@@ -40,16 +52,41 @@ internal sealed class TopEdgeFade
     }
 
     /// <summary>Whether the fade is currently drawn.</summary>
-    public bool IsActive => strength > 0;
+    public bool IsActive => active;
 
-    /// <summary>Shows the fade at <paramref name="value"/> strength (0 = the plain hard edge).</summary>
-    /// <param name="value">Strength in [0, 1].</param>
-    public void Update(double value)
+    /// <summary>Ties the ramp's depth to a scroll viewer's manipulation property set (call once it exists).</summary>
+    /// <param name="scrollSet">The list's <c>ElementCompositionPreview.GetScrollViewerManipulationPropertySet</c>.</param>
+    public void Track(CompositionPropertySet scrollSet)
     {
-        value = Math.Clamp(value, 0, 1);
-        if (value == strength) return;
-        strength = value;
-        if (value <= 0)
+        scroll = scrollSet;
+        props = scrollSet.Compositor.CreatePropertySet();
+        props.InsertScalar("R", (float)SongHeaderEdgeFade.Depth);
+        SetTitles(null, null, 0);
+    }
+
+    /// <summary>
+    /// Sets the section titles the ramp is cut to (<see cref="SongHeaderEdgeFade.TitleLimit"/>), as content tops
+    /// (viewport-relative top plus the scroll offset) so the compositor can follow them between view changes.
+    /// </summary>
+    /// <param name="ownContentTop">The first visible row's section title, or <see langword="null"/>.</param>
+    /// <param name="nextContentTop">The following section's title, or <see langword="null"/>.</param>
+    /// <param name="barHeight">The pinned bar's height.</param>
+    public void SetTitles(double? ownContentTop, double? nextContentTop, double barHeight)
+    {
+        if (props is null) return;
+        props.InsertScalar("A", (float)(ownContentTop ?? SongHeaderEdgeFade.FarTitle));
+        props.InsertScalar("B", (float)(nextContentTop ?? SongHeaderEdgeFade.FarTitle));
+        props.InsertScalar("H", (float)Math.Max(0, barHeight));
+    }
+
+    /// <summary>Shows the ramp, or the plain hard edge.</summary>
+    /// <param name="on">Whether to draw the ramp.</param>
+    public void Update(bool on)
+    {
+        if (on && (scroll is null || props is null)) on = false;
+        if (on == active) return;
+        active = on;
+        if (!on)
         {
             if (sprite is null) return;
             sprite.IsVisible = false;
@@ -57,13 +94,11 @@ internal sealed class TopEdgeFade
             return;
         }
         Build();
-        for (var i = 0; i < stops.Length; i++)
-            stops[i].Color = Windows.UI.Color.FromArgb((byte)Math.Round(255 * SongHeaderEdgeFade.MaskAlpha(SongHeaderEdgeFade.Stops[i].Alpha, value)), 0, 0, 0);
         sprite!.IsVisible = true;
         sourceVisual!.Opacity = 0;
     }
 
-    /// <summary>Builds the surface, mask and sprite once.</summary>
+    /// <summary>Builds the surface, mask, depth expression and sprite once.</summary>
     private void Build()
     {
         if (sprite is not null) return;
@@ -81,8 +116,12 @@ internal sealed class TopEdgeFade
         gradient.StartPoint = Vector2.Zero;
         gradient.EndPoint = new Vector2(0, (float)SongHeaderEdgeFade.Depth);
         gradient.ExtendMode = CompositionGradientExtendMode.Clamp;
-        stops = [.. SongHeaderEdgeFade.Stops.Select(s => compositor.CreateColorGradientStop(s.Offset, Microsoft.UI.Colors.Black))];
-        foreach (var stop in stops) gradient.ColorStops.Add(stop);
+        foreach (var (offset, alpha) in SongHeaderEdgeFade.Stops)
+            gradient.ColorStops.Add(compositor.CreateColorGradientStop(offset, Windows.UI.Color.FromArgb((byte)Math.Round(255 * alpha), 0, 0, 0)));
+        var depth = compositor.CreateExpressionAnimation(DepthExpression);
+        depth.SetReferenceParameter("s", scroll!);
+        depth.SetReferenceParameter("p", props!);
+        gradient.StartAnimation(nameof(gradient.EndPoint), depth);
         var mask = compositor.CreateMaskBrush();
         mask.Source = content;
         mask.Mask = gradient;

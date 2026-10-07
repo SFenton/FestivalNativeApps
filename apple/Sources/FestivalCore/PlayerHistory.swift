@@ -105,6 +105,32 @@ public enum PlayerScoreSortMode: String, CaseIterable, Sendable, Identifiable {
 
 /// Pure sort logic extracted for testability, matching `useSortedScoreHistory.ts`.
 public enum PlayerScoreHistorySort {
+    /// The web's default mode (`PlayerHistoryPage` `sortMode` initial state).
+    public static let defaultMode: PlayerScoreSortMode = .score
+    /// The web's default direction: descending, best or newest first.
+    public static let defaultAscending = false
+
+    /// Whether a sort differs from the default (the web's `active` sort pill, the
+    /// native gold Sort tint).
+    ///
+    /// - Parameters:
+    ///   - mode: Applied sort key.
+    ///   - ascending: Applied direction.
+    /// - Returns: True unless the sort is Score, descending.
+    public static func isCustomized(mode: PlayerScoreSortMode, ascending: Bool) -> Bool {
+        mode != defaultMode || ascending != defaultAscending
+    }
+
+    /// The Sort button's spoken value, e.g. "Score, descending".
+    ///
+    /// - Parameters:
+    ///   - mode: Applied sort key.
+    ///   - ascending: Applied direction.
+    /// - Returns: The mode label and direction.
+    public static func spokenValue(mode: PlayerScoreSortMode, ascending: Bool) -> String {
+        "\(mode.label), \(ascending ? "ascending" : "descending")"
+    }
+
     /// Order history rows by the chosen mode and direction.
     ///
     /// - Parameters:

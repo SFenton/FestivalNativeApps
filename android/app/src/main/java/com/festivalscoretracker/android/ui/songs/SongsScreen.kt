@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.songs
 
+import com.festivalscoretracker.android.ui.common.rememberPageFadeInWindow
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -177,7 +178,9 @@ fun SongsScreen(
     val linkSections = remember(state.headers, listed) { if (listed) state.headers.map { it.quickLink } else emptyList() }
     // Headers are their own (sticky) items, so a header's list index counts the headers before it.
     // They pin under the top bar, so jumps land them flush rather than 32 dp down (#51).
-    val quickLinks = rememberQuickLinks(listState, state.quickLinksTitle, linkSections, pinnedHeaders = true) { id ->
+    // The page's fade window, here so Quick Links jumps rush it (load-transition R5).
+    val fadeIn = rememberPageFadeInWindow()
+    val quickLinks = rememberQuickLinks(listState, state.quickLinksTitle, linkSections, pinnedHeaders = true, fadeInWindow = fadeIn) { id ->
         state.headers.indexOfFirst { it.id == id }.takeIf { it >= 0 }?.let { ordinal -> leading + state.headers[ordinal].firstIndex + ordinal }
     }
     val density = LocalDensity.current
@@ -189,6 +192,7 @@ fun SongsScreen(
         FestivalScreen(
             title = "Songs",
             isRoot = true,
+            fadeInWindow = fadeIn,
             scrolled = scrolled,
             // Sort, Filter and Quick Links stay reachable while the list scrolls (issue #52).
             pinActions = true,
