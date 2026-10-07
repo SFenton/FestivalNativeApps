@@ -1588,11 +1588,12 @@ struct SongsScreen: View, Equatable {
     }
 
     /// One grid row: up to `columns` cards of equal width (a short last row keeps its
-    /// card at column width), each its own accessible link.
+    /// card at column width), each its own accessible link. In book pose the gutter sits
+    /// on the fold (``HingeRow``, pattern `hinge-columns`).
     private func songGridRow(
         _ songs: [Song], columns: Int, catalogueObservation: Int, fadeOrder: [String: Int]
     ) -> some View {
-        HStack(alignment: .top, spacing: SongGridPolicy.spacing) {
+        HingeRow(spacing: SongGridPolicy.spacing) {
             ForEach(songs) { song in
                 songCell(
                     for: song, catalogueObservation: catalogueObservation,

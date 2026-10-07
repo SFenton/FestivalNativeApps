@@ -38,3 +38,4 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [back-keeps-place](back-keeps-place.md) | Back to a cached page: no reload, no movement or replayed fade-in, focus back on the opener |
 | [songs-profile-panel](songs-profile-panel.md) | Wide Songs rows with a selected player or band: song left, that profile's one-line score cards right |
 | [settings-value-row](settings-value-row.md) | Read-only Settings title/value rows (Version, Service Info state): inline when it fits, otherwise the value stacks under the title |
+| [hinge-columns](hinge-columns.md) | Foldable book pose: grid and two-up row gutters on the fold, full-width titles kept on their side, flat layout when unfolded |

@@ -165,7 +165,7 @@ struct LeaderboardsScreen: View {
         ScrollView {
             Group {
                 if layout.widthClass == .regular {
-                    LazyVGrid(columns: regularWidthColumns, alignment: .leading, spacing: 24) {
+                    HingeGrid(columns: regularWidthColumns, alignment: .leading, spacing: 24) {
                         cards
                     }
                 } else {

@@ -44,7 +44,6 @@ struct SongDetailScreen: View {
     @State private var heroTitleBottom: CGFloat = 0
     /// The page's width (the web viewport), for Score History's season column (issue #32).
     @State private var pageWidth: CGFloat = 0
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Section chrome: the iPhone Duo vertical bar needs a titled symbol Shop item.
@@ -330,7 +329,7 @@ struct SongDetailScreen: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     FestivalSectionHeader("Intensity")
-                    LazyVGrid(
+                    HingeGrid(
                         columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10
                     ) {
                         ForEach(charted) { instrument in
@@ -367,37 +366,8 @@ struct SongDetailScreen: View {
                     )
                 }
 
-                VStack(alignment: .leading, spacing: 12) {
-                    if dynamicTypeSize.isAccessibilitySize {
-                        // Eager rows at accessibility sizes: scrolling the lazy grid's very
-                        // tall, unequal cards to the end of the page at AX5 hung the main
-                        // thread in a lazy-layout loop (iPad portrait, sampled 2026-10-05,
-                        // Lane A11Y3); the same columns, built at once.
-                        let columns = SongDetailCardColumns.count(forWidth: pageWidth - 32)
-                        let rows = SongDetailCardColumns.rows(previewInstruments, columns: columns)
-                        VStack(alignment: .leading, spacing: 20) {
-                            ForEach(rows, id: \.self) { row in
-                                HStack(alignment: .top, spacing: 12) {
-                                    ForEach(row, id: \.self) { instrument in
-                                        instrumentCard(instrument, index: previewInstruments.firstIndex(of: instrument) ?? 0)
-                                            .frame(maxWidth: .infinity, alignment: .topLeading)
-                                    }
-                                    ForEach(0..<(columns - row.count), id: \.self) { _ in
-                                        Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        LazyVGrid(
-                            columns: [GridItem(.adaptive(minimum: SongDetailCardColumns.minimumWidth), spacing: 12)],
-                            alignment: .leading, spacing: 20
-                        ) {
-                            ForEach(Array(previewInstruments.enumerated()), id: \.element) { index, instrument in
-                                instrumentCard(instrument, index: index)
-                            }
-                        }
-                    }
+                SongDetailCardGrid(instruments: previewInstruments) { index, instrument in
+                    instrumentCard(instrument, index: index)
                 }
 
                 ForEach(Array(BandType.allCases.enumerated()), id: \.element) { index, bandType in
@@ -590,33 +560,51 @@ enum SongDetailPinnedTitlePolicy {
 
 /// Load a visible chart's top ten via the same public, publication-aware API as Solo.
 
-/// Columns of Song Detail's instrument cards: as many 360 pt columns as fit (the lazy
-/// grid's `.adaptive(minimum: 360, spacing: 12)`), at least one.
+/// Columns of Song Detail's instrument cards: as many 360 pt columns as fit, at least
+/// one; in an iPhone Duo book pose, the gutter on the fold (pattern `hinge-columns`).
 enum SongDetailCardColumns {
     /// Narrowest card column.
     static let minimumWidth: CGFloat = 360
     /// Space between columns.
     static let spacing: CGFloat = 12
+    /// Space between rows.
+    static let rowSpacing: CGFloat = 20
+}
 
-    /// Column count for a content width.
-    ///
-    /// - Parameter width: Width the cards share.
-    /// - Returns: Columns, at least one.
-    static func count(forWidth width: CGFloat) -> Int {
-        guard width.isFinite, width > 0 else { return 1 }
-        return max(1, Int(((width + spacing) / (minimumWidth + spacing)).rounded(.down)))
-    }
+/// Song Detail's instrument cards in hinge-aware adaptive columns (``HingeGrid``).
+/// Accessibility sizes build every card at once (``HingeEagerGrid``): scrolling the lazy
+/// grid's very tall, unequal cards to the end of the page at AX5 hung the main thread in
+/// a lazy-layout loop (iPad portrait, sampled 2026-10-05, Lane A11Y3). Both put the
+/// gutter on the fold in book pose (#343).
+struct SongDetailCardGrid<Card: View>: View {
+    /// Cards in reading order.
+    let instruments: [Instrument]
+    /// One card, given its index and instrument.
+    @ViewBuilder let card: (Int, Instrument) -> Card
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    /// Instruments split into rows of `columns`.
-    ///
-    /// - Parameters:
-    ///   - instruments: Cards in order.
-    ///   - columns: Cards per row.
-    /// - Returns: The rows.
-    static func rows(_ instruments: [Instrument], columns: Int) -> [[Instrument]] {
-        let size = max(1, columns)
-        return stride(from: 0, to: instruments.count, by: size).map {
-            Array(instruments[$0 ..< min($0 + size, instruments.count)])
+    var body: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            HingeEagerGrid(
+                minimum: SongDetailCardColumns.minimumWidth, spacing: SongDetailCardColumns.spacing,
+                rowSpacing: SongDetailCardColumns.rowSpacing
+            ) {
+                ForEach(Array(instruments.enumerated()), id: \.element) { index, instrument in
+                    card(index, instrument)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+            }
+        } else {
+            HingeGrid(
+                columns: [GridItem(
+                    .adaptive(minimum: SongDetailCardColumns.minimumWidth), spacing: SongDetailCardColumns.spacing
+                )],
+                alignment: .leading, spacing: SongDetailCardColumns.rowSpacing
+            ) {
+                ForEach(Array(instruments.enumerated()), id: \.element) { index, instrument in
+                    card(index, instrument)
+                }
+            }
         }
     }
 }

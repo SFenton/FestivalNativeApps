@@ -39,30 +39,59 @@ struct PlayerStatGrid: View {
     let scope: String
     let onSelect: (PlayerStatLink) -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.deviceLayout) private var layout
+    @State private var span: HorizontalSpan?
 
     var body: some View {
+        let minimumTileWidth = dynamicTypeSize.isAccessibilitySize
+            ? StatGridColumns.accessibilityMinimumTileWidth : StatGridColumns.minimumTileWidth
         StatTileGridLayout(
             spacing: StatGridColumns.spacing,
-            minimumTileWidth: dynamicTypeSize.isAccessibilitySize
-                ? StatGridColumns.accessibilityMinimumTileWidth : StatGridColumns.minimumTileWidth,
+            minimumTileWidth: minimumTileWidth,
             minimumColumns: dynamicTypeSize.isAccessibilitySize
-                ? StatGridColumns.accessibilityMinimumColumns : StatGridColumns.minimumColumns
+                ? StatGridColumns.accessibilityMinimumColumns : StatGridColumns.minimumColumns,
+            // A grid that spans an iPhone Duo book-pose fold (Global Statistics) puts a
+            // gutter on it (pattern `hinge-columns`); tiles inside a half column never do.
+            band: HingeColumns.band(
+                span: span, fold: layout.foldFrame, gutter: StatGridColumns.spacing,
+                minimumSide: max(CGFloat(minimumTileWidth), HingeColumns.minimumSide)
+            )
         ) {
             ForEach(tiles) { tile in
                 PlayerStatTileView(tile: tile, scope: scope, onSelect: onSelect)
             }
         }
+        .measuresHorizontalSpan($span)
     }
 }
 
 /// Equal-width columns (``StatGridColumns/count(forWidth:minimumTileWidth:spacing:)``)
-/// with each row as tall as its tallest tile.
+/// with each row as tall as its tallest tile; across an iPhone Duo book-pose fold, the
+/// same count on each side with the centre gutter on the fold (``HingeColumns``).
 struct StatTileGridLayout: Layout {
     var spacing: CGFloat = StatGridColumns.spacing
     /// Narrowest tile before a column is dropped (wider at accessibility sizes).
     var minimumTileWidth: Double = StatGridColumns.minimumTileWidth
     /// Fewest columns (one at accessibility sizes).
     var minimumColumns: Int = StatGridColumns.minimumColumns
+    /// The fold's band across the grid, or nil; ignored unless it matches the width.
+    var band: HingeBand?
+
+    /// Every column's leading x and width for a width: hinge-aligned when ``band``
+    /// matches it, otherwise ``metrics(for:)``'s equal columns.
+    ///
+    /// - Parameter width: Grid width; nil lays out at the two-column ideal.
+    /// - Returns: One (x, width) per column.
+    func columnFrames(for width: CGFloat?) -> [(x: CGFloat, width: CGFloat)] {
+        if let band, let width, abs(band.width - width) < 0.5 {
+            let spec = HingeColumns.spec(
+                band: band, spacing: spacing, perSide: .fit(minimum: CGFloat(minimumTileWidth))
+            )
+            return zip(spec.offsets, spec.widths).map { (x: $0, width: $1) }
+        }
+        let (columns, tileWidth) = metrics(for: width)
+        return (0 ..< columns).map { (x: CGFloat($0) * (tileWidth + spacing), width: tileWidth) }
+    }
 
     /// Column count and tile width for a proposed width.
     ///
@@ -82,37 +111,35 @@ struct StatTileGridLayout: Layout {
     ///
     /// - Parameters:
     ///   - subviews: Tiles in display order.
-    ///   - columns: Column count.
-    ///   - tileWidth: Width proposed to each tile.
+    ///   - columns: Each column's frame.
     /// - Returns: One height per row.
-    private func rowHeights(_ subviews: Subviews, columns: Int, tileWidth: CGFloat) -> [CGFloat] {
-        stride(from: 0, to: subviews.count, by: columns).map { start in
-            subviews[start ..< min(start + columns, subviews.count)]
-                .map { $0.sizeThatFits(ProposedViewSize(width: tileWidth, height: nil)).height }
+    private func rowHeights(_ subviews: Subviews, columns: [(x: CGFloat, width: CGFloat)]) -> [CGFloat] {
+        stride(from: 0, to: subviews.count, by: columns.count).map { start in
+            zip(subviews[start ..< min(start + columns.count, subviews.count)], columns)
+                .map { $0.sizeThatFits(ProposedViewSize(width: $1.width, height: nil)).height }
                 .max() ?? 0
         }
     }
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let (columns, tileWidth) = metrics(for: proposal.width)
-        let heights = rowHeights(subviews, columns: columns, tileWidth: tileWidth)
+        let columns = columnFrames(for: proposal.width)
+        let heights = rowHeights(subviews, columns: columns)
         let height = heights.reduce(0, +) + spacing * CGFloat(max(0, heights.count - 1))
-        let width = proposal.width ?? (tileWidth * CGFloat(columns) + spacing * CGFloat(columns - 1))
+        let width = proposal.width ?? columns.last.map { $0.x + $0.width } ?? 0
         return CGSize(width: width, height: height)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let (columns, tileWidth) = metrics(for: bounds.width)
-        let heights = rowHeights(subviews, columns: columns, tileWidth: tileWidth)
+        let columns = columnFrames(for: bounds.width)
+        let heights = rowHeights(subviews, columns: columns)
         var y = bounds.minY
         for (row, height) in heights.enumerated() {
-            for column in 0 ..< columns {
-                let index = row * columns + column
+            for (column, frame) in columns.enumerated() {
+                let index = row * columns.count + column
                 guard index < subviews.count else { break }
-                let x = bounds.minX + CGFloat(column) * (tileWidth + spacing)
                 subviews[index].place(
-                    at: CGPoint(x: x, y: y), anchor: .topLeading,
-                    proposal: ProposedViewSize(width: tileWidth, height: height)
+                    at: CGPoint(x: bounds.minX + frame.x, y: y), anchor: .topLeading,
+                    proposal: ProposedViewSize(width: frame.width, height: height)
                 )
             }
             y += height + spacing
