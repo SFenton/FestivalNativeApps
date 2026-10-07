@@ -234,6 +234,45 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
     #expect(reported.leadingWidth == 470 && reported.dividerWidth == 11)
 }
 
+/// Folding, rotating or resizing across the split threshold changes the stacks' shape a
+/// run-loop turn later (#346); the first measurement applies at once.
+@Test func windowChangesApplyOneTurnLater() {
+    typealias State = OnDemandSplitPolicy.WindowState
+    let unmeasured = State(measured: false, allowsSplit: false)
+    let split = State(measured: true, allowsSplit: true)
+    let single = State(measured: true, allowsSplit: false)
+    // Launch: the container's first measurement shapes the stacks immediately.
+    #expect(!OnDemandSplitPolicy.defersWindowChange(from: unmeasured, to: split))
+    #expect(!OnDemandSplitPolicy.defersWindowChange(from: unmeasured, to: single))
+    // Fold (or portrait) and unfold (or landscape) wait for the window's own update.
+    #expect(OnDemandSplitPolicy.defersWindowChange(from: split, to: single))
+    #expect(OnDemandSplitPolicy.defersWindowChange(from: single, to: split))
+    // Resizes and hinge moves that keep the split need no deferral.
+    #expect(!OnDemandSplitPolicy.defersWindowChange(from: split, to: split))
+    #expect(!OnDemandSplitPolicy.defersWindowChange(from: single, to: single))
+}
+
+/// While a collapse is pending the stacks keep the last panes; while an expansion is
+/// pending they stay one stack; once applied they follow the window.
+@Test func appliedGeometryHoldsShapeUntilApplied() throws {
+    let inner = try #require(windowGeometry(SplitLayouts.duoInnerLandscape))
+    let folded = windowGeometry(SplitLayouts.duoFolded)
+    #expect(folded == nil)
+    // Before the first application: the live window.
+    #expect(OnDemandSplitPolicy.appliedGeometry(live: inner, held: nil, applied: nil) == inner)
+    #expect(OnDemandSplitPolicy.appliedGeometry(live: nil, held: inner, applied: nil) == nil)
+    // Folded, collapse pending: the split keeps its panes for one turn.
+    #expect(OnDemandSplitPolicy.appliedGeometry(live: folded, held: inner, applied: true) == inner)
+    // Collapse applied: one stack, the open item pushed.
+    #expect(OnDemandSplitPolicy.appliedGeometry(live: folded, held: inner, applied: false) == nil)
+    // Unfolded, expansion pending: still one stack, then the split.
+    #expect(OnDemandSplitPolicy.appliedGeometry(live: inner, held: inner, applied: false) == nil)
+    #expect(OnDemandSplitPolicy.appliedGeometry(live: inner, held: inner, applied: true) == inner)
+    // A resize while split follows the window at once.
+    let book = try #require(windowGeometry(SplitLayouts.duoBook))
+    #expect(OnDemandSplitPolicy.appliedGeometry(live: book, held: inner, applied: true) == book)
+}
+
 /// The hinge line comes from the fold, the reported hinge, or the inner display's middle.
 @Test func splitHingeSources() {
     #expect(SplitLayouts.duoBook.splitHinge == CGRect(x: 460, y: 0, width: 30, height: 669))
