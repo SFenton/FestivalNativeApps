@@ -10,7 +10,8 @@ namespace Festival.App.Pages;
 
 #region Search page
 /// <summary>
-/// Global search results (<c>/search</c>): its own field, All/Songs/Players/Bands scopes and Songs → Players sections.
+/// Global search results (<c>/search</c>): its own field, All/Songs/Players/Bands scopes and Songs → Players → Bands
+/// sections.
 /// Pushed on the current section's stack, so Back returns to where the user was.
 /// </summary>
 public sealed partial class SearchPage : Page, IPageFind
@@ -70,7 +71,12 @@ public sealed partial class SearchPage : Page, IPageFind
     /// <param name="sender">Model.</param>
     /// <param name="section">Section that appeared.</param>
     private void OnSectionShown(object? sender, SearchScope section) =>
-        FadeIn.Restagger(section == SearchScope.Songs ? SongsList : PlayersList);
+        FadeIn.Restagger(section switch
+        {
+            SearchScope.Songs => SongsList,
+            SearchScope.Players => PlayersList,
+            _ => BandsList,
+        });
 
     /// <summary>Speaks the settled counts.</summary>
     /// <param name="sender">Model.</param>
@@ -119,11 +125,10 @@ public sealed partial class SearchPage : Page, IPageFind
         if (e.ClickedItem is GlobalPlayerResult player) MainWindow.Instance?.OpenSearchRoute(player.Route);
     }
 
-    /// <summary>Opens Band Rankings from the Bands explanation.</summary>
-    /// <param name="sender">Link.</param>
-    /// <param name="e">Unused.</param>
-    private void OnBandRankings(object sender, RoutedEventArgs e) =>
-        MainWindow.Instance?.OpenSearchRoute(GlobalSearchResults.BandRankingsRoute);
+    /// <summary>Opens a band card's page through the shared result navigation (Search closes first).</summary>
+    /// <param name="sender">Card.</param>
+    /// <param name="route">Band route.</param>
+    private void OnBandRouteRequested(object? sender, AppRoute route) => MainWindow.Instance?.OpenSearchRoute(route);
 
     /// <summary>Names song rows for UI Automation.</summary>
     /// <param name="sender">List.</param>

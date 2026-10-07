@@ -101,8 +101,8 @@ Issue #320 lifted the earlier native block. Natives call `GET /api/bands/search?
 - **Rows:** the platform's existing player-band card, the port of web `PlayerBandCard`: member names with charted instrument icons and the shared song count; one accessible name, "A + B, 12 songs together". "All" lists bands after players.
 - **States:** the same rules as Players: the one spinner, no Retry, a failure (`fst.global-search.bands-error`) never reads as "No bands found", and an empty envelope may be a timeout, so Search/Enter re-runs it. "All" hides an empty Bands section next to other rows.
 - **Tap:** close the surface, then push the band page (`bandId`, member names as the title, `bandType`, `teamKey`) on the current section. The web opens Statistics for the selected band; natives cannot select a band yet ([profile-selection](../profile-selection/spec.md)), so that branch does not apply.
-- **Placeholder:** "Search songs, players, or bands" (web `search.placeholders.songsPlayersBands`); Apple's Bands scope says "Search bands", while Android keeps the one placeholder in every scope (web parity: the web placeholder names the enabled scopes, not the chip).
-- **Rollout:** Apple and Android ship this (#320). Windows still shows the earlier explanation (`fst.global-search.bands-unavailable`) until its session ports it; its platform note describes the current state.
+- **Placeholder:** "Search songs, players, or bands" (web `search.placeholders.songsPlayersBands`); Apple's Bands scope says "Search bands", while Android and Windows keep the one placeholder in every scope (web parity: the web placeholder names the enabled scopes, not the chip).
+- **Rollout:** Apple, Android and Windows ship this (#320); the earlier explanation (`fst.global-search.bands-unavailable`) is gone everywhere.
 
 ## States
 
@@ -115,8 +115,9 @@ Issue #320 lifted the earlier native block. Natives call `GET /api/bands/search?
 | `results-scoped` | One scope via chip; toggling again returns to all |
 | `empty` | Centred scope-specific title + subtitle, no Retry; All hides an empty Players or Bands section next to other rows |
 | `error` | Per-scope failure message without Retry; other scopes still shown; freeze → "Scores are updating" |
-| `bands-unavailable` | Retired by #320 on Apple and Android; Windows keeps the explanation until it ports band search |
 | `navigated` | Surface closed, destination pushed on the current section; Back returns to the prior page |
+
+The former `bands-unavailable` state was retired by #320 on every platform and removed from `product.json`; band results use `results-all`/`results-scoped`, `loading`, `empty` and `error`.
 
 ## Test IDs
 
@@ -134,9 +135,9 @@ Issue #320 lifted the earlier native block. Natives call `GET /api/bands/search?
 | `fst.global-search.result.song`, `fst.global-search.result.player`, `fst.global-search.result.band` | Each result row (repeated; accessible name = title/artist, display name, or members and song count) |
 | `fst.global-search.loading` | The one centred search spinner (Android, Windows, Apple) |
 | `fst.global-search.players-loading` | Players inline progress; removed on Android, Windows and Apple by issue #299 |
-| `fst.global-search.players-error`, `fst.global-search.bands-error` | Players / Bands failure or freeze message (Android, Windows, Apple; Apple also `fst.global-search.songs-error`; bands Apple and Android so far) |
+| `fst.global-search.players-error`, `fst.global-search.bands-error` | Players / Bands failure or freeze message (Android, Windows, Apple; Apple also `fst.global-search.songs-error`) |
 | `fst.global-search.retry` | Players / empty-state Retry; removed on Android, Windows and Apple by issue #299 (the Apple empty state is now the static `fst.global-search.hint` element) |
-| `fst.global-search.bands-unavailable` | Band explanation block; removed on Apple and Android by #320, still on Windows until it ports band search |
+| `fst.global-search.bands-unavailable` | Band explanation block; removed on every platform by #320 |
 
 ## Test matrix
 

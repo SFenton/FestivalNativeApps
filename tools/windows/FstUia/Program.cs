@@ -1770,7 +1770,8 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         }
         if (!spans.TryGetValue(name, out var marked))
             throw new InvalidOperationException($"assertspan {name}: no markspan recorded it");
-        if (Math.Abs(span - marked) > 1)
+        var tolerance = (double?)step["tolerance"] ?? 1;
+        if (Math.Abs(span - marked) > tolerance)
             throw new InvalidOperationException($"span {name} is {span:0.#} epx, not the marked {marked:0.#} epx ({(string)step["arg"]!})");
     }
 

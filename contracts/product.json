@@ -178,7 +178,7 @@
       "id": "global-search",
       "status": "pending",
       "source": "FortniteFestivalWeb/src/components/search/SearchModal.tsx:84",
-      "states": ["closed", "open-hint", "loading", "results-all", "results-scoped", "empty", "error", "bands-unavailable", "navigated"],
+      "states": ["closed", "open-hint", "loading", "results-all", "results-scoped", "empty", "error", "navigated"],
       "testId": "fst.global-search.*",
       "spec": ".agents/controls/global-search/spec.md"
     },

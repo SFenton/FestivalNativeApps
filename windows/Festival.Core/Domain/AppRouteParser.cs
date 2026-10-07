@@ -72,13 +72,13 @@ public static class AppRouteParser
 
     /// <summary>
     /// Whether a route needs a selected profile. The web wraps Rivals (hub, all, detail, rivalry), Compete, Statistics and
-    /// Suggestions in <c>RequirePlayer</c>/<c>RequireSelection</c> and redirects to Songs without one; Player History joins
-    /// them here (operator 2026-09-28: the web's anonymous history is an empty song header).
+    /// Suggestions in <c>RequirePlayer</c>/<c>RequireSelection</c> and redirects to Songs without one. Player History is not
+    /// guarded: like the web's <c>PlayerHistoryPage</c> it opens and shows its own "No Player Selected" state (issue #324).
     /// </summary>
     /// <param name="route">Route.</param>
     /// <returns><see langword="true"/> for player-only routes.</returns>
     public static bool RequiresPlayer(AppRoute route) => route is AppRoute.Rivals or AppRoute.AllRivals or AppRoute.RivalDetail
-        or AppRoute.Rivalry or AppRoute.Compete or AppRoute.Statistics or AppRoute.Suggestions or AppRoute.PlayerHistory;
+        or AppRoute.Rivalry or AppRoute.Compete or AppRoute.Statistics or AppRoute.Suggestions;
 
     /// <summary>Applies the anonymous redirect: a player-only route becomes the Songs root (<see langword="null"/>).</summary>
     /// <param name="route">Parsed route (or a section root).</param>

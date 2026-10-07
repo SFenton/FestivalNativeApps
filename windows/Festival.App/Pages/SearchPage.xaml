@@ -4,10 +4,11 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Festival.App.Controls"
     xmlns:domain="using:Festival.Core.Domain"
+    xmlns:vm="using:Festival.Core.ViewModels"
     Background="Transparent">
 
-    <!-- Global search results (fst.global-search.*): field, All/Songs/Players/Bands scopes, then Songs → Players rows with
-         no section titles (issue #299: the scope bar names the scope). -->
+    <!-- Global search results (fst.global-search.*): field, All/Songs/Players/Bands scopes, then Songs → Players → Bands
+         rows with no section titles (issue #299: the scope bar names the scope). -->
     <Grid Padding="24,12,24,0" RowSpacing="8" MaxWidth="768" HorizontalAlignment="Stretch"
           AutomationProperties.AutomationId="fst.global-search.surface">
         <Grid.RowDefinitions>
@@ -21,11 +22,11 @@
                    AutomationProperties.AutomationId="fst.global-search.title" />
 
         <AutoSuggestBox x:Name="PageField" Grid.Row="1" HorizontalAlignment="Stretch" QueryIcon="Find"
-                        PlaceholderText="Search songs or players"
+                        PlaceholderText="Search songs, players, or bands"
                         Text="{x:Bind ViewModel.Query, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                         QuerySubmitted="OnQuerySubmitted" PreviewKeyDown="OnFieldKeyDown"
-                        ToolTipService.ToolTip="Search songs and players (Ctrl+E)"
-                        AutomationProperties.Name="Search songs and players"
+                        ToolTipService.ToolTip="Search songs, players and bands (Ctrl+E)"
+                        AutomationProperties.Name="Search songs, players and bands"
                         AutomationProperties.AutomationId="fst.global-search.field" />
 
         <SelectorBar x:Name="ScopeBar" Grid.Row="2" SelectionChanged="OnScopeChanged"
@@ -124,6 +125,28 @@
                                                     Visibility="{x:Bind ViewModel.PlayersFailed, Mode=OneWay}"
                                                     AutomationProperties.AutomationId="fst.global-search.players-error" />
                     </StackPanel>
+
+                    <!-- Bands (issue #320): the canonical band card (player Bands), one Narrator stop each, opening the band page.
+                         Same states as Players: failure card without Retry, an empty envelope never renders a section. -->
+                    <StackPanel Spacing="4" Visibility="{x:Bind ViewModel.ShowBandsSection, Mode=OneWay}">
+                        <ItemsRepeater x:Name="BandsList" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Bands, Mode=OneWay}"
+                                       controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="120"
+                                       Visibility="{x:Bind ViewModel.HasBandRows, Mode=OneWay}" AutomationProperties.Name="Bands">
+                            <ItemsRepeater.Layout>
+                                <!-- The player Bands page's card layout, one column: non-virtualizing (≤10 cards), so each
+                                     card is prepared once (one fade) and realized for arrow keys and UI Automation. -->
+                                <controls:LeaderboardsCardGridLayout MinColumnWidth="320" MaxColumns="1" Spacing="8" />
+                            </ItemsRepeater.Layout>
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="vm:PlayerBandCardViewModel">
+                                    <controls:BandCardView Card="{x:Bind}" RouteRequested="OnBandRouteRequested" />
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                        <controls:ServiceStatusView Status="{x:Bind ViewModel.BandsStatus}" ShowsRetry="False" HorizontalAlignment="Left"
+                                                    Visibility="{x:Bind ViewModel.BandsFailed, Mode=OneWay}"
+                                                    AutomationProperties.AutomationId="fst.global-search.bands-error" />
+                    </StackPanel>
                 </StackPanel>
             </ScrollViewer>
 
@@ -155,16 +178,6 @@
                           AutomationProperties.Name="Searching"
                           AutomationProperties.AutomationId="fst.global-search.loading" />
 
-            <!-- Bands: shown but never requested (the service's band search GET can write); a short query shows the hint. -->
-            <InfoBar IsOpen="{x:Bind ViewModel.ShowBandsExplanation, Mode=OneWay}" IsClosable="False" Severity="Informational"
-                     VerticalAlignment="Top" Margin="0,4,0,0" Title="Band search unavailable"
-                     Message="{x:Bind ViewModel.BandsExplanation}"
-                     AutomationProperties.AutomationId="fst.global-search.bands-unavailable">
-                <InfoBar.ActionButton>
-                    <HyperlinkButton Content="Band Rankings" Click="OnBandRankings"
-                                     AutomationProperties.AutomationId="fst.global-search.bands-unavailable.rankings" />
-                </InfoBar.ActionButton>
-            </InfoBar>
         </Grid>
     </Grid>
 </Page>
