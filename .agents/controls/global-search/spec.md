@@ -115,8 +115,9 @@ Issue #320 lifted the earlier native block. Natives call `GET /api/bands/search?
 | `results-scoped` | One scope via chip; toggling again returns to all |
 | `empty` | Centred scope-specific title + subtitle, no Retry; All hides an empty Players or Bands section next to other rows |
 | `error` | Per-scope failure message without Retry; other scopes still shown; freeze → "Scores are updating" |
-| `bands-unavailable` | Retired by #320 on every platform |
 | `navigated` | Surface closed, destination pushed on the current section; Back returns to the prior page |
+
+The former `bands-unavailable` state was retired by #320 on every platform and removed from `product.json`; band results use `results-all`/`results-scoped`, `loading`, `empty` and `error`.
 
 ## Test IDs
 
