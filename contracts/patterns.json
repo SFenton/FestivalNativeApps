@@ -703,6 +703,14 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Songs/SongsBottomFilterField.swift",
             "symbol": "SongsFilterFieldPlacement"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Search/BottomSearchField.swift",
+            "symbol": "BottomSearchFieldPlacement"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchTab.swift",
+            "symbol": "GlobalSearchFieldPlacement"
           }
         ],
         "android": [
