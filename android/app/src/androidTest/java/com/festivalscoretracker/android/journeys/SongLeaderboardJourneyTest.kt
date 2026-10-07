@@ -30,7 +30,7 @@ import org.junit.runner.RunWith
  * the pinned score and pager float at the bottom while rows beneath them leave the
  * accessibility tree (no visible row node overlaps the footer); TalkBack reads header → rows →
  * pinned score → pager; the pinned row is one 48 dp "Jump to your position" button; and a
- * page change keeps the pager in place while only the rows show the spinner. ATF runs
+ * page change keeps the pinned score and pager in place while only the rows show the spinner. ATF runs
  * throughout and nothing straddles a hinge
  * (`device.py test com.festivalscoretracker.android.journeys.SongLeaderboardJourneyTest --avd …`).
  */
@@ -150,17 +150,22 @@ class SongLeaderboardJourneyTest {
         }
         h.assertNothingStraddles(footer, "$prefix.pager", "$prefix.page-next")
 
-        // Paging: the pager stays put while only the rows swap to the spinner.
+        // Paging: the pinned score and pager stay put, readable and usable, while only the rows swap
+        // to the spinner (#93; #190 owner decision B, like the web footer).
         val pagerBefore = bounds("$prefix.pager")
+        val footerBefore = bounds(footer)
         h.tap("$prefix.page-next")
         h.waitForTag("$prefix.loading")
         assertTrue("pager left while loading", h.exists("$prefix.pager"))
         assertEquals("pager moved while loading", pagerBefore, bounds("$prefix.pager"))
+        assertEquals("pinned score moved while loading", footerBefore, bounds(footer))
+        assertTrue("pinned score left TalkBack while loading", visibleNodes(footer).isNotEmpty())
         nextPage.complete(Unit)
         rule.waitUntil(15_000) { rule.onAllNodes(hasContentDescription("Page 2 of 3"), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
         h.waitGone("$prefix.loading")
         h.waitForTag(footer)
         assertEquals("pager moved after paging", pagerBefore, bounds("$prefix.pager"))
+        assertEquals("pinned score moved after paging", footerBefore, bounds(footer))
         h.assertAccessible()
     }
 }
