@@ -23,9 +23,6 @@ on:
         default: false
 permissions:
   contents: read
-concurrency:
-  group: ios-release-build
-  cancel-in-progress: false
 env:
   DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
 jobs:
@@ -35,6 +32,11 @@ jobs:
     runs-on: xcode-27
     environment: store-release
     timeout-minutes: 90
+    # Only the archive/upload is serialized. The notes job below stays outside the group: when its environment
+    # deployment wedged ("waiting" with no rules, 2026-10-06), a run-level group held every later build for 30 h.
+    concurrency:
+      group: ios-release-build
+      cancel-in-progress: false
     outputs:
       build: ${{ steps.marker.outputs.build }}
       marker: ${{ steps.marker.outputs.name }}
