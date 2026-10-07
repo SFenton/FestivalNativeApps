@@ -54,6 +54,92 @@ private struct TintedGlassProbe: View {
     #expect(budget.isExhausted)
 }
 
+/// An animation-evidence deadline is short and wall-clock (issue #327): a responsive
+/// journey that runs past it expires as a failure, a starved one as inconclusive.
+@Test func hostedEvidenceDeadlineExpiresAndJudgesStarvation() throws {
+    #expect(NativeHostedEvidenceDeadline.limit <= .seconds(10))
+    #expect(NativeHostedEvidenceDeadline.responsiveLimit < NativeHostedEvidenceDeadline.limit)
+    #expect(!NativeHostedEvidenceDeadline().isExpired)
+    try NativeHostedEvidenceDeadline().check("not yet expired")
+
+    // Prompt polls (a 20 ms poll resumes about 5 ms late on a responsive Mac) are not stalls,
+    // however many there are.
+    var responsive = NativeHostedEvidenceDeadline(limit: .zero)
+    for _ in 0..<1000 { responsive.record(lateBy: .milliseconds(5)) }
+    responsive.record(lateBy: .milliseconds(-3))
+    #expect(responsive.stalled == .zero)
+    #expect(responsive.starved == nil)
+    #expect(responsive.isExpired)
+    do {
+        try responsive.check("the row")
+        Issue.record("the deadline has passed")
+    } catch let expired as NativeHostedEvidenceExpired {
+        #expect(expired.starved == nil)
+        #expect(expired.description.contains("the row"))
+        #expect(expired.description.contains("responsive host"))
+    }
+
+    // One poll resumed past the starved lag.
+    var late = NativeHostedEvidenceDeadline(limit: .zero)
+    late.record(lateBy: nativeHostedStarvedLag + .milliseconds(1))
+    #expect(late.starved != nil)
+    do {
+        try late.check("the row")
+        Issue.record("the deadline has passed")
+    } catch let expired as NativeHostedEvidenceExpired {
+        #expect(expired.starved != nil)
+        #expect(expired.description.contains("starved host"))
+    }
+
+    // Moderate stalls, each under the starved lag, add up to a starved host.
+    var stalls = NativeHostedEvidenceDeadline()
+    for _ in 0..<5 { stalls.record(lateBy: .milliseconds(200)) }
+    #expect(stalls.worstLag < nativeHostedStarvedLag)
+    #expect(stalls.starved == nil, "one second of stalls is not yet starved")
+    stalls.record(lateBy: .milliseconds(200))
+    #expect(stalls.stalled > .seconds(1))
+    #expect(stalls.starved != nil)
+}
+
+/// A deadline's poll records how late it resumed when another job holds the main actor.
+@MainActor
+@Test func hostedEvidenceDeadlinePollRecordsItsLag() async throws {
+    var deadline = NativeHostedEvidenceDeadline()
+    // Another job holds the main actor well past the starved lag while one poll sleeps.
+    let blocker = Task { @MainActor in _ = usleep(400_000) }
+    try await deadline.sleep(for: .milliseconds(10))
+    await blocker.value
+    #expect(deadline.worstLag > nativeHostedStarvedLag)
+    #expect(deadline.starved != nil)
+}
+
+/// A region capture renders only that rect of the host, at least 2x, in top-left points.
+@MainActor
+@Test func hostedRegionCaptureRendersOnlyItsRect() async throws {
+    let size = CGSize(width: 300, height: 200)
+    let host = nativeHostedView(
+        ZStack(alignment: .topLeading) {
+            Color.black
+            Color.white.frame(width: 100, height: 50)
+        }
+        .frame(width: size.width, height: size.height),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    try await nativeHostedSettle(host)
+    let white = CGRect(x: 0, y: 0, width: 100, height: 50)
+    let image = try nativeHostedImage(host, in: white)
+    #expect(image.width >= 200 && image.height >= 100)
+    let all = nativeHostedBrightSamples(in: CGRect(origin: .zero, size: white.size), of: image, hostSize: white.size)
+    #expect(all >= (image.width / 2) * (image.height / 2) * 9 / 10, "the white rect is drawn (\(all))")
+    let black = CGRect(x: 150, y: 120, width: 100, height: 50)
+    let none = nativeHostedBrightSamples(
+        in: CGRect(origin: .zero, size: black.size), of: try nativeHostedImage(host, in: black), hostSize: black.size
+    )
+    #expect(none == 0)
+}
+
 /// Pins the root cause of blank full-page captures and proves the harness fix.
 ///
 /// Without the fallback, tinted Liquid Glass anywhere in the tree makes the
