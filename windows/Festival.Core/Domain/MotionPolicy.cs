@@ -310,6 +310,15 @@ public sealed class StaggerArm
     /// <summary>Rows the latest rush reaches: all of the load, or those before a batch appended into it (never rushed).</summary>
     public int RushLimit => rushLimit;
 
+    /// <summary>
+    /// Whether the latest rush starts a pending fade at once: every row of the load and every entrance element (index -1:
+    /// a page's sections and cards, a board's pinned row), never a row of a batch appended into the load. Nothing is
+    /// reached before a rush, or after a plain close.
+    /// </summary>
+    /// <param name="index">Row index, or -1 for an entrance element.</param>
+    /// <returns><see langword="true"/> when the rush must start the fade now.</returns>
+    public bool RushReaches(int index) => rushUntil is not null && index < rushLimit;
+
     /// <summary>Whether rows realized now may still fade (the load entrance, a rush or an open appended batch).</summary>
     /// <param name="now">Monotonic time.</param>
     /// <returns>Whether the window is open.</returns>
@@ -355,9 +364,9 @@ public sealed class StaggerArm
     }
 
     /// <summary>
-    /// The delay of a page fade that isn't a row stagger (Song Detail's sections and chart cards): its own delay while
-    /// the load entrance runs (held to the entrance's last start once the window has passed), 0 while rushing, else
-    /// <see langword="null"/> (show in place).
+    /// The delay of an entrance fade that isn't a row stagger (a page's sections and cards, a board's pinned row): its own
+    /// delay while the load entrance runs (held to the entrance's last start once the window has passed), 0 while rushing,
+    /// else <see langword="null"/> (show in place).
     /// </summary>
     /// <param name="natural">The fade's delay in the page's choreography.</param>
     /// <param name="now">Monotonic time.</param>

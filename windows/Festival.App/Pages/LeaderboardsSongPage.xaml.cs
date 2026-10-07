@@ -78,7 +78,7 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
         {
             var shown = ViewModel.ShowSpotlight;
             if (PinnedRowReveal.FadesOnArrival(spotlightShown, shown, ViewModel.LoadSwap.Phase))
-                DispatcherQueue.TryEnqueue(() => FadeIn.Play(SpotlightPanel, TimeSpan.Zero));
+                DispatcherQueue.TryEnqueue(() => FadeIn.Play(SpotlightPanel));
             spotlightShown = shown;
         }
         else if (e.PropertyName == nameof(SongLeaderboardViewModel.Rows))
@@ -106,7 +106,7 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
         DispatcherQueue.TryEnqueue(() =>
         {
             FadeIn.StaggerRealized(RowsRepeater);
-            if (ViewModel.ShowSpotlight && ViewModel.PinnedGate.IsGated) FadeIn.Play(SpotlightPanel, PinnedRowReveal.RevealDelay);
+            if (ViewModel.ShowSpotlight && ViewModel.PinnedGate.IsGated) FadeIn.Enter(RowsRepeater, SpotlightPanel, PinnedRowReveal.RevealDelay);
             var index = pendingReveal;
             pendingReveal = -1;
             if (index < 0 || index >= ViewModel.Rows.Count) return;

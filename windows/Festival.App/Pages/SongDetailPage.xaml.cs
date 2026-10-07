@@ -22,8 +22,6 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     private readonly QuickLinksViewModel quickLinks = new("Quick Links");
     private CancellationTokenSource headerArt = new();
     private long navigatedAt;
-    /// <summary>The board cards' reveal window: closes at the first scroll (pattern load-transition R5, issue #260).</summary>
-    private readonly StaggerArm boardArm = FadeIn.NewArm();
     private readonly ScoreHistorySwapper historySwap;
     private Storyboard? historyRelease;
 
@@ -241,8 +239,7 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
         batch.Completed += (_, _) => DispatcherQueue.TryEnqueue(() =>
         {
             StopSpinner();
-            boardArm.Arm(0, Stopwatch.GetElapsedTime(0));
-            boardArm.Settle(Scroller.HorizontalOffset, Scroller.VerticalOffset);
+            FadeIn.BeginEntrance(Scroller);
             Enter(FullHeader, SongDetailReveal.Header);
             Enter(IntensitySection, SongDetailReveal.Intensity);
             Enter(HistorySection, SongDetailReveal.History);
@@ -256,35 +253,13 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     }
 
     /// <summary>
-    /// Fades a section or card in with the page entrance: its own delay while the entrance runs, at once while a scroll
-    /// rushes it (web <c>useStaggerRush</c>, issue #323), in place after it (R5).
+    /// Fades a section or card in with the page entrance (<see cref="FadeIn.Enter"/> on the page scroller): its own delay
+    /// while the entrance runs, at once while a scroll rushes it (web <c>useStaggerRush</c>, issue #323), in place after
+    /// it (R5).
     /// </summary>
     /// <param name="element">Section or card.</param>
     /// <param name="natural">Its delay in the reveal choreography.</param>
-    private void Enter(UIElement element, TimeSpan natural)
-    {
-        if (boardArm.Entrance(natural, Stopwatch.GetElapsedTime(0)) is { } delay) FadeIn.Play(element, delay);
-        else FadeIn.Reset(element);
-    }
-
-    /// <summary>
-    /// Rushes the page entrance when the scroller moved while it runs (a drag, wheel, Quick Links jump or the history
-    /// route's scroll): every section and card fade that hasn't started starts now.
-    /// </summary>
-    private void RushOnScroll()
-    {
-        var now = Stopwatch.GetElapsedTime(0);
-        switch (boardArm.Scrolled(Scroller.HorizontalOffset, Scroller.VerticalOffset, now))
-        {
-            case ArmScroll.Rushed:
-                var rushed = FadeIn.RushPage(Scroller);
-                FadeIn.Trace("fade-rush", Scroller, $"start=0 rushed={rushed} since={boardArm.SinceArmed(now).TotalMilliseconds:F0}");
-                break;
-            case ArmScroll.Closed:
-                FadeIn.Trace("fade-close", Scroller, $"start=0 since={boardArm.SinceArmed(now).TotalMilliseconds:F0}");
-                break;
-        }
-    }
+    private void Enter(UIElement element, TimeSpan natural) => FadeIn.Enter(Scroller, element, natural);
 
     /// <summary>Hides the spinner.</summary>
     private void StopSpinner()
@@ -317,7 +292,6 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     /// <param name="e">Unused.</param>
     private void OnScrollerViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
-        RushOnScroll();
         var pinned = SongDetailLayout.PinsHeader(Scroller.VerticalOffset, FullHeader.ActualHeight);
         var wanted = pinned ? Visibility.Visible : Visibility.Collapsed;
         if (PinnedHeader.Visibility != wanted) PinnedHeader.Visibility = wanted;
@@ -352,7 +326,6 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     private void OnBoardPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
     {
         if (sender.ItemsSourceView?.GetAt(args.Index) is LeaderboardPreviewViewModel card) _ = card.EnsureLoadedAsync();
-        RushOnScroll();
         Enter(args.Element, SongDetailReveal.Card(args.Index, BoardColumns()));
     }
 

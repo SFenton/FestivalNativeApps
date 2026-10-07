@@ -97,7 +97,7 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
     {
         var shown = ViewModel.Spotlight.IsVisible;
         if (PinnedRowReveal.FadesOnArrival(spotlightShown, shown, ViewModel.LoadSwap.Phase))
-            DispatcherQueue.TryEnqueue(() => FadeIn.Play(FooterSpotlight, TimeSpan.Zero));
+            DispatcherQueue.TryEnqueue(() => FadeIn.Play(FooterSpotlight));
         spotlightShown = shown;
     }
     #endregion
@@ -177,7 +177,7 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
         DispatcherQueue.TryEnqueue(() =>
         {
             FadeIn.StaggerRealized(RowsRepeater);
-            if (ViewModel.Spotlight.IsVisible && ViewModel.PinnedGate.IsGated) FadeIn.Play(FooterSpotlight, PinnedRowReveal.RevealDelay);
+            if (ViewModel.Spotlight.IsVisible && ViewModel.PinnedGate.IsGated) FadeIn.Enter(RowsRepeater, FooterSpotlight, PinnedRowReveal.RevealDelay);
         });
         RevealSelected();
     }

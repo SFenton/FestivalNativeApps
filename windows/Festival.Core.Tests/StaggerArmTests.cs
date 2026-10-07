@@ -271,6 +271,42 @@ public sealed class StaggerArmTests
         Assert.Null(arm.Entrance(Ms(300), Ms(2800)));
     }
 
+    [Fact]
+    public void RushReaches_EveryLoadRowAndEntranceElement_NeverAnAppendedBatch()
+    {
+        // Before a rush nothing is reached: a pinned row or page section keeps its own delay.
+        var arm = Loaded();
+        Assert.False(arm.RushReaches(-1));
+        Assert.False(arm.RushReaches(0));
+        // A board's pinned row (-1) is rushed with its rows by the reader's scroll (issue #323, load-transition R5).
+        Assert.Equal(ArmScroll.Rushed, arm.Scrolled(0, 300, Ms(1100)));
+        Assert.True(arm.RushReaches(-1));
+        Assert.True(arm.RushReaches(0));
+        Assert.True(arm.RushReaches(40));
+
+        // ... and by a selected-row reveal's automatic scroll.
+        var revealed = Loaded();
+        Assert.True(revealed.Rush(Ms(1500), FadeInTiming.RevealScroll));
+        Assert.True(revealed.RushReaches(-1));
+
+        // A batch appended into the load is never rushed; the load's rows and entrance elements are.
+        var batched = Loaded();
+        batched.Arm(10, Ms(1200));
+        Assert.Equal(ArmScroll.Rushed, batched.Scrolled(0, 900, Ms(1300)));
+        Assert.True(batched.RushReaches(-1));
+        Assert.True(batched.RushReaches(9));
+        Assert.False(batched.RushReaches(10));
+
+        // A scroll after the entrance only closes it: nothing pending is restarted.
+        var closed = Loaded();
+        Assert.Equal(ArmScroll.Closed, closed.Scrolled(0, 300, Ms(2600)));
+        Assert.False(closed.RushReaches(-1));
+
+        // A reload re-arms: the previous rush reaches nothing of the new entrance.
+        arm.Arm(0, Ms(5000));
+        Assert.False(arm.RushReaches(-1));
+    }
+
     [Theory]
     [InlineData(0, 10, 525)]
     [InlineData(4, 10, 1025)]

@@ -63,7 +63,7 @@ Checked 2026-10-06 against the [load-transition](../../patterns/load-transition.
 | Compact, medium, wide, maximized, snap-left/right | Rows, empty and failure states fade out → ring → fade in. **Fixed:** the pinned "your rank" row stayed outside the gate: Rank By kept the old metric's value beside the ring and popped at commit, and an instrument switch dropped it immediately. It is now gated with the rows on Rank By and instrument changes and stays put while paging (above). Tab stops 9–14 (empty 6–8, error 7–9), none outside the app, no repeats. |
 | High Contrast (Desert, Night sky), text 200%, display 100% / 150% | Same sequence; ring and pinned row visible in contrast themes; 0 Axe errors. |
 | Light and dark system theme | Same: the app is dark only. |
-| Reduce Motion (`--reduce-motion`) | Swaps without waits; the pinned row appears with no fade (`FadeIn.Play` resets it); 0 Axe errors. |
+| Reduce Motion (`--reduce-motion`) | Swaps without waits; the pinned row appears with no fade (`FadeIn.Enter` resets it); 0 Axe errors. |
 | Keyboard only | Pager, menus + Esc, Your page and rows journeys pass at compact, medium and wide; focus stays on the pager while the board reloads. |
 | Narrator / UIA | The ring is named "Loading rankings"; the title, switchers and pager stay readable during a reload. **Fixed:** the gated pinned row and Your page stayed in the UIA control view under the ring (`AccessibilityView="Raw"` doesn't hide descendants); `LoadSwapGate` now reports no children while gated (`full-rankings-swap.json` asserts it). |
 

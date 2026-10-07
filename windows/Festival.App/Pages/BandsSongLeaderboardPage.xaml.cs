@@ -152,7 +152,7 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
         {
             var shown = ViewModel.ShowSpotlight;
             if (PinnedRowReveal.FadesOnArrival(spotlightShown, shown, ViewModel.LoadSwap.Phase))
-                DispatcherQueue.TryEnqueue(() => FadeIn.Play(SpotlightPanel, TimeSpan.Zero));
+                DispatcherQueue.TryEnqueue(() => FadeIn.Play(SpotlightPanel));
             spotlightShown = shown;
             return;
         }
@@ -178,7 +178,7 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
         DispatcherQueue.TryEnqueue(() =>
         {
             FadeIn.StaggerRealized(Rows);
-            if (ViewModel.ShowSpotlight && ViewModel.PinnedGate.IsGated) FadeIn.Play(SpotlightPanel, PinnedRowReveal.RevealDelay);
+            if (ViewModel.ShowSpotlight && ViewModel.PinnedGate.IsGated) FadeIn.Enter(Rows, SpotlightPanel, PinnedRowReveal.RevealDelay);
             var index = pendingReveal;
             pendingReveal = -1;
             if (index < 0 || index >= Rows.Items.Count) return;
