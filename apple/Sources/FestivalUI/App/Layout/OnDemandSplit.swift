@@ -580,7 +580,9 @@ private struct SplitListBack: ViewModifier {
             .toolbar {
                 if let close {
                     ToolbarItem(placement: .topBarLeading) {
+                        // The system Back's label colour, not the accent tint.
                         SplitListBackButton(action: close)
+                            .tint(BrandTokens.textPrimary)
                     }
                 }
             }
