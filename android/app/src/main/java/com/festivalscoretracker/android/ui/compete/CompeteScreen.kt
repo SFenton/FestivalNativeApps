@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridScope
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -57,6 +56,7 @@ import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.foldLaneItem
 import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.bands.windowWidthDp
 import com.festivalscoretracker.android.ui.design.GlassCard
@@ -134,18 +134,15 @@ fun CompeteScreen(viewModel: CompeteViewModel, isRoot: Boolean) {
 }
 
 private fun LazyStaggeredGridScope.groupHeader(id: String, title: String) {
-    item(key = "header:$id", span = StaggeredGridItemSpan.FullLine) {
-        // A full-line item spans a separating hinge; the Box lets the heading (and its TalkBack
-        // focus) hug the text in the first panel instead.
-        Box {
-            Text(
-                title,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = BrandTokens.textPrimary,
-                modifier = Modifier.padding(top = 8.dp).testTag("fst.compete.section.$id").semantics { heading() },
-            )
-        }
+    // Full-line, but kept in the leading pane while the grid splits at a hinge (issue #343).
+    foldLaneItem(key = "header:$id") {
+        Text(
+            title,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = BrandTokens.textPrimary,
+            modifier = Modifier.padding(top = 8.dp).testTag("fst.compete.section.$id").semantics { heading() },
+        )
     }
 }
 

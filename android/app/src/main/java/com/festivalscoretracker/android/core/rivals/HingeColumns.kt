@@ -10,10 +10,20 @@ import kotlin.math.roundToInt
  *
  * @property widths Column widths in pixels, left to right.
  * @property spacing Gap between columns in pixels (the hinge width when split at a fold).
+ * @property split Whether the two columns meet at a separating hinge.
  */
-data class ColumnSpec(val widths: List<Int>, val spacing: Int) {
+data class ColumnSpec(val widths: List<Int>, val spacing: Int, val split: Boolean = false) {
     /** Number of columns. */
     val count: Int get() = widths.size
+
+    /**
+     * Width of the pane a full-line item starts in when the columns split at a hinge, so
+     * section headers and messages stay on their side of the fold (issue #343).
+     *
+     * @param rtl Whether the layout is right-to-left ([widths] are left to right).
+     * @return The leading pane's width in pixels, or null when not split.
+     */
+    fun leadingPane(rtl: Boolean): Int? = if (!split || widths.isEmpty()) null else if (rtl) widths.last() else widths.first()
 }
 
 /**
@@ -53,7 +63,7 @@ object HingeColumns {
             val left = (center - spacing / 2.0).roundToInt()
             val right = width - left - spacing
             // Only split when the fold crosses the content with room for a column on each side.
-            if (left >= minColumn / 2 && right >= minColumn / 2) return ColumnSpec(listOf(left, right), spacing)
+            if (left >= minColumn / 2 && right >= minColumn / 2) return ColumnSpec(listOf(left, right), spacing, split = true)
         }
         val count = ((width + gutter) / (minColumn + gutter)).coerceIn(1, max(maxColumns, 1))
         val columnWidth = (width - gutter * (count - 1)) / count
