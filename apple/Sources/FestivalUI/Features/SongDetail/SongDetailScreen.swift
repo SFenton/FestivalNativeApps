@@ -333,7 +333,7 @@ struct SongDetailScreen: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     FestivalSectionHeader("Intensity")
-                    LazyVGrid(
+                    HingeGrid(
                         columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10
                     ) {
                         ForEach(charted) { instrument in
@@ -392,7 +392,7 @@ struct SongDetailScreen: View {
                             }
                         }
                     } else {
-                        LazyVGrid(
+                        HingeGrid(
                             columns: [GridItem(.adaptive(minimum: SongDetailCardColumns.minimumWidth), spacing: 12)],
                             alignment: .leading, spacing: 20
                         ) {

@@ -34,7 +34,9 @@ public struct FestivalSectionHeader: View {
                     .foregroundStyle(FestivalText.primary)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        // Full width, but kept on its own side of an iPhone Duo book-pose fold
+        // (section-headers R9, pattern `hinge-columns`).
+        .staysOnHingeSide()
         .textCase(nil)
     }
 }

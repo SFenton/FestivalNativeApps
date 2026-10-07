@@ -218,7 +218,7 @@ struct SuggestionsScreen: View {
                     // `/duo` G1 (operator, 2026-10-02): two card columns at regular width
                     // (Duo inner display, iPad) instead of one stretched column (Apple's
                     // Duo design talk: "Don't ship a stretched iPhone app"), even count.
-                    LazyVGrid(columns: SuggestionsLayout.gridColumns, alignment: .leading, spacing: 20) {
+                    HingeGrid(columns: SuggestionsLayout.gridColumns, alignment: .leading, spacing: 20) {
                         cards(categories, fadeIndexes: fadeIndexes, horizontalPadding: 0)
                     }
                     .padding(.horizontal, 16)
