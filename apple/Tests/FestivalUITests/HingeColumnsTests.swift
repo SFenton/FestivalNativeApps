@@ -136,3 +136,36 @@ private let grid = HorizontalSpan(minX: 16, maxX: 851)
     #expect(flat.columnFrames(for: grid.width).count == count)
     #expect(flat.columnFrames(for: grid.width).allSatisfy { $0.width == width })
 }
+
+@Test func adaptiveGridsWithTwoFlatColumnsAlwaysSplitAtTheFold() throws {
+    // Song Detail cards (360 pt minimum, 12 pt spacing) under a 40 pt fold: the trailing
+    // side is 356 pt, a little under the minimum, but the flat grid already has two
+    // columns whose gutter would sit beside the fold, so it splits one card a side.
+    let wide = CGRect(x: 455, y: 0, width: 40, height: 669)
+    let band = try #require(HingeColumns.adaptiveBand(span: grid, fold: wide, gutter: 12, minimum: 360))
+    #expect(band == HingeBand(leadingWidth: 439, gap: 40, trailingWidth: 356))
+    let spec = HingeColumns.spec(band: band, spacing: 12, perSide: .fit(minimum: 360))
+    #expect(spec.widths == [439, 356])
+    // A grid that is one flat column stays one column.
+    #expect(HingeColumns.adaptiveBand(span: HorizontalSpan(minX: 16, maxX: 716), fold: wide,
+                                      gutter: 12, minimum: 360) == nil)
+    // No fold, or a sliver of a side: the flat grid.
+    #expect(HingeColumns.adaptiveBand(span: grid, fold: nil, gutter: 12, minimum: 360) == nil)
+    #expect(HingeColumns.adaptiveBand(span: HorizontalSpan(minX: 360, maxX: 1200), fold: wide,
+                                      gutter: 12, minimum: 360) == nil)
+}
+
+@Test func eagerGridSplitsItsRowsAtTheFold() throws {
+    let wide = CGRect(x: 455, y: 0, width: 40, height: 669)
+    let band = try #require(HingeColumns.adaptiveBand(span: grid, fold: wide, gutter: 12, minimum: 360))
+    let folded = HingeEagerGridLayout(minimum: 360, spacing: 12, rowSpacing: 20, band: band)
+    let columns = folded.columns(width: grid.width)
+    #expect(columns.map(\.x) == [0, 479])
+    #expect(columns.map(\.width) == [439, 356])
+    // The gutter's centre is the fold's centre in window coordinates.
+    #expect(grid.minX + columns[0].x + columns[0].width + band.gap / 2 == wide.midX)
+    // Flat (no band, or a width the band was not measured for): equal adaptive columns.
+    let flat = HingeEagerGridLayout(minimum: 360, spacing: 12, rowSpacing: 20)
+    #expect(flat.columns(width: grid.width).map(\.width) == [411.5, 411.5])
+    #expect(folded.columns(width: 700).map(\.width) == [700])
+}

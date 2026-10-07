@@ -139,6 +139,24 @@ enum HingeColumns {
         return HingeBand(leadingWidth: leading, gap: gap, trailingWidth: trailing)
     }
 
+    /// The vertical fold crossing an adaptive grid, if the grid splits there.
+    ///
+    /// An adaptive grid that already shows two or more flat columns always splits at the
+    /// fold (one column a side at least, even a little under `minimum`): otherwise its
+    /// flat gutter sits beside the fold and a card straddles it. A grid that is one flat
+    /// column stays one column (R4).
+    ///
+    /// - Parameters:
+    ///   - span: The grid's horizontal extent in window coordinates; nil before it is measured.
+    ///   - fold: The active fold in window coordinates, or nil.
+    ///   - gutter: Gap between columns (the narrowest clearance).
+    ///   - minimum: The adaptive grid's narrowest column.
+    /// - Returns: The band, or nil when the grid keeps its flat layout.
+    static func adaptiveBand(span: HorizontalSpan?, fold: CGRect?, gutter: CGFloat, minimum: CGFloat) -> HingeBand? {
+        guard let span, fitCount(width: span.width, minimum: minimum, spacing: gutter) >= 2 else { return nil }
+        return band(span: span, fold: fold, gutter: gutter, minimumSide: minimumSide)
+    }
+
     /// Columns that meet at the fold, the same count on each side.
     ///
     /// - Parameters:
@@ -295,15 +313,17 @@ struct HingeGrid<Content: View>: View {
     /// The gap between flat columns (also the narrowest clearance over the fold).
     private var gutter: CGFloat { columns.first?.spacing ?? 8 }
 
-    private var minimumSide: CGFloat {
-        if case let .fit(minimum) = perSide { return max(minimum, HingeColumns.minimumSide) }
-        return HingeColumns.minimumSide
+    private var band: HingeBand? {
+        if case let .fit(minimum) = perSide {
+            return HingeColumns.adaptiveBand(span: span, fold: layout.foldFrame, gutter: gutter, minimum: minimum)
+        }
+        return HingeColumns.band(
+            span: span, fold: layout.foldFrame, gutter: gutter, minimumSide: HingeColumns.minimumSide
+        )
     }
 
     private var resolvedColumns: [GridItem] {
-        guard let band = HingeColumns.band(
-            span: span, fold: layout.foldFrame, gutter: gutter, minimumSide: minimumSide
-        ) else { return columns }
+        guard let band else { return columns }
         let spec = HingeColumns.spec(band: band, spacing: gutter, perSide: perSide)
         return HingeColumns.gridItems(spec, alignment: columns.first?.alignment)
     }
@@ -314,6 +334,102 @@ struct HingeGrid<Content: View>: View {
         }
         .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .center))
         .measuresHorizontalSpan($span)
+    }
+}
+
+// MARK: - Eager grid
+
+/// The eager counterpart of an adaptive ``HingeGrid``: every cell is built at once, in
+/// rows as tall as their tallest cell, for content a lazy grid cannot lay out (Song
+/// Detail's tall, unequal instrument cards at accessibility sizes hung `LazyVGrid` in a
+/// lazy-layout loop). Flat, as many equal columns of at least `minimum` as fit; in an
+/// iPhone Duo book pose, the same count on each side with the gutter on the fold.
+struct HingeEagerGrid<Content: View>: View {
+    private let minimum: CGFloat
+    private let spacing: CGFloat
+    private let rowSpacing: CGFloat
+    private let content: Content
+    @Environment(\.deviceLayout) private var layout
+    @State private var span: HorizontalSpan?
+
+    /// Create an eager hinge-aware grid.
+    ///
+    /// - Parameters:
+    ///   - minimum: Narrowest column (the adaptive minimum).
+    ///   - spacing: Gap between columns (and the narrowest clearance over the fold).
+    ///   - rowSpacing: Gap between rows.
+    ///   - content: The cells, in reading order.
+    init(minimum: CGFloat, spacing: CGFloat, rowSpacing: CGFloat, @ViewBuilder content: () -> Content) {
+        self.minimum = minimum
+        self.spacing = spacing
+        self.rowSpacing = rowSpacing
+        self.content = content()
+    }
+
+    var body: some View {
+        HingeEagerGridLayout(
+            minimum: minimum, spacing: spacing, rowSpacing: rowSpacing,
+            band: HingeColumns.adaptiveBand(span: span, fold: layout.foldFrame, gutter: spacing, minimum: minimum)
+        ) { content }
+            .measuresHorizontalSpan($span)
+    }
+}
+
+/// Places cells row by row in adaptive columns, or per side of a ``HingeBand`` when the
+/// band matches the proposed width; each cell keeps its own height, top-aligned.
+struct HingeEagerGridLayout: Layout {
+    /// Narrowest column.
+    var minimum: CGFloat
+    /// Gap between columns.
+    var spacing: CGFloat
+    /// Gap between rows.
+    var rowSpacing: CGFloat
+    /// The fold's band across the grid, or nil.
+    var band: HingeBand?
+
+    /// Every column's leading x and width for a width.
+    ///
+    /// - Parameter width: The grid's width.
+    /// - Returns: One (x, width) per column: hinge-aligned when ``band`` matches the
+    ///   width, otherwise equal columns of at least ``minimum``.
+    func columns(width: CGFloat) -> [(x: CGFloat, width: CGFloat)] {
+        if let band, abs(band.width - width) < 0.5 {
+            let spec = HingeColumns.spec(band: band, spacing: spacing, perSide: .fit(minimum: minimum))
+            return Array(zip(spec.offsets, spec.widths)).map { (x: $0.0, width: $0.1) }
+        }
+        let count = HingeColumns.fitCount(width: width, minimum: minimum, spacing: spacing)
+        let cell = max(0, (width - spacing * CGFloat(count - 1)) / CGFloat(count))
+        return (0..<count).map { (x: CGFloat($0) * (cell + spacing), width: cell) }
+    }
+
+    private func rowHeights(_ subviews: Subviews, columns: [(x: CGFloat, width: CGFloat)]) -> [CGFloat] {
+        stride(from: 0, to: subviews.count, by: columns.count).map { start in
+            zip(subviews[start ..< min(start + columns.count, subviews.count)], columns)
+                .map { $0.sizeThatFits(ProposedViewSize(width: $1.width, height: nil)).height }
+                .max() ?? 0
+        }
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? minimum
+        let heights = rowHeights(subviews, columns: columns(width: width))
+        return CGSize(width: width, height: heights.reduce(0, +) + rowSpacing * CGFloat(max(0, heights.count - 1)))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let columns = columns(width: bounds.width)
+        var y = bounds.minY
+        for (row, height) in rowHeights(subviews, columns: columns).enumerated() {
+            for (column, frame) in columns.enumerated() {
+                let index = row * columns.count + column
+                guard index < subviews.count else { break }
+                subviews[index].place(
+                    at: CGPoint(x: bounds.minX + frame.x, y: y), anchor: .topLeading,
+                    proposal: ProposedViewSize(width: frame.width, height: nil)
+                )
+            }
+            y += height + rowSpacing
+        }
     }
 }
 

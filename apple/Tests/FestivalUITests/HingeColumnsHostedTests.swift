@@ -147,4 +147,76 @@ private let ids = ["fixture.header", "fixture.grid.0", "fixture.grid.1", "fixtur
     // The title spans the content again.
     #expect(try #require(open["fixture.header"]).maxX > bookFold.maxX)
 }
+
+// MARK: - Song Detail instrument cards (accessibility sizes)
+
+/// Song Detail's card grid at a Dynamic Type size, with tall unequal cards like its
+/// instrument cards, laid out in the same content area as ``HingeFixture``.
+private struct SongDetailCardFixture: View {
+    @ObservedObject var box: LayoutBox
+    let typeSize: DynamicTypeSize
+
+    var body: some View {
+        SongDetailCardGrid(instruments: [.lead, .bass, .drums]) { index, _ in
+            Color.orange.frame(height: CGFloat(120 + 40 * index))
+                .accessibilityElement()
+                .accessibilityLabel("Card \(index)")
+                .accessibilityIdentifier("fixture.card.\(index)")
+        }
+        .padding(16)
+        .padding(.trailing, 84)
+        .frame(width: hostSize.width, height: hostSize.height, alignment: .topLeading)
+        .environment(\.deviceLayout, box.layout)
+        .dynamicTypeSize(typeSize)
+        .preferredColorScheme(.dark)
+    }
+}
+
+private let cardIds = ["fixture.card.0", "fixture.card.1", "fixture.card.2"]
+
+/// Song Detail's cards at `typeSize`: in book pose the two-card row meets at the fold and
+/// the third card starts a new row under the first; unfolding the same view restores equal
+/// columns.
+@MainActor
+private func assertSongDetailCardsSplitAtTheFold(_ typeSize: DynamicTypeSize) async throws {
+    let box = LayoutBox(bookPose)
+    let host = nativeHostedView(SongDetailCardFixture(box: box, typeSize: typeSize), size: hostSize)
+    let window = nativeHostedWindow(host, size: hostSize)
+    defer { withExtendedLifetime(window) {} }
+
+    _ = try await frames(host, cardIds)
+    var folded = try await frames(host, cardIds)
+    for _ in 0..<20 where (folded["fixture.card.0"]?.maxX ?? 0) > bookFold.minX + pixelTolerance {
+        folded = try await frames(host, cardIds)
+    }
+    let card0 = try #require(folded["fixture.card.0"])
+    let card1 = try #require(folded["fixture.card.1"])
+    let card2 = try #require(folded["fixture.card.2"])
+    // The gutter is the fold even though the 356 pt trailing side is under the 360 pt minimum.
+    #expect(abs(card0.maxX - bookFold.minX) < pixelTolerance)
+    #expect(abs(card1.minX - bookFold.maxX) < pixelTolerance)
+    // One row: the eager grid top-aligns it, the lazy grid centres it.
+    #expect(card1.minY < card0.maxY && card0.minY < card1.maxY)
+    #expect(abs(card2.minX - card0.minX) < pixelTolerance)
+    #expect(card2.minY >= card1.maxY - pixelTolerance)
+
+    box.layout = flat
+    var open = try await frames(host, cardIds)
+    for _ in 0..<20 where abs((open["fixture.card.0"]?.width ?? 0) - (open["fixture.card.1"]?.width ?? -1)) >= pixelTolerance {
+        open = try await frames(host, cardIds)
+    }
+    let flat0 = try #require(open["fixture.card.0"])
+    let flat1 = try #require(open["fixture.card.1"])
+    #expect(abs(flat0.width - flat1.width) < pixelTolerance)
+    #expect(abs(flat1.minX - flat0.maxX - SongDetailCardColumns.spacing) < pixelTolerance)
+    #expect(flat0.maxX < bookFold.minX - SongDetailCardColumns.spacing)
+}
+
+@MainActor @Test func songDetailCardsSplitAtTheFoldAtAccessibilitySizes() async throws {
+    try await assertSongDetailCardsSplitAtTheFold(.accessibility3)
+}
+
+@MainActor @Test func songDetailCardsSplitAtTheFoldAtStandardSizes() async throws {
+    try await assertSongDetailCardsSplitAtTheFold(.large)
+}
 #endif

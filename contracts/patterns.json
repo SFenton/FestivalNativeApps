@@ -2563,6 +2563,10 @@
             "symbol": "HingeRow"
           },
           {
+            "path": "apple/Sources/FestivalUI/App/Layout/HingeColumns.swift",
+            "symbol": "HingeEagerGrid"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/Profile/PlayerStatGrid.swift",
             "symbol": "StatTileGridLayout"
           }

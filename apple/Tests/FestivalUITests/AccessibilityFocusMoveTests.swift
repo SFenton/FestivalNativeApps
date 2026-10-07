@@ -48,16 +48,17 @@ struct AccessibilityFocusMoveTests {
 
 /// Song Detail's eager card rows at accessibility sizes keep the lazy grid's columns.
 struct SongDetailCardColumnsTests {
-    @Test func columnsMatchTheAdaptiveGrid() {
-        #expect(SongDetailCardColumns.count(forWidth: 802) == 2)   // iPad portrait, 834 − 32
-        #expect(SongDetailCardColumns.count(forWidth: 343) == 1)   // ⅓ window / iPhone
-        #expect(SongDetailCardColumns.count(forWidth: 1178) == 3)  // iPad landscape
-        #expect(SongDetailCardColumns.count(forWidth: 0) == 1)
+    private func columns(_ width: CGFloat) -> Int {
+        HingeEagerGridLayout(
+            minimum: SongDetailCardColumns.minimumWidth, spacing: SongDetailCardColumns.spacing,
+            rowSpacing: SongDetailCardColumns.rowSpacing
+        ).columns(width: width).count
     }
 
-    @Test func rowsKeepOrderAndCount() {
-        let rows = SongDetailCardColumns.rows([.lead, .bass, .drums], columns: 2)
-        #expect(rows == [[.lead, .bass], [.drums]])
-        #expect(SongDetailCardColumns.rows([], columns: 2).isEmpty)
+    @Test func columnsMatchTheAdaptiveGrid() {
+        #expect(columns(802) == 2)   // iPad portrait, 834 − 32
+        #expect(columns(343) == 1)   // ⅓ window / iPhone
+        #expect(columns(1178) == 3)  // iPad landscape
+        #expect(columns(0) == 1)
     }
 }
