@@ -241,13 +241,10 @@ struct MacListDetailStack<Root: View>: View {
             .toolbar {
                 if !cut.list.isEmpty {
                     ToolbarItem(placement: .navigation) {
-                        Button {
-                            path = Array(cut.list.dropLast())
-                        } label: {
-                            Label("Back", systemImage: "chevron.backward")
+                        // An open item closes first (issue #347).
+                        SplitListBackButton {
+                            if let back = OnDemandSplitPolicy.pathAfterListBack(path, section: section) { path = back }
                         }
-                        .help("Back (⌘[)")
-                        .accessibilityIdentifier("fst.split.list-back")
                     }
                 }
             }

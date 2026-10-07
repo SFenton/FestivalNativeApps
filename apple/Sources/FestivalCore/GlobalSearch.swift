@@ -107,8 +107,8 @@ public enum GlobalSearch {
         }
     }
 
-    /// Fallback title for a failed section whose issue has no title of its own: with no
-    /// section headings (issue #299), the row names what failed.
+    /// Fallback title for a failed section whose issue has no title of its own: a single
+    /// scope has no section title (issue #299), so the row names what failed.
     ///
     /// - Parameter section: `.songs`, `.players` or `.bands`.
     /// - Returns: "Songs unavailable", "Players unavailable" or "Bands unavailable" (the
@@ -150,6 +150,80 @@ public enum GlobalSearch {
             default: false
             }
         }
+    }
+
+    // MARK: - Section titles
+
+    /// Whether a result section renders: it has rows or a failure (web
+    /// `shouldRenderGlobalSection`). An empty or pending section is omitted.
+    ///
+    /// - Parameters:
+    ///   - section: `.songs`, `.players` or `.bands`.
+    ///   - outcomes: Every section's outcome.
+    /// - Returns: True when the section has results or failed.
+    public static func rendersSection(_ section: GlobalSearchScope, outcomes: Outcomes) -> Bool {
+        switch outcomes[section] {
+        case .failed: true
+        case let .found(count): count > 0
+        case .pending: false
+        }
+    }
+
+    /// Whether a section shows its Songs / Players / Bands title above its rows (issue
+    /// #348, web `SearchModal` `renderResults` `<h3>`): only in "All", and only for a
+    /// section that renders. A single scope has none; its scope bar names it (#299).
+    ///
+    /// - Parameters:
+    ///   - section: `.songs`, `.players` or `.bands`.
+    ///   - scope: Active scope.
+    ///   - outcomes: Every section's outcome.
+    /// - Returns: True when the title is drawn.
+    public static func showsSectionTitle(
+        _ section: GlobalSearchScope, scope: GlobalSearchScope, outcomes: Outcomes
+    ) -> Bool {
+        scope == .all && section != .all && rendersSection(section, outcomes: outcomes)
+    }
+
+    /// Stagger slots one rendered section takes: its title (in "All"), then one per row,
+    /// or one for a failure (web `getTargetStaggerSlotCount`).
+    ///
+    /// - Parameters:
+    ///   - section: `.songs`, `.players` or `.bands`.
+    ///   - scope: Active scope.
+    ///   - outcomes: Every section's outcome.
+    /// - Returns: 0 for a section that does not render.
+    public static func staggerSlotCount(
+        _ section: GlobalSearchScope, scope: GlobalSearchScope, outcomes: Outcomes
+    ) -> Int {
+        guard scope.sections.contains(section), rendersSection(section, outcomes: outcomes) else { return 0 }
+        let title = showsSectionTitle(section, scope: scope, outcomes: outcomes) ? 1 : 0
+        if case let .found(count) = outcomes[section] { return title + count }
+        return title + 1
+    }
+
+    /// First stagger slot of a section (its title in "All", else its first row), so the
+    /// fade runs title, rows, next title, … top to bottom like the web.
+    ///
+    /// - Parameters:
+    ///   - section: `.songs`, `.players` or `.bands`.
+    ///   - scope: Active scope.
+    ///   - outcomes: Every section's outcome.
+    /// - Returns: The sum of the slots of the sections drawn above it.
+    public static func staggerStart(
+        of section: GlobalSearchScope, scope: GlobalSearchScope, outcomes: Outcomes
+    ) -> Int {
+        scope.sections.prefix { $0 != section }
+            .reduce(0) { $0 + staggerSlotCount($1, scope: scope, outcomes: outcomes) }
+    }
+
+    /// Every stagger slot the shown results take, for settling the fade.
+    ///
+    /// - Parameters:
+    ///   - scope: Active scope.
+    ///   - outcomes: Every section's outcome.
+    /// - Returns: Titles plus rows plus failures across the scope's sections.
+    public static func staggerSlotTotal(scope: GlobalSearchScope, outcomes: Outcomes) -> Int {
+        scope.sections.reduce(0) { $0 + staggerSlotCount($1, scope: scope, outcomes: outcomes) }
     }
 
     // MARK: - Empty state

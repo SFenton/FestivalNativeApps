@@ -8,10 +8,14 @@ import SwiftUI
 /// (`page-tools-and-nav-chrome` R2). On iPhone Duo, folded or unfolded, the owner chose
 /// a field at the bottom of the page, within thumb reach ("Filter Songs should be at
 /// bottom of screen on Duo for ease of use"; HIG Search fields: "Place search at the
-/// bottom if there's room; this keeps priority search easy to reach"). Across a
-/// vertical hinge (book or flat landscape on the inner display) it lies on the
-/// trailing page, clear of the fold (HIG Designing for iPhone Duo: "use reserved-region
-/// APIs to keep important elements clear of the center").
+/// bottom if there's room; this keeps priority search easy to reach"). It spans the
+/// full width of its page in every pose except one: across the fold of a partially
+/// folded inner display in landscape (book pose) it lies on the trailing page, clear
+/// of the fold (owner: "When partially folded landscape, align filter songs on right
+/// page"; HIG Designing for iPhone Duo: the folding region is "present when partially
+/// open", and "use reserved-region APIs to keep important elements clear of the
+/// center"). Lying flat, the inner display has no folding region, so the field keeps
+/// the full width (issue #334).
 enum SongsFilterFieldPlacement: Equatable {
     /// The system `.searchable` field: the navigation-bar drawer under the title on
     /// iOS, the toolbar on the Mac (``SongsScreen/filterFieldPlacement``).
@@ -34,16 +38,30 @@ enum SongsFilterFieldPlacement: Equatable {
         pose == .standard ? .system : .bottom
     }
 
+    /// The fold the bottom field keeps clear of, or nil when it spans its full width.
+    ///
+    /// Only a partially folded inner display (book pose) has a fold to avoid: its
+    /// ``DeviceLayout/splitHinge`` (the active fold, else the reported hinge, else the
+    /// window's midline). Folded, and lying flat in either orientation, the field spans
+    /// its page (issue #334: flat landscape used the inactive hinge and left the field
+    /// on the right half of an unbroken display).
+    ///
+    /// - Parameter layout: The window's ``DeviceLayout``.
+    /// - Returns: The fold in window points, or nil.
+    nonisolated static func fold(in layout: DeviceLayout) -> CGRect? {
+        layout.pose == .partiallyFolded ? layout.splitHinge : nil
+    }
+
     /// Horizontal padding that keeps the bottom field on the trailing page.
     ///
-    /// Without a vertical hinge crossing the field's row (folded, inner portrait), both
-    /// sides get the standard ``margin``. With one, the leading padding reaches past
-    /// the hinge, so the field starts a margin beyond it: the right page in a
+    /// Without a vertical fold crossing the field's row (folded, flat, inner portrait),
+    /// both sides get the standard ``margin``. With one, the leading padding reaches past
+    /// the fold, so the field starts a margin beyond it: the right page in a
     /// left-to-right layout, the left page right-to-left.
     ///
     /// - Parameters:
     ///   - container: The field row's frame, in window (global) points.
-    ///   - hinge: ``DeviceLayout/splitHinge`` in the same space, if any.
+    ///   - hinge: ``fold(in:)`` in the same space, if any.
     ///   - layoutDirection: The row's layout direction.
     /// - Returns: Leading and trailing padding, in points.
     nonisolated static func horizontalPadding(
@@ -92,7 +110,7 @@ enum SongsFilterFieldPlacement: Equatable {
 
 /// The iPhone Duo bottom "Filter Songs" field (issue #333): the shared
 /// ``GlobalSearchField`` on the floating-control surface, in the page's bottom safe
-/// area and, across a vertical hinge, on the trailing page.
+/// area, full width except on the trailing page across a book-pose fold.
 ///
 /// It edits the same tab-owned text as the `.searchable` field it replaces, so the
 /// 250 ms debounce, sort, filters and the A–Z scrubber behave unchanged; as a bottom
@@ -102,7 +120,7 @@ enum SongsFilterFieldPlacement: Equatable {
 /// ``SwiftUI/View/bottomChromeFade(chromeTop:distance:in:)``.
 struct SongsBottomFilterField: View {
     @Binding var text: String
-    /// ``DeviceLayout/splitHinge`` (window points).
+    /// ``SongsFilterFieldPlacement/fold(in:)`` (window points).
     let hinge: CGRect?
     /// Coordinate space shared with the faded list.
     let space: String
