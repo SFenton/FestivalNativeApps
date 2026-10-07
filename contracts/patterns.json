@@ -1369,6 +1369,18 @@
           "message": "Pages inside PublicationRefreshBoundary set their title with festivalNavigationTitle so the VoiceOver page anchor can name them during a publication refresh (load-transition R9)."
         },
         {
+          "id": "apple-focus-state-owner",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "@AccessibilityFocusState",
+          "allow": [
+            "apple/Sources/FestivalUI/Common/PublicationRefreshBoundary.swift",
+            "apple/Sources/FestivalUI/App/Layout/OnDemandSplit.swift",
+            "apple/Sources/FestivalUI/Features/FirstRun/FirstRunCarouselView.swift"
+          ],
+          "debt": [],
+          "message": "@AccessibilityFocusState invalidates the view that owns it while lists scroll; keep it on a small leaf view or modifier, never on a view that builds a page's content (load-transition R9, #325)."
+        },
+        {
           "id": "android-load-swap",
           "glob": "android/app/src/main/**/*.kt",
           "regex": "rememberLoadSwap\\s*\\(",
