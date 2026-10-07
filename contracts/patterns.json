@@ -1117,6 +1117,10 @@
             "symbol": "LeaderboardsPager"
           },
           {
+            "path": "windows/Festival.Core/Domain/SelectedRowNavigation.cs",
+            "symbol": "SelectedRowAction"
+          },
+          {
             "path": "windows/Festival.App/Controls/BandScoreFooterPanel.cs",
             "symbol": "BandScoreFooterPanel"
           },
@@ -1127,6 +1131,10 @@
           {
             "path": "windows/Festival.Core/Domain/BandScoreFooterLayout.cs",
             "symbol": "BandScoreFooterSection"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/RankingSpotlight.cs",
+            "symbol": "RankingSpotlight"
           }
         ]
       },
