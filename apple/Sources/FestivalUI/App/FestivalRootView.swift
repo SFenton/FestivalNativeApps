@@ -128,7 +128,8 @@ public struct FestivalRootView: View {
         // A deep link or restored tab may name a section the stored profile hides. The
         // first geometry pass has not published a layout yet; `shell(_:)`'s
         // `onChange(of: sections)` re-resolves once it has.
-        let profile: FestivalProfileKind = session.selectedPlayer == nil ? .none : .player
+        let profile: FestivalProfileKind =
+            session.selectedPlayer == nil && !Self.keepsProfileRoutes ? .none : .player
         let visible = ShellPresentation.resolve(
             layout: .standardPhone, usesSidebarShell: Self.supportsSidebar
         ).sections(
@@ -320,7 +321,19 @@ public struct FestivalRootView: View {
 
     /// Profile kind driving conditional tabs.
     private var profileKind: FestivalProfileKind {
-        session.selectedPlayer == nil ? .none : .player
+        session.selectedPlayer == nil && !Self.keepsProfileRoutes ? .none : .player
+    }
+
+    /// Debug launches with `FST_DEBUG_KEEP_PROFILE_ROUTES=1` keep the profile-only tabs
+    /// and routes (`ProfileRoutePolicy`) without a player, so a journey can hold
+    /// Statistics' otherwise momentary no-profile state open in the real shell (issue
+    /// #341). Always false in Release.
+    private static var keepsProfileRoutes: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["FST_DEBUG_KEEP_PROFILE_ROUTES"] == "1"
+        #else
+        false
+        #endif
     }
 
     /// Root sections currently visible (web `BottomNav` rules).
@@ -598,7 +611,7 @@ public struct FestivalRootView: View {
         Binding {
             // Profile-only pages disappear without a player (`ProfileRoutePolicy`).
             ProfileRoutePolicy.resolve(
-                paths[section] ?? [], hasPlayer: session.selectedPlayer != nil
+                paths[section] ?? [], hasPlayer: session.selectedPlayer != nil || Self.keepsProfileRoutes
             )
         } set: { value in
             paths[section] = value
@@ -1021,6 +1034,8 @@ private struct ShellCommandsPublisher: ViewModifier {
 /// `FST_DEBUG_BAND=<bandType>/<teamKey>/<displayName>` selects a band the same way
 /// (issue #340; band selection has no user-facing entry yet) and wins over any player.
 /// `FST_DEBUG_ANONYMOUS=1` ignores any stored profile for this launch without deleting it.
+/// `FST_DEBUG_KEEP_PROFILE_ROUTES=1` keeps profile-only tabs and routes without a player
+/// (read by `FestivalRootView.keepsProfileRoutes`).
 /// `FST_DEBUG_DRAWER_RADII=1` overlays the drawer panel's frame and resolved concentric
 /// corner radii (read by `FestivalDrawer`, not here).
 struct DebugLaunchRoute {

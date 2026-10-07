@@ -61,11 +61,6 @@ struct SongsScreen: View, Equatable {
     @State private var scrollChrome = SongsScrollChrome()
     /// Far programmatic jumps teleport behind this fade (``ListJump``).
     @State private var jumpFade = ListJumpFade()
-    /// The navigation bar's bottom edge and the list's SwiftUI safe-area top (window
-    /// points), measured in compact height only (iPhone Duo outer landscape,
-    /// ``SongsDrawerOverlap``).
-    @State private var drawerBarBottom = CGFloat.nan
-    @State private var listSafeTop = CGFloat.nan
     /// The iPhone Duo bottom Filter field's top in ``pageSpace`` (issue #333).
     @State private var bottomFilterTop: CGFloat?
     @Environment(\.openProfile) private var openProfile
@@ -1098,29 +1093,6 @@ struct SongsScreen: View, Equatable {
         max(0, scrubberTrailingReserve - songRowInsets.trailing)
     }
 
-    /// Top padding that clears the pinned Filter field where SwiftUI lays the list out
-    /// above the navigation bar's bottom (iPhone Duo outer landscape, `/duo` P3).
-    private var drawerOverlap: CGFloat {
-        SongsDrawerOverlap.padding(
-            barBottom: drawerBarBottom, safeTop: listSafeTop,
-            compactHeight: deviceLayout.heightClass == .compact
-        )
-    }
-
-    /// Measures the bar bottom and the list's safe-area top, in compact height only.
-    @ViewBuilder private var drawerOverlapReader: some View {
-        #if os(iOS)
-        if deviceLayout.heightClass == .compact {
-            SongsDrawerBarReader { barBottom in
-                if barBottom != drawerBarBottom { drawerBarBottom = barBottom }
-            }
-            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { top in
-                listSafeTop = top
-            }
-        }
-        #endif
-    }
-
     /// The loaded catalogue's list, section bar, A–Z scrubber and Quick Links.
     ///
     /// - Parameters:
@@ -1248,8 +1220,6 @@ struct SongsScreen: View, Equatable {
                     chromeTop: bottomFieldTop, enabled: filterPlacement == .bottom,
                     space: Self.pageSpace
                 ))
-                // iPhone Duo outer landscape: start below the pinned Filter field (`/duo` P3).
-                .safeAreaPadding(.top, drawerOverlap)
                 // Reserve room for the trailing section-index scrubber so its glass
                 // capsule never overlaps a row's own trailing content (difficulty
                 // meter, Shop badge, instrument-status chips) — the scrubber is an
@@ -1284,7 +1254,6 @@ struct SongsScreen: View, Equatable {
                 }
             }
             .animation(.easeInOut(duration: 0.2), value: showsIndex)
-            .background { drawerOverlapReader }
             // Any reordering (sort mode, direction, filters) starts at the top of the new
             // order (operator, 2026-09-28).
             .onChange(of: reorderKey) { _, _ in
@@ -1588,12 +1557,12 @@ struct SongsScreen: View, Equatable {
     }
 
     /// One grid row: up to `columns` cards of equal width (a short last row keeps its
-    /// card at column width), each its own accessible link. In book pose the gutter sits
-    /// on the fold (``HingeRow``, pattern `hinge-columns`).
+    /// card at column width), each its own accessible link. On iPhone Duo the gutter sits
+    /// on the hinge, flat or folded (``HingeRow`` page hinge, pattern `wide-columns` R3).
     private func songGridRow(
         _ songs: [Song], columns: Int, catalogueObservation: Int, fadeOrder: [String: Int]
     ) -> some View {
-        HingeRow(spacing: SongGridPolicy.spacing) {
+        HingeRow(spacing: SongGridPolicy.spacing, hinge: .page) {
             ForEach(songs) { song in
                 songCell(
                     for: song, catalogueObservation: catalogueObservation,
@@ -2403,10 +2372,11 @@ private struct SongCellWindowMenu: ViewModifier {
 
 // MARK: - Landscape grid policy
 
-/// Pure rules for the Songs landscape grid (`.agents/design/apple/split-view.md`).
+/// Pure rules for the Songs landscape grid (`.agents/design/apple/split-view.md`): the
+/// app-wide ``WideColumns`` rule (pattern `wide-columns`, issue #350).
 enum SongGridPolicy {
     /// Gap between the two cards of a grid row.
-    static let spacing: CGFloat = 12
+    static let spacing: CGFloat = WideColumns.spacing
 
     /// Cards per row: two in a landscape window that is regular in both dimensions (iPad
     /// landscape, iPhone Duo inner display in landscape), else one (iPhone, portrait,
@@ -2415,8 +2385,7 @@ enum SongGridPolicy {
     /// - Parameter layout: The page's device layout.
     /// - Returns: 1 or 2.
     static func columns(layout: DeviceLayout) -> Int {
-        layout.orientation == .landscape && layout.windowWidthClass == .regular
-            && layout.heightClass == .regular ? 2 : 1
+        WideColumns.count(layout: layout)
     }
 
     /// Chunk a section's songs into rows of `columns`, keeping order (row-major).
@@ -2426,7 +2395,6 @@ enum SongGridPolicy {
     ///   - columns: Cards per row (at least 1).
     /// - Returns: The rows; only the last may be short.
     static func rows<Item>(_ songs: [Item], columns: Int) -> [[Item]] {
-        let size = max(1, columns)
-        return stride(from: 0, to: songs.count, by: size).map { Array(songs[$0..<min($0 + size, songs.count)]) }
+        WideColumns.rows(songs, columns: columns)
     }
 }

@@ -259,7 +259,7 @@
       "title": "Section-jump landing",
       "status": "current",
       "doc": ".agents/patterns/section-jump-landing.md",
-      "summary": "Quick Links and Songs section-index jumps land ordinary targets 32 units below chrome, keep the target current through arrival, and land pinned Songs titles at their pin line with the first row clear.",
+      "summary": "Quick Links and Songs section-index jumps land ordinary targets 32 units below chrome, keep the target current through arrival, and land pinned Songs titles at their pin line with the first row clear; a section index fits the height it is given, condensing its labels rather than growing the page.",
       "keywords": [
         "quick links",
         "section jump",
@@ -295,6 +295,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Songs/SongsScrollChrome.swift",
             "symbol": "SongsScrollChrome"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongSectionIndexScrubber.swift",
+            "symbol": "SongSectionIndexScrubber"
           }
         ],
         "android": [
@@ -380,7 +384,8 @@
       "issues": [
         9,
         286,
-        298
+        298,
+        336
       ]
     },
     {
@@ -729,7 +734,7 @@
       "title": "Page tools and navigation chrome",
       "status": "current",
       "doc": ".agents/patterns/page-tools-and-nav-chrome.md",
-      "summary": "Native shell navigation owns destinations; page tools use the approved Apple tab accessory, Android compact floating toolbar or Windows title/page-header placement rather than a parallel command surface.",
+      "summary": "Native shell navigation owns destinations; page tools use the approved Apple tab accessory, Android compact floating toolbar or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose.",
       "keywords": [
         "navigation",
         "page tools",
@@ -739,7 +744,11 @@
         "global search",
         "quick links",
         "profile",
-        "hit target"
+        "hit target",
+        "drawer",
+        "hamburger",
+        "page title",
+        "navigation title"
       ],
       "web": [
         {
@@ -753,6 +762,10 @@
         {
           "path": "pages/songs/components/SongsToolbar.tsx",
           "symbol": "SongsToolbar"
+        },
+        {
+          "path": "components/shell/desktop/Sidebar.tsx",
+          "symbol": "Sidebar"
         }
       ],
       "canonical": {
@@ -778,8 +791,16 @@
             "symbol": "ShellPresentation"
           },
           {
+            "path": "apple/Sources/FestivalUI/Common/PageTitle.swift",
+            "symbol": "festivalNavigationTitle"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/Songs/SongsBottomFilterField.swift",
             "symbol": "SongsFilterFieldPlacement"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Shell/RootChrome.swift",
+            "symbol": "VerticalBarActionItem"
           },
           {
             "path": "apple/Sources/FestivalUI/Features/Search/BottomSearchField.swift",
@@ -788,6 +809,18 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchTab.swift",
             "symbol": "GlobalSearchFieldPlacement"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
+            "symbol": "DrawerMenu"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
+            "symbol": "FestivalDrawer"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Shell/SidebarMenu.swift",
+            "symbol": "SidebarMenu"
           }
         ],
         "android": [
@@ -872,6 +905,13 @@
             "apple/Sources/FestivalUI/App/Shell/RootChrome.swift"
           ],
           "message": "Only the shell's profile item hides its toolbar glass, through profileItemBackground (page-tools-and-nav-chrome R8)."
+        },
+        {
+          "id": "apple-nav-bar-visible",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "navigationBarHidden\\(|\\.(toolbar|toolbarVisibility)\\(\\s*\\.hidden\\s*,\\s*for:\\s*\\.navigationBar",
+          "allow": [],
+          "message": "Pages keep the system navigation bar and its title in every pose; don't hide it (page-tools-and-nav-chrome R14, #341)."
         }
       ],
       "related": {
@@ -901,7 +941,10 @@
         271,
         300,
         309,
-        337
+        337,
+        338,
+        341,
+        351
       ]
     },
     {
@@ -1550,7 +1593,8 @@
             "apple/Sources/FestivalUI/Features/Leaderboards/LeaderboardsScreen.swift",
             "apple/Sources/FestivalUI/Features/Leaderboards/FullRankingsScreen.swift",
             "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
-            "apple/Sources/FestivalUI/Features/Shop/ShopScreen.swift"
+            "apple/Sources/FestivalUI/Features/Shop/ShopScreen.swift",
+            "apple/Sources/FestivalUI/Features/Compete/CompeteScreen.swift"
           ],
           "debt": [],
           "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."
@@ -2748,7 +2792,8 @@
       },
       "related": {
         "patterns": [
-          "section-headers"
+          "section-headers",
+          "wide-columns"
         ],
         "pages": [
           "statistics",
@@ -2776,7 +2821,150 @@
       ],
       "supersedes": [],
       "issues": [
-        343
+        343,
+        350
+      ]
+    },
+    {
+      "id": "wide-columns",
+      "title": "Wide columns",
+      "status": "current",
+      "doc": ".agents/patterns/wide-columns.md",
+      "summary": "Page rows and cards show in two columns only in wide landscape windows (iPad landscape, iPhone Duo unfolded landscape, a wide Mac surface), row-major under full-width headings, meeting at the Duo hinge, reflowing without reloading; portrait and compact windows keep one column.",
+      "keywords": [
+        "two column",
+        "two-column",
+        "wide landscape",
+        "landscape",
+        "portrait",
+        "columns",
+        "search results",
+        "grid",
+        "ipad landscape",
+        "iphone duo",
+        "mac sheet size"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/WideColumns.swift",
+            "symbol": "WideColumns"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/HingeColumns.swift",
+            "symbol": "HingeRow"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
+            "symbol": "SongGridPolicy"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift",
+            "symbol": "GlobalSearchResults"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Mac/MacRootView.swift",
+            "symbol": "searchSheetSize"
+          }
+        ],
+        "android": [],
+        "windows": []
+      },
+      "related": {
+        "patterns": [
+          "hinge-columns",
+          "section-headers",
+          "load-transition",
+          "back-keeps-place"
+        ],
+        "controls": [
+          "global-search"
+        ],
+        "pages": [
+          "songs",
+          "leaderboards",
+          "player-profile",
+          "suggestions",
+          "compete",
+          "settings",
+          "full-rankings",
+          "song-leaderboard"
+        ]
+      },
+      "guards": [],
+      "supersedes": [],
+      "issues": [
+        350
+      ]
+    },
+    {
+      "id": "split-panes",
+      "title": "Split panes",
+      "status": "current",
+      "doc": ".agents/patterns/split-panes.md",
+      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (a fold, or a 1 pt midpoint band plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under Increase Contrast, and the split's one backdrop and top gradient run unbroken across the band.",
+      "keywords": [
+        "split view",
+        "split",
+        "divider",
+        "splitter",
+        "hairline",
+        "separator",
+        "list detail",
+        "pane",
+        "panes",
+        "hinge band",
+        "vertical divider"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/OnDemandSplitPolicy.swift",
+            "symbol": "drawsDividerLine"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/OnDemandSplit.swift",
+            "symbol": "OnDemandSplitLayout"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/SplitPaneChrome.swift",
+            "symbol": "SplitPaneChrome"
+          }
+        ],
+        "android": [],
+        "windows": []
+      },
+      "related": {
+        "patterns": [
+          "hinge-columns",
+          "surface-materials",
+          "back-keeps-place"
+        ],
+        "pages": [
+          "rivals",
+          "leaderboards",
+          "song-detail",
+          "settings",
+          "songs"
+        ]
+      },
+      "guards": [
+        {
+          "id": "android-vertical-divider",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "\\bVerticalDivider\\s*\\(",
+          "allow": [],
+          "debt": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/shell/FestivalApp.kt"
+          ],
+          "message": "Split panes are separated by space, not a drawn divider; a hairline only under high contrast at a midpoint (split-panes R1, R2)."
+        }
+      ],
+      "supersedes": [],
+      "issues": [
+        344
       ]
     }
   ]

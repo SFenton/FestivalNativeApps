@@ -234,6 +234,62 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
     #expect(reported.leadingWidth == 470 && reported.dividerWidth == 11)
 }
 
+/// No split draws a divider line (#344): the band's space and the panes' margins separate
+/// them. Increase Contrast restores the 1 pt hairline at a midpoint (iPad, Mac), never on
+/// the iPhone Duo hinge, whether the fold is reported or not.
+@Test func dividerLineOnlyUnderIncreaseContrastAtAMidpoint() throws {
+    let iPad = try #require(windowGeometry(SplitLayouts.iPadLandscape))
+    let mac = try #require(OnDemandSplitPolicy.geometry(.init(
+        container: CGRect(x: 0, y: 0, width: 1060, height: 800), isLandscape: true, isRegular: true
+    )))
+    let duo = try [SplitLayouts.duoInnerLandscape, SplitLayouts.duoBook, SplitLayouts.duoFlatReported]
+        .map { try #require(windowGeometry($0)) }
+    for midpoint in [iPad, mac] {
+        #expect(!midpoint.isHinge)
+        #expect(!OnDemandSplitPolicy.drawsDividerLine(midpoint, increasedContrast: false))
+        #expect(OnDemandSplitPolicy.drawsDividerLine(midpoint, increasedContrast: true))
+    }
+    for hinge in duo {
+        #expect(hinge.isHinge)
+        #expect(!OnDemandSplitPolicy.drawsDividerLine(hinge, increasedContrast: false))
+        #expect(!OnDemandSplitPolicy.drawsDividerLine(hinge, increasedContrast: true))
+    }
+}
+
+/// The rendered band between the panes is clear (#344): a midpoint band and a hinge band
+/// both show what lies under the split, never a lighter line.
+@MainActor
+@Test func renderedSplitBandDrawsNoLine() throws {
+    let midpoint = try #require(OnDemandSplitPolicy.geometry(.init(
+        container: CGRect(x: 0, y: 0, width: 801, height: 40), isLandscape: true, isRegular: true
+    )))
+    let hinge = try #require(OnDemandSplitPolicy.geometry(.init(
+        container: CGRect(x: 0, y: 0, width: 801, height: 40), isLandscape: true, isRegular: true,
+        hinge: CGRect(x: 395, y: 0, width: 11, height: 40)
+    )))
+    for geometry in [midpoint, hinge] {
+        let split = OnDemandSplitLayout(geometry: geometry) {
+            Color.black
+        } trailing: {
+            Color.black
+        }
+        .frame(width: 801, height: 40)
+        .background(Color.black)
+        let renderer = ImageRenderer(content: split)
+        renderer.scale = 1
+        let image = try #require(renderer.cgImage)
+        let context = try #require(CGContext(
+            data: nil, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        let pixels = try #require(context.data).bindMemory(to: UInt8.self, capacity: image.width * image.height * 4)
+        let row = image.height / 2
+        let brightest = (0..<image.width).map { pixels[(row * image.width + $0) * 4] }.max() ?? 0
+        #expect(brightest < 8, "no divider line across the band (hinge: \(geometry.isHinge)): \(brightest)")
+    }
+}
+
 /// Folding, rotating or resizing across the split threshold changes the stacks' shape a
 /// run-loop turn later (#346); the first measurement applies at once.
 @Test func windowChangesApplyOneTurnLater() {

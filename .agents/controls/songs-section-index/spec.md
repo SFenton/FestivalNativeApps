@@ -18,6 +18,10 @@ No web equivalent exists to source line numbers from: the web app has no section
 - Missing year sorts and sections as its own explicit bucket, not folded into an adjacent year.
 - Title/Artist labeling follows the native Contacts convention: the label is the diacritic-folded first character (after trimming leading whitespace) only when that character is a letter A–Z; every other leading character — punctuation, a digit, a symbol, a non-Latin script — shares one non-letter marker. It never skips past a non-letter prefix to reach "a real letter" deeper in the string: since the underlying sort already places every non-letter-leading title before any letter-led one, that gives one contiguous leading section rather than scattering those titles under unrelated, out-of-order labels.
 
+## Fit
+
+- The index is never taller than the space it is given and never makes the page taller than its window. Where every label does not fit (a short landscape display or window), it shows the first and last labels with evenly spaced labels between them and a bullet for each skipped run, as the system table index does; every section stays reachable by dragging and by sequential traversal.
+
 ## Interaction
 
 - Dragging along the index jumps the list to the start of the section under the touch point; releasing leaves the list at that position (no snap-back).

@@ -19,6 +19,8 @@ public struct MacRootView: View {
     @State private var songsInstrument: Instrument?
     @State private var songsNotice: String?
     @State private var pendingSheetRoute: AppRoute?
+    /// The Search sheet's opening size for the window's current shape.
+    @State private var searchSheetSize = WideColumns.macNarrowSheet
     @AppStorage("fst.settings.showLead") private var showLead = true
     @AppStorage("fst.settings.showBass") private var showBass = true
     @AppStorage("fst.settings.showDrums") private var showDrums = true
@@ -65,6 +67,10 @@ public struct MacRootView: View {
             }
         }
         .frame(minWidth: MacWindowMetrics.minimum.width, minHeight: MacWindowMetrics.minimum.height)
+        // Only a change of sheet size invalidates the root, not every live-resize step.
+        .onGeometryChange(for: CGSize.self) { WideColumns.macSheetSize(window: $0.size) } action: {
+            searchSheetSize = $0
+        }
         .tint(highContrast ? BrandTokens.textPrimary : BrandTokens.accentBlue)
         .preferredColorScheme(.dark)
         .environment(\.festivalSession, session)
@@ -94,8 +100,13 @@ public struct MacRootView: View {
                 .festivalSheet()
         }
         .sheet(isPresented: $navigation.searchPresented, onDismiss: pushPendingSheetRoute) {
+            // Wide landscape windows open a two-column sheet (pattern `wide-columns`,
+            // issue #350); it resizes down to one column.
             GlobalSearchSheet(session: session) { pendingSheetRoute = $0 }
-                .macSheetFrame(width: 620, height: 680)
+                .macSheetFrame(
+                    width: searchSheetSize.width, height: searchSheetSize.height,
+                    minWidth: WideColumns.macNarrowSheet.width - 60, minHeight: 520
+                )
                 .festivalSheet()
         }
         .sheet(isPresented: $navigation.notificationsPresented, onDismiss: pushPendingSheetRoute) {
