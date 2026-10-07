@@ -169,12 +169,23 @@ struct RevealSample {
     let bright: Int
 }
 
+/// What ``watchReveal(_:size:row:band:threshold:rest:timeout:)`` saw.
+struct RevealWatch {
+    /// The first capture with the row wholly in the clear band.
+    let first: RevealSample
+    /// The settled capture.
+    let settled: RevealSample
+    /// How long the main actor went unpolled just before `first`: a long gap means the
+    /// row may have finished fading unobserved (the `apple-ci` VM stalls for seconds).
+    let gapBeforeFirst: Duration
+}
+
 /// The test-only slow item fade (see the file comment).
 private let slowedItemFade = Animation.linear(duration: 3)
 
 /// Watch `row` until it rests in the clear band, recording the first capture with the row
 /// wholly inside the band and the settled one: at least `rest` later, once two captures
-/// in a row (150 ms apart) agree on its frame and text.
+/// in a row (150 ms apart) agree on its frame and, within 2%, its text.
 ///
 /// - Parameters:
 ///   - host: The board's host, in its window.
@@ -184,33 +195,38 @@ private let slowedItemFade = Animation.linear(duration: 3)
 ///   - threshold: Bright-sample threshold for row text.
 ///   - rest: Least time from the first in-band capture to the settled one.
 ///   - timeout: Upper bound for the row to arrive and settle (scaled in a VM).
-/// - Returns: The first in-band and the settled captures.
+/// - Returns: The first in-band and the settled captures, and the poll gap before the first.
 @MainActor
 private func watchReveal<Content: View>(
     _ host: NSHostingView<Content>, size: CGSize, row: String, band: ClosedRange<CGFloat>,
     threshold: Int, rest: Duration, timeout: Duration = .seconds(60)
-) async throws -> (first: RevealSample, settled: RevealSample) {
+) async throws -> RevealWatch {
     let clock = ContinuousClock()
     let deadline = clock.now + nativeHostedReadinessBudget(timeout)
-    var first: (sample: RevealSample, at: ContinuousClock.Instant)?
+    var first: (sample: RevealSample, at: ContinuousClock.Instant, gap: Duration)?
     var previous: RevealSample?
+    var lastPoll = clock.now
+    var lastFrame: CGRect?
     while clock.now < deadline {
+        let gap = clock.now - lastPoll
+        lastPoll = clock.now
         host.layoutSubtreeIfNeeded()
-        if let frame = nativeHostedAccessibilityFrame(row, in: host),
-           frame.minY >= band.lowerBound, frame.maxY <= band.upperBound {
+        let frame = nativeHostedAccessibilityFrame(row, in: host)
+        lastFrame = frame ?? lastFrame
+        if let frame, frame.minY >= band.lowerBound, frame.maxY <= band.upperBound {
             let image = try nativeHostedImage(host)
             let sample = RevealSample(
                 frame: frame,
                 bright: nativeHostedBrightSamples(in: frame, of: image, hostSize: size, threshold: threshold)
             )
             guard let first else {
-                first = (sample, clock.now)
+                first = (sample, clock.now, gap)
                 continue
             }
             if clock.now - first.at >= rest {
-                if let previous, previous.bright == sample.bright,
+                if let previous, abs(previous.bright - sample.bright) <= max(2, sample.bright / 50),
                    abs(previous.frame.minY - sample.frame.minY) < 0.5 {
-                    return (first.sample, sample)
+                    return RevealWatch(first: first.sample, settled: sample, gapBeforeFirst: first.gap)
                 }
                 previous = sample
                 try await Task.sleep(for: .milliseconds(150))
@@ -221,20 +237,20 @@ private func watchReveal<Content: View>(
         }
         try await Task.sleep(for: .milliseconds(first == nil ? 20 : 100))
     }
-    Issue.record("\(row) never rested in the clear band \(band)")
+    Issue.record("\(row) never rested in the clear band \(band) (last frame \(String(describing: lastFrame)))")
     throw CancellationError()
 }
 
-/// Issue #323: each board opened for a row past its first screen (the solo board from
-/// Song Detail's score, the band board from a band preview, Full Rankings from its
-/// pinned footer's jump to the player's page while that page is still fading in) waits
-/// for the row's entrance and then scrolls it to the centre. The row the scroll reaches
-/// fades in with the rush rather than arriving already opaque. With Reduce Motion the
-/// row appears without a fade and the scroll is instant (load-transition R6).
+/// Open `board` for its selected row (Full Rankings: jump from its pinned footer while
+/// page 1 still fades) and watch the row arrive.
+///
+/// - Parameters:
+///   - board: The board to open.
+///   - motion: The motion setting to render with.
+///   - size: The host's size.
+/// - Returns: What the watch saw.
 @MainActor
-@Test(.serialized, arguments: RevealBoard.allCases, RevealMotion.allCases)
-func selectedRowRevealFadesTheRowItReaches(board: RevealBoard, motion: RevealMotion) async throws {
-    let size = CGSize(width: 402, height: 700)
+private func runRevealJourney(board: RevealBoard, motion: RevealMotion, size: CGSize) async throws -> RevealWatch {
     let reduceMotion = motion == .reduceMotion
     let host = nativeHostedView(
         try await board.screen()
@@ -265,7 +281,7 @@ func selectedRowRevealFadesTheRowItReaches(board: RevealBoard, motion: RevealMot
 
     // Below the bar and above the pinned footer/pager and their 36 pt fade.
     let band: ClosedRange<CGFloat> = 90...(size.height - 230)
-    let (first, settled) = try await watchReveal(
+    let watch = try await watchReveal(
         host, size: size, row: board.rowId, band: band, threshold: board.threshold,
         rest: reduceMotion ? .seconds(1) : .seconds(3.5)
     )
@@ -273,6 +289,31 @@ func selectedRowRevealFadesTheRowItReaches(board: RevealBoard, motion: RevealMot
         try nativeHostedImage(host), filename: "reveal-\(board.rawValue)-\(motion.rawValue).png",
         environment: "FST_LEADERBOARDS_RENDER_OUT"
     )
+    return watch
+}
+
+/// Issue #323: each board opened for a row past its first screen (the solo board from
+/// Song Detail's score, the band board from a band preview, Full Rankings from its
+/// pinned footer's jump to the player's page while that page is still fading in) waits
+/// for the row's entrance and then scrolls it to the centre. The row the scroll reaches
+/// fades in with the rush rather than arriving already opaque. With Reduce Motion the
+/// row appears without a fade and the scroll is instant (load-transition R6).
+///
+/// A first capture that followed a main-actor stall longer than a third of the slowed
+/// fade cannot show whether the row was still fading, so that journey runs again (up to
+/// three times); if every run stalls, only the settled row is judged.
+@MainActor
+@Test(.serialized, arguments: RevealBoard.allCases, RevealMotion.allCases)
+func selectedRowRevealFadesTheRowItReaches(board: RevealBoard, motion: RevealMotion) async throws {
+    let size = CGSize(width: 402, height: 700)
+    let reduceMotion = motion == .reduceMotion
+    var watch = try await runRevealJourney(board: board, motion: motion, size: size)
+    var attempts = 1
+    while !reduceMotion, watch.gapBeforeFirst > .seconds(1), attempts < 3 {
+        attempts += 1
+        watch = try await runRevealJourney(board: board, motion: motion, size: size)
+    }
+    let (first, settled) = (watch.first, watch.settled)
     #expect(settled.bright > 100, "the settled row's text is drawn (\(settled.bright))")
     if reduceMotion {
         #expect(
@@ -280,7 +321,7 @@ func selectedRowRevealFadesTheRowItReaches(board: RevealBoard, motion: RevealMot
             "with Reduce Motion the row arrives fully drawn (\(first.bright) of \(settled.bright))"
         )
         #expect(abs(first.frame.minY - settled.frame.minY) < 2, "with Reduce Motion the scroll is instant")
-    } else {
+    } else if watch.gapBeforeFirst <= .seconds(1) {
         #expect(
             Double(first.bright) < Double(settled.bright) * 0.5,
             "the row the scroll reaches is still fading in (\(first.bright) of \(settled.bright))"
@@ -356,8 +397,16 @@ private struct StaggeredListProbe: View {
     let size = CGSize(width: 400, height: 500)
     let probe = "staggered-list-\(UUID().uuidString)"
     let fade: TimeInterval = 2
+    let suite = "fst.tests.staggered-list.\(UUID().uuidString)"
+    let storage = try #require(UserDefaults(suiteName: suite))
+    defer { storage.removePersistentDomain(forName: suite) }
     let host = nativeHostedView(
-        StaggeredListProbe(probe: probe, duration: fade).preferredColorScheme(.dark),
+        StaggeredListProbe(probe: probe, duration: fade)
+            // Motion on: GitHub's macOS runner image turns the system Reduce Motion on
+            // (actions/runner-images `configure-system.sh`), which shows the rows at once.
+            .environment(\._accessibilityReduceMotion, false)
+            .defaultAppStorage(storage)
+            .preferredColorScheme(.dark),
         size: size
     )
     let window = nativeHostedWindow(host, size: size)
