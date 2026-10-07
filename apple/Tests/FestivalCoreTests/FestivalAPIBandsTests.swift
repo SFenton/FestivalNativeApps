@@ -184,6 +184,67 @@ private let bandsPublicationJSON = Data("""
     }
 }
 
+// MARK: - Band song rows
+
+@Test func bandSongRowsReadReturnsAValidatedScoreIndex() async throws {
+    let transport = FixtureTransport([
+        HTTPResult(status: 200, data: bandsPublicationJSON),
+        HTTPResult(
+            status: 200, data: try bandsFixture("band-song-rows-demo"),
+            headers: ["X-FST-Publication-Id": "7"]
+        ),
+    ])
+    let client = try FestivalAPI(transport: transport)
+    let payload = try await client.bandSongRows(
+        bandType: .duets, teamKey: "fixture-rank-1:fixture-rank-2"
+    )
+    let index = try payload.response.scoreIndex(
+        bandType: .duets, teamKey: "fixture-rank-1:fixture-rank-2"
+    )
+    #expect(index["fixture-pulse"]?.score == 1_234_567)
+    #expect(payload.observedPublicationId == 7)
+
+    let request = try #require(await transport.recorded().last)
+    #expect(request.url?.path
+        == "/api/rankings/bands/Band_Duets/fixture-rank-1:fixture-rank-2/song-rows")
+    // A keyless public read: never a selected-profile header.
+    #expect(request.allHTTPHeaderFields?.keys.contains { $0.lowercased().contains("profile") } != true)
+}
+
+@Test func bandSongRowsRejectAnotherTeamOrInconsistentRows() async throws {
+    let client = try FestivalAPI(transport: FixtureTransport([
+        HTTPResult(status: 200, data: bandsPublicationJSON),
+        HTTPResult(
+            status: 200, data: try bandsFixture("band-song-rows-demo"),
+            headers: ["X-FST-Publication-Id": "7"]
+        ),
+    ]))
+    await #expect(throws: FestivalAPIError.invalidBandProfile) {
+        try await client.bandSongRows(bandType: .duets, teamKey: "someone-else")
+    }
+
+    func index(_ entries: String, count: Int = 1, combo: String = "null") throws
+        -> [String: BandSongPerformanceEntry] {
+        try JSONDecoder().decode(BandSongRowsResponse.self, from: Data("""
+        {"bandType":"Band_Duets","teamKey":"a:b","comboId":\(combo),"count":\(count),"entries":[\(entries)]}
+        """.utf8)).scoreIndex(bandType: .duets, teamKey: "a:b")
+    }
+    let row = #"{"songId":"s","rank":1,"totalEntries":2,"percentile":0.5,"score":10}"#
+    #expect(try index(row).keys.sorted() == ["s"])
+    #expect(throws: FestivalAPIError.invalidBandProfile) { try index(row, count: 2) }
+    #expect(throws: FestivalAPIError.invalidBandProfile) { try index(row, combo: "\"GB\"") }
+    #expect(throws: FestivalAPIError.invalidBandProfile) { try index(row + "," + row, count: 2) }
+    #expect(throws: FestivalAPIError.invalidBandProfile) {
+        try index(#"{"songId":"s","rank":1,"totalEntries":2,"percentile":0.5,"score":10,"accuracy":1000001}"#)
+    }
+    #expect(throws: FestivalAPIError.invalidBandProfile) {
+        try index(#"{"songId":"s","rank":1,"totalEntries":2,"percentile":0.5,"score":10,"stars":7}"#)
+    }
+    #expect(throws: FestivalAPIError.invalidBandProfile) {
+        try index(#"{"songId":"s","rank":0,"totalEntries":2,"percentile":0.5,"score":10}"#)
+    }
+}
+
 // MARK: - Song band leaderboard
 
 @Test func songBandLeaderboardReadReturnsAValidatedPage() async throws {

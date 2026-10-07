@@ -36,6 +36,7 @@ public final class MacAppModel {
     public convenience init() {
         var selectionStorage: UserDefaults? = .standard
         var debugPlayer: SelectedPlayerIdentity?
+        var debugBand: SelectedBandIdentity?
         var initial: MacDestination?
         var initialRoute: AppRoute?
         #if DEBUG
@@ -49,11 +50,13 @@ public final class MacAppModel {
             }
         }
         debugPlayer = debug.debugSelectedPlayer()
+        debugBand = debug.debugSelectedBand()
         if debug.anonymous { selectionStorage = nil }
         #endif
         let session = FestivalSession(
             factory: { try FestivalRootView.makeClient(environment: ProcessInfo.processInfo.environment) },
             selectionStorage: selectionStorage, debugSelectedPlayer: debugPlayer,
+            debugSelectedBand: debugBand,
             liveConnection: PublicationLiveConnection.isEnabled() ? PublicationLiveConnection() : nil
         )
         self.init(

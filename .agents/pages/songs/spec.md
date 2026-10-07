@@ -7,7 +7,7 @@ Source: `FortniteFestivalWeb/src/pages/songs/SongsPage.tsx:340-1380`, `src/hooks
 ## Inputs and flow
 
 - `GET /api/publication`, then conditional `GET /api/songs` (ETag/304 accepted only within that publication).
-- A selected **player** adds profile scores / FC / valid-score substitutions; a selected **band** adds band song rows, member intersections and band-combo assignments (band reads are blocked: [service safety](../../platforms/service-safety.md)).
+- A selected **player** adds profile scores / FC / valid-score substitutions; a selected **band** adds band song rows, member intersections and band-combo assignments. Band detail and the bare team-ranking route are blocked ([service safety](../../platforms/service-safety.md)); the read-only `/api/rankings/bands/{type}/{teamKey}/song-rows` feeds Apple's band score card ([songs-profile-panel](../../patterns/songs-profile-panel.md)).
 - Shop data, nine visible instruments, eight metadata toggles and saved song-filter state affect rows and the Sort/Filter options.
 - Search debounces 250 ms. A row opens `/songs/:songId`, appending `?instrument=` when filtered. The invalid-score warning is a **separate accessible action** that explains fallback/over-threshold status and can navigate to Settings.
 

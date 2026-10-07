@@ -199,6 +199,20 @@ class MockServiceTests(unittest.TestCase):
             urlopen(self.base + path + "&accountId=fixture-player-1&accountId=fixture-player-2")
         self.assertEqual(error.exception.code, 400)
 
+    def test_band_song_rows_index_one_team_and_503_while_unpublished(self):
+        """Songs' band score index (#340): one row per scored song, echoing team and combo."""
+        with urlopen(self.base + "/api/rankings/bands/Band_Duets/fixture-team-1/song-rows") as response:
+            body = json.load(response)
+        self.assertEqual((body["bandType"], body["teamKey"], body["comboId"]),
+                         ("Band_Duets", "fixture-team-1", None))
+        self.assertEqual(body["count"], len(body["entries"]))
+        self.assertEqual([e["songId"] for e in body["entries"]], ["fixture-pulse"])
+        with urlopen(self.base + "/api/rankings/bands/Band_Duets/fixture-team-2/song-rows") as response:
+            self.assertEqual(json.load(response)["entries"], [])
+        with self.assertRaises(HTTPError) as error:
+            urlopen(self.base + "/api/rankings/bands/Band_Duets/fixture-team-unavailable/song-rows")
+        self.assertEqual(error.exception.code, 503)
+
     def test_large_rankings_mode_pages_deep_and_keeps_default_small(self):
         """`--large-rankings` pads rows for pagers; the default roster stays three accounts."""
         with urlopen(self.base + "/api/rankings/Solo_Guitar?page=1&pageSize=25") as response:

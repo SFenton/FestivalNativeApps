@@ -1,0 +1,21 @@
+{
+  "bandType": "Band_Duets",
+  "teamKey": "fixture-rank-1:fixture-rank-2",
+  "comboId": null,
+  "count": 1,
+  "entries": [
+    {
+      "songId": "fixture-pulse",
+      "comboId": null,
+      "rank": 1,
+      "totalEntries": 26,
+      "percentile": 0.0385,
+      "score": 1234567,
+      "accuracy": 992000,
+      "isFullCombo": false,
+      "stars": 6,
+      "season": 9,
+      "endTime": "2026-09-27T00:00:00Z"
+    }
+  ]
+}

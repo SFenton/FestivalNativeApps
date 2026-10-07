@@ -645,7 +645,17 @@ struct SongsScreen: View, Equatable {
             publicationRevision: session.publicationRevision,
             visible: isVisible
         )) {
-            guard isVisible, session.selectedPlayer != nil else { return }
+            guard isVisible else { return }
+            if session.selectedBand != nil {
+                switch session.bandLoadState {
+                case .loading, .failed:
+                    await session.refreshSelectedBand()
+                case .none, .available, .syncing:
+                    break
+                }
+                return
+            }
+            guard session.selectedPlayer != nil else { return }
             switch session.playerLoadState {
             case .loading, .failed:
                 await session.refreshSelectedPlayer()
@@ -1481,13 +1491,30 @@ struct SongsScreen: View, Equatable {
 
     /// Song cards per list row: two side by side under each section header in a
     /// landscape regular window (iPad, iPhone Duo inner display; operator 2026-10-04,
-    /// `split-view.md`: Songs never splits, it uses the width instead), else one. The
-    /// Mac keeps one single-line row per song, like a table.
+    /// `split-view.md`: Songs never splits, it uses the width instead), else one. With
+    /// a player or band selected each song takes the full width so its row can put the
+    /// profile's score cards on the right half (#340, `songs-profile-panel`). The Mac keeps one
+    /// single-line row per song, like a table.
     private var songColumns: Int {
         #if os(macOS)
         1
         #else
-        SongGridPolicy.columns(layout: deviceLayout)
+        SongProfilePanelPolicy.gridColumns(
+            layout: deviceLayout,
+            hasSelectedProfile: session.selectedPlayer != nil || session.selectedBand != nil,
+            filterInvalidScores: session.selectedBand == nil && filterInvalidScores
+        )
+        #endif
+    }
+
+    /// Rows may split into song | profile score cards: iPad and the iPhone Duo
+    /// inner display (regular width *and* height; a large iPhone in landscape is
+    /// compact height and keeps its rows) and the Mac.
+    private var allowsProfilePanel: Bool {
+        #if os(macOS)
+        true
+        #else
+        deviceLayout.widthClass == .regular && deviceLayout.heightClass == .regular
         #endif
     }
 
@@ -1541,8 +1568,7 @@ struct SongsScreen: View, Equatable {
                     for: song, catalogueObservation: catalogueObservation,
                     fadeIndex: Self.fadeIndex(song.songId, in: fadeOrder), windowMenu: false, gridCard: true
                 )
-                .accessibilityIdentifier("fst.songs.row.\(song.songId)")
-                    .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity)
             }
             ForEach(songs.count..<columns, id: \.self) { _ in
                 Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
@@ -1564,11 +1590,11 @@ struct SongsScreen: View, Equatable {
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
             .listRowInsets(songRowInsets)
-            .accessibilityIdentifier("fst.songs.row.\(song.songId)")
             .macKeyboardRow(song.id)
     }
 
-    /// A song card with its Song Detail link, context menu, fade and selected state.
+    /// A song card with its Song Detail link, context menu, fade, selected state and
+    /// accessibility: one `fst.songs.row.<songId>` link, then any profile-card stops.
     ///
     /// - Parameters:
     ///   - song: Validated catalogue song to display.
@@ -1607,6 +1633,7 @@ struct SongsScreen: View, Equatable {
             visibleInstruments: visibleInstruments,
             currentSeason: currentSeason
         )
+        .environment(\.songRowsAllowProfilePanel, allowsProfilePanel)
         #if os(macOS)
         // On the Mac the row is the link's label, so its row button style draws the
         // hover tint and the keyboard focus ring on the card (an invisible link's
@@ -1634,10 +1661,14 @@ struct SongsScreen: View, Equatable {
         // .buttons[...]` queries. Restore it explicitly rather than relying on the
         // link's own traits surviving the combine.
         .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("fst.songs.row.\(song.songId)")
         #if !os(macOS)
         // The Mac's `ListDetailLink` already marks its label selected.
         .listDetailSelectable(AppRoute.songDetail(song))
         #endif
+        // A wide row's profile cards follow the song link as their own VoiceOver stops
+        // (`songs-profile-panel` R8); outside the link, which would collapse them.
+        .songProfilePanelAccessibility(songId: song.songId)
     }
 
     /// Rows primed before the very first reveal, and how long priming may block it.

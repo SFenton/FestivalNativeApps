@@ -12,6 +12,8 @@ private struct SelectedRowFixtures {
     let song: Song
     let season: Int
     let profiles: [String: Data]
+    /// The whole artless catalogue, observed under publication seven.
+    let catalog: CatalogPayload
 }
 
 /// Force `festivalGlass` surfaces onto their deterministic, opaque fallback.
@@ -92,7 +94,7 @@ private func selectedRowFixtures() throws -> SelectedRowFixtures {
           var rows = catalog["songs"] as? [[String: Any]],
           let index = rows.firstIndex(where: { $0["songId"] as? String == "fixture-pulse" })
     else { throw FestivalAPIError.invalidCatalogue }
-    rows[index].removeValue(forKey: "albumArt")
+    for row in rows.indices { rows[row].removeValue(forKey: "albumArt") }
     catalog["songs"] = rows
     let songs = try JSONDecoder().decode(
         SongsResponse.self, from: JSONSerialization.data(withJSONObject: catalog)
@@ -106,7 +108,10 @@ private func selectedRowFixtures() throws -> SelectedRowFixtures {
           let profiles = envelope["profiles"] as? [String: [String: Any]]
     else { throw FestivalAPIError.invalidPlayerProfile }
     let bytes = try profiles.mapValues { try JSONSerialization.data(withJSONObject: $0) }
-    return SelectedRowFixtures(song: song, season: season, profiles: bytes)
+    return SelectedRowFixtures(
+        song: song, season: season, profiles: bytes,
+        catalog: CatalogPayload(catalog: songs, publicationId: 7, observedPublicationId: 7, isStale: false)
+    )
 }
 
 /// Select one validated synthetic identity without persisting score bytes.
@@ -148,6 +153,7 @@ private func selectedRowSession(
 ///   - shop: Optional validated synthetic Shop accent.
 ///   - typeSize: Ordinary or accessibility text size.
 ///   - size: Available native card content dimensions.
+///   - profilePanel: The shell allows the wide split row (#340).
 /// - Returns: Real AppKit pixels, status fills and optional private screenshot bytes.
 /// - Throws: Failed native render or evidence encoding.
 @MainActor
@@ -157,7 +163,8 @@ private func selectedSongRow(
     icons: Bool = true, visible: Set<Instrument> = Set(Instrument.allCases),
     metadata: SongMetadataVisibility = SongMetadataVisibility(),
     invalidFilter: Bool = false, shop: ShopHighlight? = nil,
-    typeSize: DynamicTypeSize = .large, size: CGSize = CGSize(width: 390, height: 320)
+    typeSize: DynamicTypeSize = .large, size: CGSize = CGSize(width: 390, height: 320),
+    profilePanel: Bool = false
 ) throws -> (data: Data, fills: (gold: Int, green: Int, red: Int)) {
     let host = nativeHostedView(
         SongRowView(
@@ -167,6 +174,7 @@ private func selectedSongRow(
             filterInvalidScores: invalidFilter, showInstrumentIcons: icons,
             visibleInstruments: visible, currentSeason: season
         )
+        .environment(\.songRowsAllowProfilePanel, profilePanel)
         .preferredColorScheme(.dark)
         .environment(\.dynamicTypeSize, typeSize)
         // Force the deterministic glass fallback: real Liquid Glass compositing
@@ -250,6 +258,221 @@ private func selectedSongRow(
     #expect(lead.data != paused.data)
     #expect(lead.fills.gold > 10)
     #expect(largest.fills.gold > 10 && largest.fills.green > 10)
+}
+
+/// Wide rows split only for a selected player with a current score index (#340): no
+/// profile, a narrow row, Filter Invalid Scores or an accessibility size keeps the
+/// plain row pixel for pixel.
+@MainActor
+@Test func wideSongRowsSplitOnlyForASelectedPlayersScores() async throws {
+    let fixtures = try selectedRowFixtures()
+    let player = try await selectedRowSession(accountId: "fixture-player-2", fixtures: fixtures)
+    let anonymous = FestivalSession(factory: { throw FestivalAPIError.invalidResource })
+    let wide = CGSize(width: 900, height: 200)
+    func row(
+        _ name: String, _ session: FestivalSession, panel: Bool, size: CGSize = wide,
+        invalid: Bool = false, typeSize: DynamicTypeSize = .large, filter: Instrument? = nil
+    ) throws -> (data: Data, fills: (gold: Int, green: Int, red: Int)) {
+        try selectedSongRow(
+            name: name, song: fixtures.song, session: session, season: fixtures.season,
+            chart: filter ?? .lead, filter: filter, invalidFilter: invalid,
+            typeSize: typeSize, size: size, profilePanel: panel
+        )
+    }
+    let split = try row("panel-wide", player, panel: true)
+    let plain = try row("panel-off-wide", player, panel: false)
+    #expect(split.data != plain.data)
+    #expect(split.fills.gold > 10 && split.fills.green > 10)
+    // No profile: today's row.
+    #expect(try row("panel-anonymous", anonymous, panel: true).data
+        == row("panel-anonymous-off", anonymous, panel: false).data)
+    // Too narrow for two halves.
+    let narrow = CGSize(width: 560, height: 200)
+    #expect(try row("panel-narrow", player, panel: true, size: narrow).data
+        == row("panel-narrow-off", player, panel: false, size: narrow).data)
+    // Filter Invalid Scores keeps its paused row.
+    #expect(try row("panel-invalid", player, panel: true, invalid: true).data
+        == row("panel-invalid-off", player, panel: false, invalid: true).data)
+    // Accessibility sizes keep the stacked row.
+    let tall = CGSize(width: 900, height: 620)
+    #expect(try row("panel-ax", player, panel: true, size: tall, typeSize: .accessibility3).data
+        == row("panel-ax-off", player, panel: false, size: tall, typeSize: .accessibility3).data)
+    // One filtered chart splits too.
+    #expect(try row("panel-drums", player, panel: true, filter: .drums).data
+        != row("panel-drums-off", player, panel: false, filter: .drums).data)
+}
+
+/// At the 600 pt split breakpoint a compact card (all charts) can't keep its pills on
+/// one line in the 282 pt half, so the row stays exactly plain; one filtered chart's
+/// card may wrap there and splits (#340 review: one-line rule vs. wrap fallback).
+@MainActor
+@Test func wideSongRowsAtTheBreakpointKeepCompactCardsOnOneLine() async throws {
+    let fixtures = try selectedRowFixtures()
+    let player = try await selectedRowSession(accountId: "fixture-player-2", fixtures: fixtures)
+    let threshold = CGSize(width: 600, height: 200)
+    func row(_ name: String, panel: Bool, filter: Instrument? = nil) throws -> Data {
+        try selectedSongRow(
+            name: name, song: fixtures.song, session: player, season: fixtures.season,
+            chart: filter ?? .lead, filter: filter, size: threshold, profilePanel: panel
+        ).data
+    }
+    #expect(try row("panel-600", panel: true) == row("panel-600-off", panel: false))
+    #expect(try row("panel-600-drums", panel: true, filter: .drums)
+        != row("panel-600-drums-off", panel: false, filter: .drums))
+}
+
+/// A selected band's score card takes the right half of a wide row once its
+/// publication-matched `/song-rows` index loads; loading, unpublished (503), unscored
+/// and too-narrow rows keep the plain row (#340).
+@MainActor
+@Test func wideSongRowsShowTheSelectedBandsScoreCard() async throws {
+    let fixtures = try selectedRowFixtures()
+    let transport = HostedBandSongRowsTransport()
+    let band = try selectedBandSession(
+        teamKey: HostedBandSongRowsTransport.scoredTeam, transport: transport
+    )
+    func row(
+        _ name: String, _ session: FestivalSession, panel: Bool,
+        size: CGSize = CGSize(width: 900, height: 200)
+    ) throws -> (data: Data, fills: (gold: Int, green: Int, red: Int)) {
+        try selectedSongRow(
+            name: name, song: fixtures.song, session: session, season: fixtures.season,
+            size: size, profilePanel: panel
+        )
+    }
+    // Loading: the plain row's loading state, no card.
+    #expect(try row("band-loading", band, panel: true).data
+        == row("band-loading-off", band, panel: false).data)
+
+    await band.refreshSelectedBand()
+    #expect(band.hasCurrentBandScores(forCatalogue: 7))
+    let split = try row("band-panel-wide", band, panel: true)
+    let plain = try row("band-panel-off-wide", band, panel: false)
+    #expect(split.data != plain.data)
+    // Gold stars on the card.
+    #expect(split.fills.gold > 10)
+    // The 600 pt half is narrower than the band's one-line card.
+    let threshold = CGSize(width: 600, height: 200)
+    #expect(try row("band-panel-600", band, panel: true, size: threshold).data
+        == row("band-panel-600-off", band, panel: false, size: threshold).data)
+
+    // No band row for this song, or an unpublished projection: plain rows.
+    let empty = try selectedBandSession(
+        teamKey: HostedBandSongRowsTransport.emptyTeam, transport: transport
+    )
+    await empty.refreshSelectedBand()
+    #expect(try row("band-empty", empty, panel: true).data
+        == row("band-empty-off", empty, panel: false).data)
+    let down = try selectedBandSession(
+        teamKey: HostedBandSongRowsTransport.unpublishedTeam, transport: transport
+    )
+    await down.refreshSelectedBand()
+    #expect(try row("band-down", down, panel: true).data
+        == row("band-down-off", down, panel: false).data)
+    // Plain band rows differ by state: loading, scored pills, unavailable.
+    #expect(plain.data != (try row("band-down-plain", down, panel: false).data))
+}
+
+/// The real Mac Songs list's accessibility tree for one selected profile, once Pulse's
+/// row has split (or the budget runs out).
+///
+/// - Parameters:
+///   - session: A selected player or band with a current score index.
+///   - catalog: The artless catalogue under the index's publication.
+///   - ready: The identifier whose appearance means the row split.
+/// - Returns: Accessibility nodes in walk (VoiceOver) order.
+/// - Throws: A failed hosted render.
+@MainActor
+private func wideSongsAccessibility(
+    session: FestivalSession, catalog: CatalogPayload, ready: String
+) async throws -> [MacAXNode] {
+    let suiteName = "fst-songs-panel-ax-\(UUID().uuidString)"
+    let storage = try #require(UserDefaults(suiteName: suiteName))
+    defer { storage.removePersistentDomain(forName: suiteName) }
+    storage.set(true, forKey: "fst.settings.hideShop")
+    storage.set(true, forKey: "fst.accessibility.moreContrast")
+    let size = CGSize(width: 1100, height: 700)
+    let host = nativeHostedView(
+        NavigationStack {
+            SongsScreen(session: session, initialState: .loaded(catalog), isVisible: false)
+        }
+        .defaultAppStorage(storage)
+        .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    _ = try await nativeHostedSettle(host) {
+        nativeHostedAccessibilityElement(ready, in: host) != nil
+    }
+    let nodes = macAccessibilityTree(host)
+    macAccessibilityDump(nodes, name: "songs-profile-panel-\(ready)")
+    withExtendedLifetime(window) {}
+    return nodes
+}
+
+/// Check one split row's VoiceOver order: the song link (which doesn't read the cards),
+/// then the panel container, then each expected card with its announcement.
+///
+/// - Parameters:
+///   - nodes: The hosted tree in walk order.
+///   - songId: The split row's song.
+///   - cards: Expected card suffixes and the start of each announcement, in order.
+private func expectPanelFollowsSong(
+    _ nodes: [MacAXNode], songId: String, cards: [(id: String, label: String)],
+    sourceLocation: SourceLocation = #_sourceLocation
+) {
+    let elements = nodes.filter(\.isElement)
+    let row = elements.firstIndex { $0.identifier == "fst.songs.row.\(songId)" }
+    let panel = nodes.firstIndex { $0.identifier == "fst.songs.profile-panel.\(songId)" }
+    guard let row, let panel else {
+        Issue.record("Missing row or panel:\n\(nodes.map(\.description).joined(separator: "\n"))",
+                     sourceLocation: sourceLocation)
+        return
+    }
+    let link = elements[row]
+    #expect(link.role == "AXButton", "\(link)", sourceLocation: sourceLocation)
+    #expect(!link.spokenName.contains("Score"), "the link reads the cards: \(link)", sourceLocation: sourceLocation)
+    let rowIndex = nodes.firstIndex { $0.identifier == link.identifier && $0.isElement }!
+    #expect(rowIndex < panel, sourceLocation: sourceLocation)
+    let prefix = "fst.songs.profile-panel.\(songId)."
+    let found = nodes.enumerated().filter { $0.element.identifier.hasPrefix(prefix) }
+    #expect(found.map { String($0.element.identifier.dropFirst(prefix.count)) } == cards.map(\.id),
+            sourceLocation: sourceLocation)
+    for ((index, node), card) in zip(found, cards) {
+        #expect(index > panel && node.depth > nodes[panel].depth, "\(node)", sourceLocation: sourceLocation)
+        #expect(node.isElement && node.spokenName.hasPrefix(card.label), "\(node)", sourceLocation: sourceLocation)
+    }
+}
+
+/// A split row is the song's link followed by the profile panel's cards, each its own
+/// labelled VoiceOver stop (`songs-profile-panel` R8, #388 review): the link must not
+/// collapse them into the song.
+@MainActor
+@Test func wideSongRowsReadTheProfileCardsAfterTheSongLink() async throws {
+    let fixtures = try selectedRowFixtures()
+    let player = try await selectedRowSession(accountId: "fixture-player-2", fixtures: fixtures)
+    let song = fixtures.song.songId
+    let expected = try SongProfilePanelPolicy.tiles(
+        song: fixtures.song, scores: player.selectedPlayerScores[song] ?? [:],
+        instrumentFilter: nil, visibleInstruments: Set(Instrument.allCases),
+        currentSeason: fixtures.season, visibility: SongMetadataVisibility(),
+        order: MetadataField.allCases
+    )
+    #expect(expected.count >= 2)
+    let playerTree = try await wideSongsAccessibility(
+        session: player, catalog: fixtures.catalog,
+        ready: "fst.songs.profile-panel.\(song).\(expected[0].id)"
+    )
+    expectPanelFollowsSong(playerTree, songId: song, cards: expected.map { ($0.id, $0.label + ":") })
+
+    let band = try selectedBandSession(
+        teamKey: HostedBandSongRowsTransport.scoredTeam, transport: HostedBandSongRowsTransport()
+    )
+    await band.refreshSelectedBand()
+    let bandTree = try await wideSongsAccessibility(
+        session: band, catalog: fixtures.catalog, ready: "fst.songs.profile-panel.\(song).band"
+    )
+    expectPanelFollowsSong(bandTree, songId: song, cards: [("band", "Fixture Duo")])
 }
 
 /// The same anonymous native card must paint the source's optional duration.
