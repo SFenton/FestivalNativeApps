@@ -7,8 +7,11 @@ namespace Festival.Core.ViewModels;
 #region Full rankings
 /// <summary>
 /// <c>/leaderboards/all</c>: paginated global rankings for one instrument and metric, with an instrument switcher
-/// scoped to Settings-visible charts (plus the current one), the selected player highlighted on the page or
-/// pinned below it with a "Jump to your page" action (native addition; the web footer only links to the profile).
+/// scoped to Settings-visible charts (plus the current one), the selected player highlighted on the page and always
+/// pinned above the pager, their own page included (web <c>FullRankingsPage</c> <c>hasPlayerFooter = !!playerRanking</c>,
+/// pattern <c>leaderboard-row</c> R7, issue #318). The pinned row is itself the control: while the player's row is on
+/// another page it jumps there (native addition; the web footer only links to the profile), and once it is shown it opens
+/// their profile (<see cref="SelectedRowAction.Footer"/>).
 /// </summary>
 public sealed partial class FullRankingsViewModel : ObservableObject
 {
@@ -206,7 +209,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
                 IsRefreshing = false;
             }, AnimateLoadSwaps());
             var selected = session.SelectedPlayer?.AccountId;
-            await Spotlight.EnsureLoadedAsync(selected, !entries.Any(e => RankingSpotlight.SameAccount(e.AccountId, selected)));
+            await Spotlight.EnsureLoadedAsync(selected, true);
         }
         catch (FestivalApiException error)
         {
@@ -234,7 +237,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
         {
             ApplyRows();
             var selected = session.SelectedPlayer?.AccountId;
-            _ = Spotlight.EnsureLoadedAsync(selected, !entries.Any(e => RankingSpotlight.SameAccount(e.AccountId, selected)));
+            _ = Spotlight.EnsureLoadedAsync(selected, true);
         }
     }
 
@@ -253,7 +256,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
     private RankingSpotlightViewModel NewSpotlight(Instrument board)
     {
         spotlightInstrument = board;
-        var created = new RankingSpotlightViewModel(board, reader, session.Time, "full-rankings.spotlight." + board.ServiceId(), GoToPageAsync);
+        var created = new RankingSpotlightViewModel(board, reader, session.Time, "full-rankings.spotlight." + board.ServiceId(), GoToPageAsync, pinned: true);
         // The pinned row arrives after the page: widen every rank column to fit it (operator batch 7.9).
         created.PropertyChanged += (_, e) =>
         {

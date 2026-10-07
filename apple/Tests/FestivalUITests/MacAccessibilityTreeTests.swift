@@ -234,9 +234,9 @@ struct MacAccessibilityTreeTests {
             window.setFrame(NSRect(x: -10_000, y: -10_000, width: size.width, height: size.height), display: false)
             window.orderOut(nil)
             defer { window.close() }
-            let deadline = ContinuousClock.now + nativeHostedReadinessBudget(.seconds(20))
-            while (window.toolbar?.items.count ?? 0) < (player ? 6 : 5), ContinuousClock.now < deadline {
-                try await Task.sleep(for: .milliseconds(100))
+            var budget = NativeHostedPollBudget(.seconds(20))
+            while (window.toolbar?.items.count ?? 0) < (player ? 6 : 5), !budget.isExhausted {
+                try await budget.sleep(for: .milliseconds(100))
             }
             let items = try #require(window.toolbar?.items)
             let labels = items.map(\.label)
@@ -277,9 +277,9 @@ struct MacAccessibilityTreeTests {
         window.setFrame(NSRect(x: -10_000, y: -10_000, width: size.width, height: size.height), display: false)
         window.orderOut(nil)
         defer { window.close() }
-        let deadline = ContinuousClock.now + nativeHostedReadinessBudget(.seconds(20))
-        while !(window.toolbar?.items.contains { $0.label == "Close" } ?? false), ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(100))
+        var budget = NativeHostedPollBudget(.seconds(20))
+        while !(window.toolbar?.items.contains { $0.label == "Close" } ?? false), !budget.isExhausted {
+            try await budget.sleep(for: .milliseconds(100))
         }
         let items = try #require(window.toolbar?.items)
         let labels = items.map(\.label)
@@ -303,9 +303,9 @@ struct MacAccessibilityTreeTests {
         window.setFrame(NSRect(x: -10_000, y: -10_000, width: size.width, height: size.height), display: false)
         window.orderOut(nil)
         defer { window.close() }
-        let deadline = ContinuousClock.now + nativeHostedReadinessBudget(.seconds(20))
-        while !(window.toolbar?.items.contains { $0.label == "Sort" } ?? false), ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(100))
+        var budget = NativeHostedPollBudget(.seconds(20))
+        while !(window.toolbar?.items.contains { $0.label == "Sort" } ?? false), !budget.isExhausted {
+            try await budget.sleep(for: .milliseconds(100))
         }
         let items = try #require(window.toolbar?.items)
         let labels = items.map(\.label)

@@ -48,7 +48,7 @@
                 </StackPanel>
             </Grid>
             <StackPanel x:Name="Actions" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <DropDownButton AutomationProperties.Name="{x:Bind ViewModel.InstrumentButtonName, Mode=OneWay}"
+                <DropDownButton MinHeight="{StaticResource FSTMinTargetSize}" AutomationProperties.Name="{x:Bind ViewModel.InstrumentButtonName, Mode=OneWay}"
                                 AutomationProperties.AutomationId="fst.full-rankings.instrument-menu">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <controls:InstrumentIcon File="{x:Bind ViewModel.IconFile, Mode=OneWay}" Width="18" Height="18"
@@ -59,7 +59,7 @@
                         <MenuFlyout x:Name="InstrumentMenu" Placement="BottomEdgeAlignedRight" Opening="OnInstrumentMenuOpening" />
                     </DropDownButton.Flyout>
                 </DropDownButton>
-                <DropDownButton AutomationProperties.Name="{x:Bind ViewModel.MetricButtonName, Mode=OneWay}"
+                <DropDownButton MinHeight="{StaticResource FSTMinTargetSize}" AutomationProperties.Name="{x:Bind ViewModel.MetricButtonName, Mode=OneWay}"
                                 AutomationProperties.AutomationId="fst.rankings.rank-by-menu">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <!-- Same 18 epx height as the instrument icon beside it (operator 2026-09-28): the icon is never shrunk. -->
@@ -126,9 +126,7 @@
                                    controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                                    controls:LoadSwapVisual.IsGated="{x:Bind ViewModel.PinnedGate.IsGated, Mode=OneWay}">
                 <controls:LeaderboardsSpotlight x:Name="FooterSpotlight" Spotlight="{x:Bind ViewModel.Spotlight, Mode=OneWay}"
-                                                FocusedJump="OnFocusedJump"
-                                                IdPrefix="fst.full-rankings.spotlight-footer"
-                                                JumpAutomationId="fst.full-rankings.spotlight-jump" IsFloating="True" />
+                                                IdPrefix="fst.full-rankings.spotlight-footer" IsFloating="True" />
             </controls:LoadSwapGate>
             <controls:LeaderboardsPager Pager="{x:Bind ViewModel.Pager}"
                                         Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" />

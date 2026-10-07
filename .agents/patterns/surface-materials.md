@@ -53,7 +53,7 @@ Why B: R6 forbids a second *material*, not a flat fill, and the web's dropdown r
 
 ### Agent decision: Windows board-footer Your page button (#319)
 
-Agent decision (#319, 2026-10-06, owner may override with `/choose`). Question: the owner asked that the pager "background, opacity, colors should match row cards", but Windows' **Your page** button (`Controls/LeaderboardsSpotlight.xaml` `Jump` on Full Rankings, the `fst.song-leaderboard.spotlight-jump` button in `Pages/LeaderboardsSongPage.xaml`) sat on the same pager-only `FSTPagerButtonBrush` plate (`#FF121826`, `ButtonFace` in contrast themes). Should it keep a footer-specific surface or move with the pager? The web has no equivalent: `LeaderboardPaginationFooter.tsx` renders only `Paginator` and the player footer row, so Your page is a native addition (#307) with no web surface to copy.
+Agent decision (#319, 2026-10-06, owner may override with `/choose`). Question: the owner asked that the pager "background, opacity, colors should match row cards", but Windows' **Your page** button (`Controls/LeaderboardsSpotlight.xaml` `Jump` on Full Rankings, since removed by #318 because the pinned row itself jumps per [leaderboard-row](leaderboard-row.md) R7; the `fst.song-leaderboard.spotlight-jump` button in `Pages/LeaderboardsSongPage.xaml`) sat on the same pager-only `FSTPagerButtonBrush` plate (`#FF121826`, `ButtonFace` in contrast themes). Should it keep a footer-specific surface or move with the pager? The web has no equivalent: `LeaderboardPaginationFooter.tsx` renders only `Paginator` and the player footer row, so Your page is a native addition (#307) with no web surface to copy.
 
 | Option | What you'd see | Guidance (strength) | Web / pattern precedent | Trade-offs |
 |---|---|---|---|---|
