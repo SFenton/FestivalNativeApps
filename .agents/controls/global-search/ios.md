@@ -8,7 +8,7 @@
 |---|---|---|
 | iPhone (iOS 18+) | Trailing `Tab(value: RootTab.search, role: .search)`: the separate round Search button beside the tab capsule on iOS 26 | `GlobalSearchTab`: system `.searchable` field focused on selection (keyboard up), scope bar and results below |
 | iPhone Duo folded (vertical bar) | The Search tab, separate at the end of the rail | `GlobalSearchTab`: system `.searchable` field across the bottom |
-| iPhone Duo inner display (flat or book-folded) | The Search tab in the rail (landscape) or tab bar (portrait) | `GlobalSearchTab` with `BottomSearchField` (#349): the field at the bottom, focused when the tab appears; it and the scope bar share one column, full width flat and the right page in book pose |
+| iPhone Duo inner display (flat or book-folded) | The Search tab in the rail (landscape) or tab bar (portrait) | `GlobalSearchTab` with `BottomSearchField` (#349): the field at the bottom, focused when the tab appears; it and the scope bar share one column, full width flat and the right page in book pose. Landscape results show two cards per row meeting at the hinge, flat or folded; portrait one column (#350, [wide-columns](../../patterns/wide-columns.md) R1, R3) |
 | iPhone iOS 17 | Search tab via `.tag(RootTab.search)` (no search role) | `GlobalSearchTab` |
 | Any, hardware keyboard | ⌘K or ⌘F select the Search tab | `GlobalSearchTab` |
 

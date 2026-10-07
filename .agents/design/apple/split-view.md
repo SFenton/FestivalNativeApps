@@ -34,7 +34,8 @@ Operator verdict (2026-10-04): the always-on split layouts on iPad, Duo and Mac 
 | Song Leaderboard (full instrument board) | full width; tapping a player navigates **directly** to the profile (push, no split; operator 2026-10-04) |
 | Paths | **always a modal sheet** on every platform (self-contained task; operator 2026-10-04) |
 | Item Shop, Suggestions, Statistics/Player profile, Compete, Band Detail, Player Bands, Rivalry | full width; existing adaptive grids |
-| Search, Notifications, What's New, first run, sheets | modal/sheet presentations, unchanged |
+| Search | Never splits. Its results show two cards per row in landscape regular windows ([wide-columns](../../patterns/wide-columns.md), #350) |
+| Notifications, What's New, first run, sheets | modal/sheet presentations, unchanged |
 
 ## Navigation flyout (iPad, iPhone Duo)
 
@@ -63,7 +64,7 @@ Operator verdict (2026-10-04): the always-on split layouts on iPad, Duo and Mac 
 | `.songDetail` | `.songLeaderboard` ("View full leaderboard", the footer row), `.playerHistory` (View All Scores in the history card, more than five scores; the sortable `PlayerHistoryScreen` in the trailing pane, #324) |
 | Settings root | `.licenses` (the only Settings sub-page that is a route; First Run Guides and Service Info are inline sections) |
 
-Songs: full width; two cards per row under each section header in a landscape regular window (`SongGridPolicy`, iPad and Duo; the Mac keeps single-line table rows). Each grid card opens through its own borderless button (`SongGridCardLink`): a `List` row fires every `NavigationLink` it holds on one tap, so both songs of the row were pushed, the trailing one on top, and the background followed the wrong song. The journey `IPadShellJourneyTests.testSongsGridCardOpensOnlyItsSong` taps both the leading and the trailing card and requires one Back to return to Songs (2026-10-05; leading card added 2026-10-07). Never put more than one `NavigationLink` in a `List` row. Every other page pushes full width.
+Songs: full width; two cards per row under each section header in a landscape regular window (`SongGridPolicy` → [wide-columns](../../patterns/wide-columns.md), iPad and Duo, the gutter on the Duo hinge flat or folded; the Mac keeps single-line table rows). Each grid card opens through its own borderless button (`SongGridCardLink`): a `List` row fires every `NavigationLink` it holds on one tap, so both songs of the row were pushed, the trailing one on top, and the background followed the wrong song. The journey `IPadShellJourneyTests.testSongsGridCardOpensOnlyItsSong` taps both the leading and the trailing card and requires one Back to return to Songs (2026-10-05; leading card added 2026-10-07). Never put more than one `NavigationLink` in a `List` row. Every other page pushes full width.
 
 HIG basis and deviations (operator wins): split-views.md "Persistently highlight the current selection" (kept), "Prefer the 1 pt thin divider" (kept); iOS "Prefer split views in a regular environment" (kept: landscape regular only). **Deviations:** sidebars.md "do not hide it by default" (iPad sidebar replaced by the overlay flyout); split-views.md macOS "draggable dividers resize them" (fixed midpoint); designing-for-iphone-duo.md "Split views expand to multiple panes inner" / Notes example (inner portrait pushes; landscape splits only on demand). designing-for-iphone-duo.md "split columns adjust width/margins for inner-display symmetry" is met by aligning the divider to the hinge; motion.md "let people cancel animations" (a second tap replaces the item mid-spring).
 
