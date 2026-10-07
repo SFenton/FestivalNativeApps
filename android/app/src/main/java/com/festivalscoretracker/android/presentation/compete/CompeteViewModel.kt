@@ -20,6 +20,7 @@ import com.festivalscoretracker.android.data.rankings.rankings
 import com.festivalscoretracker.android.data.rivals.RivalsRepository
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.RetryingLoader
+import com.festivalscoretracker.android.presentation.valueOrNull
 import com.festivalscoretracker.android.presentation.rivals.map
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
@@ -107,8 +108,67 @@ data class CompeteSection(
  * @property sections Scope cards in web order.
  * @property fullPageIssue Set when every leaderboard read failed (web `allLeaderboardsErrored`).
  * @property countdown Automatic retry countdown for [fullPageIssue].
+ * @property settled Whether every leaderboard and rivals read has finished (loaded or failed).
  */
-data class CompeteContent(val sections: List<CompeteSection>, val fullPageIssue: ServiceIssue?, val countdown: Int?)
+data class CompeteContent(
+    val sections: List<CompeteSection>,
+    val fullPageIssue: ServiceIssue?,
+    val countdown: Int?,
+    val settled: Boolean = true,
+) {
+    /**
+     * Whether the page can leave its spinner (web `CompetePage` `isReady`: every leaderboard and
+     * rivals query has finished, or every leaderboard failed). Until then the page shows one
+     * spinner and no headers (load-transition R1, #354).
+     */
+    val ready: Boolean get() = settled || fullPageIssue != null
+
+    /** The page's entrance order (see [CompeteStaggerPlan]). */
+    val stagger: CompeteStaggerPlan get() = CompeteStaggerPlan.of(sections)
+}
+
+/**
+ * Entrance order of the page's headers and rows (web `CompetePage` `useStagger().next()`: one
+ * counter in reading order, so the group header, each scope header and each card's rows fade in
+ * one after another). Pass an index to `fadeInStagger`, which caps the delay.
+ *
+ * @property leaderboardsHeader Index of the Leaderboards group header.
+ * @property boards Index of each leaderboard card's scope header, in [CompeteContent.sections] order;
+ *   the card's body follows from the next index.
+ * @property rivalsHeader Index of the Rivals group header.
+ * @property rivals Index of each rivals card's scope header, in section order.
+ */
+data class CompeteStaggerPlan(val leaderboardsHeader: Int, val boards: List<Int>, val rivalsHeader: Int, val rivals: List<Int>) {
+    companion object {
+        /**
+         * Number the page's entrances in reading order.
+         *
+         * @param sections Sections as shown.
+         * @return Plan.
+         */
+        fun of(sections: List<CompeteSection>): CompeteStaggerPlan {
+            var next = 0
+            val leaderboardsHeader = next++
+            val boards = sections.map { section -> next.also { next += 1 + boardItems(section) } }
+            val rivalsHeader = next++
+            val rivals = sections.map { section -> next.also { next += 1 + rivalItems(section) } }
+            return CompeteStaggerPlan(leaderboardsHeader, boards, rivalsHeader, rivals)
+        }
+
+        /** Rows, the player's row and View Full Leaderboards; otherwise one empty or error card. */
+        private fun boardItems(section: CompeteSection): Int {
+            val board = section.board.valueOrNull?.takeIf { it.hasNavigation } ?: return 1
+            val viewFull = if (section.scope is CompeteScope.Single) 1 else 0
+            return board.entries.size + (if (board.spotlight != null) 1 else 0) + viewFull
+        }
+
+        /** Rival rows and View All Rivals; otherwise one empty or error card. */
+        private fun rivalItems(section: CompeteSection): Int {
+            val rows = section.rivals?.valueOrNull?.takeIf { it.isNotEmpty() } ?: return 1
+            return rows.size + 1
+        }
+    }
+}
 
 // endregion
 
@@ -226,7 +286,12 @@ class CompeteViewModel(
         }
         val failures = boards.filterIsInstance<LoadState.Failed>()
         val allFailed = boards.isNotEmpty() && failures.size == boards.size
-        return CompeteContent(sections, if (allFailed) failures.first().issue else null, if (allFailed) failures.first().countdown else null)
+        return CompeteContent(
+            sections = sections,
+            fullPageIssue = if (allFailed) failures.first().issue else null,
+            countdown = if (allFailed) failures.first().countdown else null,
+            settled = states.none { it is LoadState.Loading },
+        )
     }
 
     companion object {
