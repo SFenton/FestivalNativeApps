@@ -146,9 +146,10 @@ final class IPadShellJourneyTests: XCTestCase {
         XCTAssertFalse(element(app, "fst.songs.list").isHittable, "Songs is covered, not beside it")
     }
 
-    /// A landscape grid row holds two cards; tapping the second opens only that song.
-    /// A `List` row fired every `NavigationLink` in it, so both songs were pushed and
-    /// Back revealed the first song's page instead of Songs.
+    /// A landscape grid row holds two cards; tapping either opens only that song.
+    /// A `List` row fired every `NavigationLink` in it, so both songs were pushed: the
+    /// trailing song covered the tapped leading one, and Back revealed a Song Detail
+    /// instead of Songs.
     @MainActor
     func testSongsGridCardOpensOnlyItsSong() throws {
         let app = fixtureApp(profile: false)
@@ -158,20 +159,26 @@ final class IPadShellJourneyTests: XCTestCase {
         XCTAssertTrue(orbit.waitForExistence(timeout: 20))
         XCTAssertTrue(pulse.waitForExistence(timeout: 5))
         XCTAssertEqual(orbit.frame.minY, pulse.frame.minY, accuracy: 2, "both cards share one grid row")
-        let (second, title) = orbit.frame.minX > pulse.frame.minX
-            ? (orbit, "Fixture Orbit") : (pulse, "Fixture Pulse")
-        XCTAssertGreaterThan(second.frame.minX, app.windows.firstMatch.frame.midX - 20, "the trailing card")
-        second.tap()
-        let hero = element(app, "fst.song-detail.hero-title")
-        XCTAssertTrue(hero.waitForExistence(timeout: 20), "Song Detail opens")
-        XCTAssertTrue(app.staticTexts[title].waitForExistence(timeout: 5), "the tapped song's page")
-        // One push: a single Back returns to the Songs grid, not to another Song Detail.
-        let back = app.navigationBars.buttons.element(boundBy: 0)
-        XCTAssertTrue(back.waitForExistence(timeout: 5))
-        back.tap()
-        XCTAssertTrue(waitForDisappearance(of: hero, timeout: 10), "Back leaves Song Detail")
-        XCTAssertTrue(second.waitForExistence(timeout: 10))
-        XCTAssertTrue(second.isHittable, "Songs is on top again")
+        let cards = orbit.frame.minX < pulse.frame.minX
+            ? [(orbit, "Fixture Orbit", "Fixture Pulse"), (pulse, "Fixture Pulse", "Fixture Orbit")]
+            : [(pulse, "Fixture Pulse", "Fixture Orbit"), (orbit, "Fixture Orbit", "Fixture Pulse")]
+        let midX = app.windows.firstMatch.frame.midX
+        XCTAssertLessThan(cards[0].0.frame.maxX, midX + 20, "the leading card")
+        XCTAssertGreaterThan(cards[1].0.frame.minX, midX - 20, "the trailing card")
+        for (card, title, neighbour) in cards {
+            card.tap()
+            let hero = element(app, "fst.song-detail.hero-title")
+            XCTAssertTrue(hero.waitForExistence(timeout: 20), "Song Detail opens for \(title)")
+            XCTAssertTrue(hero.label.hasPrefix(title), "the tapped song's page on top, not \(hero.label)")
+            XCTAssertFalse(hero.label.hasPrefix(neighbour), "the row's other song was not pushed over it")
+            // One push: a single Back returns to the Songs grid, not to another Song Detail.
+            let back = app.navigationBars.buttons.element(boundBy: 0)
+            XCTAssertTrue(back.waitForExistence(timeout: 5))
+            back.tap()
+            XCTAssertTrue(waitForDisappearance(of: hero, timeout: 10), "Back from \(title) leaves Song Detail")
+            XCTAssertTrue(card.waitForExistence(timeout: 10))
+            XCTAssertTrue(card.isHittable, "Songs is on top again after \(title)")
+        }
     }
 
     /// Song Detail splits on demand: its full leaderboard opens in the trailing half
