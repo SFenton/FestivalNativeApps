@@ -25,9 +25,13 @@ public static class ViewAllCta
     /// frosted <c>ViewAllCard</c> (surface-materials R7), not the accent button; only the label and name rule are shared.</summary>
     public const string BandsLabel = "View All Bands";
 
-    /// <summary>Plain label where the title already names the list, e.g. the Profile Bands title-row link
-    /// (section-headers R8; "View All", never "See All", owner #321).</summary>
+    /// <summary>Plain label where the title already names the list: title-row links (Rivals hub cards, Profile Bands;
+    /// section-headers R8) and Rival Detail's category buttons (owner #321: the app reads View All, never See All).</summary>
     public const string ListLabel = "View All";
+
+    /// <summary>The title-bar search's last suggestion, before <c>for “query”</c> (owner #321). A command row, not this
+    /// button (view-all-cta R6); only the copy is shared.</summary>
+    public const string ResultsLabel = "View All Results";
 
     /// <summary>Accessible name that starts with the visible label so voice control and Narrator match it (WCAG 2.5.3),
     /// then names the card so equal buttons in different cards stay distinct.</summary>

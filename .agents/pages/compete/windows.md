@@ -47,7 +47,7 @@ Limits: this host renders at 300%, so the wide preset clamps at 1280 epx, and th
 
 ## Validation (issue #266, 2026-10): no Leaderboards Overview button
 
-Rule (#66, web parity): Compete has no Leaderboards Overview button, as on web `CompetePage.tsx`, which has only per-section See All and View Full Leaderboards. Each Leaderboards card keeps its View All Rankings → Full Rankings path. Windows already complies, so no app code changed. `/compete` opens the Rivals section root. Leaderboards is its own `NavigationView` item ("2–7 sections → NavigationView", `winui-design`), and `RivalsViewModels` routes the hub only to `AppRoute.AllRivals`/`RivalDetail`.
+Rule (#66, web parity): Compete has no Leaderboards Overview button, as on web `CompetePage.tsx`, which has only per-section View All and View Full Leaderboards. Each Leaderboards card keeps its View All Rankings → Full Rankings path. Windows already complies, so no app code changed. `/compete` opens the Rivals section root. Leaderboards is its own `NavigationView` item ("2–7 sections → NavigationView", `winui-design`), and `RivalsViewModels` routes the hub only to `AppRoute.AllRivals`/`RivalDetail`.
 
 Live public service, public `SFentonX` profile, `a11y_matrix.py --live` with `waitgone:name=Leaderboards Overview` on every page:
 
