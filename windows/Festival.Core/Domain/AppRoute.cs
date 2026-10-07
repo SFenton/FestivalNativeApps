@@ -151,14 +151,17 @@ public abstract record AppRoute
         public override string ToPath() => $"/player/{Esc(AccountId)}";
     }
 
-    /// <summary><c>/bands/player/:accountId</c>.</summary>
+    /// <summary><c>/bands/player/:accountId[?group=]</c> (web <c>Routes.playerBands</c>).</summary>
     /// <param name="AccountId">Account.</param>
-    public sealed record PlayerBands(string AccountId) : AppRoute
+    /// <param name="Group">Initial group filter (a profile group's View All opens that group).</param>
+    /// <param name="PlayerName">Name known from the profile, used for the title until a row names the player (not part of the path).</param>
+    public sealed record PlayerBands(string AccountId, PlayerBandGroup Group = PlayerBandGroup.All, string? PlayerName = null) : AppRoute
     {
         /// <inheritdoc />
         public override AppSection Section => AppSection.Leaderboards;
         /// <inheritdoc />
-        public override string ToPath() => $"/bands/player/{Esc(AccountId)}";
+        public override string ToPath() =>
+            $"/bands/player/{Esc(AccountId)}" + (Group == PlayerBandGroup.All ? "" : "?group=" + Group.ServiceId());
     }
 
     /// <summary><c>/bands</c>.</summary>

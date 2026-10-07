@@ -116,6 +116,7 @@ import com.festivalscoretracker.android.presentation.SongDetailViewModel
 import com.festivalscoretracker.android.ui.bands.BandRowColumns
 import com.festivalscoretracker.android.ui.bands.BandScoreRow
 import com.festivalscoretracker.android.ui.bands.rememberBandRankWidth
+import com.festivalscoretracker.android.ui.background.SongCoverBackdrop
 import com.festivalscoretracker.android.ui.bands.windowWidthDp
 import com.festivalscoretracker.android.ui.common.FestivalLoadGate
 import com.festivalscoretracker.android.ui.common.FestivalLoading
@@ -209,10 +210,7 @@ fun SongDetailScreen(
 ) {
     val songState by viewModel.song.collectAsStateWithLifecycle()
     val song = (songState as? LoadState.Loaded)?.value
-    DisposableEffect(song?.albumArt) {
-        val token = background.pushFocus(song?.albumArt)
-        onDispose { background.popFocus(token) }
-    }
+    SongCoverBackdrop(background, song?.albumArt)
     val listState = rememberLazyListState()
     val headerGone by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
     // The revealed page publishes its items so Quick Links (in the top bar) can find them.

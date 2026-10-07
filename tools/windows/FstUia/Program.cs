@@ -743,6 +743,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertaligned":
                 AssertAligned(window, step);
                 break;
+            case "assertnoscrollbar":
+                AssertNoScrollBar(window, step);
+                break;
             case "assertbelow":
             case "assertlevel":
                 AssertVertical(window, step, verb == "assertbelow");
@@ -1305,6 +1308,28 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             throw new InvalidOperationException($"centres differ: {a:0.#} vs {b:0.#} px ({(string)step["arg"]!})");
         response["aligned"] ??= new JsonArray();
         response["aligned"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["centre"] = a, ["other"] = b });
+    }
+
+    /// <summary>
+    /// Fails if a scroller can render a scroll bar or indicator. A WinUI <c>ScrollViewer</c> draws its bars, and the
+    /// conscious panning indicator they collapse to, only through its template's <c>ScrollBar</c> parts. With
+    /// <c>ScrollBarVisibility.Auto</c> and overflowing content those parts are in the UIA tree (off screen while idle or
+    /// after input-free UIA scrolling, drawn as soon as mouse, pen or touch input scrolls); with <c>Hidden</c> they are
+    /// collapsed out of it. So any <c>ScrollBar</c> inside the scroller fails, which also holds on a locked console where
+    /// no pointer input can bring an Auto indicator up.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with the scroller's selector.</param>
+    /// <exception cref="InvalidOperationException">The scroller contains a scroll bar.</exception>
+    private void AssertNoScrollBar(Window window, JsonObject step)
+    {
+        var scroller = Find(window, step);
+        var bars = scroller.FindAllDescendants(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.ScrollBar))
+            .Select(bar => $"{bar.Properties.AutomationId.ValueOrDefault} {bar.BoundingRectangle}"
+                           + (bar.Properties.IsOffscreen.ValueOrDefault ? " (idle)" : " (shown)"))
+            .ToArray();
+        if (bars.Length > 0)
+            throw new InvalidOperationException($"scroll bar in {(string)step["arg"]!}: {string.Join("; ", bars)}");
     }
 
     /// <summary>

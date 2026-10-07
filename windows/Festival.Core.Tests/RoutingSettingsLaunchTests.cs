@@ -18,6 +18,7 @@ public class RoutingTests
         { new AppRoute.PlayerHistory("s1", Instrument.Karaoke), "/songs/s1/Solo_PeripheralVocals/history", AppSection.Songs },
         { new AppRoute.Player("acc1"), "/player/acc1", AppSection.Leaderboards },
         { new AppRoute.PlayerBands("acc1"), "/bands/player/acc1", AppSection.Leaderboards },
+        { new AppRoute.PlayerBands("acc1", PlayerBandGroup.Quads), "/bands/player/acc1?group=quads", AppSection.Leaderboards },
         { new AppRoute.Bands(), "/bands", AppSection.Leaderboards },
         { new AppRoute.Band("b1"), "/bands/b1", AppSection.Leaderboards },
         { new AppRoute.Band("b1", "Band_Duets", "k"), "/bands/b1?bandType=Band_Duets&teamKey=k", AppSection.Leaderboards },
@@ -49,6 +50,23 @@ public class RoutingTests
         Assert.True(AppRouteParser.TryParse(path, out var parsed, out var parsedSection));
         Assert.Equal(route, parsed);
         Assert.Equal(section, parsedSection);
+    }
+
+    [Theory]
+    [InlineData("/bands/player/acc1?group=Duos&name=Player%20One", PlayerBandGroup.Duos, "Player One")]
+    [InlineData("/bands/player/acc1?group=all&name=Player%20One", PlayerBandGroup.All, "Player One")]
+    [InlineData("/bands/player/acc1?group=bogus", PlayerBandGroup.All, null)]
+    public void Parser_PlayerBandsGroupAndName(string path, PlayerBandGroup group, string? name)
+    {
+        Assert.True(AppRouteParser.TryParse(path, out var route, out _));
+        Assert.Equal(new AppRoute.PlayerBands("acc1", group, name), route);
+    }
+
+    [Fact]
+    public void PlayerBandsPath_NeverSerializesTheName()
+    {
+        Assert.Equal("/bands/player/acc1?group=trios", new AppRoute.PlayerBands("acc1", PlayerBandGroup.Trios, "Player One").ToPath());
+        Assert.Equal("/bands/player/acc1", new AppRoute.PlayerBands("acc1", PlayerBandGroup.All, "Player One").ToPath());
     }
 
     [Theory]

@@ -21,6 +21,7 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
     {
         InitializeComponent();
         Controls.BoardFooter.Inset(Footer, Rows);
+        BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Rows, Footer);
         // The selected-band surface is set from code, so a contrast-theme switch must re-resolve it (issue #242).
         Loaded += (_, _) =>
         {
