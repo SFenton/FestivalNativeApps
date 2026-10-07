@@ -290,8 +290,38 @@ func selectedRowRevealFadesTheRowItReaches(board: RevealBoard, motion: RevealMot
 
 // MARK: - List rows
 
-/// Six rows of a `List` with the canonical scoped stagger.
+/// A linear test curve that records each frame SwiftUI asks it for, so a test can tell an
+/// animated commit from a plain one without catching a frame mid-fade (the `apple-ci` VM
+/// runs the hosted bundle on one main actor and can stall captures for seconds).
+struct RecordingFadeCurve: CustomAnimation {
+    /// Identifies this curve's frames in ``RecordingFadeCurve/frames``.
+    let key: String
+    /// The fade's length, in seconds.
+    let duration: TimeInterval
+
+    nonisolated(unsafe) private static var log: [String: [TimeInterval]] = [:]
+    private static let lock = NSLock()
+
+    /// The elapsed times SwiftUI animated `key` at, in order.
+    static func frames(_ key: String) -> [TimeInterval] {
+        lock.withLock { log[key] ?? [] }
+    }
+
+    func animate<V: VectorArithmetic>(value: V, time: TimeInterval, context: inout AnimationContext<V>) -> V? {
+        Self.lock.withLock { Self.log[key, default: []].append(time) }
+        guard time < duration else { return nil }
+        return value.scaled(by: time / duration)
+    }
+}
+
+/// Six rows of a `List` with the canonical scoped stagger, each fading on its own
+/// ``RecordingFadeCurve``.
 private struct StaggeredListProbe: View {
+    /// Prefix of each row's curve key (`<probe>.<index>`).
+    let probe: String
+    /// Each row's fade length, in seconds.
+    let duration: TimeInterval
+
     var body: some View {
         List {
             ForEach(0..<6, id: \.self) { index in
@@ -301,6 +331,9 @@ private struct StaggeredListProbe: View {
                     .accessibilityElement(children: .combine)
                     .accessibilityIdentifier("fst.test.staggered-row.\(index)")
                     .festivalFadeIn(staggerIndex: index)
+                    .environment(\.festivalFadeInItemCurve, Animation(
+                        RecordingFadeCurve(key: "\(probe).\(index)", duration: duration)
+                    ))
                     .listRowBackground(Color.black)
             }
         }
@@ -314,46 +347,62 @@ private struct StaggeredListProbe: View {
 
 /// A `List` row whose staggered fade waited on its page scope fades in rather than
 /// popping in: a plain state write in the same update as the animated reveal made the
-/// row commit without animation (macOS, found under #323). The fade is stretched to 2 s
-/// so a capture lands mid-fade.
+/// row commit without animation (macOS, found under #323). Each row's curve records the
+/// frames SwiftUI animates it with, so the check does not depend on a capture landing
+/// mid-fade; captures of the first row still prove it ends fully drawn and, when two land
+/// close together, that it did not jump from hidden to drawn.
 @MainActor
 @Test func staggeredListRowsFadeInRatherThanPop() async throws {
     let size = CGSize(width: 400, height: 500)
+    let probe = "staggered-list-\(UUID().uuidString)"
+    let fade: TimeInterval = 2
     let host = nativeHostedView(
-        StaggeredListProbe()
-            .environment(\.festivalFadeInItemCurve, .linear(duration: 2))
-            .preferredColorScheme(.dark),
+        StaggeredListProbe(probe: probe, duration: fade).preferredColorScheme(.dark),
         size: size
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
     let clock = ContinuousClock()
     let deadline = clock.now + nativeHostedReadinessBudget(.seconds(60))
-    var samples: [(dim: Int, bright: Int)] = []
-    var shownAt: ContinuousClock.Instant?
+    var samples: [(dim: Int, bright: Int, at: ContinuousClock.Instant)] = []
+    var drawnAt: ContinuousClock.Instant?
+    let rows = 0..<6
+    func frames() -> [[TimeInterval]] { rows.map { RecordingFadeCurve.frames("\(probe).\($0)") } }
     while clock.now < deadline {
         host.layoutSubtreeIfNeeded()
         if let frame = nativeHostedAccessibilityFrame("fst.test.staggered-row.0", in: host) {
-            shownAt = shownAt ?? clock.now
             let image = try nativeHostedImage(host)
             samples.append((
                 nativeHostedBrightSamples(in: frame, of: image, hostSize: size, threshold: 60),
-                nativeHostedBrightSamples(in: frame, of: image, hostSize: size, threshold: 200)
+                nativeHostedBrightSamples(in: frame, of: image, hostSize: size, threshold: 200),
+                clock.now
             ))
-            // Past the stretched fade, fully drawn, and two samples in a row agree (a
-            // loaded host can stall frames mid-fade, which also gives equal samples).
-            if let shownAt, clock.now - shownAt > .seconds(2.6), samples.count >= 2,
-               samples[samples.count - 1].bright > 100,
-               samples[samples.count - 1] == samples[samples.count - 2] { break }
+        }
+        if let last = samples.last, last.bright > 100 {
+            drawnAt = drawnAt ?? clock.now
+            // Every row's fade has ended, or the first row has stayed drawn for a whole
+            // fade (a popped row never records a frame).
+            let finished = frames().allSatisfy { $0.contains { $0 >= fade } }
+            if finished || clock.now - (drawnAt ?? clock.now) > .seconds(fade + 1) { break }
+        } else {
+            drawnAt = nil
         }
         try await Task.sleep(for: .milliseconds(30))
     }
     let final = try #require(samples.last, "the first row is revealed")
-    #expect(final.bright > 100)
-    // Mid-fade: the text is past a quarter of its opacity, but not yet three quarters.
+    #expect(final.bright > 100, "the first row ends fully drawn (\(final.bright))")
+    // The pop committed every row that waited on the scope unanimated. Under a saturated
+    // main actor a `List` can rebuild a row after the page window closed, and that row
+    // rightly shows without a fade (load-transition R5), so not every row must animate.
+    let recorded = frames()
     #expect(
-        samples.contains { $0.dim >= final.dim / 2 && $0.bright <= final.bright / 5 },
-        "the row fades in (\(samples.map { "\($0.dim)/\($0.bright)" }))"
+        recorded.contains { !$0.isEmpty },
+        "the staggered rows commit with their fade rather than popping in (frames per row: \(recorded.map(\.count)))"
     )
+    // Two captures 400 ms apart cannot span a 2 s fade from hidden to fully drawn.
+    let popped = zip(samples, samples.dropFirst()).contains { before, after in
+        after.at - before.at < .milliseconds(400) && before.dim < final.dim / 10 && after.bright >= final.bright * 9 / 10
+    }
+    #expect(!popped, "the first row jumps from hidden to drawn (\(samples.map { "\($0.dim)/\($0.bright)" }))")
 }
 #endif
