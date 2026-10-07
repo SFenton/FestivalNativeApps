@@ -234,6 +234,13 @@ public sealed partial class RankingSpotlightViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(JumpCommand))]
     private RankingRowViewModel? row;
 
+    /// <summary>
+    /// Placeholder under the loading ring, fitted to the board's columns so the loading row is as tall as the pinned row
+    /// that replaces it (issue #281); <see langword="null"/> until the spotlight first waits.
+    /// </summary>
+    [ObservableProperty]
+    private LeaderboardSkeletonRow? loadingRow;
+
     /// <summary>Whether anything below the board is shown.</summary>
     public bool IsVisible => Kind is SpotlightPlacementKind.Pending or SpotlightPlacementKind.Unranked or SpotlightPlacementKind.Footer;
 
@@ -342,6 +349,14 @@ public sealed partial class RankingSpotlightViewModel : ObservableObject
         Row = placement.Entry is { } entry
             ? new RankingRowViewModel(entry, metric, true) { PinnedAction = jump is null ? null : PinnedAction(entry) }
             : null;
+        // The loading row fits the board's columns like the row it stands in for (issue #281), so the pinned row
+        // doesn't jump in when it arrives at large text or under a percentile metric.
+        if (placement.Kind == SpotlightPlacementKind.Pending)
+            LoadingRow = new LeaderboardSkeletonRow(
+                visible.Count == 0
+                    ? LeaderboardRowMetrics.SkeletonSection(metric)
+                    : LeaderboardColumns.Measure(visible.Select(e => new RankingRowViewModel(e, metric, false)).ToList()) with { HasRoutes = true },
+                metric.IsPercentile(), "", showBars: false);
         Kind = placement.Kind;
         OnPropertyChanged(nameof(CanJump));
         JumpCommand.NotifyCanExecuteChanged();

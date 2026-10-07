@@ -6,6 +6,7 @@ Run: ``python -m unittest discover -s tools/windows/tests`` from the repo root.
 import json
 import sys
 import threading
+import time
 import unittest
 import urllib.error
 import urllib.request
@@ -35,6 +36,15 @@ class BoardOverrideTests(unittest.TestCase):
     def test_frozen_wins_over_empty(self):
         self.assertEqual(f.board_override("/api/rankings/Solo_Bass", {"Solo_Bass"}, {"Solo_Bass"})[0], "frozen")
 
+    def test_slow_boards_defer_to_empty_and_frozen(self):
+        slow = {"Solo_Bass", "Band_Duets"}
+        self.assertEqual(f.board_override("/api/rankings/Solo_Bass", set(), set(), slow), ("slow", "Solo_Bass", False))
+        self.assertEqual(f.board_override("/api/rankings/bands/Band_Duets", set(), set(), slow),
+                         ("slow", "Band_Duets", True))
+        self.assertEqual(f.board_override("/api/rankings/Solo_Bass", {"Solo_Bass"}, set(), slow)[0], "empty")
+        self.assertIsNone(f.board_override("/api/rankings/Solo_Bass/fixture-player-1", set(), set(), slow))
+        self.assertLess(f.SLOW_SECONDS, 30.0, "a slow board must answer inside the app's 30 s request timeout")
+
     def test_empty_page_shapes(self):
         query = {"rankBy": ["fcrate"], "page": ["1"], "pageSize": ["10"]}
         account = f.empty_page("Solo_Bass", False, query)
@@ -51,7 +61,9 @@ class FixtureServerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.original = mock_service.FixtureHandler.do_GET
-        f.install({"Solo_Bass"}, {"Solo_Drums"})
+        cls.slow_seconds = f.SLOW_SECONDS
+        f.SLOW_SECONDS = 0.2
+        f.install({"Solo_Bass"}, {"Solo_Drums"}, {"Solo_Vocals"})
         cls.server = mock_service.FixtureServer(("127.0.0.1", 0), mock_service.FixtureHandler)
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
         cls.base = f"http://127.0.0.1:{cls.server.server_port}"
@@ -61,6 +73,7 @@ class FixtureServerTests(unittest.TestCase):
         cls.server.shutdown()
         cls.server.server_close()
         mock_service.FixtureHandler.do_GET = cls.original
+        f.SLOW_SECONDS = cls.slow_seconds
 
     def get(self, path):
         with urllib.request.urlopen(self.base + path, timeout=5) as response:
@@ -75,6 +88,12 @@ class FixtureServerTests(unittest.TestCase):
         self.assertEqual(caught.exception.headers["Retry-After"], "30")
         self.assertEqual(caught.exception.headers["X-Fst-Public-Read-Freeze-Reason"], "scrape")
         status, body = self.get("/api/rankings/Solo_Guitar?page=1&pageSize=10")
+        self.assertEqual((status, body["totalAccounts"]), (200, 3))
+
+    def test_slow_board_answers_the_normal_page_late(self):
+        started = time.monotonic()
+        status, body = self.get("/api/rankings/Solo_Vocals?page=1&pageSize=10")
+        self.assertGreaterEqual(time.monotonic() - started, 0.2)
         self.assertEqual((status, body["totalAccounts"]), (200, 3))
 
 

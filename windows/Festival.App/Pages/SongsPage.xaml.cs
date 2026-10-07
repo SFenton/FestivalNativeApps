@@ -311,6 +311,33 @@ public sealed partial class SongsPage : Page, IPageBack
         });
     }
 
+    /// <summary>Re-applies the header container's focus and UIA exposure when a recycled header gets a new section.</summary>
+    /// <param name="sender">The header template root.</param>
+    /// <param name="args">Unused.</param>
+    private void OnGroupHeaderDataContextChanged(FrameworkElement sender, DataContextChangedEventArgs args) => ApplyGroupHeaderAccess(sender);
+
+    /// <summary>Applies the header container's focus and UIA exposure once the header joins the tree.</summary>
+    /// <param name="sender">The header template root.</param>
+    /// <param name="e">Unused.</param>
+    private void OnGroupHeaderLoaded(object sender, RoutedEventArgs e) => ApplyGroupHeaderAccess((FrameworkElement)sender);
+
+    /// <summary>
+    /// Keeps an unlabeled section's header container (a metric sort's single section, a lone Item Shop bucket) out of
+    /// Tab order and the UIA control view. WinUI makes every group header a focusable Group named from its data, so an
+    /// empty label was a focusable element with no name (Axe <c>NameNotNull</c>, issue #282). Raw view keeps its rows
+    /// in the list's control view; labelled headers are unchanged.
+    /// </summary>
+    /// <param name="header">The header template root.</param>
+    private static void ApplyGroupHeaderAccess(FrameworkElement header)
+    {
+        DependencyObject? node = header;
+        while (node is not null and not ListViewHeaderItem) node = VisualTreeHelper.GetParent(node);
+        if (node is not ListViewHeaderItem container) return;
+        var exposed = SongGroup.ExposesHeader(header.DataContext as SongGroup);
+        container.IsTabStop = exposed;
+        AutomationProperties.SetAccessibilityView(container, exposed ? AccessibilityView.Content : AccessibilityView.Raw);
+    }
+
     /// <summary>A section's visible in-list title and its text top relative to the list viewport's top.</summary>
     /// <param name="section">Section index.</param>
     /// <returns>The title, or <see langword="null"/> when it has none (the first section) or is not realized.</returns>
@@ -1061,6 +1088,11 @@ public sealed partial class SongGroup : List<SongRowItem>
 
     /// <summary>Whether the header shows (a single Shop bucket has none).</summary>
     public bool HasLabel => Label.Length > 0;
+
+    /// <summary>Whether a section's header container is focusable and in the UIA control view: only a labelled one.</summary>
+    /// <param name="group">The section, or <see langword="null"/> while a recycled header has no data.</param>
+    /// <returns><see langword="true"/> when the section has a label to name its group element.</returns>
+    public static bool ExposesHeader(SongGroup? group) => group is { HasLabel: true };
 
     /// <summary>Whether the in-list header shows: labelled sections after the first.</summary>
     public bool ShowInlineHeader { get; }

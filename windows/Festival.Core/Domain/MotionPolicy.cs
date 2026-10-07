@@ -4,8 +4,9 @@ namespace Festival.Core.Domain;
 /// <summary>
 /// Content fade-in timing ported from the web (<c>packages/theme/src/animation.ts</c>, <c>styles/animations.css</c>,
 /// <c>packages/ui-utils/src/stagger.ts</c>): <c>fadeInUp</c> is 400 ms <c>ease-out</c> from opacity 0 and 12 px below,
-/// and list rows stagger by 125 ms, starting one interval in, for the rows that fit in the viewport. Rows beyond that
-/// (or realized later by scrolling) appear without animation.
+/// and list rows stagger by 125 ms, starting one interval in, for the rows that fit in the viewport. Rows below them fade
+/// in with the last staggered row (<see cref="TailDelay"/>); a scroll during the entrance rushes whatever hasn't started
+/// (<see cref="StaggerArm"/>, web <c>useStaggerRush</c>).
 /// </summary>
 public static class FadeInTiming
 {
@@ -39,6 +40,30 @@ public static class FadeInTiming
     /// <returns>Delay, or <see langword="null"/> when the row shows without animation.</returns>
     public static TimeSpan? StaggerDelay(int index, int maxItems) =>
         index >= 0 && index < Math.Min(maxItems, MaxStaggered) ? Interval * (index + 1) : null;
+
+    /// <summary>
+    /// Delay of a row below the first screen during a load (issue #323, the Apple decision B): it fades in with the last
+    /// staggered row, never opaque, keeping top-to-bottom order on tall windows; a scroll before then rushes it.
+    /// </summary>
+    /// <param name="maxItems">Rows that stagger (the visible count).</param>
+    /// <returns>The last staggered row's delay.</returns>
+    public static TimeSpan TailDelay(int maxItems) => Interval * Math.Clamp(maxItems, 1, MaxStaggered);
+
+    /// <summary>
+    /// How long a selected-row reveal waits before its automatic scroll (web <c>navToPlayer</c>, issue #323): until the
+    /// row's own entrance has finished, its stagger (or the tail's) plus one fade.
+    /// </summary>
+    /// <param name="index">The selected row's index.</param>
+    /// <param name="maxItems">Rows that stagger (the visible count).</param>
+    /// <returns>Wait from the board's reveal.</returns>
+    public static TimeSpan RevealWait(int index, int maxItems) =>
+        (StaggerDelay(Math.Max(0, index), maxItems) ?? TailDelay(maxItems)) + Duration;
+
+    /// <summary>
+    /// How long a selected-row reveal's scroll may take to realize the rows it reaches; they fade in at delay 0 while it
+    /// runs (plus one fade).
+    /// </summary>
+    public static readonly TimeSpan RevealScroll = TimeSpan.FromMilliseconds(500);
 
     /// <summary>
     /// Web Suggestions <c>getCardDelay</c>: rows before <paramref name="batchStart"/> were already revealed and show
@@ -79,23 +104,41 @@ public static class FadeInTiming
 #endregion
 
 #region Stagger arm
+/// <summary>What a scroll movement did to a <see cref="StaggerArm"/>.</summary>
+public enum ArmScroll
+{
+    /// <summary>Nothing: not a load arm, already closed, not settled yet or less than <see cref="StaggerArm.ScrollSlop"/>.</summary>
+    None,
+
+    /// <summary>The scroll came after the entrance had finished: the arm closed and nothing replays (R5).</summary>
+    Closed,
+
+    /// <summary>
+    /// The scroll came while the entrance was running: every fade that hasn't started must start now, and rows realized
+    /// in the next moments fade in with them (web <c>useStaggerRush</c>, issue #323).
+    /// </summary>
+    Rushed,
+}
+
 /// <summary>
-/// One list's stagger window (pattern <c>load-transition</c> R5, issue #260): which freshly realized rows still fade in.
-/// A load arm (a new or re-sorted list, <c>batchStart</c> 0) closes at the first scroll movement, so rows realized by
-/// scrolling (even within <see cref="FadeInTiming.ArmWindow"/>) just appear; an appended batch (Suggestions' incremental
-/// loading, <c>batchStart</c> &gt; 0) is revealed by scrolling and stays open for its window. The scroll position is
-/// anchored once the arm's first layout settles (<see cref="Settle"/>), so a page's own reset to the top as part of the
-/// reload doesn't count as the reader scrolling. It also remembers when each row's fade starts (<see cref="Played"/>),
-/// so a selected-row reveal can wait for that row's own entrance and then rush the fades that haven't begun
-/// (<see cref="RevealWait"/>, <see cref="Rush"/>; patterns <c>leaderboard-row</c> R7 and <c>load-transition</c> R5,
-/// issue #307).
+/// One list's (or page's) first-load fade window (pattern <c>load-transition</c> R5, issues #260 and #323): which freshly
+/// realized rows fade in and when. A load arm (a new or re-sorted list, <c>batchStart</c> 0) staggers the rows that fit
+/// the viewport and fades the rows below them with the last staggered row (<see cref="FadeInTiming.TailDelay"/>), so a
+/// row is never opaque while the entrance is running. The first scroll movement while the entrance runs <b>rushes</b> it
+/// (<see cref="ArmScroll.Rushed"/>, like the web <c>useStaggerRush</c>): fades that haven't started start at once and rows
+/// realized during the rush fade at delay 0, together. A scroll after the entrance has finished just closes the arm, so
+/// scrolling never replays an entrance. An appended batch (Suggestions' incremental loading, <c>batchStart</c> &gt; 0)
+/// is revealed by scrolling, stays open for its window and is never rushed (web <c>SuggestionsPage</c> doesn't install
+/// the rush). A selected-row reveal announces its automatic scroll (<see cref="ExpectScroll"/>), which holds the rows
+/// below the first screen until the jump rushes them (<see cref="Rush"/>). The scroll position is anchored once the
+/// arm's first layout settles (<see cref="Settle"/>), so a page's own reset to the top as part of the reload doesn't
+/// count as the reader scrolling.
 /// </summary>
 public sealed class StaggerArm
 {
     /// <summary>Scroll movement (epx) that counts as the reader scrolling; smaller changes are layout rounding.</summary>
     public const double ScrollSlop = 1;
 
-    private readonly Dictionary<int, (TimeSpan ScheduledAt, TimeSpan Delay)> entrances = [];
     private TimeSpan armedAt;
     private bool armed;
     private bool closed;
@@ -103,13 +146,18 @@ public sealed class StaggerArm
     private bool closesOnScroll;
     private int? appendedStart;
     private (double X, double Y)? anchor;
+    private TimeSpan entranceEnd;
+    private TimeSpan? rushUntil;
+    private int rushLimit;
+    private TimeSpan? expectedAt;
+    private int expectation;
 
     /// <summary>Creates a closed arm.</summary>
     /// <param name="window">How long an arm stays open without scrolling (default <see cref="FadeInTiming.ArmWindow"/>;
     /// UI journeys lengthen it with <see cref="ParseWindow"/> so a scripted scroll lands inside it).</param>
     public StaggerArm(TimeSpan? window = null) => Window = window ?? FadeInTiming.ArmWindow;
 
-    /// <summary>How long an arm stays open without scrolling.</summary>
+    /// <summary>How long an arm keeps staggering newly realized rows without scrolling.</summary>
     public TimeSpan Window { get; }
 
     /// <summary>Parses a window override in milliseconds (Debug/automation <c>FST_DEBUG_FADE_WINDOW_MS</c>).</summary>
@@ -122,25 +170,20 @@ public sealed class StaggerArm
     /// <summary>First row of the newest batch (rows before it never fade).</summary>
     public int BatchStart { get; private set; }
 
-    /// <summary>Counts arms, so work scheduled for one load (a selected-row reveal) can tell a newer load replaced it.</summary>
+    /// <summary>Changes with every arm that is not merged into an open one (a selected-row reveal checks it went stale).</summary>
     public int Generation { get; private set; }
 
-    /// <summary>Whether the reader scrolled the list since its last load arm (a reveal then leaves the list alone).</summary>
-    public bool ScrolledSinceLoad { get; private set; }
+    /// <summary>Whether the reader (or anything else) moved the scroller since the load arm settled (web <c>navToPlayer</c>
+    /// then skips its automatic scroll).</summary>
+    public bool HasScrolled { get; private set; }
 
     /// <summary>Arms the window for a load (<paramref name="batchStart"/> 0) or an appended batch.</summary>
     /// <param name="batchStart">Index of the batch's first row (0 when the whole list is new).</param>
     /// <param name="now">Monotonic time.</param>
     public void Arm(int batchStart, TimeSpan now)
     {
-        Generation++;
-        if (batchStart <= 0)
-        {
-            entrances.Clear();
-            ScrolledSinceLoad = false;
-        }
         var open = IsOpen(now);
-        // What a purely time-based window (no scroll close) would stagger from: kept only to trace R5's suppressions.
+        // What a purely time-based window (no scroll close or rush) would stagger from: kept only to trace R5's suppressions.
         timeOnlyStart = armed && Within(now) ? Math.Min(timeOnlyStart, batchStart) : batchStart;
         // Batches appended back to back form one reveal (FadeInTiming.MergeBatchStart within this arm's window).
         BatchStart = open ? Math.Min(BatchStart, batchStart) : batchStart;
@@ -155,6 +198,12 @@ public sealed class StaggerArm
             closesOnScroll = !appended;
             appendedStart = null;
             anchor = null;
+            entranceEnd = now;
+            rushUntil = null;
+            rushLimit = 0;
+            expectedAt = null;
+            if (!appended) HasScrolled = false;
+            Generation++;
         }
         armedAt = now;
         armed = true;
@@ -173,18 +222,45 @@ public sealed class StaggerArm
     public bool NeedsSettle => armed && !closed && closesOnScroll && anchor is null;
 
     /// <summary>
-    /// Records a scroll position: movement from the anchor closes the load arm (keeping only a batch appended into it).
+    /// Records a scroll position: movement from the anchor rushes the load arm while its entrance runs, else closes it
+    /// (keeping only a batch appended into it, which is never rushed).
     /// </summary>
     /// <param name="x">Horizontal offset (epx).</param>
     /// <param name="y">Vertical offset (epx).</param>
-    /// <returns><see langword="true"/> when this movement closed the load arm (<see cref="BatchStart"/> is then the
-    /// kept batch's first row, or the load's 0 when nothing stays open).</returns>
-    public bool Scrolled(double x, double y)
+    /// <param name="now">Monotonic time.</param>
+    /// <returns>What the movement did; <see cref="BatchStart"/> is then the kept batch's first row, or the load's 0.</returns>
+    public ArmScroll Scrolled(double x, double y, TimeSpan now)
     {
-        if (!closesOnScroll || closed || anchor is not { } at) return false;
-        if (!(Math.Abs(x - at.X) >= ScrollSlop || Math.Abs(y - at.Y) >= ScrollSlop)) return false;
+        if (!closesOnScroll || closed || anchor is not { } at) return ArmScroll.None;
+        if (!(Math.Abs(x - at.X) >= ScrollSlop || Math.Abs(y - at.Y) >= ScrollSlop)) return ArmScroll.None;
+        HasScrolled = true;
+        var rush = IsRunning(now);
+        EndLoad(rush ? now + FadeInTiming.Duration : null);
+        return rush ? ArmScroll.Rushed : ArmScroll.Closed;
+    }
+
+    /// <summary>
+    /// Rushes the load entrance for an automatic scroll that is about to start (a selected-row reveal): fades that
+    /// haven't started start now and rows realized while the scroll runs, plus one fade, start at delay 0.
+    /// </summary>
+    /// <param name="now">Monotonic time.</param>
+    /// <param name="lasting">How long the scroll may take to realize the rows it reaches.</param>
+    /// <returns><see langword="true"/> when the entrance (or a held tail) was still running and is now rushed.</returns>
+    public bool Rush(TimeSpan now, TimeSpan lasting)
+    {
+        if (!closesOnScroll || closed || !IsRunning(now)) return false;
+        EndLoad(now + lasting + FadeInTiming.Duration);
+        return true;
+    }
+
+    /// <summary>Ends the load part of the arm: a rush (or plain close) that keeps only a batch appended into it.</summary>
+    /// <param name="rushedUntil">End of the rush window, or <see langword="null"/> for a plain close.</param>
+    private void EndLoad(TimeSpan? rushedUntil)
+    {
         closesOnScroll = false;
-        ScrolledSinceLoad = true;
+        expectedAt = null;
+        rushUntil = rushedUntil;
+        rushLimit = rushedUntil is null ? 0 : appendedStart ?? int.MaxValue;
         if (appendedStart is { } start)
         {
             BatchStart = start;
@@ -194,13 +270,60 @@ public sealed class StaggerArm
         {
             closed = true;
         }
-        return true;
     }
 
-    /// <summary>Whether rows realized now may still fade (armed, within the window and not closed by a scroll).</summary>
+    /// <summary>
+    /// Announces an automatic scroll at <paramref name="at"/> (a selected-row reveal): until it runs, or
+    /// <see cref="EndExpectation"/>, rows past the first screen wait for it, so the jump rushes them rather than reaching
+    /// rows that already faded in unseen.
+    /// </summary>
+    /// <param name="at">When the scroll is expected (monotonic time).</param>
+    /// <returns>A token for <see cref="EndExpectation"/>, so a stale reveal can't end a newer one.</returns>
+    public int ExpectScroll(TimeSpan at)
+    {
+        expectedAt = closesOnScroll && !closed ? at : null;
+        return ++expectation;
+    }
+
+    /// <summary>Ends an expectation (the reveal scrolled, was called off or went stale).</summary>
+    /// <param name="token">Token from <see cref="ExpectScroll"/>.</param>
+    public void EndExpectation(int token)
+    {
+        if (token == expectation) expectedAt = null;
+    }
+
+    /// <summary>When the load entrance is expected to finish, if a selected-row reveal holds rows for its scroll.</summary>
+    public TimeSpan? ExpectedScroll => expectedAt;
+
+    /// <summary>Whether the load entrance is still running (the window, scheduled fades or an expected scroll).</summary>
+    /// <param name="now">Monotonic time.</param>
+    /// <returns><see langword="true"/> while a scroll would rush rather than close.</returns>
+    public bool IsRunning(TimeSpan now) =>
+        armed && closesOnScroll && !closed && now >= armedAt
+        && (now - armedAt < Window || now < entranceEnd || (expectedAt is { } at && now < at + FadeInTiming.Duration));
+
+    /// <summary>Whether a rush started fades that rows realized now join (at delay 0).</summary>
+    /// <param name="now">Monotonic time.</param>
+    /// <returns><see langword="true"/> inside the rush window.</returns>
+    public bool IsRushing(TimeSpan now) => rushUntil is { } until && now < until;
+
+    /// <summary>Rows the latest rush reaches: all of the load, or those before a batch appended into it (never rushed).</summary>
+    public int RushLimit => rushLimit;
+
+    /// <summary>
+    /// Whether the latest rush starts a pending fade at once: every row of the load and every entrance element (index -1:
+    /// a page's sections and cards, a board's pinned row), never a row of a batch appended into the load. Nothing is
+    /// reached before a rush, or after a plain close.
+    /// </summary>
+    /// <param name="index">Row index, or -1 for an entrance element.</param>
+    /// <returns><see langword="true"/> when the rush must start the fade now.</returns>
+    public bool RushReaches(int index) => rushUntil is not null && index < rushLimit;
+
+    /// <summary>Whether rows realized now may still fade (the load entrance, a rush or an open appended batch).</summary>
     /// <param name="now">Monotonic time.</param>
     /// <returns>Whether the window is open.</returns>
-    public bool IsOpen(TimeSpan now) => armed && !closed && Within(now);
+    public bool IsOpen(TimeSpan now) =>
+        IsRushing(now) || (armed && !closed && (closesOnScroll ? IsRunning(now) : Within(now)));
 
     /// <summary>Time since the last arm (for the fade trace).</summary>
     /// <param name="now">Monotonic time.</param>
@@ -208,17 +331,17 @@ public sealed class StaggerArm
     public TimeSpan SinceArmed(TimeSpan now) => armed ? now - armedAt : TimeSpan.Zero;
 
     /// <summary>
-    /// Whether a row realized now shows in place only because a scroll closed the load window (R5's case): a purely
-    /// time-based window would still have faded it.
+    /// Whether a row realized now shows in place only because a scroll closed or rushed the load window (R5's case): a
+    /// purely time-based window would still have faded it.
     /// </summary>
     /// <param name="now">Monotonic time.</param>
     /// <param name="index">Row index.</param>
     /// <param name="visible">Rows that stagger (the visible count).</param>
-    /// <returns><see langword="true"/> for a row the scroll close kept from fading.</returns>
+    /// <returns><see langword="true"/> for a row the scroll kept from fading.</returns>
     public bool SuppressedByScroll(TimeSpan now, int index, int visible) =>
         armed && Within(now)
         && FadeInTiming.BatchDelay(index, timeOnlyStart, visible) is not null
-        && !(IsOpen(now) && FadeInTiming.BatchDelay(index, BatchStart, visible) is not null);
+        && Planned(index, visible, now) is null;
 
     /// <summary>Whether <paramref name="now"/> falls inside this arm's window.</summary>
     /// <param name="now">Monotonic time.</param>
@@ -234,56 +357,69 @@ public sealed class StaggerArm
     /// <returns>Delay, or <see langword="null"/> when the row shows in place.</returns>
     public TimeSpan? Delay(int index, int visible, TimeSpan now, double x, double y)
     {
-        Scrolled(x, y);
-        return IsOpen(now) ? FadeInTiming.BatchDelay(index, BatchStart, visible) : null;
-    }
-
-    /// <summary>Records a row's fade (it starts <paramref name="delay"/> after <paramref name="now"/>).</summary>
-    /// <param name="index">Row index.</param>
-    /// <param name="delay">Stagger delay.</param>
-    /// <param name="now">Monotonic time.</param>
-    public void Played(int index, TimeSpan delay, TimeSpan now) => entrances[index] = (now, delay < TimeSpan.Zero ? TimeSpan.Zero : delay);
-
-    /// <summary>Forgets a row's fade: it was shown in place (recycled, motion off) or its element is gone.</summary>
-    /// <param name="index">Row index.</param>
-    public void Shown(int index) => entrances.Remove(index);
-
-    /// <summary>A row's recorded fade.</summary>
-    /// <param name="index">Row index.</param>
-    /// <param name="now">Monotonic time.</param>
-    /// <returns>Its stagger delay and the time since it was scheduled, or <see langword="null"/> for a row that never faded.</returns>
-    public (TimeSpan Delay, TimeSpan Since)? Entrance(int index, TimeSpan now) =>
-        entrances.TryGetValue(index, out var e) ? (e.Delay, now - e.ScheduledAt) : null;
-
-    /// <summary>
-    /// How long a selected-row reveal waits: until that row's own fade has finished (its stagger delay plus
-    /// <see cref="FadeInTiming.Duration"/>), like web <c>navToPlayer</c>/<c>navToBand</c> (<c>load-transition</c> R5).
-    /// </summary>
-    /// <param name="index">Selected row index.</param>
-    /// <param name="now">Monotonic time.</param>
-    /// <returns>Time left; zero for a row without a running fade.</returns>
-    public TimeSpan RevealWait(int index, TimeSpan now)
-    {
-        if (!entrances.TryGetValue(index, out var e)) return TimeSpan.Zero;
-        var left = e.ScheduledAt + e.Delay + FadeInTiming.Duration - now;
-        return left > TimeSpan.Zero ? left : TimeSpan.Zero;
+        Scrolled(x, y, now);
+        var delay = Planned(index, visible, now);
+        if (delay is { } d && closesOnScroll) Note(now + d);
+        return delay;
     }
 
     /// <summary>
-    /// Starts every recorded fade that hasn't begun yet now (web <c>useStaggerRush</c>, <c>load-transition</c> R5): the
-    /// caller replays them without delay, so the rest of the entrance fades in together. Fades already running keep going.
+    /// The delay of an entrance fade that isn't a row stagger (a page's sections and cards, a board's pinned row): its own
+    /// delay while the load entrance runs (held to the entrance's last start once the window has passed), 0 while rushing,
+    /// else <see langword="null"/> (show in place).
     /// </summary>
+    /// <param name="natural">The fade's delay in the page's choreography.</param>
     /// <param name="now">Monotonic time.</param>
-    /// <returns>Rushed rows in index order, each with the stagger delay it had.</returns>
-    public IReadOnlyList<(int Index, TimeSpan Delay)> Rush(TimeSpan now)
+    /// <returns>Delay, or <see langword="null"/>.</returns>
+    public TimeSpan? Entrance(TimeSpan natural, TimeSpan now)
     {
-        var pending = entrances
-            .Where(e => e.Value.ScheduledAt + e.Value.Delay > now)
-            .OrderBy(e => e.Key)
-            .Select(e => (e.Key, e.Value.Delay))
-            .ToList();
-        foreach (var (index, _) in pending) entrances[index] = (now, TimeSpan.Zero);
-        return pending;
+        if (IsRushing(now)) return TimeSpan.Zero;
+        if (!IsRunning(now)) return null;
+        var delay = Within(now) ? natural : Late(now);
+        Note(now + delay);
+        return delay;
+    }
+
+    /// <summary>Whether a row's planned fade waits for the expected automatic scroll (it is past the first screen).</summary>
+    /// <param name="index">Row index.</param>
+    /// <param name="visible">Rows that stagger (the visible count).</param>
+    /// <returns><see langword="true"/> for a tail row of the load.</returns>
+    public bool IsTail(int index, int visible) =>
+        index >= BatchStart && FadeInTiming.BatchDelay(index, BatchStart, visible) is null;
+
+    /// <summary>The delay a row realized now gets, without side effects.</summary>
+    /// <param name="index">Row index.</param>
+    /// <param name="visible">Rows that stagger (the visible count).</param>
+    /// <param name="now">Monotonic time.</param>
+    /// <returns>Delay, or <see langword="null"/> when the row shows in place.</returns>
+    private TimeSpan? Planned(int index, int visible, TimeSpan now)
+    {
+        if (IsRushing(now) && index < rushLimit) return TimeSpan.Zero;
+        if (!armed || closed) return null;
+        if (!closesOnScroll) return Within(now) ? FadeInTiming.BatchDelay(index, BatchStart, visible) : null;
+        if (!IsRunning(now) || index < BatchStart) return null;
+        var tail = IsTail(index, visible);
+        var delay = !Within(now) ? Late(now)
+            : FadeInTiming.BatchDelay(index, BatchStart, visible) ?? FadeInTiming.TailDelay(visible);
+        if (tail && expectedAt is { } at && at - now > delay) delay = at - now;
+        return delay;
+    }
+
+    /// <summary>A row realized after the window while the entrance still runs starts with the entrance's last fade.</summary>
+    /// <param name="now">Monotonic time.</param>
+    /// <returns>Delay (never negative).</returns>
+    private TimeSpan Late(TimeSpan now)
+    {
+        var lastStart = entranceEnd - FadeInTiming.Duration - now;
+        return lastStart > TimeSpan.Zero ? lastStart : TimeSpan.Zero;
+    }
+
+    /// <summary>Extends the entrance to cover a fade starting at <paramref name="start"/>.</summary>
+    /// <param name="start">Fade start (monotonic time).</param>
+    private void Note(TimeSpan start)
+    {
+        var end = start + FadeInTiming.Duration;
+        if (end > entranceEnd) entranceEnd = end;
     }
 }
 #endregion

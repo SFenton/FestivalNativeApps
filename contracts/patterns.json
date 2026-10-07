@@ -714,6 +714,10 @@
           {
             "path": "windows/Festival.App/Themes/Styles.xaml",
             "symbol": "FSTMinTargetSize"
+          },
+          {
+            "path": "windows/Festival.App/Controls/WrapPanel.cs",
+            "symbol": "WrapPanel"
           }
         ]
       },
@@ -1087,6 +1091,10 @@
             "symbol": "LeaderboardRowMetrics"
           },
           {
+            "path": "windows/Festival.Core/ViewModels/LeaderboardEntryRows.cs",
+            "symbol": "LeaderboardSkeletonRow"
+          },
+          {
             "path": "windows/Festival.App/Controls/LeaderboardEntryRow.xaml.cs",
             "symbol": "LeaderboardEntryRow"
           },
@@ -1123,8 +1131,8 @@
             "symbol": "SelectedRowAction"
           },
           {
-            "path": "windows/Festival.App/Controls/FadeIn.cs",
-            "symbol": "RevealSelected"
+            "path": "windows/Festival.App/Controls/SelectedRowReveal.cs",
+            "symbol": "SelectedRowReveal"
           },
           {
             "path": "windows/Festival.App/Controls/BandScoreFooterPanel.cs",
@@ -1384,8 +1392,8 @@
             "symbol": "StaggerArm"
           },
           {
-            "path": "windows/Festival.App/Controls/FadeIn.cs",
-            "symbol": "RevealSelected"
+            "path": "windows/Festival.App/Controls/SelectedRowReveal.cs",
+            "symbol": "SelectedRowReveal"
           },
           {
             "path": "windows/Festival.Core/ViewModels/SongPathsViewModel.cs",
@@ -1432,6 +1440,17 @@
           ],
           "debt": [],
           "message": "Pages install the shared entrance window with festivalFadeInScope(resetKey:) or festivalScrollFadeInScope(_:resetKey:); a page that builds its own FestivalFadeInScope must be listed so its scroll rush and selected-row reveal stay on the shared rules (load-transition R5)."
+        },
+        {
+          "id": "windows-stagger-arm",
+          "glob": "windows/Festival.App/**/*.cs",
+          "regex": "FadeIn\\.NewArm\\s*\\(|new\\s+StaggerArm\\s*\\(",
+          "allow": [
+            "windows/Festival.App/Controls/FadeIn.cs",
+            "windows/Festival.App/Pages/SongDetailPage.xaml.cs"
+          ],
+          "debt": [],
+          "message": "Lists get their entrance window from FadeIn.Stagger/Restagger; a page that builds its own StaggerArm must be listed so its scroll rush, replay guard and selected-row reveal stay on the shared rules (load-transition R5, #323)."
         },
         {
           "id": "apple-page-title",

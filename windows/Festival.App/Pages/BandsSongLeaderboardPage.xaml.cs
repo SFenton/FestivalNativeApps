@@ -153,7 +153,7 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
         {
             var shown = ViewModel.ShowSpotlight;
             if (PinnedRowReveal.FadesOnArrival(spotlightShown, shown, ViewModel.LoadSwap.Phase))
-                DispatcherQueue.TryEnqueue(() => FadeIn.Play(SpotlightPanel, TimeSpan.Zero));
+                DispatcherQueue.TryEnqueue(() => FadeIn.Play(SpotlightPanel));
             spotlightShown = shown;
             return;
         }
@@ -170,8 +170,9 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
 
     /// <summary>
     /// After the shared load gate reveals a new page, replays the web row entrance, with the pinned row entering alongside
-    /// the first row (issue #295), then brings a pending selected row into view (centred, without animation) once its own
-    /// entrance has finished, rushing the rest (<see cref="FadeIn.RevealSelected"/>, issue #307).
+    /// the first row when it was gated (issue #295); paging keeps it in place (issue #270). A pending selected band is then
+    /// centred once its own entrance has finished, rushing the rest (<see cref="SelectedRowReveal"/>, web <c>navToBand</c>,
+    /// issues #307 and #323).
     /// </summary>
     /// <param name="sender">Swap.</param>
     /// <param name="e">Unused.</param>
@@ -179,11 +180,11 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
         DispatcherQueue.TryEnqueue(() =>
         {
             FadeIn.StaggerRealized(Rows);
-            if (ViewModel.ShowSpotlight && ViewModel.PinnedGate.IsGated) FadeIn.Play(SpotlightPanel, PinnedRowReveal.RevealDelay);
+            if (ViewModel.ShowSpotlight && ViewModel.PinnedGate.IsGated) FadeIn.Enter(Rows, SpotlightPanel, PinnedRowReveal.RevealDelay);
             if (pendingReveal is { } reveal)
             {
                 pendingReveal = null;
-                FadeIn.RevealSelected(Rows, ViewModel.Rows.IndexOf(reveal), () => RevealRow(reveal));
+                SelectedRowReveal.Start(Rows, ViewModel.Rows.IndexOf(reveal), () => RevealRow(reveal));
             }
         });
 
