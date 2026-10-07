@@ -739,7 +739,9 @@
         "global search",
         "quick links",
         "profile",
-        "hit target"
+        "hit target",
+        "drawer",
+        "hamburger"
       ],
       "web": [
         {
@@ -753,6 +755,10 @@
         {
           "path": "pages/songs/components/SongsToolbar.tsx",
           "symbol": "SongsToolbar"
+        },
+        {
+          "path": "components/shell/desktop/Sidebar.tsx",
+          "symbol": "Sidebar"
         }
       ],
       "canonical": {
@@ -788,6 +794,18 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchTab.swift",
             "symbol": "GlobalSearchFieldPlacement"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
+            "symbol": "DrawerMenu"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
+            "symbol": "FestivalDrawer"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Shell/SidebarMenu.swift",
+            "symbol": "SidebarMenu"
           }
         ],
         "android": [
@@ -901,7 +919,8 @@
         271,
         300,
         309,
-        337
+        337,
+        338
       ]
     },
     {
