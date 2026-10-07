@@ -21,6 +21,8 @@ public enum SongHeaderTextVariant
 /// <c>SongInfoHeader</c>'s text column, Apple <c>SongHeaderText</c>/<c>SongBarTitle</c>, Android <c>SongHeader</c>): two
 /// <see cref="MarqueeText"/> lines that fill the column on one line each and scroll only on overflow (R2), ellipsize
 /// with motion off and, in the <see cref="SongHeaderTextVariant.Page"/> variant, wrap at large Windows text sizes (R3).
+/// When both lines overflow they scroll the same distance (the wider line plus the gap) in lockstep, like the web's
+/// <c>useMarqueeSync</c> (<see cref="Festival.Core.Domain.MarqueeSync"/>); a lone overflowing line keeps its own distance.
 /// The <see cref="SongHeaderTextVariant.Bar"/> variant is the compact pinned bar copy (R4). Empty lines collapse. Pages
 /// keep their art, board line and actions outside it. A panel, so it adds no automation node: the title and artist
 /// stay direct static-text children of the header (or its button).
@@ -64,6 +66,8 @@ public sealed partial class SongHeaderText : StackPanel
     {
         Children.Add(titleLine);
         Children.Add(artistLine);
+        titleLine.OverflowWidthChanged += (_, _) => SyncLines();
+        artistLine.OverflowWidthChanged += (_, _) => SyncLines();
         ApplyVariant();
         UpdateVisibility();
     }
@@ -118,6 +122,19 @@ public sealed partial class SongHeaderText : StackPanel
     {
         titleLine.Visibility = Title.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         artistLine.Visibility = Artist.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        SyncLines();
+    }
+
+    /// <summary>
+    /// Gives both lines the shared distance when both overflow (song-header R2, web <c>useMarqueeSync</c>), else none.
+    /// Both are set in one pass, so playing lines restart together from the shared epoch.
+    /// </summary>
+    private void SyncLines()
+    {
+        static double Width(MarqueeText line) => line.Visibility == Visibility.Visible ? line.OverflowWidth : 0;
+        var distance = Festival.Core.Domain.MarqueeSync.Distance(new[] { Width(titleLine), Width(artistLine) }, MarqueeText.Gap);
+        titleLine.SyncDistance = distance;
+        artistLine.SyncDistance = distance;
     }
 
     /// <summary>Looks up an app style.</summary>

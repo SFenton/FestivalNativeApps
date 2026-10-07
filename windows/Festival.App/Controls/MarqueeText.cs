@@ -15,7 +15,9 @@ namespace Festival.App.Controls;
 /// <summary>
 /// Single-line text that, whenever it overflows its space, scrolls a two-copy track on the compositor thread like
 /// the web <c>MarqueeText</c> (8 s cycle, 5% dwell at each end, 28 px gap, phase-aligned across instances from one
-/// epoch so neighbouring rows move together). Text that fits is drawn plainly. Motion off (Windows Animation effects,
+/// epoch so neighbouring rows move together). Lines that scroll as a group (a song header's title and artist) share
+/// one <see cref="SyncDistance"/> so they also move the same distance in lockstep. Text that fits is drawn plainly.
+/// Motion off (Windows Animation effects,
 /// in-app or launch Reduce Motion), a hidden/minimized window or an unloaded row stops it and shows the ellipsized
 /// text instead. In-page text that opts in with <see cref="WrapsAtLargeText"/> wraps onto as many lines as it needs at
 /// large Windows text sizes (<see cref="Festival.Core.Domain.LargeText"/>) instead of scrolling or ellipsizing (Apple's in-page
@@ -42,7 +44,7 @@ public sealed partial class MarqueeText : Panel
     public static double CycleSeconds { get; set; } = 8;
 
     /// <summary>Gap between the copies in epx (web default 28).</summary>
-    public const double Gap = 28;
+    public const double Gap = Festival.Core.Domain.MarqueeSync.Gap;
 
     /// <summary>Global kill switch (Reduce Motion); the system animation setting is checked on each play.</summary>
     public static bool MotionAllowed { get; set; } = true;
@@ -52,6 +54,9 @@ public sealed partial class MarqueeText : Panel
     private readonly TextBlock copy = new() { TextWrapping = TextWrapping.NoWrap, Visibility = Visibility.Collapsed };
     private static readonly DateTimeOffset Epoch = DateTimeOffset.UnixEpoch;
     private double naturalWidth;
+    private double trackDistance;
+    private double? syncDistance;
+    private double overflowWidth;
     private bool playing;
     private bool wrapped;
     private bool listeningToTextScale;
@@ -128,6 +133,7 @@ public sealed partial class MarqueeText : Panel
     /// <summary>Scrolls while loaded, overflowing and allowed to move; otherwise shows the static ellipsized text.</summary>
     private void UpdatePlayback()
     {
+        ReportOverflow();
         var animate = IsLoaded && !wrapped && Overflows && MotionAllowed && Services.Motion.Allowed && !Services.Motion.Paused;
         if (animate == playing) return;
         if (animate) Play();
@@ -194,16 +200,62 @@ public sealed partial class MarqueeText : Panel
     /// </summary>
     public bool Overflows => naturalWidth > ActualWidth + 0.1;
 
+    #region Lockstep sync
+    /// <summary>
+    /// Natural text width while the line overflows its space on one line (wrapped or fitting text reports 0), what web
+    /// <c>MarqueeText</c> passes to <c>onMeasure</c>. A group such as <see cref="SongHeaderText"/> turns its lines' widths
+    /// into one <see cref="SyncDistance"/> (<see cref="Festival.Core.Domain.MarqueeSync.Distance"/>).
+    /// </summary>
+    public double OverflowWidth => overflowWidth;
+
+    /// <summary>Raised after layout when <see cref="OverflowWidth"/> changes.</summary>
+    public event EventHandler? OverflowWidthChanged;
+
+    /// <summary>
+    /// Shared translate distance in epx for lines that scroll in lockstep (web <c>syncDistance</c>, pattern
+    /// <c>song-header</c> R2); <see langword="null"/> scrolls the line's own width plus <see cref="Gap"/>. The copy then
+    /// sits one distance to the right (web <c>adjustedGap</c>), so the loop stays seamless. Changing it restarts a
+    /// playing line from the shared epoch, so the group's lines restart together.
+    /// </summary>
+    public double? SyncDistance
+    {
+        get => syncDistance;
+        set
+        {
+            if (syncDistance == value) return;
+            syncDistance = value;
+            if (!playing) return;
+            Stop();
+            QueueUpdate();
+        }
+    }
+
+    /// <summary>Publishes <see cref="OverflowWidth"/> when it changes.</summary>
+    private void ReportOverflow()
+    {
+        var width = IsLoaded && !wrapped && Overflows ? naturalWidth : 0;
+        if (Math.Abs(width - overflowWidth) < 0.5) return;
+        overflowWidth = width;
+        OverflowWidthChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Distance the track moves per cycle: the shared distance when it fits this line, else its own width plus the gap.</summary>
+    /// <returns>Distance in epx.</returns>
+    private double PlayDistance() =>
+        syncDistance is { } shared && shared >= naturalWidth ? shared : naturalWidth + Gap;
+    #endregion
+
     /// <summary>Starts scrolling if the text overflows and motion is allowed (normally driven automatically).</summary>
     public void Play()
     {
         if (playing || wrapped || !Overflows || !MotionAllowed || !SystemSettings.AnimationsEnabled) return;
         playing = true;
+        trackDistance = PlayDistance();
         primary.TextTrimming = TextTrimming.None;
         copy.Visibility = Visibility.Visible;
         InvalidateArrange();
         UpdateLayout();
-        var distance = (float)(naturalWidth + Gap);
+        var distance = (float)trackDistance;
         foreach (var element in new UIElement[] { primary, copy })
         {
             var visual = ElementCompositionPreview.GetElementVisual(element);
@@ -265,7 +317,7 @@ public sealed partial class MarqueeText : Panel
     {
         var height = primary.DesiredSize.Height;
         primary.Arrange(new Rect(0, 0, playing ? naturalWidth : finalSize.Width, height));
-        copy.Arrange(new Rect(naturalWidth + Gap, 0, naturalWidth, height));
+        copy.Arrange(new Rect(playing ? trackDistance : naturalWidth + Gap, 0, naturalWidth, height));
         return finalSize;
     }
 
