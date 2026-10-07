@@ -21,7 +21,8 @@ public static class ViewAllCta
     /// <summary>Song Detail Score History list (web <c>chart.viewAllScores</c>, Title Case).</summary>
     public const string ScoresLabel = "View All Scores";
 
-    /// <summary>Profile Bands groups before the count (web <c>player.viewAllBands</c>, Title Case; issue #312).</summary>
+    /// <summary>Profile Bands groups before the count (web <c>player.viewAllBands</c>, Title Case; issue #312). Shown on the
+    /// frosted <c>ViewAllCard</c> (surface-materials R7), not the accent button; only the label and name rule are shared.</summary>
     public const string BandsLabel = "View All Bands";
 
     /// <summary>Plain label where the title already names the list, e.g. the Profile Bands title-row link

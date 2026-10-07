@@ -529,6 +529,10 @@
           {
             "path": "windows/Festival.App/Controls/LeaderboardEntryRow.xaml.cs",
             "symbol": "LeaderboardEntryRow"
+          },
+          {
+            "path": "windows/Festival.App/Controls/ViewAllCard.cs",
+            "symbol": "ViewAllCard"
           }
         ]
       },
@@ -563,6 +567,14 @@
           "allow": [],
           "debt": [],
           "message": "An opaque cardBackground plate is FestivalCardModifier's accessibility fallback, not a feature surface; draw cards, rows and custom floating controls with festivalCard / festivalCardCapsule (surface-materials R1, #319)."
+        },
+        {
+          "id": "windows-profile-purple-view-all",
+          "glob": "windows/Festival.App/Controls/PlayerProfileView.xaml",
+          "regex": "FSTViewAllButtonStyle",
+          "allow": [],
+          "debt": [],
+          "message": "The profile's View All Bands (N) is the frosted ViewAllCard (web BandViewAllCard), not the purple leaderboard CTA (surface-materials R7, #312)."
         }
       ],
       "related": {
@@ -2092,8 +2104,7 @@
           "rivals",
           "compete",
           "leaderboards",
-          "player-history",
-          "player-profile"
+          "player-history"
         ]
       },
       "guards": [

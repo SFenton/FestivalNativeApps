@@ -241,10 +241,12 @@
                                                                TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center" />
                                                 </StackPanel>
                                             </Border>
-                                            <Button Content="{x:Bind ViewAllText}" Tag="{x:Bind ViewAllRoute}" Click="OnBandsViewAllClick"
-                                                    Style="{StaticResource FSTViewAllButtonStyle}" Visibility="{x:Bind HasMore}"
-                                                    AutomationProperties.Name="{x:Bind ViewAllName}"
-                                                    AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
+                                            <!-- Frosted View All Bands (N) card (surface-materials R7), not the purple
+                                                 leaderboard CTA. -->
+                                            <controls:ViewAllCard Label="{x:Bind ViewAllText}" Tag="{x:Bind ViewAllRoute}" Click="OnBandsViewAllClick"
+                                                                  Visibility="{x:Bind HasMore}"
+                                                                  AutomationProperties.Name="{x:Bind ViewAllName}"
+                                                                  AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                         </StackPanel>
                                     </controls:AccessibleGroup>
                                 </DataTemplate>
