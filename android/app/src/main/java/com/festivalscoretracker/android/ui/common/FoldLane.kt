@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.Dp
 /**
  * Width of the leading pane while the enclosing grid splits its columns at a separating
  * vertical hinge (book posture half-open), or null when it does not. Hinge-splitting grids
- * (`AdaptiveCardGrid`, Suggestions, Item Shop) provide it; their full-line items read it
+ * (`AdaptiveCardGrid`, Suggestions, Item Shop, the Leaderboards card rows) provide it; their full-line items read it
  * through [FoldLane] so titles, subtitles and messages stay on their side of the fold
  * (issue #343). Material 3: "Never place interactive content or critical information across
  * the hinge area."
