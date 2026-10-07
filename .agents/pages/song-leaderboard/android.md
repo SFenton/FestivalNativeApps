@@ -89,8 +89,11 @@ Tests: `SongLeaderboardJourneyTest` (connected; FST_Phone, FST_Book_Fold half), 
 
 Evidence (live service, dark theme; captures on the tracker issue's Android resolution update):
 
+After master's #305 review moved board footers to the web's 40 px `useScrollMask` (scroll-edge R3), `BOTTOM_DP` became 40 dp. The captures below marked "36 dp build" differ only in that ramp length.
+
 | Capture | AVD / posture | Font / accessibility | Shows |
 | --- | --- | --- | --- |
+| [phone, scrolled, 40 dp](https://github.com/user-attachments/assets/29b970ec-7f90-4aab-aeb1-009180dcd73a) | FST_Phone portrait | 1.0, none | bar title after scroll; rows fade over the 40 dp linear ramp into the pinned row (current build) |
 | [unfolded, scrolled](https://github.com/user-attachments/assets/156fb924-909a-4e46-99f1-c3857f9ff33a) | FST_Book_Fold unfolded (expanded, rail) | 1.0, none | 36 dp linear ramp above the pinned row (after the #190 review) |
 | [folded, Increase Contrast](https://github.com/user-attachments/assets/ce1bfa3b-8f28-49c1-bb60-bfc315534b18) | FST_Book_Fold folded (compact) | 1.0, `contrast_level 1.0` | R7 hard cut at the pinned row (36 dp build) |
 | [paging motion](https://github.com/user-attachments/assets/0c8f29fb-f15e-425d-9d0c-32673e3a8df2) | FST_Book_Fold folded | 1.0, animations on | scroll under the footer, Next, Previous: pinned row and pager stay |
