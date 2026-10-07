@@ -181,6 +181,60 @@ final class IPadShellJourneyTests: XCTestCase {
         }
     }
 
+    /// Issue #350 (`wide-columns`): Search results pair into two columns in landscape,
+    /// stack in portrait and pair again on rotation without a new search (the
+    /// results never leave the screen).
+    @MainActor
+    func testSearchResultsUseTwoColumnsInLandscapeOnly() throws {
+        let app = fixtureApp(profile: false)
+        launchFilled(app)
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 20))
+        chooseInFlyout(app, "search")
+        let field = app.searchFields["Search songs, players, or bands"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        field.tap()
+        field.typeText("Fixture")
+        let songs = app.buttons.matching(identifier: "fst.global-search.result.song")
+        XCTAssertTrue(songs.element(boundBy: 1).waitForExistence(timeout: 15), "two song results")
+        func assertPaired(_ paired: Bool, _ message: String) {
+            let first = songs.element(boundBy: 0).frame
+            let second = songs.element(boundBy: 1).frame
+            if paired {
+                XCTAssertEqual(first.minY, second.minY, accuracy: 2, "\(message): one row")
+                XCTAssertLessThan(min(first.maxX, second.maxX), max(first.minX, second.minX), "\(message): side by side")
+            } else {
+                XCTAssertGreaterThan(abs(first.minY - second.minY), first.height - 2, "\(message): stacked")
+                XCTAssertEqual(first.width, second.width, accuracy: 2, "\(message): full width")
+            }
+        }
+        assertPaired(true, "landscape")
+        XCUIDevice.shared.orientation = .portrait
+        let stacked = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                abs(songs.element(boundBy: 0).frame.minY - songs.element(boundBy: 1).frame.minY) > 10
+            }, object: nil)
+        XCTAssertEqual(XCTWaiter().wait(for: [stacked], timeout: 10), .completed, "portrait reflows")
+        XCTAssertFalse(app.activityIndicators.firstMatch.exists, "rotation does not search again")
+        assertPaired(false, "portrait")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let paired = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                abs(songs.element(boundBy: 0).frame.minY - songs.element(boundBy: 1).frame.minY) < 2
+            }, object: nil)
+        XCTAssertEqual(XCTWaiter().wait(for: [paired], timeout: 10), .completed, "landscape reflows")
+        XCTAssertFalse(app.activityIndicators.firstMatch.exists, "rotation does not search again")
+        assertPaired(true, "landscape again")
+        // The trailing card of a paired List row opens only its own song (architecture
+        // "List rows hold one action": each card is its own plain button).
+        let pair = [songs.element(boundBy: 0), songs.element(boundBy: 1)]
+        let trailing = pair.max { $0.frame.minX < $1.frame.minX }!
+        let title = trailing.label.contains("Orbit") ? "Fixture Orbit" : "Fixture Pulse"
+        trailing.tap()
+        let hero = element(app, "fst.song-detail.hero-title")
+        XCTAssertTrue(hero.waitForExistence(timeout: 20), "Song Detail opens")
+        XCTAssertTrue(hero.label.hasPrefix(title), "the tapped trailing song, not \(hero.label)")
+    }
+
     /// Song Detail splits on demand: its full leaderboard opens in the trailing half
     /// beside the song page; Close returns to full width.
     @MainActor

@@ -338,12 +338,19 @@ extension View {
     /// columns form style drops the sections' cards); a no-op elsewhere.
     ///
     /// - Parameters:
-    ///   - width: Minimum and ideal width in points.
-    ///   - height: Minimum and ideal height in points.
+    ///   - width: Ideal width in points (and the minimum unless `minWidth` is given).
+    ///   - height: Ideal height in points (and the minimum unless `minHeight` is given).
+    ///   - minWidth: Narrowest the sheet resizes to, or nil for `width`.
+    ///   - minHeight: Shortest the sheet resizes to, or nil for `height`.
     /// - Returns: The sheet content.
-    func macSheetFrame(width: CGFloat = 560, height: CGFloat = 640) -> some View {
+    func macSheetFrame(
+        width: CGFloat = 560, height: CGFloat = 640, minWidth: CGFloat? = nil, minHeight: CGFloat? = nil
+    ) -> some View {
         #if os(macOS)
-        frame(minWidth: width, idealWidth: width, minHeight: height, idealHeight: height)
+        frame(
+            minWidth: minWidth ?? width, idealWidth: width,
+            minHeight: minHeight ?? height, idealHeight: height
+        )
             .formStyle(.grouped)
         #else
         self

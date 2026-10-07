@@ -2720,7 +2720,8 @@
       },
       "related": {
         "patterns": [
-          "section-headers"
+          "section-headers",
+          "wide-columns"
         ],
         "pages": [
           "statistics",
@@ -2748,7 +2749,81 @@
       ],
       "supersedes": [],
       "issues": [
-        343
+        343,
+        350
+      ]
+    },
+    {
+      "id": "wide-columns",
+      "title": "Wide columns",
+      "status": "current",
+      "doc": ".agents/patterns/wide-columns.md",
+      "summary": "Page rows and cards show in two columns only in wide landscape windows (iPad landscape, iPhone Duo unfolded landscape, a wide Mac surface), row-major under full-width headings, meeting at the Duo hinge, reflowing without reloading; portrait and compact windows keep one column.",
+      "keywords": [
+        "two column",
+        "two-column",
+        "wide landscape",
+        "landscape",
+        "portrait",
+        "columns",
+        "search results",
+        "grid",
+        "ipad landscape",
+        "iphone duo",
+        "mac sheet size"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/WideColumns.swift",
+            "symbol": "WideColumns"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/HingeColumns.swift",
+            "symbol": "HingeRow"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
+            "symbol": "SongGridPolicy"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift",
+            "symbol": "GlobalSearchResults"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Mac/MacRootView.swift",
+            "symbol": "searchSheetSize"
+          }
+        ],
+        "android": [],
+        "windows": []
+      },
+      "related": {
+        "patterns": [
+          "hinge-columns",
+          "section-headers",
+          "load-transition",
+          "back-keeps-place"
+        ],
+        "controls": [
+          "global-search"
+        ],
+        "pages": [
+          "songs",
+          "leaderboards",
+          "player-profile",
+          "suggestions",
+          "compete",
+          "settings",
+          "full-rankings",
+          "song-leaderboard"
+        ]
+      },
+      "guards": [],
+      "supersedes": [],
+      "issues": [
+        350
       ]
     },
     {

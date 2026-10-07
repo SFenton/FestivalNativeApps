@@ -219,4 +219,87 @@ private func assertSongDetailCardsSplitAtTheFold(_ typeSize: DynamicTypeSize) as
 @MainActor @Test func songDetailCardsSplitAtTheFoldAtStandardSizes() async throws {
     try await assertSongDetailCardsSplitAtTheFold(.large)
 }
+// MARK: - Page hinge (issue #350, pattern `wide-columns` R3)
+
+/// Flat inner display with no reported hinge: the page hinge is the window's middle.
+private let flatUnreported = DeviceLayout.resolve(LayoutSignals(
+    size: CGSize(width: 951, height: 669), widthClass: .regular,
+    safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 20, trailing: 84),
+    verticalBarEdge: .trailing, hinge: .fullyOpen
+))
+
+/// Wide-landscape page rows (Search results, Songs grid) beside a fold-only row.
+private struct PageHingeFixture: View {
+    @ObservedObject var box: LayoutBox
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HingeRow(spacing: WideColumns.spacing, hinge: .page) {
+                ForEach(0..<2, id: \.self) { index in
+                    Color.green.frame(height: 40)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityElement()
+                        .accessibilityLabel("Page \(index)")
+                        .accessibilityIdentifier("fixture.page.\(index)")
+                }
+            }
+            HingeRow(spacing: WideColumns.spacing) {
+                ForEach(0..<2, id: \.self) { index in
+                    Color.blue.frame(height: 40)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityElement()
+                        .accessibilityLabel("Fold \(index)")
+                        .accessibilityIdentifier("fixture.fold.\(index)")
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .padding(.trailing, 84)
+        .frame(width: hostSize.width, height: hostSize.height, alignment: .topLeading)
+        .environment(\.deviceLayout, box.layout)
+        .preferredColorScheme(.dark)
+    }
+}
+
+private let pageIds = ["fixture.page.0", "fixture.page.1", "fixture.fold.0", "fixture.fold.1"]
+
+/// Page rows meet at the hinge flat and folded (the reported hinge, else the window's
+/// middle); fold-only rows keep equal cells while flat. Changing pose reflows in place.
+@MainActor @Test func pageHingeRowsMeetAtTheHingeFlatAndFolded() async throws {
+    let box = LayoutBox(flat)
+    let host = nativeHostedView(PageHingeFixture(box: box), size: hostSize)
+    let window = nativeHostedWindow(host, size: hostSize)
+    defer { withExtendedLifetime(window) {} }
+
+    /// Frames once the page row's leading cell ends at `edge`.
+    func settled(at edge: CGFloat) async throws -> [String: CGRect] {
+        var result = try await frames(host, pageIds)
+        for _ in 0..<20 where abs((result["fixture.page.0"]?.maxX ?? 0) - edge) >= pixelTolerance {
+            result = try await frames(host, pageIds)
+        }
+        return result
+    }
+
+    // Flat with a reported hinge: the page row's gutter is the hinge; the fold row is equal.
+    var open = try await settled(at: bookFold.minX)
+    #expect(abs(try #require(open["fixture.page.0"]).maxX - bookFold.minX) < pixelTolerance)
+    #expect(abs(try #require(open["fixture.page.1"]).minX - bookFold.maxX) < pixelTolerance)
+    let fold0 = try #require(open["fixture.fold.0"])
+    let fold1 = try #require(open["fixture.fold.1"])
+    #expect(abs(fold0.width - fold1.width) < pixelTolerance)
+
+    // Book pose: both rows straddle the fold.
+    box.layout = bookPose
+    let folded = try await settled(at: bookFold.minX)
+    #expect(abs(try #require(folded["fixture.page.1"]).minX - bookFold.maxX) < pixelTolerance)
+
+    // Flat, no reported hinge: the gutter is centred on the window's middle.
+    box.layout = flatUnreported
+    let middle = hostSize.width / 2
+    open = try await settled(at: middle - WideColumns.spacing / 2)
+    let page0 = try #require(open["fixture.page.0"])
+    let page1 = try #require(open["fixture.page.1"])
+    #expect(abs((page0.maxX + page1.minX) / 2 - middle) < pixelTolerance)
+}
 #endif
