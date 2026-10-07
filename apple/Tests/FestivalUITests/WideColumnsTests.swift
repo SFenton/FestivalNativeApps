@@ -138,6 +138,72 @@ private enum Windows {
     #expect(SongGridPolicy.spacing == WideColumns.spacing)
 }
 
+// MARK: - Full boards (issue #353)
+
+/// A split's sub-page is always one column; a full-width page follows the platform
+/// rule from its own measured size.
+@Test func wideColumnsKeepSplitSubPagesSingleColumn() {
+    let wide = CGSize(width: 1210, height: 834)
+    #expect(WideColumns.count(layout: Windows.iPadLandscape, size: wide, subPage: true) == 1)
+    #expect(WideColumns.count(layout: Windows.iPadLandscape, size: .zero, subPage: true) == 1)
+    #expect(WideColumns.count(layout: Windows.iPadPortrait, size: CGSize(width: 834, height: 1210), subPage: false) == 1)
+    #if os(macOS)
+    #expect(WideColumns.count(layout: Windows.iPadPortrait, size: wide, subPage: false) == 2)
+    #expect(WideColumns.count(layout: Windows.iPadLandscape, size: CGSize(width: 600, height: 400), subPage: false) == 1)
+    #else
+    #expect(WideColumns.count(layout: Windows.iPadLandscape, size: wide, subPage: false) == 2)
+    #expect(WideColumns.count(layout: Windows.iPadLandscape, size: .zero, subPage: false) == 2)
+    #expect(WideColumns.count(layout: Windows.duoInnerLandscape, size: CGSize(width: 880, height: 669), subPage: false) == 2)
+    #expect(WideColumns.count(layout: Windows.duoFolded, size: CGSize(width: 382, height: 678), subPage: false) == 1)
+    #endif
+}
+
+/// A split context marks its open item, and pages pushed beside the list, as sub-pages;
+/// a page pushed over a covering profile is full width again.
+@Test func splitContextMarksSubPages() {
+    let open = SplitPaneContext(role: .trailing, besideList: .leaderboards)
+    #expect(open.isSubPage)
+    #expect(open.pushedPage.isSubPage)
+    let covering = SplitPaneContext(role: .trailing, besideList: nil, coversList: true)
+    #expect(covering.isSubPage)
+    #expect(!covering.pushedPage.isSubPage)
+    #expect(!SplitPaneContext(paneWidth: 600, role: .leading).isSubPage)
+}
+
+/// One column's page-equivalent width: margins and gutter out, one column's margins
+/// back, so width-driven row plans fit a column as a page of that width.
+@Test func columnPageWidthSplitsTheRowsEvenly() {
+    #expect(WideColumns.columnPageWidth(1200, columns: 1) == 1200)
+    #expect(WideColumns.columnPageWidth(1200, columns: 2) == 610)
+    #expect(WideColumns.columnPageWidth(0, columns: 2) == 0)
+    // Two columns at the narrowest two-column page each lay out like a 352 pt page.
+    #expect(WideColumns.columnPageWidth(684, columns: 2) == 352)
+    #expect(RankingSongsFit.rowWidth(section: 1200, rowInset: 32, columns: 2) == 578)
+    #expect(RankingSongsFit.rowWidth(section: 402, rowInset: 32, columns: 1) == 370)
+    #expect(RankingSongsFit.rowWidth(section: 0, rowInset: 32, columns: 2) == 0)
+}
+
+private struct Ranked: Identifiable, Equatable {
+    let id: Int
+}
+
+/// Board rows keep rank order row-major, remember each item's place on the page, and
+/// take their first item's identity, which is where a scroll to any item lands.
+@Test func indexedRowsKeepRankOrderAndScrollTargets() {
+    let items = (1...5).map(Ranked.init)
+    let pairs = WideColumns.indexedRows(items, columns: 2)
+    #expect(pairs.map(\.id) == [1, 3, 5])
+    #expect(pairs.map { $0.indexed.map(\.index) } == [[0, 1], [2, 3], [4]])
+    #expect(pairs.flatMap { $0.items.map(\.id) } == [1, 2, 3, 4, 5])
+    let singles = WideColumns.indexedRows(items, columns: 1)
+    #expect(singles.map(\.id) == [1, 2, 3, 4, 5])
+    #expect(WideColumns.rowStart(of: 3, columns: 2) == 2)
+    #expect(WideColumns.rowStart(of: 4, columns: 2) == 4)
+    #expect(WideColumns.rowStart(of: 3, columns: 1) == 3)
+    #expect(items[WideColumns.rowStart(of: 3, columns: 2)].id == pairs[1].id)
+    #expect(WideColumns.indexedRows([Ranked](), columns: 2).isEmpty)
+}
+
 // MARK: - Balanced columns (R7, #355)
 
 /// Sections split column-major where the taller column is shortest; neither is empty.

@@ -33,6 +33,12 @@ extension EnvironmentValues {
     /// Song Detail's boards drop the repeated song header beside it (#342;
     /// ``SongLeaderboardBoardLine/showsSongHeader(besideList:)``).
     @Entry var splitDetailBesideList: OnDemandSplitPolicy.ListPage?
+    /// Whether the page is a split's sub-page: the item opened in the trailing pane
+    /// beside its list page (even while a profile pushed over it covers the list), or a
+    /// page pushed inside that pane while it is still half width. False full width and
+    /// on pages pushed after a covering profile. Full leaderboards stay one column here
+    /// (pattern `wide-columns` R1, issue #353; ``WideColumns/count(layout:size:besideList:)``).
+    @Entry var splitPaneSubPage = false
 }
 
 /// Asks the leading pane's row for `route` to take assistive-technology focus: the
@@ -142,19 +148,29 @@ struct SplitPaneContext: Equatable {
     /// Whether the trailing pane covers the list page (a profile is open in it; issue
     /// #352), so its leading edge is the window's rather than the divider's.
     var coversList = false
+    /// Whether this is the trailing pane's open item (its root), not a page pushed
+    /// after it (``pushedPage``).
+    var isOpenItem = true
 
     /// The context for a page pushed inside this pane: the same pane, but no longer the
     /// item opened beside the list page.
     var pushedPage: SplitPaneContext {
         var context = self
         context.besideList = nil
+        context.isOpenItem = false
         return context
     }
+
+    /// Whether a page with this context is a split's sub-page
+    /// (``SwiftUI/EnvironmentValues/splitPaneSubPage``): the trailing pane's open item,
+    /// or a page pushed inside the trailing pane while it sits beside the list page.
+    var isSubPage: Bool { role == .trailing && (isOpenItem || !coversList) }
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.paneWidth == rhs.paneWidth && lhs.role == rhs.role && lhs.selection == rhs.selection
             && lhs.select == rhs.select && lhs.topScrim === rhs.topScrim && lhs.focusReturn == rhs.focusReturn
             && lhs.besideList == rhs.besideList && lhs.coversList == rhs.coversList
+            && lhs.isOpenItem == rhs.isOpenItem
     }
 }
 
@@ -194,6 +210,9 @@ private struct SplitPaneContextModifier: ViewModifier {
             }
             .transformEnvironment(\.splitDetailBesideList) { page in
                 if let context { page = context.besideList }
+            }
+            .transformEnvironment(\.splitPaneSubPage) { subPage in
+                if let context { subPage = context.isSubPage }
             }
             // One backdrop behind both panes: the page draws none and its navigation
             // container is clear (`SplitPaneChrome`).

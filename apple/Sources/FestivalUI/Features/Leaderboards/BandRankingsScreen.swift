@@ -20,6 +20,9 @@ struct BandRankingsScreen: View {
     /// Height of the rows' bottom fade: the full 40 pt until the last row arrives
     /// above the bar, then shrinking to nothing (issues #293, #305).
     @State private var bottomFadeDistance = ScrollEdgeFade.distance
+    /// Columns of rows: two on a full-width page in wide landscape, never on a split's
+    /// sub-page (pattern `wide-columns`, issue #353).
+    @State private var columns = 1
     @Environment(\.deviceLayout) private var layout
     /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
     @Environment(\.pageToolsRegistry) private var pageTools
@@ -84,9 +87,15 @@ struct BandRankingsScreen: View {
                                 .foregroundStyle(FestivalText.primary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        ForEach(payload.rankings.entries) { entry in
-                            BandRankingRow(entry: entry, metric: rankBy, bandType: bandType, cardSurface: true)
-                                .macKeyboardRow(entry.teamKey)
+                        // Row-major pairs in wide landscape (wide-columns R2, #353).
+                        ForEach(WideColumns.indexedRows(payload.rankings.entries, columns: columns)) { row in
+                            WideColumnsRow(columns: columns, count: row.items.count) {
+                                ForEach(row.items) { entry in
+                                    BandRankingRow(entry: entry, metric: rankBy, bandType: bandType, cardSurface: true)
+                                        .frame(maxWidth: .infinity)
+                                        .macKeyboardRow(entry.teamKey)
+                                }
+                            }
                         }
                     }
                     .macKeyboardRows(BandRankingRow.keyRows(payload.rankings.entries, bandType: bandType))
@@ -105,6 +114,7 @@ struct BandRankingsScreen: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .wideColumnsCount($columns)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             RankingsFloatingBar(
                 pager: board.map { RankingsPagerState(page: page, totalPages: $0.totalPages) },

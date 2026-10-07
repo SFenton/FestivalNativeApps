@@ -422,28 +422,32 @@ extension View {
     ///   - names: Every row's name in the section, including a pinned/spotlight row.
     ///   - rowInset: Total horizontal padding between this view's edges and its rows
     ///     (for example 32 for a page that pads its rows by 16 on each side).
+    ///   - pageColumns: Columns of rows across the section (pattern `wide-columns`,
+    ///     issue #353): the fit measures one column's row width
+    ///     (``WideColumns/columnPageWidth(_:columns:)``).
     /// - Returns: This view with the decided columns in its environment.
     func leaderboardSectionColumns(
         _ columns: LeaderboardRowColumns?, hidingCrowdedSongsFor names: [RankingRowName],
-        rowInset: CGFloat = 0
+        rowInset: CGFloat = 0, pageColumns: Int = 1
     ) -> some View {
-        modifier(RankingSongsFit(columns: columns, names: names, rowInset: rowInset))
+        modifier(RankingSongsFit(columns: columns, names: names, rowInset: rowInset, pageColumns: pageColumns))
     }
 }
 
 /// Measures a rankings section and its widest possible row, then hides the songs
 /// column when that row would not fit (`LeaderboardRowColumns.fittingSongs`).
-private struct RankingSongsFit: ViewModifier {
+struct RankingSongsFit: ViewModifier {
     let columns: LeaderboardRowColumns?
     let names: [RankingRowName]
     var rowInset: CGFloat = 0
+    var pageColumns: Int = 1
     @State private var availableWidth: CGFloat = 0
     @State private var requiredWidth: CGFloat = 0
 
     func body(content: Content) -> some View {
         content
             .leaderboardSectionColumns(columns?.fittingSongs(
-                availableWidth: Double(availableWidth > 0 ? max(1, availableWidth - rowInset) : 0),
+                availableWidth: Double(Self.rowWidth(section: availableWidth, rowInset: rowInset, columns: pageColumns)),
                 requiredWidth: Double(requiredWidth)
             ))
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { availableWidth = $0 }
@@ -456,6 +460,19 @@ private struct RankingSongsFit: ViewModifier {
                         .accessibilityHidden(true)
                 }
             }
+    }
+
+    /// One row's width in a section: one column's page-equivalent width less the row
+    /// padding, at least 1 once measured; 0 before measurement.
+    ///
+    /// - Parameters:
+    ///   - section: The section's measured width.
+    ///   - rowInset: Horizontal padding around each row.
+    ///   - columns: Columns of rows across the section.
+    /// - Returns: The width a row's columns must fit.
+    static func rowWidth(section: CGFloat, rowInset: CGFloat, columns: Int) -> CGFloat {
+        guard section > 0 else { return 0 }
+        return max(1, WideColumns.columnPageWidth(section, columns: columns) - rowInset)
     }
 }
 
