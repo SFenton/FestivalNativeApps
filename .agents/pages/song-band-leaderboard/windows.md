@@ -36,7 +36,7 @@ Journeys `song-band-leaderboard-switch-and-detail` (rows, Trios empty, Quads, ro
 
 ## IDs
 
-`fst.song-band-leaderboard.screen`, `.title` (song title; collapsed when the song is missing), `.artist`, `.subtitle` (band size line), `.total` (entry total, only when shown), `.band-type-menu`, `.band-type.<bandType>`, `.list`, `.row.<bandId>:<rank>` (on the `ListViewItem`), `.spotlight-footer` (pinned band row; badge `fst.score.accuracy.band-spotlight`), `.spotlight-jump`, `.footer-fade`, `.empty` (on the empty heading `TextBlock`; panels have no UIA peer), `.page-first|page-previous|page-info|page-next|page-last`. The failure state is found through the shared `fst.service-status.title` / `fst.service-status.retry` IDs (the `.error` name on the `ServiceStatusView` UserControl never reaches UIA).
+`fst.song-band-leaderboard.screen`, `.title` (song title; collapsed when the song is missing), `.song` (the header button that opens Song Detail), `.artist`, `.subtitle` (band size line), `.total` (entry total, only when shown), `.band-type-menu`, `.band-type.<bandType>`, `.list`, `.row.<bandId>:<rank>` (on the `ListViewItem`), `.spotlight-footer` (pinned band row; badge `fst.score.accuracy.band-spotlight`), `.spotlight-jump`, `.footer-fade`, `.empty` (on the empty heading `TextBlock`; panels have no UIA peer), `.page-first|page-previous|page-info|page-next|page-last`. The failure state is found through the shared `fst.service-status.title` / `fst.service-status.retry` IDs (the `.error` name on the `ServiceStatusView` UserControl never reaches UIA).
 
 ## Open
 

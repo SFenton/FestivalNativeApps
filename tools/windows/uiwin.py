@@ -112,6 +112,7 @@ STEP_VERBS = {
     "assertsize": "size", "assertapart": "pair", "assertat": "offset", "tapat": "offset", "clickat": "offset",
     "narrate": "selector", "assertread": "read", "assertorder": "order",
     "assertpaint": "paint", "assertbold": "bold", "assertannouncedcount": "announcedcount",
+    "assertmarquee": "marquee", "assertmarqueesync": "pair",
 }
 
 #: ``assertpaint`` probe: ``[name:]<x>,<y>[,<x2>,<y2>][<op><expect>[~<tol>]]``. ``x`` is ``L``/``R``/``C`` and ``y``
@@ -293,6 +294,14 @@ def parse_step(step: str) -> dict:
     Narrator reads after a combo box's name, e.g. ``Instrument, combo box, Bass``) equals ``<value>``;
     ``pin:<sel>`` records the element's window-relative rectangle and ``assertpinned:<sel>`` (same selector, later in
     the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls;
+    ``assertmarquee:<sel>|moving|<epx>`` fails unless the element is at most ``<epx>`` effective pixels high (one line)
+    and its pixels change across three captures 1.2 s apart (a scrolling marquee), and ``assertmarquee:<sel>|static|<epx>``
+    unless it is one line, unchanged across the captures and ends in an ellipsis, and ``assertmarquee:<sel>|wrapped|<epx>``
+    unless it is at least ``<epx>`` high (wrapped onto more lines) and unchanged (song headers, issue #315; R3 large text),
+    and ``assertmarquee:<sel>|fits|<epx>`` unless it is one line, unchanged and not ellipsized (a line short enough for its
+    column); ``assertmarqueesync:<sel>|<sel>`` crops both lines from captures about 150 ms apart for up to 9 s and fails
+    unless at least four capture pairs show both moving and every pair moved them by the same number of pixels (within
+    2 px or 8%): lockstep marquees that share one scroll distance (song-header R2, web ``useMarqueeSync``);
     ``listen:announcements`` starts recording the window's UIA notification events (the app's screen-reader
     announcements, what Narrator speaks) and a later ``assertannounced:<text>[@<seconds>]`` in the same ``drive`` waits
     (default 5 s) until one equals ``<text>`` (or matches it as a .NET regex when it starts with ``~``);
@@ -407,6 +416,15 @@ def parse_step(step: str) -> dict:
         result["status"] = status.strip()
         if wait:
             result["timeout"] = float(wait)
+    elif shape == "marquee":
+        selector, sep, rest = arg.partition("|")
+        mode, sep2, epx = rest.partition("|")
+        if not sep or not sep2 or mode.strip() not in ("moving", "static", "fits", "wrapped") or not re.fullmatch(r"\d+(\.\d+)?", epx.strip()):
+            raise ValueError(f"bad assertmarquee {arg!r}; use <selector>|moving|static|fits|wrapped|<height epx: max, or min for wrapped>")
+        result["selector"] = parse_selector(selector)
+        if result["selector"]["kind"] == "xy":
+            raise ValueError("assertmarquee needs an element selector, not coordinates")
+        result["mode"], result["epx"] = mode.strip(), float(epx)
     elif shape == "read":
         body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
         selector, sep, text = body.partition("|")
