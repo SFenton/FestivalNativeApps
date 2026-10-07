@@ -47,8 +47,8 @@ HIG sources: `apple-hig/references/hig/toolbars.md`, `search-fields.md`, `search
 | Item Shop | Filter, List/Grid (where the toggle shows) \| bell | Toolbar |
 | Suggestions | Filter \| bell | Toolbar |
 | Rivals / Rivalry / Rival Detail | Find Rival / View Profile, Quick Links \| bell | Toolbar |
-| Leaderboards, Band Rankings, Band Detail | Rank By, Quick Links \| bell; Band Rankings' floating pager sits above the accessory | Toolbar; `.bottomBar` pager |
-| Full Rankings | Instrument · Rank By \| bell; the shared pinned `RankingsPagerView` (Song Leaderboard's) sits above the accessory (issue #294) | Toolbar (Instrument, Rank By); `.bottomBar` pager |
+| Leaderboards, Band Rankings, Band Detail | Rank By, Quick Links \| bell; Band Rankings' floating pager sits above the accessory | Toolbar; in-content pager under the board (#345) |
+| Full Rankings | Instrument · Rank By \| bell; the shared pinned `RankingsPagerView` (Song Leaderboard's) sits above the accessory (issue #294) | Toolbar (Instrument, Rank By); in-content pager under the board (#345) |
 | Song band leaderboard | Band Size \| bell | Toolbar |
 | Compete, Settings (no profile, no tools yet) | Accessory hidden; header avatar | Toolbar |
 | Search tab | — (accessory hidden; system Close beside the field) | iPad sidebar Search: bell · avatar |
