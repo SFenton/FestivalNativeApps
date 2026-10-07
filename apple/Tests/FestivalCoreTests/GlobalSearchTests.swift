@@ -160,3 +160,36 @@ func globalSearchEffectiveQuery(_ raw: String, _ expected: String?) {
     #expect(reruns(.bands, .found(2), .found(2), .failed))
     #expect(!reruns(.bands, .failed, .failed, .found(1)))
 }
+
+/// Issue #348: "All" titles each section with rows or a failure, in web order; empty
+/// and pending sections are omitted, and a single scope has no title (#299).
+@Test func globalSearchSectionTitlesOnlyInAllForRenderedSections() {
+    let mixed = GlobalSearch.Outcomes(songs: .found(0), players: .found(2), bands: .failed)
+    #expect(!GlobalSearch.showsSectionTitle(.songs, scope: .all, outcomes: mixed))
+    #expect(GlobalSearch.showsSectionTitle(.players, scope: .all, outcomes: mixed))
+    #expect(GlobalSearch.showsSectionTitle(.bands, scope: .all, outcomes: mixed))
+    for scope in [GlobalSearchScope.songs, .players, .bands] {
+        #expect(!GlobalSearch.showsSectionTitle(scope, scope: scope, outcomes: mixed))
+    }
+    let pending = GlobalSearch.Outcomes(songs: .found(3), players: .pending, bands: .found(1))
+    #expect(GlobalSearch.showsSectionTitle(.songs, scope: .all, outcomes: pending))
+    #expect(!GlobalSearch.showsSectionTitle(.players, scope: .all, outcomes: pending))
+    #expect(!GlobalSearch.showsSectionTitle(.all, scope: .all, outcomes: pending))
+}
+
+/// Issue #348: the fade runs title, rows, next title… top to bottom (web
+/// `getTargetStaggerSlotCount`); a failure takes one slot and a skipped section none.
+@Test func globalSearchStaggerSlotsIncludeTitles() {
+    let all = GlobalSearch.Outcomes(songs: .found(3), players: .found(0), bands: .failed)
+    #expect(GlobalSearch.staggerStart(of: .songs, scope: .all, outcomes: all) == 0)
+    #expect(GlobalSearch.staggerSlotCount(.songs, scope: .all, outcomes: all) == 4)
+    #expect(GlobalSearch.staggerSlotCount(.players, scope: .all, outcomes: all) == 0)
+    #expect(GlobalSearch.staggerStart(of: .bands, scope: .all, outcomes: all) == 4)
+    #expect(GlobalSearch.staggerSlotCount(.bands, scope: .all, outcomes: all) == 2)
+    #expect(GlobalSearch.staggerSlotTotal(scope: .all, outcomes: all) == 6)
+    // A single scope has no title slot and ignores the other sections.
+    #expect(GlobalSearch.staggerStart(of: .songs, scope: .songs, outcomes: all) == 0)
+    #expect(GlobalSearch.staggerSlotTotal(scope: .songs, outcomes: all) == 3)
+    #expect(GlobalSearch.staggerSlotTotal(scope: .bands, outcomes: all) == 1)
+    #expect(GlobalSearch.staggerSlotCount(.songs, scope: .bands, outcomes: all) == 0)
+}

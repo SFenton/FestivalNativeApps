@@ -5,8 +5,10 @@ import FestivalDesign
 // MARK: - Results
 
 /// Global search results: a scope bar (All · Songs · Players · Bands) over song rows then
-/// player rows, mirroring the web `SearchModal` (`.agents/controls/global-search/spec.md`).
-/// No section titles (issue #299): the scope bar already names the scope.
+/// player rows then band cards, mirroring the web `SearchModal`
+/// (`.agents/controls/global-search/spec.md`). In "All" each rendered section has its
+/// Songs / Players / Bands title (issue #348, section-headers R9); a single scope has
+/// none, because the scope bar already names it (issue #299).
 ///
 /// The search field and scope bar sit on top; results, one centred spinner or a centred
 /// message fill the rest. Every result is its own `List` row
@@ -102,6 +104,8 @@ struct GlobalSearchResults: View {
             rows()
         }
         .listStyle(.plain)
+        // Section-title rows hug their text (web `section` gap 8pt); cards are taller.
+        .environment(\.defaultMinListRowHeight, 0)
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.immediately)
         // Each result set's fade window (web `SearchModal` `resetRush`): scrolling while
@@ -109,7 +113,8 @@ struct GlobalSearchResults: View {
         .festivalScrollFadeInScope(resetKey: resultFadeKey)
         .task(id: resultFadeKey) {
             let key = resultFadeKey
-            await FadeStagger.settle(afterRevealing: key.count) { fadeSettledResults = key }
+            let slots = GlobalSearch.staggerSlotTotal(scope: model.scope, outcomes: model.outcomes)
+            await FadeStagger.settle(afterRevealing: slots) { fadeSettledResults = key }
         }
     }
 
@@ -119,15 +124,62 @@ struct GlobalSearchResults: View {
     }
 
     /// Stagger index for a result row, or -1 (instant) once its result set has settled.
+    /// Slots run top to bottom: a section's title in "All", then its rows (web
+    /// `SearchModal` stagger).
     ///
-    /// - Parameter index: Row position across both sections, or nil when unknown.
+    /// - Parameters:
+    ///   - section: `.songs`, `.players` or `.bands`.
+    ///   - offset: Row position within the section, or nil when unknown.
     /// - Returns: Index to hand `festivalFadeIn(isLoaded:index:)`.
-    private func resultFadeIndex(_ index: Int?) -> Int {
-        FadeStagger.index(index ?? Int.max, settled: fadeSettledResults == resultFadeKey)
+    private func resultFadeIndex(_ section: GlobalSearchScope, offset: Int?) -> Int {
+        let outcomes = model.outcomes
+        let start = GlobalSearch.staggerStart(of: section, scope: model.scope, outcomes: outcomes)
+        let title = GlobalSearch.showsSectionTitle(section, scope: model.scope, outcomes: outcomes) ? 1 : 0
+        return FadeStagger.index(
+            offset.map { start + title + $0 } ?? Int.max,
+            settled: fadeSettledResults == resultFadeKey
+        )
     }
 
     /// One result card's List row chrome.
     private static let cardInsets = EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 16)
+
+    // MARK: Section titles
+
+    /// A section's Songs / Players / Bands title above its rows, in "All" only (issue
+    /// #348, section-headers R9; web `SearchModal` `<h3>`). The shared section title, as
+    /// a List row rather than a pinned header: the web title scrolls with its rows.
+    ///
+    /// - Parameter section: `.songs`, `.players` or `.bands`.
+    @ViewBuilder private func sectionTitle(_ section: GlobalSearchScope) -> some View {
+        let outcomes = model.outcomes
+        if GlobalSearch.showsSectionTitle(section, scope: model.scope, outcomes: outcomes) {
+            let isFirst = model.scope.sections.first {
+                GlobalSearch.rendersSection($0, outcomes: outcomes)
+            } == section
+            FestivalSectionHeader(section.title)
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("fst.global-search.section.\(section.rawValue)")
+                // Web `section` / `sectionSpaced`: a gap above every title but the first,
+                // the title inset 4pt inside the cards' margin.
+                .listRowInsets(EdgeInsets(
+                    top: isFirst ? 2 : Self.sectionSpacing, leading: 20, bottom: 6, trailing: 20
+                ))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .festivalFadeIn(
+                    isLoaded: true,
+                    index: FadeStagger.index(
+                        GlobalSearch.staggerStart(of: section, scope: model.scope, outcomes: outcomes),
+                        settled: fadeSettledResults == resultFadeKey
+                    )
+                )
+        }
+    }
+
+    /// Space above a section title that follows another section.
+    private static let sectionSpacing: CGFloat = 16
 
     /// Vertically centred between the scope bar and the bottom safe area.
     private func centeredMessage(_ text: String) -> some View {
@@ -167,6 +219,7 @@ struct GlobalSearchResults: View {
             EmptyView()
         case .ready:
             Section {
+                sectionTitle(.songs)
                 ForEach(model.songs) { song in
                     Button {
                         open(.songDetail(song))
@@ -196,7 +249,8 @@ struct GlobalSearchResults: View {
                     .accessibilityIdentifier("fst.global-search.result.song")
                     // Each new result set fades in, staggered like the web list.
                     .festivalFadeIn(
-                        isLoaded: true, index: resultFadeIndex(model.songs.firstIndex(of: song))
+                        isLoaded: true,
+                        index: resultFadeIndex(.songs, offset: model.songs.firstIndex(of: song))
                     )
                 }
             }
@@ -220,6 +274,7 @@ struct GlobalSearchResults: View {
             EmptyView()
         case .ready:
             Section {
+                sectionTitle(.players)
                 PlayerSearchResultRows(model.players) { player in
                     Button {
                         // Web: the selected profile opens Statistics, others their page.
@@ -244,9 +299,7 @@ struct GlobalSearchResults: View {
                     .accessibilityIdentifier("fst.global-search.result.player")
                     .festivalFadeIn(
                         isLoaded: true,
-                        index: resultFadeIndex(
-                            model.players.firstIndex(of: player).map { $0 + model.songs.count }
-                        )
+                        index: resultFadeIndex(.players, offset: model.players.firstIndex(of: player))
                     )
                 }
             }
@@ -262,6 +315,7 @@ struct GlobalSearchResults: View {
     ///   - section: `.songs`, `.players` or `.bands`.
     private func failureRow(_ issue: ServiceIssue, section: GlobalSearchScope) -> some View {
         Section {
+            sectionTitle(section)
             ServiceStatusInline(
                 issue, scope: "global-search.\(section.rawValue)", showsRetryButton: false,
                 fallbackTitle: GlobalSearch.unavailableTitle(for: section)
@@ -269,6 +323,8 @@ struct GlobalSearchResults: View {
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("fst.global-search.\(section.rawValue)-error")
             .listRowInsets(Self.cardInsets)
+            // Takes its slot after its title, like the web's failed section.
+            .festivalFadeIn(isLoaded: true, index: resultFadeIndex(section, offset: 0))
         }
         .modifier(ResultSectionChrome())
     }
@@ -289,6 +345,7 @@ struct GlobalSearchResults: View {
             EmptyView()
         case .ready:
             Section {
+                sectionTitle(.bands)
                 ForEach(Array(model.bands.enumerated()), id: \.element.id) { offset, band in
                     PlayerBandRow(
                         entry: band, open: open,
@@ -299,7 +356,7 @@ struct GlobalSearchResults: View {
                     .listRowBackground(Color.clear)
                     .festivalFadeIn(
                         isLoaded: true,
-                        index: resultFadeIndex(offset + model.songs.count + model.players.count)
+                        index: resultFadeIndex(.bands, offset: offset)
                     )
                 }
             }
@@ -319,7 +376,7 @@ struct GlobalSearchResults: View {
 
 }
 
-/// Clear, separator-free chrome for a run of result cards (no heading, issue #299).
+/// Clear, separator-free chrome for a run of result cards (any title is its own row).
 private struct ResultSectionChrome: ViewModifier {
     func body(content: Content) -> some View {
         content
