@@ -1375,7 +1375,8 @@
         "patterns": [
           "scroll-edge",
           "surface-materials",
-          "load-transition"
+          "load-transition",
+          "wide-columns"
         ],
         "controls": [],
         "pages": [
@@ -1401,7 +1402,8 @@
         306,
         307,
         318,
-        319
+        319,
+        353
       ]
     },
     {
@@ -2763,7 +2765,7 @@
       "title": "Wide columns",
       "status": "current",
       "doc": ".agents/patterns/wide-columns.md",
-      "summary": "Page rows and cards show in two columns only in wide landscape windows (iPad landscape, iPhone Duo unfolded landscape, a wide Mac surface), row-major under full-width headings, meeting at the Duo hinge, reflowing without reloading; portrait and compact windows keep one column.",
+      "summary": "Page rows and cards show in two columns only in wide landscape windows (iPad landscape, iPhone Duo unfolded landscape, a wide Mac surface), row-major under full-width headings, meeting at the Duo hinge, reflowing without reloading; portrait and compact windows keep one column; full-width leaderboards pair rank rows the same way under one full-width pinned row and pager, while split sub-pages stay one column.",
       "keywords": [
         "two column",
         "two-column",
@@ -2783,6 +2785,10 @@
           {
             "path": "apple/Sources/FestivalUI/App/Layout/WideColumns.swift",
             "symbol": "WideColumns"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/WideColumns.swift",
+            "symbol": "WideColumnsRow"
           },
           {
             "path": "apple/Sources/FestivalUI/App/Layout/HingeColumns.swift",
@@ -2822,13 +2828,16 @@
           "compete",
           "settings",
           "full-rankings",
-          "song-leaderboard"
+          "song-leaderboard",
+          "band-rankings",
+          "song-band-leaderboard"
         ]
       },
       "guards": [],
       "supersedes": [],
       "issues": [
-        350
+        350,
+        353
       ]
     },
     {
