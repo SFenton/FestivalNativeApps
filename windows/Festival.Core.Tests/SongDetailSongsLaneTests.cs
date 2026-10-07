@@ -125,8 +125,10 @@ public class SongDetailSongsLaneTests
         var mine = lead.Rows[10];
         Assert.True(mine.IsSelectedPlayer);
         Assert.Equal("#30", mine.Rank);
-        // The player's page of the full board, scrolled to their row once it has faded in (web navToPlayer, issue #323).
-        Assert.Equal(new AppRoute.SongLeaderboard("s2", Instrument.Lead, 2, NavToPlayer: true), mine.Route);
+        Assert.Equal(new AppRoute.SongLeaderboard("s2", Instrument.Lead, 2, RevealSelected: true), mine.Route); // the player's page of the full board
+        Assert.Equal(new SelectedRowAction(2), mine.SelectedAction);
+        Assert.EndsWith(". Jump to your position", mine.Announcement, StringComparison.Ordinal);
+        Assert.Null(lead.Rows[0].SelectedAction);
         Assert.Equal(new AppRoute.Player("a1", "Player 1"), lead.Rows[0].Route);
         Assert.Equal("Fixture One", mine.Name);
         // One leaderboard row design (operator batch 7.7): the card shares one rank and score width with row eleven.

@@ -50,13 +50,13 @@ import kotlinx.coroutines.launch
  *
  * Obtain one with [rememberLoadSwap]; draw [shown] with [staggered] (or [contentModifier]) while
  * [showsContent], and [LoadSwapSpinner] / [loadSwapSpinnerItem] while [showsSpinner]. A pinned
- * row kept composed beside the spinner adds [pinnedContentModifier]; pagers and pickers add
- * neither and stay usable.
+ * row kept composed beside the spinner adds [pinnedStaggered] and [pinnedContentModifier]; pagers
+ * and pickers add neither and stay usable.
  *
  * @param T Value the content is drawn from (usually a `LoadState`).
  */
 @Stable
-class LoadSwap<T> internal constructor(initial: T, ready: Boolean, key: Any?) {
+class LoadSwap<T> internal constructor(initial: T, ready: Boolean, key: Any?, pinnedKey: Any?) {
     /** Current phase. */
     var phase: LoadSwapPhase by mutableStateOf(LoadSwapPolicy.initial(ready))
         internal set
@@ -75,6 +75,20 @@ class LoadSwap<T> internal constructor(initial: T, ready: Boolean, key: Any?) {
     internal val spinnerAlpha = Animatable(1f)
     internal var current: T by mutableStateOf(initial)
 
+    /** Pinned key of the latest inputs (see [rememberLoadSwap]). */
+    internal var pinnedKey: Any? by mutableStateOf(pinnedKey)
+
+    /** Pinned key of the committed content, [NeverCommitted] before the first commit. */
+    internal var committedPinnedKey: Any? by mutableStateOf(if (ready) pinnedKey else NeverCommitted)
+
+    /** Whether the last commit changed the pinned key (or was the first load), so pinned content re-enters. */
+    internal var pinnedEnters: Boolean by mutableStateOf(!ready)
+
+    /**
+     * Whether pinned content is stale: the pending reload can change it because its pinned key
+     * differs from the committed one (or it re-runs on every reload). False while content is in.
+     */
+    val pinnedStale: Boolean get() = phase != LoadSwapPhase.ContentIn && (pinnedKey === EveryReload || pinnedKey != committedPinnedKey)
     /** The value to draw: the latest data while content is in, the stale value while it fades out. */
     val shown: T get() = current
 
@@ -92,10 +106,13 @@ class LoadSwap<T> internal constructor(initial: T, ready: Boolean, key: Any?) {
      * slot holds the pager in place, issue #93; the Leaderboards overview list, whose cards keep
      * loading under the spinner, issue #178): while the spinner shows it is hidden, silent to TalkBack
      * and ignores touches, with or without Reduce Motion, so stale content never shows under
-     * the spinner (issue #149). Never apply it to controls: pickers and pagers stay visible and
-     * usable during a swap so a newer selection supersedes the pending one (load-transition R4).
+     * the spinner (issue #149). Content whose pinned key the reload doesn't change (a page-only
+     * reload of a board whose "your score" row is the same on every page, issue #190) stays
+     * visible and usable, like the web footer (load-transition R2). Never apply it to controls:
+     * pickers and pagers stay visible and usable during a swap so a newer selection supersedes
+     * the pending one (load-transition R4).
      */
-    val pinnedContentModifier: Modifier get() = if (showsSpinner) HiddenWhileLoading else Modifier
+    val pinnedContentModifier: Modifier get() = if (showsSpinner && pinnedStale) HiddenWhileLoading else Modifier
 
     /** Spinner opacity for its fade-out, read only in the draw phase. */
     val spinnerModifier: Modifier = Modifier.graphicsLayer { alpha = spinnerAlpha.value }
@@ -107,6 +124,19 @@ class LoadSwap<T> internal constructor(initial: T, ready: Boolean, key: Any?) {
      * @return Modifier.
      */
     fun Modifier.staggered(index: Int): Modifier = then(contentModifier).festivalFadeIn(revealed, fadeInStagger(index))
+
+    /**
+     * [staggered] for pinned content (web `PaginatedLeaderboard` `footerAnimKey`): it fades out
+     * with the rows and re-enters with the child at [index] on the first load and when its pinned
+     * key changes; on any other reload (page, retry) it stays in place without a fade (issue #190).
+     *
+     * @param index Zero-based order of the child it enters with.
+     * @return Modifier.
+     */
+    fun Modifier.pinnedStaggered(index: Int): Modifier = then(pinnedFade).festivalFadeIn(revealed || !pinnedEnters, fadeInStagger(index))
+
+    /** The content fade-out, applied only while the pinned content is stale. */
+    private val pinnedFade: Modifier = Modifier.graphicsLayer { alpha = if (pinnedStale) contentAlpha.value else 1f }
 }
 
 /**
@@ -118,27 +148,33 @@ class LoadSwap<T> internal constructor(initial: T, ready: Boolean, key: Any?) {
  * @param key Selection [target] belongs to, for view models that swap to ready data at once
  *   (cache hits); a change runs the transition even if [ready] never went false. Leave null
  *   when every reload passes through a not-ready state.
+ * @param pinnedKey What pinned content beside the rows depends on (web `footerAnimKey`: the
+ *   instrument, metric or invalid-score leeway, never the page). Pinned content hides beside the
+ *   spinner and re-enters with the rows only when it changes; the default hides it on every reload.
  * @return Swap state.
  */
 @Composable
-fun <T> rememberLoadSwap(target: T, ready: Boolean, key: Any? = null): LoadSwap<T> {
+fun <T> rememberLoadSwap(target: T, ready: Boolean, key: Any? = null, pinnedKey: Any? = EveryReload): LoadSwap<T> {
     val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
-    val swap = remember { LoadSwap(target, ready, key) }
-    val inputs = remember { MutableStateFlow(LoadSwapInputs(target, ready, key, reduceMotion)) }
-    val live = swap.phase == LoadSwapPhase.ContentIn && ready && key == swap.committedKey
+    val swap = remember { LoadSwap(target, ready, key, pinnedKey) }
+    val inputs = remember { MutableStateFlow(LoadSwapInputs(target, ready, key, pinnedKey, reduceMotion)) }
+    val live = swap.phase == LoadSwapPhase.ContentIn && ready && key == swap.committedKey && pinnedKey == swap.committedPinnedKey
     swap.current = if (live) target else swap.committed
+    swap.pinnedKey = pinnedKey
     SideEffect {
         if (live) swap.committed = target
-        inputs.value = LoadSwapInputs(target, ready, key, reduceMotion)
+        inputs.value = LoadSwapInputs(target, ready, key, pinnedKey, reduceMotion)
     }
     LaunchedEffect(swap) {
-        fun swapped(input: LoadSwapInputs<T>) = input.key != swap.committedKey
+        fun swapped(input: LoadSwapInputs<T>) = input.key != swap.committedKey || input.pinnedKey != swap.committedPinnedKey
 
         suspend fun commit(animate: Boolean) {
             val latest = inputs.value
             swap.committed = latest.target
             swap.current = latest.target
             swap.committedKey = latest.key
+            swap.pinnedEnters = latest.pinnedKey === EveryReload || latest.pinnedKey != swap.committedPinnedKey
+            swap.committedPinnedKey = latest.pinnedKey
             swap.sawSpinner = false
             swap.contentAlpha.snapTo(1f)
             swap.revealed = !animate
@@ -210,9 +246,16 @@ fun <T> rememberLoadSwap(target: T, ready: Boolean, key: Any? = null): LoadSwap<
  * @property target Latest value.
  * @property ready Whether [target] can be shown.
  * @property key Selection [target] belongs to.
+ * @property pinnedKey What pinned content beside the rows depends on.
  * @property reduceMotion Remove animations / Reduce Motion.
  */
-private data class LoadSwapInputs<T>(val target: T, val ready: Boolean, val key: Any?, val reduceMotion: Boolean)
+private data class LoadSwapInputs<T>(val target: T, val ready: Boolean, val key: Any?, val pinnedKey: Any?, val reduceMotion: Boolean)
+
+/** Default pinned key: pinned content is stale on every reload. */
+private object EveryReload
+
+/** Committed pinned key before the first commit. */
+private object NeverCommitted
 
 /**
  * The swap's spinner, centred in the space it is given, with its fade-out.

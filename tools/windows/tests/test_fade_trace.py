@@ -220,7 +220,7 @@ BOARD = ["fade-arm list=RowsRepeater start=0 at=1000",
          "fade-enter list=RowsRepeater target=SpotlightPanel delay=125 motion=1 at=1001",
          "fade-hold list=RowsRepeater held=2 wait=2025 at=1002",
          "fade-rush list=RowsRepeater start=0 rushed=1 kept=0 since=2030 at=3030",
-         "fade-reveal list=RowsRepeater index=16 wait=2025 scrolled=1 at=3030",
+         "fade-reveal list=RowsRepeater index=16 wait=2025 scrolled=1 motion=1 at=3030",
          "fade-play list=RowsRepeater index=17 delay=0 motion=1 at=3100"]
 """Song Detail → player score: the board loads, holds its tail, rushes row 12 and scrolls to row 16."""
 
@@ -243,7 +243,7 @@ class RevealTests(unittest.TestCase):
         unrushed = [line.replace("rushed=1", "rushed=0") for line in BOARD]
         self.assertIn("1 were still pending", f.check_reveal(events(*unrushed), "RowsRepeater")[0])
         # Scrolled before the row's own entrance finished.
-        hasty = [line.replace("index=16 wait=2025 scrolled=1 at=3030", "index=16 wait=2025 scrolled=1 at=1500") for line in BOARD]
+        hasty = [line.replace("scrolled=1 motion=1 at=3030", "scrolled=1 motion=1 at=1500") for line in BOARD]
         self.assertIn("before the row's own entrance", f.check_reveal(events(*hasty), "RowsRepeater")[0])
         # Went to another row, or did not scroll.
         self.assertIn("row 16, expected 15", f.check_reveal(events(*BOARD), "RowsRepeater", 15)[0])
@@ -254,6 +254,21 @@ class RevealTests(unittest.TestCase):
         self.assertIn("['index 17']", f.check_reveal(events(*staggered), "RowsRepeater")[0])
         self.assertIn("never armed", f.check_reveal(events(*BOARD[7:]), "RowsRepeater")[0])
 
+    def test_reduce_motion_reveals_at_once(self):
+        still = ["fade-arm list=RowsRepeater start=0 at=1000",
+                 "fade-play list=RowsRepeater index=0 delay=0 motion=0 at=1000",
+                 "fade-reveal list=RowsRepeater index=16 wait=0 scrolled=1 motion=0 at=1001",
+                 "fade-rush list=RowsRepeater start=0 rushed=0 kept=0 since=40 at=1040"]
+        # The jump's own scroll logs a rush that starts nothing.
+        self.assertEqual([], f.check_reveal(events(*still), "RowsRepeater", 16, motion=False))
+        self.assertIn("held or rushed", f.check_reveal(events(*[line.replace("rushed=0", "rushed=2") for line in still]),
+                                                       "RowsRepeater", 16, motion=False)[0])
+        # A motion run judged as Reduce Motion fails: it waited, held, rushed and faded.
+        problems = " ".join(f.check_reveal(events(*BOARD), "RowsRepeater", 16, motion=False))
+        for expected in ("motion=1", "didn't scroll at once", "held or rushed", "faded with motion"):
+            self.assertIn(expected, problems)
+        self.assertIn("expected 15", f.check_reveal(events(*still), "RowsRepeater", 15, motion=False)[0])
+        self.assertIn("fade-reveal missing", f.check_reveal(events(*still[:2]), "RowsRepeater", motion=False)[0])
 
 class DelayedPlayTests(unittest.TestCase):
     """Every delayed fade belongs to an entrance: no direct ``FadeIn.Play(element, delay)`` (review #358)."""

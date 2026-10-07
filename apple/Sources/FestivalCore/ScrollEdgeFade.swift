@@ -5,16 +5,19 @@ import Foundation
 /// The ramps of every scroll-edge fade (`.agents/patterns/scroll-edge.md`): content is
 /// clear at a pinned edge and fully drawn a ramp away from it.
 ///
-/// Bottom chrome (pagers, footers) follows the web's `useScrollFade` (36 px,
-/// `FortniteFestivalWeb/src/hooks/ui/useScrollFade.ts`): rows are fully drawn until
-/// ``distance`` above the chrome's top edge, fade to clear at that edge and are not
-/// drawn beneath the chrome at all (issue #93). Top edges (sheet headers, pinned section
-/// titles) follow the web's `useScrollMask` (40 px, ``topDistance``). Both ramps are
+/// A board's bottom chrome (pager, pinned player or band footer) follows the web board
+/// pages' `useScrollMask` (40 px, `FortniteFestivalWeb/src/pages/Page.tsx`, whose
+/// viewport `useLeaderboardFooterScrollMargin` ends at the footer): rows are fully drawn
+/// until ``distance`` above the chrome's top edge, fade to clear at that edge and are not
+/// drawn beneath the chrome at all (issues #93, #329). Top edges (sheet headers, pinned
+/// section titles) follow the same `useScrollMask` (``topDistance``). Both ramps are
 /// linear, and these are their only definitions on Apple platforms (scroll-edge R3,
-/// issue #308).
+/// issue #308). The web's 36 px `useScrollFade` belongs to lists (Suggestions, Search,
+/// player statistics), not to boards.
 public enum ScrollEdgeFade {
-    /// Web `useScrollFade` `DEFAULT_DISTANCE`: the height of the fade above bottom chrome.
-    public static let distance: Double = 36
+    /// Web `useScrollMask` `DEFAULT_SIZE` on the board pages: the height of the fade above
+    /// a board's bottom chrome (issue #329).
+    public static let distance: Double = 40
 
     /// Web `useScrollMask` `DEFAULT_SIZE`: the height of the fade below a top edge (a
     /// sheet header or a pinned section title).
@@ -83,7 +86,7 @@ public enum ScrollEdgeFade {
     /// resting place above the chrome.
     ///
     /// The web drops its bottom fade once the list is scrolled to the end
-    /// (`useScrollFade` `atBottom`); here the fade shrinks with the remaining scroll,
+    /// (`useScrollMask` `atBottom`); here the fade shrinks with the remaining scroll,
     /// so it never pops and the last row comes to rest unfaded, one row gap above the
     /// chrome, with no reserved band under it (issue #293).
     ///

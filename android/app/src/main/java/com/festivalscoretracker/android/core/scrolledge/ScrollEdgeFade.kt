@@ -6,18 +6,19 @@ package com.festivalscoretracker.android.core.scrolledge
  * The ramps of every Android scroll-edge fade (`.agents/patterns/scroll-edge.md`): content is
  * fully clear at a pinned edge and fully drawn a ramp away from it (R2).
  *
- * Top edges (pinned section titles) follow the web's `useScrollMask` (40 px,
- * `FortniteFestivalWeb/src/hooks/ui/useScrollMask.ts`); bottom chrome (the leaderboard footer and
- * pager) follows `useScrollFade` (36 px, `useScrollFade.ts`). Both ramps are linear and grow with
- * the scroll like the web's `min(scrollTop, distance)`, so nothing is dimmed at rest (R4). These
- * are their only definitions on Android (R3, issue #308).
+ * Top edges (pinned section titles) and board bottom chrome (the leaderboard footer and pager)
+ * both follow the web's `useScrollMask` (40 px, `FortniteFestivalWeb/src/hooks/ui/useScrollMask.ts`):
+ * `Page.tsx` masks every board with it, and `useLeaderboardFooterScrollMargin` ends that viewport
+ * at the floating footer (issue #329; `useScrollFade`'s 36 px belongs to lists, not boards). Both
+ * ramps are linear and grow with the scroll like the web's `min(scrollTop, distance)`, so nothing
+ * is dimmed at rest (R4). These are their only definitions on Android (R3, issue #308).
  */
 object ScrollEdgeFade {
     /** Web `useScrollMask` `DEFAULT_SIZE`: the ramp below a pinned top edge, in dp. */
     const val TOP_DP = 40f
 
-    /** Web `useScrollFade` `DEFAULT_DISTANCE`: the ramp above bottom chrome, in dp. */
-    const val BOTTOM_DP = 36f
+    /** Web `useScrollMask` `DEFAULT_SIZE` on the board pages: the ramp above a board's footer and pager, in dp. */
+    const val BOTTOM_DP = 40f
 
     /**
      * Whether edges are hard cuts instead of ramps (R7): Increase Contrast (the app toggle or the

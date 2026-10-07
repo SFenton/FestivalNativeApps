@@ -17,7 +17,7 @@ the page scroller of a page entrance) and ``at`` the app's monotonic clock (ms):
     fade-rush list=CardList start=0 rushed=3 kept=0 since=420 at=5600
     fade-close list=CardList start=0 since=2600 at=7800
     fade-hold list=RowsRepeater held=8 wait=1650 at=5130
-    fade-reveal list=RowsRepeater index=17 wait=1650 scrolled=1 at=6780
+    fade-reveal list=RowsRepeater index=17 wait=1650 scrolled=1 motion=1 at=6780
     fade-skip list=CardList index=6 at=5700
 
 A journey drives the app in phases and judges only the lines each phase appended, so it can prove that a page fades
@@ -461,19 +461,22 @@ def check_entrance_rush(events: list[FadeEvent], owner: str, targets: tuple[str,
 
 
 def check_reveal(events: list[FadeEvent], owner: str, index: int | None = None,
-                 targets: tuple[str, ...] | list[str] = ()) -> list[str]:
+                 targets: tuple[str, ...] | list[str] = (), motion: bool = True) -> list[str]:
     """Web ``navToPlayer``/``navToBand`` (issue #323): the selected-row reveal waits for its row, then rushes and scrolls.
 
     The phase opens a board on its selected row. The board must arm from 0, its pinned row (``targets``) must enter
     with it, the reveal must hold the rows below the first screen (``fade-hold``), wait at least the row's own
     entrance (``fade-reveal`` ``wait``, timed from the hold) and scroll (``scrolled=1``) after a rush of the board
     (:func:`_rush_problems`: nothing pending keeps a delay), and nothing of the board may fade with a delay after it.
+    Under Reduce Motion (`motion` false, R6) the reveal scrolls at once (`wait=0 motion=0`) and nothing fades,
+    holds or rushes.
 
     Args:
         events: Events of the phase.
         owner: The board list.
         index: The selected row's index, if known.
         targets: Entrance elements (the pinned row) that must have entered with the board.
+        motion: Whether the app ran with motion allowed.
 
     Returns:
         Failures.
@@ -482,6 +485,8 @@ def check_reveal(events: list[FadeEvent], owner: str, index: int | None = None,
     reveal_at = next((i for i, e in enumerate(own) if e.kind == "reveal"), None)
     if reveal_at is None:
         return [f"{owner}: no selected-row reveal ran (fade-reveal missing)"]
+    if not motion:
+        return _still_reveal_problems(own, own[reveal_at], owner, index)
     armed = [i for i, e in enumerate(own[:reveal_at]) if e.kind == "arm" and e.values.get("start") == 0]
     if not armed:
         return [f"{owner}: the board never armed its entrance before the reveal"]
@@ -505,6 +510,37 @@ def check_reveal(events: list[FadeEvent], owner: str, index: int | None = None,
         failures.append(f"{owner}: the reveal scrolled without rushing the entrance (no fade-rush before fade-reveal)")
         return failures
     return failures + [f"{owner}: {problem}" for problem in _rush_problems(own, rush_at)]
+
+
+def _still_reveal_problems(own: list[FadeEvent], reveal: FadeEvent, owner: str, index: int | None) -> list[str]:
+    """Reduce Motion (load-transition R6): the reveal scrolls at once and the board neither fades, holds nor rushes.
+
+    Args:
+        own: The board's events of the phase.
+        reveal: Its ``fade-reveal`` line.
+        owner: The board list.
+        index: The selected row's index, if known.
+
+    Returns:
+        Failures.
+    """
+    failures = []
+    if index is not None and reveal.values.get("index") != index:
+        failures.append(f"{owner}: the reveal went to row {reveal.values.get('index')}, expected {index}")
+    if reveal.values.get("motion") != 0:
+        failures.append(f"{owner}: the Reduce Motion reveal ran with motion={reveal.values.get('motion')}")
+    if reveal.values.get("scrolled") != 1 or int(reveal.values.get("wait", 0)) != 0:
+        failures.append(f"{owner}: the Reduce Motion reveal didn't scroll at once "
+                        f"(wait={reveal.values.get('wait')} scrolled={reveal.values.get('scrolled')})")
+    # The instant jump is itself a scroll, so it may log a rush; under Reduce Motion that rush finds nothing to start.
+    moved = sorted({e.kind for e in own if e.kind in ("hold", "early") or (e.kind == "rush" and e.values.get("rushed"))})
+    if moved:
+        failures.append(f"{owner}: the Reduce Motion reveal held or rushed fades ({', '.join(moved)})")
+    faded = [e.values.get("index", e.values.get("target")) for e in own
+             if e.kind in ("play", "enter") and e.values.get("motion") == 1]
+    if faded:
+        failures.append(f"{owner}: rows faded with motion under Reduce Motion: {faded}")
+    return failures
 
 # endregion
 

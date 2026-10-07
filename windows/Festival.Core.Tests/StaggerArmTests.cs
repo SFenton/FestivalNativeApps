@@ -349,4 +349,21 @@ public sealed class StaggerArmTests
         Assert.True(arm.SuppressedByScroll(Ms(4500), 6, 8));
         Assert.False(arm.SuppressedByScroll(Ms(6000), 6, 8));
     }
+
+    [Fact]
+    public void AppendedBatch_KeepsTheLoadsScroll()
+    {
+        var arm = Loaded();
+        Assert.Equal(ArmScroll.Rushed, arm.Scrolled(0, 120, Ms(1100)));
+        arm.Arm(20, Ms(1300));
+        Assert.True(arm.HasScrolled);
+    }
+
+    [Fact]
+    public void LayoutRounding_IsNotTheReaderScrolling()
+    {
+        var arm = Loaded(0, 100);
+        Assert.Equal(ArmScroll.None, arm.Scrolled(0, 100.5, Ms(1100)));
+        Assert.False(arm.HasScrolled);
+    }
 }

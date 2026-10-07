@@ -494,9 +494,10 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
             })
             {
                 IsSelectedPlayer = true,
-                // Web spotlight row (leaderboardAtSelectedPlayer): the full board at the player's page (25 rows a
-                // page), scrolled to the player's row once it has faded in.
-                Route = new AppRoute.SongLeaderboard(Song.SongId, Instrument, (detail.Rank.Value - 1) / 25 + 1, NavToPlayer: true),
+                // Web spotlight row (navToPlayer): the full board at the player's page, revealing the highlighted row; the
+                // same rule as the selected band appended to a band preview (pattern leaderboard-row R7, issue #307).
+                SelectedAction = SelectedRowAction.Preview(detail.Rank.Value, isAppended: true),
+                Route = new AppRoute.SongLeaderboard(Song.SongId, Instrument, LeaderboardPaging.PageForRank(detail.Rank.Value), RevealSelected: true),
             });
         }
         // One set of columns for the card, including row eleven (web computeRankWidth / scoreWidth; issue #37).
@@ -639,6 +640,9 @@ public sealed record LeaderboardRow(LeaderboardEntry Entry) : ILeaderboardScoreR
     /// <summary>Where the row leads (player profile, or the full board for the player's own row eleven).</summary>
     public AppRoute? Route { get; init; }
 
+    /// <summary>The appended row eleven's selected-row action (its jump), named last in <see cref="Announcement"/>.</summary>
+    public SelectedRowAction? SelectedAction { get; init; }
+
     /// <summary>Badge UIA ID (<c>fst.score.accuracy.preview.&lt;instrument&gt;.&lt;accountId&gt;</c>), unique across chart cards.</summary>
     public string BadgeAutomationId => $"fst.score.accuracy.preview.{InstrumentId}." +
                                        (string.IsNullOrEmpty(Entry.AccountId) ? "rank-" + Entry.Rank : Entry.AccountId);
@@ -651,11 +655,12 @@ public sealed record LeaderboardRow(LeaderboardEntry Entry) : ILeaderboardScoreR
 
     /// <summary>Builds the screen-reader summary.</summary>
     /// <param name="season">Whether to read the season.</param>
-    /// <returns>Rank, name, score, accuracy, full combo, season, then "you" on the selected player's row.</returns>
+    /// <returns>Rank, name, score, accuracy, full combo, season, "you" on the selected player's row, then its destination.</returns>
     private string Announce(bool season) => $"Rank {Entry.Rank}, {Name}, {Score} points" +
                                   (Accuracy.Length > 0 ? $", {Accuracy} accuracy" : "") +
                                   (IsFullCombo ? ", " + ScoreFormatting.FullComboAnnouncement(HasAccuracy) : "") +
                                   (season && Entry.Season is { } s ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $", season {s}") : "") +
-                                  (IsSelectedPlayer ? ", you" : "");
+                                  (IsSelectedPlayer ? ", you" : "") +
+                                  (SelectedAction is { } action ? $". {action.Destination(SelectedRowSubject.Player)}" : "");
 }
 #endregion
