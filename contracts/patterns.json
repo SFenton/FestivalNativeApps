@@ -1057,6 +1057,30 @@
             "symbol": "LeaderboardEntryRow"
           },
           {
+            "path": "windows/Festival.Core/Domain/LoadSwap.cs",
+            "symbol": "PinnedRowGate"
+          },
+          {
+            "path": "windows/Festival.App/Controls/LoadSwapGate.cs",
+            "symbol": "LoadSwapGate"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/MotionPolicy.cs",
+            "symbol": "PinnedRowReveal"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/BandsSongLeaderboardViewModel.cs",
+            "symbol": "SongBandSpotlightRow"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/LeaderboardsRows.cs",
+            "symbol": "RankingSpotlightViewModel"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/RankingSpotlight.cs",
+            "symbol": "RankingSpotlight"
+          },
+          {
             "path": "windows/Festival.App/Controls/LeaderboardsPager.xaml.cs",
             "symbol": "LeaderboardsPager"
           },
@@ -1155,6 +1179,7 @@
         294,
         295,
         306,
+        307,
         318,
         319
       ]
