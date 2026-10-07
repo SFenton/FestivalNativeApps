@@ -73,6 +73,34 @@ class JourneyTests(unittest.TestCase):
             self.assertNotIn("fixture", page)
             self.assertFalse(page.get("profile", "").startswith("fixture-"))
 
+    def test_unlabeled_states_are_scanned_and_tab_walked(self):
+        """Score and a lone Item Shop bucket (one unlabeled section, fixture and live) must fail on any Axe error and
+        on any focus stop between the page's last action and the first row, or above the first row by arrow key
+        (``SongsPage.ApplyGroupHeaderAccess``; without it Up from the first row lands on an unnamed header Group)."""
+        pages = {p["name"]: p for p in json.loads(JOURNEY.read_text(encoding="utf-8"))}
+        expected = {"hdr-score-unlabeled": "id=fst.songs.row.fixture-orbit", "hdr-shop-lone": "id=fst.songs.row.fixture-song-1",
+                    "hdr-score-live": "class=ListViewItem", "hdr-shop-lone-live": "class=ListViewItem"}
+        for name, first_row in expected.items():
+            with self.subTest(name):
+                page = pages[name]
+                self.assertIs(page.get("scan"), True)
+                steps = page["after_ready"]
+                sequence = ["key:ctrl+f", "assertfocus:name=Search songs", "key:tab", "assertfocus:id=fst.songs.sort",
+                            "key:tab", "assertfocus:id=fst.songs.filter", "key:tab", f"assertfocus:{first_row}",
+                            "key:up", f"assertfocus:{first_row}", "key:shift+tab", "assertfocus:id=fst.songs.filter"]
+                start = steps.index(sequence[0])
+                self.assertEqual(steps[start:start + len(sequence)], sequence)
+                self.assertLess(steps.index("waitgone:id=fst.songs.section-header@5"), start)
+        for name in ("hdr-score-unlabeled", "hdr-shop-lone"):
+            with self.subTest(f"{name} scans the top"):
+                steps = pages[name]["after_ready"]
+                self.assertLess(steps.index("assertfocus:id=fst.songs.filter", steps.index("key:shift+tab")),
+                                steps.index("scan:{stem}-top"))
+                # The required end-of-page scan runs on a deterministic edge (testing/windows.md, issue #259), after
+                # the scrolled-out header is realized again (its recycled container must be re-hidden).
+                self.assertEqual(steps[-1], "assertstate:id=fst.songs.list|scroll=0")
+        self.assertEqual(pages["hdr-shop-lone"]["settings"]["songShopFilter"], {"available": False, "unavailable": True})
+
 
 if __name__ == "__main__":
     unittest.main()

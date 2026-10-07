@@ -89,8 +89,22 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(steps[-1], "key:esc")
         quiet = m.page_steps({"name": "x", "tabs": 0}, "wide", Path("/o"), "", scan=False, tabs=30)
         self.assertFalse(any(s.startswith(("scan:", "tabwalk:")) for s in quiet))
+        required = m.page_steps({"name": "x", "tabs": 0, "scan": True}, "wide", Path("/o"), "", scan=False, tabs=0)
+        self.assertEqual(sum(s.startswith("scan:") for s in required), 1)
         for step in steps:
             u.parse_step(step)
+
+    def test_scan_totals_and_failure(self):
+        self.assertEqual(m.scan_totals([]), (0, []))
+        scans = [{"errors": 0, "findings": []}, {"errors": 2, "findings": [{"rule": "NameNotNull"}, {"rule": "NameNotNull"}]},
+                 {"errors": None}]
+        errors, findings = m.scan_totals(scans)
+        self.assertEqual((errors, len(findings)), (2, 2))
+        self.assertFalse(m.scan_failed({"axe_errors": 2}, scan=False))
+        self.assertTrue(m.scan_failed({"axe_errors": 2}, scan=True))
+        self.assertTrue(m.scan_failed({"axe_errors": 1, "scan_required": True}, scan=False))
+        self.assertFalse(m.scan_failed({"axe_errors": 0, "scan_required": True}, scan=True))
+        self.assertFalse(m.scan_failed({"scan_required": True}, scan=False))
 
     def test_page_steps_stem_placeholder(self):
         page = {"name": "settings", "after_ready": ["scrollinto:id=c", "shot:{stem}-footer.png"]}

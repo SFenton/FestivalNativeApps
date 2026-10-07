@@ -145,15 +145,18 @@ Re-check of #91 (bucket-sort section titles on an opaque band). Not reproduced: 
 
 New automated check: `tools/windows/journeys/a11y-songs-bucket-headers.json` (see [testing/windows.md](../../testing/windows.md)). Each sort's in-list title is moved to a fixed inset below the list top. The check asserts the pinned title and the in-list Level 2 heading, and paint-probes (on the fixture, with Save Data's solid backdrop) that the pixels left of, right of, above and below the title text match the page background.
 
+**Required check for `ApplyGroupHeaderAccess`** (design review of #366): the unlabeled-section pages `hdr-score-unlabeled` and `hdr-shop-lone` (fixture: Score, and Item Shop with only "Not Available in Item Shop" on, so one Not In Shop bucket) plus `hdr-score-live` / `hdr-shop-lone-live` (`--live`). Each page has `"scan": true`, so `a11y_matrix.py` always runs Axe and fails on any error, even without `--scan`. The keyboard sequence is asserted step by step: Ctrl+F → Search songs → Tab Sort → Tab Filter (the page's last action; Jump is hidden with one section) → Tab first row → **Up stays on the first row** → Shift+Tab Filter. The fixture pages also scan at the top, scroll to 50%, then back to 0 (the recycled header container must be re-hidden) before the final scan. Mutation check (2026-10-07): with `ExposesHeader` forced true, both fixture pages fail on Up (`focus is Group "" class=ListViewHeaderItem`) and Axe (`NameNotNull` ×4: two scans). Tab alone never reaches the header (a `ListView` is one Tab stop), so the Up step is what catches the focus stop.
+
 | Configuration | Result |
 |---|---|
 | Live (public catalogue; SFentonX for Has FC/Score): Title, Duration, Year, Item Shop, Has FC, Score at medium | Pass; Axe 0 (Score 2 × `NameNotNull` before the fix) |
 | Live Duration: compact, wide, maximized, snap-left, snap-right | Pass; Axe 0. Pinned "3–4 Minutes" over an in-list "4–5 Minutes" with artwork showing through both |
 | Live Duration: light theme, hc-desert, display scale 100% and 150% | Pass; Axe 0. Light looks identical (Dark-only by design); Desert draws plain system-colour titles on the theme background |
 | Live Title and Duration: text 200% (compact) | Pass. Titles wrap nothing and stay transparent |
-| Fixture paint (`hdr-*-paint`, `hdr-score-unlabeled`): medium | Pass; Axe 0. No band around any title |
+| Fixture paint (`hdr-*-paint`): medium | Pass; Axe 0. No band around any title |
 | Fixture: hc-desert (compact); text 200% + display scale 150% (wide) | Pass |
-| Keyboard (UIA Tab walk, Score sort) | Pass: Tab goes from the page controls to the first row; the unlabeled header is not a stop |
+| Unlabeled sections, fixture (`hdr-score-unlabeled`, `hdr-shop-lone`): compact, medium, wide; hc-desert at all three; text 200% (medium) | Pass; Axe 0; focus sequence as above |
+| Unlabeled sections, live (`hdr-score-live` SFentonX, `hdr-shop-lone-live`): compact, medium, wide | Pass; Axe 0; focus sequence as above |
 
 Open (deferred, parity): on Windows the player metric sorts (Score and the other instrument modes, Last Played) show one unlabeled section, while the web and other platforms bucket them under titles.
 
