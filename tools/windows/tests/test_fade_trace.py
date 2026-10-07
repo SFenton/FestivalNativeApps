@@ -1,4 +1,4 @@
-"""``fade_trace.py``: fade-line parsing, the phase checks and the page wiring tripwire (issue #260).
+"""``fade_trace.py``: fade-line parsing, the phase checks and the page wiring tripwire (issues #260, #323).
 
 Run: ``python -m unittest discover -s tools/windows/tests`` from the repo root (CI: ``native.yml``).
 """
@@ -71,55 +71,73 @@ class CheckTests(unittest.TestCase):
         self.assertEqual([], f.check_none(events("fade-arm list=A start=0")))
         self.assertTrue(f.check_none(events("fade-play list=A index=0")))
 
-    def test_only_new_ignores_close_and_skip_lines(self):
-        self.assertEqual([], f.check_only_new(events("fade-close list=A start=0 since=300", "fade-skip list=A index=6"), "A"))
+    def test_only_new_ignores_rush_close_hold_reveal_and_skip_lines(self):
+        self.assertEqual([], f.check_only_new(events("fade-close list=A start=0 since=300", "fade-skip list=A index=6",
+                                                     "fade-rush list=A start=0 rushed=0 since=200",
+                                                     "fade-hold list=A held=0 wait=900",
+                                                     "fade-reveal list=A index=3 wait=900 scrolled=1"), "A"))
 
 
-SCROLLED = ["fade-arm list=A start=0", "fade-play list=A index=0", "fade-play list=A index=1",
-            "fade-close list=A start=0 since=420", "fade-skip list=A index=5", "fade-skip list=A index=6"]
+SCROLLED = ["fade-arm list=A start=0", "fade-play list=A index=0 delay=125", "fade-play list=A index=1 delay=250",
+            "fade-rush list=A start=0 rushed=2 since=420", "fade-play list=A index=5 delay=0", "fade-skip list=A index=6"]
 
 
 class LoadThenScrollTests(unittest.TestCase):
-    def test_parses_close_and_skip(self):
-        parsed = f.parse(SCROLLED)
-        self.assertEqual(["arm", "play", "play", "close", "skip", "skip"], [e.kind for e in parsed])
-        self.assertEqual({"start": 0, "since": 420}, parsed[3].values)
+    def test_parses_rush_close_hold_reveal_and_skip(self):
+        parsed = f.parse(SCROLLED + ["fade-close list=A start=0 since=2600", "fade-hold list=A held=8 wait=1650",
+                                     "fade-reveal list=A index=17 wait=1650 scrolled=1"])
+        self.assertEqual(["arm", "play", "play", "rush", "play", "skip", "close", "hold", "reveal"],
+                         [e.kind for e in parsed])
+        self.assertEqual({"start": 0, "rushed": 2, "since": 420}, parsed[3].values)
+        self.assertEqual({"index": 17, "wait": 1650, "scrolled": 1}, parsed[8].values)
 
-    def test_passes_when_the_scroll_closes_the_window_and_old_rows_just_appear(self):
+    def test_passes_when_the_scroll_rushes_and_old_rows_fade_together(self):
         self.assertEqual([], f.check_load_then_scroll(events(*SCROLLED), "A"))
-        # A batch appended by the scroll may fade its own rows.
+        # A batch appended by the scroll may stagger its own rows.
         self.assertEqual([], f.check_load_then_scroll(events(*SCROLLED, "fade-arm list=A start=10",
-                                                             "fade-play list=A index=10"), "A"))
+                                                             "fade-play list=A index=10 delay=125"), "A"))
+        # Each kind of proof alone suffices: started pending fades, a delay-0 play or a skip.
+        rush_only = SCROLLED[:4]
+        self.assertEqual([], f.check_load_then_scroll(events(*rush_only), "A"))
+        quiet = [SCROLLED[0], SCROLLED[1], "fade-rush list=A start=0 rushed=0 since=900"]
+        self.assertEqual([], f.check_load_then_scroll(events(*quiet, "fade-skip list=A index=6"), "A"))
+        self.assertEqual([], f.check_load_then_scroll(events(*quiet, "fade-play list=A index=4 delay=0"), "A"))
 
     def test_catches_the_r5_regression(self):
-        # Old rows realized by the early scroll faded (the defect #274's review found).
-        found = f.check_load_then_scroll(events(*SCROLLED, "fade-play list=A index=3"), "A")
-        self.assertIn("old rows realized by the scroll faded in: [3]", found[0])
-        # Old rows faded after a later batch re-armed: only the batch may fade.
-        found = f.check_load_then_scroll(events(*SCROLLED, "fade-arm list=A start=10", "fade-play list=A index=7"), "A")
+        # Rows realized by the scroll kept their stagger instead of fading in together (issue #323).
+        found = f.check_load_then_scroll(events(*SCROLLED, "fade-play list=A index=3 delay=375"), "A")
+        self.assertIn("kept a stagger instead of fading in together: [3]", found[0])
+        # Old rows staggered after a later batch re-armed: only the batch may stagger.
+        found = f.check_load_then_scroll(events(*SCROLLED, "fade-arm list=A start=10",
+                                                "fade-play list=A index=7 delay=125"), "A")
         self.assertIn("[7]", found[0])
-        # A reload arm from 0 after the close does not license old rows either.
-        self.assertTrue(f.check_load_then_scroll(events(*SCROLLED, "fade-arm list=A start=0",
-                                                        "fade-play list=A index=0"), "A"))
+        # A reload arm from 0 after the rush does not license old rows to fade again.
+        found = f.check_load_then_scroll(events(*SCROLLED, "fade-arm list=A start=0", "fade-play list=A index=0"), "A")
+        self.assertIn("faded in again", found[0])
+
+    def test_a_close_inside_the_window_means_the_rush_is_gone(self):
+        closed = [line.replace("fade-rush list=A start=0 rushed=2", "fade-close list=A start=0") for line in SCROLLED]
+        self.assertIn("rush is missing", f.check_load_then_scroll(events(*closed), "A")[0])
+        late = [line.replace("since=420", "since=1500") for line in closed]
+        self.assertIn("not exercised", f.check_load_then_scroll(events(*late), "A")[0])
+        # A journey that lengthens the app's window measures the close against that window.
+        self.assertIn("rush is missing", f.check_load_then_scroll(events(*late), "A", 4000)[0])
 
     def test_fails_when_nothing_was_proven(self):
-        self.assertIn("fade-close missing", f.check_load_then_scroll(events(*SCROLLED[:3]), "A")[0])
-        late = [line.replace("since=420", "since=1500") for line in SCROLLED]
-        self.assertIn("outside the 1000 ms window", f.check_load_then_scroll(events(*late), "A")[0])
-        # A journey that lengthens the app's window measures the close against that window.
-        self.assertEqual([], f.check_load_then_scroll(events(*late), "A", 4000))
-        self.assertIn("no fade-skip", f.check_load_then_scroll(events(*SCROLLED[:4]), "A")[0])
-        # Skips of a kept batch's rows are not old rows of the closed load window.
-        self.assertIn("no fade-skip", f.check_load_then_scroll(
-            events(*SCROLLED[:4], "fade-arm list=A start=10", "fade-skip list=A index=12"), "A")[0])
+        self.assertIn("fade-rush missing", f.check_load_then_scroll(events(*SCROLLED[:3]), "A")[0])
+        quiet = [SCROLLED[0], SCROLLED[1], "fade-rush list=A start=0 rushed=0 since=900"]
+        self.assertIn("nothing proven", f.check_load_then_scroll(events(*quiet), "A")[0])
+        # Skips of a kept batch's rows are not old rows of the rushed load entrance.
+        self.assertIn("nothing proven", f.check_load_then_scroll(
+            events(*quiet, "fade-arm list=A start=10", "fade-skip list=A index=12"), "A")[0])
         # The load itself must still have faded its first screen.
         self.assertIn("no row faded", f.check_load_then_scroll(events(*SCROLLED[3:]), "A")[0])
 
-    def test_a_batch_kept_by_the_close_may_fade_only_its_own_rows(self):
-        kept = ["fade-arm list=A start=0", "fade-play list=A index=0", "fade-arm list=A start=0",
-                "fade-close list=A start=10 since=300", "fade-skip list=A index=6"]
-        self.assertEqual([], f.check_load_then_scroll(events(*kept, "fade-play list=A index=10"), "A"))
-        self.assertIn("[4]", f.check_load_then_scroll(events(*kept, "fade-play list=A index=4"), "A")[0])
+    def test_a_batch_kept_by_the_rush_may_stagger_only_its_own_rows(self):
+        kept = ["fade-arm list=A start=0", "fade-play list=A index=0", "fade-arm list=A start=10",
+                "fade-rush list=A start=10 rushed=1 since=300", "fade-skip list=A index=6"]
+        self.assertEqual([], f.check_load_then_scroll(events(*kept, "fade-play list=A index=10 delay=125"), "A"))
+        self.assertIn("[4]", f.check_load_then_scroll(events(*kept, "fade-play list=A index=4 delay=125"), "A")[0])
 
 
 class RunPhasesTests(unittest.TestCase):

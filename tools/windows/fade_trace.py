@@ -1,19 +1,24 @@
-"""Load-transition fade checks for the Windows UI journeys (issue #260, pattern ``load-transition``).
+"""Load-transition fade checks for the Windows UI journeys (issues #260 and #323, pattern ``load-transition``).
 
 With ``--perf-log`` the app's ``FadeIn`` stagger (``windows/Festival.App/Controls/FadeIn.cs``) writes one line per
-re-arm and one per row it fades, plus one when the first scroll closes a load arm and one per row realized inside the
-window that a purely time-based window would have faded but the scroll close kept still (pattern R5); never for a row
-that just appears otherwise::
+re-arm and one per row it fades; one when a scroll during the load entrance rushes it (``rushed`` pending fades
+started at once, web ``useStaggerRush``) or a scroll after the entrance closes it; one when a selected-row reveal
+holds the rows below the first screen for its automatic scroll, and one when that reveal runs; and one per row
+realized after a rush that a purely time-based window would have faded but the rush let appear in place (pattern
+R5); never for a row that just appears otherwise::
 
     fade-arm list=CardList start=10
     fade-play list=CardList index=10 delay=125 motion=1
-    fade-close list=CardList start=0 since=420
+    fade-rush list=CardList start=0 rushed=3 since=420
+    fade-close list=CardList start=0 since=2600
+    fade-hold list=RowsRepeater held=8 wait=1650
+    fade-reveal list=RowsRepeater index=17 wait=1650 scrolled=1
     fade-skip list=CardList index=6
 
 A journey drives the app in phases and judges only the lines each phase appended, so it can prove that a page fades
-the rows visible at load, that a scroll right after the load closes the window so old rows it realizes just appear,
-that an appended batch fades only its own new rows, that scrolling away and back replays nothing, and that rows held
-behind a spinner fade once when it clears. :data:`WIRING` lists the page calls these
+the rows visible at load, that a scroll right after the load rushes the entrance so the rows it realizes fade in
+together (never staggered, never replayed), that an appended batch fades only its own new rows, that scrolling away
+and back replays nothing, and that rows held behind a spinner fade once when it clears. :data:`WIRING` lists the page calls these
 journeys exercise; ``tests/test_fade_trace.py`` checks them in CI, where WinUI journeys cannot run.
 
 Used by ``suggestions_journey.py`` (scenario ``fade``) and ``search_journey.py`` (journey ``fade-delayed-results``).
@@ -28,7 +33,7 @@ from pathlib import Path
 from typing import Callable
 
 ROOT = Path(__file__).resolve().parents[2]
-LINE = re.compile(r"^fade-(?P<kind>arm|play|close|skip) list=(?P<list>\S+)(?P<rest>(?: \w+=-?\d+)*)\s*$")
+LINE = re.compile(r"^fade-(?P<kind>arm|play|rush|close|hold|reveal|skip) list=(?P<list>\S+)(?P<rest>(?: \w+=-?\d+)*)\s*$")
 ARM_WINDOW_MS = 1000
 """``FadeInTiming.ArmWindow``: how long after an arm newly realized rows may still fade."""
 
@@ -45,13 +50,28 @@ WIRING: tuple[tuple[str, str, str], ...] = (
      "Search rows held behind the spinner appear without a fade (journey fade-delayed-results)"),
     ("windows/Festival.App/Controls/FadeIn.cs",
      r"viewer\.ViewChanging\s*\+=\s*OnViewChanging",
-     "a scroll no longer closes a list's load arm, so old rows it realizes fade (journey suggestions fade: load-scroll)"),
+     "a scroll no longer rushes a list's load entrance (journey suggestions fade: load-scroll)"),
     ("windows/Festival.App/Controls/FadeIn.cs",
-     r"if\s*\(arm\.Scrolled\(x,\s*y\)\)",
-     "rows realized by a scroll the scroller hasn't reported yet fade (journey suggestions fade: load-scroll)"),
+     r"OnScrolled\(list,\s*tracker\.Viewer,\s*arm,\s*arm\.Scrolled\(x,\s*y,\s*now\),\s*now\)",
+     "rows realized by a scroll the scroller hasn't reported yet keep their stagger (journey suggestions fade: load-scroll)"),
+    ("windows/Festival.App/Controls/FadeIn.cs",
+     r"case ArmScroll\.Rushed:\s*\n\s*var rushed = RushPending\(",
+     "pending fades keep trickling in after a scroll instead of fading in together (issue #323, load-scroll)"),
     ("windows/Festival.App/Pages/SongDetailPage.xaml.cs",
-     r"boardArm\.Scrolled\(Scroller\.HorizontalOffset,\s*Scroller\.VerticalOffset\);\s*\n\s*if\s*\(boardArm\.IsOpen",
-     "Song Detail leaderboard cards realized by an early scroll fade in (load-transition R5)"),
+     r"==\s*ArmScroll\.Rushed\)\s*\n\s*FadeIn\.RushPage\(Scroller\)",
+     "Song Detail sections and cards keep their stagger after an early scroll or Quick Links jump (issue #323)"),
+    ("windows/Festival.App/Pages/SongDetailPage.xaml.cs",
+     r"RushOnScroll\(\);\s*\n\s*Enter\(args\.Element",
+     "Song Detail leaderboard cards realized by an early scroll pop in or fade late (load-transition R5)"),
+    ("windows/Festival.App/Pages/LeaderboardsSongPage.xaml.cs",
+     r"SelectedRowReveal\.Start\(RowsRepeater,",
+     "the song leaderboard jumps to the player's row before it has faded in, or not at all (issue #323)"),
+    ("windows/Festival.App/Pages/LeaderboardsFullRankingsPage.xaml.cs",
+     r"SelectedRowReveal\.Start\(RowsRepeater,",
+     "Full Rankings jumps to the player's row before it has faded in (issue #323)"),
+    ("windows/Festival.App/Pages/BandsSongLeaderboardPage.xaml.cs",
+     r"SelectedRowReveal\.Start\(Rows,",
+     "the song band leaderboard jumps to the band's row before it has faded in (issue #323)"),
 )
 
 # region Parsing
@@ -166,14 +186,16 @@ def check_only_new(events: list[FadeEvent], list_id: str) -> list[str]:
 
 
 def check_load_then_scroll(events: list[FadeEvent], list_id: str, window_ms: int = ARM_WINDOW_MS) -> list[str]:
-    """R5: a scroll right after the load closes the window, so old rows it realizes appear without a fade.
+    """R5 (issue #323): a scroll right after the load rushes the entrance, so the rest fades in together.
 
-    The phase loads the list and scrolls it at once, with no wait in between. Before the first ``fade-close`` the
-    load must fade its first screen (:func:`check_load`). The close must land inside the arm's window (else the
-    run did not exercise R5), the scrolling must realize at least one row a time-based window would have faded
-    (``fade-skip``), and no
-    row may fade after the close except the rows of a batch the close kept (its ``start``: a batch appended while the
-    load window was open) or appended later (Suggestions' load-more re-arm).
+    The phase loads the list and scrolls it at once, with no wait in between. Before the first ``fade-rush`` the
+    load must fade its first screen (:func:`check_load`). The scroll must rush the entrance: a ``fade-close`` instead
+    means the scroll came after the entrance had finished, or (inside the arm's window) that the rush is gone. After
+    the rush every fade of an old row must start at once (``delay=0``: the rows the scroll realizes fade in together,
+    never staggered), except the rows of a batch the rush kept (its ``start``: a batch appended while the load
+    entrance ran) or appended later (Suggestions' load-more re-arm); a reload arm from 0 licenses no old row. The run
+    must prove something: the rush started pending fades (``rushed`` > 0), a realized row faded at once, or a row
+    realized after the rush appeared in place (``fade-skip``).
 
     Args:
         events: Events of the phase that loaded the list and scrolled it immediately.
@@ -184,27 +206,39 @@ def check_load_then_scroll(events: list[FadeEvent], list_id: str, window_ms: int
         Failures.
     """
     own = [e for e in events if e.list == list_id]
-    close = next((i for i, e in enumerate(own) if e.kind == "close"), None)
-    if close is None:
-        return [f"{list_id}: no scroll closed the load arm (fade-close missing)"]
-    failures = check_load(own[:close], list_id)
-    since = own[close].values.get("since", window_ms)
-    if since >= window_ms:
-        failures.append(f"{list_id}: the scroll came {since} ms after the load arm, outside the "
-                        f"{window_ms} ms window, so R5 was not exercised")
-    start = own[close].values.get("start") or None
-    skipped, replayed = [], []
-    for event in own[close + 1:]:
+    first = next((i for i, e in enumerate(own) if e.kind in ("rush", "close")), None)
+    if first is None:
+        return [f"{list_id}: no scroll rushed the load entrance (fade-rush missing)"]
+    failures = check_load(own[:first], list_id)
+    if own[first].kind == "close":
+        since = own[first].values.get("since", window_ms)
+        why = (f"inside the {window_ms} ms window, so the rush is missing" if since < window_ms
+               else "after the entrance had finished, so R5's rush was not exercised")
+        return failures + [f"{list_id}: the scroll {since} ms after the load arm closed it (fade-close) {why}"]
+    start = own[first].values.get("start") or None
+    proven = own[first].values.get("rushed", 0) > 0
+    reloaded = False
+    staggered, replayed = [], []
+    for event in own[first + 1:]:
         if event.kind == "arm":
             start = event.values["start"]
+            reloaded = reloaded or start == 0
         elif event.kind == "skip" and (start is None or event.values["index"] < start):
-            skipped.append(event.values["index"])
+            proven = True
         elif event.kind == "play" and (start is None or start == 0 or event.values["index"] < start):
-            replayed.append(event.values["index"])
-    if not skipped:
-        failures.append(f"{list_id}: the scroll realized no old row inside the window (no fade-skip), nothing proven")
+            if reloaded:
+                replayed.append(event.values["index"])
+            elif event.values.get("delay", 0) == 0:
+                proven = True
+            else:
+                staggered.append(event.values["index"])
+    if not proven:
+        failures.append(f"{list_id}: the rush started no pending fade and the scroll realized no old row "
+                        "(rushed=0, no delay-0 play, no fade-skip), nothing proven")
+    if staggered:
+        failures.append(f"{list_id}: rows realized by the scroll kept a stagger instead of fading in together: {staggered}")
     if replayed:
-        failures.append(f"{list_id}: old rows realized by the scroll faded in: {replayed}")
+        failures.append(f"{list_id}: old rows faded in again after a reload arm: {replayed}")
     return failures
 
 
