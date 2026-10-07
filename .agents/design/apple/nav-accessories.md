@@ -68,4 +68,3 @@ Matches the web sidebar (`Sidebar.tsx`): Songs, Suggestions*, Statistics*, Rival
 ## Open issues
 
 - `TODO(orchestrator)`: Duo unfolded list/detail (W2) keeps the tools in the rail as toolbar items.
-- The Duo inner display's regular section set (six sections + Search) relies on the system bar's overflow; not yet captured after #92.

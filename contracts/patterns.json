@@ -768,6 +768,14 @@
             "symbol": "RootProfileButton"
           },
           {
+            "path": "apple/Sources/FestivalUI/App/Shell/FestivalSection.swift",
+            "symbol": "FestivalTabPolicy"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Shell/ShellPresentation.swift",
+            "symbol": "ShellPresentation"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/Songs/SongsBottomFilterField.swift",
             "symbol": "SongsFilterFieldPlacement"
           },
@@ -890,7 +898,8 @@
         160,
         271,
         300,
-        309
+        309,
+        337
       ]
     },
     {

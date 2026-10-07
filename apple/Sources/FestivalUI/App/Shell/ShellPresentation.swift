@@ -19,8 +19,10 @@ import SwiftUI
 ///   device type/idiom"). The size class is known on the first pass, so no geometry
 ///   round trip rebuilds the stacks.
 /// - The regular section set (Leaderboards and Rivals instead of Compete) is used only
-///   by the sidebar shell (iPad/macOS) and by an iPhone Duo inner display (unfolded or
-///   partially folded). Large iPhones in landscape keep their portrait tabs.
+///   by the wide shell (iPad/macOS). Every phone tab bar, the iPhone Duo inner display
+///   included (issue #337), shows the compact set fitted beside the Search tab, so a
+///   fold or unfold never changes the tabs and large iPhones in landscape keep their
+///   portrait tabs.
 struct ShellPresentation: Sendable, Equatable {
     /// Root navigation container.
     enum Navigation: Sendable, Equatable {
@@ -86,10 +88,10 @@ struct ShellPresentation: Sendable, Equatable {
     /// Visible root sections for a profile under this presentation.
     ///
     /// The wide shells (flyout, sidebar) list the web sidebar's destinations
-    /// (``SidebarMenu``, Item Shop included); tabs list the web `BottomNav` sections (``FestivalTabPolicy``). Compact
-    /// phone tabs leave a slot for the Search tab
-    /// (``FestivalTabPolicy/fittingSearchTab(_:limit:)``); the regular set (iPhone Duo
-    /// inner display) keeps the system's own overflow.
+    /// (``SidebarMenu``, Item Shop included); tabs list the web `BottomNav` sections
+    /// (``FestivalTabPolicy``). Phone tabs, iPhone Duo folded or unfolded, leave a slot
+    /// for the Search tab (``FestivalTabPolicy/fittingSearchTab(_:limit:)``); with a
+    /// player selected, Statistics opens from the Profile button and the drawer.
     ///
     /// - Parameters:
     ///   - profile: Selected profile kind.
@@ -133,8 +135,9 @@ struct FestivalShellContent<Content: View>: View {
                 // Folding iPhone Duo from inner portrait crashed UIKit
                 // (`-[UITabBarController _tabs_rebuildTabBarItemsAnimated:]` inserting
                 // out of bounds, 2026-10-04) when the tab set changed in the same update
-                // that pushed the new size class into the tab bar controller. Changing
-                // the tabs one turn later keeps the two updates apart.
+                // that pushed the new size class into the tab bar controller. The Duo
+                // keeps one tab set since #337, but an iPad window crossing size classes
+                // can still publish a stale layout, so a change still lands one turn later.
                 DispatchQueue.main.async { appliedRegularSet = regular }
             }
     }
