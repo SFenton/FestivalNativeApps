@@ -44,6 +44,8 @@ struct StatisticsScreen: View {
                         .accessibilityIdentifier("fst.statistics.choose-profile")
                 }
                 .accessibilityIdentifier("fst.statistics.empty")
+                // Every root page keeps its title (issue #341); the profile sets its own.
+                .festivalNavigationTitle("Statistics")
             }
         }
         .festivalBackground(.carousel, session: session)

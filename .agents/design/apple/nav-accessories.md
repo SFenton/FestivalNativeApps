@@ -65,6 +65,8 @@ Two layout choices, not the system, caused it. (1) The fold read the accessory's
 
 Matches the web sidebar (`Sidebar.tsx`): Songs, Suggestions*, Statistics*, Rivals*, Leaderboards, Item Shop (*player), the current destination highlighted; the profile row (name → profile, **Deselect**) or **Select Profile**, then **Settings** pinned at the bottom. Bands and Licenses are not listed (Bands: search and leaderboard links; Licenses: Settings).
 
+Keep it on iPhone, Duo and iPad (agent decision #338, [page-tools-and-nav-chrome R13](../../patterns/page-tools-and-nav-chrome.md)). On phone shells it is the only route to Item Shop and, with a player, to the Leaderboards and Rivals overviews and Deselect. On iPad it is the window's whole navigation. Removing a row needs another visible route to it first.
+
 ## Open issues
 
 - `TODO(orchestrator)`: Duo unfolded list/detail (W2) keeps the tools in the rail as toolbar items.

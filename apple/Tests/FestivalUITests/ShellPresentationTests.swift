@@ -174,6 +174,77 @@ func sidebarShellUsesRegularSections(layout: DeviceLayout) {
     #expect(phone.last?.intent == .push(.shop))
 }
 
+// MARK: - Drawer reachability (issue #338)
+
+/// Every phone shell: iPhone portrait and landscape, iPhone Duo folded and unfolded.
+private let phoneShellLayouts = [
+    Layouts.iPhonePortrait, Layouts.largeIPhoneLandscape, Layouts.duoFoldedPortrait,
+    Layouts.duoUnfolded, Layouts.duoPartiallyFolded, Layouts.duoUnfoldedPortrait,
+]
+
+/// The root destination a drawer row opens, whether it switches tabs or pushes.
+///
+/// - Parameter intent: A drawer row's intent.
+/// - Returns: The section it reaches, or nil for search and profile intents.
+private func drawerDestination(_ intent: DrawerIntent) -> FestivalSection? {
+    switch intent {
+    case let .select(section): section
+    case .push(.shop): .shop
+    case .push(.statistics): .statistics
+    case .push(.rivals): .rivals
+    case .push(.leaderboards): .leaderboards
+    case .push(.suggestions): .suggestions
+    case .push, .chooseProfile, .deselectProfile, .openSearch: nil
+    }
+}
+
+/// Issue #338 audit: the phone drawer stays (agent decision, pattern R13) because it is
+/// the only phone route to Item Shop and, with a player, to the Leaderboards and Rivals
+/// overviews; every other web-sidebar destination is a tab or the Profile button. If
+/// this set ever empties, the drawer can go (Deselect still needs a new home).
+@Test(arguments: phoneShellLayouts, [FestivalProfileKind.none, .player])
+func phoneDrawerIsTheOnlyRouteToItsDestinations(layout: DeviceLayout, profile: FestivalProfileKind) throws {
+    let presentation = ShellPresentation.resolve(layout: layout, usesSidebarShell: false)
+    #expect(presentation.usesDrawer)
+    let tabs = presentation.sections(profile: profile)
+    let player = try SelectedPlayerIdentity(
+        searchResult: PlayerSearchResult(accountId: "fixture-player-1", displayName: "Fixture Player 1")
+    )
+    let profileButton = ProfileButtonAction.resolve(
+        selectedPlayer: profile == .player ? player : nil,
+        statisticsVisible: tabs.contains(.statistics),
+        selected: .songs, searchActive: false, topRoute: nil
+    )
+    let profileButtonDestination: FestivalSection? = switch profileButton {
+    case .navigate(.push(.statistics)), .navigate(.select(.statistics)): .statistics
+    default: nil
+    }
+    let drawerRows = DrawerMenu.browse(profile: profile, visibleSections: tabs, hideShop: false) + DrawerMenu.more
+    let drawer = Set(drawerRows.compactMap { drawerDestination($0.intent) })
+    let destinations = SidebarMenu.sections(profile: profile, hideShop: false)
+
+    for destination in destinations {
+        #expect(drawer.contains(destination), "\(destination) is missing from the drawer")
+    }
+    let drawerOnly = destinations.filter { !tabs.contains($0) && $0 != profileButtonDestination }
+    #expect(drawerOnly == (profile == .player ? [.rivals, .leaderboards, .shop] : [.shop]))
+}
+
+/// The iPad flyout is that window's whole navigation: its rows select every section the
+/// shell shows, Settings included, and a Search row heads them (issue #338).
+@Test(arguments: [FestivalProfileKind.none, .player])
+func iPadFlyoutReachesEverySection(profile: FestivalProfileKind) {
+    let presentation = ShellPresentation.resolve(
+        layout: .standardPhone, usesSidebarShell: true, persistentSidebar: false
+    )
+    #expect(presentation.navigation == .flyout)
+    #expect(presentation.usesDrawer)
+    let sections = presentation.sections(profile: profile)
+    let rows = DrawerMenu.browse(profile: profile, visibleSections: sections, hideShop: false) + DrawerMenu.more
+    #expect(rows.map(\.intent) == sections.map { .select($0) })
+    #expect(DrawerMenu.search.intent == .openSearch)
+}
+
 /// Crossing between the wide and phone section sets (an iPad window narrowing to
 /// compact width) swaps Compete and Leaderboards in place (same slot).
 @Test func sectionSetChangeKeepsEquivalentSection() {

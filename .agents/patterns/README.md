@@ -39,3 +39,4 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [settings-value-row](settings-value-row.md) | Read-only Settings title/value rows (Version, Service Info state): inline when it fits, otherwise the value stacks under the title |
 | [hinge-columns](hinge-columns.md) | Foldable book pose: grid and two-up row gutters on the fold, full-width titles kept on their side, flat layout when unfolded |
 | [wide-columns](wide-columns.md) | When rows and cards show two columns: wide landscape only (iPad, unfolded Duo, wide Mac), row-major under full-width headings, meeting at the Duo hinge; the page audit |
+| [split-panes](split-panes.md) | List/detail split boundary: no drawn divider (a hairline only under Increase Contrast at a midpoint), one backdrop across the band |
