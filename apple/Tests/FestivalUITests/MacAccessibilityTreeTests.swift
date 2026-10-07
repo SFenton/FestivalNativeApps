@@ -266,10 +266,12 @@ struct MacAccessibilityTreeTests {
     /// items share a label.
     @Test func macTreeSplitToolbarNamesClose() async throws {
         let size = MacWindowMetrics.defaultSize
-        let model = MacAppModel(session: try await macTreeSession(player: true), storage: nil, initial: .leaderboards)
-        model.navigation.paths[.leaderboards] = [
-            .fullRankings(instrument: .lead, rankBy: "totalscore"),
-            .player(accountId: "fixture-player-2", displayName: "Fixture Player 2"),
+        let model = MacAppModel(session: try await macTreeSession(player: true), storage: nil, initial: .rivals)
+        // All Rivals (pushed, so it has Back) beside a rival (a profile covers the list
+        // since #352, so a board › player path no longer splits).
+        model.navigation.paths[.rivals] = [
+            .allRivals(scope: .song(instruments: ["Solo_Guitar"])),
+            .rivalDetail(rivalId: "f1c749eb07c32578cfa3e59ec38c03a8", name: "uwphe", scope: nil),
         ]
         let controller = NSHostingController(rootView: MacRootView(model: model).frame(width: size.width, height: size.height))
         controller.sceneBridgingOptions = [.toolbars, .title]
@@ -291,6 +293,33 @@ struct MacAccessibilityTreeTests {
         let back = try #require(items.first { $0.label == "Back" }, "Back in \(labels)")
         #expect(back.toolTip == "Back (⌘[)")
         #expect(Set(labels).count == labels.count, "no two toolbar items share a label: \(labels)")
+    }
+
+    /// A profile covering the list page (issue #352) has one Back and no Close in the
+    /// window toolbar, and the hidden overview's own tools (Rank By) stay out of it.
+    @Test func macTreeCoveringProfileToolbarHasOnlyBack() async throws {
+        let size = MacWindowMetrics.defaultSize
+        let model = MacAppModel(session: try await macTreeSession(player: true), storage: nil, initial: .leaderboards)
+        model.navigation.paths[.leaderboards] = [.player(accountId: "fixture-player-2", displayName: "Fixture Player 2")]
+        let controller = NSHostingController(rootView: MacRootView(model: model).frame(width: size.width, height: size.height))
+        controller.sceneBridgingOptions = [.toolbars, .title]
+        let window = NSWindow(contentViewController: controller)
+        window.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
+        window.setFrame(NSRect(x: -10_000, y: -10_000, width: size.width, height: size.height), display: false)
+        window.orderOut(nil)
+        defer { window.close() }
+        var budget = NativeHostedPollBudget(.seconds(20))
+        while !(window.toolbar?.items.contains { $0.label == "Back" } ?? false), !budget.isExhausted {
+            try await budget.sleep(for: .milliseconds(100))
+        }
+        // Let the hidden overview finish loading, so a leaked tool would have arrived.
+        try await budget.sleep(for: .seconds(1))
+        let items = try #require(window.toolbar?.items)
+        let labels = items.map(\.label)
+        #expect(labels.filter { $0 == "Back" }.count == 1, "one Back: \(labels)")
+        #expect(!labels.contains("Close"), "a profile is a full page, not a pane item: \(labels)")
+        let metrics = Set(RankingMetric.allCases.map(\.label) + ["Rank By"])
+        #expect(!labels.contains { metrics.contains($0) }, "no hidden Rank By: \(labels)")
     }
 
     /// Score history in the trailing pane (issue #324): its Sort page action reaches the
@@ -373,11 +402,9 @@ struct MacAccessibilityTreeTests {
     /// selection"), the divider stays out of the tree, and nothing is unnamed. (Close
     /// sits in the window toolbar: `macTreeToolbarItemsAreLabelled`.)
     @Test(arguments: [
+        // View All Rankings opens Full Rankings beside the overview (issue #352).
         ("full-rankings", MacDestination.leaderboards,
-         [AppRoute.fullRankings(instrument: .lead, rankBy: "totalscore"),
-          .player(accountId: "fixture-player-2", displayName: "Fixture Player 2")], "fst.rankings.row."),
-        ("leaderboards", .leaderboards,
-         [.player(accountId: "fixture-player-2", displayName: "Fixture Player 2")], "fst.rankings.row."),
+         [AppRoute.fullRankings(instrument: .lead, rankBy: "totalscore")], "fst.leaderboards.card.Solo_Guitar.view-all"),
         ("rivals", .rivals,
          [.rivalDetail(rivalId: "f1c749eb07c32578cfa3e59ec38c03a8", name: "uwphe", scope: nil)], "fst.rivals.row."),
     ])
@@ -401,6 +428,10 @@ struct MacAccessibilityTreeTests {
         #expect(sidebar < row, "\(name): sidebar before the list")
         #expect(firstRowInTree < trailing, "\(name): the list reads before the trailing pane")
         #expect(!elements.contains { $0.identifier == "fst.split.divider" }, "\(name): the divider is decorative")
+        if case .fullRankings = path.last {
+            let selected = elements.filter { $0.identifier == rowPrefix && $0.selected }
+            #expect(!selected.isEmpty, "\(name): View All Rankings reads selected while its board is open")
+        }
         if case .player(let accountId, _) = path.last {
             // Leaderboards lists the same player on every instrument card: each of those
             // rows opens the same item, so each reads selected; no other row does.
@@ -409,6 +440,32 @@ struct MacAccessibilityTreeTests {
                     "\(name): only the opened item's rows are selected: \(selected)")
         }
         #expect(macAccessibilityFindings(elements) == [], "\(name)")
+    }
+
+    /// Profiles are full pages (issue #352): opened from Leaderboards, or pushed inside
+    /// Full Rankings in the trailing pane, the profile covers the list page, which leaves
+    /// the tree while hidden; the profile's Back (not Close) leads back to it.
+    @Test(arguments: [
+        ("leaderboards-player", [AppRoute.player(accountId: "fixture-player-2", displayName: "Fixture Player 2")]),
+        ("full-rankings-player", [AppRoute.fullRankings(instrument: .lead, rankBy: "totalscore"),
+                                  .player(accountId: "fixture-player-2", displayName: "Fixture Player 2")]),
+    ])
+    func macTreeProfileCoversTheListPage(name: String, path: [AppRoute]) async throws {
+        let (host, window, model) = hostMacRootTree(try await macTreeSession(player: true), initial: .leaderboards)
+        defer { window.orderOut(nil) }
+        model.navigation.paths[.leaderboards] = path
+        let states = ["fst.player.loading", "fst.player.syncing", "fst.player.error", "fst.player.available"]
+        _ = try await nativeHostedSettle(host, timeout: macTreeBudget, until: {
+            let ids = nativeHostedAccessibility(host).identifiers
+            return ids.contains("fst.split.trailing") && ids.contains { states.contains($0) }
+        })
+        let nodes = macAccessibilityTree(host)
+        macAccessibilityDump(nodes, name: "covered-\(name)")
+        let ids = nodes.filter(\.isElement).map(\.identifier)
+        #expect(!ids.contains { $0.hasPrefix("fst.leaderboards.card") }, "\(name): the covered overview is hidden")
+        #expect(!ids.contains { $0.hasPrefix("fst.rankings.row.") }, "\(name): no hidden ranking rows read")
+        #expect(!ids.contains("fst.split.close"), "\(name): a profile has Back, not Close")
+        #expect(model.navigation.paths[.leaderboards] == path, "\(name): nothing rewrote the path")
     }
 
     /// Song Detail beside its score history: the sortable history page (issue #324)

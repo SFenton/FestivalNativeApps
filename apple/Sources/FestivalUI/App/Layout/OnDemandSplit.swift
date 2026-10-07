@@ -139,6 +139,9 @@ struct SplitPaneContext: Equatable {
     /// The list page beside the pane (trailing pane's detail root only; pages pushed
     /// after it get nil through ``pushedPage``).
     var besideList: OnDemandSplitPolicy.ListPage?
+    /// Whether the trailing pane covers the list page (a profile is open in it; issue
+    /// #352), so its leading edge is the window's rather than the divider's.
+    var coversList = false
 
     /// The context for a page pushed inside this pane: the same pane, but no longer the
     /// item opened beside the list page.
@@ -151,7 +154,7 @@ struct SplitPaneContext: Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.paneWidth == rhs.paneWidth && lhs.role == rhs.role && lhs.selection == rhs.selection
             && lhs.select == rhs.select && lhs.topScrim === rhs.topScrim && lhs.focusReturn == rhs.focusReturn
-            && lhs.besideList == rhs.besideList
+            && lhs.besideList == rhs.besideList && lhs.coversList == rhs.coversList
     }
 }
 
@@ -205,7 +208,7 @@ private struct SplitPaneContextModifier: ViewModifier {
             // to the window's far edge (the iPhone Duo vertical bar gave the leading pane
             // 84 pt of dead space beside the hinge), so the page lays out to the band.
             .ignoresSafeArea(.container, edges: SplitPaneChrome.edgesFacingDivider(
-                role: context?.role, isOpen: context?.paneWidth != nil
+                role: context?.role, isOpen: sideBySide
             ))
             #if os(iOS)
             // Full-page bar margins at the pane's mid-window edges.
@@ -220,6 +223,13 @@ private struct SplitPaneContextModifier: ViewModifier {
     }
 
     private var sharesBackdrop: Bool { context != nil && SplitPaneChrome.sharesBackdrop }
+
+    /// Whether the panes sit side by side, as ``SplitPaneChrome/edgesFacingDivider(role:isOpen:)``
+    /// reads it for this pane.
+    private var sideBySide: Bool {
+        guard let context else { return false }
+        return context.role == .trailing ? !context.coversList : context.paneWidth != nil
+    }
 }
 
 // MARK: - Split layout
@@ -233,9 +243,16 @@ private struct SplitPaneContextModifier: ViewModifier {
 /// With a `backdrop` it draws the session's one backdrop behind both panes and the
 /// divider band (the pages inside draw none; `SplitPaneChrome`), whether or not an item
 /// is open, so opening and closing never change the image under the list.
+///
+/// While `covered` (a profile is open in the trailing pane; issue #352) the trailing
+/// pane widens over the whole container and the leading pane keeps its frame, alive but
+/// hidden from sight, touch and assistive technologies, so Back finds the list page as
+/// it was. The views keep one structure in every state, so neither stack is rebuilt.
 struct OnDemandSplitLayout<Leading: View, Trailing: View>: View {
     /// Pane geometry while the trailing pane shows, else nil (leading fills the width).
     let geometry: OnDemandSplitPolicy.Geometry?
+    /// How the trailing pane covers the list page.
+    let cover: OnDemandSplitPolicy.Cover
     /// The shared backdrop to draw behind both panes, or nil (pages draw their own).
     let backdrop: FestivalBackgroundCoordinator?
     /// The leading page's top-scrim height, drawn across the divider band too.
@@ -250,16 +267,18 @@ struct OnDemandSplitLayout<Leading: View, Trailing: View>: View {
     ///
     /// - Parameters:
     ///   - geometry: Pane geometry while an item is open, else nil.
+    ///   - cover: How the trailing pane covers the list page (ignored without `geometry`).
     ///   - backdrop: The shared backdrop to draw behind both panes, or nil.
     ///   - topScrimHeight: The leading page's top-scrim height, or nil.
     ///   - leading: The list page's stack.
     ///   - trailing: The open item's stack (built only while `geometry` is set).
     init(
-        geometry: OnDemandSplitPolicy.Geometry?,
+        geometry: OnDemandSplitPolicy.Geometry?, cover: OnDemandSplitPolicy.Cover = .none,
         backdrop: FestivalBackgroundCoordinator? = nil, topScrimHeight: CGFloat? = nil,
         @ViewBuilder leading: () -> Leading, @ViewBuilder trailing: () -> Trailing
     ) {
         self.geometry = geometry
+        self.cover = geometry == nil ? .none : cover
         self.backdrop = backdrop
         self.topScrimHeight = topScrimHeight
         self.leading = leading()
@@ -274,15 +293,30 @@ struct OnDemandSplitLayout<Leading: View, Trailing: View>: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            leading
-                .frame(width: geometry?.leadingWidth)
-                .frame(maxWidth: geometry == nil ? .infinity : nil)
+        let covered = cover != .none
+        // The list page keeps the width it had before the profile opened.
+        let leadingWidth = cover == .overList ? nil : geometry?.leadingWidth
+        ZStack(alignment: .trailing) {
+            HStack(spacing: 0) {
+                leading
+                    .frame(width: leadingWidth)
+                    .frame(maxWidth: leadingWidth == nil ? .infinity : nil)
+                    .opacity(covered ? 0 : 1)
+                    .allowsHitTesting(!covered)
+                    .accessibilityHidden(covered)
+                if let geometry, cover != .overList {
+                    SplitDivider(width: geometry.dividerWidth, topScrimHeight: topScrimHeight)
+                        .opacity(covered ? 0 : 1)
+                        .transition(.opacity)
+                    Color.clear
+                        .frame(width: geometry.trailingWidth)
+                        .accessibilityHidden(true)
+                }
+            }
+            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
             if let geometry {
-                SplitDivider(width: geometry.dividerWidth, topScrimHeight: topScrimHeight)
-                    .transition(.opacity)
                 trailing
-                    .frame(width: geometry.trailingWidth)
+                    .frame(width: covered ? Self.fullWidth(geometry) : geometry.trailingWidth)
                     .transition(reduceMotion ? .opacity : .move(edge: .trailing).combined(with: .opacity))
             }
         }
@@ -297,6 +331,15 @@ struct OnDemandSplitLayout<Leading: View, Trailing: View>: View {
             if let backdrop { SplitBackdrop(coordinator: backdrop) }
         }
         .animation(Self.animation(reduceMotion: reduceMotion), value: geometry)
+        .animation(Self.animation(reduceMotion: reduceMotion), value: cover)
+    }
+
+    /// The container's width: both panes and the band.
+    ///
+    /// - Parameter geometry: The pane geometry.
+    /// - Returns: The width a covering trailing pane takes.
+    static func fullWidth(_ geometry: OnDemandSplitPolicy.Geometry) -> CGFloat {
+        geometry.leadingWidth + geometry.dividerWidth + geometry.trailingWidth
     }
 }
 
@@ -334,6 +377,11 @@ private struct SplitDivider: View {
 /// whether or not an item is open, so opening and closing never rebuild the list (its
 /// scroll position stays). The trailing pane has its own stack for the open item and
 /// anything pushed from it, with a Close button (Escape) on its root.
+///
+/// Profiles are full pages (issue #352): one opened from the list page is a real push on
+/// the leading stack (no cut; the system Back and edge swipe return to the list as it
+/// was), and one pushed inside the trailing pane widens it over the hidden list page
+/// (``OnDemandSplitPolicy/Cover/overSplit``) until Back.
 struct OnDemandSplitStack<Root: View>: View {
     let section: FestivalSection
     let session: FestivalSession
@@ -383,7 +431,13 @@ struct OnDemandSplitStack<Root: View>: View {
         self.root = root
     }
 
-    private var cut: OnDemandSplitPolicy.Cut? { OnDemandSplitPolicy.cut(section: section, path: path) }
+    /// The path's split cut, or nil (one stack). A profile opened straight from the list
+    /// page is pushed on the one stack rather than covering it from a trailing pane, so
+    /// it gets the system Back and its edge swipe.
+    private var cut: OnDemandSplitPolicy.Cut? {
+        guard let cut = OnDemandSplitPolicy.cut(section: section, path: path), cut.cover != .overList else { return nil }
+        return cut
+    }
 
     /// The panes the window allows now, whatever page is on top, or nil.
     private var windowGeometry: OnDemandSplitPolicy.Geometry? {
@@ -405,19 +459,27 @@ struct OnDemandSplitStack<Root: View>: View {
         let _ = MainThreadStallMonitor.count("splitstack.body")
         let cut = cut
         let geometry = geometry
-        let open = geometry != nil && cut?.selection != nil
+        let showsTrailing = geometry != nil && cut?.selection != nil
+        let cover = cut?.cover ?? .none
+        // Side by side: a covered list page has no item open beside it (Escape and the
+        // row highlight wait until Back uncovers it).
+        let open = showsTrailing && cover == .none
         // While a split is possible (open or not) the container draws the one backdrop,
         // so opening and closing never change the image under the list.
         let sharesBackdrop = geometry != nil && SplitPaneChrome.sharesBackdrop
         OnDemandSplitLayout(
-            geometry: open ? geometry : nil,
+            geometry: showsTrailing ? geometry : nil,
+            cover: cover,
             backdrop: sharesBackdrop ? session.backgroundCoordinator : nil,
             topScrimHeight: topScrim.height
         ) {
-            leadingStack(cut: geometry == nil ? nil : cut, paneWidth: open ? geometry?.leadingWidth : nil)
+            leadingStack(cut: geometry == nil ? nil : cut, paneWidth: showsTrailing ? geometry?.leadingWidth : nil)
         } trailing: {
             if let cut, let selection = cut.selection, let geometry {
-                trailingStack(cut: cut, selection: selection, width: geometry.trailingWidth)
+                trailingStack(
+                    cut: cut, selection: selection,
+                    width: cover == .none ? geometry.trailingWidth : OnDemandSplitLayout<EmptyView, EmptyView>.fullWidth(geometry)
+                )
             }
         }
         .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { frame in
@@ -439,8 +501,10 @@ struct OnDemandSplitStack<Root: View>: View {
                 withTransaction(transaction) { appliedSplit = new.allowsSplit }
             }
         }
-        .onChange(of: open, initial: true) { wasOpen, open in
+        .onChange(of: open, initial: true) { _, open in
             if isVisible { openReporter?(section, isOpen: open) }
+        }
+        .onChange(of: showsTrailing, initial: true) { wasOpen, open in
             guard wasOpen != open else { return }
             focusToken += 1
             if open {
@@ -518,7 +582,10 @@ struct OnDemandSplitStack<Root: View>: View {
     ///   - width: The trailing pane's width.
     /// - Returns: The trailing stack.
     private func trailingStack(cut: OnDemandSplitPolicy.Cut, selection: AppRoute, width: CGFloat) -> some View {
-        let context = SplitPaneContext(paneWidth: width, role: .trailing, topScrim: topScrim, besideList: cut.page)
+        let context = SplitPaneContext(
+            paneWidth: width, role: .trailing, topScrim: topScrim, besideList: cut.page,
+            coversList: cut.cover != .none
+        )
         return NavigationStack(path: detailTail) {
             destination(selection)
                 .id(selection)

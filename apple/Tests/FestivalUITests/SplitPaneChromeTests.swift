@@ -48,5 +48,7 @@ import Testing
     #expect(SplitPaneChrome.edgesFacingDivider(role: .leading, isOpen: true) == .trailing)
     #expect(SplitPaneChrome.edgesFacingDivider(role: .leading, isOpen: false) == [])
     #expect(SplitPaneChrome.edgesFacingDivider(role: .trailing, isOpen: true) == .leading)
+    // Widened over the list page (a profile, #352): the window's leading edge.
+    #expect(SplitPaneChrome.edgesFacingDivider(role: .trailing, isOpen: false) == [])
     #expect(SplitPaneChrome.edgesFacingDivider(role: nil, isOpen: false) == [])
 }

@@ -443,16 +443,21 @@ struct LeaderboardsScreen: View {
     /// purple button below the top ten (and below the selected player's
     /// spotlight row when they are outside it).
     ///
+    /// Where Leaderboards can split (iPad, iPhone Duo, Mac) the full board opens in the
+    /// trailing pane beside the overview as its sub-page, highlighted while open
+    /// (view-all-cta R8; issue #352); elsewhere it pushes.
+    ///
     /// - Parameters:
-    ///   - route: Full board to push.
+    ///   - route: Full board to open.
     ///   - title: Label including the ranked count when known.
     ///   - id: Existing per-card `…view-all` identifier.
     /// - Returns: A full-width purple navigation row.
     private func viewAllLink(_ route: AppRoute, title: String, id: String) -> some View {
-        NavigationLink(value: route) {
+        // Plain, as the ranking rows: `ListDetailLink` draws the Mac hover, ring and Return.
+        ListDetailLink(value: route) {
             PurpleActionLabel(title: title)
         }
-        .festivalRowButtonStyle()
+        .buttonStyle(.plain)
         .accessibilityIdentifier(id)
     }
 

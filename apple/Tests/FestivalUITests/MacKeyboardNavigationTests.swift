@@ -238,7 +238,7 @@ private struct MacKeyProbe: View {
         .macKeyboardRows(ids.map { MacKeyRow(id: $0, action: .route(.player(accountId: $0, displayName: nil))) })
         .modifier(MacKeyboardNavigation(
             selection: selection,
-            select: split ? ListDetailSelectAction(section: .leaderboards, page: .rankings) { recorder.selected.append($0) } : nil,
+            select: split ? ListDetailSelectAction(section: .leaderboards, page: .leaderboards) { recorder.selected.append($0) } : nil,
             push: { recorder.pushed.append($0) }, isTop: true
         ))
     }
