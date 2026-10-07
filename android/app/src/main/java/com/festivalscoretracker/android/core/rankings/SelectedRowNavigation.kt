@@ -116,6 +116,20 @@ object SelectedRowReveal {
         val visibleCenter = visibleStart + (visibleEnd - visibleStart).coerceAtLeast(0) / 2f
         return center - visibleCenter
     }
+
+    /**
+     * How long the reveal waits before scrolling: until the selected row's own entrance has
+     * finished, like the web's `navToPlayer` / `navToBand`, which scroll after the row's
+     * stagger plus its fade (load-transition R5, issue #323). Rows that have not faded in by
+     * then are rushed by the reveal's scroll. No wait under Reduce Motion (R6).
+     *
+     * @param rowDelayMillis The selected row's stagger delay.
+     * @param fadeMillis Fade duration.
+     * @param reduceMotion Remove animations / Reduce Motion.
+     * @return Milliseconds to wait.
+     */
+    fun entranceWaitMillis(rowDelayMillis: Int, fadeMillis: Int, reduceMotion: Boolean): Int =
+        if (reduceMotion) 0 else rowDelayMillis.coerceAtLeast(0) + fadeMillis.coerceAtLeast(0)
 }
 
 // endregion

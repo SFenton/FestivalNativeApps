@@ -3,48 +3,46 @@ using Xunit;
 
 namespace Festival.Core.Tests;
 
-/// <summary>The fade above a leaderboard's floating footer (issue #93).</summary>
+/// <summary>The bottom-chrome ramp above a leaderboard's floating footer (scroll-edge R2–R4, R7; issues #93, #308).</summary>
 public sealed class BoardFooterEdgeFadeTests
 {
     [Fact]
-    public void Depth_MatchesTheWebScrollMask() => Assert.Equal(40, BoardFooterEdgeFade.Depth);
+    public void Depth_MatchesTheWebScrollFade() => Assert.Equal(36, BoardFooterEdgeFade.Depth);
 
     [Theory]
     [InlineData(1000, 1000, 0)]
     [InlineData(1000, 1200, 0)]
-    [InlineData(1000, 980, 0.5)]
-    [InlineData(1000, 960, 1)]
-    [InlineData(1000, 0, 1)]
+    [InlineData(1000, 982, 18)]
+    [InlineData(1000, 964, 36)]
+    [InlineData(1000, 0, 36)]
     [InlineData(0, 0, 0)]
     [InlineData(double.NaN, 0, 0)]
-    public void Strength_EasesOutOverTheLastDepthOfScroll(double scrollable, double offset, double expected) =>
-        Assert.Equal(expected, BoardFooterEdgeFade.Strength(scrollable, offset), 6);
+    public void FadeDepth_ShrinksToNothingOverTheLastDepthOfScroll(double scrollable, double offset, double expected) =>
+        Assert.Equal(expected, BoardFooterEdgeFade.FadeDepth(scrollable, offset), 6);
 
     [Fact]
-    public void Stops_FadeToTheFooterTopThenClearBeneathIt()
-    {
-        var stops = BoardFooterEdgeFade.Stops(1);
-        var scale = 40f / 41f;
-        Assert.Equal([0f, 0.25f * scale, 0.5f * scale, 0.75f * scale, scale, 1f], stops.Select(s => s.Offset));
-        Assert.Equal([1f, 0.84375f, 0.5f, 0.15625f, 0f, 0f], stops.Select(s => s.Alpha), new FloatTolerance());
-    }
+    public void FadeDepth_AccessibilityModesGiveAHardCut() =>
+        Assert.Equal(0, BoardFooterEdgeFade.FadeDepth(1000, 0, enabled: false));
 
     [Fact]
-    public void Stops_AtTheEndKeepRowsOpaqueButStillClearBeneathTheFooter()
-    {
-        var stops = BoardFooterEdgeFade.Stops(0);
-        Assert.All(stops.Take(5), s => Assert.Equal(1f, s.Alpha));
-        Assert.Equal((1f, 0f), stops[^1]);
-    }
+    public void Stops_RunFromOpaqueToClearAtTheFooterTop() =>
+        Assert.Equal([(0f, 1f), (1f, 0f)], BoardFooterEdgeFade.Stops);
+
+    [Theory]
+    [InlineData(false, true, 36, "hidden")]
+    [InlineData(false, false, 0, "hidden")]
+    [InlineData(true, false, 0.01, "hard-edge")]
+    [InlineData(true, false, 36, "hard-edge")]
+    [InlineData(true, true, 0.01, "end")]
+    [InlineData(true, true, 0.6, "end")]
+    [InlineData(true, true, double.NaN, "end")]
+    [InlineData(true, true, 1, "fading:1")]
+    [InlineData(true, true, 17.6, "fading:18")]
+    [InlineData(true, true, 36, "fading:36")]
+    public void Status_NamesTheDrawnEdge(bool drawn, bool enabled, double depth, string expected) =>
+        Assert.Equal(expected, BoardFooterEdgeFade.Status(drawn, enabled, depth));
 
     [Fact]
-    public void Stops_HalfStrengthHalvesTheBand() =>
-        Assert.Equal(0.5f, BoardFooterEdgeFade.Stops(0.5)[4].Alpha, 6);
-
-    private sealed class FloatTolerance : IEqualityComparer<float>
-    {
-        public bool Equals(float x, float y) => Math.Abs(x - y) < 1e-5;
-
-        public int GetHashCode(float obj) => 0;
-    }
+    public void Status_MidScrollReportsTheFullWebRamp() =>
+        Assert.Equal("fading:36", BoardFooterEdgeFade.Status(true, true, BoardFooterEdgeFade.FadeDepth(1000, 500)));
 }

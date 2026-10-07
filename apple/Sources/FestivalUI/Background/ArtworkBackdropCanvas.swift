@@ -260,15 +260,22 @@ struct CoverLayerView: View {
     var body: some View {
         Group {
             if let image = layer.overlay.image {
-                Image(decorative: image, scale: 1)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: size.width, height: size.height)
-                    .colorMultiply(ArtworkBackdropCanvas.gray(lightness))
-                    // Hidden on the image itself too: the page's cover still reached the
-                    // tree as an unlabelled full-screen Image behind Song Detail (Increase
-                    // Contrast audit, "Element has no description"; Lane A11Y3).
-                    .accessibilityHidden(true)
+                // Drawn in a Canvas, not as an `Image` view: the hidden full-screen
+                // `Image` stayed in the iPadOS accessibility tree as an unlabelled node
+                // the size of the cover behind Song Detail (Increase Contrast audit,
+                // "Element has no description"; Lane A11Y3/A11Y4). A Canvas exposes no
+                // element for what it draws.
+                Canvas { context, canvasSize in
+                    context.draw(
+                        Image(decorative: image, scale: 1),
+                        in: Self.aspectFill(
+                            CGSize(width: image.width, height: image.height), in: canvasSize
+                        )
+                    )
+                }
+                .frame(width: size.width, height: size.height)
+                .colorMultiply(ArtworkBackdropCanvas.gray(lightness))
+                .accessibilityHidden(true)
             } else {
                 BrandTokens.appBackground
                     .frame(width: size.width, height: size.height)
@@ -277,6 +284,22 @@ struct CoverLayerView: View {
         .opacity(opacity)
         .onAppear { sync() }
         .onChange(of: Timing(exitStart: layer.exit?.start, animate: animate)) { _, _ in sync() }
+    }
+
+    /// The rect that scales `image` to cover `bounds`, centred (`scaledToFill`).
+    ///
+    /// - Parameters:
+    ///   - image: Image size (any unit; only the aspect ratio matters).
+    ///   - bounds: Size to cover.
+    /// - Returns: The image's drawing rect in `bounds` coordinates (may overhang).
+    static func aspectFill(_ image: CGSize, in bounds: CGSize) -> CGRect {
+        guard image.width > 0, image.height > 0 else { return CGRect(origin: .zero, size: bounds) }
+        let scale = max(bounds.width / image.width, bounds.height / image.height)
+        let size = CGSize(width: image.width * scale, height: image.height * scale)
+        return CGRect(
+            x: (bounds.width - size.width) / 2, y: (bounds.height - size.height) / 2,
+            width: size.width, height: size.height
+        )
     }
 
     /// Jump to the shared clock's current opacity, then animate the remainder.

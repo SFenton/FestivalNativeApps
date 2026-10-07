@@ -168,4 +168,57 @@ func notificationsRowsDoNotDrawUnderThePinnedSectionHeader(offset: Double, pinne
     #expect(nativeHostedBrightSamples(in: band, of: image, hostSize: size) == 0)
     #expect(nativeHostedBrightSamples(in: below, of: image, hostSize: size) > 0)
 }
+
+/// Issue #322: row separators fade with their rows. Swept through the "New" section and
+/// past the push of "Older", no separator line (dim ink, unlike the bright text above)
+/// is drawn in the pinned header's band beside its title, while separators further
+/// down the list still draw.
+@MainActor
+@Test func notificationsRowSeparatorsDoNotDrawUnderThePinnedSectionHeader() async throws {
+    let (session, accountId) = await scrollingNotificationsSession(newCount: 8, olderCount: 24)
+    defer { forgetScrollingAccount(accountId) }
+    let size = CGSize(width: 420, height: 640)
+    let host = nativeHostedView(
+        NotificationsSheet(session: session)
+            .frame(width: size.width, height: size.height)
+            .preferredColorScheme(.dark)
+            .background(BrandTokens.appBackground),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    _ = try await nativeHostedSettle(host, untilText: ["New"])
+    let scroll = try #require(listScrollView(in: host))
+    let table = try #require(scroll.documentView as? NSTableView)
+    let headerRow = table.rect(ofRow: 0).height
+    #expect(headerRow > 20)
+
+    // App background mean ≈ 27; a separator ≈ 49 (system separator color over it).
+    let separatorInk = 40
+    let offsets = Array(stride(from: 100.0, through: 700.0, by: 9.0)) + Array(stride(from: 880.0, through: 1_200.0, by: 9.0))
+    var leaks: [Double] = []
+    var separatorsBelow = 0
+    for offset in offsets {
+        let clip = scroll.contentView
+        clip.scroll(to: NSPoint(x: 0, y: CGFloat(offset) - scroll.contentInsets.top))
+        scroll.reflectScrolledClipView(clip)
+        let image = try await nativeHostedSettle(host, untilText: [offset < 800 ? "New" : "Older"])
+        let scrollFrame = scroll.convert(scroll.bounds, to: host)
+        let pinTop = (host.isFlipped ? scrollFrame.minY : host.bounds.height - scrollFrame.maxY)
+            + scroll.contentInsets.top
+        // Right of the title, above the header's own bottom hairline.
+        let band = CGRect(x: 90, y: pinTop + 1, width: size.width - 110, height: headerRow - 5)
+        if nativeHostedBrightSamples(in: band, of: image, hostSize: size, threshold: separatorInk) > 0 {
+            leaks.append(offset)
+            _ = try nativeHostedPNG(
+                image, filename: "notifications-separator-leak-\(Int(offset)).png", environment: "FST_HISTORY_RENDER_OUT"
+            )
+        }
+        // A thin strip between the rows' text and their trailing chevrons: only separators draw there.
+        let strip = CGRect(x: 340, y: pinTop + 100, width: 28, height: 300)
+        separatorsBelow += nativeHostedBrightSamples(in: strip, of: image, hostSize: size, threshold: separatorInk)
+    }
+    #expect(leaks.isEmpty, "separator drawn under the pinned header at offsets \(leaks)")
+    #expect(separatorsBelow > 0)
+}
 #endif

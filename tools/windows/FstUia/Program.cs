@@ -625,7 +625,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         var result = Describe(window).AsObject();
         if (announcementHandler is not null)
             response["announcements"] = new JsonArray([.. announcements.Select(a => (JsonNode)JsonValue.Create(a)!)]);
-        foreach (var key in new[] { "focus", "scans", "aligned", "pinned", "announcements", "sizes", "apart", "hits", "presses", "narration", "read", "orders" })
+        foreach (var key in new[] { "focus", "scans", "aligned", "pinned", "announcements", "sizes", "apart", "hits", "presses", "narration", "read", "orders", "paint", "bold" })
         {
             if (response[key] is not JsonArray collected) continue;
             response.Remove(key);
@@ -800,6 +800,12 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 break;
             case "assertorder":
                 AssertOrder(window, step);
+                break;
+            case "assertpaint":
+                AssertPaint(window, step);
+                break;
+            case "assertbold":
+                AssertBold(window, step);
                 break;
             case "assertannouncedcount":
                 AssertAnnouncedCount(step);

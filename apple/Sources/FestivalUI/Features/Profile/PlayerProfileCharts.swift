@@ -380,14 +380,6 @@ struct RankHistoryCharts: View {
             )
             .foregroundStyle(Self.barColor(point).opacity(0.8))
             .cornerRadius(4)
-            // One VoiceOver element per snapshot: without these, Swift Charts names each
-            // bar by its plotted index range ("0 to 1") and reads the line and point marks
-            // again (measured in the Mac accessibility tree, Lane A11Y2).
-            .accessibilityLabel(point.label)
-            .accessibilityValue(Self.accessibilityValue(point))
-            // Only the visible page: bars paged out of the plot kept elements with frames
-            // left of the card (over the iPad sidebar); the pager and Audio Graph reach them.
-            .accessibilityHidden(!range.contains(point.index))
             LineMark(
                 x: .value("Date", point.index),
                 y: .value("Rank", scale.y(forRank: point.rank)),
@@ -431,6 +423,14 @@ struct RankHistoryCharts: View {
         .barChartDateAxis(values: visible.map(\.index)) { data.indices.contains($0) ? data[$0].label : nil }
         .chartPlotFrameReporter()
         .frame(height: Self.plotHeight)
+        // One adjustable element over the whole plot (HIG Charts: "When marks are too
+        // small to target, consider making the whole plot area the hit target"). Per-bar
+        // elements were audited "Hit area is too small" at 18.8 pt on the iPhone Duo inner
+        // display in portrait, adjustable action or not (Lane A11Y3/A11Y4). The value
+        // reads every visible snapshot; swiping up/down pages, as the pager buttons do.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(instrument.label) rank history chart")
+        .accessibilityValue(Self.accessibilityValue(page: visible))
         .accessibilityChartDescriptor(RankHistoryDescriptor(points: points, instrument: instrument))
         .accessibilityAdjustableAction { direction in
             switch direction {
@@ -573,13 +573,22 @@ struct RankHistoryCharts: View {
         .accessibilityIdentifier("fst.player.rank-history.\(instrument.rawValue).\(id)")
     }
 
-    /// VoiceOver value for one snapshot's bar: its rank (of N) and Total Score.
+    /// One snapshot's rank (of N) and Total Score, as the chart element reads it.
     ///
     /// - Parameter point: One plotted snapshot.
     /// - Returns: For example "Rank 4 of 506, total score 89,400,000".
     static func accessibilityValue(_ point: Point) -> String {
         let field = point.rankedAccountCount.map { " of \($0.formatted())" } ?? ""
         return "Rank \(point.rank.formatted())\(field), total score \(Int(point.value).formatted())"
+    }
+
+    /// The chart element's value: each visible snapshot's date, rank and Total Score,
+    /// oldest first.
+    ///
+    /// - Parameter page: The snapshots in the plot now.
+    /// - Returns: "9/26/26: Rank 12, total score 1,000; 9/27/26: Rank 4 of 506, …".
+    static func accessibilityValue(page: [Point]) -> String {
+        page.map { "\($0.label): \(accessibilityValue($0))" }.joined(separator: "; ")
     }
 
     /// Show the window whose oldest visible snapshot is `index`.
