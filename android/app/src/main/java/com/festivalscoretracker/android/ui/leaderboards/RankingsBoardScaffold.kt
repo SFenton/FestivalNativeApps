@@ -64,7 +64,7 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  * @param footer Anchored "your rank" content (may emit nothing).
  * @param pager Pager.
  * @param fadeAboveFooter Hide rows beneath the bottom-anchored footer and fade them out just
- *   above it ([BoardFooterEdgeFade], the web's `useScrollFade`; issues #93, #308), with a hard cut
+ *   above it ([BoardFooterEdgeFade], the web board pages' `useScrollMask`; issues #93, #308, #329), with a hard cut
  *   in the contrast, transparency and motion modes that still hides the covered rows (scroll-edge
  *   R7, issue #306); hidden rows also leave touch and TalkBack (issue #104).
  * @param rows Row items.

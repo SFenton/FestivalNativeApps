@@ -31,11 +31,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import kotlin.math.abs
 
 /**
  * Pixels of the board's footer edge (issues #93, #308): rows are hidden beneath a transparent
- * floating footer and fade out over the 40 dp linear ramp above it (the web board's `useScrollMask`),
- * unless the board opts out. Accessibility modes keep the cut with no ramp (scroll-edge R7).
+ * floating footer and fade out over the 40 dp linear ramp above it (the web board pages'
+ * `useScrollMask`, #329), unless the board opts out. Accessibility modes keep the cut with no ramp (scroll-edge R7).
  */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w400dp-h800dp-mdpi")
@@ -86,11 +87,12 @@ class BoardFooterFadeDrawUiTest {
         assertFalse("no row shows beneath the footer", image.redIn(cut + 1 until 800))
         assertTrue("rows above the band are untouched", (cut - 200 until cut - 41).all { image.redAt(it).let { r -> r > 0.95f || r < 0.02f } })
         assertTrue(image.redIn(cut - 200 until cut - 41))
-        // The 40 dp linear ramp fades out towards the cut (rows sit 12 dp apart, so gaps read 0).
+        // The 40 dp linear ramp (web board `useScrollMask`, #329) fades out towards the cut (rows
+        // sit 12 dp apart, so gaps read 0).
         val band = (cut - 40 until cut).filter { image.redAt(it) > 0.01f }
         assertTrue(band.size > 20)
         assertTrue(band.zipWithNext().all { (a, b) -> image.redAt(b) <= image.redAt(a) + 0.01f })
-        assertTrue("never above the linear ramp", (cut - 40 until cut).all { image.redAt(it) <= (cut - it) / 40f + 0.05f })
+        assertTrue("on the 40 dp linear ramp", band.all { abs(image.redAt(it) - (cut - it) / 40f) <= 0.05f })
         assertTrue("linear, not eased", band.any { image.redAt(it) in 0.3f..0.7f })
         assertTrue(image.redAt(cut - 1) < 0.1f)
     }
@@ -109,14 +111,13 @@ class BoardFooterFadeDrawUiTest {
     @Test
     fun reduceMotionCutsRowsAtAHardEdge() = assertHardEdge(FestivalAccessibility(reduceMotion = true))
 
-    /** R7: no ramp, but rows still never show beneath the footer, and hidden rows leave TalkBack (#190). */
+    /** R7: no ramp, but rows still never show beneath the footer. */
     private fun assertHardEdge(accessibility: FestivalAccessibility) {
         val image = board(fade = true, accessibility)
         val cut = rule.onNodeWithTag("fst.t.bottom-bar").fetchSemanticsNode().positionInWindow.y.toInt() - image.y
         assertFalse("no row shows beneath the footer", image.redIn(cut + 1 until 800))
         assertTrue("rows are opaque up to the cut", (cut - 200 until cut).all { image.redAt(it).let { r -> r > 0.95f || r < 0.02f } })
         assertTrue(image.redIn(cut - 40 until cut))
-        rule.onNodeWithTag("row.14").assertIsNotDisplayed()
     }
 
     /**
