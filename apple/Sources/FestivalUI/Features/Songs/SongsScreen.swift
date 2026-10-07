@@ -1539,12 +1539,13 @@ struct SongsScreen: View, Equatable {
     }
 
     /// Rows may split into song | profile score cards: iPad and the iPhone Duo
-    /// inner display (regular in both dimensions) and the Mac.
+    /// inner display (regular width *and* height; a large iPhone in landscape is
+    /// compact height and keeps its rows) and the Mac.
     private var allowsProfilePanel: Bool {
         #if os(macOS)
         true
         #else
-        deviceLayout.isRegularInBothDimensions
+        deviceLayout.widthClass == .regular && deviceLayout.heightClass == .regular
         #endif
     }
 
