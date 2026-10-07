@@ -2,7 +2,7 @@
 
 > **What:** section-title hierarchy, card placement, accessibility semantics, and pinned-header handoff. **Read when:** adding a titled group, a grouped list, or a sticky section header.
 
-Status: **current**, 2026-10-06. Provenance: #288, #291, #297, #312, #321.
+Status: **current**, 2026-10-07. Provenance: #288, #291, #297, #312, #321, #348.
 
 ## Intent
 
@@ -15,6 +15,7 @@ Section titles create stable visual and semantic landmarks. They sit above their
 | `FortniteFestivalWeb/src/components/common/SectionHeader.tsx` (`SectionHeader`) | Renders the shared title and optional description above section content. |
 | `FortniteFestivalWeb/src/pages/settings/SettingsPage.tsx` (`SectionHeader`) | Uses ordered headings as page landmarks and Quick Links targets. |
 | `FortniteFestivalWeb/src/pages/player/components/PlayerBandsSection.tsx` (`buildPlayerBandsItems`) | A section title with a trailing "View All" action (`common.viewAll`; "See all" before #321) that opens the full list. |
+| `FortniteFestivalWeb/src/components/search/SearchModal.tsx` (`renderResults`) | In the All scope, each rendered category (Songs, Players, Bands) is a `<section>` labelled by an `<h3>` title; a single scope has none (R9). |
 
 The web has no sticky section header. Native sticky behavior is an approved addition in R5.
 
@@ -28,6 +29,7 @@ The web has no sticky section header. Native sticky behavior is an approved addi
 6. **R6. Keep one accessible title.** The in-list title remains the heading; a visual moving copy is hidden from assistive technology. A section with no title (one unlabeled section, e.g. a player metric sort or a lone Item Shop bucket) exposes no empty heading or group and takes no focus stop (Windows `SongsPage.ApplyGroupHeaderAccess`, #282: WinUI otherwise makes the group header a focusable, unnamed Group that Up from the first row lands on; guarded by the `"scan": true` Axe + focus-sequence pages in `a11y-songs-bucket-headers.json`).
 7. **R7. Keep native implementations, not a shared fake header.** **Approved variants:** Apple `SongsSectionBar`, Android Compose `stickyHeader`, and the Windows clipped header copy are the #288-approved native implementations; all obey R1-R6.
 8. **R8. One View All link per platform.** A section title that opens its full list puts "View All" at the trailing end of the title row, using the platform's shared link, with at least a 44 pt (Apple) or 48 dp (Android) target and a spoken label that starts with "View All" and names the list. The link keeps its own test ID: on Apple, an identified container around it (`DualSourcePane`, Duo Song Detail history cards) sets `.accessibilityElement(children: .contain)` before its identifier (#321). Do not add a second header-link style in a feature folder (#312). The copy is "View All", never "See All" (owner, #321). It stays a link rather than the purple [view-all-cta](view-all-cta.md) button (agent decision, #321, 2026-10-06, view-all-cta R7 and the Android record below; owner may override).
+9. **R9. Global Search titles its categories only in All.** In the All scope, each category that renders (rows or a failure) has its Songs / Players / Bands title above its rows, in that order, so mixed results stay distinguishable (web `SearchModal` `<h3>`, owner #348). A selected scope has no title because its chip names it (#299). Empty categories and their titles are omitted ([empty-error-states](empty-error-states.md) R3). The title is the platform's ordinary R1 heading (`fst.global-search.section.{songs,players,bands}`), not the web's small uppercase muted label (agent decision, #348, 2026-10-07: R1 is the registered native section-title style and keeps the heading readable at large text sizes; owner may override).
 
 ## Agent decision (#321, 2026-10-06): rename title-row links, purple CTA only for in-card bottom rows
 
@@ -44,7 +46,7 @@ Chose **A**. Precedence: web behavior beats undocumented native copies, and amon
 
 | Sub-behavior | Apple | Android | Windows |
 |---|---|---|---|
-| Ordinary section title | `apple/Sources/FestivalUI/Design/SectionHeader.swift` `FestivalSectionHeader` | `android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt` `SectionHeader` | `windows/Festival.App/Themes/Styles.xaml` `FSTSectionHeaderStyle` |
+| Ordinary section title | `apple/Sources/FestivalUI/Design/SectionHeader.swift` `FestivalSectionHeader` | `android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt` `SectionHeader` (Global Search All sections, R9: `ui/search/GlobalSearch.kt` `sectionTitle`) | `windows/Festival.App/Themes/Styles.xaml` `FSTSectionHeaderStyle` |
 | Titled content card | `apple/Sources/FestivalUI/Design/GlassSection.swift` `FestivalGlassSection` | `android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt` `SectionHeader` | `windows/Festival.App/Controls/CardHeader.cs` `CardHeader` |
 | Title-row View All (R8) | `apple/Sources/FestivalUI/Design/SectionHeader.swift` `SectionViewAllLink` (Duo pane headers, Duo Song Detail history cards, Profile Bands) | `android/app/src/main/java/com/festivalscoretracker/android/ui/design/SeeAllButton.kt` `SeeAllButton` | `windows/Festival.App/Pages/RivalsPage.xaml` `HyperlinkButton` (also Profile Bands, `Controls/PlayerProfileView.xaml`); copy and label-first name from `windows/Festival.Core/Domain/ViewAllCta.cs` `ListLabel` / `Name` |
 | Pinned Songs handoff | `apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift` `SongsSectionBar` | `android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsScreen.kt` `SongsScreen` | `windows/Festival.App/Pages/SongsPage.xaml` `StickyHeader` |
