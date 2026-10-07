@@ -421,6 +421,16 @@
           "message": "The app says \"View All\", never \"See All\"; title-row links use SeeAllButton/ViewAllLinkText (section-headers R8, #321)."
         },
         {
+          "id": "windows-view-all-copy",
+          "glob": "windows/Festival.*/**/*.*",
+          "regex": "[\"'>]See [Aa]ll\\b",
+          "allow": [
+            "windows/Festival.*.Tests/**"
+          ],
+          "debt": [],
+          "message": "The Windows app says \"View All\", never \"See All\"; take the copy from ViewAllCta (ListLabel, ResultsLabel) (section-headers R8, view-all-cta R4; #321)."
+        },
+        {
           "id": "windows-sticky-copy",
           "glob": "windows/**/*.xaml",
           "regex": "x:Name=\"(StickyHeader|IncomingHeader)\"",
@@ -694,6 +704,14 @@
           {
             "path": "windows/Festival.App/MainWindow.xaml",
             "symbol": "ProfileButton"
+          },
+          {
+            "path": "windows/Festival.App/MainWindow.TitleBar.cs",
+            "symbol": "QueueDragRegionRefresh"
+          },
+          {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "FSTMinTargetSize"
           }
         ]
       },
@@ -756,9 +774,11 @@
       "supersededBy": null,
       "issues": [
         52,
+        72,
         84,
         92,
         160,
+        271,
         300,
         309
       ]
@@ -1097,6 +1117,10 @@
             "symbol": "LeaderboardsPager"
           },
           {
+            "path": "windows/Festival.Core/Domain/SelectedRowNavigation.cs",
+            "symbol": "SelectedRowAction"
+          },
+          {
             "path": "windows/Festival.App/Controls/BandScoreFooterPanel.cs",
             "symbol": "BandScoreFooterPanel"
           },
@@ -1107,6 +1131,10 @@
           {
             "path": "windows/Festival.Core/Domain/BandScoreFooterLayout.cs",
             "symbol": "BandScoreFooterSection"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/RankingSpotlight.cs",
+            "symbol": "RankingSpotlight"
           }
         ]
       },

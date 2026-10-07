@@ -6,8 +6,8 @@ namespace Festival.Core.Tests;
 
 /// <summary>
 /// Issue #268 (check of #68/#41), pattern <c>view-all-cta</c>: every "View all" call to action below a card's rows
-/// (Song Detail's View Full Leaderboard and View All Scores, the Rivals hub's View All Rivals, Leaderboards' View All
-/// Rankings) is the same button: one shared style
+/// (Song Detail's View Full Leaderboard and View All Scores, the Rivals hub's View All Rivals, Rival Detail's category
+/// View All (#321), Leaderboards' View All Rankings) is the same button: one shared style
 /// with no per-page layout overrides, a Fluent 40 epx minimum target, and a UIA name that starts with its visible label.
 /// </summary>
 public class ViewAllCtaTests
@@ -67,16 +67,18 @@ public class ViewAllCtaTests
         Assert.Equal("View All Scores", ViewAllCta.ScoresLabel);
         Assert.Equal("View All Bands", ViewAllCta.BandsLabel);
         Assert.Equal("View All", ViewAllCta.ListLabel);
+        Assert.Equal("View All Results", ViewAllCta.ResultsLabel);
     }
 
     [Fact]
     public void RivalsAndSongDetail_UseTheSharedButton()
     {
         var consumers = Consumers();
-        // Song Detail Score History + instrument + band cards, Leaderboards solo + band cards and the Rivals hub cards.
+        // Song Detail Score History + instrument + band cards, Leaderboards solo + band cards, the Rivals hub cards and
+        // Rival Detail's category cards (#321: their former in-card text link is now this button).
         // The profile's Bands groups use the frosted ViewAllCard instead (surface-materials R7, issue #312).
-        Assert.Equal(["LeaderboardsPage.xaml", "LeaderboardsPage.xaml", "RivalsPage.xaml", "SongDetailPage.xaml", "SongDetailPage.xaml",
-            "SongDetailPage.xaml"],
+        Assert.Equal(["LeaderboardsPage.xaml", "LeaderboardsPage.xaml", "RivalDetailPage.xaml", "RivalsPage.xaml", "SongDetailPage.xaml",
+            "SongDetailPage.xaml", "SongDetailPage.xaml"],
             consumers.Select(c => c.File).Order(StringComparer.Ordinal));
     }
 

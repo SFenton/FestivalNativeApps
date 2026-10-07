@@ -337,7 +337,8 @@
                                          Title="{x:Bind ViewModel.Song.Title, Mode=OneWay}" Artist="{x:Bind ViewModel.Song.Subtitle, Mode=OneWay}"
                                          TitleAutomationId="fst.song-detail.pinned-title" ArtistAutomationId="fst.song-detail.pinned-artist" />
                 <Button Grid.Column="2" Click="OnPathsClick" Visibility="{x:Bind ViewModel.HasPaths, Mode=OneWay}" Style="{StaticResource AccentButtonStyle}"
-                        VerticalAlignment="Center" AutomationProperties.Name="Paths" AutomationProperties.AutomationId="fst.song-detail.pinned-paths">
+                        MinHeight="{StaticResource FSTMinTargetSize}" VerticalAlignment="Center"
+                        AutomationProperties.Name="Paths" AutomationProperties.AutomationId="fst.song-detail.pinned-paths">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xE707;" FontSize="14" />
                         <TextBlock Text="Paths" />

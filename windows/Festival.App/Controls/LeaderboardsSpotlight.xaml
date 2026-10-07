@@ -3,7 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Festival.App.Controls">
-    <!-- Selected player's rank below a board: loading, inline failure, unranked, or their row (+ Jump to your page). -->
+    <!-- Selected player's rank below a board: loading, inline failure, unranked, or their row. -->
     <StackPanel x:Name="Root" Spacing="6" Visibility="{x:Bind Spotlight.IsVisible, Mode=OneWay, FallbackValue=Collapsed}">
         <!-- The neutral loading ring only (implicit ProgressRing style; audit 2026-09-28: no "Loading your rank…" subtitle); UIA keeps the name. -->
         <!-- Floating (Full Rankings footer), the loading, failure and unranked cards get the pinned row's opaque backplate
@@ -34,19 +34,12 @@
             </Border>
         </Grid>
         <!-- The pinned row is full width like the board's rows, so its rank, name and value line up with them
-             (operator batch 7.9); "Your Page" sits above it instead of taking its width. -->
-        <StackPanel x:Name="RowHost" Spacing="4" Visibility="{x:Bind Spotlight.ShowRow, Mode=OneWay, FallbackValue=Collapsed}">
-            <Button x:Name="Jump" HorizontalAlignment="Right" MinHeight="32"
-                        Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}" Foreground="{ThemeResource FSTSecondaryTextBrush}"
-                    Command="{x:Bind Spotlight.JumpCommand, Mode=OneWay}" Click="OnJumpClick"
-                    Visibility="{x:Bind Spotlight.CanJump, Mode=OneWay, FallbackValue=Collapsed}"
-                    ToolTipService.ToolTip="Jump to your page" AutomationProperties.Name="Jump to your page">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <FontIcon Glyph="&#xE8A7;" FontSize="14" />
-                    <TextBlock x:Name="JumpText" Text="Your Page" />
-                </StackPanel>
-            </Button>
-            <controls:LeaderboardEntryRow x:Name="PinnedRow" Row="{x:Bind Spotlight.Row, Mode=OneWay}" />
-        </StackPanel>
+             (operator batch 7.9). It is itself the control (pattern leaderboard-row R7, issue #318): on Full Rankings,
+             while the player's row is on another page it runs JumpCommand (jump, then the page reveals their row);
+             once their row is shown it opens their profile. Overview cards have no jump, so it always opens the profile. -->
+        <Grid x:Name="RowHost" Visibility="{x:Bind Spotlight.ShowRow, Mode=OneWay, FallbackValue=Collapsed}">
+            <controls:LeaderboardEntryRow x:Name="PinnedRow" Row="{x:Bind Spotlight.Row, Mode=OneWay}"
+                                          Command="{x:Bind Spotlight.JumpCommand, Mode=OneWay}" />
+        </Grid>
     </StackPanel>
 </UserControl>
