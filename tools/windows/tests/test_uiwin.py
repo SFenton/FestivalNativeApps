@@ -256,6 +256,16 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_tapat_and_clickat(self):
+        for verb in ("tapat", "clickat"):
+            step = u.parse_step(f"{verb}:id=fst.shell.profile|0,18.5")
+            self.assertEqual(step["verb"], verb)
+            self.assertEqual(step["selector"], {"kind": "id", "value": "fst.shell.profile"})
+            self.assertEqual((step["dx"], step["dy"]), (0.0, 18.5))
+            for bad in (f"{verb}:id=a", f"{verb}:id=a|1", f"{verb}:10,20|0,0"):
+                with self.assertRaises(ValueError):
+                    u.parse_step(bad)
+
     def test_assertapart(self):
         step = u.parse_step("assertapart:id=fst.songs.sort|id=fst.songs.filter")
         self.assertEqual(step["verb"], "assertapart")

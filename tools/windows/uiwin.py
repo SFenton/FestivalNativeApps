@@ -109,7 +109,7 @@ STEP_VERBS = {
     "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state",
     "markspan": "span", "assertspan": "span", "film": "path", "filmstop": "path", "pin": "selector",
     "assertpinned": "selector", "foreground": "onoff", "listen": "listen", "assertannounced": "announced",
-    "assertsize": "size", "assertapart": "pair", "assertat": "offset",
+    "assertsize": "size", "assertapart": "pair", "assertat": "offset", "tapat": "offset", "clickat": "offset",
     "narrate": "selector", "assertread": "read", "assertorder": "order",
     "assertannouncedcount": "announcedcount",
 }
@@ -245,7 +245,11 @@ def parse_step(step: str) -> dict:
     ``assertat:<sel>|<dx>,<dy>`` hit-tests the point ``<dx>``,``<dy>`` epx from the element's centre without input
     (outside the title bar's non-client caption region, where a press drags the window, and UIA ``ElementFromPoint``
     must return the element or one of its parts, or the point must be inside its bounds when another process covers
-    it, e.g. a locked console; results in ``hits``), so an off-centre tap's target is checked without input.
+    it, e.g. a locked console; results in ``hits``), so an off-centre tap's target is checked without input;
+    ``tapat:<sel>|<dx>,<dy>`` and ``clickat:<sel>|<dx>,<dy>`` send a real pointer press at that point (an injected touch
+    tap, or a left mouse click; unlocked console only, and only when the app's own window is topmost at the point;
+    results in ``presses``), and the following steps assert what it activated (e.g. ``waitfor:`` a flyout item), so
+    the title bar's caption region and the control's own pointer handling decide the outcome.
     Narrator model (Narrator itself can't be scripted; issue #271): ``narrate:<sel>`` records Narrator's scan-mode
     reading order under the element with each item's phrase (results in ``narration``); ``assertread:<sel>|<phrase>[@<seconds>]``
     waits (default 5 s) until the element's Narrator phrase (name, role, state, value, status, help text, shortcut,
