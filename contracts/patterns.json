@@ -2711,6 +2711,75 @@
       "issues": [
         343
       ]
+    },
+    {
+      "id": "split-panes",
+      "title": "Split panes",
+      "status": "current",
+      "doc": ".agents/patterns/split-panes.md",
+      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (a fold, or a 1 pt midpoint band plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under Increase Contrast, and the split's one backdrop and top gradient run unbroken across the band.",
+      "keywords": [
+        "split view",
+        "split",
+        "divider",
+        "splitter",
+        "hairline",
+        "separator",
+        "list detail",
+        "pane",
+        "panes",
+        "hinge band",
+        "vertical divider"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/OnDemandSplitPolicy.swift",
+            "symbol": "drawsDividerLine"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/OnDemandSplit.swift",
+            "symbol": "OnDemandSplitLayout"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/SplitPaneChrome.swift",
+            "symbol": "SplitPaneChrome"
+          }
+        ],
+        "android": [],
+        "windows": []
+      },
+      "related": {
+        "patterns": [
+          "hinge-columns",
+          "surface-materials",
+          "back-keeps-place"
+        ],
+        "pages": [
+          "rivals",
+          "leaderboards",
+          "song-detail",
+          "settings",
+          "songs"
+        ]
+      },
+      "guards": [
+        {
+          "id": "android-vertical-divider",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "\\bVerticalDivider\\s*\\(",
+          "allow": [],
+          "debt": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/shell/FestivalApp.kt"
+          ],
+          "message": "Split panes are separated by space, not a drawn divider; a hairline only under high contrast at a midpoint (split-panes R1, R2)."
+        }
+      ],
+      "supersedes": [],
+      "issues": [
+        344
+      ]
     }
   ]
 }
