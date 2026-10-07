@@ -131,7 +131,7 @@ The former `bands-unavailable` state was retired by #320 on every platform and r
 | `fst.global-search.scope.{songs,players,bands}` | Scope chips |
 | `fst.global-search.hint` | Short-query / empty / error message |
 | `fst.global-search.empty` | Centred empty state (Android/Windows; title `.empty.title`, subtitle `.empty.subtitle` on Windows) |
-| `fst.global-search.section.{songs,players,bands}` | All-scope section title (heading) for each rendered category (issue #348; Android tags the title itself). Absent in a single scope (issue #299) |
+| `fst.global-search.section.{songs,players,bands}` | All-scope section title (heading) for each rendered category (issue #348; Android and Apple tag the title itself). Absent in a single scope (issue #299) |
 | `fst.global-search.result.song`, `fst.global-search.result.player`, `fst.global-search.result.band` | Each result row (repeated; accessible name = title/artist, display name, or members and song count) |
 | `fst.global-search.loading` | The one centred search spinner (Android, Windows, Apple) |
 | `fst.global-search.players-loading` | Players inline progress; removed on Android, Windows and Apple by issue #299 |
