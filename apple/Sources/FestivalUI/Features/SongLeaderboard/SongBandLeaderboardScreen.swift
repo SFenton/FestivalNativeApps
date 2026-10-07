@@ -88,6 +88,9 @@ struct SongBandLeaderboardContent: View {
     @State private var bottomFadeDistance = ScrollEdgeFade.distance
     /// The page's measured width, for the footer's fitted columns.
     @State private var chartWidth: CGFloat = 0
+    /// Columns of rows: two on a full-width page in wide landscape, never beside Song
+    /// Detail in a split (pattern `wide-columns`, issue #353).
+    @State private var columns = 1
     /// The song header has scrolled under the bar: show art, title and band size in the
     /// bar instead, like the solo board (issues #315, #317).
     @State private var headerHidden = false
@@ -284,6 +287,7 @@ struct SongBandLeaderboardContent: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
             chartWidth = width
         }
+        .wideColumnsCount($columns)
         .coordinateSpace(.named(Self.pageSpace))
         // A song-scoped page: the song's static, dimmed art like the solo board and
         // Song Detail (web `PageBackground src={song.albumArt}`, issue #317).
@@ -516,16 +520,22 @@ struct SongBandLeaderboardContent: View {
                         .foregroundStyle(FestivalText.primary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                ForEach(Array(payload.leaderboard.entries.enumerated()), id: \.element.id) { index, entry in
-                    // The selected player's band, or the band this page was opened
-                    // for, gets the purple highlight (web `isSelected`).
-                    SongBandPreviewRow(
-                        entry: entry, highlighted: isHighlighted(entry, in: payload.leaderboard)
-                    )
-                    .accessibilityIdentifier("fst.song-band-leaderboard.row.\(entry.id)")
-                    // Web `stagger(index)`; the page scope decides whether it still
-                    // fades (R5).
-                    .festivalFadeIn(staggerIndex: index)
+                // Row-major pairs in wide landscape (wide-columns R2, #353).
+                ForEach(WideColumns.indexedRows(payload.leaderboard.entries, columns: columns)) { row in
+                    WideColumnsRow(columns: columns, count: row.items.count) {
+                        ForEach(row.indexed, id: \.item.id) { index, entry in
+                            // The selected player's band, or the band this page was
+                            // opened for, gets the purple highlight (web `isSelected`).
+                            SongBandPreviewRow(
+                                entry: entry, highlighted: isHighlighted(entry, in: payload.leaderboard)
+                            )
+                            .accessibilityIdentifier("fst.song-band-leaderboard.row.\(entry.id)")
+                            // Web `stagger(index)`; the page scope decides whether it
+                            // still fades (R5).
+                            .festivalFadeIn(staggerIndex: index)
+                            .frame(maxWidth: .infinity)
+                        }
+                    }
                 }
             }
             // Rows start under the header even when they are fewer than a screen.
@@ -541,8 +551,10 @@ struct SongBandLeaderboardContent: View {
                     return
                 }
                 // After the card's own entrance (web `navToBand`, #323).
+                // A pair's identity is its first row's (wide-columns, #353).
                 if await SelectedRowReveal.reveal(
-                    entries[targetIndex].id, proxy: proxy, reduceMotion: reduceMotion,
+                    entries[WideColumns.rowStart(of: targetIndex, columns: columns)].id,
+                    proxy: proxy, reduceMotion: reduceMotion,
                     staggerIndex: targetIndex, scope: fadeScope
                 ) {
                     focusPending = false

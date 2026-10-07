@@ -533,6 +533,86 @@ private extension View {
     assertRendersContent(host, image: image, containing: [footer, "Your rank, 2nd. Fixture Rank 2."])
 }
 
+// MARK: - Full-width boards in wide landscape (issue #353)
+
+/// Where a full board is hosted for the wide-columns checks.
+enum WideBoardPlacement: String, CaseIterable, CustomTestStringConvertible {
+    /// A full-width Mac page wider than tall: two columns.
+    case wide
+    /// A full-width page taller than wide: one column.
+    case tall
+    /// The same wide page as a split's sub-page beside Leaderboards: one column.
+    case splitTrailing
+
+    var testDescription: String { rawValue }
+
+    var size: CGSize {
+        self == .tall ? CGSize(width: 760, height: 1000) : CGSize(width: 1100, height: 760)
+    }
+
+    var context: SplitPaneContext? {
+        self == .splitTrailing ? SplitPaneContext(role: .trailing, besideList: .leaderboards) : nil
+    }
+
+    var columns: Int { self == .wide ? 2 : 1 }
+}
+
+/// A full board on a full-width wide page lays its rows out in two row-major columns
+/// (rank 1 beside rank 2, rank 3 under rank 1), while a tall page and a split's
+/// sub-page stay one column; the pinned footer and the pager still span the board
+/// beneath the rows (pattern `wide-columns` R1/R2, leaderboard-row R5/R7, issue #353).
+@MainActor
+@Test(.serialized, arguments: WideBoardPlacement.allCases)
+func fullRankingsUsesTwoColumnsOnlyFullWidthInWideLandscape(placement: WideBoardPlacement) async throws {
+    nativeHostedEnableAccessibility()
+    let transport = HostedRankingsTransport()
+    await transport.setSpotlightRank(instrument: "Solo_Guitar", accountId: "fixture-far-player", rank: 57)
+    let session = try hostedRankingsSessionWithSelection(
+        transport: transport, accountId: "fixture-far-player", displayName: "Fixture Far Player"
+    )
+    let size = placement.size
+    let host = nativeHostedView(
+        NavigationStack {
+            FullRankingsScreen(session: session, instrument: .lead, rankBy: "totalscore")
+                .splitPaneContext(placement.context)
+        }
+        .frame(width: size.width, height: size.height)
+        .preferredColorScheme(.dark)
+        .leaderboardsHostedStorage(),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let rowIDs = (1...3).map { "fst.rankings.row.fixture-rank-\($0)" }
+    let image = try await nativeHostedSettle(host, timeout: .seconds(60)) {
+        rowIDs.allSatisfy { nativeHostedAccessibilityFrame($0, in: host) != nil }
+            && nativeHostedAccessibilityFrame("fst.full-rankings.spotlight-footer", in: host) != nil
+            && nativeHostedAccessibilityFrame("fst.full-rankings.page-info", in: host) != nil
+    }
+    _ = try nativeHostedPNG(
+        image, filename: "full-rankings-columns-\(placement.rawValue).png", environment: "FST_LEADERBOARDS_RENDER_OUT"
+    )
+    let rows = try rowIDs.map { try #require(nativeHostedAccessibilityFrame($0, in: host)) }
+    if placement.columns == 2 {
+        #expect(abs(rows[0].minY - rows[1].minY) < 1, "\(placement): rank 2 is not beside rank 1")
+        #expect(rows[1].minX >= rows[0].maxX + WideColumns.spacing - 1, "\(placement): no gutter")
+        #expect(abs(rows[0].width - rows[1].width) < 1, "\(placement): uneven columns")
+        #expect(abs(rows[2].minX - rows[0].minX) < 1 && rows[2].minY > rows[0].maxY,
+                "\(placement): rank 3 does not start the next row")
+    } else {
+        #expect(rows[1].minY > rows[0].maxY, "\(placement): rank 2 is not under rank 1")
+        #expect(abs(rows[1].minX - rows[0].minX) < 1)
+    }
+    let footer = try #require(nativeHostedAccessibilityFrame("fst.full-rankings.spotlight-footer", in: host))
+    #expect(footer.minY > rows[2].maxY, "\(placement): footer \(footer) is not under the rows")
+    let pager = try #require(nativeHostedAccessibilityFrame("fst.full-rankings.page-info", in: host))
+    #expect(pager.minY >= footer.maxY, "\(placement): pager \(pager) is not under the footer")
+    if placement.columns == 2 {
+        // The footer spans the board, not one column.
+        #expect(footer.width > rows[0].width * 1.5, "\(placement): footer \(footer) is one column wide")
+    }
+}
+
 // MARK: - Quick Links (control states, Leaderboards adoption)
 
 /// A single-section page hides its Quick Links entry point (`hidden-single-section`).

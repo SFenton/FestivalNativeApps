@@ -52,6 +52,9 @@ struct FullRankingsScreen: View {
     /// Counts the reload gate's reveals: each revealed page re-arms ``fadeScope`` (web
     /// `resetRush` on paginate).
     @State private var rowsReveal = 0
+    /// Columns of rows: two on a full-width page in wide landscape, never on a split's
+    /// sub-page (pattern `wide-columns`, issue #353).
+    @State private var columns = 1
     @Environment(\.deviceLayout) private var layout
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
@@ -191,15 +194,21 @@ struct FullRankingsScreen: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .festivalFadeInOnAppear()
                         }
-                        ForEach(Array(payload.rankings.entries.enumerated()), id: \.element.id) { index, entry in
-                            AccountRankingRow(
-                                entry: entry, metric: rankBy,
-                                isSelected: isSelectedAccount(entry.accountId), cardSurface: true
-                            )
-                            .macKeyboardRow(entry.id)
-                            // Web `PaginatedLeaderboard` row stagger; the page scope
-                            // decides whether it still fades (R5).
-                            .festivalFadeIn(staggerIndex: index)
+                        // Row-major pairs in wide landscape (wide-columns R2, #353).
+                        ForEach(WideColumns.indexedRows(payload.rankings.entries, columns: columns)) { row in
+                            WideColumnsRow(columns: columns, count: row.items.count) {
+                                ForEach(row.indexed, id: \.item.id) { index, entry in
+                                    AccountRankingRow(
+                                        entry: entry, metric: rankBy,
+                                        isSelected: isSelectedAccount(entry.accountId), cardSurface: true
+                                    )
+                                    .frame(maxWidth: .infinity)
+                                    .macKeyboardRow(entry.id)
+                                    // Web `PaginatedLeaderboard` row stagger; the page
+                                    // scope decides whether it still fades (R5).
+                                    .festivalFadeIn(staggerIndex: index)
+                                }
+                            }
                         }
                     }
                     .macKeyboardRows(AccountRankingRow.keyRows(payload.rankings.entries))
@@ -231,8 +240,10 @@ struct FullRankingsScreen: View {
                         return
                     }
                     // After the row's own entrance (web `navToPlayer`, #323).
+                    // A pair's identity is its first row's (wide-columns, #353).
                     if await SelectedRowReveal.reveal(
-                        entries[targetIndex].id, proxy: proxy, reduceMotion: reduceMotion,
+                        entries[WideColumns.rowStart(of: targetIndex, columns: columns)].id,
+                        proxy: proxy, reduceMotion: reduceMotion,
                         staggerIndex: targetIndex, scope: fadeScope
                     ) {
                         focusPending = false
@@ -242,6 +253,7 @@ struct FullRankingsScreen: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .wideColumnsCount($columns)
         // The shared Song Leaderboard pager and the player's footer, pinned outside the
         // reload gate so both stay put while only the rows fade (issue #294; a bottom
         // safe-area inset for the same tab-bar reason as `SoloLeaderboardScreen`).
@@ -255,7 +267,7 @@ struct FullRankingsScreen: View {
         .leaderboardSectionColumns(
             pageColumns(shownEntries ?? []),
             hidingCrowdedSongsFor: pageNames(shownEntries ?? []),
-            rowInset: 32
+            rowInset: 32, pageColumns: columns
         )
         .coordinateSpace(.named(Self.pageSpace))
         .festivalBackground(.carousel, session: session)

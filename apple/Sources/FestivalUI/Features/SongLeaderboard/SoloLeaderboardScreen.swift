@@ -30,6 +30,9 @@ struct SoloLeaderboardScreen: View {
     @State private var headerHeight: CGFloat = 0
     /// The chart's measured width, for the section's fitted columns (issue #37).
     @State private var chartWidth: CGFloat = 0
+    /// Columns of rows: two on a full-width page in wide landscape, never beside Song
+    /// Detail in a split (pattern `wide-columns`, issue #353).
+    @State private var columns = 1
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// The list page beside this board in a split (Song Detail drops the song header, #342).
     @Environment(\.splitDetailBesideList) private var besideList
@@ -167,41 +170,13 @@ struct SoloLeaderboardScreen: View {
                                 // header R5, issue #316).
                                 resultArea(reveal.showsResult ? failedIssue : nil)
                             }
-                            ForEach(Array((rows?.leaderboard.entries ?? []).enumerated()), id: \.element.id) { index, entry in
-                                let isSelectedRow = isSelectedAccount(entry.accountId)
-                                // One design with every leaderboard (web `entryRow`): each row
-                                // its own material card, the player's purple, with the chevron
-                                // inside the card. A button that pushes onto the tab's path
-                                // rather than a NavigationLink, so the List draws no second
-                                // disclosure indicator outside the card.
-                                Button {
-                                    path.append(playerRoute(for: entry))
-                                } label: {
-                                    HStack(spacing: 8) {
-                                        SongLeaderboardEntryRow(
-                                            entry: entry, isPlayer: isSelectedRow,
-                                            currentSeason: session.catalogCurrentSeason
-                                        )
-                                        Image(systemName: "chevron.forward")
-                                            .font(.footnote.weight(.semibold))
-                                            .foregroundStyle(FestivalText.deemphasized)
-                                            .accessibilityHidden(true)
+                            // Row-major pairs in wide landscape (wide-columns R2, #353).
+                            ForEach(WideColumns.indexedRows(rows?.leaderboard.entries ?? [], columns: columns)) { row in
+                                WideColumnsRow(columns: columns, count: row.items.count) {
+                                    ForEach(row.indexed, id: \.item.id) { index, entry in
+                                        entryRow(entry, index: index)
                                     }
-                                    .padding(.horizontal, 14)
-                                    .frame(minHeight: LeaderboardRowMetrics.minHeight)
-                                    .modifier(RankingRowSurface(isSelected: isSelectedRow))
-                                    .contentShape(Rectangle())
                                 }
-                                .festivalRowButtonStyle()
-                                // Accessibility grouping first, fade outermost: wrapping the
-                                // link in the fade before `.contain` hid its score texts
-                                // from the row's descendants.
-                                .accessibilityElement(children: .contain)
-                                .accessibilityIdentifier(
-                                    "fst.song-leaderboard.row.\(entry.accountId)"
-                                )
-                                // The page scope decides whether it still fades (R5).
-                                .festivalFadeIn(staggerIndex: index)
                                 .listRowInsets(EdgeInsets(
                                     top: Self.rowInset, leading: 16, bottom: Self.rowInset, trailing: 16
                                 ))
@@ -250,8 +225,10 @@ struct SoloLeaderboardScreen: View {
                                 return
                             }
                             // After the row's own entrance (web `navToPlayer`, #323).
+                            // A pair's identity is its first row's (wide-columns, #353).
+                            let rowStart = WideColumns.rowStart(of: targetIndex, columns: columns)
                             if await SelectedRowReveal.reveal(
-                                rows.leaderboard.entries[targetIndex].id, proxy: proxy,
+                                rows.leaderboard.entries[rowStart].id, proxy: proxy,
                                 reduceMotion: reduceMotion, staggerIndex: targetIndex, scope: fadeScope
                             ) {
                                 focusPending = false
@@ -295,6 +272,7 @@ struct SoloLeaderboardScreen: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
             chartWidth = width
         }
+        .wideColumnsCount($columns)
         .coordinateSpace(.named(Self.pageSpace))
         .detailFadeTestSafe()
         .festivalBackground(.song(song.albumArt), session: session)
@@ -328,6 +306,47 @@ struct SoloLeaderboardScreen: View {
                 await loadPage()
             }
         }
+    }
+
+    // MARK: Rows
+
+    /// One leaderboard row: its own material card (the player's purple) with the chevron
+    /// inside, as a button that pushes the player's page. One design with every
+    /// leaderboard (web `entryRow`); a button that pushes onto the tab's path rather than
+    /// a NavigationLink, so the List draws no second disclosure indicator outside it.
+    ///
+    /// - Parameters:
+    ///   - entry: The row's entry.
+    ///   - index: Its position on the page (fade stagger).
+    /// - Returns: The row, filling its column.
+    private func entryRow(_ entry: LeaderboardEntry, index: Int) -> some View {
+        let isSelectedRow = isSelectedAccount(entry.accountId)
+        return Button {
+            path.append(playerRoute(for: entry))
+        } label: {
+            HStack(spacing: 8) {
+                SongLeaderboardEntryRow(
+                    entry: entry, isPlayer: isSelectedRow,
+                    currentSeason: session.catalogCurrentSeason
+                )
+                Image(systemName: "chevron.forward")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(FestivalText.deemphasized)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, 14)
+            .frame(minHeight: LeaderboardRowMetrics.minHeight)
+            .modifier(RankingRowSurface(isSelected: isSelectedRow))
+            .contentShape(Rectangle())
+        }
+        .festivalRowButtonStyle()
+        // Accessibility grouping first, fade outermost: wrapping the link in the fade
+        // before `.contain` hid its score texts from the row's descendants.
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("fst.song-leaderboard.row.\(entry.accountId)")
+        // The page scope decides whether it still fades (R5).
+        .festivalFadeIn(staggerIndex: index)
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: Pinned bottom chrome
@@ -480,11 +499,13 @@ struct SoloLeaderboardScreen: View {
     /// The page's fitted columns, measured over its rows and the pinned footer row.
     ///
     /// - Parameter payload: The last loaded page, kept while the next one loads.
-    /// - Returns: Shared rank/score widths and the visible columns for `chartWidth`.
+    /// - Returns: Shared rank/score widths and the visible columns for one column of
+    ///   `chartWidth`.
     private func sectionColumns(_ payload: LeaderboardPayload?) -> LeaderboardRowColumns {
         let rows = (payload?.leaderboard.entries ?? []) + [selectedPlayerEntry()].compactMap { $0 }
         return LeaderboardRowColumns.fit(
-            .songLeaderboard, width: Double(chartWidth),
+            // One column's page-equivalent width (wide-columns, #353).
+            .songLeaderboard, width: Double(WideColumns.columnPageWidth(chartWidth, columns: columns)),
             ranks: rows.map(\.rank), scores: rows.map(\.score)
         )
     }
