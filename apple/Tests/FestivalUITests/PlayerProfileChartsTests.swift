@@ -214,7 +214,7 @@ private func chartPixels<Content: View>(_ chart: Content) throws -> CGImage {
         == "Global Statistics")
 }
 
-/// Each rank-history bar speaks its snapshot's rank and Total Score (VoiceOver otherwise
+/// Each rank-history snapshot reads its rank and Total Score (VoiceOver otherwise
 /// reads Swift Charts' plotted index range, "0 to 1").
 @MainActor
 @Test func rankHistoryBarsSpeakRankAndTotalScore() {
@@ -226,5 +226,9 @@ private func chartPixels<Content: View>(_ chart: Content) throws -> CGImage {
         id: "2026-09-26", index: 5, label: "9/26/26", rank: 12, value: 1_000, rankedAccountCount: nil
     )
     #expect(RankHistoryCharts.accessibilityValue(unranked) == "Rank 12, total score 1,000")
+    // The chart is one adjustable element (Duo hit area, Lane A11Y4): its value reads the
+    // visible page's snapshots, oldest first.
+    #expect(RankHistoryCharts.accessibilityValue(page: [unranked, point])
+        == "9/26/26: Rank 12, total score 1,000; 9/27/26: Rank 4 of 506, total score 89,400,000")
 }
 #endif

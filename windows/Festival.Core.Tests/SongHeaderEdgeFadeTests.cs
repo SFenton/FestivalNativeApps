@@ -3,23 +3,17 @@ using Xunit;
 
 namespace Festival.Core.Tests;
 
-/// <summary>The Songs section header edge fade (issue #49).</summary>
+/// <summary>The pinned-section-title row fade (scroll-edge R2–R5, R7, R8; issues #49, #308).</summary>
 public sealed class SongHeaderEdgeFadeTests
 {
-    [Fact]
-    public void Depth_MatchesIos() => Assert.Equal(28, SongHeaderEdgeFade.Depth);
+    private const double Bar = 35;
 
     [Fact]
-    public void Stops_AreAnEasedRampFromTransparentToOpaque()
-    {
-        var stops = SongHeaderEdgeFade.Stops;
-        Assert.Equal([0f, 0.25f, 0.5f, 0.75f, 1f], stops.Select(s => s.Offset));
-        Assert.Equal(0f, stops[0].Alpha);
-        Assert.Equal(0.15625f, stops[1].Alpha, 6);
-        Assert.Equal(0.5f, stops[2].Alpha, 6);
-        Assert.Equal(0.84375f, stops[3].Alpha, 6);
-        Assert.Equal(1f, stops[4].Alpha);
-    }
+    public void Depth_MatchesTheWebScrollMask() => Assert.Equal(40, SongHeaderEdgeFade.Depth);
+
+    [Fact]
+    public void Stops_AreALinearRampFromClearToOpaque() =>
+        Assert.Equal([(0f, 0f), (1f, 1f)], SongHeaderEdgeFade.Stops);
 
     [Theory]
     [InlineData(false, true, false, false, true)]
@@ -33,31 +27,74 @@ public sealed class SongHeaderEdgeFadeTests
     [Theory]
     [InlineData(0, 0)]
     [InlineData(-5, 0)]
-    [InlineData(14, 0.5)]
-    [InlineData(28, 1)]
-    [InlineData(500, 1)]
+    [InlineData(14, 14)]
+    [InlineData(40, 40)]
+    [InlineData(500, 40)]
     [InlineData(double.NaN, 0)]
-    public void Strength_RampsInOverTheDepth(double offset, double expected) =>
-        Assert.Equal(expected, SongHeaderEdgeFade.Strength(offset), 6);
+    public void FadeDepth_WithoutTitlesGrowsWithTheScrollLikeTheWeb(double offset, double expected) =>
+        Assert.Equal(expected, SongHeaderEdgeFade.FadeDepth(offset, null, null, Bar), 6);
 
     [Theory]
-    [InlineData(0f, 0, 1f)]
-    [InlineData(0f, 0.5, 0.5f)]
-    [InlineData(0f, 1, 0f)]
-    [InlineData(0f, 2, 0f)]
-    [InlineData(1f, 1, 1f)]
-    [InlineData(0.5f, 1, 0.5f)]
-    public void MaskAlpha_ScalesWithStrength(float stop, double strength, float expected) =>
-        Assert.Equal(expected, SongHeaderEdgeFade.MaskAlpha(stop, strength), 6);
+    [InlineData(100, 40)] // far below: the full ramp
+    [InlineData(25, 25)] // incoming title inside the band: the ramp ends at its top, so it is never dimmed
+    [InlineData(0, 0)] // title at the viewport top
+    [InlineData(-10, 0)] // title crossing into the bar
+    [InlineData(-Bar, 0)] // pinned exactly (a Jump landing): the first row is fully opaque (R8)
+    [InlineData(-Bar - 12, 12)] // rows scrolled 12 epx past the pin line
+    [InlineData(-Bar - 400, 40)]
+    public void FadeDepth_IsCutToTheNearestSectionTitle(double titleTop, double expected)
+    {
+        Assert.Equal(expected, SongHeaderEdgeFade.FadeDepth(5000, null, titleTop, Bar), 6);
+        Assert.Equal(expected, SongHeaderEdgeFade.FadeDepth(5000, titleTop, null, Bar), 6);
+    }
+
+    [Fact]
+    public void FadeDepth_TheNearerTitleWins() =>
+        Assert.Equal(6, SongHeaderEdgeFade.FadeDepth(5000, -Bar - 30, 6, Bar), 6);
+
+    [Fact]
+    public void FadeDepth_IsContinuousAsATitleScrollsThroughTheBar()
+    {
+        double? last = null;
+        for (var top = 60.0; top >= -Bar - 60; top -= 0.5)
+        {
+            var depth = SongHeaderEdgeFade.FadeDepth(5000, null, top, Bar);
+            Assert.InRange(depth, 0, SongHeaderEdgeFade.Depth);
+            if (last is { } previous) Assert.InRange(Math.Abs(depth - previous), 0, 0.5001);
+            last = depth;
+        }
+    }
 
     [Theory]
-    [InlineData(false, true, 1, "hidden")]
-    [InlineData(false, false, 0, "hidden")]
-    [InlineData(true, false, 1, "hard-edge")]
-    [InlineData(true, false, 0, "hard-edge")]
-    [InlineData(true, true, 0, "top")]
-    [InlineData(true, true, 0.25, "fading")]
-    [InlineData(true, true, 1, "fading")]
-    public void Status_NamesEachReachableEdgeState(bool headerShown, bool enabled, double strength, string expected) =>
-        Assert.Equal(expected, SongHeaderEdgeFade.Status(headerShown, enabled, strength));
+    [InlineData(null, 1_000_000)]
+    [InlineData(double.NaN, 1_000_000)]
+    [InlineData(10.0, 10)]
+    [InlineData(-20.0, 0)]
+    [InlineData(-Bar - 5.0, 5)]
+    public void TitleLimit_MatchesTheCompositorFormula(double? top, double expected) =>
+        Assert.Equal(expected, SongHeaderEdgeFade.TitleLimit(top, Bar), 6);
+
+    [Theory]
+    [InlineData(-1, 40, 0)]
+    [InlineData(0, 40, 0)]
+    [InlineData(20, 40, 0.5)]
+    [InlineData(40, 40, 1)]
+    [InlineData(80, 40, 1)]
+    [InlineData(0, 0, 1)]
+    [InlineData(3, 0, 1)]
+    public void MaskAlpha_IsClearAtTheEdgeAndOpaqueAfterTheRamp(double distance, double depth, double expected) =>
+        Assert.Equal(expected, SongHeaderEdgeFade.MaskAlpha(distance, depth), 6);
+
+    [Theory]
+    [InlineData(false, true, 100, 40, "hidden")]
+    [InlineData(false, false, 0, 0, "hidden")]
+    [InlineData(true, false, 100, 40, "hard-edge")]
+    [InlineData(true, false, 0, 0, "hard-edge")]
+    [InlineData(true, true, 0, 0, "top")]
+    [InlineData(true, true, 100, 0, "clear")]
+    [InlineData(true, true, 100, 0.5, "clear")]
+    [InlineData(true, true, 10, 10, "fading")]
+    [InlineData(true, true, 100, 40, "fading")]
+    public void Status_NamesEachReachableEdgeState(bool headerShown, bool enabled, double offset, double depth, string expected) =>
+        Assert.Equal(expected, SongHeaderEdgeFade.Status(headerShown, enabled, offset, depth));
 }

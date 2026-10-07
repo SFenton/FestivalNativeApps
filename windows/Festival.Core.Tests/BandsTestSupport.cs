@@ -18,11 +18,12 @@ public static class BandWire
         return $$"""{"accountId":"{{accountId}}","group":"all","totalCount":{{total}},"entries":[{{entries}}]}""";
     }
 
-    public static string SongBands(string songId, string bandType, int count, int total, int offset = 0, int? selectedRank = null, string? selectedType = null)
+    public static string SongBands(string songId, string bandType, int count, int total, int offset = 0, int? selectedRank = null, string? selectedType = null, bool? showTotals = null)
     {
         var entries = string.Join(",", Enumerable.Range(offset + 1, count).Select(i => SongBandEntry(bandType, i)));
         var selected = selectedRank is { } rank ? $$""","selectedPlayerEntry":{{SongBandEntry(selectedType ?? bandType, rank)}}""" : "";
-        return $$"""{"songId":"{{songId}}","bandType":"{{bandType}}","count":{{count}},"totalEntries":{{total}},"localEntries":{{total}},"entries":[{{entries}}]{{selected}}}""";
+        var totals = showTotals is { } show ? "\"showLeaderboardEntryTotals\":" + (show ? "true," : "false,") : "";
+        return $$"""{"songId":"{{songId}}","bandType":"{{bandType}}",{{totals}}"count":{{count}},"totalEntries":{{total}},"localEntries":{{total}},"entries":[{{entries}}]{{selected}}}""";
     }
 
     public static string SongBandEntry(string bandType, int i) =>

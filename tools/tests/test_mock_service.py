@@ -220,6 +220,13 @@ class MockServiceTests(unittest.TestCase):
                 bands = json.load(response)
             self.assertEqual(bands["totalTeams"], 600)
             self.assertEqual(len(bands["entries"]), 25)
+            with urlopen(base + "/api/leaderboard/fixture-pulse/bands/Band_Duets?top=25&offset=50"
+                         "&accountId=fixture-player-1") as response:
+                song_bands = json.load(response)
+            self.assertEqual(song_bands["totalEntries"], 75)
+            self.assertEqual(song_bands["entries"][-1]["rank"], 75)
+            self.assertTrue(all(e["score"] > 0 for e in song_bands["entries"]))
+            self.assertIsNotNone(song_bands["selectedPlayerEntry"])
         finally:
             large.shutdown()
             large.server_close()
@@ -415,11 +422,23 @@ class MockServiceTests(unittest.TestCase):
             ("/api/account/search?q=Fi&limit=x", 400),
             ("/api/account/search?q=F&limit=10", 400),
             ("/api/account/search?q=Fi&q=other&limit=10", 400),
-            ("/api/bands/search?q=fixture", 404),
+            ("/api/bands/search?q=fixture", 400),
+            ("/api/bands/search?q=fixture&page=2&pageSize=10", 400),
+            ("/api/bands/search?q=f&page=1&pageSize=10", 400),
+            ("/api/bands/search?q=fixture&page=1&pageSize=0", 400),
+            ("/api/bands/search?q=busy&page=1&pageSize=10", 503),
         ):
             with self.subTest(route=route), self.assertRaises(HTTPError) as failure:
                 urlopen(self.base + route)
             self.assertEqual(failure.exception.code, expected)
+        with urlopen(self.base + "/api/bands/search?q=Syncing&page=1&pageSize=10") as response:
+            bands = json.load(response)
+        self.assertEqual([band["teamKey"] for band in bands["results"]], ["fixture-team-2"])
+        self.assertEqual(bands["results"][0]["members"][1]["displayName"], "Syncing Player")
+        with urlopen(self.base + "/api/bands/search?q=Fixture&page=1&pageSize=1") as response:
+            self.assertEqual(len(json.load(response)["results"]), 1)
+        with urlopen(self.base + "/api/bands/search?q=zzz&page=1&pageSize=10") as response:
+            self.assertEqual(json.load(response)["results"], [])
         for header in ("X-FST-Selected-Player", "X-FST-Selected-Band-Id", "X-API-Key"):
             with self.subTest(header=header), self.assertRaises(HTTPError) as failure:
                 urlopen(Request(

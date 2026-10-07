@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.rivals
 
+import com.festivalscoretracker.android.ui.common.rememberPageFadeInWindow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -95,10 +96,13 @@ fun RivalsScreen(viewModel: RivalsHubViewModel?, isRoot: Boolean, visibleCount: 
     val sections = cards
         .filter { (it.state as? LoadState.Loaded)?.value?.isNotEmpty() == true }
         .map { RivalQuickLinks.hub(it.id, it.title, it.instrument) }
-    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections) { id -> cards.indexOfFirst { it.id == id }.takeIf { it >= 0 } }
+    // The page's fade window, here so Quick Links jumps rush it (load-transition R5).
+    val fadeIn = rememberPageFadeInWindow()
+    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections, fadeInWindow = fadeIn) { id -> cards.indexOfFirst { it.id == id }.takeIf { it >= 0 } }
     FestivalScreen(
         title = "Rivals",
         isRoot = isRoot,
+        fadeInWindow = fadeIn,
         actions = {
             if (viewModel != null) {
                 IconButton(onClick = { findOpen = true }, modifier = Modifier.testTag("fst.rivals.findRival")) {
@@ -237,6 +241,7 @@ private fun HubContent(
                                 onRival = { entry -> navigate(RivalRoutes.detail(entry.rival.accountId, entry.rival.displayName, section.rowScope)) },
                                 onViewAll = seeAll,
                                 revealed = pageRevealed && sectionRevealed,
+                                cardName = section.title,
                             )
                         }
                     }

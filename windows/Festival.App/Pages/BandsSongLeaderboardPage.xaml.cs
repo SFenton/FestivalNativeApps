@@ -16,7 +16,6 @@ namespace Festival.App.Pages;
 /// </summary>
 public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
 {
-    private CancellationTokenSource headerArt = new();
     private int shownPage;
     private bool spotlightShown;
 
@@ -25,8 +24,7 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
     {
         InitializeComponent();
         Controls.BoardFooter.Inset(Footer, Rows);
-        SizeChanged += (_, e) => ApplyWidth(e.NewSize.Width);
-        Footer.SizeChanged += (_, _) => UpdateFooterPlate();
+        BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Rows, Footer, FooterPlate);
     }
 
     /// <summary>Page model (set on navigation).</summary>
@@ -47,7 +45,7 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
         ViewModel.PropertyChanged += OnViewModelChanged;
         ViewModel.LoadSwap.ContentRevealed += OnContentRevealed;
         ScreenReader.Attach(this, [ViewModel, ViewModel.Pager], () => ViewModel.IsLoading,
-            () => ViewModel.ShowRows ? $"{ViewModel.Title}, {ViewModel.Pager.PageAnnouncement}" : ViewModel.ShowEmpty ? ViewModel.EmptyMessage : null,
+            () => ViewModel.ShowRows ? $"{ViewModel.LeaderboardName}, {ViewModel.Pager.PageAnnouncement}" : ViewModel.ShowEmpty ? ViewModel.EmptyMessage : null,
             "Loading band leaderboard");
         Bindings.Update();
         SizeBar.SelectedItem = SizeBar.Items[ViewModel.BandTypeIndex];
@@ -61,21 +59,11 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
     /// <inheritdoc />
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
-        headerArt.Cancel();
         ViewModel.PropertyChanged -= OnViewModelChanged;
         ViewModel.LoadSwap.ContentRevealed -= OnContentRevealed;
         ViewModel.Deactivate();
         ContrastTheme.Changed -= OnContrastChanged;
         base.OnNavigatedFrom(e);
-    }
-
-    /// <summary>Compacts the header when the page itself is narrow (the navigation pane can take most of a compact window).</summary>
-    /// <param name="width">Page width in epx.</param>
-    private void ApplyWidth(double width)
-    {
-        var narrow = width < 560;
-        TitleText.Style = (Style)Application.Current.Resources[narrow ? "SubtitleTextBlockStyle" : "FSTPageTitleStyle"];
-        HeaderArtFrame.Width = HeaderArtFrame.Height = narrow ? 48 : 72;
     }
 
     /// <summary>Applies the band-size choice in place.</summary>
@@ -86,6 +74,12 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
         if (ViewModel is null || sender.SelectedItem is null) return;
         ViewModel.BandTypeIndex = sender.Items.IndexOf(sender.SelectedItem);
     }
+
+    /// <summary>Opens Song Detail from the song header (web <c>onTitleClick={goToSongDetail}</c>).</summary>
+    /// <param name="sender">Header.</param>
+    /// <param name="e">Unused.</param>
+    private void OnSongTitle(object? sender, EventArgs e) =>
+        MainWindow.Instance?.Navigate(new AppRoute.SongDetail(ViewModel.SongId));
 
     /// <summary>Opens Band Detail for a row.</summary>
     /// <param name="sender">List.</param>
@@ -133,30 +127,12 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
         var items = Rows.ItemsSource;
         Rows.ItemsSource = null;
         Rows.ItemsSource = items;
-        UpdateFooterPlate();
     });
 
-    /// <summary>
-    /// Under a Windows contrast theme, shows the window-colour plate behind the floating footer (pinned band and pager) down
-    /// to the page bottom so rows scrolling beneath don't show through (scroll-edge R7, as the other boards); hidden otherwise.
-    /// </summary>
-    private void UpdateFooterPlate()
-    {
-        var on = ContrastTheme.IsOn && Footer.ActualHeight > 0;
-        FooterPlate.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
-        if (on) FooterPlate.Height = Footer.ActualHeight + Footer.Margin.Bottom;
-    }
-
-    /// <summary>Opens Song Detail from the header title.</summary>
-    /// <param name="sender">Link.</param>
-    /// <param name="e">Unused.</param>
-    private void OnSongTitle(object sender, RoutedEventArgs e) =>
-        MainWindow.Instance?.Navigate(new AppRoute.SongDetail(ViewModel.SongId));
-
-    /// <summary>Loads header art and the backdrop once the song resolves; scrolls to top on a new page.</summary>
+    /// <summary>Shows the resolved song's header art and backdrop; scrolls to the top on a new page.</summary>
     /// <param name="sender">View model.</param>
     /// <param name="e">Changed property.</param>
-    private async void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(SongBandLeaderboardViewModel.Rows))
         {
@@ -180,13 +156,15 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
             spotlightShown = shown;
             return;
         }
-        if (e.PropertyName != nameof(SongBandLeaderboardViewModel.Song) || ViewModel.Song is not { } song) return;
+        if (e.PropertyName == nameof(SongBandLeaderboardViewModel.Song)) ShowSong();
+    }
+
+    /// <summary>Points the backdrop and the header art at the resolved song (the solo board's static cover).</summary>
+    private void ShowSong()
+    {
+        if (ViewModel.Song is not { } song) return;
         MainWindow.Instance?.RefreshBackdrop();
-        headerArt.Cancel();
-        headerArt = new CancellationTokenSource();
-        if (App.Session.Settings.SaveData || App.Options.NoArt) return;
-        var pixels = (int)Math.Ceiling(72 * (XamlRoot?.RasterizationScale ?? 1));
-        HeaderArt.Source = await ArtworkImages.LoadAsync(song.AlbumArt, pixels, headerArt.Token);
+        Header.ArtUrl = song.AlbumArt ?? "";
     }
 
     /// <summary>

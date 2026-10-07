@@ -15,24 +15,21 @@ import FestivalDesign
 ///   gold for a 100% full combo) and the score line on the leading axis, paged like the
 ///   Rank History chart; tapping a bar shows that score's detail row;
 /// - the best five scores as separate rows, the best one highlighted and bold;
-/// - "View all scores" (more than five) expands every score in place, so there is no
-///   separate history page; `/songs/:id/:instrument/history` deep links open this page
-///   scrolled here with the list expanded (`PlayerHistoryScreen`).
+/// - "View All Scores" (more than five, web `GraphCard` `viewAllLabel`) opens the
+///   separate, sortable Score History page (``PlayerHistoryScreen``, issue #324):
+///   pushed on iPhone, in the trailing pane where Song Detail splits.
 struct SongScoreHistorySection: View {
+    /// The song (the View All Scores route).
+    let song: Song
     let entries: [ScoreHistoryEntry]
     /// Visible charted instruments in display order (the selector's pool).
     let pool: [Instrument]
-    let keyboardIcon: Bool
     @Binding var instrument: Instrument?
-    @Binding var expanded: Bool
     /// The page (viewport) width: list rows show the season from 520 pt, like the web's
     /// `QUERY_SHOW_SEASON` media query (`ScoreRowSeasonPolicy`, issue #32).
     var viewportWidth: CGFloat = 0
     /// The catalogue's current season, whose pill is inverted.
     var currentSeason: Int?
-    /// Opens every score for an instrument in the trailing pane, where Song Detail can
-    /// split (`split-view.md`, operator 2026-10-04); nil expands the list in place.
-    var openFullHistory: ((Instrument) -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
@@ -48,7 +45,7 @@ struct SongScoreHistorySection: View {
     /// The card height held while a swap runs, so the card keeps its size.
     @State private var pinnedHeight: CGFloat?
 
-    /// Scroll target id for deep links.
+    /// Section identifier and scroll target (Quick Links).
     static let anchor = "fst.song-detail.history"
 
     private var available: [Instrument] { SongScoreHistoryModel.instruments(with: entries, in: pool) }
@@ -63,7 +60,7 @@ struct SongScoreHistorySection: View {
         if let shown {
             let current = displayed.flatMap { available.contains($0) ? $0 : nil } ?? shown
             let rows = SongScoreHistoryModel.chronological(entries, instrument: current)
-            let list = SongScoreHistoryModel.bestFirst(rows, limit: expanded ? nil : SongScoreHistoryModel.listLimit)
+            let list = SongScoreHistoryModel.bestFirst(rows, limit: SongScoreHistoryModel.listLimit)
             VStack(alignment: .leading, spacing: 8) {
                 FestivalSectionHeader("Score History", subtitle: "Select a bar to see more score details.")
                     .padding(.horizontal, 4)
@@ -71,7 +68,7 @@ struct SongScoreHistorySection: View {
                     InstrumentSelector(
                         instruments: available,
                         required: Binding(get: { shown }, set: { instrument = $0 }),
-                        look: .graph, keyboardIcon: keyboardIcon,
+                        look: .graph, keyboardIcon: song.usesKeyboardIcon,
                         identifier: "fst.song-detail.history.instrument"
                     )
                     ScoreHistoryChart(
@@ -106,24 +103,14 @@ struct SongScoreHistorySection: View {
                                 .accessibilityIdentifier("fst.song-detail.history.row.\(index)")
                         }
                     }
-                    if let openFullHistory, !rows.isEmpty {
-                        Button {
-                            openFullHistory(current)
-                        } label: {
-                            PurpleActionLabel(title: "View score history")
+                    if rows.count > SongScoreHistoryModel.listLimit {
+                        // Pushes the Score History page; opens it in the trailing pane
+                        // where Song Detail can split (view-all-cta R4 label first).
+                        ListDetailLink(value: AppRoute.playerHistory(song, current)) {
+                            PurpleActionLabel(title: "View All Scores")
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("View \(current.label) score history")
-                        .accessibilityIdentifier("fst.song-detail.history.view-all")
-                    } else if rows.count > SongScoreHistoryModel.listLimit {
-                        Button {
-                            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {
-                                expanded.toggle()
-                            }
-                        } label: {
-                            PurpleActionLabel(title: expanded ? "Show top scores" : "View all scores")
-                        }
-                        .buttonStyle(.plain)
+                        .accessibilityLabel("View All Scores, \(current.label) Score History")
                         .accessibilityIdentifier("fst.song-detail.history.view-all")
                     }
                 }
@@ -463,9 +450,6 @@ struct ScoreHistoryListRow: View {
     var seasonColumn = false
     /// The catalogue's current season, whose pill is inverted.
     var currentSeason: Int?
-    /// Opens every score for an instrument in the trailing pane, where Song Detail can
-    /// split (`split-view.md`, operator 2026-10-04); nil expands the list in place.
-    var openFullHistory: ((Instrument) -> Void)?
 
     private var season: Int? {
         guard seasonColumn, let season = entry.season, season > 0 else { return nil }

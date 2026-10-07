@@ -58,6 +58,23 @@ internal fun TopSongsHeading(displayName: String) {
 }
 
 /**
+ * A profile section's in-card empty message (web `InstrumentEmptyState`): a bold title over its explanation.
+ * Top Songs ("No Scores Yet") and Bands ("No Bands Yet") share it.
+ *
+ * @param title Title.
+ * @param body Explanation.
+ * @param modifier Container modifier.
+ * @param titleModifier Title modifier (test tag).
+ */
+@Composable
+internal fun ProfileEmptyMessage(title: String, body: String, modifier: Modifier = Modifier, titleModifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = titleModifier)
+        Text(body, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary)
+    }
+}
+
+/**
  * One chart's top five (and, with more than five ranked songs, bottom five) songs
  * (web `buildTopSongsItems`); rows open Song Detail.
  *
@@ -74,17 +91,10 @@ internal fun TopSongsCard(top: PlayerTopSongs, displayName: String, state: Playe
         GlassCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp)) {
                 if (top.isEmpty) {
-                    Text(
+                    ProfileEmptyMessage(
                         "No Scores Yet",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = BrandTokens.textPrimary,
-                        modifier = Modifier.testTag("fst.player.top-songs-empty.${instrument.wireId}"),
-                    )
-                    Text(
                         "Play some songs on ${instrument.label} to see your stats appear here.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = BrandTokens.textPrimary,
+                        titleModifier = Modifier.testTag("fst.player.top-songs-empty.${instrument.wireId}"),
                     )
                     return@Column
                 }

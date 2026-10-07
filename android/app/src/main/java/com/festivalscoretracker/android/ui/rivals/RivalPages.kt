@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.rivals
 
+import com.festivalscoretracker.android.ui.common.rememberPageFadeInWindow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -154,7 +155,7 @@ fun AllRivalsScreen(viewModel: AllRivalsViewModel) {
 
 /**
  * Rival Detail (`/rivals/:rivalId`, web `RivalDetailPage`): head-to-head summary and
- * the web's six categories as cards of five songs with "See All" into Rivalry.
+ * the web's six categories as cards of five songs with "View All" into Rivalry.
  *
  * @param viewModel Comparison logic.
  * @param route Originating route (forwarded to Rivalry).
@@ -169,12 +170,15 @@ fun RivalDetailScreen(viewModel: RivalDetailViewModel, route: RivalDetailRoute, 
     val gridState = rememberLazyStaggeredGridState()
     val categories = (state as? LoadState.Loaded)?.value?.categories.orEmpty()
     // Web: one per category once loaded; the grid's first item is the "You vs. Rival" header.
-    val quickLinks = rememberQuickLinks(gridState, "Quick Links", RivalQuickLinks.rivalDetail(categories)) { id ->
+    // The page's fade window, here so Quick Links jumps rush it (load-transition R5).
+    val fadeIn = rememberPageFadeInWindow()
+    val quickLinks = rememberQuickLinks(gridState, "Quick Links", RivalQuickLinks.rivalDetail(categories), fadeInWindow = fadeIn) { id ->
         categories.indexOfFirst { RivalQuickLinks.categoryId(it.key) == id }.takeIf { it >= 0 }?.plus(1)
     }
     FestivalScreen(
         title = name ?: "Rival",
         isRoot = false,
+        fadeInWindow = fadeIn,
         actions = {
             QuickLinksAction(quickLinks, windowWidthDp().toInt())
             ViewProfileButton(route.rivalId, name)
@@ -277,12 +281,15 @@ fun RivalryScreen(viewModel: RivalDetailViewModel, rivalId: String, mode: String
     val gridState = rememberLazyStaggeredGridState()
     val songs = (state as? LoadState.Loaded)?.value?.let { viewModel.category(it, mode, sort) }?.songs.orEmpty()
     // Web: one per song in the shown order; the grid's first item is the "vs." header.
-    val quickLinks = rememberQuickLinks(gridState, "Quick Links", RivalQuickLinks.rivalry(songs)) { id ->
+    // The page's fade window, here so Quick Links jumps rush it (load-transition R5).
+    val fadeIn = rememberPageFadeInWindow()
+    val quickLinks = rememberQuickLinks(gridState, "Quick Links", RivalQuickLinks.rivalry(songs), fadeInWindow = fadeIn) { id ->
         songs.indices.firstOrNull { RivalQuickLinks.songId(songs[it], it) == id }?.plus(1)
     }
     FestivalScreen(
         title = RivalCategorization.title(mode),
         isRoot = false,
+        fadeInWindow = fadeIn,
         actions = {
             Box {
                 IconButton(onClick = { sortOpen = true }, modifier = Modifier.testTag("fst.rivalry.sort")) {

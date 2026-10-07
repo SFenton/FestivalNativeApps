@@ -261,8 +261,9 @@ object BackgroundPolicy {
 
 /**
  * App-scoped backdrop state hosted once by the shell, so it never restarts across
- * tabs or pushes. Loads the catalogue independently of the Songs tab; Song Detail
- * pushes a static focused cover and pops it when it leaves.
+ * tabs or pushes. Loads the catalogue independently of the Songs tab; song-scoped pages
+ * (Song Detail and its solo and band leaderboards, via `SongCoverBackdrop`) push a static
+ * focused cover and pop it when they leave.
  *
  * @property loadCatalog Catalogue read.
  * @property artworkUrl Artwork resolver.

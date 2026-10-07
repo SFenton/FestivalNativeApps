@@ -390,6 +390,11 @@ public sealed record SongBandLeaderboardResponse
     [JsonPropertyName("totalEntries")] public int TotalEntries { get; init; }
     /// <summary>Paging population.</summary>
     [JsonPropertyName("localEntries")] public int? LocalEntries { get; init; }
+    /// <summary>
+    /// Whether the header names the entry total (web <c>songBandLeaderboard.subtitle</c>); absent or false shows only the
+    /// band size, as the solo board does for its own flag.
+    /// </summary>
+    [JsonPropertyName("showLeaderboardEntryTotals")] public bool? ShowLeaderboardEntryTotals { get; init; }
     /// <summary>Rows.</summary>
     [JsonPropertyName("entries")] public IReadOnlyList<SongBandLeaderboardEntry> Entries { get; init; } = [];
     /// <summary>The selected player's best band on this song and size (<c>accountId</c> query; a pure read).</summary>
