@@ -237,8 +237,10 @@ private struct SplitPaneContextModifier: ViewModifier {
 /// The two panes of an on-demand split, laid out by ``OnDemandSplitPolicy/Geometry``:
 /// the leading pane fills the container until an item opens, then springs to the
 /// leading half while the trailing pane slides in from the trailing edge (Reduce
-/// Motion: a crossfade). A hairline divider sits at the exact midpoint, or the iPhone
-/// Duo hinge band. Shared by iPad, iPhone Duo and the Mac content area.
+/// Motion: a crossfade). The panes meet at a band at the exact midpoint, or the iPhone
+/// Duo hinge, with no drawn divider (#344; a hairline only under Increase Contrast at a
+/// midpoint, ``OnDemandSplitPolicy/drawsDividerLine(_:increasedContrast:)``). Shared by
+/// iPad, iPhone Duo and the Mac content area.
 ///
 /// With a `backdrop` it draws the session's one backdrop behind both panes and the
 /// divider band (the pages inside draw none; `SplitPaneChrome`), whether or not an item
@@ -260,6 +262,7 @@ struct OnDemandSplitLayout<Leading: View, Trailing: View>: View {
     let leading: Leading
     let trailing: Trailing
 
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
 
@@ -305,9 +308,14 @@ struct OnDemandSplitLayout<Leading: View, Trailing: View>: View {
                     .allowsHitTesting(!covered)
                     .accessibilityHidden(while: covered)
                 if let geometry, cover != .overList {
-                    SplitDivider(width: geometry.dividerWidth, topScrimHeight: topScrimHeight)
-                        .opacity(covered ? 0 : 1)
-                        .transition(.opacity)
+                    SplitDivider(
+                        width: geometry.dividerWidth, topScrimHeight: topScrimHeight,
+                        drawsLine: OnDemandSplitPolicy.drawsDividerLine(
+                            geometry, increasedContrast: colorSchemeContrast == .increased
+                        )
+                    )
+                    .opacity(covered ? 0 : 1)
+                    .transition(.opacity)
                     Color.clear
                         .frame(width: geometry.trailingWidth)
                         .accessibilityHidden(true)
@@ -343,15 +351,17 @@ struct OnDemandSplitLayout<Leading: View, Trailing: View>: View {
     }
 }
 
-/// The band between the panes: a hairline at its centre (the hinge itself on iPhone Duo),
-/// over the panes' top-edge gradient so the darkening runs unbroken across the band.
+/// The band between the panes (the hinge itself on iPhone Duo): clear, so the shared
+/// backdrop runs unbroken across it, with the panes' top-edge gradient so the darkening
+/// does too. It draws a hairline at its centre only when `drawsLine` (#344).
 private struct SplitDivider: View {
     let width: CGFloat
     let topScrimHeight: CGFloat?
+    let drawsLine: Bool
 
     var body: some View {
         Rectangle()
-            .fill(Color.white.opacity(0.16))
+            .fill(drawsLine ? Color.white.opacity(0.16) : Color.clear)
             .frame(width: OnDemandSplitPolicy.midpointDividerWidth)
             .frame(width: width)
             .frame(maxHeight: .infinity)

@@ -47,6 +47,39 @@ private func statisticsFixtureSession(selected: Bool) async throws -> (
     #expect(image.width > 0 && image.height > 0)
 }
 
+/// Captures the page title a hosted screen publishes with `festivalNavigationTitle(_:)`.
+@MainActor
+private final class PublishedPageTitle {
+    var value: String?
+}
+
+/// Every root page keeps its system title in every iPhone Duo pose (pattern
+/// page-tools-and-nav-chrome R14, issue #341), including Statistics' momentary no-profile
+/// state. `DuoPageTitleJourneyTests.testNoProfileStatisticsShowsFullTitle` holds that
+/// state open in the real shell and requires the whole visible system title per pose.
+@MainActor
+@Test func statisticsScreenNoProfileGuardKeepsStatisticsTitle() async throws {
+    let (session, _, _) = try await statisticsFixtureSession(selected: false)
+    let published = PublishedPageTitle()
+    let host = nativeHostedView(
+        NavigationStack {
+            StatisticsScreen(session: session)
+                .onPreferenceChange(FestivalPageTitleKey.self) { title in
+                    MainActor.assumeIsolated { published.value = title }
+                }
+        }
+        .preferredColorScheme(.dark),
+        size: CGSize(width: 402, height: 700)
+    )
+    let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 700))
+    defer { window.orderOut(nil) }
+    for _ in 0..<5 where published.value == nil {
+        host.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(50))
+    }
+    #expect(published.value == "Statistics")
+}
+
 @MainActor
 @Test func statisticsScreenShowsSelectedPlayerProfileContent() async throws {
     let (session, storage, suite) = try await statisticsFixtureSession(selected: true)
