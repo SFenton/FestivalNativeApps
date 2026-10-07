@@ -380,6 +380,9 @@ struct NativeHostedPollBudget {
     private(set) var spent: Duration = .zero
     /// When the last poll resumed; the work since then is charged on the next sleep.
     private var resumedAt: ContinuousClock.Instant?
+    /// The longest a poll waited past its requested interval before it resumed: how
+    /// starved the shared main actor was during the wait (see `nativeHostedStarvedLag`).
+    private(set) var worstLag: Duration = .zero
 
     /// - Parameters:
     ///   - timeout: The wait's budget on a physical Mac.
@@ -403,41 +406,55 @@ struct NativeHostedPollBudget {
     mutating func sleep(for interval: Duration) async throws {
         let clock = ContinuousClock()
         if let resumedAt { spent += clock.now - resumedAt }
+        let asleep = clock.now
         try await Task.sleep(for: interval)
         spent += interval
         resumedAt = clock.now
+        worstLag = max(worstLag, clock.now - asleep - interval)
     }
 }
 
-/// Wait until the shared main actor wakes promptly again: `streak` consecutive 10 ms
-/// sleeps each resume within `lag` of their deadline (issue #327).
+/// Main-actor resume lag above which a host counts as starved for animation evidence
+/// (issue #327): SwiftUI then evaluates almost no animation frames, and an animated
+/// commit can render straight at its final value without calling its curve.
+let nativeHostedStarvedLag: Duration = .milliseconds(250)
+
+/// Wait, for at most `limit` of wall-clock time, until the shared main actor wakes
+/// promptly: `streak` consecutive 10 ms sleeps each resume within `lag` of their deadline
+/// (issue #327).
 ///
 /// The whole UI bundle runs in parallel on one main actor. At its peak a 20 ms poll
 /// resumes about once a second, SwiftUI evaluates almost no animation frames, and an
 /// animated commit can render straight at its final value. A test whose evidence is an
-/// animation's rendered frames (not merely its end state) waits here first. The wait is
-/// a condition, not a fixed sleep: about a third of a second on a responsive host, and in
-/// the parallel bundle until most other hosted tests have finished. After `limit` the
-/// test proceeds anyway and its own assertions decide.
+/// animation's rendered frames (not merely its end state) waits here first, about a third
+/// of a second on a responsive host. The deadline is short and wall-clock: a hosted
+/// runner can stay starved for minutes (an unbounded or 10-minute wait before each case
+/// hung `apple-ci` until its job timeout), so after `limit` the test proceeds and treats
+/// its animation evidence as inconclusive. Each probe sleeps; nothing holds the main
+/// actor while it polls.
 ///
 /// - Parameters:
 ///   - lag: How late a wake-up may be and still count as prompt.
 ///   - streak: Prompt wake-ups in a row that make the host responsive.
-///   - limit: The longest wait before proceeding regardless.
+///   - limit: The longest wait, in wall-clock time, before proceeding regardless.
+/// - Returns: Whether the host became responsive before `limit`.
 /// - Throws: Cancellation.
 @MainActor
+@discardableResult
 func nativeHostedAwaitResponsiveMainActor(
-    lag: Duration = .milliseconds(25), streak: Int = 25, limit: Duration = .seconds(600)
-) async throws {
+    lag: Duration = .milliseconds(25), streak: Int = 25, limit: Duration = .seconds(5)
+) async throws -> Bool {
     let clock = ContinuousClock()
     let end = clock.now + limit
     let interval = Duration.milliseconds(10)
     var prompt = 0
-    while prompt < streak, clock.now < end {
+    while prompt < streak {
+        guard clock.now < end else { return false }
         let asleep = clock.now
-        try await Task.sleep(for: interval)
+        try await Task.sleep(for: interval, tolerance: .milliseconds(1))
         prompt = clock.now - asleep <= interval + lag ? prompt + 1 : 0
     }
+    return true
 }
 
 /// Wait for asynchronously loaded content, then capture it once it stops changing.
