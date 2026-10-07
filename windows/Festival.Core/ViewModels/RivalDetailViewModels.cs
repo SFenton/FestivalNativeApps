@@ -399,11 +399,11 @@ public sealed partial class AllRivalsViewModel : RivalPageViewModel
 #endregion
 
 #region Rival detail
-/// <summary>One category card on Rival Detail: five songs and a See All link.</summary>
+/// <summary>One category card on Rival Detail: five songs, then the shared View All button (view-all-cta R6, #321).</summary>
 /// <param name="Category">Category.</param>
 /// <param name="Preview">First five songs.</param>
-/// <param name="SeeAllRoute">Rivalry route for this category.</param>
-public sealed record RivalCategoryItem(RivalCategory Category, List<RivalSongItem> Preview, AppRoute.Rivalry SeeAllRoute)
+/// <param name="ViewAllRoute">Rivalry route for this category.</param>
+public sealed record RivalCategoryItem(RivalCategory Category, List<RivalSongItem> Preview, AppRoute.Rivalry ViewAllRoute)
 {
     /// <summary>Heading.</summary>
     public string Title => Category.Title;
@@ -414,10 +414,15 @@ public sealed record RivalCategoryItem(RivalCategory Category, List<RivalSongIte
     /// <summary>Tone.</summary>
     public RivalCategorySentiment Sentiment => Category.Sentiment;
 
-    /// <summary>Web <c>rivals.detail.viewAll</c>, in Title Case like every Rivals label (batch 7.16).</summary>
-    public string SeeAllText => Category.Songs.Count == 1
-        ? "View 1 Song"
-        : string.Create(CultureInfo.CurrentCulture, $"View All {Category.Songs.Count:N0} Songs");
+    /// <summary>Visible text of the View All button below the rows: plain "View All", as the card title names the list
+    /// (web card header <c>common.viewAll</c>; Apple Rival Detail; view-all-cta R4).</summary>
+    public string ViewAllText => ViewAllCta.ListLabel;
+
+    /// <summary>Accessible name of the View All button: the label, then the category, e.g. "View All, Closest Battles".</summary>
+    public string ViewAllName => ViewAllCta.Name(ViewAllText, Title);
+
+    /// <summary>UIA automation ID of the View All button, unique per category.</summary>
+    public string ViewAllAutomationId => AutomationId + ".view-all";
 
     /// <summary>UIA automation ID.</summary>
     public string AutomationId => "fst.rival-detail.category." + Category.Key;

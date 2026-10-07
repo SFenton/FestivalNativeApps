@@ -135,14 +135,18 @@ public sealed partial class RivalSectionViewModel : ObservableObject
     /// <summary>Icon file.</summary>
     public string IconFile => Icon?.IconFile() ?? "";
 
-    /// <summary>Accessible name of the See All link.</summary>
-    public string SeeAllName => "See All " + Title;
+    /// <summary>Title-row link text (web card header <c>common.viewAll</c>; section-headers R8, owner #321).</summary>
+    public static string ListLinkText => ViewAllCta.ListLabel;
+
+    /// <summary>Accessible name of the title-row link: the visible label first (WCAG 2.5.3), then the card, e.g.
+    /// "View All, Lead Rivals".</summary>
+    public string ListLinkName => ViewAllCta.Name(ListLinkText, Title);
 
     /// <summary>Visible text of the accent button below the rows (web <c>rivals.viewAllRivals</c>).</summary>
     public string ViewAllText => ViewAllCta.RivalsLabel;
 
     /// <summary>Accessible name of the View All Rivals button: the visible label, then the card (WCAG 2.5.3), e.g.
-    /// "View All Rivals, Lead Rivals"; distinct from the header's "See All Lead Rivals" link.</summary>
+    /// "View All Rivals, Lead Rivals"; distinct from the header link's "View All, Lead Rivals".</summary>
     public string ViewAllName => ViewAllCta.Name(ViewAllText, Title);
 
     /// <summary>UIA automation ID of the View All Rivals button, unique per card like Song Detail's and Leaderboards'.</summary>

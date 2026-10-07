@@ -58,7 +58,7 @@ public sealed partial class PlayerProfileBandsViewModel : ObservableObject
     /// <summary><c>{name}'s Bands</c> (web <c>player.bands</c>).</summary>
     public string Title => $"{PlayerName}'s Bands";
 
-    /// <summary>Title-row link text (section-headers R8: "View All", never "See All", owner #321).</summary>
+    /// <summary>Title-row link text (section-headers R8; owner #321: the app reads View All, never See All).</summary>
     public static string ListLinkText => ViewAllCta.ListLabel;
 
     /// <summary>Accessible name of the title-row link: the visible label first (WCAG 2.5.3), then the section.</summary>
