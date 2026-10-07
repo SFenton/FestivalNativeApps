@@ -16,7 +16,7 @@ data class FooterFade(val cut: Float, val depth: Float)
 
 /**
  * The bottom edge of the paginated boards' rows above their floating player-score footer and
- * pager (issue #93, the web's `useScrollFade`): rows scrolling down to the footer fade out over a
+ * pager (issues #93, #329, the web board pages' `useScrollMask`): rows scrolling down to the footer fade out over a
  * linear [ScrollEdgeFade.BOTTOM_DP] ramp ending at its top edge and stay hidden beneath it, so the
  * footer floats over the page background without an opaque band (scroll-edge R2, R3).
  *
