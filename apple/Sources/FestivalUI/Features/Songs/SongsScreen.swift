@@ -509,14 +509,15 @@ struct SongsScreen: View, Equatable {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        // iPhone Duo: the Filter field sits at the bottom of the page, on the trailing
-        // page across a vertical hinge (owner, issue #333; ``SongsFilterFieldPlacement``).
-        // A bottom safe-area inset, so the list's last rows and the A–Z scrubber end
-        // above it and the keyboard lifts it.
+        // iPhone Duo: the Filter field sits at the bottom of the page, full width except
+        // on the trailing page across a book-pose fold (owner, issues #333, #334;
+        // ``SongsFilterFieldPlacement``). A bottom safe-area inset, so the list's last
+        // rows and the A–Z scrubber end above it and the keyboard lifts it.
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if filterPlacement == .bottom {
                 SongsBottomFilterField(
-                    text: $searchText, hinge: deviceLayout.splitHinge, space: Self.pageSpace
+                    text: $searchText, hinge: SongsFilterFieldPlacement.fold(in: deviceLayout),
+                    space: Self.pageSpace
                 ) { top in
                     if top != bottomFilterTop { bottomFilterTop = top }
                 }
