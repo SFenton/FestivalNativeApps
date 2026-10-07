@@ -86,12 +86,12 @@ Opening a result **views** it; selecting a profile is a separate action on the d
 - **Query:** trim; <2 chars → hint, no request; 250 ms debounce; cancel superseded work; drop late results. Player requests follow [profile-selection](../profile-selection/spec.md#native-client-contract-all-platforms) exactly (2–200 chars, `+` → `%2B`, ≤10, keyless, no selected-profile header, reject malformed rows).
 - **Songs:** local match over the current catalogue with the Songs page's own text matcher (port of `songMatchesSearch`), ≤20 rows, catalogue order. No network.
 - **Loading (issue #299, replaces the earlier "native correction"):** one spinner for the whole surface, centred horizontally and vertically in the area between the scope chips and the bottom nav/keyboard (web `SearchModal` parity). All waits until Songs, Players and Bands have all settled; a single scope waits only for itself (the Songs scope never waits for the network). No inline Players or Bands progress.
-- **No section titles (issue #299):** the scope chips already name the scope, so results carry no "Songs"/"Players"/"Bands" titles; rows keep their own accessible names.
+- **Section titles only in All (issue #348, replacing #299's blanket removal):** in All, each category that renders (rows or a failure) has its Songs / Players / Bands title above its rows, in that order, so mixed results stay distinguishable (web `<h3>` per section; [section-headers](../../patterns/section-headers.md) R9). Empty categories are omitted with their titles. A selected scope has no title: its chip already names it (issue #299).
 - **Hint (issue #299):** under two characters the hint names the scope: "Enter at least two characters to search for songs, players, or bands." (All), "… to search for songs." (Songs), "… to search for players." (Players), "… to search for bands." (Bands).
 - **Errors:** per scope, with **no Retry button** (issue #299; the web has none). An empty envelope may mean a server timeout ([service-safety](../../platforms/service-safety.md#endpoint-allowlist)), so submitting the same text again (keyboard Search/Enter) re-runs a failed or empty search; editing the query also re-runs it. The empty state is the centred title + subtitle in [States and motion](#states-and-motion). A public-read freeze 503 shows the [service-status](../service-status/spec.md) "Scores are updating" message in the Players or Bands section, never "no players"/"no bands".
 - **Navigation:** close the surface, then push the destination on the **current section's** stack (the user's place is kept for Back). Selected player/band → the Statistics section (natives have no selected band yet, so a band result always opens its band page). The query is not restored on Back (web parity).
 - **No recent searches, no history persistence** (web parity; also avoids storing account names). See open questions.
-- **Accessibility:** the field has a real accessible name ("Search songs, players and bands"); scope chips expose selected state; announce result counts politely once per settled query ("3 songs, 10 players, 2 bands"); no section headings (issue #299); focus returns to the Search button on close; the surface is dismissible by the platform's back/escape gesture.
+- **Accessibility:** the field has a real accessible name ("Search songs, players and bands"); scope chips expose selected state; announce result counts politely once per settled query ("3 songs, 10 players, 2 bands"); in All each category title is a heading, so screen-reader heading navigation jumps between Songs, Players and Bands (issue #348), and a single scope has none (issue #299); focus returns to the Search button on close; the surface is dismissible by the platform's back/escape gesture.
 
 ## Band scope
 
@@ -111,8 +111,8 @@ Issue #320 lifted the earlier native block. Natives call `GET /api/bands/search?
 | `closed` | Search action visible in every layout's chrome; nothing loaded |
 | `open-hint` | Surface open, field focused (keyboard raised on phone only when opened by the user), <2 chars → hint |
 | `loading` | One centred spinner below the scope chips; All waits for songs, players and bands; superseded queries cancelled |
-| `results-all` | Songs rows, then Players rows, then Bands cards; no section titles; count announced |
-| `results-scoped` | One scope via chip; toggling again returns to all |
+| `results-all` | Songs rows, then Players rows, then Bands cards, each non-empty category under its Songs / Players / Bands title (issue #348); count announced |
+| `results-scoped` | One scope via chip, with no section title (issue #299); toggling again returns to all |
 | `empty` | Centred scope-specific title + subtitle, no Retry; All hides an empty Players or Bands section next to other rows |
 | `error` | Per-scope failure message without Retry; other scopes still shown; freeze → "Scores are updating" |
 | `navigated` | Surface closed, destination pushed on the current section; Back returns to the prior page |
@@ -131,7 +131,7 @@ The former `bands-unavailable` state was retired by #320 on every platform and r
 | `fst.global-search.scope.{songs,players,bands}` | Scope chips |
 | `fst.global-search.hint` | Short-query / empty / error message |
 | `fst.global-search.empty` | Centred empty state (Android/Windows; title `.empty.title`, subtitle `.empty.subtitle` on Windows) |
-| `fst.global-search.section.{songs,players}` | Section containers (headings inside); removed on Android, Windows and Apple by issue #299 |
+| `fst.global-search.section.{songs,players,bands}` | All-scope section title (heading) for each rendered category (issue #348; Android tags the title itself). Absent in a single scope (issue #299) |
 | `fst.global-search.result.song`, `fst.global-search.result.player`, `fst.global-search.result.band` | Each result row (repeated; accessible name = title/artist, display name, or members and song count) |
 | `fst.global-search.loading` | The one centred search spinner (Android, Windows, Apple) |
 | `fst.global-search.players-loading` | Players inline progress; removed on Android, Windows and Apple by issue #299 |

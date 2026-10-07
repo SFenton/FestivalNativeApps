@@ -424,6 +424,13 @@ class GlobalSearchViewModelTest {
     }
 
     @Test
+    fun sectionTitlesShowOnlyInAll() {
+        // Issue #348 (web SearchModal <h3> per category in All); a single scope stays untitled (#299).
+        assertTrue(GlobalSearchUiState(scope = SearchScope.All).showsSectionTitles)
+        SearchScope.chips.forEach { assertFalse(GlobalSearchUiState(scope = it).showsSectionTitles) }
+    }
+
+    @Test
     fun closeResetsQueryAndScope() = runTest(main.dispatcher) {
         val saved = SavedStateHandle()
         val vm = model(saved = saved)

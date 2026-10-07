@@ -41,6 +41,8 @@ import com.festivalscoretracker.android.core.nav.FestivalSection
 import com.festivalscoretracker.android.core.rankings.AccountRankingEntry
 import com.festivalscoretracker.android.core.rankings.RankingMetric
 import com.festivalscoretracker.android.core.rivals.RivalScope
+import com.festivalscoretracker.android.core.rivals.RivalSummary
+import com.festivalscoretracker.android.core.rivals.rivalEntries
 import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.data.FestivalApi
@@ -52,7 +54,11 @@ import com.festivalscoretracker.android.data.compete.playerComboRanking
 import com.festivalscoretracker.android.data.rivals.RivalsRepository
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.presentation.LoadState
+import com.festivalscoretracker.android.presentation.compete.CompeteBoard
+import com.festivalscoretracker.android.presentation.compete.CompeteContent
 import com.festivalscoretracker.android.presentation.compete.CompeteReads
+import com.festivalscoretracker.android.presentation.compete.CompeteSection
+import com.festivalscoretracker.android.presentation.compete.CompeteStaggerPlan
 import com.festivalscoretracker.android.presentation.compete.CompeteViewModel
 import com.festivalscoretracker.android.presentation.valueOrNull
 import com.festivalscoretracker.android.testing.FakeTransport
@@ -213,6 +219,85 @@ class CompeteLogicTest {
     }
 
     @Test
+    fun pageIsReadyOnlyOnceEveryBoardAndRivalsReadSettles() = runTest(main.dispatcher) {
+        var boardGate = CompletableDeferred<Unit>()
+        val reads = CompeteReads(
+            board = { scope ->
+                boardGate.await()
+                if (scope.key == "Solo_Bass") throw IOException("offline")
+                listOf(AccountRankingEntry(accountId = scope.key, totalScoreRank = 1))
+            },
+            playerRow = { _, _ -> null },
+        )
+        val model = CompeteViewModel(player, setOf(Instrument.Lead, Instrument.Bass), reads, RivalsRepository(api), ServiceRetryBackoff())
+        runCurrent()
+        // Web `CompetePage` `isReady`: still waiting for the boards, so the page shows only its spinner (#354).
+        assertFalse(model.content.value.settled)
+        assertFalse(model.content.value.ready)
+        boardGate.complete(Unit)
+        advanceUntilIdle()
+        // One board failed inline; every read has finished, so the page reveals.
+        assertTrue(model.content.value.settled)
+        assertTrue(model.content.value.ready)
+        assertNull(model.content.value.fullPageIssue)
+        // A retry makes the page not ready again, so it runs the swap rather than a card spinner.
+        boardGate = CompletableDeferred()
+        model.retryBoard("Solo_Bass")
+        runCurrent()
+        assertFalse(model.content.value.ready)
+        boardGate.complete(Unit)
+        advanceUntilIdle()
+        assertTrue(model.content.value.ready)
+    }
+
+    @Test
+    fun everyBoardFailingIsReadyWhileRivalsStillLoad() = runTest(main.dispatcher) {
+        val rivalsGate = CompletableDeferred<Unit>()
+        val transport = CompeteFixtures.transport().apply {
+            beforeRespond = { request -> if ("/rivals/" in request.url) rivalsGate.await() }
+        }
+        val client = FestivalApi("https://fixture.test", transport)
+        val failing = CompeteReads(board = { throw IOException("offline") }, playerRow = { _, _ -> null })
+        val model = CompeteViewModel(player, setOf(Instrument.Lead), failing, RivalsRepository(client), ServiceRetryBackoff())
+        runCurrent()
+        // Web `liveReady = (leaderboardReady && rivalsReady) || allLeaderboardsErrored`.
+        assertFalse(model.content.value.settled)
+        assertEquals(ServiceIssue.Offline, model.content.value.fullPageIssue)
+        assertTrue(model.content.value.ready)
+        rivalsGate.complete(Unit)
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun staggerPlanNumbersHeadersAndRowsInReadingOrder() {
+        fun entry(id: String, rank: Int) = AccountRankingEntry(accountId = id, totalScoreRank = rank)
+        val combo = CompeteScope.Combo("03", listOf(Instrument.Lead, Instrument.Bass))
+        val lead = CompeteScope.Single(Instrument.Lead)
+        val bass = CompeteScope.Single(Instrument.Bass)
+        val rival = rivalEntries(listOf(RivalSummary(RivalsFixtures.RIVALS[0])), listOf(RivalSummary(RivalsFixtures.RIVALS[1])))
+        val sections = listOf(
+            // Combo: 3 rows + the player's row, no View Full Leaderboards; 2 rivals + View All.
+            CompeteSection(combo, LoadState.Loaded(CompeteBoard(List(3) { entry("c$it", it + 1) }, entry("me", 9))), LoadState.Loaded(rival)),
+            // Lead: 2 rows (player inside) + View Full Leaderboards; no rivals (empty card).
+            CompeteSection(lead, LoadState.Loaded(CompeteBoard(List(2) { entry("l$it", it + 1) }, null)), LoadState.Loaded(emptyList())),
+            // Bass: failed board and failed rivals (one inline error card each).
+            CompeteSection(bass, LoadState.Failed(ServiceIssue.Offline), LoadState.Failed(ServiceIssue.Offline)),
+        )
+        val plan = CompeteContent(sections, null, null).stagger
+        assertEquals(0, plan.leaderboardsHeader)
+        // Combo header 1, body 2..5; Lead header 6, body 7..9; Bass header 10, error 11.
+        assertEquals(listOf(1, 6, 10), plan.boards)
+        assertEquals(12, plan.rivalsHeader)
+        // Combo rivals header 13, rows 14..15 + View All 16; Lead 17 + empty 18; Bass 19 + error 20.
+        assertEquals(listOf(13, 17, 19), plan.rivals)
+        // Anonymous: each rivals card is one "track a player" card.
+        val anonymous = CompeteContent(listOf(sections[1].copy(rivals = null)), null, null).stagger
+        assertEquals(CompeteStaggerPlan(0, listOf(1), 5, listOf(6)), anonymous)
+        assertTrue(CompeteContent(emptyList(), null, null).ready)
+        assertFalse(CompeteContent(emptyList(), null, null, settled = false).ready)
+    }
+
+    @Test
     fun newerPublicationRefreshesInPlaceAndSamePublicationDoesNot() = runTest(main.dispatcher) {
         val publications = MutableStateFlow<Int?>(7)
         var boardReads = 0
@@ -348,10 +433,15 @@ class CompeteUiTest {
         assertTrue(spoken, spoken.contains("160 / 250 songs"))
     }
 
+    /**
+     * Issue #354 (web `CompetePage` `usePageTransition`): one centred page spinner, no headers or
+     * cards, until every board and rivals read has finished; then headers and cards come in
+     * together, a failed board as its inline error. No card ever shows its own spinner.
+     */
     @Test
-    fun sectionsShowProgressIndicatorsUntilRowsOrErrorsArrive() {
+    fun firstLoadShowsOnePageSpinnerUntilEveryReadSettles() {
         val gate = CompletableDeferred<Unit>()
-        // Holds every Compete read until released; Bass's board then fails so its spinner gives way to the inline error.
+        // Holds every Compete read until released; Bass's board then fails inline.
         val gated = object : HttpTransport {
             override suspend fun send(request: HttpRequest): HttpResult {
                 val path = request.url.substringBefore('?')
@@ -361,24 +451,27 @@ class CompeteUiTest {
             }
         }
         launch(DebugLaunch(route = CompeteRoute, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true), gated)
-        waitForTag("fst.compete.leaderboard-card.Solo_Guitar.loading")
-        rule.onNodeWithTag("fst.compete.leaderboard-card.0f.loading").assertIsDisplayed()
-        rule.onNodeWithContentDescription("Loading Lead leaderboard")
+        waitForTag("fst.compete.loading")
+        rule.onNodeWithTag("fst.compete.loading").assertIsDisplayed()
+        rule.onNodeWithContentDescription(CompeteText.LOADING)
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo.Indeterminate))
-        rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag("fst.compete.rivals-card.Solo_Guitar"))
-        rule.onNodeWithTag("fst.compete.rivals-card.Solo_Guitar.loading").assertIsDisplayed()
+        repeat(10) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100)); rule.waitForIdle() }
+        listOf("fst.compete.grid", "fst.compete.section.leaderboards", "fst.compete.section.rivals", "fst.compete.leaderboard-card.0f", "fst.quick-links.open").forEach { tag ->
+            assertTrue("$tag shown while Compete loads", rule.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty())
+        }
+        assertNoCardSpinners()
 
         gate.complete(Unit)
-        awaitInCard("fst.compete.rivals-card.Solo_Guitar", hasTestTag("fst.rivals.row.${RivalsFixtures.RIVALS[0]}"))
-        assertTrue(rule.onAllNodesWithTag("fst.compete.rivals-card.Solo_Guitar.loading").fetchSemanticsNodes().isEmpty())
+        waitForTag("fst.compete.section.leaderboards")
+        assertTrue("page spinner stayed with the content", rule.onAllNodesWithTag("fst.compete.loading").fetchSemanticsNodes().isEmpty())
         awaitInCard("fst.compete.leaderboard-card.Solo_Guitar", hasTestTag("fst.compete.spotlight.Solo_Guitar"))
-        assertTrue(rule.onAllNodesWithTag("fst.compete.leaderboard-card.Solo_Guitar.loading").fetchSemanticsNodes().isEmpty())
         awaitInCard("fst.compete.leaderboard-card.Solo_Bass", hasTestTag("fst.service-status.inline"))
-        assertTrue(rule.onAllNodesWithTag("fst.compete.leaderboard-card.Solo_Bass.loading").fetchSemanticsNodes().isEmpty())
+        awaitInCard("fst.compete.rivals-card.Solo_Guitar", hasTestTag("fst.rivals.row.${RivalsFixtures.RIVALS[0]}"))
+        assertNoCardSpinners()
     }
 
     @Test
-    fun spinnersGiveWayToEmptyCopyAndRivalsErrors() {
+    fun settledCardsShowEmptyCopyAndRivalsErrorsAndRetryUsesThePageSwap() {
         val gate = CompletableDeferred<Unit>()
         // Drums has no ranked accounts and no rivals (empty copy in both cards); Bass rivals fail (inline error).
         transport.onRaw("/api/rankings/Solo_Drums") {
@@ -386,32 +479,47 @@ class CompeteUiTest {
         }
         transport.onRaw("/api/rankings/Solo_Drums/${CompeteFixtures.PLAYER}") { HttpResult(404, "{}".toByteArray()) }
         transport.on("/api/player/${CompeteFixtures.PLAYER}/rivals/Solo_Drums") { RivalsFixtures.list("Solo_Drums", emptyList(), emptyList()) }
+        transport.on("/api/player/${CompeteFixtures.PLAYER}/rivals/Solo_Bass") { RivalsFixtures.list("Solo_Bass", listOf(RivalsFixtures.rival(RivalsFixtures.RIVALS[1], "Synthetic Beta")), emptyList()) }
+        var bassDown = true
+        var retryGate: CompletableDeferred<Unit>? = null
         transport.beforeRespond = { request ->
             val path = request.url.substringBefore('?')
             if ("/api/rankings" in path || "/rivals/" in path) gate.await()
-            if (path.endsWith("/rivals/Solo_Bass")) throw IOException("offline")
+            if (path.endsWith("/rivals/Solo_Bass")) {
+                retryGate?.await()
+                if (bassDown) throw IOException("offline")
+            }
         }
         launch(DebugLaunch(route = CompeteRoute, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true))
-        awaitInCard("fst.compete.leaderboard-card.Solo_Drums", hasTestTag("fst.compete.leaderboard-card.Solo_Drums.loading"))
-        rule.onNodeWithContentDescription("Loading Drums leaderboard")
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo.Indeterminate))
-        awaitInCard("fst.compete.rivals-card.Solo_Bass", hasTestTag("fst.compete.rivals-card.Solo_Bass.loading"))
-        rule.onNodeWithContentDescription("Loading Bass rivals")
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo.Indeterminate))
-        awaitInCard("fst.compete.rivals-card.Solo_Drums", hasTestTag("fst.compete.rivals-card.Solo_Drums.loading"))
-        rule.onNodeWithContentDescription("Loading Drums rivals")
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo.Indeterminate))
+        waitForTag("fst.compete.loading")
         assertTrue(rule.onAllNodesWithText(CompeteText.noRivals("Drums")).fetchSemanticsNodes().isEmpty())
 
         gate.complete(Unit)
         awaitInCard("fst.compete.leaderboard-card.Solo_Drums", hasText(CompeteText.noRankings("Drums")))
-        assertTrue(rule.onAllNodesWithTag("fst.compete.leaderboard-card.Solo_Drums.loading").fetchSemanticsNodes().isEmpty())
         awaitInCard("fst.compete.rivals-card.Solo_Drums", hasText(CompeteText.noRivals("Drums")))
-        assertTrue(rule.onAllNodesWithTag("fst.compete.rivals-card.Solo_Drums.loading").fetchSemanticsNodes().isEmpty())
         awaitInCard("fst.compete.rivals-card.Solo_Bass", hasTestTag("fst.service-status.inline"))
-        assertTrue(rule.onAllNodesWithTag("fst.compete.rivals-card.Solo_Bass.loading").fetchSemanticsNodes().isEmpty())
+        assertNoCardSpinners()
+
+        // Retrying the card reloads the page through the same swap (load-transition R1): never a card spinner.
+        bassDown = false
+        retryGate = CompletableDeferred()
+        val retry = hasText("Retry").and(hasAnyAncestor(hasTestTag("fst.compete.rivals-card.Solo_Bass")))
+        rule.onNode(retry).performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.compete.loading")
+        assertNoCardSpinners()
+        retryGate!!.complete(Unit)
+        awaitInCard("fst.compete.rivals-card.Solo_Bass", hasTestTag("fst.rivals.row.${RivalsFixtures.RIVALS[1]}"))
+        assertTrue(rule.onAllNodesWithTag("fst.compete.loading").fetchSemanticsNodes().isEmpty())
+        assertNoCardSpinners()
     }
 
+    private fun assertNoCardSpinners() {
+        val cardSpinner = SemanticsMatcher("card spinner") { node ->
+            val tag = node.config.getOrElse(SemanticsProperties.TestTag) { "" }
+            tag.startsWith("fst.compete.") && tag.endsWith(".loading") && tag != "fst.compete.loading"
+        }
+        assertTrue("a Compete card showed its own spinner", rule.onAllNodes(cardSpinner).fetchSemanticsNodes().isEmpty())
+    }
     /** Scrolls the lazy Compete grid to [cardTag] until a descendant matching [child] is composed. */
     private fun awaitInCard(cardTag: String, child: SemanticsMatcher) {
         val matcher = child.and(hasAnyAncestor(hasTestTag(cardTag)))
@@ -453,6 +561,7 @@ class CompeteUiTest {
             shadowOf(Looper.getMainLooper()).idle()
             rule.onAllNodes(button).fetchSemanticsNodes().firstOrNull()?.let { positions += it.boundsInRoot }
             assertTrue("Compete showed a loading placeholder on return", rule.onAllNodes(hasTestTag("$card.loading")).fetchSemanticsNodes().isEmpty())
+            assertTrue("Compete showed its page spinner on return", rule.onAllNodesWithTag("fst.compete.loading").fetchSemanticsNodes().isEmpty())
         }
         rule.mainClock.autoAdvance = true
         assertTrue("Compete never reappeared", positions.isNotEmpty())

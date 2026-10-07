@@ -183,7 +183,8 @@
         306,
         308,
         319,
-        322
+        322,
+        335
       ]
     },
     {
@@ -343,6 +344,10 @@
         {
           "path": "pages/player/components/PlayerBandsSection.tsx",
           "symbol": "buildPlayerBandsItems"
+        },
+        {
+          "path": "components/search/SearchModal.tsx",
+          "symbol": "renderResults"
         }
       ],
       "canonical": {
@@ -455,11 +460,13 @@
         "patterns": [
           "scroll-edge",
           "section-jump-landing",
-          "quick-links"
+          "quick-links",
+          "empty-error-states"
         ],
         "controls": [
           "quick-links",
-          "songs-section-index"
+          "songs-section-index",
+          "global-search"
         ],
         "pages": [
           "songs"
@@ -472,7 +479,8 @@
         291,
         297,
         312,
-        321
+        321,
+        348
       ]
     },
     {
@@ -1505,7 +1513,8 @@
             "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt",
             "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/BandListScreens.kt",
             "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/SongBandLeaderboardScreen.kt",
-            "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalsScreen.kt"
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalsScreen.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/compete/CompeteScreen.kt"
           ],
           "debt": [],
           "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."
@@ -1638,19 +1647,13 @@
           "regex": "fst\\.global-search\\.(?:retry|players-retry)",
           "allow": [],
           "message": "Global Search reruns from submit or edit; it has no Retry control (empty-error-states R3)."
-        },
-        {
-          "id": "global-search-section-heading",
-          "glob": "apple/Sources/**/*.swift",
-          "regex": "fst\\.global-search\\.section\\.(?:songs|players|bands)",
-          "allow": [],
-          "message": "Global Search scope controls replace redundant result-section headings (empty-error-states R3)."
         }
       ],
       "related": {
         "patterns": [
           "load-transition",
-          "modal-shell"
+          "modal-shell",
+          "section-headers"
         ],
         "controls": [
           "global-search",
@@ -1671,7 +1674,8 @@
         140,
         299,
         312,
-        320
+        320,
+        348
       ]
     },
     {

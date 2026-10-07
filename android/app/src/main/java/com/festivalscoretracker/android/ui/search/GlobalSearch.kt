@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.horizontalScroll
@@ -117,6 +118,7 @@ import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.rememberRevealed
+import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlinx.coroutines.launch
 
@@ -170,6 +172,14 @@ object GlobalSearchTags {
 
     /** Scope pill row. */
     const val SCOPES = "fst.global-search.scopes"
+
+    /**
+     * Section title tag in the All scope (issue #348).
+     *
+     * @param scope Section scope.
+     * @return Tag.
+     */
+    fun section(scope: SearchScope) = "fst.global-search.section.${scope.token}"
 
     /** Players failure status (no Retry). */
     const val PLAYERS_ERROR = "fst.global-search.players-error"
@@ -424,8 +434,9 @@ private fun SearchField(
 // region Content
 
 /**
- * Chips, status and results for the expanded surface. Results carry no section titles: the scope
- * chips already name the scope (issue #299).
+ * Chips, status and results for the expanded surface. In All each shown category has its
+ * Songs / Players / Bands section title (web `SearchModal` `<h3>`, issue #348); a single scope has
+ * none because its chip already names it (issue #299).
  *
  * @param ui Current state.
  * @param artworkUrl Artwork resolver.
@@ -571,13 +582,17 @@ private fun ResultsList(
     artworkUrl: (String?) -> String?,
     onOpen: (SearchDestination) -> Unit,
 ) {
-    val playersOffset = if (ui.showSongsSection) ui.songs.size else 0
-    val bandsOffset = playersOffset + if (ui.showPlayersSection) ui.players.size else 0
+    // Like the web stagger, a section title takes one slot before its rows.
+    val titleSlot = if (ui.showsSectionTitles) 1 else 0
+    val songsOffset = titleSlot
+    val playersOffset = if (ui.showSongsSection) songsOffset + ui.songs.size + titleSlot else titleSlot
+    val bandsOffset = if (ui.showPlayersSection) playersOffset + ui.players.size + titleSlot else playersOffset
     // A new scope or query starts at the top: a kept state would pin the previously first
     // visible key (the first player after Players → All) and hide the songs above it.
     val listState = remember(ui.scope, ui.settledQuery) { LazyListState() }
     LazyColumn(modifier.fillMaxSize().testTag("fst.global-search.results"), state = listState) {
         if (ui.showSongsSection) {
+            sectionTitle(ui, SearchScope.Songs, revealed, songsOffset - 1)
             if (ui.songsPhase == SectionPhase.Failed) {
                 item(key = "songs-failed") { InlineMessage(GlobalSearchResults.SONGS_FAILED) }
             }
@@ -588,6 +603,7 @@ private fun ResultsList(
             }
         }
         if (ui.showPlayersSection) {
+            sectionTitle(ui, SearchScope.Players, revealed, playersOffset - 1)
             if (ui.playersPhase == SectionPhase.Failed) {
                 item(key = "players-failed") {
                     ServiceStatusInline(
@@ -606,6 +622,7 @@ private fun ResultsList(
             }
         }
         if (ui.showBandsSection) {
+            sectionTitle(ui, SearchScope.Bands, revealed, bandsOffset - 1)
             if (ui.bandsPhase == SectionPhase.Failed) {
                 item(key = "bands-failed") {
                     ServiceStatusInline(
@@ -623,6 +640,25 @@ private fun ResultsList(
                     PlayerBandCard(band.entry, onClick = { onOpen(band.destination) }, tag = GlobalSearchTags.RESULT_BAND)
                 }
             }
+        }
+    }
+}
+
+/**
+ * The All scope's section title above a category's rows (web `SearchModal` `<h3>`, issue #348),
+ * drawn with the shared [SectionHeader] (section-headers R1) and faded in with the rows. A single
+ * scope draws none: its chip already names it (issue #299).
+ *
+ * @param ui Search state.
+ * @param section Category the title names.
+ * @param revealed Whether the current result set may show.
+ * @param staggerIndex The title's slot in the entrance stagger.
+ */
+private fun LazyListScope.sectionTitle(ui: GlobalSearchUiState, section: SearchScope, revealed: Boolean, staggerIndex: Int) {
+    if (!ui.showsSectionTitles) return
+    item(key = "h-${section.token}") {
+        Box(Modifier.festivalFadeIn(revealed, fadeInStagger(staggerIndex))) {
+            SectionHeader(section.title, Modifier.padding(horizontal = 16.dp).testTag(GlobalSearchTags.section(section)))
         }
     }
 }
