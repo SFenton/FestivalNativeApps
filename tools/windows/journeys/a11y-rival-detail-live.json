@@ -1,0 +1,36 @@
+[
+  {
+    "name": "rd-live",
+    "route": "/rivals/35348210a0f14db7a88961751faeac6c",
+    "profile": "195e93ef108143b2975ee46662d4d0e1:SFentonX",
+    "ready": [
+      "waitfor:id=fst.rival-detail.summary@60",
+      "waitfor:id=fst.rival-detail.category.closest_battles@20",
+      "assertname:id=fst.rival-detail.title|That_Man_1_2_3_4",
+      "assertname:id=fst.rival-detail.summary|* shared songs · * ahead / * behind"
+    ]
+  },
+  {
+    "name": "rd-live-flow",
+    "route": "/rivals",
+    "profile": "195e93ef108143b2975ee46662d4d0e1:SFentonX",
+    "tabs": 0,
+    "ready": [
+      "scrollinto:id=fst.rivals.section.Solo_Guitar.view-all@60",
+      "invoke:id=fst.rivals.section.Solo_Guitar.view-all",
+      "waitfor:id=fst.all-rivals.list@60",
+      "scrollinto:id=fst.all-rivals.row.35348210a0f14db7a88961751faeac6c@30",
+      "invoke:id=fst.all-rivals.row.35348210a0f14db7a88961751faeac6c",
+      "waitfor:id=fst.rival-detail.summary@60",
+      "waitfor:id=fst.rival-detail.category.closest_battles@20",
+      "assertname:id=fst.rival-detail.title|That_Man_1_2_3_4",
+      "shot:{stem}-detail.png",
+      "scrollinto:id=fst.rival-detail.category.closest_battles.view-all@20",
+      "invoke:id=fst.rival-detail.category.closest_battles.view-all",
+      "waitfor:id=fst.rivalry.list@60",
+      "shot:{stem}-rivalry.png",
+      "invoke:id=PART_BackButton",
+      "waitfor:id=fst.rival-detail.summary@20"
+    ]
+  }
+]

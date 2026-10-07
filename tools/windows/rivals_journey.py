@@ -5,7 +5,8 @@ launches the Debug app with an in-memory debug profile, drives it by ``fst.*`` A
 first missing element (``waitfor:``). Scenarios cover every Rivals page state: populated hub (both tabs, Jump
 To), Rival Detail -> Rivalry (sort) -> All Rivals navigation, empty lists, a 503 scrape freeze (inline and
 page-level status), no selected player and the ``/compete`` deep link, the per-card loading rings and their
-replacement by rows or the inline freeze (a slow fixture account), plus the Rivalry page's own states
+replacement by rows or the inline freeze (a slow fixture account), Rival Detail's loading ring, generic-failure
+Retry recovery and freeze fallback rebuilt from ``rivals/all`` (issue #284), plus the Rivalry page's own states
 (deep link with the labelled sort, keyboard row activation to Song Detail and back, unknown category, empty,
 freeze and no player). With ``--shots DIR`` it also captures compact/medium/wide screenshots of the populated
 journey.
@@ -245,6 +246,50 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
             "waitfor:id=fst.rival-detail.title@10",
         ],
     ),
+    # Rival Detail's load and recovery states (issue #284, #95 acceptance): a ring while the read is pending, a
+    # generic failure that Retry recovers, and a publication freeze rebuilt from rivals/all.
+    "detail-loading": (
+        {"FST_DEBUG_PROFILE": "fixture-player-detail-loading:Demo Player"},
+        f"/rivals/{RIVAL}?scope=song%3ASolo_Guitar",
+        [
+            "waitfor:id=fst.rivals.page-loading@10",
+            # ProgressRing's peer prefixes its state: Narrator reads "Busy Loading".
+            "assertname:id=fst.rivals.page-loading|Busy Loading",
+            "waitgone:id=fst.rival-detail.summary@1",
+            "{shot:detail-loading}",
+            "waitfor:id=fst.rival-detail.summary@30",
+            "waitfor:id=fst.rival-detail.category.closest_battles@10",
+            "waitgone:id=fst.rivals.page-loading@5",
+        ],
+    ),
+    "detail-retry": (
+        {"FST_DEBUG_PROFILE": "fixture-player-detail-flaky:Demo Player"},
+        f"/rivals/{RIVAL}?scope=song%3ASolo_Guitar",
+        [
+            "waitfor:id=fst.service-status.title@20",
+            "waitfor:id=fst.service-status.retry@5",
+            # A generic failure waits for the user: no automatic countdown (that is only for a scrape freeze).
+            "waitgone:id=fst.service-status.countdown@1",
+            "waitgone:id=fst.rival-detail.summary@1",
+            "{shot:detail-error}",
+            "invoke:id=fst.service-status.retry",
+            "waitfor:id=fst.rival-detail.summary@20",
+            "waitfor:id=fst.rival-detail.category.closest_battles@10",
+            "waitgone:id=fst.service-status.title@5",
+        ],
+    ),
+    "detail-freeze-fallback": (
+        {"FST_DEBUG_PROFILE": "fixture-player-detail-frozen:Demo Player"},
+        f"/rivals/{RIVAL}?scope=song%3ASolo_Guitar",
+        [
+            # Every detail read is a freeze 503; the page rebuilds the comparison from rivals/all (issue #95).
+            "waitfor:id=fst.rival-detail.summary@25",
+            "waitfor:id=fst.rival-detail.category.closest_battles@10",
+            "scrollinto:id=fst.rivalry.song.fixture-pulse.Solo_Guitar@10",
+            "waitgone:id=fst.service-status.title@1",
+            "{shot:detail-freeze-fallback}",
+        ],
+    ),
     # Rivalry page states (issue #203): deep link, labelled sort, keyboard row activation and back.
     "rivalry": (
         {"FST_DEBUG_PROFILE": "fixture-player-1:Demo Player"},
@@ -297,7 +342,7 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
 
 #: Timing-sensitive scenarios: their steps run in the launch's own desktop-lock hold, so another lane's queued GUI
 #: work can't outlast the slow fixture's loading window between launch and drive.
-IN_LAUNCH_HOLD = frozenset({"loading", "loading-freeze"})
+IN_LAUNCH_HOLD = frozenset({"loading", "loading-freeze", "detail-loading"})
 
 
 def uiwin(*args: str) -> None:
