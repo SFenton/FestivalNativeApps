@@ -27,8 +27,8 @@ concurrency:
 jobs:
   windows-ui:
     runs-on: windows-latest
-    # ~2.5 min per page and size locally; the modal journey is 11 pages x 3 runs.
-    timeout-minutes: 150
+    # The modal journey (11 pages x 3 runs) takes about 11 minutes here.
+    timeout-minutes: 45
     env:
       PYTHONUTF8: '1'
     steps:
