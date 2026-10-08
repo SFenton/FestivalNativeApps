@@ -128,11 +128,10 @@ PROBE = re.compile(
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text; ``scroll`` takes a rounded
 #: vertical scroll percent, ``0``-``100`` or ``-1`` when the content fits; ``type`` the lower-case UIA control type such as
 #: ``button`` or ``text``; ``invoke`` whether the Invoke pattern is offered; ``focusable`` UIA IsKeyboardFocusable;
-#: ``value`` the UIA Value, else the name of the Selection pattern's selected item, e.g. a combo box's current option;
-#: ``heading`` the UIA HeadingLevel, ``1``-``9`` or ``none``: what Narrator's heading navigation (H, 1-9) lands on).
+#: ``value`` the UIA Value, else the name of the Selection pattern's selected item, e.g. a combo box's current option).
 STATE_KEYS = {"toggle": ("on", "off", "indeterminate"), "enabled": ("true", "false"), "selected": ("true", "false"),
               "name": None, "scroll": None, "type": None, "invoke": ("true", "false"), "focusable": ("true", "false"),
-              "value": None, "heading": ("none", "1", "2", "3", "4", "5", "6", "7", "8", "9")}
+              "value": None, "heading": tuple("0123456789")}
 
 # endregion
 
@@ -297,9 +296,9 @@ def parse_step(step: str) -> dict:
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
     (``on``/``off``/``indeterminate``), ``enabled`` (``true``/``false``), ``selected`` (UIA SelectionItem
     ``IsSelected``: ``true``/``false``, e.g. a list's current item), ``scroll`` (UIA Scroll pattern vertical percent,
-    rounded: ``0`` is a list back at its top), ``name`` or ``value`` (UIA Value, else the selected item's name: what
-    Narrator reads after a combo box's name, e.g. ``Instrument, combo box, Bass``) or ``heading`` (UIA HeadingLevel ``1``-``9``
-    or ``none``, e.g. a dialog's level-3 category heading) equals ``<value>``;
+    rounded: ``0`` is a list back at its top), ``heading`` (UIA heading level ``1``–``9``, ``0`` for none, e.g. a
+    pinned section title), ``name`` or ``value`` (UIA Value, else the selected item's name: what
+    Narrator reads after a combo box's name, e.g. ``Instrument, combo box, Bass``) equals ``<value>``;
     ``pin:<sel>`` records the element's window-relative rectangle and ``assertpinned:<sel>`` (same selector, later in
     the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls;
     ``assertmarquee:<sel>|moving|<epx>`` fails unless the element is at most ``<epx>`` effective pixels high (one line)

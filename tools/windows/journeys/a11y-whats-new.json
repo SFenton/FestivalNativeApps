@@ -25,7 +25,7 @@
                    "assertname:id=fst.whats-new.group.0.0|Songs", "assertstate:id=fst.whats-new.group.0.0|heading=3",
                    "assertread:id=fst.whats-new.group.0.0|Songs, text",
                    "assertread:name=Fixture tester note one is new in this build.|Fixture tester note one is new in this build., text",
-                   "assertstate:name=Fixture tester note one is new in this build.|heading=none",
+                   "assertstate:name=Fixture tester note one is new in this build.|heading=0",
                    "assertorder:id=fst.whats-new.list|id=fst.whats-new.section.0|id=fst.whats-new.group.0.0|name=Fixture tester note one is new in this build.|name=Fixture tester note two shares the Songs heading.|id=fst.whats-new.dismiss",
                    "waitgone:name=•@1",
                    "assertsize:id=fst.whats-new.dismiss|40x40",

@@ -99,7 +99,7 @@ Scope: the What's New dialog only. Results per configuration are in [whats-new/w
 
 Fixed: the notes scroller was not a tab stop, so the keyboard could not scroll long notes. It now opens focused and is named after the title. Dismiss and the headings gained automation IDs. Backdrop-click journeys need an unlocked console (`journeys/whats-new-pointer.json`).
 
-Issue #434 (2026-10-08): the `windows-ui` CI job runs `a11y-whats-new.json` (`tools/windows/ui_ci.py` runs `whats-new` at compact/medium and `whats-new-text-225` at compact). The grouped tester and store pages assert heading levels (`assertstate` `heading=2`, `3` or `none`), reading order from the version heading through the category headings and bullets to Dismiss, the Raw bullet glyph and a 40×40 Dismiss ([whats-new/windows.md](../controls/whats-new/windows.md#validation-issue-434-2026-10-08-80s-grouped-notes-in-ci)).
+Issue #434 (2026-10-08): the `windows-ui` CI job runs `a11y-whats-new.json` (`tools/windows/ui_ci.py` runs `whats-new` at compact/medium and `whats-new-text-225` at compact). The grouped tester and store pages assert heading levels (`assertstate` `heading=2`, `3` or `0` for none), reading order from the version heading through the category headings and bullets to Dismiss, the Raw bullet glyph and a 40×40 Dismiss ([whats-new/windows.md](../controls/whats-new/windows.md#validation-issue-434-2026-10-08-80s-grouped-notes-in-ci)).
 
 ## Notifications validation (issue #229, 2026-10-04)
 

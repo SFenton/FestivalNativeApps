@@ -1067,8 +1067,8 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>
     /// Waits until the selected element's toggle state (<c>on</c>/<c>off</c>/<c>indeterminate</c>), enabled flag
     /// (<c>true</c>/<c>false</c>), SelectionItem <c>IsSelected</c> (<c>true</c>/<c>false</c>), rounded vertical scroll
-    /// percent (<c>scroll</c>), control type, Invoke support, keyboard focusability, value, heading level
-    /// (<c>1</c>–<c>9</c> or <c>none</c>) or name equals the step's value.
+    /// percent (<c>scroll</c>), control type, Invoke support, keyboard focusability, value, UIA heading level
+    /// (<c>heading</c>: <c>1</c>–<c>9</c>, <c>0</c> for none) or name equals the step's value.
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector, <c>key</c>, <c>value</c> and an optional timeout (default 5 s).</param>
@@ -1105,10 +1105,10 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                     "type" => element.Properties.ControlType.ValueOrDefault.ToString().ToLowerInvariant(),
                     "invoke" => element.Patterns.Invoke.IsSupported ? "true" : "false",
                     "focusable" => element.Properties.IsKeyboardFocusable.ValueOrDefault ? "true" : "false",
-                    // UIA HeadingLevel (HeadingLevel_None = 80050, Level1-9 = 80051-80059): Narrator's heading navigation.
+                    // UIA heading level 1-9 (HeadingLevel1 = 80051), "0" for none, e.g. a pinned section title.
                     "heading" => element.Properties.HeadingLevel.TryGetValue(out var level) && (int)level is > 80050 and < 80060
                         ? ((int)level - 80050).ToString(System.Globalization.CultureInfo.InvariantCulture)
-                        : "none",
+                        : "0",
                     // What Narrator reads after a combo box's name: its Value, else the selected item's name.
                     "value" => element.Patterns.Value.PatternOrDefault?.Value.ValueOrDefault is { Length: > 0 } text
                         ? text

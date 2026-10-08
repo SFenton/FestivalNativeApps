@@ -86,7 +86,7 @@ Until #434 the `windows-ui` CI job ran only `a11y-modals.json`, whose `modal-wha
 
 | Check | Steps |
 |---|---|
-| Role and level | `assertstate` `heading=2` on every version heading, `heading=3` on category headings including "Other", `heading=none` on a bullet; `assertread` "Songs, text" (the phrase model omits the level, so `heading=` is the check) |
+| Role and level | `assertstate` `heading=2` on every version heading, `heading=3` on category headings including "Other", `heading=0` (none) on a bullet; `assertread` "Songs, text" (the phrase model omits the level, so `heading=` is the check) |
 | Reading order | list → version heading → "Songs" → its two bullets → Dismiss (tester); list → version → "Songs" → its bullet → Dismiss (store); "Other" → its bullet → Dismiss after scrolling |
 | Bullet glyph | `waitgone:name=•` — the glyph is Raw, so Narrator reads only the note |
 | Target size | Dismiss at least 40×40 epx |
