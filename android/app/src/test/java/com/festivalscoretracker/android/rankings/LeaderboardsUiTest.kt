@@ -204,6 +204,14 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         click(footer)
         waitForDescription("Page 2 of 3")
         waitForTag("fst.rankings.row.${RankingsFixtures.SELECTED}")
+        // The jump centres the highlighted row above the pinned footer (R7, issue #370: the
+        // board's canonical reveal instead of a row-level bring-into-view that never scrolled).
+        rule.waitUntil(10_000) {
+            settle(100)
+            val row = node("fst.rankings.row.${RankingsFixtures.SELECTED}").fetchSemanticsNode().boundsInRoot
+            row.height > 0f && row.top >= node("fst.full-rankings.list").fetchSemanticsNode().boundsInRoot.top &&
+                row.bottom <= node("fst.full-rankings.bottom-bar").fetchSemanticsNode().boundsInRoot.top
+        }
         // Issue #318: on the player's own page the row stays pinned (like the song boards) and opens Statistics.
         rule.waitUntil(5_000) { settle(100); clickLabel(footer) == "Open your statistics" }
         assertTrue(exists(footer))

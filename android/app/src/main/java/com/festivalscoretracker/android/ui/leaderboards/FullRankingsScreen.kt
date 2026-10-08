@@ -18,7 +18,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import com.festivalscoretracker.android.ui.common.rememberPageFadeInWindow
+import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -97,6 +103,12 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
     val pageShown = swap.phase == LoadSwapPhase.ContentIn && board is LoadState.Loaded && swap.shown === board
     // Inner width of the rows card, so narrow panes (beside a hinge) keep names readable (issue #115).
     var rowWidth by rememberRankingRowWidth()
+    val anchor = remember { SelectedRowAnchor() }
+    // The board page whose selected row was last revealed (saved, so Back doesn't reveal it again).
+    var revealedPage by rememberSaveable { mutableStateOf<String?>(null) }
+    val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
+    // The page's fade window, here so the reveal can rush the rows its scroll reaches (load-transition R5).
+    val fadeIn = rememberPageFadeInWindow()
 
     // A new page starts at the top, unless it holds the selected row (revealed instead).
     LaunchedEffect(swap.showsSpinner) {
@@ -105,11 +117,32 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
     LaunchedEffect(shownPage) {
         if (!revealsSelected) listState.scrollToItem(0)
     }
+    // A page holding the selected row (opened from a Compete preview or a profile tile, or
+    // reached through the pinned row or the pager) centres the highlighted row above the
+    // pinned footer once its own entrance has finished, like the song boards (`leaderboard-row` R7,
+    // issues #323, #370).
+    LaunchedEffect(pageShown, shownPage) {
+        if (!pageShown) return@LaunchedEffect
+        if (!revealsSelected) {
+            revealedPage = null
+            return@LaunchedEffect
+        }
+        // Once per page arrival: a return from a profile keeps the reader's scroll position.
+        val key = "${instrument.wireId}:${metric.wireId}:$page"
+        if (revealedPage == key) return@LaunchedEffect
+        val index = entries.indexOfFirst { RankingSpotlight.isSelected(selected, it.accountId) }
+        if (awaitSelectedRowEntrance(fadeIn, fadeInStagger(index), reduceMotion)) {
+            withFrameNanos { }
+            anchor.bounds()?.let { (top, height) -> listState.revealSelectedRow("rows", null, top, height, animate = !reduceMotion) }
+        }
+        revealedPage = key
+    }
 
     FestivalScreen(
         title = "${instrument.label} Leaderboards",
         isRoot = false,
         modifier = Modifier.semantics { testTagsAsResourceId = true },
+        fadeInWindow = fadeIn,
         // The board's chart before its title, like the song leaderboard header (issue #294).
         titleIcon = { size -> InstrumentIcon(instrument, size = size, decorative = true, modifier = Modifier.testTag("fst.full-rankings.title-icon.${instrument.wireId}")) },
         actions = {
@@ -141,7 +174,7 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
                 shown is LoadState.Failed -> item(key = "failed") {
                     Box(swap.contentModifier) { ServiceStatusInline(shown.issue, "Rankings unavailable", shown.countdown, viewModel::retry) }
                 }
-                else -> rankingRows(swap, entries, metric, selected, navigate) { rowWidth = it }
+                else -> rankingRows(swap, entries, metric, selected, navigate, anchor) { rowWidth = it }
             }
         }
         }
@@ -178,6 +211,7 @@ private fun FullRankingsControls(current: RankingsPayload?) {
  * @param metric Selected metric.
  * @param selected Selected player.
  * @param navigate Push a route.
+ * @param anchor Records the selected row's place in the rows item for the reveal.
  * @param onRowWidth Receives the rows' width in dp (the card's inner width) after layout.
  */
 private fun LazyListScope.rankingRows(
@@ -186,25 +220,26 @@ private fun LazyListScope.rankingRows(
     metric: RankingMetric,
     selected: String?,
     navigate: (AppRoute) -> Unit,
+    anchor: SelectedRowAnchor,
     onRowWidth: (Float) -> Unit,
 ) {
     item(key = "rows") {
         val density = LocalDensity.current
-        GlassCard(Modifier.fillMaxWidth().then(swap.contentModifier)) {
+        GlassCard(anchor.item.fillMaxWidth().then(swap.contentModifier)) {
             Column(Modifier.padding(8.dp).onSizeChanged { onRowWidth(with(density) { it.width.toDp().value }) }) {
                 when {
                     entries.isEmpty() -> Text("No ranked players yet.", color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))
                     else -> entries.forEachIndexed { index, entry ->
-                        Box(Modifier.festivalFadeIn(swap.revealed, fadeInStagger(index))) {
+                        val isSelected = RankingSpotlight.isSelected(selected, entry.accountId)
+                        // The reveal anchor sits outside the fade-in so it measures the settled row.
+                        Box((if (isSelected) anchor.row else Modifier).festivalFadeIn(swap.revealed, fadeInStagger(index))) {
                             if (index > 0) RowSeparator(Modifier.align(Alignment.TopCenter))
                             AccountRankingRow(
                                 entry = entry,
                                 metric = metric,
-                                isSelected = RankingSpotlight.isSelected(selected, entry.accountId),
+                                isSelected = isSelected,
                                 route = RankingNavigation.playerRoute(entry.accountId, entry.displayName, selected),
                                 onOpen = navigate,
-                                reveal = true,
-                                revealDelayMillis = fadeInStagger(index),
                             )
                         }
                     }
