@@ -2,7 +2,7 @@
 
 > **What:** the app-wide rule for when a page's rows or cards show in two columns: in wide landscape windows (iPad landscape, iPhone Duo unfolded in landscape, a wide Mac surface) and never in portrait. It covers reading order, headings, the Duo hinge and reflow, and lists every page that adopts it. **Read when:** making a page or sheet two-column, changing when Songs, Search or a full leaderboard pair their rows, or adding a page (add it to the audit below).
 
-Status: **current**, 2026-10-08. Provenance: #350 (split from #332), #353 (full-width leaderboards, R8); generalizes the Songs landscape grid (`SongGridPolicy`, #312, #321). Settings adopted it with R7 (#355); owner #371 replaces R7's Settings page with a list/detail split ([split-panes](split-panes.md) R6), and R7 now applies to the Mac Settings window panes.
+Status: **current**, 2026-10-08. Provenance: #350 (split from #332), #353 (full-width leaderboards, R8); generalizes the Songs landscape grid (`SongGridPolicy`, #312, #321). Settings adopted it with R7 (#355); owner #371 replaces R7's Settings page with a list/detail split ([split-panes](split-panes.md) R6), and R7 now applies to the Mac Settings window panes. The Item Shop list adopts it (#378).
 
 ## Intent
 
@@ -67,7 +67,7 @@ Chose **A**. The owner may override it with `/choose B` or `/choose C`.
 |---|---|---|---|
 | Policy (when, widths, row chunking, Mac sheet size) | `apple/Sources/FestivalUI/App/Layout/WideColumns.swift` `WideColumns` (`count(layout:size:subPage:)`, `columnPageWidth`, `indexedRows`, `rowStart`) | — (not yet; out of the Apple lane for #350) | — |
 | Two-up row meeting at the hinge | `apple/Sources/FestivalUI/App/Layout/HingeColumns.swift` `HingeRow` (follows `DeviceLayout.splitHinge`) | — | — |
-| Board row pairs and count (R8) | `apple/Sources/FestivalUI/App/Layout/WideColumns.swift` `WideColumnsRow`, `WideColumnsRowItems`, `View.wideColumnsCount(_:)`; sub-page flag `apple/Sources/FestivalUI/App/Layout/OnDemandSplit.swift` `SplitPaneContext.isSubPage` (`\.splitPaneSubPage`). Consumers: `FullRankingsScreen`, `BandRankingsScreen`, `SoloLeaderboardScreen`, `SongBandLeaderboardScreen` | — | — |
+| Board row pairs and count (R8) | `apple/Sources/FestivalUI/App/Layout/WideColumns.swift` `WideColumnsRow`, `WideColumnsRowItems`, `View.wideColumnsCount(_:)`; sub-page flag `apple/Sources/FestivalUI/App/Layout/OnDemandSplit.swift` `SplitPaneContext.isSubPage` (`\.splitPaneSubPage`). Consumers: `FullRankingsScreen`, `BandRankingsScreen`, `SoloLeaderboardScreen`, `SongBandLeaderboardScreen`, Item Shop list (`ShopScreen.shopContent`, #378) | — | — |
 | Songs grid | `apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift` `SongGridPolicy` (delegates) | — | — |
 | Search results | `apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift` `GlobalSearchResults` | — | — |
 | Mac Search sheet size | `apple/Sources/FestivalUI/Mac/MacRootView.swift` `MacRootView` (`searchSheetSize`) | — | — |
@@ -83,13 +83,13 @@ Status per page: **adopts** (follows R1–R5), **exempt** (a layout the rule doe
 | Search results (`global-search`) | adopts | Two columns per R1, at the hinge (R3); Mac sheet R6. |
 | Songs | adopts | `SongGridPolicy` → `WideColumns`, `HingeRow`. The Mac keeps one row per song, a sortable table ([songs-section-index](../controls/songs-section-index/spec.md) owns its layout). |
 | Song Detail | exempt | Content-sized adaptive grids (`HingeGrid`, Intensity, instrument cards and, since #366, the Duos/Trios/Quads previews in `SongDetailCardGrid`) already fill width in any orientation. |
-| Item Shop | exempt | Adaptive even-column card grid (`ShopGridPolicy`, [hinge-columns](hinge-columns.md) R2). |
+| Item Shop | adopts (list, #378); grid exempt | List mode pairs its Song rows row-major per R1–R4 through `WideColumnsRow` and `.wideColumnsCount` (one column at accessibility sizes, `WideColumns.readable`); the disclosures span both columns; Mac arrow keys step by row. Switching List and Grid replays the web view transition but never reads the Shop again. The grid is an adaptive even-column card grid (`ShopGridPolicy`, [hinge-columns](hinge-columns.md) R2). |
 | Statistics | exempt | Adaptive stat tile grid (`StatTileGridLayout`). |
 | Leaderboards | follow-up | Two `HingeGrid` columns whenever the width class is regular, including iPad portrait. Should switch to R1. |
 | Player Profile | follow-up | Instrument tiles in two columns at regular width, including portrait. Should switch to R1. |
 | Suggestions | follow-up | Two columns at regular width, including portrait. Should switch to R1. |
 | Compete | follow-up | Leaderboards beside Rivals (`HingeRow`) at regular width, including portrait. Should switch to R1. |
-| Settings | replaced (#371) | Mac Settings window panes flow column by column in two balanced columns (R7). The Settings page on Duo, iPad and Android tablets/foldables is a list/detail split ([split-panes](split-panes.md) R6); Android since #371, Apple pending its lane. |
+| Settings | replaced (#371) | Mac Settings window panes flow column by column in two balanced columns (R7). The Settings page on Duo, iPad and Android tablets/foldables is a list/detail split ([split-panes](split-panes.md) R6); Android and Windows (Settings page at least 1100 epx wide) since #371, Apple pending its lane. |
 | Full Rankings, Song Leaderboard, Song Band Leaderboard, Band Rankings | adopts (#353) | Two row-major columns when full width (R8); one column as a split's sub-page (beside Leaderboards or Song Detail). |
 | Bands, Player Bands, Band Detail | follow-up | One column (the Mac Band Detail places Summary beside Statistics). |
 | Rivals, All Rivals, Rival Detail, Rivalry, Player History | follow-up | One column of rows. |

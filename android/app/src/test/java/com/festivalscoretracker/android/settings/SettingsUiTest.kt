@@ -16,6 +16,10 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasTestTag
+import com.festivalscoretracker.android.core.settings.SettingsDetailText
+import com.festivalscoretracker.android.core.settings.SettingsDetail
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -360,62 +364,160 @@ class SettingsUiTest {
     }
 }
 
-/** Expanded window: Settings shows the persistent Quick Links pane instead of the top-bar entry. */
+/** Expanded window: Settings is a list/detail page (issue #371) and Quick Links stays a top-bar menu. */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w1280dp-h800dp-land-xhdpi")
 class ExpandedSettingsUiTest {
     @get:Rule
     val rule = createAndroidComposeRule<ComponentActivity>()
 
+    private fun settle() = rule.settleSettings()
+
+    private fun waitForTag(tag: String) = rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty() }
+
+    private fun waitGone(tag: String) = rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty() }
+
+    private fun tapInList(tag: String) {
+        rule.onNodeWithTag("fst.settings.list").performScrollToNode(hasTestTag(tag))
+        rule.onNodeWithTag(tag).performSemanticsAction(SemanticsActions.OnClick)
+        settle()
+    }
+
+    private fun exists(tag: String) = rule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
+
     @Test
     fun quickLinksMenuOnExpandedWindows() {
-        val debug = DebugLaunch(section = FestivalSection.Settings, stillBackground = true)
-        val transport = FakeTransport.standard().apply {
-            on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null") }
-        }
-        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = InMemoryPreferences())
-        rule.setContent { FestivalApp(container, debug) }
-        fun settle() = repeat(4) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100)); rule.waitForIdle() }
+        rule.openSettings()
         // Expanded windows: an anchored dropdown from the top-bar button, never a side pane.
-        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.quick-links.open").fetchSemanticsNodes().isNotEmpty() }
+        waitForTag("fst.quick-links.open")
         assertTrue(rule.onAllNodesWithTag("fst.quick-links.pane").fetchSemanticsNodes().isEmpty())
         rule.onNodeWithTag("fst.quick-links.open").performClick()
-        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.quick-links.menu").fetchSemanticsNodes().isNotEmpty() }
+        waitForTag("fst.quick-links.menu")
         rule.onNodeWithTag("fst.quick-links.item.licenses").performSemanticsAction(SemanticsActions.OnClick)
-        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.settings.licenses").fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithTag("fst.settings.licenses").performSemanticsAction(SemanticsActions.OnClick)
-        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.licenses.list").fetchSemanticsNodes().isNotEmpty() }
-        // Nothing open: the first package fills the detail pane (two populated columns).
-        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.licenses.text").fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithTag("fst.licenses.detail-pane").assertExists()
-        rule.onNodeWithTag("fst.licenses.list").performScrollToNode(hasTestTag("fst.licenses.row.com.squareup.okhttp3:okhttp"))
-        rule.onNodeWithTag("fst.licenses.row.com.squareup.okhttp3:okhttp").performSemanticsAction(SemanticsActions.OnClick)
-        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.licenses.text").fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithTag("fst.licenses.detail-pane").assertExists()
-        assertTrue(rule.onAllNodesWithTag("fst.licenses.detail").fetchSemanticsNodes().isEmpty())
+        // The jump lands on the Licenses chevron row in the list; the pane is unchanged.
+        waitForTag("fst.settings.licenses")
+        rule.onNodeWithTag("fst.settings.detail-placeholder").assertExists()
     }
 
     @Test
-    fun privacyPolicyIsADialogOnExpandedWindows() {
-        val debug = DebugLaunch(section = FestivalSection.Settings, stillBackground = true)
-        val transport = FakeTransport.standard().apply {
-            on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null") }
+    fun nothingSelectedShowsTheCentredSettingsPlaceholder() {
+        rule.openSettings()
+        waitForTag("fst.settings.detail-placeholder")
+        val list = rule.onNodeWithTag("fst.settings.list").getUnclippedBoundsInRoot()
+        val pane = rule.onNodeWithTag("fst.settings.detail-pane").getUnclippedBoundsInRoot()
+        // List on the left at the shared list-pane width (40% clamped 320-440 dp), detail on the right.
+        val listWidth = (list.right - list.left).value
+        assertTrue("list width $listWidth", listWidth in 319.5f..440.5f)
+        assertTrue(list.right <= pane.left)
+        rule.onNodeWithTag("fst.settings.detail-placeholder").assert(hasAnyDescendant(hasText("Settings"))).assert(hasAnyDescendant(hasText(SettingsDetailText.PLACEHOLDER_SUBTITLE)))
+        // Vertically centred in the pane.
+        val title = rule.onAllNodesWithText("Settings", useUnmergedTree = true).fetchSemanticsNodes()
+            .map { it.boundsInRoot }.first { it.left >= with(rule.density) { pane.left.toPx() } }
+        val titleCentre = with(rule.density) { title.center.y.toDp() }
+        val paneCentre = (pane.top + pane.bottom) / 2
+        assertEquals(paneCentre.value, titleCentre.value, 60f)
+    }
+
+    @Test
+    fun plainTogglesActInTheListAndLeaveThePaneAlone() {
+        val store = InMemoryPreferences()
+        rule.openSettings(store)
+        waitForTag("fst.settings.detail-placeholder")
+        tapInList("fst.settings.show-instrument-icons")
+        assertFalse(SettingsRepository.decode(store.current).showInstrumentIcons)
+        rule.onNodeWithTag("fst.settings.detail-placeholder").assertExists()
+        // Multi-option sections are chevron rows, not inline cards.
+        assertFalse(exists("fst.settings.instrument.${Instrument.entries.first().wireId}"))
+        for (detail in SettingsDetail.entries.filter { it.section }) {
+            rule.onNodeWithTag("fst.settings.list").performScrollToNode(hasTestTag(detail.rowTag))
         }
-        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = InMemoryPreferences())
-        rule.setContent { FestivalApp(container, debug) }
-        fun settle() = repeat(4) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100)); rule.waitForIdle() }
-        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.quick-links.open").fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithTag("fst.quick-links.open").performClick()
-        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.quick-links.menu").fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithTag("fst.quick-links.item.privacy-policy").performSemanticsAction(SemanticsActions.OnClick)
-        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.settings.privacy-policy").fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithTag("fst.settings.privacy-policy").performSemanticsAction(SemanticsActions.OnClick)
-        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.privacy-policy.content").fetchSemanticsNodes().isNotEmpty() }
-        // Wider windows: a centred dialog capped at the shared modal width, not a full-width sheet.
-        val bounds = rule.onNodeWithTag("fst.privacy-policy.sheet").getUnclippedBoundsInRoot()
-        assertTrue((bounds.right - bounds.left).value <= 560f + 1f)
-        rule.onNodeWithTag("fst.privacy-policy.close").performSemanticsAction(SemanticsActions.OnClick)
-        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.privacy-policy.sheet").fetchSemanticsNodes().isEmpty() }
+        assertFalse(exists("fst.settings.service-info"))
+    }
+
+    @Test
+    fun chevronRowOpensItsOptionsOnTheRight() {
+        val store = InMemoryPreferences()
+        rule.openSettings(store)
+        waitForTag("fst.settings.detail-placeholder")
+        tapInList(SettingsDetail.ShowInstruments.rowTag)
+        waitForTag("fst.settings.detail.show-instruments")
+        waitGone("fst.settings.detail-placeholder")
+        rule.onNodeWithTag(SettingsDetail.ShowInstruments.rowTag).assert(SemanticsMatcher.expectValue(SemanticsProperties.Selected, true))
+        val instrument = Instrument.entries.first()
+        rule.onNodeWithTag("fst.settings.instrument.${instrument.wireId}").performSemanticsAction(SemanticsActions.OnClick)
+        settle()
+        assertFalse(instrument in SettingsRepository.decode(store.current).visibleInstruments)
+        // Another row replaces the pane's content.
+        tapInList(SettingsDetail.Version.rowTag)
+        waitForTag("fst.settings.app-version")
+        assertFalse(exists("fst.settings.detail.show-instruments"))
+        rule.onNodeWithTag(SettingsDetail.ShowInstruments.rowTag).assert(SemanticsMatcher.expectValue(SemanticsProperties.Selected, false))
+    }
+
+    @Test
+    fun appSettingsOptionsOpenOnTheRightAndCloseWithTheirSwitch() {
+        val store = InMemoryPreferences()
+        rule.openSettings(store)
+        waitForTag("fst.settings.detail-placeholder")
+        tapInList(SettingsDetail.PathDefaultView.rowTag)
+        waitForTag("fst.settings.path-default-view.${PathDisplayMode.Text.token}")
+        rule.onNodeWithTag("fst.settings.path-default-view.${PathDisplayMode.Text.token}").performSemanticsAction(SemanticsActions.OnClick)
+        settle()
+        assertEquals(PathDisplayMode.Text, SettingsRepository.decode(store.current).pathDefaultView)
+        // Maximum Score Leeway exists only while Filter Invalid Scores is on, as on phones.
+        assertFalse(exists(SettingsDetail.Leeway.rowTag))
+        tapInList("fst.settings.filter-invalid-scores")
+        tapInList(SettingsDetail.Leeway.rowTag)
+        waitForTag("fst.settings.leeway")
+        tapInList("fst.settings.filter-invalid-scores")
+        waitForTag("fst.settings.detail-placeholder")
+        assertFalse(exists("fst.settings.leeway"))
+    }
+
+    @Test
+    fun licensesOpenInThePaneAndAPackageInASheet() {
+        rule.openSettings()
+        waitForTag("fst.settings.detail-placeholder")
+        tapInList("fst.settings.licenses")
+        waitForTag("fst.licenses.list")
+        assertFalse(exists("fst.licenses.detail-pane"))
+        val pane = rule.onNodeWithTag("fst.settings.detail-pane").getUnclippedBoundsInRoot()
+        assertTrue(rule.onNodeWithTag("fst.licenses.list").getUnclippedBoundsInRoot().left >= pane.left)
+        rule.onNodeWithTag("fst.licenses.list").performScrollToNode(hasTestTag("fst.licenses.row.com.squareup.okhttp3:okhttp"))
+        rule.onNodeWithTag("fst.licenses.row.com.squareup.okhttp3:okhttp").performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.licenses.detail")
+        waitForTag("fst.licenses.text")
+    }
+
+    @Test
+    fun privacyPolicyOpensInThePane() {
+        rule.openSettings()
+        waitForTag("fst.settings.detail-placeholder")
+        tapInList("fst.settings.privacy-policy")
+        waitForTag("fst.privacy-policy.content")
+        rule.onNodeWithTag("fst.privacy-policy.pane").assertExists()
+        assertFalse(exists("fst.privacy-policy.sheet"))
+        val pane = rule.onNodeWithTag("fst.settings.detail-pane").getUnclippedBoundsInRoot()
+        assertTrue(rule.onNodeWithTag("fst.privacy-policy.content").getUnclippedBoundsInRoot().left >= pane.left)
+    }
+}
+
+/** Phone: Settings stays one list with every section inline (issue #371 leaves phones unchanged). */
+@RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "w411dp-h891dp-xxhdpi")
+class PhoneSettingsLayoutUiTest {
+    @get:Rule
+    val rule = createAndroidComposeRule<ComponentActivity>()
+
+    @Test
+    fun sectionsStayInlineWithoutADetailPane() {
+        rule.openSettings()
+        assertTrue(rule.onAllNodesWithTag("fst.settings.detail-pane").fetchSemanticsNodes().isEmpty())
+        val instrument = Instrument.entries.first()
+        rule.onNodeWithTag("fst.settings.list").performScrollToNode(hasTestTag("fst.settings.instrument.${instrument.wireId}"))
+        rule.onNodeWithTag("fst.settings.list").performScrollToNode(hasTestTag("fst.settings.path-default-view.${PathDisplayMode.Image.token}"))
+        assertTrue(rule.onAllNodesWithTag(SettingsDetail.ShowInstruments.rowTag).fetchSemanticsNodes().isEmpty())
+        assertTrue(rule.onAllNodesWithTag(SettingsDetail.PathDefaultView.rowTag).fetchSemanticsNodes().isEmpty())
     }
 }
 
@@ -575,13 +677,13 @@ private typealias SettingsRule = androidx.compose.ui.test.junit4.AndroidComposeT
 
 private fun SettingsRule.settleSettings() = repeat(4) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100)); waitForIdle() }
 
-/** Opens Settings on synthetic fixtures. */
-private fun SettingsRule.openSettings() {
+/** Opens Settings on synthetic fixtures, persisting to [store]. */
+private fun SettingsRule.openSettings(store: InMemoryPreferences = InMemoryPreferences()) {
     val debug = DebugLaunch(section = FestivalSection.Settings, stillBackground = true)
     val transport = FakeTransport.standard().apply {
         on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null") }
     }
-    val container = AppContainer(activity, OkHttpClient(), debug, transport = transport, settingsStore = InMemoryPreferences())
+    val container = AppContainer(activity, OkHttpClient(), debug, transport = transport, settingsStore = store)
     setContent { FestivalApp(container, debug) }
     waitUntil(10_000) { settleSettings(); onAllNodesWithTag("fst.settings.list").fetchSemanticsNodes().isNotEmpty() }
 }
@@ -595,7 +697,7 @@ private fun SettingsRule.valueRowBounds(tag: String, label: String): Pair<androi
     texts[0].assertTextEquals(label)
     return texts[0].getUnclippedBoundsInRoot() to texts[1].getUnclippedBoundsInRoot()
 }
-/** Expanded window: Settings sections stay a centred 840 dp column instead of stretching (issue #121). */
+/** Expanded window: the list pane's sections fill the pane inside its 16 dp margins (issue #371 replaces the centred 840 dp column). */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w1280dp-h800dp-land-xhdpi")
 class WideSettingsColumnUiTest {
@@ -603,12 +705,11 @@ class WideSettingsColumnUiTest {
     val rule = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun sectionsAreCappedAndCentred() {
+    fun sectionsFillTheListPane() {
         rule.openSettings()
         val list = rule.onNodeWithTag("fst.settings.list").getUnclippedBoundsInRoot()
         val section = rule.onNodeWithTag("fst.settings.section.app-settings").getUnclippedBoundsInRoot()
-        assertEquals(840f, (section.right - section.left).value, 0.5f)
-        // Centred between the list's 16 dp content padding.
-        assertEquals((section.left - list.left).value, (list.right - section.right).value, 1f)
+        assertEquals(16f, (section.left - list.left).value, 0.5f)
+        assertEquals(16f, (list.right - section.right).value, 0.5f)
     }
 }

@@ -281,4 +281,163 @@ func shopFixtureBytes() throws -> (offers: Data, catalogue: Data) {
     }
     #expect(snapshots[0] != snapshots[1])
 }
+
+/// Where the Shop list is hosted for the wide-columns checks (issue #378).
+enum ShopListPlacement: String, CaseIterable, CustomTestStringConvertible {
+    /// A Mac page wider than tall: two columns.
+    case wide
+    /// A page taller than wide: one column.
+    case tall
+    /// The wide page at an accessibility text size: one column.
+    case wideAccessibility
+
+    var testDescription: String { rawValue }
+
+    var size: CGSize {
+        self == .tall ? CGSize(width: 760, height: 1000) : CGSize(width: 1100, height: 760)
+    }
+
+    var typeSize: DynamicTypeSize { self == .wideAccessibility ? .accessibility3 : .large }
+
+    var columns: Int { self == .wide ? 2 : 1 }
+}
+
+/// Item Shop list rows pair row-major in a wide page and stay one column on a tall page
+/// or at accessibility sizes; switching to the grid and back reuses the loaded Shop
+/// instead of reading it again (pattern `wide-columns` R1/R2/R4, issue #378).
+@MainActor
+@Test(.serialized, arguments: ShopListPlacement.allCases)
+func shopListUsesTwoColumnsOnlyInWideLayouts(placement: ShopListPlacement) async throws {
+    nativeHostedEnableAccessibility()
+    let bytes = try shopFixtureBytes()
+    let suiteName = "fst-shop-columns-\(UUID().uuidString)"
+    let storage = try #require(UserDefaults(suiteName: suiteName))
+    defer { storage.removePersistentDomain(forName: suiteName) }
+    storage.set(true, forKey: "fst.accessibility.reduceMotion")
+    storage.set(ShopViewMode.list.rawValue, forKey: "fst.shop.viewMode")
+    let transport = HostedShopTransport(
+        scenario: .populated, offers: bytes.offers, catalogue: bytes.catalogue
+    )
+    let client = try FestivalAPI(transport: transport)
+    let session = FestivalSession(factory: { client })
+    let size = placement.size
+    let host = nativeHostedView(
+        NavigationStack {
+            ShopScreen(session: session, isVisible: true)
+        }
+        .frame(width: size.width, height: size.height)
+        .defaultAppStorage(storage)
+        .preferredColorScheme(.dark)
+        .environment(\.horizontalSizeClass, .regular)
+        .environment(\.dynamicTypeSize, placement.typeSize),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let ids = ["fixture-pulse", "fixture-orbit"].map { "fst.shop.external.\($0)" }
+    let image = try await nativeHostedSettle(host, timeout: .seconds(60)) {
+        ids.allSatisfy { nativeHostedAccessibilityFrame($0, in: host) != nil }
+    }
+    _ = try nativeHostedPNG(
+        image, filename: "shop-list-columns-\(placement.rawValue).png", environment: "FST_SHOP_RENDER_OUT"
+    )
+    let frames = try ids.map { try #require(nativeHostedAccessibilityFrame($0, in: host)) }
+        .sorted { ($0.minY, $0.minX) < ($1.minY, $1.minX) }
+    if placement.columns == 2 {
+        #expect(abs(frames[0].minY - frames[1].minY) < 1, "\(placement): the second offer is not beside the first")
+        #expect(frames[1].minX > frames[0].maxX + WideColumns.spacing, "\(placement): no second column")
+    } else {
+        #expect(frames[1].minY > frames[0].maxY, "\(placement): the second offer is not under the first")
+        #expect(abs(frames[1].minX - frames[0].minX) < 1)
+    }
+    let reads = await transport.recordedPaths()
+    guard placement == .wide else { return }
+    storage.set(ShopViewMode.grid.rawValue, forKey: "fst.shop.viewMode")
+    try await nativeHostedSettle(host, timeout: .seconds(30)) {
+        nativeHostedAccessibilityFrame(ids[0], in: host) != nil
+    }
+    storage.set(ShopViewMode.list.rawValue, forKey: "fst.shop.viewMode")
+    try await nativeHostedSettle(host, timeout: .seconds(30)) {
+        ids.allSatisfy { nativeHostedAccessibilityFrame($0, in: host) != nil }
+    }
+    #expect(await transport.recordedPaths() == reads, "Switching List and Grid read the Shop again")
+}
+
+/// Owns an injected iPhone Duo layout so a test can fold the same Shop in place.
+@MainActor
+private final class ShopLayoutBox: ObservableObject {
+    @Published var layout: DeviceLayout
+    init(_ layout: DeviceLayout) { self.layout = layout }
+}
+
+/// The Shop under a swappable device layout.
+private struct ShopLayoutHost: View {
+    @ObservedObject var box: ShopLayoutBox
+    let session: FestivalSession
+    let storage: UserDefaults
+
+    var body: some View {
+        NavigationStack {
+            ShopScreen(session: session, isVisible: true)
+        }
+        .defaultAppStorage(storage)
+        .preferredColorScheme(.dark)
+        .environment(\.horizontalSizeClass, .regular)
+        .environment(\.deviceLayout, box.layout)
+    }
+}
+
+/// On the unfolded iPhone Duo the two list columns meet at the hinge only in book pose
+/// and at the page's midpoint flat; folding reflows the loaded rows without reading the
+/// Shop again (pattern `wide-columns` R3/R4, `hinge-columns`, issue #378).
+@MainActor
+@Test func shopListColumnsMeetAtTheHingeOnlyInBookPose() async throws {
+    nativeHostedEnableAccessibility()
+    let size = CGSize(width: 951, height: 669)
+    // Off the middle, so the book-pose gutter cannot pass for the flat midpoint.
+    let fold = CGRect(x: 420, y: 0, width: 30, height: 669)
+    let flat = DeviceLayout.resolve(LayoutSignals(
+        size: size, widthClass: .regular, hinge: .fullyOpen, hinges: [fold]
+    ))
+    let book = DeviceLayout.resolve(LayoutSignals(
+        size: size, widthClass: .regular, hinge: .partiallyOpen, divisions: [fold], hinges: [fold]
+    ))
+    let bytes = try shopFixtureBytes()
+    let suiteName = "fst-shop-hinge-\(UUID().uuidString)"
+    let storage = try #require(UserDefaults(suiteName: suiteName))
+    defer { storage.removePersistentDomain(forName: suiteName) }
+    storage.set(true, forKey: "fst.accessibility.reduceMotion")
+    storage.set(ShopViewMode.list.rawValue, forKey: "fst.shop.viewMode")
+    let transport = HostedShopTransport(
+        scenario: .populated, offers: bytes.offers, catalogue: bytes.catalogue
+    )
+    let client = try FestivalAPI(transport: transport)
+    let session = FestivalSession(factory: { client })
+    let box = ShopLayoutBox(flat)
+    let host = nativeHostedView(ShopLayoutHost(box: box, session: session, storage: storage), size: size)
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let ids = ["fixture-pulse", "fixture-orbit"].map { "fst.shop.song.\($0)" }
+
+    /// The two rows, leading first, once the gutter's middle settles at `middle`.
+    func rows(meetingAt middle: CGFloat) async throws -> [CGRect] {
+        var frames: [CGRect] = []
+        try await nativeHostedSettle(host, timeout: .seconds(60)) {
+            frames = ids.compactMap { nativeHostedAccessibilityFrame($0, in: host) }.sorted { $0.minX < $1.minX }
+            return frames.count == 2 && abs((frames[0].maxX + frames[1].minX) / 2 - middle) < 1.5
+        }
+        return frames
+    }
+
+    let flatRows = try await rows(meetingAt: size.width / 2)
+    #expect(abs(flatRows[0].minY - flatRows[1].minY) < 1, "flat: the rows are not side by side")
+    #expect(abs(flatRows[0].width - flatRows[1].width) < 1.5, "flat: uneven columns")
+    let reads = await transport.recordedPaths()
+
+    box.layout = book
+    let bookRows = try await rows(meetingAt: fold.midX)
+    #expect(abs(bookRows[0].maxX - fold.minX) < 1.5, "book: the leading column does not end at the fold")
+    #expect(abs(bookRows[1].minX - fold.maxX) < 1.5, "book: the trailing column does not start at the fold")
+    #expect(await transport.recordedPaths() == reads, "Folding read the Shop again")
+}
 #endif

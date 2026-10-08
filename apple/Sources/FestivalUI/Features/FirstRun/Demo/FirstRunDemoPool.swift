@@ -166,6 +166,20 @@ enum FirstRunDemoPool {
         .init(rank: 4, name: "8/08/26", score: 289_600, accuracyPercent: 95, isFullCombo: false),
     ]
 
+    /// ``ownScores`` as score-history entries for the app's real ``ScoreHistoryListRow``.
+    static let ownHistory: [ScoreHistoryEntry] = zip(ownScores, ownScoreDates).map { entry, date in
+        ScoreHistoryEntry(
+            songId: "first-run-demo", instrument: Instrument.lead.rawValue, newScore: entry.score,
+            newRank: entry.rank, accuracy: Double(entry.accuracyPercent) * 10_000,
+            isFullCombo: entry.isFullCombo, stars: entry.isFullCombo ? 6 : 5, changedAt: date
+        )
+    }
+
+    /// ISO 8601 times of ``ownScores`` (their `name` dates, at noon UTC).
+    private static let ownScoreDates = [
+        "2026-09-12T12:00:00Z", "2026-09-05T12:00:00Z", "2026-08-22T12:00:00Z", "2026-08-08T12:00:00Z",
+    ]
+
     // MARK: Percentiles
 
     /// One percentile bucket row, matching the web's `PercentileDemo`.
