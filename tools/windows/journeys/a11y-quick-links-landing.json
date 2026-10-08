@@ -1,0 +1,149 @@
+[
+  {
+    "name": "qla-settings-menu",
+    "route": "/settings",
+    "fixture": [],
+    "sizes": [
+      "compact",
+      "medium",
+      "snap-left"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.quick-links.open@20",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section App Settings@10"
+    ],
+    "after_ready": [
+      "assertsize:id=fst.quick-links.open|40x40",
+      "scan:{stem}-axe/closed",
+      "listen:announcements",
+      "focus:id=fst.quick-links.open",
+      "key:enter",
+      "waitfor:id=fst.quick-links.item.show-instruments@5",
+      "assertfocus:id=fst.quick-links.item.app-settings@3",
+      "key:down",
+      "key:down",
+      "assertfocus:id=fst.quick-links.item.show-instruments@3",
+      "key:enter",
+      "waitgone:id=fst.quick-links.item.show-instruments@5",
+      "assertannounced:Show Instruments section@5",
+      "assertinset:name=Show Instruments&class=TextBlock|id=fst.settings|40",
+      "assertstate:name=Show Instruments&class=TextBlock|heading=2",
+      "assertfocus:id=fst.settings.instrument.Solo_Guitar@3",
+      "assertorder:name=Show Instruments&class=TextBlock|id=fst.settings.instrument.Solo_Guitar",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Show Instruments@5",
+      "wait:1",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Show Instruments",
+      "assertinset:name=Show Instruments&class=TextBlock|id=fst.settings|40",
+      "shot:{stem}-show-instruments.png",
+      "scrollinto:id=fst.quick-links.open@5",
+      "focus:id=fst.quick-links.open",
+      "key:enter",
+      "waitfor:id=fst.quick-links.item.accessibility@5",
+      "assertfocus:id=fst.quick-links.item.app-settings@3",
+      "key:down",
+      "key:down",
+      "key:down",
+      "key:down",
+      "assertfocus:id=fst.quick-links.item.accessibility@3",
+      "key:enter",
+      "waitgone:id=fst.quick-links.item.accessibility@5",
+      "assertannounced:Accessibility section@5",
+      "assertinset:name=Accessibility&class=TextBlock|id=fst.settings|40",
+      "assertstate:name=Accessibility&class=TextBlock|heading=2",
+      "assertfocus:id=fst.settings.reduce-motion@3",
+      "assertorder:name=Accessibility&class=TextBlock|id=fst.settings.reduce-motion",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Accessibility@5",
+      "wait:1",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Accessibility",
+      "scrollinto:id=fst.quick-links.open@5",
+      "focus:id=fst.quick-links.open",
+      "key:enter",
+      "waitfor:id=fst.quick-links.item.accessibility@5",
+      "key:esc",
+      "waitgone:id=fst.quick-links.item.accessibility@5",
+      "assertfocus:id=fst.quick-links.open@3"
+    ]
+  },
+  {
+    "name": "qla-leaderboards-menu",
+    "route": "/leaderboards",
+    "fixture": [],
+    "sizes": [
+      "compact",
+      "medium"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@20",
+      "assertstate:id=fst.quick-links.open|name=Leaderboards Quick Links, current section Lead@10"
+    ],
+    "after_ready": [
+      "assertsize:id=fst.quick-links.open|40x40",
+      "scan:{stem}-axe/closed",
+      "listen:announcements",
+      "focus:id=fst.quick-links.open",
+      "key:enter",
+      "waitfor:id=fst.quick-links.item.instrument:Solo_Drums@5",
+      "assertfocus:id=fst.quick-links.item.instrument:Solo_Guitar@3",
+      "key:down",
+      "key:down",
+      "assertfocus:id=fst.quick-links.item.instrument:Solo_Drums@3",
+      "key:enter",
+      "waitgone:id=fst.quick-links.item.instrument:Solo_Drums@5",
+      "assertannounced:Drums section@5",
+      "assertinset:name=Drums&class=AccessibleGroup|id=fst.leaderboards|32",
+      "assertstate:id=fst.leaderboards.card.Solo_Drums|heading=2",
+      "assertfocus:id=fst.rankings.row.fixture-player-1@3",
+      "assertorder:id=fst.leaderboards.card.Solo_Drums|id=fst.leaderboards.card.Solo_Drums.view-all",
+      "assertstate:id=fst.quick-links.open|name=Leaderboards Quick Links, current section Drums@5",
+      "wait:1",
+      "assertstate:id=fst.quick-links.open|name=Leaderboards Quick Links, current section Drums",
+      "assertinset:name=Drums&class=AccessibleGroup|id=fst.leaderboards|32",
+      "shot:{stem}-drums.png",
+      "scrollinto:id=fst.quick-links.open@5",
+      "focus:id=fst.quick-links.open",
+      "key:enter",
+      "waitfor:id=fst.quick-links.item.instrument:Solo_Drums@5",
+      "key:esc",
+      "waitgone:id=fst.quick-links.item.instrument:Solo_Drums@5",
+      "assertfocus:id=fst.quick-links.open@3"
+    ]
+  },
+  {
+    "name": "qla-leaderboards-pane",
+    "route": "/leaderboards",
+    "fixture": [],
+    "sizes": [
+      "wide"
+    ],
+    "modes": [
+      "scale-100",
+      "scale-150"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.quick-links.list@20",
+      "waitgone:id=fst.quick-links.open@3",
+      "assertstate:id=fst.quick-links.item.instrument:Solo_Guitar|selected=true@10"
+    ],
+    "after_ready": [
+      "assertsize:id=fst.quick-links.item.instrument:Solo_Drums|0x40",
+      "listen:announcements",
+      "focus:id=fst.quick-links.item.instrument:Solo_Drums",
+      "assertfocus:id=fst.quick-links.item.instrument:Solo_Drums@3",
+      "key:enter",
+      "assertannounced:Drums section@5",
+      "assertinset:name=Drums&class=AccessibleGroup|id=fst.leaderboards|32",
+      "assertstate:id=fst.leaderboards.card.Solo_Drums|heading=2",
+      "assertfocus:id=fst.rankings.row.fixture-player-1@3",
+      "assertorder:id=fst.leaderboards.card.Solo_Drums|id=fst.leaderboards.card.Solo_Drums.view-all",
+      "assertstate:id=fst.quick-links.item.instrument:Solo_Drums|selected=true@5",
+      "wait:1",
+      "assertstate:id=fst.quick-links.item.instrument:Solo_Drums|selected=true",
+      "assertstate:id=fst.quick-links.item.instrument:Solo_Guitar|selected=false",
+      "assertinset:name=Drums&class=AccessibleGroup|id=fst.leaderboards|32",
+      "shot:{stem}-drums.png"
+    ]
+  }
+]

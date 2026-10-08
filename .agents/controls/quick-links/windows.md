@@ -93,6 +93,23 @@ Fixed in #251:
 
 Design (`winui-design` skill, Fluent layout and scrolling): no markup, brush or control changes. The jump stays an instant `ChangeView`/`StartBringIntoView` (operator batch 7.15), and the 32-epx offset is the web's default scroll margin.
 
+## Landing accessibility (issue #416, 2026-10-08)
+
+`tools/windows/journeys/a11y-quick-links-landing.json` (`a11y_matrix.py`; guard `tools/windows/tests/test_quick_links_landing_a11y.py`) pins what #51 changed on Settings and Leaderboards, keyboard only. Pages are fixture-only (`"fixture": []`): they focus fixture rows.
+
+- `qla-settings-menu` (compact, medium, snap-left): Enter opens the menu on App Settings; Down walks the page order to Show Instruments, then Accessibility. Each jump announces "… section", lands the level-2 heading 40 epx below the scroller top (`LandingOffset` + the header style's 8 epx), reads it before the section's first control, focuses that control (the Lead toggle, Reduce Motion) and keeps "current section …" on the button one second after the jump settles. Esc returns focus to the ≥ 40×40 epx button.
+- `qla-leaderboards-menu` (compact, medium): the same for Drums (card group at 32 epx, its heading before its View All button, focus on its first row).
+- `qla-leaderboards-pane` (wide at display 100% or 150%): Enter on the focused ≥ 40-epx Drums row does the same and moves the UIA selection from Lead to Drums.
+- `assertstate:…|heading=2` (new driver key) proves the landed title is a heading; the Narrator model's phrase omits heading levels.
+
+| Configuration | Result |
+|---|---|
+| Menus: compact, medium, snap-left (300% host) | Pass, Axe 0 before the menu opens |
+| Menus: text 225%, compact and medium | Pass, Axe 0: headings, focus and current section unchanged; the title still lands fully below the title bar |
+| Pane: wide at display 150% and 100% (`--scan`) | Pass, Axe 0 |
+
+No accessibility defect found. A final `--scan` after a menu opened reports only open item 8 (WinUI `PopupHost`).
+
 ## Validation (issue #246, 2026-10-05)
 
 #46 asked that Quick Links list sections in on-page order on Settings and on a player profile, from every entry point, and that jumps land and stay marked. Order journeys in `journeys/quick-links.json`:
