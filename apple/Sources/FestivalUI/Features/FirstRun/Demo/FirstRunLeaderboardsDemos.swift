@@ -10,7 +10,8 @@ struct FirstRunLeaderboardsOverviewDemo: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             FirstRunInstrumentHeader(instrument: .lead)
-            VStack(spacing: 6) {
+            // One group card, like the real overview cards (#381).
+            FestivalGlassSection(rows: .flush(separatorInset: RankingRowLayout.horizontalPadding)) {
                 ForEach(Array(FirstRunDemoPool.rankings.prefix(5).enumerated()), id: \.element.id) { index, entry in
                     FirstRunRankRow(entry: entry)
                         .firstRunStagger(index)

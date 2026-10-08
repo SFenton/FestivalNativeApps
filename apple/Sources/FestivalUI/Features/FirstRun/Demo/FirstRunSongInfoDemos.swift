@@ -142,10 +142,13 @@ struct FirstRunSongInfoBarSelectDemo: View {
 struct FirstRunSongInfoViewAllDemo: View {
     var body: some View {
         VStack(spacing: 8) {
-            ForEach(Array(FirstRunDemoPool.ownScores.enumerated()), id: \.element.id) { index, entry in
-                scoreRow(entry)
-                    .opacity(index == FirstRunDemoPool.ownScores.count - 1 ? 0.45 : 1)
-                    .firstRunStagger(index)
+            // Entries of one card, like Song Detail's Score History card (#381).
+            FestivalGlassSection(rows: .flush(separatorInset: 14)) {
+                ForEach(Array(FirstRunDemoPool.ownScores.enumerated()), id: \.element.id) { index, entry in
+                    scoreRow(entry)
+                        .opacity(index == FirstRunDemoPool.ownScores.count - 1 ? 0.45 : 1)
+                        .firstRunStagger(index)
+                }
             }
             FirstRunViewAllRow(title: "View all scores")
         }
@@ -171,7 +174,6 @@ struct FirstRunSongInfoViewAllDemo: View {
         }
         .padding(.horizontal, 14)
         .frame(height: 44)
-        .festivalCard(cornerRadius: 12)
     }
 }
 
