@@ -31,7 +31,7 @@
     ]
   },
   {
-    "name": "qll-settings-pane",
+    "name": "qll-settings-split",
     "route": "/settings",
     "sizes": [
       "wide",
@@ -39,18 +39,28 @@
     ],
     "tabs": 0,
     "ready": [
-      "waitfor:id=fst.quick-links.list@20",
-      "assertstate:id=fst.quick-links.item.app-settings|selected=true@5"
+      "waitfor:id=fst.settings.detail.placeholder.title@20",
+      "waitgone:id=fst.quick-links.pane@3",
+      "waitfor:id=fst.quick-links.open@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section App Settings@5"
     ],
     "after_ready": [
-      "invoke:id=fst.quick-links.item.show-instruments",
-      "assertinset:name=Show Instruments&class=TextBlock|id=fst.settings|40",
-      "assertstate:id=fst.quick-links.item.show-instruments|selected=true@5",
-      "assertstate:id=fst.quick-links.item.app-settings|selected=false",
-      "shot:{stem}-show-instruments.png",
-      "invoke:id=fst.quick-links.item.accessibility",
-      "assertinset:name=Accessibility&class=TextBlock|id=fst.settings|40",
-      "assertstate:id=fst.quick-links.item.accessibility|selected=true@5"
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.item-shop@5",
+      "toggle:id=fst.quick-links.item.item-shop",
+      "waitgone:id=fst.quick-links.item.item-shop@5",
+      "waitfor:id=fst.settings.detail-row.item-shop@3",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Item Shop@5",
+      "assertfocus:id=fst.settings.detail-row.item-shop@3",
+      "shot:{stem}-item-shop.png",
+      "scrollinto:id=fst.quick-links.open@5",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.accessibility@5",
+      "toggle:id=fst.quick-links.item.accessibility",
+      "waitgone:id=fst.quick-links.item.accessibility@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Accessibility@5",
+      "assertfocus:id=fst.settings.detail-row.accessibility@3",
+      "waitfor:id=fst.settings.detail.placeholder.title@3"
     ]
   },
   {

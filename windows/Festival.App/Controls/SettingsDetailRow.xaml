@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Settings list/detail chevron row (issue #371): the Feedback row (setting) or Licenses row (section) look, plus a value
+     and the current-row fill while its options are open in the trailing pane. See SettingsDetailRow.xaml.cs. -->
+<Button
+    x:Class="Festival.App.Controls.SettingsDetailRow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    HorizontalAlignment="Stretch"
+    HorizontalContentAlignment="Stretch"
+    Background="Transparent"
+    BorderThickness="1"
+    CornerRadius="{StaticResource ControlCornerRadius}">
+    <Button.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="ms-appx:///Themes/NavRowButtonResources.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Button.Resources>
+    <Grid x:Name="Layout" ColumnSpacing="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <StackPanel x:Name="Texts" VerticalAlignment="Center" Spacing="4">
+            <TextBlock x:Name="TitleText" Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap" />
+            <TextBlock x:Name="DescriptionText" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
+                       Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+        </StackPanel>
+        <TextBlock x:Name="ValueText" Grid.Column="1" VerticalAlignment="Center" Style="{StaticResource BodyTextBlockStyle}"
+                   Foreground="{ThemeResource FSTSecondaryTextBrush}" AutomationProperties.AccessibilityView="Raw" />
+        <FontIcon x:Name="Chevron" Grid.Column="2" Glyph="&#xE76C;" FontSize="14" VerticalAlignment="Center"
+                  AutomationProperties.AccessibilityView="Raw" />
+    </Grid>
+</Button>

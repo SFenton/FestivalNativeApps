@@ -40,6 +40,8 @@
             <SolidColorBrush x:Key="FSTPlayerRowStrokeBrush" Color="#807C3AED" />
             <SolidColorBrush x:Key="FSTPlayerRowTextBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="FSTCurrentRowBrush" Color="#E6223047" />
+            <!-- Settings list/detail open row (#371): no outline by default; a contrast theme's Highlight outline marks it. -->
+            <SolidColorBrush x:Key="FSTCurrentRowStrokeBrush" Color="Transparent" />
             <SolidColorBrush x:Key="FSTRatingTextBrush" Color="#FF4C7DFF" />
             <!-- Board pager (web Paginator): textSecondary chevrons and page text. Its buttons and badge draw on the rows'
                  FSTCardSurfaceBrush (surface-materials R1, issue #319), never a pager-only plate. -->
@@ -198,6 +200,7 @@
             <SolidColorBrush x:Key="FSTPlayerRowStrokeBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
             <SolidColorBrush x:Key="FSTPlayerRowTextBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
             <SolidColorBrush x:Key="FSTCurrentRowBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FSTCurrentRowStrokeBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTRatingTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <!-- Pager glyphs sit on the card's Window surface like row text (WindowText on Window). -->
             <SolidColorBrush x:Key="FSTPagerGlyphBrush" Color="{ThemeResource SystemColorWindowTextColor}" />

@@ -42,7 +42,6 @@ Agent decision (#184, owner may override with `/choose`): Android's Version rows
 |---|---|---|
 | Apple `stateRow` stacks at accessibility text sizes and Windows `ServiceInfoText.StacksStateRow` at a text-scale threshold, instead of measuring the fit | R1, R4 | Apple and Windows checks (out of #184's Android scope): move the state row onto the platform's fit rule (`SettingValueLayout` on Windows) |
 | Apple `versionRow` is a plain `HStack` + `Spacer` that never stacks | R1 | Apple check |
-| `SettingValueLayout`'s doc comment still names the removed Android `ValueRow` | docs | Next Windows change in Settings: cite `SettingsValueRow` |
 
 ## Guards (`tools/pattern_guard.py`)
 

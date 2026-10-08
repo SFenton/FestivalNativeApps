@@ -372,7 +372,7 @@
     ]
   },
   {
-    "name": "qlo-pane-settings",
+    "name": "qlo-split-settings",
     "route": "/settings",
     "sizes": [
       "wide",
@@ -380,8 +380,14 @@
     ],
     "tabs": 0,
     "ready": [
-      "waitfor:id=fst.quick-links.list@20",
-      "waitgone:id=fst.quick-links.open@3",
+      "waitfor:id=fst.settings.detail.placeholder.title@20",
+      "waitgone:id=fst.quick-links.pane@3",
+      "waitfor:id=fst.quick-links.open@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section App Settings@5"
+    ],
+    "after_ready": [
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.reset@5",
       "assertbelow:id=fst.quick-links.item.diagnostics|id=fst.quick-links.item.app-settings",
       "assertbelow:id=fst.quick-links.item.item-shop|id=fst.quick-links.item.diagnostics",
       "assertbelow:id=fst.quick-links.item.show-instruments|id=fst.quick-links.item.item-shop",
@@ -392,7 +398,9 @@
       "assertbelow:id=fst.quick-links.item.first-run|id=fst.quick-links.item.service-info",
       "assertbelow:id=fst.quick-links.item.licenses|id=fst.quick-links.item.first-run",
       "assertbelow:id=fst.quick-links.item.privacy-policy|id=fst.quick-links.item.licenses",
-      "assertbelow:id=fst.quick-links.item.reset|id=fst.quick-links.item.privacy-policy"
+      "assertbelow:id=fst.quick-links.item.reset|id=fst.quick-links.item.privacy-policy",
+      "key:esc",
+      "waitgone:id=fst.quick-links.item.reset@3"
     ]
   },
   {

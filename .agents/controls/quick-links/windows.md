@@ -29,7 +29,7 @@ The breakpoint is page-area width (`QuickLinks.UsesPane`), not window width, so 
 
 | Page | Status |
 |---|---|
-| Settings | Done: `app-settings`, `diagnostics` (Debug only), `item-shop`, `show-instruments`, `show-metadata`, `accessibility` (native), `version`, `service-info`, `first-run`, `licenses`, `privacy-policy`, `reset`; `refresh-profile-name`/`export` omitted (no such rows) |
+| Settings | Done: `app-settings`, `diagnostics` (Debug only), `item-shop`, `show-instruments`, `show-metadata`, `accessibility` (native), `version`, `service-info`, `first-run`, `licenses`, `privacy-policy`, `reset`; `refresh-profile-name`/`export` omitted (no such rows). At ≥ 1100 epx Settings is list/detail (#371, below), so it shows the header menu, never the pane |
 | Leaderboards | Done ("Leaderboards Quick Links"): `instrument:<key>` per card, `band:<type>` per band card (no rank-history graph or promoted band on Windows yet). Menu beside Rank By |
 | Rivals (both tabs; also `/compete`) | Done: `common`, `combo`, `<instrumentKey>` per visible section (empty sections drop out, so ≥2 still applies). Replaced the old "Jump To" menu (`fst.rivals.jump*`) |
 | Player / Statistics | Done: `global` "Global Statistics" (Overview), `instrument:<key>` per chart, `bands`. `top-songs` omitted (no Windows section yet). Menu beside Select/Deselect |
@@ -49,9 +49,9 @@ State pages: `tools/windows/journeys/quick-links.json` (Settings on the fixture 
 | `hidden-single-section` | `ql-hidden-single-section` (all) | Licenses page has neither `fst.quick-links.open` nor the pane |
 | `menu-closed` | `ql-menu-closed` (compact, medium, snap-left, maximized) | Button "Quick Links, current section App Settings", collapsed |
 | `menu-open` | `ql-menu-open` (same) | Menu "Quick Links", first item focused, current item toggled and named "…, current section"; Esc returns focus to the button |
-| `jumped` | `ql-jumped` (same), `ql-pane-jumped` (wide, maximized) | Down×9, Enter → current section Licenses and focus on `fst.settings.licenses`; pane Enter on Licenses/Version moves focus into the section |
-| `active-section` | `ql-active-section` (compact, medium), `ql-pane-active-section` (wide) | Scrolling (no jump) moves the current section: at the end of Settings it is First Run Guides (spec rule 1: the short Licenses/Privacy/Reset rows never reach the line); pane row `selected=true` |
-| pane keyboard | `ql-pane-keyboard` (1440×560) | End focuses Reset, the list scrolls it into view, App Settings stays selected |
+| `jumped` | `ql-jumped` (same), `ql-split-jumped` (wide, maximized; was `ql-pane-jumped` before #371) | Down×9, Enter → current section Licenses and focus on `fst.settings.licenses`; in the #371 list/detail split, focus on the `fst.settings.detail-row.licenses` row with the placeholder still showing |
+| `active-section` | `ql-active-section` (compact, medium); `ql-pane-active-section` (wide) removed in #371 (Settings no longer shows the pane) | Scrolling (no jump) moves the current section: at the end of Settings it is First Run Guides (spec rule 1: the short Licenses/Privacy/Reset rows never reach the line) |
+| pane keyboard | `ql-pane-keyboard` removed in #371 (Settings no longer shows the pane); pane keyboard stays covered by `kb-quick-links-pane` | End focuses Reset, the list scrolls it into view, App Settings stays selected |
 
 | Configuration | Result |
 |---|---|
@@ -97,7 +97,7 @@ Design (`winui-design` skill, Fluent layout and scrolling): no markup, brush or 
 
 #46 asked that Quick Links list sections in on-page order on Settings and on a player profile, from every entry point, and that jumps land and stay marked. Order journeys in `journeys/quick-links.json`:
 
-- `ql-menu-order` / `ql-pane-order` (Settings, compact, medium, snap-left and maximized / wide and maximized) chain `assertbelow:` through every item in the menu and pane and jump to Version.
+- `ql-menu-order` / `ql-split-order` (Settings, compact, medium, snap-left and maximized / wide and maximized; `ql-pane-order` until #371) chain `assertbelow:` through every item in the menu and jump to Version.
 - `ql-profile-menu-order` / `ql-profile-pane-order` do the same on the Statistics profile, jumping to Drums and then Bands; `ql-profile-route-menu-order` uses the `/player/<id>` route.
 - `ql-profile-bands-direct` jumps straight to Bands (run it with `--mode text-200` to stress estimation).
 
@@ -132,6 +132,18 @@ Issue #50 re-checked iOS #11 (nested sections listed bottom-up) on Windows. It f
 | Keyboard | `kb-quick-links-menu` (compact, medium) and `kb-quick-links-pane` (wide, display 150%) pass; Down/Enter in the menu follows the visual order |
 | Live service (SFentonX) | Song Detail menu and wide Compete pane match the page order. Live Compete has no Common section, so the first entry is Lead Rivals |
 | Axe | 0, except WinUI's `PopupHost` after a menu was opened (open item 8) |
+
+## Settings list/detail (issue #371, 2026-10-08)
+
+When Settings is at least 1100 epx wide, it becomes list/detail ([split-panes](../../patterns/split-panes.md) R6; [settings/windows.md](../../pages/settings/windows.md#wide-listdetail-issue-371-owner-approved)). The Quick Links header menu stays above the list, as on Android ("Quick Links still scroll the list only"). The side pane (≥ 1150) never shows on Settings, because the detail column takes that space. In the split, the section anchors move to the chevron rows (`ApplyQuickLinkAnchors`, `SettingsDetails.QuickLinkId`), and a jump lands the row 32 epx below the top (UIA reads 32, as the row has no header margin). A focusable anchor that is a `Control` takes focus itself (`QuickLinksBinder.Land`), so a keyboard jump focuses the row. The detail pane is unchanged: a jump doesn't open the entry.
+
+Journeys (they need the split, so use display 150% or collapse the nav pane with `invoke:id=PART_PaneToggleButton` on this 300% host):
+
+- `ql-split-jumped` and `ql-split-order` in `quick-links.json`;
+- `qll-settings-split` in `quick-links-landing.json` (Accessibility clamps at the end of the list in short windows, so it is checked by name and focus only);
+- `qlo-split-settings` in `quick-links-order.json`.
+
+These replace `ql-pane-jumped`, `ql-pane-active-section`, `ql-pane-keyboard`, `ql-pane-order`, `qll-settings-pane` and `qlo-pane-settings`. All passed when driven live with the nav pane collapsed (1280×672 epx).
 
 ## Open
 

@@ -3204,7 +3204,20 @@
             "symbol": "SettingsDetailPlaceholder"
           }
         ],
-        "windows": []
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/SettingsDetails.cs",
+            "symbol": "SettingsDetails"
+          },
+          {
+            "path": "windows/Festival.App/Pages/SettingsPage.xaml.cs",
+            "symbol": "ApplyDetail"
+          },
+          {
+            "path": "windows/Festival.App/Controls/SettingsDetailRow.xaml.cs",
+            "symbol": "SettingsDetailRow"
+          }
+        ]
       },
       "related": {
         "patterns": [
