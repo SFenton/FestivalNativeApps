@@ -8,6 +8,11 @@ import FestivalDesign
 /// embeds it inert (issue #380: a demo shows the real control). Issue #88: the instrument is
 /// a native menu like the other two, not the web's mobile accordion; pop-up-buttons › "a flat
 /// list of mutually exclusive options".
+///
+/// The View menu offers Image and Text, plus Side by Side where the viewer covers a wide
+/// window (``SongPathsPolicy/modes(for:)``). In book pose it is hidden (Side by Side is the
+/// only mode, issue #368), and the instrument and difficulty menus sit one on each side of
+/// the hinge (``HingeRow``, pattern `hinge-columns`).
 struct SongPathsSelectorRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.deviceLayout) private var deviceLayout
@@ -17,7 +22,8 @@ struct SongPathsSelectorRow: View {
 
     @Binding var instrument: Instrument
     @Binding var difficulty: PathDifficulty
-    @Binding var display: PathDisplayMode
+    /// The View menu's mode; the sheet binds the mode on screen.
+    @Binding var viewMode: PathViewMode
     /// Enabled path-capable instruments in source order.
     let instruments: [Instrument]
     /// Whether the song's Lead charts show the keys artwork.
@@ -30,46 +36,69 @@ struct SongPathsSelectorRow: View {
     }
 
     var body: some View {
-        selectorLayout {
-            selectorMenu("Instrument", selection: $instrument, value: instrument.label) {
-                ForEach(instruments) { choice in
-                    Label {
-                        Text(choice.label)
-                    } icon: {
-                        InstrumentIcon.menuImage(for: choice, keyboard: usesKeyboardIcon(choice))
-                    }
-                    .tag(choice)
-                }
-            } current: {
-                // Every option has an icon (menus › "icons for all or none"). Folded iPhone
-                // Duo shows the icon alone and names the instrument in the title instead
-                // (owner, issue #360); VoiceOver still reads "Instrument, <name>".
-                if SongPathsSheet.showsInstrumentName(pose: deviceLayout.pose) {
-                    namedInstrumentLabel
-                } else {
-                    InstrumentIcon(instrument, keyboard: usesKeyboardIcon(instrument), size: iconOnlySide)
-                        .accessibilityHidden(true)
-                }
+        if SongPathsPolicy.showsViewMenu(deviceLayout) || dynamicTypeSize.isAccessibilitySize {
+            selectorLayout {
+                instrumentMenu
+                difficultyMenu
+                if SongPathsPolicy.showsViewMenu(deviceLayout) { viewMenu }
             }
-            .accessibilityIdentifier("fst.paths.instrument")
-            selectorMenu("Difficulty", selection: $difficulty, value: difficulty.label) {
-                ForEach(PathDifficulty.allCases) { choice in
-                    Text(choice.label).tag(choice)
-                }
-            } current: {
-                Text(difficulty.label)
+            .frame(maxWidth: .infinity)
+        } else {
+            HingeRow(spacing: 8) {
+                instrumentMenu
+                difficultyMenu
             }
-            .accessibilityIdentifier("fst.paths.difficulty")
-            selectorMenu("View", selection: $display, value: display.label) {
-                ForEach(PathDisplayMode.allCases) { choice in
-                    Text(choice.label).tag(choice)
-                }
-            } current: {
-                Text(display.label)
-            }
-            .accessibilityIdentifier("fst.paths.display")
+            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity)
+    }
+
+    /// The instrument menu (icon + name; icon alone on folded iPhone Duo).
+    private var instrumentMenu: some View {
+        selectorMenu("Instrument", selection: $instrument, value: instrument.label) {
+            ForEach(instruments) { choice in
+                Label {
+                    Text(choice.label)
+                } icon: {
+                    InstrumentIcon.menuImage(for: choice, keyboard: usesKeyboardIcon(choice))
+                }
+                .tag(choice)
+            }
+        } current: {
+            // Every option has an icon (menus › "icons for all or none"). Folded iPhone
+            // Duo shows the icon alone and names the instrument in the title instead
+            // (owner, issue #360); VoiceOver still reads "Instrument, <name>".
+            if SongPathsSheet.showsInstrumentName(pose: deviceLayout.pose) {
+                namedInstrumentLabel
+            } else {
+                InstrumentIcon(instrument, keyboard: usesKeyboardIcon(instrument), size: iconOnlySide)
+                    .accessibilityHidden(true)
+            }
+        }
+        .accessibilityIdentifier("fst.paths.instrument")
+    }
+
+    /// The difficulty menu.
+    private var difficultyMenu: some View {
+        selectorMenu("Difficulty", selection: $difficulty, value: difficulty.label) {
+            ForEach(PathDifficulty.allCases) { choice in
+                Text(choice.label).tag(choice)
+            }
+        } current: {
+            Text(difficulty.label)
+        }
+        .accessibilityIdentifier("fst.paths.difficulty")
+    }
+
+    /// The View menu: Image and Text, plus Side by Side where the layout allows it.
+    private var viewMenu: some View {
+        selectorMenu("View", selection: $viewMode, value: viewMode.label) {
+            ForEach(SongPathsPolicy.modes(for: deviceLayout)) { choice in
+                Text(choice.label).tag(choice)
+            }
+        } current: {
+            Text(viewMode.label)
+        }
+        .accessibilityIdentifier("fst.paths.display")
     }
 
     /// The instrument selector's icon and name (every pose but folded iPhone Duo). The name

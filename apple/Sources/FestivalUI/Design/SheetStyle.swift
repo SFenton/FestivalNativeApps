@@ -51,6 +51,7 @@ struct FestivalSheetModifier: ViewModifier {
     var sizing: FestivalSheetSizing = .automatic
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.deviceLayout) private var deviceLayout
+    @Environment(\.festivalModalCoverage) private var coverage
     @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
     @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
     /// Every sheet opens at the large detent.
@@ -66,7 +67,8 @@ struct FestivalSheetModifier: ViewModifier {
             .presentationDragIndicator(size.detents.count > 1 ? .visible : .hidden)
             .modifier(SheetBackground(opaque: reduceTransparency || lessTransparency || moreContrast))
             .modifier(FestivalSheetSizingModifier(
-                sizing: sizing, regularWidth: deviceLayout.windowWidthClass == .regular
+                sizing: sizing, regularWidth: deviceLayout.windowWidthClass == .regular,
+                fitsWindow: coverage == .fullScreen
             ))
             .preferredColorScheme(.dark)
             .tint(BrandTokens.accentBlue)
@@ -77,41 +79,58 @@ struct FestivalSheetModifier: ViewModifier {
 
 /// Applies `presentationSizing(.form)` at regular width (Duo unfolded/iPad) unless the
 /// caller asked for full-bleed `.page` sizing everywhere or page sizing at regular width
-/// on iPad and Duo (`.regularPage`).
+/// on iPad and Duo (`.regularPage`). A full-window Mac sheet (`festivalModalPresentation`
+/// with `.fullScreen` coverage, issue #368) uses `.fitted` so the window-sized frame of
+/// `MacWindowSizedSheet` decides its size; `.page` would cap it near 700 pt.
 /// No-op pre-iOS/macOS 18.
 private struct FestivalSheetSizingModifier: ViewModifier {
     let sizing: FestivalSheetSizing
     let regularWidth: Bool
+    var fitsWindow = false
 
     @ViewBuilder
     func body(content: Content) -> some View {
         if #available(iOS 18.0, macOS 15.0, *) {
-            switch sizing {
-            case .page:
-                content.presentationSizing(.page)
-            case .automatic:
-                if regularWidth {
-                    content.presentationSizing(.form)
-                } else {
-                    content
-                }
-            case .regularPage:
-                #if os(macOS)
-                if regularWidth {
-                    content.presentationSizing(.form)
-                } else {
-                    content
-                }
-                #else
-                if regularWidth {
-                    content.presentationSizing(.page)
-                } else {
-                    content
-                }
-                #endif
+            #if os(macOS)
+            if fitsWindow {
+                content.presentationSizing(.fitted)
+            } else {
+                sized(content)
             }
+            #else
+            sized(content)
+            #endif
         } else {
             content
+        }
+    }
+
+    @available(iOS 18.0, macOS 15.0, *)
+    @ViewBuilder
+    private func sized(_ content: Content) -> some View {
+        switch sizing {
+        case .page:
+            content.presentationSizing(.page)
+        case .automatic:
+            if regularWidth {
+                content.presentationSizing(.form)
+            } else {
+                content
+            }
+        case .regularPage:
+            #if os(macOS)
+            if regularWidth {
+                content.presentationSizing(.form)
+            } else {
+                content
+            }
+            #else
+            if regularWidth {
+                content.presentationSizing(.page)
+            } else {
+                content
+            }
+            #endif
         }
     }
 }

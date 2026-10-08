@@ -263,7 +263,7 @@ func verticalBarFallbackPose(widthClass: WidthClass, expected: DeviceLayout.Pose
 
 /// Each simulated window resolves to the real pose's layout, and none to the wide
 /// section set, from whatever window the simulator really has.
-@Test func debugDuoWindowResolvesEachPoseWithThePhoneSectionSet() {
+@Test func debugDuoWindowResolvesEachPoseWithThePhoneSectionSet() throws {
     let observed = LayoutSignals(
         size: Duo.outerPortrait, widthClass: .compact,
         safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 84),
@@ -289,4 +289,18 @@ func verticalBarFallbackPose(widthClass: WidthClass, expected: DeviceLayout.Pose
         #expect(!layout.usesRegularSectionSet)
         #expect(layout.foldFrame == nil)
     }
+
+    // Book pose (#368): partially folded inner display, its vertical fold through the
+    // middle of the real window's free span (beside the vertical bar) so hinge-aligned
+    // panes split inside the visible panel.
+    let book = DeviceLayout.resolve(DebugDuoWindow.book.apply(to: observed))
+    #expect(book.pose == .partiallyFolded)
+    #expect(book.size == Duo.innerLandscape)
+    #expect(book.widthClass == .regular)
+    #expect(book.sectionChrome == .verticalBar(.trailing))
+    #expect(!book.usesRegularSectionSet)
+    let fold = try #require(book.splitHinge)
+    #expect(fold.midX == (Duo.outerPortrait.width - 84) / 2)
+    #expect(fold.height > fold.width)
+    #expect(SongPathsPolicy.modes(for: book) == [.sideBySide])
 }

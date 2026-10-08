@@ -81,7 +81,7 @@ import UIKit
 ///   rotate-left|rotate-right` (iPhone Duo, Device Hub), `host:capture outer|inner|auto
 ///   <path>` (one Duo panel via `simctl io`), `host:menu Device/Keyboard/Toggle Software
 ///   Keyboard` (a Device Hub menu command for the device).
-/// - `duoWindow:<folded|unfolded-landscape|unfolded-portrait>` — with
+/// - `duoWindow:<folded|unfolded-landscape|unfolded-portrait|book>` — with
 ///   `--env FST_DEBUG_DUO_WINDOW_REMOTE=1`, make the running Debug app simulate that iPhone
 ///   Duo window (size classes included; `DebugDuoWindow`) without Device Hub.
 enum DriverStep {
@@ -796,7 +796,7 @@ enum HostBridge {
 enum DuoWindowSwitch {
     /// Switch the running app's simulated window.
     ///
-    /// - Parameter window: `folded`, `unfolded-landscape` or `unfolded-portrait`.
+    /// - Parameter window: `folded`, `unfolded-landscape`, `unfolded-portrait` or `book`.
     static func post(_ window: String) {
         let name = "com.festival.debug.duo-window.\(window)" as CFString
         CFNotificationCenterPostNotification(

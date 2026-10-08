@@ -546,3 +546,139 @@ struct HingeRowLayout: Layout {
         }
     }
 }
+
+// MARK: - Two panes
+
+/// Where an iPhone Duo fold divides a pair of full-height panes.
+struct HingePaneSplit: Sendable, Equatable {
+    /// The direction the panes sit in.
+    enum Axis: Sendable, Equatable {
+        /// Side by side across a vertical fold (book pose in landscape).
+        case horizontal
+        /// One above the other across a horizontal fold (book pose in portrait).
+        case vertical
+    }
+
+    /// The direction the panes sit in.
+    let axis: Axis
+    /// The first pane, the clearance over the fold and the second pane, along ``axis``.
+    let band: HingeBand
+}
+
+extension HingeColumns {
+    /// Where a fold divides two panes that fill a container (``HingePanes``).
+    ///
+    /// A vertical fold puts the panes side by side and a horizontal fold stacks them,
+    /// each meeting the other on the fold (HIG Designing for iPhone Duo: "Split: divides
+    /// the area horizontally when wider than tall and vertically when taller than wide").
+    ///
+    /// - Parameters:
+    ///   - frame: The container's frame in window coordinates; nil before it is measured.
+    ///   - fold: The book-pose hinge (``DeviceLayout/splitHinge``) in window coordinates, or nil.
+    ///   - spacing: The panes' flat gap (the narrowest clearance over the fold).
+    /// - Returns: The split, or nil without a fold through the container's interior or
+    ///   when a pane would be narrower than ``minimumSide``.
+    static func paneSplit(frame: CGRect?, fold: CGRect?, spacing: CGFloat) -> HingePaneSplit? {
+        guard let frame, let fold else { return nil }
+        if fold.height > fold.width {
+            return band(span: HorizontalSpan(frame), fold: fold, gutter: spacing, minimumSide: minimumSide)
+                .map { HingePaneSplit(axis: .horizontal, band: $0) }
+        }
+        // Transpose a horizontal fold so the vertical-fold band does the work.
+        let transposed = CGRect(x: fold.minY, y: fold.minX, width: fold.height, height: fold.width)
+        return band(
+            span: HorizontalSpan(minX: frame.minY, maxX: frame.maxY), fold: transposed,
+            gutter: spacing, minimumSide: minimumSide
+        ).map { HingePaneSplit(axis: .vertical, band: $0) }
+    }
+}
+
+/// Two full-height panes: equal halves side by side when flat (pattern `hinge-columns`
+/// R7: the gap at the free-space midpoint), and in an iPhone Duo book pose one on each
+/// side of the fold (side by side across a vertical fold, stacked across a horizontal
+/// one). The canonical hinge-aware pane pair (issue #368: the Paths image beside its
+/// table); callers never measure the fold themselves.
+struct HingePanes<First: View, Second: View>: View {
+    private let spacing: CGFloat
+    private let first: First
+    private let second: Second
+    @Environment(\.deviceLayout) private var layout
+    @State private var frame: CGRect?
+
+    /// Create a pane pair.
+    ///
+    /// - Parameters:
+    ///   - spacing: The flat gap between panes (and the narrowest clearance over a fold).
+    ///   - first: The leading (or upper) pane, first in reading order.
+    ///   - second: The trailing (or lower) pane.
+    init(spacing: CGFloat, @ViewBuilder first: () -> First, @ViewBuilder second: () -> Second) {
+        self.spacing = spacing
+        self.first = first()
+        self.second = second()
+    }
+
+    var body: some View {
+        HingePanesLayout(
+            spacing: spacing,
+            split: HingeColumns.paneSplit(frame: frame, fold: layout.splitHinge, spacing: spacing)
+        ) {
+            first
+            second
+        }
+        .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { value in
+            if frame != value { frame = value }
+        }
+    }
+}
+
+/// Places two subviews filling the proposed size: per ``HingePaneSplit`` when its band
+/// matches the size along its axis, otherwise equal halves side by side.
+struct HingePanesLayout: Layout {
+    /// The flat gap between panes.
+    var spacing: CGFloat
+    /// The fold's split, or nil.
+    var split: HingePaneSplit?
+
+    /// Both panes' frames for a container size.
+    ///
+    /// - Parameter size: The container's size.
+    /// - Returns: The first and second panes' frames, relative to the container.
+    func frames(in size: CGSize) -> (first: CGRect, second: CGRect) {
+        if let split {
+            let band = split.band
+            switch split.axis {
+            case .horizontal where abs(band.width - size.width) < 0.5:
+                return (
+                    CGRect(x: 0, y: 0, width: band.leadingWidth, height: size.height),
+                    CGRect(x: band.leadingWidth + band.gap, y: 0, width: band.trailingWidth, height: size.height)
+                )
+            case .vertical where abs(band.width - size.height) < 0.5:
+                return (
+                    CGRect(x: 0, y: 0, width: size.width, height: band.leadingWidth),
+                    CGRect(x: 0, y: band.leadingWidth + band.gap, width: size.width, height: band.trailingWidth)
+                )
+            default:
+                break
+            }
+        }
+        let half = max(0, (size.width - spacing) / 2)
+        return (
+            CGRect(x: 0, y: 0, width: half, height: size.height),
+            CGRect(x: half + spacing, y: 0, width: half, height: size.height)
+        )
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        proposal.replacingUnspecifiedDimensions()
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let frames = frames(in: bounds.size)
+        for (subview, frame) in zip(subviews, [frames.first, frames.second]) {
+            subview.place(
+                at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY), anchor: .topLeading,
+                proposal: ProposedViewSize(frame.size)
+            )
+        }
+    }
+}

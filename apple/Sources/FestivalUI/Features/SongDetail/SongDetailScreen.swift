@@ -195,7 +195,9 @@ struct SongDetailScreen: View {
         }
         #endif
         #endif
-        .sheet(isPresented: $pathsPresented) {
+        // A sheet on iPhone and the folded Duo; over the whole window on the Duo inner
+        // display, iPad and Mac (owner, issue #368; modal-shell R2 variant).
+        .festivalModalPresentation(isPresented: $pathsPresented, coverage: SongPathsPolicy.coverage) {
             if let first = pathInstruments.first {
                 SongPathsSheet(
                     song: song, session: session, instruments: pathInstruments,

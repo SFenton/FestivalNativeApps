@@ -193,3 +193,41 @@ private let grid = HorizontalSpan(minX: 16, maxX: 851)
     #expect(flat.columns(width: grid.width).map(\.width) == [411.5, 411.5])
     #expect(folded.columns(width: 700).map(\.width) == [700])
 }
+
+// MARK: - Two panes (issue #368)
+
+@Test func panesMeetAtAVerticalFoldSideBySide() throws {
+    let frame = CGRect(x: 16, y: 100, width: 835, height: 500)
+    let split = try #require(HingeColumns.paneSplit(frame: frame, fold: fold, spacing: 16))
+    #expect(split.axis == .horizontal)
+    #expect(split.band == HingeBand(leadingWidth: 449, gap: 20, trailingWidth: 366))
+    let panes = HingePanesLayout(spacing: 16, split: split).frames(in: frame.size)
+    #expect(panes.first == CGRect(x: 0, y: 0, width: 449, height: 500))
+    #expect(panes.second == CGRect(x: 469, y: 0, width: 366, height: 500))
+}
+
+@Test func panesStackAcrossAHorizontalFold() throws {
+    let horizontal = CGRect(x: 0, y: 465, width: 669, height: 20)
+    let frame = CGRect(x: 16, y: 60, width: 637, height: 840)
+    let split = try #require(HingeColumns.paneSplit(frame: frame, fold: horizontal, spacing: 16))
+    #expect(split.axis == .vertical)
+    let panes = HingePanesLayout(spacing: 16, split: split).frames(in: frame.size)
+    #expect(panes.first == CGRect(x: 0, y: 0, width: 637, height: 405))
+    #expect(panes.second == CGRect(x: 0, y: 425, width: 637, height: 415))
+}
+
+@Test func flatPanesAreEqualHalves() throws {
+    let size = CGSize(width: 816, height: 600)
+    let flat = HingePanesLayout(spacing: 16, split: nil).frames(in: size)
+    #expect(flat.first == CGRect(x: 0, y: 0, width: 400, height: 600))
+    #expect(flat.second == CGRect(x: 416, y: 0, width: 400, height: 600))
+    // No fold, an unmeasured container or a fold outside it: no split.
+    #expect(HingeColumns.paneSplit(frame: CGRect(origin: .zero, size: size), fold: nil, spacing: 16) == nil)
+    #expect(HingeColumns.paneSplit(frame: nil, fold: fold, spacing: 16) == nil)
+    #expect(HingeColumns.paneSplit(frame: CGRect(x: 500, y: 0, width: 400, height: 600), fold: fold, spacing: 16) == nil)
+    // A split measured for another size (mid-resize) falls back to halves.
+    let split = try #require(HingeColumns.paneSplit(
+        frame: CGRect(x: 16, y: 0, width: 835, height: 600), fold: fold, spacing: 16
+    ))
+    #expect(HingePanesLayout(spacing: 16, split: split).frames(in: size) == flat)
+}

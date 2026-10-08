@@ -208,7 +208,7 @@ struct FirstRunSongInfoPathsDemo: View {
                 .firstRunStagger(1)
             SongPathsSelectorRow(
                 instrument: .constant(.lead), difficulty: .constant(.expert),
-                display: .constant(.image), instruments: Self.instruments,
+                viewMode: .constant(.image), instruments: Self.instruments,
                 songUsesKeyboardIcon: false
             )
             .firstRunStagger(0)
