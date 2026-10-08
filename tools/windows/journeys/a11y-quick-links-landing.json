@@ -1,6 +1,9 @@
 [
   {
     "name": "qla-settings-menu",
+    "axe_allow": [
+      "framework-popup"
+    ],
     "route": "/settings",
     "fixture": [],
     "sizes": [
@@ -72,6 +75,9 @@
   },
   {
     "name": "qla-leaderboards-menu",
+    "axe_allow": [
+      "framework-popup"
+    ],
     "route": "/leaderboards",
     "fixture": [],
     "sizes": [

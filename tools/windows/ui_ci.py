@@ -76,6 +76,11 @@ RUNS: tuple[Run, ...] = (
     Run("modals", "a11y-modals.json"),
     # The same pages at Windows' largest text size: text on screen, commands reachable by Tab and hit-testable.
     Run("modals-text-225", "a11y-modals.json", sizes="compact", mode="text-225"),
+    # Quick Links landings on Settings and Leaderboards (issues #51, #416): entry name and current section, 40 epx
+    # entry and items, keyboard order, the jump announcement, heading landing inset and focus. The wide pane page
+    # (scale-100/150 modes) stays in the host matrix.
+    Run("quick-links-landing", "a11y-quick-links-landing.json", tabs=0),
+    Run("quick-links-landing-text-225", "a11y-quick-links-landing.json", sizes="compact", mode="text-225", tabs=0),
 )
 
 

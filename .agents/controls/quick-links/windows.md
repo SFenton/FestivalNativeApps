@@ -110,6 +110,8 @@ Design (`winui-design` skill, Fluent layout and scrolling): no markup, brush or 
 
 Defect found and fixed (#416 design review): the menu items' hit-testable pills were 27 epx tall (WinUI's keyboard/mouse `MenuFlyoutItemThemePaddingNarrow`). Every app menu item now has `MinHeight` `FSTMenuItemMinHeight` (44: 40 plus the template's 2 + 2 epx `MenuFlyoutItemMargin`), a 40 epx pill ([page-tools-and-nav-chrome](../../patterns/page-tools-and-nav-chrome.md) R10). A final `--scan` after a menu opened reports only open item 8 (WinUI `PopupHost`).
 
+CI (#416 retry, 2026-10-08): the `windows-ui` job runs the menu pages through `tools/windows/ui_ci.py` (`quick-links-landing` at compact and medium, `quick-links-landing-text-225` at compact) with `--scan`. The menu pages list `"axe_allow": ["framework-popup"]`, so only that framework finding is dropped; on Leaderboards it lingered after Esc on this host (2 errors per size before the allowance). Local runs: 4/4 at default text and 2/2 at text 225%, Axe 0 with the allowance. The wide pane page needs a 1440 epx window, which the runner's 1920×1080 desktop can't fit with its taskbar; it stays a host-matrix run.
+
 ## Validation (issue #246, 2026-10-05)
 
 #46 asked that Quick Links list sections in on-page order on Settings and on a player profile, from every entry point, and that jumps land and stay marked. Order journeys in `journeys/quick-links.json`:

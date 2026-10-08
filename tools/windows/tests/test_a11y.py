@@ -106,6 +106,19 @@ class MatrixTests(unittest.TestCase):
         self.assertFalse(m.scan_failed({"axe_errors": 0, "scan_required": True}, scan=True))
         self.assertFalse(m.scan_failed({"scan_required": True}, scan=False))
 
+    def test_scan_totals_axe_allow(self):
+        popup = {"rule": "BoundingRectangleCompletelyObscuresContainer", "element": {"ClassName": "InputSiteWindowClass"},
+                 "parents": ['Pane(50033) "PopupHost" id= class=Microsoft.UI.Content.PopupWindowSiteBridge', "Window"]}
+        app = {"rule": "BoundingRectangleCompletelyObscuresContainer", "element": {"ClassName": "Grid"},
+               "parents": ['Pane "" id= class=Grid']}
+        scans = [{"errors": 2, "findings": [popup, popup]}, {"errors": 2, "findings": [popup, app]}]
+        self.assertEqual(m.scan_totals(scans)[0], 4)
+        errors, findings = m.scan_totals(scans, ["framework-popup"])
+        self.assertEqual((errors, findings), (1, [app]))
+        self.assertEqual(m.scan_totals(scans[:1], ("framework-popup",)), (0, []))
+        with self.assertRaises(KeyError):
+            m.scan_totals(scans, ["anything"])
+
     def test_page_steps_stem_placeholder(self):
         page = {"name": "settings", "after_ready": ["scrollinto:id=c", "shot:{stem}-footer.png"]}
         steps = m.page_steps(page, "wide", Path("/out"), "-text-200", scan=False, tabs=0)

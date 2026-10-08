@@ -32,6 +32,14 @@ class UiCiTests(unittest.TestCase):
                 # The runner's 1920x1080 desktop holds compact and medium, not wide (1440x900 plus the taskbar).
                 self.assertNotIn("wide", sizes)
                 self.assertTrue(m.mode_pages(pages, run.mode), "no page runs in this mode")
+                for page in pages:
+                    self.assertLessEqual(set(page.get("axe_allow", ())), set(m.AXE_ALLOW), page["name"])
+
+    def test_quick_links_landing_runs_at_default_and_largest_text(self):
+        landing = {run.mode: run for run in ci.RUNS if run.pages == "a11y-quick-links-landing.json"}
+        self.assertEqual({"normal", "text-225"}, set(landing))
+        self.assertTrue(all(run.scan for run in landing.values()))
+        self.assertIn("compact", landing["text-225"].sizes.split(","))
 
     def test_modals_run_at_default_and_largest_text(self):
         modal = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-modals.json"}

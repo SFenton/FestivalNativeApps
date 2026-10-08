@@ -822,6 +822,25 @@ def frame_stats(csv_text: str) -> dict:
     return {"frames": len(times), "fps_mean": round(1000.0 / statistics.fmean(times), 1),
             "frame_ms": summary}
 
+
+def framework_popup_finding(finding: dict) -> bool:
+    """Whether an Axe finding is WinUI's own windowed popup host (windows-accessibility.md open item 8).
+
+    A flyout or tooltip popup's ``InputSiteWindowClass`` is exactly the size of its ``PopupHost`` bridge, so Axe reports
+    ``BoundingRectangleCompletelyObscuresContainer`` with no app element involved.
+
+    Args:
+        finding: One ``findings`` entry from a scan.
+
+    Returns:
+        ``True`` only for that framework finding.
+    """
+    element = finding.get("element") or {}
+    parents = finding.get("parents") or []
+    return (finding.get("rule") == "BoundingRectangleCompletelyObscuresContainer"
+            and element.get("ClassName") == "InputSiteWindowClass"
+            and bool(parents) and "PopupWindowSiteBridge" in parents[0])
+
 # endregion
 
 # region Session hop and driver
