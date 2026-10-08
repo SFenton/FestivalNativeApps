@@ -126,8 +126,9 @@ import Testing
     #expect(pane.widthClass == .compact)
     #expect(pane.sectionChrome == .verticalBar(.trailing))
     #expect(pane.windowWidthClass == .regular)
-    // The hinge survives re-classification, so a pane's pages could still see it.
+    // The hinge and free span survive re-classification, so a pane's pages still see them.
     #expect(pane.splitHinge == duo.splitHinge)
+    #expect(pane.screenDivide() == duo.screenDivide())
     #expect(iPad.column(width: 320).windowWidthClass == .regular)
 }
 

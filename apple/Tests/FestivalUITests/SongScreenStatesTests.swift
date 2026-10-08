@@ -363,6 +363,46 @@ func detailVisualStates(_ songNumber: Int) throws {
     #expect(failed != loading)
 }
 
+/// View Full Leaderboard ends the preview's group card inside it (view-all-cta R1,
+/// #382): 10 pt from the card's edges below the last row, and spoken label first
+/// ("View Full Leaderboard, Lead"; R4).
+@MainActor
+@Test func songDetailPreviewEndsCardWithViewFullLeaderboard() async throws {
+    let song = try fixtureSong()
+    let payload = try fixtureLeaderboard(visible: 3)
+    let size = CGSize(width: 420, height: 400)
+    let host = nativeHostedView(
+        NavigationStack {
+            SongScorePreview(
+                song: song, instrument: .lead, session: offlineSession(),
+                initialState: .loaded(payload)
+            )
+            .frame(width: 420, height: 400, alignment: .top)
+        }
+        .defaultAppStorage(deterministicPreviewDefaults()),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let cta = "fst.song-detail.leaderboard.Solo_Guitar"
+    let lastRow = "fst.song-detail.preview-row.Solo_Guitar.fixture-player-3"
+    _ = try await nativeHostedSettle(host, timeout: .seconds(30), until: {
+        nativeHostedAccessibilityFrame(cta, in: host) != nil
+            && nativeHostedAccessibilityFrame(lastRow, in: host) != nil
+    })
+    let button = try #require(nativeHostedAccessibilityFrame(cta, in: host))
+    let row = try #require(nativeHostedAccessibilityFrame(lastRow, in: host))
+    // Flush rows span the card: the button sits inside it, inset on both sides and
+    // 10 pt below the last row (the card's bottom margin matches).
+    #expect(abs(button.minX - row.minX - 10) <= 1, "\(button) vs \(row)")
+    #expect(abs(row.maxX - button.maxX - 10) <= 1, "\(button) vs \(row)")
+    #expect(abs(button.minY - row.maxY - 10) <= 1, "\(button) vs \(row)")
+    #expect(button.height >= 44)
+    let tree = nativeHostedAccessibility(host)
+    #expect(tree.contains("View Full Leaderboard, Lead"))
+    #expect(!tree.contains("View full Lead leaderboard"))
+}
+
 /// Unknown FC is graded, explicit FC has gold, and missing data paints neither.
 @MainActor
 @Test(arguments: ScoreAccuracyScenario.allCases)

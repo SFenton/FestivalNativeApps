@@ -378,6 +378,24 @@ extension View {
     func festivalPageToolsAccessory(isEnabled: Bool) -> some View {
         modifier(PageToolsAccessoryHost(isEnabled: isEnabled))
     }
+
+    /// Keeps a nested tab view (a picture of the tab bar, such as the first-run Navigation
+    /// demo) free of the shell's page-tools accessory, which nested tab views inherit on
+    /// iOS 26.1 (issue #380).
+    ///
+    /// - Returns: The tab view with no bottom accessory.
+    @ViewBuilder
+    func festivalPageToolsAccessoryHidden() -> some View {
+        #if os(iOS)
+        if #available(iOS 26.1, *) {
+            tabViewBottomAccessory(isEnabled: false) { EmptyView() }
+        } else {
+            self
+        }
+        #else
+        self
+        #endif
+    }
 }
 
 /// Implementation of ``SwiftUICore/View/festivalPageToolsAccessory(isEnabled:)``.

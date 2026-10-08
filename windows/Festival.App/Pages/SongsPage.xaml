@@ -83,66 +83,7 @@
                 </StackPanel>
                 <DropDownButton.Flyout>
                     <Flyout x:Name="SortFlyout" Placement="BottomEdgeAlignedLeft" Opening="OnSortOpening">
-                        <StackPanel Width="300" Spacing="12" AutomationProperties.AutomationId="fst.songs.sort.form">
-                            <TextBlock Text="Sort Songs" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0"
-                                       AutomationProperties.HeadingLevel="Level2" />
-                            <RadioButtons Header="Sort By" ItemsSource="{x:Bind ViewModel.SortDraft.ModeLabels, Mode=OneWay}"
-                                          SelectedIndex="{x:Bind ViewModel.SortDraft.ModeIndex, Mode=TwoWay}"
-                                          AutomationProperties.AutomationId="fst.songs.sort.mode" />
-                            <!-- Direction rows (operator batch 7.21): "Ascending" / "Descending" with the web's description as the
-                                 subtitle beside the arrow. A RadioButtons group like Sort By (issue #218): one tab stop with arrow
-                                 keys inside, and UIA names the group by its header and reports each row's position in the set. -->
-                            <RadioButtons Header="Direction" SelectedIndex="{x:Bind ViewModel.SortDraft.DirectionIndex, Mode=TwoWay}"
-                                          AutomationProperties.AutomationId="fst.songs.sort.direction">
-                                <RadioButton AutomationProperties.Name="Ascending, A–Z, low–high" AutomationProperties.AutomationId="fst.songs.sort.direction.ascending">
-                                    <Grid ColumnSpacing="10">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <FontIcon Glyph="&#xE74A;" FontSize="16" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
-                                        <StackPanel Grid.Column="1">
-                                            <TextBlock Text="Ascending" />
-                                            <TextBlock Text="A–Z, low–high" Style="{StaticResource CaptionTextBlockStyle}"
-                                                       Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                                        </StackPanel>
-                                    </Grid>
-                                </RadioButton>
-                                <RadioButton AutomationProperties.Name="Descending, Z–A, high–low" AutomationProperties.AutomationId="fst.songs.sort.direction.descending">
-                                    <Grid ColumnSpacing="10">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <FontIcon Glyph="&#xE74B;" FontSize="16" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
-                                        <StackPanel Grid.Column="1">
-                                            <TextBlock Text="Descending" />
-                                            <TextBlock Text="Z–A, high–low" Style="{StaticResource CaptionTextBlockStyle}"
-                                                       Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                                        </StackPanel>
-                                    </Grid>
-                                </RadioButton>
-                            </RadioButtons>
-                            <!-- Changes apply live; Reset restores the default sort. Light dismiss / Esc closes. -->
-                            <Button Content="Reset" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.SortDraft.ResetCommand}"
-                                    AutomationProperties.AutomationId="fst.songs.sort.reset">
-                                    <Button.Resources>
-                                        <!-- Web Modal reset: a full-width red (btnDanger #C62828) button (operator batch 7.10). -->
-                                        <StaticResource x:Key="ButtonBackground" ResourceKey="FSTDangerBackgroundBrush" />
-                                        <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="FSTDangerBackgroundPointerOverBrush" />
-                                        <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="FSTDangerBackgroundPressedBrush" />
-                                        <StaticResource x:Key="ButtonBackgroundDisabled" ResourceKey="FSTDangerBackgroundDisabledBrush" />
-                                        <StaticResource x:Key="ButtonForeground" ResourceKey="FSTDangerForegroundBrush" />
-                                        <StaticResource x:Key="ButtonForegroundPointerOver" ResourceKey="FSTDangerForegroundPointerOverBrush" />
-                                        <StaticResource x:Key="ButtonForegroundPressed" ResourceKey="FSTDangerForegroundPressedBrush" />
-                                        <StaticResource x:Key="ButtonForegroundDisabled" ResourceKey="FSTDangerForegroundDisabledBrush" />
-                                        <StaticResource x:Key="ButtonBorderBrush" ResourceKey="FSTDangerBorderBrush" />
-                                        <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="FSTDangerBorderPointerOverBrush" />
-                                        <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="FSTDangerBorderPressedBrush" />
-                                        <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="Transparent" />
-                                    </Button.Resources>
-                            </Button>
-                        </StackPanel>
+                        <controls:SongSortForm Draft="{x:Bind ViewModel.SortDraft}" Title="Sort Songs" IdPrefix="fst.songs.sort" />
                     </Flyout>
                 </DropDownButton.Flyout>
             </DropDownButton>

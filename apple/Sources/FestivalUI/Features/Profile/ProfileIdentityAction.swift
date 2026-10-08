@@ -79,14 +79,22 @@ struct ProfileIdentityToolbarItem: ToolbarContent {
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .festivalPageAction) {
-            button
+            ProfileIdentityButton(action: action, isEnabled: isEnabled, perform: perform)
         }
     }
+}
+
+/// The header's Select / Switch / Deselect button, also shown by the first-run guide's
+/// Statistics slide so the guide draws the real control.
+struct ProfileIdentityButton: View {
+    let action: ProfileIdentityAction
+    var isEnabled = true
+    let perform: (ProfileIdentityAction) -> Void
 
     /// A short text button: prominent accent blue for Select/Switch, prominent red for
     /// Deselect (web `btnDanger`, `Colors.statusRed`, white text; operator batch 6.18).
-    @ViewBuilder private var button: some View {
-        let base = Button {
+    var body: some View {
+        Button {
             perform(action)
         } label: {
             Text(action.shortTitle)
@@ -98,7 +106,7 @@ struct ProfileIdentityToolbarItem: ToolbarContent {
         // never tap the placeholder.
         .accessibilityIdentifier(isEnabled ? action.accessibilityIdentifier : action.accessibilityIdentifier + ".pending")
         .disabled(!isEnabled)
-        base.buttonStyle(.borderedProminent)
-            .tint(action.prominentFill)
+        .buttonStyle(.borderedProminent)
+        .tint(action.prominentFill)
     }
 }

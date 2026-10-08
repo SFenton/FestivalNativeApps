@@ -303,37 +303,56 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
     #expect(geometry.dividerMidX == 530 && geometry.leadingWidth == 529.5 && geometry.trailingWidth == 529.5)
 }
 
-/// Duo: the divider aligns to the hinge, never to the safe area; the vertical bar stays
-/// inside the trailing pane.
-@Test func duoSplitsAtTheHinge() throws {
-    // Flat, hinge unreported: the line through the window's middle.
+/// Duo (owner #361): fully unfolded, the divider is the midpoint of the free space
+/// beside the vertical bar, not the hinge; partially folded (book pose), it is the hinge.
+/// The vertical bar stays inside the trailing pane.
+@Test func duoSplitsAtTheFreeSpaceMidpointFlatAndTheHingeInBookPose() throws {
+    // Flat, hinge unreported: the middle of 0…867 (951 less the 84 pt bar), not 475.5.
     let flat = try #require(windowGeometry(SplitLayouts.duoInnerLandscape))
-    #expect(flat.dividerMidX == 475.5)
-    // A container that stops at the vertical bar keeps the divider on the hinge.
+    #expect(flat.dividerMidX == 433.5 && !flat.isHinge)
+    #expect(flat.leadingWidth == 433 && flat.dividerWidth == 1 && flat.trailingWidth == 517)
+    // The bar inside the trailing pane leaves the two panes' content equal.
+    #expect(flat.trailingWidth - 84 == flat.leadingWidth)
+    // A container that stops at the vertical bar splits at the same line.
     let insideBar = try #require(OnDemandSplitPolicy.geometry(OnDemandSplitPolicy.context(
         layout: SplitLayouts.duoInnerLandscape, container: CGRect(x: 0, y: 0, width: 867, height: 669)
     )))
-    #expect(insideBar.dividerMidX == 475.5)
-    #expect(insideBar.leadingWidth == 475 && insideBar.trailingWidth == 391)
+    #expect(insideBar.dividerMidX == 433.5)
+    #expect(insideBar.leadingWidth == 433 && insideBar.trailingWidth == 433)
+    // A right-to-left layout's trailing bar is on the left in window coordinates.
+    let rightToLeft = try #require(OnDemandSplitPolicy.geometry(OnDemandSplitPolicy.context(
+        layout: SplitLayouts.duoInnerLandscape, container: CGRect(origin: .zero, size: SplitLayouts.duoInnerLandscape.size),
+        layoutDirection: .rightToLeft
+    )))
+    #expect(rightToLeft.dividerMidX == 517.5)
     // Book pose: the panes end at the fold's edges, whatever its offset.
     let book = try #require(windowGeometry(SplitLayouts.duoBook))
-    #expect(book.leadingWidth == 460 && book.dividerWidth == 30 && book.trailingWidth == 461)
-    // Flat with the hinge reported as an inactive division.
+    #expect(book.leadingWidth == 460 && book.dividerWidth == 30 && book.trailingWidth == 461 && book.isHinge)
+    // Flat with the hinge reported as an inactive division: still the free-space midpoint.
     let reported = try #require(windowGeometry(SplitLayouts.duoFlatReported))
-    #expect(reported.leadingWidth == 470 && reported.dividerWidth == 11)
+    #expect(reported.dividerMidX == 475.5 && reported.dividerWidth == 1 && !reported.isHinge)
+}
+
+/// The free-space midpoint falls back to the container's when the span misses it.
+@Test func freeMidpointClampsToTheContainer() {
+    let box = CGRect(x: 100, y: 0, width: 800, height: 10)
+    #expect(OnDemandSplitPolicy.freeMidX(container: box, freeSpan: nil) == 500)
+    #expect(OnDemandSplitPolicy.freeMidX(container: box, freeSpan: 0...700) == 400)
+    #expect(OnDemandSplitPolicy.freeMidX(container: box, freeSpan: 950...1000) == 500)
 }
 
 /// No split draws a divider line (#344): the band's space and the panes' margins separate
-/// them. Increase Contrast restores the 1 pt hairline at a midpoint (iPad, Mac), never on
-/// the iPhone Duo hinge, whether the fold is reported or not.
+/// them. Increase Contrast restores the 1 pt hairline at a midpoint (iPad, Mac, a flat
+/// iPhone Duo since #361), never on the iPhone Duo book-pose hinge.
 @Test func dividerLineOnlyUnderIncreaseContrastAtAMidpoint() throws {
     let iPad = try #require(windowGeometry(SplitLayouts.iPadLandscape))
     let mac = try #require(OnDemandSplitPolicy.geometry(.init(
         container: CGRect(x: 0, y: 0, width: 1060, height: 800), isLandscape: true, isRegular: true
     )))
-    let duo = try [SplitLayouts.duoInnerLandscape, SplitLayouts.duoBook, SplitLayouts.duoFlatReported]
+    let duo = try [SplitLayouts.duoBook].map { try #require(windowGeometry($0)) }
+    let flatDuo = try [SplitLayouts.duoInnerLandscape, SplitLayouts.duoFlatReported]
         .map { try #require(windowGeometry($0)) }
-    for midpoint in [iPad, mac] {
+    for midpoint in [iPad, mac] + flatDuo {
         #expect(!midpoint.isHinge)
         #expect(!OnDemandSplitPolicy.drawsDividerLine(midpoint, increasedContrast: false))
         #expect(OnDemandSplitPolicy.drawsDividerLine(midpoint, increasedContrast: true))
@@ -418,13 +437,34 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
     #expect(OnDemandSplitPolicy.appliedGeometry(live: book, held: inner, applied: true) == book)
 }
 
-/// The hinge line comes from the fold, the reported hinge, or the inner display's middle.
+/// The hinge line exists only in book pose (owner #361): the fold, else the inner
+/// display's middle. Flat, folded and non-Duo windows have none.
 @Test func splitHingeSources() {
     #expect(SplitLayouts.duoBook.splitHinge == CGRect(x: 460, y: 0, width: 30, height: 669))
-    #expect(SplitLayouts.duoFlatReported.splitHinge == CGRect(x: 470, y: 0, width: 11, height: 669))
-    #expect(SplitLayouts.duoInnerLandscape.splitHinge == CGRect(x: 475.5, y: 0, width: 0, height: 669))
+    let bookUnreported = DeviceLayout.resolve(LayoutSignals(
+        size: CGSize(width: 951, height: 669), widthClass: .regular,
+        verticalBarEdge: .trailing, hinge: .partiallyOpen
+    ))
+    #expect(bookUnreported.pose == .partiallyFolded)
+    #expect(bookUnreported.splitHinge == CGRect(x: 475.5, y: 0, width: 0, height: 669))
+    #expect(SplitLayouts.duoFlatReported.splitHinge == nil)
+    #expect(SplitLayouts.duoInnerLandscape.splitHinge == nil)
     #expect(SplitLayouts.iPadLandscape.splitHinge == nil)
     #expect(SplitLayouts.duoFolded.splitHinge == nil)
+}
+
+/// The screen divide (a board pager's side, #345): the book-pose hinge, else the flat
+/// inner landscape's free-space midline, else nothing.
+@Test func screenDivideSources() {
+    #expect(SplitLayouts.duoBook.screenDivide() == SplitLayouts.duoBook.splitHinge)
+    #expect(SplitLayouts.duoInnerLandscape.screenDivide() == CGRect(x: 433.5, y: 0, width: 0, height: 669))
+    #expect(SplitLayouts.duoInnerLandscape.screenDivide(layoutDirection: .rightToLeft)
+        == CGRect(x: 517.5, y: 0, width: 0, height: 669))
+    #expect(SplitLayouts.duoFlatReported.screenDivide() == CGRect(x: 475.5, y: 0, width: 0, height: 669))
+    #expect(SplitLayouts.duoInnerPortrait.screenDivide() == nil)
+    #expect(SplitLayouts.duoFolded.screenDivide() == nil)
+    #expect(SplitLayouts.iPadLandscape.screenDivide() == nil)
+    #expect(DeviceLayout.standardPhone.freeSpan() == nil)
 }
 
 /// The select action opens only the list page's detail routes and compares by page.

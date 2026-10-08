@@ -1,4 +1,5 @@
 import SwiftUI
+import FestivalCore
 import FestivalDesign
 
 // MARK: - compete-hub
@@ -7,7 +8,7 @@ import FestivalDesign
 /// alternates every 5 s between a leaderboard layout (top rankings plus the player's row) and a
 /// rivals layout (Above You / Below You), fading the whole demo out and in with a 6 pt drop.
 struct FirstRunCompeteHubDemo: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FirstRunReduceMotion private var reduceMotion
     @State private var showsRivals = false
     @State private var fading: Set<Int> = []
 
@@ -19,7 +20,7 @@ struct FirstRunCompeteHubDemo: View {
                 leaderboard
             }
         }
-        .firstRunSwapRow(0, key: showsRivals, rise: 6)
+        .firstRunSwapRow(0, rise: 6)
         .environment(\.firstRunFadingRows, fading)
         .accessibilityHidden(true)
         .firstRunDemoTicker { await swap() }
@@ -72,6 +73,6 @@ struct FirstRunCompeteLeaderboardsDemo: View {
 /// sections, alternately swapping each whole group every 5 s like the web.
 struct FirstRunCompeteRivalsDemo: View {
     var body: some View {
-        FirstRunRivalGroupsDemo(visible: 2)
+        FirstRunRivalGroupsDemo(visible: 2, staggers: true)
     }
 }

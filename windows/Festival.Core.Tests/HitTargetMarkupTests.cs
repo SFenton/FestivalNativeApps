@@ -57,6 +57,7 @@ public class HitTargetMarkupTests
     [InlineData("Pages/SuggestionsPage.xaml", "fst.suggestions.filter-button", false)]
     [InlineData("Pages/PlayerHistoryPage.xaml", "fst.history.sort.open", false)]
     [InlineData("Pages/LeaderboardsPage.xaml", "fst.rankings.rank-by-menu", false)]
+    [InlineData("Pages/ShopPage.xaml", "fst.shop.sort", false)]
     [InlineData("Pages/ShopPage.xaml", "fst.shop.filter", false)]
     [InlineData("Pages/ShopPage.xaml", "fst.shop.view-toggle", false)]
     [InlineData("Pages/RivalDetailPage.xaml", "fst.rival-detail.view-profile", false)]

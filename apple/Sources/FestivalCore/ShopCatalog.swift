@@ -24,12 +24,22 @@ extension Song {
     ///
     /// - Parameter offer: Validated public Shop offer.
     public init(shopOffer offer: ShopSong) {
+        self.init(shopOffer: offer, durationSeconds: nil)
+    }
+
+    /// A sort key for a Shop offer: the offer's own fields plus a catalogue length
+    /// observed with the same publication (``ShopOfferSort``). Never drawn or routed.
+    ///
+    /// - Parameters:
+    ///   - offer: Validated public Shop offer.
+    ///   - durationSeconds: Same-publication catalogue length, or nil.
+    init(shopOffer offer: ShopSong, durationSeconds: Int?) {
         songId = offer.songId
         title = offer.title
         artist = offer.artist
         album = nil
         year = offer.year
-        durationSeconds = nil
+        self.durationSeconds = durationSeconds
         albumArt = offer.albumArt
         difficulty = nil
         pathArtifactGenerationId = nil

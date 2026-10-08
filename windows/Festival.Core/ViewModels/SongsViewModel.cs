@@ -365,11 +365,44 @@ public sealed class SongRowProjector(AppSettings settings, int? currentSeason, I
 
 #region Sort draft
 /// <summary>
-/// Sort flyout state. Once <see cref="Begin"/> has loaded the applied sort the draft is live: the page model commits
-/// every change (and Reset) at once, so the flyout has no Cancel or Apply.
+/// Sort flyout state, shared by Songs and the Item Shop (issue #379). Once <see cref="Begin"/> has loaded the applied
+/// sort the draft is live: the page model commits every change (and Reset) at once, so the flyout has no Cancel or
+/// Apply.
 /// </summary>
-public sealed partial class SongSortDraft(FestivalSession session) : ObservableObject
+public sealed partial class SongSortDraft : ObservableObject
 {
+    private readonly Func<List<SongSortMode>> availableModes;
+    private readonly Func<SongSortMode> appliedMode;
+    private readonly Func<bool> appliedAscending;
+
+    /// <summary>Creates the Songs sort draft (the web Sort modal's modes; applied values from the Songs sort).</summary>
+    /// <param name="session">Shared session.</param>
+    public SongSortDraft(FestivalSession session)
+        : this(
+            () => SongSortModeInfo.ModesFor(session.HasPlayer,
+                session.Settings.SongFilter.ScopedTo(session.Settings.VisibleInstruments).Instrument is not null, session.Settings.HideShop),
+            () => session.Settings.SongSort,
+            () => session.Settings.SongSortAscending)
+    {
+    }
+
+    /// <summary>Creates a draft over any applied sort.</summary>
+    /// <param name="availableModes">Modes offered, in menu order.</param>
+    /// <param name="appliedMode">Applied mode.</param>
+    /// <param name="appliedAscending">Applied direction.</param>
+    private SongSortDraft(Func<List<SongSortMode>> availableModes, Func<SongSortMode> appliedMode, Func<bool> appliedAscending)
+    {
+        this.availableModes = availableModes;
+        this.appliedMode = appliedMode;
+        this.appliedAscending = appliedAscending;
+    }
+
+    /// <summary>Creates the Item Shop sort draft (<see cref="ShopOfferSort.Modes"/>; applied values from the Shop sort).</summary>
+    /// <param name="session">Shared session.</param>
+    /// <returns>Draft.</returns>
+    public static SongSortDraft ForShop(FestivalSession session) =>
+        new(() => [.. ShopOfferSort.Modes], () => session.Settings.ShopSort, () => session.Settings.ShopSortAscending);
+
     /// <summary>Whether changes commit immediately (set once <see cref="Begin"/> finishes loading).</summary>
     public bool IsLive { get; private set; }
 
@@ -406,9 +439,8 @@ public sealed partial class SongSortDraft(FestivalSession session) : ObservableO
     /// <summary>Descending row subtitle (web <c>sort.descendingHintSongs</c>).</summary>
     public const string DescendingHint = "Z–A, high–low";
 
-    /// <summary>Available modes (Item Shop is removed while the Shop is hidden).</summary>
-    public List<SongSortMode> Modes => SongSortModeInfo.ModesFor(session.HasPlayer,
-        session.Settings.SongFilter.ScopedTo(session.Settings.VisibleInstruments).Instrument is not null, session.Settings.HideShop);
+    /// <summary>Available modes (on Songs, Item Shop is removed while the Shop is hidden).</summary>
+    public List<SongSortMode> Modes => availableModes();
 
     /// <summary>Labels for <see cref="Modes"/>.</summary>
     public List<string> ModeLabels => [.. Modes.Select(m => m.Label())];
@@ -424,7 +456,7 @@ public sealed partial class SongSortDraft(FestivalSession session) : ObservableO
     }
 
     /// <summary>Whether the draft differs from the applied sort.</summary>
-    public bool CanApply => Mode != session.Settings.SongSort || Ascending != session.Settings.SongSortAscending;
+    public bool CanApply => Mode != appliedMode() || Ascending != appliedAscending();
 
     /// <summary>Loads the applied values (flyout opening).</summary>
     public void Begin()
@@ -432,8 +464,8 @@ public sealed partial class SongSortDraft(FestivalSession session) : ObservableO
         IsLive = false;
         OnPropertyChanged(nameof(Modes));
         OnPropertyChanged(nameof(ModeLabels));
-        Mode = session.Settings.SongSort;
-        Ascending = session.Settings.SongSortAscending;
+        Mode = appliedMode();
+        Ascending = appliedAscending();
         OnPropertyChanged(nameof(ModeIndex));
         OnPropertyChanged(nameof(DirectionIndex));
         IsLive = true;

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using Festival.Core.ViewModels;
 
 namespace Festival.Core.Tests;
@@ -70,6 +71,70 @@ public class ShopModelTests
         Assert.Equal("Artist a", shop.Songs[1].Subtitle);
         Assert.Equal("Artist b · 2020", shop.Songs[0].Subtitle);
         Assert.Equal(new Uri(SongsWire.ShopBase + "b"), shop.Songs[0].ShopUri);
+    }
+
+    private static ShopResponse SortFixture() => Decode(SongsWire.Shop(
+        SongsWire.Offer("s2", "Beta", year: 2021), SongsWire.Offer("s3", "Électrique", year: null),
+        SongsWire.Offer("x9", "Absent", year: 2020), SongsWire.Offer("s1", "Alpha", year: 2019)));
+
+    [Theory]
+    [InlineData(SongSortMode.Title, true, "x9,s1,s2,s3")]
+    [InlineData(SongSortMode.Title, false, "s3,s2,s1,x9")]
+    [InlineData(SongSortMode.Artist, true, "s1,s2,s3,x9")]
+    [InlineData(SongSortMode.Artist, false, "x9,s3,s2,s1")]
+    [InlineData(SongSortMode.Year, true, "s3,s1,x9,s2")]
+    [InlineData(SongSortMode.Year, false, "s2,x9,s1,s3")]
+    [InlineData(SongSortMode.Duration, true, "x9,s3,s1,s2")]
+    [InlineData(SongSortMode.Duration, false, "s2,s1,s3,x9")]
+    [InlineData(SongSortMode.HasFC, true, "x9,s1,s2,s3")]
+    public void OfferSort_MatchesSongsOrdering(SongSortMode mode, bool ascending, string expected)
+    {
+        // Issue #379: the Songs comparison (missing year/duration sorts as zero; ties by title, then ID; direction flips
+        // everything). Duration comes from the catalogue: s1 100 s, s2 250 s; s3 has none and x9 isn't catalogued.
+        var durations = new Dictionary<string, int?> { ["s1"] = 100, ["s2"] = 250, ["s3"] = null };
+        var sorted = ShopOfferSort.Sort(SortFixture().Songs, mode, ascending, id => durations.GetValueOrDefault(id));
+        Assert.Equal(expected, string.Join(",", sorted.Select(s => s.SongId)));
+    }
+
+    [Theory]
+    [InlineData(SongSortMode.Title, false, false, null)]
+    [InlineData(SongSortMode.Year, false, false, null)]
+    [InlineData(SongSortMode.Duration, true, true, null)]
+    [InlineData(SongSortMode.Duration, false, false, "Duration sort paused until song details load. Showing title order; your choice is saved.")]
+    [InlineData(SongSortMode.Duration, true, false, "Duration sort paused until Item Shop and song details update together. Showing title order; your choice is saved.")]
+    public void OfferSort_DurationPausesWithoutSamePublicationCatalogue(SongSortMode mode, bool loaded, bool matches, string? expected) =>
+        // catalogue-sort R7: only Duration needs catalogue data; never guess zero lengths from a missing/mismatched catalogue.
+        Assert.Equal(expected, ShopOfferSort.DurationPause(mode, loaded, matches));
+
+    [Fact]
+    public void OfferSort_ModesAreTheSongsBaseModes()
+    {
+        Assert.Equal([SongSortMode.Title, SongSortMode.Artist, SongSortMode.Year, SongSortMode.Duration], ShopOfferSort.Modes);
+        Assert.Equal(SongSortMode.Year, ShopOfferSort.Normalize(SongSortMode.Year));
+        Assert.Equal(SongSortMode.Title, ShopOfferSort.Normalize(SongSortMode.Shop));
+        Assert.Equal(SongSortMode.Title, ShopOfferSort.Normalize((SongSortMode)99));
+        // Without catalogue durations every offer ties at zero and falls back to title order.
+        Assert.Equal(["x9", "s1", "s2", "s3"], ShopOfferSort.Sort(SortFixture().Songs, SongSortMode.Duration, true).Select(s => s.SongId));
+    }
+
+    [Fact]
+    public void Settings_ShopSortPersistsSanitizesAndSurvivesResets()
+    {
+        var settings = new AppSettings { ShopSort = SongSortMode.Duration, ShopSortAscending = false };
+        var json = JsonSerializer.Serialize(settings, FestivalJsonContext.Default.AppSettings);
+        Assert.Contains("\"shopSort\": \"Duration\"", json);
+        Assert.Contains("\"shopSortAscending\": false", json);
+        var back = JsonSerializer.Deserialize(json, FestivalJsonContext.Default.AppSettings)!.Sanitized();
+        Assert.Equal((SongSortMode.Duration, false), (back.ShopSort, back.ShopSortAscending));
+        Assert.Equal(settings.Sanitized(), back);
+        Assert.NotEqual(back, back with { ShopSort = SongSortMode.Title });
+        Assert.NotEqual(back, back with { ShopSortAscending = true });
+        Assert.Equal((SongSortMode.Duration, false), (back.ResetAppSettings().ShopSort, back.ResetAppSettings().ShopSortAscending));
+        var deselected = (back with { SelectedPlayer = new SelectedPlayer("acc", "Name") }).ResetSongSettingsForDeselect();
+        Assert.Equal((SongSortMode.Duration, false), (deselected.ShopSort, deselected.ShopSortAscending));
+        Assert.Equal(SongSortMode.Title, (back with { ShopSort = SongSortMode.HasFC }).Sanitized().ShopSort);
+        var legacy = JsonSerializer.Deserialize("{}", FestivalJsonContext.Default.AppSettings)!.Sanitized();
+        Assert.Equal((SongSortMode.Title, true), (legacy.ShopSort, legacy.ShopSortAscending));
     }
 
     [Theory]
@@ -198,6 +263,97 @@ public class ShopSessionTests
 
 public class ShopViewModelTests
 {
+    [Fact]
+    public async Task Sort_DurationPausesToTitleOrderUntilSamePublicationCatalogue()
+    {
+        // catalogue-sort R7 (#379): Duration reads catalogue lengths only from the feed's publication. A failed or older
+        // catalogue shows title order in the saved direction with a notice and keeps the choice. Lengths: Électrique
+        // none (0), Alpha 100 s, Beta 250 s, so Duration and Title orders differ.
+        var service = new FakeService();
+        SongsWire.Install(service, () => SongsWire.Shop(SongsWire.Offer("s2", "Beta"), SongsWire.Offer("s3", "Électrique"),
+            SongsWire.Offer("s1", "Alpha")));
+        var inner = service.Override!;
+        var failSongs = true;
+        service.Override = r => failSongs && r.RequestUri!.AbsolutePath == "/api/songs" ? Wire.Response(HttpStatusCode.InternalServerError) : inner(r);
+        var session = service.Session();
+        session.UpdateSettings(s => s with { ShopSort = SongSortMode.Duration, ShopSortAscending = false });
+        var vm = new ShopViewModel(session);
+        await vm.LoadAsync();
+        Assert.Equal(["s3", "s2", "s1"], vm.Offers.Select(o => o.Offer.SongId)); // Title ↓, not zero-length ties
+        Assert.True(vm.HasSortPause);
+        Assert.StartsWith("Duration sort paused until song details load", vm.SortPaused);
+        Assert.Equal(("Duration ↓", true), (vm.SortSummary, vm.IsSortChanged));
+
+        failSongs = false;
+        await vm.LoadAsync(force: true);
+        Assert.False(vm.HasSortPause);
+        Assert.Equal(["s2", "s1", "s3"], vm.Offers.Select(o => o.Offer.SongId));
+        vm.SortDraft.Begin();
+        vm.SortDraft.DirectionIndex = 0;
+        Assert.Equal(["s3", "s1", "s2"], vm.Offers.Select(o => o.Offer.SongId));
+
+        // A newer publication whose catalogue read fails leaves an older catalogue beside the new feed: pause again.
+        failSongs = true;
+        service.PublicationId = 8;
+        await session.Api.GetPublicationAsync(force: true);
+        await Async.Until(() => vm.SortPaused?.StartsWith("Duration sort paused until Item Shop and song details update together", StringComparison.Ordinal) == true);
+        Assert.Equal(["s1", "s2", "s3"], vm.Offers.Select(o => o.Offer.SongId));
+        Assert.True(vm.HasSortPause);
+        // Title, Artist and Year never need the catalogue.
+        session.UpdateSettings(s => s with { ShopSort = SongSortMode.Year });
+        Assert.False(vm.HasSortPause);
+        Assert.Equal(SongSortMode.Year, session.Settings.ShopSort);
+    }
+    [Fact]
+    public async Task Sort_AppliesLivePersistsAndOrdersBothLayouts()
+    {
+        // Issue #379: the Songs Sort draft with the Shop's modes; every change applies at once and is saved.
+        var service = new FakeService();
+        SongsWire.Install(service, () => SongsWire.Shop(SongsWire.Offer("s2", "Beta", year: 2021, isNew: true),
+            SongsWire.Offer("x9", "Absent", year: 2020), SongsWire.Offer("s1", "Alpha", year: 2019, leaving: true)));
+        var session = service.Session();
+        var vm = new ShopViewModel(session);
+        await vm.LoadAsync();
+        Assert.Equal(["x9", "s1", "s2"], vm.Offers.Select(o => o.Offer.SongId));
+        Assert.Equal(("Title ↑", "Title, ascending", false), (vm.SortSummary, vm.SortDescription, vm.IsSortChanged));
+        var changed = new List<string?>();
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        vm.SortDraft.ModeIndex = 3; // not live before Begin: nothing applies
+        Assert.Equal(SongSortMode.Title, session.Settings.ShopSort);
+        vm.SortDraft.Begin();
+        Assert.Equal(["Title", "Artist", "Year", "Duration"], vm.SortDraft.ModeLabels);
+        Assert.Equal((0, 0, false), (vm.SortDraft.ModeIndex, vm.SortDraft.DirectionIndex, vm.SortDraft.CanApply));
+        vm.SortDraft.ModeIndex = 3;
+        Assert.Equal((SongSortMode.Duration, true), (session.Settings.ShopSort, session.Settings.ShopSortAscending));
+        // Catalogue durations: Alpha 100 s, Beta 250 s; Absent isn't catalogued (zero).
+        Assert.Equal(["x9", "s1", "s2"], vm.Offers.Select(o => o.Offer.SongId));
+        vm.SortDraft.DirectionIndex = 1;
+        Assert.Equal(["s2", "s1", "x9"], vm.Offers.Select(o => o.Offer.SongId));
+        Assert.Equal(("Duration ↓", "Duration, descending", true), (vm.SortSummary, vm.SortDescription, vm.IsSortChanged));
+        Assert.Contains(nameof(ShopViewModel.SortSummary), changed);
+        Assert.Contains(nameof(ShopViewModel.IsSortChanged), changed);
+        Assert.Equal((SongSortMode.Title, true), (session.Settings.SongSort, session.Settings.SongSortAscending));
+
+        // The filter and the sort combine; the list layout shows the same order.
+        vm.FilterRows[1].IsOn = false;
+        Assert.Equal(["s2", "s1"], vm.Offers.Select(o => o.Offer.SongId));
+        vm.ToggleViewCommand.Execute(null);
+        Assert.True(vm.ShowList);
+        Assert.Equal(["s2", "s1"], vm.Offers.Select(o => o.Offer.SongId));
+
+        // A fresh page (relaunch) starts with the saved sort; Reset applies Title ascending at once.
+        var reopened = new ShopViewModel(session);
+        await reopened.LoadAsync();
+        Assert.Equal(["s2", "s1", "x9"], reopened.Offers.Select(o => o.Offer.SongId));
+        reopened.SortDraft.Begin();
+        Assert.Equal((3, 1), (reopened.SortDraft.ModeIndex, reopened.SortDraft.DirectionIndex));
+        reopened.SortDraft.ResetCommand.Execute(null);
+        Assert.Equal((SongSortMode.Title, true), (session.Settings.ShopSort, session.Settings.ShopSortAscending));
+        Assert.Equal(["x9", "s1", "s2"], reopened.Offers.Select(o => o.Offer.SongId));
+        Assert.False(reopened.IsSortChanged);
+    }
+
     [Fact]
     public async Task Load_ProjectsOffersWithBadgesAndDetailLinks()
     {
