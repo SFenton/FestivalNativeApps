@@ -35,7 +35,8 @@
         <!-- The pinned row is full width like the board's rows, so its rank, name and value line up with them
              (operator batch 7.9). It is itself the control (pattern leaderboard-row R7, issue #318): on Full Rankings,
              while the player's row is on another page it runs JumpCommand (jump, then the page reveals their row);
-             once their row is shown it opens their profile. Overview cards have no jump, so it always opens the profile. -->
+             once their row is shown it opens their profile. On an overview card the row opens Full Rankings at the
+             player's page and reveals their row (Route = RankingRowViewModel.JumpRoute, issue #370). -->
         <Grid x:Name="RowHost" Visibility="{x:Bind Spotlight.ShowRow, Mode=OneWay, FallbackValue=Collapsed}">
             <controls:LeaderboardEntryRow x:Name="PinnedRow" Row="{x:Bind Spotlight.Row, Mode=OneWay}"
                                           Command="{x:Bind Spotlight.JumpCommand, Mode=OneWay}" />

@@ -10,6 +10,7 @@ import com.festivalscoretracker.android.core.paths.SongPathData
 import com.festivalscoretracker.android.core.songs.SongFilter
 import com.festivalscoretracker.android.core.songs.SongPlayerScoreFilter
 import com.festivalscoretracker.android.core.songs.SongGeneralFilter
+import com.festivalscoretracker.android.core.songs.SongSortMode
 import com.festivalscoretracker.android.data.FestivalApi
 import com.festivalscoretracker.android.data.RequestGate
 import com.festivalscoretracker.android.data.SettingsRepository
@@ -182,12 +183,9 @@ class SongsDataTest {
         assertEquals(general, saved.general)
         assertEquals(player, saved.playerFilter)
         assertTrue(saved.filterActive(hasPlayer = true, hideShop = false))
-        prefs.clearPlayerFilter()
-        // Deselection clears score checks and Selected Instrument Filters but keeps General.
-        assertEquals(SongPlayerScoreFilter(), prefs.state.first().playerFilter)
-        assertEquals(SongFilter(), prefs.state.first().filter)
-        assertEquals(general, prefs.state.first().general)
-        prefs.clearFilters()
+        prefs.resetForDeselect()
+        // Deselection resets every filter, General included (web resetSongSettingsForDeselect, #359).
+        assertEquals(SongsPreferencesState(), prefs.state.first())
         assertEquals(SongsPreferencesState(), prefs.state.first())
         prefs.setShopViewMode(ShopViewMode.List)
         assertEquals(ShopViewMode.List, prefs.state.first().shopViewMode)
@@ -288,10 +286,11 @@ class SongsDataTest {
     }
 
     @Test
-    fun deselectionClearsOnlyPlayerPredicates() = runTest {
+    fun deselectionResetsFiltersLikeTheWeb() = runTest {
         val repository = SettingsRepository(InMemoryPreferences())
         val prefs = SongsPreferences(repository)
         prefs.setFilters(SongFilter(Instrument.Bass), SongGeneralFilter(shopUnavailable = false), SongPlayerScoreFilter(hasScores = setOf(Instrument.Lead)))
+        repository.setSongSort(SongSortMode.Intensity, false)
         val players = MutableStateFlow<SelectedPlayer?>(null)
         val scope = TestScope(StandardTestDispatcher(testScheduler))
         prefs.watchDeselection(scope, players)
@@ -299,15 +298,41 @@ class SongsDataTest {
         assertTrue(prefs.state.first().playerFilter!!.isActive)
         players.value = SelectedPlayer("0123456789abcdef0123456789abcdef", "A")
         scope.advanceUntilIdle()
+        // A player-to-player switch keeps everything (web shouldResetSongSettingsForProfileChange).
         players.value = SelectedPlayer("fedcba9876543210fedcba9876543210", "B")
         scope.advanceUntilIdle()
         assertTrue(prefs.state.first().playerFilter!!.isActive)
+        assertEquals(SongSortMode.Intensity, repository.settings.first().songSort)
         players.value = null
         scope.advanceUntilIdle()
-        assertFalse(prefs.state.first().playerFilter!!.isActive)
-        assertEquals(SongFilter(), prefs.state.first().filter)
-        assertFalse(prefs.state.first().general.shopUnavailable)
+        // Deselect: default filters (General included) and a single-chart sort back to Title ascending.
+        assertEquals(SongsPreferencesState(), prefs.state.first())
+        assertEquals(SongSortMode.Title, repository.settings.first().songSort)
+        assertTrue(repository.settings.first().songSortAscending)
         scope.cancel()
+    }
+
+    @Test
+    fun deselectResetKeepsCatalogueSortsAndOnlyFiresWhenAProfileLeaves() = runTest {
+        val a = SelectedPlayer("0123456789abcdef0123456789abcdef", "A")
+        val b = SelectedPlayer("fedcba9876543210fedcba9876543210", "B")
+        assertFalse(shouldResetSongsForProfileChange(null, null))
+        assertFalse(shouldResetSongsForProfileChange(null, a))
+        assertFalse(shouldResetSongsForProfileChange(a, b))
+        assertFalse(shouldResetSongsForProfileChange(a, a))
+        assertTrue(shouldResetSongsForProfileChange(a, null))
+
+        val repository = SettingsRepository(InMemoryPreferences())
+        val prefs = SongsPreferences(repository)
+        repository.setSongSort(SongSortMode.Year, false)
+        prefs.resetForDeselect()
+        assertEquals(SongSortMode.Year, repository.settings.first().songSort)
+        assertFalse(repository.settings.first().songSortAscending)
+        listOf(SongSortMode.HasFC, SongSortMode.LastPlayed, SongSortMode.Score, SongSortMode.MaxScoreDiff).forEach { mode ->
+            repository.setSongSort(mode, false)
+            prefs.resetForDeselect()
+            assertEquals(SongSortMode.Title, repository.settings.first().songSort)
+        }
     }
 
     // endregion

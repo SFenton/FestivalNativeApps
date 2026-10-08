@@ -279,16 +279,16 @@ class ShopOffersStatesUiTest {
         click("fst.shop.filter.open")
         waitForTag("fst.shop.filter.leaving")
         click("fst.shop.filter.leaving")
-        rule.waitUntil(10_000) { settle(100); !exists("fst.shop.song.s-beta") }
-        assertTrue(exists("fst.shop.song.s-alpha"))
-        assertFalse(exists("fst.shop.song.s-x"))
+        rule.waitUntil(10_000) { settle(100); !exists("fst.shop.song.s-alpha") }
+        assertTrue(exists("fst.shop.song.s-beta"))
+        assertTrue(exists("fst.shop.song.s-x"))
         click("fst.shop.filter.leaving")
         click("fst.shop.filter.new")
         click("fst.shop.filter.available")
-        rule.waitUntil(10_000) { settle(100); exists("fst.shop.song.s-x") && !exists("fst.shop.song.s-alpha") }
+        rule.waitUntil(10_000) { settle(100); exists("fst.shop.song.s-alpha") && !exists("fst.shop.song.s-x") && !exists("fst.shop.song.s-beta") }
         click("fst.shop.filter.done")
         rule.waitUntil(10_000) { settle(100); !exists("fst.shop.filter.new") }
-        assertTrue(exists("fst.shop.song.s-beta"))
+        assertTrue(exists("fst.shop.song.s-alpha"))
     }
 
     @Test
@@ -301,8 +301,8 @@ class ShopOffersStatesUiTest {
         launch(transport = plain)
         waitForTag("fst.shop.song.s-x")
         click("fst.shop.filter.open")
-        waitForTag("fst.shop.filter.new")
-        click("fst.shop.filter.new")
+        waitForTag("fst.shop.filter.available")
+        click("fst.shop.filter.available")
         click("fst.shop.filter.done")
         waitForTag("fst.shop.filter.empty")
         assertFalse(exists("fst.shop.empty"))

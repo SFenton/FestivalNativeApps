@@ -101,6 +101,17 @@ class SongsParityTest {
         val noChart = SongListPipeline.run(base, sorter)
         assertEquals(SongSortMode.Title, noChart.effectiveSort)
         assertTrue(noChart.sortPaused!!.contains("needs a single-instrument filter"))
+        // Without a player (the instrument filter is player-only) a single-chart sort shows title
+        // order with no notice, like the web (issue #359).
+        listOf(SongSortMode.Intensity, SongSortMode.Score).forEach { mode ->
+            val deselected = SongListPipeline.run(SongListInputs(songs, sort = mode, nowEpochMillis = now), sorter)
+            assertNull(deselected.sortPaused)
+            assertTrue(deselected.notices.isEmpty())
+            assertEquals(SongSortMode.Title, deselected.effectiveSort)
+        }
+        // A saved score filter without a player shows no notice either.
+        val scoreFilter = SongListPipeline.run(SongListInputs(songs, playerFilter = SongPlayerScoreFilter(hasFCs = setOf(lead)), nowEpochMillis = now), sorter)
+        assertTrue(scoreFilter.notices.isEmpty())
 
         val hasFc = base.copy(sort = SongSortMode.HasFC)
         val anonymous = SongListPipeline.run(hasFc.copy(hasPlayer = false), sorter)
