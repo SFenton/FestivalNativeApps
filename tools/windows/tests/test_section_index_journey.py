@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import ci_ui  # noqa: E402  (sibling module)
 import uiwin  # noqa: E402  (sibling module)
 
 JOURNEY = Path(__file__).resolve().parents[1] / "journeys" / "a11y-section-index.json"
@@ -67,6 +68,16 @@ class SectionIndexJourneyTests(unittest.TestCase):
         self.assertEqual([s for s in pick if s.startswith(("invoke:", "click"))], [])
         self.assertIn("key:home", pick)
         self.assertIn("assertfocus:name=B@3", pick)
+
+    def test_windows_ui_ci_runs_both_pages_at_225_percent_text(self):
+        """#415 review: the ``windows-ui`` job runs both pages, scanned, at compact through wide, at 100% and 225% text."""
+        entries = [e for e in ci_ui.load() if e["pages"] == JOURNEY.name]
+        covered = {(page, size, mode) for e in entries if e.get("scan", True)
+                   for page in e["only"] for size in e["sizes"] for mode in e["modes"]}
+        for page in ("index-backward-after-scroll", "index-backward-after-scroll-keyboard"):
+            for size in ("compact", "medium", "wide"):
+                for mode in ("normal", "text-225"):
+                    self.assertIn((page, size, mode), covered)
 
 
 if __name__ == "__main__":
