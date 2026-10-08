@@ -1835,6 +1835,15 @@
           "regex": "fst\\.(?:shop\\.filter\\.empty-reset|suggestions\\.reset-filters)",
           "allow": [],
           "message": "Empty states have no Reset Filters button; the filter sheet's Reset is the way back (empty-error-states R8, #377)."
+        },
+        {
+          "id": "android-empty-fixed-height",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "(?:FestivalEmptyState|BandEmptyState)\\([^\\n]*heightIn\\(min =|fun BandEmptyState\\([^\\n]*heightIn",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/notifications/NotificationsUi.kt"
+          ],
+          "message": "An empty state in a list or grid fills the region its controls and pager leave (rememberEmptyRegion + fillEmptyRegion), never a fixed-height block (empty-error-states R2, #377). Only the content-sized Notifications sheet keeps a minimum."
         }
       ],
       "related": {

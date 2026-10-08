@@ -2,8 +2,8 @@ package com.festivalscoretracker.android.ui.leaderboards
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -35,6 +35,8 @@ import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.leaderboards.BandRankingsViewModel
 import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.common.FestivalScreen
+import com.festivalscoretracker.android.ui.common.fillEmptyRegion
+import com.festivalscoretracker.android.ui.common.rememberEmptyRegion
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
@@ -126,9 +128,10 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
                 }
             } else if (entries.isEmpty()) {
                 // Web `EmptyState` (`rankings.noBandRankings`): centred text, no card (#377).
+                // Centred between the population line and the floating pager (R2), not in a fixed block.
                 item(key = "empty") {
-                    Box(swap.contentModifier) {
-                        FestivalEmptyState("No ranked bands yet.", Modifier.fillMaxWidth().heightIn(min = 360.dp).testTag("fst.band-rankings.empty"))
+                    Box(Modifier.fillMaxWidth().fillEmptyRegion(rememberEmptyRegion(listState, "empty")).then(swap.contentModifier)) {
+                        FestivalEmptyState("No ranked bands yet.", Modifier.fillMaxSize().testTag("fst.band-rankings.empty"))
                     }
                 }
             } else item(key = "rows") {

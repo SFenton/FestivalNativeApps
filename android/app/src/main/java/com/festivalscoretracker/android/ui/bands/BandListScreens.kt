@@ -24,8 +24,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -48,6 +50,8 @@ import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.bands.PlayerBandsViewModel
 import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.common.FestivalScreen
+import com.festivalscoretracker.android.ui.common.fillEmptyRegion
+import com.festivalscoretracker.android.ui.common.rememberEmptyRegion
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.LoadSwapSpinner
 import com.festivalscoretracker.android.ui.common.rememberLoadSwap
@@ -76,17 +80,18 @@ internal fun bandRouteFor(entry: PlayerBandEntry): AppRoute = BandRoute(entry.ke
  * @param padding Shell padding.
  * @param tag Test tag.
  * @param controls Header and selectors, above the cards or in the leading pane.
+ * @param state Grid state (the empty state sizes itself from its layout).
  * @param content Grid content (state rows, cards, pager).
  */
 @Composable
-private fun BandGrid(padding: PaddingValues, tag: String, controls: @Composable () -> Unit, content: LazyGridScope.() -> Unit) {
+private fun BandGrid(padding: PaddingValues, tag: String, controls: @Composable () -> Unit, state: LazyGridState, content: LazyGridScope.() -> Unit) {
     var contentLeft by rememberMeasuredPx(0f)
     // One column under TalkBack or at large text, like every other content grid (rememberSingleColumn).
     val singleColumn = rememberSingleColumn()
     BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { contentLeft = it.positionInWindow().x }) {
         val hinge = rememberBandHinge(contentLeft, maxWidth).takeUnless { singleColumn }
         val grid = if (singleColumn) BandLayout.Grid(1, BandLayout.EDGE, BandLayout.EDGE, BandLayout.GUTTER) else BandLayout.grid(maxWidth.value, hinge)
-        val layout: @Composable () -> Unit = { PlayerBandsLayout(BandLayout.listSplit(hinge), grid, padding, tag, controls, content) }
+        val layout: @Composable () -> Unit = { PlayerBandsLayout(BandLayout.listSplit(hinge), grid, padding, tag, controls, state, content) }
         if (singleColumn) BandReadableWidth { layout() } else layout()
     }
 }
@@ -99,6 +104,7 @@ private fun BandGrid(padding: PaddingValues, tag: String, controls: @Composable 
  * @param padding Shell padding.
  * @param tag Test tag of the card grid.
  * @param controls Header and selectors.
+ * @param state Grid state.
  * @param content Grid content.
  */
 @Composable
@@ -108,6 +114,7 @@ internal fun PlayerBandsLayout(
     padding: PaddingValues,
     tag: String,
     controls: @Composable () -> Unit,
+    state: LazyGridState = rememberLazyGridState(),
     content: LazyGridScope.() -> Unit,
 ) {
     val top = padding.calculateTopPadding()
@@ -126,6 +133,7 @@ internal fun PlayerBandsLayout(
             ) { controls() }
             Spacer(Modifier.width(split.gap.dp))
             LazyVerticalGrid(
+                state = state,
                 columns = GridCells.Fixed(1),
                 contentPadding = PaddingValues(start = BandLayout.EDGE.dp, end = BandLayout.EDGE.dp, top = top + 8.dp, bottom = bottom),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -135,6 +143,7 @@ internal fun PlayerBandsLayout(
         }
     } else {
         LazyVerticalGrid(
+            state = state,
             columns = GridCells.Fixed(grid.columns),
             contentPadding = PaddingValues(start = grid.start.dp, end = grid.end.dp, top = top, bottom = bottom),
             horizontalArrangement = Arrangement.spacedBy(grid.gutter.dp),
@@ -226,6 +235,7 @@ fun PlayerBandsScreen(viewModel: PlayerBandsViewModel, title: String, onNavigate
         // page in (web stagger, issue #71); a return visit with the page ready shows it at once.
         val swap = rememberLoadSwap(state, state !is LoadState.Loading, key = group to page)
         val loaded = (swap.shown as? LoadState.Loaded)?.value
+        val gridState = rememberLazyGridState()
         BandGrid(
             padding,
             "fst.player-bands.list",
@@ -241,6 +251,7 @@ fun PlayerBandsScreen(viewModel: PlayerBandsViewModel, title: String, onNavigate
                     modifier = Modifier.testTag("fst.player-bands.group-picker"),
                 )
             },
+            state = gridState,
         ) {
             val current = swap.shown
             if (swap.showsSpinner || current is LoadState.Loading) {
@@ -255,7 +266,10 @@ fun PlayerBandsScreen(viewModel: PlayerBandsViewModel, title: String, onNavigate
                     if (list.entries.isEmpty()) {
                         fullRow("empty") {
                             val noun = if (group == PlayerBandGroup.All) "bands" else group.label.lowercase()
-                            Box(swap.contentModifier) { BandEmptyState("No bands found", "No $noun have been recorded for this player yet.", "fst.player-bands.empty") }
+                            // Centred in the space between the group picker and the pager (`empty-error-states` R2, #377).
+                            Box(Modifier.fillMaxWidth().fillEmptyRegion(rememberEmptyRegion(gridState, "empty")).then(swap.contentModifier)) {
+                                BandEmptyState("No bands found", "No $noun have been recorded for this player yet.", "fst.player-bands.empty", Modifier.fillMaxSize())
+                            }
                         }
                     }
                     itemsIndexed(list.entries, key = { _, entry -> entry.key }) { index, entry ->

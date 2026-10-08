@@ -8,13 +8,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
@@ -29,6 +33,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.festivalscoretracker.android.core.shell.EmptyRegion
 import com.festivalscoretracker.android.core.shell.LoadGatePhase
 import com.festivalscoretracker.android.core.shell.LoadGatePolicy
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -131,7 +136,9 @@ fun FestivalLoadGate(
  * with no background card and no Reset Filters button; the subtitle says what to change
  * instead. Loading and failures keep their own components ([FestivalLoading], `ServiceStatusView`).
  *
- * In a lazy list use [festivalEmptyStateItem] so it fills the viewport height.
+ * In a lazy list use [festivalEmptyStateItem] so it fills the viewport height; below page
+ * controls or above an inline pager, size the item with [rememberEmptyRegion] and
+ * [fillEmptyRegion] so it fills the visible region they leave, never a fixed height.
  *
  * @param title Title, e.g. "No songs".
  * @param modifier Modifier (defaults to filling the available space).
@@ -171,13 +178,15 @@ fun FestivalEmptyState(
 
 /**
  * [FestivalEmptyState] as a lazy-list item that fills the list's viewport height, so it sits
- * in the vertical centre of the page rather than just below the list's header rows.
+ * in the vertical centre of the page rather than just below the list's header rows. Given the
+ * list's [state], it fills only the region the items around it leave ([rememberEmptyRegion]).
  *
  * @param title Title.
  * @param subtitle Optional explanation.
  * @param key Item key.
  * @param tag Extra test tag for the item (e.g. `fst.songs.empty`).
  * @param icon Optional decorative icon.
+ * @param state The list's state, when other items (notices, controls) share the list.
  */
 fun LazyListScope.festivalEmptyStateItem(
     title: String,
@@ -185,15 +194,72 @@ fun LazyListScope.festivalEmptyStateItem(
     key: Any = "empty",
     tag: String? = null,
     icon: (@Composable () -> Unit)? = null,
+    state: LazyListState? = null,
 ) {
-    item(key = key, contentType = "empty") { EmptyStateItem(title, subtitle, tag, icon) }
+    item(key = key, contentType = "empty") {
+        val height = if (state != null) Modifier.fillEmptyRegion(rememberEmptyRegion(state, key)) else Modifier.fillParentMaxHeight()
+        EmptyStateItem(title, subtitle, tag, icon, height)
+    }
 }
 
 @Composable
-private fun LazyItemScope.EmptyStateItem(title: String, subtitle: String?, tag: String?, icon: (@Composable () -> Unit)?) {
-    Box(Modifier.fillParentMaxHeight().fillMaxWidth().then(if (tag != null) Modifier.testTag(tag) else Modifier)) {
+private fun EmptyStateItem(title: String, subtitle: String?, tag: String?, icon: (@Composable () -> Unit)?, height: Modifier) {
+    Box(Modifier.fillMaxWidth().then(height).then(if (tag != null) Modifier.testTag(tag) else Modifier)) {
         FestivalEmptyState(title, Modifier.fillMaxSize(), subtitle, icon)
     }
+}
+
+/**
+ * The height an empty-state item of a lazy list should take: the visible region the items
+ * before it (page controls) and after it leave ([EmptyRegion]), so [FestivalEmptyState] centres
+ * in the usable result region at every window height (pattern `empty-error-states` R2, #377).
+ * Pair with [fillEmptyRegion] on the item's outermost modifier.
+ *
+ * @param state The list's state.
+ * @param key The empty-state item's key.
+ * @return Height in px, null until the item has been laid out once.
+ */
+@Composable
+fun rememberEmptyRegion(state: LazyListState, key: Any): State<Int?> = remember(state, key) {
+    // Derived, so the item remeasures only when the region changes, not on every layout pass.
+    derivedStateOf {
+        val info = state.layoutInfo
+        val index = info.visibleItemsInfo.firstOrNull { it.key == key }?.index ?: return@derivedStateOf null
+        EmptyRegion.height(info.visibleItemsInfo.map { EmptyRegion.Item(it.index, it.offset, it.offset + it.size) }, index, info.viewportEndOffset - info.afterContentPadding)
+    }
+}
+
+/**
+ * [rememberEmptyRegion] for a full-span empty-state item of a vertical lazy grid.
+ *
+ * @param state The grid's state.
+ * @param key The empty-state item's key.
+ * @return Height in px, null until the item has been laid out once.
+ */
+@Composable
+fun rememberEmptyRegion(state: LazyGridState, key: Any): State<Int?> = remember(state, key) {
+    derivedStateOf {
+        val info = state.layoutInfo
+        val index = info.visibleItemsInfo.firstOrNull { it.key == key }?.index ?: return@derivedStateOf null
+        EmptyRegion.height(info.visibleItemsInfo.map { EmptyRegion.Item(it.index, it.offset.y, it.offset.y + it.size.height) }, index, info.viewportEndOffset - info.afterContentPadding)
+    }
+}
+
+/**
+ * Gives a lazy item exactly the [region] height (at least its content's height, so large text
+ * scrolls rather than clips); before the first layout it keeps its natural height.
+ *
+ * @param region From [rememberEmptyRegion].
+ */
+fun Modifier.fillEmptyRegion(region: State<Int?>): Modifier = layout { measurable, constraints ->
+    val target = region.value
+    val placeable = if (target == null) {
+        measurable.measure(constraints)
+    } else {
+        val height = maxOf(target, measurable.minIntrinsicHeight(constraints.maxWidth)).coerceIn(constraints.minHeight, constraints.maxHeight)
+        measurable.measure(constraints.copy(minHeight = height, maxHeight = height))
+    }
+    layout(placeable.width, placeable.height) { placeable.place(0, 0) }
 }
 
 // endregion

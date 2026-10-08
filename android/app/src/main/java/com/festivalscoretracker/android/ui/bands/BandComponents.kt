@@ -359,8 +359,9 @@ internal fun BandPageHeader(title: String?, subtitle: String?, tag: String) {
 }
 
 /**
- * Centered empty-state text: the shared [FestivalEmptyState] (#377), as one TalkBack stop,
- * centred in a region as tall as the band error state when it sits in a list or grid.
+ * Centered empty-state text: the shared [FestivalEmptyState] (#377), as one TalkBack stop.
+ * In a list or grid, give it the visible region its page controls and pager leave
+ * ([com.festivalscoretracker.android.ui.common.rememberEmptyRegion] + `fillEmptyRegion`), never a fixed height (`empty-error-states` R2).
  *
  * @param title Title.
  * @param message Explanation.
@@ -368,7 +369,7 @@ internal fun BandPageHeader(title: String?, subtitle: String?, tag: String) {
  * @param modifier Region the state centres in.
  */
 @Composable
-internal fun BandEmptyState(title: String, message: String, tag: String, modifier: Modifier = Modifier.fillMaxWidth().heightIn(min = 360.dp)) {
+internal fun BandEmptyState(title: String, message: String, tag: String, modifier: Modifier = Modifier.fillMaxWidth()) {
     FestivalEmptyState(
         title,
         // One TalkBack stop for the title and its explanation.
