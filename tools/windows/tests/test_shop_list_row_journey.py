@@ -1,8 +1,10 @@
 """Item Shop list-row accessibility pages (``journeys/a11y-shop-list-row.json``, issue #397).
 
 The Shop list reuses the shared Songs ``SongRowCard`` (tracker #18, PR #45). These pages pin what that row exposes:
-names, roles and state, reading order, the 44 epx cart target, text scaling and the marquee/pulse under Reduce Motion
-and system "Animation effects" off. Run: ``python -m unittest discover -s tools/windows/tests`` from the repo root.
+names, roles and state, reading order, the 44 epx cart target, text scaling, the marquee/pulse under Reduce Motion
+and system "Animation effects" off, and the card's opaque, bordered fallback (surface-materials R4) with Windows
+transparency effects off and the in-app Less Transparency / Increase Contrast settings. Run:
+``python -m unittest discover -s tools/windows/tests`` from the repo root.
 """
 
 import json
@@ -90,6 +92,37 @@ class ShopListRowJourneyTests(unittest.TestCase):
         self.assertEqual(m.mode_pages([system], "normal"), [])
         self.assertEqual(m.mode_pages([system], "no-animations"), [system])
         self.assertEqual(m.mode_pages([_BY_NAME["shop-row-motion"]], "no-animations"), [])
+
+    def test_surface_pages_pin_the_opaque_bordered_fallback(self):
+        # surface-materials R4: transparency off, in-app Less Transparency or Increase Contrast make the row card opaque
+        # (#121826) with a visible edge; with transparency on it stays translucent, so the opaque probe is not vacuous.
+        opaque = "fill:C0,M0=#121826~1|C-40,M0=@fill~0|C40,M0=@fill~0|L60,B6=@fill~0"
+        visible = "bg:L-6,M0|L0,M0!=@fill~6|C0,T0!=@fill~6|C0,B1!=@fill~6|L0,M0!=@bg~6|C0,T0!=@bg~6|C0,B1!=@bg~6"
+        strong = "L0,M0=#84828A~40|C0,T0=#84828A~40|C0,B1=#84828A~40"
+        cases = {
+            "shop-row-surface-no-transparency": ("no-transparency", {}, visible),
+            "shop-row-surface-less-transparency": ("normal", {"lessTransparency": True}, visible),
+            "shop-row-surface-more-contrast": ("normal", {"moreContrast": True}, strong),
+            "shop-row-surface-app-contrast": ("app-contrast", {}, strong),
+        }
+        for name, (mode, settings, edge) in cases.items():
+            with self.subTest(page=name):
+                page = _BY_NAME[name]
+                self.assertEqual(page["modes"], [mode])
+                self.assertEqual(m.mode_pages([page], mode), [page])
+                self.assertEqual(m.mode_pages([page], "hc-desert"), [])
+                for key, value in settings.items():
+                    self.assertIs(page["settings"][key], value)
+                steps = _steps(page)
+                for row in _ROWS:
+                    self.assertIn(f"assertpaint:id=fst.shop.song.{row}|{opaque}|{edge}", steps)
+        self.assertEqual(m.mode_spec("no-transparency")["system"], {"transparency": False})
+        self.assertEqual(m.mode_spec("app-contrast")["app"], {"moreContrast": True, "lessTransparency": True})
+        translucent = _BY_NAME["shop-row-surface-translucent"]
+        self.assertEqual(translucent["modes"], ["normal"])
+        self.assertFalse({"lessTransparency", "moreContrast"} & set(translucent["settings"]))
+        for row in _ROWS:
+            self.assertIn(f"assertpaint:id=fst.shop.song.{row}|C0,M0!=#121826~1|C40,M0!=#121826~1", _steps(translucent))
 
     def test_fixture_pages_stay_off_live_runs(self):
         live = {p["name"] for p in m.live_pages(_PAGES)}

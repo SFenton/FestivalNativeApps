@@ -641,6 +641,10 @@
             "symbol": "FSTCardSurfaceBrush"
           },
           {
+            "path": "windows/Festival.Core/Domain/CardSurfaceOpacity.cs",
+            "symbol": "CardSurfaceOpacity"
+          },
+          {
             "path": "windows/Festival.App/Controls/SongRowCard.xaml.cs",
             "symbol": "SongRowCard"
           },

@@ -529,19 +529,20 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Makes cards opaque and the overlay pane's acrylic use its solid fallback when Windows transparency effects or the
-    /// in-app Less Transparency setting are off.
+    /// Makes cards opaque and the overlay pane's acrylic use its solid fallback when Windows transparency effects are off
+    /// or the in-app Less Transparency or Increase Contrast setting is on (<see cref="CardSurfaceOpacity"/>, surface-materials R4).
     /// </summary>
     private void ApplyTransparency()
     {
-        var transparent = uiSettings.AdvancedEffectsEnabled && !session.Settings.LessTransparency;
+        var settings = session.Settings;
+        var transparent = CardSurfaceOpacity.IsTranslucent(uiSettings.AdvancedEffectsEnabled, settings.LessTransparency, settings.MoreContrast);
         foreach (var dictionary in Application.Current.Resources.MergedDictionaries)
         {
             if (!dictionary.ThemeDictionaries.TryGetValue("Default", out var theme) || theme is not ResourceDictionary defaults) continue;
             if (defaults.TryGetValue("FSTCardSurfaceBrush", out var value) && value is SolidColorBrush brush)
             {
                 var color = brush.Color;
-                color.A = transparent ? (byte)0xC7 : (byte)0xFF;
+                color.A = transparent ? CardSurfaceOpacity.TranslucentAlpha : CardSurfaceOpacity.OpaqueAlpha;
                 brush.Color = color;
             }
             if (defaults.TryGetValue("FSTOverlayPaneBrush", out var pane) && pane is AcrylicBrush acrylic)
