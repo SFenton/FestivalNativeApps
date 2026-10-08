@@ -124,6 +124,34 @@ public class HitTargetMarkupTests
         Assert.All(hosts, host => Assert.Contains(Attr(host, "MinHeight"), new[] { null, Resource }));
     }
 
+    [Theory]
+    [InlineData("MenuFlyoutItem", "DefaultMenuFlyoutItemStyle")]
+    [InlineData("ToggleMenuFlyoutItem", "DefaultToggleMenuFlyoutItemStyle")]
+    [InlineData("RadioMenuFlyoutItem", "DefaultRadioMenuFlyoutItemStyle")]
+    public void MenuItems_UseMinTarget(string type, string basedOn)
+    {
+        // Issue #416: keyboard-opened menu items (Quick Links, Rank By, the rankings pickers, Player History Sort) were
+        // 27 epx tall. One implicit style per item type (implicit styles match the exact type) keeps every menu's
+        // hit-testable pill at 40: the template insets it by MenuFlyoutItemMargin's 2 epx top and bottom.
+        var styles = Load(Path.Combine("Themes", "Styles.xaml"));
+        var height = styles.Descendants()
+            .Single(e => e.Name.LocalName == "Double" && Attr(e, "Key") == "FSTMenuItemMinHeight").Value;
+        var target = styles.Descendants()
+            .Single(e => e.Name.LocalName == "Double" && Attr(e, "Key") == "FSTMinTargetSize").Value;
+        Assert.Equal(double.Parse(target, CultureInfo.InvariantCulture) + 4, double.Parse(height, CultureInfo.InvariantCulture));
+        var style = styles.Descendants()
+            .Single(e => e.Name.LocalName == "Style" && Attr(e, "TargetType") == type && Attr(e, "Key") is null);
+        Assert.Equal($"{{StaticResource {basedOn}}}", Attr(style, "BasedOn"));
+        var setter = style.Elements().Single(e => Attr(e, "Property") == "MinHeight");
+        Assert.Equal("{StaticResource FSTMenuItemMinHeight}", Attr(setter, "Value"));
+        // No item opts out with its own height or style.
+        var items = Directory.EnumerateFiles(AppRoot, "*.xaml", SearchOption.AllDirectories)
+            .Where(path => Path.GetRelativePath(AppRoot, path).Split(Path.DirectorySeparatorChar)[0] is not ("bin" or "obj"))
+            .SelectMany(path => XDocument.Load(path).Descendants().Where(e => e.Name.LocalName == type));
+        Assert.All(items, item => Assert.True(Attr(item, "MinHeight") is null && Attr(item, "Height") is null && Attr(item, "Style") is null,
+            $"{type} {Attr(item, "AutomationProperties.AutomationId")} overrides its size"));
+    }
+
     [Fact]
     public void QuickLinksPane_RowsUseMinTarget()
     {
