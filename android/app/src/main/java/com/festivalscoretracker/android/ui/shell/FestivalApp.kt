@@ -640,6 +640,7 @@ private fun FestivalShell(
             ChromeColors {
                 ModalDrawerSheet(
                     drawerState = drawerState,
+                    modifier = Modifier.testTag("fst.nav.modal-drawer"),
                     drawerShape = rememberConcentricDrawerShape(),
                     drawerContainerColor = BrandTokens.cardBackground,
                 ) { if (!permanent) drawer(false) }

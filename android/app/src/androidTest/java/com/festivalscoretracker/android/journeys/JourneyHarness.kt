@@ -157,6 +157,28 @@ class JourneyHarness(private val rule: JourneyRule) {
         return runCatching { rule.waitUntil(5_000) { fullSize() } }.isSuccess
     }
 
+    /** ATF can expose an unlabelled Compose child after the scroll viewport clips it to a sliver. */
+    private fun clippedUnlabelledView(element: String): Boolean {
+        val match = Regex("""View Rect\((-?\d+), (-?\d+) - (-?\d+), (-?\d+)\)""").matchEntire(element) ?: return false
+        val bounds = android.graphics.Rect(
+            match.groupValues[1].toInt(),
+            match.groupValues[2].toInt(),
+            match.groupValues[3].toInt(),
+            match.groupValues[4].toInt(),
+        )
+        if (bounds.height() > with(rule.density) { 8.dp.roundToPx() }) return false
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        if (android.os.Build.VERSION.SDK_INT >= 34) automation.clearCache()
+        fun find(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+            node ?: return null
+            val nodeBounds = android.graphics.Rect().also(node::getBoundsInScreen)
+            if (node.isVisibleToUser && nodeBounds == bounds) return node
+            for (i in 0 until node.childCount) find(node.getChild(i))?.let { return it }
+            return null
+        }
+        return find(automation.rootInActiveWindow) != null
+    }
+
     /**
      * Visible nodes in the window's accessibility tree whose resource id is [tag].
      *
@@ -185,7 +207,12 @@ class JourneyHarness(private val rule: JourneyRule) {
 
     /** Fail with every ATF error collected during the journey (warnings only log). */
     fun assertAccessible() {
-        val errors = accessibilityFindings.filter { it.startsWith("ERROR") && !clippedTouchTarget(it) }
+        val errors = accessibilityFindings.filter { finding ->
+            finding.startsWith("ERROR") &&
+                !clippedTouchTarget(finding) &&
+                !(finding.split(" | ").getOrNull(1) == "SpeakableTextPresentCheck" &&
+                    clippedUnlabelledView(finding.split(" | ").getOrNull(2).orEmpty()))
+        }
         assertTrue("Accessibility errors:\n" + errors.joinToString("\n"), errors.isEmpty())
     }
 
@@ -319,14 +346,19 @@ class JourneyHarness(private val rule: JourneyRule) {
      * [READING_ORDER_TAG] as `<screen> | <index> | <role> | <label> | <w>x<h>`.
      *
      * @param screen Name for the log.
+     * @param fresh Drop UiAutomation's node cache first (API 34+), after a change made in place
+     *   such as a font-scale switch, which the cache can trail.
      * @return Labels in reading order.
      */
-    fun readingOrder(screen: String): List<String> {
+    fun readingOrder(screen: String, fresh: Boolean = false): List<String> {
         rule.waitForIdle()
         checkNow()
         // Resolve clipping artifacts while the flagged nodes are still composed.
         accessibilityFindings.forEach { clippedTouchTarget(it) }
-        val root = InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow ?: return emptyList()
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        // After an in-place change (font scale, issue #397) the node cache can keep the old bounds and labels.
+        if (fresh && android.os.Build.VERSION.SDK_INT >= 34) automation.clearCache()
+        val root = automation.rootInActiveWindow ?: return emptyList()
         val nodes = mutableListOf<AccessibilityNodeInfo>()
         val insideFocusable = mutableListOf<Boolean>()
         fun ownLabel(node: AccessibilityNodeInfo) = listOfNotNull(node.contentDescription, node.text, node.stateDescription)
