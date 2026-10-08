@@ -139,18 +139,18 @@ struct FirstRunSongInfoBarSelectDemo: View {
 
 /// Ported from `pages/songinfo/firstRun/demo/ViewAllDemo.tsx`: Song Detail's real Score
 /// History rows (``ScoreHistoryListRow``), the last row faded like the web's bottom mask, and
-/// the page's pulsing **View All Scores** action below.
+/// the page's pulsing **View All Scores** button ending the card.
 struct FirstRunSongInfoViewAllDemo: View {
     var body: some View {
-        VStack(spacing: 8) {
-            // Entries of one card, like Song Detail's Score History card (#381).
-            FestivalGlassSection(rows: .flush(separatorInset: 14)) {
-                ForEach(Array(FirstRunDemoPool.ownHistory.enumerated()), id: \.offset) { index, entry in
-                    ScoreHistoryListRow(entry: entry, isBest: index == 0)
-                        .opacity(index == FirstRunDemoPool.ownHistory.count - 1 ? 0.45 : 1)
-                        .firstRunStagger(index)
-                }
+        // Entries of one card ending with View All, like Song Detail's Score History card
+        // (#381, #382).
+        FestivalGlassSection(rows: .flush(separatorInset: 14)) {
+            ForEach(Array(FirstRunDemoPool.ownHistory.enumerated()), id: \.offset) { index, entry in
+                ScoreHistoryListRow(entry: entry, isBest: index == 0)
+                    .opacity(index == FirstRunDemoPool.ownHistory.count - 1 ? 0.45 : 1)
+                    .firstRunStagger(index)
             }
+        } action: {
             FirstRunViewAllRow(title: "View All Scores")
                 .firstRunStagger(FirstRunDemoPool.ownHistory.count)
         }
@@ -182,9 +182,10 @@ struct FirstRunSongInfoTopScoresDemo: View {
                     .padding(.vertical, 11)
                     .firstRunStagger(index + 1)
                 }
+            } action: {
+                FirstRunViewAllRow(title: "View Full Leaderboard")
+                    .firstRunStagger(FirstRunDemoPool.topScores.count + 1)
             }
-            FirstRunViewAllRow(title: "View full leaderboard")
-                .firstRunStagger(FirstRunDemoPool.topScores.count + 1)
         }
         .accessibilityHidden(true)
     }

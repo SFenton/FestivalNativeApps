@@ -121,6 +121,15 @@ struct PlayerBandsPreviewSection: View {
 
     // MARK: - Groups
 
+    /// The group's "View All Bands (N)" label. Band rows are separate tiles, not one
+    /// group card, so the button stays below them (view-all-cta R1, #382).
+    ///
+    /// - Parameter group: The previewed band group.
+    /// - Returns: The visible label with the group's total.
+    private func viewAllTitle(_ group: PlayerBandsPreview.Group) -> String {
+        "View All Bands (\(group.totalCount.formatted()))"
+    }
+
     @ViewBuilder
     private func groupSection(_ group: PlayerBandsPreview.Group) -> some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -143,12 +152,11 @@ struct PlayerBandsPreviewSection: View {
                                 group: group.group
                             )
                         ) {
-                            PurpleActionLabel(title: "View All Bands (\(group.totalCount.formatted()))")
+                            PurpleActionLabel(title: viewAllTitle(group))
                         }
                         .festivalRowButtonStyle()
-                        .accessibilityLabel(
-                            "View all \(group.totalCount.formatted()) \(group.group.label.lowercased())"
-                        )
+                        // Label first, then the group (view-all-cta R4).
+                        .accessibilityLabel(PurpleActionName.spoken(viewAllTitle(group), card: group.group.label))
                         .accessibilityIdentifier("fst.player.bands.view-all.\(group.group.rawValue)")
                     }
                 }

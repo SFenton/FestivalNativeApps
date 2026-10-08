@@ -236,7 +236,10 @@ Shared building blocks live in `Features/FirstRun/Demo/`:
   becomes the visible page and faded out over 0.2 s as it leaves; content appears at rest under
   Reduce Motion) and `firstRunFadeIn(delay:)` for slide text, plus shared row views
   (`FirstRunRankRow`, `FirstRunRivalRow`, `FirstRunViewAllRow`, `FirstRunInstrumentHeader`,
-  `FirstRunSongArt`, which draws a real song's shared-cache artwork or a muted placeholder tile)
+  `FirstRunSongArt`, which draws a real song's shared-cache artwork or a muted placeholder tile;
+  `FirstRunViewAllRow` draws the real buttons' `PurpleActionSurface` and each demo passes it as
+  its group card's `action:`, so it ends the card inside it like the real pages,
+  [view-all-cta](../../patterns/view-all-cta.md) R1, #382)
   and `firstRunAccuracyTint(_:isFullCombo:)`, an accuracy-to-color
   ramp approximating the web's `accuracyColor` gradient.
 

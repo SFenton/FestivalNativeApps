@@ -62,52 +62,51 @@ struct SongScoreHistorySection: View {
             let current = displayed.flatMap { available.contains($0) ? $0 : nil } ?? shown
             let rows = SongScoreHistoryModel.chronological(entries, instrument: current)
             let list = SongScoreHistoryModel.bestFirst(rows, limit: SongScoreHistoryModel.listLimit)
-            VStack(alignment: .leading, spacing: 8) {
-                // One group card for the graph and the best scores, like Rivals (#381);
-                // View All Scores stays below the card (view-all-cta).
-                FestivalGlassSection(
-                    "Score History", subtitle: "Select a bar to see more score details.",
-                    rows: .flush(separatorInset: 14)
-                ) {
-                    VStack(spacing: 12) {
-                        InstrumentSelector(
-                            instruments: available,
-                            required: Binding(get: { shown }, set: { instrument = $0 }),
-                            look: .graph, keyboardIcon: song.usesKeyboardIcon,
-                            identifier: "fst.song-detail.history.instrument"
-                        )
-                        ScoreHistoryChart(
-                            rows: rows, instrument: current, chartWidth: cardSize.width,
-                            reservesPager: SongScoreHistoryModel.reservesPager(
-                                entries, instruments: available, chartWidth: Double(cardSize.width)
-                            ),
-                            motion: ChartMotion(system: systemReduceMotion, app: appReduceMotion),
-                            currentSeason: currentSeason
-                        )
-                        .id(current)
-                        .opacity(contentOpacity)
-                    }
-                    .onGeometryChange(for: CGSize.self, of: { CGSize(width: $0.size.width.rounded(), height: $0.size.height.rounded()) }) { size in
-                        var transaction = Transaction()
-                        transaction.disablesAnimations = true
-                        withTransaction(transaction) { cardSize = size }
-                    }
-                    .frame(minHeight: pinnedHeight, alignment: .top)
-                    .padding(14)
-                    // The tapped bar's detail row keeps its own card inside the graph.
-                    .environment(\.festivalGroupedRow, false)
-                    ForEach(Array(list.enumerated()), id: \.offset) { index, entry in
-                        ScoreHistoryListRow(
-                            entry: entry, isBest: index == 0,
-                            seasonColumn: ScoreRowSeasonPolicy.showsColumn(
-                                .historyList, width: Double(viewportWidth)
-                            ),
-                            currentSeason: currentSeason
-                        )
-                        .opacity(contentOpacity)
-                        .accessibilityIdentifier("fst.song-detail.history.row.\(index)")
-                    }
+            // One group card for the graph and the best scores, like Rivals (#381),
+            // ending with View All Scores inside it (view-all-cta R1, #382).
+            FestivalGlassSection(
+                "Score History", subtitle: "Select a bar to see more score details.",
+                rows: .flush(separatorInset: 14)
+            ) {
+                VStack(spacing: 12) {
+                    InstrumentSelector(
+                        instruments: available,
+                        required: Binding(get: { shown }, set: { instrument = $0 }),
+                        look: .graph, keyboardIcon: song.usesKeyboardIcon,
+                        identifier: "fst.song-detail.history.instrument"
+                    )
+                    ScoreHistoryChart(
+                        rows: rows, instrument: current, chartWidth: cardSize.width,
+                        reservesPager: SongScoreHistoryModel.reservesPager(
+                            entries, instruments: available, chartWidth: Double(cardSize.width)
+                        ),
+                        motion: ChartMotion(system: systemReduceMotion, app: appReduceMotion),
+                        currentSeason: currentSeason
+                    )
+                    .id(current)
+                    .opacity(contentOpacity)
                 }
+                .onGeometryChange(for: CGSize.self, of: { CGSize(width: $0.size.width.rounded(), height: $0.size.height.rounded()) }) { size in
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) { cardSize = size }
+                }
+                .frame(minHeight: pinnedHeight, alignment: .top)
+                .padding(14)
+                // The tapped bar's detail row keeps its own card inside the graph.
+                .environment(\.festivalGroupedRow, false)
+                ForEach(Array(list.enumerated()), id: \.offset) { index, entry in
+                    ScoreHistoryListRow(
+                        entry: entry, isBest: index == 0,
+                        seasonColumn: ScoreRowSeasonPolicy.showsColumn(
+                            .historyList, width: Double(viewportWidth)
+                        ),
+                        currentSeason: currentSeason
+                    )
+                    .opacity(contentOpacity)
+                    .accessibilityIdentifier("fst.song-detail.history.row.\(index)")
+                }
+            } action: {
                 if rows.count > SongScoreHistoryModel.listLimit {
                     // Pushes the Score History page; opens it in the trailing pane
                     // where Song Detail can split (view-all-cta R4 label first).
@@ -115,7 +114,9 @@ struct SongScoreHistorySection: View {
                         PurpleActionLabel(title: "View All Scores")
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("View All Scores, \(current.label) Score History")
+                    .accessibilityLabel(
+                        PurpleActionName.spoken("View All Scores", card: "\(current.label) Score History")
+                    )
                     .accessibilityIdentifier("fst.song-detail.history.view-all")
                     .opacity(contentOpacity)
                 }

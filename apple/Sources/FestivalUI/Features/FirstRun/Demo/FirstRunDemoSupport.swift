@@ -235,8 +235,10 @@ struct FirstRunRivalRow: View {
     }
 }
 
-/// A pulsing "View all…" call-to-action row: the app's real purple button
-/// (``PurpleActionLabel``, view-all-cta) inside the web's blue `pulseWrap` border.
+/// A pulsing "View all…" call-to-action: the app's real purple button
+/// (``PurpleActionLabel``, view-all-cta) inside the web's blue `pulseWrap` border. The demos
+/// pass it as their group card's `action`, so it draws the real buttons' flat in-card
+/// purple through the shared ``PurpleActionSurface`` (view-all-cta R1, #382).
 struct FirstRunViewAllRow: View {
     let title: String
 

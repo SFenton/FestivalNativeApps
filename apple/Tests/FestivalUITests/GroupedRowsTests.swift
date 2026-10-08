@@ -36,6 +36,29 @@ import CoreGraphics
     }
 }
 
+// MARK: - In-card View All (issue #382)
+
+/// The "View All" call to action ends its group card inside it (view-all-cta R1, #382).
+@Suite struct CardActionTests {
+    @Test("The in-card action's corners are concentric with the card's")
+    func actionInsetIsConcentric() {
+        #expect(FestivalGlassSection<EmptyView, EmptyView>.actionInset == 10)
+        #expect(
+            FestivalGlassSection<EmptyView, EmptyView>.cornerRadius
+                - FestivalGlassSection<EmptyView, EmptyView>.actionInset
+                == PurpleActionSurface.cornerRadius
+        )
+    }
+
+    @Test("The accessible name is the visible label first, then the card")
+    func spokenNameIsLabelFirst() {
+        #expect(PurpleActionName.spoken("View Full Leaderboard", card: "Lead") == "View Full Leaderboard, Lead")
+        #expect(PurpleActionName.spoken("View All Bands (18)", card: "Duos") == "View All Bands (18), Duos")
+        #expect(PurpleActionName.spoken("View All Rivals", card: nil) == "View All Rivals")
+        #expect(PurpleActionName.spoken("View All Rivals", card: "") == "View All Rivals")
+    }
+}
+
 #if os(macOS)
 // MARK: - Hosted
 
@@ -218,6 +241,73 @@ private struct BandProbe {
             let edge = try #require(band.run(atX: x, through: centre), "no band at x \(x)")
             #expect(abs(edge.lowerBound - inside.lowerBound) <= 1, "x \(x): \(edge) vs \(inside)")
             #expect(abs(edge.upperBound - inside.upperBound) <= 1, "x \(x): \(edge) vs \(inside)")
+        }
+    }
+
+    // MARK: In-card action
+
+    /// Three 48 pt rows in a 280 pt flush group card, optionally ending with View All.
+    private struct ActionProbe: View {
+        var action = true
+        var backdrop = Color.white
+
+        var body: some View {
+            ZStack {
+                backdrop
+                FestivalGlassSection(rows: .flush()) {
+                    ForEach(0..<3, id: \.self) { _ in Color.clear.frame(height: 48) }
+                } action: {
+                    if action { PurpleActionLabel(title: "View All") }
+                }
+                .frame(width: 280)
+            }
+        }
+    }
+
+    /// Height the probe's card takes on its own.
+    private static func cardHeight(action: Bool) -> CGFloat {
+        let host = NSHostingView(rootView: ActionProbe(action: action).body.fixedSize(horizontal: false, vertical: true))
+        return host.fittingSize.height
+    }
+
+    private static let actionSize = CGSize(width: 320, height: 300)
+    /// Card: 3 × 48 rows + 2 hairlines + 10 + 48 (44 pt label, 2 pt padding) + 10.
+    private static let actionCardHeight: CGFloat = 146 + 68
+    private static var actionCardTop: CGFloat { (actionSize.height - actionCardHeight) / 2 }
+    /// Vertical centre of the View All button.
+    private static var actionMidY: CGFloat { actionCardTop + 146 + 10 + 24 }
+
+    @Test("An absent action adds no space; a present one adds the button and its 10 pt inset")
+    func actionHeight() {
+        let bare = Self.cardHeight(action: false)
+        let withAction = Self.cardHeight(action: true)
+        #expect(abs(bare - 146) <= 1, "\(bare)")
+        #expect(abs(withAction - bare - 68) <= 1, "\(withAction) vs \(bare)")
+    }
+
+    @Test("Inside the card View All is a flat, opaque brand purple with the card around it")
+    func actionIsFlatPurpleInsideCard() throws {
+        // The brand purple as the capture renders it (same colour-space conversion).
+        let swatch = nativeHostedView(BrandTokens.accentPurple, size: CGSize(width: 20, height: 20))
+        let purple = try meanColour(swatch, in: CGRect(x: 5, y: 5, width: 10, height: 10))
+        // Left of the centred label, clear of the button's 12 pt corners.
+        let button = CGRect(x: 36, y: Self.actionMidY - 2, width: 6, height: 4)
+        // The card's 10 pt margin beside the button, and the page just outside the card.
+        let margin = CGRect(x: 23, y: Self.actionMidY - 2, width: 4, height: 4)
+        let outside = CGRect(x: 4, y: Self.actionMidY - 2, width: 4, height: 4)
+        for backdrop in [Color.white, Color.black] {
+            let host = nativeHostedView(ActionProbe(backdrop: backdrop), size: Self.actionSize)
+            let fill = try meanColour(host, in: button)
+            // Opaque: the same purple whatever is behind the card (no material of its own).
+            #expect(abs(fill.red - purple.red) < 0.04, "\(fill)")
+            #expect(abs(fill.green - purple.green) < 0.04, "\(fill)")
+            #expect(abs(fill.blue - purple.blue) < 0.04, "\(fill)")
+            let card = try meanColour(host, in: margin)
+            let page = try meanColour(host, in: outside)
+            // The margin is the card, not purple and not the bare page.
+            #expect(card.blue - card.green < 0.3, "margin \(card)")
+            let drift = abs(card.red - page.red) + abs(card.green - page.green) + abs(card.blue - page.blue)
+            #expect(drift > 0.05, "margin \(card) vs page \(page)")
         }
     }
 
