@@ -19,7 +19,7 @@
 
 ## CI
 
-- The `android-device` check in [`.github/workflows/android-device.yml`](../../.github/workflows/android-device.yml) runs the complete `:app:connectedDebugAndroidTest` suite on every relevant PR and `master` push. It uses a cached API 35 Google APIs x86_64 phone AVD with KVM, a cached Gradle user home and animations disabled.
+- The `android-device` check in [`.github/workflows/android-device.yml`](../../.github/workflows/android-device.yml) runs the complete `:app:connectedDebugAndroidTest` suite on every relevant PR and `master` push. It uses a cached API 35 Google APIs x86_64 Pixel 9 phone AVD with KVM, a cached Gradle user home and animations disabled.
 - Device tests inject synthetic `FakeTransport`/fixture transports; the `MainActivity` naming test uses a closed loopback origin. CI never reaches the public service. Failure artifacts are `android-device-reports` (HTML/XML) and `android-device-logcat`, which includes `FST_ATF` accessibility findings.
 - CI is the phone baseline. The suite's hinge assertions activate only when WindowManager reports a fold; Book Fold half-open coverage remains the explicit device-lab run through `device.py test --avd FST_Book_Fold --posture half`.
 - CI quarantines: none.
