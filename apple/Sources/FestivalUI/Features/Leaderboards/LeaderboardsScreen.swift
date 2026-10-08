@@ -259,8 +259,8 @@ struct LeaderboardsScreen: View {
 
     /// One instrument's top ten: an icon header, then one group card holding the rows
     /// and the selected player's spotlight row (like the Rivals cards, issue #381; the
-    /// web's `RankingCard.tsx` draws each row as its own frosted card), then the
-    /// "View all rankings (N)" button below the card.
+    /// web's `RankingCard.tsx` draws each row as its own frosted card), ending with the
+    /// "View all rankings (N)" button inside the card (#382).
     @ViewBuilder
     private func instrumentCard(_ instrument: Instrument, fadeIndex: Int) -> some View {
         let state = instrumentStates[instrument] ?? .loading
@@ -294,14 +294,14 @@ struct LeaderboardsScreen: View {
                     }
                     spotlightSection(instrument: instrument, entries: payload.rankings.entries)
                 }
-            }
-            if case let .loaded(payload) = state {
-                if !payload.rankings.entries.isEmpty {
+            } action: {
+                if case let .loaded(payload) = state, !payload.rankings.entries.isEmpty {
                     viewAllLink(
                         AppRoute.fullRankings(instrument: instrument, rankBy: rankByRaw),
                         title: RankingsCountText.viewAllRankings(
                             totalAccounts: payload.rankings.totalAccounts
                         ),
+                        card: instrument.label,
                         id: "fst.leaderboards.card.\(instrument.rawValue).view-all"
                     )
                     .macKeyboardRow("\(instrument.rawValue)|view-all")
@@ -485,21 +485,23 @@ struct LeaderboardsScreen: View {
                         }
                     }
                 }
+            } action: {
+                if case let .loaded(payload) = state, !payload.rankings.entries.isEmpty {
+                    viewAllLink(
+                        AppRoute.bandRankings(bandType: bandType.rawValue),
+                        title: RankingsCountText.viewAllBandRankings(
+                            totalTeams: payload.rankings.totalTeams
+                        ),
+                        card: bandType.label,
+                        id: "fst.leaderboards.band-card.\(bandType.rawValue).view-all"
+                    )
+                    .macKeyboardRow("\(bandType.rawValue)|view-all")
+                }
             }
             .leaderboardSectionColumns(
                 loadedBands.isEmpty ? nil : .bandRankings(loadedBands, metric: metric),
                 hidingCrowdedSongsFor: loadedBands.map { RankingRowName(name: $0.membersLabel) }
             )
-            if case let .loaded(payload) = state, !payload.rankings.entries.isEmpty {
-                viewAllLink(
-                    AppRoute.bandRankings(bandType: bandType.rawValue),
-                    title: RankingsCountText.viewAllBandRankings(
-                        totalTeams: payload.rankings.totalTeams
-                    ),
-                    id: "fst.leaderboards.band-card.\(bandType.rawValue).view-all"
-                )
-                .macKeyboardRow("\(bandType.rawValue)|view-all")
-            }
         }
         // See the matching comment in `instrumentCard`: `.contain` keeps
         // `BandRankingRow`'s own identifier from being shadowed by the card's.
@@ -518,9 +520,9 @@ struct LeaderboardsScreen: View {
             .modifier(CardMessageSurface())
     }
 
-    /// The card's last row, "View all rankings (868,901)" (web `viewAllButton`), as a
-    /// purple button below the top ten (and below the selected player's
-    /// spotlight row when they are outside it).
+    /// The card's last element, "View all rankings (868,901)" (web `viewAllButton`), as a
+    /// purple button inside the card below the top ten (and below the selected player's
+    /// spotlight row when they are outside it; #382).
     ///
     /// Where Leaderboards can split (iPad, iPhone Duo, Mac) the full board opens in the
     /// trailing pane beside the overview as its sub-page, highlighted while open
@@ -529,14 +531,16 @@ struct LeaderboardsScreen: View {
     /// - Parameters:
     ///   - route: Full board to open.
     ///   - title: Label including the ranked count when known.
+    ///   - card: Card title spoken after the label (view-all-cta R4).
     ///   - id: Existing per-card `…view-all` identifier.
     /// - Returns: A full-width purple navigation row.
-    private func viewAllLink(_ route: AppRoute, title: String, id: String) -> some View {
+    private func viewAllLink(_ route: AppRoute, title: String, card: String, id: String) -> some View {
         // Plain, as the ranking rows: `ListDetailLink` draws the Mac hover, ring and Return.
         ListDetailLink(value: route) {
             PurpleActionLabel(title: title)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(PurpleActionName.spoken(title, card: card))
         .accessibilityIdentifier(id)
     }
 

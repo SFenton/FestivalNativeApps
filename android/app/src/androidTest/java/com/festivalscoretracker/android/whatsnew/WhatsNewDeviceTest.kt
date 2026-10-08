@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.whatsnew
 
+import com.festivalscoretracker.android.core.settings.SettingsDetail
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalConfiguration
@@ -172,7 +173,7 @@ class WhatsNewDeviceTest {
         h.launch(DebugLaunch(section = FestivalSection.Settings, stillBackground = true), transport, preferences)
         h.waitForTag("fst.settings.list")
         assertFalse(h.exists("fst.whats-new.sheet"))
-        h.scrollTo("fst.settings.list", "fst.settings.whats-new")
+        h.openSetting(SettingsDetail.Version.rowTag, "fst.settings.whats-new")
         h.tap("fst.settings.whats-new")
         h.waitForTag("fst.whats-new.dismiss")
         assertPresented("whats-new-replay")

@@ -231,8 +231,8 @@ struct CompeteInstrumentLeaderboardSection: View {
 
     /// The one leaderboard design (operator batch 7.4): the top five and the player's own
     /// row (the player's purple) as entries of one group card, like the Rivals cards
-    /// (issue #381), then the shared purple "View Full Leaderboard" button below it
-    /// (batch 7.6).
+    /// (issue #381), ending with the shared purple "View Full Leaderboard" button inside
+    /// the card (batch 7.6, #382).
     private var card: some View {
         VStack(alignment: .leading, spacing: 6) {
             switch state {
@@ -260,6 +260,16 @@ struct CompeteInstrumentLeaderboardSection: View {
                     if let spotlight {
                         spotlightRow(spotlight)
                     }
+                } action: {
+                    // Ends the card inside it, after the player's own row (#382).
+                    NavigationLink(
+                        value: AppRoute.fullRankings(instrument: instrument, rankBy: "totalscore")
+                    ) {
+                        PurpleActionLabel(title: "View Full Leaderboard")
+                    }
+                    .festivalRowButtonStyle()
+                    .accessibilityLabel(PurpleActionName.spoken("View Full Leaderboard", card: instrument.label))
+                    .accessibilityIdentifier("fst.compete.leaderboard-card.\(instrument.rawValue).view-all")
                 }
                 // One rank, songs and score width for the card and the player's own row
                 // (issue #37, web `computeRankWidth` with `playerEntry`); on a narrow
@@ -273,13 +283,6 @@ struct CompeteInstrumentLeaderboardSection: View {
                         )
                     }
                 )
-                NavigationLink(
-                    value: AppRoute.fullRankings(instrument: instrument, rankBy: "totalscore")
-                ) {
-                    PurpleActionLabel(title: "View Full Leaderboard")
-                }
-                .festivalRowButtonStyle()
-                .accessibilityIdentifier("fst.compete.leaderboard-card.\(instrument.rawValue).view-all")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

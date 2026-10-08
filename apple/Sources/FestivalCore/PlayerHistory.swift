@@ -30,6 +30,43 @@ public struct ScoreHistoryEntry: Decodable, Sendable, Equatable {
     }
 }
 
+extension ScoreHistoryEntry {
+    /// Create an entry in code (first-run demos and tests); the service's are decoded.
+    ///
+    /// - Parameters:
+    ///   - songId: Song the score belongs to.
+    ///   - instrument: Service instrument key.
+    ///   - newScore: The score.
+    ///   - newRank: Rank the score reached.
+    ///   - accuracy: Accuracy in ten-thousandths of a percent.
+    ///   - isFullCombo: Whether the score was a full combo.
+    ///   - stars: Stars earned.
+    ///   - season: Season the score was set in.
+    ///   - changedAt: ISO 8601 time of the change.
+    public init(
+        songId: String, instrument: String, newScore: Int, newRank: Int = 0,
+        accuracy: Double? = nil, isFullCombo: Bool? = nil, stars: Int? = nil,
+        season: Int? = nil, changedAt: String
+    ) {
+        self.songId = songId
+        self.instrument = instrument
+        self.oldScore = nil
+        self.newScore = newScore
+        self.oldRank = nil
+        self.newRank = newRank
+        self.accuracy = accuracy
+        self.isFullCombo = isFullCombo
+        self.stars = stars
+        self.percentile = nil
+        self.season = season
+        self.scoreAchievedAt = nil
+        self.seasonRank = nil
+        self.allTimeRank = nil
+        self.difficulty = nil
+        self.changedAt = changedAt
+    }
+}
+
 /// `GET /api/player/{accountId}/history` response envelope.
 public struct PlayerHistoryResponse: Decodable, Sendable, Equatable {
     public let accountId: String

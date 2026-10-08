@@ -51,6 +51,8 @@ struct ShopScreen: View {
     @State private var staggerSettled = false
     /// Artwork grid width (Mac ↑/↓ step one grid row).
     @State private var gridWidth: CGFloat = 0
+    /// The page's wide-landscape column count (pattern `wide-columns` R1, issue #378).
+    @State private var pageColumns = 1
 
     private enum LoadState {
         case loading
@@ -86,6 +88,13 @@ struct ShopScreen: View {
     private var viewMode: ShopViewMode {
         sizeClass == .compact || dynamicTypeSize.isAccessibilitySize
             ? .list : preferredMode
+    }
+
+    /// List rows across the page: two row-major columns in wide landscape (iPad, the
+    /// unfolded iPhone Duo, a wide Mac window), one on iPhone, in portrait, in compact
+    /// windows and at accessibility text sizes (pattern `wide-columns` R1/R7, #378).
+    private var listColumns: Int {
+        WideColumns.readable(pageColumns, typeSize: dynamicTypeSize)
     }
 
     /// The saved New / Available / Leaving Tomorrow filter (issues #19, #376).
@@ -140,6 +149,9 @@ struct ShopScreen: View {
         .onChange(of: StaggerKey(load: loadedKey, mode: viewMode)) { _, _ in
             staggerSettled = false
         }
+        // Rotating, folding or resizing re-chunks the loaded rows in place; the column
+        // count never reloads the Shop (wide-columns R4).
+        .wideColumnsCount($pageColumns)
         .detailFadeTestSafe()
         .festivalBackground(.carousel, session: session, visible: isVisible)
         .festivalNavigationTitle("Item Shop")
@@ -197,7 +209,10 @@ struct ShopScreen: View {
             // Warm the first screen's covers while the catalogue loads, so rows
             // reveal with art (bounded; slow covers keep their own placeholder).
             let primePaths = viewMode == .list
-                ? ShopArtworkPrimePolicy.paths(for: appliedFilter.filtered(feed.sortedSongs)) : []
+                ? ShopArtworkPrimePolicy.paths(
+                    for: appliedFilter.filtered(feed.sortedSongs),
+                    limit: ShopArtworkPrimePolicy.limit(columns: listColumns)
+                ) : []
             async let primed: Void = primeArtwork(primePaths)
             var songsById: [String: Song] = [:]
             var detailsError: String?
@@ -281,17 +296,27 @@ struct ShopScreen: View {
         } else if viewMode == .list {
             // A plain ScrollView, not a List: each row holds two sibling actions (Detail
             // and the official bag), and a List would add its own disclosure chevron
-            // before the bag instead of after it.
+            // before the bag instead of after it. In wide landscape the rows pair
+            // row-major under the full-width disclosures, meeting at the iPhone Duo hinge
+            // in book pose (wide-columns R2/R3, #378).
+            let columns = listColumns
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 6) {
                     shopDisclosures(snapshot)
-                    ForEach(Array(offers.enumerated()), id: \.element.id) { index, offer in
-                        offerCard(offer, snapshot: snapshot, grid: false)
-                            .detailStaggeredFadeIn(index: index, settled: staggerSettled)
-                            .macKeyboardRow(offer.id)
+                    ForEach(WideColumns.indexedRows(offers, columns: columns)) { row in
+                        WideColumnsRow(columns: columns, count: row.items.count) {
+                            ForEach(row.indexed, id: \.item.id) { index, offer in
+                                offerCard(offer, snapshot: snapshot, grid: false)
+                                    .frame(maxWidth: .infinity)
+                                    .detailStaggeredFadeIn(index: index, settled: staggerSettled)
+                                    .macKeyboardRow(offer.id)
+                            }
+                        }
                     }
                 }
-                .macKeyboardRows(Self.keyRows(offers, catalogue: snapshot.songsById, grid: false))
+                .macKeyboardRows(
+                    columns: columns, Self.keyRows(offers, catalogue: snapshot.songsById, grid: false)
+                )
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .festivalFadeInScope()
@@ -679,6 +704,14 @@ enum ShopArtworkPrimePolicy {
     static let count = 12
     /// Never hold the reveal longer than this for slow art.
     static let timeout: Duration = .milliseconds(900)
+
+    /// Covers to warm for a list of `columns` rows across: one screen of rows per column.
+    ///
+    /// - Parameter columns: List columns (wide-columns R1); at least 1.
+    /// - Returns: ``count`` per column.
+    static func limit(columns: Int) -> Int {
+        count * max(1, columns)
+    }
 
     /// First-screen artwork paths, in display order, without blanks or repeats.
     ///

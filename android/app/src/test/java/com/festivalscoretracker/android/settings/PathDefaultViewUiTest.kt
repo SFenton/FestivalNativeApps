@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.settings
 
+import com.festivalscoretracker.android.core.settings.SettingsDetail
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.Role
@@ -191,15 +192,23 @@ class PathDefaultViewUiTest {
 
     @Test
     @Config(qualifiers = "w1280dp-h800dp-xhdpi")
-    fun expandedWindowKeepsTheGroupInTheCappedColumn() {
-        openSettingsAtPathDefault()
-        val section = node("fst.settings.section.app-settings").boundsInRoot
+    fun expandedWindowOpensTheGroupInTheDetailPane() {
+        launch(DebugLaunch(section = FestivalSection.Settings, stillBackground = true))
+        waitForTag("fst.settings.list")
+        // List/detail Settings (issue #371): a chevron row with the current value opens the radio group on the right.
+        val row = SettingsDetail.PathDefaultView.rowTag
+        rule.onNodeWithTag("fst.settings.list").performScrollToNode(hasTestTag(row))
+        assertEquals(0, count(text))
+        click(row)
+        waitForTag(text)
+        val pane = node("fst.settings.detail-pane").boundsInRoot
         listOf(image, text).forEach { tag ->
             val bounds = node(tag).boundsInRoot
-            assertTrue("$tag inside the 840 dp section", bounds.left >= section.left && bounds.right <= section.right)
+            assertTrue("$tag inside the detail pane", bounds.left >= pane.left && bounds.right <= pane.right)
         }
         click(text)
         assertEquals(PathDisplayMode.Text, SettingsRepository.decode(store.current).pathDefaultView)
+        assertTrue("the row shows the new value", rule.onAllNodes(hasTestTag(row) and hasText("Text", substring = false)).fetchSemanticsNodes().isNotEmpty())
     }
 
     @Test

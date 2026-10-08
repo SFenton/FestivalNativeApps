@@ -129,7 +129,8 @@ private struct RivalDualDetailContent: View {
 // MARK: - Category card
 
 /// One themed rivalry category in the Duo pane: up to five song rows ending in the
-/// shared purple "View All" CTA (`view-all-cta` R1–R4), as on `RivalDetailScreen`.
+/// shared purple "View All" CTA inside the card (`view-all-cta` R1–R4, #382), as on
+/// `RivalDetailScreen`.
 struct RivalDualCategoryCard: View {
     let category: RivalCategory
     let rivalId: String
@@ -139,17 +140,16 @@ struct RivalDualCategoryCard: View {
     let songsById: [String: Song]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            FestivalGlassSection(category.title, subtitle: category.subtitle) {
-                ForEach(category.songs.prefix(5)) { song in
-                    let row = RivalSongRowContent(song: song, playerName: playerName, rivalName: rivalName)
-                    if let match = songsById[song.songId] {
-                        NavigationLink(value: AppRoute.songDetail(match)) { row }
-                    } else {
-                        row
-                    }
+        FestivalGlassSection(category.title, subtitle: category.subtitle) {
+            ForEach(category.songs.prefix(5)) { song in
+                let row = RivalSongRowContent(song: song, playerName: playerName, rivalName: rivalName)
+                if let match = songsById[song.songId] {
+                    NavigationLink(value: AppRoute.songDetail(match)) { row }
+                } else {
+                    row
                 }
             }
+        } action: {
             PurpleActionLink(
                 title: "View All",
                 route: .rivalry(rivalId: rivalId, mode: category.key, name: rivalName, scope: scope),
