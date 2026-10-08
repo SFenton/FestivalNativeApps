@@ -63,8 +63,14 @@ struct SongsScreen: View, Equatable {
     @State private var jumpFade = ListJumpFade()
     /// The iPhone Duo bottom Filter field's top in ``pageSpace`` (issue #333).
     @State private var bottomFilterTop: CGFloat?
+    /// The tallest top safe-area inset the A–Z scrubber has seen: the expanded large
+    /// title and Filter field (issue #388, ``scrubberTopReserve``).
+    @State private var scrubberHeaderInset: CGFloat = 0
+    /// The scrubber's trailing edge when ``scrubberHeaderInset`` was last reset.
+    @State private var scrubberRegionWidth: CGFloat = 0
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var deviceLayout
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Song to scroll back to after an iPhone Duo fold/unfold rebuilt this list (`/duo` D6).
     /// The anchor this instance already scrolled to.
     @AppStorage("fst.songs.sortMode") private var sortMode = SongSortMode.title
@@ -1054,11 +1060,23 @@ struct SongsScreen: View, Equatable {
     ///   - effectiveMode: Sort mode actually in effect (paused sorts fall back to Title).
     /// - Returns: A scrollable List, with a trailing jump scrubber when applicable.
     /// Width to keep clear of the trailing `SongSectionIndexScrubber`: its own
-    /// 22pt-wide capsule, the same Duo vertical-bar margin it insets by
-    /// (`.agents/design/apple/duo.md`'s B4), and a small visual gap so a row's
+    /// capsule (22 pt, wider at larger text sizes), the same Duo vertical-bar margin it
+    /// insets by (`.agents/design/apple/duo.md`'s B4), and a small visual gap so a row's
     /// trailing content doesn't sit flush against the capsule's edge.
     private var scrubberTrailingReserve: CGFloat {
-        22 + max(2, deviceLayout.cutoutInsets.trailing) + 6
+        SongSectionIndexScrubber.width(for: dynamicTypeSize)
+            + max(2, deviceLayout.cutoutInsets.trailing) + 6
+    }
+
+    /// The A–Z scrubber region's top: below the collapsed inline bar, fixed so the
+    /// scrubber does not move as the large title and Filter field collapse. At
+    /// accessibility sizes the expanded header reaches lower than that (the Filter field
+    /// ended at y 314 at AX5, under the scrubber's top), so the region starts below the
+    /// tallest header seen instead (issue #388), still fixed while it collapses.
+    private var scrubberTopReserve: CGFloat {
+        let collapsed = deviceLayout.overlayInsets.top + 52
+        guard dynamicTypeSize.isAccessibilitySize else { return collapsed }
+        return max(collapsed, scrubberHeaderInset + 8)
     }
 
     /// Extra trailing safe area while the rail shows: the rows already keep their
@@ -1223,9 +1241,21 @@ struct SongsScreen: View, Equatable {
                     // jumps when the large title and filter field collapse nor overlaps
                     // the floating Filter/Sort buttons.
                     .frame(maxHeight: .infinity)
-                    .padding(.top, deviceLayout.overlayInsets.top + 52)
+                    .padding(.top, scrubberTopReserve)
                     .padding(.bottom, 8)
                     .ignoresSafeArea(.container, edges: .top)
+                    .onGeometryChange(for: CGSize.self) {
+                        CGSize(width: $0.frame(in: .global).maxX, height: $0.safeAreaInsets.top)
+                    } action: { region in
+                        // A new trailing edge (rotation, window resize) starts over; a
+                        // collapsing header or a new text size never moves the scrubber.
+                        if region.width != scrubberRegionWidth {
+                            scrubberRegionWidth = region.width
+                            scrubberHeaderInset = region.height
+                        } else if region.height > scrubberHeaderInset {
+                            scrubberHeaderInset = region.height
+                        }
+                    }
                     .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
             }
