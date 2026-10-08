@@ -39,7 +39,8 @@ import org.junit.runner.RunWith
  * journeys pin that it changed nothing TalkBack sees: ATF stays clean at rest, pinned and with two
  * headers on screen; each header is one heading stop with its spoken label, read before its own
  * rows and after the previous section's; text at 200% grows unclipped in the same order; and the
- * app's Reduce Transparency keeps rows out from behind the pinned title. Fixture-only
+ * app's Reduce Transparency, Increase Contrast and Reduce Motion (the scroll-edge R7 hard cut,
+ * #308, #462) keep rows out from behind the pinned title. Fixture-only
  * ([BucketHeaderFixtures]); `device.py test com.festivalscoretracker.android.journeys.SongsBucketHeaderAccessibilityJourneyTest --avd FST_Phone`.
  */
 @RunWith(AndroidJUnit4::class)
@@ -57,11 +58,12 @@ class SongsBucketHeaderAccessibilityJourneyTest {
      *
      * @param sort Saved sort mode (`Duration`, `Year`, …).
      * @param fontScale Font scale provider, or `null` for the device's.
-     * @param lessTransparency The app's Reduce Transparency setting.
+     * @param hardEdge The app's hard-edge setting to turn on (Reduce Transparency, Increase
+     *   Contrast or Reduce Motion; scroll-edge R7), or null.
      */
-    private fun launch(sort: String, fontScale: (() -> Float)? = null, lessTransparency: Boolean = false) {
+    private fun launch(sort: String, fontScale: (() -> Float)? = null, hardEdge: String? = null) {
         val preferences = mutablePreferencesOf(stringPreferencesKey(SettingsRegistry.SONG_SORT) to sort)
-        if (lessTransparency) preferences[booleanPreferencesKey(SettingsRegistry.REDUCE_TRANSPARENCY)] = true
+        if (hardEdge != null) preferences[booleanPreferencesKey(hardEdge)] = true
         h.launch(DebugLaunch(stillBackground = true), BucketHeaderFixtures.transport(), MemoryPreferences(preferences), fontScale)
         h.waitForTag("fst.songs.row.s-0")
     }
@@ -235,14 +237,35 @@ class SongsBucketHeaderAccessibilityJourneyTest {
      * behind it, is still a heading read before its rows, and ATF stays clean.
      */
     @Test
-    fun reduceTransparencyKeepsRowsOutFromBehindThePinnedHeading() {
+    fun reduceTransparencyKeepsRowsOutFromBehindThePinnedHeading() =
+        hardEdgeKeepsRowsOutFromBehindThePinnedHeading("Reduce Transparency", "songs-duration-less-transparency", SettingsRegistry.REDUCE_TRANSPARENCY)
+
+    /** The app's Increase Contrast: the same hard cut as Reduce Transparency (scroll-edge R7, #308). */
+    @Test
+    fun increaseContrastKeepsRowsOutFromBehindThePinnedHeading() =
+        hardEdgeKeepsRowsOutFromBehindThePinnedHeading("Increase Contrast", "songs-duration-more-contrast", SettingsRegistry.INCREASE_CONTRAST)
+
+    /** The app's Reduce Motion: the same hard cut, so no ramp grows while scrolling (scroll-edge R7, #308). */
+    @Test
+    fun reduceMotionKeepsRowsOutFromBehindThePinnedHeading() =
+        hardEdgeKeepsRowsOutFromBehindThePinnedHeading("Reduce Motion", "songs-duration-reduce-motion", SettingsRegistry.REDUCE_MOTION)
+
+    /**
+     * One hard-edge setting: the pinned title stays bare with no row behind it, is still a
+     * heading read before its rows, and ATF stays clean.
+     *
+     * @param what Setting name for failure messages.
+     * @param screen Reading-order log name.
+     * @param setting Settings key turned on.
+     */
+    private fun hardEdgeKeepsRowsOutFromBehindThePinnedHeading(what: String, screen: String, setting: String) {
         h.enableAccessibilityChecks()
-        launch("Duration", lessTransparency = true)
+        launch("Duration", hardEdge = setting)
         h.waitForTag("$HEADER_PREFIX$DURATION.1to2")
         scrollTo(5)
-        assertPinnedHeaderBare("Reduce Transparency pinned")
-        assertHeadersAreHeadings("Reduce Transparency pinned")
-        assertHeadersLeadTheirRows("songs-duration-less-transparency", DURATION_TOKENS)
+        assertPinnedHeaderBare("$what pinned")
+        assertHeadersAreHeadings("$what pinned")
+        assertHeadersLeadTheirRows(screen, DURATION_TOKENS)
         h.assertAccessible()
     }
 

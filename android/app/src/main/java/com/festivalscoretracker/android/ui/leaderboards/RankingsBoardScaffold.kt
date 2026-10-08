@@ -32,6 +32,8 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.isContainer
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.dp
@@ -182,6 +184,7 @@ internal fun RankingsBoardLayout(
                     Modifier
                         .align(Alignment.BottomCenter)
                         .onSizeChanged { anchoredHeight = it.height }
+                        .then(if (fadeAboveFooter) Modifier.occludesRowsBeneath() else Modifier)
                         .padding(start = 16.dp, end = 16.dp, bottom = bottom + 12.dp),
                 )
             }
@@ -291,5 +294,19 @@ private fun Modifier.clipAboveFooter(footerHeight: () -> Int): Modifier = this
         val visible = (placeable.height - footerHeight()).coerceIn(0, placeable.height)
         layout(placeable.width, visible) { placeable.place(0, 0) }
     }
+
+/**
+ * Makes the whole footer band, pager sides and bottom inset included, cover the rows beneath it
+ * for accessibility (scroll-edge R7). Compose widens a clickable row's accessibility bounds by
+ * half the minimum touch target (24 dp) past [clipAboveFooter]'s cut, so a row hidden just under
+ * a narrow pager stayed focusable by TalkBack (issue #462). An important container drawn above
+ * the list removes its area from the rows beneath, as Material 3's `Surface` does; it has no
+ * text or action, so TalkBack never focuses it.
+ */
+private fun Modifier.occludesRowsBeneath(): Modifier = semantics {
+    // Material 3's Surface uses the same key; isTraversalGroup does not occlude yet (b/347038246).
+    @Suppress("DEPRECATION")
+    isContainer = true
+}
 
 // endregion
