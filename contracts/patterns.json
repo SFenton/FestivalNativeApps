@@ -588,7 +588,9 @@
         "card surface",
         "ultraThinMaterial",
         "transparency",
-        "view all"
+        "view all",
+        "grouped list",
+        "group card"
       ],
       "web": [
         {
@@ -717,7 +719,8 @@
           "songs",
           "song-detail",
           "leaderboards",
-          "player-profile"
+          "player-profile",
+          "compete"
         ]
       },
       "supersedes": [],
@@ -726,7 +729,8 @@
         291,
         272,
         312,
-        319
+        319,
+        381
       ]
     },
     {
@@ -1425,7 +1429,8 @@
         318,
         319,
         353,
-        370
+        370,
+        381
       ]
     },
     {
