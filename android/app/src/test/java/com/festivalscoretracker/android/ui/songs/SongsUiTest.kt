@@ -370,7 +370,7 @@ class SongsUiTest {
     }
 
     @Test
-    fun shopFilterWithNoMatchesOffersReset() {
+    fun shopFilterWithNoMatchesResetsFromTheSheet() {
         val plain = transport().apply {
             on("/api/shop", headers = mapOf("X-FST-Publication-Id" to "7")) {
                 """{"count":1,"songs":[{"songId":"s-alpha","title":"Alpha Tune","artist":"Band One","shopUrl":"https://www.fortnite.com/item-shop/jam-tracks/alpha"}]}"""
@@ -384,8 +384,13 @@ class SongsUiTest {
         click("fst.shop.filter.done")
         waitForTag("fst.shop.filter.empty")
         assertTrue(rule.onAllNodesWithTag("fst.shop.empty").fetchSemanticsNodes().isEmpty())
+        // No Reset Filters button in the empty state (#377).
+        assertTrue(rule.onAllNodesWithTag("fst.shop.filter.empty-reset").fetchSemanticsNodes().isEmpty())
         assertFilterState("Filters on: hiding Available")
-        click("fst.shop.filter.empty-reset")
+        click("fst.shop.filter.open")
+        waitForTag("fst.shop.filter.reset")
+        click("fst.shop.filter.reset")
+        click("fst.shop.filter.done")
         waitForTag("fst.shop.song.s-alpha")
         assertFilterState("No filters")
     }

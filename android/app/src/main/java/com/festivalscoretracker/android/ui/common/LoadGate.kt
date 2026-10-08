@@ -127,13 +127,18 @@ fun FestivalLoadGate(
  * icon, a bold title and an optional subtitle, centred horizontally and **vertically** in the
  * space it is given (the web centres it in the viewport below the shell chrome).
  *
+ * Every empty page or result region uses this one component (issue #377): plain centred text
+ * with no background card and no Reset Filters button; the subtitle says what to change
+ * instead. Loading and failures keep their own components ([FestivalLoading], `ServiceStatusView`).
+ *
  * In a lazy list use [festivalEmptyStateItem] so it fills the viewport height.
  *
  * @param title Title, e.g. "No songs".
  * @param modifier Modifier (defaults to filling the available space).
  * @param subtitle Optional explanation.
  * @param icon Optional decorative icon above the title.
- * @param action Optional action (e.g. Retry) under the subtitle.
+ * @param action Optional way out of a gate state the page cannot fill on its own (Select
+ *   Player, Go Back, Retry while a player syncs). Never a Reset Filters button (#377).
  */
 @Composable
 fun FestivalEmptyState(

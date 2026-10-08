@@ -219,7 +219,7 @@ fun PlayerBandsScreen(viewModel: PlayerBandsViewModel, title: String, onNavigate
     val page by viewModel.page.collectAsStateWithLifecycle()
     FestivalScreen(title = title, isRoot = false, modifier = Modifier.testTag("fst.player-bands.screen")) { padding ->
         if (!viewModel.isValidAccount) {
-            BandEmptyState("Player not found", "This link doesn't name a valid player.", "fst.player-bands.invalid")
+            BandEmptyState("Player not found", "This link doesn't name a valid player.", "fst.player-bands.invalid", Modifier.fillMaxSize().padding(padding))
             return@FestivalScreen
         }
         // A group or page change fades the cards out, shows the spinner and staggers the new

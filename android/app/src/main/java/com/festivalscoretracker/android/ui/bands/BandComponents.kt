@@ -42,6 +42,7 @@ import com.festivalscoretracker.android.core.bands.BandLayout
 import com.festivalscoretracker.android.core.bands.BandMember
 import com.festivalscoretracker.android.core.bands.BandType
 import com.festivalscoretracker.android.core.bands.PlayerBandEntry
+import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.design.GlassCard
@@ -358,23 +359,22 @@ internal fun BandPageHeader(title: String?, subtitle: String?, tag: String) {
 }
 
 /**
- * Centered empty-state text.
+ * Centered empty-state text: the shared [FestivalEmptyState] (#377), as one TalkBack stop,
+ * centred in a region as tall as the band error state when it sits in a list or grid.
  *
  * @param title Title.
  * @param message Explanation.
  * @param tag Test tag.
+ * @param modifier Region the state centres in.
  */
 @Composable
-internal fun BandEmptyState(title: String, message: String, tag: String) {
-    Column(
+internal fun BandEmptyState(title: String, message: String, tag: String, modifier: Modifier = Modifier.fillMaxWidth().heightIn(min = 360.dp)) {
+    FestivalEmptyState(
+        title,
         // One TalkBack stop for the title and its explanation.
-        Modifier.fillMaxWidth().padding(vertical = 32.dp, horizontal = 16.dp).semantics(mergeDescendants = true) { }.testTag(tag),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text(title, style = MaterialTheme.typography.titleMedium, color = BrandTokens.textPrimary)
-        Text(message, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary)
-    }
+        modifier.semantics(mergeDescendants = true) { }.testTag(tag),
+        subtitle = message,
+    )
 }
 
 // endregion

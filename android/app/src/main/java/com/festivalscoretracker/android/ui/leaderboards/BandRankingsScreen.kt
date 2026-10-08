@@ -3,6 +3,7 @@ package com.festivalscoretracker.android.ui.leaderboards
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -32,6 +33,7 @@ import com.festivalscoretracker.android.core.rankings.RankingFormatting
 import com.festivalscoretracker.android.core.rankings.RankingNavigation
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.leaderboards.BandRankingsViewModel
+import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.fadeInStagger
@@ -122,21 +124,25 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
                 item(key = "failed") {
                     Box(swap.contentModifier) { ServiceStatusInline(shown.issue, "Band rankings unavailable", shown.countdown, viewModel::retry) }
                 }
+            } else if (entries.isEmpty()) {
+                // Web `EmptyState` (`rankings.noBandRankings`): centred text, no card (#377).
+                item(key = "empty") {
+                    Box(swap.contentModifier) {
+                        FestivalEmptyState("No ranked bands yet.", Modifier.fillMaxWidth().heightIn(min = 360.dp).testTag("fst.band-rankings.empty"))
+                    }
+                }
             } else item(key = "rows") {
                 GlassCard(Modifier.fillMaxWidth().then(swap.contentModifier)) {
                     // Rows fill this column; below the roster's minimum width they stack (issue #116).
                     var rowWidth by rememberRankingRowWidth()
                     val density = LocalDensity.current
                     Column(Modifier.padding(8.dp).onSizeChanged { rowWidth = with(density) { it.width.toDp().value } }) {
-                        when {
-                            entries.isEmpty() -> Text("No ranked bands yet.", color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))
-                            else -> CompositionLocalProvider(LocalRankingColumns provides rememberBandColumns(entries, metric, stackBelow = rowWidth)) { entries.forEachIndexed { index, entry ->
-                                Box(Modifier.festivalFadeIn(swap.revealed, fadeInStagger(index))) {
-                                    if (index > 0) RowSeparator(Modifier.align(Alignment.TopCenter))
-                                    BandRankingRow(entry, metric, entry.includes(selectedAccountId), RankingNavigation.bandRoute(entry, bandType), navigate)
-                                }
-                            } }
-                        }
+                        CompositionLocalProvider(LocalRankingColumns provides rememberBandColumns(entries, metric, stackBelow = rowWidth)) { entries.forEachIndexed { index, entry ->
+                            Box(Modifier.festivalFadeIn(swap.revealed, fadeInStagger(index))) {
+                                if (index > 0) RowSeparator(Modifier.align(Alignment.TopCenter))
+                                BandRankingRow(entry, metric, entry.includes(selectedAccountId), RankingNavigation.bandRoute(entry, bandType), navigate)
+                            }
+                        } }
                     }
                 }
             }

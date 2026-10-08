@@ -132,13 +132,12 @@ fun BandDetailScreen(viewModel: BandDetailViewModel, routeName: String?, artwork
     ) { padding ->
         val type = viewModel.bandType
         when {
-            type == null -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                BandEmptyState(
-                    "Band Not Available",
-                    "Open this band from a player's band list, Band Rankings or a song's band leaderboard.",
-                    "fst.band.unresolved",
-                )
-            }
+            type == null -> BandEmptyState(
+                "Band Not Available",
+                "Open this band from a player's band list, Band Rankings or a song's band leaderboard.",
+                "fst.band.unresolved",
+                Modifier.fillMaxSize().padding(padding),
+            )
             detailState is LoadState.Loading -> LoadingView("Loading band", Modifier.padding(padding))
             detailState is LoadState.Failed -> {
                 val failed = detailState as LoadState.Failed
