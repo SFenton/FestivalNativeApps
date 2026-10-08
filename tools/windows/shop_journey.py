@@ -251,7 +251,12 @@ SCENARIOS: dict[str, tuple[dict[str, str], str, dict, list[str], set[str] | None
             "waitgone:id=fst.shop.empty",
             "waitfor:name=0 of 2 songs",
             "{shot:shop-filter-no-match}",
-            "invoke:id=fst.shop.filter.empty-reset",
+            # Issue #377: the empty state has no Reset Filters button; the flyout's Reset is the way back.
+            "waitgone:name=Reset Filters",
+            "expand:id=fst.shop.filter",
+            "waitfor:id=fst.shop.filter.reset@5",
+            "invoke:id=fst.shop.filter.reset",
+            "collapse:id=fst.shop.filter",
             "waitfor:id=fst.shop.song.fixture-pulse@10",
             "waitfor:name=2 songs",
             "waitgone:id=fst.shop.filter.empty",

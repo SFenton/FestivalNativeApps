@@ -172,7 +172,7 @@
       "toggle:id=fst.shop.filter.new",
       "toggle:id=fst.shop.filter.leaving",
       "collapse:id=fst.shop.filter",
-      "waitfor:id=fst.shop.filter.empty-reset@5"
+      "waitfor:id=fst.shop.filter.empty@5"
     ]
   },
   {
