@@ -90,6 +90,11 @@ RUNS: tuple[Run, ...] = (
     # "B, text", stays a Level 2 heading, Jump -> title -> list order, Jump's name and 40x40 target, by pointer and keys.
     Run("section-index-backward", "a11y-section-index.json", only=SECTION_INDEX_BACKWARD),
     Run("section-index-backward-text-225", "a11y-section-index.json", mode="text-225", only=SECTION_INDEX_BACKWARD),
+    # Back from View All or a rival to cached Leaderboards and Rivals (issues #82, #276, #435): the opener and its card
+    # stay put, focus returns to the opener, it reads "<name>, button" after its card and heading, keeps a 40 epx target,
+    # and Tab/Shift+Tab continue from it; by keys (Enter, Alt+Left) and pointer (the title-bar Back).
+    Run("back-keeps-place", "a11y-back-keeps-place.json"),
+    Run("back-keeps-place-text-225", "a11y-back-keeps-place.json", sizes="compact", mode="text-225"),
 )
 
 

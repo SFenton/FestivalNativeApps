@@ -45,6 +45,11 @@ class UiCiTests(unittest.TestCase):
         self.assertIn("compact", large.sizes.split(","))
         self.assertGreaterEqual(large.tabs, 1)
 
+    def test_back_keeps_place_runs_at_default_and_largest_text(self):
+        """#435: the Back-to-cached-page pages (#82) gate pull requests at 100% and 225% text, with an Axe scan."""
+        back = {(run.mode, run.scan, run.only) for run in ci.RUNS if run.pages == "a11y-back-keeps-place.json"}
+        self.assertEqual({("normal", True, ""), ("text-225", True, "")}, back)
+
     def test_argv(self):
         run = ci.Run("x", "a11y-modals.json", sizes="compact", mode="text-225", tabs=30)
         argv = run.argv(Path("C:/out"), "debug")
