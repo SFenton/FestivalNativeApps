@@ -10,7 +10,8 @@
 
     <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Default">
-            <!-- Mutated at runtime to opaque when Windows transparency effects are off. -->
+            <!-- Mutated at runtime to opaque when Windows transparency effects are off or the in-app Less Transparency or
+                 Increase Contrast setting is on (MainWindow.ApplyTransparency, CardSurfaceOpacity). -->
             <SolidColorBrush x:Key="FSTCardSurfaceBrush" Color="#C7121826" />
             <SolidColorBrush x:Key="FSTCardStrokeBrush" Color="#14FFFFFF" />
             <!-- Linked card buttons (Player Profile stat cards): hover/press surfaces and the hover outline. -->

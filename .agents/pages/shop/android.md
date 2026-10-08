@@ -61,7 +61,7 @@ Debug APK, `device.py drive --route shop --extra FST_DEBUG_STILL_BACKGROUND=1`, 
 | TalkBack | Sheet: Drag handle, "Filter Item Shop. Heading", Close, hint, "Off. New. … Switch", "Off. Available …", "Off. Leaving Tomorrow …", "Reset. Button". **Fixed:** the Filter button used to read only "Filter Item Shop. Button" while a filter was on, so its state was conveyed by colour alone. It now reads "Filters on: Leaving Tomorrow. Filter Item Shop. Button". M3 Icon Button guidance: *"Toggle buttons should have descriptive labels for both states."* |
 | Connected | `SongsAccessibilityJourneyTest#itemShop` (it now also asserts the state description) passes on FST_Phone and on FST_Book_Fold `--posture half`, including the Accessibility Test Framework checks for 48 dp targets, labels and contrast. |
 
-Robolectric: `SongsUiTest.shopFilter*` covers filtering, reopen state, Reset, no-match and the button's state description; `SongDetailAndShopTest.shopOfferFilterDescribesItsStateForTalkBack` covers the text. Since issue #376 the switches read "On." by default and a filtered button reads "Filters on: hiding Leaving Tomorrow"; `SongDetailAndShopTest.shopFilterStartsAllOnAndEachSwitchHidesItsGroup` and `SongsUiTest.shopFilterSheetFiltersListAndKeepsStateWhenReopened` pin the all-on default.
+Robolectric: `SongsUiTest.shopFilter*` covers filtering, reopen state, Reset, no-match and the button's state description; `SongDetailAndShopTest.shopOfferFilterDescribesItsStateForTalkBack` covers the text. Since issue #376 the switches read "On." by default and a filtered button reads "Filters on: hiding Leaving Tomorrow"; `SongDetailAndShopTest.shopFilterStartsAllOnAndEachSwitchHidesItsGroup` and `SongsUiTest.shopFilterSheetFiltersListAndKeepsStateWhenReopened` pin the all-on default. Device: `ShopFilterAccessibilityJourneyTest` (`@DeviceCi`, issue #428) runs ATF at the device's text size and at 200% system text and asserts the reading order (heading, Close, hint, New, Available, Leaving Tomorrow, Reset), each switch row as one checkable stop with the Switch role and On/Off state, 48 dp targets for the rows, Close, Reset and the Filter button, unclipped label and description text inside each row, and each switch's Off state hiding its group with the Filter button reading "Filters on: hiding …". A real TalkBack walk (FST_Phone, live Shop) read "On. New. Songs that are new in the Item Shop today. Switch" for each row.
 
 ## Validation (issue #144, 2026-10-04, live public service): shared Song Row
 
@@ -77,7 +77,7 @@ Checks that the #18 list row (`ShopListRow` → `SongRowCard`) matches Songs in 
 | FST_Book_Fold / FST_Passport_Fold | Folded is the compact list. Unfolded is one full-width list. Half-open at 1.0× is one row per pane with the gap on the fold. Half-open at 2.0× is one full-width column, by design (see Layouts). |
 | FST_TriFold folded/partial/unfolded | Compact list, then the rail with full-width rows (the emulator reports no `FoldingFeature`). 2.0× wraps inside the rows. |
 | TalkBack (FST_Phone) | Item Shop, Search, Choose profile, then each row ("Title. Artist · Year", list position on the first), followed by its "Open … in the Fortnite Item Shop. Button". |
-| Connected | `SongsAccessibilityJourneyTest#itemShop` passes on FST_Phone (ATF touch-target, label and contrast checks). |
+| Connected | `SongsAccessibilityJourneyTest#itemShop` passes on FST_Phone (ATF touch-target, label and contrast checks). `SongsAccessibilityJourneyTest#itemShopSharedSongRow` (#397) asserts the shared row on the device, below. Both carry `@DeviceCi`, so the `android-device` CI job runs them on every Android PR. |
 
 `ShopListRowUiTest` (Robolectric) pins the shared-row contract:
 - A row opens Song Details when matched, else the official link.
@@ -85,6 +85,12 @@ Checks that the #18 list row (`ShopListRow` → `SongRowCard`) matches Songs in 
 - A long title runs as a one-line marquee.
 - Under reduced motion a long title holds still and ends in "…".
 - At 2.0× a long title wraps inside the row.
+
+The connected `SongsAccessibilityJourneyTest#itemShopSharedSongRow` (issue #397) pins the same row on a device, at 1.0× and again at 2.0× font scale (switched in place), with ATF before every step:
+- Each row is one clickable stop whose spoken label holds its title, artist line and New / Leaving Tomorrow badge, with no description and no selected state.
+- Its "Open <title> in the Fortnite Item Shop" button is the very next stop, and rows read in sort order, including across a half-open fold's split list.
+- Row and link are at least 48 × 48 dp, and each title stays inside its row. The 2.0× titles must render taller than at 1.0×.
+- Known ATF warning, not an error: two offers with the same title (the fixture's two "Alpha Tune" rows) give their links identical labels. Each link directly follows its row, so the row provides the context.
 
 ## Open
 
