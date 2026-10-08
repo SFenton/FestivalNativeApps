@@ -34,7 +34,7 @@ jobs:
             profile: pixel_6
             expect_fold: false
           - id: fold-half
-            profile: pixel_fold
+            profile: pixel_6
             expect_fold: true
     steps:
       - uses: actions/checkout@v4
@@ -52,7 +52,7 @@ jobs:
           path: |
             ~/.android/avd
             ~/.android/adb*
-          key: android-device-avd-api-35-google-apis-x86_64-${{ matrix.profile }}-v1
+          key: android-device-avd-api-35-google-apis-x86_64-${{ matrix.id }}-v1
       - name: Run instrumented tests
         uses: reactivecircus/android-emulator-runner@v2.34.0
         with:
@@ -65,15 +65,19 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
-            set -euo pipefail
+            set -eu
             dump_logcat() {
               adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/android-device-${{ matrix.id }}-logcat.txt" || true
             }
             trap dump_logcat EXIT
             if [ "${{ matrix.expect_fold }}" = "true" ]; then
-              adb emu posture 2
+              adb shell wm size 2208x1840
+              adb shell wm density 420
+              adb shell settings put global display_features 'fold-[1104,0,1104,1840]-half-opened'
               sleep 2
-              adb shell cmd device_state print-states || true
+              adb shell wm size
+              adb shell wm density
+              adb shell settings get global display_features
             fi
             bash android/gradlew -p android :app:connectedDebugAndroidTest --no-daemon --stacktrace \
               -Pandroid.testInstrumentationRunnerArguments.fst.expectFold=${{ matrix.expect_fold }}
