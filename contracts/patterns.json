@@ -3175,7 +3175,8 @@
         "year",
         "duration",
         "sort modal",
-        "sort flyout"
+        "sort flyout",
+        "SongSortForm"
       ],
       "web": [
         {
@@ -3238,12 +3239,20 @@
             "symbol": "SongCatalogQuery"
           },
           {
-            "path": "windows/Festival.App/Pages/SongsPage.xaml",
-            "symbol": "SortFlyout"
+            "path": "windows/Festival.App/Controls/SongSortForm.xaml.cs",
+            "symbol": "SongSortForm"
           },
           {
             "path": "windows/Festival.Core/ViewModels/SongsViewModel.cs",
             "symbol": "SongSortDraft"
+          },
+          {
+            "path": "windows/Festival.Core/Data/ShopModels.cs",
+            "symbol": "ShopOfferSort"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/ShopViewModel.cs",
+            "symbol": "ShopViewModel"
           }
         ]
       },
@@ -3252,7 +3261,8 @@
           "modal-shell",
           "page-tools-and-nav-chrome",
           "hinge-columns",
-          "wide-columns"
+          "wide-columns",
+          "empty-error-states"
         ],
         "pages": [
           "songs",
@@ -3270,11 +3280,22 @@
           ],
           "debt": [],
           "message": "Catalogue Sort sheets (Songs, Item Shop, first-run demo) reuse SongsSheets SortDirectionSection; never copy the Sort Direction rows (catalogue-sort R1). Score History's segmented Sort Scores row is a separate control."
+        },
+        {
+          "id": "windows-forked-sort-form",
+          "glob": "windows/Festival.App/**/*.xaml",
+          "regex": "Header=\"Direction\"",
+          "allow": [
+            "windows/Festival.App/Controls/SongSortForm.xaml"
+          ],
+          "debt": [],
+          "message": "Windows catalogue Sort flyouts (Songs, Item Shop) host Controls/SongSortForm with their own Draft, Title and IdPrefix; never copy its Sort By / Direction groups into a page (catalogue-sort R1)."
         }
       ],
       "supersedes": [],
       "issues": [
         125,
+        218,
         379
       ]
     }
