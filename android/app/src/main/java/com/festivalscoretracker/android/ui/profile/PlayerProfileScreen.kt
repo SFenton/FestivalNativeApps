@@ -57,7 +57,6 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.ui.design.readingGroup
@@ -78,6 +77,7 @@ import com.festivalscoretracker.android.presentation.profile.ProfilePhase
 import com.festivalscoretracker.android.presentation.profile.RankHistoryLoad
 import com.festivalscoretracker.android.presentation.profile.RankLoad
 import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
+import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
@@ -504,19 +504,15 @@ internal fun SubHeader(text: String, first: Boolean = false) {
 
 // region Tiles and messages
 
+/** A centred page state: the shared [FestivalEmptyState] (#377), with Retry only while syncing. */
 @Composable
 private fun Message(title: String, body: String, padding: PaddingValues, modifier: Modifier, onRetry: (() -> Unit)? = null) {
-    Column(
-        modifier.fillMaxSize().padding(padding).padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
-        Text(body, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
-        if (onRetry != null) {
-            Button(onClick = onRetry, colors = festivalFilledButtonColors(), modifier = Modifier.padding(top = 16.dp).testTag("fst.player.retry")) { Text("Retry") }
-        }
-    }
+    FestivalEmptyState(
+        title,
+        modifier.fillMaxSize().padding(padding),
+        subtitle = body,
+        action = onRetry?.let { retry -> { Button(onClick = retry, colors = festivalFilledButtonColors(), modifier = Modifier.testTag("fst.player.retry")) { Text("Retry") } } },
+    )
 }
 
 // endregion

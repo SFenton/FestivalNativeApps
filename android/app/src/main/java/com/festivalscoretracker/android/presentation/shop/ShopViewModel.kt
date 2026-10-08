@@ -67,7 +67,7 @@ data class ShopUiState(
     val sortPaused: String? = null,
     val sortWaiting: Boolean = false,
 ) {
-    /** The feed has offers but the filter hides them all ("No Matching Songs", not the empty Shop). */
+    /** The feed has offers but the filter hides them all (the filtered empty state, not the empty Shop). */
     val filteredEmpty: Boolean get() = offers.isEmpty() && totalOffers > 0
 }
 
