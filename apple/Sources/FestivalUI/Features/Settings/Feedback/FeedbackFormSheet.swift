@@ -38,8 +38,9 @@ struct FeedbackFormSheet: View {
     @State private var libraryLinks = FeedbackPickerLinks<PhotosPickerItem>()
     /// How many drop targets (the sheet, each form row and header) the drag is over.
     @State private var dropTargets = 0
+    /// How many times the drop highlight has appeared (Debug UI-test marker only).
+    @State private var dropHighlights = 0
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.deviceLayout) private var layout
 
     /// Create an empty form.
@@ -56,7 +57,13 @@ struct FeedbackFormSheet: View {
     var body: some View {
         NavigationStack {
             panes
-                .overlay { if dropTargets > 0 && model.acceptsMedia { FeedbackDropHighlight() } }
+                .overlay {
+                    if dropTargets > 0 && model.acceptsMedia {
+                        FeedbackDropHighlight()
+                            .onAppear { dropHighlights += 1 }
+                    }
+                }
+                .overlay(alignment: .topLeading) { dropMarker }
                 .modifier(dropTarget)
                 .navigationTitle(kind.formTitle)
                 #if os(iOS)
@@ -121,24 +128,17 @@ struct FeedbackFormSheet: View {
 
     // MARK: - Panes
 
-    /// The form alone, or the form and the photo library side by side (issue #373).
-    /// Equal halves, so on the flat Duo inner display the split meets the hinge like the
-    /// app's other splits (pattern `hinge-columns`).
+    /// The form alone, or the form and the photo library side by side (issue #373), through
+    /// the canonical hinge-aware row: they meet at a partially folded Duo's fold and divide
+    /// the sheet at its midpoint otherwise (pattern `hinge-columns` R1, R7).
     private var panes: some View {
-        HStack(spacing: 0) {
+        FeedbackFormPanes(showsLibrary: libraryPaneVisible) {
             form
                 // Fade under the header like every `FestivalModal` (#94).
                 .modifier(ModalTopEdgeFadeModifier())
-                .frame(maxWidth: .infinity)
-            if libraryPaneVisible {
-                Divider()
-                    .ignoresSafeArea(edges: .bottom)
-                libraryPane
-                    .frame(maxWidth: .infinity)
-                    .transition(reduceMotion ? .opacity : .move(edge: .trailing).combined(with: .opacity))
-            }
+        } library: {
+            libraryPane
         }
-        .animation(reduceMotion ? nil : .snappy, value: showingLibraryPane)
     }
 
     /// The system photo picker shown inline beside the form. Ticking a photo attaches it,
@@ -172,6 +172,24 @@ struct FeedbackFormSheet: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.settings.feedback.library")
+    }
+
+    /// Debug UI-test marker (`FST_UI_TEST_DROP_MARKER=1` only): a drop journey's long
+    /// press blocks XCUITest until the drop, so it cannot see the highlight while it shows.
+    /// The count of highlights shown persists instead, like `fst.publication.announced`.
+    @ViewBuilder
+    private var dropMarker: some View {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["FST_UI_TEST_DROP_MARKER"] == "1" {
+            Color.clear
+                .frame(width: 1, height: 1)
+                .allowsHitTesting(false)
+                .accessibilityElement()
+                .accessibilityLabel("Drop highlights shown")
+                .accessibilityValue(String(dropHighlights))
+                .accessibilityIdentifier("fst.settings.feedback.drop.shown")
+        }
+        #endif
     }
 
     // MARK: - Form

@@ -454,7 +454,9 @@ struct HingeEagerGridLayout: Layout {
 /// One row of equal cells whose gutter sits on an iPhone Duo fold in book pose; equal
 /// widths otherwise, like an `HStack` of `.frame(maxWidth: .infinity)` cells. Page
 /// columns in wide landscape (Songs' and Search's two-card rows, pattern `wide-columns`)
-/// pass ``Hinge/page`` so the gutter meets the hinge while flat too.
+/// pass ``Hinge/page`` so the gutter meets the hinge while flat too. Side-by-side panes
+/// (the feedback form and its photo library, #373) pass `fillsHeight` so each pane takes
+/// the row's whole height.
 struct HingeRow<Content: View>: View {
     /// Which hinge the gutter follows.
     enum Hinge: Sendable {
@@ -468,6 +470,7 @@ struct HingeRow<Content: View>: View {
 
     private let spacing: CGFloat
     private let hinge: Hinge
+    private let fillsHeight: Bool
     private let content: Content
     @Environment(\.deviceLayout) private var layout
     @State private var span: HorizontalSpan?
@@ -477,10 +480,17 @@ struct HingeRow<Content: View>: View {
     /// - Parameters:
     ///   - spacing: Gap between cells (and the narrowest clearance over the fold).
     ///   - hinge: Which hinge the gutter follows (default ``Hinge/fold``).
-    ///   - content: The cells, an even count (pad a short row with clear cells).
-    init(spacing: CGFloat, hinge: Hinge = .fold, @ViewBuilder content: () -> Content) {
+    ///   - fillsHeight: Give every cell the row's proposed height (side-by-side panes)
+    ///     instead of its own (default false: cards, top-aligned).
+    ///   - content: The cells, an even count (pad a short row with clear cells); one cell
+    ///     alone fills the row.
+    init(
+        spacing: CGFloat, hinge: Hinge = .fold, fillsHeight: Bool = false,
+        @ViewBuilder content: () -> Content
+    ) {
         self.spacing = spacing
         self.hinge = hinge
+        self.fillsHeight = fillsHeight
         self.content = content()
     }
 
@@ -489,7 +499,7 @@ struct HingeRow<Content: View>: View {
             span: span, fold: hinge == .page ? layout.splitHinge : layout.foldFrame,
             gutter: spacing, minimumSide: HingeColumns.minimumSide
         )
-        HingeRowLayout(spacing: spacing, band: band) { content }
+        HingeRowLayout(spacing: spacing, band: band, fillsHeight: fillsHeight) { content }
             .measuresHorizontalSpan($span)
     }
 }
@@ -501,6 +511,19 @@ struct HingeRowLayout: Layout {
     var spacing: CGFloat
     /// The fold's band across the row, or nil.
     var band: HingeBand?
+    /// Every cell takes the row's proposed height (side-by-side panes).
+    var fillsHeight = false
+
+    /// What a cell is offered.
+    ///
+    /// - Parameters:
+    ///   - width: The cell's width.
+    ///   - rowHeight: The row's proposed height, if any.
+    /// - Returns: The width, and the row's height when ``fillsHeight`` (otherwise the
+    ///   cell's own height).
+    func cellProposal(width: CGFloat, rowHeight: CGFloat?) -> ProposedViewSize {
+        ProposedViewSize(width: width, height: fillsHeight ? rowHeight : nil)
+    }
 
     /// Cell widths and leading offsets for a width.
     ///
@@ -521,8 +544,9 @@ struct HingeRowLayout: Layout {
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? subviews.map { $0.sizeThatFits(.unspecified).width }.reduce(0, +)
             + spacing * CGFloat(max(0, subviews.count - 1))
+        if fillsHeight, let height = proposal.height { return CGSize(width: width, height: height) }
         let height = zip(subviews, cells(width: width, count: subviews.count))
-            .map { $0.sizeThatFits(ProposedViewSize(width: $1.width, height: nil)).height }
+            .map { $0.sizeThatFits(cellProposal(width: $1.width, rowHeight: proposal.height)).height }
             .max() ?? 0
         return CGSize(width: width, height: height)
     }
@@ -531,7 +555,7 @@ struct HingeRowLayout: Layout {
         for (subview, cell) in zip(subviews, cells(width: bounds.width, count: subviews.count)) {
             subview.place(
                 at: CGPoint(x: bounds.minX + cell.x, y: bounds.minY), anchor: .topLeading,
-                proposal: ProposedViewSize(width: cell.width, height: nil)
+                proposal: cellProposal(width: cell.width, rowHeight: bounds.height)
             )
         }
     }
