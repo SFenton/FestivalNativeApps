@@ -16,6 +16,7 @@ import com.festivalscoretracker.android.data.FestivalApi
 import com.festivalscoretracker.android.data.ForcedFreezeTransport
 import com.festivalscoretracker.android.data.HttpTransport
 import com.festivalscoretracker.android.data.OkHttpTransport
+import com.festivalscoretracker.android.data.RetiredSettingsMigration
 import com.festivalscoretracker.android.data.SettingsRepository
 import com.festivalscoretracker.android.data.shop.shop
 import com.festivalscoretracker.android.data.songs.SongsPreferences
@@ -35,8 +36,11 @@ import okhttp3.OkHttpClient
 
 // region Container
 
-/** Process-wide preferences store for [SettingsRepository]. */
-private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "fst_settings")
+/** Process-wide preferences store for [SettingsRepository]; opening it drops retired keys. */
+private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "fst_settings",
+    produceMigrations = { listOf(RetiredSettingsMigration) },
+)
 
 /**
  * Manual dependency graph for the single activity (process lifetime).

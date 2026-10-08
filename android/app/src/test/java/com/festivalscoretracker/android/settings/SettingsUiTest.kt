@@ -141,9 +141,6 @@ class SettingsUiTest {
         rule.onNodeWithTag("fst.settings.list").performScrollToNode(hasTestTag("fst.settings.leeway"))
         rule.onNodeWithTag("fst.settings.leeway").performSemanticsAction(SemanticsActions.SetProgress) { it(2.5f) }
         settle()
-        tap("fst.settings.tap-telemetry") // disabled until diagnostics
-        tap("fst.settings.tap-diagnostics")
-        tap("fst.settings.tap-telemetry")
         tap("fst.settings.hide-shop")
         rule.onNodeWithTag("fst.settings.disable-shop-highlighting").assertIsNotEnabled()
         Instrument.entries.drop(1).forEach { tap("fst.settings.instrument.${it.wireId}") }
@@ -163,7 +160,6 @@ class SettingsUiTest {
         assertEquals(PathColumnKey.Score, s.pathColumnOrder[3])
         assertTrue(s.filterInvalidScores)
         assertEquals(2.5, s.leeway, 0.0)
-        assertTrue(s.tapDiagnostics && s.tapTelemetry)
         assertTrue(s.hideShop)
         assertFalse(s.shopHighlightEnabled)
         assertEquals(setOf(Instrument.Lead), s.visibleInstruments)
@@ -451,6 +447,7 @@ class ExpandedSettingsUiTest {
         tapInList(SettingsDetail.Version.rowTag)
         waitForTag("fst.settings.app-version")
         assertFalse(exists("fst.settings.detail.show-instruments"))
+        rule.onNodeWithTag("fst.settings.list").performScrollToNode(hasTestTag(SettingsDetail.ShowInstruments.rowTag))
         rule.onNodeWithTag(SettingsDetail.ShowInstruments.rowTag).assert(SemanticsMatcher.expectValue(SemanticsProperties.Selected, false))
     }
 

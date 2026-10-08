@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.data
 
+import androidx.datastore.core.DataMigration
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
@@ -176,8 +177,6 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
         private val KEY_EXPERIMENTAL_RANKS = booleanPreferencesKey(SettingsRegistry.EXPERIMENTAL_RANKS)
         private val KEY_HIDE_SHOP = booleanPreferencesKey(SettingsRegistry.HIDE_SHOP)
         private val KEY_DISABLE_SHOP_HIGHLIGHTING = booleanPreferencesKey(SettingsRegistry.DISABLE_SHOP_HIGHLIGHTING)
-        private val KEY_TAP_DIAGNOSTICS = booleanPreferencesKey(SettingsRegistry.TAP_DIAGNOSTICS)
-        private val KEY_TAP_TELEMETRY = booleanPreferencesKey(SettingsRegistry.TAP_TELEMETRY)
         private val KEY_VISIBLE_METADATA = stringPreferencesKey(SettingsRegistry.VISIBLE_METADATA)
 
         /**
@@ -203,8 +202,6 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             prefs[KEY_EXPERIMENTAL_RANKS] = settings.experimentalRanks
             prefs[KEY_HIDE_SHOP] = settings.hideShop
             prefs[KEY_DISABLE_SHOP_HIGHLIGHTING] = settings.disableShopHighlighting
-            prefs[KEY_TAP_DIAGNOSTICS] = settings.tapDiagnostics
-            prefs[KEY_TAP_TELEMETRY] = settings.tapTelemetry
             prefs[KEY_VISIBLE_METADATA] = SettingsCodec.encodeMetadata(settings.visibleMetadata)
         }
 
@@ -238,12 +235,30 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
                 experimentalRanks = prefs[KEY_EXPERIMENTAL_RANKS] ?: false,
                 hideShop = prefs[KEY_HIDE_SHOP] ?: false,
                 disableShopHighlighting = prefs[KEY_DISABLE_SHOP_HIGHLIGHTING] ?: false,
-                tapDiagnostics = prefs[KEY_TAP_DIAGNOSTICS] ?: false,
-                tapTelemetry = prefs[KEY_TAP_TELEMETRY] ?: false,
                 visibleMetadata = SettingsCodec.decodeMetadata(prefs[KEY_VISIBLE_METADATA]),
             ).sanitized()
         }
     }
+}
+
+// endregion
+
+// region Retired keys
+
+/**
+ * Deletes [SettingsRegistry.retiredKeys] (Tap Diagnostics / Tap Telemetry, #374)
+ * that older builds persisted; runs once when the settings store first opens.
+ */
+object RetiredSettingsMigration : DataMigration<Preferences> {
+    override suspend fun shouldMigrate(currentData: Preferences): Boolean =
+        currentData.asMap().keys.any { it.name in SettingsRegistry.retiredKeys }
+
+    override suspend fun migrate(currentData: Preferences): Preferences =
+        currentData.toMutablePreferences().apply {
+            asMap().keys.filter { it.name in SettingsRegistry.retiredKeys }.forEach { remove(it) }
+        }.toPreferences()
+
+    override suspend fun cleanUp() = Unit
 }
 
 // endregion

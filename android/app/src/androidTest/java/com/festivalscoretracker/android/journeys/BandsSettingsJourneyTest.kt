@@ -3,8 +3,10 @@ package com.festivalscoretracker.android.journeys
 import com.festivalscoretracker.android.core.settings.SettingsDetail
 import android.os.Build
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -17,6 +19,7 @@ import com.festivalscoretracker.android.testing.BandFixtures
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -115,5 +118,59 @@ class BandsSettingsJourneyTest {
         h.readingOrder("licenses")
         assertTrue(h.exists("fst.licenses.list"))
         h.assertAccessible()
+    }
+
+    /**
+     * #374: Debug Settings (connected journeys run the Debug build, where the Diagnostics section
+     * used to appear) shows neither the Diagnostics section and its Quick Link nor the Tap
+     * Diagnostics / Tap Telemetry switches. Release parity is `SettingsPanesTest`.
+     */
+    @Test
+    fun debugSettingsHasNoTapDiagnostics() {
+        assertTrue("connected journeys must exercise the Debug build", BuildConfig.DEBUG)
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(section = FestivalSection.Settings, stillBackground = true), transport)
+        h.waitForTag("fst.settings.list")
+        // Lazy lists answer for every key, composed or not: Diagnostics used to sit at index 1.
+        val indexForKey = rule.onNodeWithTag("fst.settings.list").fetchSemanticsNode().config[SemanticsProperties.IndexForKey]
+        assertEquals(-1, indexForKey(RETIRED_SECTION))
+        assertEquals(1, indexForKey("item-shop"))
+        assertTrue(indexForKey("reset") > 0)
+        // Walk the list past where the section stood down to Reset, checking each viewport.
+        listOf("fst.settings.section.app-settings", "fst.settings.section.item-shop", "fst.settings.reset").forEach { anchor ->
+            h.scrollTo("fst.settings.list", anchor)
+            assertNoTapDiagnostics()
+        }
+        val order = h.readingOrder("settings-no-diagnostics")
+        assertTrue("reading order $order", order.none { it.contains("Tap Diagnostics") || it.contains("Tap Telemetry") })
+        // Quick Links: a sheet on compact windows, a menu on wider ones.
+        h.tap("fst.quick-links.open")
+        rule.waitUntil(15_000) { h.exists("fst.quick-links.sheet") || h.exists("fst.quick-links.menu") }
+        h.waitForTag("fst.quick-links.item.app-settings")
+        if (h.exists("fst.quick-links.list")) {
+            val linkIndex = rule.onNodeWithTag("fst.quick-links.list").fetchSemanticsNode().config[SemanticsProperties.IndexForKey]
+            assertEquals(-1, linkIndex(RETIRED_SECTION))
+            h.scrollTo("fst.quick-links.list", "fst.quick-links.item.reset")
+        }
+        h.waitForTag("fst.quick-links.item.reset")
+        assertFalse(h.exists("fst.quick-links.item.$RETIRED_SECTION"))
+        h.readingOrder("settings-quick-links-no-diagnostics").let { links ->
+            assertTrue("quick links $links", links.none { it.contains("Diagnostics") })
+        }
+        h.assertAccessible()
+    }
+
+    private fun assertNoTapDiagnostics() {
+        listOf("fst.settings.section.$RETIRED_SECTION", "fst.settings.tap-diagnostics", "fst.settings.tap-telemetry").forEach {
+            assertFalse("$it is still shown", h.exists(it))
+        }
+        listOf("Tap Diagnostics", "Tap Telemetry", "Diagnostics").forEach {
+            assertTrue("\"$it\" is still shown", rule.onAllNodesWithText(it, substring = true, useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        }
+    }
+
+    private companion object {
+        /** The retired Debug-only section's Quick Links ID and list key (#374). */
+        const val RETIRED_SECTION = "diagnostics"
     }
 }

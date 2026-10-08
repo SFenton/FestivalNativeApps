@@ -181,20 +181,6 @@ class SettingsViewModel(
     fun setDisableShopHighlighting(enabled: Boolean) = update { it.copy(disableShopHighlighting = enabled) }
 
     /**
-     * Debug tap diagnostics (clears telemetry when turned off).
-     *
-     * @param enabled Value.
-     */
-    fun setTapDiagnostics(enabled: Boolean) = update { it.withTapDiagnostics(enabled) }
-
-    /**
-     * Debug tap telemetry (requires diagnostics).
-     *
-     * @param enabled Value.
-     */
-    fun setTapTelemetry(enabled: Boolean) = update { it.copy(tapTelemetry = enabled) }
-
-    /**
      * Reduce Motion override.
      *
      * @param enabled Value.

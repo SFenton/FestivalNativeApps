@@ -114,13 +114,12 @@ import com.festivalscoretracker.android.ui.common.FestivalAlertDialog
 /**
  * Settings sections in web order (quick-link IDs double as list keys and test
  * tags), plus the native Accessibility section after Show Instrument Metadata.
+ * The web's Diagnostics section (Tap Diagnostics / Tap Telemetry) is not ported (#374).
  *
- * @param debug Whether the debug-only Diagnostics section exists.
  * @return Quick Links sections.
  */
-internal fun settingsSections(debug: Boolean): List<QuickLinkSection> = buildList {
+internal fun settingsSections(): List<QuickLinkSection> = buildList {
     add(QuickLinkSection("app-settings", "App Settings", "settings"))
-    if (debug) add(QuickLinkSection("diagnostics", "Diagnostics", "info"))
     add(QuickLinkSection("item-shop", "Item Shop", "shop"))
     add(QuickLinkSection("show-instruments", "Show Instruments", "music"))
     add(QuickLinkSection("show-metadata", "Show Instrument Metadata", "list"))
@@ -147,7 +146,7 @@ internal fun settingsSections(debug: Boolean): List<QuickLinkSection> = buildLis
  * @param viewModel Settings actions.
  * @param serviceOrigin Active service origin (shown in Version).
  * @param onReplayFirstRun Settings "Show" for one page's first-run guide.
- * @param debug Whether this is a debug build (Diagnostics section).
+ * @param debug Whether this is a debug build (Version → Build).
  * @param onShowWhatsNew Settings → Version "What's New" Show (replays the changelog sheet).
  * @param feedback Report an Issue / Request a Feature form (App Settings rows; hidden when null or
  *   until `GET /api/features` reports `feedback: true`).
@@ -164,7 +163,7 @@ fun SettingsScreen(
 ) {
     val shell = LocalShellActions.current
     val listState = rememberLazyListState()
-    val sections = remember(debug) { settingsSections(debug) }
+    val sections = remember { settingsSections() }
     val quickLinks = rememberQuickLinks(listState, "Quick Links", sections) { id -> sections.indexOfFirst { it.id == id }.takeIf { it >= 0 } }
     val density = LocalDensity.current
     val windowWidthDp = with(density) { currentWindowSize().width.toDp().value.toInt() }
@@ -219,7 +218,6 @@ fun SettingsScreen(
                                 } else {
                                     when (section.id) {
                                         "app-settings" -> AppSettingsSection(settings, viewModel, onFeedback, panes)
-                                        "diagnostics" -> DiagnosticsSection(settings, viewModel)
                                         "item-shop" -> ItemShopSection(settings, viewModel)
                                         "show-instruments" -> InstrumentsSection(settings, viewModel)
                                         "show-metadata" -> MetadataSection(settings, viewModel)
@@ -434,29 +432,6 @@ private fun LeewayControl(leeway: Double, onChange: (Double) -> Unit, inPane: Bo
             )
             Text(ScoreLeeway.format(shown), color = BrandTokens.textSecondary, modifier = Modifier.padding(start = 12.dp).widthIn(min = 56.dp).clearAndSetSemantics { })
         }
-    }
-}
-
-@Composable
-private fun DiagnosticsSection(settings: AppSettings, vm: SettingsViewModel) {
-    Header("Diagnostics", "Debug-only tools for investigating mobile tap and navigation issues.")
-    GlassCard(Modifier.fillMaxWidth()) {
-        ToggleRow(
-            "Tap Diagnostics",
-            "Capture recent taps, hit targets, routes, and shell state in a local diagnostic buffer on this device.",
-            settings.tapDiagnostics, vm::setTapDiagnostics, "fst.settings.tap-diagnostics",
-        )
-        Divider()
-        ToggleRow(
-            "Upload Tap Telemetry",
-            if (settings.tapDiagnostics) {
-                "Send sanitized tap diagnostic batches to the development service logs while diagnostics are enabled."
-            } else {
-                "Enable Tap Diagnostics first, then upload sanitized batches to the development service logs."
-            },
-            settings.tapTelemetry && settings.tapDiagnostics, vm::setTapTelemetry, "fst.settings.tap-telemetry",
-            enabled = settings.tapDiagnostics,
-        )
     }
 }
 

@@ -14,7 +14,7 @@ import org.junit.Test
 class SettingsPanesTest {
     @Test
     fun everyMultiOptionSectionIsADetailAndTheRestStayInTheList() {
-        val sections = settingsSections(debug = true).map { it.id }
+        val sections = settingsSections().map { it.id }
         val details = sections.mapNotNull { SettingsDetail.forSection(it) }
         assertEquals(
             listOf(
@@ -23,7 +23,9 @@ class SettingsPanesTest {
             ),
             details,
         )
-        assertEquals(listOf("app-settings", "diagnostics", "reset"), sections.filter { SettingsDetail.forSection(it) == null })
+        assertEquals(listOf("app-settings", "reset"), sections.filter { SettingsDetail.forSection(it) == null })
+        // Tap Diagnostics / Tap Telemetry are gone in every build (#374).
+        assertTrue("diagnostics" !in sections)
         // Every section detail is a real section; App Settings options never replace a section.
         assertEquals(SettingsDetail.entries.filter { it.section }.map { it.id }.toSet(), details.map { it.id }.toSet())
         assertNull(SettingsDetail.forSection("path-default-view"))

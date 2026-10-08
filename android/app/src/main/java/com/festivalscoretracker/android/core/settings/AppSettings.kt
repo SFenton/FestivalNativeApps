@@ -33,8 +33,6 @@ import com.festivalscoretracker.android.core.songs.SongSortMode
  * @property experimentalRanks Experimental leaderboard ranks (not yet available natively: sanitized to off).
  * @property hideShop Hide the Item Shop (navigation, sorts and highlights; the highlight preference is kept).
  * @property disableShopHighlighting Stop pulsing Shop highlights.
- * @property tapDiagnostics Debug-only tap diagnostics.
- * @property tapTelemetry Debug-only tap telemetry (requires [tapDiagnostics]).
  * @property visibleMetadata Song-row metadata fields shown (all may be off).
  */
 data class AppSettings(
@@ -57,8 +55,6 @@ data class AppSettings(
     val experimentalRanks: Boolean = false,
     val hideShop: Boolean = false,
     val disableShopHighlighting: Boolean = false,
-    val tapDiagnostics: Boolean = false,
-    val tapTelemetry: Boolean = false,
     val visibleMetadata: Set<MetadataField> = MetadataField.entries.toSet(),
 ) {
     /** Whether Shop songs are highlighted (Shop visible and highlighting on; web `shopHighlightEnabled`). */
@@ -86,7 +82,6 @@ data class AppSettings(
         pathColumnOrder = SettingsOrder.normalize(pathColumnOrder, PathColumnKey.entries),
         leeway = ScoreLeeway.clamp(leeway),
         experimentalRanks = false,
-        tapTelemetry = tapTelemetry && tapDiagnostics,
     )
 
     /**
@@ -120,15 +115,6 @@ data class AppSettings(
      */
     fun withMetadataVisible(field: MetadataField, visible: Boolean): AppSettings =
         copy(visibleMetadata = if (visible) visibleMetadata + field else visibleMetadata - field)
-
-    /**
-     * Toggle tap diagnostics; turning it off also clears telemetry (web `handleToggleTapDiagnostics`).
-     *
-     * @param enabled New value.
-     * @return Updated settings.
-     */
-    fun withTapDiagnostics(enabled: Boolean): AppSettings =
-        copy(tapDiagnostics = enabled, tapTelemetry = tapTelemetry && enabled)
 
     /**
      * Restore app settings only (web Reset Settings): every [ResetPolicy.AppSetting]
