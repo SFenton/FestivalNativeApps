@@ -65,25 +65,16 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
-            set -eu
-            dump_logcat() {
-              adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/android-device-${{ matrix.id }}-logcat.txt" || true
-            }
-            trap dump_logcat EXIT
-            if [ "${{ matrix.expect_fold }}" = "true" ]; then
-              adb shell wm size 2208x1840
-              adb shell wm density 420
-              adb shell settings put global display_features 'fold-[1104,0,1104,1840]-half-opened'
-              sleep 2
-              adb shell wm size
-              adb shell wm density
-              adb shell settings get global display_features
-            fi
-            bash android/gradlew -p android :app:connectedDebugAndroidTest --no-daemon --stacktrace \
-              -Pandroid.testInstrumentationRunnerArguments.fst.expectFold=${{ matrix.expect_fold }}
-            if [ "${{ matrix.expect_fold }}" = "true" ]; then
-              adb logcat -d -v threadtime -s FST_FOLD:I
-            fi
+            trap 'adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/android-device-${{ matrix.id }}-logcat.txt" || true' EXIT
+            [ "${{ matrix.expect_fold }}" != "true" ] || adb shell wm size 2208x1840
+            [ "${{ matrix.expect_fold }}" != "true" ] || adb shell wm density 420
+            [ "${{ matrix.expect_fold }}" != "true" ] || adb shell settings put global display_features 'fold-[1104,0,1104,1840]-half-opened'
+            [ "${{ matrix.expect_fold }}" != "true" ] || sleep 2
+            [ "${{ matrix.expect_fold }}" != "true" ] || adb shell wm size
+            [ "${{ matrix.expect_fold }}" != "true" ] || adb shell wm density
+            [ "${{ matrix.expect_fold }}" != "true" ] || adb shell settings get global display_features
+            bash android/gradlew -p android :app:connectedDebugAndroidTest --no-daemon --stacktrace -Pandroid.testInstrumentationRunnerArguments.fst.expectFold=${{ matrix.expect_fold }}
+            [ "${{ matrix.expect_fold }}" != "true" ] || adb logcat -d -v threadtime -s FST_FOLD:I
       - name: Upload Android device test reports
         if: failure()
         uses: actions/upload-artifact@v4
