@@ -15,7 +15,10 @@ import FestivalDesign
 /// Voice Control and larger text on every Apple platform (``WhatsNewSheet`` is the same
 /// SwiftUI on iPhone, iPad, iPhone Duo and Mac): headings and bullets in visual order for
 /// store and tester installs, an announced pending state, a full-width Dismiss target
-/// below the list, and notes that wrap instead of truncating.
+/// below the list, and notes that wrap instead of truncating in a narrow column. macOS
+/// hosting does not scale text with Dynamic Type, so the AX5 evidence (glyph growth,
+/// untruncated notes, reachable Close and Dismiss in portrait and landscape) is the
+/// iPhone and iPad journey `WhatsNewAccessibilityJourneyTests`.
 ///
 /// HIG VoiceOver: "Use titles and headings to convey hierarchy … Use accurate section
 /// headings"; HIG Accessibility: "Strive for the platform's recommended minimum control
@@ -269,9 +272,10 @@ struct WhatsNewAccessibilityTests {
 
     // MARK: - Text scaling
 
-    /// Headings and bullets wrap onto as many lines as they need instead of truncating
-    /// (the mechanism that keeps them whole at larger text sizes; macOS hosting keeps the
-    /// font size, so a narrow column stands in for AX5), and Dismiss stays reachable.
+    /// Headings and bullets wrap onto as many lines as they need in a narrow column instead
+    /// of truncating (no line limit, vertical fixed size), and Dismiss stays below them. This
+    /// pins the wrapping only: macOS does not scale text, so growth at AX5 is measured on
+    /// iPhone and iPad by `WhatsNewAccessibilityJourneyTests`.
     @Test func longNotesWrapInsteadOfTruncating() async throws {
         let note = "Songs now keep your place when you return from Song Details, even after the catalogue refreshes in the background while you were away."
         let entries = [ChangelogEntry(
