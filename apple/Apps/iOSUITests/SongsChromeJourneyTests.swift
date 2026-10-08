@@ -287,6 +287,287 @@ final class SongsChromeJourneyTests: XCTestCase {
         )
     }
 
+    /// Issue #5 accessibility (#388): the scroll-away decision #5 stabilised is what
+    /// VoiceOver perceives as the floating section bar. At the top it is absent and the
+    /// list starts with its "#" heading; scrolled away it names the current section once,
+    /// below the navigation bar, over named full-size rows; back at the top it leaves and
+    /// the search field, first row and Sort remain reachable. Each state passes the system
+    /// accessibility audit (only the documented open Songs findings are accepted).
+    ///
+    /// Needs the large fixture like ``testScrollingBackToTopNearTheTopStaysResponsive``.
+    @MainActor
+    func testScrollAwaySectionBarAccessibility() throws {
+        continueAfterFailure = false
+        let large = try launchScrollAwayFixture(largeText: true)
+        let largeRail = railLetterHeight(large)
+        large.terminate()
+        let app = try launchScrollAwayFixture(largeText: false)
+        let growth = largeRail / railLetterHeight(app)
+        try assertScrollAwayAccessibility(in: app, label: "default", railGrowth: growth)
+    }
+
+    /// Issue #5 accessibility (#388) at AX5: the section bar's heading and the A–Z rail's
+    /// letters scale with the text (≥ 1.35× their default height, HIG Accessibility
+    /// "Support enlargement up to 200%"), the bar stays below the navigation bar, and the
+    /// scroll-away path stays responsive and audits clean (the documented open findings
+    /// excepted).
+    ///
+    /// Needs the large fixture like ``testScrollingBackToTopNearTheTopStaysResponsive``.
+    @MainActor
+    func testScrollAwaySectionBarAccessibilityAtAX5() throws {
+        continueAfterFailure = false
+        let regular = try launchScrollAwayFixture(largeText: false)
+        let defaultRail = railLetterHeight(regular)
+        regular.swipeUp()
+        let defaultBar = regular.staticTexts["fst.songs.section-bar"]
+        XCTAssertTrue(defaultBar.waitForExistence(timeout: 5))
+        let defaultHeight = defaultBar.frame.height
+        regular.terminate()
+
+        let app = try launchScrollAwayFixture(largeText: true)
+        let largeRail = railLetterHeight(app)
+        XCTAssertGreaterThanOrEqual(
+            largeRail, defaultRail * 1.35,
+            "A–Z rail letters did not scale: \(largeRail) pt at AX5, \(defaultRail) pt default"
+        )
+        let barHeight = try assertScrollAwayAccessibility(
+            in: app, label: "ax5", railGrowth: largeRail / defaultRail
+        )
+        XCTAssertGreaterThanOrEqual(
+            barHeight, defaultHeight * 1.35,
+            "Section bar heading did not scale: \(barHeight) pt at AX5, \(defaultHeight) pt default"
+        )
+    }
+
+    /// Launch Songs on the large fixture with a profile selected, as #5 was reported.
+    ///
+    /// - Parameter largeText: Launch at the largest accessibility text size (AX5).
+    /// - Returns: The running app on the Songs root.
+    /// - Throws: `XCTSkip` when the catalogue is too short to scroll.
+    @MainActor
+    private func launchScrollAwayFixture(largeText: Bool) throws -> XCUIApplication {
+        let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"]
+            ?? "http://127.0.0.1:8765"
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": base,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1",
+            "FST_DEBUG_STILL_BACKGROUND": "1",
+        ])
+        if largeText {
+            app.launchArguments += [
+                "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
+            ]
+        }
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-song-1"].waitForExistence(timeout: 15))
+        let rail = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.section-index").firstMatch
+        guard rail.waitForExistence(timeout: 3) else {
+            throw XCTSkip("Catalogue too short to scroll; use mock_service.py --large-catalogue.")
+        }
+        return app
+    }
+
+    /// Walk the #5 path (top → scrolled away → back to the top) and check what VoiceOver
+    /// meets at each step.
+    ///
+    /// - Parameters:
+    ///   - app: Songs at the top of the large fixture.
+    ///   - label: Names the audit activities.
+    ///   - railGrowth: How much taller the A–Z rail's letters are at AX5 than at the
+    ///     default size, measured in this test (``auditScrollAway(_:_:railGrowth:)``).
+    /// - Returns: The section bar heading's height while scrolled away.
+    /// - Throws: A failed audit.
+    @MainActor
+    @discardableResult
+    private func assertScrollAwayAccessibility(
+        in app: XCUIApplication, label: String, railGrowth: CGFloat
+    ) throws -> CGFloat {
+        let bar = app.staticTexts["fst.songs.section-bar"]
+        let firstTitle = app.staticTexts["fst.songs.section.0"]
+        let firstRow = app.buttons["fst.songs.row.fixture-song-1"]
+        // At the top: no bar; the list opens on its "#" heading, then its first row.
+        XCTAssertFalse(bar.exists, "Section bar shown at the top")
+        XCTAssertTrue(firstTitle.exists)
+        XCTAssertEqual(firstTitle.label, "#")
+        XCTAssertLessThanOrEqual(firstTitle.frame.maxY, firstRow.frame.minY + 1, "Row read before its heading")
+        // The A–Z rail (8 pt outer margin inside its frame) stays clear of the expanded
+        // search field, whose clear button sits under its trailing end.
+        let rail = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.section-index").firstMatch.frame
+        let topSearch = SongsUITestSupport.songsSearchEntry(in: app).frame
+        XCTAssertGreaterThanOrEqual(rail.minY + 8, topSearch.maxY, "Rail \(rail) overlaps search \(topSearch)")
+        try auditScrollAway(app, "\(label) top", railGrowth: railGrowth)
+
+        // Scrolled away: one bar heading naming a section, below the navigation bar.
+        app.swipeUp()
+        XCTAssertTrue(bar.waitForExistence(timeout: 5), "Section bar never appeared")
+        waitForListToSettle(app)
+        let letters = Set("#ABCDEFGHIJKLMNOPQRSTUVWXYZ".map(String.init))
+        XCTAssertTrue(letters.contains(bar.label), "Section bar reads '\(bar.label)'")
+        XCTAssertEqual(app.staticTexts.matching(identifier: "fst.songs.section-bar").count, 1)
+        let navigation = app.navigationBars.firstMatch.frame
+        XCTAssertGreaterThanOrEqual(bar.frame.minY, navigation.maxY - 1, "Bar \(bar.frame) under \(navigation)")
+        let barHeight = bar.frame.height
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row."))
+        let tabs = app.tabBars.firstMatch.frame
+        // At AX5 a row can be taller than the band, so count any row showing ≥ 44 pt of it.
+        let visible = rows.allElementsBoundByIndex.filter {
+            $0.isHittable && min($0.frame.maxY, tabs.minY) - max($0.frame.minY, bar.frame.maxY) >= 44
+        }
+        XCTAssertFalse(visible.isEmpty, "No song rows below the section bar")
+        for row in visible {
+            XCTAssertFalse(row.label.isEmpty, "\(row.identifier) unnamed")
+            XCTAssertGreaterThanOrEqual(row.frame.height, 44, "\(row.identifier) is \(row.frame.height) pt")
+        }
+        try auditScrollAway(app, "\(label) scrolled", railGrowth: railGrowth)
+
+        // The reported path back to the top: the bar leaves, the page stays usable.
+        for _ in 0..<12 where bar.exists || !firstRow.isHittable { app.swipeDown() }
+        XCTAssertEqual(app.state, .runningForeground)
+        XCTAssertTrue(bar.waitForNonExistence(timeout: 5), "Section bar stayed at the top")
+        waitForListToSettle(app)
+        let search = SongsUITestSupport.songsSearchEntry(in: app)
+        XCTAssertTrue(search.waitForExistence(timeout: 5) && search.isHittable, "Songs search did not return")
+        XCTAssertTrue(firstRow.isHittable, "First row not shown")
+        XCTAssertEqual(firstTitle.label, "#")
+        XCTAssertTrue(
+            app.buttons["fst.songs.sort"].isHittable || app.buttons["fst.songs.tools"].isHittable,
+            "Sort did not remain available"
+        )
+        try auditScrollAway(app, "\(label) back at top", railGrowth: railGrowth)
+        return barHeight
+    }
+
+    /// Wait for a fling to come to rest, so the audit and its rendered-contrast crops see
+    /// the same frame (a moving list measured mid-scroll).
+    ///
+    /// - Parameter app: Songs right after a swipe.
+    @MainActor
+    private func waitForListToSettle(_ app: XCUIApplication) {
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row."))
+        var last: [CGRect] = []
+        for _ in 0..<20 {
+            let frames = rows.allElementsBoundByIndex.prefix(4).map(\.frame)
+            if !frames.isEmpty, frames == last { return }
+            last = frames
+            RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+        }
+        XCTFail("Songs list kept moving")
+    }
+
+    /// The height of the A–Z rail's "#" label (the first one, never condensed away).
+    ///
+    /// - Parameter app: Songs at the top with the rail shown.
+    /// - Returns: The label's frame height.
+    @MainActor
+    private func railLetterHeight(_ app: XCUIApplication) -> CGFloat {
+        let rail = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.section-index").firstMatch
+        let first = rail.staticTexts["#"]
+        XCTAssertTrue(first.waitForExistence(timeout: 5), "Rail has no # label")
+        return first.frame.height
+    }
+
+    /// The system audit on the Songs list. Contrast findings on text are measured from
+    /// this run's screenshot instead (≥ 4.5:1, the Song Detail band-preview and Shop
+    /// empty-state precedent). Text in the 40 pt top ramp under the navigation or
+    /// section bar is dimmed on purpose (`scroll-edge` R2/R3), and text overlapping the
+    /// Liquid Glass bottom chrome is the open Song Detail finding
+    /// (`.agents/testing/apple/accessibility.md`). "Partially
+    /// unsupported" Dynamic Type on the A–Z rail's letters, which stop growing at AX2 and
+    /// condense as they grow, is accepted only with this run's proof that they are
+    /// ≥ 1.35× taller at AX5 (the iPad audit's `dynamic-type-grows` evidence). Otherwise
+    /// only the system search placeholder's contrast and the Songs list's one
+    /// unattributed "Text clipped" open finding are accepted.
+    ///
+    /// - Parameters:
+    ///   - app: Songs in the state to audit.
+    ///   - name: Names the activity listing accepted issues.
+    ///   - railGrowth: The rail letters' measured AX5 / default height.
+    /// - Throws: Any other audit issue.
+    @MainActor
+    private func auditScrollAway(_ app: XCUIApplication, _ name: String, railGrowth: CGFloat) throws {
+        XCTContext.runActivity(named: "Rail letters grow \(railGrowth)× at AX5") { _ in }
+        // The audit cycles text sizes, which re-lays out the list, so the reported frames
+        // match the page after it, not before: read the page when the first issue comes.
+        var page: ScrollAwayAuditPage?
+        var accepted: [String] = []
+        var failures: [String] = []
+        var unattributedClipped = 0
+        try app.performAccessibilityAudit(for: .all) { issue in
+            let element = issue.element.map {
+                "\($0.elementType.rawValue) '\($0.identifier)' '\($0.label)' \($0.frame)"
+            } ?? "no element"
+            let description = "\(issue.compactDescription) [\(element)]"
+            let current = try page ?? ScrollAwayAuditPage(app)
+            page = current
+            if SongsUITestSupport.isSystemSearchPlaceholderContrast(issue) {
+                accepted.append(description)
+            } else if issue.auditType == .dynamicType, railGrowth >= 1.35,
+                      let letter = issue.element, letter.elementType == .staticText,
+                      current.rail.contains(CGPoint(x: letter.frame.midX, y: letter.frame.midY)) {
+                accepted.append("rail grows \(railGrowth)×: \(description)")
+            } else if issue.auditType == .contrast, let text = issue.element,
+                      text.elementType == .staticText, !text.frame.isEmpty {
+                let measured = try? self.renderedContrast(
+                    of: text.frame, in: current.image, window: current.window
+                )
+                if text.frame.maxY > current.chromeTop {
+                    accepted.append("under bottom chrome (top \(current.chromeTop)): \(description)")
+                } else if text.frame.minY < current.rampEnd {
+                    accepted.append("in the top ramp (ends \(current.rampEnd)): \(description)")
+                } else if let measured, measured.ratio >= 4.5, measured.brightPixels >= 20 {
+                    accepted.append("renders \(measured.ratio):1: \(description)")
+                } else {
+                    failures.append(
+                        "\(description) measured \(String(describing: measured)), "
+                            + "ramp ends \(current.rampEnd), chrome top \(current.chromeTop)"
+                    )
+                }
+            } else if issue.auditType == .textClipped, issue.element == nil, unattributedClipped == 0 {
+                unattributedClipped += 1
+                accepted.append(description)
+            } else {
+                failures.append(description)
+            }
+            return true
+        }
+        XCTContext.runActivity(named: "Audit \(name): accepted \(accepted)") { _ in }
+        if !failures.isEmpty, let image = page?.image {
+            let shot = XCTAttachment(image: UIImage(cgImage: image))
+            shot.name = "songs-scroll-away-audit-\(name)"
+            shot.lifetime = .keepAlways
+            add(shot)
+        }
+        XCTAssertTrue(failures.isEmpty, "Audit \(name): \(failures.joined(separator: "; "))")
+    }
+
+    /// The rendered text contrast inside one frame of a screenshot.
+    ///
+    /// - Parameters:
+    ///   - frame: The text element's frame in points.
+    ///   - image: The app screenshot taken before the audit.
+    ///   - window: The app window's frame.
+    /// - Returns: The ratio and glyph pixel count from
+    ///   ``SongsUITestSupport/measuredTextContrast(in:)``.
+    /// - Throws: A frame outside the screenshot.
+    @MainActor
+    private func renderedContrast(
+        of frame: CGRect, in image: CGImage, window: CGRect
+    ) throws -> (ratio: Double, brightPixels: Int) {
+        let scaleX = Double(image.width) / window.width
+        let scaleY = Double(image.height) / window.height
+        let crop = CGRect(
+            x: (frame.minX - window.minX) * scaleX, y: (frame.minY - window.minY) * scaleY,
+            width: frame.width * scaleX, height: frame.height * scaleY
+        ).integral.intersection(CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        let pixels = try SongsUITestSupport.bitmapPixels(XCTUnwrap(image.cropping(to: crop)))
+        let measured = try SongsUITestSupport.measuredTextContrast(in: pixels)
+        return (measured.ratio, measured.brightPixels)
+    }
+
     /// Issue #9: a far A–Z rail jump (# → P) showed Q's songs, or P's songs under a "Q"
     /// or "B" section bar, and re-tapping the same letter after scrolling did nothing.
     /// Every tap must land the letter's title on the landing line under the navigation
@@ -495,5 +776,43 @@ final class SongsChromeJourneyTests: XCTestCase {
             app.buttons["fst.songs.sort"].isHittable || app.buttons["fst.songs.tools"].isHittable,
             "Sort did not return to the tab-bar accessory"
         )
+    }
+}
+
+/// What ``SongsChromeJourneyTests`` reads of the Songs page to judge an audit issue:
+/// the A–Z rail, the scroll-edge bands and a screenshot for rendered contrast.
+@MainActor
+private struct ScrollAwayAuditPage {
+    /// The A–Z rail's frame.
+    let rail: CGRect
+    /// The top of the bottom chrome: the tab bar, or the page tools above it.
+    let chromeTop: CGFloat
+    /// Where the 40 pt top ramp under the section or navigation bar ends
+    /// (`scroll-edge` R2/R3).
+    let rampEnd: CGFloat
+    /// The app window's frame.
+    let window: CGRect
+    /// The page as rendered now.
+    let image: CGImage
+
+    /// Read the page.
+    ///
+    /// - Parameter app: Songs, as the audit left it.
+    /// - Throws: A missing screenshot.
+    init(_ app: XCUIApplication) throws {
+        rail = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.section-index").firstMatch.frame
+        window = app.windows.firstMatch.frame
+        let tabs = app.tabBars.firstMatch
+        let accessory = app.descendants(matching: .any).matching(identifier: "fst.page-tools").firstMatch
+        var chromeTop = tabs.exists ? tabs.frame.minY : window.maxY
+        if accessory.exists, accessory.frame.minY > window.midY {
+            chromeTop = min(chromeTop, accessory.frame.minY)
+        }
+        self.chromeTop = chromeTop
+        let sectionBar = app.staticTexts["fst.songs.section-bar"]
+        rampEnd = (sectionBar.exists
+            ? sectionBar.frame.maxY : app.navigationBars.firstMatch.frame.maxY) + 40
+        image = try XCTUnwrap(app.screenshot().image.cgImage)
     }
 }
