@@ -19,16 +19,8 @@ struct FirstRunSuggestionsCategoryCardDemo: View {
         FirstRunCatalogueSongs(count: Self.songsPerCard * Self.templates.count) { pool, session in
             let songs = Self.window(of: pool, template: template)
             let category = Self.templates[template].category(songs)
-            Group {
-                if let session {
-                    // The page's real category card (operator batch 7) over live catalogue songs.
-                    SuggestionCategoryCardView(category: category, session: session)
-                        .allowsHitTesting(false)
-                } else {
-                    approximation(category)
-                }
-            }
-            .firstRunSwapRow(0, key: template, rise: 8)
+            FirstRunSuggestionCard(category: category, session: session)
+                .firstRunSwapRow(0, key: template, rise: 8)
         }
         .environment(\.firstRunFadingRows, fading)
         .accessibilityHidden(true)
@@ -97,6 +89,43 @@ struct FirstRunSuggestionsCategoryCardDemo: View {
         },
     ]
 
+    /// The infinite-scroll demo's six web `CATEGORY_TEMPLATES`, in its order.
+    static let scrollTemplates: [Template] = [
+        templates[0],
+        templates[1],
+        Template(
+            key: "stale_vocals_1", title: "Play Tap Vocals This Season",
+            description: "Songs you haven't played on Tap Vocals this season.", type: .stale, instrument: .vocals
+        ) { song, _ in
+            SuggestionSongItem(song: song, instrument: .vocals)
+        },
+        templates[2],
+        templates[3],
+        Template(
+            key: "variety_pack", title: "Variety Pack",
+            description: "Two different artists for variety.", type: .varietyPack, instrument: nil
+        ) { song, _ in
+            SuggestionSongItem(song: song)
+        },
+    ]
+}
+
+/// The Suggestions page's real category card (``SuggestionCategoryCardView``) over live
+/// catalogue songs, or its layout with redacted placeholder songs while songs load or without a
+/// session (hosted tests). Read-only.
+private struct FirstRunSuggestionCard: View {
+    let category: SuggestionCategory
+    let session: FestivalSession?
+
+    var body: some View {
+        if let session {
+            SuggestionCategoryCardView(category: category, session: session)
+                .allowsHitTesting(false)
+        } else {
+            approximation(category)
+        }
+    }
+
     /// The card's layout while songs load or without a session (hosted tests), with
     /// redacted placeholder songs rather than invented titles.
     private func approximation(_ category: SuggestionCategory) -> some View {
@@ -135,105 +164,102 @@ struct FirstRunSuggestionsCategoryCardDemo: View {
 
 // MARK: - suggestions-global-filter
 
-/// Ported from `pages/suggestions/firstRun/demo/GlobalFilterDemo.tsx`: the suggestion-type
-/// toggle list, all enabled.
+/// Ported from `pages/suggestions/firstRun/demo/GlobalFilterDemo.tsx`: the page's real
+/// **Filter Suggestions** sheet (read-only) opened at its General section, every
+/// suggestion type on.
 struct FirstRunSuggestionsGlobalFilterDemo: View {
-    private let types = ["Near Full Combo", "Percentile Push", "Unplayed Songs", "Stale Scores", "Variety Pack"]
-
     var body: some View {
-        VStack(spacing: 10) {
-            ForEach(types, id: \.self) { type in
-                toggleRow(type)
-            }
-        }
-        .padding(14)
-        .festivalCard(cornerRadius: 16)
-        .accessibilityHidden(true)
-    }
-
-    private func toggleRow(_ label: String) -> some View {
-        HStack {
-            Text(label).foregroundStyle(FestivalText.primary).font(.subheadline)
-            Spacer(minLength: 0)
-            Capsule()
-                .fill(BrandTokens.accentBlue)
-                .frame(width: 40, height: 24)
-                .overlay(Circle().fill(.white).frame(width: 20, height: 20).offset(x: 8))
-        }
+        SuggestionsFilterSheet(applied: SuggestionFilterSettings(), visibleInstruments: []) { _ in }
+            .firstRunSheetPreview(height: 460)
     }
 }
 
 // MARK: - suggestions-instrument-filter
 
-/// Ported from `pages/suggestions/firstRun/demo/InstrumentFilterDemo.tsx`: the instrument
-/// selector plus that instrument's own suggestion-type toggles.
+/// Ported from `pages/suggestions/firstRun/demo/InstrumentFilterDemo.tsx`: the real
+/// **Filter Suggestions** sheet (read-only) at its per-instrument switches, as the page
+/// lists them for the charts enabled in Settings.
 struct FirstRunSuggestionsInstrumentFilterDemo: View {
-    private let instruments: [Instrument] = [.lead, .bass, .drums, .vocals]
-    private let types = ["Near Full Combo", "Percentile Push", "Unplayed Songs"]
-
     var body: some View {
-        VStack(spacing: 14) {
-            HStack(spacing: 10) {
-                ForEach(instruments, id: \.self) { instrument in
-                    InstrumentIcon(instrument, size: 30)
-                        .padding(6)
-                        .background(
-                            instrument == .lead ? BrandTokens.accentBlue.opacity(0.3) : .clear,
-                            in: Circle()
-                        )
-                }
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(types, id: \.self) { type in
-                    HStack {
-                        Text(type).foregroundStyle(FestivalText.primary).font(.subheadline)
-                        Spacer(minLength: 0)
-                        Capsule()
-                            .fill(BrandTokens.accentBlue)
-                            .frame(width: 36, height: 22)
-                            .overlay(Circle().fill(.white).frame(width: 18, height: 18).offset(x: 7))
-                    }
-                }
-            }
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .festivalCard(cornerRadius: 16)
-        .accessibilityHidden(true)
+        SuggestionsFilterSheet(
+            applied: SuggestionFilterSettings(), visibleInstruments: [.lead, .bass, .drums, .vocals]
+        ) { _ in }
+            .firstRunSheetPreview(height: 460)
     }
 }
 
 // MARK: - suggestions-infinite-scroll
 
-/// Ported from `pages/suggestions/firstRun/demo/InfiniteScrollDemo.tsx`: a stack of suggestion
-/// cards with a bottom fade hinting more content below. The web auto-scrolls the stack on a
-/// `requestAnimationFrame` loop; this static port shows the resting view — a perpetual scroll
-/// loop is exactly the "heavy" always-running animation the carousel rule excludes.
+/// Ported from `pages/suggestions/firstRun/demo/InfiniteScrollDemo.tsx`: the web's six real
+/// category cards over live catalogue songs, cascading in 125 ms apart, then gliding upward at
+/// 30 pt/s from 100 ms and jumping back to the top at the end, under 36 pt edge fades on
+/// whichever edges hide cards (web `fx.fadeTop/fadeBottom/fadeBoth`; ``FirstRunAutoScroll``).
+///
+/// The glide is a `TimelineView` that runs only while this slide is the one on screen in an
+/// active scene (`firstRunDemoActive`); Reduce Motion (system or the app's) or the UI-test still
+/// override hold the top of the stack. Reduce Transparency or Increase Contrast make the fades
+/// hard edges (scroll-edge R7).
 struct FirstRunSuggestionsInfiniteScrollDemo: View {
-    private let cards: [(String, Instrument)] = [
-        ("Near Full Combo", .lead), ("Percentile Push", .bass), ("Unplayed Songs", .drums),
-    ]
+    @Environment(\.firstRunDemoActive) private var demoActive
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
+    @ScrollEdgeHardEdge private var hardEdge
+    @State private var trackHeight: CGFloat = 0
+    @State private var startedAt = Date()
+
+    private var running: Bool {
+        demoActive && !(systemReduceMotion || appReduceMotion) && !DebugAnimationOverride.stillBackground
+    }
 
     var body: some View {
-        VStack(spacing: 8) {
-            ForEach(cards, id: \.0) { title, instrument in
-                HStack(spacing: 10) {
-                    InstrumentIcon(instrument, size: 22)
-                    Text(title).font(.subheadline.weight(.semibold))
-                        .foregroundStyle(FestivalText.primary)
-                    Spacer(minLength: 0)
+        let templates = FirstRunSuggestionsCategoryCardDemo.scrollTemplates
+        let perCard = FirstRunSuggestionsCategoryCardDemo.songsPerCard
+        FirstRunCatalogueSongs(count: perCard * templates.count) { pool, session in
+            GeometryReader { proxy in
+                let maxOffset = Double(max(0, trackHeight - proxy.size.height))
+                TimelineView(.animation(minimumInterval: 1 / 30, paused: !running || maxOffset <= 0)) { context in
+                    let offset = running
+                        ? FirstRunAutoScroll.offset(
+                            elapsed: context.date.timeIntervalSince(startedAt), maxOffset: maxOffset
+                        )
+                        : 0
+                    track(pool: pool, session: session, templates: templates)
+                        .offset(y: -offset)
+                        .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
+                        .clipped()
+                        .mask(fadeMask(FirstRunAutoScroll.edges(offset: offset, maxOffset: maxOffset)))
                 }
-                .padding(.horizontal, 12)
-                .frame(height: 44)
-                .festivalCard(cornerRadius: 12)
             }
         }
-        .mask(
-            LinearGradient(
-                stops: [.init(color: .black, location: 0.75), .init(color: .clear, location: 1)],
-                startPoint: .top, endPoint: .bottom
-            )
-        )
+        .onChange(of: running, initial: true) { _, now in
+            if now { startedAt = Date() }
+        }
         .accessibilityHidden(true)
+    }
+
+    private func track(
+        pool: [Song], session: FestivalSession?, templates: [FirstRunSuggestionsCategoryCardDemo.Template]
+    ) -> some View {
+        VStack(spacing: 12) {
+            ForEach(Array(templates.enumerated()), id: \.offset) { index, template in
+                let songs = FirstRunSuggestionsCategoryCardDemo.window(of: pool, template: index)
+                FirstRunSuggestionCard(category: template.category(songs), session: session)
+                    .firstRunStagger(index)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { trackHeight = $0 }
+    }
+
+    /// Opaque viewport with a linear ramp on each edge that hides cards.
+    private func fadeMask(_ edges: FirstRunAutoScroll.Edges) -> some View {
+        let ramp = CGFloat(ScrollEdgeFade.ramp(FirstRunAutoScroll.edgeFade, hardEdge: hardEdge))
+        return VStack(spacing: 0) {
+            LinearGradient(colors: [edges.top ? .clear : .black, .black], startPoint: .top, endPoint: .bottom)
+                .frame(height: ramp)
+            Color.black
+            LinearGradient(colors: [.black, edges.bottom ? .clear : .black], startPoint: .top, endPoint: .bottom)
+                .frame(height: ramp)
+        }
     }
 }

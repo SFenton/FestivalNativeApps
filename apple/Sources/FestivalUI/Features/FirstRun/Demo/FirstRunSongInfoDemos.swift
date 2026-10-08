@@ -137,41 +137,21 @@ struct FirstRunSongInfoBarSelectDemo: View {
 
 // MARK: - songinfo-view-all
 
-/// Ported from `pages/songinfo/firstRun/demo/ViewAllDemo.tsx`: the player's own top scores, with
-/// the last row faded (a bottom mask on the web) and a pulsing "View all scores" row below.
+/// Ported from `pages/songinfo/firstRun/demo/ViewAllDemo.tsx`: Song Detail's real Score
+/// History rows (``ScoreHistoryListRow``), the last row faded like the web's bottom mask, and
+/// the page's pulsing **View All Scores** action below.
 struct FirstRunSongInfoViewAllDemo: View {
     var body: some View {
         VStack(spacing: 8) {
-            ForEach(Array(FirstRunDemoPool.ownScores.enumerated()), id: \.element.id) { index, entry in
-                scoreRow(entry)
-                    .opacity(index == FirstRunDemoPool.ownScores.count - 1 ? 0.45 : 1)
+            ForEach(Array(FirstRunDemoPool.ownHistory.enumerated()), id: \.offset) { index, entry in
+                ScoreHistoryListRow(entry: entry, isBest: index == 0)
+                    .opacity(index == FirstRunDemoPool.ownHistory.count - 1 ? 0.45 : 1)
                     .firstRunStagger(index)
             }
-            FirstRunViewAllRow(title: "View all scores")
+            FirstRunViewAllRow(title: "View All Scores")
+                .firstRunStagger(FirstRunDemoPool.ownHistory.count)
         }
         .accessibilityHidden(true)
-    }
-
-    private func scoreRow(_ entry: FirstRunDemoPool.TopScoreEntry) -> some View {
-        HStack(spacing: 16) {
-            Text(entry.name)
-                .font(.subheadline)
-                .foregroundStyle(FestivalText.primary)
-            Spacer(minLength: 0)
-            Text(entry.score.formatted())
-                .font(.subheadline.weight(.semibold))
-                .monospacedDigit()
-                .foregroundStyle(FestivalText.primary)
-            Text("\(entry.accuracyPercent)%")
-                .font(.caption)
-                .foregroundStyle(FestivalText.primary)
-            if entry.isFullCombo {
-                FirstRunStar(gold: true, size: 13)
-            }
-        }
-        .padding(.horizontal, 14)
-        .frame(height: 44)
-        .festivalCard(cornerRadius: 12)
     }
 }
 
@@ -183,6 +163,7 @@ struct FirstRunSongInfoTopScoresDemo: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             FirstRunInstrumentHeader(instrument: .lead)
+                .firstRunStagger(0)
             // The Song Detail card's real rows (`SongLeaderboardEntryRow`, operator batch 7).
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(FirstRunDemoPool.topScores.enumerated()), id: \.element.id) { index, entry in
@@ -194,13 +175,14 @@ struct FirstRunSongInfoTopScoresDemo: View {
                         season: nil, difficulty: nil
                     ))
                     .padding(.vertical, 11)
-                    .firstRunStagger(index)
+                    .firstRunStagger(index + 1)
                     if index < FirstRunDemoPool.topScores.count - 1 { Divider() }
                 }
             }
             .padding(.horizontal, 14)
             .festivalCard(cornerRadius: 16)
             FirstRunViewAllRow(title: "View full leaderboard")
+                .firstRunStagger(FirstRunDemoPool.topScores.count + 1)
         }
         .accessibilityHidden(true)
     }
@@ -260,36 +242,66 @@ struct FirstRunSongInfoPathsDemo: View {
     }
 }
 
-// MARK: - Item Shop pill (songinfo-shop-button / -new-in-shop / -leaving-tomorrow)
+// MARK: - Item Shop action (songinfo-shop-button / -new-in-shop / -leaving-tomorrow)
 
-/// Ported from `pages/songinfo/firstRun/demo/{ShopButtonDemo,LeavingTomorrowButtonDemo}.tsx`: the
-/// Song Info header's Item Shop pill in its three tones (green/default, gold/new, red/leaving),
-/// all pulsing — these slides carry no `shopHighlightEnabled` gate of their own in
-/// `FirstRunCatalog`, matching the web's demo always showing the pulse regardless of the live
-/// setting.
+/// Ported from `pages/songinfo/firstRun/demo/{ShopButtonDemo,LeavingTomorrowButtonDemo}.tsx`
+/// ("matches the production Song Info header pill/circle exactly"): Song Detail's real Item
+/// Shop action beside a catalogue song's header. Like the page (and the web demo's
+/// `settings.disableShopHighlighting` gate), the disc breathes green, gold or red only while
+/// Shop highlighting is on, and the action is a plain titled button otherwise or in the
+/// vertical section bar (``SongDetailShopActionStyle``).
 struct FirstRunSongInfoShopPillDemo: View {
     enum Tone { case shop, new, leaving }
     let tone: Tone
 
-    private var tint: Color {
+    @AppStorage("fst.settings.disableShopHighlighting") private var highlightingDisabled = false
+    @Environment(\.deviceLayout) private var deviceLayout
+
+    private var statusTone: ShopStatusTone {
         switch tone {
-        case .shop: BrandTokens.statusGreenStroke
-        case .new: BrandTokens.gold
-        case .leaving: BrandTokens.statusRed
+        case .shop: .inShop
+        case .new: .new
+        case .leaving: .leaving
         }
     }
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "bag.fill")
-            Text("Item Shop").font(.subheadline.weight(.semibold))
+        FirstRunCatalogueSongs(count: 1) { songs, session in
+            HStack(spacing: 12) {
+                if let song = songs.first {
+                    FirstRunSongArt(song: song, session: session, size: 56)
+                    // Song Details' shared header column (song-header R1).
+                    SongHeaderText(
+                        title: song.title, artist: song.artist, titleFont: .headline, spacing: 2
+                    ) { EmptyView() }
+                    .firstRunRedacted(song)
+                }
+                Spacer(minLength: 8)
+                action
+            }
+            .padding(14)
+            .festivalCard(cornerRadius: 16)
         }
-        .foregroundStyle(FestivalText.primary)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 10)
-        .background(tint, in: Capsule())
-        .firstRunPulse(tint, shape: .capsule)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var action: some View {
+        let resolved = SongDetailShopActionStyle.resolve(
+            tone: highlightingDisabled ? nil : statusTone, chrome: deviceLayout.sectionChrome
+        )
+        switch resolved {
+        case let .breathing(tone):
+            SongDetailShopGlyph(tone: tone)
+        case .titled:
+            Label("Item Shop", systemImage: "bag")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(FestivalText.primary)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 34)
+                // The system bar's glass button, which the page's titled toolbar item gets.
+                .festivalGlassCapsule(.control)
+        }
     }
 }

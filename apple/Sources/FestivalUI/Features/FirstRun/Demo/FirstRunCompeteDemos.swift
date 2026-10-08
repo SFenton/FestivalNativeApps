@@ -1,4 +1,5 @@
 import SwiftUI
+import FestivalCore
 import FestivalDesign
 
 // MARK: - compete-hub
@@ -67,6 +68,6 @@ struct FirstRunCompeteLeaderboardsDemo: View {
 /// sections, alternately swapping each whole group every 5 s like the web.
 struct FirstRunCompeteRivalsDemo: View {
     var body: some View {
-        FirstRunRivalGroupsDemo(visible: 2)
+        FirstRunRivalGroupsDemo(visible: 2, staggers: true)
     }
 }

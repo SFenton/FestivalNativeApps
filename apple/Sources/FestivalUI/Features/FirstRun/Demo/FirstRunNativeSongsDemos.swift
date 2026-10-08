@@ -132,8 +132,22 @@ private struct FirstRunInertPreview: ViewModifier {
     }
 }
 
-private extension View {
+extension View {
+    /// Shows real app UI read-only (``FirstRunInertPreview``).
     func firstRunInert() -> some View { modifier(FirstRunInertPreview()) }
+
+    /// Shows the top `height` points of a real sheet read-only, framed as a sheet card, as the
+    /// Songs Sort and Filter demos do.
+    func firstRunSheetPreview(height: CGFloat) -> some View {
+        frame(height: height, alignment: .top)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(BrandTokens.glassBorder, lineWidth: 1)
+            )
+            .firstRunInert()
+    }
 }
 
 /// A demo row built from the real Songs row pieces when no session exists to drive
@@ -179,22 +193,25 @@ private struct FirstRunRowChrome<Detail: View, Trailing: View>: View {
 }
 
 /// The real `SongRowView` when a session exists, otherwise the same layout from its parts.
-private struct FirstRunSongRow: View {
+/// Songs and the Item Shop demos share it, so a highlighted row pulses with the row's own
+/// ``ShopRowPulseBorder`` (green in the shop, gold when new, red when leaving tomorrow).
+struct FirstRunSongRow: View {
     let song: Song
     let session: FestivalSession?
     var highlight: ShopHighlight?
+    /// In the Item Shop with highlighting on (green pulse and bag, web `shopHighlight`).
+    var inShop = false
 
     var body: some View {
         if let session {
             SongRowView(
                 song: song, instrument: nil, session: session, highContrast: false,
-                shopHighlight: highlight
+                shopHighlight: highlight, inShop: inShop
             )
         } else {
             FirstRunRowChrome(
                 song: song, session: nil,
-                outline: highlight == .leavingTomorrow ? BrandTokens.statusRed
-                    : highlight == .new ? BrandTokens.gold : nil,
+                outline: inShop || highlight != nil ? ShopStatusTone(highlight: highlight).borderColor : nil,
                 detail: { EmptyView() }, trailing: { EmptyView() }
             )
         }
@@ -224,14 +241,7 @@ struct FirstRunNativeSongListDemo: View {
 struct FirstRunNativeSortDemo: View {
     var body: some View {
         SongsSortSheet(mode: .title, ascending: true, showShop: true, shopAvailable: true) { _, _ in }
-            .frame(height: 420, alignment: .top)
-            .frame(maxHeight: .infinity, alignment: .top)
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(BrandTokens.glassBorder, lineWidth: 1)
-            )
-            .firstRunInert()
+            .firstRunSheetPreview(height: 420)
     }
 }
 
@@ -246,14 +256,7 @@ struct FirstRunNativeFilterDemo: View {
             availableDecades: [1970, 1980, 1990, 2000, 2010, 2020],
             appliedInstrument: .lead, selectedPlayer: true, scoreAvailable: true
         ) { _, _, _ in }
-            .frame(height: 460, alignment: .top)
-            .frame(maxHeight: .infinity, alignment: .top)
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(BrandTokens.glassBorder, lineWidth: 1)
-            )
-            .firstRunInert()
+            .firstRunSheetPreview(height: 460)
     }
 }
 

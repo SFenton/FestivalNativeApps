@@ -12,8 +12,10 @@ import FestivalDesign
 /// title, and the system toolbar **Close** at the trailing edge from the shared
 /// ``FestivalModal`` (issue #23). The title names the page the guide explains (issue #24,
 /// ``FirstRunPageKey/guideTitle``), and VoiceOver reads it first when the sheet opens. At the
-/// bottom there is one large glass-prominent **Next/Done** with a quiet full-width **Skip**
-/// beneath it while pages remain. A one-page guide shows only Done. There are no arrows, and
+/// bottom there is one large glass-prominent **Next/Done** with **Skip** beneath it while pages
+/// remain, drawn as the system's tinted borderless secondary action like Apple's own setup
+/// screens (issue #380; HIG Buttons: "use a prominent style … for the most likely action").
+/// A one-page guide shows only Done. There are no arrows, and
 /// the page dots are white. Every control's hit region is at least 44×44 pt. Close, swiping
 /// down and tapping outside the sheet all dismiss, and only the pages actually shown are
 /// recorded in `viewing` (see ``FirstRunViewing``).
@@ -107,8 +109,10 @@ struct FirstRunCarouselView: View {
     }
 
     /// The bottom actions, Apple's onboarding layout (issue #25): one large prominent
-    /// Next/Done (the large control size is about 50 pt tall), then a quiet full-width Skip
-    /// beneath it while pages remain, at least 48 pt tall. Both hit regions stay at least
+    /// Next/Done (the large control size is about 50 pt tall), then Skip beneath it while
+    /// pages remain: a borderless button in the readable accent tint, the secondary action
+    /// of Apple's own setup screens (issue #380), with a full-width hit region at least
+    /// 48 pt tall. Both hit regions stay at least
     /// 44 pt even though iOS 26 draws the partial-height sheet slightly scaled down.
     private var controls: some View {
         let state = state
@@ -134,12 +138,12 @@ struct FirstRunCarouselView: View {
                     if state.showsSkip {
                         Button(action: onFinish) {
                             Text("Skip")
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(FestivalText.primary)
+                                .font(.body)
                                 .frame(maxWidth: .infinity, minHeight: FirstRunControls.minimumHeight)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.borderless)
+                        .tint(AccentText.blue)
                         .accessibilityIdentifier("fst.first-run.skip")
                     }
                 }
@@ -306,16 +310,21 @@ private struct FirstRunSlideView: View {
                 )
                 .clipped()
                 .padding(.horizontal, 20)
+            // The web fades the title and description in after the demo's own cascade
+            // (`FirstRunCarousel`: `contentStaggerCount × STAGGER_INTERVAL`).
+            let delays = FirstRunMotion.textDelays(slideId: slide.id)
             VStack(spacing: 8) {
                 Text(slide.title)
                     .font(.title2.bold())
                     .foregroundStyle(FestivalText.primary)
                     .multilineTextAlignment(.center)
+                    .firstRunFadeIn(delay: delays.title)
                 Text(description)
                     .font(.subheadline)
                     .foregroundStyle(FestivalText.primary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+                    .firstRunFadeIn(delay: delays.description)
             }
             .padding(.horizontal, 28)
             Spacer(minLength: 0)

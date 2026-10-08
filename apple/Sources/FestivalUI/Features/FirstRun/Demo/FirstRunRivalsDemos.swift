@@ -36,17 +36,20 @@ struct FirstRunRivalGroupsDemo: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            // Web `delay={(idx++) * 80}` over headers and rows alike.
             Text("Above You").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
+                .modifier(FirstRunOptionalStagger(index: 0, enabled: staggers))
             ForEach(Array(above.rows.enumerated()), id: \.offset) { index, rival in
                 FirstRunRivalRow(rival: rival, direction: .above)
                     .firstRunSwapRow(0, key: rival.name, rise: 4)
-                    .modifier(FirstRunOptionalStagger(index: index, enabled: staggers))
+                    .modifier(FirstRunOptionalStagger(index: index + 1, enabled: staggers))
             }
             Text("Below You").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
+                .modifier(FirstRunOptionalStagger(index: visible + 1, enabled: staggers))
             ForEach(Array(below.rows.enumerated()), id: \.offset) { index, rival in
                 FirstRunRivalRow(rival: rival, direction: .below)
                     .firstRunSwapRow(1, key: rival.name, rise: 4)
-                    .modifier(FirstRunOptionalStagger(index: index + visible, enabled: staggers))
+                    .modifier(FirstRunOptionalStagger(index: index + visible + 2, enabled: staggers))
             }
         }
         .environment(\.firstRunFadingRows, fading)
@@ -66,13 +69,14 @@ struct FirstRunRivalGroupsDemo: View {
     }
 }
 
-/// ``SwiftUI/View/firstRunStagger(_:)`` when `enabled`.
+/// ``SwiftUI/View/firstRunStagger(_:interval:)`` on the web rival demos' 80 ms cascade
+/// when `enabled`.
 private struct FirstRunOptionalStagger: ViewModifier {
     let index: Int
     let enabled: Bool
 
     func body(content: Content) -> some View {
-        if enabled { content.firstRunStagger(index) } else { content }
+        if enabled { content.firstRunStagger(index, interval: FirstRunMotion.rowStaggerSeconds) } else { content }
     }
 }
 
@@ -94,10 +98,14 @@ struct FirstRunRivalsInstrumentsDemo: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(Array(Self.instruments.enumerated()), id: \.offset) { section, instrument in
+                // The Rivals page's real section header; web `delay={(idx++) * 80}`.
                 VStack(alignment: .leading, spacing: 6) {
-                    FirstRunInstrumentHeader(instrument: instrument)
+                    InstrumentSectionHeader(instrument, title: "\(instrument.label) Rivals")
+                        .firstRunStagger(section * 3, interval: FirstRunMotion.rowStaggerSeconds)
                     rivalRow(slot: section * 2, direction: .above)
+                        .firstRunStagger(section * 3 + 1, interval: FirstRunMotion.rowStaggerSeconds)
                     rivalRow(slot: section * 2 + 1, direction: .below)
+                        .firstRunStagger(section * 3 + 2, interval: FirstRunMotion.rowStaggerSeconds)
                 }
             }
         }
@@ -163,9 +171,10 @@ private struct FirstRunRivalsDetailCard: View {
         let category = categories[tick % categories.count]
         VStack(alignment: .leading, spacing: 10) {
             Text(category.title).font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
+                .firstRunStagger(0)
             ForEach(Array(songs.enumerated()), id: \.offset) { index, song in
                 comparisonRow(song, session: session, ranks: category.ranks[index % category.ranks.count])
-                    .firstRunStagger(index + 1)
+                    .firstRunStagger(index + 1, interval: FirstRunMotion.detailStaggerSeconds)
             }
         }
         // Rows remount after each swap so they restagger in, like the web's `staggerKey`.
