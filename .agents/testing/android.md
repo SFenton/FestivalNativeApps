@@ -20,9 +20,9 @@
 
 ## CI
 
-- The `android-device` check in [`.github/workflows/android-device.yml`](../../.github/workflows/android-device.yml) runs the complete `:app:connectedDebugAndroidTest` suite on every relevant PR and `master` push. It uses a cached API 35 Google APIs x86_64 Pixel 6 AVD (the supported 411 dp phone geometry closest to `FST_Phone`) with KVM, a cached Gradle user home and animations disabled.
+- The `android-device` aggregate check in [`.github/workflows/android-device.yml`](../../.github/workflows/android-device.yml) requires two complete `:app:connectedDebugAndroidTest` legs on every relevant PR and `master` push: API 35 Google APIs x86_64 Pixel 6 (`phone`) and Pixel Fold (`fold-half`). The fold leg sets emulator posture `2` (half-opened), then `FoldableCiPreflightTest` requires a separating `HALF_OPENED` `FoldingFeature` and logs it as `FST_FOLD`; this ensures every journey's existing hinge assertions run against a real hinge. Both legs use KVM, cached Gradle/AVDs and disabled animations.
 - Device tests inject synthetic `FakeTransport`/fixture transports; the `MainActivity` naming test uses a closed loopback origin. CI never reaches the public service. Failure artifacts are `android-device-reports` (HTML/XML) and `android-device-logcat`, which includes `FST_ATF` accessibility findings.
-- CI is the phone baseline. The suite's hinge assertions activate only when WindowManager reports a fold; Book Fold half-open coverage remains the explicit device-lab run through `device.py test --avd FST_Book_Fold --posture half`.
+- CI runs both the phone baseline and real half-open fold coverage. The device lab still supplies the wider FST matrix (Book, Passport, TriFold, tablet and resizable postures) through `device.py test`.
 - The rounded-corner device probe self-skips only when the runner lacks its physical-corner preconditions (an edge-attached window and a radius larger than the Material fallback), so its physical-corner assertion cannot be made; all other device tests run. ATF also ignores an unlabelled node only when the scroll viewport has clipped it below 8 dp, because it is not a readable TalkBack stop.
 - CI quarantines: none.
 
