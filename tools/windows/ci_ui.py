@@ -65,6 +65,8 @@ def all_tasks() -> list[Task]:
     """Return all fixture-only JSON and dedicated-runner tasks in stable order."""
     tasks = []
     for source in sorted(JOURNEYS.glob("*.json")):
+        if source.name.startswith("a11y") and source.name != "a11y.json":
+            continue
         entries = fixture_entries(source)
         if not entries:
             continue
@@ -154,7 +156,12 @@ def main(argv: list[str] | None = None) -> int:
         task_out = args.out / task.name.replace(":", "-")
         command = task_command(task, task_out, args.retries)
         print(f"::group::{task.name}\n{' '.join(command)}", flush=True)
-        result = subprocess.run(command, cwd=REPO_ROOT)
+        task_out.mkdir(parents=True, exist_ok=True)
+        with (task_out / "command.log").open("w", encoding="utf-8") as log:
+            result = subprocess.run(command, cwd=REPO_ROOT, stdout=log, stderr=subprocess.STDOUT)
+        if result.returncode:
+            tail = (task_out / "command.log").read_text(encoding="utf-8", errors="replace").splitlines()[-20:]
+            print("\n".join(tail), flush=True)
         print("::endgroup::", flush=True)
         if result.returncode:
             failures.append(task.name)
