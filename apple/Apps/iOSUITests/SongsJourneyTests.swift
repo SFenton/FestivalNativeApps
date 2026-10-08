@@ -1936,6 +1936,74 @@ final class SongsJourneyTests: XCTestCase {
         SongsUITestSupport.record(app, name: "songs-shop-quick-links-jumped")
     }
 
+    /// Item Shop section titles stay readable, unclipped headings at the largest text size
+    /// (#91, tests #441): each title grows with Dynamic Type, is named as shown, sits above
+    /// its own song with no opaque band, keeps 4.5:1 rendered contrast and passes the audit.
+    /// The macOS hosted check for every grouped sort is `SongsSectionTitleAccessibilityTests`.
+    ///
+    /// - Throws: A missing or clipped title, rows read out of order or an audit finding.
+    @MainActor
+    func testSongsShopSortSectionTitlesAreAccessibleAtAX5() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = SongsUITestSupport.fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        let size = UIContentSizeCategory.accessibilityExtraExtraExtraLarge
+        app.launchArguments += [
+            "-fst.settings.hideShop", "NO",
+            "-fst.songs.sortMode", "shop",
+            "-fst.songs.sortAscending", "YES",
+            "-UIPreferredContentSizeCategoryName", size.rawValue,
+        ]
+        app.launch()
+        let leaving = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.shop-section.leaving-tomorrow").firstMatch
+        let orbit = app.buttons["fst.songs.row.fixture-orbit"]
+        XCTAssertTrue(leaving.waitForExistence(timeout: 15))
+        XCTAssertTrue(orbit.waitForExistence(timeout: 10))
+        XCTAssertEqual(leaving.label, "Leaving Tomorrow")
+        XCTAssertNotEqual(leaving.elementType, .button, "A section title is a heading, not a control")
+        let line = UIFont.preferredFont(
+            forTextStyle: .subheadline, compatibleWith: UITraitCollection(preferredContentSizeCategory: size)
+        ).lineHeight
+        XCTAssertGreaterThanOrEqual(
+            leaving.frame.height, line - 1,
+            "Title \(leaving.frame) did not grow to the AX5 \(line)pt line"
+        )
+        XCTAssertLessThanOrEqual(leaving.frame.maxY, orbit.frame.minY + 1, "Title must read above its song")
+        XCTAssertLessThan(
+            orbit.frame.minY - leaving.frame.maxY, 12,
+            "Title \(leaving.frame) drifted away from its song \(orbit.frame)"
+        )
+        try SongsUITestSupport.assertHeaderContrast(leaving, in: app, leadingTextWidth: 260)
+        SongsUITestSupport.record(app, name: "songs-shop-section-titles-ax5")
+
+        let inShop = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.shop-section.in-shop").firstMatch
+        let pulse = app.buttons["fst.songs.row.fixture-pulse"]
+        let list = app.collectionViews["fst.songs.list"]
+        for _ in 0..<6 where !(inShop.exists && pulse.exists && pulse.isHittable) {
+            list.swipeUp(velocity: .slow)
+        }
+        XCTAssertTrue(inShop.exists && pulse.exists)
+        XCTAssertEqual(inShop.label, "In Shop")
+        XCTAssertGreaterThanOrEqual(inShop.frame.minY, orbit.frame.maxY - 1, "In Shop must read after Leaving Tomorrow's song")
+        XCTAssertLessThanOrEqual(inShop.frame.maxY, pulse.frame.minY + 1, "In Shop must read above its song")
+        try app.performAccessibilityAudit(for: .all) { issue in
+            // Same iOS 26.5 fixture contrast near-pass as `testSelectedShopSortSongsRowsClearTabBar`;
+            // the section title's own contrast is measured above.
+            guard UIDevice.current.userInterfaceIdiom == .phone,
+                  UIDevice.current.systemVersion == "26.5",
+                  issue.auditType == .contrast,
+                  issue.element?.identifier.hasPrefix("fst.songs.shop-section.") != true else {
+                return false
+            }
+            XCTContext.runActivity(named: "Known iOS 26.5 fixture contrast near-pass") { _ in }
+            return true
+        }
+    }
+
     /// Depth-first search of one accessibility snapshot.
     ///
     /// - Parameters:
