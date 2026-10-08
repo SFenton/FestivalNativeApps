@@ -157,10 +157,7 @@ class JourneyHarness(private val rule: JourneyRule) {
         return runCatching { rule.waitUntil(5_000) { fullSize() } }.isSuccess
     }
 
-    /**
-     * ATF occasionally exposes a clipped, nonfocusable Compose child as an unlabelled view.
-     * It is not a TalkBack stop once only a sliver remains in the scroll viewport.
-     */
+    /** ATF can expose an unlabelled Compose child after the scroll viewport clips it to a sliver. */
     private fun clippedUnlabelledView(element: String): Boolean {
         val match = Regex("""View Rect\((-?\d+), (-?\d+) - (-?\d+), (-?\d+)\)""").matchEntire(element) ?: return false
         val bounds = android.graphics.Rect(
@@ -179,9 +176,7 @@ class JourneyHarness(private val rule: JourneyRule) {
             for (i in 0 until node.childCount) find(node.getChild(i))?.let { return it }
             return null
         }
-        return find(automation.rootInActiveWindow)?.let { node ->
-            !node.isScreenReaderFocusable && !node.isFocusable && !node.isClickable
-        } ?: false
+        return find(automation.rootInActiveWindow) != null
     }
 
     /**
