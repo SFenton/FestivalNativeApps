@@ -354,6 +354,8 @@ class RankingsViewModelTest {
         viewModel.selectMetric(RankingMetric.TotalScore)
         viewModel.selectInstrument(Instrument.Drums)
         assertNull(viewModel.displayed.value)
+        // The pager keeps the last board's page count until the new chart answers (#431).
+        assertEquals(3, viewModel.pageCount.value)
         advanceUntilIdle()
         assertEquals(1, viewModel.page.value)
         assertEquals(Instrument.Drums, viewModel.instrument.value)
@@ -424,6 +426,7 @@ class RankingsViewModelTest {
         viewModel.selectBandType(BandType.Trios)
         viewModel.selectBandType(BandType.Quad)
         assertNull(viewModel.displayed.value)
+        assertEquals(2, viewModel.pageCount.value)
         advanceUntilIdle()
         assertEquals(1, viewModel.page.value)
         assertEquals(BandType.Quad, viewModel.bandType.value)
