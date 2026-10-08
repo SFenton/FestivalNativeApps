@@ -5,6 +5,10 @@ import FestivalDesign
 /// Native public CHOpt image/text viewer with generation-safe request switching.
 struct SongPathsSheet: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.deviceLayout) private var deviceLayout
+    /// Icon side of the icon-only instrument selector (folded iPhone Duo, issue #360),
+    /// scaled with Dynamic Type because no name carries the size there.
+    @ScaledMetric(relativeTo: .body) private var iconOnlySide: CGFloat = InstrumentIcon.menuIconSide
     @AppStorage("fst.settings.pathUnavailableWarningDismissed")
     private var warningDismissed = false
     @State private var instrument: Instrument
@@ -80,7 +84,7 @@ struct SongPathsSheet: View {
         // Web-like layout: one compact title bar (the shared modal's, with the image
         // zoom controls and the system Close), the path image/table filling the sheet,
         // and a compact selector row at the bottom (operator audit 2026-09-28).
-        FestivalModal("Paths", closeIdentifier: "fst.paths.close") {
+        FestivalModal(Self.title(for: instrument, pose: deviceLayout.pose), closeIdentifier: "fst.paths.close") {
             VStack(spacing: 10) {
                 pathContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -162,25 +166,14 @@ struct SongPathsSheet: View {
                     .tag(choice)
                 }
             } current: {
-                // Every option has an icon (menus › "icons for all or none"). The name
-                // always stays (it must keep scaling with Dynamic Type) and long names
-                // such as "Pro Drums + Cymbals" wrap to a second line.
-                HStack(spacing: 6) {
-                    InstrumentIcon(
-                        instrument, keyboard: usesKeyboardIcon(instrument), size: InstrumentIcon.menuIconSide
-                    )
-                    // Wrap only between words: the hidden longest word sets the name's
-                    // minimum width, so a narrow row (iPhone Duo's folded Paths sheet, ~107 pt
-                    // per selector beside the vertical bar) no longer splits "Lead" as "Lea/d".
-                    ZStack(alignment: .leading) {
-                        Text(Self.longestWord(in: instrument.label))
-                            .fixedSize()
-                            .hidden()
-                            .accessibilityHidden(true)
-                        Text(instrument.label)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                    }
+                // Every option has an icon (menus › "icons for all or none"). Folded iPhone
+                // Duo shows the icon alone and names the instrument in the title instead
+                // (owner, issue #360); VoiceOver still reads "Instrument, <name>".
+                if Self.showsInstrumentName(pose: deviceLayout.pose) {
+                    namedInstrumentLabel
+                } else {
+                    InstrumentIcon(instrument, keyboard: usesKeyboardIcon(instrument), size: iconOnlySide)
+                        .accessibilityHidden(true)
                 }
             }
             .accessibilityIdentifier("fst.paths.instrument")
@@ -202,6 +195,52 @@ struct SongPathsSheet: View {
             .accessibilityIdentifier("fst.paths.display")
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// The instrument selector's icon and name (every pose but folded iPhone Duo). The name
+    /// keeps scaling with Dynamic Type, and long names such as "Pro Drums + Cymbals" wrap
+    /// to a second line.
+    private var namedInstrumentLabel: some View {
+        HStack(spacing: 6) {
+            InstrumentIcon(
+                instrument, keyboard: usesKeyboardIcon(instrument), size: InstrumentIcon.menuIconSide
+            )
+            // Wrap only between words: the hidden longest word sets the name's minimum
+            // width, so a narrow selector never splits "Lead" as "Lea/d".
+            ZStack(alignment: .leading) {
+                Text(Self.longestWord(in: instrument.label))
+                    .fixedSize()
+                    .hidden()
+                    .accessibilityHidden(true)
+                Text(instrument.label)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+        }
+    }
+
+    // MARK: - Folded iPhone Duo variant
+
+    /// Whether the instrument selector shows the instrument's name beside its icon.
+    ///
+    /// Folded iPhone Duo shows the icon alone (owner, issue #360; HIG Designing for iPhone
+    /// Duo: "prefer a symbol wherever one works"); every other pose keeps icon + name.
+    ///
+    /// - Parameter pose: The window's ``DeviceLayout/Pose``.
+    /// - Returns: False only for ``DeviceLayout/Pose/folded``.
+    nonisolated static func showsInstrumentName(pose: DeviceLayout.Pose) -> Bool {
+        pose != .folded
+    }
+
+    /// The sheet's title: "Paths", or "Paths · <instrument>" on folded iPhone Duo, where
+    /// the selector shows only the instrument's icon (issue #360).
+    ///
+    /// - Parameters:
+    ///   - instrument: The selected path instrument.
+    ///   - pose: The window's ``DeviceLayout/Pose``.
+    /// - Returns: The inline navigation title.
+    nonisolated static func title(for instrument: Instrument, pose: DeviceLayout.Pose) -> String {
+        showsInstrumentName(pose: pose) ? "Paths" : "Paths · \(instrument.label)"
     }
 
     /// The longest whitespace-separated word of a label (its narrowest unbroken width).
