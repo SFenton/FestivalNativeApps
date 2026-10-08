@@ -92,8 +92,15 @@ Apply the three lines above. Mirror the web ids, labels and order from the [spec
 ## Open issues
 
 - On Leaderboards the system places the Quick Links button in the same trailing capsule as Rank By and the profile avatar. Lane A may want `festivalRootChrome`'s spacer to separate the profile bubble from page actions.
+- XCUITest covers menu order on every page (above). Haptics are unverified on device; the rotor is verified hosted (below).
 - XCUITest covers menu order on every page (above). The rotor's order is verified hosted (#392). Haptics and the rotor on a device are unverified.
 
 ## Instant jumps (operator batch 7, Lane A3)
 
-Jumps "teleport": `scrollTo` runs in a transaction with animations disabled, with or without Reduce Motion, then `correctAndSettle` re-targets lazily built rows and re-lands any target that settled off its 32 pt line (#12). `QuickLinksController.prefersToolbar` lets a page show the menu as a bar item even where page tools float (Songs once scrolled).
+Jumps "teleport": `scrollTo` runs in a transaction with animations disabled, with or without Reduce Motion, then `correctAndSettle` re-targets lazily built rows and re-lands any target that settled off its 32 pt line (#12). `QuickLinksController.prefersToolbar` lets a page show the menu as a bar item even where page tools float (Songs once scrolled). Only the newest jump's `correctAndSettle` may scroll or settle; a superseded pass returns (`jumpSerial` check, #393), or a held ⌥⌘↓ re-landed earlier sections.
+
+## Accessibility tests (#393, for #12)
+
+- Hosted (`apple-ci`), `QuickLinksLandingAccessibilityTests`: Settings' Quick Link targets are named `AXHeading`s (Licenses and Privacy Policy start with their `AXButton`) in menu order; the Quick Links rotor lists them in page order; every jump lands the heading whole 32 pt below the top edge with default text, Reduce Motion and the largest sizes (a section taller than the viewport); the Quick Links control keeps its name, hint and a value naming the landed section; quick successive jumps end on the last one. macOS names the menu button by `AXTitle`, UIKit by its label.
+- iPhone (`ios_sim.py uitest`, mock service), `SettingsJourneyTests.testQuickLinksLandingIsAccessibleAtLargestText`: at AX5 the control is named, hittable and at least 44×44 pt, sheet rows (scrolling at AX5) are named and at least 44 pt tall, titles land 24–48 pt below the bar and hittable, and the last section keeps the value after it settles. HIG Accessibility (44×44 pt), VoiceOver ("Use accurate section headings"), Typography ("Make sure your layout adapts to all font sizes").
+- Reduce Transparency (scroll-edge R7): iPhone `SettingsJourneyTests.testQuickLinksLandingKeepsTitlesClearWithReduceTransparency` (the app's toggle by launch argument; rerun with `ios_sim.py uitest --a11y reduce-transparency` for the system path) jumps down, back up and to both clamped ends (Reset Settings, App Settings) and checks each title whole, hittable and below the hard-edged bar while Quick Links names it. Hosted `jumpsLandTheHeadingWholeBelowTheTopEdge` adds system and in-app Reduce Transparency cases on a fixture under the real `TopEdgeScrim`, which must resolve `PageTopScrollEdge.hard`.
