@@ -18,6 +18,9 @@ import com.festivalscoretracker.android.core.firstrun.FirstRunSlotRotation
 import com.festivalscoretracker.android.core.firstrun.FirstRunWindowRotation
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.Song
+import com.festivalscoretracker.android.core.rivals.RivalDirection
+import com.festivalscoretracker.android.core.rivals.RivalSentiment
+import com.festivalscoretracker.android.core.rivals.RivalSummary
 import com.festivalscoretracker.android.core.settings.MetadataField
 import com.festivalscoretracker.android.core.songs.SongPercentileTier
 import java.util.Locale
@@ -189,6 +192,10 @@ class FirstRunDemoRotationTest {
         assertTrue(FirstRunDemoPools.RIVAL_DETAIL_CATEGORIES.all { it.ranks.size == 4 })
         assertTrue(FirstRunDemoPools.RIVAL_DETAIL_CATEGORIES[0].ranks[0].playerWins)
         assertFalse(FirstRunDemoPools.RIVAL_DETAIL_CATEGORIES[1].ranks[0].playerWins)
+        assertEquals(
+            listOf(RivalSentiment.Neutral, RivalSentiment.Negative, RivalSentiment.Negative, RivalSentiment.Positive, RivalSentiment.Positive, RivalSentiment.Positive),
+            FirstRunDemoPools.RIVAL_DETAIL_CATEGORIES.map { it.sentiment },
+        )
         assertEquals(listOf("Top 1.2%", "Top 3.5%", "Top 48.9%", "Top 1.2%"), listOf(0, 1, 6, 7).map(FirstRunDemoPools::topSongPercentile))
         assertEquals(SongPercentileTier.TopOne, FirstRunDemoPools.percentileTier("Top 1%"))
         assertEquals(SongPercentileTier.TopFive, FirstRunDemoPools.percentileTier("Top 3.5%"))
@@ -248,5 +255,26 @@ class FirstRunDemoRotationTest {
         assertEquals(SongPercentileTier.TopOne, percentile[0].percentile)
         assertEquals("S12", percentile[1].text)
         assertEquals(listOf(MetadataField.Percentile, MetadataField.Score), FirstRunMetadataRotation.pills(plain, FirstRunDemoMetaLayout.PercentileScore, us).map { it.kind })
+    }
+
+    /** Issue #380 review: demo rivals and rank pairs convert to the real rows' service models. */
+    @Test
+    fun demoRivalsBecomeRealRowModels() {
+        val keyDrifter = FirstRunDemoPools.RIVALS_ABOVE[0]
+        val entry = keyDrifter.entry(RivalDirection.Above)
+        assertEquals(RivalDirection.Above, entry.direction)
+        val summary = entry.rival as RivalSummary
+        assertEquals("KeyDrifter", summary.shownName)
+        assertTrue("navigable, so the real row shows the name", summary.isNavigable)
+        assertEquals(82, summary.aheadCount)
+        assertEquals(66, summary.behindCount)
+        val song = FirstRunDemoSong("song-1", "Song One", "Artist", 2020, "art.jpg")
+        val comparison = FirstRunDemoPools.RIVAL_DETAIL_CATEGORIES[0].ranks[0].comparison(song)
+        assertEquals("song-1", comparison.songId)
+        assertEquals(Instrument.Lead.wireId, comparison.instrument)
+        assertEquals(14, comparison.userRank)
+        assertEquals(15, comparison.rivalRank)
+        assertEquals(1, comparison.rankDelta)
+        assertEquals(988_000L, comparison.userScore)
     }
 }

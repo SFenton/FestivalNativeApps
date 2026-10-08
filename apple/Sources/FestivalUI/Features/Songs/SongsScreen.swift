@@ -255,16 +255,15 @@ struct SongsScreen: View, Equatable {
         shopFilterPausedMessage == nil ? appliedShopFilter : SongShopFilter()
     }
 
+    /// Why saved score checks with a real cause cannot apply right now. Without a player
+    /// there is no notice: a deselect resets them (web `resetSongSettingsForDeselect`,
+    /// issue #359), and any left over stay inert like the web's.
     private var playerScoreFilterPausedMessage: String? {
-        guard case .loaded = state,
+        guard case .loaded = state, session.selectedPlayer != nil,
               let filter = appliedPlayerScoreFilter, filter.isActive else { return nil }
         if !filter.scoped(to: visibleInstruments).isActive {
             return "Player score filters paused while their charts are hidden in Settings. "
                 + "Your choices are saved."
-        }
-        if session.selectedPlayer == nil {
-            return "Player score filters paused until a player is selected. "
-                + "Showing songs without score filters."
         }
         if filterInvalidScores {
             return "Player score filters paused while Filter Invalid Scores is enabled. "
@@ -278,14 +277,14 @@ struct SongsScreen: View, Equatable {
     }
 
     private var effectivePlayerScoreFilter: SongPlayerScoreFilter {
-        playerScoreFilterPausedMessage == nil
+        session.selectedPlayer != nil && playerScoreFilterPausedMessage == nil
             ? (appliedPlayerScoreFilter?.scoped(to: visibleInstruments)
                 ?? SongPlayerScoreFilter())
             : SongPlayerScoreFilter()
     }
 
     private var hiddenPlayerScoreChecks: Bool {
-        guard let filter = appliedPlayerScoreFilter else { return false }
+        guard session.selectedPlayer != nil, let filter = appliedPlayerScoreFilter else { return false }
         return filter.scoped(to: visibleInstruments) != filter
     }
 
@@ -833,12 +832,9 @@ struct SongsScreen: View, Equatable {
     /// by treating an unavailable or mismatched score index as "no scores").
     private var playerSortPausedMessage: String? {
         let name = sortMode.label
-        // No instrument: normalized to Title on appear / change, not a pause.
-        guard instrument != nil else { return nil }
-        if session.selectedPlayer == nil {
-            return "\(name) sort paused until a player is selected. "
-                + "Showing title order; your preference is saved."
-        }
+        // No instrument: normalized to Title on appear / change, not a pause. No player:
+        // a deselect reverts it to Title (issue #359); any left over shows Title silently.
+        guard instrument != nil, session.selectedPlayer != nil else { return nil }
         if filterInvalidScores {
             return "\(name) sort paused while Filter Invalid Scores is enabled. "
                 + "Published raw scores cannot replace validated score variants."
@@ -851,10 +847,12 @@ struct SongsScreen: View, Equatable {
     }
 
     /// The sort actually applied: Title while the saved sort is paused, or while a
-    /// player sort waits for its normalization without an instrument.
+    /// player sort has no instrument or no player to order by.
     private var effectiveSortMode: SongSortMode {
         if sortPausedMessage != nil { return .title }
-        if sortMode.isPlayerChartMode && instrument == nil { return .title }
+        if sortMode.isPlayerChartMode && (instrument == nil || session.selectedPlayer == nil) {
+            return .title
+        }
         return sortMode
     }
 

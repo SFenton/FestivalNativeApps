@@ -526,7 +526,8 @@ object SongListPipeline {
         val (ordered, headers) = if (effective.usesSectionIndex) sorted to emptyList() else SongQuickLinkBuckets.group(sorted, context)
         val applied = filter.isActive || general.catalogActive || (general.shopActive && shopPaused == null) || (scoped.appliesTo(filter.instrument) && scorePaused == null)
         // Without a player, player-dependent choices simply don't apply (web shows no notice).
-        val sortNotice = sortPaused.takeUnless { !input.hasPlayer && input.sort.needsScores }
+        // Single-chart sorts count too: the instrument filter is player-only (issue #359).
+        val sortNotice = sortPaused.takeUnless { !input.hasPlayer && (input.sort.needsScores || input.sort.needsChart) }
         val scoreNotice = scorePaused.takeIf { input.hasPlayer }
         return SongListResult(
             ordered, SongSectionIndex.sections(ordered, effective), headers, effective,

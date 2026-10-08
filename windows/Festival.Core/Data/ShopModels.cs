@@ -128,22 +128,24 @@ public static class ShopPresentationPolicy
 }
 
 /// <summary>
-/// Item Shop page filter (issue #19): three switches that each select one disjoint group of offers. <b>Available</b> is
-/// the offers that are neither New nor Leaving Tomorrow. An offer shows when it matches any switch that is on; with every
-/// switch off, all offers show. Uses the wire flags, so it still works while Shop highlighting is off.
+/// Item Shop page filter (issues #19, #376): three include switches, one per availability group. <b>Available</b> is
+/// the offers that are neither New nor Leaving Tomorrow, so the groups cover every offer (one flagged both is in both).
+/// Every switch starts on and every offer shows; turning a switch off hides its group, and with every switch off
+/// nothing shows (like Songs' <see cref="SongShopFilter"/>). Uses the wire flags, so it still works while Shop
+/// highlighting is off.
 /// </summary>
 /// <param name="New">Show New offers.</param>
 /// <param name="Available">Show offers that are neither New nor Leaving Tomorrow.</param>
 /// <param name="LeavingTomorrow">Show offers leaving tomorrow.</param>
-public sealed record ShopOfferFilter(bool New = false, bool Available = false, bool LeavingTomorrow = false)
+public sealed record ShopOfferFilter(bool New = true, bool Available = true, bool LeavingTomorrow = true)
 {
-    /// <summary>Whether any switch is on (gold Filter button).</summary>
-    public bool IsActive => New || Available || LeavingTomorrow;
+    /// <summary>Whether any switch is off (gold Filter button).</summary>
+    public bool IsActive => !New || !Available || !LeavingTomorrow;
 
     /// <summary>Whether an offer passes the filter.</summary>
     /// <param name="offer">Validated offer.</param>
-    /// <returns><see langword="true"/> when no switch is on or the offer is in a selected group.</returns>
-    public bool Matches(ShopSong offer) => !IsActive ||
+    /// <returns><see langword="true"/> when the offer is in a group whose switch is on.</returns>
+    public bool Matches(ShopSong offer) =>
         (New && offer.IsNew) ||
         (LeavingTomorrow && offer.LeavingTomorrow) ||
         (Available && !offer.IsNew && !offer.LeavingTomorrow);

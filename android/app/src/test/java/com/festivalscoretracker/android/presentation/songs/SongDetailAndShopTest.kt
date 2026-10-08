@@ -12,6 +12,7 @@ import com.festivalscoretracker.android.core.settings.PathDisplayMode
 import com.festivalscoretracker.android.core.shop.ShopHighlight
 import com.festivalscoretracker.android.core.shop.ShopOfferFilter
 import com.festivalscoretracker.android.core.shop.ShopPayload
+import com.festivalscoretracker.android.core.shop.ShopSong
 import com.festivalscoretracker.android.core.songs.SongScoreDetail
 import com.festivalscoretracker.android.core.songs.SongScoreSource
 import com.festivalscoretracker.android.data.CatalogPayload
@@ -94,7 +95,7 @@ class SongDetailAndShopTest {
     }
 
     @Test
-    fun shopFilterSelectsDisjointGroupsAndResetRestoresEveryOffer() = runTest(main.dispatcher) {
+    fun shopFilterStartsAllOnAndEachSwitchHidesItsGroup() = runTest(main.dispatcher) {
         val shop = MutableStateFlow<LoadState<ShopPayload>>(LoadState.Loading)
         val settings = MutableStateFlow<AppSettings?>(AppSettings())
         val vm = ShopViewModel(shop, { payload }, settings, ServiceRetryBackoff())
@@ -108,32 +109,35 @@ class SongDetailAndShopTest {
         )
         advanceUntilIdle()
         fun ids() = vm.uiState.value.offers.map { it.offer.songId }
+        // Issue #376: a fresh filter has every switch on, lists every offer and is not active.
+        assertEquals(ShopOfferFilter(new = true, available = true, leavingTomorrow = true), vm.uiState.value.filter)
         assertEquals(listOf("a", "b", "c", "d"), ids())
         assertFalse(vm.uiState.value.filter.isActive)
 
-        vm.setFilter(ShopOfferFilter(new = true))
+        vm.setFilter(ShopOfferFilter(new = false))
         advanceUntilIdle()
-        assertEquals(listOf("a"), ids())
+        assertEquals(listOf("b", "c", "d"), ids())
         assertTrue(vm.uiState.value.filter.isActive)
-        vm.setFilter(ShopOfferFilter(available = true))
-        advanceUntilIdle()
-        assertEquals(listOf("b", "d"), ids())
-        vm.setFilter(ShopOfferFilter(leavingTomorrow = true))
-        advanceUntilIdle()
-        assertEquals(listOf("c"), ids())
-        vm.setFilter(ShopOfferFilter(new = true, leavingTomorrow = true))
+        vm.setFilter(ShopOfferFilter(available = false))
         advanceUntilIdle()
         assertEquals(listOf("a", "c"), ids())
+        vm.setFilter(ShopOfferFilter(leavingTomorrow = false))
+        advanceUntilIdle()
+        assertEquals(listOf("a", "b", "d"), ids())
+        vm.setFilter(ShopOfferFilter(new = false, leavingTomorrow = false))
+        advanceUntilIdle()
+        assertEquals(listOf("b", "d"), ids())
         assertEquals(4, vm.uiState.value.totalOffers)
 
         // Filters use the wire flags, so they keep working while Shop highlighting is off.
         settings.value = AppSettings(disableShopHighlighting = true)
         advanceUntilIdle()
-        assertEquals(listOf("a", "c"), ids())
+        assertEquals(listOf("b", "d"), ids())
 
         vm.resetFilter()
         advanceUntilIdle()
         assertEquals(listOf("a", "b", "c", "d"), ids())
+        assertEquals(ShopOfferFilter(), vm.uiState.value.filter)
         assertFalse(vm.uiState.value.filter.isActive)
     }
 
@@ -142,7 +146,7 @@ class SongDetailAndShopTest {
         val shop = MutableStateFlow<LoadState<ShopPayload>>(LoadState.Loaded(SongsFixtures.shop(SongsFixtures.offer("b"))))
         val vm = ShopViewModel(shop, { payload }, MutableStateFlow<AppSettings?>(AppSettings()), ServiceRetryBackoff())
         advanceUntilIdle()
-        vm.setFilter(ShopOfferFilter(new = true))
+        vm.setFilter(ShopOfferFilter(available = false))
         advanceUntilIdle()
         assertTrue(vm.uiState.value.offers.isEmpty())
         assertTrue(vm.uiState.value.filteredEmpty)
@@ -152,32 +156,34 @@ class SongDetailAndShopTest {
         assertFalse(vm.uiState.value.filteredEmpty)
         assertEquals(0, vm.uiState.value.totalOffers)
         // The filter survives a feed change (the sheet reopens with it).
-        assertEquals(ShopOfferFilter(new = true), vm.uiState.value.filter)
+        assertEquals(ShopOfferFilter(available = false), vm.uiState.value.filter)
     }
 
     @Test
-    fun shopOfferFilterMatchesAnySelectedGroup() {
+    fun shopOfferFilterShowsEveryGroupWhoseSwitchIsOn() {
         val fresh = SongsFixtures.offer("n", isNew = true)
         val plain = SongsFixtures.offer("p")
         val leaving = SongsFixtures.offer("l", leaving = true)
         val both = SongsFixtures.offer("b", isNew = true, leaving = true)
         val all = listOf(fresh, plain, leaving, both)
         assertEquals(all, ShopOfferFilter().apply(all))
-        assertEquals(listOf(fresh, both), ShopOfferFilter(new = true).apply(all))
-        assertEquals(listOf(plain), ShopOfferFilter(available = true).apply(all))
-        assertEquals(listOf(leaving, both), ShopOfferFilter(leavingTomorrow = true).apply(all))
-        assertEquals(all, ShopOfferFilter(new = true, available = true, leavingTomorrow = true).apply(all))
-        assertFalse(ShopOfferFilter(available = true).matches(both))
+        assertEquals(listOf(plain, leaving, both), ShopOfferFilter(new = false).apply(all))
+        assertEquals(listOf(fresh, leaving, both), ShopOfferFilter(available = false).apply(all))
+        assertEquals(listOf(fresh, plain, both), ShopOfferFilter(leavingTomorrow = false).apply(all))
+        // An offer in two groups hides only when both of its switches are off.
+        assertEquals(listOf(plain), ShopOfferFilter(new = false, leavingTomorrow = false).apply(all))
+        assertEquals(emptyList<ShopSong>(), ShopOfferFilter(false, false, false).apply(all))
+        assertTrue(ShopOfferFilter(available = false).matches(both))
+        assertFalse(ShopOfferFilter(new = false, leavingTomorrow = false).matches(both))
     }
 
     @Test
     fun shopOfferFilterDescribesItsStateForTalkBack() {
         assertEquals("No filters", ShopOfferFilter().stateDescription)
-        assertEquals("Filters on: Leaving Tomorrow", ShopOfferFilter(leavingTomorrow = true).stateDescription)
-        assertEquals("Filters on: New, Available", ShopOfferFilter(new = true, available = true).stateDescription)
-        assertEquals("Filters on: New, Available, Leaving Tomorrow", ShopOfferFilter(true, true, true).stateDescription)
+        assertEquals("Filters on: hiding Leaving Tomorrow", ShopOfferFilter(leavingTomorrow = false).stateDescription)
+        assertEquals("Filters on: hiding New, Available", ShopOfferFilter(new = false, available = false).stateDescription)
+        assertEquals("Filters on: hiding New, Available, Leaving Tomorrow", ShopOfferFilter(false, false, false).stateDescription)
     }
-
     // endregion
 
     // region Paths

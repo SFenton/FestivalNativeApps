@@ -44,7 +44,8 @@ struct CompeteLeaderboardsCarousel: View {
                     // page; the carousel already insets its cards.
                     CompeteInstrumentLeaderboardSection(
                         session: session, instrument: instrument,
-                        state: model.boards[instrument] ?? .loading, retry: retry
+                        state: model.boards[instrument] ?? .loading,
+                        spotlight: model.spotlights[instrument], retry: retry
                     )
                     .padding(.horizontal, -16)
                 }

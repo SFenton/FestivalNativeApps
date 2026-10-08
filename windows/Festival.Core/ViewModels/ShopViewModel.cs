@@ -45,8 +45,8 @@ public sealed partial class ShopViewModel : ObservableObject
     private List<ShopOfferItem> offers = [];
 
     /// <summary>
-    /// Page filter (New / Available / Leaving Tomorrow). Kept with the cached page for the session, so the reopened
-    /// flyout shows it; not persisted.
+    /// Page filter (New / Available / Leaving Tomorrow include switches, all on by default). Kept with the cached page
+    /// for the session, so the reopened flyout shows it; not persisted, so every launch shows every offer.
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsFilterActive), nameof(FilterStatus))]
@@ -101,11 +101,11 @@ public sealed partial class ShopViewModel : ObservableObject
     /// <summary>Filter switches (the Songs filter flyout's toggle rows); every change applies at once.</summary>
     public List<FilterToggleRow> FilterRows { get; }
 
-    /// <summary>Whether a filter switch is on (gold Filter button).</summary>
+    /// <summary>Whether a filter switch is off (gold Filter button).</summary>
     public bool IsFilterActive => Filter.IsActive;
 
     /// <summary>
-    /// UI Automation item status of the Filter button ("Filters applied" while a switch is on, like Songs), so Narrator
+    /// UI Automation item status of the Filter button ("Filters applied" while a switch is off, like Songs), so Narrator
     /// hears what the gold tint shows.
     /// </summary>
     public string FilterStatus => IsFilterActive ? "Filters applied" : "";

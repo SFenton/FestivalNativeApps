@@ -154,7 +154,9 @@ struct SongBandPreviewSection: View {
                     .padding(.top, 4)
                     .accessibilityIdentifier("fst.song-detail.band-selected.\(bandType.rawValue)")
                 }
-                NavigationLink(value: AppRoute.songBandLeaderboard(song, bandType: bandType.rawValue)) {
+                // The full band board opens in the trailing pane where Song Detail can
+                // split, like the instrument boards (issue #367).
+                ListDetailLink(value: AppRoute.songBandLeaderboard(song, bandType: bandType.rawValue)) {
                     PurpleActionLabel(title: "View full leaderboard")
                 }
                 .buttonStyle(.plain)
@@ -194,7 +196,7 @@ struct SongBandPreviewRow: View {
     }
 
     var body: some View {
-        NavigationLink(value: route) {
+        link {
             HStack(spacing: 8) {
                 VStack(alignment: .leading, spacing: 8) {
                     members
@@ -216,6 +218,20 @@ struct SongBandPreviewRow: View {
         .accessibilityLabel(SongBandPreviewText.spokenLabel(entry, selected: highlighted))
         .accessibilityHint(SongBandRowNavigation.hint(for: route))
         .accessibilityAddTraits(.isButton)
+    }
+
+    /// The card's link: a jump to the full band board opens in the trailing pane where
+    /// Song Detail can split, like the solo spotlight row (issue #367); a band page
+    /// always pushes (profiles are full pages, #352).
+    ///
+    /// - Parameter label: The card content.
+    /// - Returns: The link wrapping the card.
+    @ViewBuilder private func link<Label: View>(@ViewBuilder _ label: () -> Label) -> some View {
+        if case .songBandLeaderboard = route {
+            ListDetailLink(value: route, label: label)
+        } else {
+            NavigationLink(value: route, label: label)
+        }
     }
 
     private var members: some View {

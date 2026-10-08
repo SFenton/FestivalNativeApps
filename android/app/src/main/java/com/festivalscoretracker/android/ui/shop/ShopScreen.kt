@@ -507,7 +507,7 @@ fun ShopBadgeLabel(highlight: ShopHighlight, songId: String, modifier: Modifier 
  * @param highlight Accent.
  * @return Outline color, or null without a highlight.
  */
-private fun shopOutline(highlight: ShopHighlight?): Color? = when (highlight) {
+internal fun shopOutline(highlight: ShopHighlight?): Color? = when (highlight) {
     ShopHighlight.LeavingTomorrow -> SongsTokens.pulse(ShopPulse.LeavingTomorrow)
     ShopHighlight.New -> SongsTokens.pulse(ShopPulse.New)
     null -> null
@@ -531,7 +531,7 @@ private fun Modifier.shopPulse(highlight: ShopHighlight?, pulse: () -> Float): M
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ShopGridCard(item: ShopOfferItem, artUrl: String?, pulse: () -> Float, onOfficial: () -> Unit, onDetail: () -> Unit) {
+internal fun ShopGridCard(item: ShopOfferItem, artUrl: String?, pulse: () -> Float, onOfficial: () -> Unit, onDetail: () -> Unit) {
     val offer = item.offer
     val shape = RoundedCornerShape(12.dp)
     val open = if (item.officialUrl != null) onOfficial else onDetail
@@ -590,14 +590,15 @@ private fun ShopGridCard(item: ShopOfferItem, artUrl: String?, pulse: () -> Floa
  * opens Song Details when matched, else the official link; TalkBack reads its texts.
  */
 @Composable
-private fun ShopListRow(item: ShopOfferItem, artUrl: String?, pulse: () -> Float, onOfficial: () -> Unit, onDetail: () -> Unit) {
+internal fun ShopListRow(item: ShopOfferItem, artUrl: String?, pulse: () -> Float, onOfficial: () -> Unit, onDetail: () -> Unit, modifier: Modifier = Modifier, titleTag: String? = null) {
     val offer = item.offer
     SongRowCard(
         title = offer.title,
         subtitle = offer.subtitle,
         artUrl = artUrl,
         onClick = if (item.detailSongId != null) onDetail else onOfficial,
-        modifier = Modifier.testTag("fst.shop.song.${offer.songId}"),
+        modifier = modifier.testTag("fst.shop.song.${offer.songId}"),
+        titleTag = titleTag,
         outline = shopOutline(item.highlight),
         pulse = pulse,
         details = { item.highlight?.let { ShopBadgeLabel(it, offer.songId, Modifier.padding(top = 4.dp)) } },
@@ -638,25 +639,39 @@ private fun ShopListRow(item: ShopOfferItem, artUrl: String?, pulse: () -> Float
 fun ShopDetailAction(highlight: ShopHighlight?, url: String, songId: String, pulse: ShopPulse? = null) {
     val uri = LocalUriHandler.current
     val fraction = rememberShopBreathe(active = pulse != null)
-    val breathe: (() -> Color)? = pulse?.let { status -> { SongsTokens.breathe(status, fraction()) } }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("fst.song-detail.shop")) {
-        Button(
-            onClick = { uri.openUri(url) },
-            colors = if (breathe != null) ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = BrandTokens.textPrimary) else festivalFilledButtonColors(),
-            modifier = Modifier
-                .semantics { contentDescription = listOfNotNull("Item Shop", highlight?.label, "opens the Fortnite Item Shop").joinToString(", ") }
-                .then(
-                    if (breathe != null) {
-                        Modifier.testTag("fst.song-detail.shop-breathe.${pulse!!.name}").drawBehind { drawRoundRect(breathe(), cornerRadius = CornerRadius(size.height / 2)) }
-                    } else {
-                        Modifier
-                    },
-                ),
-        ) {
-            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
-            // The button's description already says "Item Shop".
-            Text("Item Shop", modifier = Modifier.padding(start = 6.dp).clearAndSetSemantics {})
-        }
+        ShopActionButton(highlight, pulse, fraction) { uri.openUri(url) }
+    }
+}
+
+/**
+ * The "Item Shop" pill itself: filled, or breathing in the [pulse] color with [fraction] read
+ * only while drawing. Shared by Song Detail and its first-run demos (issue #380).
+ *
+ * @param highlight Effective badge (spoken).
+ * @param pulse Effective Shop pulse, or null for the plain filled button.
+ * @param fraction Breathe fraction ([rememberShopBreathe]).
+ * @param onClick Open the official Shop page.
+ */
+@Composable
+internal fun ShopActionButton(highlight: ShopHighlight?, pulse: ShopPulse?, fraction: () -> Float, onClick: () -> Unit) {
+    val breathe: (() -> Color)? = pulse?.let { status -> { SongsTokens.breathe(status, fraction()) } }
+    Button(
+        onClick = onClick,
+        colors = if (breathe != null) ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = BrandTokens.textPrimary) else festivalFilledButtonColors(),
+        modifier = Modifier
+            .semantics { contentDescription = listOfNotNull("Item Shop", highlight?.label, "opens the Fortnite Item Shop").joinToString(", ") }
+            .then(
+                if (breathe != null) {
+                    Modifier.testTag("fst.song-detail.shop-breathe.${pulse!!.name}").drawBehind { drawRoundRect(breathe(), cornerRadius = CornerRadius(size.height / 2)) }
+                } else {
+                    Modifier
+                },
+            ),
+    ) {
+        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+        // The button's description already says "Item Shop".
+        Text("Item Shop", modifier = Modifier.padding(start = 6.dp).clearAndSetSemantics {})
     }
 }
 

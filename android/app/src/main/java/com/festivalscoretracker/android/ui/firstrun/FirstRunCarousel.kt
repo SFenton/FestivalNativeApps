@@ -45,6 +45,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.presentation.firstrun.FirstRunCarousel
+import com.festivalscoretracker.android.core.firstrun.FirstRunEntrance
+import com.festivalscoretracker.android.ui.common.LocalFadeInWindow
+import androidx.compose.runtime.mutableStateOf
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import kotlinx.coroutines.launch
@@ -161,11 +164,19 @@ internal fun ColumnScope.FirstRunCarouselBody(
                 val titleModifier = Modifier
                     .semantics { heading() }
                     .then(if (page == pager.currentPage) Modifier.focusRequester(titleFocus) else Modifier)
-                Box(Modifier.fillMaxWidth().testTag("fst.first-run.slide.${slide.id}")) {
-                    if (sideBySide) {
-                        SideBySideSlide(slide, active, titleModifier)
-                    } else {
-                        StackedSlide(slide, active, titleModifier, textBlockHeight)
+                // Web parity (#380): every visit replays the slide's entrance once it settles.
+                // Starts false so the first slide's entrance runs too.
+                val settled = pager.settledPage == page
+                var revealed by remember { mutableStateOf(false) }
+                LaunchedEffect(settled) { revealed = settled }
+                val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
+                CompositionLocalProvider(LocalFirstRunReveal provides (revealed || reduceMotion), LocalFadeInWindow provides null) {
+                    Box(Modifier.fillMaxWidth().testTag("fst.first-run.slide.${slide.id}")) {
+                        if (sideBySide) {
+                            SideBySideSlide(slide, active, titleModifier)
+                        } else {
+                            StackedSlide(slide, active, titleModifier, textBlockHeight)
+                        }
                     }
                 }
             }
@@ -262,14 +273,15 @@ private fun StackedSlide(slide: FirstRunSlide, active: Boolean, titleModifier: M
                 style = stackedTitleStyle(),
                 color = BrandTokens.textPrimary,
                 textAlign = TextAlign.Center,
-                modifier = titleModifier,
+                modifier = titleModifier.demoEntrance(FirstRunEntrance.titleDelay(slide.id)),
             )
             Text(
                 slide.description,
                 style = MaterialTheme.typography.bodyLarge,
                 color = BrandTokens.textSecondary,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = STACKED_DESCRIPTION_GAP_DP.dp).heightIn(min = STACKED_DESCRIPTION_MIN_DP.dp),
+                modifier = Modifier.padding(top = STACKED_DESCRIPTION_GAP_DP.dp).heightIn(min = STACKED_DESCRIPTION_MIN_DP.dp)
+                    .demoEntrance(FirstRunEntrance.descriptionDelay(slide.id)),
             )
         }
     }
@@ -345,13 +357,13 @@ private fun SideBySideSlide(slide: FirstRunSlide, active: Boolean, titleModifier
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                         color = BrandTokens.textPrimary,
-                        modifier = titleModifier,
+                        modifier = titleModifier.demoEntrance(FirstRunEntrance.titleDelay(slide.id)),
                     )
                     Text(
                         slide.description,
                         style = MaterialTheme.typography.bodyLarge,
                         color = BrandTokens.textSecondary,
-                        modifier = Modifier.padding(top = 8.dp),
+                        modifier = Modifier.padding(top = 8.dp).demoEntrance(FirstRunEntrance.descriptionDelay(slide.id)),
                     )
                 }
             }
