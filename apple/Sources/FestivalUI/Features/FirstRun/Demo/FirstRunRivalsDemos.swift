@@ -36,17 +36,22 @@ struct FirstRunRivalGroupsDemo: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            // One group card per direction, like the Rivals page (#381).
             Text("Above You").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
-            ForEach(Array(above.rows.enumerated()), id: \.offset) { index, rival in
-                FirstRunRivalRow(rival: rival, direction: .above)
-                    .firstRunSwapRow(0, key: rival.name, rise: 4)
-                    .modifier(FirstRunOptionalStagger(index: index, enabled: staggers))
+            FestivalGlassSection(rows: .flush(separatorInset: 16)) {
+                ForEach(Array(above.rows.enumerated()), id: \.offset) { index, rival in
+                    FirstRunRivalRow(rival: rival, direction: .above)
+                        .firstRunSwapRow(0, key: rival.name, rise: 4)
+                        .modifier(FirstRunOptionalStagger(index: index, enabled: staggers))
+                }
             }
             Text("Below You").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
-            ForEach(Array(below.rows.enumerated()), id: \.offset) { index, rival in
-                FirstRunRivalRow(rival: rival, direction: .below)
-                    .firstRunSwapRow(1, key: rival.name, rise: 4)
-                    .modifier(FirstRunOptionalStagger(index: index + visible, enabled: staggers))
+            FestivalGlassSection(rows: .flush(separatorInset: 16)) {
+                ForEach(Array(below.rows.enumerated()), id: \.offset) { index, rival in
+                    FirstRunRivalRow(rival: rival, direction: .below)
+                        .firstRunSwapRow(1, key: rival.name, rise: 4)
+                        .modifier(FirstRunOptionalStagger(index: index + visible, enabled: staggers))
+                }
             }
         }
         .environment(\.firstRunFadingRows, fading)
@@ -96,8 +101,10 @@ struct FirstRunRivalsInstrumentsDemo: View {
             ForEach(Array(Self.instruments.enumerated()), id: \.offset) { section, instrument in
                 VStack(alignment: .leading, spacing: 6) {
                     FirstRunInstrumentHeader(instrument: instrument)
-                    rivalRow(slot: section * 2, direction: .above)
-                    rivalRow(slot: section * 2 + 1, direction: .below)
+                    FestivalGlassSection(rows: .flush(separatorInset: 16)) {
+                        rivalRow(slot: section * 2, direction: .above)
+                        rivalRow(slot: section * 2 + 1, direction: .below)
+                    }
                 }
             }
         }
