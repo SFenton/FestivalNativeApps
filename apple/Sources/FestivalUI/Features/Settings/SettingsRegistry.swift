@@ -24,7 +24,7 @@ enum SettingsRegistry {
     static let defaults: [(key: String, value: SettingDefault)] = [
         ("fst.settings.showInstrumentIcons", .bool(true)),
         ("fst.settings.enableVisualOrder", .bool(false)),
-        ("fst.settings.songRowVisualOrder", .string(SettingsOrder.encode(MetadataField.allCases))),
+        ("fst.settings.songRowVisualOrder", .string(SettingsOrder.encode(MetadataField.defaultSongRowOrder))),
         ("fst.settings.pathColumnOrder", .string(SettingsOrder.encode(PathColumnKey.allCases))),
         ("fst.settings.filterInvalidScores", .bool(false)),
         ("fst.settings.leeway", .double(1)),

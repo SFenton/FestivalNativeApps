@@ -16,7 +16,7 @@ struct SettingsScreen: View {
 
     @AppStorage("fst.settings.enableVisualOrder") private var enableVisualOrder = false
     @AppStorage("fst.settings.songRowVisualOrder")
-    private var songRowVisualOrderRaw = SettingsOrder.encode(MetadataField.allCases)
+    private var songRowVisualOrderRaw = SettingsOrder.encode(MetadataField.defaultSongRowOrder)
     @AppStorage("fst.settings.pathColumnOrder")
     private var pathColumnOrderRaw = SettingsOrder.encode(PathColumnKey.allCases)
 
@@ -403,8 +403,8 @@ struct SettingsScreen: View {
         Toggle(isOn: $showInstrumentIcons) {
             SettingLabel(
                 "Show Instrument Icons",
-                detail: "Star: full combo · Check: scored · Minus: no score · "
-                    + "Slash: not charted · Exclamation: inconsistent score"
+                detail: "Display instrument icons on each song row showing which parts have "
+                    + "leaderboard scores or FCs."
             )
         }
         .accessibilityHint(
@@ -873,7 +873,7 @@ struct SettingsScreen: View {
     /// Decode the persisted Song row field order, resilient to app updates.
     private var songRowVisualOrder: Binding<[MetadataField]> {
         Binding(
-            get: { SettingsOrder.decode(songRowVisualOrderRaw) },
+            get: { MetadataField.savedSongRowOrder(songRowVisualOrderRaw) },
             set: { songRowVisualOrderRaw = SettingsOrder.encode($0) }
         )
     }
@@ -1026,7 +1026,7 @@ struct SettingsScreen: View {
     func resetAppSettings() {
         showInstrumentIcons = true
         enableVisualOrder = false
-        songRowVisualOrderRaw = SettingsOrder.encode(MetadataField.allCases)
+        songRowVisualOrderRaw = SettingsOrder.encode(MetadataField.defaultSongRowOrder)
         pathColumnOrderRaw = SettingsOrder.encode(PathColumnKey.allCases)
         filterInvalidScores = false
         leeway = 1
@@ -1220,5 +1220,42 @@ enum MetadataField: String, CaseIterable, Identifiable, Hashable {
     /// Row title in the Song Row Visual Order list (web `METADATA_SORT_DISPLAY`).
     var reorderLabel: String {
         self == .intensity ? "Song Intensity" : label
+    }
+
+    // MARK: - Song row order
+
+    /// The web's `DEFAULT_METADATA_ORDER` (`utils/songSettings.ts`): Stars sits after
+    /// Percentile, unlike the Show Instrument Metadata switches' order (`allCases`). It
+    /// is the Song Row Visual Order list's starting order and the order Songs rows use
+    /// while Independent Visual Order is off (the web's sort metadata priority, which
+    /// Apple doesn't let people edit yet).
+    static let defaultSongRowOrder: [MetadataField] = [
+        .score, .percentage, .percentile, .stars, .season, .intensity, .difficulty, .lastPlayed,
+    ]
+
+    /// Restore the saved Song Row Visual Order (`fst.settings.songRowVisualOrder`):
+    /// known fields once each in their saved order, then any missing field in
+    /// ``defaultSongRowOrder`` (a field added in an update, or corrupt data).
+    ///
+    /// - Parameter raw: Comma-joined raw values as `@AppStorage` wrote them.
+    /// - Returns: Every field exactly once.
+    static func savedSongRowOrder(_ raw: String) -> [MetadataField] {
+        var seen = Set<MetadataField>()
+        let saved = raw.split(separator: ",")
+            .compactMap { MetadataField(rawValue: String($0)) }
+            .filter { seen.insert($0).inserted }
+        return saved + defaultSongRowOrder.filter { seen.insert($0).inserted }
+    }
+
+    /// The order Songs rows show score fields in (web `SongsPage.visibleMetadataOrder`):
+    /// the saved Song Row Visual Order only while Enable Independent Song Row Visual
+    /// Order is on (issue #372), otherwise ``defaultSongRowOrder``.
+    ///
+    /// - Parameters:
+    ///   - independent: `fst.settings.enableVisualOrder`.
+    ///   - raw: `fst.settings.songRowVisualOrder`.
+    /// - Returns: Every field exactly once.
+    static func songRowOrder(independent: Bool, saved raw: String) -> [MetadataField] {
+        independent ? savedSongRowOrder(raw) : defaultSongRowOrder
     }
 }
