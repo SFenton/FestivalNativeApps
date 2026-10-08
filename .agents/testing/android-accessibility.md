@@ -76,7 +76,7 @@ ATF warnings left as is: "Tap Vocals" is an instrument name, not an instruction;
 
 ## Reading order (TalkBack, verified)
 
-Phone: top app bar (menu/Back, title, page actions, Search, Notifications, profile) → page content in visual order, headings marked → navigation bar tabs → floating toolbar page actions. Wide windows (passport, tri-fold, tablet): top app bar → rail (one group: menu, destinations, profile, Settings) → list pane → detail pane. Quick Links announce the current section. Sheets start at their title (or the drag handle) and end with Close/drag handle.
+Phone: top app bar (menu/Back, title, page actions, Search, Notifications, profile) → page content in visual order, headings marked → navigation bar tabs → floating toolbar page actions. Wide windows (passport, tri-fold, tablet): top app bar → rail (one group: menu, destinations, profile, Settings) → list pane → detail pane. Quick Links announce the current section. Songs bucket headings (Duration, Year and the other Quick Links sorts) are read in place, each before its own rows: a `talkback_walk.py` walk of Duration (FST_Phone, live service, issue #441) read "Under 1 Minute. Heading. In list. 743 items", its rows, then "1 to 2 minutes. Heading". `JourneyHarness.readingOrder` walks the raw tree, where a `LazyColumn` lists sticky headers after its items, so a journey that checks list order sorts the list's stops by their shown top (`SongsBucketHeaderAccessibilityJourneyTest`). Sheets start at their title (or the drag handle) and end with Close/drag handle.
 
 ## Open
 
