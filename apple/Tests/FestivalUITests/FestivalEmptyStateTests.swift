@@ -19,7 +19,7 @@ import Testing
 @Test func shopEmptyCopyFollowsWeb() {
     #expect(ShopEmptyCopy.emptyTitle == "No songs in the Item Shop")
     #expect(ShopEmptyCopy.emptySubtitle == "Check back later \u{2014} the shop updates regularly.")
-    #expect(ShopEmptyCopy.filteredTitle == "No songs match your filters")
+    #expect(ShopEmptyCopy.filteredTitle == "No Item Shop songs match your filters")
     #expect(ShopEmptyCopy.filteredSubtitle.hasPrefix("Try changing your filters"))
     for copy in [ShopEmptyCopy.filteredTitle, ShopEmptyCopy.filteredSubtitle] {
         #expect(!copy.localizedCaseInsensitiveContains("reset"))

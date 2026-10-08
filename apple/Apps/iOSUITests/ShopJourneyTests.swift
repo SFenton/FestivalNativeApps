@@ -104,7 +104,7 @@ final class ShopJourneyTests: XCTestCase {
         let empty = app.descendants(matching: .any)
             .matching(identifier: "fst.shop.filter-empty").firstMatch
         XCTAssertTrue(empty.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["No songs match your filters"].exists)
+        XCTAssertTrue(app.staticTexts["No Item Shop songs match your filters"].exists)
         XCTAssertFalse(app.buttons["Reset Filters"].exists)
         XCTAssertFalse(pulse.exists)
         XCTAssertFalse(orbit.exists)

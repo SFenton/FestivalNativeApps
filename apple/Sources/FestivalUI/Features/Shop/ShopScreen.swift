@@ -752,15 +752,15 @@ enum ShopGridPolicy {
 ///
 /// The genuine empty Shop is the web `ShopPage` `EmptyState` (`shop.empty` /
 /// `shop.emptyHint`). The web Shop has no filters, so the filtered state follows the web's
-/// filtered-empty copy instead: web Songs `songs.noResults` for the title and web
-/// Suggestions `suggestions.noSuggestionsFiltered` for the next step.
+/// filtered-empty copy instead, scoped to the Item Shop and worded like Android's
+/// filtered Shop state (empty-error-states R8).
 enum ShopEmptyCopy {
     /// Web `shop.empty`.
     static let emptyTitle = "No songs in the Item Shop"
     /// Web `shop.emptyHint`.
     static let emptySubtitle = "Check back later \u{2014} the shop updates regularly."
-    /// Web `songs.noResults`, without its sentence period as a title.
-    static let filteredTitle = "No songs match your filters"
-    /// Web `suggestions.noSuggestionsFiltered`, scoped to the Item Shop.
-    static let filteredSubtitle = "Try changing your filters to see more of the Item Shop."
+    /// Web `songs.noResults` scoped to the Item Shop, without a sentence period as a title.
+    static let filteredTitle = "No Item Shop songs match your filters"
+    /// Web filtered-empty next step.
+    static let filteredSubtitle = "Try changing your filters to see more songs."
 }
