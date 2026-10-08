@@ -7,7 +7,8 @@ import FestivalDesign
 /// `SectionHeader` + `FrostedCard` pair (Settings, Profile, Statistics cards).
 ///
 /// The header sits **outside** the card (white, Title Case) like the web; rows inside
-/// are separated by inset hairlines on iOS 18+ and by spacing on iOS 17.
+/// are separated by inset hairlines (padded rows on iOS 17 / macOS 14 by spacing; flush
+/// rows keep their hairlines there too).
 ///
 /// ```swift
 /// FestivalGlassSection("Item Shop", subtitle: "Control how Item Shop availability is displayed.") {
@@ -26,6 +27,8 @@ public struct FestivalGlassSection<Content: View>: View {
     private let subtitle: String?
     private let rowStyle: FestivalGroupRows
     private let content: Content
+    /// Draw the iOS 17 / macOS 14 row stack even where subviews can be enumerated.
+    private var forcesStackedRows = false
 
     /// The card's corner radius (the Rivals and Settings group card).
     static var cornerRadius: CGFloat { 22 }
@@ -57,6 +60,16 @@ public struct FestivalGlassSection<Content: View>: View {
         }
     }
 
+    /// This section drawn with the iOS 17 / macOS 14 row stack, so hosted tests on a newer
+    /// OS cover the back-deployed layout.
+    ///
+    /// - Returns: A copy that never enumerates its subviews.
+    func stackedRows() -> Self {
+        var copy = self
+        copy.forcesStackedRows = true
+        return copy
+    }
+
     /// The rows on the shared material card; flush rows are clipped to its corners so a
     /// selected row's full-width fill follows the card's shape.
     @ViewBuilder private var card: some View {
@@ -77,7 +90,7 @@ public struct FestivalGlassSection<Content: View>: View {
 
     /// Each child view as a row, with hairline separators where supported.
     @ViewBuilder private var rows: some View {
-        if #available(iOS 18.0, macOS 15.0, *) {
+        if #available(iOS 18.0, macOS 15.0, *), !forcesStackedRows {
             VStack(alignment: .leading, spacing: 0) {
                 Group(subviews: content) { subviews in
                     ForEach(Array(subviews.enumerated()), id: \.element.id) { index, row in
@@ -103,11 +116,40 @@ public struct FestivalGlassSection<Content: View>: View {
                 }
                 .padding(.vertical, 4)
             case .flush:
-                // iOS 17 / macOS 14 cannot enumerate subviews: flush rows stack without
-                // hairlines, one card still holding them.
-                VStack(alignment: .leading, spacing: 0) { content }
+                // iOS 17 / macOS 14 cannot enumerate subviews: each row carries a hairline
+                // above it, and the stack starts one point above the clipped card so the
+                // first row's hairline is cut off. Rows and hairlines match the iOS 18 layout.
+                VStack(alignment: .leading, spacing: 0) {
+                    content.modifier(FestivalLeadingHairline(inset: rowStyle.separatorInset))
+                }
+                .padding(.top, -FestivalLeadingHairline.height)
             }
         }
+    }
+}
+
+// MARK: - Stacked-row hairline
+
+/// The iOS 17 / macOS 14 flush-row separator: a hairline in a one-point band above the row,
+/// inset like the iOS 18 separator (issue #381, surface-materials R8).
+struct FestivalLeadingHairline: ViewModifier {
+    /// The hairline's thickness, the same as the enumerated separator.
+    static var height: CGFloat { 1 }
+
+    let inset: CGFloat
+
+    // Padding and overlay apply to each row of a multi-row `content`; a container here
+    // would merge the rows into one.
+    func body(content: Content) -> some View {
+        content
+            .padding(.top, Self.height)
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(BrandTokens.glassBorder)
+                    .frame(height: Self.height)
+                    .padding(.leading, inset)
+                    .accessibilityHidden(true)
+            }
     }
 }
 

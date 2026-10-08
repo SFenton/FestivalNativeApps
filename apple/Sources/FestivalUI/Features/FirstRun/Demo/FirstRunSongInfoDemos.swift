@@ -185,8 +185,9 @@ struct FirstRunSongInfoTopScoresDemo: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             FirstRunInstrumentHeader(instrument: .lead)
-            // The Song Detail card's real rows (`SongLeaderboardEntryRow`, operator batch 7).
-            VStack(alignment: .leading, spacing: 0) {
+            // The Song Detail card's real rows (`SongLeaderboardEntryRow`, operator batch 7)
+            // in the same flush group card as the real preview (#381).
+            FestivalGlassSection(rows: .flush(separatorInset: 14)) {
                 ForEach(Array(FirstRunDemoPool.topScores.enumerated()), id: \.element.id) { index, entry in
                     SongLeaderboardEntryRow(entry: LeaderboardEntry(
                         accountId: "fre-\(entry.rank)", displayName: entry.name,
@@ -195,13 +196,11 @@ struct FirstRunSongInfoTopScoresDemo: View {
                         isFullCombo: entry.isFullCombo, stars: entry.isFullCombo ? 6 : 5,
                         season: nil, difficulty: nil
                     ))
+                    .padding(.horizontal, 14)
                     .padding(.vertical, 11)
                     .firstRunStagger(index)
-                    if index < FirstRunDemoPool.topScores.count - 1 { Divider() }
                 }
             }
-            .padding(.horizontal, 14)
-            .festivalCard(cornerRadius: 16)
             FirstRunViewAllRow(title: "View full leaderboard")
         }
         .accessibilityHidden(true)
