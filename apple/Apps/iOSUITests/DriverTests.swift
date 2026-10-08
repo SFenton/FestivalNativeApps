@@ -56,6 +56,9 @@ import UIKit
 /// - `systemDrag:<identifier-prefix-or-label>><x>,<y>` — long-press a SpringBoard element
 ///   and drag it slowly to a normalized screen point, then hold before release (e.g. a
 ///   Multitasking Dock icon to a screen edge for Split View on the iPhone Duo inner display).
+/// - `appDrag:<bundleId>|<identifier-prefix-or-label>><x>,<y>` — long-press another app's
+///   element and drag it slowly to a normalized screen point, then hold before release
+///   (e.g. a Photos photo onto the feedback form in a side-by-side window, issue #373).
 /// - `fill` — iPad windowed multitasking: make the window fill the screen again
 ///   (always end a script that resized with it: iPadOS remembers window sizes).
 /// - `tile:<Left|Right|Arrange thirds|Left and Right>` — iPad: exact tiling from the
@@ -101,6 +104,7 @@ enum DriverStep {
     case systemTap(String)
     case systemHold(String)
     case systemDrag(String, CGVector)
+    case appDrag(String, String, CGVector)
     case tile(WindowResize.Tile)
     case windowFrame(String)
     case closeWindow
@@ -210,6 +214,16 @@ enum DriverStep {
             }
             guard !target.isEmpty, values.count == 2 else { throw ParseError.malformed(raw) }
             return .systemDrag(target, CGVector(dx: values[0], dy: values[1]))
+        case "appDrag":
+            guard let split = arg.range(of: ">", options: .backwards) else { throw ParseError.malformed(raw) }
+            let bits = arg[..<split.lowerBound].split(separator: "|", maxSplits: 1).map(String.init)
+            let values = arg[split.upperBound...].split(separator: ",").compactMap {
+                Double($0.trimmingCharacters(in: .whitespaces))
+            }
+            guard bits.count == 2, !bits[0].isEmpty, !bits[1].isEmpty, values.count == 2 else {
+                throw ParseError.malformed(raw)
+            }
+            return .appDrag(bits[0], bits[1], CGVector(dx: values[0], dy: values[1]))
         case "systemTree":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .systemTree(arg)
@@ -541,6 +555,17 @@ final class DriverTests: XCTestCase {
             target.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
                 forDuration: 1.0,
                 thenDragTo: springboard.coordinate(withNormalizedOffset: destination),
+                withVelocity: .slow, thenHoldForDuration: 1.0)
+        case let .appDrag(bundle, identifier, destination):
+            let other = XCUIApplication(bundleIdentifier: bundle)
+            let target = other.descendants(matching: .any).matching(
+                NSPredicate(format: "identifier BEGINSWITH %@ OR label == %@", identifier, identifier)
+            ).firstMatch
+            guard target.waitForExistence(timeout: 5) else { throw DriverError.elementNotFound(identifier) }
+            let screen = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+            target.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
+                forDuration: 1.0,
+                thenDragTo: screen.coordinate(withNormalizedOffset: destination),
                 withVelocity: .slow, thenHoldForDuration: 1.0)
         case let .systemTree(path):
             try XCUIApplication(bundleIdentifier: "com.apple.springboard").debugDescription
