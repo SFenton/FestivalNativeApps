@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.journeys
 
+import com.festivalscoretracker.android.core.settings.SettingsDetail
 import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertTextEquals
@@ -91,7 +92,7 @@ class BandsSettingsJourneyTest {
         h.readingOrder("settings")
         // App Version: one read-only item with this build's identity, plus " · <sha7>" when the
         // build is stamped (FST_GIT_SHA / -PfstGitSha; issues #43/#151).
-        h.scrollTo("fst.settings.list", "fst.settings.app-version")
+        h.openSetting(SettingsDetail.Version.rowTag, "fst.settings.app-version")
         val version = AppBuildInfo.versionText(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, BuildConfig.GIT_SHA)
         rule.onNodeWithTag("fst.settings.app-version").assertTextEquals("App Version", version)
         val stampedCommit = AppBuildInfo.shortCommit(BuildConfig.GIT_SHA)

@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -55,12 +57,7 @@ import kotlinx.coroutines.withContext
  */
 @Composable
 fun PrivacyPolicySheet(compact: Boolean, onDismiss: () -> Unit, loadPolicy: (suspend () -> PrivacyPolicy)? = null) {
-    val context = LocalContext.current
-    val policy by produceState<PrivacyPolicy?>(null) {
-        value = loadPolicy?.invoke() ?: withContext(Dispatchers.IO) {
-            PrivacyPolicy.parse(runCatching { context.assets.open(PrivacyPolicy.ASSET).bufferedReader().use { it.readText() } }.getOrNull())
-        }
-    }
+    val policy = rememberPrivacyPolicy(loadPolicy)
     val title = policy?.title ?: PrivacyPolicy.DEFAULT_TITLE
     if (compact) {
         FestivalModalSheet(
@@ -86,19 +83,60 @@ fun PrivacyPolicySheet(compact: Boolean, onDismiss: () -> Unit, loadPolicy: (sus
     }
 }
 
+/**
+ * Settings → Privacy Policy in the Settings detail pane (list/detail Settings, issue #371): the same policy
+ * text as the modal, under the pane's [header] instead of a modal title bar. The policy scrolls in the pane.
+ *
+ * @param padding Page content padding from the Settings screen.
+ * @param header Pane heading (the detail's title and hint).
+ * @param loadPolicy Policy source (the bundled asset by default).
+ */
+@Composable
+internal fun PrivacyPolicyPane(padding: PaddingValues, header: @Composable () -> Unit, loadPolicy: (suspend () -> PrivacyPolicy)? = null) {
+    val policy = rememberPrivacyPolicy(loadPolicy)
+    Column(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).testTag("fst.privacy-policy.pane")) {
+        Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)) { header() }
+        PolicyBody(
+            policy,
+            Modifier.fillMaxHeight(),
+            PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+        )
+    }
+}
+
+/**
+ * The bundled privacy policy, read off the main thread; null until it is read.
+ *
+ * @param loadPolicy Policy source (the bundled asset by default).
+ */
+@Composable
+private fun rememberPrivacyPolicy(loadPolicy: (suspend () -> PrivacyPolicy)?): PrivacyPolicy? {
+    val context = LocalContext.current
+    val policy by produceState<PrivacyPolicy?>(null) {
+        value = loadPolicy?.invoke() ?: withContext(Dispatchers.IO) {
+            PrivacyPolicy.parse(runCatching { context.assets.open(PrivacyPolicy.ASSET).bufferedReader().use { it.readText() } }.getOrNull())
+        }
+    }
+    return policy
+}
+
 // endregion
 
 // region Body
 
 @Composable
-private fun ColumnScope.PolicyBody(policy: PrivacyPolicy?, modifier: Modifier) {
+private fun ColumnScope.PolicyBody(
+    policy: PrivacyPolicy?,
+    modifier: Modifier,
+    contentPadding: PaddingValues = PaddingValues(start = 24.dp, end = 24.dp, top = 4.dp, bottom = 24.dp),
+) {
     if (policy == null) return
     if (policy.isEmpty) {
         FestivalEmptyState("The privacy policy could not be loaded.", modifier.fillMaxWidth().testTag("fst.privacy-policy.empty"))
         return
     }
     LazyColumn(
-        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 4.dp, bottom = 24.dp),
+        contentPadding = contentPadding,
         verticalArrangement = Arrangement.spacedBy(20.dp),
         modifier = modifier.weight(1f, fill = false).fillMaxWidth().testTag("fst.privacy-policy.content"),
     ) {

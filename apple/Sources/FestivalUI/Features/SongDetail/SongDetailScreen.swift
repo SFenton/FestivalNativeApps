@@ -483,11 +483,7 @@ extension SongDetailScreen {
         switch SongDetailShopActionStyle.resolve(tone: shopTone, chrome: deviceLayout.sectionChrome) {
         case let .breathing(tone):
             Link(destination: offer.shopUrl) {
-                Image(systemName: "bag")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(FestivalText.primary)
-                    .frame(width: 34, height: 34)
-                    .modifier(ShopStatusBreathe(tone: tone))
+                SongDetailShopGlyph(tone: tone)
                     // In the tab-bar accessory the whole slot is the hit target (44 pt+).
                     .frame(maxWidth: fillsSlot ? .infinity : nil, maxHeight: fillsSlot ? .infinity : nil)
                     .frame(minWidth: fillsSlot ? 44 : nil, minHeight: fillsSlot ? 44 : nil)

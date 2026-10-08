@@ -639,7 +639,7 @@ private func renderSongBandPreviews(
     #expect(!tree.identifiers.contains("fst.player.bands.view-all.quads"))
     #expect(!tree.identifiers.contains("fst.player.bands.loading"))
     #expect(tree.contains("Fixture Player 1's Bands"))
-    #expect(tree.contains("View all 18 duos"))
+    #expect(tree.contains("View All Bands (18), Duos"))
     assertRendersContent(host, image: image, containing: ["Duos", "Trios", "Quads"])
 }
 
