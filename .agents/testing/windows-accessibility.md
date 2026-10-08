@@ -88,6 +88,7 @@ Scope: the shared row-column fitter (issue #37) on every board, checked against 
 - **Fixed:**
   - Switching a contrast theme with a board open left the rows' code-set brushes (translucent fill, purple pinned row, gold badge) and the pager's disabled-button aliases in the old theme, under system backplates.
   - Under a contrast theme, the pinned row's FC badge drew WindowText on Highlight.
+- **Committed test (issue #409, 2026-10-08):** `journeys/a11y-leaderboard-columns.json` turns this check into fixture pages: the song board, its narrow/season/large-text states and Full Rankings. It checks names, Button role, reading order (rows → pinned row → pager), 40 epx targets and pinned-row column alignment. It passed with 0 Axe errors at compact, medium, wide, maximized and snap-left, and at compact and medium under text 200% and 225%. No defect found. `fst.song-leaderboard.title` is not an item in `assertorder`'s Narrator reading-order model, so order checks start at the first row.
 
 ## Item Shop validation (issue #224, 2026-10-04)
 

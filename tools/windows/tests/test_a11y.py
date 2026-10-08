@@ -287,6 +287,32 @@ class MatrixTests(unittest.TestCase):
         self.assertIn("waitfor:id=fst.player.deselect@20", player)
         self.assertIn("waitgone:id=fst.shell.notifications@2", pages["tb-anonymous"]["after_ready"])
 
+    def test_leaderboard_column_pages(self):
+        """Issue #409: the shared row-column plan (issue #37) keeps rows and the pinned row named, ordered and aligned."""
+        pages = {p["name"]: p for p in json.loads((m.PAGES.parent / "a11y-leaderboard-columns.json").read_text(encoding="utf-8"))}
+        self.assertEqual(set(pages), {"cols-song-board", "cols-song-board-narrow", "cols-song-board-season",
+                                      "cols-song-board-large-text", "cols-full-rankings"})
+        for page in pages.values():
+            for size in page.get("sizes", []):
+                self.assertIn(size, u.PRESETS, page["name"])
+            for step in m.page_steps(page, "medium", Path("out"), "", scan=True, tabs=0):
+                with self.subTest(page=page["name"], step=step):
+                    u.parse_step(step)
+        pinned = "raw=fst.score.accuracy.spotlight-footer"
+        for name in ("cols-song-board", "cols-song-board-season", "cols-song-board-large-text"):
+            self.assertIn(f"assertaligned:raw=fst.score.accuracy.fixture-player-2|{pinned}", pages[name]["after_ready"])
+        season = pages["cols-song-board-season"]["after_ready"]
+        self.assertIn("assertaligned:raw=fst.score.season.fixture-player-2|raw=fst.score.season.fixture-player-3", season)
+        self.assertIn("waitgone:raw=fst.star-rating.white-5", pages["cols-song-board-narrow"]["after_ready"])
+        self.assertTrue(m.mode_pages([pages["cols-song-board-large-text"]], "text-225"))
+        self.assertFalse(m.mode_pages([pages["cols-song-board-large-text"]], "normal"))
+        self.assertFalse(m.mode_pages([pages["cols-song-board-season"]], "text-200"))
+        for name in ("cols-song-board", "cols-song-board-large-text", "cols-full-rankings"):
+            self.assertTrue(pages[name]["scan"], name)
+            steps = pages[name]["after_ready"]
+            self.assertTrue(any(s.startswith("assertorder:") and "spotlight-footer" in s for s in steps), name)
+            self.assertTrue(any(s.startswith("assertsize:") and s.endswith("spotlight-footer|0x40") for s in steps), name)
+
     def test_page_fixture(self):
         self.assertEqual(m.page_fixture({"name": "shop"}), (m.FIXTURE, ()))
         self.assertEqual(m.page_fixture({"fixture": ["--band-rankings", "empty"]}),

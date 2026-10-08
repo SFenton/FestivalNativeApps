@@ -1,0 +1,66 @@
+[
+  {"name": "cols-song-board", "route": "/songs/fixture-pulse/Solo_Guitar", "profile": "fixture-player-1:Fixture Player 1", "scan": true, "tabs": 0,
+   "note": "Shared section columns (issue #37): the pinned row's badge sits in the listed rows' column, every row is one 40+ epx Button stop read in visual order, rows -> pinned row -> pager (issue #409).",
+   "ready": ["waitfor:id=fst.song-leaderboard.row.fixture-player-2@30", "waitfor:id=fst.song-leaderboard.spotlight-footer@15", "wait:1"],
+   "after_ready": [
+     "assertread:id=fst.song-leaderboard.row.fixture-player-2|~^Rank #2, Fixture Player 2, 99,800 points, 98% accuracy, full combo(, season 9)?, 5 stars, button$",
+     "assertread:id=fst.song-leaderboard.row.fixture-player-3|~^Rank #3, Fixture Player 3, 99,700 points(, season 9)?, 5 stars, button$",
+     "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 1st\\. Open your statistics\\. Fixture Player 1, 99,900 points, 97\\.9% accuracy(, season 9)?, 5 stars, button$",
+     "waitgone:raw=fst.score.accuracy.fixture-player-3",
+     "assertaligned:raw=fst.score.accuracy.fixture-player-1|raw=fst.score.accuracy.fixture-player-2",
+     "assertaligned:raw=fst.score.accuracy.fixture-player-2|raw=fst.score.accuracy.spotlight-footer",
+     "assertsize:id=fst.song-leaderboard.row.fixture-player-1|0x40",
+     "assertsize:id=fst.song-leaderboard.row.fixture-player-3|0x40",
+     "assertsize:id=fst.song-leaderboard.spotlight-footer|0x40",
+     "assertapart:id=fst.song-leaderboard.row.fixture-player-1|id=fst.song-leaderboard.row.fixture-player-2",
+     "assertorder:id=fst.song-leaderboard.row.fixture-player-1|id=fst.song-leaderboard.row.fixture-player-2|id=fst.song-leaderboard.row.fixture-player-3|id=fst.song-leaderboard.spotlight-footer|id=fst.song-leaderboard.page-next"
+   ]},
+  {"name": "cols-song-board-narrow", "route": "/songs/fixture-pulse/Solo_Guitar", "profile": "fixture-player-1:Fixture Player 1", "tabs": 0, "sizes": ["compact"],
+   "skip_modes": ["text-150", "text-200", "text-225"],
+   "note": "Under 520 epx the section drops season and stars on every row, the pinned row included; the names still read the stars (hidden columns never hide data from Narrator).",
+   "ready": ["waitfor:id=fst.song-leaderboard.row.fixture-player-2@30", "waitfor:id=fst.song-leaderboard.spotlight-footer@15", "wait:1"],
+   "after_ready": [
+     "waitgone:raw=fst.score.season.fixture-player-2",
+     "waitgone:raw=fst.score.season.spotlight-footer",
+     "waitgone:raw=fst.star-rating.white-5",
+     "assertname:id=fst.song-leaderboard.row.fixture-player-2|Rank #2, Fixture Player 2, 99,800 points, 98% accuracy, full combo, 5 stars",
+     "assertname:id=fst.song-leaderboard.spotlight-footer|Your rank, 1st. Open your statistics. Fixture Player 1, 99,900 points, 97.9% accuracy, 5 stars"
+   ]},
+  {"name": "cols-song-board-season", "route": "/songs/fixture-pulse/Solo_Guitar", "profile": "fixture-player-1:Fixture Player 1", "tabs": 0,
+   "sizes": ["medium", "wide", "maximized", "snap-left"], "skip_modes": ["text-150", "text-200", "text-225"],
+   "note": "From 520 epx the season column is shared: a row without an accuracy badge keeps the badge's slot, so its season lines up, and the pinned row's season too; names read the season shown.",
+   "ready": ["waitfor:raw=fst.score.season.fixture-player-3@30", "waitfor:id=fst.song-leaderboard.spotlight-footer@15", "wait:1"],
+   "after_ready": [
+     "waitfor:raw=fst.score.season.spotlight-footer@5",
+     "assertaligned:raw=fst.score.season.fixture-player-2|raw=fst.score.season.fixture-player-3",
+     "assertaligned:raw=fst.score.season.fixture-player-2|raw=fst.score.season.spotlight-footer",
+     "assertaligned:raw=fst.score.accuracy.fixture-player-2|raw=fst.score.accuracy.spotlight-footer",
+     "assertname:id=fst.song-leaderboard.row.fixture-player-3|Rank #3, Fixture Player 3, 99,700 points, season 9, 5 stars",
+     "assertname:id=fst.song-leaderboard.spotlight-footer|Your rank, 1st. Open your statistics. Fixture Player 1, 99,900 points, 97.9% accuracy, season 9, 5 stars"
+   ]},
+  {"name": "cols-song-board-large-text", "route": "/songs/fixture-pulse/Solo_Guitar", "profile": "fixture-player-1:Fixture Player 1", "scan": true, "tabs": 0,
+   "sizes": ["compact", "medium"], "modes": ["text-200", "text-225"],
+   "note": "Large text: rows (pinned row included) grow or stack their values under the name rather than clipping, stay 40+ epx targets and keep one badge column; names still read every value.",
+   "ready": ["waitfor:id=fst.song-leaderboard.row.fixture-player-2@30", "waitfor:id=fst.song-leaderboard.spotlight-footer@15", "wait:1.5"],
+   "after_ready": [
+     "assertread:id=fst.song-leaderboard.row.fixture-player-2|~^Rank #2, Fixture Player 2, 99,800 points, 98% accuracy, full combo(, season 9)?, 5 stars, button$",
+     "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 1st\\. Open your statistics\\. Fixture Player 1, 99,900 points, 97\\.9% accuracy(, season 9)?, 5 stars, button$",
+     "assertaligned:raw=fst.score.accuracy.fixture-player-1|raw=fst.score.accuracy.fixture-player-2",
+     "assertaligned:raw=fst.score.accuracy.fixture-player-2|raw=fst.score.accuracy.spotlight-footer",
+     "assertsize:id=fst.song-leaderboard.row.fixture-player-1|0x40",
+     "assertsize:id=fst.song-leaderboard.spotlight-footer|0x40",
+     "assertapart:id=fst.song-leaderboard.row.fixture-player-1|id=fst.song-leaderboard.row.fixture-player-2",
+     "assertorder:id=fst.song-leaderboard.row.fixture-player-1|id=fst.song-leaderboard.row.fixture-player-2|id=fst.song-leaderboard.spotlight-footer|id=fst.song-leaderboard.page-next"
+   ]},
+  {"name": "cols-full-rankings", "route": "/leaderboards/all?instrument=Solo_Guitar", "profile": "fixture-player-1:Fixture Player 1", "scan": true, "tabs": 0,
+   "note": "Rankings rows and their pinned row share one section plan (rank, songs label, rating): one Button stop each reading every column, rows -> pinned row, 40+ epx targets.",
+   "ready": ["waitfor:id=fst.rankings.row.fixture-player-2@30", "waitfor:id=fst.full-rankings.spotlight-footer@15", "wait:1"],
+   "after_ready": [
+     "assertread:id=fst.rankings.row.fixture-player-2|Rank #2, Fixture Player 2. Total Score 88,000,000, 38 / 50 songs, button",
+     "assertread:id=fst.full-rankings.spotlight-footer|Your rank, 1st. Open your statistics. Fixture Player 1. Total Score 89,000,000, 39 / 50 songs, button",
+     "assertsize:id=fst.rankings.row.fixture-player-1|0x40",
+     "assertsize:id=fst.full-rankings.spotlight-footer|0x40",
+     "assertapart:id=fst.rankings.row.fixture-player-1|id=fst.rankings.row.fixture-player-2",
+     "assertorder:id=fst.full-rankings.title|id=fst.rankings.rank-by-menu|id=fst.rankings.row.fixture-player-1|id=fst.rankings.row.fixture-player-2|id=fst.full-rankings.spotlight-footer"
+   ]}
+]
