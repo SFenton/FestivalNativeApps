@@ -11,6 +11,9 @@ that the shared mock service does not have:
 
 ``--rankings-delay SECONDS`` answers every board read (``/api/rankings/{instrument}``, not the selected player's
 own-rank read) after that delay, so a journey can assert what a reload shows while the spinner is up (issue #270).
+``--bands-delay SECONDS`` does the same for the band boards (``/api/rankings/bands/{type}``,
+``/api/leaderboard/{song}/bands/{type}`` and ``/api/player/{id}/bands``, not Song Detail's ``bands/all`` previews or
+a band's history/songs reads): their load and reload spinners stay up for accessibility pages (issue #431).
 
 Selected-player spotlight states come from the mock's own accounts: ``fixture-rank-40`` (page 2: the pinned row
 jumps there, then opens the profile), ``fixture-rank-fail`` (inline failure) and any other unknown ``fixture-*`` ID (404: not ranked).
@@ -108,20 +111,79 @@ def is_board_read(path: str) -> bool:
     return len(parts) == 4 and path.startswith("/api/rankings/") and parts[3] not in ("", "bands")
 
 
-def install_rankings_delay(seconds: float) -> None:
-    """Answer board reads only after a delay, keeping a reload's spinner up long enough to inspect.
+def is_band_board_read(path: str) -> bool:
+    """Whether a path is a band board read (delayed by ``--bands-delay``).
 
     Args:
-        seconds: Delay before each board response.
+        path: Request path.
+
+    Returns:
+        ``True`` for ``/api/rankings/bands/{type}``, ``/api/leaderboard/{song}/bands/{type}`` (not ``bands/all``)
+        and ``/api/player/{id}/bands``.
+    """
+    parts = path.split("/")
+    if len(parts) == 5 and path.startswith("/api/rankings/bands/"):
+        return parts[4] != ""
+    if len(parts) == 6 and path.startswith("/api/leaderboard/") and parts[4] == "bands":
+        return parts[3] != "" and parts[5] not in ("", "all")
+    return len(parts) == 5 and path.startswith("/api/player/") and parts[3] != "" and parts[4] == "bands"
+
+
+def install_delay(seconds: float, matches=is_board_read) -> None:
+    """Answer matching reads only after a delay, keeping a load or reload spinner up long enough to inspect.
+
+    Args:
+        seconds: Delay before each matching response.
+        matches: Predicate on the request path (default: solo board reads).
     """
     original = mock_service.FixtureHandler.do_GET
 
     def do_get(self) -> None:  # noqa: ANN001 (stdlib handler signature)
-        if is_board_read(urlsplit(self.path).path):
+        if matches(urlsplit(self.path).path):
             time.sleep(seconds)
         original(self)
 
     mock_service.FixtureHandler.do_GET = do_get
+
+
+def install_rankings_delay(seconds: float) -> None:
+    """Answer solo board reads only after a delay, keeping a reload's spinner up long enough to inspect.
+
+    Args:
+        seconds: Delay before each board response.
+    """
+    install_delay(seconds, is_board_read)
+
+
+def take_delay(argv: list[str], flag: str) -> tuple[float | None, list[str]]:
+    """Split ``<flag> <seconds>`` (or ``<flag>=<seconds>``) from the remaining arguments.
+
+    Args:
+        argv: Command-line arguments after the program name.
+        flag: The option, e.g. ``--rankings-delay``.
+
+    Returns:
+        The delay in seconds (``None`` when absent) and the remaining arguments.
+
+    Raises:
+        SystemExit: Missing, non-numeric or negative delay.
+    """
+    delay, rest, items = None, [], iter(argv)
+    for arg in items:
+        if arg == flag:
+            value = next(items, None)
+        elif arg.startswith(f"{flag}="):
+            value = arg.split("=", 1)[1]
+        else:
+            rest.append(arg)
+            continue
+        try:
+            delay = float(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            delay = -1.0
+        if delay < 0:
+            raise SystemExit(f"{flag} needs a non-negative number of seconds")
+    return delay, rest
 
 
 def take_rankings_delay(argv: list[str]) -> tuple[float | None, list[str]]:
@@ -136,31 +198,19 @@ def take_rankings_delay(argv: list[str]) -> tuple[float | None, list[str]]:
     Raises:
         SystemExit: Missing, non-numeric or negative delay.
     """
-    delay, rest, items = None, [], iter(argv)
-    for arg in items:
-        if arg == "--rankings-delay":
-            value = next(items, None)
-        elif arg.startswith("--rankings-delay="):
-            value = arg.split("=", 1)[1]
-        else:
-            rest.append(arg)
-            continue
-        try:
-            delay = float(value)  # type: ignore[arg-type]
-        except (TypeError, ValueError):
-            delay = -1.0
-        if delay < 0:
-            raise SystemExit("--rankings-delay needs a non-negative number of seconds")
-    return delay, rest
+    return take_delay(argv, "--rankings-delay")
 
 
 def main() -> None:
-    """Install the scenarios and the optional board delay, force ``--large-rankings`` and hand over to ``rivals_fixture``."""
+    """Install the scenarios and the optional board delays, force ``--large-rankings`` and hand over to ``rivals_fixture``."""
     install()
     delay, rest = take_rankings_delay(sys.argv[1:])
+    bands_delay, rest = take_delay(rest, "--bands-delay")
     sys.argv[1:] = rest
     if delay:
         install_rankings_delay(delay)
+    if bands_delay:
+        install_delay(bands_delay, is_band_board_read)
     if "--large-rankings" not in sys.argv:
         sys.argv.append("--large-rankings")
     rivals_fixture.main()
