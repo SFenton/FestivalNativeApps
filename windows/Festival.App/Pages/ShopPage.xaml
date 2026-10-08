@@ -100,7 +100,7 @@
                                 </StackPanel>
                             </ScrollViewer>
                             <Grid Grid.Row="2" Padding="16,12,16,16" BorderThickness="0,1,0,0" BorderBrush="{ThemeResource FSTCardStrokeBrush}">
-                                <Button Content="Reset" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.ResetFilterCommand}"
+                                <Button Content="Reset" HorizontalAlignment="Stretch" MinHeight="{StaticResource FSTMinTargetSize}" Command="{x:Bind ViewModel.ResetFilterCommand}"
                                         AutomationProperties.Name="Reset Item Shop Filters" AutomationProperties.AutomationId="fst.shop.filter.reset">
                                     <Button.Resources>
                                         <!-- Web Modal reset: a full-width red (btnDanger #C62828) button, as in the Songs filter flyout. -->

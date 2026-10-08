@@ -37,6 +37,14 @@ class UiCiTests(unittest.TestCase):
                 # The runner's 1920x1080 desktop holds compact and medium, not wide (1440x900 plus the taskbar).
                 self.assertNotIn("wide", sizes)
                 self.assertTrue(m.mode_pages(pages, run.mode), "no page runs in this mode")
+                for page in pages:
+                    self.assertLessEqual(set(page.get("axe_allow", ())), set(m.AXE_ALLOW), page["name"])
+
+    def test_quick_links_landing_runs_at_default_and_largest_text(self):
+        landing = {run.mode: run for run in ci.RUNS if run.pages == "a11y-quick-links-landing.json"}
+        self.assertEqual({"normal", "text-225"}, set(landing))
+        self.assertTrue(all(run.scan for run in landing.values()))
+        self.assertIn("compact", landing["text-225"].sizes.split(","))
 
     def test_modals_run_at_default_and_largest_text(self):
         modal = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-modals.json"}
@@ -60,6 +68,22 @@ class UiCiTests(unittest.TestCase):
             self.assertIn("assertstate:id=fst.whats-new.group.0.0|heading=3", steps)
             self.assertIn("assertsize:id=fst.whats-new.dismiss|40x40", steps)
             self.assertTrue(any(step.startswith("assertorder:id=fst.whats-new.list|id=fst.whats-new.section.0|") for step in steps))
+    def test_songs_filter_runs_at_default_and_largest_text(self):
+        # Issue #432 (#77): the no-profile Filter flyout's accessibility pages run in CI at default and 225% text.
+        runs = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-songs-filter.json"}
+        self.assertEqual({("normal", True), ("text-225", True)}, runs)
+        pages = json.loads((ci.JOURNEYS / "a11y-songs-filter.json").read_text(encoding="utf-8"))
+        names = {page["name"] for page in pages}
+        self.assertTrue({"songs-filter-anonymous", "songs-filter-anonymous-year", "kb-songs-filter-anonymous"} <= names)
+        for page in pages:
+            with self.subTest(page=page["name"]):
+                self.assertNotIn("profile", page)  # no selected player: the General-only drawer
+                steps = page.get("after_ready", [])
+                self.assertTrue(any(s.startswith(("assertread:", "assertfocus:")) for s in steps))
+        steps = [s for page in pages for s in page.get("after_ready", [])]
+        for target in ("fst.songs.filter|", "fst.songs.filter.reset|", "fst.songs.filter.year.select-all|",
+                       "fst.songs.filter.year.clear-all|"):
+            self.assertIn(f"assertsize:id={target}40x40", steps)
 
     def test_argv(self):
         run = ci.Run("x", "a11y-modals.json", sizes="compact", mode="text-225", tabs=30)
