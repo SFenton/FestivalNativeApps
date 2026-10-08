@@ -114,6 +114,61 @@ final class ShopJourneyTests: XCTestCase {
         XCTAssertEqual(filter.value as? String, "No filters")
     }
 
+    /// Issue #379: the Shop's Sort sheet offers Songs' Title, Artist, Year and Duration
+    /// modes with a direction, reorders the offers live, survives a relaunch and resets.
+    ///
+    /// - Throws: Missing modes, an order that ignores the sort, a lost choice or a broken Reset.
+    @MainActor
+    func testShopSortReordersOffersAndPersists() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = SongsUITestSupport.fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
+        SongsUITestSupport.openItemShop(in: app)
+        let pulse = app.buttons["fst.shop.song.fixture-pulse"]
+        let orbit = app.buttons["fst.shop.song.fixture-orbit"]
+        let sort = app.buttons["fst.shop.sort"]
+        XCTAssertTrue(sort.waitForExistence(timeout: 15))
+        XCTAssertTrue(orbit.waitForExistence(timeout: 15))
+        XCTAssertEqual(sort.label, "Sort Item Shop")
+
+        sort.tap()
+        let reset = SongsUITestSupport.revealSheetReset(
+            "fst.shop.sort.reset", cancelId: "fst.shop.sort.done", sheetName: "Shop Sort", in: app
+        )
+        reset.tap()
+        let modes = app.buttons.matching(identifier: "fst.shop.sort.mode")
+        let labels = modes.allElementsBoundByIndex.map(\.label)
+        XCTAssertEqual(labels, ["Title", "Artist", "Year", "Duration"])
+        try app.performAccessibilityAudit(for: .all)
+        app.buttons["fst.shop.sort.direction.descending"].tap()
+        SongsUITestSupport.record(app, name: "shop-sort-sheet-title-descending")
+        app.buttons["fst.shop.sort.done"].tap()
+
+        XCTAssertTrue(pulse.waitForExistence(timeout: 10))
+        XCTAssertEqual(sort.value as? String, "Title, descending")
+        XCTAssertLessThan(pulse.frame.minY, orbit.frame.minY, "Title Z–A left Orbit first")
+
+        app.terminate()
+        app.launchEnvironment.removeValue(forKey: "FST_UI_TEST_RESET_SONG_CARDS")
+        app.launch()
+        SongsUITestSupport.openItemShop(in: app)
+        XCTAssertTrue(orbit.waitForExistence(timeout: 15))
+        XCTAssertEqual(sort.value as? String, "Title, descending", "Relaunch lost the Shop sort")
+        XCTAssertLessThan(pulse.frame.minY, orbit.frame.minY)
+
+        sort.tap()
+        SongsUITestSupport.revealSheetReset(
+            "fst.shop.sort.reset", cancelId: "fst.shop.sort.done", sheetName: "Shop Sort", in: app
+        ).tap()
+        app.buttons["fst.shop.sort.done"].tap()
+        XCTAssertTrue(orbit.waitForExistence(timeout: 10))
+        XCTAssertEqual(sort.value as? String, "Title, ascending")
+        XCTAssertLessThan(orbit.frame.minY, pulse.frame.minY, "Reset left Title Z–A")
+    }
+
     /// PWA parity (gap #17): compact two-line rows with the bag before the chevron,
     /// as sibling actions of one row.
     ///
