@@ -481,6 +481,30 @@ struct SongsSectionJumpTests {
         #expect(chrome.listTopInset.value == 116)
         #expect(!fired.value)
     }
+
+    /// Issue #388: the rail starts below the header as it rests at the top, and holds
+    /// still while the List scrolls or is pulled past its top.
+    @Test func expandedTopInsetFollowsTheHeaderAtRestOnly() {
+        let chrome = SongsScrollChrome()
+        #expect(chrome.noteExpandedTopInset(312, offsetY: -312))
+        #expect(!chrome.noteExpandedTopInset(116, offsetY: 400))
+        #expect(!chrome.noteExpandedTopInset(312, offsetY: -380))
+        #expect(chrome.expandedTopInset == 312)
+        let fired = JumpFlag()
+        withObservationTracking { _ = chrome.expandedTopInset } onChange: { fired.value = true }
+        chrome.noteExpandedTopInset(312, offsetY: -312.2)
+        chrome.noteExpandedTopInset(.nan, offsetY: 0)
+        #expect(!fired.value)
+        #expect(chrome.noteExpandedTopInset(300, offsetY: -300))
+        #expect(chrome.expandedTopInset == 300)
+    }
+
+    /// Issue #388: only accessibility sizes move the rail below the expanded header.
+    @Test func scrubberStartsBelowTheExpandedHeaderOnlyAtAccessibilitySizes() {
+        #expect(ScrubberTopReserve.top(collapsed: 114, expandedInset: 312, accessibility: true) == 320)
+        #expect(ScrubberTopReserve.top(collapsed: 114, expandedInset: 312, accessibility: false) == 114)
+        #expect(ScrubberTopReserve.top(collapsed: 114, expandedInset: 0, accessibility: true) == 114)
+    }
 }
 
 /// Set synchronously by `onChange` during a write on the main actor.
