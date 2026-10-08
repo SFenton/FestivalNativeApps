@@ -237,15 +237,10 @@
                                         Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}"
                                         AutomationProperties.AutomationId="fst.suggestions.error" />
 
-            <StackPanel Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" VerticalAlignment="Center" HorizontalAlignment="Center"
-                        Spacing="12" MaxWidth="420">
-                <TextBlock Text="No Suggestions" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
-                           AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.suggestions.no-results" />
-                <TextBlock Text="{x:Bind ViewModel.EmptyMessage, Mode=OneWay}" TextWrapping="Wrap" TextAlignment="Center" />
-                <Button Content="Reset Filters" HorizontalAlignment="Center" Click="OnResetFilters"
-                        Visibility="{x:Bind ViewModel.IsFilterActive, Mode=OneWay}"
-                        AutomationProperties.AutomationId="fst.suggestions.reset-filters" />
-            </StackPanel>
+            <!-- Shared empty state (issue #377): centred, no Reset Filters button; the Filter button is the way back. -->
+            <controls:EmptyStateView Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}"
+                                     Title="No Suggestions" Subtitle="{x:Bind ViewModel.EmptyMessage, Mode=OneWay}"
+                                     TitleAutomationId="fst.suggestions.no-results" />
         </Grid>
     </Grid>
 

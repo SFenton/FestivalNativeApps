@@ -222,33 +222,21 @@
                                         Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}"
                                         AutomationProperties.AutomationId="fst.shop.error" />
 
-            <Border Style="{StaticResource FSTCardStyle}" Padding="24" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="440"
-                    Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}">
-                <StackPanel Spacing="12">
-                    <FontIcon Glyph="&#xE719;" FontSize="32" HorizontalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
-                    <TextBlock Text="No Songs in the Item Shop" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
-                               TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.shop.empty" />
-                    <TextBlock Text="Check back later. The shop updates regularly." HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
-                </StackPanel>
-            </Border>
+            <!-- Empty states: the shared EmptyStateView (empty-error-states R2/R5, issue #377), with no card and no Reset
+                 Filters button. Web ShopPage copy ("No songs in the Item Shop" / "Check back later…"). -->
+            <controls:EmptyStateView Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" Glyph="&#xE719;"
+                                     Title="No Songs in the Item Shop" Subtitle="Check back later. The shop updates regularly."
+                                     TitleAutomationId="fst.shop.empty" />
 
-            <!-- Every offer is hidden by the page filter: distinct from the genuine empty Shop, with a way back. -->
-            <StackPanel Visibility="{x:Bind ViewModel.ShowNoMatches, Mode=OneWay}" HorizontalAlignment="Center" VerticalAlignment="Center"
-                        Spacing="12" MaxWidth="440">
-                <TextBlock Text="No Matching Songs" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" TextWrapping="Wrap"
-                           AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.shop.filter.empty" />
-                <TextBlock Text="No Item Shop songs match your filters." HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
-                <Button Content="Reset Filters" HorizontalAlignment="Center" Command="{x:Bind ViewModel.ResetFilterCommand}"
-                        AutomationProperties.AutomationId="fst.shop.filter.empty-reset" />
-            </StackPanel>
+            <!-- Every offer is hidden by the page filter: distinct copy from the genuine empty Shop; the filter button
+                 above is the way back (web Songs filtered-empty model; the web Shop has no filters). -->
+            <controls:EmptyStateView Visibility="{x:Bind ViewModel.ShowNoMatches, Mode=OneWay}"
+                                     Title="No Matching Songs" Subtitle="No Item Shop songs match your filters. Try changing your filters to see more songs."
+                                     TitleAutomationId="fst.shop.filter.empty" />
 
-            <StackPanel Visibility="{x:Bind ViewModel.IsHidden, Mode=OneWay}" HorizontalAlignment="Center" VerticalAlignment="Center"
-                        Spacing="12" MaxWidth="440">
-                <TextBlock Text="Item Shop Is Hidden" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
-                           TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.shop.hidden" />
-                <TextBlock Text="Turn off Hide Item Shop in Settings to see today's songs." HorizontalAlignment="Center"
-                           TextAlignment="Center" TextWrapping="Wrap" />
-            </StackPanel>
+            <controls:EmptyStateView Visibility="{x:Bind ViewModel.IsHidden, Mode=OneWay}"
+                                     Title="Item Shop Is Hidden" Subtitle="Turn off Hide Item Shop in Settings to see today's songs."
+                                     TitleAutomationId="fst.shop.hidden" />
         </Grid>
     </Grid>
 </Page>

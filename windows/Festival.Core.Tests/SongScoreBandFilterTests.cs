@@ -137,7 +137,7 @@ public class SongsScoreBandTests
         var all = Ids(vm).Count;
         session.UpdateSettings(s => s with { PlayerScoreFilter = SongPlayerScoreFilter.None, SongFilter = new SongFilter(Instrument.Lead, SongBuckets.IntensityKeys) });
         Assert.True(vm.ShowEmpty);
-        Assert.Equal("No songs match the filters.", vm.EmptyMessage);
+        Assert.Equal("No songs match your filters. Try adjusting your search or filters.", vm.EmptyMessage);
         Assert.True(all > 0);
     }
 }

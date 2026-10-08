@@ -89,12 +89,10 @@
                                      button already names the metric). -->
                                 <controls:CardHeader Title="{x:Bind Title}" IconFile="{x:Bind IconFile}" TitleAutomationId="{x:Bind AutomationId}" />
                                 <!-- No card around the rows: each row is its own frosted row (web RankingCard cardBody,
-                                     operator batch 7.7); empty and failed boards sit on their own card. -->
+                                     operator batch 7.7); failed boards sit on their own card, empty boards use the shared compact EmptyStateView (#377). -->
                                 <StackPanel Spacing="4">
                                         <controls:LeaderboardsSkeleton Rows="{x:Bind SkeletonRows}" Visibility="{x:Bind IsLoading, Mode=OneWay}" />
-                                        <Border Style="{StaticResource FSTCardStyle}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}">
-                                            <TextBlock Text="{x:Bind EmptyText}" Style="{StaticResource FSTSecondaryTextStyle}" />
-                                        </Border>
+                                        <controls:EmptyStateView IsCompact="True" Title="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}" />
                                         <Border Style="{StaticResource FSTCardStyle}" Visibility="{x:Bind ShowError, Mode=OneWay}">
                                             <controls:ServiceStatusInline Status="{x:Bind Status}" />
                                         </Border>
@@ -144,12 +142,10 @@
                                 <!-- Band-size header above the card: name only, no icon (web band RankingCard). -->
                                 <controls:CardHeader Title="{x:Bind Title}" TitleAutomationId="{x:Bind AutomationId}" />
                                 <!-- No card around the rows: each row is its own frosted row (web RankingCard cardBody,
-                                     operator batch 7.7); empty and failed boards sit on their own card. -->
+                                     operator batch 7.7); failed boards sit on their own card, empty boards use the shared compact EmptyStateView (#377). -->
                                 <StackPanel Spacing="4">
                                         <controls:LeaderboardsSkeleton Rows="{x:Bind SkeletonRows}" Visibility="{x:Bind IsLoading, Mode=OneWay}" />
-                                        <Border Style="{StaticResource FSTCardStyle}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}">
-                                            <TextBlock Text="{x:Bind EmptyText}" Style="{StaticResource FSTSecondaryTextStyle}" />
-                                        </Border>
+                                        <controls:EmptyStateView IsCompact="True" Title="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}" />
                                         <Border Style="{StaticResource FSTCardStyle}" Visibility="{x:Bind ShowError, Mode=OneWay}">
                                             <controls:ServiceStatusInline Status="{x:Bind Status}" />
                                         </Border>

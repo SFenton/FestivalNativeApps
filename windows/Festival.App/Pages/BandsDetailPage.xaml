@@ -214,12 +214,13 @@
                         <TextBlock Text="Band Rank History" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0,8,0,0"
                                    AutomationProperties.HeadingLevel="Level2" />
                         <TextBlock Text="{x:Bind ViewModel.HistoryHint, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" />
-                        <Border Style="{StaticResource FSTCardStyle}">
+                        <!-- Empty history is the shared compact EmptyStateView with no card (#377); loading, failure and the chart keep the card. -->
+                        <controls:EmptyStateView IsCompact="True" Title="No band rank history yet." Visibility="{x:Bind ViewModel.HistoryEmpty, Mode=OneWay}"
+                                                 TitleAutomationId="fst.band.history-empty" />
+                        <Border Style="{StaticResource FSTCardStyle}" Visibility="{x:Bind ViewModel.ShowHistoryCard, Mode=OneWay}">
                             <Grid>
                                 <ProgressRing IsActive="{x:Bind ViewModel.HistoryLoading, Mode=OneWay}" Width="32" Height="32"
                                               Visibility="{x:Bind ViewModel.HistoryLoading, Mode=OneWay}" AutomationProperties.Name="Loading rank history" />
-                                <TextBlock Text="No band rank history yet." Style="{StaticResource FSTSecondaryTextStyle}"
-                                           Visibility="{x:Bind ViewModel.HistoryEmpty, Mode=OneWay}" AutomationProperties.AutomationId="fst.band.history-empty" />
                                 <controls:ServiceStatusInline Visibility="{x:Bind ViewModel.HistoryFailed, Mode=OneWay}"
                                                               Status="{x:Bind ViewModel.HistoryStatus}" />
                                 <StackPanel Spacing="12" Visibility="{x:Bind ViewModel.ShowHistory, Mode=OneWay}">
@@ -266,8 +267,8 @@
                             <controls:ServiceStatusInline Status="{x:Bind ViewModel.SongsStatus}" />
                         </Border>
                         <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.ShowSongs, Mode=OneWay}">
-                            <TextBlock Text="No ranked band songs yet." Style="{StaticResource FSTSecondaryTextStyle}"
-                                       Visibility="{x:Bind ViewModel.BestEmpty, Mode=OneWay}" />
+                            <controls:EmptyStateView IsCompact="True" Title="No ranked band songs yet." Visibility="{x:Bind ViewModel.BestEmpty, Mode=OneWay}"
+                                                     TitleAutomationId="fst.band.best-empty" />
                             <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Best, Mode=OneWay}" ItemTemplate="{StaticResource SongTemplates}"
                                            AutomationProperties.AutomationId="fst.band.best-songs">
                                 <ItemsRepeater.Layout>
@@ -276,8 +277,8 @@
                             </ItemsRepeater>
                             <TextBlock Text="Five Worst Songs" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
                             <TextBlock Text="{x:Bind ViewModel.WorstDescription, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" />
-                            <TextBlock Text="No additional ranked band songs yet." Style="{StaticResource FSTSecondaryTextStyle}"
-                                       Visibility="{x:Bind ViewModel.WorstEmpty, Mode=OneWay}" />
+                            <controls:EmptyStateView IsCompact="True" Title="No additional ranked band songs yet." Visibility="{x:Bind ViewModel.WorstEmpty, Mode=OneWay}"
+                                                     TitleAutomationId="fst.band.worst-empty" />
                             <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Worst, Mode=OneWay}" ItemTemplate="{StaticResource SongTemplates}"
                                            AutomationProperties.AutomationId="fst.band.worst-songs">
                                 <ItemsRepeater.Layout>

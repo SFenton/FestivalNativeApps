@@ -158,28 +158,22 @@
                         </DataTemplate>
                     </ItemsRepeater.ItemTemplate>
                 </ItemsRepeater>
-
-                <StackPanel Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" MaxWidth="480" Spacing="8" Margin="0,64,0,0"
-                            HorizontalAlignment="Center">
-                    <FontIcon Glyph="&#xE716;" FontSize="40" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                    <TextBlock Text="{x:Bind ViewModel.EmptyTitle}" Style="{StaticResource SubtitleTextBlockStyle}" TextAlignment="Center"
-                               TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.rivals.empty" />
-                    <TextBlock Text="{x:Bind ViewModel.EmptySubtitle, Mode=OneWay}" TextAlignment="Center" TextWrapping="Wrap"
-                               Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                </StackPanel>
-
-                <StackPanel Visibility="{x:Bind ViewModel.ShowNoPlayer, Mode=OneWay}" MaxWidth="480" Spacing="12" Margin="0,64,0,0"
-                            HorizontalAlignment="Center">
-                    <FontIcon Glyph="&#xE77B;" FontSize="40" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                    <TextBlock Text="No Player Selected" Style="{StaticResource SubtitleTextBlockStyle}" TextAlignment="Center"
-                               AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.rivals.chooseProfile" />
-                    <TextBlock Text="Track a player to see their rivals." TextAlignment="Center" TextWrapping="Wrap"
-                               Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                    <Button Content="Select Player" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Center"
-                            Click="OnSelectPlayer" AutomationProperties.AutomationId="fst.rivals.selectPlayer" />
-                </StackPanel>
             </Grid>
         </ScrollViewer>
+
+        <!-- Shared empty states (issue #377), centred in the region below the header instead of 64 epx down the scroller. -->
+        <controls:EmptyStateView Grid.Row="1" Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" Glyph="&#xE716;"
+                                 Title="{x:Bind ViewModel.EmptyTitle}" Subtitle="{x:Bind ViewModel.EmptySubtitle, Mode=OneWay}"
+                                 TitleAutomationId="fst.rivals.empty" />
+
+        <controls:EmptyStateView Grid.Row="1" Visibility="{x:Bind ViewModel.ShowNoPlayer, Mode=OneWay}" Glyph="&#xE77B;"
+                                 Title="No Player Selected" Subtitle="Track a player to see their rivals."
+                                 TitleAutomationId="fst.rivals.chooseProfile">
+            <controls:EmptyStateView.Action>
+                <Button Content="Select Player" Style="{StaticResource AccentButtonStyle}" MinHeight="{StaticResource FSTMinTargetSize}"
+                        Click="OnSelectPlayer" AutomationProperties.AutomationId="fst.rivals.selectPlayer" />
+            </controls:EmptyStateView.Action>
+        </controls:EmptyStateView>
 
         <controls:QuickLinksPane x:Name="Pane" Grid.Row="1" Grid.Column="1" Width="240" Margin="0,4,24,24" Visibility="Collapsed" />
     </Grid>

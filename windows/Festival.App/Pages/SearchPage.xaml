@@ -167,20 +167,12 @@
                            AutomationProperties.AutomationId="fst.global-search.hint" />
             </StackPanel>
 
-            <!-- Empty state (issue #99): centred title + subtitle like the web EmptyState and the Songs page. No Retry
-                 (issue #299): Enter in the field re-runs the search. Scrolls at large text sizes. -->
-            <ScrollViewer HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
-                          Visibility="{x:Bind ViewModel.HasEmptyState, Mode=OneWay}">
-                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="480" Padding="0,24"
-                            AutomationProperties.AutomationId="fst.global-search.empty">
-                    <TextBlock Text="{x:Bind ViewModel.EmptyTitle, Mode=OneWay}" Style="{StaticResource SubtitleTextBlockStyle}"
-                               TextAlignment="Center" TextWrapping="Wrap" HorizontalAlignment="Center"
-                               AutomationProperties.HeadingLevel="Level2"
-                               AutomationProperties.AutomationId="fst.global-search.empty.title" />
-                    <TextBlock Text="{x:Bind ViewModel.EmptySubtitle, Mode=OneWay}" TextAlignment="Center" TextWrapping="Wrap"
-                               HorizontalAlignment="Center" AutomationProperties.AutomationId="fst.global-search.empty.subtitle" />
-                </StackPanel>
-            </ScrollViewer>
+            <!-- Shared empty state (issue #377): title + subtitle like the web EmptyState, centred below the scope bar.
+                 No Retry (issue #299): Enter in the field re-runs the search. Scrolls at large text sizes. -->
+            <controls:EmptyStateView Visibility="{x:Bind ViewModel.HasEmptyState, Mode=OneWay}"
+                                     Title="{x:Bind ViewModel.EmptyTitle, Mode=OneWay}" Subtitle="{x:Bind ViewModel.EmptySubtitle, Mode=OneWay}"
+                                     TitleAutomationId="fst.global-search.empty.title" SubtitleAutomationId="fst.global-search.empty.subtitle"
+                                     RegionAutomationId="fst.global-search.empty" />
 
             <!-- One spinner for the whole page (issue #299), centred in the area below the scope bar. -->
             <ProgressRing IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}" Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay}"

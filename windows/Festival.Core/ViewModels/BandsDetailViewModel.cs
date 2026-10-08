@@ -82,7 +82,7 @@ public sealed partial class BandDetailViewModel : ObservableObject
 
     /// <summary>Rank-history lifecycle.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HistoryLoading), nameof(ShowHistory), nameof(HistoryEmpty), nameof(HistoryFailed))]
+    [NotifyPropertyChangedFor(nameof(HistoryLoading), nameof(ShowHistory), nameof(HistoryEmpty), nameof(HistoryFailed), nameof(ShowHistoryCard))]
     private LoadState historyState = LoadState.Idle;
 
     /// <summary>Best/worst lifecycle.</summary>
@@ -165,6 +165,9 @@ public sealed partial class BandDetailViewModel : ObservableObject
 
     /// <summary>Whether the history failure is shown.</summary>
     public bool HistoryFailed => HistoryState == LoadState.Failed;
+
+    /// <summary>Whether the history card shows (loading, failed or loaded); empty is the shared card-less empty state (#377).</summary>
+    public bool ShowHistoryCard => HistoryState != LoadState.Empty;
 
     /// <summary>Whether best/worst are loading.</summary>
     public bool SongsLoading => SongsState is LoadState.Loading or LoadState.Idle;

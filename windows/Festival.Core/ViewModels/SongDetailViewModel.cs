@@ -507,8 +507,11 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
     /// <summary>Whether rows are shown.</summary>
     public bool ShowRows => State == LoadState.Loaded;
 
-    /// <summary>Whether the chart's own card shows (loading, empty or failed); loaded rows are separate frosted rows.</summary>
-    public bool ShowPlaceholder => State != LoadState.Loaded;
+    /// <summary>
+    /// Whether the chart's own card shows (loading or failed); loaded rows are separate frosted rows and an empty chart is
+    /// the shared card-less empty state (empty-error-states, issue #377).
+    /// </summary>
+    public bool ShowPlaceholder => State is not (LoadState.Loaded or LoadState.Empty);
 
     /// <summary>Whether "No scores yet" is shown.</summary>
     public bool ShowEmpty => State == LoadState.Empty;

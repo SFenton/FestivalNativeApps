@@ -96,10 +96,10 @@
                     <TextBlock Text="Notifications" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0" AutomationProperties.HeadingLevel="Level2"
                                AutomationProperties.AutomationId="fst.notifications.sheet" />
 
-                    <StackPanel Grid.Row="1" Spacing="12" Visibility="{x:Bind Model.IsNoPlayer, Mode=OneWay}" Padding="0,8">
-                        <TextBlock Text="Select a player profile to see their notifications." TextWrapping="Wrap"
-                                   AutomationProperties.AutomationId="fst.notifications.no-player" />
-                    </StackPanel>
+                    <!-- No-player and empty use the shared EmptyStateView (issue #377), compact to fit the flyout; failures keep Retry. -->
+                    <controls:EmptyStateView Grid.Row="1" IsCompact="True" Visibility="{x:Bind Model.IsNoPlayer, Mode=OneWay}"
+                                          Title="No Player Selected" Subtitle="Select a player profile to see their notifications."
+                                          SubtitleAutomationId="fst.notifications.no-player" />
                     <ProgressRing Grid.Row="1" IsActive="{x:Bind Model.IsLoading, Mode=OneWay}" Visibility="{x:Bind Model.IsLoading, Mode=OneWay}"
                                   HorizontalAlignment="Center" Margin="0,24" AutomationProperties.Name="Loading notifications"
                                   AutomationProperties.AutomationId="fst.notifications.loading" />
@@ -109,11 +109,9 @@
                         <Button Content="Retry" Command="{x:Bind Model.RefreshCommand}" Style="{StaticResource AccentButtonStyle}"
                                 AutomationProperties.AutomationId="fst.notifications.retry" />
                     </StackPanel>
-                    <StackPanel Grid.Row="1" Spacing="6" Visibility="{x:Bind Model.IsEmpty, Mode=OneWay}" Padding="0,8">
-                        <TextBlock Text="{x:Bind Model.EmptyTitle}" Style="{StaticResource BodyStrongTextBlockStyle}"
-                                   AutomationProperties.AutomationId="fst.notifications.empty" />
-                        <TextBlock Text="{x:Bind Model.EmptyBody, Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                    </StackPanel>
+                    <controls:EmptyStateView Grid.Row="1" IsCompact="True" Visibility="{x:Bind Model.IsEmpty, Mode=OneWay}"
+                                          Title="{x:Bind Model.EmptyTitle}" Subtitle="{x:Bind Model.EmptyBody, Mode=OneWay}"
+                                          TitleAutomationId="fst.notifications.empty" />
                     <ScrollViewer Grid.Row="1" Visibility="{x:Bind Model.IsLoaded, Mode=OneWay}" Padding="0,0,12,0"
                                   AutomationProperties.AutomationId="fst.notifications.list">
                         <StackPanel Spacing="4">

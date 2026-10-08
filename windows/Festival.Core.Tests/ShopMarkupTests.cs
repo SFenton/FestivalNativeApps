@@ -49,9 +49,20 @@ public class ShopMarkupTests
     [InlineData("fst.shop.empty")]
     [InlineData("fst.shop.filter.empty")]
     [InlineData("fst.shop.hidden")]
-    public void StateTitles_AreHeadings(string id)
+    public void StateTitles_AreSharedEmptyStateHeadings(string id)
     {
-        var title = Page.Descendants().Single(e => Attr(e, "AutomationProperties.AutomationId") == id);
-        Assert.Equal("Level2", Attr(title, "AutomationProperties.HeadingLevel"));
+        // EmptyStateView's page variant makes its title a level-2 heading (EmptyStateMarkupTests guards the control).
+        var state = Page.Descendants().Single(e => Attr(e, "TitleAutomationId") == id);
+        Assert.Equal("EmptyStateView", state.Name.LocalName);
+        Assert.Null(Attr(state, "IsCompact"));
+    }
+
+    [Fact]
+    public void FilteredEmpty_HasNoResetButton()
+    {
+        // Issue #377: the Filter button is the way back; the empty state offers no Reset Filters.
+        Assert.DoesNotContain(Page.Descendants(), e => Attr(e, "AutomationProperties.AutomationId") == "fst.shop.filter.empty-reset");
+        var state = Page.Descendants().Single(e => Attr(e, "TitleAutomationId") == "fst.shop.filter.empty");
+        Assert.Empty(state.Descendants());
     }
 }
