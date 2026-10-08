@@ -3,15 +3,19 @@ import XCTest
 /// iPadOS shell journeys for the universal FestivalMobile app on "FST Native iPad Pro 11"
 /// (UI-test bundle `FestivalMobileIPadUITests`): the overlay flyout, the on-demand
 /// split (`.agents/design/apple/split-view.md`), live reflow when the window size
-/// changes (rotation, tiles) and hardware keyboard shortcuts. Fixture-backed (`tools/mock_service.py` on 127.0.0.1:8765),
-/// never production. Run with
-/// `python3 tools/ios_sim.py uitest --device ipad --only IPadShellJourneyTests`.
+/// changes (rotation, tiles) and hardware keyboard shortcuts. Fixture-backed (`tools/mock_service.py` on 127.0.0.1:8765,
+/// or the loopback origin in the runner's `FST_FIXTURE_URL`), never production. Run with
+/// `python3 tools/ios_sim.py uitest --device ipad --only IPadShellJourneyTests`
+/// (`TEST_RUNNER_FST_FIXTURE_URL=http://127.0.0.1:<port>` selects another fixture port).
 final class IPadShellJourneyTests: XCTestCase {
+    /// The loopback fixture service.
+    static let fixtureURL = ProcessInfo.processInfo.environment["FST_FIXTURE_URL"] ?? "http://127.0.0.1:8765"
+
     /// Launch against the loopback fixture service, optionally with a selected player.
     @MainActor
     private func fixtureApp(profile: Bool) -> XCUIApplication {
         var env = [
-            "FST_API_BASE_URL": "http://127.0.0.1:8765",
+            "FST_API_BASE_URL": Self.fixtureURL,
             "FST_UI_TEST_CLEAR_PROFILE": "1",
         ]
         if profile {
@@ -371,6 +375,180 @@ final class IPadShellJourneyTests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 5), "Leaderboards is back")
         XCTAssertTrue(row.isHittable, "the overview is on top, full width")
         XCTAssertFalse(trailing.exists, "nothing is left open")
+    }
+
+    // MARK: - Compete (issue #369)
+
+    /// Launch with a player on Compete. The regular-width shell lists Leaderboards and
+    /// Rivals instead of Compete (`FestivalTabPolicy`), so the route pushes Compete on
+    /// Songs, as a link from another page does; a compact window shows it as a tab.
+    @MainActor
+    private func launchCompete() -> XCUIApplication {
+        let app = fixtureApp(profile: true)
+        app.launchEnvironment["FST_DEBUG_ROUTE"] = "compete"
+        launchFilled(app)
+        XCTAssertTrue(app.navigationBars["Compete"].waitForExistence(timeout: 20), "Compete opens")
+        return app
+    }
+
+    /// Compete's rival rows (one per instrument card a rival appears on).
+    @MainActor
+    private func competeRivalRows(_ app: XCUIApplication) -> XCUIElementQuery {
+        app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'fst.rivals.row.'"))
+    }
+
+    /// The first rival row on screen, by its index among Compete's rival rows (one rival
+    /// can be listed on several cards, so its identifier alone is not one row). A single
+    /// column lists Rivals below Leaderboards, so it scrolls until one is on screen.
+    @MainActor
+    private func firstHittableRivalRow(_ app: XCUIApplication) throws -> XCUIElement {
+        let rows = competeRivalRows(app)
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 20), "Compete lists rivals")
+        for _ in 0..<8 where !rows.allElementsBoundByIndex.contains(where: \.isHittable) {
+            app.swipeUp()
+        }
+        let all = rows.allElementsBoundByIndex
+        let index = try XCTUnwrap(all.firstIndex { $0.isHittable }, "an on-screen rival row")
+        return rows.element(boundBy: index)
+    }
+
+    /// The trailing pane's own Back: the leftmost navigation bar button inside the pane.
+    @MainActor
+    private func trailingBack(_ app: XCUIApplication, pane: CGRect) -> XCUIElement? {
+        app.navigationBars.buttons.allElementsBoundByIndex
+            .filter { $0.frame.minX >= pane.minX - 1 && $0.frame.maxX <= pane.midX && $0.identifier != "fst.split.close" }
+            .min { $0.frame.minX < $1.frame.minX }
+    }
+
+    /// A full-width page's Back: the leftmost on-screen navigation bar button.
+    @MainActor
+    private func fullPageBack(_ app: XCUIApplication) -> XCUIElement? {
+        app.navigationBars.buttons.allElementsBoundByIndex.filter(\.isHittable).min { $0.frame.minX < $1.frame.minX }
+    }
+
+    /// A Rival Detail category's View All (it pushes that category's Rivalry page).
+    @MainActor
+    private func rivalCategoryViewAll(_ app: XCUIApplication) -> XCUIElement {
+        app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH 'fst.rival-detail.category.' AND identifier ENDSWITH '.view-all'"
+        )).firstMatch
+    }
+
+    /// Landscape: a rival row on Compete opens Rival Detail in the trailing half beside
+    /// Compete, with Close on the pane's root and the row selected; a category's View
+    /// All pushes Rivalry inside the pane with Back (no Close), and that Back returns to
+    /// Rival Detail with Close. Portrait pushes the open rival and landscape lifts it
+    /// back. Compete's own Back closes the pane first and keeps Compete in place; a
+    /// second Back leaves Compete (issue #369, back-keeps-place R6, split-panes).
+    @MainActor
+    func testCompeteRivalOpensBesideCompete() throws {
+        let app = launchCompete()
+        let trailing = element(app, "fst.split.trailing")
+        let row = try firstHittableRivalRow(app)
+        let rowID = row.identifier
+        let before = row.frame
+        XCTAssertFalse(trailing.exists, "Compete starts full width")
+        row.tap()
+
+        // Rival Detail beside Compete; its root has Close, not Back.
+        XCTAssertTrue(trailing.waitForExistence(timeout: 10), "the rival opens in the trailing half")
+        let midX = app.windows.firstMatch.frame.midX
+        XCTAssertEqual(trailing.frame.minX, midX, accuracy: 30, "split at the midpoint")
+        XCTAssertTrue(element(app, "fst.rival-detail.view-profile").waitForExistence(timeout: 15), "Rival Detail loads")
+        XCTAssertTrue(app.navigationBars["Compete"].exists, "Compete stays beside it")
+        let selected = competeRivalRows(app).matching(NSPredicate(format: "isSelected == true"))
+        XCTAssertTrue(selected.firstMatch.waitForExistence(timeout: 5), "the opened rival's row is selected")
+        XCTAssertTrue(selected.allElementsBoundByIndex.allSatisfy { $0.identifier == rowID }, "only the opened rival is selected")
+        let close = element(app, "fst.split.close")
+        XCTAssertTrue(close.waitForExistence(timeout: 5), "the pane's root has Close")
+        XCTAssertGreaterThanOrEqual(close.frame.minX, trailing.frame.minX - 1, "Close sits in the trailing pane")
+        XCTAssertNil(trailingBack(app, pane: trailing.frame), "the pane's root has no Back")
+        let listBack = app.buttons["fst.split.list-back"]
+        XCTAssertTrue(listBack.waitForExistence(timeout: 5), "Compete's Back closes the pane first")
+        XCTAssertLessThan(listBack.frame.maxX, midX, "Compete's Back sits in the leading pane")
+
+        // A sub-page pushes inside the pane, with Back instead of Close.
+        let viewAll = rivalCategoryViewAll(app)
+        XCTAssertTrue(viewAll.waitForExistence(timeout: 15), "a Rival Detail category has View All")
+        viewAll.tap()
+        XCTAssertTrue(app.buttons["fst.rivalry.view-profile"].waitForExistence(timeout: 15), "Rivalry opens")
+        XCTAssertEqual(trailing.frame.minX, midX, accuracy: 30, "Rivalry stays in the trailing half")
+        XCTAssertTrue(app.navigationBars["Compete"].exists, "Compete stays beside Rivalry")
+        XCTAssertTrue(waitForDisappearance(of: close, timeout: 5), "a pushed pane page has no Close")
+        let paneBack = try XCTUnwrap(trailingBack(app, pane: trailing.frame), "the pushed page's Back in the pane")
+        paneBack.tap()
+        XCTAssertTrue(waitForDisappearance(of: app.buttons["fst.rivalry.view-profile"], timeout: 10), "Back leaves Rivalry")
+        XCTAssertTrue(element(app, "fst.rival-detail.view-profile").waitForExistence(timeout: 10), "back on Rival Detail")
+        XCTAssertTrue(trailing.exists, "still in the trailing pane")
+        XCTAssertTrue(close.waitForExistence(timeout: 5), "the pane's root has Close again")
+
+        // Portrait pushes the open rival full width; landscape lifts it back beside Compete.
+        XCUIDevice.shared.orientation = .portrait
+        XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "portrait pushes")
+        XCTAssertTrue(element(app, "fst.rival-detail.view-profile").waitForExistence(timeout: 10), "the rival stays open")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(trailing.waitForExistence(timeout: 10), "landscape splits again")
+        XCTAssertTrue(app.navigationBars["Compete"].waitForExistence(timeout: 5), "beside Compete")
+
+        // Compete's Back closes the pane first; Compete keeps its place.
+        XCTAssertTrue(listBack.waitForExistence(timeout: 5))
+        listBack.tap()
+        XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "Back closes the rival")
+        XCTAssertTrue(app.navigationBars["Compete"].waitForExistence(timeout: 5), "Compete stays")
+        XCTAssertTrue(row.waitForExistence(timeout: 5) && row.isHittable, "the opened row is on screen again")
+        XCTAssertEqual(row.frame.minY, before.minY, accuracy: 2, "Compete kept its scroll position")
+        XCTAssertFalse(row.isSelected, "nothing is selected once closed")
+        let back = leadingBack(app)
+        XCTAssertTrue(back.waitForExistence(timeout: 5))
+        back.tap()
+        XCTAssertTrue(waitForDisappearance(of: app.navigationBars["Compete"], timeout: 10), "a second Back leaves Compete")
+        XCTAssertTrue(element(app, "fst.songs.list").waitForExistence(timeout: 10), "back on Songs")
+    }
+
+    /// Where the split does not apply, a Compete rival row pushes Rival Detail full width
+    /// with the system Back (no Close) and its sub-pages push on the same stack: iPad
+    /// portrait, and a compact (½) window with the phone tab bar, where Compete is a tab
+    /// as on iPhone and the folded Duo (issue #369).
+    @MainActor
+    func testCompeteRivalPushesFullPageWithoutSplit() throws {
+        XCUIDevice.shared.orientation = .portrait
+        let app = launchCompete()
+        try assertCompeteRivalPushes(app, window: "portrait")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        guard WindowResize.tile(app, .left) else {
+            throw XCTSkip("window-controls tiling menu unavailable (full-screen multitasking mode)")
+        }
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 10), "a ½ window is compact")
+        let competeTab = app.tabBars.buttons["Compete"]
+        XCTAssertTrue(competeTab.waitForExistence(timeout: 5), "Compete is a phone tab")
+        competeTab.tap()
+        XCTAssertTrue(app.navigationBars["Compete"].waitForExistence(timeout: 15), "the Compete tab opens")
+        try assertCompeteRivalPushes(app, window: "compact")
+    }
+
+    /// Tap a Compete rival row and require full-width pushes down to Rivalry and back.
+    ///
+    /// - Parameters:
+    ///   - app: The app on Compete.
+    ///   - window: The window, for failure messages.
+    @MainActor
+    private func assertCompeteRivalPushes(_ app: XCUIApplication, window: String) throws {
+        let row = try firstHittableRivalRow(app)
+        row.tap()
+        XCTAssertTrue(element(app, "fst.rival-detail.view-profile").waitForExistence(timeout: 15), "\(window): Rival Detail opens")
+        XCTAssertFalse(element(app, "fst.split.trailing").exists, "\(window): no trailing pane")
+        XCTAssertFalse(element(app, "fst.split.close").exists, "\(window): a pushed page has Back, not Close")
+        XCTAssertFalse(app.navigationBars["Compete"].exists, "\(window): Rival Detail covers Compete")
+        let viewAll = rivalCategoryViewAll(app)
+        XCTAssertTrue(viewAll.waitForExistence(timeout: 15), "\(window): a category has View All")
+        viewAll.tap()
+        XCTAssertTrue(app.buttons["fst.rivalry.view-profile"].waitForExistence(timeout: 15), "\(window): Rivalry opens")
+        XCTAssertFalse(element(app, "fst.split.trailing").exists, "\(window): Rivalry is full width")
+        try XCTUnwrap(fullPageBack(app), "\(window): Rivalry's Back").tap()
+        XCTAssertTrue(element(app, "fst.rival-detail.view-profile").waitForExistence(timeout: 10), "\(window): Back to Rival Detail")
+        try XCTUnwrap(fullPageBack(app), "\(window): Rival Detail's Back").tap()
+        XCTAssertTrue(app.navigationBars["Compete"].waitForExistence(timeout: 10), "\(window): Back to Compete")
+        XCTAssertTrue(row.waitForExistence(timeout: 5) && row.isHittable, "\(window): Compete is on top with the row")
     }
 
     /// Narrowing the window (an exact ½ or ⅓ tile) falls back to the phone tab bar and
