@@ -31,6 +31,19 @@ public enum AppBuildInfo {
         return base + commitSeparator + sha
     }
 
+    /// The same identity as VoiceOver should read it: each part named instead of the
+    /// parentheses and `·` the row shows, e.g. `"0.1.0, build 42, commit 42edc57"`.
+    ///
+    /// - Parameter info: The bundle's Info.plist dictionary (`Bundle.main.infoDictionary`).
+    /// - Returns: The version (`"Unknown"` when missing), then `", build <n>"` and
+    ///   `", commit <sha7>"` for the parts ``versionText(_:)`` shows.
+    public static func spokenVersionText(_ info: [String: Any]?) -> String {
+        var parts = [info?["CFBundleShortVersionString"] as? String ?? "Unknown"]
+        if let build = info?["CFBundleVersion"] as? String { parts.append("build \(build)") }
+        if let sha = shortCommit(info?[gitSHAKey] as? String) { parts.append("commit \(sha)") }
+        return parts.joined(separator: ", ")
+    }
+
     /// The first seven characters of a stamped commit SHA.
     ///
     /// - Parameter raw: The `FSTGitSHA` value, if present.
