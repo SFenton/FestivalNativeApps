@@ -1117,7 +1117,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, off the Duo hinge when unfolded, #345), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, with the owner-approved #370 variant that a Compete/Leaderboards instrument card's separate rank row jumps to the full board at the player's position, and one measured section-wide score-footer stack plan that never truncates the score.",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, off the Duo hinge when unfolded, #345), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, with the owner-approved #370 variant that a Compete/Leaderboards instrument card's separate rank row jumps to the full board at the player's position, the owner-approved #364 variant that a song board in a split's trailing pane turns every row and its pinned row into a multi-row card (full name above rank and score, chevron centred) when any name would marquee, and one measured section-wide score-footer stack plan that never truncates the score.",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -1137,7 +1137,9 @@
         "team score",
         "badges wrap",
         "large text",
-        "season column"
+        "season column",
+        "multi-row card",
+        "trailing pane"
       ],
       "web": [
         {
@@ -1194,6 +1196,14 @@
           {
             "path": "apple/Sources/FestivalCore/RankingSpotlight.swift",
             "symbol": "RankingSpotlight"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SelectedScoreFooterRow.swift",
+            "symbol": "SongLeaderboardRowCard"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardNameFit.swift",
+            "symbol": "SongLeaderboardNameFit"
           }
         ],
         "android": [
@@ -1337,6 +1347,16 @@
           "message": "Leaderboard marquee behavior has one shared owner (leaderboard-row R3)."
         },
         {
+          "id": "apple-name-stack-owner",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\.fittingName\\(|struct\\s+SongLeaderboardNameFit\\b",
+          "allow": [
+            "apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardNameFit.swift"
+          ],
+          "debt": [],
+          "message": "The trailing-pane multi-row card decision has one owner (leaderboard-row R3 variant, #364): use songLeaderboardSectionColumns, not a second name fit."
+        },
+        {
           "id": "android-row-metrics",
           "glob": "android/app/src/main/**/*.kt",
           "regex": "val\\s+LEADERBOARD_ROW_MIN_HEIGHT\\s*=\\s*48\\.dp",
@@ -1410,7 +1430,8 @@
         307,
         318,
         319,
-        353
+        353,
+        364
       ]
     },
     {

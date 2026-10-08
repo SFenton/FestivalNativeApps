@@ -20,10 +20,41 @@ struct SelectedScoreFooterRow: View {
     var starsAfterScore = false
 
     var body: some View {
-        HStack(spacing: 8) {
+        SongLeaderboardRowCard(
+            entry: entry, isPlayer: true, currentSeason: currentSeason,
+            starsAfterScore: starsAfterScore
+        )
+        .modifier(PinnedFooterBacking())
+        .contentShape(Rectangle())
+    }
+}
+
+// MARK: - Row card
+
+/// One song-board row as its own card: the ``SongLeaderboardEntryRow`` columns, the
+/// in-card disclosure chevron, the 48-unit minimum and the row surface (the selected
+/// player's purple). The one card for the Solo board's rows, both boards' pinned
+/// footers and the section's width probe (``SongLeaderboardNameFit``).
+///
+/// The chevron is centred on the whole card, so it stays centred when a crowded
+/// trailing-pane board stacks its rows into multi-row cards (#364; HIG Lists and
+/// tables: "for drill-down, use a disclosure indicator").
+struct SongLeaderboardRowCard: View {
+    let entry: LeaderboardEntry
+    /// The selected player's own row: bold rank and name on the purple surface.
+    var isPlayer = false
+    let currentSeason: Int?
+    /// Draw the stars after the score (the band footer, issue #306).
+    var starsAfterScore = false
+    /// Width probe only: see ``SongLeaderboardEntryRow/probeNames``. A probe draws no
+    /// surface.
+    var probeNames: [RankingRowName]? = nil
+
+    var body: some View {
+        let card = HStack(spacing: 8) {
             SongLeaderboardEntryRow(
-                entry: entry, isPlayer: true, currentSeason: currentSeason,
-                starsAfterScore: starsAfterScore
+                entry: entry, isPlayer: isPlayer, currentSeason: currentSeason,
+                starsAfterScore: starsAfterScore, probeNames: probeNames
             )
             Image(systemName: "chevron.forward")
                 .font(.footnote.weight(.semibold))
@@ -32,9 +63,11 @@ struct SelectedScoreFooterRow: View {
         }
         .padding(.horizontal, 14)
         .frame(minHeight: LeaderboardRowMetrics.minHeight)
-        .modifier(RankingRowSurface(isSelected: true))
-        .modifier(PinnedFooterBacking())
-        .contentShape(Rectangle())
+        if probeNames == nil {
+            card.modifier(RankingRowSurface(isSelected: isPlayer))
+        } else {
+            card
+        }
     }
 }
 

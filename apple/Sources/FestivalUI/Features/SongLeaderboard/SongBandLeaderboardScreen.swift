@@ -283,7 +283,16 @@ struct SongBandLeaderboardContent: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             bottomChrome
         }
-        .leaderboardSectionColumns(footerColumns)
+        // The pinned band row's columns; in the trailing pane it becomes a multi-row
+        // card, like the band rows above it, when its names would scroll (#364).
+        .songLeaderboardSectionColumns(
+            footerColumns,
+            names: footerEntry.map {
+                [RankingRowName(name: SongLeaderboardEntryRow.displayName($0.footerLeaderboardEntry), emphasized: true)]
+            } ?? [],
+            template: footerEntry?.footerLeaderboardEntry, currentSeason: session.catalogCurrentSeason,
+            starsAfterScore: true, rowInset: WideColumns.rowMargins
+        )
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
             chartWidth = width
         }

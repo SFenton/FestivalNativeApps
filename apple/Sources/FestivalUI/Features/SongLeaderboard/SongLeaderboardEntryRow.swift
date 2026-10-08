@@ -19,28 +19,48 @@ struct SongLeaderboardEntryRow: View {
     /// (web `LeaderboardEntry` `starsAfterScore`, used by the band leaderboard's pinned
     /// footer, issue #306). Off for the Solo chart, whose rows never draw stars.
     var starsAfterScore = false
+    /// Width probe only (``SongLeaderboardNameFit``): draw every one of these names on
+    /// its own unscrolled line in the name column, so the row's ideal width is the
+    /// one-line row the section's longest name needs. Nil for real rows.
+    var probeNames: [RankingRowName]? = nil
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// The section's shared rank/score widths and visible columns (issue #37).
     @Environment(\.leaderboardRowColumns) private var columns
     @ScaledMetric(relativeTo: .body) private var accuracyTextWidth: CGFloat = 56
     @ScaledMetric(relativeTo: .body) private var accuracyPillHeight: CGFloat = 24
 
+    /// Vertical padding of a multi-row card, as the band card (`SongBandPreviewRow`).
+    nonisolated static let stackedVerticalPadding: CGFloat = 10
+    /// Space between a multi-row card's name and its rank and score line, as the band
+    /// card's members and footer.
+    nonisolated static let stackedLineSpacing: CGFloat = 8
+
     var body: some View {
-        let rank = Text("#\(entry.rank.formatted())")
+        if columns?.stacksName == true, probeNames == nil, !dynamicTypeSize.isAccessibilitySize {
+            stackedCard
+        } else {
+            lineLayout
+        }
+    }
+
+    /// The name the row shows: the display name, or "Unknown User" without one.
+    ///
+    /// - Parameter entry: A board row.
+    /// - Returns: The visible (and spoken) name.
+    nonisolated static func displayName(_ entry: LeaderboardEntry) -> String {
+        entry.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? "Unknown User"
+    }
+
+    private var rank: some View {
+        Text("#\(entry.rank.formatted())")
             .font(.body)
             .fontWeight(isPlayer ? .bold : .regular)
             .monospacedDigit()
             .foregroundStyle(FestivalText.primary)
-        // One line that scrolls when it does not fit (wrapping at accessibility sizes),
-        // so a long name never grows or overflows the row (issue #292).
-        let name = LeaderboardNameText(
-            name: entry.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? "Unknown User",
-            emphasized: isPlayer
-        )
-        let score = Text(entry.score.formatted())
-            .font(.body)
-            .monospacedDigit()
-            .fixedSize(horizontal: true, vertical: false)
+    }
+
+    /// One row line: rank, name, then the value columns; stacked at accessibility sizes.
+    private var lineLayout: some View {
         let layout = dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
             : AnyLayout(HStackLayout(spacing: 8))
@@ -50,66 +70,111 @@ struct SongLeaderboardEntryRow: View {
         return layout {
             HStack(spacing: 8) {
                 LeaderboardColumnSlot(template: columns?.rankLabel) { rank }
-                name.frame(maxWidth: .infinity, alignment: .leading)
+                // One line that scrolls when it does not fit (wrapping at accessibility
+                // sizes), so a long name never grows or overflows the row (issue #292).
+                nameColumn.frame(maxWidth: .infinity, alignment: .leading)
             }
-            valuesLayout {
-                if seasonColumn || columns?.showsSeason == true {
-                    let season = entry.season.flatMap { $0 > 0 ? $0 : nil }
-                    ScoreSeasonPill(season: season, current: season != nil && season == currentSeason)
-                }
-                LeaderboardColumnSlot(template: columns?.scoreLabel, alignment: .trailing) {
-                    score
-                }
-                if starsAfterScore, columns?.showsStars == true, let stars = entry.stars, stars > 0 {
-                    StarRating(stars: stars)
-                }
-                if let value = entry.accuracy {
-                    let color: Result<ScoreAccuracyTint, Error> = Result {
-                        try ScoreFormatting.accuracyTint(value)
-                    }
-                    switch color {
-                    case let .failure(error):
-                        Text("Accuracy unavailable: \(error.localizedDescription)")
-                            .font(.body)
-                            .foregroundStyle(FestivalText.primary)
-                            .accessibilityIdentifier("fst.score.accuracy.\(entry.accountId)")
-                    case let .success(tint):
-                        let fullCombo = entry.isFullCombo == true
-                        let percent = "\(ScoreFormatting.accuracy(value))%"
-                        let spoken = fullCombo
-                            ? "Full combo, accuracy \(percent)" : "Accuracy \(percent)"
-                        accuracyBadge(
-                            text: dynamicTypeSize.isAccessibilitySize ? spoken : percent,
-                            spoken: spoken,
-                            fill: fullCombo ? Color.clear
-                                : Color(
-                                    .sRGB,
-                                    red: Double(tint.red) / 255,
-                                    green: Double(tint.green) / 255,
-                                    blue: Double(tint.blue) / 255,
-                                    opacity: 0.25
-                                ),
-                            fullCombo: fullCombo
-                        )
-                    }
-                } else if entry.isFullCombo == true {
-                    accuracyBadge(
-                        text: dynamicTypeSize.isAccessibilitySize ? "Full combo" : "FC",
-                        spoken: "Full combo; accuracy unavailable",
-                        fill: Color.clear, fullCombo: true
-                    )
-                } else if !dynamicTypeSize.isAccessibilitySize {
-                    Color.clear
-                        .frame(
-                            width: accuracyTextWidth + 16,
-                            height: accuracyPillHeight
-                        )
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                }
-            }
+            valuesLayout { values }
         }
         .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 8 : 0)
+    }
+
+    /// The multi-row card of a crowded trailing-pane board (owner-approved variant of
+    /// leaderboard-row R3, #364): the full name on its own line, wrapping rather than
+    /// scrolling, above the rank and the right-aligned score columns, laid out like the
+    /// band card (`SongBandPreviewRow`) on the same boards. The shared rank and score
+    /// slots keep every row and the pinned row aligned; VoiceOver still reads rank,
+    /// name, then values.
+    private var stackedCard: some View {
+        VStack(alignment: .leading, spacing: Self.stackedLineSpacing) {
+            LeaderboardNameText(name: Self.displayName(entry), emphasized: isPlayer, stacked: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilitySortPriority(1)
+            HStack(spacing: 8) {
+                LeaderboardColumnSlot(template: columns?.rankLabel) { rank }
+                    .accessibilitySortPriority(2)
+                Spacer(minLength: 0)
+                values
+            }
+        }
+        .padding(.vertical, Self.stackedVerticalPadding)
+    }
+
+    /// The name column: the scrolling row name, or the probe's stacked names.
+    @ViewBuilder
+    private var nameColumn: some View {
+        if let probeNames {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(probeNames.enumerated()), id: \.offset) { _, row in
+                    RankingRowLayout.nameText(row.name, emphasized: row.emphasized)
+                        .fixedSize()
+                }
+            }
+        } else {
+            LeaderboardNameText(name: Self.displayName(entry), emphasized: isPlayer)
+        }
+    }
+
+    /// Season, score, stars and accuracy, in the section's columns.
+    @ViewBuilder
+    private var values: some View {
+        if seasonColumn || columns?.showsSeason == true {
+            let season = entry.season.flatMap { $0 > 0 ? $0 : nil }
+            ScoreSeasonPill(season: season, current: season != nil && season == currentSeason)
+        }
+        LeaderboardColumnSlot(template: columns?.scoreLabel, alignment: .trailing) {
+            Text(entry.score.formatted())
+                .font(.body)
+                .monospacedDigit()
+                .fixedSize(horizontal: true, vertical: false)
+        }
+        if starsAfterScore, columns?.showsStars == true, let stars = entry.stars, stars > 0 {
+            StarRating(stars: stars)
+        }
+        if let value = entry.accuracy {
+            let color: Result<ScoreAccuracyTint, Error> = Result {
+                try ScoreFormatting.accuracyTint(value)
+            }
+            switch color {
+            case let .failure(error):
+                Text("Accuracy unavailable: \(error.localizedDescription)")
+                    .font(.body)
+                    .foregroundStyle(FestivalText.primary)
+                    .accessibilityIdentifier("fst.score.accuracy.\(entry.accountId)")
+            case let .success(tint):
+                let fullCombo = entry.isFullCombo == true
+                let percent = "\(ScoreFormatting.accuracy(value))%"
+                let spoken = fullCombo
+                    ? "Full combo, accuracy \(percent)" : "Accuracy \(percent)"
+                accuracyBadge(
+                    text: dynamicTypeSize.isAccessibilitySize ? spoken : percent,
+                    spoken: spoken,
+                    fill: fullCombo ? Color.clear
+                        : Color(
+                            .sRGB,
+                            red: Double(tint.red) / 255,
+                            green: Double(tint.green) / 255,
+                            blue: Double(tint.blue) / 255,
+                            opacity: 0.25
+                        ),
+                    fullCombo: fullCombo
+                )
+            }
+        } else if entry.isFullCombo == true {
+            accuracyBadge(
+                text: dynamicTypeSize.isAccessibilitySize ? "Full combo" : "FC",
+                spoken: "Full combo; accuracy unavailable",
+                fill: Color.clear, fullCombo: true
+            )
+        } else if !dynamicTypeSize.isAccessibilitySize {
+            Color.clear
+                .frame(
+                    width: accuracyTextWidth + 16,
+                    height: accuracyPillHeight
+                )
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 
     /// Keep the compact and large-text accuracy states legible and independently spoken.
