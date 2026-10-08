@@ -1528,6 +1528,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/FirstRun/Demo/FirstRunDemoSupport.swift",
             "symbol": "firstRunStagger"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/FirstRun/Demo/FirstRunDemoRotationViews.swift",
+            "symbol": "FirstRunDemoTickerPolicy"
           }
         ],
         "android": [

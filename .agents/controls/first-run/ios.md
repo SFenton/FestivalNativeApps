@@ -155,12 +155,12 @@ app's own interface.
   `firstRunSheetPreview(height:)` frame. Never add a look-alike copy to `Demo/`. If a page's view
   can't be built without a session, extract a small public view from it (as with
   `ProfileIdentityButton`, `SongDetailShopGlyph`, `ScoreHistoryEntry.init(songId:…)` and
-  `PlayerPercentileBucket.init(topPercent:count:)`).
+  `PlayerPercentileBucket.init(topPercent:count:)`, `SongPathsSelectorRow`).
 - **Web motion lives in Core:**
   - `FestivalCore/FirstRunMotion.swift` holds the web timings. The cascade steps 125 ms, rows
     80 ms, Item Shop tiles 60 ms, Rivals detail 100 ms, with a 200 ms exit.
-  - Each slide's `contentStaggerCount` (all 43 web ids) delays the title by count × 125 ms and the
-    description one step more.
+  - Each slide's `contentStaggerCount` (one per `FirstRunCatalog` slide id; `FirstRunMotionTests`
+    checks coverage) delays the title by count × 125 ms and the description one step more.
   - `FirstRunAutoScroll` glides at 30 pt/s after 100 ms and wraps to the top. Its 36 pt fades
     show only on edges that hide cards.
   - Unit tests: `FirstRunMotionTests` (every catalogue slide has a count). The hosted tests
@@ -172,7 +172,10 @@ app's own interface.
   animation"):
   - no cascade and no title fade;
   - the infinite scroll holds at the top;
-  - pulses hold at 0.7.
+  - pulses hold at 0.7;
+  - rotating demos never tick: they rest on their first state with no fade or transition.
+  - Every First Run motion reads the one `@FirstRunReduceMotion` value (system or app).
+    Never read `accessibilityReduceMotion` alone in `FirstRun/`.
 - **Pulses** reuse the Item Shop row pulse (`ShopPulseLayer`, `ShopRowPulseBorder`; see
   [Apple architecture](../../platforms/apple/architecture.md)). Accent blue marks a CTA. Song rows and the
   Song Details action pulse in their own Item Shop tone.
@@ -190,12 +193,12 @@ app's own interface.
 
 ### FREs reviewed (#380)
 
-One shared implementation serves every Apple form factor. Every slide was checked against the web demo and its page's real view.
+One shared implementation serves every Apple form factor. Every slide was checked against the web demo and its page's real view. Rotating slides hold still under system or app Reduce Motion.
 
 | Page | Slides | Outcome |
 |---|---|---|
 | Songs (9) | song-list, sort, navigation, filter, icons, metadata, shop-highlight, new-in-shop, leaving-tomorrow | Already the real Songs UI (batch 7). The text cascade was added; Item Shop rows use the real pulse |
-| Song Info (8) | chart, bar-select, view-all, top-scores, paths, shop-button, new-in-shop, leaving-tomorrow | Real score rows, `PurpleActionLabel` and the real Item Shop action; web cascade |
+| Song Info (8) | chart, bar-select, view-all, top-scores, paths, shop-button, new-in-shop, leaving-tomorrow | Real score rows, `PurpleActionLabel`, the Paths sheet's real menus (`SongPathsSelectorRow`) and the real Item Shop action; web cascade |
 | Player History (2) | score-list, sort | Real rows and the real sort sheet |
 | Statistics (6) | select-profile, drill-down, overview, instrument-breakdown, percentiles, top-songs | Real Select Player button, section header and percentile table; the stat grids already use the page's cards |
 | Suggestions (4) | category-card, global-filter, instrument-filter, infinite-scroll | Real filter sheet; the infinite scroll is ported |
@@ -259,12 +262,12 @@ Before #27 iOS showed one static state per demo; now each rotating demo swaps li
   update without animation → fade in; `.firstRunSwapRow` hides the fading slots (opacity 0 plus the
   web's per-demo rise). Rows use positional identity so the same view fades instead of being
   replaced. Swapped-in artwork is prefetched into the shared bounded cache during the fade-out.
-- **Reduce Motion** (HIG Accessibility: "reduce automatic and repetitive animation… replacing axis
-  transitions with fades"): rotation continues, but each swap is one ~0.4 s cross-fade with no
-  hidden phase and no rise.
-- Hosted tests: `FirstRunDemoRotationUITests` (swap order, Reduce Motion path, cancellation
-  completes, web pools/templates, and an active bar-select demo advances while an inactive one
-  stays still).
+- **Reduce Motion** (system or app, `@FirstRunReduceMotion`; HIG Accessibility: "reduce
+  automatic and repetitive animation"): the ticker stops (`FirstRunDemoTickerPolicy`), so each
+  demo rests on its first state with no fade, rise or transition (#380, load-transition R6).
+- Hosted tests: `FirstRunDemoRotationUITests` (swap order, ticker policy, cancellation
+  completes, web pools/templates; an active bar-select demo advances while an inactive one
+  stays still, and system or app Reduce Motion holds an active one still past its interval).
 
 | Slide | Rotation (web source) |
 |---|---|
@@ -289,7 +292,7 @@ rotation on the web either.
 | `songinfo-bar-select` | `FirstRunSongInfoBarSelectDemo` | Same chart; the selection stroke and detail card cycle bars like the web (see rotation table) |
 | `songinfo-view-all` | `FirstRunSongInfoViewAllDemo` | Real `ScoreHistoryListRow`s (last one faded) + pulsing `PurpleActionLabel` "View All Scores" |
 | `songinfo-top-scores` | `FirstRunSongInfoTopScoresDemo` | Instrument header + top leaderboard rows + pulsing "View full leaderboard" |
-| `songinfo-paths` | `FirstRunSongInfoPathsDemo` | Instrument row + difficulty row + static path-preview placeholder (no network image fetch) |
+| `songinfo-paths` | `FirstRunSongInfoPathsDemo` | The Paths sheet's real Instrument/Difficulty/View menus (`SongPathsSelectorRow`, inert) below a still path-area placeholder (no network image fetch); selectors fade in first, as on the web |
 | `songinfo-shop-button` | `FirstRunSongInfoShopPillDemo(tone: .shop)` | Song header card with the real Song Details Item Shop action (`SongDetailShopActionStyle`: breathing bag, or the titled capsule on a vertical section bar); green |
 | `songinfo-new-in-shop` | `FirstRunSongInfoShopPillDemo(tone: .new)` | Same, gold |
 | `songinfo-leaving-tomorrow` | `FirstRunSongInfoShopPillDemo(tone: .leaving)` | Same, red |
