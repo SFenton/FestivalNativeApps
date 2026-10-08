@@ -163,7 +163,7 @@ struct PlayerBandsPreviewSection: View {
     private func cards(_ entries: [PlayerBandEntry]) -> some View {
         if layout.widthClass == .regular {
             HingeGrid(
-                columns: [GridItem(.flexible(), spacing: 6, alignment: .top), GridItem(.flexible(), alignment: .top)],
+                columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible())],
                 alignment: .leading, spacing: 6
             ) {
                 ForEach(entries) { entry in
