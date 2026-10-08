@@ -160,7 +160,7 @@ final class SettingsJourneyTests: XCTestCase {
         let app = fixtureApp()
         app.launch()
         let row = app.buttons["fst.settings.privacy-policy"]
-        SongsUITestSupport.reveal(row, in: app, scrollingUp: false)
+        SongsUITestSupport.reveal(row, in: app, scrollingUp: true)
         row.tap()
 
         XCTAssertTrue(app.navigationBars["Privacy Policy"].waitForExistence(timeout: 10))
@@ -330,6 +330,96 @@ final class SettingsJourneyTests: XCTestCase {
             )
         }
         SongsUITestSupport.record(app, name: "settings-quick-links-landing")
+    }
+
+    /// **Accessibility (#393, for #12):** at the largest accessibility text size the
+    /// Quick Links control keeps its name and a 44×44 pt target (HIG Accessibility),
+    /// each sheet row is named and at least 44 pt tall, and every jump leaves its section
+    /// title whole and hittable below the navigation bar, clear of the scroll-edge blur,
+    /// while the control's VoiceOver value names that section. Includes the last section,
+    /// which cannot scroll up to the line and must still own the value.
+    @MainActor
+    func testQuickLinksLandingIsAccessibleAtLargestText() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName",
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        app.launch()
+        let quickLinks = app.buttons["fst.quick-links.open"]
+        XCTAssertTrue(quickLinks.waitForExistence(timeout: 15))
+        XCTAssertEqual(quickLinks.label, "Quick Links")
+        XCTAssertTrue(quickLinks.isHittable)
+        XCTAssertGreaterThanOrEqual(quickLinks.frame.width, 44, "Quick Links is narrower than 44 pt")
+        XCTAssertGreaterThanOrEqual(quickLinks.frame.height, 44, "Quick Links is shorter than 44 pt")
+
+        let targets = [
+            ("item-shop", "Item Shop"), ("accessibility", "Accessibility"),
+            ("service-info", "Service Info"), ("reset", "Reset Settings"),
+        ]
+        for (id, title) in targets {
+            quickLinks.tap()
+            // At AX5 the Quick Links sheet scrolls; rows past its fold are absent until revealed.
+            let menuRows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.quick-links.item."))
+            XCTAssertTrue(menuRows.firstMatch.waitForExistence(timeout: 10))
+            let row = app.buttons["fst.quick-links.item.\(id)"]
+            let window = app.windows.firstMatch
+            for _ in 0..<8 where !(row.exists && row.isHittable && row.frame.maxY <= window.frame.maxY) {
+                window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)).press(
+                    forDuration: 0.05,
+                    thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+                )
+            }
+            XCTAssertTrue(
+                row.exists && row.isHittable,
+                "The \(id) row cannot be reached in the Quick Links sheet: "
+                    + menuRows.allElementsBoundByIndex.map { "\($0.identifier)@\(Int($0.frame.minY))\($0.isHittable ? "" : "(hidden)")" }.joined(separator: ", ")
+            )
+            XCTAssertTrue(row.label.contains(title), "The \(id) row reads \"\(row.label)\"")
+            XCTAssertGreaterThanOrEqual(row.frame.height, 44, "The \(id) row is shorter than 44 pt")
+            row.tap()
+            let named = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "value == %@", title), object: quickLinks
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [named], timeout: 10), .completed, "Quick Links reads \(String(describing: quickLinks.value))")
+            let visible = XCTNSPredicateExpectation(
+                predicate: NSPredicate { _, _ in
+                    MainActor.assumeIsolated {
+                        Self.landedTitle(title, in: app).map { $0.gap >= 24 && $0.frame.maxY <= app.frame.maxY } ?? false
+                    }
+                },
+                object: nil
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [visible], timeout: 8), .completed, "\(title) is under the bar or off screen")
+            if id != "reset" {
+                let gap = Self.landedTitle(title, in: app)?.gap ?? .infinity
+                XCTAssertLessThanOrEqual(gap, 48, "\(title) landed \(Int(gap)) pt below the navigation bar; expected ~32 pt")
+            }
+            // A clamped last section must keep the value once the jump settles.
+            let dropped = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "value != %@", title), object: quickLinks
+            )
+            dropped.isInverted = true
+            XCTAssertEqual(XCTWaiter.wait(for: [dropped], timeout: 2), .completed, "Quick Links stopped naming \(title) after the jump settled")
+        }
+        SongsUITestSupport.record(app, name: "settings-quick-links-landing-ax5")
+    }
+
+    /// The highest copy of a section title at or below the navigation bar, with its gap
+    /// below the bar, once it is hittable.
+    ///
+    /// - Parameters:
+    ///   - title: The section title's label.
+    ///   - app: Foreground app.
+    /// - Returns: The title's frame and gap, or `nil` when no hittable copy is near the top.
+    @MainActor
+    private static func landedTitle(_ title: String, in app: XCUIApplication) -> (frame: CGRect, gap: CGFloat)? {
+        let barBottom = app.navigationBars.firstMatch.frame.maxY
+        return app.staticTexts.matching(NSPredicate(format: "label == %@", title)).allElementsBoundByIndex
+            .filter { $0.frame.minY >= barBottom - 8 && $0.isHittable }
+            .min { $0.frame.minY < $1.frame.minY }
+            .map { ($0.frame, $0.frame.minY - barBottom) }
     }
 
     /// Distance from the navigation bar's bottom to the highest on-screen copy of a
