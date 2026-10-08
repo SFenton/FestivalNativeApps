@@ -2,7 +2,7 @@
 
 > **What:** loading, no-result, unavailable and placeholder outcomes, including their copy, centring and retry behavior. **Read when:** a query or page can return no content or fail.
 
-Status: **current**, 2026-10-07. Provenance: #35, #65, #99, #140, #299, #320, #348.
+Status: **current**, 2026-10-07. Provenance: #35, #65, #99, #140, #299, #320, #348, #377.
 
 ## Intent
 
@@ -24,6 +24,7 @@ Every result region communicates whether it is loading, empty or unavailable wit
 - **R5. Use the canonical components.** Apple uses `GlobalSearchEmptyStateView`, `FestivalLoadingView`, `ServiceUnavailableView` or `ComingSoonView`; Android uses `FestivalEmptyState`/`FestivalLoading`; Windows uses the centered Search page state and `ServiceStatusView`. Material/Fluent controls remain native rather than imitating web markup.
 - **R6. Replace loading completely.** A spinner gives way to rows, an empty state or an error state; it never remains beside stale placeholders (#35, #65).
 - **R7. Keep the full-page failure off a separating hinge.** On Android the full-page service status uses the shared hinge side rule of [modal-shell](modal-shell.md) R8 (`HingeSide`, via `serviceStatusHingeSide`): the wider or leading side in book posture, below the hinge in tabletop, so its heading, message and Retry never straddle the fold (#140).
+- **R8. Empty states are plain centred text (#377).** Every empty page or region (Songs, Item Shop, Suggestions, Rivals, Player Bands, Band Rankings, Notifications, Player History, Statistics, Search) renders through the platform's one shared empty-state component, like web `EmptyState`: optional icon, title and subtitle centred horizontally and vertically in the region, **no background card and no Reset Filters button**. The subtitle names the way out ("Try changing your filters to see more songs."); the filter sheet's own Reset is the reset path. An `action` is allowed only for gate states that are not query results (Select/Choose Player, Go Back, Retry while a player syncs) and for the corrupt-saved-filter error, which requires explicit Reset (AGENTS.md invariant; an error, not an empty result, R1). Web-faithful in-card section empties (Compete sections, Profile Top Songs/Bands, Song Detail instrument cards) and in-board leaderboard rows ("No scores yet") stay inside their card, as on the web. Copy: the web Item Shop has no filters, so "No offers match these filters" has no web counterpart; native filtered Shop copy follows web Songs/Suggestions filtered copy: "No Item Shop songs match your filters." / "Try changing your filters to see more songs."
 
 ## Canonical implementation
 
@@ -31,6 +32,7 @@ Every result region communicates whether it is loading, empty or unavailable wit
 |---|---|---|---|
 | Centered search empty | `apple/Sources/FestivalUI/Features/Search/GlobalSearchEmptyState.swift` `GlobalSearchEmptyStateView` | `android/app/src/main/java/com/festivalscoretracker/android/ui/search/GlobalSearch.kt` `GlobalSearchEmptyState` | `windows/Festival.App/Pages/SearchPage.xaml` `fst.global-search.empty` |
 | Loading indicator | `apple/Sources/FestivalUI/Common/FestivalLoadingView.swift` `FestivalLoadingView` | `android/app/src/main/java/com/festivalscoretracker/android/ui/common/ServiceStatus.kt` `FestivalLoading` | `windows/Festival.App/Pages/SearchPage.xaml` `fst.global-search.loading` |
+| Page/region empty (R8) | `apple/Sources/FestivalUI/Features/Search/GlobalSearchEmptyState.swift` `GlobalSearchEmptyStateView` | `android/app/src/main/java/com/festivalscoretracker/android/ui/common/LoadGate.kt` `FestivalEmptyState` (Shop `NoMatchingOffers`/`HiddenView`, Suggestions `Message`, Rivals `RivalsMessage`, Bands `BandEmptyState`, Band Rankings, Notifications, Player History `HistoryMessage`, Player profile `Message`, Songs `festivalEmptyStateItem`) | `windows/Festival.App/Pages/SearchPage.xaml` `fst.global-search.empty` |
 | Unavailable/placeholder | `apple/Sources/FestivalUI/Common/ServiceStatusViews.swift` `ServiceUnavailableView`; `apple/Sources/FestivalUI/Common/ComingSoonView.swift` `ComingSoonView` | `android/app/src/main/java/com/festivalscoretracker/android/ui/common/LoadGate.kt` `FestivalEmptyState` | `windows/Festival.App/Controls/ServiceStatusView.xaml` `ServiceStatusView` |
 | Full-page service status | `apple/Sources/FestivalUI/Common/ServiceStatusViews.swift` `ServiceUnavailableView` | `android/app/src/main/java/com/festivalscoretracker/android/ui/common/ServiceStatus.kt` `ServiceStatusView` (hinge side: `core/nav/HingeSide.kt` `HingeSide`) | `windows/Festival.App/Controls/ServiceStatusView.xaml` `ServiceStatusView` |
 
@@ -43,3 +45,4 @@ Every result region communicates whether it is loading, empty or unavailable wit
 ## Guards (tools/pattern_guard.py)
 
 - `empty-error-states/global-search-retry`
+- `empty-error-states/android-empty-reset-filters`
