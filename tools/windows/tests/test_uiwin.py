@@ -113,6 +113,10 @@ class StepTests(unittest.TestCase):
         self.assertEqual((role["key"], role["value"], role["timeout"]), ("type", "text", 5.0))
         self.assertEqual(u.parse_step("assertstate:id=x|invoke=False")["value"], "false")
         self.assertEqual(u.parse_step("assertstate:id=x|focusable=true")["value"], "true")
+        # Issue #415: the Songs pinned section title stays a Level 2 heading after a Jump pick.
+        heading = u.parse_step("assertstate:id=fst.songs.section-header|heading=2@5")
+        self.assertEqual((heading["key"], heading["value"], heading["timeout"]), ("heading", "2", 5.0))
+        self.assertEqual(u.parse_step("assertstate:id=x|heading=0")["value"], "0")
         # Issue #280: a combo box's current option keeps its case (Narrator reads "Instrument, combo box, Pro Bass").
         current = u.parse_step("assertstate:id=fst.paths.instrument.compact|value=Pro Bass@5")
         self.assertEqual((current["key"], current["value"], current["timeout"]), ("value", "Pro Bass", 5.0))
@@ -120,7 +124,8 @@ class StepTests(unittest.TestCase):
                     "assertstate:id=x|enabled=yes", "assertstate:id=x|color=red", "assertstate:@1,2|toggle=on",
                     "assertstate:id=x|name=", "assertstate:id=x|selected=on", "assertstate:id=x|scroll=top",
                     "assertstate:id=x|scroll=101", "assertstate:id=x|scroll=2.5", "assertstate:id=x|scroll=-2",
-                    "assertstate:id=x|type=", "assertstate:id=x|invoke=yes", "assertstate:id=x|focusable=1"):
+                    "assertstate:id=x|type=", "assertstate:id=x|invoke=yes", "assertstate:id=x|focusable=1",
+                    "assertstate:id=x|heading=h2", "assertstate:id=x|heading=10"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
     def test_assertstatus(self):
