@@ -408,6 +408,44 @@ final class SongsScrollChrome {
         return (max(0, limit) * 2).rounded(.down) / 2
     }
 
+    // MARK: Row mask inputs (issue #383)
+
+    /// What each row's mask under the section bar draws
+    /// (``SwiftUI/View/pinnedHeaderEdgeFadeRowMask(edge:active:depthLimit:rowLimit:)``).
+    struct RowFade: Equatable {
+        /// The section bar's bottom edge (global).
+        let edge: CGFloat
+        /// Rows have scrolled under the bar.
+        let active: Bool
+        /// The deepest the fade may reach, or nil for its full height.
+        let depthLimit: CGFloat?
+
+        /// At the top: nothing masked, and nothing that moves with the navigation bar.
+        static let inactive = RowFade(edge: 0, active: false, depthLimit: 0)
+    }
+
+    /// The line above which rows report their tops to their masks
+    /// (``PinnedHeaderEdgeFade/rowLimit(edge:active:)``), shared by every row and never
+    /// observed.
+    let rowMaskLimit = TopInset()
+
+    /// The row mask's inputs, read by the mask modifier itself.
+    ///
+    /// At the top (not ``listScrolled``) this returns ``RowFade/inactive`` without reading
+    /// ``sectionBarBottom`` or ``rowFadeLimit``, so the mask modifier does not observe
+    /// them there. Both follow the navigation bar while the large title expands or
+    /// collapses, and every change re-rendered the row masks in the middle of that
+    /// system transition (issue #383). Once scrolled away the large title has
+    /// fully collapsed (``ScrollAwayGate`` enters 24 pt past the collapsed inset), so the
+    /// navigation bar no longer moves.
+    ///
+    /// - Parameter enabled: The List has sections and the OS shows the section bar.
+    /// - Returns: The mask inputs.
+    func rowFade(enabled: Bool) -> RowFade {
+        guard enabled, listScrolled else { return .inactive }
+        return RowFade(edge: sectionBarBottom, active: true, depthLimit: rowFadeLimit)
+    }
+
     /// Record one in-list title's fade limit, or that it no longer limits the fade.
     ///
     /// - Parameters:
