@@ -94,6 +94,31 @@ struct SongsScrollChromeTests {
         #expect(chrome.setSectionBarBottom(120 + SongsScrollChrome.barBottomTolerance))
     }
 
+    /// Issue #391: the rail keeps the expanded bar's inset while the title collapses with
+    /// the content attached, and measures again for a new width or text size.
+    @Test func restingTopInsetKeepsTheExpandedBarPerLayout() {
+        let chrome = SongsScrollChrome()
+        let portrait = SongsScrollChrome.RestingLayout(width: 402, textSize: .accessibility5)
+        #expect(invalidates(chrome, reading: { _ = $0.restingTopInset }) {
+            $0.setRestingTopInset(323, layout: portrait)
+        })
+        // Collapsing: the inset shrinks while the content stays attached to the bar.
+        #expect(!invalidates(chrome, reading: { _ = $0.restingTopInset }) {
+            $0.setRestingTopInset(250, layout: portrait)
+            $0.setRestingTopInset(323.3, layout: portrait)
+        })
+        #expect(chrome.restingTopInset == 323)
+        #expect(!chrome.setRestingTopInset(.nan, layout: portrait))
+        // A smaller text size starts over, even with a smaller inset.
+        #expect(chrome.setRestingTopInset(222, layout: .init(width: 402, textSize: .large)))
+        #expect(chrome.restingTopInset == 222)
+        #expect(chrome.setRestingTopInset(150, layout: .init(width: 874, textSize: .large)))
+        #expect(chrome.restingTopInset == 150)
+        #expect(!invalidates(chrome, reading: { _ = $0.listScrolled }) {
+            $0.setRestingTopInset(400, layout: .init(width: 874, textSize: .large))
+        })
+    }
+
     /// Writes to one property never invalidate observers of another (the List reads none).
     @Test func propertiesAreObservedIndependently() {
         let chrome = SongsScrollChrome()

@@ -289,7 +289,8 @@ final class SongsChromeJourneyTests: XCTestCase {
 
     /// Issue #391 (#10's fade): rows fade out under the floating section title on iOS 26.
     /// At the largest accessibility text size the title grows with Dynamic Type and stays
-    /// the named element over the list, the rows crossing the fade under it stay named
+    /// the named element over the list, the A–Z rail's labels grow too and its first letter
+    /// stays below the expanded navigation bar and hittable, the rows crossing the fade under it stay named
     /// buttons, the first row below the fade stays hittable, and Songs passes the system
     /// accessibility audit while scrolled under the bar. The hosted macOS tests
     /// (`SongsSectionBarAccessibilityTests`) cover heading order and the hard edge;
@@ -318,40 +319,69 @@ final class SongsChromeJourneyTests: XCTestCase {
             }
             return ((try? list.snapshot()).map(rows)) ?? []
         }
-        /// Launch at a text size, jump to C with the rail and drag rows under the bar.
-        func scrolledUnderTheBar(_ size: UIContentSizeCategory) throws -> CGRect {
+        /// Launch at a text size, jump to C (or the first letter after it that a condensed
+        /// rail shows) and drag rows under the bar.
+        ///
+        /// - Returns: The section title's frame and the rail's "#" label height.
+        func scrolledUnderTheBar(
+            _ size: UIContentSizeCategory
+        ) throws -> (bar: CGRect, railLabelHeight: CGFloat) {
             app.launchArguments = ["-UIPreferredContentSizeCategoryName", size.rawValue]
             app.launch()
             XCTAssertTrue(list.waitForExistence(timeout: 15))
             let rail = app.descendants(matching: .any)
                 .matching(identifier: "fst.songs.section-index").firstMatch
+            // The rail re-lays out once it has measured its labels and the bar.
             guard rail.waitForExistence(timeout: 5),
-                  rail.staticTexts.matching(NSPredicate(format: "label == 'C'")).firstMatch.exists
+                  rail.staticTexts.matching(NSPredicate(format: "label == 'Z'")).firstMatch
+                      .waitForExistence(timeout: 5)
             else {
                 throw XCTSkip("Catalogue lacks the A–Z sections; use mock_service.py --large-catalogue.")
             }
+            // The rail starts below the expanded navigation bar: at AX3XL on iOS 27 the
+            // bar reached past "#" to "D", which could not be touched (issue #391).
+            let first = rail.staticTexts.matching(NSPredicate(format: "label == '#'")).firstMatch
+            XCTAssertTrue(first.isHittable, "Rail '#' is under the navigation bar at \(size.rawValue)")
+            // At the largest sizes the taller labels condense (section-jump-landing R8).
+            let letter = try XCTUnwrap(
+                rail.staticTexts.allElementsBoundByIndex.map(\.label)
+                    .first { $0.count == 1 && $0 >= "C" && $0 <= "Z" },
+                "The rail shows no letter from C on at \(size.rawValue)"
+            )
             // As in the rail journey below, the first tap after launch only wakes the rail.
-            for letter in ["#", "C"] {
-                rail.staticTexts.matching(NSPredicate(format: "label == %@", letter)).firstMatch.tap()
+            for label in ["#", letter] {
+                rail.staticTexts.matching(NSPredicate(format: "label == %@", label)).firstMatch.tap()
             }
             let landed = XCTNSPredicateExpectation(
-                predicate: NSPredicate(format: "exists == true AND label == 'C'"), object: sectionBar
+                predicate: NSPredicate(format: "exists == true AND label == %@", letter), object: sectionBar
             )
             XCTAssertEqual(XCTWaiter.wait(for: [landed], timeout: 5), .completed,
-                           "Section title reads '\(sectionBar.label)', not C")
+                           "Section title reads '\(sectionBar.label)', not \(letter)")
+            // Slow, held drag: a flick's momentum can carry a short section past the bar.
             let start = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
-            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -60)))
-            XCTAssertEqual(sectionBar.label, "C")
-            return sectionBar.frame
+            start.press(
+                forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -60)),
+                withVelocity: .slow, thenHoldForDuration: 0.3
+            )
+            XCTAssertEqual(sectionBar.label, letter)
+            return (sectionBar.frame, first.frame.height)
         }
 
-        let standardBar = try scrolledUnderTheBar(.large)
+        let (standardBar, standardRailLabel) = try scrolledUnderTheBar(.large)
         app.terminate()
-        let largeBar = try scrolledUnderTheBar(.accessibilityExtraExtraExtraLarge)
+        let (largeBar, largeRailLabel) = try scrolledUnderTheBar(.accessibilityExtraExtraExtraLarge)
         XCTAssertGreaterThan(
             largeBar.height, standardBar.height * 1.5,
             "Section title did not grow with Dynamic Type: \(standardBar) → \(largeBar)"
         )
+        // The rail's labels follow Dynamic Type too (a fixed 10 pt never grew, #391).
+        let railLabelsScale = largeRailLabel > standardRailLabel * 1.5
+        XCTAssertTrue(
+            railLabelsScale,
+            "Rail labels did not grow with Dynamic Type: \(standardRailLabel) → \(largeRailLabel)"
+        )
+        let railFrame = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.section-index").firstMatch.frame
         // The fade runs 40 pt below the title (`PinnedHeaderEdgeFade.height`).
         let fade = CGRect(x: 0, y: largeBar.maxY, width: app.windows.firstMatch.frame.width, height: 40)
         let rows = rowSnapshots()
@@ -367,8 +397,42 @@ final class SongsChromeJourneyTests: XCTestCase {
         )
         XCTAssertTrue(app.buttons[below.identifier].isHittable, "\(below.identifier) not reachable")
         XCTAssertGreaterThanOrEqual(below.frame.height, 44)
+        // iOS 27 flags the rail's 10 pt letters on its glass capsule, which render at
+        // 16:1; like Shop's empty state, measure the composited pixels for contrast.
+        // Row text under the system tab bar's scroll-edge effect is dimmed on purpose,
+        // and iOS 27 reports it without an element (Song Detail's solo-page precedent).
+        // Under Reduce Transparency it flags rows scrolled behind the top bar as well.
+        let tabTop = app.tabBars.firstMatch.exists
+            ? app.tabBars.firstMatch.frame.minY : app.windows.firstMatch.frame.maxY
+        let rowUnderTabBar = rowSnapshots().contains { $0.frame.maxY > tabTop }
         try app.performAccessibilityAudit(for: .all) { issue in
-            SongsUITestSupport.isSystemSearchPlaceholderContrast(issue)
+            let attachment = XCTAttachment(
+                string: "\(issue.auditType): \(issue.detailedDescription); "
+                    + "element=\(issue.element?.identifier ?? "unidentified"), "
+                    + "label=\(issue.element?.label ?? "unidentified"), "
+                    + "frame=\(String(describing: issue.element?.frame)), "
+                    + "tabTop=\(tabTop), rowUnderTabBar=\(rowUnderTabBar)"
+            )
+            attachment.name = "songs-largest-text-audit-issue"
+            attachment.lifetime = .keepAlways
+            self.add(attachment)
+            if SongsUITestSupport.isSystemSearchPlaceholderContrast(issue) { return true }
+            // The rail's caption2 labels stop growing at accessibility2 to stay a narrow
+            // column; their scaling is measured above rather than trusted to the audit.
+            if issue.auditType == .dynamicType, railLabelsScale,
+               let frame = issue.element?.frame, !frame.isEmpty,
+               railFrame.insetBy(dx: -1, dy: -1).contains(frame) {
+                return true
+            }
+            guard issue.auditType == .contrast else { return false }
+            guard let element = issue.element, !element.frame.isEmpty else {
+                return rowUnderTabBar
+            }
+            // Text scrolled under the bars and the title's fade is dimmed on purpose
+            // (Song Detail's band-preview rule); the rows there are checked above.
+            if element.frame.maxY > tabTop || element.frame.minY < largeBar.maxY { return true }
+            try SongsUITestSupport.assertHeaderContrast(element, in: app)
+            return true
         }
     }
 

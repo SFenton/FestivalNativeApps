@@ -140,6 +140,20 @@ class ResolveDeviceTests(unittest.TestCase):
         self.assertEqual(resolve_device("SOME-OTHER-UDID"), "SOME-OTHER-UDID")
 
 
+class DiagnosticsArgsTests(unittest.TestCase):
+    """``FST_UITEST_NO_DIAGNOSTICS=1`` skips xcodebuild's slow failure diagnostics (#391)."""
+
+    def test_default_keeps_diagnostics(self) -> None:
+        self.assertEqual(ios_sim.uitest_diagnostics_args({}), [])
+        self.assertEqual(ios_sim.uitest_diagnostics_args({"FST_UITEST_NO_DIAGNOSTICS": "0"}), [])
+
+    def test_opt_out_skips_them(self) -> None:
+        self.assertEqual(
+            ios_sim.uitest_diagnostics_args({"FST_UITEST_NO_DIAGNOSTICS": "1"}),
+            ["-collect-test-diagnostics", "never"],
+        )
+
+
 class RequireRunTests(unittest.TestCase):
     """``uitest --require-run`` rejects green batches that executed nothing."""
 

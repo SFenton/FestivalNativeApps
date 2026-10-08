@@ -181,6 +181,11 @@ none ran; CI always passes it. On a CI runner, `ci-device` creates the
 simulator (`UDID=$(python3 tools/ios_sim.py ci-device)`, then `--device
 "$UDID"`); it refuses to run without `CI=true`
 ([iOS journeys in CI](../testing/apple/accessibility.md#ios-journeys-in-ci)).
+`FST_UITEST_NO_DIAGNOSTICS=1` skips `xcodebuild`'s failure diagnostics
+(`-collect-test-diagnostics never`), which took about seven minutes per failure
+on the runner; the result bundle keeps its screenshots and recording. Selectors
+are `Class/testMethod`: `uitest` adds the target itself, and a target-prefixed
+selector runs nothing (which `--require-run` reports).
 
 ## Limitations
 

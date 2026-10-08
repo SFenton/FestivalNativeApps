@@ -105,4 +105,51 @@ struct SongSectionIndexScrubberFitTests {
         }
         #expect(SongSectionIndexScrubber.section(at: 0, height: height, inset: inset, entries: []) == nil)
     }
+
+    /// Issue #391: at AX3XL on iOS 27 the expanded bar ends at 323 pt while the strip's
+    /// region starts at 114 pt and the centered strip at 240 pt; the strip must move
+    /// below the bar. At the default size (bar ends at 222 pt) it stays centered.
+    @Test func stripNeverStartsUnderTheExpandedBar() {
+        let regionTop: CGFloat = 62 + 52
+        let region: CGFloat = 728 - regionTop
+        let strip: CGFloat = 378
+        let largest = SongSectionIndexScrubber.topClearance(chromeBottom: 323, regionTop: regionTop)
+        #expect(largest == 209)
+        let top = SongSectionIndexScrubber.stripTop(
+            regionHeight: region, stripHeight: strip, clearance: largest
+        )
+        #expect(regionTop + top >= 323)
+        let standard = SongSectionIndexScrubber.topClearance(chromeBottom: 222, regionTop: regionTop)
+        #expect(SongSectionIndexScrubber.stripTop(
+            regionHeight: region, stripHeight: strip, clearance: standard
+        ) == (region - strip) / 2)
+        // Unknown or collapsed bars add nothing.
+        #expect(SongSectionIndexScrubber.topClearance(chromeBottom: 0, regionTop: regionTop) == 0)
+        #expect(SongSectionIndexScrubber.topClearance(chromeBottom: .nan, regionTop: regionTop) == 0)
+        // Standard-size labels all fit below a cleared bar on a 17 Pro; the labels at the
+        // largest sizes (caption2 capped at 24 pt) condense, keeping "#" and "Z".
+        #expect(SongSectionIndexScrubber.capacity(
+            availableHeight: region - largest, labelHeight: 12
+        )! >= 27)
+        let condensed = SongSectionIndexScrubber.entries(
+            labels: titleLabels,
+            capacity: SongSectionIndexScrubber.capacity(availableHeight: region - largest, labelHeight: 29)
+        )
+        #expect(condensed.count < 27)
+        #expect(condensed.first?.label == "#")
+        #expect(condensed.last?.label == "Z")
+    }
+
+    /// Issue #391: the labels follow Dynamic Type (a fixed 10 pt never grew), so the
+    /// capsule widens with them: 22 pt up to Large, capped where the labels stop at
+    /// accessibility2 (over 200% of caption2's 11 pt).
+    @Test func stripWidensWithTheLabelsUpToItsLargestTextSize() {
+        #expect(SongSectionIndexScrubber.stripWidth(for: .xSmall) == 22)
+        #expect(SongSectionIndexScrubber.stripWidth(for: .large) == 22)
+        #expect(SongSectionIndexScrubber.stripWidth(for: .xLarge) == 25)
+        #expect(SongSectionIndexScrubber.stripWidth(for: .accessibility1) == 34)
+        #expect(SongSectionIndexScrubber.stripWidth(for: .accessibility2) == 39)
+        #expect(SongSectionIndexScrubber.stripWidth(for: .accessibility5) == 39)
+        #expect(SongSectionIndexScrubber.largestTextSize == .accessibility2)
+    }
 }

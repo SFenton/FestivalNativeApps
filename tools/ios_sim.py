@@ -66,7 +66,7 @@ import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Iterable, Iterator
+from typing import Iterable, Iterator, Mapping
 
 # region Configuration
 
@@ -1900,6 +1900,26 @@ def require_run_problem(summary: dict | None) -> str | None:
     return None
 
 
+def uitest_diagnostics_args(environ: "Mapping[str, str] | None" = None) -> "list[str]":
+    """Extra ``xcodebuild`` arguments that skip failure diagnostics when asked.
+
+    After a failing test ``xcodebuild`` collects a sysdiagnose-like bundle, which took
+    about seven minutes on the CI runner (#391) and pushed the batch past its timeout.
+    ``FST_UITEST_NO_DIAGNOSTICS=1`` skips it; the result bundle still keeps the
+    failure screenshots and screen recording.
+
+    Args:
+        environ: The environment to read; ``os.environ`` when omitted.
+
+    Returns:
+        ``["-collect-test-diagnostics", "never"]`` when requested, else ``[]``.
+    """
+    env = os.environ if environ is None else environ
+    if env.get("FST_UITEST_NO_DIAGNOSTICS") == "1":
+        return ["-collect-test-diagnostics", "never"]
+    return []
+
+
 def _run_uitest_batch(
     *, udid: str, derived: Path, selectors: list[str], timeout: float,
     a11y: list[str] | None = None, pose: str | None = None, set_pose: bool = False,
@@ -1969,6 +1989,7 @@ def _run_uitest_batch(
         ]
         for selector in selectors:
             cmd.append(f"-only-testing:{product().uitest_target}/{selector}")
+        cmd += uitest_diagnostics_args()
         cmd += ["test-without-building", "-quiet"]
         print("+", " ".join(cmd), file=sys.stderr)
         with open(log_path, "w") as log, simulator_accessibility(udid, a11y):

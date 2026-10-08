@@ -65,6 +65,7 @@ struct SongsScreen: View, Equatable {
     @State private var bottomFilterTop: CGFloat?
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var deviceLayout
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Song to scroll back to after an iPhone Duo fold/unfold rebuilt this list (`/duo` D6).
     /// The anchor this instance already scrolled to.
     @AppStorage("fst.songs.sortMode") private var sortMode = SongSortMode.title
@@ -1053,12 +1054,13 @@ struct SongsScreen: View, Equatable {
     ///   - visible: Songs after search, filters and sort have been applied.
     ///   - effectiveMode: Sort mode actually in effect (paused sorts fall back to Title).
     /// - Returns: A scrollable List, with a trailing jump scrubber when applicable.
-    /// Width to keep clear of the trailing `SongSectionIndexScrubber`: its own
-    /// 22pt-wide capsule, the same Duo vertical-bar margin it insets by
-    /// (`.agents/design/apple/duo.md`'s B4), and a small visual gap so a row's
-    /// trailing content doesn't sit flush against the capsule's edge.
+    /// Width to keep clear of the trailing `SongSectionIndexScrubber`: its own capsule
+    /// (22 pt, wider at large text sizes: `stripWidth(for:)`), the same Duo vertical-bar
+    /// margin it insets by (`.agents/design/apple/duo.md`'s B4), and a small visual gap
+    /// so a row's trailing content doesn't sit flush against the capsule's edge.
     private var scrubberTrailingReserve: CGFloat {
-        22 + max(2, deviceLayout.cutoutInsets.trailing) + 6
+        SongSectionIndexScrubber.stripWidth(for: dynamicTypeSize)
+            + max(2, deviceLayout.cutoutInsets.trailing) + 6
     }
 
     /// Extra trailing safe area while the rail shows: the rows already keep their
@@ -1187,7 +1189,8 @@ struct SongsScreen: View, Equatable {
                     }
                 }
                 .modifier(ScrolledAwayTracker(
-                    topInsetChanged: scrollChrome.setListTopInset
+                    topInsetChanged: scrollChrome.setListTopInset,
+                    restingTopInsetChanged: { scrollChrome.setRestingTopInset($0, layout: $1) }
                 ) { scrolled in
                     scrollChrome.setScrolled(scrolled)
                 })
@@ -1217,15 +1220,19 @@ struct SongsScreen: View, Equatable {
                     quickLinks: quickLinks, chrome: scrollChrome, keys: headerKeys
                 ))
                 if showsIndex {
-                    SongSectionIndexScrubber(sections: indexSections) { id in
+                    let railTop = deviceLayout.overlayInsets.top + 52
+                    SongsIndexRail(
+                        sections: indexSections, chrome: scrollChrome, regionTop: railTop
+                    ) { id in
                         jumpToSection(AnyHashable(id), keys: headerKeys, proxy: scrollProxy)
                     }
                     // Centered between a *fixed* top (status bar + collapsed inline bar)
                     // and the bottom safe area (tab bar + floating tools), so it neither
                     // jumps when the large title and filter field collapse nor overlaps
-                    // the floating Filter/Sort buttons.
+                    // the floating Filter/Sort buttons. It never starts under the
+                    // expanded bar either (issue #391, `SongsIndexRail`).
                     .frame(maxHeight: .infinity)
-                    .padding(.top, deviceLayout.overlayInsets.top + 52)
+                    .padding(.top, railTop)
                     .padding(.bottom, 8)
                     .ignoresSafeArea(.container, edges: .top)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -1810,6 +1817,10 @@ private extension SongShopSectionKind {
 private struct ScrolledAwayTracker: ViewModifier {
     /// Receives the List's top content inset on every scroll geometry change.
     let topInsetChanged: (CGFloat) -> Void
+    /// Receives the List's top content inset while its content is attached to the bar
+    /// (at, or pulled past, its top, or collapsing the large title), with its layout.
+    var restingTopInsetChanged: (CGFloat, SongsScrollChrome.RestingLayout) -> Void = { _, _ in }
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let changed: (Bool) -> Void
     @State private var gate = ScrollAwayGate()
     /// The last value sent to `changed`; nil until the first decision is reported.
@@ -1835,6 +1846,12 @@ private struct ScrolledAwayTracker: ViewModifier {
                 // twice raises this peak above the expanded large title's inset.
                 MainThreadStallMonitor.peak("songs.topInset", Double(sample.topInset))
                 topInsetChanged(sample.topInset)
+                if sample.width > 0,
+                   sample.offsetY + sample.topInset <= ScrollAwayGate.offsetTolerance {
+                    restingTopInsetChanged(
+                        sample.topInset, .init(width: sample.width, textSize: dynamicTypeSize)
+                    )
+                }
                 gate.update(
                     offsetY: sample.offsetY, topInset: sample.topInset,
                     containerWidth: sample.width
@@ -1847,6 +1864,28 @@ private struct ScrolledAwayTracker: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+/// The A–Z rail, kept below the expanded navigation bar (issue #391).
+///
+/// Reads ``SongsScrollChrome/restingTopInset`` itself, so a new resting inset re-renders
+/// only the rail, never `SongsScreen` (issue #8).
+private struct SongsIndexRail: View {
+    let sections: [SongSection]
+    let chrome: SongsScrollChrome
+    /// The rail region's top edge in window space (it ignores the top safe area).
+    let regionTop: CGFloat
+    let onSelect: (Int) -> Void
+
+    var body: some View {
+        SongSectionIndexScrubber(
+            sections: sections,
+            topClearance: SongSectionIndexScrubber.topClearance(
+                chromeBottom: chrome.restingTopInset, regionTop: regionTop
+            ),
+            onSelect: onSelect
+        )
     }
 }
 

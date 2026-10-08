@@ -71,7 +71,7 @@ jobs:
           for mode in default increase-contrast reduce-transparency; do
             A11Y=(); [ "$mode" = default ] || A11Y=(--a11y "$mode")
             echo "::group::iOS accessibility journeys ($mode)"
-            FST_UITEST_KEEP_RESULTS=1 python3 tools/ios_sim.py uitest --device "$UDID" --require-run --timeout 900 \
+            FST_UITEST_KEEP_RESULTS=1 FST_UITEST_NO_DIAGNOSTICS=1 python3 tools/ios_sim.py uitest --device "$UDID" --require-run --timeout 900 \
               "${A11Y[@]}" "${ONLY[@]}"
             echo "::endgroup::"
           done

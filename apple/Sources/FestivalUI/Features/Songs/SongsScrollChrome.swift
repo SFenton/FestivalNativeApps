@@ -73,6 +73,42 @@ final class SongsScrollChrome {
         listTopInset.value = inset
     }
 
+    /// The List's top content inset with the large title fully expanded: the bottom of
+    /// the expanded navigation bar (large title and Filter field). Observed by the A–Z
+    /// rail only, which must not start under that bar (issue #391). It changes on launch,
+    /// rotation and text-size changes, never while the title collapses.
+    private(set) var restingTopInset: CGFloat = 0
+    /// The layout (width and text size) ``restingTopInset`` was measured in.
+    private var restingLayout: RestingLayout?
+
+    /// The layout an expanded-bar inset belongs to; a new one starts a new measurement.
+    struct RestingLayout: Equatable {
+        /// The List's visible width.
+        let width: CGFloat
+        /// The Dynamic Type size.
+        let textSize: DynamicTypeSize
+    }
+
+    /// Record the List's top content inset while its content is attached to the bar
+    /// (at the top, or collapsing the large title).
+    ///
+    /// The inset shrinks while the title collapses with the content still attached, so
+    /// only the largest value of a layout is the expanded bar; a new layout starts over.
+    ///
+    /// - Parameters:
+    ///   - inset: `ScrollGeometry.contentInsets.top`.
+    ///   - layout: The width and text size it was measured in.
+    /// - Returns: True when ``restingTopInset`` changed by more than ``barBottomTolerance``.
+    @discardableResult
+    func setRestingTopInset(_ inset: CGFloat, layout: RestingLayout) -> Bool {
+        guard inset.isFinite else { return false }
+        let expanded = layout == restingLayout ? max(restingTopInset, inset) : inset
+        restingLayout = layout
+        guard abs(expanded - restingTopInset) > Self.barBottomTolerance else { return false }
+        restingTopInset = expanded
+        return true
+    }
+
     // MARK: Landing line
 
     /// Padding above an in-list section title, and above the section bar's title.
