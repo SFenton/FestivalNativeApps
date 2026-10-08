@@ -118,7 +118,7 @@ struct RivalDetailAccessibilityTests {
         let storage: UserDefaults
         let suiteName: String
 
-        func close() {
+        @MainActor func close() {
             window.orderOut(nil)
             storage.removePersistentDomain(forName: suiteName)
         }
@@ -352,7 +352,9 @@ struct RivalDetailAccessibilityTests {
             macAccessibilityTree(hosted.host).contains { $0.isElement && $0.spokenName == "Loading rival detail" }
         }
         let loading = macAccessibilityTree(hosted.host).filter(\.isElement)
-        #expect(loading.filter { $0.spokenName == "Loading rival detail" }.count == 1, "one named spinner")
+        let spinners = loading.filter { $0.spokenName == "Loading rival detail" }
+        #expect(spinners.count == 1, "one named spinner")
+        #expect(spinners.allSatisfy { $0.role == "AXBusyIndicator" }, "the spinner is a busy indicator (#431): \(spinners)")
         #expect(Self.songRows(loading).isEmpty)
         #expect(!loading.contains { $0.identifier.hasPrefix("fst.service-status") })
 
