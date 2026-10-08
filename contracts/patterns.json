@@ -2983,7 +2983,7 @@
       "title": "Wide columns",
       "status": "current",
       "doc": ".agents/patterns/wide-columns.md",
-      "summary": "Page rows and cards show in two columns only in wide landscape windows (iPad landscape, iPhone Duo unfolded landscape, a wide Mac surface), row-major under full-width headings (pages of unequal section cards such as Settings flow column by column in balanced columns), meeting at the Duo hinge in book pose and at the free content area's midpoint when fully unfolded (owner-approved, #361), reflowing without reloading; portrait, compact windows and (for Settings) accessibility text sizes keep one column; full-width leaderboards pair rank rows row-major under one full-width pinned row and pager, while split sub-pages stay one column.",
+      "summary": "Page rows and cards show in two columns only in wide landscape windows (iPad landscape, iPhone Duo unfolded landscape, a wide Mac surface), row-major under full-width headings (pages of unequal section cards such as Settings flow column by column in balanced columns), meeting at the Duo hinge in book pose and at the free content area's midpoint when fully unfolded (owner-approved, #361), reflowing without reloading; portrait, compact windows and (for Settings) accessibility text sizes keep one column; the Item Shop list pairs its rows (its card grid keeps its own even-column policy); full-width leaderboards pair rank rows row-major under one full-width pinned row and pager, while split sub-pages stay one column.",
       "keywords": [
         "two column",
         "two-column",
@@ -2998,7 +2998,8 @@
         "mac sheet size",
         "settings columns",
         "balanced columns",
-        "column-major"
+        "column-major",
+        "item shop list"
       ],
       "web": [],
       "canonical": {
@@ -3038,6 +3039,10 @@
           {
             "path": "apple/Sources/FestivalUI/Mac/MacSettingsView.swift",
             "symbol": "MacSettingsView"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Shop/ShopScreen.swift",
+            "symbol": "ShopScreen"
           }
         ],
         "android": [],
@@ -3063,7 +3068,8 @@
           "full-rankings",
           "song-leaderboard",
           "band-rankings",
-          "song-band-leaderboard"
+          "song-band-leaderboard",
+          "shop"
         ]
       },
       "guards": [],
@@ -3072,7 +3078,8 @@
         350,
         353,
         355,
-        361
+        361,
+        378
       ]
     },
     {
