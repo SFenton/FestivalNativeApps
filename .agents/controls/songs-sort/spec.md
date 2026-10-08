@@ -32,4 +32,4 @@ Announce Sort Songs, mode choices, direction, Reset, Cancel, Apply; selection an
 
 ## Consumers
 
-The Item Shop sort (#379) reuses this control's UI and catalogue comparator with the Title, Artist, Year and Duration modes only: [shop/spec.md](../../pages/shop/spec.md#sort-native-and-web-agent-decision-379).
+The Item Shop sort (#379) reuses this control's UI and catalogue comparator with the Title, Artist, Year and Duration modes only: [shop/spec.md](../../pages/shop/spec.md#sort-native-and-web-agent-decision-379). Rules shared by both consumers (one sort UI, one comparator, direction section, Reset, saved per page): the [catalogue-sort](../../patterns/catalogue-sort.md) pattern.
