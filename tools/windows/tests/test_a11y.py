@@ -292,7 +292,8 @@ class MatrixTests(unittest.TestCase):
         pages = {p["name"]: p for p in json.loads((m.PAGES.parent / "a11y-leaderboard-columns.json").read_text(encoding="utf-8"))}
         self.assertEqual(set(pages), {"cols-song-board", "cols-song-board-narrow", "cols-song-board-season",
                                       "cols-song-board-large-text", "cols-full-rankings", "cols-song-board-focus-clear",
-                                      "cols-band-rankings-focus-clear", "cols-song-band-board-focus-clear"})
+                                      "cols-band-rankings-focus-clear", "cols-song-band-board-focus-clear",
+                                      "cols-full-rankings-focus-clear", "cols-player-bands-focus-clear", "cols-player-bands-focus-clear-grid"})
         for page in pages.values():
             for size in page.get("sizes", []):
                 self.assertIn(size, u.PRESETS, page["name"])
@@ -342,18 +343,36 @@ class MatrixTests(unittest.TestCase):
             ("down", "fst.rankings.row.fixture-player-2"), ("down", "fst.rankings.row.fixture-rank-3"),
             ("tab", "fst.full-rankings.spotlight-footer"), ("shift+tab", "fst.rankings.row.fixture-rank-3"),
             ("shift+tab", "fst.rankings.rank-by-menu")])
-        for name, row, footers in (
-                ("cols-song-board-focus-clear", song + "row.fixture-player-12", ("spotlight-footer", "page-next")),
-                ("cols-band-rankings-focus-clear", "fst.band-rankings.row.fixture-team-12", ("page-next",)),
-                ("cols-song-band-board-focus-clear", "fst.song-band-leaderboard.row.fixture-band-12:12",
-                 ("spotlight-footer", "page-next"))):
+        cards = "fst.player-bands.row.fixture-pband-duo-"
+        # Every BoardFooter.Inset consumer: (page, Down presses, target row, footer id prefix, footer parts).
+        for name, downs, row, board, footers in (
+                ("cols-song-board-focus-clear", 11, song + "row.fixture-player-12", "fst.song-leaderboard",
+                 ("spotlight-footer", "page-next")),
+                ("cols-full-rankings-focus-clear", 11, "fst.rankings.row.fixture-rank-12", "fst.full-rankings",
+                 ("spotlight-footer", "page-next")),
+                ("cols-band-rankings-focus-clear", 11, "fst.band-rankings.row.fixture-team-12", "fst.band-rankings",
+                 ("page-next",)),
+                ("cols-song-band-board-focus-clear", 11, "fst.song-band-leaderboard.row.fixture-band-12:12",
+                 "fst.song-band-leaderboard", ("spotlight-footer", "page-next")),
+                # The pager is centred over the card grid: a left-column card can sit under Previous rather than Next.
+                ("cols-player-bands-focus-clear", 8, cards + "9", "fst.player-bands", ("page-next", "page-previous")),
+                ("cols-player-bands-focus-clear-grid", 6, cards + "13", "fst.player-bands",
+                 ("page-next", "page-previous"))):
             steps = pages[name]["after_ready"]
-            self.assertEqual(steps.count("key:down"), 11, name)
+            self.assertEqual(steps.count("key:down"), downs, name)
             self.assertIn(f"assertfocus:id={row}@3", steps, name)
-            board = row.split(".row.")[0]
             for footer in footers:
                 self.assertIn(f"assertapart:id={row}|id={board}.{footer}", steps, name)
             self.assertEqual(focus_path(steps)[-1], ("tab", f"{board}.{footers[0]}"), name)
+        for name in ("cols-full-rankings-focus-clear", "cols-player-bands-focus-clear", "cols-player-bands-focus-clear-grid"):
+            steps = pages[name]["after_ready"]
+            target = next(s for s in steps if s.startswith("assertapart:")).split("|")[0][len("assertapart:"):]
+            # The target starts below the fold, so the arrows (not the initial layout) bring it clear of the footer.
+            self.assertLess(steps.index(f"waitgone:{target}@2"), steps.index("key:down"), name)
+        self.assertEqual(pages["cols-player-bands-focus-clear"]["sizes"], ["compact"])
+        self.assertEqual(pages["cols-player-bands-focus-clear-grid"]["sizes"], ["medium"])
+        self.assertEqual(focus_path(pages["cols-player-bands-focus-clear-grid"]["after_ready"])[0],
+                         ("down", cards + "3"))
 
     def test_page_fixture(self):
         self.assertEqual(m.page_fixture({"name": "shop"}), (m.FIXTURE, ()))

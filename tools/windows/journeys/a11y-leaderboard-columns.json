@@ -120,6 +120,21 @@
      "key:shift+tab",
      "assertfocus:id=fst.rankings.rank-by-menu@3"
    ]},
+  {"name": "cols-full-rankings-focus-clear", "route": "/leaderboards/all?instrument=Solo_Guitar", "profile": "fixture-player-1:Fixture Player 1", "fixture": ["--large-rankings"], "tabs": 0,
+   "sizes": ["compact", "medium"], "skip_modes": ["text-150", "text-200", "text-225"],
+   "note": "Full Rankings shares BoardFooter: the arrowed-to row stays clear of the pinned row and pager, then Tab reaches the pinned row (WCAG 2.4.11, issue #409).",
+   "ready": ["waitfor:id=fst.rankings.row.fixture-player-2@30", "waitfor:id=fst.full-rankings.spotlight-footer@15", "wait:1"],
+   "after_ready": [
+     "focus:id=fst.rankings.row.fixture-player-1",
+     "waitgone:id=fst.rankings.row.fixture-rank-12@2",
+     "key:down", "key:down", "key:down", "key:down", "key:down", "key:down", "key:down", "key:down", "key:down", "key:down", "key:down",
+     "wait:0.5",
+     "assertfocus:id=fst.rankings.row.fixture-rank-12@3",
+     "assertapart:id=fst.rankings.row.fixture-rank-12|id=fst.full-rankings.spotlight-footer",
+     "assertapart:id=fst.rankings.row.fixture-rank-12|id=fst.full-rankings.page-next",
+     "key:tab",
+     "assertfocus:id=fst.full-rankings.spotlight-footer@3"
+   ]},
   {"name": "cols-band-rankings-focus-clear", "route": "/leaderboards/bands/Band_Duets", "profile": "fixture-player-1:Fixture Player 1", "fixture": ["--large-rankings"], "tabs": 0,
    "sizes": ["compact", "medium"], "skip_modes": ["text-150", "text-200", "text-225"],
    "note": "Band Rankings shares BoardFooter: the arrowed-to row stays clear of the floating pager, then Tab reaches the pager (WCAG 2.4.11, issue #409).",
@@ -146,5 +161,39 @@
      "assertapart:id=fst.song-band-leaderboard.row.fixture-band-12:12|id=fst.song-band-leaderboard.page-next",
      "key:tab",
      "assertfocus:id=fst.song-band-leaderboard.spotlight-footer@3"
+   ]},
+  {"name": "cols-player-bands-focus-clear", "route": "/bands/player/fixture-player-1", "tabs": 0,
+   "sizes": ["compact"], "skip_modes": ["text-150", "text-200", "text-225"],
+   "note": "Player Bands (a card grid, one column under 664 epx) shares BoardFooter: arrowing down to a card below the fold scrolls it clear of the floating pager, then Tab reaches the pager (WCAG 2.4.11, issue #409).",
+   "ready": ["waitfor:id=fst.player-bands.row.fixture-band-1@20", "wait:1"],
+   "after_ready": [
+     "focus:id=fst.player-bands.row.fixture-band-1",
+     "assertfocus:id=fst.player-bands.row.fixture-band-1@3",
+     "waitgone:id=fst.player-bands.row.fixture-pband-duo-9@2",
+     "key:down", "key:down", "key:down", "key:down", "key:down", "key:down", "key:down", "key:down",
+     "wait:0.5",
+     "assertfocus:id=fst.player-bands.row.fixture-pband-duo-9@3",
+     "assertapart:id=fst.player-bands.row.fixture-pband-duo-9|id=fst.player-bands.page-previous",
+     "assertapart:id=fst.player-bands.row.fixture-pband-duo-9|id=fst.player-bands.page-next",
+     "key:tab",
+     "assertfocus:id=fst.player-bands.page-next@3"
+   ]},
+  {"name": "cols-player-bands-focus-clear-grid", "route": "/bands/player/fixture-player-1", "tabs": 0,
+   "sizes": ["medium"], "skip_modes": ["text-150", "text-200", "text-225"],
+   "note": "Player Bands in two columns: Down moves a whole grid row (XY focus), and the card it lands on below the fold stays clear of the floating pager; Tab then reaches the pager (WCAG 2.4.11, issue #409).",
+   "ready": ["waitfor:id=fst.player-bands.row.fixture-band-1@20", "wait:1"],
+   "after_ready": [
+     "focus:id=fst.player-bands.row.fixture-band-1",
+     "assertfocus:id=fst.player-bands.row.fixture-band-1@3",
+     "waitgone:id=fst.player-bands.row.fixture-pband-duo-13@2",
+     "key:down",
+     "assertfocus:id=fst.player-bands.row.fixture-pband-duo-3@3",
+     "key:down", "key:down", "key:down", "key:down", "key:down",
+     "wait:0.5",
+     "assertfocus:id=fst.player-bands.row.fixture-pband-duo-13@3",
+     "assertapart:id=fst.player-bands.row.fixture-pband-duo-13|id=fst.player-bands.page-previous",
+     "assertapart:id=fst.player-bands.row.fixture-pband-duo-13|id=fst.player-bands.page-next",
+     "key:tab",
+     "assertfocus:id=fst.player-bands.page-next@3"
    ]}
 ]
