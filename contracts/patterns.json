@@ -596,7 +596,9 @@
         "card surface",
         "ultraThinMaterial",
         "transparency",
-        "view all"
+        "view all",
+        "grouped list",
+        "group card"
       ],
       "web": [
         {
@@ -676,6 +678,19 @@
           "message": "Liquid Glass implementation belongs only to GlassSurface (surface-materials R2)."
         },
         {
+          "id": "apple-glass-consumers",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\.festivalGlass(?:Capsule)?\\s*\\(|FestivalGlassModifier\\s*\\(",
+          "allow": [
+            "apple/Sources/FestivalUI/Design/GlassSurface.swift",
+            "apple/Sources/FestivalUI/Design/RowCardSurface.swift",
+            "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
+            "apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift"
+          ],
+          "debt": [],
+          "message": "Shipping Liquid Glass is only the drawer and the owner-approved iPhone Duo bottom search field (#358); other controls use festivalCardCapsule (surface-materials R1/R2)."
+        },
+        {
           "id": "apple-raw-material-background",
           "glob": "apple/Sources/**/*.swift",
           "regex": "(?:\\.background|\\.fill)\\(\\.(?:ultraThinMaterial|thinMaterial|regularMaterial|thickMaterial)\\b",
@@ -725,7 +740,8 @@
           "songs",
           "song-detail",
           "leaderboards",
-          "player-profile"
+          "player-profile",
+          "compete"
         ]
       },
       "supersedes": [],
@@ -734,7 +750,8 @@
         291,
         272,
         312,
-        319
+        319,
+        381
       ]
     },
     {
@@ -1127,7 +1144,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, off the Duo hinge when unfolded, #345), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, with the owner-approved #370 variant that a Compete preview's separate rank row jumps to the full board at the player's position (Apple and Android Compete cards; Windows overview instrument cards, as they draw Compete), and one measured section-wide score-footer stack plan that never truncates the score.",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, off the Duo hinge when unfolded, #345), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, with the owner-approved #370 variant that a Compete preview's separate rank row jumps to the full board at the player's position (Apple and Android Compete cards; Windows overview instrument cards, as they draw Compete), the owner-approved #364 variant that a song board in a split's trailing pane turns every row and its pinned row into a multi-row card (full name above rank and score, chevron centred) when any name would marquee, and one measured section-wide score-footer stack plan that never truncates the score.",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -1147,7 +1164,9 @@
         "team score",
         "badges wrap",
         "large text",
-        "season column"
+        "season column",
+        "multi-row card",
+        "trailing pane"
       ],
       "web": [
         {
@@ -1204,6 +1223,18 @@
           {
             "path": "apple/Sources/FestivalCore/RankingSpotlight.swift",
             "symbol": "RankingSpotlight"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SelectedScoreFooterRow.swift",
+            "symbol": "SongLeaderboardRowCard"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardNameFit.swift",
+            "symbol": "SongLeaderboardNameFit"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongDetail/SongBandPreviewSection.swift",
+            "symbol": "SongBandMemberWidthProbe"
           },
           {
             "path": "apple/Sources/FestivalUI/Features/Compete/CompeteScreen.swift",
@@ -1359,6 +1390,16 @@
           "message": "Leaderboard marquee behavior has one shared owner (leaderboard-row R3)."
         },
         {
+          "id": "apple-name-stack-owner",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\.fittingName\\(|struct\\s+SongLeaderboardNameFit\\b",
+          "allow": [
+            "apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardNameFit.swift"
+          ],
+          "debt": [],
+          "message": "The trailing-pane multi-row card decision has one owner (leaderboard-row R3 variant, #364): use songLeaderboardSectionColumns, not a second name fit."
+        },
+        {
           "id": "android-row-metrics",
           "glob": "android/app/src/main/**/*.kt",
           "regex": "val\\s+LEADERBOARD_ROW_MIN_HEIGHT\\s*=\\s*48\\.dp",
@@ -1433,7 +1474,9 @@
         318,
         319,
         353,
-        370
+        364,
+        370,
+        381
       ]
     },
     {
@@ -1770,7 +1813,7 @@
       "title": "Empty and error states",
       "status": "current",
       "doc": ".agents/patterns/empty-error-states.md",
-      "summary": "Loading, empty and failed outcomes stay distinct: centered scoped title/subtitle empty states, one native loading indicator, and explicit unavailable messages without global-search Retry controls.",
+      "summary": "Loading, empty, paused/unavailable and failed outcomes stay distinct: every empty page or region uses the shared centred title/subtitle empty state with no card and no Reset Filters or Retry button (only a prerequisite action such as Choose Profile); syncing, publication-paused and unavailable states use the shared unavailable status with Retry; one native loading indicator; explicit unavailable messages without global-search Retry controls.",
       "keywords": [
         "empty",
         "no results",
@@ -1779,7 +1822,14 @@
         "loading",
         "spinner",
         "retry",
-        "search"
+        "search",
+        "empty state",
+        "no card",
+        "reset filters",
+        "centred",
+        "filtered empty",
+        "paused",
+        "syncing"
       ],
       "web": [
         {
@@ -1793,6 +1843,10 @@
       ],
       "canonical": {
         "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Common/FestivalEmptyState.swift",
+            "symbol": "FestivalEmptyState"
+          },
           {
             "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchEmptyState.swift",
             "symbol": "GlobalSearchEmptyStateView"
@@ -1838,6 +1892,43 @@
           "regex": "fst\\.global-search\\.(?:retry|players-retry)",
           "allow": [],
           "message": "Global Search reruns from submit or edit; it has no Retry control (empty-error-states R3)."
+        },
+        {
+          "id": "no-content-unavailable-view",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "ContentUnavailableView\\s*[({]",
+          "allow": [],
+          "message": "Use the shared FestivalEmptyState (empty-error-states R5/R8); ContentUnavailableView failed Dynamic Type audits."
+        },
+        {
+          "id": "no-empty-card",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "DualSourceMessage|fst\\.shop\\.filter-empty\\.reset",
+          "allow": [],
+          "message": "Empty states are centred text with no card or Reset button (empty-error-states R8, #377)."
+        },
+        {
+          "id": "paused-not-empty",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "(?:FestivalEmptyState\\(\\s*|^\\s*)\"[^\"]*\\b(?:Syncing|Paused|Unavailable)\\b[^\"]*\",\\s*systemImage:",
+          "allow": [],
+          "message": "Syncing, paused and unavailable states are not no-results: use ServiceUnavailableView with Retry, not FestivalEmptyState (empty-error-states R1/R8)."
+        },
+        {
+          "id": "android-empty-reset-filters",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "fst\\.(?:shop\\.filter\\.empty-reset|suggestions\\.reset-filters)",
+          "allow": [],
+          "message": "Empty states have no Reset Filters button; the filter sheet's Reset is the way back (empty-error-states R8, #377)."
+        },
+        {
+          "id": "android-empty-fixed-height",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "(?:FestivalEmptyState|BandEmptyState)\\([^\\n]*heightIn\\(min =|fun BandEmptyState\\([^\\n]*heightIn",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/notifications/NotificationsUi.kt"
+          ],
+          "message": "An empty state in a list or grid fills the region its controls and pager leave (rememberEmptyRegion + fillEmptyRegion), never a fixed-height block (empty-error-states R2, #377). Only the content-sized Notifications sheet keeps a minimum."
         }
       ],
       "related": {
@@ -1853,7 +1944,15 @@
         "pages": [
           "songs",
           "leaderboards",
-          "compete"
+          "compete",
+          "shop",
+          "suggestions",
+          "rivals",
+          "all-rivals",
+          "player-bands",
+          "player-history",
+          "statistics",
+          "bands"
         ]
       },
       "supersedes": [],
@@ -1866,7 +1965,8 @@
         299,
         312,
         320,
-        348
+        348,
+        377
       ]
     },
     {
@@ -2708,7 +2808,8 @@
         39,
         82,
         276,
-        347
+        347,
+        369
       ]
     },
     {
@@ -3039,6 +3140,7 @@
         ],
         "pages": [
           "rivals",
+          "compete",
           "leaderboards",
           "song-detail",
           "settings",
@@ -3060,7 +3162,153 @@
       "supersedes": [],
       "issues": [
         344,
-        361
+        361,
+        369
+      ]
+    },
+    {
+      "id": "catalogue-sort",
+      "title": "Catalogue sort",
+      "status": "current",
+      "doc": ".agents/patterns/catalogue-sort.md",
+      "summary": "Pages that list catalogue songs (Songs, Item Shop) sort through the platform's Songs Sort sheet/flyout: one radio group of the page's modes, the shared Sort Direction section, Reset to Title ascending, a gold trigger with a '<Mode>, <direction>' state, per-page saved choice, one comparator (web useFilteredSongs) for grid, list and hinge layouts, and a visible pause when a mode's data is missing. Item Shop offers Title, Artist, Year and Duration on native and web (agent decision #379).",
+      "keywords": [
+        "sort",
+        "sorting",
+        "sort sheet",
+        "sort direction",
+        "ascending",
+        "descending",
+        "item shop sort",
+        "shop sort",
+        "songs sort",
+        "title",
+        "artist",
+        "year",
+        "duration",
+        "sort modal",
+        "sort flyout",
+        "SongSortForm"
+      ],
+      "web": [
+        {
+          "path": "pages/songs/modals/SortModal.tsx",
+          "symbol": "SortModal"
+        },
+        {
+          "path": "hooks/data/useFilteredSongs.ts",
+          "symbol": "useFilteredSongs"
+        },
+        {
+          "path": "pages/shop/ShopPage.tsx",
+          "symbol": "ShopPage"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalCore/SongCatalogSort.swift",
+            "symbol": "SongCatalogSort"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongsSortSheet.swift",
+            "symbol": "SongsSortSheet"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongsSortSheet.swift",
+            "symbol": "SortDirectionControl"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/songs/SongCatalogSort.kt",
+            "symbol": "SongCatalogSort"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsSheets.kt",
+            "symbol": "LiveSheet"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsSheets.kt",
+            "symbol": "RadioRow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsSheets.kt",
+            "symbol": "SortDirectionSection"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/shop/ShopSort.kt",
+            "symbol": "ShopOfferSort"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/shop/ShopSortSheet.kt",
+            "symbol": "ShopSortSheet"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/SongQuery.cs",
+            "symbol": "SongCatalogQuery"
+          },
+          {
+            "path": "windows/Festival.App/Controls/SongSortForm.xaml.cs",
+            "symbol": "SongSortForm"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/SongsViewModel.cs",
+            "symbol": "SongSortDraft"
+          },
+          {
+            "path": "windows/Festival.Core/Data/ShopModels.cs",
+            "symbol": "ShopOfferSort"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/ShopViewModel.cs",
+            "symbol": "ShopViewModel"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "modal-shell",
+          "page-tools-and-nav-chrome",
+          "hinge-columns",
+          "wide-columns",
+          "empty-error-states"
+        ],
+        "pages": [
+          "songs",
+          "shop"
+        ]
+      },
+      "guards": [
+        {
+          "id": "android-copied-direction-rows",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "SectionHeader\\(\\s*\"Sort Direction\"\\s*\\)",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsSheets.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/profile/PlayerHistoryScreen.kt"
+          ],
+          "debt": [],
+          "message": "Catalogue Sort sheets (Songs, Item Shop, first-run demo) reuse SongsSheets SortDirectionSection; never copy the Sort Direction rows (catalogue-sort R1). Score History's segmented Sort Scores row is a separate control."
+        },
+        {
+          "id": "windows-forked-sort-form",
+          "glob": "windows/Festival.App/**/*.xaml",
+          "regex": "Header=\"Direction\"",
+          "allow": [
+            "windows/Festival.App/Controls/SongSortForm.xaml"
+          ],
+          "debt": [],
+          "message": "Windows catalogue Sort flyouts (Songs, Item Shop) host Controls/SongSortForm with their own Draft, Title and IdPrefix; never copy its Sort By / Direction groups into a page (catalogue-sort R1)."
+        }
+      ],
+      "supersedes": [],
+      "issues": [
+        125,
+        218,
+        379
       ]
     }
   ]

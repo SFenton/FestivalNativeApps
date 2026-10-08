@@ -86,6 +86,12 @@ public struct LeaderboardRowColumns: Sendable, Equatable {
     /// Show the songs played/total column (rankings). A section decides this once
     /// for every row, so the rank, songs and rating columns stay aligned (#38).
     public var showsSongs: Bool = true
+    /// Draw every row of the section as a multi-row card: the full name on its own
+    /// line above the rank, score and badges, so no name has to scroll (#364). Only
+    /// a song board in a split's trailing pane opts in
+    /// (``fittingName(availableWidth:requiredWidth:)``); everywhere else rows keep one
+    /// line and long names marquee.
+    public var stacksName: Bool = false
 
     /// Columns with no shared widths and no optional columns except accuracy: rows
     /// size themselves (first-run demos, previews).
@@ -228,6 +234,29 @@ public struct LeaderboardRowColumns: Sendable, Equatable {
         // Text truncates as soon as its proposed width is below its ideal width, so
         // no tolerance in the generous direction.
         return requiredWidth <= availableWidth
+    }
+
+    // MARK: - Name stacking
+
+    /// Decide once for the whole section whether its rows become multi-row cards
+    /// (owner-approved variant of leaderboard-row R3, #364).
+    ///
+    /// The UI measures `requiredWidth` as one one-line row laid out at its ideal size
+    /// with the section's widest rank and score, its longest name (in the weight it is
+    /// drawn in), the visible season, stars and accuracy columns, the chevron, spacing
+    /// and padding, all in the row's own Dynamic Type fonts. If that row fits
+    /// `availableWidth` no name marquees and rows keep one line; otherwise every row
+    /// stacks, so the rank, score and pinned rows keep lining up.
+    ///
+    /// - Parameters:
+    ///   - availableWidth: The section's measured row width in points.
+    ///   - requiredWidth: The ideal width of the widest one-line row.
+    /// - Returns: A copy with ``stacksName`` decided. Unmeasured (zero, negative or
+    ///   non-finite) widths keep one line.
+    public func fittingName(availableWidth: Double, requiredWidth: Double) -> LeaderboardRowColumns {
+        var columns = self
+        columns.stacksName = !Self.songsFit(availableWidth: availableWidth, requiredWidth: requiredWidth)
+        return columns
     }
 
     // MARK: - Labels

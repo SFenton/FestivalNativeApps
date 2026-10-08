@@ -44,9 +44,10 @@ struct NotificationsSheet: View {
     @ViewBuilder private var content: some View {
         switch (session.selectedPlayer, center.state) {
         case (nil, _):
-            ContentUnavailableView(
+            FestivalEmptyState(
                 "Choose a Profile", systemImage: "person.crop.circle",
-                description: Text("Select a profile to see your notifications.")
+                subtitle: "Select a profile to see your notifications.",
+                accessibilityIdentifier: "fst.notifications.no-player"
             )
         case (_, .loading), (_, .idle):
             FestivalLoadingView(accessibilityLabel: "Loading Notifications")
@@ -180,15 +181,15 @@ struct NotificationsEmptyState: View {
     let isGenerated: Bool
 
     var body: some View {
-        ContentUnavailableView(
+        FestivalEmptyState(
             "No notifications available", systemImage: "bell.slash",
-            description: Text(isGenerated
+            subtitle: isGenerated
                 ? "Notifications will appear here when new high scores are set or "
                     + "global ranks improve. Set new high scores and compete with friends to see them!"
                 : "Notifications may appear here after the next leaderboard update. Set new "
-                    + "high scores and compete with friends to see them!")
+                    + "high scores and compete with friends to see them!",
+            accessibilityIdentifier: "fst.notifications.empty"
         )
-        .accessibilityIdentifier("fst.notifications.empty")
     }
 }
 

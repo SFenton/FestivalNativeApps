@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -55,7 +54,6 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -73,6 +71,7 @@ import com.festivalscoretracker.android.presentation.notifications.NotificationR
 import com.festivalscoretracker.android.presentation.notifications.NotificationsState
 import com.festivalscoretracker.android.presentation.notifications.NotificationsViewModel
 import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
+import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.LARGE_TEXT_SCALE
@@ -180,6 +179,7 @@ fun NotificationsSheet(viewModel: NotificationsViewModel, onDismiss: () -> Unit,
     ) {
         when (val current = state) {
             NotificationsState.NoPlayer -> Message(
+                "No Player Selected",
                 "Select a player profile to see notifications about new high scores and rank changes.", "fst.notifications.no-player",
             ) { Button(onClick = { onDismiss(); onChooseProfile() }, colors = festivalFilledButtonColors()) { Text("Select Player Profile") } }
             NotificationsState.Loading -> Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) {
@@ -411,25 +411,15 @@ private fun List<NotificationMessagePart>.toAnnotated(): AnnotatedString = build
     }
 }
 
-/** Web empty state: muted bell-off glyph, bold title, short centred body. */
+/** Web empty state: muted bell-off glyph, bold title, short centred body, in the shared [FestivalEmptyState] (#377). */
 @Composable
 private fun EmptyState(body: String) {
-    Column(
-        Modifier.fillMaxWidth().heightIn(min = 240.dp).padding(horizontal = 12.dp, vertical = 24.dp).testTag("fst.notifications.empty"),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
-    ) {
-        Icon(Icons.Outlined.NotificationsOff, contentDescription = null, tint = Color.White.copy(alpha = 0.72f), modifier = Modifier.size(48.dp))
-        Text(
-            "No notifications available",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 4.dp).semantics { heading() },
-        )
-        Text(body, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.68f), textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 240.dp))
-    }
+    FestivalEmptyState(
+        "No notifications available",
+        Modifier.fillMaxWidth().heightIn(min = 240.dp).testTag("fst.notifications.empty"),
+        subtitle = body,
+        icon = { Icon(Icons.Outlined.NotificationsOff, contentDescription = null, tint = Color.White.copy(alpha = 0.72f), modifier = Modifier.size(48.dp)) },
+    )
 }
 
 /** Web `borderSubtle`. */
@@ -438,17 +428,17 @@ private val BORDER_SUBTLE = Color(0xFF1E2A3A)
 /** Web unread dot (`#facc15`). */
 private val UNREAD_DOT = Color(0xFFFACC15)
 
+/**
+ * A centred gate prompt in the sheet: the shared [FestivalEmptyState] (#377).
+ *
+ * @param title Heading.
+ * @param body Explanation.
+ * @param tag Test tag.
+ * @param action Optional way out (Select Player Profile).
+ */
 @Composable
-private fun Message(body: String, tag: String, title: String? = null, action: (@Composable () -> Unit)? = null) {
-    Column(
-        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 32.dp).testTag(tag),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        if (title != null) Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, textAlign = TextAlign.Center)
-        Text(body, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary, textAlign = TextAlign.Center)
-        action?.invoke()
-    }
+private fun Message(title: String, body: String, tag: String, action: (@Composable () -> Unit)? = null) {
+    FestivalEmptyState(title, Modifier.fillMaxWidth().testTag(tag), subtitle = body, action = action)
 }
 
 // endregion

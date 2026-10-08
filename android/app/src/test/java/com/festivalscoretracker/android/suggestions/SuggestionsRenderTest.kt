@@ -164,8 +164,10 @@ class SuggestionsRenderTest {
     fun emptyStatesAndNoPlayer() {
         show(SuggestionsUiState(SuggestionsPhase.Empty, filteredOut = true, filter = SuggestionFilterSettings.DEFAULTS.withInstrument(Instrument.Lead, false)))
         rule.onNodeWithContentDescription("Filter Suggestions, filters on").assertIsDisplayed()
-        rule.onNodeWithTag("fst.suggestions.reset-filters").performClick()
-        assertEquals(listOf("filter:false"), events)
+        rule.onNodeWithText("Try changing your filters to see more suggestions.").assertIsDisplayed()
+        // No Reset Filters button in the shared empty state (#377).
+        assertEquals(0, rule.onAllNodesWithTag("fst.suggestions.reset-filters").fetchSemanticsNodes().size)
+        assertEquals(emptyList<String>(), events)
     }
 
     @Test

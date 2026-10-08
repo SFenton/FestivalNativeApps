@@ -98,9 +98,9 @@ struct RivalDetailScreen: View {
         case let .loaded(detail):
             let categories = RivalCategorization.categorize(detail.songs)
             if categories.isEmpty {
-                ContentUnavailableView(
+                FestivalEmptyState(
                     "No Shared Songs", systemImage: "music.note.list",
-                    description: Text("You and this rival don't share any scored songs yet.")
+                    subtitle: "You and this rival don't share any scored songs yet."
                 )
             } else {
                 ScrollView {

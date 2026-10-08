@@ -153,6 +153,12 @@ public sealed record AppSettings
 
     /// <summary>Item Shop grid/list preference.</summary>
     [JsonPropertyName("shopViewMode")] public ShopViewMode ShopViewMode { get; set; } = ShopViewMode.Grid;
+
+    /// <summary>Item Shop sort field (one of <see cref="ShopOfferSort.Modes"/>; independent of the Songs sort).</summary>
+    [JsonPropertyName("shopSort")] public SongSortMode ShopSort { get; set; } = SongSortMode.Title;
+
+    /// <summary>Item Shop sort direction.</summary>
+    [JsonPropertyName("shopSortAscending")] public bool ShopSortAscending { get; set; } = true;
     #endregion
 
     /// <summary>Whether Shop songs are highlighted (Shop visible and highlighting on).</summary>
@@ -266,6 +272,7 @@ public sealed record AppSettings
             PlayerScoreFilter = player,
             LegacyScoreBandFilter = null,
             ShopViewMode = Enum.IsDefined(ShopViewMode) ? ShopViewMode : ShopViewMode.Grid,
+            ShopSort = ShopOfferSort.Normalize(ShopSort),
         };
     }
 
@@ -292,6 +299,7 @@ public sealed record AppSettings
         LeaderboardRankBy == other.LeaderboardRankBy &&
         GeneralFilter == other.GeneralFilter && ShopFilter == other.ShopFilter &&
         Equals(PlayerScoreFilter, other.PlayerScoreFilter) && ShopViewMode == other.ShopViewMode &&
+        ShopSort == other.ShopSort && ShopSortAscending == other.ShopSortAscending &&
         LegacyScoreBandFilter == other.LegacyScoreBandFilter;
 
     /// <summary>Hash consistent with <see cref="Equals(AppSettings?)"/>.</summary>

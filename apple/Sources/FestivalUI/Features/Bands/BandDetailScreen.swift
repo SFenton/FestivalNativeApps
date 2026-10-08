@@ -99,15 +99,13 @@ struct BandDetailScreen: View {
     /// Shown when only a bare `bandId` is known (e.g. a debug deep link): honest
     /// rather than silently broken, since resolving it needs the unsafe endpoint.
     private var unresolvedView: some View {
-        ContentUnavailableView(
+        FestivalEmptyState(
             "Band Not Available",
             systemImage: "person.3",
-            description: Text(
-                "Open this band from Player Bands, Band Rankings or a song's "
-                    + "Band Scores to see its details."
-            )
+            subtitle: "Open this band from Player Bands, Band Rankings or a song's "
+                + "Band Scores to see its details.",
+            accessibilityIdentifier: "fst.band.unresolved"
         )
-        .accessibilityIdentifier("fst.band.unresolved")
     }
 
     // MARK: Loaded content
