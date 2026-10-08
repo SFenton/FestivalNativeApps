@@ -295,44 +295,6 @@
                     </Border>
                 </StackPanel>
 
-                <!-- Diagnostics (Debug only) -->
-                <StackPanel controls:QuickLinkAnchor.Id="diagnostics" Visibility="{x:Bind ViewModel.IsDebugBuild}">
-                    <TextBlock Text="Diagnostics" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
-                    <TextBlock Text="Debug-only tools for investigating tap and navigation issues." Style="{StaticResource SectionSubtitleStyle}" />
-                    <Border Style="{StaticResource FSTCardStyle}" Padding="16,8">
-                        <StackPanel Spacing="4">
-                            <Grid ColumnSpacing="12" MinHeight="56">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center" Spacing="4">
-                                    <TextBlock Text="Tap Diagnostics" Style="{StaticResource SettingTitleStyle}" />
-                                    <TextBlock Text="Capture recent taps, hit targets, routes, and shell state in a local diagnostic buffer on this device." Style="{StaticResource SettingDescriptionStyle}" />
-                                </StackPanel>
-                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind ViewModel.TapDiagnostics, Mode=TwoWay}"
-                                              AutomationProperties.Name="Tap Diagnostics"
-                                              AutomationProperties.AutomationId="fst.settings.tap-diagnostics" />
-                            </Grid>
-                            <Grid ColumnSpacing="12" MinHeight="56">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center" Spacing="4">
-                                    <TextBlock Text="Upload Tap Telemetry" Style="{StaticResource SettingTitleStyle}" />
-                                    <TextBlock Text="{x:Bind ViewModel.TapTelemetryDescription, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}" />
-                                </StackPanel>
-                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind ViewModel.TapTelemetry, Mode=TwoWay}"
-                                              IsEnabled="{x:Bind ViewModel.TapDiagnostics, Mode=OneWay}"
-                                              AutomationProperties.Name="Upload Tap Telemetry"
-                                              AutomationProperties.HelpText="{x:Bind ViewModel.TapTelemetryDescription, Mode=OneWay}"
-                                              AutomationProperties.AutomationId="fst.settings.tap-telemetry" />
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-
                 <!-- List/detail (issue #371): each section below is one chevron row (the Licenses row look) whose options open in
                      the detail pane; the sections themselves collapse. Shown only in the split layout. -->
                 <StackPanel x:Name="SectionRows" Spacing="12" Margin="0,8,0,0" Visibility="{x:Bind SplitVisibility(x:True, IsSplit), Mode=OneWay}">

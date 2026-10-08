@@ -29,7 +29,7 @@ The breakpoint is page-area width (`QuickLinks.UsesPane`), not window width, so 
 
 | Page | Status |
 |---|---|
-| Settings | Done: `app-settings`, `diagnostics` (Debug only), `item-shop`, `show-instruments`, `show-metadata`, `accessibility` (native), `version`, `service-info`, `first-run`, `licenses`, `privacy-policy`, `reset`; `refresh-profile-name`/`export` omitted (no such rows). At ≥ 1100 epx Settings is list/detail (#371, below), so it shows the header menu, never the pane |
+| Settings | Done: `app-settings` (no `diagnostics`: removed in #374), `item-shop`, `show-instruments`, `show-metadata`, `accessibility` (native), `version`, `service-info`, `first-run`, `licenses`, `privacy-policy`, `reset`; `refresh-profile-name`/`export` omitted (no such rows). At ≥ 1100 epx Settings is list/detail (#371, below), so it shows the header menu, never the pane |
 | Leaderboards | Done ("Leaderboards Quick Links"): `instrument:<key>` per card, `band:<type>` per band card (no rank-history graph or promoted band on Windows yet). Menu beside Rank By |
 | Rivals (both tabs; also `/compete`) | Done: `common`, `combo`, `<instrumentKey>` per visible section (empty sections drop out, so ≥2 still applies). Replaced the old "Jump To" menu (`fst.rivals.jump*`) |
 | Player / Statistics | Done: `global` "Global Statistics" (Overview), `instrument:<key>` per chart, `bands`. `top-songs` omitted (no Windows section yet). Menu beside Select/Deselect |

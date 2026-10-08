@@ -63,7 +63,7 @@
       "assertstate:id=fst.quick-links.item.licenses|toggle=off",
       "assertstate:id=fst.quick-links.item.licenses|name=Licenses",
       "key:down",
-      "assertfocus:id=fst.quick-links.item.diagnostics@3",
+      "assertfocus:id=fst.quick-links.item.item-shop@3",
       "shot:{stem}-menu.png@screen"
     ],
     "teardown": [
@@ -198,8 +198,7 @@
       "focus:id=fst.quick-links.open",
       "key:enter",
       "waitfor:id=fst.quick-links.item.reset@5",
-      "assertbelow:id=fst.quick-links.item.diagnostics|id=fst.quick-links.item.app-settings",
-      "assertbelow:id=fst.quick-links.item.item-shop|id=fst.quick-links.item.diagnostics",
+      "assertbelow:id=fst.quick-links.item.item-shop|id=fst.quick-links.item.app-settings",
       "assertbelow:id=fst.quick-links.item.show-instruments|id=fst.quick-links.item.item-shop",
       "assertbelow:id=fst.quick-links.item.show-metadata|id=fst.quick-links.item.show-instruments",
       "assertbelow:id=fst.quick-links.item.accessibility|id=fst.quick-links.item.show-metadata",
@@ -235,8 +234,7 @@
     "after_ready": [
       "expand:id=fst.quick-links.open",
       "waitfor:id=fst.quick-links.item.reset@5",
-      "assertbelow:id=fst.quick-links.item.diagnostics|id=fst.quick-links.item.app-settings",
-      "assertbelow:id=fst.quick-links.item.item-shop|id=fst.quick-links.item.diagnostics",
+      "assertbelow:id=fst.quick-links.item.item-shop|id=fst.quick-links.item.app-settings",
       "assertbelow:id=fst.quick-links.item.show-instruments|id=fst.quick-links.item.item-shop",
       "assertbelow:id=fst.quick-links.item.show-metadata|id=fst.quick-links.item.show-instruments",
       "assertbelow:id=fst.quick-links.item.accessibility|id=fst.quick-links.item.show-metadata",

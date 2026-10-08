@@ -109,12 +109,6 @@ public sealed record AppSettings
     /// <summary>Stop highlighting Shop songs.</summary>
     [JsonPropertyName("disableShopHighlighting")] public bool DisableShopHighlighting { get; set; }
 
-    /// <summary>Debug-only tap diagnostics.</summary>
-    [JsonPropertyName("tapDiagnostics")] public bool TapDiagnostics { get; set; }
-
-    /// <summary>Debug-only tap telemetry (requires diagnostics).</summary>
-    [JsonPropertyName("tapTelemetry")] public bool TapTelemetry { get; set; }
-
     /// <summary>Show the Score metadata field.</summary>
     [JsonPropertyName("metadataScore")] public bool MetadataScore { get; set; } = true;
     /// <summary>Show the Percentage metadata field.</summary>
@@ -216,8 +210,6 @@ public sealed record AppSettings
             ExperimentalRanks = defaults.ExperimentalRanks,
             HideShop = defaults.HideShop,
             DisableShopHighlighting = defaults.DisableShopHighlighting,
-            TapDiagnostics = defaults.TapDiagnostics,
-            TapTelemetry = defaults.TapTelemetry,
             MetadataScore = true,
             MetadataPercentage = true,
             MetadataPercentile = true,
@@ -265,7 +257,6 @@ public sealed record AppSettings
             Leeway = ScoreLeeway.Clamp(Leeway),
             PathDefaultView = Enum.IsDefined(PathDefaultView) ? PathDefaultView : PathDisplayMode.Image,
             ExperimentalRanks = false,
-            TapTelemetry = TapTelemetry && TapDiagnostics,
             LeaderboardRankBy = RankingMetrics.Contains(LeaderboardRankBy) ? LeaderboardRankBy : "totalscore",
             GeneralFilter = general.IsValid ? general.Normalized() : general,
             ShopFilter = (ShopFilter ?? SongShopFilter.None).Normalized(),
@@ -290,7 +281,6 @@ public sealed record AppSettings
         FilterInvalidScores == other.FilterInvalidScores && Leeway.Equals(other.Leeway) && PathDefaultView == other.PathDefaultView &&
         PathUnavailableWarningDismissed == other.PathUnavailableWarningDismissed && ExperimentalRanks == other.ExperimentalRanks &&
         HideShop == other.HideShop && DisableShopHighlighting == other.DisableShopHighlighting &&
-        TapDiagnostics == other.TapDiagnostics && TapTelemetry == other.TapTelemetry &&
         MetadataScore == other.MetadataScore && MetadataPercentage == other.MetadataPercentage &&
         MetadataPercentile == other.MetadataPercentile && MetadataSeason == other.MetadataSeason &&
         MetadataIntensity == other.MetadataIntensity && MetadataDifficulty == other.MetadataDifficulty &&

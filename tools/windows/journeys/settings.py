@@ -160,13 +160,16 @@ JOURNEYS = [
         ],
     ),
     Journey(
+        # Issue #374: no Diagnostics section or switches (Debug included); saved legacy keys are dropped on the next save.
         name="diagnostics",
+        seed={"tapDiagnostics": True, "tapTelemetry": True},
         phases=[
-            Phase(["scrollinto:id=fst.settings.tap-diagnostics"],
-                  expect=[_disabled("fst.settings.tap-telemetry")]),
-            Phase(["toggle:id=fst.settings.tap-diagnostics", "wait:1"],
-                  forbid=[_disabled("fst.settings.tap-telemetry")],
-                  saved={"tapDiagnostics on": lambda s: s.get("tapDiagnostics") is True}),
+            Phase(["scrollinto:id=fst.settings.reset", "wait:0.5"],
+                  forbid=[_id("fst.settings.tap-diagnostics"), _id("fst.settings.tap-telemetry"),
+                          r'"Diagnostics"', r'"Tap Diagnostics"', r'"Upload Tap Telemetry"']),
+            Phase(["scrollinto:id=fst.settings.show-instrument-icons", "toggle:id=fst.settings.show-instrument-icons", "wait:1"],
+                  saved={"legacy tap keys dropped": lambda s: "tapDiagnostics" not in s and "tapTelemetry" not in s,
+                         "icons off": lambda s: s.get("showInstrumentIcons") is False}),
         ],
     ),
     Journey(

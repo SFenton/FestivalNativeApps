@@ -8,7 +8,7 @@ namespace Festival.Core.ViewModels;
 
 #region Settings
 /// <summary>
-/// Settings page (web <c>SettingsPage.tsx</c>): App Settings, Debug-only Diagnostics, Item Shop, Show Instruments,
+/// Settings page (web <c>SettingsPage.tsx</c>, without its Debug-only Diagnostics; issue #374): App Settings, Item Shop, Show Instruments,
 /// Show Instrument Metadata, the native additive Accessibility section, Version, live Service Info, First Run Guides,
 /// Licenses and an app-only Reset. Every value persists through <see cref="FestivalSession.UpdateSettings"/>.
 /// </summary>
@@ -21,7 +21,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Creates the page model.</summary>
     /// <param name="session">Shared session.</param>
     /// <param name="appVersion">App version shown under Version.</param>
-    /// <param name="debugBuild">Whether this is a Debug build (shows Diagnostics).</param>
+    /// <param name="debugBuild">Whether this is a Debug build (Version shows the build configuration).</param>
     public SettingsViewModel(FestivalSession session, string appVersion = "", bool debugBuild = false)
     {
         this.session = session;
@@ -116,30 +116,6 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Experimental ranks (not yet available: shown off and disabled).</summary>
     public bool ExperimentalRanks => session.Settings.ExperimentalRanks;
-    #endregion
-
-    #region Diagnostics
-    /// <summary>Whether this is a Debug build (Diagnostics visible).</summary>
-    public bool IsDebugBuild { get; }
-
-    /// <summary>Tap Diagnostics (off also turns telemetry off).</summary>
-    public bool TapDiagnostics
-    {
-        get => session.Settings.TapDiagnostics;
-        set => session.UpdateSettings(s => s with { TapDiagnostics = value, TapTelemetry = value && s.TapTelemetry });
-    }
-
-    /// <summary>Upload Tap Telemetry (requires diagnostics).</summary>
-    public bool TapTelemetry
-    {
-        get => session.Settings.TapTelemetry;
-        set => session.UpdateSettings(s => s with { TapTelemetry = value && s.TapDiagnostics });
-    }
-
-    /// <summary>Telemetry toggle description (web copy).</summary>
-    public string TapTelemetryDescription => TapDiagnostics
-        ? "Send sanitized tap diagnostic batches to the development service logs while diagnostics are enabled."
-        : "Enable Tap Diagnostics first, then upload sanitized batches to the development service logs.";
     #endregion
 
     #region Item Shop
@@ -246,6 +222,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>App version.</summary>
     public string AppVersion { get; }
 
+    /// <summary>Whether this is a Debug build.</summary>
+    public bool IsDebugBuild { get; }
+
     /// <summary>Build configuration.</summary>
     public string BuildConfiguration => IsDebugBuild ? "Debug" : "Release";
 
@@ -337,14 +316,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         session.ResetFeatureState();
     }
 
-    /// <summary>Settings quick-link sections in web order (Diagnostics only in Debug).</summary>
+    /// <summary>Settings quick-link sections in web order (the web's Debug Diagnostics section is not ported; issue #374).</summary>
     /// <returns>Sections.</returns>
-    private List<QuickLinkSection> QuickLinkSections()
-    {
-        var sections = new List<QuickLinkSection> { new("app-settings", "App Settings", "") };
-        if (IsDebugBuild) sections.Add(new("diagnostics", "Diagnostics", ""));
-        sections.AddRange(
+    private static List<QuickLinkSection> QuickLinkSections() =>
         [
+            new("app-settings", "App Settings", ""),
             new("item-shop", "Item Shop", ""),
             new("show-instruments", "Show Instruments", ""),
             new("show-metadata", "Show Instrument Metadata", ""),
@@ -355,9 +331,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             new("licenses", "Licenses", ""),
             new("privacy-policy", "Privacy Policy", ""),
             new("reset", "Reset Settings", ""),
-        ]);
-        return sections;
-    }
+        ];
     #endregion
 
     #region Orders
