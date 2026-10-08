@@ -12,6 +12,7 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -200,7 +201,7 @@ class SuggestionsUiTest {
     }
 
     @Test
-    fun everyTypeOffShowsResetFilters() {
+    fun everyTypeOffShowsTheFilteredEmptyStateWithoutReset() {
         launch()
         waitForTag("fst.suggestions.list")
         rule.onNodeWithTag("fst.suggestions.filter-button").performClick()
@@ -211,9 +212,16 @@ class SuggestionsUiTest {
             rule.onNodeWithTag("fst.suggestions.filter.type.$key").performSemanticsAction(SemanticsActions.OnClick); settle()
         }
         rule.onNodeWithTag("fst.suggestions.filter.done").performSemanticsAction(SemanticsActions.OnClick); settle()
-        waitForTag("fst.suggestions.reset-filters")
+        waitForTag("fst.suggestions.no-results")
         rule.onNodeWithText("Try changing your filters to see more suggestions.").assertIsDisplayed()
-        rule.onNodeWithTag("fst.suggestions.reset-filters").performClick()
+        // The shared empty state has no Reset Filters button (#377); the filter sheet's Reset is the way back.
+        assertEquals(0, rule.onAllNodesWithTag("fst.suggestions.reset-filters").fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithText("Reset Filters").fetchSemanticsNodes().size)
+        rule.onNodeWithTag("fst.suggestions.filter-button").performClick()
+        waitForTag("fst.suggestions.filter.form")
+        rule.onNodeWithTag("fst.suggestions.filter.form").performScrollToNode(hasTestTag("fst.suggestions.filter.reset"))
+        rule.onNodeWithTag("fst.suggestions.filter.reset").performSemanticsAction(SemanticsActions.OnClick); settle()
+        rule.onNodeWithTag("fst.suggestions.filter.done").performSemanticsAction(SemanticsActions.OnClick); settle()
         waitForTag("fst.suggestions.list")
     }
 
