@@ -5,7 +5,7 @@ namespace Festival.Core.Tests;
 /// <summary>
 /// Guards issues #23/#239: every Windows modal is built by the one shared <c>FestivalDialog</c> factory (a Fluent
 /// ContentDialog whose standard Close command dismisses it) and shown through the window's one-at-a-time gate, so no
-/// page can bring back a hand-made dialog or a custom close glyph. The live check is <c>tools/windows/journeys/modals.json</c>.
+/// page can bring back a hand-made dialog or a custom close glyph. The live check is <c>tools/windows/journeys/a11y-modals.json</c>.
 /// </summary>
 public class ModalMarkupTests
 {
@@ -66,7 +66,7 @@ public class ModalMarkupTests
     [Fact]
     public void ModalCallers_AreAllListed()
     {
-        // A new modal must be added to EveryModal_UsesTheSharedFactory (and tools/windows/journeys/modals.json).
+        // A new modal must be added to EveryModal_UsesTheSharedFactory (and tools/windows/journeys/a11y-modals.json).
         var callers = Matching(".cs", @"FestivalDialog\.Create\(").Where(path => path != "Controls/FestivalDialog.cs");
         Assert.Equal(
             ["Controls/FeedbackDialog.cs", "Controls/FirstRunCarousel.xaml.cs", "Controls/PlayerProfileView.xaml.cs",
