@@ -194,18 +194,23 @@ private func movingLayer(
     #expect(!FirstRunPulsePolicy.runs(slideActive: true, reduceMotion: false, stillBackground: true))
 }
 
-/// The first-run glow's Core Animation outline follows its surface: a capsule rounds the
-/// short side fully, a card keeps its radius (clamped to half the short side), and the
-/// path fills the surface's bounds; the loop eases between the old SwiftUI values.
-@Test func firstRunGlowOutlineFollowsTheSurface() {
-    let pill = CGSize(width: 180, height: 40)
-    #expect(FirstRunGlowShape.capsule.path(in: pill).boundingBox == CGRect(origin: .zero, size: pill))
-    let card = FirstRunGlowShape.roundedRect(cornerRadius: 12).path(in: CGSize(width: 300, height: 80))
-    #expect(card.boundingBox == CGRect(x: 0, y: 0, width: 300, height: 80))
-    #expect(!card.contains(CGPoint(x: 0.5, y: 0.5)), "corner is rounded")
-    let tiny = FirstRunGlowShape.roundedRect(cornerRadius: 40).path(in: CGSize(width: 20, height: 20))
-    #expect(tiny.contains(CGPoint(x: 10, y: 10)))
-    #expect(FirstRunGlowLayer.restingOpacity == 0.12 && FirstRunGlowLayer.litOpacity == 0.55)
-    #expect(FirstRunGlowLayer.restingRadius == 3 && FirstRunGlowLayer.litRadius == 10)
-    #expect(FirstRunGlowLayer.halfPeriod == 1.1)
+/// The first-run pulse is the Item Shop row pulse (issue #380): a 2 pt border on the shared
+/// ``ShopPulseLayer`` that traces a card's rounded corners or a pill's fully rounded ends,
+/// half outside the surface like a SwiftUI centred stroke, on the web's 2 s 0 → 0.7 → 0 cycle.
+@Test func firstRunPulseTracesItsSurfaceOnTheShopRowPulse() {
+    #expect(FirstRunPulse.lineWidth == 2)
+    let card = FirstRunGlowShape.roundedRect(cornerRadius: 12).pulseShape
+    #expect(card == .roundedStroke(cornerRadius: 12, lineWidth: 2))
+    let cardGeometry = card.geometry(in: CGSize(width: 300, height: 80))
+    #expect(cardGeometry.frame == CGRect(x: -1, y: -1, width: 302, height: 82))
+    #expect(cardGeometry.cornerRadius == 13 && cardGeometry.borderWidth == 2)
+    let pill = FirstRunGlowShape.capsule.pulseShape
+    #expect(pill == .capsuleStroke(lineWidth: 2))
+    let pillGeometry = pill.geometry(in: CGSize(width: 180, height: 40))
+    #expect(pillGeometry.frame == CGRect(x: -1, y: -1, width: 182, height: 42))
+    #expect(pillGeometry.cornerRadius == 21 && pillGeometry.borderWidth == 2)
+    #expect(ShopRowPulseBorder.period == 2 && ShopRowPulseBorder.peak == 0.7)
+    #expect(ShopRowPulseBorder.opacity(at: 0, animating: true) < 0.01)
+    #expect(abs(ShopRowPulseBorder.opacity(at: 1, animating: true) - 0.7) < 0.01)
+    #expect(ShopRowPulseBorder.opacity(at: 0, animating: false) == 0.7)
 }

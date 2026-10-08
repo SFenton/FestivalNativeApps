@@ -9,6 +9,28 @@ import FestivalDesign
 
 // MARK: - Carousel slide/page states
 
+/// Settle once the slide's text has faded in.
+///
+/// The title and description wait for the demo cascade (web `contentStaggerCount`, issue
+/// #380), and frames are identical while they wait, so a plain settle would capture them
+/// still hidden.
+///
+/// - Parameters:
+///   - host: Hosted carousel.
+///   - slideId: The visible slide.
+///   - texts: Strings that must be present.
+/// - Returns: The capture after the entrance.
+@MainActor
+private func firstRunSettleAfterEntrance<Content: View>(
+    _ host: NSHostingView<Content>, slideId: String, untilText texts: [String]
+) async throws -> CGImage {
+    _ = try await nativeHostedSettle(host, untilText: texts)
+    let entrance = FirstRunMotion.textDelays(slideId: slideId).description
+        + FirstRunDemoTiming.fadeSeconds + 0.3
+    try await Task.sleep(for: .seconds(entrance))
+    return try await nativeHostedSettle(host, untilText: texts)
+}
+
 /// A lone slide is simultaneously the first and last: only "Done" shows — no Skip, no
 /// Back and no page dots (operator batch 6, item 6.7).
 @MainActor
@@ -31,7 +53,9 @@ import FestivalDesign
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(host, untilText: ["Browse Every Song", "Done"])
+    let image = try await firstRunSettleAfterEntrance(
+        host, slideId: slide.id, untilText: ["Browse Every Song", "Done"]
+    )
     _ = try nativeHostedPNG(image, filename: "first-run-single-slide.png", environment: "FST_FIRST_RUN_RENDER_OUT")
     assertRendersContent(
         host, image: image, containing: ["Browse Every Song", "Done"],
@@ -72,8 +96,8 @@ import FestivalDesign
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(
-        host, untilText: ["Browse Every Song", "Page", "Next", "Skip"]
+    let image = try await firstRunSettleAfterEntrance(
+        host, slideId: slides[0].id, untilText: ["Browse Every Song", "Page", "Next", "Skip"]
     )
     _ = try nativeHostedPNG(image, filename: "first-run-multi-slide.png", environment: "FST_FIRST_RUN_RENDER_OUT")
     assertRendersContent(
