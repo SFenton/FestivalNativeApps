@@ -53,7 +53,7 @@ jobs:
         # there they end at their 10 s evidence deadline as intermittent known issues; alone they are judged
         # strictly. Reuses the coverage build and leaves its profile alone. Filter: testing/apple/hosted-snapshots.md.
         working-directory: apple
-        run: swift test --skip-build --filter 'selectedRowRevealFadesTheRowItReaches|staggeredListRowsFadeInRatherThanPop'
+        run: swift test --skip-build --filter 'selectedRowRevealFadesTheRowItReaches|staggeredListRowsFadeInRatherThanPop|serviceInfoIndeterminateBar'
       - name: iOS accessibility journeys (simulator, large fixture)
         # Device checks the macOS-hosted tests cannot make: Dynamic Type, the device accessibility tree, hit testing
         # and performAccessibilityAudit (#391). Each journey runs as is, with Increase Contrast and with Reduce

@@ -53,4 +53,12 @@ Re-validation of #77 (General filters without a profile; Double Bass). No app ch
 | Narrator / UIA | Pass: Expanders (named, expand state), ToggleSwitches (named by option label, toggle state), Reset button; Filter `ItemStatus` while applied; 7 distinct Tab stops in the 10-press walk at every size |
 | Axe.Windows | 0 errors on `songs-filter-anonymous`, `songs-filter-applied`, `songs-filter` in every size and mode above |
 
+## Accessibility tests (issue #432, no profile)
+
+`tools/windows/journeys/a11y-songs-filter.json` holds the no-profile pages and runs in the `windows-ui` CI job (`tools/windows/ui_ci.py` runs `songs-filter` at compact and medium, `songs-filter-text-225` at compact with 225% text, both `--scan --tabs 30`). `songs-filter-anonymous` (moved from `a11y.json`) asserts the Narrator phrases ("Filter Songs, button, collapsed"; "Year, button, collapsed"; "No Double Bass Support, toggle switch, off"), the reading order title → General → Year → Duration → Item Shop → Double Bass → Reset, 40×40 epx targets, that no score or instrument section exists, and that Filter then reads "…, Filters applied". `songs-filter-anonymous-year` covers Year and Duration **Select All / Clear All** ("Select All Year, link", 40×40 epx, apart, Clear All gives No Results and Select All restores). `kb-songs-filter-anonymous` (moved from `a11y-keyboard.json`) is the keyboard walk. Rules:
+- Measure a control's size after scrolling the next element into view (`scrollinto:id=fst.songs.filter.year.2020`): `scrollinto` stops once any part is on screen, so at 225% text a link at the viewport edge measures clipped.
+- The flyout content sits under an offscreen, empty-bounds UIA `Popup` window; the FstUia Narrator model walks through it (#432), so `assertorder` sees flyout content.
+
+Fixed (#432): the flyout **Reset** footer (31.7 epx) and the Select All / Clear All links (31.3 epx) were under the 40 epx Windows target; they now use `FSTMinTargetSize` ([page-tools-and-nav-chrome](../../patterns/page-tools-and-nav-chrome.md) R10), and so do the Sort, Item Shop and Suggestions flyout Reset footers.
+
 The #219 design deviations above still apply; the `winapp find-ui` lookups (`gallery-toggleswitch-1`, `gallery-expander-2`) and `find-api` (`ToggleSwitch.OnContent/OffContent/IsOn`) match the controls used. Live service: Double Bass narrows the real catalogue the same way.

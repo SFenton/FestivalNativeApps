@@ -182,8 +182,9 @@ struct PageToolInlineMenu: Identifiable {
 /// rather than across its 44 pt slot (buttons do both). So in the accessory the tool is a
 /// button with the same label that lists `choices` in a compact sheet the root presents,
 /// the same whether or not the tab bar is minimized; elsewhere (navigation bars, Mac) it
-/// is the ordinary `Menu`. Modifiers applied to it (identifier, accessibility label and
-/// value, tint) apply to either form.
+/// is the ordinary `Menu`. ``PageToolsAccessoryBar`` marks the accessory with
+/// ``EnvironmentValues/pageToolsInAccessory``. Modifiers applied to it (identifier,
+/// accessibility label and value, tint) apply to either form.
 struct PageToolMenu<MenuContent: View, MenuLabel: View>: View {
     let title: String
     let choices: () -> [PageToolMenuChoice]
@@ -208,41 +209,22 @@ struct PageToolMenu<MenuContent: View, MenuLabel: View>: View {
         self.label = label
     }
 
-    var body: some View {
-        #if os(iOS)
-        if #available(iOS 26.1, *) {
-            PlacementAwarePageToolMenu(menu: self)
-        } else {
-            Menu(content: content, label: label)
-        }
-        #else
-        Menu(content: content, label: label)
-        #endif
-    }
-}
-
-#if os(iOS)
-/// ``PageToolMenu`` reading the accessory placement (iOS 26.1+).
-@available(iOS 26.1, *)
-private struct PlacementAwarePageToolMenu<MenuContent: View, MenuLabel: View>: View {
-    let menu: PageToolMenu<MenuContent, MenuLabel>
-    @Environment(\.tabViewBottomAccessoryPlacement) private var placement
+    @Environment(\.pageToolsInAccessory) private var inAccessory
     @Environment(\.pageToolsRegistry) private var registry
 
     var body: some View {
-        // `placement` is nil outside the accessory (navigation bars).
-        if placement != nil, let registry {
+        // Only ``PageToolsAccessoryBar`` sets `inAccessory`; navigation bars keep the menu.
+        if inAccessory, let registry {
             Button {
-                registry.presentInlineMenu(title: menu.title, choices: menu.choices())
+                registry.presentInlineMenu(title: title, choices: choices())
             } label: {
-                menu.label()
+                label()
             }
         } else {
-            Menu(content: menu.content, label: menu.label)
+            Menu(content: content, label: label)
         }
     }
 }
-#endif
 
 /// The sheet listing an inline page-tool menu's choices (issue #92).
 struct PageToolInlineMenuSheet: View {
@@ -356,6 +338,11 @@ extension EnvironmentValues {
 
     /// The enclosing page's scope; tool registrations are tagged with it.
     @Entry var pageToolsScope: UUID? = nil
+
+    /// True inside ``PageToolsAccessoryBar``: a ``PageToolMenu`` there is a button that
+    /// lists its choices in a sheet, because iOS 26 does not open a `Menu` in the
+    /// accessory while it sits inline (issue #92).
+    @Entry var pageToolsInAccessory = false
 }
 
 // MARK: - Host (root)
@@ -451,7 +438,6 @@ struct PageToolsAccessoryHost: ViewModifier {
 
 // MARK: - Accessory bar
 
-#if os(iOS)
 /// The tab-bar accessory's contents: the front page's tools from the leading edge, then
 /// a divider and Notifications (a profile is selected) pinned to the trailing edge.
 /// Profile is the navigation bar's trailing-most item instead (issue #300).
@@ -462,6 +448,10 @@ struct PageToolsAccessoryHost: ViewModifier {
 /// show the same items. The accessory's height is fixed by the system, so text stops
 /// growing at ``maxTypeSize``; long-pressing an item shows the Large Content Viewer
 /// instead. VoiceOver reads the items left to right.
+///
+/// Only the iOS host (``PageToolsAccessoryHost``) attaches it; it builds on every
+/// platform so the hosted accessibility tests in `apple-ci` (macOS) render the real bar
+/// (`NavButtonAccessibilityTests`, issue #395).
 @available(iOS 26.1, *)
 struct PageToolsAccessoryBar: View {
     let registry: PageToolsRegistry
@@ -501,6 +491,7 @@ struct PageToolsAccessoryBar: View {
             }
         }
         .labelStyle(PageToolsAccessoryLabelStyle())
+        .environment(\.pageToolsInAccessory, true)
         .padding(.horizontal, PageToolsAccessoryFit.padding / 2)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .font(.body)
@@ -511,7 +502,6 @@ struct PageToolsAccessoryBar: View {
         .accessibilityIdentifier("fst.page-tools")
     }
 }
-#endif
 
 /// Icon-only label that fills its fixed 44 × 44 pt accessory slot (issues #92, #300).
 ///
