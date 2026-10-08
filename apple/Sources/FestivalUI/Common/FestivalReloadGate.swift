@@ -118,10 +118,49 @@ struct FestivalReloadGate<Key: Equatable, Content: View>: View {
     }
 
     var body: some View {
+        orderedLayers
+        .animation(animation(to: .spinner), value: key)
+        .onChange(of: key) { _, newKey in
+            shownKey = newKey
+            update { $0.reload() }
+        }
+        .onChange(of: isLoading) { _, loading in
+            update { $0.setLoading(loading) }
+        }
+        .task(id: WaitID(phase: transition.phase, generation: transition.generation, wait: transition.pendingWait)) {
+            guard let wait = transition.pendingWait else { return }
+            let duration = timing.duration(of: wait)
+            if duration > .zero {
+                try? await Task.sleep(for: duration)
+            }
+            guard !Task.isCancelled else { return }
+            update { $0.timerFired(wait) }
+        }
+    }
+
+    /// The layers, in a container of their own only when the frame is retained.
+    ///
+    /// The container scopes the frame's sort priority, which reads the retained header
+    /// before the spinner without lifting the gate above the page's own controls (#431).
+    /// A gate that swaps its whole content adds none: on macOS a container reads its
+    /// children back to front, which put a page's floating overlays (Songs' section
+    /// title) after the content beneath them (#391).
+    @ViewBuilder private var orderedLayers: some View {
+        if retainsFrame {
+            layers
+                .accessibilityElement(children: .contain)
+                .accessibilitySortPriority(0)
+        } else {
+            layers
+        }
+    }
+
+    /// The content (or retained frame) and the spinner over it.
+    private var layers: some View {
         // A key that arrived in this update hides the content now, before `onChange` runs.
         let keyPending = key != shownKey
         let showsResult = transition.showsContent && !keyPending
-        ZStack {
+        return ZStack {
             if retainsFrame {
                 if transition.hasShownContent {
                     // The frame fades in with the first reveal only; the result inside
@@ -148,27 +187,6 @@ struct FestivalReloadGate<Key: Equatable, Content: View>: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // A container at the default priority, so the frame's priority orders it before
-        // the spinner without lifting the gate above the page's own controls.
-        .accessibilityElement(children: .contain)
-        .accessibilitySortPriority(0)
-        .animation(animation(to: .spinner), value: key)
-        .onChange(of: key) { _, newKey in
-            shownKey = newKey
-            update { $0.reload() }
-        }
-        .onChange(of: isLoading) { _, loading in
-            update { $0.setLoading(loading) }
-        }
-        .task(id: WaitID(phase: transition.phase, generation: transition.generation, wait: transition.pendingWait)) {
-            guard let wait = transition.pendingWait else { return }
-            let duration = timing.duration(of: wait)
-            if duration > .zero {
-                try? await Task.sleep(for: duration)
-            }
-            guard !Task.isCancelled else { return }
-            update { $0.timerFired(wait) }
-        }
     }
 
     // MARK: Motion
