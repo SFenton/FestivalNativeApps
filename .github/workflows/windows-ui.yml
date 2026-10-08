@@ -27,14 +27,14 @@ concurrency:
 
 jobs:
   windows-ui-shard:
-    name: windows-ui-shard (${{ matrix.shard }}/2)
+    name: windows-ui-shard (${{ matrix.shard }}/4)
     runs-on: windows-latest
     timeout-minutes: 60
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 4
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3, 4]
     env:
       CI: 'true'
       FST_CI: '1'
@@ -72,7 +72,7 @@ jobs:
         run: >-
           python tools/windows/ci_ui.py
           --shard ${{ matrix.shard }}
-          --shards 2
+          --shards 4
           --retries 2
           --out "$env:RUNNER_TEMP\windows-ui\shard-${{ matrix.shard }}"
       - name: Upload UI automation diagnostics
