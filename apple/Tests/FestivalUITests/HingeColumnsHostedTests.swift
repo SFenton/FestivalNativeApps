@@ -221,7 +221,7 @@ private func assertSongDetailCardsSplitAtTheFold(_ typeSize: DynamicTypeSize) as
 }
 // MARK: - Page hinge (issue #350, pattern `wide-columns` R3)
 
-/// Flat inner display with no reported hinge: the page hinge is the window's middle.
+/// Flat inner display with no reported hinge.
 private let flatUnreported = DeviceLayout.resolve(LayoutSignals(
     size: CGSize(width: 951, height: 669), widthClass: .regular,
     safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 20, trailing: 84),
@@ -264,9 +264,10 @@ private struct PageHingeFixture: View {
 
 private let pageIds = ["fixture.page.0", "fixture.page.1", "fixture.fold.0", "fixture.fold.1"]
 
-/// Page rows meet at the hinge flat and folded (the reported hinge, else the window's
-/// middle); fold-only rows keep equal cells while flat. Changing pose reflows in place.
-@MainActor @Test func pageHingeRowsMeetAtTheHingeFlatAndFolded() async throws {
+/// Page rows meet at the hinge only in book pose; flat (hinge reported or not) they are
+/// equal and meet at the midpoint of the free space beside the bar (owner #361), like
+/// fold-only rows. Changing pose reflows in place.
+@MainActor @Test func pageHingeRowsMeetAtTheHingeOnlyInBookPose() async throws {
     let box = LayoutBox(flat)
     let host = nativeHostedView(PageHingeFixture(box: box), size: hostSize)
     let window = nativeHostedWindow(host, size: hostSize)
@@ -281,25 +282,28 @@ private let pageIds = ["fixture.page.0", "fixture.page.1", "fixture.fold.0", "fi
         return result
     }
 
-    // Flat with a reported hinge: the page row's gutter is the hinge; the fold row is equal.
-    var open = try await settled(at: bookFold.minX)
-    #expect(abs(try #require(open["fixture.page.0"]).maxX - bookFold.minX) < pixelTolerance)
-    #expect(abs(try #require(open["fixture.page.1"]).minX - bookFold.maxX) < pixelTolerance)
-    let fold0 = try #require(open["fixture.fold.0"])
-    let fold1 = try #require(open["fixture.fold.1"])
-    #expect(abs(fold0.width - fold1.width) < pixelTolerance)
+    // Flat with a reported hinge: both rows are equal, the gutter on the free space's
+    // midpoint (16…851 inside the padding, left of the 84 pt bar), not the hinge.
+    let freeMiddle = (16 + hostSize.width - 84 - 16) / 2
+    var open = try await settled(at: freeMiddle - WideColumns.spacing / 2)
+    for prefix in ["fixture.page", "fixture.fold"] {
+        let cell0 = try #require(open["\(prefix).0"])
+        let cell1 = try #require(open["\(prefix).1"])
+        #expect(abs(cell0.width - cell1.width) < pixelTolerance)
+        #expect(abs((cell0.maxX + cell1.minX) / 2 - freeMiddle) < pixelTolerance)
+    }
 
     // Book pose: both rows straddle the fold.
     box.layout = bookPose
     let folded = try await settled(at: bookFold.minX)
+    #expect(abs(try #require(folded["fixture.page.0"]).maxX - bookFold.minX) < pixelTolerance)
     #expect(abs(try #require(folded["fixture.page.1"]).minX - bookFold.maxX) < pixelTolerance)
 
-    // Flat, no reported hinge: the gutter is centred on the window's middle.
+    // Flat, no reported hinge: the same free-space midpoint, never the window's middle.
     box.layout = flatUnreported
-    let middle = hostSize.width / 2
-    open = try await settled(at: middle - WideColumns.spacing / 2)
+    open = try await settled(at: freeMiddle - WideColumns.spacing / 2)
     let page0 = try #require(open["fixture.page.0"])
     let page1 = try #require(open["fixture.page.1"])
-    #expect(abs((page0.maxX + page1.minX) / 2 - middle) < pixelTolerance)
+    #expect(abs((page0.maxX + page1.minX) / 2 - freeMiddle) < pixelTolerance)
 }
 #endif

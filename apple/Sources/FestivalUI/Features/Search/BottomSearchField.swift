@@ -23,10 +23,10 @@ enum BottomSearchFieldPlacement {
     /// folded (book pose), else nil, so a flat display keeps the full width.
     ///
     /// - Parameter layout: The window's layout.
-    /// - Returns: ``DeviceLayout/splitHinge`` when the pose is
-    ///   ``DeviceLayout/Pose/partiallyFolded``, otherwise nil.
+    /// - Returns: ``DeviceLayout/splitHinge``, which is nil unless the pose is
+    ///   ``DeviceLayout/Pose/partiallyFolded`` (#361).
     nonisolated static func pageHinge(for layout: DeviceLayout) -> CGRect? {
-        layout.pose == .partiallyFolded ? layout.splitHinge : nil
+        layout.splitHinge
     }
 
     /// Horizontal padding that keeps a bottom field (or a control aligned with it) on

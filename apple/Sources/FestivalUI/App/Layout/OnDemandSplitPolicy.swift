@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import SwiftUI
 
 // MARK: - On-demand split policy
 
@@ -252,8 +253,11 @@ enum OnDemandSplitPolicy {
         var isLandscape: Bool
         /// Whether the window is regular width and height (iOS) or a Mac window.
         var isRegular: Bool
-        /// A vertical hinge (iPhone Duo fold) in window coordinates, if any.
+        /// A vertical hinge (iPhone Duo book-pose fold) in window coordinates, if any.
         var hinge: CGRect?
+        /// The window's free horizontal span (inside the safe area, without the iPhone
+        /// Duo vertical bar) in window coordinates; nil to use the whole container.
+        var freeSpan: ClosedRange<CGFloat>?
     }
 
     /// The width of the divider band at a midpoint (no hinge).
@@ -277,11 +281,13 @@ enum OnDemandSplitPolicy {
 
     /// The panes for a container, or nil when the split does not apply.
     ///
-    /// The divider band is the hinge when a vertical hinge crosses the container,
-    /// else 1 pt centred on the container's midpoint. Each pane runs from a container
-    /// edge to the band, so an iPhone Duo vertical bar stays inside its pane rather
-    /// than shifting the divider. The split applies in landscape, regular windows only,
-    /// and only while each pane is at least ``minimumPaneWidth`` wide.
+    /// The divider band is the hinge when a vertical hinge crosses the container (book
+    /// pose), else 1 pt centred on the midpoint of the container's free space: the part
+    /// of it inside ``Context/freeSpan``, so a flat iPhone Duo divides the content beside
+    /// its vertical bar in half rather than at the hinge (owner, issue #361). Each pane
+    /// runs from a container edge to the band, so the vertical bar stays inside its pane.
+    /// The split applies in landscape, regular windows only, and only while each pane is
+    /// at least ``minimumPaneWidth`` wide.
     ///
     /// - Parameter context: Container, orientation, size class and hinge.
     /// - Returns: The pane geometry, or nil (one full-width stack).
@@ -295,7 +301,8 @@ enum OnDemandSplitPolicy {
             band = hinge.minX...hinge.maxX
             isHinge = true
         } else {
-            band = box.midX...box.midX
+            let mid = freeMidX(container: box, freeSpan: context.freeSpan)
+            band = mid...mid
         }
         if band.upperBound - band.lowerBound < midpointDividerWidth {
             let mid = (band.lowerBound + band.upperBound) / 2
@@ -309,6 +316,20 @@ enum OnDemandSplitPolicy {
             trailingWidth: trailing, dividerMidX: (band.lowerBound + band.upperBound) / 2,
             isHinge: isHinge
         )
+    }
+
+    /// The midpoint of the part of `container` inside `freeSpan`, or of the whole
+    /// container when there is no free span or it misses the container.
+    ///
+    /// - Parameters:
+    ///   - container: The split container in window coordinates.
+    ///   - freeSpan: The window's free horizontal span, if known.
+    /// - Returns: The x of the free space's midpoint, in window coordinates.
+    static func freeMidX(container: CGRect, freeSpan: ClosedRange<CGFloat>?) -> CGFloat {
+        guard let freeSpan else { return container.midX }
+        let lower = max(container.minX, freeSpan.lowerBound)
+        let upper = min(container.maxX, freeSpan.upperBound)
+        return upper > lower ? (lower + upper) / 2 : container.midX
     }
 
     // MARK: - Window changes (fold, rotation, resize)
@@ -360,13 +381,19 @@ enum OnDemandSplitPolicy {
     /// - Parameters:
     ///   - layout: Published window layout.
     ///   - container: The split container's frame in window coordinates.
-    /// - Returns: The context (landscape, regular in both dimensions, the Duo hinge).
-    static func context(layout: DeviceLayout, container: CGRect) -> Context {
+    ///   - layoutDirection: The split's layout direction (which side the safe-area
+    ///     insets are on in window coordinates).
+    /// - Returns: The context (landscape, regular in both dimensions, the Duo book-pose
+    ///   hinge, the window's free span).
+    static func context(
+        layout: DeviceLayout, container: CGRect, layoutDirection: LayoutDirection = .leftToRight
+    ) -> Context {
         Context(
             container: container,
             isLandscape: layout.orientation == .landscape,
             isRegular: layout.windowWidthClass == .regular && layout.heightClass == .regular,
-            hinge: layout.splitHinge
+            hinge: layout.splitHinge,
+            freeSpan: layout.freeSpan(layoutDirection: layoutDirection)
         )
     }
 }

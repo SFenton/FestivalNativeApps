@@ -438,15 +438,17 @@ struct HingeEagerGridLayout: Layout {
 /// One row of equal cells whose gutter sits on an iPhone Duo fold in book pose; equal
 /// widths otherwise, like an `HStack` of `.frame(maxWidth: .infinity)` cells. Page
 /// columns in wide landscape (Songs' and Search's two-card rows, pattern `wide-columns`)
-/// pass ``Hinge/page`` so the gutter meets the hinge while flat too.
+/// pass ``Hinge/page`` so the gutter follows ``DeviceLayout/splitHinge`` like the
+/// on-demand split (book pose only; flat, equal cells, owner #361).
 struct HingeRow<Content: View>: View {
     /// Which hinge the gutter follows.
     enum Hinge: Sendable {
         /// Only an active fold (book pose); flat rows keep equal cells (R4).
         case fold
-        /// The page's hinge (``DeviceLayout/splitHinge``): the fold, else the flat
-        /// inner display's hinge, like the on-demand split's divider (pattern
-        /// `wide-columns` R3, issue #350).
+        /// The page's hinge (``DeviceLayout/splitHinge``), like the on-demand split's
+        /// divider: the book-pose fold, or the inner display's middle while partially
+        /// folded with no reported fold. Flat, the cells are equal, so the gutter sits
+        /// at the midpoint of the free space (pattern `wide-columns` R3, owner #361).
         case page
     }
 

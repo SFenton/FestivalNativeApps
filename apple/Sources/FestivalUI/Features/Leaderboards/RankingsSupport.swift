@@ -826,11 +826,12 @@ struct RankingsPagerView: View {
 
 /// Which side of an iPhone Duo hinge a board's pager sits on (issue #345).
 ///
-/// Unfolded (or in book pose) in landscape the inner display's hinge runs down the
-/// middle of a full-width board, so a centred pager would straddle it. The pager moves
-/// to the screen beside the vertical bar instead (the right screen in the usual
-/// landscape), within thumb reach of the rail, as Android's unfolded song band board
-/// puts its pager on the trailing side. HIG Designing for iPhone Duo: "use
+/// Unfolded (or in book pose) in landscape a full-width board divides into two screens:
+/// at the hinge in book pose, at the midpoint of the free space beside the vertical bar
+/// when flat (``DeviceLayout/screenDivide(layoutDirection:)``, owner #361), where the
+/// board's two columns meet. The pager moves to the screen beside the vertical bar (the
+/// right screen in the usual landscape), within thumb reach of the rail, as Android's
+/// unfolded song band board puts its pager on the trailing side. HIG Designing for iPhone Duo: "use
 /// reserved-region APIs to keep important elements clear of the center" and "move only
 /// what's necessary": the rows and the pinned selected row keep their full width.
 enum PagerScreenPlacement {
@@ -842,8 +843,8 @@ enum PagerScreenPlacement {
     ///
     /// - Parameters:
     ///   - container: The pager container's frame in window coordinates (leading-edge x).
-    ///   - hinge: ``DeviceLayout/splitHinge``: the fold, the flat hinge, or the inner
-    ///     display's middle line; nil without a hinge.
+    ///   - hinge: ``DeviceLayout/screenDivide(layoutDirection:)``: the book-pose hinge,
+    ///     or the flat inner display's free-space midline; nil without either.
     ///   - preferredEdge: The vertical bar's edge (the pager's screen); `.trailing`
     ///     when there is no vertical bar.
     /// - Returns: Nil (centre in the whole container) unless a vertical hinge crosses
@@ -863,16 +864,18 @@ enum PagerScreenPlacement {
     }
 }
 
-/// Centres the pager on one screen of an iPhone Duo hinge (``PagerScreenPlacement``),
+/// Centres the pager on one screen of an iPhone Duo inner display (``PagerScreenPlacement``),
 /// else across the whole width. Measures its own full-width frame, so the placement
 /// never feeds back into the measurement.
 private struct PagerScreenPlacementModifier: ViewModifier {
     @Environment(\.deviceLayout) private var layout
+    @Environment(\.layoutDirection) private var layoutDirection
     @State private var container: CGRect = .zero
 
     func body(content: Content) -> some View {
         let region = PagerScreenPlacement.region(
-            container: container, hinge: layout.splitHinge, preferredEdge: preferredEdge
+            container: container, hinge: layout.screenDivide(layoutDirection: layoutDirection),
+            preferredEdge: preferredEdge
         )
         content
             .frame(width: region?.width)
