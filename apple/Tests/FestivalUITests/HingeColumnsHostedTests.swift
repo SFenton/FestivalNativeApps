@@ -157,7 +157,7 @@ private struct SongDetailCardFixture: View {
     let typeSize: DynamicTypeSize
 
     var body: some View {
-        SongDetailCardGrid(instruments: [.lead, .bass, .drums]) { index, _ in
+        SongDetailCardGrid(items: [0, 1, 2]) { index, _ in
             Color.orange.frame(height: CGFloat(120 + 40 * index))
                 .accessibilityElement()
                 .accessibilityLabel("Card \(index)")
