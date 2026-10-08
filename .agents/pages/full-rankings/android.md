@@ -45,6 +45,8 @@ The app is dark-only ([design/android.md](../../design/android.md)), so system l
 
 Accessibility: TalkBack order is title, actions, population, rows (one description each: rank, name, songs, score), "your rank", then the pager. Pager buttons are 48 dp and the page pill is a polite live region. Hidden rows under the footer leave touch and TalkBack (issue #104). Font scale 2.0 shows stacked rows without clipping. With animator scale 0 the load swap and the row fade-in are instant.
 
+The pinned "your rank" row is one 48 dp button ("Your rank, #N. Name. …") read after the rows and before the pager on every page; its click label is "Jump to your position" off the player's page and "Open your statistics" on it (issue #318). On the player's page the revealed inline row reads before its pinned copy. `@DeviceCi` ATF journey `journeys/FullRankingsPinnedRowAccessibilityJourneyTest` pins this at device text size and 200 % (row grows unclipped, pager stays on screen) and fails if the footer drops on the player's page (issue #466).
+
 ## IDs
 
 `fst.full-rankings.list`, `.population`, `.title-icon.<wireId>` (inside the shell's `fst.nav.title-icon`, beside `fst.nav.title`), `.instrument-menu` (items `.instrument-menu.<n>`), `.bottom-bar` (anchored footer + pager), `.supporting-pane` (hinge only), `.pager`, `.page-first|page-previous|page-info|page-next|page-last`, `.spotlight-footer`, `.spotlight-footer.loading`, `.spotlight-footer.unranked`, shared `fst.rankings.rank-by-menu` (items `fst.rankings.rank-by.<metric>`), `fst.rankings.row.<accountId>`.
