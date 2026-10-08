@@ -205,6 +205,40 @@ public sealed class LeaderboardsOverviewTests
         Assert.Equal(SpotlightPlacementKind.Inline, card.Spotlight.Kind);
         Assert.False(card.Spotlight.IsVisible);
         Assert.Empty(reader.Calls);
+        // In place among the top ten the row is already on screen, so it opens the profile like Song Detail's (#370).
+        Assert.Equal("acct3", Assert.IsType<AppRoute.Player>(card.Rows[2].Route).AccountId);
+        // Other players' rows open their profile.
+        Assert.IsType<AppRoute.Player>(card.Rows[0].Route);
+    }
+
+    [Fact]
+    public async Task CardSpotlightRowOpensTheFullBoardForTheCardsMetric()
+    {
+        var fake = new RankingsFake();
+        var reader = new FakeReader { Result = (_, id) => RankingsWire.Account(26, id) };
+        var session = fake.Session(RankingsFake.Selected("me", [Instrument.Drums]) with { LeaderboardRankBy = "fcrate" });
+        var vm = new LeaderboardsViewModel(session, reader.Read);
+        await vm.ActivateAsync();
+
+        var row = vm.InstrumentCards[0].Spotlight.Row!;
+        var route = Assert.IsType<AppRoute.FullRankings>(row.Route);
+        Assert.Equal(Instrument.Drums, route.Instrument);
+        Assert.Equal("fcrate", route.RankBy);
+        Assert.Equal(LeaderboardPaging.PageForRank(row.Rank), route.Page);
+        Assert.True(route.RevealSelected);
+    }
+
+    [Fact]
+    public async Task UnrankedCardSpotlightRowOpensTheProfile()
+    {
+        var spotlight = new RankingSpotlightViewModel(Instrument.Lead, (_, id, _) => Task.FromResult<AccountRankingEntry?>(RankingsWire.Account(0, id)),
+            new FakeTimeProvider(), "t", opensFullBoard: true);
+        spotlight.Apply("me", [], RankingMetric.TotalScore, 1, LeaderboardPaging.CardSize);
+        await spotlight.EnsureLoadedAsync("me", true);
+
+        Assert.True(spotlight.ShowRow);
+        Assert.Null(spotlight.Row!.PinnedAction);
+        Assert.IsType<AppRoute.Player>(spotlight.Row.Route);
     }
 
     [Fact]
@@ -222,9 +256,11 @@ public sealed class LeaderboardsOverviewTests
         Assert.Equal("#120", lead.Row!.RankText);
         Assert.True(lead.Row.IsSelected);
         Assert.False(lead.CanJump);
-        // Overview cards have no jump: their spotlight row only opens the profile and announces no destination (#318).
-        Assert.Null(lead.Row.PinnedAction);
-        Assert.StartsWith("Your rank, 120th. Player 120.", lead.Row.Announcement);
+        // The card's "your rank" row opens Full Rankings on the player's page and reveals it, like Song Detail's appended
+        // row (leaderboard-row R7, #370): rank 120 is on page 5 of 25.
+        Assert.Equal(new SelectedRowAction(5), lead.Row.PinnedAction);
+        Assert.Equal(new AppRoute.FullRankings(Instrument.Lead, "totalscore", 5, RevealSelected: true), lead.Row.Route);
+        Assert.StartsWith("Your rank, 120th. Jump to your position. Player 120.", lead.Row.Announcement);
         // The pinned "#120" widens every rank column of the card so names line up (operator batch 7.9).
         Assert.All(vm.InstrumentCards[0].Rows, r => Assert.Equal(4, r.Section!.RankChars));
         Assert.Same(vm.InstrumentCards[0].Rows[0].Section, lead.Row.Section);

@@ -72,16 +72,26 @@ public sealed partial class RankingRowViewModel : ObservableObject, ILeaderboard
     /// <summary>Whether <see cref="BayesianText"/> is shown.</summary>
     public bool HasBayesian => BayesianText.Length > 0;
 
-    /// <summary>Profile destination, or <see langword="null"/> for a row without a usable account ID.</summary>
-    public AppRoute? Route => Entry.HasProfile ? new AppRoute.Player(Entry.AccountId, Entry.DisplayName) : null;
+    /// <summary>
+    /// Destination: <see cref="JumpRoute"/> when set (a card's "your rank" row), else the profile; <see langword="null"/>
+    /// for a row without a usable account ID.
+    /// </summary>
+    public AppRoute? Route => (AppRoute?)JumpRoute ?? (Entry.HasProfile ? new AppRoute.Player(Entry.AccountId, Entry.DisplayName) : null);
+
+    /// <summary>
+    /// Full board at the selected player's page, revealing their row (a Leaderboards card's "your rank" row, pattern
+    /// <c>leaderboard-row</c> R7, issue #370); <see langword="null"/> for every other row.
+    /// </summary>
+    public AppRoute.FullRankings? JumpRoute { get; init; }
 
     /// <summary>UIA automation ID (<c>fst.rankings.row.&lt;accountId&gt;</c>, or <c>…row.rank-&lt;n&gt;</c> without an ID).</summary>
     public string AutomationId => "fst.rankings.row." + (Entry.HasProfile ? Entry.AccountId : "rank-" + Rank);
 
     /// <summary>
-    /// For Full Rankings' pinned footer row only: jump to the player's page or open their profile (pattern
-    /// <c>leaderboard-row</c> R7, issue #318); the view runs the jump through the spotlight's command and the open through
-    /// <see cref="Route"/>.
+    /// For the selected player's separate row only (pattern <c>leaderboard-row</c> R7): on Full Rankings' pinned footer,
+    /// jump to the player's page or open their profile (issue #318; the view runs the jump through the spotlight's command
+    /// and the open through <see cref="Route"/>); on a Leaderboards card, open the full board at their page
+    /// (<see cref="JumpRoute"/>, issue #370).
     /// </summary>
     public SelectedRowAction? PinnedAction { get; init; }
 
@@ -179,6 +189,7 @@ public delegate Task<AccountRankingEntry?> OwnRankingReader(Instrument instrumen
 /// The selected player's spotlight on one board: highlighted in place, loading, failed (inline retry),
 /// unranked, or a separate "your rank" row. A pinned spotlight (Full Rankings) never
 /// goes inline: the row stays above the pager on every page and is itself the control, jumping to the player's page while it is elsewhere and opening their profile once it is shown (pattern <c>leaderboard-row</c> R7, issue #318).
+/// An overview card's separate row opens Full Rankings at the player's page and reveals their row (issue #370).
 /// </summary>
 public sealed partial class RankingSpotlightViewModel : ObservableObject
 {
@@ -186,6 +197,7 @@ public sealed partial class RankingSpotlightViewModel : ObservableObject
     private readonly Instrument instrument;
     private readonly Func<int, Task>? jump;
     private readonly bool pinned;
+    private readonly bool opensFullBoard;
     private string? loadedFor;
     private bool ownLoaded;
     private AccountRankingEntry? own;
@@ -205,13 +217,18 @@ public sealed partial class RankingSpotlightViewModel : ObservableObject
     /// Whether the row is pinned on every page, the player's own page included (<see cref="RankingSpotlight.PlacePinned"/>,
     /// Full Rankings); otherwise a visible player is only highlighted in place (<see cref="RankingSpotlight.Place"/>, overview cards).
     /// </param>
+    /// <param name="opensFullBoard">
+    /// Whether the separate row of an overview card opens the full board at the player's page and reveals their row
+    /// (<see cref="SelectedRowAction.Preview"/>, pattern <c>leaderboard-row</c> R7, issue #370) instead of their profile.
+    /// </param>
     public RankingSpotlightViewModel(Instrument instrument, OwnRankingReader? reader, TimeProvider time, string scope, Func<int, Task>? jump = null,
-        bool pinned = false)
+        bool pinned = false, bool opensFullBoard = false)
     {
         this.instrument = instrument;
         this.reader = reader;
         this.jump = jump;
         this.pinned = pinned;
+        this.opensFullBoard = opensFullBoard;
         Status = new ServiceStatusViewModel(scope, "Your rank unavailable", RetryAsync, time);
     }
 
@@ -346,9 +363,7 @@ public sealed partial class RankingSpotlightViewModel : ObservableObject
         var placement = pinned
             ? RankingSpotlight.PlacePinned(selected, visible, ownLoaded, own)
             : RankingSpotlight.Place(selected, visible, ownLoaded, own);
-        Row = placement.Entry is { } entry
-            ? new RankingRowViewModel(entry, metric, true) { PinnedAction = jump is null ? null : PinnedAction(entry) }
-            : null;
+        Row = placement.Entry is { } entry ? SelectedRow(entry) : null;
         // The loading row fits the board's columns like the row it stands in for (issue #281), so the pinned row
         // doesn't jump in when it arrives at large text or under a percentile metric.
         if (placement.Kind == SpotlightPlacementKind.Pending)
@@ -360,6 +375,26 @@ public sealed partial class RankingSpotlightViewModel : ObservableObject
         Kind = placement.Kind;
         OnPropertyChanged(nameof(CanJump));
         JumpCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>
+    /// The selected player's separate row and its action (pattern <c>leaderboard-row</c> R7): on Full Rankings it jumps
+    /// in place or opens the profile (#318); on an overview card that opens the full board, a ranked row opens Full
+    /// Rankings at the page containing its rank and reveals it (#370, as Song Detail's appended row); otherwise it opens
+    /// the profile.
+    /// </summary>
+    /// <param name="entry">Selected player's entry.</param>
+    /// <returns>Row.</returns>
+    private RankingRowViewModel SelectedRow(AccountRankingEntry entry)
+    {
+        if (jump is not null) return new RankingRowViewModel(entry, metric, true) { PinnedAction = PinnedAction(entry) };
+        if (opensFullBoard && SelectedRowAction.Preview(entry.Rank(metric), isAppended: true) is { JumpPage: { } page } action)
+            return new RankingRowViewModel(entry, metric, true)
+            {
+                PinnedAction = action,
+                JumpRoute = new AppRoute.FullRankings(instrument, metric.ServiceId(), page, RevealSelected: true),
+            };
+        return new RankingRowViewModel(entry, metric, true);
     }
 
     /// <summary>The pinned row's action: jump unless the shown page holds (or should hold) the selected player's row.</summary>

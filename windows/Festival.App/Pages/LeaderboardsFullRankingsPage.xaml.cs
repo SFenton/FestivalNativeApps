@@ -52,7 +52,9 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
         ViewModel.AnimateLoadSwaps = () => Motion.Allowed;
         ViewModel.PropertyChanged += OnViewModelChanged;
         ViewModel.LoadSwap.ContentRevealed += OnContentRevealed;
-        shownPage = ViewModel.Page;
+        // An arrival from a Leaderboards card's "your rank" row (navToPlayer, issue #370) brings the highlighted row into
+        // view on first load, as the song board does for Song Detail's spotlight row.
+        shownPage = created && ((AppRoute.FullRankings)e.Parameter).RevealSelected ? 0 : ViewModel.Page;
         WatchSpotlight();
         ScreenReader.Attach(this, [ViewModel, ViewModel.Pager], () => ViewModel.IsLoading,
             () => ViewModel.ShowRows ? $"{ViewModel.Title}, {ViewModel.Pager.InfoAnnouncement}" : ViewModel.ShowEmpty ? $"{ViewModel.Title}, no entries" : null,

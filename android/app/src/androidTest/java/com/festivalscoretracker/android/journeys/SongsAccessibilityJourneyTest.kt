@@ -264,12 +264,12 @@ class SongsAccessibilityJourneyTest {
         h.waitForTag("fst.shop.filter.leaving")
         h.readingOrder("shop-filter")
         h.tap("fst.shop.filter.leaving")
-        h.waitGone("fst.shop.song.s-beta")
+        h.waitGone("fst.shop.song.s-alpha")
         h.tap("fst.shop.filter.done")
         h.waitGone("fst.shop.filter.leaving")
         h.readingOrder("shop-filtered")
         // Issue #145: TalkBack hears the active filters, not only the gold tint.
-        rule.onNodeWithTag("fst.shop.filter.open").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Filters on: Leaving Tomorrow"))
+        rule.onNodeWithTag("fst.shop.filter.open").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Filters on: hiding Leaving Tomorrow"))
         h.assertAccessible()
     }
 
