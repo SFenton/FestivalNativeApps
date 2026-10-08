@@ -134,9 +134,15 @@
             </controls:WrapPanel>
         </Grid>
 
-        <InfoBar x:Name="DetailsNotice" Grid.Row="1" IsOpen="{x:Bind ViewModel.HasSongDetailsIssue, Mode=OneWay}" IsClosable="False" Severity="Warning"
-                 Message="{x:Bind ViewModel.SongDetailsIssue, Mode=OneWay}" Margin="0,0,12,0"
+        <!-- Notices: catalogue links unavailable; a saved Duration sort paused to title order (catalogue-sort R7, #379). -->
+        <StackPanel x:Name="Notices" Grid.Row="1" Spacing="8" Margin="0,0,12,0">
+        <InfoBar x:Name="DetailsNotice" IsOpen="{x:Bind ViewModel.HasSongDetailsIssue, Mode=OneWay}" Visibility="{x:Bind ViewModel.HasSongDetailsIssue, Mode=OneWay}" IsClosable="False" Severity="Warning"
+                 Message="{x:Bind ViewModel.SongDetailsIssue, Mode=OneWay}"
                  AutomationProperties.AutomationId="fst.shop.song-details-error" />
+        <InfoBar x:Name="SortPausedNotice" IsOpen="{x:Bind ViewModel.HasSortPause, Mode=OneWay}" Visibility="{x:Bind ViewModel.HasSortPause, Mode=OneWay}" IsClosable="False" Severity="Informational"
+                 Message="{x:Bind ViewModel.SortPaused, Mode=OneWay}"
+                 AutomationProperties.AutomationId="fst.shop.sort-paused" />
+        </StackPanel>
 
         <Grid Grid.Row="2">
             <!-- Grid: the web's ShopCard tiles (square, full-bleed art, title/artist scrim, Leaving Tomorrow pill; 2-5 columns,

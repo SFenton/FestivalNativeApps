@@ -46,7 +46,7 @@ public sealed partial class ShopViewModel : ObservableObject
 
     /// <summary>Load lifecycle.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsLoading), nameof(ShowOffers), nameof(ShowEmpty), nameof(ShowError), nameof(ShowGrid), nameof(ShowList), nameof(ShowNoMatches), nameof(CanToggleView))]
+    [NotifyPropertyChangedFor(nameof(IsLoading), nameof(ShowOffers), nameof(ShowEmpty), nameof(ShowError), nameof(ShowGrid), nameof(ShowList), nameof(ShowNoMatches), nameof(CanToggleView), nameof(HasSortPause))]
     private LoadState state = LoadState.Idle;
 
     /// <summary>Offers in the saved sort order that pass <see cref="Filter"/>.</summary>
@@ -69,6 +69,11 @@ public sealed partial class ShopViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSongDetailsIssue))]
     private string? songDetailsIssue;
+
+    /// <summary>Why the saved Duration sort shows title order instead (<c>fst.shop.sort-paused</c>), or <see langword="null"/>.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSortPause))]
+    private string? sortPaused;
 
     /// <summary>Whether the window is compact (forces the album-art grid, as in the installed PWA; no toggle).</summary>
     [ObservableProperty]
@@ -107,6 +112,9 @@ public sealed partial class ShopViewModel : ObservableObject
 
     /// <summary>Whether the catalogue-link notice shows.</summary>
     public bool HasSongDetailsIssue => SongDetailsIssue is not null;
+
+    /// <summary>Whether the sort-pause notice shows (only with offers on screen).</summary>
+    public bool HasSortPause => ShowOffers && SortPaused is not null;
 
     /// <summary>Filter switches (the Songs filter flyout's toggle rows); every change applies at once.</summary>
     public List<FilterToggleRow> FilterRows { get; }
@@ -219,8 +227,12 @@ public sealed partial class ShopViewModel : ObservableObject
     private void Project(ShopResponse feed)
     {
         var settings = session.Settings;
-        var sorted = ShopOfferSort.Sort(feed.Songs, settings.ShopSort, settings.ShopSortAscending,
+        // Duration lengths come only from a catalogue of the feed's publication; otherwise title order with a notice.
+        var pause = ShopOfferSort.DurationPause(settings.ShopSort, session.Catalog is not null,
+            SongRelatedPublicationPolicy.Matches(session.CatalogPublicationId, session.ShopPublicationId, session.ObservedPublicationId));
+        var sorted = ShopOfferSort.Sort(feed.Songs, pause is null ? settings.ShopSort : SongSortMode.Title, settings.ShopSortAscending,
             id => session.FindSong(id)?.DurationSeconds);
+        SortPaused = pause;
         totalOffers = sorted.Count;
         Offers = [.. sorted.Where(Filter.Matches).Select(offer => new ShopOfferItem(
             offer,

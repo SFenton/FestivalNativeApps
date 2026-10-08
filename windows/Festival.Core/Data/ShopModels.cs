@@ -157,6 +157,21 @@ public static class ShopOfferSort
     /// <returns>A member of <see cref="Modes"/>.</returns>
     public static SongSortMode Normalize(SongSortMode mode) => Modes.Contains(mode) ? mode : SongSortMode.Title;
 
+    /// <summary>
+    /// Why a saved Duration sort can't use catalogue lengths right now (catalogue-sort R7): the feed has no duration,
+    /// so it needs a catalogue observed under the Shop feed's publication. The page then shows title order in the saved
+    /// direction and keeps the choice, like the Songs Item Shop sort pause.
+    /// </summary>
+    /// <param name="mode">Saved mode.</param>
+    /// <param name="catalogueLoaded">Whether a validated catalogue exists.</param>
+    /// <param name="samePublication">Whether catalogue, Shop feed and session share one observed publication.</param>
+    /// <returns>Readable notice, or <see langword="null"/> when the sort applies.</returns>
+    public static string? DurationPause(SongSortMode mode, bool catalogueLoaded, bool samePublication) =>
+        Normalize(mode) != SongSortMode.Duration ? null
+        : !catalogueLoaded ? "Duration sort paused until song details load. Showing title order; your choice is saved."
+        : !samePublication ? "Duration sort paused until Item Shop and song details update together. Showing title order; your choice is saved."
+        : null;
+
     /// <summary>Sorts offers.</summary>
     /// <param name="offers">Validated offers.</param>
     /// <param name="mode">Sort field (normalized with <see cref="Normalize"/>).</param>

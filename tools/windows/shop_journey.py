@@ -174,6 +174,20 @@ SCENARIOS: dict[str, tuple[dict[str, str], str, dict, list[str], set[str] | None
         ],
         {"medium"},
     ),
+    "sort-paused": (
+        # catalogue-sort R7 (#379): a saved Duration sort without catalogue lengths shows title order under a notice
+        # and keeps the choice (the Sort button still names Duration).
+        PLAYER, "/shop", {"shopSort": "Duration", "shopSortAscending": False},
+        [
+            "@songs=error",
+            "waitfor:id=fst.shop.sort-paused@30",
+            "waitfor:id=fst.shop.song-details-error",
+            "waitfor:name=Duration sort paused until song details load. Showing title order; your choice is saved.",
+            "waitfor:id=fst.shop.sort",
+            "{shot:shop-sort-paused}",
+        ],
+        {"medium"},
+    ),
     "highlight-disabled": (
         PLAYER, "/shop", {"disableShopHighlighting": True, **LIST},
         [

@@ -77,4 +77,16 @@ public class ShopMarkupTests
         var title = Page.Descendants().Single(e => Attr(e, "AutomationProperties.AutomationId") == id);
         Assert.Equal("Level2", Attr(title, "AutomationProperties.HeadingLevel"));
     }
+
+    [Fact]
+    public void Notices_StackDetailsThenSortPause()
+    {
+        // catalogue-sort R7 (#379): the paused Duration sort reads as its own notice under the catalogue-links notice.
+        var notices = Page.Descendants().Single(e => Attr(e, "Name") == "Notices");
+        Assert.Equal(["fst.shop.song-details-error", "fst.shop.sort-paused"],
+            notices.Elements().Select(e => Attr(e, "AutomationProperties.AutomationId")));
+        var paused = notices.Elements().Last();
+        Assert.Equal(("{x:Bind ViewModel.HasSortPause, Mode=OneWay}", "{x:Bind ViewModel.SortPaused, Mode=OneWay}"),
+            (Attr(paused, "IsOpen"), Attr(paused, "Message")));
+    }
 }

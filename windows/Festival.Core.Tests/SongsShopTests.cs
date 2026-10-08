@@ -96,6 +96,16 @@ public class ShopModelTests
         Assert.Equal(expected, string.Join(",", sorted.Select(s => s.SongId)));
     }
 
+    [Theory]
+    [InlineData(SongSortMode.Title, false, false, null)]
+    [InlineData(SongSortMode.Year, false, false, null)]
+    [InlineData(SongSortMode.Duration, true, true, null)]
+    [InlineData(SongSortMode.Duration, false, false, "Duration sort paused until song details load. Showing title order; your choice is saved.")]
+    [InlineData(SongSortMode.Duration, true, false, "Duration sort paused until Item Shop and song details update together. Showing title order; your choice is saved.")]
+    public void OfferSort_DurationPausesWithoutSamePublicationCatalogue(SongSortMode mode, bool loaded, bool matches, string? expected) =>
+        // catalogue-sort R7: only Duration needs catalogue data; never guess zero lengths from a missing/mismatched catalogue.
+        Assert.Equal(expected, ShopOfferSort.DurationPause(mode, loaded, matches));
+
     [Fact]
     public void OfferSort_ModesAreTheSongsBaseModes()
     {
@@ -253,6 +263,47 @@ public class ShopSessionTests
 
 public class ShopViewModelTests
 {
+    [Fact]
+    public async Task Sort_DurationPausesToTitleOrderUntilSamePublicationCatalogue()
+    {
+        // catalogue-sort R7 (#379): Duration reads catalogue lengths only from the feed's publication. A failed or older
+        // catalogue shows title order in the saved direction with a notice and keeps the choice. Lengths: Électrique
+        // none (0), Alpha 100 s, Beta 250 s, so Duration and Title orders differ.
+        var service = new FakeService();
+        SongsWire.Install(service, () => SongsWire.Shop(SongsWire.Offer("s2", "Beta"), SongsWire.Offer("s3", "Électrique"),
+            SongsWire.Offer("s1", "Alpha")));
+        var inner = service.Override!;
+        var failSongs = true;
+        service.Override = r => failSongs && r.RequestUri!.AbsolutePath == "/api/songs" ? Wire.Response(HttpStatusCode.InternalServerError) : inner(r);
+        var session = service.Session();
+        session.UpdateSettings(s => s with { ShopSort = SongSortMode.Duration, ShopSortAscending = false });
+        var vm = new ShopViewModel(session);
+        await vm.LoadAsync();
+        Assert.Equal(["s3", "s2", "s1"], vm.Offers.Select(o => o.Offer.SongId)); // Title ↓, not zero-length ties
+        Assert.True(vm.HasSortPause);
+        Assert.StartsWith("Duration sort paused until song details load", vm.SortPaused);
+        Assert.Equal(("Duration ↓", true), (vm.SortSummary, vm.IsSortChanged));
+
+        failSongs = false;
+        await vm.LoadAsync(force: true);
+        Assert.False(vm.HasSortPause);
+        Assert.Equal(["s2", "s1", "s3"], vm.Offers.Select(o => o.Offer.SongId));
+        vm.SortDraft.Begin();
+        vm.SortDraft.DirectionIndex = 0;
+        Assert.Equal(["s3", "s1", "s2"], vm.Offers.Select(o => o.Offer.SongId));
+
+        // A newer publication whose catalogue read fails leaves an older catalogue beside the new feed: pause again.
+        failSongs = true;
+        service.PublicationId = 8;
+        await session.Api.GetPublicationAsync(force: true);
+        await Async.Until(() => vm.SortPaused?.StartsWith("Duration sort paused until Item Shop and song details update together", StringComparison.Ordinal) == true);
+        Assert.Equal(["s1", "s2", "s3"], vm.Offers.Select(o => o.Offer.SongId));
+        Assert.True(vm.HasSortPause);
+        // Title, Artist and Year never need the catalogue.
+        session.UpdateSettings(s => s with { ShopSort = SongSortMode.Year });
+        Assert.False(vm.HasSortPause);
+        Assert.Equal(SongSortMode.Year, session.Settings.ShopSort);
+    }
     [Fact]
     public async Task Sort_AppliesLivePersistsAndOrdersBothLayouts()
     {
