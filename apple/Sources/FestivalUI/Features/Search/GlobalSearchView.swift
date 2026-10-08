@@ -199,7 +199,7 @@ struct GlobalSearchResults: View {
         let columns = columns
         if columns > 1 {
             ForEach(WideColumns.rows(items, columns: columns), id: \.first!.id) { row in
-                HingeRow(spacing: WideColumns.spacing, hinge: .page) {
+                HingeRow(spacing: WideColumns.spacing) {
                     ForEach(row) { item in
                         card(item)
                             .frame(maxWidth: .infinity)

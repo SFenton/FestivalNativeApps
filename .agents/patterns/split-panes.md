@@ -28,7 +28,7 @@ Agent decision (#344, 2026-10-07; owner may override with `/choose`): options we
 |---|---|---|---|
 | Line rule (R1, R2) | `apple/Sources/FestivalUI/App/Layout/OnDemandSplitPolicy.swift` `OnDemandSplitPolicy.drawsDividerLine` | — (see debt) | — (no split) |
 | Band and backdrop (R3, R4) | `apple/Sources/FestivalUI/App/Layout/OnDemandSplit.swift` `OnDemandSplitLayout` (private `SplitDivider`, `SplitBackdrop`); `SplitPaneChrome.swift` `SplitPaneChrome` | — | — |
-| Fold position (R5) | `apple/Sources/FestivalUI/App/Layout/OnDemandSplitPolicy.swift` `OnDemandSplitPolicy` (see debt) | `android/app/src/main/java/com/festivalscoretracker/android/ui/shell/FestivalApp.kt` separating `verticalHinge` with `android/app/src/main/java/com/festivalscoretracker/android/core/nav/FestivalSection.kt` `listPaneWidth`; `android/app/src/main/java/com/festivalscoretracker/android/ui/settings/HingeSplit.kt` `rememberHingeSplit`; `android/app/src/main/java/com/festivalscoretracker/android/core/bands/BandLayout.kt` `BandLayout.panes` (Band Detail) | — (no foldable) |
+| Fold position (R5) | `apple/Sources/FestivalUI/App/Layout/OnDemandSplitPolicy.swift` `OnDemandSplitPolicy` (`DeviceLayout.splitHinge` in book pose, `freeMidX` flat) | `android/app/src/main/java/com/festivalscoretracker/android/ui/shell/FestivalApp.kt` separating `verticalHinge` with `android/app/src/main/java/com/festivalscoretracker/android/core/nav/FestivalSection.kt` `listPaneWidth`; `android/app/src/main/java/com/festivalscoretracker/android/ui/settings/HingeSplit.kt` `rememberHingeSplit`; `android/app/src/main/java/com/festivalscoretracker/android/core/bands/BandLayout.kt` `BandLayout.panes` (Band Detail) | — (no foldable) |
 
 Apple consumers: `OnDemandSplitStack` (iPad, iPhone Duo inner landscape) and `MacListDetailStack` (Mac content area): Rivals, All Rivals, Leaderboards (Full/Band Rankings in the trailing pane; profiles cover both panes as full pages, #352), Song Detail (full leaderboard, score history), Settings › Licenses. Tests: `OnDemandSplitPolicyTests.dividerLineOnlyUnderIncreaseContrastAtAMidpoint`, `duoSplitsAtTheFreeSpaceMidpointFlatAndTheHingeInBookPose`; `MacAccessibilityTreeTests` (the band is never an accessibility element).
 
@@ -37,7 +37,6 @@ Apple consumers: `OnDemandSplitStack` (iPad, iPhone Duo inner landscape) and `Ma
 | Debt | Breaks | Plan |
 |---|---|---|
 | Android Songs list/detail (`android/app/src/main/java/com/festivalscoretracker/android/ui/shell/FestivalApp.kt`) draws a `VerticalDivider(color = BrandTokens.glassBorder)` between the panes | R1, R2 | Android check (out of #344's Apple scope) |
-| Apple `OnDemandSplitPolicy` places a flat Duo's split on `DeviceLayout.splitHinge` (the flat hinge midline) | R5 | Apple lane of #361 (Android is compliant: flat Band Detail anchored on the fold until #361) |
 
 ## Guards (`tools/pattern_guard.py`)
 

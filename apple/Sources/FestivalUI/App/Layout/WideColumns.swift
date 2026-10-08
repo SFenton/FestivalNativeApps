@@ -9,8 +9,8 @@ import SwiftUI
 /// Split View or Stage Manager windows).
 ///
 /// Rows flow row-major (left then right, then down) under full-width section headers;
-/// a short last row keeps its card at column width. Rows draw through ``HingeRow`` with
-/// ``HingeRow/Hinge/page``, so on iPhone Duo the gutter sits on the hinge in book pose
+/// a short last row keeps its card at column width. Rows draw through ``HingeRow``,
+/// so on iPhone Duo the gutter sits on the hinge in book pose
 /// and at the midpoint of the free space when flat (owner #361,
 /// `.agents/patterns/wide-columns.md`).
 ///
@@ -244,7 +244,7 @@ struct WideColumnsRow<Content: View>: View {
 
     var body: some View {
         if columns > 1 {
-            HingeRow(spacing: WideColumns.spacing, hinge: .page) {
+            HingeRow(spacing: WideColumns.spacing) {
                 content
                 ForEach(count..<max(count, columns), id: \.self) { _ in
                     Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
