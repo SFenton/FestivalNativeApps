@@ -1,11 +1,11 @@
 # Songs Sort — Windows notes
 
-> **What:** WinUI 3 Sort flyout, Item Shop sort, design decisions and validation results. **Read when:** changing `SongSortDraft`, `SongListPipeline.CompareShop`/`ShopSections` or the Sort flyout in `SongsPage.xaml`. Rules: [spec.md](spec.md).
+> **What:** WinUI 3 Sort flyout, Item Shop sort, design decisions and validation results. **Read when:** changing `SongSortDraft`, `Controls/SongSortForm`, `SongListPipeline.CompareShop`/`ShopSections` or the Sort flyouts in `SongsPage.xaml` and `ShopPage.xaml`. Rules: [spec.md](spec.md).
 
 ## Implementation
 
 - `SongsPage.xaml`: a `DropDownButton` (`fst.songs.sort`, name "Sort Songs") whose content is the applied summary (`Item Shop ↑`, gold when non-default). `AutomationProperties.HelpText` is `SongsViewModel.SortDescription` ("Year, descending"), so Narrator reads the applied sort, not the arrow glyph.
-- The flyout (`Flyout`, 300 epx `StackPanel`) holds a "Sort Songs" Level 2 heading, then two `RadioButtons` groups:
+- The flyout content is the shared `Controls/SongSortForm` (`Draft`, `Title`, `IdPrefix`; a `UserControl` with no automation peer of its own, so the UIA tree is unchanged): a 300 epx `StackPanel` with a "Sort Songs" Level 2 heading, then two `RadioButtons` groups:
   - **Sort By** (`fst.songs.sort.mode`): `SongSortDraft.ModeLabels`, the web's list. A selected player adds Last Played; an instrument filter adds Score, Percentage, Percentile, Stars, Seasons, Intensity, Max Score Diff (the form gets taller than the window and the flyout scrolls). Item Shop is removed while the Shop is hidden, and a saved Shop sort then shows no selection.
   - **Direction** (`fst.songs.sort.direction`): two rich `RadioButton` rows, `.ascending` "Ascending, A–Z, low–high" and `.descending` "Descending, Z–A, high–low". An arrow glyph is `AccessibilityView.Raw`. `SelectedIndex` binds `SongSortDraft.DirectionIndex` (0 ascending, 1 descending; other values are ignored).
   - A full-width red **Reset** (`fst.songs.sort.reset`, `FSTDanger*` brushes; ButtonFace/ButtonText under contrast themes) restores Title ↑.
@@ -15,6 +15,13 @@
 - Buckets use the first-seen order of the sorted rows (Leaving Tomorrow / In Shop / Not In Shop). Each heading carries `fst.songs.shop-section.{leaving-tomorrow|in-shop|not-in-shop}` (`SongListPipeline.SectionAutomationId`, only under an effective Shop sort). A single bucket has no heading and no Jump index. The first section's in-list heading is collapsed under the sticky header (`fst.songs.section-header`), so only later buckets expose their ID.
 - Notices are `SongNotice(AutomationId, Message)` records: `fst.songs.sort-paused`, `fst.songs.filter-paused`, `fst.songs.profile-paused`, `fst.songs.score-filter-paused`, each on its InfoBar.
 - The button tint is set from code, so `SongsPage` re-applies it on `ContrastTheme.Changed` (subscribed on `Loaded`, removed on `Unloaded`).
+
+## Item Shop (issue #379)
+
+- `ShopPage.xaml`: a **Sort** `DropDownButton` (`fst.shop.sort`, name "Sort Item Shop", HelpText `ShopViewModel.SortDescription`, label `SortSummary`, 40 epx) first in the header's `HeaderActions` `WrapPanel` (Sort, Filter, List/Grid; page-tools R11), shown while offers are on screen. Its flyout is the same `SongSortForm` (title "Sort Item Shop", IDs `fst.shop.sort.{form,mode,direction,direction.ascending,direction.descending,reset}`). Do not fork the form or the draft.
+- `SongSortDraft.ForShop(session)` is the Songs draft over `AppSettings.ShopSort`/`ShopSortAscending` with `ShopOfferSort.Modes` (Title, Artist, Year, Duration). `ShopOfferSort.Sort` builds lightweight `Song` keys and calls `SongCatalogQuery.Compare`, so ordering and ties are exactly Songs'; Duration comes from `FestivalSession.FindSong` (catalogue), only in Duration mode. Settings JSON `shopSort`/`shopSortAscending`; `Sanitized` maps any other saved mode to Title; Settings' Reset App Settings (`ResetAppSettings`) and player deselect (`ResetSongSettingsForDeselect`) keep it, like `ShopViewMode`.
+- The button is marked by `AppliedButtonState` (like Filter) while the sort is not Title ↑; a sort change scrolls the page to the top (like the List/Grid switch).
+- Evidence: Core `ShopViewModelTests.Sort_AppliesLivePersistsAndOrdersBothLayouts`, `ShopModelTests.OfferSort_*`, `Settings_ShopSortPersistsSanitizesAndSurvivesResets`, `ShopMarkupTests.SortFlyout_ReusesTheSongsSortForm`; UIA `songs_journey.py --only shop-sort-states` (medium, wide: default, Title ↓ order, Year ↓, list order, `{relaunch}` persisted, Songs sort untouched, Reset), `kb-shop-sort` (compact, medium: Enter opens, Title → Ascending → Descending → Reset, Esc returns to Sort, Tab to Filter), `narr-shop` (reading order count → Sort → Filter), `hit-shop`/`press-shop` (40 epx, off-glyph presses), `a11y.json` `shop-sort` (Axe 0, 3 Tab stops in the flyout). Live public service 2026-10-07 (118 offers): Duration ↓ puts Night Terror and One first in grid and list.
 
 ## Design decisions (winui-design)
 

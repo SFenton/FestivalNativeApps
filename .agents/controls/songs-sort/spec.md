@@ -26,6 +26,10 @@ Sorted rows group by first-seen bucket: **Leaving Tomorrow**, **In Shop**, **Not
 | Relaunch | Applied mode/direction restored |
 | Shop hidden / feed unavailable | Hide removes the Shop choice; saved Shop sort **pauses** (Title order in the saved direction, visible notice) and resumes when valid membership returns; a failed refresh with retained matching data keeps sorting with an error notice |
 
+## Item Shop consumer (#379)
+
+The Item Shop page reuses this control; it is not a second sort mechanism. Modes are the four catalogue sorts only: **Title, Artist, Year, Duration** (no Item Shop, Has FC, Last Played or instrument modes: the page lists only Shop songs and has no player context). Ordering, missing-value and tie rules are the Songs ones above (Duration comes from the catalogue entry; an offer without one sorts as zero). Grid and list share the order; filters apply before the sort. The choice applies live like Songs, Reset restores Title ↑, and it persists on its own (independent of the Songs sort, and kept when the player is cleared, since none of its modes need a player). The button shows the applied summary (`Duration ↓`) and is marked when it differs from Title ↑. IDs `fst.shop.sort{,.mode,.direction,.reset}`, page notes per platform. Web: title-only today; the #379 agent decision (option B, owner may override) asks the web Shop to reuse its `SortModal` with the same four modes ([shop spec](../../pages/shop/spec.md)).
+
 ## Accessibility and IDs
 
 Announce Sort Songs, mode choices, direction, Reset, Cancel, Apply; selection and disabled Apply perceivable. IDs `fst.songs.sort{,.mode,.direction,.reset,.cancel,.apply}`, `fst.songs.sort-paused`, `fst.songs.shop-section.*`.
