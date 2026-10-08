@@ -47,8 +47,9 @@
                        Style="{StaticResource FSTSecondaryTextStyle}" Visibility="{x:Bind ViewModel.ShowOffers, Mode=OneWay}"
                        AutomationProperties.AutomationId="fst.shop.count" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-            <!-- Issue #19: New / Available / Leaving Tomorrow in the Songs filter flyout's layout (title, switch rows, red Reset).
-                 Changes apply live; light dismiss / Esc closes. Gold while a switch is on, like Songs. -->
+            <!-- Issues #19, #376: New / Available / Leaving Tomorrow include switches (all on by default) in the Songs filter
+                 flyout's layout (title, switch rows, red Reset). Changes apply live; light dismiss / Esc closes. Gold while a
+                 switch is off, like Songs. -->
             <DropDownButton x:Name="FilterButton" AutomationProperties.Name="Filter Item Shop" MinHeight="{StaticResource FSTMinTargetSize}"
                             Visibility="{x:Bind ViewModel.ShowOffers, Mode=OneWay}"
                             AutomationProperties.AutomationId="fst.shop.filter">
@@ -74,7 +75,7 @@
                                        AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.shop.filter.title" />
                             <ScrollViewer Grid.Row="1" Padding="16,0,16,0">
                                 <StackPanel Spacing="4" Padding="0,0,0,12">
-                                    <TextBlock Text="Show only the Item Shop songs that match any switch you turn on. With every switch off, all songs show."
+                                    <TextBlock Text="Choose which Item Shop songs to show. Turn a switch off to hide those songs."
                                                Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" FontSize="12" />
                                     <ItemsControl ItemsSource="{x:Bind ViewModel.FilterRows}" ItemTemplate="{StaticResource ShopFilterToggleTemplate}" IsTabStop="False" />
                                 </StackPanel>

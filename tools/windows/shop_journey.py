@@ -192,53 +192,60 @@ SCENARIOS: dict[str, tuple[dict[str, str], str, dict, list[str], set[str] | None
         {"medium", "wide"},
     ),
     "filter": (
-        # Issue #238: live apply while the flyout is open, the applied status Narrator reads, state kept on reopen,
-        # each switch alone, the flyout's Reset and the no-match Reset card.
+        # Issues #238, #376: include switches that start on (every offer listed, Filter not applied), live apply while
+        # the flyout is open, the applied status Narrator reads while a switch is off, state kept on reopen, each group
+        # hidden alone, the flyout's Reset and the no-match Reset card.
         PLAYER, "/shop", {},
         [
             "waitfor:id=fst.shop.song.fixture-pulse@20",
+            "waitfor:id=fst.shop.song.fixture-orbit",
+            "waitfor:name=2 songs",
             "expand:id=fst.shop.filter",
             "waitfor:id=fst.shop.filter.leaving@5",
             "waitfor:id=fst.shop.filter.title",
-            "assertstate:id=fst.shop.filter.new|toggle=off",
-            "assertstate:id=fst.shop.filter.available|toggle=off",
-            "assertstate:id=fst.shop.filter.leaving|toggle=off",
+            "assertstate:id=fst.shop.filter.new|toggle=on",
+            "assertstate:id=fst.shop.filter.available|toggle=on",
+            "assertstate:id=fst.shop.filter.leaving|toggle=on",
+            "{shot:shop-filter-default}",
             "toggle:id=fst.shop.filter.leaving",
-            # Applies at once, before the flyout closes.
-            "waitgone:id=fst.shop.song.fixture-pulse@10",
+            # Applies at once, before the flyout closes: Leaving Tomorrow off hides the leaving offer.
+            "waitgone:id=fst.shop.song.fixture-orbit@10",
             "waitfor:name=1 of 2 songs",
             "{shot:shop-filter-flyout}",
             "collapse:id=fst.shop.filter",
             "waitgone:id=fst.shop.filter.leaving@5",
-            "waitfor:id=fst.shop.song.fixture-orbit",
+            "waitfor:id=fst.shop.song.fixture-pulse",
             "assertstatus:id=fst.shop.filter|Filters applied",
             "{shot:shop-filtered}",
             # Reopened: the switches show the applied filter.
             "expand:id=fst.shop.filter",
-            "assertstate:id=fst.shop.filter.leaving|toggle=on@5",
-            "assertstate:id=fst.shop.filter.new|toggle=off",
-            "assertstate:id=fst.shop.filter.available|toggle=off",
-            # New alone.
+            "assertstate:id=fst.shop.filter.leaving|toggle=off@5",
+            "assertstate:id=fst.shop.filter.new|toggle=on",
+            "assertstate:id=fst.shop.filter.available|toggle=on",
+            # New off alone.
             "toggle:id=fst.shop.filter.leaving",
             "toggle:id=fst.shop.filter.new",
-            "waitfor:id=fst.shop.song.fixture-pulse@10",
-            "waitgone:id=fst.shop.song.fixture-orbit@10",
-            "waitfor:name=1 of 2 songs",
-            # New and Leaving Tomorrow combine as a union.
-            "toggle:id=fst.shop.filter.leaving",
             "waitfor:id=fst.shop.song.fixture-orbit@10",
-            "waitfor:name=2 of 2 songs",
-            # The flyout's Reset turns every switch off and shows every offer.
+            "waitgone:id=fst.shop.song.fixture-pulse@10",
+            "waitfor:name=1 of 2 songs",
+            # The flyout's Reset turns every switch back on and shows every offer.
             "invoke:id=fst.shop.filter.reset",
-            "assertstate:id=fst.shop.filter.new|toggle=off@5",
-            "assertstate:id=fst.shop.filter.leaving|toggle=off",
+            "assertstate:id=fst.shop.filter.new|toggle=on@5",
+            "assertstate:id=fst.shop.filter.leaving|toggle=on",
+            "waitfor:id=fst.shop.song.fixture-pulse@10",
+            "waitfor:name=2 songs@10",
+            # Available off with no Available offers hides nothing, but the filter still counts as applied.
+            "toggle:id=fst.shop.filter.available",
+            "waitfor:name=2 of 2 songs@10",
+            "toggle:id=fst.shop.filter.available",
             "waitfor:name=2 songs@10",
             "collapse:id=fst.shop.filter",
             "waitgone:id=fst.shop.filter.reset@5",
-            # Available = neither New nor Leaving Tomorrow: nothing in the fixture, so the no-match notice shows.
+            # New and Leaving Tomorrow off hide every fixture offer, so the no-match notice shows.
             "expand:id=fst.shop.filter",
-            "waitfor:id=fst.shop.filter.available@5",
-            "toggle:id=fst.shop.filter.available",
+            "waitfor:id=fst.shop.filter.new@5",
+            "toggle:id=fst.shop.filter.new",
+            "toggle:id=fst.shop.filter.leaving",
             "collapse:id=fst.shop.filter",
             "waitfor:id=fst.shop.filter.empty@10",
             "waitgone:id=fst.shop.empty",
@@ -248,9 +255,9 @@ SCENARIOS: dict[str, tuple[dict[str, str], str, dict, list[str], set[str] | None
             "waitfor:id=fst.shop.song.fixture-pulse@10",
             "waitfor:name=2 songs",
             "waitgone:id=fst.shop.filter.empty",
-            # Clearing the last switch by hand (not Reset) also restores every offer.
+            # Turning the last switch back on by hand (not Reset) also restores every offer.
             "expand:id=fst.shop.filter",
-            "assertstate:id=fst.shop.filter.available|toggle=off@5",
+            "assertstate:id=fst.shop.filter.new|toggle=on@5",
             "toggle:id=fst.shop.filter.new",
             "waitfor:name=1 of 2 songs@10",
             "toggle:id=fst.shop.filter.new",

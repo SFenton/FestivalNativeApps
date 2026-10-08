@@ -345,33 +345,41 @@ public class ShopViewModelTests
         var vm = new ShopViewModel(session);
         await vm.LoadAsync();
         string[] Ids() => [.. vm.Offers.Select(o => o.Offer.SongId)];
+        // Issue #376: a fresh filter has every switch on and lists every offer, and is not active.
         Assert.Equal(["a", "b", "c", "d"], Ids());
         Assert.False(vm.IsFilterActive);
+        Assert.All(vm.FilterRows, r => Assert.True(r.IsOn));
+        Assert.Equal("4 songs", vm.CountText);
         Assert.Equal(["fst.shop.filter.new", "fst.shop.filter.available", "fst.shop.filter.leaving"], vm.FilterRows.Select(r => r.AutomationId));
         Assert.Equal(["New", "Available", "Leaving Tomorrow"], vm.FilterRows.Select(r => r.Label));
 
-        vm.FilterRows[0].IsOn = true;
-        Assert.Equal(["a"], Ids());
-        Assert.True(vm.IsFilterActive);
-        Assert.Equal("1 of 4 songs", vm.CountText);
+        // Turning a switch off hides that group and makes the filter active.
         vm.FilterRows[0].IsOn = false;
-        vm.FilterRows[1].IsOn = true;
+        Assert.Equal(["b", "c", "d"], Ids());
+        Assert.True(vm.IsFilterActive);
+        Assert.Equal("3 of 4 songs", vm.CountText);
+        vm.FilterRows[2].IsOn = false;
         Assert.Equal(["b", "d"], Ids());
-        vm.FilterRows[1].IsOn = false;
-        vm.FilterRows[2].IsOn = true;
-        Assert.Equal(["c"], Ids());
         vm.FilterRows[0].IsOn = true;
-        Assert.Equal(["a", "c"], Ids());
+        vm.FilterRows[1].IsOn = false;
+        Assert.Equal(["a"], Ids());
 
         // Wire flags, not badges: filtering still works while Shop highlighting is off.
         session.UpdateSettings(s => s with { DisableShopHighlighting = true });
-        Assert.Equal(["a", "c"], Ids());
-        Assert.True(vm.FilterRows[0].IsOn);
+        Assert.Equal(["a"], Ids());
+        Assert.False(vm.FilterRows[1].IsOn);
 
+        // Turning the last switches back on by hand (not Reset) shows every offer and deactivates the filter.
+        vm.FilterRows[1].IsOn = true;
+        vm.FilterRows[2].IsOn = true;
+        Assert.Equal(["a", "b", "c", "d"], Ids());
+        Assert.False(vm.IsFilterActive);
+
+        vm.FilterRows[1].IsOn = false;
         vm.ResetFilterCommand.Execute(null);
         Assert.Equal(["a", "b", "c", "d"], Ids());
         Assert.False(vm.IsFilterActive);
-        Assert.All(vm.FilterRows, r => Assert.False(r.IsOn));
+        Assert.All(vm.FilterRows, r => Assert.True(r.IsOn));
         Assert.Equal("4 songs", vm.CountText);
     }
 
@@ -383,7 +391,7 @@ public class ShopViewModelTests
         SongsWire.Install(service, () => body);
         var vm = new ShopViewModel(service.Session());
         await vm.LoadAsync();
-        vm.FilterRows[2].IsOn = true;
+        vm.FilterRows[1].IsOn = false;
         Assert.Empty(vm.Offers);
         Assert.True(vm.ShowNoMatches);
         Assert.False(vm.ShowEmpty);
@@ -395,7 +403,7 @@ public class ShopViewModelTests
         Assert.True(vm.ShowEmpty);
         Assert.False(vm.ShowNoMatches);
         // The filter survives a feed change, so the reopened flyout shows it.
-        Assert.True(vm.FilterRows[2].IsOn);
+        Assert.False(vm.FilterRows[1].IsOn);
     }
 
     [Fact]
@@ -409,13 +417,13 @@ public class ShopViewModelTests
         vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
         Assert.Equal("", vm.FilterStatus);
 
-        vm.FilterRows[0].IsOn = true;
+        vm.FilterRows[0].IsOn = false;
         Assert.Equal("Filters applied", vm.FilterStatus);
         Assert.Contains(nameof(ShopViewModel.FilterStatus), changed);
 
         // Re-setting the same filter is a no-op (no extra notifications); Reset clears the status.
         changed.Clear();
-        vm.FilterRows[0].IsOn = true;
+        vm.FilterRows[0].IsOn = false;
         Assert.DoesNotContain(nameof(ShopViewModel.FilterStatus), changed);
         vm.ResetFilterCommand.Execute(null);
         Assert.Equal("", vm.FilterStatus);
@@ -430,11 +438,23 @@ public class ShopViewModelTests
         var plain = Offer(false, false);
         var leaving = Offer(false, true);
         var both = Offer(true, true);
-        Assert.All([fresh, plain, leaving, both], o => Assert.True(new ShopOfferFilter().Matches(o)));
-        Assert.Equal([true, false, false, true], new[] { fresh, plain, leaving, both }.Select(new ShopOfferFilter(New: true).Matches));
-        Assert.Equal([false, true, false, false], new[] { fresh, plain, leaving, both }.Select(new ShopOfferFilter(Available: true).Matches));
-        Assert.Equal([false, false, true, true], new[] { fresh, plain, leaving, both }.Select(new ShopOfferFilter(LeavingTomorrow: true).Matches));
+        ShopSong[] all = [fresh, plain, leaving, both];
+        // Issue #376: include switches, all on by default, so the default shows every offer and is inactive.
+        Assert.All(all, o => Assert.True(new ShopOfferFilter().Matches(o)));
         Assert.False(new ShopOfferFilter().IsActive);
+        Assert.Equal(new ShopOfferFilter(true, true, true), new ShopOfferFilter());
+        Assert.Equal([true, false, false, true], all.Select(new ShopOfferFilter(New: true, Available: false, LeavingTomorrow: false).Matches));
+        Assert.Equal([false, true, false, false], all.Select(new ShopOfferFilter(New: false, Available: true, LeavingTomorrow: false).Matches));
+        Assert.Equal([false, false, true, true], all.Select(new ShopOfferFilter(New: false, Available: false, LeavingTomorrow: true).Matches));
+        // One switch off hides only that group; an offer flagged both stays while either of its groups is on.
+        Assert.Equal([false, true, true, true], all.Select(new ShopOfferFilter(New: false).Matches));
+        Assert.Equal([true, true, false, true], all.Select(new ShopOfferFilter(LeavingTomorrow: false).Matches));
+        Assert.Equal([true, false, true, true], all.Select(new ShopOfferFilter(Available: false).Matches));
+        // Every switch off shows nothing (like Songs' Item Shop filter), and any switch off is active.
+        Assert.All(all, o => Assert.False(new ShopOfferFilter(false, false, false).Matches(o)));
+        Assert.True(new ShopOfferFilter(New: false).IsActive);
+        Assert.True(new ShopOfferFilter(Available: false).IsActive);
+        Assert.True(new ShopOfferFilter(LeavingTomorrow: false).IsActive);
     }
 
     [Fact]
