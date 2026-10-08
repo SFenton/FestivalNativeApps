@@ -169,6 +169,179 @@ struct SongsSectionBarAccessibilityTests {
         #expect(heading.identifier == "fst.songs.section.2")
     }
 
+    // MARK: Composed bar and list
+
+    /// The Songs list as `SongsScreen` composes it on iOS 26 and macOS 26: flat List rows
+    /// (each section's in-list title, then its songs) with the section bar overlaid at the
+    /// List's top by the screen's own ``SongsSectionBarOverlay``.
+    private struct ComposedList: View {
+        let chrome: SongsScrollChrome
+        let sections: [SongsSectionBar.Entry]
+        let rowsPerSection: Int
+
+        var body: some View {
+            List {
+                ForEach(Array(sections.enumerated()), id: \.element.key) { index, entry in
+                    SongsInlineSectionTitle(
+                        key: entry.key, label: entry.label, spokenLabel: entry.spokenLabel,
+                        accessibilityID: "fst.songs.section.\(index)", chrome: chrome
+                    )
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                    ForEach((0..<rowsPerSection).map { "\(entry.key)-\($0)" }, id: \.self) { row in
+                        Text("Song \(row)")
+                            .accessibilityIdentifier("fst.songs.row.\(row)")
+                    }
+                }
+            }
+            .listStyle(.plain)
+            .accessibilityIdentifier("fst.songs.list")
+            .modifier(SongsSectionBarOverlay(chrome: chrome, sections: sections))
+        }
+    }
+
+    /// Hosts ``ComposedList`` scrolled to its top, with ``SongsScrollChrome`` reporting a
+    /// scroll as the screen's `ScrolledAwayTracker` does.
+    private func hostComposed(
+        _ chrome: SongsScrollChrome
+    ) async throws -> (NSView, NSWindow, NSTableView, @MainActor () async throws -> Void) {
+        let size = CGSize(width: 390, height: 320)
+        let host = nativeHostedView(
+            ComposedList(chrome: chrome, sections: sections, rowsPerSection: 12)
+                .frame(width: size.width, height: size.height), size: size
+        )
+        let window = nativeHostedWindow(host, size: size)
+        let settle: @MainActor () async throws -> Void = {
+            _ = try await nativeHostedSettle(host, timeout: .seconds(10))
+        }
+        try await settle()
+        let table = try #require(chrome.listNudger.scrollView?.documentView as? NSTableView)
+        chrome.setScrolled(true)
+        return (host, window, table, settle)
+    }
+
+    /// Drags the List up in small steps, as a finger or trackpad would (a far jump skips
+    /// the geometry a title reports on its way past the bar), until `reached` holds.
+    private func scroll(
+        _ chrome: SongsScrollChrome, settle: @MainActor () async throws -> Void,
+        until reached: () -> Bool
+    ) async throws {
+        for _ in 0..<200 where !reached() {
+            #expect(chrome.listNudger.moveContent(by: -4), "the List ran out of rows")
+            try await settle()
+        }
+        #expect(reached(), "the scroll state was never reached")
+    }
+
+    /// The composed screen's elements in VoiceOver's reading order: what sits outside the
+    /// List in tree order (SwiftUI places the overlaid bar first), then the List's rows by
+    /// row index. AppKit reorders recycled row views, so their subview order is not the
+    /// reading order; an outline reads its rows in index order.
+    private func readingOrder(_ host: NSView, table: NSTableView) -> [MacAXNode] {
+        let tree = macAccessibilityTree(host, navigationOrder: true)
+        let listStart = tree.firstIndex { $0.role == "AXScrollArea" } ?? tree.endIndex
+        let outside = exposed(Array(tree[..<listStart]))
+        let visible = table.rows(in: table.visibleRect)
+        let rows = (visible.lowerBound..<visible.upperBound).flatMap { index in
+            table.rowView(atRow: index, makeIfNecessary: false).map {
+                exposed(macAccessibilityTree($0, navigationOrder: true))
+            } ?? []
+        }
+        return outside + rows
+    }
+
+    /// The section key a song row or in-list title belongs to (`nil` for the bar).
+    private func sectionKey(_ node: MacAXNode) -> String? {
+        if node.identifier.hasPrefix("fst.songs.row.") {
+            return node.identifier.dropFirst("fst.songs.row.".count)
+                .split(separator: "-").first.map(String.init)
+        }
+        if node.identifier.hasPrefix("fst.songs.section."),
+           let index = Int(node.identifier.dropFirst("fst.songs.section.".count)) {
+            return sections[index].key
+        }
+        return nil
+    }
+
+    /// Reading-order rules for one scroll state: the bar's heading is read first and
+    /// once, the List's headings follow in section order, and every song is read after
+    /// its own section's heading (or, for the section the bar names, after the bar).
+    private func expectReadingOrder(
+        _ order: [MacAXNode], headings expected: [String], state: String
+    ) {
+        let headings = order.filter { $0.role == "AXHeading" }
+        #expect(headings.map(\.spokenName) == expected, "\(state): \(order)")
+        #expect(headings.first?.identifier == "fst.songs.section-bar", "\(state): the bar is not read first")
+        #expect(order.filter { $0.identifier == "fst.songs.section-bar" }.count == 1, "\(state): \(order)")
+        let barKey = sections.first { $0.spokenLabel == headings.first?.spokenName }?.key
+        var current: String?
+        for node in order {
+            if node.identifier == "fst.songs.section-bar" {
+                current = barKey
+            } else if node.role == "AXHeading" {
+                current = sectionKey(node)
+            } else if node.identifier.hasPrefix("fst.songs.row.") {
+                #expect(sectionKey(node) == current, "\(state): \(node) is read under \(current ?? "nothing")")
+            }
+        }
+        #expect(!order.contains { ["4★", "5★", "6★"].contains($0.spokenName) },
+                "\(state): a visible star glyph label reached VoiceOver: \(order)")
+    }
+
+    /// Scrolled inside a section, VoiceOver reads the bar's heading, then the List's rows
+    /// below it in order: that section's songs, then the next section's heading and songs.
+    @Test func composedScrolledReadsTheBarThenTheListInOrder() async throws {
+        let chrome = SongsScrollChrome()
+        let (host, window, table, settle) = try await hostComposed(chrome)
+        defer { window.orderOut(nil) }
+        // The first title has gone under the bar; the second is still well below it.
+        try await scroll(chrome, settle: settle) {
+            chrome.passedHeaders == ["4"] && chrome.titleTops.isEmpty
+                && !readingOrder(host, table: table).contains { $0.identifier == "fst.songs.section.0" }
+        }
+        let order = readingOrder(host, table: table)
+        macAccessibilityDump(order, name: "songs-section-bar-composed-scrolled")
+        expectReadingOrder(order, headings: ["4 stars", "5 stars"], state: "scrolled")
+    }
+
+    /// While "5 stars" pushes "4 stars" out, the bar draws both, but VoiceOver still
+    /// reads one bar heading ("4 stars", still current) and then the List, where the
+    /// incoming "5 stars" title stays a heading at its place in the reading order.
+    @Test func composedPushKeepsOneBarHeadingAndListOrder() async throws {
+        let chrome = SongsScrollChrome()
+        let (host, window, table, settle) = try await hostComposed(chrome)
+        defer { window.orderOut(nil) }
+        try await scroll(chrome, settle: settle) {
+            chrome.titleTops["5"].map { $0 > 2 } == true && !chrome.passedHeaders.contains("5")
+        }
+        let order = readingOrder(host, table: table)
+        macAccessibilityDump(order, name: "songs-section-bar-composed-push")
+        expectReadingOrder(order, headings: ["4 stars", "5 stars"], state: "push")
+        let incoming = try #require(order.first { $0.identifier == "fst.songs.section.1" })
+        #expect(incoming.role == "AXHeading" && incoming.spokenName == "5 stars")
+    }
+
+    /// Once "5 stars" lands, the bar names it and reads first. The landed in-list title,
+    /// blanked under the bar, keeps its place in the List's order (headings rotor), and
+    /// the next section's heading follows its songs.
+    @Test func composedLandedTitleReadsTheBarThenItsBlankedTitle() async throws {
+        let chrome = SongsScrollChrome()
+        let (host, window, table, settle) = try await hostComposed(chrome)
+        defer { window.orderOut(nil) }
+        try await scroll(chrome, settle: settle) {
+            chrome.passedHeaders.contains("5")
+                && readingOrder(host, table: table).contains { $0.identifier == "fst.songs.section.2" }
+        }
+        let order = readingOrder(host, table: table)
+        macAccessibilityDump(order, name: "songs-section-bar-composed-landed")
+        let landed = order.contains { $0.identifier == "fst.songs.section.1" }
+        expectReadingOrder(
+            order, headings: landed ? ["5 stars", "5 stars", "Gold stars"] : ["5 stars", "Gold stars"],
+            state: "landed"
+        )
+        #expect(macAccessibilityFindings(macAccessibilityTree(host)).isEmpty)
+    }
+
     // MARK: Text size
 
     /// A long section name wraps instead of truncating, and the bar reports its taller

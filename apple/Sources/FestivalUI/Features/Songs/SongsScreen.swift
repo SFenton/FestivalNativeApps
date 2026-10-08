@@ -1168,22 +1168,17 @@ struct SongsScreen: View, Equatable {
                 .modifier(SectionBarRowFade(
                     chrome: scrollChrome, enabled: groups != nil && Self.usesSectionBar
                 ))
-                .overlay(alignment: .top) {
-                    // Once scrolled, the current section's title floats just below the
-                    // navigation bar and the rows fade out at its bottom edge. An
-                    // overlay, not a safeAreaBar: a top bar hid the iOS 26 large title.
-                    if Self.usesSectionBar, let groups {
-                        SongsSectionBar(
-                            chrome: scrollChrome,
-                            sections: groups.map {
-                                SongsSectionBar.Entry(
-                                    key: Self.headerKey($0.id), label: $0.label,
-                                    spokenLabel: $0.spokenLabel ?? $0.label
-                                )
-                            }
-                        )
-                    }
-                }
+                .modifier(SongsSectionBarOverlay(
+                    chrome: scrollChrome,
+                    sections: Self.usesSectionBar ? groups.map { groups in
+                        groups.map {
+                            SongsSectionBar.Entry(
+                                key: Self.headerKey($0.id), label: $0.label,
+                                spokenLabel: $0.spokenLabel ?? $0.label
+                            )
+                        }
+                    } : nil
+                ))
                 .modifier(ScrolledAwayTracker(
                     topInsetChanged: scrollChrome.setListTopInset
                 ) { scrolled in
@@ -1845,6 +1840,28 @@ private struct QuickLinksJumpHeaderSync: ViewModifier {
         content.onChange(of: quickLinks.jumpSerial) {
             guard let target = quickLinks.jumpTarget else { return }
             chrome.jump(to: target, in: keys)
+        }
+    }
+}
+
+/// Floats ``SongsSectionBar`` over the top of the Songs List (iOS 26, macOS 26): the
+/// composition the hosted accessibility tests (`SongsSectionBarAccessibilityTests`) read.
+///
+/// Once scrolled, the current section's title floats just below the navigation bar and
+/// the rows fade out at its bottom edge. An overlay, not a safeAreaBar: a top bar hid the
+/// iOS 26 large title.
+struct SongsSectionBarOverlay: ViewModifier {
+    let chrome: SongsScrollChrome
+    /// Section titles in list order; `nil` when the List has no section bar.
+    let sections: [SongsSectionBar.Entry]?
+
+    func body(content: Content) -> some View {
+        // One structure whether or not there is a bar: a branch around `content` would give
+        // the List a new identity, and rebuild it, whenever grouping turns on or off.
+        content.overlay(alignment: .top) {
+            if let sections {
+                SongsSectionBar(chrome: chrome, sections: sections)
+            }
         }
     }
 }
