@@ -55,6 +55,19 @@ ScrollView { LazyVStack { ForEach(items) { card($0).quickLinkSection(section($0)
 - `QuickLinksController.jump(to:)` can be called from custom UI, such as an in-page link to a section.
 - Pure rules (Swift Testing, `QuickLinksTests`): `QuickLinks.isAvailable`, `ordered`, `naturalActive`, `isVisible`, `isReachable`, and the `QuickLinkTracker` phases `idle → scrolling → owned`.
 - Test IDs: `fst.quick-links.open` (the button; its value is the active title) and `fst.quick-links.item.<id>`. Menu items are also tappable by label in `ios_sim.py drive`.
+- **Accessibility tests** (#389, for #6). In `apple-ci`, the hosted `QuickLinksAccessibilityTests` check `PageToolInlineMenuSheet`, built from `QuickLinksMenu.choices()`, through the accessibility tree:
+  - VoiceOver reads the rows in page order, which matches their drawn order.
+  - Each row is a button named by `accessibilityTitle` (nested rows by their spoken name, with no figure-space indent).
+  - Only the current section is selected, and the icons and checkmark stay hidden.
+  - Each row's button spans the full row.
+  - The entry is an `AXMenuButton` named "Quick Links", with the current section as its value and the hint "Jumps to a section of this page". The value follows a jump, and the entry is absent with one section.
+
+  On the iPhone simulator, `QuickLinksAccessibilityJourneyTests` opens Settings' sheet and runs `performAccessibilityAudit(.all)`. At the default size and at AccessibilityXXXL, it checks:
+  - The entry and rows are at least 44 pt (HIG `accessibility.md`, Mobility: "Strive for the platform’s recommended minimum control size", 44×44 pt on iOS).
+  - The rows read in page order with section names.
+  - At AccessibilityXXXL, rows are more than 1.35× taller and pass the Dynamic Type, clipping and hit-region audit.
+
+  Neither test found a defect.
 - Measured frames are `@ObservationIgnored`, so scrolling redraws only when the active section changes.
 
 ## Adoption checklist (owning lanes)
