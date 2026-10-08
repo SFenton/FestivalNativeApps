@@ -62,11 +62,23 @@ class SettingsJourneyTests(unittest.TestCase):
 
     def test_version_pages_parse(self):
         pages = json.loads((_PATH.parent / "a11y-settings-version.json").read_text(encoding="utf-8"))
-        self.assertEqual([p["name"] for p in pages], ["settings-version", "kb-settings-version"])
+        self.assertEqual([p["name"] for p in pages], ["settings-version", "settings-version-large-text", "kb-settings-version"])
         for page in pages:
             self.assertNotIn("fixture", page)  # live-safe: anonymous public reads only
             for step in [*page.get("ready", []), *page.get("after_ready", [])]:
                 u.parse_step(step.replace("{stem}", "out"))
+
+    def test_version_large_text_page_checks_value_and_label(self):
+        # Issue #413 (#43 a11y): at 150-225% text the "<version> · <sha7>" value keeps its commit and never overlaps its
+        # label or the next row, whether it stays in the value column or stacks under its label.
+        pages = json.loads((_PATH.parent / "a11y-settings-version.json").read_text(encoding="utf-8"))
+        page = next(p for p in pages if p["name"] == "settings-version-large-text")
+        self.assertEqual(page["modes"], ["text-150", "text-200", "text-225"])
+        steps = page["after_ready"]
+        self.assertIn("assertname:id=fst.settings.app-version|* · *", steps)
+        self.assertIn("assertapart:name=App Version&class=TextBlock|id=fst.settings.app-version", steps)
+        self.assertIn("assertbelow:name=Build Configuration&class=TextBlock|id=fst.settings.app-version", steps)
+        self.assertTrue(any(step.startswith("scan:") for step in steps))
 
     def test_path_view_pages_parse(self):
         pages = json.loads((_PATH.parent / "a11y-settings-path-view.json").read_text(encoding="utf-8"))
