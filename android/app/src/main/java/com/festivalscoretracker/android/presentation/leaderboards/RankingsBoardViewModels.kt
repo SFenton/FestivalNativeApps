@@ -90,6 +90,15 @@ class FullRankingsViewModel(
      */
     val displayed: StateFlow<RankingsPayload?> = displayedFlow.asStateFlow()
 
+    private val pageCountFlow = MutableStateFlow(1)
+
+    /**
+     * The pager's page count: the last loaded board's, kept through a chart or metric
+     * switch until the new board answers (load-transition R4, web `placeholderData`), so
+     * TalkBack's "Page X of Y" never announces a placeholder "of 1" mid-reload (#431).
+     */
+    val pageCount: StateFlow<Int> = pageCountFlow.asStateFlow()
+
     /** Selected player's own row (meaningful only while a player is selected). */
     val spotlight: StateFlow<LoadState<PlayerRankingResult>> = spotlightLoader.state
 
@@ -101,7 +110,14 @@ class FullRankingsViewModel(
 
     init {
         boardLoader.ensureStarted()
-        viewModelScope.launch { boardLoader.state.collect { (it as? LoadState.Loaded)?.let { loaded -> displayedFlow.value = loaded.value } } }
+        viewModelScope.launch {
+            boardLoader.state.collect {
+                (it as? LoadState.Loaded)?.let { loaded ->
+                    displayedFlow.value = loaded.value
+                    pageCountFlow.value = loaded.value.rankings.pageCount
+                }
+            }
+        }
         viewModelScope.launch {
             settings.filterNotNull().collect { current ->
                 visibleFlow.value = Instrument.entries.filter { it in current.visibleInstruments }
@@ -230,8 +246,20 @@ class BandRankingsViewModel(
     /** The last loaded page for the current size and metric (see [FullRankingsViewModel.displayed]). */
     val displayed: StateFlow<BandRankingsPayload?> = displayedFlow.asStateFlow()
 
+    private val pageCountFlow = MutableStateFlow(1)
+
+    /** The pager's page count, kept through a size or metric switch (see [FullRankingsViewModel.pageCount]). */
+    val pageCount: StateFlow<Int> = pageCountFlow.asStateFlow()
+
     init {
-        viewModelScope.launch { boardLoader.state.collect { (it as? LoadState.Loaded)?.let { loaded -> displayedFlow.value = loaded.value } } }
+        viewModelScope.launch {
+            boardLoader.state.collect {
+                (it as? LoadState.Loaded)?.let { loaded ->
+                    displayedFlow.value = loaded.value
+                    pageCountFlow.value = loaded.value.rankings.pageCount
+                }
+            }
+        }
         viewModelScope.launch {
             val initial = rankBy.map { it.bandMetric }.distinctUntilChanged()
             initial.collect { stored ->

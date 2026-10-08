@@ -7,7 +7,8 @@ A run with a system ``mode`` (e.g. ``text-225``) changes the runner's own deskto
 
 This is the one registry of Windows accessibility journeys that gate pull requests: a journey is in CI only when it has a
 :data:`RUNS` entry (``only`` limits a run to some of a file's pages). ``tests/test_ui_ci.py`` checks the entries and
-that the modal journey (issue #400) and the Songs Jump backward-pick pages (issue #415) run at default and 225% text.
+that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415) and the Quick Links landings
+(issue #416) run at default and 225% text.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
 Usage::
@@ -86,6 +87,10 @@ RUNS: tuple[Run, ...] = (
     Run("modals", "a11y-modals.json"),
     # The same pages at Windows' largest text size: text on screen, commands reachable by Tab and hit-testable.
     Run("modals-text-225", "a11y-modals.json", sizes="compact", mode="text-225"),
+    # The Songs Filter without a profile (issues #77, #432): General-only sections, Narrator phrases and order, 40 epx
+    # Reset / Select All / Clear All, live Double Bass and Year narrowing, Filters applied, keyboard and Esc.
+    Run("songs-filter", "a11y-songs-filter.json"),
+    Run("songs-filter-text-225", "a11y-songs-filter.json", sizes="compact", mode="text-225"),
     # Songs Jump backward pick after a scroll (issues #48, #415): the pinned title names the picked section, reads
     # "B, text", stays a Level 2 heading, Jump -> title -> list order, Jump's name and 40x40 target, by pointer and keys.
     Run("section-index-backward", "a11y-section-index.json", only=SECTION_INDEX_BACKWARD),
@@ -95,6 +100,11 @@ RUNS: tuple[Run, ...] = (
     # and Tab/Shift+Tab continue from it; by keys (Enter, Alt+Left) and pointer (the title-bar Back).
     Run("back-keeps-place", "a11y-back-keeps-place.json"),
     Run("back-keeps-place-text-225", "a11y-back-keeps-place.json", sizes="compact", mode="text-225"),
+    # Quick Links landings on Settings and Leaderboards (issues #51, #416): entry name and current section, 40 epx
+    # entry and items, keyboard order, the jump announcement, heading landing inset and focus. The wide pane page
+    # (scale-100/150 modes) stays in the host matrix.
+    Run("quick-links-landing", "a11y-quick-links-landing.json", tabs=0),
+    Run("quick-links-landing-text-225", "a11y-quick-links-landing.json", sizes="compact", mode="text-225", tabs=0),
 )
 
 

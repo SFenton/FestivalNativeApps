@@ -126,7 +126,7 @@
                             <!-- Switches apply live; Reset restores the defaults. Light dismiss / Esc closes. -->
                             <Grid Grid.Row="2" Padding="16,12,16,16" BorderThickness="0,1,0,0" BorderBrush="{ThemeResource FSTCardStrokeBrush}">
                                 <!-- Web Modal reset: a full-width red (btnDanger #C62828) button (batch 7.10). -->
-                                <Button Content="Reset" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.FilterDraft.ResetCommand}"
+                                <Button Content="Reset" HorizontalAlignment="Stretch" MinHeight="{StaticResource FSTMinTargetSize}" Command="{x:Bind ViewModel.FilterDraft.ResetCommand}"
                                         AutomationProperties.Name="Reset Suggestion Filters"
                                         AutomationProperties.AutomationId="fst.suggestions.filter.reset">
                                     <Button.Resources>

@@ -27,6 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import journey_exe  # noqa: E402  (sibling module)
+from uiwin import framework_popup_finding  # noqa: E402  (sibling tool; windows-accessibility.md open item 8)
 
 ROOT = Path(__file__).resolve().parents[2]
 UIWIN = ROOT / "tools" / "windows" / "uiwin.py"
@@ -360,25 +361,6 @@ def check_tree(tree: str, kind: str, expected: str) -> str | None:
     automation_id, _, state = expected.partition("=")
     actual = toggle_of(tree, automation_id)
     return None if actual == state else f"{automation_id} toggle {actual!r}, expected {state!r}"
-
-
-def framework_popup_finding(finding: dict) -> bool:
-    """Whether an Axe finding is WinUI's own windowed popup host (windows-accessibility.md open item 8).
-
-    A flyout or tooltip popup's ``InputSiteWindowClass`` is exactly the size of its ``PopupHost`` bridge, so Axe reports
-    ``BoundingRectangleCompletelyObscuresContainer`` with no app element involved.
-
-    Args:
-        finding: One ``findings`` entry from a uiwin scan.
-
-    Returns:
-        ``True`` only for that framework finding.
-    """
-    element = finding.get("element") or {}
-    parents = finding.get("parents") or []
-    return (finding.get("rule") == "BoundingRectangleCompletelyObscuresContainer"
-            and element.get("ClassName") == "InputSiteWindowClass"
-            and bool(parents) and "PopupWindowSiteBridge" in parents[0])
 
 
 def scan_errors(stdout: str) -> list[str]:
