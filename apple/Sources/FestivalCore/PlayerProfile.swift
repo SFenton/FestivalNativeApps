@@ -413,6 +413,14 @@ public struct PlayerPercentileBucket: Equatable, Sendable, Identifiable {
     public let count: Int
 
     public var id: Int { topPercent }
+
+    /// - Parameters:
+    ///   - topPercent: Upper bound of the band.
+    ///   - count: Songs in the band.
+    public init(topPercent: Int, count: Int) {
+        self.topPercent = topPercent
+        self.count = count
+    }
 }
 
 extension PlayerProfileResponse {

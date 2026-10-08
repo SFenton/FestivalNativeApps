@@ -215,3 +215,21 @@ struct ShopRowPulseBorder: View {
         .accessibilityHidden(true)
     }
 }
+
+// MARK: - Song Detail Shop glyph
+
+/// Song Detail's Item Shop glyph: a bag in a 34 pt disc breathing in the song's Shop
+/// status colour. Shared by Song Detail's action and the first-run guide's Item Shop
+/// slides, so the guide shows the real control.
+struct SongDetailShopGlyph: View {
+    /// Shop status the disc breathes in.
+    let tone: ShopStatusTone
+
+    var body: some View {
+        Image(systemName: "bag")
+            .font(.body.weight(.semibold))
+            .foregroundStyle(FestivalText.primary)
+            .frame(width: 34, height: 34)
+            .modifier(ShopStatusBreathe(tone: tone))
+    }
+}
