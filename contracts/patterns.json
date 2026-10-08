@@ -1119,7 +1119,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, off the Duo hinge when unfolded, #345), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, with the owner-approved #370 variant that a Compete preview's separate rank row jumps to the full board at the player's position (Windows overview instrument cards too, as they draw Compete), and one measured section-wide score-footer stack plan that never truncates the score.",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, off the Duo hinge when unfolded, #345), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, with the owner-approved #370 variant that a Compete preview's separate rank row jumps to the full board at the player's position (Apple and Android Compete cards; Windows overview instrument cards, as they draw Compete), and one measured section-wide score-footer stack plan that never truncates the score.",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -1196,6 +1196,10 @@
           {
             "path": "apple/Sources/FestivalCore/RankingSpotlight.swift",
             "symbol": "RankingSpotlight"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Compete/CompeteScreen.swift",
+            "symbol": "CompetePreviewSpotlight"
           }
         ],
         "android": [
@@ -1420,7 +1424,8 @@
         307,
         318,
         319,
-        353
+        353,
+        370
       ]
     },
     {

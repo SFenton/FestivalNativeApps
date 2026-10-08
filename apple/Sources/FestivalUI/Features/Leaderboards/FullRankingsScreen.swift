@@ -42,8 +42,8 @@ struct FullRankingsScreen: View {
     /// Height of the rows' bottom fade: the full 40 pt until the last row arrives
     /// above the chrome, then shrinking to nothing (Song Leaderboard, issue #293).
     @State private var bottomFadeDistance = ScrollEdgeFade.distance
-    /// The pinned footer jumped to the player's page: bring their row into view once
-    /// that page is shown (leaderboard-row R7, issue #318).
+    /// The pinned footer jumped to the player's page, or the board was opened for their
+    /// row: bring it into view once that page is shown (leaderboard-row R7, #318, #370).
     @State private var focusPending = false
     /// The rows' first-load fade window: a scroll rushes their stagger, rows the
     /// selected-row scroll realizes fade in with it, and once it closes recycled rows
@@ -64,6 +64,9 @@ struct FullRankingsScreen: View {
     nonisolated private static let pageSpace = "fst.full-rankings.page"
     /// Space between two rows, and between the last row and the pinned chrome.
     nonisolated private static let rowGap: CGFloat = 6
+    /// Rows per page (web `FullRankingsPage` `PAGE_SIZE`); a link that opens the board
+    /// on the selected player's page counts pages with it.
+    nonisolated static let pageSize = 25
 
     /// Identity of a pending selected-row reveal: re-runs when the request or the
     /// shown rows change.
@@ -103,10 +106,18 @@ struct FullRankingsScreen: View {
     ///   - session: Shared app session (API client, selected profile, caches).
     ///   - instrument: Chart being ranked.
     ///   - rankBy: Ranking metric raw value (e.g. `adjusted`, `totalscore`).
-    init(session: FestivalSession, instrument: Instrument, rankBy: String) {
+    ///   - page: 1-based page to open on.
+    ///   - focusSelected: Bring the selected player's row on that page into view once
+    ///     it has appeared (web `navToPlayer`; a Compete preview's row, issue #370).
+    init(
+        session: FestivalSession, instrument: Instrument, rankBy: String,
+        page: Int = 1, focusSelected: Bool = false
+    ) {
         self.session = session
         _instrument = State(initialValue: instrument)
         _rankBy = State(initialValue: RankingMetric(rawValue: rankBy) ?? .totalscore)
+        _page = State(initialValue: max(1, page))
+        _focusPending = State(initialValue: focusSelected)
     }
 
     /// Mirror the tab root's Filter menu without depending on its own state; keep
@@ -228,8 +239,9 @@ struct FullRankingsScreen: View {
                 .bottomChromeFade(
                     chromeTop: chromeTop, distance: $bottomFadeDistance, in: Self.pageSpace
                 )
-                // Jumped here from the pinned footer: scroll the player's row into view
-                // once the page is shown, as Song Leaderboard does (R7, issue #318).
+                // Jumped here from the pinned footer, or opened from a Compete preview's
+                // row: scroll the player's row into view once the page is shown, as Song
+                // Leaderboard does (R7, issues #318, #370).
                 .task(id: FocusRequest(pending: focusPending, rows: rowsKey(payload))) {
                     guard focusPending else { return }
                     let entries = payload.rankings.entries
@@ -499,9 +511,9 @@ struct FullRankingsScreen: View {
             nil
         }
         let isVisible = LeaderboardPaging.isSelectedOnPage(
-            accountId: entry.accountId, rank: rank, page: page, pageSize: 25, entries: loadedRows
+            accountId: entry.accountId, rank: rank, page: page, pageSize: Self.pageSize, entries: loadedRows
         )
-        let action = SelectedRowAction.footer(rank: rank, isVisible: isVisible, pageSize: 25)
+        let action = SelectedRowAction.footer(rank: rank, isVisible: isVisible, pageSize: Self.pageSize)
         let row = AccountRankingRow(
             entry: entry, metric: rankBy, isSelected: true, cardSurface: true, opensProfile: false
         )
@@ -601,7 +613,7 @@ struct FullRankingsScreen: View {
         do {
             let payload = try await session.rankings(
                 instrument: requested.instrument, rankBy: requested.rankBy,
-                page: requested.page, pageSize: 25
+                page: requested.page, pageSize: Self.pageSize
             )
             try Task.checkCancellation()
             guard requested == requestKey else { return }
