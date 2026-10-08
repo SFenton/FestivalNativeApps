@@ -60,8 +60,11 @@ import org.junit.runner.RunWith
  * Debug build, which is usually unstamped (`dev`), so the stamped state is also rendered on
  * device from a fixed commit. Run with `device.py test
  * com.festivalscoretracker.android.journeys.SettingsVersionAccessibilityJourneyTest --avd <AVD>`;
- * reading orders go to logcat `FST_A11Y`.
+ * reading orders go to logcat `FST_A11Y`. `@DeviceCi`: both CI device checks run it on a plain
+ * phone (`native.yml` `android-device`, which selects `@DeviceCi`, and `android-device.yml`,
+ * which runs every connected test).
  */
+@DeviceCi
 @RunWith(AndroidJUnit4::class)
 class SettingsVersionAccessibilityJourneyTest {
     @get:Rule
