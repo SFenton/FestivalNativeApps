@@ -7,8 +7,8 @@ A run with a system ``mode`` (e.g. ``text-225``) changes the runner's own deskto
 
 This is the one registry of Windows accessibility journeys that gate pull requests: a journey is in CI only when it has a
 :data:`RUNS` entry (``only`` limits a run to some of a file's pages). ``tests/test_ui_ci.py`` checks the entries and
-that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415) and the work-behind-dialogs journey
-(issues #83, #436) run at default and 225% text.
+that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
+(issue #416) and the work-behind-dialogs journey (issues #83, #436) run at default and 225% text.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
 Usage::
@@ -98,6 +98,11 @@ RUNS: tuple[Run, ...] = (
     Run("modal-motion", "a11y-modal-motion.json"),
     Run("modal-motion-text-225", "a11y-modal-motion.json", sizes="compact", mode="text-225"),
     Run("modal-motion-no-animations", "a11y-modal-motion.json", sizes="compact", mode="no-animations"),
+    # Quick Links landings on Settings and Leaderboards (issues #51, #416): entry name and current section, 40 epx
+    # entry and items, keyboard order, the jump announcement, heading landing inset and focus. The wide pane page
+    # (scale-100/150 modes) stays in the host matrix.
+    Run("quick-links-landing", "a11y-quick-links-landing.json", tabs=0),
+    Run("quick-links-landing-text-225", "a11y-quick-links-landing.json", sizes="compact", mode="text-225", tabs=0),
 )
 
 
