@@ -669,9 +669,9 @@ struct SettingsScreen: View {
             subtitle: "Festival Score Tracker information to help with debugging.",
             titled: showsSectionTitles
         ) {
-            versionRow("App Version", value: appVersionText)
-            versionRow("Build Configuration", value: buildConfigurationText)
-            versionRow("Service Version", value: serviceVersionText)
+            SettingsAppVersionRow(info: Bundle.main.infoDictionary)
+            SettingsValueRow("Build Configuration", value: buildConfigurationText, identifier: "fst.settings.build")
+            SettingsValueRow("Service Version", value: serviceVersionText, identifier: "fst.settings.service-version")
             Button { showingWhatsNew = true } label: {
                 HStack {
                     SettingLabel("What's New", detail: "Recent changes to Festival Score Tracker.")
@@ -685,15 +685,6 @@ struct SettingsScreen: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("fst.settings.whats-new")
             .accessibilityHint("Shows the latest changelog")
-        }
-    }
-
-    private func versionRow(_ label: String, value: String) -> some View {
-        HStack {
-            SettingLabel(label)
-            Spacer(minLength: 8)
-            Text(value)
-                .foregroundStyle(FestivalText.primary)
         }
     }
 
@@ -876,12 +867,6 @@ struct SettingsScreen: View {
     private var maxEffectiveScore: String {
         InvalidScoreFilter.ceiling(maxScore: InvalidScoreFilter.exampleMaxScore, leeway: leeway)
             .formatted()
-    }
-
-    /// The app's marketing/build version plus the release commit, e.g. "1.0 (12) · 42edc57"
-    /// (no commit for `dev` builds; see `AppBuildInfo`).
-    private var appVersionText: String {
-        AppBuildInfo.versionText(Bundle.main.infoDictionary)
     }
 
     /// Debug vs Release, useful context when a user reports a bug.

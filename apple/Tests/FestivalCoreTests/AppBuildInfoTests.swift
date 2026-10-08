@@ -51,6 +51,18 @@ struct AppBuildInfoTests {
         #expect(AppBuildInfo.versionText(stamped) == "2610.02.17 (57) · 42edc57")
     }
 
+    @Test("VoiceOver reads each part by name instead of parentheses and the middle dot")
+    func spokenVersion() {
+        #expect(AppBuildInfo.spokenVersionText(info(sha: "42edc57a1b2c3d4e5f60718293a4b5c6d7e8f901"))
+            == "0.1.0, build 42, commit 42edc57")
+        #expect(AppBuildInfo.spokenVersionText(info(sha: "dev")) == "0.1.0, build 42")
+        #expect(AppBuildInfo.spokenVersionText(info(sha: "$(FST_GIT_SHA)")) == "0.1.0, build 42")
+        #expect(AppBuildInfo.spokenVersionText(nil) == "Unknown")
+        #expect(AppBuildInfo.spokenVersionText(["CFBundleVersion": "7"]) == "Unknown, build 7")
+        #expect(AppBuildInfo.spokenVersionText(["CFBundleShortVersionString": "2.1", AppBuildInfo.gitSHAKey: "ABCDEF0123"])
+            == "2.1, commit abcdef0")
+    }
+
     @Test("Version and build fallbacks are unchanged")
     func fallbacks() {
         #expect(AppBuildInfo.versionText(nil) == "—")

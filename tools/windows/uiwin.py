@@ -114,7 +114,7 @@ STEP_VERBS = {
     "drag": "drag",
     "narrate": "selector", "assertread": "read", "assertorder": "order",
     "assertpaint": "paint", "assertbold": "bold", "assertannouncedcount": "announcedcount",
-    "assertmarquee": "marquee", "assertmarqueesync": "pair",
+    "assertmarquee": "marquee", "assertmarqueesync": "pair", "assertmotion": "motion",
 }
 
 #: ``assertpaint`` probe: ``[name:]<x>,<y>[,<x2>,<y2>][<op><expect>[~<tol>]]``. ``x`` is ``L``/``R``/``C`` and ``y``
@@ -310,6 +310,9 @@ def parse_step(step: str) -> dict:
     column); ``assertmarqueesync:<sel>|<sel>`` crops both lines from captures about 150 ms apart for up to 9 s and fails
     unless at least four capture pairs show both moving and every pair moved them by the same number of pixels (within
     2 px or 8%): lockstep marquees that share one scroll distance (song-header R2, web ``useMarqueeSync``);
+    ``assertmotion:<sel>|moving`` fails unless the element's pixels change across three captures 1.2 s apart and
+    ``assertmotion:<sel>|still`` unless all three match, with no text-line requirement: decorative raw-view animation such
+    as an Item Shop row's pulsing ring, which Reduce Motion and the Windows animation setting hold still (issue #397);
     ``listen:announcements`` starts recording the window's UIA notification events (the app's screen-reader
     announcements, what Narrator speaks) and a later ``assertannounced:<text>[@<seconds>]`` in the same ``drive`` waits
     (default 5 s) until one equals ``<text>`` (or matches it as a .NET regex when it starts with ``~``);
@@ -458,6 +461,14 @@ def parse_step(step: str) -> dict:
         if result["selector"]["kind"] == "xy":
             raise ValueError("assertmarquee needs an element selector, not coordinates")
         result["mode"], result["epx"] = mode.strip(), float(epx)
+    elif shape == "motion":
+        selector, sep, mode = arg.partition("|")
+        if not sep or mode.strip() not in ("moving", "still"):
+            raise ValueError(f"bad assertmotion {arg!r}; use <selector>|moving|still")
+        result["selector"] = parse_selector(selector)
+        if result["selector"]["kind"] == "xy":
+            raise ValueError("assertmotion needs an element selector, not coordinates")
+        result["mode"] = mode.strip()
     elif shape == "read":
         body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
         selector, sep, text = body.partition("|")

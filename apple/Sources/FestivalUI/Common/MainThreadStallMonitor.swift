@@ -59,6 +59,20 @@ public enum MainThreadStallMonitor {
         #endif
     }
 
+    /// Record a sampled value while monitoring, keeping the largest seen per name (for
+    /// example the Songs List's top content inset, issue #383); does nothing otherwise
+    /// and in Release builds.
+    ///
+    /// - Parameters:
+    ///   - name: The key in ``MainThreadStallReport/peaks``.
+    ///   - value: The sample; non-finite samples are ignored.
+    @MainActor
+    public static func peak(_ name: String, _ value: Double) {
+        #if DEBUG
+        recorder?.peak(name, value)
+        #endif
+    }
+
     #if DEBUG
     @MainActor private static var observer: CFRunLoopObserver?
     @MainActor private static var recorder: MainThreadStallRecorder?
@@ -83,6 +97,9 @@ public struct MainThreadStallReport: Codable, Equatable, Sendable {
     /// counted. The CPU spent between a pass's marks barely moves when other processes
     /// load the host, unlike the wall-clock stall units. Optional for older reports.
     public var cpuMarks: [String: Double]? = nil
+    /// The largest sample per name from ``MainThreadStallMonitor/peak(_:_:)``, rounded to
+    /// 0.5. Optional for older reports.
+    public var peaks: [String: Double]? = nil
 
     /// One long unit of main-thread work.
     public struct Stall: Codable, Equatable, Sendable {
@@ -187,6 +204,16 @@ final class MainThreadStallRecorder: @unchecked Sendable {
             report.cpuMarks = report.cpuMarks ?? [:]
             report.cpuMarks?[name] = (threadCPU() * 1000).rounded() / 1000
         }
+        countersDirty = true
+    }
+
+    /// Keep the largest sample of `name`; flushed like the counters.
+    func peak(_ name: String, _ value: Double) {
+        guard value.isFinite else { return }
+        let rounded = (value * 2).rounded() / 2
+        if let current = report.peaks?[name], current >= rounded { return }
+        report.peaks = report.peaks ?? [:]
+        report.peaks?[name] = rounded
         countersDirty = true
     }
 
