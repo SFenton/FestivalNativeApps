@@ -1,9 +1,12 @@
 package com.festivalscoretracker.android.journeys
 
+import android.graphics.Color
 import android.graphics.Rect
 import android.os.Build
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalConfiguration
@@ -106,11 +109,20 @@ class WhatsNewGroupsAccessibilityJourneyTest {
     private val minPx get() = with(rule.density) { 48.dp.toPx() } - 1
 
     /**
-     * Present the sheet for [channel] through the real host, as Settings → What's New does.
+     * Present the sheet for [channel] through the real host, as Settings → What's New does, in
+     * an edge-to-edge window like `MainActivity`'s. A bare test activity consumes the status bar
+     * inset, so the full-height sheet would stop only 8 dp below the window top and leave
+     * Material's "Close sheet" scrim an 8 dp strip that the app never shows.
      *
      * @param channel Install channel.
      */
     private fun present(channel: InstallChannel) {
+        rule.runOnUiThread {
+            rule.activity.enableEdgeToEdge(
+                statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+                navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+            )
+        }
         h.enableAccessibilityChecks()
         val entries = Changelog.decode(CHANGELOG)
         rule.setContent {
