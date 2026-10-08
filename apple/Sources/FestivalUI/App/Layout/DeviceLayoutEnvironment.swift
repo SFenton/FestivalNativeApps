@@ -247,6 +247,9 @@ enum DebugDuoWindow: String, Sendable, CaseIterable {
     case unfoldedLandscape = "unfolded-landscape"
     /// Inner display, portrait: regular width, the system horizontal tab bar.
     case unfoldedPortrait = "unfolded-portrait"
+    /// Inner display in book pose (partially open, landscape): regular width, the
+    /// vertical bar trailing and a vertical fold through the real window's middle (#368).
+    case book
 
     /// Darwin notification name prefix a UI test posts to switch the window.
     static let notificationPrefix = "com.festival.debug.duo-window."
@@ -258,7 +261,7 @@ enum DebugDuoWindow: String, Sendable, CaseIterable {
     var size: CGSize {
         switch self {
         case .folded: CGSize(width: 466, height: 678)
-        case .unfoldedLandscape: CGSize(width: 951, height: 669)
+        case .unfoldedLandscape, .book: CGSize(width: 951, height: 669)
         case .unfoldedPortrait: CGSize(width: 669, height: 951)
         }
     }
@@ -278,6 +281,12 @@ enum DebugDuoWindow: String, Sendable, CaseIterable {
 
     /// Replace the window geometry, size classes, hinge and vertical bar in observed signals.
     ///
+    /// Book pose places its fold (``DebugDuoPose/foldHeight`` wide) down the middle of the
+    /// *real* window's free span (inside its safe area, so beside the vertical bar), so
+    /// hinge-aligned layouts (``HingePanes``, hinge columns) split inside the panel the
+    /// test can see, with room on both sides, rather than at the simulated inner display's
+    /// middle. The readout reports where it lies (`fold=<x>`).
+    ///
     /// - Parameter signals: Signals observed from the real window (safe area and shell kept).
     /// - Returns: Signals describing this simulated window.
     func apply(to signals: LayoutSignals) -> LayoutSignals {
@@ -285,11 +294,28 @@ enum DebugDuoWindow: String, Sendable, CaseIterable {
         result.size = size
         result.widthClass = widthClass
         result.heightClass = .regular
-        result.hinge = self == .folded ? .closed : .fullyOpen
         result.verticalBarEdge = self == .unfoldedPortrait ? nil : .trailing
         result.occlusions = []
         result.divisions = []
         result.hinges = []
+        switch self {
+        case .folded:
+            result.hinge = .closed
+        case .unfoldedLandscape, .unfoldedPortrait:
+            result.hinge = .fullyOpen
+        case .book:
+            result.hinge = .partiallyOpen
+            let measured = signals.size.width > 0 && signals.size.height > 0
+            let real = measured ? signals.size : size
+            let insets = measured ? signals.safeAreaInsets : EdgeInsets()
+            let middle = (max(0, insets.leading) + real.width - max(0, insets.trailing)) / 2
+            let fold = CGRect(
+                x: middle - DebugDuoPose.foldHeight / 2, y: 0,
+                width: DebugDuoPose.foldHeight, height: real.height
+            )
+            result.divisions = [fold]
+            result.hinges = [fold]
+        }
         return result
     }
 }
@@ -354,9 +380,14 @@ final class DebugDuoWindowRemote {
     struct Readout: View {
         let layout: DeviceLayout
 
+        /// ` fold=<x>`: the book-pose fold's centre in window points, when there is one.
+        private var foldText: String {
+            layout.splitHinge.map { " fold=\(Int($0.midX.rounded()))" } ?? ""
+        }
+
         var body: some View {
             if DebugDuoWindowRemote.isEnabled, let window = DebugDuoWindowRemote.shared.window {
-                Text("\(window.rawValue) width=\(layout.widthClass) chrome=\(String(describing: layout.sectionChrome)) regularSet=\(layout.usesRegularSectionSet)")
+                Text("\(window.rawValue) width=\(layout.widthClass) chrome=\(String(describing: layout.sectionChrome)) regularSet=\(layout.usesRegularSectionSet)\(foldText)")
                     .font(.system(size: 6))
                     .foregroundStyle(.yellow)
                     .allowsHitTesting(false)

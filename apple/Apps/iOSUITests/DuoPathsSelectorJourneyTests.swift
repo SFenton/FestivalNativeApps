@@ -84,10 +84,12 @@ final class DuoPathsSelectorJourneyTests: XCTestCase {
 
     /// Opened on the unfolded inner display (owner, issue #368), Paths covers the window
     /// and its View menu offers Image, Text and Side by Side; Side by Side shows the
-    /// image and the table at once. Folding again keeps the open viewer (latched) and
-    /// falls back to the Settings default view.
+    /// image and the table at once. Bending into book pose (hinge-columns R10) removes
+    /// the View menu and keeps the open viewer with the image and the table on either
+    /// side of the hinge. Closing onto the outer display keeps the viewer (latched), and
+    /// its View menu returns with Image and Text, showing the Settings default view.
     @MainActor
-    func testUnfoldedOffersSideBySideAndFoldingFallsBack() throws {
+    func testUnfoldedOffersSideBySideBookPoseSplitsAtHingeAndFoldingFallsBack() throws {
         continueAfterFailure = false
         try requireFixture()
         let app = FestivalApp.makeApp([
@@ -99,6 +101,9 @@ final class DuoPathsSelectorJourneyTests: XCTestCase {
         ])
         app.launch()
         defer { app.terminate() }
+        // Where the simulated book-pose fold lies, read while the shell's Debug readout is
+        // visible (the full-window viewer covers it).
+        let hinge = try foldX(in: app)
         _ = openPaths(in: app)
         let view = menu("fst.paths.display", in: app)
         XCTAssertEqual(view.value as? String, "Text")
@@ -122,8 +127,35 @@ final class DuoPathsSelectorJourneyTests: XCTestCase {
         XCTAssertLessThan(image.frame.midX, text.frame.midX, "Image is not before the table")
         XCTAssertEqual(view.value as? String, "Side by Side")
 
+        // Book pose: Side by Side is the only mode, so the View menu goes, and the panes
+        // sit on either side of the fold (`DebugDuoWindow.book` runs it down the middle of
+        // the real window's free span; the readout reports its x).
+        DuoWindowSwitch.post("book")
+        XCTAssertTrue(view.waitForNonExistence(timeout: 10), "Book pose kept the View menu")
+        let close = app.buttons["fst.paths.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5), "Book pose dismissed the viewer")
+        XCTAssertTrue(menu("fst.paths.instrument", in: app).exists, "Book pose lost the instrument menu")
+        let viewport = menu("fst.paths.image-viewport", in: app)
+        XCTAssertTrue(viewport.waitForExistence(timeout: 10), "Book pose shows no image")
+        XCTAssertTrue(text.waitForExistence(timeout: 10), "Book pose shows no table")
+        let settled = NSPredicate { _, _ in
+            viewport.frame.maxX <= hinge && text.frame.minX >= hinge
+        }
+        _ = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: settled, object: nil)], timeout: 10)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "paths-book-pose"
+        shot.lifetime = .keepAlways
+        add(shot)
+        XCTAssertLessThanOrEqual(viewport.frame.maxX, hinge,
+                                 "Image (\(viewport.frame)) crosses the hinge at x=\(hinge)")
+        XCTAssertGreaterThanOrEqual(text.frame.minX, hinge,
+                                    "Table (\(text.frame)) crosses the hinge at x=\(hinge)")
+
+        // Closed onto the outer display: the viewer stays open; Side by Side doesn't fit,
+        // so the View menu returns showing the Settings default (Image).
         DuoWindowSwitch.post("folded")
         XCTAssertTrue(view.waitForExistence(timeout: 10), "Folding closed the viewer")
+        XCTAssertTrue(close.exists, "Folding dismissed the viewer")
         let folded = NSPredicate(format: "value == %@", "Image")
         expectation(for: folded, evaluatedWith: view)
         waitForExpectations(timeout: 10)
@@ -193,6 +225,25 @@ final class DuoPathsSelectorJourneyTests: XCTestCase {
         let instrument = menu("fst.paths.instrument", in: app)
         XCTAssertTrue(instrument.waitForExistence(timeout: 10))
         return instrument
+    }
+
+    /// The simulated book-pose fold's centre x (window points): bends the running app into
+    /// the `book` window, reads `fold=<x>` from the Debug readout
+    /// (`fst.shell.debug.duo-window`) and flattens it back to `unfolded-landscape`.
+    @MainActor
+    private func foldX(in app: XCUIApplication) throws -> CGFloat {
+        let readout = app.descendants(matching: .any)["fst.shell.debug.duo-window"]
+        XCTAssertTrue(readout.waitForExistence(timeout: 15), "No Debug Duo window readout")
+        DuoWindowSwitch.post("book")
+        let reported = NSPredicate(format: "label CONTAINS %@", " fold=")
+        _ = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: reported, object: readout)], timeout: 10)
+        let label = readout.label
+        DuoWindowSwitch.post("unfolded-landscape")
+        let flat = NSPredicate(format: "NOT (label CONTAINS %@)", " fold=")
+        _ = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: flat, object: readout)], timeout: 10)
+        let value = try XCTUnwrap(label.components(separatedBy: " fold=").dropFirst().first
+            .flatMap { Double($0.prefix { $0.isNumber }) }, "No fold in the readout: \(label)")
+        return CGFloat(value)
     }
 
     /// VoiceOver reads the selector as "Instrument, <name>" in every pose.
