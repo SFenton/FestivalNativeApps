@@ -9,7 +9,9 @@
   - **Pinned row:** its accuracy and season sit in the listed rows' columns, and a row without accuracy keeps the badge slot so its season still lines up.
   - **Hidden columns:** below 520 epx the season and stars columns hide, but row names still read them (labels never drop data).
   - **Every row:** one 40+ epx Button stop, read rows → pinned row → pager.
+  - **Keyboard order (#456 review):** the rows are one Tab stop and Up/Down move between them (the Fluent list model, as in `score-accuracy-keyboard` and `kb-fr-rows`). Tab then reaches the pinned row and the pager, and Shift+Tab walks back to the song header (Full Rankings: back through the last row to Rank by). `assertfocus` checks each hop at every size and at text 200%/225%. Re-entry into the rows with Shift+Tab lands on the repeater's last realized row, which depends on scroll, so the journeys assert the hops on either side of it instead of that row.
+  - **Focus not obscured (WCAG 2.4.11):** arrowing down to row 12 keeps the focused row clear of the floating pinned row and pager (`assertapart`) on the song board, Band Rankings and the song band board (`*-focus-clear` pages). Before #409, the song board and both band boards scrolled the focused row only to the viewport's bottom edge, under the footer. `BoardFooter.Inset` now owns the guard for every board ([design/windows.md](../../design/windows.md), floating board footer).
   - **Large text:** text 200%/225% keeps the badge column and names.
   - **Full Rankings:** rows and the pinned row read every column.
-  - **CI:** `test_a11y.test_leaderboard_column_pages` guards the page set.
+  - **CI:** `test_a11y.test_leaderboard_column_pages` guards the page set and `test_leaderboard_column_keyboard_order` the asserted focus path.
   - **Selectors:** columns are found by raw-view IDs (`fst.score.accuracy.<row-suffix>`, `fst.score.season.<row-suffix>`; the pinned row's suffix is `spotlight-footer`). Rankings rows clear their column IDs, so their alignment is checked only by bounds in manual runs.
