@@ -165,31 +165,33 @@ object ShopPresentationPolicy {
 }
 
 /**
- * Item Shop page filter (issue #19): three switches that each select one disjoint group of
- * offers. **Available** is the offers that are neither New nor Leaving Tomorrow. An offer
- * shows when it matches any switch that is on; with every switch off, all offers show.
- * Uses the wire flags, so it still works while Shop highlighting is off.
+ * Item Shop page filter (issues #19, #376): three include switches, one per group of
+ * offers, that start **on** like the Songs Item Shop and Double Bass switches. **Available**
+ * is the offers that are neither New nor Leaving Tomorrow. An offer shows when it is in any
+ * group whose switch is on, so turning a switch off hides that group (an offer flagged both
+ * New and Leaving Tomorrow hides only when both are off); with every switch off, nothing
+ * shows. Uses the wire flags, so it still works while Shop highlighting is off.
  *
  * @property new Show New offers.
  * @property available Show offers that are neither New nor Leaving Tomorrow.
  * @property leavingTomorrow Show offers leaving tomorrow.
  */
-data class ShopOfferFilter(val new: Boolean = false, val available: Boolean = false, val leavingTomorrow: Boolean = false) {
-    /** Whether any switch is on (gold Filter icon). */
-    val isActive: Boolean get() = new || available || leavingTomorrow
+data class ShopOfferFilter(val new: Boolean = true, val available: Boolean = true, val leavingTomorrow: Boolean = true) {
+    /** Whether any switch is off (gold Filter icon); the default shows every offer. */
+    val isActive: Boolean get() = !(new && available && leavingTomorrow)
 
     /**
      * Spoken state of the Filter button (issue #145), so TalkBack hears what the gold tint
-     * shows: "No filters", or "Filters on: " and the switches that are on, in sheet order.
+     * shows: "No filters", or "Filters on: hiding " and the switches that are off, in sheet order.
      */
     val stateDescription: String
         get() = if (!isActive) {
             "No filters"
         } else {
-            "Filters on: " + listOfNotNull(
-                "New".takeIf { new },
-                "Available".takeIf { available },
-                "Leaving Tomorrow".takeIf { leavingTomorrow },
+            "Filters on: hiding " + listOfNotNull(
+                "New".takeUnless { new },
+                "Available".takeUnless { available },
+                "Leaving Tomorrow".takeUnless { leavingTomorrow },
             ).joinToString(", ")
         }
 
@@ -197,7 +199,7 @@ data class ShopOfferFilter(val new: Boolean = false, val available: Boolean = fa
      * Whether an offer passes the filter.
      *
      * @param offer Validated offer.
-     * @return True when no switch is on or the offer is in a selected group.
+     * @return True when every switch is on or the offer is in a group whose switch is on.
      */
     fun matches(offer: ShopSong): Boolean = !isActive ||
         (new && offer.isNew) ||
