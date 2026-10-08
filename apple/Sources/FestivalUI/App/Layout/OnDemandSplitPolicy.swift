@@ -383,6 +383,20 @@ enum OnDemandSplitPolicy {
         )
     }
 
+    /// The part of a split container's frame that ``geometry(_:)`` reads: its leading
+    /// edge and width, with the vertical extent zeroed.
+    ///
+    /// The split stack stores only this, so a height change never re-runs it. On iOS 26 the
+    /// tab bar minimizes as a list scrolls down and expands at the top, which changes the
+    /// container's height (673 ↔ 729 pt on an iPhone 17 Pro), and the stack re-ran in the
+    /// middle of every large-title transition (issue #383).
+    ///
+    /// - Parameter frame: The container's frame in window coordinates.
+    /// - Returns: A zero-height rectangle at `frame`'s leading edge, as wide as `frame`.
+    static func horizontalSpan(of frame: CGRect) -> CGRect {
+        CGRect(x: frame.minX, y: 0, width: frame.width, height: 0)
+    }
+
     /// The midpoint of the part of `container` inside `freeSpan`, or of the whole
     /// container when there is no free span or it misses the container.
     ///
