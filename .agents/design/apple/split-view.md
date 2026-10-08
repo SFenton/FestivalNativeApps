@@ -24,6 +24,7 @@ Operator verdict (2026-10-04): the always-on split layouts on iPad, Duo and Mac 
 | Split on demand (landscape/wide) | Leading half → trailing half |
 |---|---|
 | Rivals hub, All Rivals | rivals list → Rival Detail (Rivalry pushes inside the trailing pane) |
+| Compete | its rival rows → Rival Detail; its sub-pages (Rivalry, View All categories) push inside the trailing pane with Back, the pane root keeps Close (#369). Its leaderboard rows and View Full Leaderboard still push full pages; a profile covers the split (#352) |
 | Leaderboards overview | "View all rankings" → Full Rankings / Band Rankings as its sub-page (#352); a player or band row opens the full profile page (below) |
 | Song Detail | song page → full instrument **Song Leaderboard** or **score history** (operator 2026-10-04); the trailing board drops the song header and is titled by its instrument (owner, #342; [song-leaderboard-header](../../patterns/song-leaderboard-header.md) Variants) |
 | Settings (iPad/Duo) | settings list → sub-page (Licenses, First Run Guides, Service Info, …); Mac keeps its Settings window panes |
@@ -34,7 +35,7 @@ Operator verdict (2026-10-04): the always-on split layouts on iPad, Duo and Mac 
 | Song Leaderboard (full instrument board) | full width; tapping a player navigates **directly** to the profile (push, no split; operator 2026-10-04) |
 | Full Rankings, Band Rankings | full width when pushed; beside the Leaderboards overview when opened from it (above) |
 | Paths | **always a modal sheet** on every platform (self-contained task; operator 2026-10-04) |
-| Item Shop, Suggestions, Statistics/Player profile, Compete, Band Detail, Player Bands, Rivalry | full width; existing adaptive grids |
+| Item Shop, Suggestions, Statistics/Player profile, Band Detail, Player Bands, Rivalry | full width; existing adaptive grids |
 | Search | Never splits. Its results show two cards per row in landscape regular windows ([wide-columns](../../patterns/wide-columns.md), #350) |
 | Notifications, What's New, first run, sheets | modal/sheet presentations, unchanged |
 
@@ -62,6 +63,7 @@ Operator verdict (2026-10-04): the always-on split layouts on iPad, Duo and Mac 
 | Split page (as built) | Detail routes |
 |---|---|
 | Rivals root, `.rivals`, `.allRivals` | `.rivalDetail` |
+| Compete root, `.compete` | `.rivalDetail` only (#369): View All Rivals pushes All Rivals, itself a split page; rankings and profiles push |
 | Leaderboards root, `.leaderboards` | `.fullRankings`, `.bandRankings` (View all rankings); `.player`, `.band` cover it as full pages (#352) |
 | `.songDetail` | `.songLeaderboard` ("View full leaderboard", the footer row), `.playerHistory` (View All Scores in the history card, more than five scores; the sortable `PlayerHistoryScreen` in the trailing pane, #324) |
 | Settings root | `.licenses` (the only Settings sub-page that is a route; First Run Guides and Service Info are inline sections) |
