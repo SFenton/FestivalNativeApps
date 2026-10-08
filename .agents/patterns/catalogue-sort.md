@@ -14,8 +14,8 @@ A page that lists catalogue songs sorts them the same way Songs does. The owner 
 |---|---|
 | `FortniteFestivalWeb/src/pages/songs/modals/SortModal.tsx` (`SortModal`) | Songs Sort modal: mode radio rows, then the ↑/↓ direction rows, Reset, Apply. |
 | `FortniteFestivalWeb/src/hooks/data/useFilteredSongs.ts` | Songs comparator: Title/Artist by locale compare, Year/Duration numeric with missing values as 0, title as the tie-breaker. |
-| `FortniteFestivalWeb/src/pages/shop/ShopPage.tsx` | Item Shop page (title order on master). |
-| `pages/shop/shopSort.ts`, `pages/shop/modals/ShopSortModal.tsx` on web branch `report/379-web` (SFenton/FortniteFestivalLeaderboardScraper#175, #379) | Item Shop sort: Title, Artist, Year, Duration with direction in a modal built from the Songs `SortModal` pieces; one comparator for grid and list; Duration from the catalogue; saved in `localStorage` `fst:shopSort`. |
+| `FortniteFestivalWeb/src/pages/shop/ShopPage.tsx` | Item Shop page: Sort before Filter, the sorted offers in grid and list. |
+| `FortniteFestivalWeb/src/pages/shop/shopSort.ts` (`sortShopSongs`, `enrichShopSongs`), `pages/shop/modals/ShopSortModal.tsx` (SFenton/FortniteFestivalLeaderboardScraper#175, #379) | Item Shop sort: Title, Artist, Year, Duration with direction in a modal built from the Songs `SortModal` pieces; one comparator for grid and list; Duration from the catalogue; saved in `localStorage` `fst:shopSort`. |
 
 ## Rules
 
@@ -50,14 +50,14 @@ Android consumers: Songs `SortSheet` (`fst.songs.sort.*`), Item Shop `ShopSortSh
 | A | Native Item Shop gets the Sort control; the web Shop keeps title order | Material 3 Bottom Sheet: "Modal (blocks interaction, has scrim)" (should: the Songs sheet); Radio Button: "Group radios in a container with `role="radiogroup"`" (should); Buttons: "Minimum touch target 48x48dp" (must). Fluent: "contextual action → `Flyout`" (should). HIG: none decides scope | Web Shop sorts by title only (`ShopPage.tsx`); the Shop Filter (#19/#376) shipped natively first | The natives diverge from the web, the product source of truth |
 | B | The same four sorts with direction on every native app **and** the web Shop, each through its Songs Sort control | Same as A on native; the web reuses its Songs `SortModal` | Web Songs `SortModal` already offers Title/Artist/Year/Duration with direction; the Shop becomes its second consumer | One more web change, in the web repo |
 
-**Agent decision (#379, 2026-10-07): option B; owner may override with `/choose A`.** The owner asked for the sorts "multi-plat and web" and "same as song list". No platform *must* separates the options (the guidance above governs how the control looks, which both options share), and there is no explicit owner choice, so the precedence rule "web behavior beats native copies" decides: shipping the sorts natively only would make the web the exception to its own Songs behavior. Each platform reuses its Songs Sort control and comparator (R1, R2), so there is no new UI to learn. The web half is on web branch `report/379-web` (PR SFenton/FortniteFestivalLeaderboardScraper#175); Android ships in FestivalNativeApps #379; Apple and Windows ship in their own #379 branches. The Apple #379 worker concurred with B on the same grounds (HIG has no rule on scope; it governs the control: a sheet on iPhone and iPad, a popover on the Mac).
+**Agent decision (#379, 2026-10-07): option B; owner may override with `/choose A`.** The owner asked for the sorts "multi-plat and web" and "same as song list". No platform *must* separates the options (the guidance above governs how the control looks, which both options share), and there is no explicit owner choice, so the precedence rule "web behavior beats native copies" decides: shipping the sorts natively only would make the web the exception to its own Songs behavior. Each platform reuses its Songs Sort control and comparator (R1, R2), so there is no new UI to learn. The web half merged in SFenton/FortniteFestivalLeaderboardScraper#175; Android merged in FestivalNativeApps #424; Apple and Windows ship in their own #379 branches. The Apple #379 worker concurred with B on the same grounds (HIG has no rule on scope; it governs the control: a sheet on iPhone and iPad, a popover on the Mac).
 
 ## Known debt
 
 | Debt | Breaks | Plan |
 |---|---|---|
+| Web Item Shop sort not cited in `contracts/patterns.json` | Guard coverage only | The local web checkout predates SFenton/FortniteFestivalLeaderboardScraper#175, so `pattern_guard` cannot resolve `pages/shop/shopSort.ts` yet; cite it (`sortShopSongs`, `ShopSortModal`) once that checkout has it |
 | Windows Item Shop has no Sort on master | R1, R3 | Windows #379 branch (moves the Songs flyout body into a shared control); update the Windows row here when it merges |
-| Web Item Shop sort not merged | R3 (web) | Web PR SFenton/FortniteFestivalLeaderboardScraper#175; then cite `pages/shop/shopSort.ts` in `contracts/patterns.json` |
 
 ## Guards (`tools/pattern_guard.py`)
 
