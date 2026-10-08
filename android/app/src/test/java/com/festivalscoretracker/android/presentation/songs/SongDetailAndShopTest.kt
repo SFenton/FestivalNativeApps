@@ -13,6 +13,8 @@ import com.festivalscoretracker.android.core.shop.ShopHighlight
 import com.festivalscoretracker.android.core.shop.ShopOfferFilter
 import com.festivalscoretracker.android.core.shop.ShopPayload
 import com.festivalscoretracker.android.core.shop.ShopSong
+import com.festivalscoretracker.android.core.shop.ShopSortChoice
+import com.festivalscoretracker.android.core.songs.SongSortMode
 import com.festivalscoretracker.android.core.songs.SongScoreDetail
 import com.festivalscoretracker.android.core.songs.SongScoreSource
 import com.festivalscoretracker.android.data.CatalogPayload
@@ -139,6 +141,119 @@ class SongDetailAndShopTest {
         assertEquals(listOf("a", "b", "c", "d"), ids())
         assertEquals(ShopOfferFilter(), vm.uiState.value.filter)
         assertFalse(vm.uiState.value.filter.isActive)
+    }
+
+    @Test
+    fun shopSortAppliesSavedChoiceAtOnceAndPersistsChanges() = runTest(main.dispatcher) {
+        val shop = MutableStateFlow<LoadState<ShopPayload>>(LoadState.Loading)
+        val saved = MutableStateFlow(ShopSortChoice(SongSortMode.Artist, ascending = false))
+        val writes = mutableListOf<ShopSortChoice>()
+        val vm = ShopViewModel(shop, { payload }, MutableStateFlow<AppSettings?>(AppSettings()), ServiceRetryBackoff(), saved, { writes += it })
+        shop.value = LoadState.Loaded(
+            SongsFixtures.shop(
+                ShopSong("b", "Beta", "Zed", 2019, null, SongsFixtures.shopUrl("b"), isNew = true),
+                ShopSong("a", "Alpha", "Mid", 2023, null, SongsFixtures.shopUrl("a")),
+                ShopSong("c", "Gamma", "Abba", 2021, null, SongsFixtures.shopUrl("c"), leavingTomorrow = true),
+            ),
+        )
+        advanceUntilIdle()
+        fun ids() = vm.uiState.value.offers.map { it.offer.songId }
+        // Issue #379: the saved sort applies on open (Artist descending).
+        assertEquals(ShopSortChoice(SongSortMode.Artist, false), vm.uiState.value.sort)
+        assertEquals(listOf("b", "a", "c"), ids())
+
+        vm.setSort(ShopSortChoice(SongSortMode.Year))
+        advanceUntilIdle()
+        assertEquals(listOf("b", "c", "a"), ids())
+        assertEquals(listOf(ShopSortChoice(SongSortMode.Year)), writes)
+
+        // Sorting runs after the page filter: hiding New keeps the rest in Year order.
+        vm.setFilter(ShopOfferFilter(new = false))
+        advanceUntilIdle()
+        assertEquals(listOf("c", "a"), ids())
+
+        vm.setSort(ShopSortChoice())
+        advanceUntilIdle()
+        assertEquals(listOf("a", "c"), ids())
+        assertFalse(vm.uiState.value.sort.changed)
+        assertNull(vm.uiState.value.sortPaused)
+    }
+
+    @Test
+    fun shopDurationSortUsesSamePublicationCatalogueAndPausesOtherwise() = runTest(main.dispatcher) {
+        val shop = MutableStateFlow<LoadState<ShopPayload>>(
+            LoadState.Loaded(SongsFixtures.shop(SongsFixtures.offer("a"), SongsFixtures.offer("b"), SongsFixtures.offer("c"))),
+        )
+        val lengths = SongsResponse(
+            1,
+            15,
+            listOf(Fixtures.song("a", "Title a", duration = 300), Fixtures.song("b", "Title b", duration = 100), Fixtures.song("c", "Title c", duration = 200)),
+        )
+        val gate = CompletableDeferred<Unit>()
+        var publication = 7
+        var fail = false
+        val vm = ShopViewModel(
+            shop,
+            {
+                gate.await()
+                if (fail) throw FestivalApiException.HttpStatus(500)
+                CatalogPayload(lengths, publication)
+            },
+            MutableStateFlow<AppSettings?>(AppSettings()),
+            ServiceRetryBackoff(),
+            MutableStateFlow(ShopSortChoice(SongSortMode.Duration)),
+        )
+        advanceUntilIdle()
+        fun ids() = vm.uiState.value.offers.map { it.offer.songId }
+        // The page keeps loading while the lengths arrive, instead of reordering later.
+        assertTrue(vm.uiState.value.sortWaiting)
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.sortWaiting)
+        assertNull(vm.uiState.value.sortPaused)
+        assertEquals(listOf("b", "c", "a"), ids())
+        vm.setSort(ShopSortChoice(SongSortMode.Duration, ascending = false))
+        advanceUntilIdle()
+        assertEquals(listOf("a", "c", "b"), ids())
+
+        // A catalogue from another publication pauses to title order and keeps the choice.
+        publication = 8
+        vm.retryCatalog()
+        advanceUntilIdle()
+        assertEquals(listOf("c", "b", "a"), ids())
+        assertTrue(vm.uiState.value.sortPaused!!.contains("update together"))
+        assertEquals(ShopSortChoice(SongSortMode.Duration, false), vm.uiState.value.sort)
+
+        fail = true
+        vm.retryCatalog()
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.sortPaused!!.startsWith("Duration sort paused until song details load"))
+        assertEquals(listOf("c", "b", "a"), ids())
+
+        // Other modes never wait for or pause on the catalogue.
+        vm.setSort(ShopSortChoice(SongSortMode.Title))
+        advanceUntilIdle()
+        assertNull(vm.uiState.value.sortPaused)
+        assertFalse(vm.uiState.value.sortWaiting)
+    }
+
+    @Test
+    fun shopFeedFromNewerPublicationReReadsTheCatalogueOnce() = runTest(main.dispatcher) {
+        val shop = MutableStateFlow<LoadState<ShopPayload>>(LoadState.Loaded(SongsFixtures.shop(SongsFixtures.offer("a"), observed = 7)))
+        var reads = 0
+        val vm = ShopViewModel(
+            shop,
+            { CatalogPayload(SongsResponse(1, 15, listOf(Fixtures.song("a", "Title a"))), if (reads++ == 0) 6 else 7) },
+            MutableStateFlow<AppSettings?>(AppSettings()),
+            ServiceRetryBackoff(),
+            MutableStateFlow(ShopSortChoice(SongSortMode.Duration)),
+        )
+        advanceUntilIdle()
+        assertEquals(2, reads)
+        assertNull(vm.uiState.value.sortPaused)
+        shop.value = LoadState.Loaded(SongsFixtures.shop(SongsFixtures.offer("a"), observed = 7))
+        advanceUntilIdle()
+        assertEquals(2, reads)
     }
 
     @Test

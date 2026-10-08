@@ -82,6 +82,8 @@ struct ServiceStatusView: View {
     let issue: ServiceIssue
     let fallbackTitle: String
     let scope: String
+    /// State-specific SF Symbol (a paused or syncing region), or nil for the issue's own.
+    let systemImage: String?
     let retry: () -> Void
 
     @State private var remaining: Int?
@@ -96,14 +98,16 @@ struct ServiceStatusView: View {
     ///   - title: Screen-specific heading (for example "Rankings unavailable"),
     ///     used unless the issue has its own global heading.
     ///   - scope: Backoff identifier; defaults to `title`.
+    ///   - systemImage: Symbol overriding the issue family's (paused/unavailable states).
     ///   - retry: Reloads the screen; also called when the countdown ends.
     init(
         _ issue: ServiceIssue, title: String, scope: String? = nil,
-        retry: @escaping () -> Void
+        systemImage: String? = nil, retry: @escaping () -> Void
     ) {
         self.issue = issue
         fallbackTitle = title
         self.scope = scope ?? title
+        self.systemImage = systemImage
         self.retry = retry
     }
 
@@ -145,7 +149,7 @@ struct ServiceStatusView: View {
 
     @ViewBuilder
     private var symbol: some View {
-        let image = Image(systemName: Self.symbolName(for: issue))
+        let image = Image(systemName: systemImage ?? Self.symbolName(for: issue))
             .font(.largeTitle)
             .foregroundStyle(issue.retriesAutomatically ? BrandTokens.gold : FestivalText.primary)
             .accessibilityHidden(true)

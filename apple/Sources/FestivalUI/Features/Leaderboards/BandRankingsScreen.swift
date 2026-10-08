@@ -83,9 +83,10 @@ struct BandRankingsScreen: View {
                             )
                         }
                         if payload.rankings.entries.isEmpty {
-                            Text("No ranked \(bandType.label.lowercased()) yet.")
-                                .foregroundStyle(FestivalText.primary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            FestivalEmptyState(
+                                "No ranked \(bandType.label.lowercased()) yet", placement: .inline,
+                                accessibilityIdentifier: "fst.band-rankings.empty"
+                            )
                         }
                         // Row-major pairs in wide landscape (wide-columns R2, #353).
                         ForEach(WideColumns.indexedRows(payload.rankings.entries, columns: columns)) { row in

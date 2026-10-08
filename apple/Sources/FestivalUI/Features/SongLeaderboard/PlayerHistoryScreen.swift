@@ -248,16 +248,15 @@ struct PlayerHistoryScreen: View {
     /// `PlayerHistoryPage`: select a player, spinner, not registered, syncing, empty).
     @ViewBuilder private var message: some View {
         if session.selectedPlayer == nil {
-            ContentUnavailableView {
-                Label("No Profile Selected", systemImage: "person.crop.circle")
-            } description: {
-                Text("Select a player to view score history.")
-            } actions: {
+            FestivalEmptyState(
+                "No Profile Selected", systemImage: "person.crop.circle",
+                subtitle: "Select a player to view score history.",
+                accessibilityIdentifier: "fst.history.no-player"
+            ) {
                 Button("Choose Profile") { openProfile() }
                     .festivalProminentButton()
                     .accessibilityIdentifier("fst.history.choose-profile")
             }
-            .accessibilityIdentifier("fst.history.no-player")
         } else {
             switch state {
             case .loading:
@@ -271,9 +270,12 @@ struct PlayerHistoryScreen: View {
             case let .loaded(payload):
                 switch payload.state {
                 case .unregistered:
-                    ContentUnavailableView(
-                        "History Unavailable", systemImage: "clock.badge.xmark",
-                        description: Text("Score history is only available for registered users.")
+                    // Unavailable, not empty: keeps its failure title and Retry (R1, R8).
+                    ServiceUnavailableView(
+                        title: "History Unavailable",
+                        message: "Score history is only available for registered users.",
+                        systemImage: "clock.badge.xmark",
+                        retry: { Task { await load() } }
                     )
                     .accessibilityIdentifier("fst.history.unregistered")
                 case .syncing:
@@ -284,11 +286,11 @@ struct PlayerHistoryScreen: View {
                     )
                     .accessibilityIdentifier("fst.history.syncing")
                 case .available:
-                    ContentUnavailableView(
+                    FestivalEmptyState(
                         "No Score History", systemImage: "clock.arrow.circlepath",
-                        description: Text("No score history for this instrument.")
+                        subtitle: "No score history for this instrument.",
+                        accessibilityIdentifier: "fst.history.empty"
                     )
-                    .accessibilityIdentifier("fst.history.empty")
                 }
             }
         }

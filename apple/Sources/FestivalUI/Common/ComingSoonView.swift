@@ -22,9 +22,10 @@ struct ComingSoonView: View {
     }
 
     var body: some View {
-        ContentUnavailableView(title, systemImage: symbol, description: Text("Coming soon"))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .festivalNavigationTitle(title)
-            .accessibilityIdentifier("fst.placeholder.\(title)")
+        FestivalEmptyState(
+            title, systemImage: symbol, subtitle: "Coming soon",
+            accessibilityIdentifier: "fst.placeholder.\(title)"
+        )
+        .festivalNavigationTitle(title)
     }
 }

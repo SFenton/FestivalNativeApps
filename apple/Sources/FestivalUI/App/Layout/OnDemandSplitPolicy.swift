@@ -18,13 +18,15 @@ import SwiftUI
 /// | List page (leading pane top) | Detail roots (trailing pane) |
 /// |---|---|
 /// | Rivals root, `.rivals`, `.allRivals` | `.rivalDetail` |
+/// | Compete root, `.compete` | `.rivalDetail` (issue #369) |
 /// | Leaderboards root, `.leaderboards` | `.fullRankings`, `.bandRankings`; `.player`, `.band` (full page) |
 /// | `.songDetail` | `.songLeaderboard`, `.songBandLeaderboard` (issue #367), `.playerHistory` |
 /// | Settings root | `.licenses` |
 ///
 /// Songs, Song Leaderboard, Song Band Leaderboard, Full and Band Rankings, Item Shop,
-/// Suggestions, Statistics, Compete, Band Detail, Player Bands and Rivalry never split:
-/// what they push opens full width.
+/// Suggestions, Statistics, Band Detail, Player Bands and Rivalry never split: what
+/// they push opens full width. Compete splits for its rival rows only; its leaderboard
+/// previews, View Full Leaderboard and View All Rivals push full width (issue #369).
 ///
 /// **Profiles are full pages** (issue #352, agent decision the owner may override):
 /// a player or band profile never sits in a half pane. Opened from the list page it
@@ -37,6 +39,8 @@ enum OnDemandSplitPolicy {
     enum ListPage: Sendable, Equatable {
         /// Rivals hub or All Rivals.
         case rivals
+        /// The Compete hub: its rival rows open Rival Detail beside it (issue #369).
+        case compete
         /// The Leaderboards overview (instrument and band cards).
         case leaderboards
         /// Song Detail (its full instrument and band leaderboards and score history).
@@ -50,7 +54,7 @@ enum OnDemandSplitPolicy {
         /// - Returns: True for this page's detail routes.
         func accepts(_ route: AppRoute) -> Bool {
             switch (self, route) {
-            case (.rivals, .rivalDetail),
+            case (.rivals, .rivalDetail), (.compete, .rivalDetail),
                  (.leaderboards, .fullRankings), (.leaderboards, .bandRankings),
                  (.leaderboards, .player), (.leaderboards, .band),
                  (.songDetail, .songLeaderboard), (.songDetail, .songBandLeaderboard),
@@ -120,10 +124,11 @@ enum OnDemandSplitPolicy {
     /// The list page a section's root screen is, if any.
     ///
     /// - Parameter section: Root section.
-    /// - Returns: Rivals, Leaderboards or Settings; nil for every other root.
+    /// - Returns: Rivals, Compete, Leaderboards or Settings; nil for every other root.
     static func rootPage(of section: FestivalSection) -> ListPage? {
         switch section {
         case .rivals: .rivals
+        case .compete: .compete
         case .leaderboards: .leaderboards
         case .settings: .settings
         default: nil
@@ -137,6 +142,7 @@ enum OnDemandSplitPolicy {
     static func page(of route: AppRoute) -> ListPage? {
         switch route {
         case .rivals, .allRivals: .rivals
+        case .compete: .compete
         case .leaderboards: .leaderboards
         case .songDetail: .songDetail
         default: nil

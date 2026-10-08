@@ -397,7 +397,9 @@ private func hostedHistoryPage(
     let window = nativeHostedWindow(host, size: CGSize(width: 420, height: 900))
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(host, untilText: ["only available for registered users"])
-    assertRendersContent(host, image: image, containing: ["History Unavailable"])
+    // Unavailable, not a no-results empty state: it keeps Retry (empty-error-states R1, R8).
+    assertRendersContent(host, image: image, containing: ["History Unavailable", "Retry"])
+    #expect(nativeHostedAccessibility(host).identifiers.contains("fst.service-status.retry"))
 }
 
 /// No selected player: the web's "Select a player" message with Choose Profile.

@@ -8,6 +8,7 @@ import com.festivalscoretracker.android.core.paths.PathDifficulty
 import com.festivalscoretracker.android.core.paths.PathImageValidation
 import com.festivalscoretracker.android.core.paths.SongPathData
 import com.festivalscoretracker.android.core.songs.SongFilter
+import com.festivalscoretracker.android.core.shop.ShopSortChoice
 import com.festivalscoretracker.android.core.songs.SongPlayerScoreFilter
 import com.festivalscoretracker.android.core.songs.SongGeneralFilter
 import com.festivalscoretracker.android.core.songs.SongSortMode
@@ -189,6 +190,14 @@ class SongsDataTest {
         assertEquals(SongsPreferencesState(), prefs.state.first())
         prefs.setShopViewMode(ShopViewMode.List)
         assertEquals(ShopViewMode.List, prefs.state.first().shopViewMode)
+        // Item Shop sort (#379) persists and survives a player deselect (it uses no scores).
+        assertEquals(ShopSortChoice(), prefs.state.first().shopSort)
+        prefs.setShopSort(ShopSortChoice(SongSortMode.Duration, ascending = false))
+        assertEquals(ShopSortChoice(SongSortMode.Duration, false), prefs.state.first().shopSort)
+        prefs.resetForDeselect()
+        assertEquals(ShopSortChoice(SongSortMode.Duration, false), prefs.state.first().shopSort)
+        prefs.setShopSort(ShopSortChoice())
+        assertEquals(ShopSortChoice(), prefs.state.first().shopSort)
         prefs.setFilters(SongFilter(), SongGeneralFilter(), SongPlayerScoreFilter())
         assertEquals(SongFilter(), prefs.state.first().filter)
     }
