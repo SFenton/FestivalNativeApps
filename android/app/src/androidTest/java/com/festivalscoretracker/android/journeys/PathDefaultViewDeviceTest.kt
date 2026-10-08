@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.journeys
 
+import com.festivalscoretracker.android.core.settings.SettingsDetail
 import android.os.Build
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
@@ -79,7 +80,7 @@ class PathDefaultViewDeviceTest {
     fun inlineGroupIsAccessibleAndSavesWithoutLeavingSettings() {
         h.enableAccessibilityChecks()
         h.launch(DebugLaunch(section = FestivalSection.Settings, stillBackground = true), transport, preferences)
-        h.scrollTo("fst.settings.list", "fst.settings.path-default-view.text")
+        h.openSetting(SettingsDetail.PathDefaultView.rowTag, "fst.settings.path-default-view.text")
         h.awaitAccessibilityTree("fst.settings.path-default-view.text")
         val order = h.readingOrder("settings-path-default-view")
         val heading = order.indexOfFirst { it == "CHOpt Path Default View" }

@@ -16,6 +16,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.dp
@@ -261,6 +262,27 @@ class JourneyHarness(private val rule: JourneyRule) {
         waitForTag(list)
         rule.onNodeWithTag(list).performScrollToNode(hasTestTag(tag))
         rule.waitForIdle()
+    }
+
+    /**
+     * Settings: bring the setting [tag] on screen. On list/detail windows (issue #371) it lives
+     * in the detail pane, so the chevron row [detailRow] opens it first; on phones (and at large
+     * text) the list scrolls to it.
+     *
+     * @param detailRow The chevron row's test tag (`SettingsDetail.rowTag`).
+     * @param tag Target test tag.
+     */
+    fun openSetting(detailRow: String, tag: String) {
+        waitForTag("fst.settings.list")
+        if (exists("fst.settings.detail-pane")) {
+            scrollTo("fst.settings.list", detailRow)
+            tap(detailRow)
+            waitForTag(tag)
+            rule.onAllNodesWithTag(tag, useUnmergedTree = true)[0].performScrollTo()
+            rule.waitForIdle()
+        } else {
+            scrollTo("fst.settings.list", tag)
+        }
     }
 
     /** Separating vertical hinges in window pixels (empty on phones and flat folds). */
