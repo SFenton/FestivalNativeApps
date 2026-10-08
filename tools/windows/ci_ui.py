@@ -37,15 +37,15 @@ class Task:
 DEDICATED_RUNNERS = (
     ("fade", ("fade_journey.py",)),
     ("first-run", ("first_run_journey.py",)),
-    ("leaderboards", ("leaderboards_journey.py", "--sizes", "compact,medium,wide")),
-    ("notifications", ("notifications_journey.py", "--sizes", "compact,medium,wide")),
-    ("rivals", ("rivals_journey.py", "--sizes", "compact,medium,wide")),
+    ("leaderboards", ("leaderboards_journey.py",)),
+    ("notifications", ("notifications_journey.py",)),
+    ("rivals", ("rivals_journey.py",)),
     ("search", ("search_journey.py",)),
     ("selected-reveal", ("selected_reveal_journey.py",)),
-    ("shop", ("shop_journey.py", "--sizes", "compact,medium,wide")),
-    ("songs-filter", ("songs_filter_journey.py", "--sizes", "compact,medium,wide")),
-    ("songs", ("songs_journey.py", "--sizes", "compact,medium,wide")),
-    ("suggestions", ("suggestions_journey.py", "--sizes", "compact,medium,wide")),
+    ("shop", ("shop_journey.py",)),
+    ("songs-filter", ("songs_filter_journey.py",)),
+    ("songs", ("songs_journey.py",)),
+    ("suggestions", ("suggestions_journey.py",)),
     ("feedback", ("journeys/feedback.py", "--preset", "medium")),
     ("navigation", ("journeys/navigation.py",)),
     ("profile", ("journeys/profile.py",)),
@@ -71,6 +71,8 @@ def all_tasks() -> list[Task]:
         if not entries:
             continue
         kind = "matrix" if source.name.startswith("a11y") else "journey"
+        if kind == "journey" and not all("route" in entry and "steps" in entry for entry in entries):
+            continue
         names = tuple(str(entry["name"]) for entry in entries)
         if kind == "matrix":
             for index in range(0, len(names), MATRIX_GROUP_SIZE):

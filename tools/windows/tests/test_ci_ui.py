@@ -29,6 +29,7 @@ class CiUiTests(unittest.TestCase):
         self.assertIn("journey:polish", names)
         self.assertTrue(any(name.startswith("matrix:a11y:") for name in names))
         self.assertFalse(any(task.name.startswith("matrix:a11y-keyboard") for task in ci_ui.all_tasks()))
+        self.assertNotIn("journey:profile-selection", names)
         self.assertIn("runner:search", names)
 
     def test_shards_are_complete_and_disjoint(self):
