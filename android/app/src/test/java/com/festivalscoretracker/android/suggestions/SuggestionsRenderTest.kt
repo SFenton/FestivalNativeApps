@@ -4,6 +4,7 @@ import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -163,7 +164,9 @@ class SuggestionsRenderTest {
     @Test
     fun emptyStatesAndNoPlayer() {
         show(SuggestionsUiState(SuggestionsPhase.Empty, filteredOut = true, filter = SuggestionFilterSettings.DEFAULTS.withInstrument(Instrument.Lead, false)))
-        rule.onNodeWithContentDescription("Filter Suggestions, filters on").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Filter Suggestions").assert(
+            androidx.compose.ui.test.SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.StateDescription, "Filters on: Instruments"),
+        ).assertIsDisplayed()
         rule.onNodeWithText("Try changing your filters to see more suggestions.").assertIsDisplayed()
         // No Reset Filters button in the shared empty state (#377).
         assertEquals(0, rule.onAllNodesWithTag("fst.suggestions.reset-filters").fetchSemanticsNodes().size)
