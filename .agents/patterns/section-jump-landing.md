@@ -2,7 +2,7 @@
 
 > **What:** where a Quick Links or Songs index jump places a section and how that section becomes current. **Read when:** adding a section jump, changing a scroll anchor, or changing the active-section line.
 
-Status: **current**, 2026-10-07. Provenance: #9, #286, #298, #336.
+Status: **current**, 2026-10-08. Provenance: #9, #286, #298, #336, #388.
 
 ## Intent
 
@@ -26,7 +26,7 @@ The web has no drag section index. Native indexes reuse its section order and ac
 5. **R5. Make target ownership explicit.** Select the target when the jump begins; hand back to natural tracking only after it leaves the landing/reachable band. Near-end targets remain current while visible.
 6. **R6. Keep the target perceivable.** The active link/index value names the landed section, and the heading remains an accessibility heading. Do not use fading to create clearance.
 7. **R7. Keep platform-native jump controls.** **Approved variants:** Apple uses `ListScrollNudger` for `List`; Android uses Compose `stickyHeader`; Windows uses `SemanticZoom` and `SongSectionHeader.JumpPinDelta` (#288). These vary presentation, not R1-R6.
-8. **R8. Fit the index to its region.** A drag section index is never taller than the height it is offered and never makes the page taller than its window; where every label does not fit, it keeps the first and last labels, evenly spaced ones between them and a bullet for each skipped run (the system table index's condensed form). A label lands on its own section, a drag still passes every section and the adjustable action still steps one at a time (#336: the rigid 27-label Apple strip pushed Duo outer-landscape Songs past the window, under the title and with the Filter field offscreen). HIG Designing for iPhone Duo: "The outer display is wider and shorter than other iPhone displays"; "avoid fixed widths or display-specific dependencies".
+8. **R8. Fit the index to its region.** A drag section index is never taller than the height it is offered and never makes the page taller than its window; where every label does not fit, it keeps the first and last labels, evenly spaced ones between them and a bullet for each skipped run (the system table index's condensed form). A label lands on its own section, a drag still passes every section and the adjustable action still steps one at a time (#336: the rigid 27-label Apple strip pushed Duo outer-landscape Songs past the window, under the title and with the Filter field offscreen). HIG Designing for iPhone Duo: "The outer display is wider and shorter than other iPhone displays"; "avoid fixed widths or display-specific dependencies". Its labels follow the text size, with the same fit: on Apple they use the `caption2` text style capped at AX2 (218%), the strip widens with them but is never taller than at the default size, and at accessibility sizes it starts below the expanded search field (#388: the fixed 10 pt letters ignored Dynamic Type; uncapped condensed letters filled the column and overlapped the search field). HIG Accessibility: "Ideally, offer text enlargement of at least 200%".
 
 ## Canonical implementation
 
