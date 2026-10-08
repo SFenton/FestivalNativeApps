@@ -47,6 +47,15 @@ func pinnedHeaderAccessibilitySettingsKeepAHardEdge(reduceTransparency: Bool, in
 /// Issue #383: the ramp band is never laid out empty, so a fade reaching or leaving 0 pt
 /// never rebuilds the masked List (which then counted its top inset twice); the opaque
 /// shape covers the band below `depth`, so a 0 pt depth is still a hard edge.
+/// Issue #383: Songs rows report their position only while they are near the section
+/// bar's edge, and never at the top.
+@Test func pinnedHeaderRowLimitReachesOneRampBelowTheEdge() {
+    #expect(PinnedHeaderEdgeFade.rowLimit(edge: 198, active: true) == 198 + PinnedHeaderEdgeFade.height)
+    #expect(PinnedHeaderEdgeFade.rowLimit(edge: 198, active: false) == -.infinity)
+    #expect(PinnedHeaderEdgeFade.rowLimit(edge: 0, active: true) == PinnedHeaderEdgeFade.height)
+    #expect(PinnedHeaderEdgeFade.rowLimit(edge: .nan, active: true) == -.infinity)
+}
+
 @Test func pinnedHeaderRampBandIsNeverEmpty() {
     #expect(PinnedHeaderFadeMask.minimumBandHeight > 0)
     #expect(PinnedHeaderFadeMask.bandHeight(depth: 0) == PinnedHeaderFadeMask.minimumBandHeight)

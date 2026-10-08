@@ -729,50 +729,82 @@ private struct PinnedHeaderRowMask: ViewModifier {
 // MARK: - Floating section bar (Songs)
 
 extension View {
-    /// Fade this whole `List` out under a section title drawn over it (Songs' floating
-    /// section bar, iOS 26 and later; issues #10, #298), with the shared ramp.
+    /// Fade this `List` row out under a section title drawn over the List (Songs' floating
+    /// section bar, iOS 26 and later; issues #10, #298), with the shared ramp. Apply it to
+    /// every row's content, inside the row's `listRow…` traits.
     ///
-    /// Apply it before the overlay that draws the title, so the title is never masked.
-    /// Inactive (at rest, or with no sections) nothing is masked, so the large title and
-    /// the first rows stay fully drawn.
+    /// Each row masks itself, never the whole List: an alpha mask around a `List` makes
+    /// SwiftUI drive the scroll view's insets from its own safe area, which lags UIKit's
+    /// during the large-title and tab-bar transitions. Near the top the large title then
+    /// snapped closed as the tab bar expanded, jumped back and forth under the finger and
+    /// came to rest part-way (issue #383, iOS 26 and 27). A cell's own mask leaves the
+    /// List's scroll view alone, like the Notifications rows
+    /// (``pinnedHeaderEdgeFadeRow(_:first:background:)``).
+    ///
+    /// Inactive (at rest, or with no sections) nothing is masked, so the first rows stay
+    /// fully drawn.
     ///
     /// - Parameters:
     ///   - edge: The title's bottom edge in global coordinates.
     ///   - active: Rows have scrolled under the title.
     ///   - depthLimit: The deepest the fade may reach, so it never dims an incoming
     ///     title or a landed section's first row (R8); nil for the full ramp.
-    /// - Returns: The masked List.
-    func pinnedHeaderEdgeFadeMask(edge: CGFloat, active: Bool, depthLimit: CGFloat?) -> some View {
-        modifier(PinnedHeaderListMask(edge: edge, active: active, depthLimit: depthLimit))
+    ///   - rowLimit: Box shared by the List's rows: a row reports its global top only
+    ///     above this line (``PinnedHeaderEdgeFade/rowLimit(edge:active:)``), read from a
+    ///     lock box because SwiftUI may keep an earlier geometry closure.
+    /// - Returns: The masked row.
+    func pinnedHeaderEdgeFadeRowMask(
+        edge: CGFloat, active: Bool, depthLimit: CGFloat?, rowLimit: TopInset
+    ) -> some View {
+        modifier(PinnedTitleRowMask(edge: edge, active: active, depthLimit: depthLimit, rowLimit: rowLimit))
     }
 }
 
-/// Masks a List above a floating title's bottom edge, with the fade below it.
+extension PinnedHeaderEdgeFade {
+    /// The line above which a row under a floating title reports its global top: the
+    /// title's bottom edge plus the full fade, or nowhere while rows have not scrolled
+    /// under the title.
+    ///
+    /// - Parameters:
+    ///   - edge: The title's bottom edge in global coordinates.
+    ///   - active: Rows have scrolled under the title.
+    /// - Returns: The line in global points; `-infinity` when inactive or not finite.
+    static func rowLimit(edge: CGFloat, active: Bool) -> CGFloat {
+        guard active, edge.isFinite else { return -.infinity }
+        return edge + height
+    }
+}
+
+/// Masks one List row above a floating title's bottom edge, with the fade below it.
 ///
-/// The mask is a shape whose path may extend past its frame: inactive it covers far
-/// beyond every edge (a mask laid out inside the safe area hid the iOS 26 large title,
-/// and `ignoresSafeArea` on the mask stalled the scroll view), active it starts at the
-/// end of the fade below the title's bottom edge, measured against the mask's own global
-/// top. The structure is the same in every state, so toggling a setting never rebuilds
-/// the List.
-private struct PinnedHeaderListMask: ViewModifier {
+/// The row reports its global top only while it is above the shared
+/// ``PinnedHeaderEdgeFade/rowLimit(edge:active:)`` line, so rows clear of the title never
+/// re-render while scrolling. The mask keeps the same structure in every state, so a row
+/// crossing the edge or a settings change never rebuilds it.
+private struct PinnedTitleRowMask: ViewModifier {
     let edge: CGFloat
     let active: Bool
     let depthLimit: CGFloat?
-    @State private var maskTop: CGFloat = 0
+    let rowLimit: TopInset
+    @State private var rowTop: CGFloat?
     @ScrollEdgeHardEdge private var hardEdge
 
     func body(content: Content) -> some View {
         let fade = PinnedHeaderEdgeFade.height(hardEdge: hardEdge)
         let depth = depthLimit.map { PinnedHeaderEdgeFade.depth(scrollOffset: $0, fade: fade) } ?? fade
-        let cut = max(0, edge - maskTop)
+        let cut = active ? rowTop.flatMap {
+            PinnedHeaderEdgeFade.cut(rowTop: $0, edge: edge, depth: depth)
+        } : nil
+        let limit = rowLimit
+        let _ = limit.value = PinnedHeaderEdgeFade.rowLimit(edge: edge, active: active)
         content
-            .mask {
-                PinnedHeaderFadeMask(cut: active ? cut : nil, depth: depth)
-                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: {
-                        maskTop = $0
-                    }
+            .onGeometryChange(for: CGFloat?.self) { proxy in
+                let top = proxy.frame(in: .global).minY
+                return top < limit.value ? top : nil
+            } action: { top in
+                rowTop = top
             }
+            .mask { PinnedHeaderFadeMask(cut: cut, depth: depth) }
     }
 }
 

@@ -683,6 +683,25 @@ struct MainThreadStallRecorderTests {
         #expect(recorder.report.counters["songs.row"] == 3)
     }
 
+    /// Issue #383: the near-top journey reads the List's largest top inset.
+    @Test func peaksKeepTheLargestFiniteSampleAndAreFlushedWhenIdle() throws {
+        let (recorder, url) = recorder()
+        defer { try? FileManager.default.removeItem(at: url) }
+        recorder.peak("songs.topInset", 170)
+        recorder.peak("songs.topInset", 222.2)
+        recorder.peak("songs.topInset", 183)
+        recorder.peak("songs.topInset", .nan)
+        recorder.peak("songs.topInset", .infinity)
+        recorder.peak("other", -3)
+        #expect(recorder.report.peaks == ["songs.topInset": 222, "other": -3])
+        recorder.record(.afterWaiting, at: 100)
+        recorder.record(.beforeWaiting, at: 100.01)
+        let written = try JSONDecoder().decode(
+            MainThreadStallReport.self, from: Data(contentsOf: url)
+        )
+        #expect(written.peaks == ["songs.topInset": 222, "other": -3])
+    }
+
     @Test func countersAreFlushedWhenIdle() throws {
         let (recorder, url) = recorder()
         defer { try? FileManager.default.removeItem(at: url) }

@@ -410,8 +410,8 @@ final class SongsScrollChrome {
 
     // MARK: Row mask inputs (issue #383)
 
-    /// What the List's row mask under the section bar draws
-    /// (``SwiftUI/View/pinnedHeaderEdgeFadeMask(edge:active:depthLimit:)``).
+    /// What each row's mask under the section bar draws
+    /// (``SwiftUI/View/pinnedHeaderEdgeFadeRowMask(edge:active:depthLimit:rowLimit:)``).
     struct RowFade: Equatable {
         /// The section bar's bottom edge (global).
         let edge: CGFloat
@@ -424,14 +424,18 @@ final class SongsScrollChrome {
         static let inactive = RowFade(edge: 0, active: false, depthLimit: 0)
     }
 
+    /// The line above which rows report their tops to their masks
+    /// (``PinnedHeaderEdgeFade/rowLimit(edge:active:)``), shared by every row and never
+    /// observed.
+    let rowMaskLimit = TopInset()
+
     /// The row mask's inputs, read by the mask modifier itself.
     ///
     /// At the top (not ``listScrolled``) this returns ``RowFade/inactive`` without reading
     /// ``sectionBarBottom`` or ``rowFadeLimit``, so the mask modifier does not observe
     /// them there. Both follow the navigation bar while the large title expands or
-    /// collapses, and every change re-rendered the List's mask in the middle of that
-    /// system transition, where a mask rebuild made the List count its top inset twice
-    /// (issue #383, ``PinnedHeaderFadeMask``). Once scrolled away the large title has
+    /// collapses, and every change re-rendered the row masks in the middle of that
+    /// system transition (issue #383). Once scrolled away the large title has
     /// fully collapsed (``ScrollAwayGate`` enters 24 pt past the collapsed inset), so the
     /// navigation bar no longer moves.
     ///

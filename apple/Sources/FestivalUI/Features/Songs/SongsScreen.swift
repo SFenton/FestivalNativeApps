@@ -1114,7 +1114,11 @@ struct SongsScreen: View, Equatable {
             ZStack(alignment: .trailing) {
                 List {
                     if hasDisclosure(for: payload) {
+                        // Each banner is its own row, and the modifier masks each one.
                         disclosures(for: payload)
+                            .modifier(SectionBarRowFade(
+                                chrome: scrollChrome, enabled: groups != nil && Self.usesSectionBar
+                            ))
                     }
                     if let groups, Self.usesSectionBar {
                         // iOS 26: the current section title sits in a bar above the List
@@ -1129,7 +1133,7 @@ struct SongsScreen: View, Equatable {
                             inlineGroupHeader(group)
                             songRows(
                                 group.songs, catalogueObservation: payload.observedPublicationId,
-                                fadeOrder: fadeOrder
+                                fadeOrder: fadeOrder, fadesUnderSectionBar: true
                             )
                         }
                     } else if let groups {
@@ -1165,9 +1169,7 @@ struct SongsScreen: View, Equatable {
                 // Before the section bar overlay: applied after it, this identifier
                 // replaced the bar's own (`fst.songs.section-bar`) for UI tests.
                 .accessibilityIdentifier("fst.songs.list")
-                .modifier(SectionBarRowFade(
-                    chrome: scrollChrome, enabled: groups != nil && Self.usesSectionBar
-                ))
+                .environment(\.defaultMinListRowHeight, 0)
                 .overlay(alignment: .top) {
                     // Once scrolled, the current section's title floats just below the
                     // navigation bar and the rows fade out at its bottom edge. An
@@ -1420,6 +1422,8 @@ struct SongsScreen: View, Equatable {
             spokenLabel: group.spokenLabel ?? group.label,
             accessibilityID: group.accessibilityID, chrome: scrollChrome
         )
+        // Inside the jump anchor, so the anchor stays the row's outermost identity.
+        .modifier(SectionBarRowFade(chrome: scrollChrome, enabled: true))
         // The row traits go outside the anchor: under `QuickLinkSectionModifier` the
         // List no longer read them, so Duration, Year, Shop and score titles got the
         // default opaque row backing, separator and insets (issue #91).
@@ -1502,17 +1506,24 @@ struct SongsScreen: View, Equatable {
     ///   - fadeOrder: Stagger index per song id for rows that just loaded.
     /// - Returns: The rows.
     @ViewBuilder
-    private func songRows(_ songs: [Song], catalogueObservation: Int, fadeOrder: [String: Int]) -> some View {
+    private func songRows(
+        _ songs: [Song], catalogueObservation: Int, fadeOrder: [String: Int],
+        fadesUnderSectionBar: Bool = false
+    ) -> some View {
         let columns = songColumns
         if columns > 1 {
             ForEach(SongGridPolicy.rows(songs, columns: columns), id: \.first!.id) { pair in
-                songGridRow(pair, columns: columns, catalogueObservation: catalogueObservation, fadeOrder: fadeOrder)
+                songGridRow(
+                    pair, columns: columns, catalogueObservation: catalogueObservation, fadeOrder: fadeOrder,
+                    fadesUnderSectionBar: fadesUnderSectionBar
+                )
             }
         } else {
             ForEach(songs) { song in
                 songLink(
                     for: song, catalogueObservation: catalogueObservation,
-                    fadeIndex: Self.fadeIndex(song.songId, in: fadeOrder)
+                    fadeIndex: Self.fadeIndex(song.songId, in: fadeOrder),
+                    fadesUnderSectionBar: fadesUnderSectionBar
                 )
             }
         }
@@ -1536,7 +1547,8 @@ struct SongsScreen: View, Equatable {
     /// card at column width), each its own accessible link. On iPhone Duo the gutter sits
     /// on the hinge, flat or folded (``HingeRow`` page hinge, pattern `wide-columns` R3).
     private func songGridRow(
-        _ songs: [Song], columns: Int, catalogueObservation: Int, fadeOrder: [String: Int]
+        _ songs: [Song], columns: Int, catalogueObservation: Int, fadeOrder: [String: Int],
+        fadesUnderSectionBar: Bool
     ) -> some View {
         HingeRow(spacing: SongGridPolicy.spacing) {
             ForEach(songs) { song in
@@ -1550,6 +1562,7 @@ struct SongsScreen: View, Equatable {
                 Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
             }
         }
+        .modifier(SectionBarRowFade(chrome: scrollChrome, enabled: fadesUnderSectionBar))
         // One menu for the row: a `List` row honours a single context menu.
         .openInNewWindowMenu(songs.map { (title: $0.title, route: FestivalWindowRoute.song(songId: $0.songId)) })
         .listRowSeparator(.hidden)
@@ -1560,9 +1573,11 @@ struct SongsScreen: View, Equatable {
 
     /// One Songs list row (a single card).
     private func songLink(
-        for song: Song, catalogueObservation: Int, fadeIndex: Int? = nil
+        for song: Song, catalogueObservation: Int, fadeIndex: Int? = nil,
+        fadesUnderSectionBar: Bool = false
     ) -> some View {
         songCell(for: song, catalogueObservation: catalogueObservation, fadeIndex: fadeIndex)
+            .modifier(SectionBarRowFade(chrome: scrollChrome, enabled: fadesUnderSectionBar))
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
             .listRowInsets(songRowInsets)
@@ -1809,18 +1824,23 @@ private struct ScrolledAwayTracker: ViewModifier {
 
     func body(content: Content) -> some View {
         if #available(iOS 18.0, macOS 15.0, *) {
-            content.onScrollGeometryChange(for: Sample.self) { geometry in
+            content
+            .onScrollGeometryChange(for: Sample.self) { geometry in
                 Sample(
                     offsetY: geometry.contentOffset.y, topInset: geometry.contentInsets.top,
                     width: geometry.containerSize.width
                 )
             } action: { _, sample in
+                // Debug trace (issue #383): a List that briefly counts its top inset
+                // twice raises this peak above the expanded large title's inset.
+                MainThreadStallMonitor.peak("songs.topInset", Double(sample.topInset))
                 topInsetChanged(sample.topInset)
                 gate.update(
                     offsetY: sample.offsetY, topInset: sample.topInset,
                     containerWidth: sample.width
                 )
                 guard reported != gate.isScrolled else { return }
+                if reported != nil { MainThreadStallMonitor.count("songs.scrolled.flip") }
                 reported = gate.isScrolled
                 changed(gate.isScrolled)
             }
@@ -2052,26 +2072,34 @@ private struct SongsInlineSectionTitle: View {
     }
 }
 
-/// Fades the List out under the floating section bar while scrolled (issue #10), with
-/// the shared pinned-header fade (``PinnedHeaderEdgeFade``, issue #308). Inactive at the
-/// top, where no row is under the bar and the large title shows. Near a section's start
-/// the fade is only as deep as ``SongsScrollChrome/rowFadeLimit`` allows, so a landed
-/// section's first row and an incoming title are never dimmed (issue #298).
+/// Fades one List row out under the floating section bar while scrolled (issue #10),
+/// with the shared pinned-title row mask (``PinnedHeaderEdgeFade``, issue #308). Inactive
+/// at the top, where no row is under the bar and the large title shows. Near a section's
+/// start the fade is only as deep as ``SongsScrollChrome/rowFadeLimit`` allows, so a
+/// landed section's first row and an incoming title are never dimmed (issue #298).
 ///
+/// Every row masks itself; the List itself carries no mask, because an alpha mask around
+/// the List made the large title snap closed as the tab bar expanded near the top
+/// (issue #383, ``SwiftUI/View/pinnedHeaderEdgeFadeRowMask(edge:active:depthLimit:rowLimit:)``).
 /// Observes ``SongsScrollChrome`` here, so a scroll re-renders only this modifier, never
 /// the List (issue #8). At the top it observes only the scroll-away state
-/// (``SongsScrollChrome/rowFade(enabled:)``), so the expanding large title never
-/// re-renders the mask (issue #383).
+/// (``SongsScrollChrome/rowFade(enabled:)``), so the expanding large title re-renders no
+/// row.
 private struct SectionBarRowFade: ViewModifier {
     let chrome: SongsScrollChrome
-    /// False when the List has no sections or the OS has no section bar.
+    /// False for a row with no section bar above it (no sections, or before iOS 26).
     let enabled: Bool
 
     func body(content: Content) -> some View {
-        let fade = chrome.rowFade(enabled: enabled)
-        content
-            .environment(\.defaultMinListRowHeight, 0)
-            .pinnedHeaderEdgeFadeMask(edge: fade.edge, active: fade.active, depthLimit: fade.depthLimit)
+        if enabled {
+            let fade = chrome.rowFade(enabled: true)
+            content.pinnedHeaderEdgeFadeRowMask(
+                edge: fade.edge, active: fade.active, depthLimit: fade.depthLimit,
+                rowLimit: chrome.rowMaskLimit
+            )
+        } else {
+            content
+        }
     }
 }
 
