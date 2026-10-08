@@ -182,6 +182,9 @@ struct SongBandPreviewRow: View {
     /// Where tapping goes (``SongBandRowNavigation``).
     let route: AppRoute
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// The section's fitted columns; only ``LeaderboardRowColumns/stacksName`` (a
+    /// crowded trailing-pane board, #364) changes the card.
+    @Environment(\.leaderboardRowColumns) private var columns
 
     /// Create a band card.
     ///
@@ -197,17 +200,12 @@ struct SongBandPreviewRow: View {
 
     var body: some View {
         link {
-            HStack(spacing: 8) {
+            Self.card {
                 VStack(alignment: .leading, spacing: 8) {
                     members
                     footer
                 }
-                Image(systemName: "chevron.forward")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(FestivalText.deemphasized)
-                    .accessibilityHidden(true)
             }
-            .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .frame(minHeight: LeaderboardRowMetrics.minHeight)
             .modifier(RankingRowSurface(isSelected: highlighted))
@@ -234,17 +232,49 @@ struct SongBandPreviewRow: View {
         }
     }
 
+    /// The card's horizontal layout: its content, then the disclosure chevron centred
+    /// on the whole card, so it stays centred however many lines the card grows to
+    /// (#364). Shared with the section's width probe (``SongBandMemberWidthProbe``).
+    ///
+    /// - Parameter content: Members and score footer, or the probe's member lines.
+    /// - Returns: The padded card row, without its surface.
+    static func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        HStack(spacing: 8) {
+            content()
+            Image(systemName: "chevron.forward")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(FestivalText.deemphasized)
+                .accessibilityHidden(true)
+        }
+        .padding(.horizontal, 12)
+    }
+
+    /// A member's charted instruments, trailing their name.
+    ///
+    /// - Parameter member: A band member.
+    /// - Returns: The member's instrument icons.
+    static func instrumentIcons(_ member: BandMember) -> some View {
+        HStack(spacing: 4) {
+            ForEach(member.chartedInstruments) { instrument in
+                InstrumentIcon(instrument, size: 22)
+            }
+        }
+    }
+
+    /// One line per member. A long name scrolls in its column (leaderboard-row R3),
+    /// except on a crowded trailing-pane board (``LeaderboardRowColumns/stacksName``,
+    /// owner-approved variant #364), where it wraps onto more lines in full beside
+    /// its instruments and the card grows.
     private var members: some View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(entry.members) { member in
                 HStack(spacing: 8) {
-                    LeaderboardNameText(name: member.resolvedName, emphasized: highlighted)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    HStack(spacing: 4) {
-                        ForEach(member.chartedInstruments) { instrument in
-                            InstrumentIcon(instrument, size: 22)
-                        }
-                    }
+                    LeaderboardNameText(
+                        name: member.resolvedName, emphasized: highlighted,
+                        stacked: columns?.stacksName == true
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Self.instrumentIcons(member)
                 }
             }
         }
@@ -270,6 +300,39 @@ struct SongBandPreviewRow: View {
                 StarRating(stars: entry.stars)
             }
             SongBandAccuracyBadge(accuracy: entry.accuracy, fullCombo: entry.isFullCombo)
+        }
+    }
+}
+
+// MARK: - Width probe (#364)
+
+/// One band card's member names for the section's width probe, bold for the selected
+/// band, as the card draws them.
+struct SongBandNameRow: Equatable {
+    let members: [BandMember]
+    let emphasized: Bool
+}
+
+/// Width probe only (``SongLeaderboardNameFit``): every member line of `rows` drawn
+/// unscrolled in the real card's columns (name, instruments, chevron and padding), so
+/// its ideal width is the card width the section's longest member line needs. Never
+/// shown.
+struct SongBandMemberWidthProbe: View {
+    let rows: [SongBandNameRow]
+
+    var body: some View {
+        SongBandPreviewRow.card {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                    ForEach(row.members) { member in
+                        HStack(spacing: 8) {
+                            RankingRowLayout.nameText(member.resolvedName, emphasized: row.emphasized)
+                                .fixedSize()
+                            SongBandPreviewRow.instrumentIcons(member)
+                        }
+                    }
+                }
+            }
         }
     }
 }

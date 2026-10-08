@@ -7,3 +7,4 @@
 - Compete's songs fit (#38) uses the measured card width, so wide iPad cards keep songs and narrow split-view cards drop them; not yet captured on iPad.
 - Not yet captured on an iPad simulator (iPhone-first order); verify alignment and the season column there in the iPadOS phase.
 - **Row height (#90):** the shared `LeaderboardRowMetrics.minHeight` (48 pt minimum) applies here too through the shared rows; verified on iPhone and in the macOS-hosted `LeaderboardRowHeightHostedTests`, not yet by a separate capture on this platform.
+- **Name stacking (#364):** in the split's trailing pane a song board whose widest one-line row would overflow sets `LeaderboardRowColumns.stacksName` for the whole section (multi-row cards); see [song-leaderboard/ipados.md](../../pages/song-leaderboard/ipados.md) and [leaderboard-row](../../patterns/leaderboard-row.md) R3 variant.
