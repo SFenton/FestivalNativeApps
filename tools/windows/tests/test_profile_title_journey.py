@@ -1,4 +1,4 @@
-"""Player profile title-row journey (``journeys/a11y-profile-title.json``, issues #97 and #285).
+"""Player profile title-row journey (``journeys/a11y-profile-title.json``, issues #97, #285 and #446).
 
 Run: ``python -m unittest discover -s tools/windows/tests`` from the repo root.
 """
@@ -47,6 +47,20 @@ class ProfileTitleJourneyTests(unittest.TestCase):
                 self.assertEqual(ids[1], "id=" + action)
                 self.assertIn("id=fst.player.overview", ids[2:])
                 self.assertIn("assertinset:id=fst.player.name|id=fst.player.available|12", _steps(_BY_NAME[name]))
+
+    def test_each_state_checks_the_title_is_a_plain_heading_without_avatar(self):
+        # Issue #446 (#97): the name is a plain, non-focusable Level 1 heading with no PersonPicture card, and the
+        # row's action keeps the 40 epx minimum height.
+        for name, action in _STATES.items():
+            with self.subTest(page=name):
+                steps = _steps(_BY_NAME[name])
+                for check in ("heading=1", "type=text", "focusable=false"):
+                    self.assertIn(f"assertstate:id=fst.player.name|{check}", steps)
+                self.assertIn("waitgone:class=PersonPicture@1", steps)
+                title = next(s for s in steps if s.startswith("assertname:id=fst.player.name|")).split("|", 1)[1]
+                self.assertIn(f"assertread:id=fst.player.name|{title}, text", steps)
+                if action != "fst.player.identity-notice":
+                    self.assertIn(f"assertsize:id={action}|0x40", steps)
 
     def test_actions_wrap_only_at_large_text(self):
         row, wrap = _BY_NAME["pt-actions-row"], _BY_NAME["pt-actions-wrap"]

@@ -7,8 +7,8 @@ A run with a system ``mode`` (e.g. ``text-225``) changes the runner's own deskto
 
 This is the one registry of Windows accessibility journeys that gate pull requests: a journey is in CI only when it has a
 :data:`RUNS` entry (``only`` limits a run to some of a file's pages). ``tests/test_ui_ci.py`` checks the entries and
-that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415) and the Quick Links landings
-(issue #416) run at default and 225% text.
+that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
+(issue #416) and the profile title row (issue #446) run at default and 225% text.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
 Usage::
@@ -80,6 +80,10 @@ class Run:
 #: host checks).
 SECTION_INDEX_BACKWARD = "index-backward-after-scroll,index-backward-after-scroll-keyboard"
 
+#: The ``a11y-profile-title.json`` fixture pages (issues #97, #285, #446); its ``pt-live-*`` pages need the public service.
+PROFILE_TITLE_FIXTURE = ("pt-switch,pt-anonymous,pt-selected,pt-notice,pt-actions-row,pt-actions-wrap,"
+                         "pt-keyboard-switch,pt-keyboard-selected")
+
 #: Journeys the ``windows-ui`` job runs, in order. ``wide`` (1440 epx) is left to the host matrix: the runner's
 #: desktop is 1920x1080 at 100% scale, so compact (500x800) and medium (900x700) fit with room for the taskbar.
 RUNS: tuple[Run, ...] = (
@@ -100,6 +104,12 @@ RUNS: tuple[Run, ...] = (
     # (scale-100/150 modes) stays in the host matrix.
     Run("quick-links-landing", "a11y-quick-links-landing.json", tabs=0),
     Run("quick-links-landing-text-225", "a11y-quick-links-landing.json", sizes="compact", mode="text-225", tabs=0),
+    # Player profile title row without the avatar card (issues #97, #446): the name is a non-focusable Level 1 heading
+    # with no PersonPicture, then Select/Switch/Deselect or the paused notice, then Overview; 40 epx actions, keyboard
+    # order and focus return, and Quick Links wrapping under the action at 225% text (#285).
+    Run("profile-title", "a11y-profile-title.json", tabs=0, only=PROFILE_TITLE_FIXTURE),
+    Run("profile-title-text-225", "a11y-profile-title.json", sizes="compact", mode="text-225", tabs=0,
+        only=PROFILE_TITLE_FIXTURE),
 )
 
 
