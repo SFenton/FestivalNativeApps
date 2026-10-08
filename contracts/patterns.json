@@ -641,6 +641,10 @@
             "symbol": "FSTCardSurfaceBrush"
           },
           {
+            "path": "windows/Festival.Core/Domain/CardSurfaceOpacity.cs",
+            "symbol": "CardSurfaceOpacity"
+          },
+          {
             "path": "windows/Festival.App/Controls/SongRowCard.xaml.cs",
             "symbol": "SongRowCard"
           },
@@ -1065,6 +1069,10 @@
           {
             "path": "windows/Festival.App/Controls/FestivalDialog.cs",
             "symbol": "FestivalDialog"
+          },
+          {
+            "path": "windows/Festival.App/Controls/DialogChrome.cs",
+            "symbol": "CommandTargets"
           }
         ]
       },
@@ -1158,7 +1166,8 @@
         139,
         140,
         360,
-        368
+        368,
+        400
       ]
     },
     {

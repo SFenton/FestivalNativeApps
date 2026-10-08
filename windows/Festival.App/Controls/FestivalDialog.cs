@@ -10,7 +10,8 @@ namespace Festival.App.Controls;
 /// The one modal component every Festival dialog is built with (issue #23; Apple <c>FestivalSheetCloseItem</c>, Android
 /// <c>FestivalModal</c>): a Fluent <see cref="ContentDialog"/> in the dark theme whose standard Close command
 /// (<see cref="ContentDialog.CloseButtonText"/>, also Esc) dismisses it, with no custom close glyph or in-content button.
-/// A lone command button spans the row (<see cref="DialogChrome.FullWidthSingleButton"/>), and
+/// A lone command button spans the row (<see cref="DialogChrome.FullWidthSingleButton"/>), every command is at least
+/// 40 epx tall (<see cref="DialogChrome.CommandTargets"/>), and
 /// <see cref="ShowAsync"/> adds outside-click dismissal and shows one dialog at a time.
 /// </summary>
 public static class FestivalDialog
@@ -52,6 +53,7 @@ public static class FestivalDialog
         if (ModalCommands.SpansFullWidth(primaryText, secondaryText, closeText)) DialogChrome.FullWidthSingleButton(dialog);
         if (closeAutomationId is not null) DialogChrome.CloseButtonAutomationId(dialog, closeAutomationId);
         DialogChrome.CommandLabelsWithoutBackplate(dialog);
+        DialogChrome.CommandTargets(dialog);
         return dialog;
     }
 
