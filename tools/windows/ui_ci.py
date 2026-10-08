@@ -76,6 +76,10 @@ RUNS: tuple[Run, ...] = (
     Run("modals", "a11y-modals.json"),
     # The same pages at Windows' largest text size: text on screen, commands reachable by Tab and hit-testable.
     Run("modals-text-225", "a11y-modals.json", sizes="compact", mode="text-225"),
+    # The Songs Filter without a profile (issues #77, #432): General-only sections, Narrator phrases and order, 40 epx
+    # Reset / Select All / Clear All, live Double Bass and Year narrowing, Filters applied, keyboard and Esc.
+    Run("songs-filter", "a11y-songs-filter.json"),
+    Run("songs-filter-text-225", "a11y-songs-filter.json", sizes="compact", mode="text-225"),
 )
 
 

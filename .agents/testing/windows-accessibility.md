@@ -415,6 +415,17 @@ Fixed: Feedback field hints were a `TextBox.Description` that clipped at compact
 
 Fixed (test only): the First Run page still asserted the template `CloseButton` ID, but #244 gave that Close `fst.first-run.close`. No app defect was found.
 
+## Songs Filter without a profile (issue #432, 2026-10-08)
+
+Accessibility tests for #77. The no-profile Filter pages moved into `journeys/a11y-songs-filter.json` (`songs-filter-anonymous`, `songs-filter-anonymous-year`, `kb-songs-filter-anonymous`), which `tools/windows/ui_ci.py` runs in `windows-ui` at default text (compact, medium) and 225% text (compact); `tests/test_ui_ci.py` keeps both runs. They assert Narrator phrases, reading order, 40×40 epx targets, the toggle and expand states, the applied "Filters applied" status and the keyboard walk ([songs-filter windows](../controls/songs-filter/windows.md#accessibility-tests-issue-432-no-profile)).
+
+Fixed: the flyout **Reset** footer and the Year/Duration **Select All / Clear All** links were 31–32 epx tall, under the 40 epx target; they and the Sort, Item Shop and Suggestions Reset footers now use `FSTMinTargetSize` (`HitTargetMarkupTests`). Fixed (tooling): the FstUia Narrator model skipped the offscreen, empty-bounds `Popup` window that hosts flyout content, so `assertorder` could not see a flyout; it now walks through that host.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (3 pages, `--scan --tabs 30`) | Pass, Axe 0 |
+| Text 225% (compact, 3 pages) | Pass, Axe 0 |
+
 ## Feedback Form validation (issue #236, 2026-10-05)
 
 Evidence: `a11y_matrix.py --scan --pages journeys/a11y-feedback.json --fixture tools/windows/feedback_fixture.py` (one page per state: `unavailable`, `editing-empty`, `invalid`, `editing-dirty`, `attachments`, `discard-confirm`, `sending`, `filing`, `sent`, `error`) at compact, medium, wide, maximized and both snaps, then Desert, Night sky, light and dark theme, text 200% and display 100%/150%: 0 Axe errors in the dialog. The only findings are 2 on Settings behind the dialog (open issue 7, medium at display 150%). `journeys/feedback.py` (`unavailable`, `validation`, `submit`, `error`) passes at every size preset. The live public service has `feedback:false`, so only `unavailable` is reachable there. Per configuration: [feedback-form/windows.md](../controls/feedback-form/windows.md#validation-issue-236-2026-10-05).
