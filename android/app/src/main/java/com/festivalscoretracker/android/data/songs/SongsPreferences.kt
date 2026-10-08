@@ -129,19 +129,16 @@ class SongsPreferences(private val settings: SettingsRepository) {
     }
 
     /**
-     * Clear the player-scoped filters on confirmed deselection: score predicates and the
-     * Selected Instrument Filters (instrument and Song Intensity, which the web resets and
-     * hides without a profile). The public General filters stay.
+     * Reset Songs for a deselected profile (web `resetSongSettingsForDeselect`, issue #359):
+     * every filter (score predicates, Selected Instrument Filters and General) returns to its
+     * default, and a sort that needs the selected player or a single instrument falls back to
+     * Title ascending (web `normalizeSongSettings`), so no "paused" notice outlives the profile.
+     * Metadata order and Item Shop layout stay.
      */
-    suspend fun clearPlayerFilter() {
-        settings.writeBlob(SettingsRegistry.SONG_PLAYER_SCORE_FILTERS, null)
-        val general = decodePublic(settings.blob(SettingsRegistry.SONG_FILTERS).first()).second
-        settings.writeBlob(SettingsRegistry.SONG_FILTERS, encodePublic(SongFilter(), general))
-    }
-
-    /** Reset a saved sort that reads the selected player's scores to Title ascending. */
-    suspend fun clearScoreSort() {
-        if (settings.settings.first().songSort.needsScores) settings.setSongSort(SongSortMode.Title, true)
+    suspend fun resetForDeselect() {
+        clearFilters()
+        val sort = settings.settings.first().songSort
+        if (sort.needsScores || sort.needsChart) settings.setSongSort(SongSortMode.Title, true)
     }
 
     /**
@@ -239,9 +236,20 @@ class SongsPreferences(private val settings: SettingsRepository) {
 // region Deselection
 
 /**
- * Clear selected-player predicates and Selected Instrument Filters when a selected player
- * is deselected (a player-to-player switch keeps them; public General choices always stay).
- * A saved score sort falls back to Title ascending, like the filters it depends on.
+ * Whether a profile change resets Songs (web `shouldResetSongSettingsForProfileChange`): only
+ * when a selected profile goes away. A player-to-player switch keeps the settings; Android
+ * selects players only, so the web's player↔band type change cannot occur.
+ *
+ * @param previous Profile before the change.
+ * @param next Profile after the change.
+ * @return True when [SongsPreferences.resetForDeselect] applies.
+ */
+internal fun shouldResetSongsForProfileChange(previous: SelectedPlayer?, next: SelectedPlayer?): Boolean =
+    previous != null && next == null
+
+/**
+ * Reset Songs filters and player/instrument sorts when the selected player is deselected
+ * ([shouldResetSongsForProfileChange], [SongsPreferences.resetForDeselect]).
  *
  * @receiver Songs preferences.
  * @param scope Process-lifetime scope.
@@ -251,10 +259,7 @@ fun SongsPreferences.watchDeselection(scope: CoroutineScope, players: Flow<Selec
     scope.launch {
         var previous: SelectedPlayer? = null
         players.collect { player ->
-            if (previous != null && player == null) {
-                clearPlayerFilter()
-                clearScoreSort()
-            }
+            if (shouldResetSongsForProfileChange(previous, player)) resetForDeselect()
             previous = player
         }
     }
