@@ -10,7 +10,8 @@
 
     <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Default">
-            <!-- Mutated at runtime to opaque when Windows transparency effects are off. -->
+            <!-- Mutated at runtime to opaque when Windows transparency effects are off or the in-app Less Transparency or
+                 Increase Contrast setting is on (MainWindow.ApplyTransparency, CardSurfaceOpacity). -->
             <SolidColorBrush x:Key="FSTCardSurfaceBrush" Color="#C7121826" />
             <SolidColorBrush x:Key="FSTCardStrokeBrush" Color="#14FFFFFF" />
             <!-- Linked card buttons (Player Profile stat cards): hover/press surfaces and the hover outline. -->
@@ -321,6 +322,21 @@
     <!-- MenuFlyout presenters are UIA Menus and need a name (Axe); the invoking button already names the choice. -->
     <Style TargetType="MenuFlyoutPresenter">
         <Setter Property="AutomationProperties.Name" Value="Options" />
+    </Style>
+
+    <!-- Menu items are targets too (page-tools-and-nav-chrome R10, issue #416): WinUI's keyboard/mouse padding
+         (MenuFlyoutItemThemePaddingNarrow) left them 27 epx tall. The item template insets its hit-testable pill by
+         MenuFlyoutItemMargin (4,2,4,2), so the item is FSTMinTargetSize plus that 2+2 epx for a 40 epx pill. Implicit
+         styles match the exact type, so each menu item type in the app gets its own. -->
+    <x:Double x:Key="FSTMenuItemMinHeight">44</x:Double>
+    <Style TargetType="MenuFlyoutItem" BasedOn="{StaticResource DefaultMenuFlyoutItemStyle}">
+        <Setter Property="MinHeight" Value="{StaticResource FSTMenuItemMinHeight}" />
+    </Style>
+    <Style TargetType="ToggleMenuFlyoutItem" BasedOn="{StaticResource DefaultToggleMenuFlyoutItemStyle}">
+        <Setter Property="MinHeight" Value="{StaticResource FSTMenuItemMinHeight}" />
+    </Style>
+    <Style TargetType="RadioMenuFlyoutItem" BasedOn="{StaticResource DefaultRadioMenuFlyoutItemStyle}">
+        <Setter Property="MinHeight" Value="{StaticResource FSTMenuItemMinHeight}" />
     </Style>
 
     <!-- Every ProgressRing/ProgressBar is white (neutral) rather than accent-coloured, with no caption beside it. -->

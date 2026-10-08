@@ -2,6 +2,9 @@ package com.festivalscoretracker.android.journeys
 
 import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -17,6 +20,7 @@ import androidx.datastore.preferences.core.mutablePreferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.nav.DebugLaunch
+import com.festivalscoretracker.android.core.settings.PathDisplayMode
 import com.festivalscoretracker.android.core.settings.SettingsRegistry
 import com.festivalscoretracker.android.data.HttpResult
 import com.festivalscoretracker.android.testing.FakeTransport
@@ -149,6 +153,86 @@ class SongPathsDeviceTest {
         h.tap("fst.paths.close")
         h.waitGone("fst.paths.close")
         assertTrue(h.exists("fst.song-detail.paths.open"))
+        h.assertAccessible()
+    }
+
+    /** Karaoke hidden and Text saved as the default view: the sheet opens straight on the cards. */
+    private val textPreferences
+        get() = MemoryPreferences(
+            mutablePreferencesOf(
+                stringPreferencesKey(SettingsRegistry.VISIBLE_INSTRUMENTS) to "Solo_Guitar,Solo_Bass",
+                stringPreferencesKey(SettingsRegistry.PATH_DEFAULT_VIEW) to PathDisplayMode.Text.token,
+            ),
+        )
+
+    /**
+     * Issue #289 (tracker #384): on a half-open book fold `FestivalModalSheet` keeps the whole
+     * Paths sheet on one side of the hinge, at 100% and 200% text. At each size the sheet, its
+     * Close, the first card, the control row and the difficulty options straddle nothing;
+     * TalkBack reads "Paths" → Close → the cards → the controls (Difficulty first when the
+     * row stacks), with the open difficulty panel's Easy…Expert between the cards and the
+     * controls; the card grows at 200% (the scale reaches the sheet's window); no text is
+     * clipped; and ATF (labels, 48 dp targets, contrast) finds no errors.
+     * On a device without a separating hinge the straddle checks pass trivially, so run it with
+     * `--avd FST_Book_Fold --posture half`; the `android-fold` CI job runs it on a half-open
+     * Pixel 9 Pro Fold emulator and fails here if the hinge is missing; `android-device` runs it
+     * on a phone for the text-size, reading-order and ATF checks.
+     */
+    @Test
+    @DeviceCi
+    @HalfOpenFoldJourney
+    fun halfOpenSheetStaysOnOneSideAndReadsInOrderAtEveryTextSize() {
+        var scale by mutableFloatStateOf(1f)
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(songQuery = "s-alpha", stillBackground = true), transport, textPreferences, fontScale = { scale })
+        h.waitForTag("fst.song-detail.list")
+        h.requireHingeWhenAsked()
+        val cardHeights = mutableListOf<Float>()
+        listOf(1f, 2f).forEach { s ->
+            scale = s
+            rule.waitForIdle()
+            val config = "text ${(s * 100).toInt()}%"
+            h.tap("fst.song-detail.paths.open")
+            h.waitForTag("fst.paths.row.1")
+            h.awaitAccessibilityTree("fst.paths.row.1", absent = "fst.song-detail.paths.open")
+            h.assertNothingStraddles("fst.song-detail.paths", "fst.paths.close", "fst.paths.row.1", "fst.paths.selectors", *controls)
+            cardHeights += rule.onNodeWithTag("fst.paths.row.1").fetchSemanticsNode().size.height.toFloat()
+
+            val order = h.readingOrder("paths-fold-$config", fresh = true)
+            val heading = order.indexOf("Paths")
+            val close = order.indexOf("Close")
+            val card = order.indexOfFirst { it.startsWith("Activation 1:") }
+            val instrument = order.indexOfFirst { it.startsWith("Instrument:") }
+            val difficulty = order.indexOfFirst { it.startsWith("Difficulty:") }
+            val view = order.indexOfFirst { it.startsWith("View:") }
+            val stacked = h.exists("fst.paths.selectors.stacked")
+            val controlsInOrder = if (stacked) difficulty in (card + 1) until instrument else instrument in (card + 1) until difficulty
+            assertTrue(
+                "$config: reading order $order",
+                heading >= 0 && close > heading && card > close && controlsInOrder && view > maxOf(instrument, difficulty),
+            )
+            assertNoClippedText(config)
+
+            h.tap("fst.paths.difficulty.open")
+            h.waitForTag("fst.paths.difficulty.expert")
+            h.awaitAccessibilityTree("fst.paths.difficulty.expert")
+            h.assertNothingStraddles("fst.paths.difficulty.easy", "fst.paths.difficulty.medium", "fst.paths.difficulty.hard", "fst.paths.difficulty.expert")
+            // The panel opens above the control row: cards, then Easy…Expert, then the controls.
+            val panel = h.readingOrder("paths-fold-difficulty-$config")
+            val options = listOf("Easy", "Medium", "Hard", "Expert").map { option -> panel.indexOfFirst { it.startsWith(option) } }
+            val panelFirstControl = panel.indexOfFirst { it.startsWith(if (stacked) "Difficulty:" else "Instrument:") }
+            assertTrue(
+                "$config: difficulty panel reading order $panel",
+                options.first() > panel.indexOfFirst { it.startsWith("Activation 1:") } && options.zipWithNext().all { (a, b) -> b > a } &&
+                    options.last() < panelFirstControl,
+            )
+            assertNoClippedText("$config difficulty panel")
+
+            h.tap("fst.paths.close")
+            h.waitGone("fst.paths.close")
+            h.awaitAccessibilityTree("fst.song-detail.paths.open", absent = "fst.paths.row.1")
+        }
+        assertTrue("200% text reaches the sheet: card heights $cardHeights", cardHeights[1] > cardHeights[0])
         h.assertAccessible()
     }
 
