@@ -45,6 +45,34 @@ struct NativeHostedRoot<Content: View>: View {
 /// - Returns: The element, or nil when no realized element has the identifier.
 @MainActor
 func nativeHostedAccessibilityElement(_ identifier: String, in host: NSView) -> NSObject? {
+    nativeHostedAccessibilityElement(in: host) { nativeHostedAccessibilityString($0, "accessibilityIdentifier") == identifier }
+}
+
+/// A string accessibility attribute of a hosted element, read with selector-checked KVC.
+///
+/// - Parameters:
+///   - object: An accessibility element or AppKit view.
+///   - key: Attribute getter, e.g. `accessibilityLabel`.
+/// - Returns: The string (attributed strings flattened), or "" when absent.
+@MainActor
+func nativeHostedAccessibilityString(_ object: NSObject, _ key: String) -> String {
+    guard object.responds(to: NSSelectorFromString(key)) else { return "" }
+    switch object.value(forKey: key) {
+    case let text as String: return text
+    case let attributed as NSAttributedString: return attributed.string
+    default: return ""
+    }
+}
+
+/// The first realized accessibility element under `host`, in tree order, that matches.
+///
+/// - Parameters:
+///   - host: The window's hosting view (call `nativeHostedEnableAccessibility()` first).
+///   - matches: Predicate over each element or view (read attributes with
+///     ``nativeHostedAccessibilityString(_:_:)``).
+/// - Returns: The element, or nil when no realized element matches.
+@MainActor
+func nativeHostedAccessibilityElement(in host: NSView, where matches: (NSObject) -> Bool) -> NSObject? {
     var seen = Set<ObjectIdentifier>()
     func read(_ object: NSObject, _ key: String) -> Any? {
         object.responds(to: NSSelectorFromString(key)) ? object.value(forKey: key) : nil
@@ -52,7 +80,7 @@ func nativeHostedAccessibilityElement(_ identifier: String, in host: NSView) -> 
     func walk(_ node: Any, depth: Int) -> NSObject? {
         guard depth < 80, let object = node as? NSObject,
               seen.insert(ObjectIdentifier(object)).inserted else { return nil }
-        if read(object, "accessibilityIdentifier") as? String == identifier { return object }
+        if matches(object) { return object }
         for child in (read(object, "accessibilityChildren") as? [Any]) ?? [] {
             if let found = walk(child, depth: depth + 1) { return found }
         }
@@ -74,8 +102,18 @@ func nativeHostedAccessibilityElement(_ identifier: String, in host: NSView) -> 
 /// - Returns: The element's frame, or nil when no realized element has the identifier.
 @MainActor
 func nativeHostedAccessibilityFrame(_ identifier: String, in host: NSView) -> CGRect? {
-    guard let element = nativeHostedAccessibilityElement(identifier, in: host),
-          element.responds(to: NSSelectorFromString("accessibilityFrame")),
+    nativeHostedAccessibilityElement(identifier, in: host).flatMap { nativeHostedAccessibilityFrame(of: $0, in: host) }
+}
+
+/// Frame, in the host's top-left points, of a realized accessibility element.
+///
+/// - Parameters:
+///   - element: An element found under `host` (``nativeHostedAccessibilityElement(in:where:)``).
+///   - host: The window's hosting view.
+/// - Returns: The element's frame, or nil without a frame or window.
+@MainActor
+func nativeHostedAccessibilityFrame(of element: NSObject, in host: NSView) -> CGRect? {
+    guard element.responds(to: NSSelectorFromString("accessibilityFrame")),
           let frame = (element.value(forKey: "accessibilityFrame") as? NSValue)?.rectValue,
           let window = host.window else { return nil }
     let local = host.convert(window.convertFromScreen(frame), from: nil)
