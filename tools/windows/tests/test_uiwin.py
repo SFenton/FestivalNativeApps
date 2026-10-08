@@ -349,6 +349,17 @@ class StepTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     u.parse_step(bad)
 
+    def test_drag(self):
+        step = u.parse_step("drag:id=fst.settings.song-row-order.score|id=fst.settings.song-row-order.percentage|12")
+        self.assertEqual(step["verb"], "drag")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.settings.song-row-order.score"})
+        self.assertEqual(step["other"], {"kind": "id", "value": "fst.settings.song-row-order.percentage"})
+        self.assertEqual(step["dy"], 12.0)
+        self.assertEqual(u.parse_step("drag:id=a|id=b")["dy"], 0.0)
+        for bad in ("drag:id=a", "drag:id=a|id=b|x", "drag:10,20|id=b", "drag:id=a|id=b|1|2"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_assertapart(self):
         step = u.parse_step("assertapart:id=fst.songs.sort|id=fst.songs.filter")
         self.assertEqual(step["verb"], "assertapart")

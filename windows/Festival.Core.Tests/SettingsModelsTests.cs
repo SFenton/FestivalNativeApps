@@ -39,10 +39,29 @@ public class SettingsModelsTests
     public void Labels_CoverEveryCase()
     {
         Assert.Equal(["Score", "Percentage", "Percentile", "Season Achieved", "Intensity", "Difficulty", "Stars", "Last Played"],
-            Enum.GetValues<MetadataField>().Select(f => f.Label()));
+            SettingsLabels.ToggleOrder.Select(f => f.Label()));
+        Assert.Equal(Enum.GetValues<MetadataField>().Order(), SettingsLabels.ToggleOrder.Order());
+        Assert.Equal("Song Intensity", MetadataField.Intensity.ReorderLabel());
+        Assert.Equal("Season Achieved", MetadataField.Season.ReorderLabel());
         Assert.Equal(["Note", "Beat", "Time", "OD", "Score"], Enum.GetValues<PathColumnKey>().Select(c => c.Label()));
         Assert.Equal("last-played", MetadataField.LastPlayed.Token());
         Assert.Equal("score", MetadataField.Score.Token());
+    }
+
+    /// <summary>Issue #372: the default Song Row Visual Order is the web <c>DEFAULT_METADATA_ORDER</c>, the order Songs
+    /// rows use with Visual Order off, so turning it on changes nothing until the user reorders.</summary>
+    [Fact]
+    public void DefaultVisualOrder_IsWebDefaultMetadataOrder()
+    {
+        MetadataField[] web =
+        [
+            MetadataField.Score, MetadataField.Percentage, MetadataField.Percentile, MetadataField.Stars,
+            MetadataField.Season, MetadataField.Intensity, MetadataField.Difficulty, MetadataField.LastPlayed,
+        ];
+        Assert.Equal(web, new AppSettings().SongRowVisualOrder);
+        Assert.Equal(web, SongMetadataPolicy.DefaultOrder);
+        Assert.Equal([MetadataField.Difficulty, .. web.Where(f => f != MetadataField.Difficulty)],
+            SettingsOrder.Normalize<MetadataField>([MetadataField.Difficulty]));
     }
 
     [Fact]

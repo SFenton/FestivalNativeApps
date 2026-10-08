@@ -122,7 +122,9 @@ JOURNEYS = [
         phases=[
             Phase(["scrollinto:id=fst.settings.enable-visual-order", "toggle:id=fst.settings.enable-visual-order",
                    "wait:1", "scrollinto:id=fst.settings.song-row-order"],
-                  expect=[_id("fst.settings.song-row-order"), r'"Score, position 1 of \d+"', r'"Move Score up".*\[[^\]]*disabled'],
+                  expect=[_id("fst.settings.song-row-order"), r'"Score, position 1 of \d+"', r'"Move Score up".*\[[^\]]*disabled',
+                          # Issue #372: web DEFAULT_METADATA_ORDER and METADATA_SORT_DISPLAY ("Song Intensity").
+                          r'"Stars, position 4 of \d+"', r'"Song Intensity, position 6 of \d+"'],
                   saved={"enableVisualOrder on": lambda s: s.get("enableVisualOrder") is True}),
             Phase(["invoke:name=Move Score down", "wait:1"],
                   expect=[r'"Score, position 2 of \d+"'],
@@ -131,6 +133,25 @@ JOURNEYS = [
                   expect=[r'"Score, position 2 of \d+"']),
         ],
         relaunch=1,
+    ),
+    Journey(
+        # Issue #372: a real mouse drag on the grip reorders (web dnd-kit ReorderList), then persists across relaunch.
+        # Needs an unlocked console (the drag step refuses to send input otherwise).
+        name="visual-order-drag",
+        seed={"enableVisualOrder": True},
+        phases=[
+            Phase(["reveal:id=fst.settings.song-row-order.percentage", "wait:1",
+                   "drag:id=fst.settings.song-row-order.score|id=fst.settings.song-row-order.percentage|14",
+                   "assertname:id=fst.settings.song-row-order.score|Score, position 2 of *"],
+                  expect=[r'"Percentage, position 1 of \d+"'],
+                  saved={"Percentage then Score": lambda s: s.get("songRowVisualOrder", [])[:2] == ["Percentage", "Score"]}),
+            Phase([READY, "reveal:id=fst.settings.song-row-order.score", "wait:1",
+                   "drag:id=fst.settings.song-row-order.score|id=fst.settings.song-row-order.percentage|-14",
+                   "assertname:id=fst.settings.song-row-order.score|Score, position 1 of *"],
+                  expect=[r'"Percentage, position 2 of \d+"'],
+                  saved={"Score first again": lambda s: s.get("songRowVisualOrder", [])[:2] == ["Score", "Percentage"]}),
+        ],
+        relaunch=0,
     ),
     Journey(
         name="filters",

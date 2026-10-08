@@ -28,7 +28,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         AppVersion = appVersion.Length > 0 ? appVersion : "Unknown";
         IsDebugBuild = debugBuild;
         Instruments = InstrumentInfo.All.Select(i => new InstrumentToggle(this, i)).ToList();
-        Metadata = Enum.GetValues<MetadataField>().Select(f => new MetadataToggle(this, f)).ToList();
+        Metadata = SettingsLabels.ToggleOrder.Select(f => new MetadataToggle(this, f)).ToList();
         FirstRunPages = Enum.GetValues<FirstRunPageKey>().Select(p => new FirstRunReplayItem(p)).ToList();
         QuickLinks = new QuickLinksViewModel("Quick Links", 32);
         QuickLinks.SetSections(QuickLinkSections());
@@ -72,7 +72,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         get
         {
-            var visible = session.Settings.SongRowVisualOrder.Where(session.Settings.IsMetadataVisible).Select(f => f.Label()).ToList();
+            var visible = session.Settings.SongRowVisualOrder.Where(session.Settings.IsMetadataVisible).Select(f => f.ReorderLabel()).ToList();
             return visible.Count == 0 ? "No metadata fields are currently visible." : string.Join(" · ", visible);
         }
     }
@@ -386,7 +386,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         var rows = session.Settings.SongRowVisualOrder.Where(session.Settings.IsMetadataVisible).ToList();
         if (!IsCurrent(SongRowOrder, [.. rows.Cast<object>()]))
-            SongRowOrder = [.. rows.Select((f, i) => new ReorderItemViewModel(f, f.Label(), "fst.settings.song-row-order." + f.Token(), i, rows.Count, MoveSongRowField))];
+            SongRowOrder = [.. rows.Select((f, i) => new ReorderItemViewModel(f, f.ReorderLabel(), "fst.settings.song-row-order." + f.Token(), i, rows.Count, MoveSongRowField))];
         var columns = session.Settings.PathColumnOrder;
         if (!IsCurrent(PathColumnOrder, [.. columns.Cast<object>()]))
             PathColumnOrder = [.. columns.Select((c, i) => new ReorderItemViewModel(c, c.Label(), "fst.settings.path-column-order." + c.ToString().ToLowerInvariant(), i, columns.Count, MovePathColumn))];
