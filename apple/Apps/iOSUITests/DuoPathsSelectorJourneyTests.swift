@@ -82,6 +82,53 @@ final class DuoPathsSelectorJourneyTests: XCTestCase {
         XCTAssertLessThanOrEqual(refolded, Self.iconOnlyMaxWidth)
     }
 
+    /// Opened on the unfolded inner display (owner, issue #368), Paths covers the window
+    /// and its View menu offers Image, Text and Side by Side; Side by Side shows the
+    /// image and the table at once. Folding again keeps the open viewer (latched) and
+    /// falls back to the Settings default view.
+    @MainActor
+    func testUnfoldedOffersSideBySideAndFoldingFallsBack() throws {
+        continueAfterFailure = false
+        try requireFixture()
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": Self.origin,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_UI_TEST_RESET_SONG_CARDS": "1",
+            "FST_DEBUG_DUO_WINDOW_REMOTE": "1",
+            "FST_DEBUG_DUO_WINDOW": "unfolded-landscape",
+        ])
+        app.launch()
+        defer { app.terminate() }
+        _ = openPaths(in: app)
+        let view = menu("fst.paths.display", in: app)
+        XCTAssertEqual(view.value as? String, "Text")
+        view.tap()
+        for option in ["Image", "Text", "Side by Side"] {
+            let item = app.buttons.matching(
+                NSPredicate(format: "label == %@ AND identifier != %@", option, view.identifier)
+            ).firstMatch
+            XCTAssertTrue(item.waitForExistence(timeout: 5), "View option \(option) missing")
+        }
+        app.buttons.matching(
+            NSPredicate(format: "label == %@ AND identifier != %@", "Side by Side", view.identifier)
+        ).firstMatch.tap()
+
+        let image = app.descendants(matching: .any).matching(identifier: "fst.paths.image").firstMatch
+        let text = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "fst.paths.text.")
+        ).firstMatch
+        XCTAssertTrue(image.waitForExistence(timeout: 10), "Side by Side shows no image")
+        XCTAssertTrue(text.waitForExistence(timeout: 10), "Side by Side shows no table")
+        XCTAssertLessThan(image.frame.midX, text.frame.midX, "Image is not before the table")
+        XCTAssertEqual(view.value as? String, "Side by Side")
+
+        DuoWindowSwitch.post("folded")
+        XCTAssertTrue(view.waitForExistence(timeout: 10), "Folding closed the viewer")
+        let folded = NSPredicate(format: "value == %@", "Image")
+        expectation(for: folded, evaluatedWith: view)
+        waitForExpectations(timeout: 10)
+    }
+
     /// The device's own pose (an ordinary iPhone, no simulated window) keeps the plain
     /// title and the icon + name selector. Skipped on the iPhone Duo, whose real pose the
     /// folded journey covers.

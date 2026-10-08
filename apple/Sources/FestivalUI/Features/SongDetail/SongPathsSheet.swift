@@ -3,6 +3,11 @@ import FestivalCore
 import FestivalDesign
 
 /// Native public CHOpt image/text viewer with generation-safe request switching.
+///
+/// Image and Text load independently, so Side by Side (owner, issue #368: the iPhone
+/// Duo inner display, iPad and Mac, presented over the whole window by
+/// ``SongPathsPolicy``) shows both at once and switching modes reloads only the form
+/// that appears.
 struct SongPathsSheet: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.deviceLayout) private var deviceLayout
@@ -13,23 +18,30 @@ struct SongPathsSheet: View {
     private var warningDismissed = false
     @State private var instrument: Instrument
     @State private var difficulty = PathDifficulty.expert
-    @State private var display: PathDisplayMode
-    /// The image, table or error on screen; nil while the spinner shows (issue #70).
-    @State private var shown: LoadState?
-    /// The loading spinner is on screen (it fades in and out between charts).
-    @State private var spinnerVisible = true
-    /// A chart has been requested before, so later loads are switches VoiceOver announces.
-    @State private var hasRequested = false
+    /// The View menu's selection, kept when the layout can't show it (see
+    /// ``SongPathsPolicy/resolve(_:layout:fallback:)``).
+    @State private var viewMode: PathViewMode
+    /// Each form's image, table or error on screen; absent while its spinner shows (issue #70).
+    @State private var shown: [PathDisplayMode: LoadState] = [:]
+    /// Forms whose loading spinner has faded out (it fades in and out between charts).
+    @State private var spinnerHidden: Set<PathDisplayMode> = []
+    /// The user has switched something since opening, so loads are switches VoiceOver
+    /// announces (the first load is not).
+    @State private var announcesSwitches = false
     @State private var retryRevision = 0
     @State private var zoom: CGFloat = 1
     @State private var pinchOrigin: CGFloat = 1
     @State private var warningPresented = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.festivalModalCoverage) private var coverage
+    @Environment(\.dismiss) private var dismiss
 
     let song: Song
     let session: FestivalSession
     let instruments: [Instrument]
     let warnAboutKaraoke: Bool
+    /// Settings' Path Default View, shown when Side by Side doesn't fit the layout.
+    let defaultDisplay: PathDisplayMode
 
     private enum LoadState {
         case image(SongPathImagePayload)
@@ -43,11 +55,39 @@ struct SongPathsSheet: View {
         let display: PathDisplayMode
         let publicationRevision: Int
         let retryRevision: Int
+        /// The form is on screen; an inactive key clears it instead of loading.
+        let active: Bool
     }
 
-    private var requestKey: RequestKey {
+    /// Anything the user (or a new publication) switched, after which loads announce.
+    private struct SwitchKey: Equatable {
+        let instrument: Instrument
+        let difficulty: PathDifficulty
+        let mode: PathViewMode
+        let publicationRevision: Int
+        let retryRevision: Int
+    }
+
+    /// The mode on screen for the selection in the current layout.
+    private var shownMode: PathViewMode {
+        SongPathsPolicy.resolve(viewMode, layout: deviceLayout, fallback: defaultDisplay)
+    }
+
+    /// The request for one form.
+    ///
+    /// - Parameter display: Image or text.
+    /// - Returns: Its key, inactive while the shown mode doesn't include it.
+    private func requestKey(for display: PathDisplayMode) -> RequestKey {
         RequestKey(
             instrument: instrument, difficulty: difficulty, display: display,
+            publicationRevision: session.publicationRevision, retryRevision: retryRevision,
+            active: shownMode.displays.contains(display)
+        )
+    }
+
+    private var switchKey: SwitchKey {
+        SwitchKey(
+            instrument: instrument, difficulty: difficulty, mode: shownMode,
             publicationRevision: session.publicationRevision, retryRevision: retryRevision
         )
     }
@@ -67,17 +107,19 @@ struct SongPathsSheet: View {
     ///   - firstInstrument: First validated entry in `instruments`.
     ///   - defaultDisplay: Image or text preference from app Settings.
     ///   - warnAboutKaraoke: Whether an enabled chart lacks CHOpt paths.
+    ///   - viewMode: The first View selection; nil starts from `defaultDisplay`.
     init(
         song: Song, session: FestivalSession, instruments: [Instrument],
         firstInstrument: Instrument, defaultDisplay: PathDisplayMode,
-        warnAboutKaraoke: Bool
+        warnAboutKaraoke: Bool, viewMode: PathViewMode? = nil
     ) {
         self.song = song
         self.session = session
         self.instruments = instruments
         self.warnAboutKaraoke = warnAboutKaraoke
+        self.defaultDisplay = defaultDisplay
         _instrument = State(initialValue: firstInstrument)
-        _display = State(initialValue: defaultDisplay)
+        _viewMode = State(initialValue: viewMode ?? PathViewMode(defaultDisplay))
     }
 
     var body: some View {
@@ -86,7 +128,7 @@ struct SongPathsSheet: View {
         // and a compact selector row at the bottom (operator audit 2026-09-28).
         FestivalModal(Self.title(for: instrument, pose: deviceLayout.pose), closeIdentifier: "fst.paths.close") {
             VStack(spacing: 10) {
-                pathContent
+                panes
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 selectorRow
             }
@@ -98,7 +140,9 @@ struct SongPathsSheet: View {
         // Full-bleed page sizing at every width: the zoomable image/table benefits from
         // the extra room on Duo unfolded/iPad rather than a centered form card.
         .festivalSheet(.large, sizing: .page)
-        .task(id: requestKey) { await loadPath() }
+        .task(id: requestKey(for: .image)) { await loadPath(.image) }
+        .task(id: requestKey(for: .text)) { await loadPath(.text) }
+        .onChange(of: switchKey) { announcesSwitches = true }
         .onAppear { warningPresented = warnAboutKaraoke && !warningDismissed }
         .alert("Some Instruments Unavailable", isPresented: $warningPresented) {
             Button("OK") {}
@@ -110,7 +154,23 @@ struct SongPathsSheet: View {
         // Swipe-to-dismiss stays on (issue #96; HIG sheets: "Support swiping vertically
         // to dismiss"): the viewer has no unsaved changes, and the system sheet only
         // takes a downward pull from the title bar or a scroll view at its top edge, so
-        // image pinch and pan keep working.
+        // image pinch and pan keep working. A full-window cover (issue #368) has no
+        // system swipe, so each pane's scroll view pulled down past its top dismisses
+        // it the same way (`pullsDownToDismiss`).
+    }
+
+    /// The shown mode's pane, or the image and the table as ``HingePanes`` (one each side
+    /// of an iPhone Duo hinge in book pose).
+    @ViewBuilder private var panes: some View {
+        if shownMode == .sideBySide {
+            HingePanes(spacing: 16) {
+                pathContent(.image)
+            } second: {
+                pathContent(.text)
+            }
+        } else {
+            pathContent(shownMode.displays[0])
+        }
     }
 
     // MARK: - Compact chrome
@@ -145,56 +205,90 @@ struct SongPathsSheet: View {
         }
     }
 
-    /// The image (not the text table) is showing, so zoom applies.
+    /// The image is showing (alone or beside the table), so zoom applies.
     private var showsZoom: Bool {
-        if case .image = shown { return true }
+        guard shownMode.displays.contains(.image) else { return false }
+        if case .image = shown[.image] { return true }
         return false
     }
 
     /// One compact bottom row of native pop-up menus: instrument, difficulty and view
     /// (issue #88: the instrument is a native menu like the other two, not the web's
     /// mobile accordion; pop-up-buttons › "a flat list of mutually exclusive options").
-    private var selectorRow: some View {
-        selectorLayout {
-            selectorMenu("Instrument", selection: $instrument, value: instrument.label) {
-                ForEach(instruments) { choice in
-                    Label {
-                        Text(choice.label)
-                    } icon: {
-                        InstrumentIcon.menuImage(for: choice, keyboard: usesKeyboardIcon(choice))
-                    }
-                    .tag(choice)
-                }
-            } current: {
-                // Every option has an icon (menus › "icons for all or none"). Folded iPhone
-                // Duo shows the icon alone and names the instrument in the title instead
-                // (owner, issue #360); VoiceOver still reads "Instrument, <name>".
-                if Self.showsInstrumentName(pose: deviceLayout.pose) {
-                    namedInstrumentLabel
-                } else {
-                    InstrumentIcon(instrument, keyboard: usesKeyboardIcon(instrument), size: iconOnlySide)
-                        .accessibilityHidden(true)
-                }
+    ///
+    /// In book pose the View menu is hidden (Side by Side is the only mode, issue #368),
+    /// and the instrument and difficulty menus sit one on each side of the hinge
+    /// (``HingeRow``, pattern `hinge-columns`).
+    @ViewBuilder private var selectorRow: some View {
+        if SongPathsPolicy.showsViewMenu(deviceLayout) || dynamicTypeSize.isAccessibilitySize {
+            selectorLayout {
+                instrumentMenu
+                difficultyMenu
+                if SongPathsPolicy.showsViewMenu(deviceLayout) { viewMenu }
             }
-            .accessibilityIdentifier("fst.paths.instrument")
-            selectorMenu("Difficulty", selection: $difficulty, value: difficulty.label) {
-                ForEach(PathDifficulty.allCases) { choice in
-                    Text(choice.label).tag(choice)
-                }
-            } current: {
-                Text(difficulty.label)
+            .frame(maxWidth: .infinity)
+        } else {
+            HingeRow(spacing: 8) {
+                instrumentMenu
+                difficultyMenu
             }
-            .accessibilityIdentifier("fst.paths.difficulty")
-            selectorMenu("View", selection: $display, value: display.label) {
-                ForEach(PathDisplayMode.allCases) { choice in
-                    Text(choice.label).tag(choice)
-                }
-            } current: {
-                Text(display.label)
-            }
-            .accessibilityIdentifier("fst.paths.display")
+            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity)
+    }
+
+    /// The instrument menu (icon + name; icon alone on folded iPhone Duo).
+    private var instrumentMenu: some View {
+        selectorMenu("Instrument", selection: $instrument, value: instrument.label) {
+            ForEach(instruments) { choice in
+                Label {
+                    Text(choice.label)
+                } icon: {
+                    InstrumentIcon.menuImage(for: choice, keyboard: usesKeyboardIcon(choice))
+                }
+                .tag(choice)
+            }
+        } current: {
+            // Every option has an icon (menus › "icons for all or none"). Folded iPhone
+            // Duo shows the icon alone and names the instrument in the title instead
+            // (owner, issue #360); VoiceOver still reads "Instrument, <name>".
+            if Self.showsInstrumentName(pose: deviceLayout.pose) {
+                namedInstrumentLabel
+            } else {
+                InstrumentIcon(instrument, keyboard: usesKeyboardIcon(instrument), size: iconOnlySide)
+                    .accessibilityHidden(true)
+            }
+        }
+        .accessibilityIdentifier("fst.paths.instrument")
+    }
+
+    /// The difficulty menu.
+    private var difficultyMenu: some View {
+        selectorMenu("Difficulty", selection: $difficulty, value: difficulty.label) {
+            ForEach(PathDifficulty.allCases) { choice in
+                Text(choice.label).tag(choice)
+            }
+        } current: {
+            Text(difficulty.label)
+        }
+        .accessibilityIdentifier("fst.paths.difficulty")
+    }
+
+    /// The View menu: Image and Text, plus Side by Side where the viewer covers a wide
+    /// window (``SongPathsPolicy/modes(for:)``).
+    private var viewMenu: some View {
+        selectorMenu("View", selection: viewSelection, value: shownMode.label) {
+            ForEach(SongPathsPolicy.modes(for: deviceLayout)) { choice in
+                Text(choice.label).tag(choice)
+            }
+        } current: {
+            Text(shownMode.label)
+        }
+        .accessibilityIdentifier("fst.paths.display")
+    }
+
+    /// The View menu shows the mode on screen; choosing one becomes the selection.
+    private var viewSelection: Binding<PathViewMode> {
+        Binding(get: { shownMode }, set: { viewMode = $0 })
     }
 
     /// The instrument selector's icon and name (every pose but folded iPhone Duo). The name
@@ -314,16 +408,19 @@ struct SongPathsSheet: View {
         #endif
     }
 
-    /// The spinner and the current image, table or error, each fading in and out on its
-    /// own (web `PathImage` phases, issue #70).
-    private var pathContent: some View {
+    /// One form's spinner and its current image, table or error, each fading in and out
+    /// on its own (web `PathImage` phases, issue #70).
+    ///
+    /// - Parameter display: Image or text.
+    /// - Returns: The form's pane.
+    private func pathContent(_ display: PathDisplayMode) -> some View {
         ZStack {
-            if let shown {
-                loadedContent(shown)
+            if let content = shown[display] {
+                loadedContent(content)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .transition(.opacity)
             }
-            if spinnerVisible {
+            if !spinnerHidden.contains(display) {
                 FestivalLoadingView(accessibilityLabel: "Loading \(display.label.lowercased()) path")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .transition(.opacity)
@@ -368,6 +465,7 @@ struct SongPathsSheet: View {
                     .padding(.vertical, 12)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .modifier(pullsDownToDismiss)
                 // Names the chart and difficulty shown (journeys wait on it).
                 .accessibilityIdentifier("fst.paths.text.\(instrument.rawValue).\(difficulty.rawValue)")
             }
@@ -414,8 +512,21 @@ struct SongPathsSheet: View {
                 )
             }
             .scrollIndicators(.hidden)
+            .modifier(pullsDownToDismiss)
             .accessibilityIdentifier("fst.paths.image-viewport")
         }
+    }
+
+    /// In an iOS/iPadOS full-window cover, a pane's scroll view pulled down past its top
+    /// dismisses, standing in for the sheet's swipe-down (modal-shell R3, issue #368). A
+    /// sheet keeps the system gesture, and the Mac dismisses with Close only (HIG
+    /// Modality: "macOS/tvOS use a button in the main content view").
+    private var pullsDownToDismiss: PullDownToDismiss {
+        #if os(iOS)
+        PullDownToDismiss(isEnabled: coverage == .fullScreen) { dismiss() }
+        #else
+        PullDownToDismiss(isEnabled: false) {}
+        #endif
     }
 
     /// One activation as the web's mobile row card: a Note label over five fret pills;
@@ -561,26 +672,42 @@ struct SongPathsSheet: View {
 
     // MARK: - Switching
 
-    /// Swap to the selected chart: fade the old content out, show the spinner while the
-    /// path loads (at least 400 ms for an image, 500 ms for text), then fade the new
-    /// content in. A newer selection, retry or publication change cancels this task, so
-    /// a late response never paints (issue #70).
-    private func loadPath() async {
-        let requested = requestKey
-        let announces = hasRequested
-        hasRequested = true
-        let timing = PathSwitchTransition.timing(for: requested.display, reduceMotion: reduceMotion)
+    /// Swap one form to the selected chart: fade the old content out, show the spinner
+    /// while the path loads (at least 400 ms for an image, 500 ms for text), then fade the
+    /// new content in. A newer selection, retry, mode or publication change cancels this
+    /// task, so a late response never paints (issue #70). A form that leaves the screen
+    /// is cleared, so it reappears with its spinner rather than a stale chart.
+    ///
+    /// - Parameter display: Image or text.
+    private func loadPath(_ display: PathDisplayMode) async {
+        let requested = requestKey(for: display)
+        guard requested.active else {
+            shown[display] = nil
+            spinnerHidden.remove(display)
+            if display == .image { resetZoom() }
+            return
+        }
+        let timing = PathSwitchTransition.timing(for: display, reduceMotion: reduceMotion)
         let session = session
         let song = song
         do {
             try await PathSwitchTransition.run(
-                timing: timing, contentShown: shown != nil, clock: ContinuousClock(),
+                timing: timing, contentShown: shown[display] != nil, clock: ContinuousClock(),
                 load: { try await Self.fetch(requested, song: song, session: session) },
-                apply: { step in apply(step, for: requested, timing: timing, announces: announces) }
+                apply: { step in apply(step, for: requested, timing: timing) }
             )
         } catch {
-            // Cancelled by a newer selection, which now owns the sheet.
+            // Cancelled by a newer selection, which now owns the pane.
         }
+    }
+
+    /// Whether VoiceOver hears this form's loading and loaded announcements: only after a
+    /// switch, and in Side by Side only the table's, so one switch is announced once.
+    ///
+    /// - Parameter display: Image or text.
+    /// - Returns: True when the form announces.
+    private func announces(_ display: PathDisplayMode) -> Bool {
+        announcesSwitches && (shownMode != .sideBySide || display == .text)
     }
 
     /// Perform one visible step of a switch.
@@ -589,29 +716,29 @@ struct SongPathsSheet: View {
     ///   - step: The fade to perform.
     ///   - requested: The selection being loaded.
     ///   - timing: Fade duration (zero swaps instantly for Reduce Motion).
-    ///   - announces: Whether VoiceOver hears the loading and loaded announcements.
     private func apply(
         _ step: PathSwitchTransition.Step<LoadState>, for requested: RequestKey,
-        timing: PathSwitchTransition.Timing, announces: Bool
+        timing: PathSwitchTransition.Timing
     ) {
+        let display = requested.display
         let fade: Animation? = timing.fadeSeconds > 0 ? .easeInOut(duration: timing.fadeSeconds) : nil
         switch step {
         case .hideContent:
-            withAnimation(fade) { shown = nil }
+            withAnimation(fade) { shown[display] = nil }
         case .showSpinner:
-            resetZoom()
-            withAnimation(fade) { spinnerVisible = true }
-            if announces {
+            if display == .image { resetZoom() }
+            withAnimation(fade) { _ = spinnerHidden.remove(display) }
+            if announces(display) {
                 AccessibilityNotification.Announcement(
-                    "Loading \(Self.chartName(requested)) \(requested.display.label.lowercased()) path"
+                    "Loading \(Self.chartName(requested)) \(display.label.lowercased()) path"
                 ).post()
             }
         case .hideSpinner:
-            withAnimation(fade) { spinnerVisible = false }
+            withAnimation(fade) { _ = spinnerHidden.insert(display) }
         case let .showContent(content):
-            guard requestKey == requested else { return }
-            withAnimation(fade) { shown = content }
-            if announces, let spoken = Self.loadedAnnouncement(content, for: requested) {
+            guard requestKey(for: display) == requested else { return }
+            withAnimation(fade) { shown[display] = content }
+            if announces(display), let spoken = Self.loadedAnnouncement(content, for: requested) {
                 AccessibilityNotification.Announcement(spoken).post()
             }
         }

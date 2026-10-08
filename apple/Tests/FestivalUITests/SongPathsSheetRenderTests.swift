@@ -267,4 +267,134 @@ private func orangeColumns(_ image: CGImage) -> (min: Int, max: Int)? {
         environment: "FST_PATH_RENDER_OUT"
     )
 }
+
+/// iPhone Duo book pose (issue #368): Paths shows the image and the table at once, the
+/// image wholly on the leading side of the hinge and both forms loaded from the service.
+@MainActor
+@Test func bookPosePaintsImageAndTextOnEitherSideOfTheHinge() async throws {
+    let song = try hostedPathSong()
+    let fixture = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent("contracts/fixtures/path-demo.json")
+    let transport = HostedPathTransport(
+        text: try Data(contentsOf: fixture), image: try hostedPathPNG()
+    )
+    let client = try FestivalAPI(transport: transport)
+    let session = FestivalSession(factory: { client })
+    let size = CGSize(width: 951, height: 669)
+    let book = DeviceLayout.resolve(LayoutSignals(
+        size: size, widthClass: .regular, verticalBarEdge: .trailing, hinge: .partiallyOpen
+    ))
+    let hinge = try #require(book.splitHinge)
+    let host = nativeHostedView(
+        SongPathsSheet(
+            song: song, session: session, instruments: [.lead, .drums],
+            firstInstrument: .lead, defaultDisplay: .image,
+            warnAboutKaraoke: false
+        )
+        .environment(\.deviceLayout, book)
+        .preferredColorScheme(.dark)
+        .tint(BrandTokens.accentBlue)
+        .transaction { $0.animation = nil },
+        size: size
+    )
+    var painted: CGImage?
+    for _ in 0..<80 {
+        let image = try nativeHostedImage(host)
+        let pixels = pathContentPixels(image)
+        if pixels.orange > 100, pixels.green > 10, pixels.red > 10 {
+            painted = image
+            break
+        }
+        try await Task.sleep(for: .milliseconds(50))
+    }
+    let image = try #require(painted, "Side by Side never painted both forms")
+    let recorded = await transport.recordedPaths()
+    #expect(recorded.contains("/api/paths/fixture-pulse/Solo_Guitar/expert"))
+    #expect(recorded.contains("/api/paths/fixture-pulse/Solo_Guitar/expert/data"))
+    let scale = CGFloat(image.width) / size.width
+    // The image sits wholly before the hinge, and nothing paints on the fold itself.
+    let leading = try #require(image.cropping(to: CGRect(
+        x: 0, y: 0, width: (hinge.minX - 8) * scale, height: CGFloat(image.height)
+    )))
+    #expect(pathContentPixels(leading).orange > 100)
+    let trailing = try #require(image.cropping(to: CGRect(
+        x: (hinge.maxX + 8) * scale, y: 0,
+        width: CGFloat(image.width) - (hinge.maxX + 8) * scale, height: CGFloat(image.height)
+    )))
+    let text = pathContentPixels(trailing)
+    #expect(text.green > 10 && text.red > 10)
+    let fold = try #require(image.cropping(to: CGRect(
+        x: (hinge.midX - 4) * scale, y: 0, width: 8 * scale, height: CGFloat(image.height) * 0.8
+    )))
+    let onFold = pathContentPixels(fold)
+    #expect(onFold.orange + onFold.green + onFold.red == 0, "Content on the fold: \(onFold)")
+    _ = try nativeHostedPNG(
+        image, filename: "paths-book-side-by-side.png",
+        environment: "FST_PATH_RENDER_OUT"
+    )
+}
+/// Mac window or regular-width iPad (issue #368): Side by Side puts the image in the
+/// leading half and the table in the trailing half of the full-window viewer.
+@MainActor
+@Test func wideWindowSideBySideSplitsImageAndTextInHalves() async throws {
+    let song = try hostedPathSong()
+    let fixture = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent("contracts/fixtures/path-demo.json")
+    let transport = HostedPathTransport(
+        text: try Data(contentsOf: fixture), image: try hostedPathPNG()
+    )
+    let client = try FestivalAPI(transport: transport)
+    let session = FestivalSession(factory: { client })
+    // A Mac window's content area (or a regular-width iPad): the sidebar shell.
+    let size = CGSize(width: 1280, height: 748)
+    var signals = LayoutSignals(size: size, widthClass: .regular)
+    signals.usesSidebarShell = true
+    let wide = DeviceLayout.resolve(signals)
+    #expect(SongPathsPolicy.coverage(wide) == .fullScreen)
+    #expect(SongPathsPolicy.modes(for: wide) == PathViewMode.allCases)
+    let host = nativeHostedView(
+        SongPathsSheet(
+            song: song, session: session, instruments: [.lead, .drums],
+            firstInstrument: .lead, defaultDisplay: .text,
+            warnAboutKaraoke: false, viewMode: .sideBySide
+        )
+        .environment(\.deviceLayout, wide)
+        .environment(\.festivalModalCoverage, .fullScreen)
+        .preferredColorScheme(.dark)
+        .tint(BrandTokens.accentBlue)
+        .transaction { $0.animation = nil },
+        size: size
+    )
+    var painted: CGImage?
+    for _ in 0..<80 {
+        let image = try nativeHostedImage(host)
+        let pixels = pathContentPixels(image)
+        if pixels.orange > 100, pixels.green > 10, pixels.red > 10 {
+            painted = image
+            break
+        }
+        try await Task.sleep(for: .milliseconds(50))
+    }
+    let image = try #require(painted, "Side by Side never painted both forms")
+    let scale = CGFloat(image.width) / size.width
+    let half = size.width / 2
+    let leading = try #require(image.cropping(to: CGRect(
+        x: 0, y: 0, width: (half - 8) * scale, height: CGFloat(image.height)
+    )))
+    #expect(pathContentPixels(leading).orange > 100)
+    let trailing = try #require(image.cropping(to: CGRect(
+        x: (half + 8) * scale, y: 0, width: (half - 8) * scale, height: CGFloat(image.height)
+    )))
+    let text = pathContentPixels(trailing)
+    #expect(text.green > 10 && text.red > 10)
+    #expect(pathContentPixels(trailing).orange < pathContentPixels(leading).orange)
+    _ = try nativeHostedPNG(
+        image, filename: "paths-wide-side-by-side.png",
+        environment: "FST_PATH_RENDER_OUT"
+    )
+}
 #endif
