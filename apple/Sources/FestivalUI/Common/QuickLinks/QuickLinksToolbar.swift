@@ -98,10 +98,11 @@ public struct QuickLinksMenu: View {
         }
     }
 
-    /// Reading returns the active section; writing requests a jump (re-selecting the
-    /// active section jumps back to its start).
-    /// The sections for the inline-accessory sheet (``PageToolMenu``).
-    private func choices() -> [PageToolMenuChoice] {
+    /// The sections for the inline-accessory sheet (``PageToolMenu``), in page order with
+    /// the active one selected.
+    ///
+    /// - Returns: One choice per section; picking one jumps to it.
+    func choices() -> [PageToolMenuChoice] {
         let controller = controller
         return controller.sections.map { section in
             PageToolMenuChoice(
@@ -111,6 +112,8 @@ public struct QuickLinksMenu: View {
         }
     }
 
+    /// Reading returns the active section; writing requests a jump (re-selecting the
+    /// active section jumps back to its start).
     private var selection: Binding<String?> {
         Binding(
             get: { controller.activeID },

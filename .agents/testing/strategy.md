@@ -36,11 +36,11 @@ Where to write them:
 | Platform | Mechanism |
 |---|---|
 | Apple | Hosted tests in `apple/Tests/FestivalUITests` asserting accessibility label/traits/order/hit size, plus an XCUITest `performAccessibilityAudit` journey for new pages and sheets. A device-only check (Dynamic Type, the device tree, hit testing, the system audit) must be listed in `apple-ci`'s `FST_CI_IOS_A11Y_JOURNEYS` or CI never runs it ([apple/accessibility.md](apple/accessibility.md#ios-journeys-in-ci), [apple/xcuitest.md](apple/xcuitest.md)) |
-| Android | ATF journeys in `androidTest/.../journeys/` with `JourneyHarness`: `assertAccessible()` and `readingOrder` ([android.md](android.md), [android-accessibility.md](android-accessibility.md)) |
+| Android | ATF journeys in `androidTest/.../journeys/` with `JourneyHarness`: `assertAccessible()` and `readingOrder`, annotated `@DeviceCi` so the `android-device` job runs them ([android.md](android.md), [android-accessibility.md](android-accessibility.md)) |
 | Windows | A page/state in `tools/windows/journeys/a11y-*.json` for `a11y_matrix.py`, plus UIA name/order checks in the feature journey ([windows-accessibility.md](windows-accessibility.md)) |
 | Web (scraper repo) | Testing Library/Playwright assertions by role and accessible name (`getByRole(..., { name })`), focus order and target size in the changed component's spec |
 
-Tests run in CI: Apple `apple-ci`, Android `android-device`, Windows `windows-ui`. A behavior that existing accessibility tests already pin down only needs those tests updated, not duplicated.
+Tests run in CI: Apple `apple-ci`, Android `android-device` (plus `android-fold` for journeys that need a half-open book fold, see [android.md](android.md#ci-fold-journeys)), Windows `windows-ui`. A behavior that existing accessibility tests already pin down only needs those tests updated, not duplicated.
 
 ## Certification (per platform, per language) — two independent gates
 
