@@ -384,7 +384,7 @@ Evidence: `a11y_matrix.py --scan --tabs 20 --pages journeys/a11y-pane-corners.js
 
 ## Modal component validation (issue #239, 2026-10-04)
 
-Evidence: `a11y_matrix.py --scan --pages journeys/modals.json` (all eight `FestivalDialog` callers: Settings Reset, Privacy Policy, Report an Issue, Suggest a Feature, What's New, Licenses, First Run, the Karaoke Paths notice, Paths, and both profile confirmations) with fixtures, plus live public-service runs (`--live`, no profile pages). Every run: Esc closes, focus returns to the invoker, Tab stays inside the dialog (2–7 stops) and Axe found 0 errors.
+Evidence: `a11y_matrix.py --scan --pages journeys/a11y-modals.json` (all eight `FestivalDialog` callers: Settings Reset, Privacy Policy, Report an Issue, Suggest a Feature, What's New, Licenses, First Run, the Karaoke Paths notice, Paths, and both profile confirmations) with fixtures, plus live public-service runs (`--live`, no profile pages). Every run: Esc closes, focus returns to the invoker, Tab stays inside the dialog (2–7 stops) and Axe found 0 errors.
 
 | Configuration | Result |
 | --- | --- |
@@ -397,6 +397,23 @@ Evidence: `a11y_matrix.py --scan --pages journeys/modals.json` (all eight `Festi
 | Live service | Pass for every page except Feedback, which the service hides (`/api/features` `feedback:false`) |
 
 Fixed: Feedback field hints were a `TextBox.Description` that clipped at compact width and 200% text; they now wrap. Under contrast themes WinUI drew a Window-coloured text backplate inside the Highlight fill of the default command (Next, Cancel, Submit, OK) and around the selected First Run pip; `DialogChrome.CommandLabelsWithoutBackplate` and `WithoutBackplate` turn it off. Deliberate deviations: the Karaoke notice is an alert (OK / Don't Show Again, no Close); a one-slide First Run shows only Done; Reset defaults to Cancel.
+
+## Modal accessibility tests (issue #400, 2026-10-08)
+
+`journeys/modals.json` became `journeys/a11y-modals.json`. The `windows-ui` workflow (`.github/workflows/windows-ui.yml`) builds the Debug app, sets the runner display to 1920×1080 (`tools/windows/ci_display.ps1`) and runs `tools/windows/ui_ci.py`, which runs this file through `a11y_matrix.py --scan --tabs 30` at default text (compact, medium) and at `--mode text-225` (compact). Each `FestivalDialog` page first waits for its title and body text to be on screen (`waitfor`), then asserts:
+- the Narrator phrase of every command (for example "Cancel, button", "Submit, button, unavailable", "Back, button, unavailable");
+- the reading order: the title (What's New: its list), the body, the commands, and Close last (modal-shell R2);
+- Close and every alert command at least 40×40 epx, with hit probes 18.5 epx left, right, up and down from the centre (the #271 probe);
+- that Tab from the last body control reaches Close.
+
+`tests/test_modal_journeys.py` maps every `FestivalDialog.Create` caller to its pages and fails when one has none, drops a check or leaves the `windows-ui` runs; `tests/test_ui_ci.py` checks the runs and the workflow. Fixed (design review of #468): `ContentDialog` commands were WinUI's 32 epx tall, under the 40 epx Windows target; `DialogChrome.CommandTargets` now raises Primary, Secondary and Close to `FSTMinTargetSize` (40 epx) for every `FestivalDialog` ([modal-shell](../patterns/modal-shell.md) agent decision #400). Microsoft Learn, Targeting: "In general, set your touch target size to 7.5mm square range (40x40 pixels …)."
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium, wide (all 11 pages, `--scan --tabs 30`) | Pass, Axe 0 |
+| Text 200% (compact, all 11 pages) | Pass, Axe 0. Probes in the scrolled Feedback body first `scrollinto` the control |
+
+Fixed (test only): the First Run page still asserted the template `CloseButton` ID, but #244 gave that Close `fst.first-run.close`. No app defect was found.
 
 ## Feedback Form validation (issue #236, 2026-10-05)
 
