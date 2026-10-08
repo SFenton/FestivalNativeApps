@@ -14,7 +14,7 @@ import Testing
 @Test func songBoardsDropTheSongHeaderOnlyBesideSongDetail() {
     #expect(!SongLeaderboardBoardLine.showsSongHeader(besideList: .songDetail))
     #expect(SongLeaderboardBoardLine.showsSongHeader(besideList: nil), "Pushed full width")
-    for page: OnDemandSplitPolicy.ListPage in [.rivals, .leaderboards, .settings] {
+    for page: OnDemandSplitPolicy.ListPage in [.rivals, .compete, .leaderboards, .settings] {
         #expect(SongLeaderboardBoardLine.showsSongHeader(besideList: page), "\(page)")
     }
 }

@@ -176,11 +176,7 @@ fun SortSheet(state: SongsUiState, onApply: (SongSortDraft) -> Unit, onDismiss: 
                 }
             }
         }
-        SectionHeader("Sort Direction")
-        Column(Modifier.selectableGroup().testTag("fst.songs.sort.direction")) {
-            DirectionRow("Ascending", "A–Z, low–high", Icons.Filled.ArrowUpward, draft.ascending, "fst.songs.sort.ascending") { change(draft.copy(ascending = true)) }
-            DirectionRow("Descending", "Z–A, high–low", Icons.Filled.ArrowDownward, !draft.ascending, "fst.songs.sort.descending") { change(draft.copy(ascending = false)) }
-        }
+        SortDirectionSection(draft.ascending, "fst.songs.sort") { change(draft.copy(ascending = it)) }
         if (priority.isNotEmpty()) {
             SectionHeader("Metadata Sort Priority")
             Text(
@@ -192,6 +188,23 @@ fun SortSheet(state: SongsUiState, onApply: (SongSortDraft) -> Unit, onDismiss: 
                 change(draft.move(state.visibleMetadata, index, offset))
             }
         }
+    }
+}
+
+/**
+ * The Sort sheets' "Sort Direction" section (Songs and Item Shop, issue #379): a heading and a
+ * radio group of [DirectionRow]s tagged `$tag.direction`, `$tag.ascending` and `$tag.descending`.
+ *
+ * @param ascending Current direction.
+ * @param tag Sheet test-tag root.
+ * @param onChange Choose a direction (true = ascending).
+ */
+@Composable
+internal fun SortDirectionSection(ascending: Boolean, tag: String, onChange: (Boolean) -> Unit) {
+    SectionHeader("Sort Direction")
+    Column(Modifier.selectableGroup().testTag("$tag.direction")) {
+        DirectionRow("Ascending", "A–Z, low–high", Icons.Filled.ArrowUpward, ascending, "$tag.ascending") { onChange(true) }
+        DirectionRow("Descending", "Z–A, high–low", Icons.Filled.ArrowDownward, !ascending, "$tag.descending") { onChange(false) }
     }
 }
 

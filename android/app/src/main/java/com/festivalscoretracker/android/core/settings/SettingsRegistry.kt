@@ -58,6 +58,8 @@ object SettingsRegistry {
     const val SONG_PLAYER_SCORE_FILTERS = "fst.songs.playerScoreFilters"
     const val SONG_METADATA_ORDER = "fst.songs.metadataOrder"
     const val SHOP_VIEW_MODE = "fst.shop.viewMode"
+    const val SHOP_SORT = "fst.shop.sort"
+    const val SHOP_SORT_ASCENDING = "fst.shop.sortAscending"
 
     /** Every registered key. */
     val entries: List<RegisteredSetting> = listOf(
@@ -92,6 +94,8 @@ object SettingsRegistry {
         RegisteredSetting(SONG_PLAYER_SCORE_FILTERS, ResetPolicy.Kept, "songs"),
         RegisteredSetting(SONG_METADATA_ORDER, ResetPolicy.Kept, "songs"),
         RegisteredSetting(SHOP_VIEW_MODE, ResetPolicy.Kept, "shop"),
+        RegisteredSetting(SHOP_SORT, ResetPolicy.Kept, "shop"),
+        RegisteredSetting(SHOP_SORT_ASCENDING, ResetPolicy.Kept, "shop"),
     )
 
     /** Keys Reset removes. */

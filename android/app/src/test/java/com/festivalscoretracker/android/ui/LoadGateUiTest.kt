@@ -1,13 +1,17 @@
 package com.festivalscoretracker.android.ui
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -19,6 +23,7 @@ import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.common.FestivalLoadGate
 import com.festivalscoretracker.android.ui.common.festivalEmptyStateItem
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -100,6 +105,32 @@ class LoadGateUiTest {
         // Vertically near the middle of the viewport, not just below the header row.
         assertTrue("title centre $centre in list ${list.top}..${list.bottom}", centre > list.top + (list.bottom - list.top) / 3)
         rule.onNodeWithText("Try another search").assertIsDisplayed()
+    }
+
+    @Test
+    fun emptyStateFillsTheRegionBetweenListItems() {
+        rule.setContent {
+            FestivalTheme {
+                val state = rememberLazyListState()
+                LazyColumn(Modifier.fillMaxSize().testTag("list"), state = state, contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp)) {
+                    item { Text("Header", Modifier.height(120.dp).testTag("header")) }
+                    festivalEmptyStateItem("No songs", subtitle = "Try another search", key = "empty", tag = "empty", state = state)
+                    item { Text("Pager", Modifier.height(48.dp).testTag("pager")) }
+                }
+            }
+        }
+        rule.waitForIdle()
+        val list = rule.onNodeWithTag("list").getBoundsInRoot()
+        val header = rule.onNodeWithTag("header").getBoundsInRoot()
+        val region = rule.onNodeWithTag("empty").getBoundsInRoot()
+        val pager = rule.onNodeWithTag("pager").getBoundsInRoot()
+        // Fills from the header to the pager, which stays on screen above the bottom padding.
+        assertEquals(header.bottom.value, region.top.value, 1f)
+        assertEquals(region.bottom.value, pager.top.value, 1f)
+        assertEquals(list.bottom.value - 40f, pager.bottom.value, 1f)
+        val title = rule.onNodeWithText("No songs").getBoundsInRoot()
+        val subtitle = rule.onNodeWithText("Try another search").getBoundsInRoot()
+        assertEquals(((region.top + region.bottom) / 2).value, ((title.top + subtitle.bottom) / 2).value, 1f)
     }
 
     @Test

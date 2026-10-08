@@ -10,7 +10,8 @@ import XCTest
 /// XCUITest cannot read VoiceOver focus, so the app runs with
 /// `FST_DEBUG_A11Y_FOCUS_TRACE=1` (Debug) and shows its last focus move as the element
 /// `fst.nav.a11y-focus` (`AccessibilityFocusMove.swift`); spoken confirmation is the
-/// operator's VoiceOver walkthrough (`voiceover.md`). Fixture-backed (127.0.0.1:8765).
+/// operator's VoiceOver walkthrough (`voiceover.md`). Fixture-backed (127.0.0.1:8765 or the
+/// runner's `FST_FIXTURE_URL`).
 final class IPadShellAccessibilityTests: XCTestCase {
     override func setUpWithError() throws {
         let isPad = MainActor.assumeIsolated { UIDevice.current.userInterfaceIdiom == .pad }
@@ -35,7 +36,7 @@ final class IPadShellAccessibilityTests: XCTestCase {
         profile: Bool = true, env extra: [String: String] = [:], contentSize: UIContentSizeCategory? = nil
     ) -> XCUIApplication {
         var env = [
-            "FST_API_BASE_URL": "http://127.0.0.1:8765",
+            "FST_API_BASE_URL": IPadShellJourneyTests.fixtureURL,
             "FST_UI_TEST_CLEAR_PROFILE": "1",
             "FST_DEBUG_A11Y_FOCUS_TRACE": "1",
         ]
@@ -261,6 +262,12 @@ final class IPadShellAccessibilityTests: XCTestCase {
                   row: "fst.song-detail.leaderboard.Solo_Guitar", exact: true, song: "fixture-pulse"),
         SplitPage(name: "settings", env: ["FST_DEBUG_TAB": "settings"], ready: "Settings",
                   row: "fst.settings.licenses", exact: true),
+        // Compete's rival rows open Rival Detail beside it (issue #369): a phone tab on the
+        // iPhone Duo; on iPad (whose sidebar set has no Compete) the route pushes it.
+        SplitPage(name: "compete",
+                  env: IPadAccessibilityAuditTests.runningOnDuo
+                      ? ["FST_DEBUG_TAB": "compete"] : ["FST_DEBUG_ROUTE": "compete"],
+                  ready: "Compete", row: "fst.rivals.row."),
     ]
 
     /// Every split page in a landscape window: starts full width; the opened row reads

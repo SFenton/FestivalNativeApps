@@ -145,8 +145,8 @@ struct MacPageWidth: ViewModifier {
 // MARK: - On-demand split (Mac content area)
 
 /// A Mac destination's content: one stack, split on demand
-/// (`.agents/design/apple/split-view.md`). A list page (Rivals, Leaderboards, Song
-/// Detail) starts full width; selecting a row splits the content area right of the
+/// (`.agents/design/apple/split-view.md`). A list page (Rivals, Compete, Leaderboards,
+/// Song Detail) starts full width; selecting a row splits the content area right of the
 /// sidebar 50/50 at its exact midpoint, fixed (no drag), and shows the item in the
 /// trailing pane; Close, Escape, ⌘[ or Back return to full width. A content area
 /// narrower than two 360 pt panes pushes instead (``OnDemandSplitPolicy``).

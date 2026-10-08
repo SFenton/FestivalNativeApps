@@ -12,6 +12,9 @@ public struct FestivalRootView: View {
     /// One independent navigation path per root section (web per-tab route history).
     @State private var paths: [FestivalSection: [AppRoute]] = [:]
     @State private var drawerPresented = false
+    /// The drawer stays mounted after ``drawerPresented`` clears until its close sequence
+    /// (panel out, then scrim) finishes (#362).
+    @State private var drawerMounted = false
     /// Gives assistive-technology focus back to the flyout button after the flyout is
     /// dismissed without choosing a destination (`voiceover.md`).
     @State private var drawerFocus: AccessibilityFocusRequest?
@@ -91,6 +94,7 @@ public struct FestivalRootView: View {
         _searchActive = State(initialValue: debug.opensSearch)
         initialRoute = debug.route
         _drawerPresented = State(initialValue: debug.opensDrawer)
+        _drawerMounted = State(initialValue: debug.opensDrawer)
         _rootProfilePresented = State(initialValue: debug.opensProfileSheet)
         // Once per process: SwiftUI may build the root view again (a new scene or an
         // App body pass), and clearing then would erase a selection the journey made
@@ -234,17 +238,19 @@ public struct FestivalRootView: View {
                         .accessibilityIdentifier("fst.nav.debug-layout")
                 }
                 #endif
-                if drawerPresented && usesDrawer {
+                if drawerMounted && usesDrawer {
                     FestivalDrawer(
                         session: session, visibleSections: sections(for: presentation),
                         hideShop: hideShop, selected: selected, topRoute: paths[selected]?.last,
                         showsSearch: presentation.navigation == .flyout, searchActive: searchActive,
                         closesOnEscape: presentation.navigation == .flyout || layout.pose != .standard,
                         footerScrollsAtAccessibilitySizes: presentation.navigation == .flyout || layout.pose != .standard,
-                        onIntent: handleDrawer, onClose: dismissDrawer
+                        isPresented: drawerPresented, animatesIn: true,
+                        // Reduce Motion fades the panel in place instead of sliding (#362).
+                        slides: !(reduceMotion || systemReduceMotion),
+                        onIntent: handleDrawer, onClose: dismissDrawer,
+                        onDismissed: { if !drawerPresented { drawerMounted = false } }
                     )
-                    .transition(reduceMotion || systemReduceMotion
-                        ? .opacity : .move(edge: .leading).combined(with: .opacity))
                     .zIndex(1)
                 }
             }
@@ -749,16 +755,15 @@ public struct FestivalRootView: View {
 
     // MARK: - Drawer
 
+    // The drawer runs its own open and close sequence (`DrawerMotion`, #362): scrim then
+    // panel, and back. It unmounts itself through `onDismissed`.
     private func openDrawer() {
-        withAnimation(reduceMotion || systemReduceMotion ? nil : .smooth(duration: 0.3)) {
-            drawerPresented = true
-        }
+        drawerMounted = true
+        drawerPresented = true
     }
 
     private func closeDrawer() {
-        withAnimation(reduceMotion || systemReduceMotion ? nil : .smooth(duration: 0.25)) {
-            drawerPresented = false
-        }
+        drawerPresented = false
     }
 
     /// Close the flyout without choosing a destination (Close, scrim, Escape, the
