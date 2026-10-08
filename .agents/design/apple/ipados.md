@@ -34,7 +34,7 @@ Superseded 2026-10-04 by [split-view.md](split-view.md): no persistent sidebar (
 |---|---|---|
 | Shop | Adaptive art grid (`.adaptive(minimum: 210)`), List/Grid toggle; list at accessibility sizes | collections.md "Prefer the familiar standard horizontal row or grid" |
 | Leaderboards, Profile/Statistics instrument cards | Two flexible columns when their column is ≥ 600 pt (column layout above); Leaderboards also keeps each card ≥ 340 pt at the default text size (`LeaderboardsScreen.usesTwoColumns`, scaled with Dynamic Type; Android's 340 dp minimum), so a landscape split's leading pane shows one column (#352) | layout.md (adapt to size classes) |
-| Song Detail instrument cards | `.adaptive(minimum: 360)`: two columns when the page is ≥ ~730 pt (full-width detail); one in a list/detail detail column | collections.md "make dynamic layout changes sensible and easy to track" |
+| Song Detail instrument cards and band previews (#366) | `.adaptive(minimum: 360)`: two columns when the page is ≥ ~730 pt (full-width detail); one in a list/detail detail column | collections.md "make dynamic layout changes sensible and easy to track" |
 | Sheets | `festivalSheet` applies `presentationSizing(.form)` (or `.page`) at regular width, centered; compact windows get the phone sheets | sheets.md "Prefer page or form sheet styles in an iPadOS app" |
 | Popovers | Not used for page content; menus (Quick Links, metric pickers) are system menus | popovers.md "Avoid popovers in compact views" |
 

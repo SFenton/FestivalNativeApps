@@ -56,7 +56,6 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
@@ -68,6 +67,7 @@ import com.festivalscoretracker.android.presentation.profile.HistoryPhase
 import com.festivalscoretracker.android.presentation.profile.PlayerHistoryUiState
 import com.festivalscoretracker.android.presentation.profile.PlayerHistoryViewModel
 import com.festivalscoretracker.android.presentation.profile.ScoreHistoryRow
+import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
@@ -274,17 +274,15 @@ internal fun HistoryRow(row: ScoreHistoryRow) {
     }
 }
 
+/** A centred page state: the shared [FestivalEmptyState] (#377), with Retry only while syncing. */
 @Composable
 private fun HistoryMessage(title: String, body: String, padding: PaddingValues, onRetry: (() -> Unit)? = null) {
-    Column(
-        Modifier.fillMaxSize().padding(padding).padding(24.dp).testTag("fst.history.message"),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
-        Text(body, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
-        if (onRetry != null) Button(onClick = onRetry, colors = festivalFilledButtonColors(), modifier = Modifier.padding(top = 16.dp).testTag("fst.history.retry")) { Text("Retry") }
-    }
+    FestivalEmptyState(
+        title,
+        Modifier.fillMaxSize().padding(padding).testTag("fst.history.message"),
+        subtitle = body,
+        action = onRetry?.let { retry -> { Button(onClick = retry, colors = festivalFilledButtonColors(), modifier = Modifier.testTag("fst.history.retry")) { Text("Retry") } } },
+    )
 }
 
 // endregion

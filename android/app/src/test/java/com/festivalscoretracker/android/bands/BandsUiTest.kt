@@ -37,8 +37,12 @@ import com.festivalscoretracker.android.data.HttpResult
 import com.festivalscoretracker.android.data.HttpTransport
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.BandFixtures
+import com.festivalscoretracker.android.testing.EmptyRegionAssertions.assertFillsAndCentres
+import com.festivalscoretracker.android.testing.EmptyRegionAssertions.boundsOf
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
+import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_HEIGHT_DP
+import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_MARGIN_DP
 import com.festivalscoretracker.android.ui.common.spinnerShowsDuring
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
@@ -197,6 +201,37 @@ class BandsUiTest {
         waitForTag("fst.player-bands.row.band-1")
         rule.onNodeWithText("Quads · 2 bands").assertIsDisplayed()
         assertEquals(false, exists("fst.player-bands.page-next"))
+    }
+
+    /** Issue #377: the empty state fills the space between the group picker and the grid's end, text centred. */
+    @Test
+    fun playerBandsEmptyStateCentresInTheRegionBelowThePicker() = assertPlayerBandsEmptyRegion()
+
+    /** The same on a tall tablet window, where a fixed-height block would sit high. */
+    @Test
+    @Config(qualifiers = "w800dp-h1280dp-xhdpi")
+    fun playerBandsEmptyStateCentresOnATallWindow() = assertPlayerBandsEmptyRegion()
+
+    private fun assertPlayerBandsEmptyRegion() {
+        launch("playerBands:${BandFixtures.PLAYER}")
+        waitForTag("fst.player-bands.row.${BandFixtures.DUO_ID}")
+        click("fst.player-bands.group.duos")
+        waitForTag("fst.player-bands.empty")
+        settle()
+        // The grid ends at its own bottom less the shell's bottom padding (the compact floating
+        // toolbar's room) and its 24 dp; the empty pager row adds one 12 dp item gap after the state.
+        val compact = exists("fst.nav.bar")
+        val shellBottom = if (compact) (FLOATING_TOOLBAR_HEIGHT_DP + 2 * FLOATING_TOOLBAR_MARGIN_DP).toFloat() else 0f
+        rule.assertFillsAndCentres(
+            "fst.player-bands.empty",
+            above = rule.boundsOf("fst.player-bands.group-picker"),
+            gapAbove = 12f,
+            belowTop = rule.boundsOf("fst.player-bands.list").bottom,
+            gapBelow = 12f + 24f + shellBottom,
+            firstText = "No bands found",
+            lastText = "No duos have been recorded for this player yet.",
+            density = rule.density.density,
+        )
     }
 
     @Test
@@ -400,6 +435,20 @@ class BandsUiTest {
         waitForTag("fst.song-band-leaderboard.empty")
         assertEquals("Quads", sizeLabel())
         assertTrue("the song header stays when the size changes", exists("fst.song-band-leaderboard.song"))
+        // Issue #377: the empty state fills the space between the size switcher and the anchored
+        // footer (8 dp item gaps), text centred, not a fixed-height block under the header. The
+        // list reports only its part above the (here empty) footer.
+        settle()
+        rule.assertFillsAndCentres(
+            "fst.song-band-leaderboard.empty",
+            above = rule.boundsOf("fst.song-band-leaderboard.band-type"),
+            gapAbove = 8f,
+            belowTop = rule.boundsOf("fst.song-band-leaderboard.list").bottom,
+            gapBelow = 8f,
+            firstText = "No Band Scores Found",
+            lastText = "No Quads scores have been recorded for this song yet.",
+            density = rule.density.density,
+        )
         switchBandSize("Band_Trios")
         waitForTag("fst.song-band-leaderboard.row.band-1:1")
         click("fst.song-band-leaderboard.row.band-1:1")

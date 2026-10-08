@@ -368,11 +368,13 @@ struct SongDetailScreen: View {
                     )
                 }
 
-                SongDetailCardGrid(instruments: previewInstruments) { index, instrument in
+                SongDetailCardGrid(items: previewInstruments) { index, instrument in
                     instrumentCard(instrument, index: index)
                 }
 
-                ForEach(Array(BandType.allCases.enumerated()), id: \.element) { index, bandType in
+                // Duos, Trios and Quads start on a new row in the instrument cards'
+                // columns (#366), after them in page order like the web's band block.
+                SongDetailCardGrid(items: BandType.allCases) { index, bandType in
                     SongBandPreviewSection(
                         song: song, bandType: bandType, state: bandPreviews,
                         onRetry: { Task { await reloadBands() } }
@@ -562,8 +564,9 @@ enum SongDetailPinnedTitlePolicy {
 
 /// Load a visible chart's top ten via the same public, publication-aware API as Solo.
 
-/// Columns of Song Detail's instrument cards: as many 360 pt columns as fit, at least
-/// one; in an iPhone Duo book pose, the gutter on the fold (pattern `hinge-columns`).
+/// Columns of Song Detail's instrument cards and Duos/Trios/Quads previews: as many
+/// 360 pt columns as fit, at least one; in an iPhone Duo book pose, the gutter on the fold
+/// (pattern `hinge-columns`).
 enum SongDetailCardColumns {
     /// Narrowest card column.
     static let minimumWidth: CGFloat = 360
@@ -573,16 +576,17 @@ enum SongDetailCardColumns {
     static let rowSpacing: CGFloat = 20
 }
 
-/// Song Detail's instrument cards in hinge-aware adaptive columns (``HingeGrid``).
-/// Accessibility sizes build every card at once (``HingeEagerGrid``): scrolling the lazy
-/// grid's very tall, unequal cards to the end of the page at AX5 hung the main thread in
-/// a lazy-layout loop (iPad portrait, sampled 2026-10-05, Lane A11Y3). Both put the
-/// gutter on the fold in book pose (#343).
-struct SongDetailCardGrid<Card: View>: View {
-    /// Cards in reading order.
-    let instruments: [Instrument]
-    /// One card, given its index and instrument.
-    @ViewBuilder let card: (Int, Instrument) -> Card
+/// Song Detail's preview cards in hinge-aware adaptive columns (``HingeGrid``): the
+/// instrument cards, and in a second grid the Duos, Trios and Quads previews (#366), so
+/// both share one column rule. Accessibility sizes build every card at once
+/// (``HingeEagerGrid``): scrolling the lazy grid's very tall, unequal cards to the end of
+/// the page at AX5 hung the main thread in a lazy-layout loop (iPad portrait, sampled
+/// 2026-10-05, Lane A11Y3). Both put the gutter on the fold in book pose (#343).
+struct SongDetailCardGrid<Item: Hashable, Card: View>: View {
+    /// Cards' items (instruments or band sizes) in reading order.
+    let items: [Item]
+    /// One card, given its index and item.
+    @ViewBuilder let card: (Int, Item) -> Card
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
@@ -591,8 +595,8 @@ struct SongDetailCardGrid<Card: View>: View {
                 minimum: SongDetailCardColumns.minimumWidth, spacing: SongDetailCardColumns.spacing,
                 rowSpacing: SongDetailCardColumns.rowSpacing
             ) {
-                ForEach(Array(instruments.enumerated()), id: \.element) { index, instrument in
-                    card(index, instrument)
+                ForEach(Array(items.enumerated()), id: \.element) { index, item in
+                    card(index, item)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
             }
@@ -603,8 +607,8 @@ struct SongDetailCardGrid<Card: View>: View {
                 )],
                 alignment: .leading, spacing: SongDetailCardColumns.rowSpacing
             ) {
-                ForEach(Array(instruments.enumerated()), id: \.element) { index, instrument in
-                    card(index, instrument)
+                ForEach(Array(items.enumerated()), id: \.element) { index, item in
+                    card(index, item)
                 }
             }
         }
