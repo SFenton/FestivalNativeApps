@@ -715,7 +715,8 @@ def parse_wm_size(output: str) -> tuple[int, int]:
     return int(width), int(height)
 
 
-def gradle_test_args(test_filter: str | None, task: str) -> list[str]:
+def gradle_test_args(test_filter: str | None, task: str,
+                     runner_args: list[str] | tuple[str, ...] = ()) -> list[str]:
     """Gradle arguments for a filtered connected-test run.
 
     Args:
@@ -723,18 +724,29 @@ def gradle_test_args(test_filter: str | None, task: str) -> list[str]:
             ``annotation:pkg.Annotation`` (e.g. the ``@DeviceCi`` suite the
             ``android-device`` CI job runs); None runs everything.
         task: Connected test task, e.g. ``:app:connectedDebugAndroidTest``.
+        runner_args: Extra ``KEY=VALUE`` instrumentation runner arguments, e.g.
+            ``annotation=pkg.Annotation`` (combined with the filter) or
+            ``fstRequireHinge=true``.
 
     Returns:
         Gradle argument vector (without the Gradle executable).
+
+    Raises:
+        ValueError: A runner argument is not ``KEY=VALUE``.
     """
     args = [task, "--console=plain"]
+    prefix = "-Pandroid.testInstrumentationRunnerArguments."
     if test_filter:
-        prefix = "-Pandroid.testInstrumentationRunnerArguments."
         kind, sep, value = test_filter.partition(":")
         if sep and kind in ("package", "annotation"):
             args.append(f"{prefix}{kind}={value}")
         else:
             args.append(f"{prefix}class={test_filter}")
+    for runner_arg in runner_args:
+        key, sep, value = runner_arg.partition("=")
+        if not key or not sep or not re.fullmatch(r"[A-Za-z][\w.]*", key):
+            raise ValueError(f"runner argument {runner_arg!r} is not KEY=VALUE")
+        args.append(f"{prefix}{key}={value}")
     return args
 
 def trifold_layout(angles: tuple[int, ...]) -> tuple[str | None, str]:
@@ -1626,7 +1638,7 @@ def cmd_test(args: argparse.Namespace) -> int:
             # Fold/tri-fold posture or resizable preset for posture-dependent layouts.
             apply_pose(device, args.avd, args.posture)
         _clear_newer_app(device)
-        cmd = find_gradle(project) + gradle_test_args(args.filter, args.task)
+        cmd = find_gradle(project) + gradle_test_args(args.filter, args.task, args.runner_arg)
         env = dict(os.environ, ANDROID_SERIAL=FST_SERIAL)
         print("+", " ".join(cmd), file=sys.stderr)
         proc = lock.track(subprocess.Popen(cmd, cwd=project, env=env))
@@ -1798,6 +1810,9 @@ def build_parser() -> argparse.ArgumentParser:
     test.add_argument("--project", default=str(REPO_ROOT / "android"))
     test.add_argument("--task", default=":app:connectedDebugAndroidTest")
     test.add_argument("--posture", help="apply a posture (or resizable preset) before the tests run")
+    test.add_argument("--runner-arg", action="append", default=[], metavar="KEY=VALUE",
+                      help="instrumentation runner argument, repeatable (e.g. "
+                           "annotation=<pkg.Annotation> or fstRequireHinge=true, as CI's android-fold job)")
     test.set_defaults(func=cmd_test)
     return parser
 

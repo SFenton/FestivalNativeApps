@@ -1,0 +1,85 @@
+name: android-fold
+# Half-open book-fold accessibility journeys (@HalfOpenFoldJourney: ATF, TalkBack reading order,
+# hinge straddling, 200% text) on a Pixel 9 Pro Fold emulator with its hinge at 90°, the CI twin of
+# `device.py test … --avd FST_Book_Fold --posture half`. Fixture transports only; no service calls.
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-fold.yml'
+  pull_request:
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-fold.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: android-fold-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  android-fold:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Build app and test APKs
+        run: bash android/gradlew -p android :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
+      - name: Install cmdline-tools 23.0 (pixel_9_pro_fold profile) and the system image
+        run: |
+          set +o pipefail  # `yes` dies of SIGPIPE once sdkmanager exits
+          # The runner image's avdmanager predates the Pixel 9 Pro Fold profile; the emulator
+          # runner uses whatever is in cmdline-tools/latest.
+          curl -fsSL --retry 4 -o /tmp/cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip
+          rm -rf /tmp/cmdline-tools && unzip -q /tmp/cmdline-tools.zip -d /tmp
+          rm -rf "$ANDROID_HOME/cmdline-tools/latest" && mkdir -p "$ANDROID_HOME/cmdline-tools" && mv /tmp/cmdline-tools "$ANDROID_HOME/cmdline-tools/latest"
+          tools="$ANDROID_HOME/cmdline-tools/latest/bin"
+          "$tools/avdmanager" list device -c | grep -qx pixel_9_pro_fold
+          yes | "$tools/sdkmanager" --licenses > /dev/null
+          for attempt in 1 2 3 4; do
+            "$tools/sdkmanager" --install 'system-images;android-35;google_apis;x86_64' emulator > /dev/null && break
+            echo "sdkmanager attempt $attempt failed; retrying"
+            rm -rf "$ANDROID_HOME/system-images/android-35/google_apis/x86_64" "$ANDROID_HOME/.temp"
+            sleep 20
+            [ "$attempt" = 4 ] && exit 1
+          done
+      - name: Half-open fold journeys
+        uses: reactivecircus/android-emulator-runner@v2.34.0
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_9_pro_fold
+          avd-name: fst-ci-book-fold
+          ram-size: 4096M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          # Each line runs on its own. The hinge angle is device.py's "half" posture for book folds.
+          script: |
+            adb emu sensor set hinge-angle0 90
+            sleep 5
+            adb shell dumpsys device_state | grep -i -m 3 'state' || true
+            adb shell wm size
+            bash android/gradlew -p android :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.annotation=com.festivalscoretracker.android.journeys.HalfOpenFoldJourney -Pandroid.testInstrumentationRunnerArguments.fstRequireHinge=true --no-daemon || { adb logcat -d -v threadtime -s FST_ATF:V FST_A11Y:V TestRunner:V AndroidRuntime:E > android-fold-logcat.txt; exit 1; }
+            adb logcat -d -v threadtime -s FST_ATF:V FST_A11Y:V TestRunner:V > android-fold-logcat.txt
+      - name: Upload reports and logcat
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-fold-reports
+          if-no-files-found: warn
+          path: |
+            android/app/build/reports/androidTests
+            android/app/build/outputs/androidTest-results
+            android-fold-logcat.txt
