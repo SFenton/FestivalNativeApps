@@ -247,6 +247,58 @@ def resolve_device(name: str) -> str:
     """
     return DEVICES.get(name, name)
 
+
+#: The disposable iPhone simulator ``ci-device`` creates on a CI runner (never on a mesh Mac).
+CI_DEVICE_NAME = "FST CI iPhone"
+#: Preferred CI device type: the same family as the local ``iphone`` alias.
+CI_DEVICE_TYPE = "iPhone 17 Pro"
+
+
+def _version_key(version: str) -> tuple[int, ...]:
+    """Sort key for a dotted runtime version such as ``27.1``."""
+    return tuple(int(part) for part in version.split(".") if part.isdigit())
+
+
+def choose_ci_simulator(
+    listing: dict, name: str = CI_DEVICE_NAME, preferred_type: str = CI_DEVICE_TYPE
+) -> tuple[str | None, str, str]:
+    """Pick the CI iPhone simulator from ``xcrun simctl list -j`` output.
+
+    Uses the newest available iOS runtime. Reuses an available device named ``name`` on it;
+    otherwise picks ``preferred_type`` if the runtime supports it, else its newest iPhone.
+
+    Args:
+        listing: Parsed ``simctl list -j`` JSON (``runtimes``, ``devicetypes``, ``devices``).
+        name: Device name to reuse or create.
+        preferred_type: Preferred device type name.
+
+    Returns:
+        ``(existing_udid or None, runtime_identifier, devicetype_identifier)``.
+
+    Raises:
+        ValueError: No available iOS runtime, or no iPhone device type for it.
+    """
+    runtimes = [
+        runtime for runtime in listing.get("runtimes", [])
+        if runtime.get("isAvailable") and runtime.get("platform", "iOS") == "iOS"
+        and runtime.get("identifier", "").startswith("com.apple.CoreSimulator.SimRuntime.iOS-")
+    ]
+    if not runtimes:
+        raise ValueError("no available iOS simulator runtime")
+    runtime = max(runtimes, key=lambda item: _version_key(item.get("version", "0")))
+    for device in listing.get("devices", {}).get(runtime["identifier"], []):
+        if device.get("name") == name and device.get("isAvailable", True):
+            return device["udid"], runtime["identifier"], device.get("deviceTypeIdentifier", "")
+    supported = runtime.get("supportedDeviceTypes") or listing.get("devicetypes", [])
+    iphones = [
+        item for item in supported
+        if item.get("productFamily") == "iPhone" or item.get("name", "").startswith("iPhone")
+    ]
+    if not iphones:
+        raise ValueError(f"no iPhone device type for {runtime['identifier']}")
+    chosen = next((item for item in iphones if item.get("name") == preferred_type), iphones[-1])
+    return None, runtime["identifier"], chosen["identifier"]
+
 # endregion
 
 # region Driver steps
@@ -1705,6 +1757,37 @@ def cmd_drive(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_ci_device(args: argparse.Namespace) -> int:
+    """Create (or reuse) the CI runner's iPhone simulator and print its UDID.
+
+    For a disposable CI runner only (``CI``/``GITHUB_ACTIONS`` set, or ``--force``): mesh
+    Macs use the fixed ``DEVICES`` aliases and must never gain extra simulators.
+
+    Args:
+        args: Parsed CLI arguments (force).
+
+    Returns:
+        Process exit code.
+    """
+    if not (args.force or os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS")):
+        print("ci-device runs only on a CI runner (CI/GITHUB_ACTIONS); use a DEVICES alias here",
+              file=sys.stderr)
+        return 2
+    listing = json.loads(_run(["xcrun", "simctl", "list", "-j"], capture_output=True, text=True).stdout)
+    try:
+        udid, runtime, devicetype = choose_ci_simulator(listing)
+    except ValueError as error:
+        print(f"ci-device: {error}", file=sys.stderr)
+        return 1
+    if udid is None:
+        created = _run(["xcrun", "simctl", "create", CI_DEVICE_NAME, devicetype, runtime],
+                       capture_output=True, text=True)
+        udid = created.stdout.strip()
+    print(f"ci-device: {CI_DEVICE_NAME} {udid} ({devicetype} on {runtime})", file=sys.stderr)
+    print(udid)
+    return 0
+
+
 def cmd_uitest(args: argparse.Namespace) -> int:
     """Build once (if stale) and run one or more real XCUITest classes/methods.
 
@@ -2127,6 +2210,13 @@ def main(argv: list[str] | None = None) -> int:
                         help="with --set-pose: Device Hub rotations after the pose, applied from a fresh "
                              "boot (default orientation) whenever the Duo had to boot (repeatable)")
     uitest.set_defaults(func=cmd_uitest)
+
+    ci_device = sub.add_parser(
+        "ci-device", help="CI runner only: create or reuse the CI iPhone simulator, print its UDID"
+    )
+    ci_device.add_argument("--force", action="store_true",
+                           help="run outside CI (never on a shared mesh Mac)")
+    ci_device.set_defaults(func=cmd_ci_device)
 
     pose = sub.add_parser("pose", help="print, set (Device Hub UI scripting) or calibrate the iPhone Duo pose")
     pose.add_argument("--device", default="duo", help=f"alias {sorted(DEVICES)} or UDID")

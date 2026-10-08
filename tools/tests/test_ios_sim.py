@@ -13,6 +13,7 @@ if _sys.platform == "win32":  # Apple tooling imports the POSIX-only fcntl modul
     raise _unittest.SkipTest("Apple simulator tooling runs only on macOS")
 
 import unittest
+import unittest.mock
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -24,6 +25,7 @@ from tools.ios_sim import (
     bmp_is_dark,
     classify_pose,
     match_pose_control,
+    choose_ci_simulator,
     choose_hub_process,
     find_hub_control,
     has_pose_controls,
@@ -138,6 +140,67 @@ class ResolveDeviceTests(unittest.TestCase):
 
     def test_unknown_alias_passes_through_as_udid(self):
         self.assertEqual(resolve_device("SOME-OTHER-UDID"), "SOME-OTHER-UDID")
+
+
+class ChooseCiSimulatorTests(unittest.TestCase):
+    """``ci-device`` picks the newest iOS runtime's iPhone 17 Pro and reuses its own device."""
+
+    IOS_26 = "com.apple.CoreSimulator.SimRuntime.iOS-26-5"
+    IOS_27 = "com.apple.CoreSimulator.SimRuntime.iOS-27-1"
+    PRO = "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro"
+    AIR = "com.apple.CoreSimulator.SimDeviceType.iPhone-Air"
+    PAD = "com.apple.CoreSimulator.SimDeviceType.iPad-Pro-11"
+
+    def listing(self, devices=None, types=None):
+        types = types if types is not None else [
+            {"identifier": self.PAD, "name": "iPad Pro 11", "productFamily": "iPad"},
+            {"identifier": self.PRO, "name": "iPhone 17 Pro", "productFamily": "iPhone"},
+            {"identifier": self.AIR, "name": "iPhone Air", "productFamily": "iPhone"},
+        ]
+        return {
+            "runtimes": [
+                {"identifier": self.IOS_27, "version": "27.1", "isAvailable": True, "platform": "iOS",
+                 "supportedDeviceTypes": types},
+                {"identifier": self.IOS_26, "version": "26.5", "isAvailable": True, "platform": "iOS",
+                 "supportedDeviceTypes": types},
+                {"identifier": "com.apple.CoreSimulator.SimRuntime.iOS-28-0", "version": "28.0",
+                 "isAvailable": False, "platform": "iOS", "supportedDeviceTypes": types},
+                {"identifier": "com.apple.CoreSimulator.SimRuntime.watchOS-12-0", "version": "12.0",
+                 "isAvailable": True, "platform": "watchOS", "supportedDeviceTypes": []},
+            ],
+            "devices": devices or {},
+        }
+
+    def test_creates_the_preferred_type_on_the_newest_available_runtime(self):
+        self.assertEqual(choose_ci_simulator(self.listing()), (None, self.IOS_27, self.PRO))
+
+    def test_falls_back_to_the_newest_iphone_type(self):
+        types = [
+            {"identifier": self.PAD, "name": "iPad Pro 11", "productFamily": "iPad"},
+            {"identifier": self.AIR, "name": "iPhone Air", "productFamily": "iPhone"},
+        ]
+        self.assertEqual(choose_ci_simulator(self.listing(types=types)), (None, self.IOS_27, self.AIR))
+
+    def test_reuses_an_existing_ci_device(self):
+        devices = {self.IOS_27: [
+            {"udid": "OTHER", "name": "Someone's iPhone", "isAvailable": True},
+            {"udid": "CI-UDID", "name": "FST CI iPhone", "isAvailable": True,
+             "deviceTypeIdentifier": self.PRO},
+        ]}
+        self.assertEqual(choose_ci_simulator(self.listing(devices)), ("CI-UDID", self.IOS_27, self.PRO))
+
+    def test_no_ios_runtime_or_iphone_type_raises(self):
+        with self.assertRaises(ValueError):
+            choose_ci_simulator({"runtimes": [], "devices": {}})
+        pads = [{"identifier": self.PAD, "name": "iPad Pro 11", "productFamily": "iPad"}]
+        with self.assertRaises(ValueError):
+            choose_ci_simulator(self.listing(types=pads))
+
+    def test_refuses_to_run_outside_ci(self):
+        with unittest.mock.patch.dict(ios_sim.os.environ, {}, clear=True), \
+                unittest.mock.patch.object(ios_sim, "_run") as run:
+            self.assertEqual(ios_sim.main(["ci-device"]), 2)
+        run.assert_not_called()
 
 
 class SourceHashTests(unittest.TestCase):

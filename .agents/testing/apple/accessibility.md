@@ -6,6 +6,7 @@
 
 - Run XCTest `performAccessibilityAudit` (`.all`). No blanket waivers and never a whole audit type; keep failing crops/xcresults as private evidence.
 - iPhone's only scoped exception: iOS 26.5 Songs "Retry Item Shop status" may report ≤1 contrast and ≤1 Dynamic Type issue for that exact identifier/label, **after** the test independently proves ≥4.5:1 rendered text (measured 18.72:1) and >1.35× AX5 glyph growth. Never extend it.
+- iPhone's band-board reveal journey (`SongBandRevealAccessibilityJourneyTests`, #386) accepts issues only with this run's evidence, using the iPad waiver ids: `system-toolbar-badge`; contrast outside the bars' 8 pt scroll-edge band and the 36 pt fade above the pinned chrome only at ≥ 4.5:1 rendered (`contrast-rendered`, `unattributed-contrast-page-floor`); a default-size "partially unsupported" rank, score or accuracy text in a band card only when the same kind of card text is ≥ 1.35× taller in the AX5 launch (`dynamic-type-grows`); and a default-size unattributed "Text clipped" only while a card or band-row name is drawn narrower than its one-line width (leaderboard-row R3's Reduce Motion tail truncation; the label keeps the full name). Its AX5 audit (all but contrast) must be clean. Do not reuse these acceptances on other iPhone journeys without the same evidence.
 - iPad accepts an issue only through an entry in [iPad audit waivers](#ipad-audit-waivers): a measurement of that issue in the same run, or a system control we do not own. Add an entry there and in `IPadAuditWaivers.swift` together, with its evidence.
 - Named visible text gets a rendered-pixel contrast assertion (≥4.5:1 text, ≥3:1 meaningful edges) from the app screenshot — token math (`tools.contrast_gate`) is not rendered evidence.
 - Large text: assert real glyph growth (>1.35× at AX5) and that actions remain reachable above native chrome in portrait and landscape.
@@ -13,6 +14,10 @@
 - Use `FST_FIXTURE_SCENARIO=art-white` for worst-case contrast over artwork.
 - A single passing run of a flaky audit is not certification; a source-identical rerun must pass too.
 - Never write `.accessibilityHidden(someBool)`: `.accessibilityHidden(false)` on an ancestor **un-hides** every descendant marked hidden (measured in macOS hosting: the fade-in wrapper exposed each Leaderboards card's decorative instrument icon, read "Lead, image" before the "Lead" heading). Use `.accessibilityHidden(while:)` (`Common/FadeInOnLoad.swift`), which applies `accessibilityHidden(true, isEnabled:)` on iOS 18 / macOS 15 and later and hides nothing before.
+
+## iPhone journeys in `apple-ci`
+
+`apple-ci` boots its runner's own disposable iPhone 17 Pro (`python3 tools/ios_sim.py ci-device`: newest installed iOS runtime, refuses to run off CI) and runs `SongBandRevealAccessibilityJourneyTests` against `tools/mock_service.py`, keeping the xcresult as an artifact on failure. Add an iPhone journey there only when it is fixture-backed and deterministic; locally run it with `python3 tools/ios_sim.py uitest --device iphone --only <Class>`.
 
 ## Open findings (not waived)
 

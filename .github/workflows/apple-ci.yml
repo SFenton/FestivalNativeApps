@@ -1,6 +1,6 @@
 name: apple-ci
-# Apple unit tests and compile check on a GitHub-hosted Xcode 27 runner (no mesh machine runs CI or
-# release work). The job name is the required check name: keep it `apple-ci`.
+# Apple unit tests, compile check and the iPhone accessibility journeys (on the runner's own simulator) on a
+# GitHub-hosted Xcode 27 runner (no mesh machine runs CI or release work). The job name is the required check name: keep it `apple-ci`.
 on:
   pull_request:
     branches: [master]
@@ -54,6 +54,29 @@ jobs:
         # strictly. Reuses the coverage build and leaves its profile alone. Filter: testing/apple/hosted-snapshots.md.
         working-directory: apple
         run: swift test --skip-build --filter 'selectedRowRevealFadesTheRowItReaches|staggeredListRowsFadeInRatherThanPop'
+      - name: iPhone accessibility journeys (simulator, fixture service)
+        # The runner's own disposable iPhone simulator (`ios_sim.py ci-device`) runs the iPhone accessibility
+        # journeys against this revision's loopback fixture service, never the public service (#386). List:
+        # testing/apple/accessibility.md "iPhone journeys in apple-ci".
+        run: |
+          python3 tools/mock_service.py --port 18934 > "$RUNNER_TEMP/mock-service.log" 2>&1 &
+          for attempt in $(seq 1 30); do
+            curl -sf "http://127.0.0.1:18934/api/leaderboard/fixture-pulse/bands/Band_Duets?top=25&offset=25&accountId=fixture-player-1" >/dev/null && break
+            sleep 1
+          done
+          UDID=$(python3 tools/ios_sim.py ci-device)
+          python3 tools/ios_sim.py uitest --device "$UDID" --timeout 1200 \
+            --only SongBandRevealAccessibilityJourneyTests
+      - name: Upload iPhone journey results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple-ci-iphone-journeys
+          path: |
+            apple/DerivedData/*/Results/*.xcresult
+            ${{ runner.temp }}/mock-service.log
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload hosted render captures
         if: failure()
         uses: actions/upload-artifact@v4
