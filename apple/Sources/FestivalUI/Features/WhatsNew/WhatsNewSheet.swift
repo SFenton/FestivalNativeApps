@@ -106,54 +106,6 @@ struct WhatsNewSheet: View {
     }
 }
 
-// MARK: - Pull down to dismiss
-
-/// Dismiss when a scroll view is pulled down past its top by ``threshold`` points and
-/// released, standing in for the swipe-down a sheet gets for free.
-///
-/// Uses iOS/macOS 18 scroll geometry and phase observation; a no-op before that, where Close
-/// and Dismiss remain.
-struct PullDownToDismiss: ViewModifier {
-    /// Overscroll distance that counts as a deliberate pull.
-    static let threshold: CGFloat = 80
-
-    let action: () -> Void
-    @State private var maxPull: CGFloat = 0
-    @State private var fired = false
-
-    func body(content: Content) -> some View {
-        if #available(iOS 18.0, macOS 15.0, *) {
-            content
-                .onScrollGeometryChange(for: CGFloat.self) { geometry in
-                    -(geometry.contentOffset.y + geometry.contentInsets.top)
-                } action: { _, pull in
-                    maxPull = max(maxPull, pull)
-                }
-                .onScrollPhaseChange { oldPhase, newPhase in
-                    if newPhase == .interacting {
-                        maxPull = 0
-                    } else if oldPhase == .interacting {
-                        if Self.shouldDismiss(pull: maxPull), !fired {
-                            fired = true
-                            action()
-                        }
-                        maxPull = 0
-                    }
-                }
-        } else {
-            content
-        }
-    }
-
-    /// Whether a released pull dismisses.
-    ///
-    /// - Parameter pull: Largest overscroll above the top during the drag, in points.
-    /// - Returns: True at or past ``threshold``.
-    static func shouldDismiss(pull: CGFloat) -> Bool {
-        pull >= threshold
-    }
-}
-
 // MARK: - Channel-aware sheet
 
 /// ``WhatsNewSheet`` for this install: tester notes on TestFlight/development installs, release
@@ -247,42 +199,16 @@ extension View {
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
         #if os(iOS)
-        modifier(WhatsNewPresentation(isPresented: isPresented, onDismiss: onDismiss, sheet: content))
+        festivalModalPresentation(
+            isPresented: isPresented, onDismiss: onDismiss,
+            coverage: { WhatsNewPresentationStyle.usesSheet($0) ? .sheet : .fullScreen },
+            content: content
+        )
         #else
         sheet(isPresented: isPresented, onDismiss: onDismiss, content: content)
         #endif
     }
 }
-
-#if os(iOS)
-/// Cover or centered sheet for What's New, chosen when it opens and kept until it
-/// closes, so folding or unfolding never re-presents it (or runs `onDismiss` early).
-private struct WhatsNewPresentation<Sheet: View>: ViewModifier {
-    @Binding var isPresented: Bool
-    let onDismiss: (() -> Void)?
-    let sheet: () -> Sheet
-    @Environment(\.deviceLayout) private var layout
-    /// The style latched while presented; nil while closed.
-    @State private var latchedSheet: Bool?
-
-    private var asSheet: Bool { latchedSheet ?? WhatsNewPresentationStyle.usesSheet(layout) }
-
-    func body(content: Content) -> some View {
-        content
-            .fullScreenCover(
-                isPresented: Binding(get: { isPresented && !asSheet }, set: { isPresented = $0 }),
-                onDismiss: onDismiss, content: sheet
-            )
-            .sheet(
-                isPresented: Binding(get: { isPresented && asSheet }, set: { isPresented = $0 }),
-                onDismiss: onDismiss, content: sheet
-            )
-            .onChange(of: isPresented, initial: true) { _, presented in
-                latchedSheet = presented ? WhatsNewPresentationStyle.usesSheet(layout) : nil
-            }
-    }
-}
-#endif
 
 /// Which presentation What's New uses on iOS.
 enum WhatsNewPresentationStyle {
