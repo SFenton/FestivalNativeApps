@@ -221,7 +221,8 @@ public sealed partial class RankingCardViewModel : ObservableObject
         SkeletonRows = LeaderboardRowMetrics.SkeletonRows(metric, AutomationId);
         Status = new ServiceStatusViewModel($"leaderboards.{instrument.ServiceId()}", $"{instrument.Label()} unavailable",
             () => LoadAsync(), session.Time);
-        Spotlight = new RankingSpotlightViewModel(instrument, reader, session.Time, $"leaderboards.spotlight.{instrument.ServiceId()}");
+        Spotlight = new RankingSpotlightViewModel(instrument, reader, session.Time, $"leaderboards.spotlight.{instrument.ServiceId()}",
+            opensFullBoard: true);
         // The pinned row arrives after the top ten: widen every rank column to fit it (operator batch 7.9).
         Spotlight.PropertyChanged += (_, e) =>
         {

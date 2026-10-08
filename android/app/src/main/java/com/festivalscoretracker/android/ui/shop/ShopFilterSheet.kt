@@ -9,9 +9,10 @@ import com.festivalscoretracker.android.ui.songs.ToggleRow
 // region Filter sheet
 
 /**
- * Filter Item Shop (issue #19): New, Available and Leaving Tomorrow switches in the Songs
- * filter sheet's frame and rows (shared header Close, red Reset). Every change applies at
- * once, like Songs.
+ * Filter Item Shop (issues #19, #376): New, Available and Leaving Tomorrow include switches
+ * in the Songs filter sheet's frame and rows (shared header Close, red Reset). They start on
+ * (every offer shows) and turning one off hides that group. Every change applies at once,
+ * like Songs.
  *
  * @param filter Applied filter (the sheet always reflects it, including after reopening).
  * @param onChange Apply a filter.
@@ -20,7 +21,7 @@ import com.festivalscoretracker.android.ui.songs.ToggleRow
 @Composable
 fun ShopFilterSheet(filter: ShopOfferFilter, onChange: (ShopOfferFilter) -> Unit, onDismiss: () -> Unit) {
     LiveSheet(title = "Filter Item Shop", tag = "fst.shop.filter", onReset = { onChange(ShopOfferFilter()) }, onDismiss = onDismiss) {
-        Hint("Show only the Item Shop songs that match any switch you turn on. With every switch off, all songs show.")
+        Hint("Turn a switch off to hide those Item Shop songs. With every switch on, all songs show.")
         ToggleRow("New", "Songs that are new in the Item Shop today.", filter.new, enabled = true, tag = "fst.shop.filter.new") {
             onChange(filter.copy(new = it))
         }

@@ -3,12 +3,13 @@
 ``load-transition`` R5).
 
 A board opened on the selected row (Song Detail's "Jump to your band's position" -> ``navToBand``; its solo spotlight
-row -> ``navToPlayer``) must replay its row entrance first and bring that row into view only once the row's own fade
+row -> ``navToPlayer``; a Leaderboards card's "your rank" row -> Full Rankings ``navToPlayer``, issue #370) must replay its row entrance first and bring that row into view only once the row's own fade
 has finished (``SelectedRowReveal``, issues #307 and #323), holding the rows below the first screen and starting every
 fade that hasn't begun together rather than letting the jump cut the stagger short.
 Each scenario launches this worktree's Debug build on the board with ``--perf-log`` against the loopback fixture
 service (``mock_service.py --large-rankings``: the fixture-pulse Duos board pads to 75 bands, ``fixture-player-1``'s
-band at rank 29, page 2 row 3; solo ``fixture-player-N`` ranks N), waits for the selected row, and judges the
+band at rank 29, page 2 row 3; solo ``fixture-player-N`` ranks N; account rankings pad to 1,200 ``fixture-rank-N`` players
+ranked N), waits for the selected row, and judges the
 ``fade-arm``/``fade-hold``/``fade-rush``/``fade-reveal`` lines with :func:`fade_trace.check_reveal`. The Reduce Motion
 scenario must reveal at once and hold, rush or fade nothing. Journeys never touch production.
 
@@ -51,6 +52,10 @@ class Scenario:
     """``assertname`` pattern of the selected row."""
     motion: bool = True
     args: list[str] = field(default_factory=list)
+    opener: str | None = None
+    """UIA selector invoked on the launch route to open the board (otherwise the route is the board)."""
+    opener_page: str | None = None
+    """UIA selector shown on the launch route once its page has loaded (the opener may sit below the fold)."""
 
 
 SCENARIOS = (
@@ -62,6 +67,12 @@ SCENARIOS = (
              motion=False, args=["--reduce-motion"]),
     Scenario("solo", "/songs/fixture-pulse/Solo_Guitar?page=1&navToPlayer=true", "fixture-player-6:Fixture Player 6",
              "RowsRepeater", 5, "id=fst.song-leaderboard.row.fixture-player-6", "*"),
+    # Issue #370: the Lead card's "your rank" row (#60, outside the top ten) opens Full Rankings on page 3 (ranks 51-75)
+    # and reveals the player's row, the 10th on that page.
+    Scenario("rankings-card", "/leaderboards", "fixture-rank-60:Fixture Rank 60", "RowsRepeater", 9,
+             "id=fst.rankings.row.fixture-rank-60", "Your rank, 60th. *",
+             opener="id=fst.leaderboards.card.Solo_Guitar.spotlight",
+             opener_page="id=fst.leaderboards.card.Solo_Guitar"),
 )
 
 
@@ -97,11 +108,18 @@ def run(scenario: Scenario, port: int, shots: Path) -> list[str]:
         if result.returncode != 0:
             raise RuntimeError((result.stderr.strip() or result.stdout.strip() or "driver failed").splitlines()[-1])
 
-    phase = fade_trace.Phase(
-        "open", [f"waitfor:{scenario.row}@20", REVEAL_WAIT_STEP, f"assertname:{scenario.row}|{scenario.row_name}"],
-        lambda events: fade_trace.check_reveal(events, scenario.list_id, scenario.index, motion=scenario.motion))
+    phases = [] if scenario.opener is None else [
+        # The opener's page settles first, so the board's phase sees only its own fades.
+        fade_trace.Phase("opener", [*([f"waitfor:{scenario.opener_page}@20"] if scenario.opener_page else []),
+                                    "wait:2", f"reveal:{scenario.opener}", f"waitfor:{scenario.opener}@10",
+                                    f"assertname:{scenario.opener}|*Jump to your position*"], lambda events: []),
+    ]
+    phases.append(fade_trace.Phase(
+        "open", [*([f"invoke:{scenario.opener}"] if scenario.opener else []),
+                 f"waitfor:{scenario.row}@20", REVEAL_WAIT_STEP, f"assertname:{scenario.row}|{scenario.row_name}"],
+        lambda events: fade_trace.check_reveal(events, scenario.list_id, scenario.index, motion=scenario.motion)))
     try:
-        failures = fade_trace.run_phases(drive, log, [phase])
+        failures = fade_trace.run_phases(drive, log, phases)
         ui_journey.uiwin("shot", str(shots / f"reveal-{scenario.name}.png"))
     except RuntimeError as error:
         ui_journey.uiwin("shot", str(shots / f"reveal-{scenario.name}-failure.png"), "--mode", "screen")

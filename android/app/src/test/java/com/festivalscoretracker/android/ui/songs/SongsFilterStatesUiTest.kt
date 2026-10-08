@@ -26,8 +26,10 @@ import com.festivalscoretracker.android.core.settings.SettingsRegistry
 import com.festivalscoretracker.android.core.songs.SongFilter
 import com.festivalscoretracker.android.core.songs.SongGeneralFilter
 import com.festivalscoretracker.android.core.songs.SongPlayerScoreFilter
+import com.festivalscoretracker.android.core.songs.SongSortMode
 import com.festivalscoretracker.android.data.SettingsRepository
 import com.festivalscoretracker.android.data.songs.SongsPreferences
+import com.festivalscoretracker.android.data.songs.SongsPreferencesState
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
@@ -364,19 +366,33 @@ class SongsFilterStatesUiTest {
         assertTrue(exists("fst.songs.row.s-beta"))
     }
 
-    /** `deselected-paused`: deselecting clears score checks and keeps public General choices. */
+    /**
+     * `deselected-paused` (issue #359): deselecting resets every filter (General included) and a
+     * single-chart sort to Title like the web `resetSongSettingsForDeselect`, so no paused notice
+     * outlives the player.
+     */
     @Test
-    fun deselectionClearsScoreChecksAndKeepsGeneral() {
-        currentPrefs = seeded(shopOnly, SongPlayerScoreFilter(hasFCs = setOf(Instrument.Lead)))
+    fun deselectionResetsFiltersAndSortLikeTheWeb() {
+        currentPrefs = InMemoryPreferences().also {
+            runBlocking {
+                val repository = SettingsRepository(it)
+                SongsPreferences(repository).setFilters(SongFilter(Instrument.Lead), shopOnly, SongPlayerScoreFilter(hasFCs = setOf(Instrument.Lead)))
+                repository.setSongSort(SongSortMode.Intensity, false)
+            }
+        }
         launch(DebugLaunch(profile = player, opensProfileSheet = true, stillBackground = true), currentPrefs!!)
         waitForTag("fst.profile.deselect")
         click("fst.profile.deselect")
         waitForTag("fst.profile.deselect-confirm.ok")
         click("fst.profile.deselect-confirm.ok")
-        rule.waitUntil(10_000) { settle(100); saved().playerFilter?.isActive == false }
-        assertEquals(shopOnly, saved().general)
-        waitForTag("fst.songs.row.s-beta")
-        assertFalse(exists("fst.songs.row.s-gamma"))
+        rule.waitUntil(10_000) { settle(100); saved() == SongsPreferencesState() }
+        assertEquals(SongSortMode.Title, runBlocking { SettingsRepository(currentPrefs!!).settings.first().songSort })
+        waitForTag("fst.songs.row.s-gamma")
+        assertTrue(exists("fst.songs.row.s-beta"))
+        assertFalse(exists("fst.songs.sort-paused"))
+        assertFalse(exists("fst.songs.notice.0"))
+        assertEquals(0, rule.onAllNodesWithText("paused", substring = true, useUnmergedTree = true).fetchSemanticsNodes().size)
+        assertFilterState("No filters")
         openFilter()
         assertFalse(exists("fst.songs.filter.score-sections"))
         rule.onNodeWithTag("fst.songs.filter.shop").assertExists()
@@ -385,10 +401,11 @@ class SongsFilterStatesUiTest {
     /**
      * Issue #181 (`anonymous-hidden` → `player-loaded` → deselected): a General filter chosen
      * without a profile narrows the list, tints and speaks the Filter button, and keeps doing so
-     * after a profile is selected (the player sections appear) and after it is cleared again.
+     * after a profile is selected (the player sections appear). Clearing the profile resets it
+     * like the web (issue #359).
      */
     @Test
-    fun anonymousGeneralFilterSurvivesSelectionAndClearingAndSpeaksItsState() {
+    fun anonymousGeneralFilterSurvivesSelectionResetsOnDeselectAndSpeaksItsState() {
         val doubleBass = transport().apply {
             on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) {
                 Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null")
@@ -424,18 +441,17 @@ class SongsFilterStatesUiTest {
         click("fst.songs.filter.done")
         waitGone("fst.songs.filter.form")
 
-        // Clearing the profile hides the player sections; General still narrows.
+        // Clearing the profile resets every filter like the web (issue #359): all rows return.
         runBlocking { SettingsRepository(currentPrefs!!).setSelectedPlayer(null) }
         rule.waitUntil(10_000) { settle(100); !exists("fst.songs.instrument-status.s-alpha", unmerged = true) }
-        waitForTag("fst.songs.row.s-alpha")
-        assertFalse(exists("fst.songs.row.s-beta"))
-        assertFilterState("Filters on: Double Bass")
+        waitForTag("fst.songs.row.s-gamma")
+        assertTrue(exists("fst.songs.row.s-beta"))
+        assertEquals(SongGeneralFilter(), saved().general)
+        assertFilterState("No filters")
         openFilter()
         assertFalse(exists("fst.songs.filter.score-sections"))
-        click("fst.songs.filter.reset")
         click("fst.songs.filter.done")
-        waitForTag("fst.songs.row.s-gamma")
-        assertFilterState("No filters")
+        waitGone("fst.songs.filter.form")
     }
 
     private fun assertFilterState(expected: String) = rule.onNodeWithTag("fst.songs.filter.open")
