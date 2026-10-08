@@ -1,8 +1,10 @@
 package com.festivalscoretracker.android.journeys
 
+import android.content.res.Configuration
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -75,7 +77,8 @@ class JourneyHarness(private val rule: JourneyRule) {
      * @param transport Fixture transport.
      * @param preferences Settings store.
      * @param fontScale Font scale to render the app at, read in composition so a test can switch
-     *   it in place (backed by snapshot state); `null` keeps the device's own.
+     *   it in place (backed by snapshot state); `null` keeps the device's own. Modals opened
+     *   after a switch (sheets and dialogs are separate windows) render at it too.
      */
     fun launch(
         debug: DebugLaunch,
@@ -88,9 +91,25 @@ class JourneyHarness(private val rule: JourneyRule) {
             if (fontScale == null) {
                 FestivalApp(container, debug)
             } else {
-                DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(fontScale())) { FestivalApp(container, debug) }
+                val scale = fontScale()
+                SideEffect { applyWindowFontScale(scale) }
+                DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(scale)) { FestivalApp(container, debug) }
             }
         }
+    }
+
+    /**
+     * Give modal windows [scale]. `DeviceConfigurationOverride` stops at a window boundary: a
+     * `ModalBottomSheet` or `Dialog` composes in its own window, whose density comes from the
+     * activity's resources, so without this a "200%" sheet still renders at the device scale.
+     *
+     * @param scale Font scale.
+     */
+    @Suppress("DEPRECATION")
+    private fun applyWindowFontScale(scale: Float) {
+        val resources = rule.activity.resources
+        if (resources.configuration.fontScale == scale) return
+        resources.updateConfiguration(Configuration(resources.configuration).apply { fontScale = scale }, resources.displayMetrics)
     }
 
     /** Distinct ATF findings so far (`TYPE | Check | element | message`). */
