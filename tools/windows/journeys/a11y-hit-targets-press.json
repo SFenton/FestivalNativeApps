@@ -652,6 +652,14 @@
       "wait:2"
     ],
     "after_ready": [
+      "tapat:id=fst.shop.sort|0,-18.5",
+      "waitfor:id=fst.shop.sort.mode@5",
+      "key:escape",
+      "waitgone:id=fst.shop.sort.mode@5",
+      "tapat:id=fst.shop.sort|0,18.5",
+      "waitfor:id=fst.shop.sort.mode@5",
+      "key:escape",
+      "waitgone:id=fst.shop.sort.mode@5",
       "tapat:id=fst.shop.filter|0,-18.5",
       "waitfor:id=fst.shop.filter.reset@5",
       "key:escape",
