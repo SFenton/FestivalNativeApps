@@ -129,6 +129,24 @@ public sealed partial class SongScoreHistoryChart : UserControl
         set => SetValue(ModelProperty, value);
     }
 
+    /// <summary>
+    /// Height of the plot (axes, bars and date band; the legend sits below it). Song Detail keeps the 260 epx default; the
+    /// First Run guide hosts the same chart in its shorter demo frame (issue #380).
+    /// </summary>
+    public double PlotHeight
+    {
+        get => Plot.Height;
+        set
+        {
+            if (Plot.Height == value) return;
+            Plot.Height = value;
+            Redraw();
+        }
+    }
+
+    /// <summary>Raised after every redraw (the bars are rebuilt), e.g. so a First Run demo can make the new bars inert.</summary>
+    public event EventHandler? Redrawn;
+
     /// <summary>Follows the new model's page of bars.</summary>
     /// <param name="old">Previous model.</param>
     private void OnModelChanged(SongScoreHistoryViewModel? old)
@@ -163,6 +181,13 @@ public sealed partial class SongScoreHistoryChart : UserControl
     /// and without this the focus would fall to the pager below and a keyboard or Narrator user would lose their place.
     /// </summary>
     private void Redraw()
+    {
+        DrawPlot();
+        Redrawn?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Draws the axes, bars, score line and labels (see <see cref="Redraw"/>).</summary>
+    private void DrawPlot()
     {
         var (focusedIndex, focusState) = FocusedBar();
         Plot.Children.Clear();

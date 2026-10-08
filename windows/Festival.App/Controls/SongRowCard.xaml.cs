@@ -71,6 +71,9 @@ public sealed partial class SongRowCard : UserControl
         Grid.SetRowSpan(ArtHost, wrapped ? 2 : 1);
     }
 
+    /// <summary>The row's Shop pulse ring (first-run demos gate its breathing to the visible slide).</summary>
+    internal ShopPulseRing PulseRing => ShopRing;
+
     /// <summary>Shows the Item Shop pulse ring and, optionally, the bag on the art; <see langword="null"/> hides both.</summary>
     /// <param name="pulse">Pulse, or none.</param>
     /// <param name="showBag">Also show the bag (Songs); the Item Shop page names its state with text badges instead.</param>
