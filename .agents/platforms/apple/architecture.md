@@ -49,6 +49,10 @@ SwiftUI restarts `.task(id:)` each time a view reappears in a `NavigationStack` 
 
 Never put several default-style `Button`s or `NavigationLink`s in **one** `List`/`Form` row (e.g. a `LazyVStack` of results inside a single `Section` row). On iOS such a row makes the whole row the hit target and fires **every** control in it on one tap. This caused the 2026-09-28 wrong-account bug: tapping any profile search result pushed one `/player/:id` per result, leaving the *last* result's profile on top. Emit one row per action (`PlayerSearchResultRows` is a bare `ForEach`), or give intentionally side-by-side controls `.buttonStyle(.borderless)`/`.plain` (as `ProfileSelectionSheet.selectedProfileRow` does). macOS hosted tests cannot reproduce the iOS tap behavior, so `ProfileSearchResultRowsTests` pins the row structure via `_VariadicView`, and `ProfileJourneyTests` covers the tap on-device.
 
+### Drops onto a List or Form (iOS 18+)
+
+On iOS/iPadOS 18+ a SwiftUI `List`/`Form` is a `UICollectionView` whose own drop controller claims every drag over its rows and then cancels it, so `onDrop`/`dropDestination` on rows, sections or any ancestor never see the session (no highlight, no perform; Apple Developer Forums thread 758015). A `TextEditor` in a row declines images too. To accept drops on a form, wrap the collection view's public `dropDelegate`, take the content you accept and forward everything else to SwiftUI's delegate, as `FeedbackSheetDropInteraction` does (#373; same proxy shape as `SheetDismissAttemptObserver`). macOS `Form` is not a collection view: SwiftUI `onDrop` on rows and headers works there. Verify an iOS drop with a cross-app drive (`tile:` + `screenDrag:`, [simulator driver](../../workflow/simulator-driver.md)); a same-app XCUITest drag does not prove it.
+
 ## Shared components and conventions
 
 | Use | Not | Why |

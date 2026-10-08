@@ -241,6 +241,38 @@ struct FeedbackFormModelTests {
         model.discardMedia()
     }
 
+    @Test("Dropped item providers load from files and data, movies first, skipping text")
+    func dropProviders() async throws {
+        let shot = try sourceImage("drop-file.png")
+        defer { try? FileManager.default.removeItem(at: shot.deletingLastPathComponent()) }
+        let fromFile = try #require(NSItemProvider(contentsOf: shot))
+        // Photos offers image data rather than a file.
+        let fromData = NSItemProvider(
+            item: try Data(contentsOf: shot) as NSData, typeIdentifier: UTType.png.identifier
+        )
+        let text = NSItemProvider(object: "notes" as NSString)
+        let both = NSItemProvider()
+        both.registerDataRepresentation(for: .png) { $0(Data(), nil); return nil }
+        both.registerDataRepresentation(for: .quickTimeMovie) { $0(Data(), nil); return nil }
+
+        #expect(FeedbackPickedMedia.droppableType(of: fromFile)?.conforms(to: .image) == true)
+        #expect(FeedbackPickedMedia.droppableType(of: both) == .quickTimeMovie)
+        #expect(FeedbackPickedMedia.droppableType(of: text) == nil)
+
+        let staged = await FeedbackPickedMedia.load(from: [text, fromFile, fromData])
+        defer { for item in staged { try? FileManager.default.removeItem(at: item.url.deletingLastPathComponent()) } }
+        #expect(staged.count == 2)
+        for item in staged {
+            #expect(item.url.path.hasPrefix(FeedbackPickedMedia.stagingFolder.path))
+            #expect(try Data(contentsOf: item.url) == Data(contentsOf: shot))
+        }
+
+        let model = FeedbackFormModel(kind: .bug)
+        await model.importDropped(staged)
+        #expect(model.attachments.count == 2)
+        model.discardMedia()
+    }
+
     @Test("Photo Library opens beside the form only on regular-width iPad and Duo windows")
     func libraryPlacement() {
         #expect(FeedbackPhotoLibraryPlacement.resolve(isMac: false, windowWidthClass: .regular) == .beside)

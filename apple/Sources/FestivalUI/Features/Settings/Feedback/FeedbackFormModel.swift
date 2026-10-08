@@ -156,7 +156,7 @@ final class FeedbackFormModel {
     /// Admit photos, videos or image/movie files dropped onto the form (issue #373).
     ///
     /// The drop has already copied each item into its own staging folder
-    /// (``FeedbackPickedMedia/transferRepresentation``); every copy goes through the same
+    /// (``FeedbackPickedMedia/load(from:)``); every copy goes through the same
     /// location removal and limits as a picked file, so a drop past the limits shows the
     /// same notice.
     ///
@@ -418,6 +418,56 @@ struct FeedbackPickedMedia: Transferable {
         // Movies first so a video arrives as its own file, not a still frame.
         FileRepresentation(importedContentType: .movie) { try stage($0.file) }
         FileRepresentation(importedContentType: .image) { try stage($0.file) }
+    }
+
+    /// Content types the form accepts from a drop: movies before images, as above.
+    static let droppableTypes: [UTType] = [.movie, .image]
+
+    /// Copy the media out of dropped item providers, in drop order.
+    ///
+    /// Drops use item providers rather than this type's `Transferable` conformance: the
+    /// Photos app offers its photos as image data, not files, and SwiftUI's
+    /// `dropDestination` never matched them to a file-only representation (iPad drive,
+    /// #373). `loadFileRepresentation` writes data-backed items to a temporary file too.
+    ///
+    /// - Parameter providers: The dropped items.
+    /// - Returns: A staged copy for each provider holding a movie or an image; others,
+    ///   and items that fail to load, are skipped.
+    @MainActor
+    static func load(from providers: [NSItemProvider]) async -> [FeedbackPickedMedia] {
+        var media: [FeedbackPickedMedia] = []
+        for provider in providers {
+            guard let type = droppableType(of: provider),
+                  let item = try? await load(provider, as: type) else { continue }
+            media.append(item)
+        }
+        return media
+    }
+
+    /// The registered type a provider is loaded as: its first movie, else its first image.
+    ///
+    /// - Parameter provider: A dropped item.
+    /// - Returns: The type to load, or nil when the item is neither.
+    static func droppableType(of provider: NSItemProvider) -> UTType? {
+        let types = provider.registeredContentTypes
+        for wanted in droppableTypes {
+            if let match = types.first(where: { $0.conforms(to: wanted) }) { return match }
+        }
+        return nil
+    }
+
+    @MainActor
+    private static func load(_ provider: NSItemProvider, as type: UTType) async throws -> FeedbackPickedMedia {
+        try await withCheckedThrowingContinuation { continuation in
+            _ = provider.loadFileRepresentation(for: type, openInPlace: false) { url, _, error in
+                // The file is deleted when this returns, so copy it now.
+                guard let url else {
+                    continuation.resume(throwing: error ?? CocoaError(.fileReadUnknown))
+                    return
+                }
+                continuation.resume(with: Result { try stage(url) })
+            }
+        }
     }
 
     /// Copy `file` into its own UUID folder, keeping a safe version of its name.

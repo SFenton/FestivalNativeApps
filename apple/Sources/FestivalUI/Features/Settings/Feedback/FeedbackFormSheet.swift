@@ -36,8 +36,8 @@ struct FeedbackFormSheet: View {
     /// Items ticked in the beside-the-form library, mirrored into ``model``'s attachments.
     @State private var librarySelection: [PhotosPickerItem] = []
     @State private var libraryLinks = FeedbackPickerLinks<PhotosPickerItem>()
-    /// Something droppable is over the form.
-    @State private var dropTargeted = false
+    /// How many drop targets (the sheet, each form row and header) the drag is over.
+    @State private var dropTargets = 0
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.deviceLayout) private var layout
@@ -56,14 +56,8 @@ struct FeedbackFormSheet: View {
     var body: some View {
         NavigationStack {
             panes
-                .overlay { if dropTargeted { FeedbackDropHighlight() } }
-                .dropDestination(for: FeedbackPickedMedia.self) { items, _ in
-                    guard model.acceptsMedia, !items.isEmpty else { return false }
-                    Task { await model.importDropped(items) }
-                    return true
-                } isTargeted: { targeted in
-                    dropTargeted = targeted && model.acceptsMedia
-                }
+                .overlay { if dropTargets > 0 && model.acceptsMedia { FeedbackDropHighlight() } }
+                .modifier(dropTarget)
                 .navigationTitle(kind.formTitle)
                 #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
@@ -77,6 +71,13 @@ struct FeedbackFormSheet: View {
 
         #if os(iOS)
         .background(SheetDismissAttemptObserver { requestClose() })
+        .background(
+            FeedbackSheetDropInteraction(accepts: model.acceptsMedia) { over in
+                dropTargets = over ? 1 : 0
+            } onDrop: { providers in
+                importDropped(providers)
+            }
+        )
         #endif
         .photosPicker(
             isPresented: $showingPhotos, selection: $photoSelection,
@@ -185,8 +186,10 @@ struct FeedbackFormSheet: View {
                     #if os(iOS)
                     .textInputAutocapitalization(.sentences)
                     #endif
+                    .modifier(dropTarget)
             } header: {
                 FeedbackFieldHeader("Title", detail: titleDetail)
+                    .modifier(dropTarget)
             }
             textBox(
                 "Description", detail: descriptionDetail,
@@ -212,6 +215,7 @@ struct FeedbackFormSheet: View {
                         .font(.footnote)
                         .foregroundStyle(FestivalText.primary)
                         .accessibilityIdentifier("fst.settings.feedback.validation")
+                        .modifier(dropTarget)
                 }
             }
         }
@@ -230,47 +234,72 @@ struct FeedbackFormSheet: View {
                 .accessibilityHint(detail)
                 .accessibilityIdentifier(identifier)
                 .disabled(model.isBusy)
+                .modifier(dropTarget)
         } header: {
             FeedbackFieldHeader(label, detail: detail)
+                .modifier(dropTarget)
         }
     }
 
     private var mediaSection: some View {
         Section {
-            if !model.attachments.isEmpty {
-                FeedbackAttachmentStrip(attachments: model.attachments) { removeAttachment($0) }
-                    .disabled(model.isBusy)
-            }
-            Menu {
-                Button(
-                    libraryMenuTitle, systemImage: "photo.on.rectangle", action: openPhotoLibrary
-                )
-                .accessibilityIdentifier("fst.settings.feedback.attach.media")
-                Button("Choose File…", systemImage: "folder") { showingFiles = true }
-                    .accessibilityIdentifier("fst.settings.feedback.attach.files")
-            } label: {
-                // The whole row is the hit target, not only the label's glyphs.
-                Label("Attach Media", systemImage: "paperclip")
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                    .contentShape(Rectangle())
-            }
-            .disabled(
-                model.attachments.count >= FeedbackLimits.attachments || model.isBusy
-            )
-            .accessibilityIdentifier("fst.settings.feedback.attach")
-            if model.importing > 0 {
-                ProgressView("Adding media…")
-                    .accessibilityIdentifier("fst.settings.feedback.attach.progress")
-            }
-            if let message = model.attachmentMessage {
-                Text(message)
-                    .font(.footnote)
-                    .foregroundStyle(FestivalSheetActionColor.destructive)
-                    .accessibilityIdentifier("fst.settings.feedback.attachments.notice")
-            }
+            Group { mediaRows }
+                .modifier(dropTarget)
         } header: {
             FeedbackFieldHeader("Media", detail: mediaDetail)
+                .modifier(dropTarget)
         }
+    }
+
+    @ViewBuilder
+    private var mediaRows: some View {
+        if !model.attachments.isEmpty {
+            FeedbackAttachmentStrip(attachments: model.attachments) { removeAttachment($0) }
+                .disabled(model.isBusy)
+        }
+        Menu {
+            Button(
+                libraryMenuTitle, systemImage: "photo.on.rectangle", action: openPhotoLibrary
+            )
+            .accessibilityIdentifier("fst.settings.feedback.attach.media")
+            Button("Choose File…", systemImage: "folder") { showingFiles = true }
+                .accessibilityIdentifier("fst.settings.feedback.attach.files")
+        } label: {
+            // The whole row is the hit target, not only the label's glyphs.
+            Label("Attach Media", systemImage: "paperclip")
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .disabled(
+            model.attachments.count >= FeedbackLimits.attachments || model.isBusy
+        )
+        .accessibilityIdentifier("fst.settings.feedback.attach")
+        if model.importing > 0 {
+            ProgressView("Adding media…")
+                .accessibilityIdentifier("fst.settings.feedback.attach.progress")
+        }
+        if let message = model.attachmentMessage {
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(FestivalSheetActionColor.destructive)
+                .accessibilityIdentifier("fst.settings.feedback.attachments.notice")
+        }
+    }
+
+    /// Accepts dropped media on the view it modifies. The sheet has one, but `Form` is a
+    /// collection view whose own drop handling claims drags over its rows and headers, so
+    /// each of those carries one too (found in an iPad drive, #373).
+    private var dropTarget: FeedbackDropTarget {
+        FeedbackDropTarget(accepts: model.acceptsMedia, targets: $dropTargets) { providers in
+            importDropped(providers)
+        }
+    }
+
+    /// Copy dropped item providers' media and attach it.
+    ///
+    /// - Parameter providers: The dropped items.
+    private func importDropped(_ providers: [NSItemProvider]) {
+        Task { await model.importDropped(await FeedbackPickedMedia.load(from: providers)) }
     }
 
     private var progressSection: some View {
@@ -505,6 +534,39 @@ private struct FeedbackFieldHeader: View {
         }
         .textCase(nil)
         .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Drop target
+
+/// One place on the Mac feedback form that accepts dropped photos, videos and image or
+/// movie files: the form and each row and header, so a text box's own drop handling
+/// doesn't take a file dropped on it. Every target shares one counter, so moving between
+/// rows keeps the highlight on whichever order the enter and exit callbacks arrive in.
+/// On iOS it does nothing: ``FeedbackSheetDropInteraction`` covers the whole sheet.
+private struct FeedbackDropTarget: ViewModifier {
+    /// False while sending: the drop is refused.
+    let accepts: Bool
+    /// Targets the drag is over, shared by the whole form.
+    @Binding var targets: Int
+    /// Takes the dropped item providers.
+    let onDrop: ([NSItemProvider]) -> Void
+    @State private var isOver = false
+
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        content
+            .onDrop(of: FeedbackPickedMedia.droppableTypes, isTargeted: $isOver) { providers in
+                guard accepts, !providers.isEmpty else { return false }
+                onDrop(providers)
+                return true
+            }
+            .onChange(of: isOver) { _, over in
+                targets = max(0, targets + (over ? 1 : -1))
+            }
+        #else
+        content
+        #endif
     }
 }
 
