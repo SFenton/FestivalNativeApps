@@ -725,15 +725,8 @@ struct SongsScreen: View, Equatable {
         } label: {
             Label("Sort", systemImage: "arrow.up.arrow.down")
         }
+        .catalogueSortPopover(isPresented: $sortPresented) { sortSheet }
         #if os(macOS)
-        .popover(isPresented: $sortPresented, arrowEdge: .bottom) {
-            // The popover is its own chrome: no modal stack, title bar or Close (which
-            // would otherwise join the window toolbar); it closes on an outside click.
-            sortSheet
-                .environment(\.festivalModalPreview, true)
-                .formStyle(.grouped)
-                .frame(width: 340, height: 470)
-        }
         .help("Sort Songs")
         #endif
         .accessibilityValue(

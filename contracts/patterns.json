@@ -3253,6 +3253,18 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Songs/SongsSortSheet.swift",
             "symbol": "SortDirectionControl"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/ShopOfferSort.swift",
+            "symbol": "ShopOfferSort"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/ShopOfferSort.swift",
+            "symbol": "ShopSortChoice"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Shop/ShopScreen.swift",
+            "symbol": "ShopScreen"
           }
         ],
         "android": [
