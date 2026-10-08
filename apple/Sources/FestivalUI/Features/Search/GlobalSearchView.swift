@@ -482,14 +482,15 @@ struct GlobalSearchSheet: View {
 /// button inside the field. Focused when the sheet opens.
 ///
 /// Also the iPhone Duo bottom search field (``BottomSearchField``): Songs' "Filter
-/// Songs" (issue #333), which floats over the list on the shared control capsule and
+/// Songs" (issue #333), which floats over the list on Liquid Glass (issue #358) and
 /// waits for a tap, and the Search tab's field on the inner display (issue #349).
 struct GlobalSearchField: View {
     /// The field's backing.
     enum Surface {
         /// A faint capsule inside a sheet's header.
         case inline
-        /// The shared floating-control capsule over scrolling rows (surface-materials R1).
+        /// A Liquid Glass capsule floating over scrolling rows, like the system Search
+        /// button beside it (owner-approved iPhone Duo variant, surface-materials R2, #358).
         case floating
     }
 
@@ -506,6 +507,9 @@ struct GlobalSearchField: View {
     var focusesOnAppear = true
     /// The field's backing.
     var surface = Surface.inline
+    /// The field's minimum height (the iPhone Duo bottom field matches the system Search
+    /// button, issue #358).
+    var minHeight: CGFloat = 44
     /// Return/Search was pressed (re-runs a failed or empty search, issue #299).
     var submit: () -> Void = {}
     @FocusState private var focused: Bool
@@ -540,7 +544,7 @@ struct GlobalSearchField: View {
             }
         }
         .padding(.horizontal, 12)
-        .frame(minHeight: 44)
+        .frame(minHeight: minHeight)
         .modifier(GlobalSearchFieldSurface(surface: surface))
         .onAppear {
             guard focusesOnAppear else { return }
@@ -576,7 +580,9 @@ private struct GlobalSearchFieldSurface: ViewModifier {
         case .inline:
             content.background(Color.white.opacity(0.1), in: Capsule())
         case .floating:
-            content.festivalCardCapsule()
+            // Liquid Glass like the system's floating Search button (owner, #358); opaque
+            // and bordered under Reduce Transparency or Increase Contrast (R4).
+            content.festivalGlassCapsule(.control, interactive: true)
         }
     }
 }

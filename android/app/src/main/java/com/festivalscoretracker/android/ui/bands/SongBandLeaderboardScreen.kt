@@ -113,6 +113,8 @@ import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.bands.SongBandLeaderboardViewModel
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.FestivalScreen
+import com.festivalscoretracker.android.ui.common.fillEmptyRegion
+import com.festivalscoretracker.android.ui.common.rememberEmptyRegion
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.loadSwapSpinnerItem
 import com.festivalscoretracker.android.ui.common.rememberLoadSwap
@@ -295,11 +297,15 @@ fun SongBandLeaderboardScreen(
                         val response = state.value
                         if (response.entries.isEmpty()) {
                             item(key = "empty") {
-                                Box(swap.contentModifier) { BandEmptyState(
-                                    "No Band Scores Found",
-                                    "No ${type.label} scores have been recorded for this song yet.",
-                                    "fst.song-band-leaderboard.empty",
-                                ) }
+                                // Centred between the song header and the anchored footer (`empty-error-states` R2, #377).
+                                Box(Modifier.fillMaxWidth().fillEmptyRegion(rememberEmptyRegion(listState, "empty")).then(swap.contentModifier)) {
+                                    BandEmptyState(
+                                        "No Band Scores Found",
+                                        "No ${type.label} scores have been recorded for this song yet.",
+                                        "fst.song-band-leaderboard.empty",
+                                        Modifier.fillMaxSize(),
+                                    )
+                                }
                             }
                         }
                         val selected = response.selectedPlayerEntry

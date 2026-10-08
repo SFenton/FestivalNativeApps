@@ -668,6 +668,19 @@
           "message": "Liquid Glass implementation belongs only to GlassSurface (surface-materials R2)."
         },
         {
+          "id": "apple-glass-consumers",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\.festivalGlass(?:Capsule)?\\s*\\(|FestivalGlassModifier\\s*\\(",
+          "allow": [
+            "apple/Sources/FestivalUI/Design/GlassSurface.swift",
+            "apple/Sources/FestivalUI/Design/RowCardSurface.swift",
+            "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
+            "apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift"
+          ],
+          "debt": [],
+          "message": "Shipping Liquid Glass is only the drawer and the owner-approved iPhone Duo bottom search field (#358); other controls use festivalCardCapsule (surface-materials R1/R2)."
+        },
+        {
           "id": "apple-raw-material-background",
           "glob": "apple/Sources/**/*.swift",
           "regex": "(?:\\.background|\\.fill)\\(\\.(?:ultraThinMaterial|thinMaterial|regularMaterial|thickMaterial)\\b",
@@ -1758,7 +1771,7 @@
       "title": "Empty and error states",
       "status": "current",
       "doc": ".agents/patterns/empty-error-states.md",
-      "summary": "Loading, empty and failed outcomes stay distinct: centered scoped title/subtitle empty states, one native loading indicator, and explicit unavailable messages without global-search Retry controls.",
+      "summary": "Loading, empty and failed outcomes stay distinct: every empty page or region uses the shared centred title/subtitle empty state with no card or Reset Filters button, one native loading indicator, and explicit unavailable messages without global-search Retry controls.",
       "keywords": [
         "empty",
         "no results",
@@ -1767,7 +1780,9 @@
         "loading",
         "spinner",
         "retry",
-        "search"
+        "search",
+        "filtered empty",
+        "reset filters"
       ],
       "web": [
         {
@@ -1826,6 +1841,22 @@
           "regex": "fst\\.global-search\\.(?:retry|players-retry)",
           "allow": [],
           "message": "Global Search reruns from submit or edit; it has no Retry control (empty-error-states R3)."
+        },
+        {
+          "id": "android-empty-reset-filters",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "fst\\.(?:shop\\.filter\\.empty-reset|suggestions\\.reset-filters)",
+          "allow": [],
+          "message": "Empty states have no Reset Filters button; the filter sheet's Reset is the way back (empty-error-states R8, #377)."
+        },
+        {
+          "id": "android-empty-fixed-height",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "(?:FestivalEmptyState|BandEmptyState)\\([^\\n]*heightIn\\(min =|fun BandEmptyState\\([^\\n]*heightIn",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/notifications/NotificationsUi.kt"
+          ],
+          "message": "An empty state in a list or grid fills the region its controls and pager leave (rememberEmptyRegion + fillEmptyRegion), never a fixed-height block (empty-error-states R2, #377). Only the content-sized Notifications sheet keeps a minimum."
         }
       ],
       "related": {
@@ -1841,7 +1872,11 @@
         "pages": [
           "songs",
           "leaderboards",
-          "compete"
+          "compete",
+          "shop",
+          "suggestions",
+          "rivals",
+          "bands"
         ]
       },
       "supersedes": [],
@@ -1854,7 +1889,8 @@
         299,
         312,
         320,
-        348
+        348,
+        377
       ]
     },
     {

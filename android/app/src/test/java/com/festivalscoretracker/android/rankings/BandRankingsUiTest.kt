@@ -7,6 +7,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.data.HttpResult
+import com.festivalscoretracker.android.testing.EmptyRegionAssertions.assertFillsAndCentres
+import com.festivalscoretracker.android.testing.EmptyRegionAssertions.boundsOf
 import com.festivalscoretracker.android.testing.RankingsFixtures
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -90,6 +92,33 @@ class BandRankingsUiTest : LeaderboardsHarness() {
         waitForText("No ranked bands yet.")
         waitForText("0 ranked bands")
         assertTrue(node("fst.band-rankings.page-next").fetchSemanticsNode().config.contains(SemanticsProperties.Disabled))
+        assertEmptyFillsTheBoard()
+    }
+
+    /** Issue #377: on a tall tablet window the empty board still centres between the population and the pager. */
+    @Test
+    @Config(qualifiers = "w800dp-h1280dp-xhdpi")
+    fun emptyBoardCentresOnATallWindow() {
+        serve(body = { page -> """{"bandType":"Band_Duets","rankBy":"totalscore","page":$page,"pageSize":25,"totalTeams":0,"entries":[]}""" })
+        launch("bandRankings:Band_Duets")
+        waitForText("No ranked bands yet.")
+        waitForText("0 ranked bands")
+        assertEmptyFillsTheBoard()
+    }
+
+    /** The empty state fills the rows' region between the population line and the floating pager (12 dp item gaps), text centred. */
+    private fun assertEmptyFillsTheBoard() {
+        settle()
+        rule.assertFillsAndCentres(
+            "fst.band-rankings.empty",
+            above = rule.boundsOf("fst.band-rankings.population"),
+            gapAbove = 12f,
+            belowTop = rule.boundsOf("fst.band-rankings.bottom-bar").top,
+            gapBelow = 12f,
+            firstText = "No ranked bands yet.",
+            lastText = "No ranked bands yet.",
+            density = rule.density.density,
+        )
     }
 }
 
