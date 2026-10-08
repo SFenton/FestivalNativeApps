@@ -34,16 +34,15 @@ struct StatisticsScreen: View {
                 // state (phase, rank rows, pending dialogs) by the account itself.
                 .id(selected.accountId)
             } else {
-                ContentUnavailableView {
-                    Label("No Profile Selected", systemImage: "chart.bar")
-                } description: {
-                    Text("Select a player to see their statistics.")
-                } actions: {
+                FestivalEmptyState(
+                    "No Profile Selected", systemImage: "chart.bar",
+                    subtitle: "Select a player to see their statistics.",
+                    accessibilityIdentifier: "fst.statistics.empty"
+                ) {
                     Button("Choose Profile") { openProfile() }
                         .festivalProminentButton()
                         .accessibilityIdentifier("fst.statistics.choose-profile")
                 }
-                .accessibilityIdentifier("fst.statistics.empty")
                 // Every root page keeps its title (issue #341); the profile sets its own.
                 .festivalNavigationTitle("Statistics")
             }
