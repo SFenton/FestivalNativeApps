@@ -58,6 +58,7 @@ none of these routes previously existed in the fixture server:
 
 - `GET /api/account/search?q=slowpoke` (issue #299): waits `SLOW_ACCOUNT_SEARCH_SECONDS` (4 s), then returns an empty `results` list, so a UI test can see global search's one centred spinner before the empty state. `GlobalSearchJourneyTests.testSearchingSpinnerIsCentredBelowScopeBar` expects it on a dedicated `127.0.0.1:18936` instance (`python3 tools/mock_service.py --port 18936`) and skips without it. The other magic terms stay: `blocked` → 403, `busy` → 503 freeze, `rate` → 429.
 - `DuoShellJourneyTests` (issue #337, iPhone Duo fold/unfold shell) uses the default routes on a dedicated `127.0.0.1:18337` instance (`python3 tools/mock_service.py --port 18337`) and skips without it.
+- `DuoPathsSelectorJourneyTests` (issue #360, folded-Duo Paths selector and title) uses the default routes on a dedicated `127.0.0.1:18360` instance (`python3 tools/mock_service.py --port 18360`) and skips without it.
 
 A dedicated loopback instance for these lane's XCUITest journeys runs on `127.0.0.1:18790` (started manually, not the shared default `8765`) since the shared `8765` listener predates this lane's `tools/mock_service.py` changes and "never kill a stale service you did not start" forbids restarting it to pick up new code; hosted (non-simulator) tests instead reuse `RivalsMockService`'s `--port 0` launcher, which always starts a fresh process from the current source.
 
