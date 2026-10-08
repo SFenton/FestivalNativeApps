@@ -2996,7 +2996,7 @@
       "title": "Wide columns",
       "status": "current",
       "doc": ".agents/patterns/wide-columns.md",
-      "summary": "Page rows and cards show in two columns only in wide landscape windows (iPad landscape, iPhone Duo unfolded landscape, a wide Mac surface), row-major under full-width headings (pages of unequal section cards such as Settings flow column by column in balanced columns), meeting at the Duo hinge in book pose and at the free content area's midpoint when fully unfolded (owner-approved, #361), reflowing without reloading; portrait, compact windows and (for Settings) accessibility text sizes keep one column; the Item Shop list pairs its rows (its card grid keeps its own even-column policy); full-width leaderboards pair rank rows row-major under one full-width pinned row and pager, while split sub-pages stay one column.",
+      "summary": "Page rows and cards show in two columns only in wide landscape windows (iPad landscape, iPhone Duo unfolded landscape, a wide Mac surface), row-major under full-width headings (pages of unequal section cards such as the Mac Settings window panes flow column by column in balanced columns; the Settings page on wide windows is a list/detail split instead, owner-approved #371), meeting at the Duo hinge in book pose and at the free content area's midpoint when fully unfolded (owner-approved, #361), reflowing without reloading; portrait, compact windows and (for Settings) accessibility text sizes keep one column; the Item Shop list pairs its rows (its card grid keeps its own even-column policy); full-width leaderboards pair rank rows row-major under one full-width pinned row and pager, while split sub-pages stay one column.",
       "keywords": [
         "two column",
         "two-column",
@@ -3092,6 +3092,7 @@
         353,
         355,
         361,
+        371,
         378
       ]
     },
@@ -3100,7 +3101,7 @@
       "title": "Split panes",
       "status": "current",
       "doc": ".agents/patterns/split-panes.md",
-      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (a fold only when partially folded, owner-approved #361; otherwise a 1 pt band at the free content area's midpoint plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under Increase Contrast, and the split's one backdrop and top gradient run unbroken across the band.",
+      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (a fold only when partially folded, owner-approved #361; otherwise a 1 pt band at the free content area's midpoint plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under Increase Contrast, and the split's one backdrop and top gradient run unbroken across the band; Settings on wide windows is a list/detail split whose empty detail pane shows a centred Settings placeholder (owner-approved variant R6, #371).",
       "keywords": [
         "split view",
         "split",
@@ -3113,7 +3114,9 @@
         "panes",
         "hinge band",
         "vertical divider",
-        "free space midpoint"
+        "free space midpoint",
+        "settings list detail",
+        "select a setting"
       ],
       "web": [],
       "canonical": {
@@ -3143,6 +3146,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/bands/BandLayout.kt",
             "symbol": "BandLayout"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/settings/SettingsPanes.kt",
+            "symbol": "SettingsPanes"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/settings/SettingsScreen.kt",
+            "symbol": "SettingsDetailPlaceholder"
           }
         ],
         "windows": []
@@ -3178,7 +3189,8 @@
       "issues": [
         344,
         361,
-        369
+        369,
+        371
       ]
     },
     {
