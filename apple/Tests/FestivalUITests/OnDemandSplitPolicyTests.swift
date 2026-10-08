@@ -513,3 +513,51 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
     #expect(!FlyoutEdgeSwipe.opens(startFromLeading: 10, translation: CGSize(width: 30, height: 0)))
     #expect(!FlyoutEdgeSwipe.opens(startFromLeading: 10, translation: CGSize(width: 70, height: 120)))
 }
+
+// MARK: - Settings list/detail (issue #371)
+
+/// Settings opens every topic and Licenses beside its list; selecting another topic
+/// replaces the open one, and closing returns to the list.
+@Test func settingsAcceptsTopicsBesideItsList() {
+    typealias Page = OnDemandSplitPolicy.ListPage
+    for topic in SettingsTopic.allCases {
+        #expect(Page.settings.accepts(.settingsTopic(topic)), "\(topic)")
+        #expect(!Page.rivals.accepts(.settingsTopic(topic)) && !Page.compete.accepts(.settingsTopic(topic)))
+    }
+    #expect(OnDemandSplitPolicy.cut(section: .settings, path: [.settingsTopic(.instruments)])
+        == .init(list: [], detail: [.settingsTopic(.instruments)], page: .settings))
+    #expect(OnDemandSplitPolicy.path(selecting: .settingsTopic(.version), in: [.settingsTopic(.instruments)], section: .settings)
+        == [.settingsTopic(.version)])
+    #expect(OnDemandSplitPolicy.pathClosingDetail([.settingsTopic(.paths)], section: .settings) == [])
+    #expect(OnDemandSplitPolicy.pathClosingDetail([], section: .settings) == nil)
+}
+
+/// Only Settings keeps its trailing pane with a centred placeholder while nothing is
+/// open (owner, issue #371); every other list page starts full width.
+@Test func onlySettingsShowsAPlaceholder() {
+    typealias Page = OnDemandSplitPolicy.ListPage
+    let placeholder = Page.settings.placeholder
+    #expect(placeholder?.title == "Settings")
+    #expect(placeholder?.systemImage == "gearshape")
+    #expect(placeholder?.subtitle == "Select a setting to see more options here")
+    #expect(placeholder?.accessibilityIdentifier == "fst.settings.placeholder")
+    for page in [Page.rivals, .compete, .leaderboards, .songDetail] {
+        #expect(page.placeholder == nil, "\(page)")
+    }
+}
+
+/// The trailing pane shows the open item, else the page's placeholder, and nothing
+/// without a split or a list page.
+@Test func trailingContentFollowsSelectionAndPlaceholder() throws {
+    typealias Content = OnDemandSplitPolicy.TrailingContent
+    let settings = OnDemandSplitPolicy.cut(section: .settings, path: [])
+    let open = OnDemandSplitPolicy.cut(section: .settings, path: [.settingsTopic(.itemShop)])
+    let rivals = OnDemandSplitPolicy.cut(section: .rivals, path: [])
+    let placeholder = try #require(OnDemandSplitPolicy.ListPage.settings.placeholder)
+    #expect(OnDemandSplitPolicy.trailingContent(cut: settings, allowsSplit: true) == .placeholder(placeholder))
+    #expect(OnDemandSplitPolicy.trailingContent(cut: open, allowsSplit: true) == .item(.settingsTopic(.itemShop)))
+    #expect(OnDemandSplitPolicy.trailingContent(cut: rivals, allowsSplit: true) == Content.none)
+    #expect(OnDemandSplitPolicy.trailingContent(cut: settings, allowsSplit: false) == Content.none)
+    #expect(OnDemandSplitPolicy.trailingContent(cut: open, allowsSplit: false) == Content.none)
+    #expect(OnDemandSplitPolicy.trailingContent(cut: nil, allowsSplit: true) == Content.none)
+}

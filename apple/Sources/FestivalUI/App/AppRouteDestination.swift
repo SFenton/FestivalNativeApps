@@ -171,6 +171,8 @@ struct AppRouteDestination: View {
             ShopScreen(session: session, isVisible: isVisible && path.last == .shop)
         case .licenses:
             LicensesScreen(session: session)
+        case let .settingsTopic(topic):
+            SettingsScreen(session: session, isVisible: isVisible, topic: topic)
         }
     }
 }

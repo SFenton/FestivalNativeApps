@@ -3,8 +3,10 @@ import SwiftUI
 import FestivalCore
 import FestivalDesign
 
-/// Songs sort choices. Changes apply as they are made (operator, 2026-09-28: no
-/// Cancel/Apply); the shared ``FestivalModal``'s system Close dismisses it.
+/// The catalogue Sort sheet (pattern `catalogue-sort` R1): Songs and the Item Shop
+/// (issue #379) each pass their own modes and identifier. Changes apply as they are made
+/// (operator, 2026-09-28: no Cancel/Apply); the shared ``FestivalModal``'s system Close
+/// dismisses it.
 struct SongsSortSheet: View {
     @State private var draftMode: SongSortMode
     @State private var draftAscending: Bool
@@ -14,6 +16,11 @@ struct SongsSortSheet: View {
     let shopAvailable: Bool
     /// Selected-player sorts offered for the one Songs instrument (empty hides them).
     let playerModes: [SongSortMode]
+    /// Catalogue modes in sheet order (Songs: ``SongSortMode/catalogueModes``; Item Shop:
+    /// ``ShopSortChoice/modes``).
+    let modes: [SongSortMode]
+    /// Identifier prefix of the sheet's controls (`fst.songs.sort`, `fst.shop.sort`).
+    let identifier: String
     let onApply: (SongSortMode, Bool) -> Void
 
     /// Start every presentation from the currently applied sort preference.
@@ -25,11 +32,15 @@ struct SongsSortSheet: View {
     ///   - shopAvailable: True only after receiving a validated public feed.
     ///   - playerModes: Score/Percentile/Stars sorts offered with a selected player and
     ///     one Songs instrument (web "Filtered Instrument Sort Mode"); empty hides them.
+    ///   - modes: Catalogue modes the page offers, in order.
+    ///   - identifier: Prefix of the sheet's accessibility identifiers.
     ///   - onApply: Commits the mode and direction; called on every change.
     init(
         mode: SongSortMode, ascending: Bool,
         showShop: Bool = false, shopAvailable: Bool = false,
         playerModes: [SongSortMode] = [],
+        modes: [SongSortMode] = SongSortMode.catalogueModes,
+        identifier: String = "fst.songs.sort",
         onApply: @escaping (SongSortMode, Bool) -> Void
     ) {
         self.mode = mode
@@ -37,6 +48,8 @@ struct SongsSortSheet: View {
         self.showShop = showShop
         self.shopAvailable = shopAvailable
         self.playerModes = playerModes
+        self.modes = modes
+        self.identifier = identifier
         self.onApply = onApply
         _draftMode = State(initialValue: mode)
         _draftAscending = State(initialValue: ascending)
@@ -45,6 +58,7 @@ struct SongsSortSheet: View {
     /// A choice the list can actually use (Item Shop needs a visible, loaded feed).
     private var isApplicable: Bool {
         if draftMode.isPlayerChartMode { return playerModes.contains(draftMode) }
+        guard modes.contains(draftMode) else { return false }
         return draftMode != .shop || (showShop && shopAvailable)
     }
 
@@ -61,11 +75,11 @@ struct SongsSortSheet: View {
     }
 
     var body: some View {
-        FestivalModal("Sort By", closeIdentifier: "fst.songs.sort.done") {
+        FestivalModal("Sort By", closeIdentifier: "\(identifier).done") {
             Form {
                 Section {
                     Picker("Sort By", selection: modeBinding(player: false)) {
-                        ForEach(SongSortMode.catalogueModes.filter {
+                        ForEach(modes.filter {
                             showShop || $0 != .shop
                         }) { choice in
                             Text(choice.label).tag(SongSortMode?.some(choice))
@@ -75,7 +89,7 @@ struct SongsSortSheet: View {
                     .pickerStyle(.inline)
                     // The section header already says "Sort Mode": no extra label row.
                     .labelsHidden()
-                    .accessibilityIdentifier("fst.songs.sort.mode")
+                    .accessibilityIdentifier("\(identifier).mode")
                     if showShop && !shopAvailable {
                         Text("Item Shop sorting requires matching public Songs and Shop data.")
                             .font(.footnote)
@@ -98,7 +112,7 @@ struct SongsSortSheet: View {
                         }
                         .pickerStyle(.inline)
                         .labelsHidden()
-                        .accessibilityIdentifier("fst.songs.sort.player-mode")
+                        .accessibilityIdentifier("\(identifier).player-mode")
                     } header: {
                         FestivalSectionHeader(
                             "Filtered Instrument Sort Mode",
@@ -107,7 +121,9 @@ struct SongsSortSheet: View {
                     }
                 }
                 Section {
-                    SortDirectionControl(ascending: $draftAscending)
+                    SortDirectionControl(
+                        ascending: $draftAscending, identifier: "\(identifier).direction"
+                    )
                 } header: {
                     FestivalSectionHeader("Sort Direction")
                 }
@@ -119,7 +135,7 @@ struct SongsSortSheet: View {
                     }
                     .font(.body)
                     .foregroundStyle(FestivalSheetActionColor.destructive)
-                    .accessibilityIdentifier("fst.songs.sort.reset")
+                    .accessibilityIdentifier("\(identifier).reset")
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -133,6 +149,36 @@ struct SongsSortSheet: View {
     private func commit() {
         guard isApplicable else { return }
         onApply(draftMode, draftAscending)
+    }
+}
+
+extension View {
+    /// Present a catalogue Sort sheet the Mac way: a popover from its toolbar button
+    /// (HIG Popovers: "Limit a popover to a little information or functionality"), its
+    /// own chrome, closing on an outside click. iPhone and iPad present the sheet with
+    /// `.sheet` instead (HIG Popovers: "Avoid popovers in compact views"), so this is a
+    /// no-op there.
+    ///
+    /// - Parameters:
+    ///   - isPresented: The page's Sort presentation state.
+    ///   - sheet: The page's ``SongsSortSheet``.
+    /// - Returns: The button with the Mac popover attached.
+    @ViewBuilder
+    func catalogueSortPopover<Sheet: View>(
+        isPresented: Binding<Bool>, @ViewBuilder sheet: @escaping () -> Sheet
+    ) -> some View {
+        #if os(macOS)
+        popover(isPresented: isPresented, arrowEdge: .bottom) {
+            // No modal stack, title bar or Close (which would otherwise join the
+            // window toolbar).
+            sheet()
+                .environment(\.festivalModalPreview, true)
+                .formStyle(.grouped)
+                .frame(width: 340, height: 470)
+        }
+        #else
+        self
+        #endif
     }
 }
 

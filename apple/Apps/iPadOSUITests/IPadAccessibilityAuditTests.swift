@@ -232,6 +232,9 @@ final class IPadAccessibilityAuditTests: XCTestCase {
              open: { app in openSplit(app, ids: ["fst.leaderboards.card.Solo_Guitar.view-all"]) }, splitOnly: true),
         Page(name: "settings-split", env: ["FST_DEBUG_TAB": "settings"], ready: "Settings",
              open: { app in openSplit(app, ids: ["fst.settings.licenses"]) }, splitOnly: true),
+        // A Settings topic opened beside the list (issue #371).
+        Page(name: "settings-topic-split", env: ["FST_DEBUG_TAB": "settings"], ready: "Settings",
+             open: { app in openSplit(app, ids: ["fst.settings.topic.instruments"]) }, splitOnly: true),
     ]
 
     // MARK: - Lifecycle
