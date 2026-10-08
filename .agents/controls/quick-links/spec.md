@@ -47,7 +47,7 @@ Selecting in a modal closes it, then scrolls. Song Detail, Rivalry and Rival Det
 | Rivalry (`rivalry`) | "Quick Links" | One per song in the `?mode` category: `${songId}:${instrument}:${index}` → song title, landmark "{title} ({Instrument})" | Mobile only; loaded; ≥ 1 (`RivalryPage.tsx:147-183`) |
 | Rival Detail (`rival-detail`) | "Quick Links" | `rival-category:<key>` per non-empty category: Closest Battles, Almost Passed, Slipping Away, Barely Winning, Pulling Forward, Dominating Them | Mobile only; loaded; ≥ 1 (`RivalDetailPage.tsx:136-168`) |
 | Leaderboards (`leaderboards`) | "Leaderboards Quick Links" | `rank-history` "Rank History Graph" (tracked player); promoted `band:<type>`; `instrument:<key>` per visible instrument; remaining `band:<type>` | Loaded, not all errored, ≥ 2 (`LeaderboardsOverviewPage.tsx:317-367`) |
-| Settings (`settings`) | "Quick Links" | `app-settings`, `diagnostics` (when visible), `item-shop`, `show-instruments`, `show-metadata`, `version`, `service-info`, `first-run`, `licenses`, `refresh-profile-name` (profile selected), `export`, `reset` | ≥ 2 (`SettingsPage.tsx:398-463`) |
+| Settings (`settings`) | "Quick Links" | `app-settings`, `diagnostics` (web only, when visible; native apps have no Diagnostics section, #374), `item-shop`, `show-instruments`, `show-metadata`, `version`, `service-info`, `first-run`, `licenses`, `refresh-profile-name` (profile selected), `export`, `reset` | ≥ 2 (`SettingsPage.tsx:398-463`) |
 
 ## Keyboard and accessibility
 

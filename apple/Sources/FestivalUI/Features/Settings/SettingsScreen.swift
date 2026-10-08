@@ -20,8 +20,6 @@ struct SettingsScreen: View {
     @AppStorage("fst.settings.pathColumnOrder")
     private var pathColumnOrderRaw = SettingsOrder.encode(PathColumnKey.allCases)
 
-    @AppStorage("fst.settings.tapDiagnostics") private var tapDiagnostics = false
-    @AppStorage("fst.settings.tapTelemetry") private var tapTelemetry = false
     /// Suggestions' own persisted filter draft (Lane G). Not shown in this screen's
     /// UI — Suggestions reads/writes it directly — but "Reset App Settings" restores
     /// every registered app preference, so it is reset here too.
@@ -201,7 +199,6 @@ struct SettingsScreen: View {
     /// The whole page in the web's order (iPhone, iPad).
     @ViewBuilder private var fullPage: some View {
                 appSettings.festivalFadeIn(isLoaded: true, index: 0)
-                diagnostics.festivalFadeIn(isLoaded: true, index: 1)
                 accessibility
                     .quickLinkSection(
                         id: "accessibility", title: "Accessibility", symbol: "accessibility"
@@ -250,7 +247,6 @@ struct SettingsScreen: View {
     /// in place and every group with more options a chevron row opening on the right.
     @ViewBuilder private var listPage: some View {
         appSettings.festivalFadeIn(isLoaded: true, index: 0)
-        diagnostics.festivalFadeIn(isLoaded: true, index: 1)
         topicRow(.accessibility)
             .quickLinkSection(id: "accessibility", title: "Accessibility", symbol: "accessibility")
             .festivalFadeIn(isLoaded: true, index: 2)
@@ -340,7 +336,6 @@ struct SettingsScreen: View {
                     feedbackRows
                 }
             }
-            diagnostics
             reset
         case .songs:
             FestivalGlassSection(
@@ -651,41 +646,6 @@ struct SettingsScreen: View {
                     .accessibilityIdentifier("fst.settings.metadata.\(field.rawValue)")
             }
         }
-    }
-
-    /// Debug-only tap diagnostics, the native form of `SettingsPage.tsx:631-654`.
-    ///
-    /// Hidden in Release; no diagnostics collector reads these yet, but the toggles
-    /// persist so the wiring is ready when one lands.
-    @ViewBuilder private var diagnostics: some View {
-        #if DEBUG
-        FestivalGlassSection(
-            "Diagnostics",
-            subtitle: "Debug-only tools for investigating touch handling issues."
-        ) {
-            Toggle(isOn: $tapDiagnostics) {
-                SettingLabel(
-                    "Tap Diagnostics",
-                    detail: "Record on-device touch handling details for troubleshooting."
-                )
-            }
-            .onChange(of: tapDiagnostics) { _, enabled in
-                if !enabled { tapTelemetry = false }
-            }
-            .accessibilityIdentifier("fst.settings.tap-diagnostics")
-            Toggle(isOn: $tapTelemetry) {
-                SettingLabel(
-                    "Tap Telemetry",
-                    detail: tapDiagnostics
-                        ? "Include tap diagnostics in crash and issue reports."
-                        : "Turn on Tap Diagnostics first."
-                )
-            }
-            .disabled(!tapDiagnostics)
-            .accessibilityIdentifier("fst.settings.tap-telemetry")
-        }
-        .quickLinkSection(id: "diagnostics", title: "Diagnostics", symbol: "info.circle")
-        #endif
     }
 
     private var version: some View {
@@ -1035,8 +995,6 @@ struct SettingsScreen: View {
         experimentalRanks = false
         hideShop = false
         disableShopHighlighting = false
-        tapDiagnostics = false
-        tapTelemetry = false
         showLead = true
         showBass = true
         showDrums = true

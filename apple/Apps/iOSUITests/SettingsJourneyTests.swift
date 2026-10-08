@@ -238,7 +238,7 @@ final class SettingsJourneyTests: XCTestCase {
         quickLinks.tap()
 
         let pageOrder = [
-            "app-settings", "diagnostics", "accessibility", "item-shop", "show-instruments",
+            "app-settings", "accessibility", "item-shop", "show-instruments",
             "show-metadata", "version", "service-info", "first-run", "licenses", "privacy-policy",
             "reset",
         ]
