@@ -168,8 +168,9 @@
     ],
     "after_ready": [
       "expand:id=fst.shop.filter",
-      "waitfor:id=fst.shop.filter.available@5",
-      "toggle:id=fst.shop.filter.available",
+      "waitfor:id=fst.shop.filter.new@5",
+      "toggle:id=fst.shop.filter.new",
+      "toggle:id=fst.shop.filter.leaving",
       "collapse:id=fst.shop.filter",
       "waitfor:id=fst.shop.filter.empty-reset@5"
     ]
@@ -189,7 +190,7 @@
       "key:tab",
       "assertfocus:id=fst.shop.filter.leaving@3",
       "key:space",
-      "assertstate:id=fst.shop.filter.leaving|toggle=on@3",
+      "assertstate:id=fst.shop.filter.leaving|toggle=off@3",
       "key:esc",
       "waitgone:id=fst.shop.filter.reset@5",
       "assertstatus:id=fst.shop.filter|Filters applied@5"
