@@ -119,13 +119,34 @@ public sealed partial class FirstRunCarousel : UserControl
     /// <param name="e">Unused.</param>
     private void OnSlideChanged(object sender, SelectionChangedEventArgs e) => UpdateActiveDemo();
 
-    /// <summary>Marks each realized slide's demo active when its slide is selected.</summary>
+    /// <summary>The slide whose title and description last faded in.</summary>
+    private int textEntranceIndex = -1;
+
+    /// <summary>
+    /// Marks each realized slide's demo active when its slide is selected, and fades the newly selected slide's title and
+    /// description in after its demo blocks (web <c>FirstRunCarousel</c>: title at <c>staggerCount × 125 ms</c>, the
+    /// description one step later). Off-screen slides' text waits hidden while motion is allowed.
+    /// </summary>
     private void UpdateActiveDemo()
     {
+        var selected = Slides.SelectedIndex;
         for (var i = 0; i < Slides.Items.Count; i++)
         {
             if (Slides.ContainerFromIndex(i) is not DependencyObject container) continue;
-            foreach (var demo in Descendants(container).OfType<FirstRunDemo>()) demo.Active = i == Slides.SelectedIndex;
+            var nodes = Descendants(container).ToList();
+            foreach (var demo in nodes.OfType<FirstRunDemo>()) demo.Active = i == selected;
+            var text = nodes.OfType<TextBlock>().Where(t => t.Name is "SlideTitle" or "SlideDescription").ToList();
+            if (i == selected && i != textEntranceIndex)
+            {
+                var entrance = FirstRunEntrance.For(Carousel.Slides[i].Id);
+                foreach (var block in text)
+                    FadeIn.Play(block, block.Name == "SlideTitle" ? entrance.TitleDelay : entrance.DescriptionDelay);
+                textEntranceIndex = i;
+            }
+            else if (i != selected && Services.Motion.Allowed)
+            {
+                foreach (var block in text) Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(block).Opacity = 0;
+            }
         }
     }
 

@@ -330,6 +330,12 @@ public static class RivalCategorization
     /// <returns><see langword="true"/> for the six web keys.</returns>
     public static bool IsKnown(string? key) => key is not null && Meta.ContainsKey(key);
 
+    /// <summary>A category's description and tone, as the Rival Detail page heads it.</summary>
+    /// <param name="key">Category key.</param>
+    /// <returns>Subtitle and sentiment, or <see langword="null"/> for an unknown key.</returns>
+    public static (string Subtitle, RivalCategorySentiment Sentiment)? Describe(string key) =>
+        Meta.TryGetValue(key, out var meta) ? (meta.Subtitle, meta.Sentiment) : null;
+
     /// <summary>Splits shared songs into non-empty categories in web order.</summary>
     /// <param name="songs">Compared songs.</param>
     /// <returns>Categories.</returns>

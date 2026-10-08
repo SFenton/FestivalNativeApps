@@ -620,6 +620,14 @@ public static class FadeIn
     /// <param name="element">Element.</param>
     public static void Play(UIElement element) => PlayCore(element, TimeSpan.Zero);
 
+    /// <summary>
+    /// Plays <c>fadeInUp</c> after a delay outside any list or page entrance (a first-run slide's demo items, title and
+    /// description, web <c>FadeIn delay</c>): nothing can rush it, and motion off shows the element in place.
+    /// </summary>
+    /// <param name="element">Element.</param>
+    /// <param name="delay">Start delay.</param>
+    public static void Play(UIElement element, TimeSpan delay) => PlayCore(element, delay);
+
     /// <summary>Plays a fade and remembers it until it starts.</summary>
     /// <param name="element">Element.</param>
     /// <param name="delay">Start delay.</param>

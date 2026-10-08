@@ -105,6 +105,14 @@
           {
             "path": "windows/Festival.App/Controls/BoardFooterFade.cs",
             "symbol": "Attach"
+          },
+          {
+            "path": "windows/Festival.App/Controls/TopEdgeFade.cs",
+            "symbol": "AutoScrollEdgeFade"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/FirstRunDemoContent.cs",
+            "symbol": "FirstRunAutoScroll"
           }
         ]
       },
@@ -1563,6 +1571,10 @@
           {
             "path": "windows/Festival.App/Controls/FadeIn.cs",
             "symbol": "FadeIn"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/FirstRunDemoContent.cs",
+            "symbol": "FirstRunEntrance"
           },
           {
             "path": "windows/Festival.Core/Domain/MotionPolicy.cs",

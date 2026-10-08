@@ -132,3 +132,101 @@ internal sealed class TopEdgeFade
     }
 }
 #endregion
+
+#region Auto-scroll edge fade
+/// <summary>
+/// The first-run infinite-scroll demo's top and bottom fades (web <c>InfiniteScrollDemo</c> <c>updateMask</c>; scroll-edge
+/// pattern): the scroller's content is clear at each edge and opaque <see cref="FirstRunAutoScroll.Fades"/> epx in, with
+/// no ramp at the end it rests against. Same composition opacity-mask technique as <see cref="TopEdgeFade"/>; with the
+/// fade disabled (<see cref="SongHeaderEdgeFade.IsEnabled"/>: contrast themes, transparency effects off, Less
+/// Transparency, Increase Contrast) the scroller shows directly with hard edges.
+/// </summary>
+internal sealed class AutoScrollEdgeFade
+{
+    private readonly FrameworkElement source;
+    private readonly UIElement host;
+    private Visual? sourceVisual;
+    private CompositionVisualSurface? surface;
+    private SpriteVisual? sprite;
+    private CompositionColorGradientStop[] stops = [];
+    private bool active;
+
+    /// <summary>Creates the fade; composition objects are built on first use.</summary>
+    /// <param name="source">The scroller whose edges fade (its XAML opacity is left alone).</param>
+    /// <param name="host">Hit-test-invisible element over the same area that hosts the masked copy.</param>
+    public AutoScrollEdgeFade(FrameworkElement source, UIElement host)
+    {
+        this.source = source;
+        this.host = host;
+        source.SizeChanged += (_, e) =>
+        {
+            if (surface is not null) surface.SourceSize = new Vector2((float)e.NewSize.Width, (float)e.NewSize.Height);
+        };
+    }
+
+    /// <summary>Whether the ramps are currently drawn.</summary>
+    public bool IsActive => active;
+
+    /// <summary>Draws the ramps for a scroll position, or the plain hard edges.</summary>
+    /// <param name="on">Whether fades are enabled (<see cref="SongHeaderEdgeFade.IsEnabled"/>).</param>
+    /// <param name="offset">Scroll offset.</param>
+    /// <param name="range">Scroll range.</param>
+    public void Update(bool on, double offset, double range)
+    {
+        var height = source.ActualHeight;
+        if (on && height <= 0) on = false;
+        if (!on)
+        {
+            if (!active) return;
+            active = false;
+            sprite!.IsVisible = false;
+            sourceVisual!.Opacity = 1;
+            return;
+        }
+        Build();
+        var (top, bottom) = FirstRunAutoScroll.Fades(offset, range);
+        stops[1].Offset = (float)Math.Clamp(top / height, 0.001, 0.5);
+        stops[2].Offset = (float)Math.Clamp(1 - bottom / height, 0.5, 0.999);
+        stops[0].Color = Windows.UI.Color.FromArgb(top > 0 ? (byte)0 : (byte)255, 0, 0, 0);
+        stops[3].Color = Windows.UI.Color.FromArgb(bottom > 0 ? (byte)0 : (byte)255, 0, 0, 0);
+        if (active) return;
+        active = true;
+        sprite!.IsVisible = true;
+        sourceVisual!.Opacity = 0;
+    }
+
+    /// <summary>Builds the surface, the four-stop mask and the sprite once.</summary>
+    private void Build()
+    {
+        if (sprite is not null) return;
+        sourceVisual = ElementCompositionPreview.GetElementVisual(source);
+        var compositor = sourceVisual.Compositor;
+        surface = compositor.CreateVisualSurface();
+        surface.SourceVisual = sourceVisual;
+        surface.SourceSize = source.ActualSize;
+        var content = compositor.CreateSurfaceBrush(surface);
+        content.Stretch = CompositionStretch.None;
+        content.HorizontalAlignmentRatio = 0;
+        content.VerticalAlignmentRatio = 0;
+        var gradient = compositor.CreateLinearGradientBrush();
+        gradient.StartPoint = Vector2.Zero;
+        gradient.EndPoint = new Vector2(0, 1);
+        gradient.ExtendMode = CompositionGradientExtendMode.Clamp;
+        stops =
+        [
+            compositor.CreateColorGradientStop(0, Windows.UI.Color.FromArgb(0, 0, 0, 0)),
+            compositor.CreateColorGradientStop(0.1f, Windows.UI.Color.FromArgb(255, 0, 0, 0)),
+            compositor.CreateColorGradientStop(0.9f, Windows.UI.Color.FromArgb(255, 0, 0, 0)),
+            compositor.CreateColorGradientStop(1, Windows.UI.Color.FromArgb(0, 0, 0, 0)),
+        ];
+        foreach (var stop in stops) gradient.ColorStops.Add(stop);
+        var mask = compositor.CreateMaskBrush();
+        mask.Source = content;
+        mask.Mask = gradient;
+        sprite = compositor.CreateSpriteVisual();
+        sprite.RelativeSizeAdjustment = Vector2.One;
+        sprite.Brush = mask;
+        ElementCompositionPreview.SetElementChildVisual(host, sprite);
+    }
+}
+#endregion
