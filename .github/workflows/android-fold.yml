@@ -36,6 +36,16 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - name: Build app and test APKs
         run: bash android/gradlew -p android :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
+      - name: Install the emulator system image (with retries)
+        run: |
+          set +o pipefail  # `yes` dies of SIGPIPE once sdkmanager exits
+          for attempt in 1 2 3 4; do
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install 'system-images;android-35;google_apis;x86_64' emulator > /dev/null && break
+            echo "sdkmanager attempt $attempt failed; retrying"
+            rm -rf "$ANDROID_HOME/system-images/android-35/google_apis/x86_64" "$ANDROID_HOME/.temp"
+            sleep 20
+            [ "$attempt" = 4 ] && exit 1
+          done
       - name: Half-open fold journeys
         uses: reactivecircus/android-emulator-runner@v2.34.0
         with:
