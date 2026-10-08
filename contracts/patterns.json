@@ -2711,12 +2711,12 @@
       "canonical": {
         "apple": [
           {
-            "path": "apple/Sources/FestivalUI/Features/Settings/SettingsServiceInfoSection.swift",
-            "symbol": "stateRow"
+            "path": "apple/Sources/FestivalUI/Features/Settings/SettingsValueRow.swift",
+            "symbol": "SettingsValueRow"
           },
           {
-            "path": "apple/Sources/FestivalUI/Features/Settings/SettingsScreen.swift",
-            "symbol": "versionRow"
+            "path": "apple/Sources/FestivalUI/Features/Settings/SettingsValueRow.swift",
+            "symbol": "SettingsValueRowLayout"
           }
         ],
         "android": [
@@ -2759,6 +2759,16 @@
           ],
           "debt": [],
           "message": "Settings title/value rows measure their fit in one place: use SettingsValueRow (supporting/trailing slots) instead of another intrinsic-width Layout (settings-value-row R1, R4)."
+        },
+        {
+          "id": "apple-parallel-fit",
+          "glob": "apple/Sources/FestivalUI/Features/Settings/**/*.swift",
+          "regex": "AnyLayout\\((H|V)StackLayout",
+          "allow": [
+            "apple/Sources/FestivalUI/Features/Settings/SettingsValueRow.swift"
+          ],
+          "debt": [],
+          "message": "Settings title/value rows decide inline vs stacked in one place: use SettingsValueRow (detail/value slots) instead of another text-size AnyLayout switch (settings-value-row R1, R4)."
         }
       ]
     },
