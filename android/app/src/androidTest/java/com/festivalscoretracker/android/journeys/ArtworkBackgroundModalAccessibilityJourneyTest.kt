@@ -39,7 +39,9 @@ import org.junit.runner.RunWith
  * `Dialog` and the Reset `FestivalAlertDialog`) holds the backdrop (`covered`) while open and
  * releases it on close (`animated`, open count back to 0), at font scale 1.0 and 2.0. While a
  * modal is open, the modal's window is the one TalkBack reads, it reads its title before its
- * actions, Close and the alert buttons are labelled 48 dp buttons, and no window exposes the
+ * actions (following the `traversalBefore`/`traversalAfter` links Compose publishes to TalkBack,
+ * [JourneyHarness.publishTalkBackTree], in the modal's own window too), Close and the alert
+ * buttons are labelled 48 dp buttons, and no window exposes the
  * backdrop to TalkBack. With Remove animations (animator scale 0) the backdrop stays
  * `reduced-motion` under and after a modal. ATF runs on every interaction. Covers point at
  * `art.invalid`, so no image is fetched; the state machine does not depend on a cover loading.
@@ -101,6 +103,7 @@ class ArtworkBackgroundModalAccessibilityJourneyTest {
         h.enableAccessibilityChecks()
         h.launch(DebugLaunch(firstRun = "force"), transport)
         h.waitForTag(ARTWORK_BACKGROUND_TAG)
+        h.publishTalkBackTree()
         assertModalHoldsBackdrop("first-run", close = "fst.first-run.close", heading = "fst.first-run.title")
         h.tap("fst.first-run.close")
         h.waitGone("fst.first-run.dialog")
@@ -115,6 +118,7 @@ class ArtworkBackgroundModalAccessibilityJourneyTest {
         h.enableAccessibilityChecks()
         h.launch(DebugLaunch(section = FestivalSection.Settings), transport, fontScale = { scale })
         h.waitForTag("fst.settings.list")
+        h.publishTalkBackTree()
         waitForState("animated")
         SCALES.forEach { s ->
             scale = s
@@ -154,6 +158,7 @@ class ArtworkBackgroundModalAccessibilityJourneyTest {
         h.enableAccessibilityChecks()
         h.launch(DebugLaunch(section = FestivalSection.Settings), transport)
         h.waitForTag("fst.settings.list")
+        h.publishTalkBackTree()
         waitForState("animated")
         shell("settings put global animator_duration_scale 0")
         waitForState("reduced-motion")
@@ -202,6 +207,7 @@ class ArtworkBackgroundModalAccessibilityJourneyTest {
         assertTrue("$screen: the title is a heading", SemanticsProperties.Heading in title.config)
         val titleText = title.config[SemanticsProperties.Text].joinToString { it.text }
         val order = h.readingOrder("backdrop-$screen", fresh = true)
+        assertTrue("$screen: no TalkBack traversal links followed", h.lastReadingLinks > 0)
         val titleAt = order.indexOfFirst { it.startsWith(titleText) }
         val closeAt = order.indexOf(MODAL_CLOSE_LABEL)
         assertTrue("$screen: \"$titleText\" reads before Close: $order", titleAt >= 0 && closeAt > titleAt)
@@ -228,6 +234,7 @@ class ArtworkBackgroundModalAccessibilityJourneyTest {
         h.awaitAccessibilityTree(present = "fst.settings.reset.cancel")
         assertBackdropSilent("reset-alert $config")
         val order = h.readingOrder("backdrop-reset-alert $config", fresh = true)
+        assertTrue("reset-alert $config: no TalkBack traversal links followed", h.lastReadingLinks > 0)
         val at = listOf("Reset Settings", "Are you sure", "Cancel", "Reset").map { label -> order.indexOfFirst { it.startsWith(label) && (label != "Reset" || it == "Reset") } }
         assertTrue("$config: alert reads title, message, Cancel, Reset: $order", at.all { it >= 0 } && at == at.sorted())
     }
@@ -244,6 +251,7 @@ class ArtworkBackgroundModalAccessibilityJourneyTest {
         assertEquals("$screen: modal count leaked", 0, ModalCoverage.shared.openCount.value)
         h.awaitAccessibilityTree(present = page)
         val order = h.readingOrder("backdrop-after-$screen", fresh = true)
+        assertTrue("$screen: no TalkBack traversal links followed", h.lastReadingLinks > 0)
         assertTrue("$screen: backdrop reached TalkBack: $order", order.none { it.contains("artwork", ignoreCase = true) })
         assertBackdropSilent("after $screen")
     }

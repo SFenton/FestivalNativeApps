@@ -117,25 +117,48 @@ class JourneyHarness(private val rule: JourneyRule) {
      * away. Call after [launch]; from then on [readingOrder] is TalkBack's linear order and
      * reads a fresh tree. UiAutomation connects first: a forced view sends events, and the
      * platform throws "Accessibility off" for any sent before the app's AccessibilityManager is on.
+     * A `Dialog` or `ModalBottomSheet` composes in its own window (API 29+: every window of the
+     * process is covered), and one opened later is published by the next [readingOrder].
      */
     fun publishTalkBackTree() {
         InstrumentationRegistry.getInstrumentation().uiAutomation
         val manager = rule.activity.getSystemService(android.view.accessibility.AccessibilityManager::class.java)
         rule.waitUntil(10_000) { manager.isEnabled }
         rule.waitForIdle()
+        assertTrue("no Compose view to publish", forceComposeRoots() > 0)
+        talkBackTree = true
+        rule.waitForIdle()
+    }
+
+    /**
+     * Force TalkBack publishing on every Compose root in the activity's window and, on API 29+,
+     * in every other window of the process (modal dialogs and sheets).
+     *
+     * @return Number of Compose roots found.
+     */
+    private fun forceComposeRoots(): Int {
+        var count = 0
         rule.runOnUiThread {
             fun roots(view: android.view.View): List<ViewRootForTest> = when {
                 view is ViewRootForTest -> listOf(view)
                 view is android.view.ViewGroup -> (0 until view.childCount).flatMap { roots(view.getChildAt(it)) }
                 else -> emptyList()
             }
-            val found = roots(rule.activity.window.decorView)
-            assertTrue("no Compose view to publish", found.isNotEmpty())
+            val windows = if (android.os.Build.VERSION.SDK_INT >= 29) {
+                (android.view.inspector.WindowInspector.getGlobalWindowViews() + rule.activity.window.decorView).distinct()
+            } else {
+                listOf(rule.activity.window.decorView)
+            }
+            val found = windows.flatMap { roots(it) }
             found.forEach { it.forceAccessibilityForTesting(true) }
+            count = found.size
         }
-        talkBackTree = true
-        rule.waitForIdle()
+        return count
     }
+
+    /** Traversal links the last [readingOrder] followed (0: it fell back to tree order). */
+    var lastReadingLinks = 0
+        private set
 
     /**
      * Give modal windows [scale]. `DeviceConfigurationOverride` stops at a window boundary: a
@@ -439,6 +462,11 @@ class JourneyHarness(private val rule: JourneyRule) {
      */
     fun readingOrder(screen: String, fresh: Boolean = false): List<String> {
         rule.waitForIdle()
+        // A modal opened since publishTalkBackTree has its own, unpublished Compose root.
+        if (talkBackTree) {
+            forceComposeRoots()
+            rule.waitForIdle()
+        }
         checkNow()
         // Resolve clipping artifacts while the flagged nodes are still composed.
         accessibilityFindings.forEach { clippedTouchTarget(it) }
@@ -465,6 +493,7 @@ class JourneyHarness(private val rule: JourneyRule) {
             nodes[i].traversalAfter?.let { nodes.indexOf(it) }?.takeIf { it >= 0 }?.let { next.putIfAbsent(it, i) }
         }
         Log.i(READING_ORDER_TAG, "$screen | links ${next.size} of ${nodes.size} nodes")
+        lastReadingLinks = next.size
         val targets = next.values.toSet()
         val order = mutableListOf<Int>()
         val seen = BooleanArray(nodes.size)
