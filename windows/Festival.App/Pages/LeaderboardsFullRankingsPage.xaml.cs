@@ -146,20 +146,6 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
     }
 
     /// <summary>
-    /// Keeps a focused row (Tab, arrows, Narrator) clear of the floating footer that overlays the bottom of the rows: the
-    /// target grows downwards by the rows' footer inset before the scroller handles the request (WCAG 2.4.11).
-    /// </summary>
-    /// <param name="sender">Rows.</param>
-    /// <param name="args">Request; explicit alignments (the centred jump) are left alone.</param>
-    private void OnRowsBringIntoViewRequested(UIElement sender, BringIntoViewRequestedEventArgs args)
-    {
-        if (!double.IsNaN(args.VerticalAlignmentRatio)) return;
-        var target = args.TargetRect;
-        args.TargetRect = new Windows.Foundation.Rect(target.X, target.Y, target.Width,
-            LeaderboardPaging.RevealAboveFooter(target.Height, RowsRepeater.Margin.Bottom));
-    }
-
-    /// <summary>
     /// Replays the web row entrance after the shared load gate reveals a new page, with the pinned "your rank" row
     /// entering alongside the first row when it was gated (issue #270, as the song board's #295); paging keeps it in
     /// place. A pending selected row is revealed after the entrance starts (<see cref="RevealSelected"/>).
