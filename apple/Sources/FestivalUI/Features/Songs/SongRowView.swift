@@ -87,8 +87,9 @@ struct SongRowView: View {
     let currentSeason: Int?
     /// Item Shop list decoration; nil on Songs.
     let shopOffer: SongRowShopOffer?
+    @AppStorage("fst.settings.enableVisualOrder") private var enableVisualOrder = false
     @AppStorage("fst.settings.songRowVisualOrder")
-    private var songRowVisualOrderRaw = SettingsOrder.encode(MetadataField.allCases)
+    private var songRowVisualOrderRaw = SettingsOrder.encode(MetadataField.defaultSongRowOrder)
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.songRowsAllowSingleLine) private var allowsSingleLine
     @Environment(\.songRowsAllowProfilePanel) private var allowsProfilePanel
@@ -157,6 +158,12 @@ struct SongRowView: View {
         session.hasCurrentPlayerScores(forCatalogue: catalogueObservation)
     }
 
+    /// Score-field order on this row: the saved Song Row Visual Order only while
+    /// Independent Visual Order is on (web `SongsPage.visibleMetadataOrder`).
+    private var fieldOrder: [MetadataField] {
+        MetadataField.songRowOrder(independent: enableVisualOrder, saved: songRowVisualOrderRaw)
+    }
+
     /// The selected band's index is available and matches these Songs rows.
     private var bandScoreDataCurrent: Bool {
         session.hasCurrentBandScores(forCatalogue: catalogueObservation)
@@ -170,7 +177,7 @@ struct SongRowView: View {
               let fields = try? SongProfileCardPolicy.bandFields(
                   for: entry, currentSeason: currentSeason, visibility: metadata
               ), !fields.isEmpty else { return nil }
-        return SongProfileCardPolicy.reordered(fields, by: SettingsOrder.decode(songRowVisualOrderRaw))
+        return SongProfileCardPolicy.reordered(fields, by: fieldOrder)
     }
 
     /// Selected-band state under a plain row: loading, unavailable or paused (the
@@ -233,7 +240,7 @@ struct SongRowView: View {
                 song: song, currentSeason: currentSeason, visibility: metadata
             )
             return SongProfileCardPolicy.reordered(
-                fields, by: SettingsOrder.decode(songRowVisualOrderRaw)
+                fields, by: fieldOrder
             )
         }
     }
@@ -490,7 +497,7 @@ struct SongRowView: View {
             accessibilitySize: dynamicTypeSize.isAccessibilitySize, shopRow: shopOffer != nil,
             rowWidth: rowWidth + 24
         ) else { return nil }
-        let order: [MetadataField] = SettingsOrder.decode(songRowVisualOrderRaw)
+        let order = fieldOrder
         let tiles: [SongProfilePanelTile]?
         if let band {
             tiles = try? SongProfilePanelPolicy.bandTiles(

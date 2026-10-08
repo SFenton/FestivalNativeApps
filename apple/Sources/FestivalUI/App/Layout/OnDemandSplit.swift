@@ -99,16 +99,23 @@ struct ListDetailSelectAction: Equatable {
     /// (the shelved dual-source regions).
     let page: OnDemandSplitPolicy.ListPage?
     let action: (AppRoute) -> Void
+    let closeAction: (() -> Void)?
 
     /// Create an action.
     ///
     /// - Parameters:
     ///   - section: Section whose path the action writes.
     ///   - page: List page on top, deciding which routes open in the trailing pane.
+    ///   - close: Closes the trailing pane back to its placeholder, or nil where the
+    ///     host has no placeholder to return to.
     ///   - action: Writes the route.
-    init(section: FestivalSection, page: OnDemandSplitPolicy.ListPage? = nil, action: @escaping (AppRoute) -> Void) {
+    init(
+        section: FestivalSection, page: OnDemandSplitPolicy.ListPage? = nil,
+        close: (() -> Void)? = nil, action: @escaping (AppRoute) -> Void
+    ) {
         self.section = section
         self.page = page
+        self.closeAction = close
         self.action = action
     }
 
@@ -122,6 +129,10 @@ struct ListDetailSelectAction: Equatable {
     ///
     /// - Parameter route: The detail route (for example `.rivalDetail`).
     func callAsFunction(_ route: AppRoute) { action(route) }
+
+    /// Close the trailing pane (pattern `split-panes` R6: the open item's row left the
+    /// list). Does nothing while no item is open.
+    func close() { closeAction?() }
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.section == rhs.section && lhs.page == rhs.page }
 }
@@ -584,7 +595,9 @@ struct OnDemandSplitStack<Root: View>: View {
             SplitPaneContext(
                 paneWidth: paneWidth, role: .leading,
                 selection: cut.selection,
-                select: ListDetailSelectAction(section: section, page: cut.page) { route in open(route) },
+                select: ListDetailSelectAction(section: section, page: cut.page, close: { close() }) { route in
+                    open(route)
+                },
                 topScrim: topScrim,
                 focusReturn: focusReturn
             )

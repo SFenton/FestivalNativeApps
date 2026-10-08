@@ -143,13 +143,45 @@ private func freshSuite() -> UserDefaults {
         "Enable Independent Song Row Visual Order", "Song Row Visual Order", "Song Intensity",
         "CHOpt Text Path Column Order", "OD", "Maximum Score Leeway: +1.0%", "Difficulty",
         "View Licenses",
+        "Display instrument icons on each song row showing which parts have leaderboard scores or FCs.",
     ]
     let image = try await nativeHostedSettle(host, untilText: expected)
     _ = try nativeHostedPNG(image, filename: "settings-inline-reorder.png", environment: "FST_SETTINGS_RENDER_OUT")
     assertRendersContent(
         host, image: image, containing: expected,
-        notContaining: ["Check Publication", "Game Difficulty", "Song Row Order"]
+        notContaining: ["Check Publication", "Game Difficulty", "Song Row Order", "Star: full combo"]
     )
+}
+
+/// In the list/detail Settings, turning Independent Visual Order off while Song Row
+/// Visual Order is open on the right closes it to the placeholder (`split-panes` R6,
+/// issue #372); the chevron row leaves the list.
+@MainActor
+@Test func settingsListClosesSongRowOrderWhenItsSwitchTurnsOff() async throws {
+    let storage = freshSuite()
+    storage.set(true, forKey: "fst.settings.enableVisualOrder")
+    final class Recorder { var closed = 0 }
+    let recorder = Recorder()
+    let select = ListDetailSelectAction(section: .settings, page: .settings, close: { recorder.closed += 1 }) { _ in }
+    let size = CGSize(width: 420, height: 1600)
+    let host = nativeHostedView(
+        NavigationStack { SettingsScreen(session: settingsSession(selected: false)) }
+            .environment(\.listDetailSelect, select)
+            .environment(\.listDetailSelection, .settingsTopic(.songRowOrder))
+            .defaultAppStorage(storage)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let rowID = SettingsTopic.songRowOrder.accessibilityIdentifier
+    _ = try await nativeHostedSettle(host) { nativeHostedAccessibility(host).identifiers.contains(rowID) }
+    #expect(recorder.closed == 0)
+    storage.set(false, forKey: "fst.settings.enableVisualOrder")
+    _ = try await nativeHostedSettle(host) { recorder.closed > 0 }
+    #expect(recorder.closed == 1)
+    _ = try await nativeHostedSettle(host) { !nativeHostedAccessibility(host).identifiers.contains(rowID) }
+    #expect(!nativeHostedAccessibility(host).identifiers.contains(rowID))
 }
 
 @MainActor

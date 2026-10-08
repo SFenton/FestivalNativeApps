@@ -238,7 +238,7 @@ struct MacListDetailStack<Root: View>: View {
     private func leadingPane(cut: OnDemandSplitPolicy.Cut, open: Bool, covered: Bool) -> some View {
         let context = SplitPaneContext(
             paneWidth: nil, role: .leading, selection: cut.selection,
-            select: ListDetailSelectAction(section: section, page: cut.page) { route in
+            select: ListDetailSelectAction(section: section, page: cut.page, close: { close() }) { route in
                 path = OnDemandSplitPolicy.path(selecting: route, in: path, section: section)
             }
         )

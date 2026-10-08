@@ -268,14 +268,14 @@ enum SongProfileCardPolicy {
         )).map(\.plainLabel)
     }
 
-    /// Apply Settings' saved Song row field order (`fst.settings.songRowVisualOrder`,
-    /// drag-reordered in `SettingsReorderSheet`) to an already visibility-filtered
-    /// field list. The first field after reordering becomes the row's right-aligned
+    /// Apply the Song row field order (`MetadataField.songRowOrder`: the
+    /// `SettingsReorderList` order while Independent Visual Order is on, else the web
+    /// default) to an already visibility-filtered field list. The first field after reordering becomes the row's right-aligned
     /// primary pill; the rest become `SongProfileMetadataPills`.
     ///
     /// - Parameters:
     ///   - fields: Source-ordered fields `fields(for:chart:song:currentSeason:visibility:)` returned.
-    ///   - order: Settings' persisted field order, decoded via `SettingsOrder.decode`.
+    ///   - order: Every field once, from `MetadataField.songRowOrder(independent:saved:)`.
     /// - Returns: The same fields in the saved order (stable sort: a field kind
     ///   Settings doesn't mention, which cannot happen for a currently-defined
     ///   case, keeps its source position at the end).
