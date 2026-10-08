@@ -12,6 +12,8 @@ import FestivalDesign
 /// `SettingsScreen.swift`; this file owns its own state and sheet presentation.
 struct FirstRunSettingsSection: View {
     let session: FestivalSession
+    /// False on the list/detail Settings' First Run Guides page (issue #371).
+    let titled: Bool
     @State private var replayPage: FirstRunPageKey?
     /// Page of the replay being shown (kept after `replayPage` clears, for `onDismiss`).
     @State private var lastReplayed: FirstRunPageKey?
@@ -19,14 +21,18 @@ struct FirstRunSettingsSection: View {
 
     /// Create the section.
     ///
-    /// - Parameter session: Shared app session (first-run coordinator + seen-state store).
-    init(session: FestivalSession) {
+    /// - Parameters:
+    ///   - session: Shared app session (first-run coordinator + seen-state store).
+    ///   - titled: Show the section title (false on its own list/detail page).
+    init(session: FestivalSession, titled: Bool = true) {
         self.session = session
+        self.titled = titled
     }
 
     var body: some View {
-        FestivalGlassSection(
-            "First Run Guides", subtitle: "Re-visit the first run experience for each page."
+        SettingsSectionCard(
+            "First Run Guides", subtitle: "Re-visit the first run experience for each page.",
+            titled: titled
         ) {
             ForEach(Self.settingsOrder) { page in
                 HStack {

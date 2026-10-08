@@ -20,6 +20,8 @@ private struct ShopSnapshot {
     let payload: ShopPayload
     let songsById: [String: Song]
     let songDetailsError: String?
+    /// Publication observed with the catalogue bytes (nil when it did not load).
+    var catalogueObservation: Int? = nil
 }
 
 /// Native, keyless Shop page inside Songs navigation, not a fourth compact tab.
@@ -40,6 +42,10 @@ struct ShopScreen: View {
     @AppStorage(ShopOfferFilter.legacyLeavingTomorrowKey)
     private var legacyFilterLeavingTomorrow = false
     @State private var filterPresented = false
+    /// The saved Item Shop sort (issue #379), apart from the Songs sort.
+    @AppStorage(ShopSortChoice.modeKey) private var sortMode = SongSortMode.title
+    @AppStorage(ShopSortChoice.ascendingKey) private var sortAscending = true
+    @State private var sortPresented = false
     @AppStorage("fst.settings.hideShop") private var hideShop = false
     @AppStorage("fst.settings.disableShopHighlighting") private var disableHighlights = false
     @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
@@ -105,6 +111,33 @@ struct ShopScreen: View {
         )
     }
 
+    /// The saved sort, normalized to the Item Shop's modes.
+    private var appliedSort: ShopSortChoice {
+        ShopSortChoice(mode: sortMode, ascending: sortAscending)
+    }
+
+    /// Filter, then sort, a loaded Shop's offers (pattern `catalogue-sort` R2, R7).
+    ///
+    /// - Parameter snapshot: The loaded Shop and its catalogue.
+    /// - Returns: The offers every layout renders, and whether Duration paused.
+    private func displayedOffers(_ snapshot: ShopSnapshot) -> ShopOfferSort.Result {
+        ShopOfferSort.sorted(
+            appliedFilter.filtered(snapshot.payload.sortedSongs), by: appliedSort,
+            durations: ShopOfferSort.durations(
+                catalogue: snapshot.songDetailsError == nil ? snapshot.songsById : nil,
+                catalogueObservation: snapshot.catalogueObservation,
+                shopObservation: snapshot.payload.observedPublicationId,
+                currentObservation: session.publicationId
+            )
+        )
+    }
+
+    /// Whether the saved sort is paused for the loaded Shop (drives the Sort button).
+    private var sortPaused: Bool {
+        guard case let .loaded(snapshot) = state else { return false }
+        return displayedOffers(snapshot).paused
+    }
+
     /// Save a filter from the sheet or a Reset action and retire the migrated older switches.
     ///
     /// - Parameter filter: The filter to apply.
@@ -157,31 +190,46 @@ struct ShopScreen: View {
         .festivalNavigationTitle("Item Shop")
         .toolbar {
             if pageTools == nil {
+                ToolbarItem(placement: .festivalPageAction) { sortButton }
                 ToolbarItem(placement: .festivalPageAction) { filterButton }
                 if showsViewToggle {
                     ToolbarItem(placement: .festivalPageAction) { viewToggle }
                 }
             }
         }
-        // iPhone tab-bar accessory (issue #92): Filter, then List/Grid where offered.
+        // iPhone tab-bar accessory (issue #92): Sort and Filter like Songs (issue #379),
+        // then List/Grid where offered.
+        .festivalPageTool(
+            token: [appliedSort.accessibilityValue(paused: sortPaused), String(appliedSort.isDefault)],
+            order: PageToolOrder.primary
+        ) {
+            sortButton
+        }
         .festivalPageTool(
             token: [Self.filterAccessibilityValue(appliedFilter), String(appliedFilter.isActive)],
-            order: PageToolOrder.primary
+            order: PageToolOrder.secondary
         ) {
             filterButton
         }
         .festivalPageTool(
-            token: viewMode == .grid, order: PageToolOrder.secondary, isEnabled: showsViewToggle
+            token: viewMode == .grid, order: PageToolOrder.tertiary, isEnabled: showsViewToggle
         ) {
             viewToggle
         }
+        #if os(iOS)
+        // iPhone and iPad: the Songs Sort sheet; the Mac shows it as a popover from the
+        // Sort button (``catalogueSortPopover``), like Songs.
+        .sheet(isPresented: $sortPresented) { sortSheet }
+        #endif
         .sheet(isPresented: $filterPresented) {
             ShopFilterSheet(applied: appliedFilter, onApply: applyFilter)
                 .macSheetFrame(width: 420, height: 360)
         }
         // HIG Toolbars › macOS: "Every toolbar item must also be a menu-bar command"
         // (also the iPadOS menu bar).
-        .macPageCommands(MacPageCommands(filter: { filterPresented = true }))
+        .macPageCommands(MacPageCommands(
+            sort: { sortPresented = true }, filter: { filterPresented = true }
+        ))
         .task(id: requestKey) {
             guard isVisible else { return }
             // Returning from Song Detail re-runs `.task`; keep the loaded list instead
@@ -208,17 +256,22 @@ struct ShopScreen: View {
             }
             // Warm the first screen's covers while the catalogue loads, so rows
             // reveal with art (bounded; slow covers keep their own placeholder).
+            // Duration needs the catalogue, so its first screen is primed in title order.
+            let firstOffers = ShopOfferSort.sorted(
+                appliedFilter.filtered(feed.sortedSongs), by: appliedSort, durations: nil
+            ).offers
             let primePaths = viewMode == .list
                 ? ShopArtworkPrimePolicy.paths(
-                    for: appliedFilter.filtered(feed.sortedSongs),
-                    limit: ShopArtworkPrimePolicy.limit(columns: listColumns)
+                    for: firstOffers, limit: ShopArtworkPrimePolicy.limit(columns: listColumns)
                 ) : []
             async let primed: Void = primeArtwork(primePaths)
             var songsById: [String: Song] = [:]
             var detailsError: String?
+            var catalogueObservation: Int?
             do {
                 let catalog = try await session.catalog()
                 try Task.checkCancellation()
+                catalogueObservation = catalog.observedPublicationId
                 songsById = Dictionary(
                     catalog.catalog.songs.map { ($0.songId, $0) },
                     uniquingKeysWith: { first, _ in first }
@@ -233,7 +286,8 @@ struct ShopScreen: View {
             await primed
             guard !Task.isCancelled, requested == requestKey else { return }
             state = .loaded(ShopSnapshot(
-                payload: feed, songsById: songsById, songDetailsError: detailsError
+                payload: feed, songsById: songsById, songDetailsError: detailsError,
+                catalogueObservation: catalogueObservation
             ))
             loadedKey = requested
         } catch is CancellationError {
@@ -284,7 +338,7 @@ struct ShopScreen: View {
     ///   empty state when the Shop filter hides every offer.
     @ViewBuilder
     private func shopContent(_ snapshot: ShopSnapshot) -> some View {
-        let offers = appliedFilter.filtered(snapshot.payload.sortedSongs)
+        let offers = displayedOffers(snapshot).offers
         if snapshot.payload.sortedSongs.isEmpty {
             FestivalEmptyState(
                 ShopEmptyCopy.emptyTitle, systemImage: "bag",
@@ -300,51 +354,80 @@ struct ShopScreen: View {
             // row-major under the full-width disclosures, meeting at the iPhone Duo hinge
             // in book pose (wide-columns R2/R3, #378).
             let columns = listColumns
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 6) {
-                    shopDisclosures(snapshot)
-                    ForEach(WideColumns.indexedRows(offers, columns: columns)) { row in
-                        WideColumnsRow(columns: columns, count: row.items.count) {
-                            ForEach(row.indexed, id: \.item.id) { index, offer in
-                                offerCard(offer, snapshot: snapshot, grid: false)
-                                    .frame(maxWidth: .infinity)
-                                    .detailStaggeredFadeIn(index: index, settled: staggerSettled)
-                                    .macKeyboardRow(offer.id)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        topAnchor
+                        LazyVStack(alignment: .leading, spacing: 6) {
+                            shopDisclosures(snapshot)
+                            ForEach(WideColumns.indexedRows(offers, columns: columns)) { row in
+                                WideColumnsRow(columns: columns, count: row.items.count) {
+                                    ForEach(row.indexed, id: \.item.id) { index, offer in
+                                        offerCard(offer, snapshot: snapshot, grid: false)
+                                            .frame(maxWidth: .infinity)
+                                            .detailStaggeredFadeIn(index: index, settled: staggerSettled)
+                                            .macKeyboardRow(offer.id)
+                                    }
+                                }
                             }
                         }
+                        .macKeyboardRows(
+                            columns: columns, Self.keyRows(offers, catalogue: snapshot.songsById, grid: false)
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .festivalFadeInScope()
                     }
                 }
-                .macKeyboardRows(
-                    columns: columns, Self.keyRows(offers, catalogue: snapshot.songsById, grid: false)
-                )
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .festivalFadeInScope()
+                .onChange(of: appliedSort) { _, _ in scrollToTop(proxy) }
             }
         } else {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    shopDisclosures(snapshot)
-                    HingeGrid(
-                        columns: gridColumns, spacing: ShopGridPolicy.spacing,
-                        perSide: .fit(minimum: ShopGridPolicy.minimumFoldCardWidth)
-                    ) {
-                        ForEach(Array(offers.enumerated()), id: \.element.id) { index, offer in
-                            offerCard(offer, snapshot: snapshot, grid: true)
-                                .detailStaggeredFadeIn(index: index, settled: staggerSettled)
-                                .macKeyboardRow(offer.id, ring: true)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        topAnchor
+                        VStack(alignment: .leading, spacing: 12) {
+                            shopDisclosures(snapshot)
+                            HingeGrid(
+                                columns: gridColumns, spacing: ShopGridPolicy.spacing,
+                                perSide: .fit(minimum: ShopGridPolicy.minimumFoldCardWidth)
+                            ) {
+                                ForEach(Array(offers.enumerated()), id: \.element.id) { index, offer in
+                                    offerCard(offer, snapshot: snapshot, grid: true)
+                                        .detailStaggeredFadeIn(index: index, settled: staggerSettled)
+                                        .macKeyboardRow(offer.id, ring: true)
+                                }
+                            }
+                            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gridWidth = $0 }
+                            .macKeyboardRows(
+                                columns: ShopGridPolicy.columnCount(width: gridWidth, layout: layout),
+                                Self.keyRows(offers, catalogue: snapshot.songsById, grid: true)
+                            )
                         }
+                        .padding(16)
+                        .festivalFadeInScope()
                     }
-                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gridWidth = $0 }
-                    .macKeyboardRows(
-                        columns: ShopGridPolicy.columnCount(width: gridWidth, layout: layout),
-                        Self.keyRows(offers, catalogue: snapshot.songsById, grid: true)
-                    )
                 }
-                .padding(16)
-                .festivalFadeInScope()
+                .onChange(of: appliedSort) { _, _ in scrollToTop(proxy) }
             }
         }
+    }
+
+    /// Zero-height scroll target above the Shop's first row.
+    private var topAnchor: some View {
+        Color.clear.frame(height: 0).id(Self.topAnchorID).accessibilityHidden(true)
+    }
+
+    private static let topAnchorID = "fst.shop.top"
+
+    /// A changed sort starts at the top of the new order (pattern `catalogue-sort` R6),
+    /// instantly, like Songs: an animated scroll back would build every row it passes.
+    ///
+    /// - Parameter proxy: The Shop list's or grid's scroll proxy.
+    private func scrollToTop(_ proxy: ScrollViewProxy) {
+        var instant = Transaction()
+        instant.disablesAnimations = true
+        withTransaction(instant) { proxy.scrollTo(Self.topAnchorID, anchor: .top) }
     }
 
     /// The grid's columns: an even count on the iPhone Duo inner display
@@ -372,6 +455,37 @@ struct ShopScreen: View {
             }
             return MacKeyRow(id: offer.id, action: .url(offer.shopUrl))
         }
+    }
+
+    // MARK: - Sort
+
+    /// The Songs Sort sheet with the Item Shop's modes (issue #379, `catalogue-sort` R1).
+    private var sortSheet: some View {
+        SongsSortSheet(
+            mode: appliedSort.mode, ascending: appliedSort.ascending,
+            modes: ShopSortChoice.modes, identifier: "fst.shop.sort"
+        ) { mode, ascending in
+            sortMode = mode
+            sortAscending = ascending
+        }
+    }
+
+    /// The toolbar Sort button: Songs' icon and label, gold while the sort isn't Title
+    /// ascending, announcing the applied sort (`catalogue-sort` R4).
+    private var sortButton: some View {
+        Button {
+            sortPresented = true
+        } label: {
+            Label("Sort", systemImage: "arrow.up.arrow.down")
+        }
+        .catalogueSortPopover(isPresented: $sortPresented) { sortSheet }
+        .accessibilityLabel("Sort Item Shop")
+        #if os(macOS)
+        .help("Sort Item Shop")
+        #endif
+        .accessibilityValue(appliedSort.accessibilityValue(paused: sortPaused))
+        .accessibilityIdentifier("fst.shop.sort")
+        .tint(appliedSort.isDefault ? BrandTokens.accentBlue : BrandTokens.gold)
     }
 
     // MARK: - Filter
@@ -412,6 +526,10 @@ struct ShopScreen: View {
         .tint(appliedFilter.isActive ? BrandTokens.gold : BrandTokens.accentBlue)
     }
 
+    /// Why a saved Duration sort shows title order (`catalogue-sort` R7).
+    static let sortPausedMessage = "Duration sort paused until song lengths for this "
+        + "Item Shop load. Showing title order; your preference is saved."
+
     /// What the Filter button announces after its label.
     ///
     /// - Parameter filter: The applied Shop filter.
@@ -446,6 +564,11 @@ struct ShopScreen: View {
     /// - Returns: Visible warnings without replacing a usable Shop feed.
     @ViewBuilder
     private func shopDisclosures(_ snapshot: ShopSnapshot) -> some View {
+        if displayedOffers(snapshot).paused {
+            // Like Songs' paused sorts (`fst.songs.sort-paused`): visible, choice kept.
+            FreshnessDisclosure(message: Self.sortPausedMessage, symbol: "arrow.up.arrow.down")
+                .accessibilityIdentifier("fst.shop.sort-paused")
+        }
         if snapshot.payload.publicationId == nil {
             FreshnessDisclosure(
                 message: "Showing live shop without publication verification",

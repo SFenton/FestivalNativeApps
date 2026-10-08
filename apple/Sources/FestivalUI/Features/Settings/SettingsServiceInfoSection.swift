@@ -139,6 +139,8 @@ struct ServiceInfoRows: Equatable {
 struct SettingsServiceInfoSection: View {
     let session: FestivalSession
     let isVisible: Bool
+    /// False on the list/detail Settings' Service Info page (issue #371).
+    let titled: Bool
     @State private var model: SettingsServiceInfoModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -148,19 +150,21 @@ struct SettingsServiceInfoSection: View {
     /// - Parameters:
     ///   - session: Shared session whose client performs the keyless reads.
     ///   - isVisible: Poll only while true (Settings tab selected).
+    ///   - titled: Show the section title (false on its own list/detail page).
     ///   - initialPhase: Starting state; hosted tests pass a fixed snapshot with `isVisible` false.
     init(
-        session: FestivalSession, isVisible: Bool,
+        session: FestivalSession, isVisible: Bool, titled: Bool = true,
         initialPhase: SettingsServiceInfoModel.Phase = .loading
     ) {
         self.session = session
         self.isVisible = isVisible
+        self.titled = titled
         _model = State(initialValue: SettingsServiceInfoModel(phase: initialPhase))
     }
 
     var body: some View {
         let rows = ServiceInfoRows.make(model.phase)
-        FestivalGlassSection(ServiceInfoText.title, subtitle: ServiceInfoText.hint) {
+        SettingsSectionCard(ServiceInfoText.title, subtitle: ServiceInfoText.hint, titled: titled) {
             stateRow(rows)
             if let title = rows.phaseTitle {
                 phaseRow(title: title, rows: rows)
