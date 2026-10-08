@@ -1,5 +1,7 @@
 package com.festivalscoretracker.android.journeys
 
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
@@ -18,6 +20,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
@@ -42,22 +45,30 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Pinned page controls on a real device (issues #52, #160): Songs' Search, Quick Links, Sort and
- * Filter and Suggestions' Filter and global search keep their bounds while the primary list is
- * scrolled by touch, open while scrolled, and are where they were once the list is back at the
- * top. ATF runs on every interaction; TalkBack's reading order at the top, while scrolled and
- * back at the top goes to logcat `FST_A11Y`. While scrolled, every pinned control keeps its name,
- * role and state (the inline filter is editable text labelled by its placeholder, the tools are
- * buttons; Sort and Filter announce their state) and a separate 48 dp target (issue #418). The
- * `…AtDoubleFontScale` variants switch the same journeys to 200 % text: the inline filter grows
- * without clipping its placeholder and every pinned control stays on screen, pinned and usable.
+ * Pinned page controls on a real device (issues #52, #160, #418): Songs' Search, Quick Links,
+ * Sort and Filter and Suggestions' Filter and global search keep their bounds while the primary
+ * list is scrolled by touch, open while scrolled, and are where they were once the list is back
+ * at the top. ATF runs on every interaction.
+ *
+ * TalkBack's linear order is asserted at the top, while scrolled and back at the top: the
+ * harness walks the tree Compose publishes to TalkBack ([JourneyHarness.publishTalkBackTree],
+ * with its traversal links and a fresh tree after each scroll) and every pinned control must be
+ * read in the placement's order, each before any list item. While scrolled every pinned control
+ * keeps its name, role and state (the inline filter is editable text labelled by its placeholder,
+ * the tools are buttons; Sort and Filter speak their state, Suggestions' Filter "No filters" ⇄
+ * "Filters on: Instruments" as the journey switches an instrument off and resets) and a separate
+ * 48 dp target. The `…AtDoubleFontScale` variants repeat the journeys at 200 % text: the inline
+ * filter grows without clipping its placeholder and every pinned control stays on screen.
  *
  * The journey follows the window's placement of the page tools: the compact floating toolbar
- * (`FST_Phone`), the top app bar (`FST_Tablet`) or ⋮ on a narrow list pane (`FST_Book_Fold
- * --posture half`, `FST_Passport_Fold --posture unfolded`), whose menu must close after each tool's
- * sheet or menu closes. Run with
+ * (portrait phone), the top app bar (Suggestions on a landscape phone, `FST_Tablet`) or ⋮ on a
+ * narrow list pane (Songs on a landscape phone, `FST_Book_Fold --posture half`), whose menu must
+ * close after each tool's sheet or menu closes. The `…InLandscape` variants turn the phone, so the
+ * `android-device` CI job (`@DeviceCi`, one portrait phone emulator) covers all three. Reading orders go to logcat
+ * `FST_A11Y`. Run with
  * `device.py test com.festivalscoretracker.android.journeys.PinnedPageControlsDeviceTest --avd …`.
  */
+@DeviceCi
 @RunWith(AndroidJUnit4::class)
 class PinnedPageControlsDeviceTest {
     @get:Rule
@@ -90,6 +101,16 @@ class PinnedPageControlsDeviceTest {
         }
     }
 
+    /** Turns the phone to landscape before [JourneyHarness.launch] (ignored where the system ignores it). */
+    private fun landscape(screen: String) {
+        rule.runOnUiThread { rule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
+        val turned = runCatching {
+            rule.waitUntil(10_000) { rule.activity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE }
+        }.isSuccess
+        rule.waitForIdle()
+        Log.i(JourneyHarness.READING_ORDER_TAG, "$screen | landscape $turned")
+    }
+
     /** Swipes [list] by touch: up (content scrolls down) or down. */
     private fun swipe(list: String, down: Boolean) {
         h.waitForTag(list)
@@ -97,14 +118,23 @@ class PinnedPageControlsDeviceTest {
         rule.waitForIdle()
     }
 
-    /** Swipes back up until [atTop] holds. */
+    /** Swipes back up until [atTop] holds; a viewport about one row high (landscape phone) then scrolls to the start. */
     private fun scrollToTop(list: String, atTop: () -> Boolean) {
         repeat(20) {
             if (atTop()) return
             swipe(list, down = false)
         }
+        if (!atTop()) {
+            Log.i(JourneyHarness.READING_ORDER_TAG, "$list | scrolling to the start after 20 swipes")
+            rule.onNodeWithTag(list).performScrollToIndex(0)
+            rule.waitForIdle()
+        }
         assertTrue("$list never got back to the top", atTop())
     }
+
+    /** Scroll offset [list] reports to accessibility services (0 at the top). */
+    private fun scrollOffset(list: String): Float =
+        rule.onNodeWithTag(list).fetchSemanticsNode().config.getOrNull(SemanticsProperties.VerticalScrollAxisRange)?.value?.invoke() ?: 0f
 
     /** Opens ⋮ when the page tools sit behind it, so [tool] can be activated. */
     private fun reveal(tool: String, placement: Placement) {
@@ -114,17 +144,25 @@ class PinnedPageControlsDeviceTest {
         assertTrue("$tool in ⋮", within("fst.nav.overflow-menu", tool))
     }
 
+    /** Closes ⋮'s menu without choosing a tool. */
+    private fun dismissOverflow(placement: Placement) {
+        if (placement != Placement.Overflow) return
+        Espresso.pressBack()
+        h.waitGone("fst.nav.overflow-menu")
+    }
+
     /** After a tool's sheet or menu closed, ⋮'s menu closes too (issue #160). */
     private fun overflowClosed(placement: Placement) {
         if (placement == Placement.Overflow) h.waitGone("fst.nav.overflow-menu")
     }
 
     /** Opens [tool] (through ⋮ when needed), reads the opened [surface], closes it with [close]. */
-    private fun opens(tool: String, surface: String, close: String, placement: Placement, screen: String) {
+    private fun opens(tool: String, surface: String, close: String, placement: Placement, screen: String, inside: () -> Unit = {}) {
         reveal(tool, placement)
         h.tap(tool)
         h.waitForTag(surface)
         h.readingOrder(screen)
+        inside()
         h.tap(close)
         h.waitGone(surface)
         overflowClosed(placement)
@@ -148,17 +186,13 @@ class PinnedPageControlsDeviceTest {
         assertTrue("the jump kept the list scrolled", !h.exists("fst.songs.row.s-1"))
     }
 
-    /** Index of the first label containing [label]. */
-    private fun List<String>.at(label: String) = indexOfFirst { it.contains(label) }
-
     /** Traversal index of [tag]'s node (0 when unset). */
     private fun traversalIndex(tag: String) =
         rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().config.getOrNull(SemanticsProperties.TraversalIndex) ?: 0f
 
     /**
-     * `actionsReadFirst` (issues #112, #160): TalkBack reads top bar (−2) → floating toolbar (−1)
-     * → [list] (0). This harness walk can split Compose's traversal chain, so the order is read
-     * from the semantics TalkBack consumes; real TalkBack is walked with `talkback_walk.py`.
+     * Supporting check for `actionsReadFirst` (issues #112, #160): the semantics behind the walk
+     * put the top bar (−2) before the floating toolbar (−1) before [list] (0).
      */
     private fun assertToolbarReadBefore(list: String) {
         assertEquals(-2f, traversalIndex("fst.nav.top-bar"))
@@ -166,26 +200,55 @@ class PinnedPageControlsDeviceTest {
         assertEquals(0f, traversalIndex(list))
     }
 
-    /** The reading order still reaches every control in [labels]. */
-    private fun assertReads(order: List<String>, labels: List<String>, phase: String) =
-        labels.forEach { assertTrue("$it is read $phase: $order", order.at(it) >= 0) }
+    /** One stop TalkBack must reach, recognised by its spoken label. */
+    private class Stop(val name: String, val matches: (String) -> Boolean)
+
+    private val globalSearch = Stop("global search") { it == "Search" }
+    private val profile = Stop("profile") { it.startsWith("Profile") }
+    private val more = Stop("⋮") { it == "More actions" }
+    private val quickLinks = Stop("Quick Links") { it.contains("Quick Links") }
+    private val sortSongs = Stop("Sort songs") { it.startsWith("Sort songs") }
+    private val filterSongs = Stop("Filter songs") { it.startsWith("Filter songs") }
+    private val inlineFilter = Stop("inline filter") { it.startsWith(SONGS_SEARCH_PLACEHOLDER) }
+    private val filterSuggestions = Stop("Filter Suggestions") { it.startsWith("Filter Suggestions") }
 
     /**
-     * [tag] is one button whose spoken name includes [label] (and, when [stateful], announces a
-     * state). Quick Links adds the sort and current section: "Year Quick Links, current section 1980s".
+     * TalkBack reads [stops] in this order, and every list item ([isContent]) after the last one.
      *
-     * @param tag Button test tag.
-     * @param label Part of its spoken name.
-     * @param stateful Whether it must carry a state description.
+     * @param order Labels from [JourneyHarness.readingOrder].
+     * @param stops Controls in their expected order.
+     * @param isContent Recognises a list item's label, or null when no list is in the window.
      * @param phase Phase for messages.
      */
-    private fun assertButton(tag: String, label: String, phase: String, stateful: Boolean = false) {
+    private fun assertReadInOrder(order: List<String>, stops: List<Stop>, isContent: ((String) -> Boolean)?, phase: String) {
+        val at = stops.map { stop -> stop to order.indexOfFirst(stop.matches) }
+        at.forEach { (stop, i) -> assertTrue("${stop.name} is read $phase: $order", i >= 0) }
+        at.zipWithNext().forEach { (a, b) ->
+            assertTrue("${a.first.name} (#${a.second}) is read before ${b.first.name} (#${b.second}) $phase: $order", a.second < b.second)
+        }
+        if (isContent == null) return
+        val content = order.indices.filter { isContent(order[it]) }
+        assertTrue("list items are read $phase: $order", content.isNotEmpty())
+        assertTrue(
+            "every list item is read after ${at.last().first.name} (#${at.last().second}) $phase, the first is #${content.first()}: $order",
+            content.first() > at.last().second,
+        )
+    }
+
+    /**
+     * [tag] is one button whose spoken name includes [label] and, when [state] is set, whose
+     * state is exactly [state] (or any state when [stateful]). Quick Links adds the sort and
+     * current section: "Year Quick Links, current section 1980s".
+     */
+    private fun assertButton(tag: String, label: String, phase: String, stateful: Boolean = false, state: String? = null) {
         val config = rule.onNodeWithTag(tag).fetchSemanticsNode().config
         assertEquals("$tag is a button $phase", Role.Button, config.getOrNull(SemanticsProperties.Role))
         assertTrue("$tag is clickable $phase", SemanticsActions.OnClick in config)
         val name = config.getOrNull(SemanticsProperties.ContentDescription).orEmpty().joinToString()
         assertTrue("$tag is named '$label' $phase, not '$name'", name.contains(label))
-        if (stateful) assertTrue("$tag announces its state $phase", !config.getOrNull(SemanticsProperties.StateDescription).isNullOrBlank())
+        val spoken = config.getOrNull(SemanticsProperties.StateDescription)
+        if (stateful) assertTrue("$tag announces its state $phase", !spoken.isNullOrBlank())
+        if (state != null) assertEquals("$tag announces its state $phase", state, spoken)
     }
 
     /** Songs' pinned inline filter is editable text TalkBack labels by its placeholder. */
@@ -213,11 +276,22 @@ class PinnedPageControlsDeviceTest {
         }
     }
 
-    /** Logs the font scale the journey runs at, for the `FST_A11Y` evidence. */
+    /** Logs the font scale and width the journey runs at, for the `FST_A11Y` evidence. */
     private fun logScale(screen: String, scale: Float?) = Log.i(
         JourneyHarness.READING_ORDER_TAG,
         "$screen | font ${scale ?: rule.activity.resources.configuration.fontScale} | w${rule.activity.resources.configuration.screenWidthDp}dp",
     )
+
+    /** Placement checks every journey shares: compact windows float the tools, short landscape windows don't. */
+    private fun assertPlacement(placement: Placement, screen: String) {
+        val configuration = rule.activity.resources.configuration
+        Log.i(JourneyHarness.READING_ORDER_TAG, "$screen | placement $placement")
+        if (configuration.screenWidthDp < 600) {
+            assertEquals("compact windows pin the tools in the floating toolbar", Placement.FloatingToolbar, placement)
+        } else {
+            assertTrue("regular windows keep the tools in the top app bar or ⋮", placement != Placement.FloatingToolbar)
+        }
+    }
 
     // endregion
 
@@ -229,14 +303,38 @@ class PinnedPageControlsDeviceTest {
     @Test
     fun songsControlsStayPinnedAndReachableAtDoubleFontScale() = songsJourney("pinned-songs-font-2", largeText = true)
 
+    @Test
+    fun songsControlsStayPinnedInLandscape() = songsJourney("pinned-songs-land", largeText = false, turn = true)
+
+    @Test
+    fun songsControlsStayPinnedInLandscapeAtDoubleFontScale() = songsJourney("pinned-songs-land-font-2", largeText = true, turn = true)
+
+    /** A Songs row's spoken label ("A Song 01, Band 1 · 1981 · …"). */
+    private val songRow: (String) -> Boolean = { Regex("""^\p{Lu} Song \d+,""").containsMatchIn(it) }
+
+    /**
+     * TalkBack's order for Songs' pinned controls: the shell's top-bar actions, then the floating
+     * toolbar's tools (read first, issue #160); in the top app bar the bar's visual order (page
+     * tools, then global search and profile); with ⋮, ⋮ in the tools' place. The inline filter
+     * follows, then the list.
+     */
+    private fun songsStops(placement: Placement) = when (placement) {
+        Placement.FloatingToolbar -> listOf(globalSearch, profile, quickLinks, sortSongs, filterSongs)
+        Placement.TopBar -> listOf(quickLinks, sortSongs, filterSongs, globalSearch, profile)
+        Placement.Overflow -> listOf(more, globalSearch, profile)
+    } + inlineFilter
+
     /**
      * Songs (Year sort, 40 songs): records the pinned controls, scrolls, checks they kept their
-     * bounds, names, roles, states and targets, opens each while scrolled, then scrolls back.
+     * bounds, names, roles, states, targets and reading order, opens each while scrolled, then
+     * scrolls back.
      *
      * @param screen Prefix for the logged reading orders.
      * @param largeText Switch to 200 % text once loaded (the inline filter must grow, unclipped).
+     * @param turn Run in landscape.
      */
-    private fun songsJourney(screen: String, largeText: Boolean) {
+    private fun songsJourney(screen: String, largeText: Boolean, turn: Boolean = false) {
+        if (turn) landscape(screen)
         h.enableAccessibilityChecks()
         val transport = SongsFixtures.scrollingCatalogueTransport().also { ProfileFixtures.register(it) }
         val prefs = MemoryPreferences(mutablePreferencesOf(stringPreferencesKey(SettingsRegistry.SONG_SORT) to "Year"))
@@ -244,6 +342,7 @@ class PinnedPageControlsDeviceTest {
         h.launch(DebugLaunch(profile = player, stillBackground = true), transport, prefs, fontScale = if (largeText) ({ scale }) else null)
         h.waitForTag("fst.songs.row.s-1")
         rule.waitUntil(15_000) { h.exists("fst.quick-links.open") || h.exists("fst.nav.overflow") }
+        h.publishTalkBackTree()
         if (largeText) {
             val field = bounds("fst.songs.search")
             scale = 2f
@@ -254,9 +353,7 @@ class PinnedPageControlsDeviceTest {
         }
         logScale(screen, if (largeText) scale else null)
         val placement = placement("fst.songs.sort.open")
-        val compact = rule.activity.resources.configuration.screenWidthDp < 600
-        Log.i(JourneyHarness.READING_ORDER_TAG, "$screen | placement $placement")
-        if (compact) assertEquals("compact windows pin the tools in the floating toolbar", Placement.FloatingToolbar, placement)
+        assertPlacement(placement, screen)
 
         val tools = listOf("fst.songs.sort.open", "fst.songs.filter.open", "fst.quick-links.open")
         val anchors = when (placement) {
@@ -264,21 +361,17 @@ class PinnedPageControlsDeviceTest {
             Placement.FloatingToolbar, Placement.TopBar -> tools + "fst.songs.search"
             Placement.Overflow -> listOf("fst.nav.overflow", "fst.songs.search")
         } + "fst.global-search.open"
-        val labels = when (placement) {
-            Placement.Overflow -> listOf("More actions")
-            else -> listOf("Sort songs", "Filter songs", "Quick Links")
-        } + "Search"
+        val stops = songsStops(placement)
         val atTop = anchors.associateWith(::bounds)
-        assertPinnedSongsControls(placement, anchors, "at the top")
-        assertReads(h.readingOrder("$screen-top"), labels, "at the top")
+        assertPinnedSongsControls(placement, anchors, "at the top", screen)
+        assertReadInOrder(h.readingOrder("$screen-top"), stops, songRow, "at the top")
 
         repeat(3) { swipe("fst.songs.list", down = true) }
         assertTrue("scrolled away from the first row", !h.exists("fst.songs.row.s-1"))
         assertSame(atTop, "while scrolled")
-        assertPinnedSongsControls(placement, anchors, "while scrolled")
+        assertPinnedSongsControls(placement, anchors, "while scrolled", screen)
         if (largeText) assertFilterTextFits("at 200 % while scrolled")
-        val scrolled = h.readingOrder("$screen-scrolled")
-        assertReads(scrolled, labels, "while scrolled")
+        assertReadInOrder(h.readingOrder("$screen-scrolled"), stops, songRow, "while scrolled")
         if (placement == Placement.FloatingToolbar) assertToolbarReadBefore("fst.songs.list")
 
         opens("fst.songs.sort.open", "fst.songs.sort.form", "fst.songs.sort.done", placement, "$screen-sort")
@@ -294,27 +387,36 @@ class PinnedPageControlsDeviceTest {
         scrollToTop("fst.songs.list") { h.exists("fst.songs.row.s-1") }
         rule.waitForIdle()
         assertSame(atTop, "back at the top")
-        assertReads(h.readingOrder("$screen-restored"), labels, "back at the top")
+        assertReadInOrder(h.readingOrder("$screen-restored"), stops, songRow, "back at the top")
         h.assertAccessible()
     }
 
     /**
      * Songs' pinned controls: the inline filter is labelled editable text, each tool (or ⋮) and
      * global search a named button (Sort and Filter with their state), every [anchors] target is
-     * at least 48 dp without overlapping its neighbour, and all of them are on screen.
+     * at least 48 dp without overlapping its neighbour, and all of them are on screen. Behind ⋮,
+     * the menu reads Quick Links, Sort and Filter in that order, each a named button.
      */
-    private fun assertPinnedSongsControls(placement: Placement, anchors: List<String>, phase: String) {
+    private fun assertPinnedSongsControls(placement: Placement, anchors: List<String>, phase: String, screen: String) {
         assertSearchField(phase)
         if (placement == Placement.Overflow) {
             assertButton("fst.nav.overflow", "More actions", phase)
+            reveal("fst.songs.sort.open", placement)
+            assertSongsTools(phase)
+            assertReadInOrder(h.readingOrder("$screen-overflow-menu"), listOf(quickLinks, sortSongs, filterSongs), null, "in ⋮ $phase")
+            dismissOverflow(placement)
         } else {
-            assertButton("fst.songs.sort.open", "Sort songs", phase, stateful = true)
-            assertButton("fst.songs.filter.open", "Filter songs", phase, stateful = true)
-            assertButton("fst.quick-links.open", "Quick Links", phase)
+            assertSongsTools(phase)
         }
         assertButton("fst.global-search.open", "Search", phase)
         probe.assertTargets(anchors)
         assertOnScreen(anchors, phase)
+    }
+
+    private fun assertSongsTools(phase: String) {
+        assertButton("fst.songs.sort.open", "Sort songs", phase, stateful = true)
+        assertButton("fst.songs.filter.open", "Filter songs", phase, stateful = true)
+        assertButton("fst.quick-links.open", "Quick Links", phase)
     }
 
     /** The inline filter's placeholder lies inside the field (it grew rather than clipping it). */
@@ -342,14 +444,37 @@ class PinnedPageControlsDeviceTest {
     fun suggestionsFilterAndGlobalSearchStayPinnedAndReachableAtDoubleFontScale() =
         suggestionsJourney("pinned-suggestions-font-2", largeText = true)
 
+    @Test
+    fun suggestionsFilterAndGlobalSearchStayPinnedInLandscape() =
+        suggestionsJourney("pinned-suggestions-land", largeText = false, turn = true)
+
+    @Test
+    fun suggestionsFilterAndGlobalSearchStayPinnedInLandscapeAtDoubleFontScale() =
+        suggestionsJourney("pinned-suggestions-land-font-2", largeText = true, turn = true)
+
+    /** A Suggestions song row's spoken label (fixture tracks are "Synthetic Track …"). */
+    private val suggestionRow: (String) -> Boolean = { it.contains("Synthetic Track") }
+
+    /** TalkBack's order for Suggestions' pinned controls (as [songsStops], Filter as the tool). */
+    private fun suggestionsStops(placement: Placement) = when (placement) {
+        Placement.FloatingToolbar -> listOf(globalSearch, profile, filterSuggestions)
+        Placement.TopBar -> listOf(filterSuggestions, globalSearch, profile)
+        Placement.Overflow -> listOf(more, globalSearch, profile)
+    }
+
     /**
      * Suggestions (seed 7): records Filter (or ⋮) and global search, scrolls the feed, checks they
-     * kept their bounds, names, roles and targets, opens each while scrolled, then scrolls back.
+     * kept their bounds, names, roles, targets, reading order and Filter's "No filters" state.
+     * While scrolled it switches an instrument off in the Filter sheet, then checks the
+     * "Filters on: Instruments" state at the top and scrolled, resets it, opens global search
+     * and scrolls back.
      *
      * @param screen Prefix for the logged reading orders.
      * @param largeText Render at 200 % text.
+     * @param turn Run in landscape.
      */
-    private fun suggestionsJourney(screen: String, largeText: Boolean) {
+    private fun suggestionsJourney(screen: String, largeText: Boolean, turn: Boolean = false) {
+        if (turn) landscape(screen)
         h.enableAccessibilityChecks()
         h.launch(
             DebugLaunch(section = FestivalSection.Suggestions, profile = player, stillBackground = true, suggestionsSeed = 7),
@@ -358,40 +483,81 @@ class PinnedPageControlsDeviceTest {
         )
         h.waitForTag("fst.suggestions.list")
         rule.waitUntil(15_000) { h.exists("fst.suggestions.filter-button") || h.exists("fst.nav.overflow") }
+        h.publishTalkBackTree()
         logScale(screen, if (largeText) 2f else null)
         val placement = placement("fst.suggestions.filter-button")
-        Log.i(JourneyHarness.READING_ORDER_TAG, "$screen | placement $placement")
-        if (rule.activity.resources.configuration.screenWidthDp < 600) assertEquals(Placement.FloatingToolbar, placement)
+        assertPlacement(placement, screen)
         val anchors = listOf(if (placement == Placement.Overflow) "fst.nav.overflow" else "fst.suggestions.filter-button", "fst.global-search.open")
-        val labels = listOf(if (placement == Placement.Overflow) "More actions" else "Filter Suggestions", "Search")
+        val stops = suggestionsStops(placement)
+        val list = "fst.suggestions.list"
         val atTop = anchors.associateWith(::bounds)
         rule.waitUntil(15_000) { runCatching { firstCard() }.isSuccess }
         val first = firstCard()
-        assertPinnedSuggestionsControls(placement, anchors, "at the top")
-        assertReads(h.readingOrder("$screen-top"), labels, "at the top")
+        val inactive = "No filters"
+        val active = "Filters on: Instruments"
+        assertPinnedSuggestionsControls(placement, anchors, inactive, "at the top")
+        assertSuggestionsOrder(h.readingOrder("$screen-top"), placement, stops, inactive, "at the top")
 
-        repeat(3) { swipe("fst.suggestions.list", down = true) }
+        repeat(3) { swipe(list, down = true) }
         assertTrue("the first card scrolled away", firstCard() != first)
         assertSame(atTop, "while scrolled")
-        assertPinnedSuggestionsControls(placement, anchors, "while scrolled")
-        assertReads(h.readingOrder("$screen-scrolled"), labels, "while scrolled")
-        if (placement == Placement.FloatingToolbar) assertToolbarReadBefore("fst.suggestions.list")
-        opens("fst.suggestions.filter-button", "fst.suggestions.filter.form", "fst.suggestions.filter.done", placement, "$screen-filter")
+        assertPinnedSuggestionsControls(placement, anchors, inactive, "while scrolled")
+        assertSuggestionsOrder(h.readingOrder("$screen-scrolled"), placement, stops, inactive, "while scrolled")
+        if (placement == Placement.FloatingToolbar) assertToolbarReadBefore(list)
+
+        // Switch the first instrument off while scrolled: the filter applies live.
+        opens("fst.suggestions.filter-button", "fst.suggestions.filter.form", "fst.suggestions.filter.done", placement, "$screen-filter") {
+            val instrument = rule.onAllNodes(
+                SemanticsMatcher("instrument switch") { it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("fst.suggestions.filter.instrument.") == true },
+                useUnmergedTree = true,
+            ).fetchSemanticsNodes().first().config[SemanticsProperties.TestTag]
+            h.tap(instrument)
+        }
+        assertSame(atTop, "with a filter on")
+        scrollToTop(list) { scrollOffset(list) == 0f }
+        rule.waitUntil(15_000) { runCatching { firstCard() }.isSuccess }
+        assertPinnedSuggestionsControls(placement, anchors, active, "at the top with a filter on")
+        assertSuggestionsOrder(h.readingOrder("$screen-filtered-top"), placement, stops, active, "at the top with a filter on")
+        repeat(3) { swipe(list, down = true) }
+        assertTrue("the filtered feed scrolled", scrollOffset(list) > 0f)
+        assertSame(atTop, "while scrolled with a filter on")
+        assertPinnedSuggestionsControls(placement, anchors, active, "while scrolled with a filter on")
+        assertSuggestionsOrder(h.readingOrder("$screen-filtered-scrolled"), placement, stops, active, "while scrolled with a filter on")
+
+        opens("fst.suggestions.filter-button", "fst.suggestions.filter.form", "fst.suggestions.filter.done", placement, "$screen-filter-reset") {
+            h.scrollTo("fst.suggestions.filter.form", "fst.suggestions.filter.reset")
+            h.tap("fst.suggestions.filter.reset")
+        }
+        assertPinnedSuggestionsControls(placement, anchors, inactive, "after Reset")
         opens("fst.global-search.open", "fst.global-search.surface", "fst.global-search.close", Placement.TopBar, "$screen-global-search")
         assertSame(atTop, "after the tools")
 
-        scrollToTop("fst.suggestions.list") { firstCard() == first }
+        scrollToTop(list) { scrollOffset(list) == 0f }
         assertSame(atTop, "back at the top")
-        assertReads(h.readingOrder("$screen-restored"), labels, "back at the top")
+        assertSuggestionsOrder(h.readingOrder("$screen-restored"), placement, stops, inactive, "back at the top")
         h.assertAccessible()
     }
 
-    /** Filter (or ⋮) and global search are named buttons with separate 48 dp targets, on screen. */
-    private fun assertPinnedSuggestionsControls(placement: Placement, anchors: List<String>, phase: String) {
+    /** [stops] in order before the feed; where Filter is in the window, TalkBack reads its [state] with it. */
+    private fun assertSuggestionsOrder(order: List<String>, placement: Placement, stops: List<Stop>, state: String, phase: String) {
+        assertReadInOrder(order, stops, suggestionRow, phase)
+        if (placement != Placement.Overflow) {
+            assertTrue("Filter is read as 'Filter Suggestions, $state' $phase: $order", "Filter Suggestions, $state" in order)
+        }
+    }
+
+    /**
+     * Filter (or ⋮) and global search are named buttons with separate 48 dp targets, on screen,
+     * and Filter (in ⋮'s menu when it is there) speaks [state].
+     */
+    private fun assertPinnedSuggestionsControls(placement: Placement, anchors: List<String>, state: String, phase: String) {
         if (placement == Placement.Overflow) {
             assertButton("fst.nav.overflow", "More actions", phase)
+            reveal("fst.suggestions.filter-button", placement)
+            assertButton("fst.suggestions.filter-button", "Filter Suggestions", phase, state = state)
+            dismissOverflow(placement)
         } else {
-            assertButton("fst.suggestions.filter-button", "Filter Suggestions", phase)
+            assertButton("fst.suggestions.filter-button", "Filter Suggestions", phase, state = state)
         }
         assertButton("fst.global-search.open", "Search", phase)
         probe.assertTargets(anchors)

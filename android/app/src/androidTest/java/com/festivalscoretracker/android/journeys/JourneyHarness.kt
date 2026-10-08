@@ -4,6 +4,7 @@ import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.ViewRootForTest
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ComposeAccessibilityValidator
@@ -91,6 +92,38 @@ class JourneyHarness(private val rule: JourneyRule) {
                 DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(fontScale())) { FestivalApp(container, debug) }
             }
         }
+    }
+
+    /** [readingOrder] walks the tree Compose publishes to TalkBack ([publishTalkBackTree]). */
+    private var talkBackTree = false
+
+    /**
+     * Make every Compose view in the window publish to the test's UiAutomation what it publishes
+     * to TalkBack. Compose computes `traversalIndex`/`isTraversalGroup` order as
+     * `traversalBefore`/`traversalAfter` links, and sends the content-change events that refresh
+     * UiAutomation's node cache, only while a real accessibility service is on; without this,
+     * [readingOrder] sees no links (it falls back to tree order) and can read rows that scrolled
+     * away. Call after [launch]; from then on [readingOrder] is TalkBack's linear order and
+     * reads a fresh tree. UiAutomation connects first: a forced view sends events, and the
+     * platform throws "Accessibility off" for any sent before the app's AccessibilityManager is on.
+     */
+    fun publishTalkBackTree() {
+        InstrumentationRegistry.getInstrumentation().uiAutomation
+        val manager = rule.activity.getSystemService(android.view.accessibility.AccessibilityManager::class.java)
+        rule.waitUntil(10_000) { manager.isEnabled }
+        rule.waitForIdle()
+        rule.runOnUiThread {
+            fun roots(view: android.view.View): List<ViewRootForTest> = when {
+                view is ViewRootForTest -> listOf(view)
+                view is android.view.ViewGroup -> (0 until view.childCount).flatMap { roots(view.getChildAt(it)) }
+                else -> emptyList()
+            }
+            val found = roots(rule.activity.window.decorView)
+            assertTrue("no Compose view to publish", found.isNotEmpty())
+            found.forEach { it.forceAccessibilityForTesting(true) }
+        }
+        talkBackTree = true
+        rule.waitForIdle()
     }
 
     /** Distinct ATF findings so far (`TYPE | Check | element | message`). */
@@ -330,7 +363,7 @@ class JourneyHarness(private val rule: JourneyRule) {
         accessibilityFindings.forEach { clippedTouchTarget(it) }
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
         // After an in-place change (font scale, issue #397) the node cache can keep the old bounds and labels.
-        if (fresh && android.os.Build.VERSION.SDK_INT >= 34) automation.clearCache()
+        if ((fresh || talkBackTree) && android.os.Build.VERSION.SDK_INT >= 34) automation.clearCache()
         val root = automation.rootInActiveWindow ?: return emptyList()
         val nodes = mutableListOf<AccessibilityNodeInfo>()
         val insideFocusable = mutableListOf<Boolean>()
