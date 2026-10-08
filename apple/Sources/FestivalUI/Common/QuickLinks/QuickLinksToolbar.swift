@@ -72,7 +72,7 @@ public struct QuickLinksMenu: View {
 
     public var body: some View {
         if controller.isAvailable {
-            PageToolMenu(controller.title, choices: { Self.choices(for: controller) }) {
+            PageToolMenu(controller.title, choices: choices) {
                 Section(controller.title) {
                     Picker(controller.title, selection: selection) {
                         ForEach(controller.sections) { section in
@@ -98,13 +98,13 @@ public struct QuickLinksMenu: View {
         }
     }
 
-    /// The sections for the inline-accessory sheet (``PageToolMenu``), in page order,
-    /// with the active one selected.
+    /// The sections for the inline-accessory sheet (``PageToolMenu``), in page order with
+    /// the active one selected.
     ///
-    /// - Parameter controller: The page's quick-links controller.
-    /// - Returns: One choice per section; picking one requests its jump.
-    static func choices(for controller: QuickLinksController) -> [PageToolMenuChoice] {
-        controller.sections.map { section in
+    /// - Returns: One choice per section; picking one jumps to it.
+    func choices() -> [PageToolMenuChoice] {
+        let controller = controller
+        return controller.sections.map { section in
             PageToolMenuChoice(
                 id: "fst.quick-links.item.\(section.id)", label: AnyView(QuickLinkLabel(section: section, presentation: .list)),
                 isSelected: section.id == controller.activeID, action: { controller.jump(to: section.id) }
