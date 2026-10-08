@@ -179,7 +179,7 @@ public sealed partial class SuggestionsViewModel : ObservableObject
 
     /// <summary>Empty-state message; names the filter when it hides everything.</summary>
     public string EmptyMessage => IsFilterActive && generated.Count > 0
-        ? "No suggestions match your filters."
+        ? "No suggestions match your filters. Try changing your filters to see more suggestions."
         : "Play a few songs and suggestions will appear here.";
 
     /// <summary>Settings-visible charts in display order.</summary>

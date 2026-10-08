@@ -322,7 +322,7 @@ public class SongsViewModelTests
         vm.FilterDraft.DoubleBassRows[0].IsOn = false;
         vm.FilterDraft.DoubleBassRows[1].IsOn = false;
         Assert.True(vm.ShowEmpty);
-        Assert.Equal("No songs match the filters.", vm.EmptyMessage);
+        Assert.Equal("No songs match your filters. Try adjusting your search or filters.", vm.EmptyMessage);
         vm.ClearFilterCommand.Execute(null);
         Assert.Equal(3, vm.ResultCount);
         session.UpdateSettings(s => s with { SongFilter = new SongFilter(Instrument.Bass), VisibleInstruments = [Instrument.Lead] });

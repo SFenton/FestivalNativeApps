@@ -47,9 +47,9 @@
                             </DataTemplate>
                         </ItemsRepeater.ItemTemplate>
                     </ItemsRepeater>
-                    <TextBlock Text="No scores yet." Style="{StaticResource FSTSecondaryTextStyle}" HorizontalAlignment="Center" Margin="0,48"
-                               controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
-                               Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" />
+                    <controls:EmptyStateView Title="No scores yet." TitleAutomationId="fst.song-leaderboard.empty"
+                                             controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
+                                             Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" />
                     <!-- A failed reload: the failure replaces only the rows; the pinned row and pager hide (web EmptyState
                          in place of PaginatedLeaderboard) and FailedReloadFocus moves focus here from a hidden pager. -->
                     <controls:ServiceStatusView x:Name="RowsStatus" Status="{x:Bind ViewModel.Status}" Margin="0,24"

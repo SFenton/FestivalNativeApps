@@ -134,6 +134,18 @@ private let grid = HorizontalSpan(minX: 16, maxX: 851)
     #expect(row.cells(width: grid.width, count: 0).isEmpty)
 }
 
+@Test func hingeRowPanesTakeTheRowHeightOnlyWhenAsked() {
+    // Cards keep their own height (top-aligned); side-by-side panes (the feedback form and
+    // its photo library, #373) take the row's.
+    let cards = HingeRowLayout(spacing: 12, band: nil)
+    #expect(cards.cellProposal(width: 300, rowHeight: 600) == ProposedViewSize(width: 300, height: nil))
+    let panes = HingeRowLayout(spacing: 0, band: nil, fillsHeight: true)
+    #expect(panes.cellProposal(width: 300, rowHeight: 600) == ProposedViewSize(width: 300, height: 600))
+    #expect(panes.cellProposal(width: 300, rowHeight: nil) == ProposedViewSize(width: 300, height: nil))
+    // A single pane fills the row.
+    #expect(panes.cells(width: 800, count: 1).map(\.width) == [800])
+}
+
 @Test func statGridSplitsTilesAtTheFold() throws {
     let band = try #require(HingeColumns.band(span: grid, fold: fold, gutter: 8, minimumSide: 140))
     let layout = StatTileGridLayout(spacing: 8, minimumTileWidth: 140, minimumColumns: 2, band: band)

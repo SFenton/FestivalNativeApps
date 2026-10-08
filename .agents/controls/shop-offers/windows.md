@@ -15,7 +15,7 @@ Every reachable contract state runs in `python tools/windows/shop_journey.py [--
 |---|---|
 | hidden | "Item Shop Is Hidden" heading (Level 2), pane item, Filter and List/Grid toggle gone |
 | loading | one ring, `fst.shop.loading` (UIA name "Busy Loading Item Shop" while active); the reveal ring is collapsed while idle so UIA never reports an inactive ring. The journey starts the load from Retry inside the asserting drive, because a read held from launch can outlast the 30 s request timeout ("You're offline") while the drive waits for the shared desktop lock. |
-| empty / failed | empty card or service status + Retry; no Filter, no List/Grid toggle (fixed: the toggle used to show) |
+| empty / failed | centred shared `EmptyStateView` (no card, #377) or service status + Retry; no Filter, no List/Grid toggle (fixed: the toggle used to show) |
 | populated / new / leaving / grid | tiles named "Title, Artist · Year, New/Leaving Tomorrow"; Leaving pill `fst.shop.badge.leaving.<id>`; gold/red pulse |
 | list | `fst.shop.list` rows with badges and the cart button; toggle back to grid |
 | offline | closed loopback port → "You're offline" + Retry (online-only: no offline cache UX) |
@@ -23,7 +23,7 @@ Every reachable contract state runs in `python tools/windows/shop_journey.py [--
 | official-link | context menu by Shift+F10 (`fst.shop.external.<id>`, never invoked in tests) and the list cart button |
 | song-detail | tile → Song Detail "Open in Item Shop, Leaving Tomorrow"; a failed Shop read shows `fst.song-detail.shop-error` |
 | highlight-disabled | no badges or pulse; links kept |
-| filtered / filter-no-match | Leaving only → "1 of 2 songs"; Available only → "No Matching Songs" + Reset → "2 songs" |
+| filtered / filter-no-match | Leaving only → "1 of 2 songs"; Available only → "No Item Shop songs match your filters" + flyout Reset → "2 songs" |
 
 Contrast: tile captions use `FSTShopTileTextBrush` on `FSTShopTileCaptionBrush` (white on the art scrim by default; WindowText on a Window plate under a contrast theme), and the New pill uses `FSTShopNewBadgeSurfaceBrush`, with no inline colours. Under a contrast theme, badge text sets `HighContrastAdjustment=None`: it is already HighlightText on Highlight, and WinUI's automatic adjustment would otherwise paint a Window backplate inside the pill.
 

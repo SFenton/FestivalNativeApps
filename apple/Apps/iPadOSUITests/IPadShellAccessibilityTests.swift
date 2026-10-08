@@ -244,6 +244,9 @@ final class IPadShellAccessibilityTests: XCTestCase {
         var exact = false
         /// Open this song from Songs first (Song Detail's split).
         var song: String?
+        /// The trailing pane's placeholder while nothing is open (Settings, issue #371);
+        /// nil when the page starts full width.
+        var placeholder: String?
     }
 
     static let splitPages: [SplitPage] = [
@@ -260,8 +263,12 @@ final class IPadShellAccessibilityTests: XCTestCase {
                   ready: "Leaderboards", row: "fst.leaderboards.card.Solo_Guitar.view-all", exact: true),
         SplitPage(name: "song-board", env: [:], profile: false, ready: "fst.songs.list",
                   row: "fst.song-detail.leaderboard.Solo_Guitar", exact: true, song: "fixture-pulse"),
+        // Settings keeps its trailing pane with a placeholder and opens each topic there
+        // (owner, issue #371).
         SplitPage(name: "settings", env: ["FST_DEBUG_TAB": "settings"], ready: "Settings",
-                  row: "fst.settings.licenses", exact: true),
+                  row: "fst.settings.topic.instruments", exact: true, placeholder: "fst.settings.placeholder"),
+        SplitPage(name: "settings-licenses", env: ["FST_DEBUG_TAB": "settings"], ready: "Settings",
+                  row: "fst.settings.licenses", exact: true, placeholder: "fst.settings.placeholder"),
         // Compete's rival rows open Rival Detail beside it (issue #369): a phone tab on the
         // iPhone Duo; on iPad (whose sidebar set has no Compete) the route pushes it.
         SplitPage(name: "compete",
@@ -291,7 +298,17 @@ final class IPadShellAccessibilityTests: XCTestCase {
             if let song = page.song {
                 XCTAssertTrue(IPadAccessibilityAuditTests.openSong(app, song), "\(page.name): Song Detail opens")
             }
-            XCTAssertNil(IPadAccessibilityAuditTests.trailingPane(app), "\(page.name) starts full width")
+            if let placeholder = page.placeholder {
+                let element = IPadAccessibilityAuditTests.anyElement(app, placeholder)
+                XCTAssertTrue(element.waitForExistence(timeout: 10), "\(page.name) starts with its placeholder")
+                XCTAssertGreaterThan(element.frame.minX, window.midX, "\(page.name): placeholder in the trailing half")
+                XCTAssertFalse(
+                    IPadAccessibilityAuditTests.anyElement(app, "fst.split.trailing").exists,
+                    "\(page.name): nothing open yet"
+                )
+            } else {
+                XCTAssertNil(IPadAccessibilityAuditTests.trailingPane(app), "\(page.name) starts full width")
+            }
             guard IPadAccessibilityAuditTests.openSplit(
                 app, ids: page.exact ? [page.row] : [], prefix: page.exact ? nil : page.row
             ) != nil, let paneFrame = IPadAccessibilityAuditTests.trailingPane(app) else {
@@ -338,11 +355,24 @@ final class IPadShellAccessibilityTests: XCTestCase {
             }.map(\.label)
             XCTAssertTrue(paneHeadings.contains(title), "\(page.name): focus target '\(title)' is a heading in the pane \(paneHeadings)")
 
-            // Close: full width, no selection, focus back to the row.
+            // Close: full width (or the placeholder again), no selection, focus back to the row.
             closeSplit(app)
-            let deadline = Date.now.addingTimeInterval(10)
-            while IPadAccessibilityAuditTests.trailingPane(app) != nil, Date.now < deadline { Thread.sleep(forTimeInterval: 0.3) }
-            XCTAssertNil(IPadAccessibilityAuditTests.trailingPane(app), "\(page.name): Close returns to full width")
+            if let placeholder = page.placeholder {
+                XCTAssertTrue(
+                    IPadAccessibilityAuditTests.anyElement(app, placeholder).waitForExistence(timeout: 10),
+                    "\(page.name): Close returns to the placeholder"
+                )
+                XCTAssertFalse(
+                    IPadAccessibilityAuditTests.anyElement(app, "fst.split.trailing").exists,
+                    "\(page.name): Close removes the open item"
+                )
+            } else {
+                let deadline = Date.now.addingTimeInterval(10)
+                while IPadAccessibilityAuditTests.trailingPane(app) != nil, Date.now < deadline {
+                    Thread.sleep(forTimeInterval: 0.3)
+                }
+                XCTAssertNil(IPadAccessibilityAuditTests.trailingPane(app), "\(page.name): Close returns to full width")
+            }
             let back = waitForTrace(app) { $0.hasPrefix("row: ") }
             XCTAssertTrue(back.hasPrefix("row: "), "\(page.name): focus returns to the opened row (\(back))")
             XCTAssertEqual(

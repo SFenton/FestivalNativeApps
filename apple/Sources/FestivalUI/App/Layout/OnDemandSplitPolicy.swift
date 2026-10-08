@@ -21,7 +21,11 @@ import SwiftUI
 /// | Compete root, `.compete` | `.rivalDetail` (issue #369) |
 /// | Leaderboards root, `.leaderboards` | `.fullRankings`, `.bandRankings`; `.player`, `.band` (full page) |
 /// | `.songDetail` | `.songLeaderboard`, `.songBandLeaderboard` (issue #367), `.playerHistory` |
-/// | Settings root | `.licenses` |
+/// | Settings root | `.licenses`, `.settingsTopic` (issue #371) |
+///
+/// **Settings is always split** (issue #371, owner-approved `split-panes` variant): while
+/// the window allows a split, its trailing pane stays on screen with a centred placeholder
+/// (``ListPage/placeholder``) until a row opens a topic, and no Close button shows on it.
 ///
 /// Songs, Song Leaderboard, Song Band Leaderboard, Full and Band Rankings, Item Shop,
 /// Suggestions, Statistics, Band Detail, Player Bands and Rivalry never split: what
@@ -59,12 +63,66 @@ enum OnDemandSplitPolicy {
                  (.leaderboards, .player), (.leaderboards, .band),
                  (.songDetail, .songLeaderboard), (.songDetail, .songBandLeaderboard),
                  (.songDetail, .playerHistory),
-                 (.settings, .licenses):
+                 (.settings, .licenses), (.settings, .settingsTopic):
                 true
             default:
                 false
             }
         }
+
+        /// What the trailing pane shows while nothing is open, for a list page that keeps
+        /// its trailing pane on screen; nil for pages that start full width.
+        ///
+        /// Settings is a list/detail page wherever the window allows a split (issue #371,
+        /// owner: "right side should have vertical centered {Settings Icon} under that
+        /// 'Settings' under that 'Select a setting to see more options here'").
+        var placeholder: Placeholder? {
+            switch self {
+            case .settings:
+                Placeholder(
+                    title: "Settings", systemImage: "gearshape",
+                    subtitle: "Select a setting to see more options here",
+                    accessibilityIdentifier: "fst.settings.placeholder"
+                )
+            default:
+                nil
+            }
+        }
+    }
+
+    /// The trailing pane's centred empty state while nothing is open (``ListPage/placeholder``),
+    /// drawn with the canonical `FestivalEmptyState` (pattern `empty-error-states` R5).
+    struct Placeholder: Sendable, Equatable {
+        /// Short headline.
+        let title: String
+        /// Decorative SF Symbol above the title (the section's own symbol).
+        let systemImage: String
+        /// The next step.
+        let subtitle: String
+        /// Test identifier.
+        let accessibilityIdentifier: String
+    }
+
+    /// What the trailing pane shows.
+    enum TrailingContent: Sendable, Equatable {
+        /// No trailing pane: the list page fills the width (or one stack, no split).
+        case none
+        /// The list page's placeholder while nothing is open.
+        case placeholder(Placeholder)
+        /// The open item.
+        case item(AppRoute)
+    }
+
+    /// What the trailing pane shows for a cut while the window allows a split.
+    ///
+    /// - Parameters:
+    ///   - cut: The path's cut, or nil (no list page on top).
+    ///   - allowsSplit: Whether the window allows a split now.
+    /// - Returns: The open item, the page's placeholder while nothing is open, or none.
+    static func trailingContent(cut: Cut?, allowsSplit: Bool) -> TrailingContent {
+        guard allowsSplit, let cut else { return .none }
+        if let selection = cut.selection { return .item(selection) }
+        return cut.page.placeholder.map(TrailingContent.placeholder) ?? .none
     }
 
     /// A path cut at its first detail route.

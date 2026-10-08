@@ -457,13 +457,12 @@
                         Command="{x:Bind ViewModel.ClearFilterCommand}" AutomationProperties.AutomationId="fst.songs.filter-reset-invalid" />
             </StackPanel>
 
-            <StackPanel Grid.RowSpan="2" Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" VerticalAlignment="Center"
-                        HorizontalAlignment="Center" Spacing="12" AutomationProperties.AutomationId="fst.songs.empty">
-                <TextBlock Text="No Results" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
-                <TextBlock Text="{x:Bind ViewModel.EmptyMessage, Mode=OneWay}" HorizontalAlignment="Center" TextWrapping="Wrap" />
-                <Button Content="Clear Filters" HorizontalAlignment="Center" Command="{x:Bind ViewModel.ClearFilterCommand}"
-                        Visibility="{x:Bind ViewModel.IsFilterActive, Mode=OneWay}" />
-            </StackPanel>
+            <!-- Shared empty state (issue #377): centred, no card and no Clear Filters button; the filter button above is
+                 the way back (web SongsPage EmptyState). -->
+            <controls:EmptyStateView Grid.RowSpan="2" Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}"
+                                     Title="No Results" Subtitle="{x:Bind ViewModel.EmptyMessage, Mode=OneWay}"
+                                     TitleAutomationId="fst.songs.empty" SubtitleAutomationId="fst.songs.empty-message"
+                                     RegionAutomationId="fst.songs.empty-region" />
         </Grid>
 
         <Frame x:Name="DetailFrame" Grid.Column="1" Grid.RowSpan="4" Margin="12,-12,0,0" Visibility="Collapsed"

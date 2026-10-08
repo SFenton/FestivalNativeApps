@@ -1028,6 +1028,7 @@ private struct ShellCommandsPublisher: ViewModifier {
 ///
 /// Route syntax: `player:<accountId>`, `leaderboards`, `fullRankings:<Instrument rawValue>`,
 /// `shop`, `rivals`, `statistics`, `suggestions`, `compete`, `bands`, `licenses`,
+/// `settingsTopic:<SettingsTopic rawValue>` (with `FST_DEBUG_TAB=settings`),
 /// `allRivals:<scope>`, `rivalDetail:<rivalId>[:<scope>]`, `rivalry:<rivalId>:<mode>[:<scope>]`.
 /// `<scope>` is `RivalScope.debugToken`: `song:<instrument>[,<instrument>…]`,
 /// `leaderboard:<instrument>:<rankBy>` or `combo:<token>:<instrument>[,<instrument>…]`.
@@ -1123,6 +1124,7 @@ struct DebugLaunchRoute {
         case "bands": route = .bands
         case "band": route = arg.map { .band(bandId: $0, name: nil) }
         case "licenses": route = .licenses
+        case "settingsTopic": route = arg.flatMap(SettingsTopic.init(rawValue:)).map { .settingsTopic($0) }
         default: route = nil
         }
     }

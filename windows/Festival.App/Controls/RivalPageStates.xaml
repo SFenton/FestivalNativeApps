@@ -10,21 +10,16 @@
                       AutomationProperties.Name="Loading" AutomationProperties.AutomationId="fst.rivals.page-loading" />
         <local:ServiceStatusView Status="{x:Bind Page.Status, Mode=OneWay}" VerticalAlignment="Center" Margin="16"
                                  Visibility="{x:Bind Page.ShowError, Mode=OneWay}" />
-        <StackPanel Visibility="{x:Bind Page.ShowEmpty, Mode=OneWay}" MaxWidth="480" Spacing="8" Margin="16,64,16,0"
-                    VerticalAlignment="Top" HorizontalAlignment="Center">
-            <FontIcon Glyph="&#xE716;" FontSize="40" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-            <TextBlock Text="{x:Bind Page.EmptyTitle, Mode=OneWay}" Style="{StaticResource SubtitleTextBlockStyle}" TextAlignment="Center"
-                       TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.rivals.page-empty" />
-        </StackPanel>
-        <StackPanel Visibility="{x:Bind Page.ShowNoPlayer, Mode=OneWay}" MaxWidth="480" Spacing="12" Margin="16,64,16,0"
-                    VerticalAlignment="Top" HorizontalAlignment="Center">
-            <FontIcon Glyph="&#xE77B;" FontSize="40" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-            <TextBlock Text="No Player Selected" Style="{StaticResource SubtitleTextBlockStyle}" TextAlignment="Center"
-                       AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.rivals.chooseProfile" />
-            <TextBlock Text="Track a player to see their rivals." TextAlignment="Center" TextWrapping="Wrap"
-                       Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-            <Button Content="Select Player" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Center"
-                    Click="OnSelectPlayer" AutomationProperties.AutomationId="fst.rivals.selectPlayer" />
-        </StackPanel>
+        <!-- Shared empty states (issue #377): centred in the page region, no card. -->
+        <local:EmptyStateView Visibility="{x:Bind Page.ShowEmpty, Mode=OneWay}" Glyph="&#xE716;"
+                              Title="{x:Bind Page.EmptyTitle, Mode=OneWay}" TitleAutomationId="fst.rivals.page-empty" />
+        <local:EmptyStateView Visibility="{x:Bind Page.ShowNoPlayer, Mode=OneWay}" Glyph="&#xE77B;"
+                              Title="No Player Selected" Subtitle="Track a player to see their rivals."
+                              TitleAutomationId="fst.rivals.chooseProfile">
+            <local:EmptyStateView.Action>
+                <Button Content="Select Player" Style="{StaticResource AccentButtonStyle}" MinHeight="{StaticResource FSTMinTargetSize}"
+                        Click="OnSelectPlayer" AutomationProperties.AutomationId="fst.rivals.selectPlayer" />
+            </local:EmptyStateView.Action>
+        </local:EmptyStateView>
     </Grid>
 </UserControl>

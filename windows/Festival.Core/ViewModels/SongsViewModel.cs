@@ -97,7 +97,7 @@ public sealed partial class SongsViewModel : ObservableObject
     public string CountText => ResultCount == 1 ? "1 song" : string.Create(CultureInfo.CurrentCulture, $"{ResultCount:N0} songs");
 
     /// <summary>No-results message (names filters when they are active).</summary>
-    public string EmptyMessage => IsFilterActive ? "No songs match the filters." : "No songs match your search.";
+    public string EmptyMessage => IsFilterActive ? "No songs match your filters. Try adjusting your search or filters." : "No songs match your search.";
 
     /// <summary>Whether a non-default sort is applied (gold tint).</summary>
     public bool IsSortChanged => session.Settings.SongSort != SongSortMode.Title || !session.Settings.SongSortAscending;

@@ -753,6 +753,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertgap":
                 AssertGap(window, step);
                 break;
+            case "assertcentred":
+                AssertCentred(window, step);
+                break;
             case "assertinset":
                 AssertInset(window, step);
                 break;
@@ -1400,6 +1403,33 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             throw new InvalidOperationException($"vertical gap {gap:0.#} epx is not {expected:0.#} epx ({(string)step["arg"]!})");
         response["gaps"] ??= new JsonArray();
         response["gaps"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["epx"] = Math.Round(gap, 1) });
+    }
+
+    /// <summary>
+    /// Fails unless the block from the first element's top edge to the last element's bottom edge sits in the region's
+    /// vertical middle (its top and bottom gaps within 2 epx) and the first element's horizontal centre is the region's
+    /// within 2 epx: an empty state centred in its page region, not top-aligned (empty-error-states R2/R8, issue #377).
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c> (the region), <c>other</c> (first) and <c>last</c>.</param>
+    /// <exception cref="InvalidOperationException">The block is off centre.</exception>
+    private void AssertCentred(Window window, JsonObject step)
+    {
+        var region = Find(window, step).BoundingRectangle;
+        var first = Find(window, step, "other").BoundingRectangle;
+        var last = Find(window, step, "last").BoundingRectangle;
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        var top = (first.Top - region.Top) / scale;
+        var bottom = (region.Bottom - last.Bottom) / scale;
+        var dx = (first.Left + first.Width / 2.0 - (region.Left + region.Width / 2.0)) / scale;
+        response["centred"] ??= new JsonArray();
+        response["centred"]!.AsArray().Add(new JsonObject
+        {
+            ["arg"] = (string)step["arg"]!, ["top"] = Math.Round(top, 1), ["bottom"] = Math.Round(bottom, 1), ["dx"] = Math.Round(dx, 1),
+        });
+        if (Math.Abs(top - bottom) > 2 || Math.Abs(dx) > 2)
+            throw new InvalidOperationException(
+                $"off centre: {top:0.#} epx above, {bottom:0.#} epx below, {dx:0.#} epx sideways ({(string)step["arg"]!})");
     }
 
     #region Hit targets

@@ -275,6 +275,7 @@ extension AppRoute {
         case .songLeaderboard(let song, let instrument, _, _): "songLeaderboard:\(song.songId):\(instrument.rawValue)"
         case .playerHistory(let song, let instrument): "playerHistory:\(song.songId):\(instrument.rawValue)"
         case .licenses: "licenses"
+        case .settingsTopic(let topic): "settingsTopic:\(topic.rawValue)"
         default: String(describing: self).prefix(40).description
         }
     }

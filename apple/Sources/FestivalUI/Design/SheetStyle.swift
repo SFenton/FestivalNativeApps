@@ -32,6 +32,11 @@ public enum FestivalSheetSizing: Sendable {
     /// Full-bleed "page" sizing at every width, for content that benefits from using all
     /// of it regardless of size class (e.g. the zoomable Paths image/text viewer).
     case page
+    /// Page sizing at regular width on iPad and the iPhone Duo inner display, ``automatic``
+    /// on the Mac and at compact width: for a compose-style form that opens a pane beside
+    /// itself (the feedback form's photo library, #373). A presented sheet keeps the size it
+    /// opened with, so the room for the pane has to be there from the start.
+    case regularPage
 }
 
 /// Dark Liquid Glass modal presentation (see `.agents/design/apple/liquid-glass.md`).
@@ -73,10 +78,11 @@ struct FestivalSheetModifier: ViewModifier {
 }
 
 /// Applies `presentationSizing(.form)` at regular width (Duo unfolded/iPad) unless the
-/// caller asked for full-bleed `.page` sizing everywhere. A full-window Mac sheet
-/// (`festivalModalPresentation` with `.fullScreen` coverage, issue #368) uses `.fitted`
-/// so the window-sized frame of `MacWindowSizedSheet` decides its size; `.page` would
-/// cap it near 700 pt. No-op pre-iOS/macOS 18.
+/// caller asked for full-bleed `.page` sizing everywhere or page sizing at regular width
+/// on iPad and Duo (`.regularPage`). A full-window Mac sheet (`festivalModalPresentation`
+/// with `.fullScreen` coverage, issue #368) uses `.fitted` so the window-sized frame of
+/// `MacWindowSizedSheet` decides its size; `.page` would cap it near 700 pt.
+/// No-op pre-iOS/macOS 18.
 private struct FestivalSheetSizingModifier: ViewModifier {
     let sizing: FestivalSheetSizing
     let regularWidth: Bool
@@ -111,6 +117,20 @@ private struct FestivalSheetSizingModifier: ViewModifier {
             } else {
                 content
             }
+        case .regularPage:
+            #if os(macOS)
+            if regularWidth {
+                content.presentationSizing(.form)
+            } else {
+                content
+            }
+            #else
+            if regularWidth {
+                content.presentationSizing(.page)
+            } else {
+                content
+            }
+            #endif
         }
     }
 }

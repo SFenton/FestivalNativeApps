@@ -96,8 +96,8 @@ public sealed partial class SongBandPreviewViewModel : ObservableObject
     /// <summary>Whether rows and View Full Leaderboard show.</summary>
     public bool ShowRows => State == LoadState.Loaded;
 
-    /// <summary>Whether the section's own card shows (loading, empty or failed).</summary>
-    public bool ShowPlaceholder => State != LoadState.Loaded;
+    /// <summary>Whether the section's own card shows (loading or failed); empty is the shared card-less empty state (#377).</summary>
+    public bool ShowPlaceholder => State is not (LoadState.Loaded or LoadState.Empty);
 
     /// <summary>Whether the empty text shows.</summary>
     public bool ShowEmpty => State == LoadState.Empty;

@@ -152,6 +152,7 @@
       "setvalue:id=fst.global-search.field|ab",
       "waitfor:id=fst.global-search.empty.title@10",
       "assertname:id=fst.global-search.empty.title|No bands found",
+      "assertcentred:id=fst.global-search.empty|id=fst.global-search.empty.title|id=fst.global-search.empty.subtitle",
       "waitgone:id=fst.global-search.hint",
       "waitgone:id=fst.global-search.retry",
       "setvalue:id=fst.global-search.field|fixture",

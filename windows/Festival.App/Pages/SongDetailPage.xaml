@@ -207,17 +207,17 @@
                                     <controls:CardHeader Title="{x:Bind Title}" IconFile="{x:Bind IconFile}" HeadingLevel="Level3" MinHeight="44"
                                                          Subtitle="{x:Bind TotalEntriesText, Mode=OneWay}" />
                                     <!-- No card around the rows: each is its own frosted row (web InstrumentCard cardBody,
-                                         operator batch 7.7); loading, empty and failed charts sit on their own card. -->
+                                         operator batch 7.7); loading and failed charts sit on their own card, empty charts use the shared compact
+                                         EmptyStateView with no card (#377). -->
                                     <StackPanel Spacing="4">
                                         <Border Style="{StaticResource FSTCardStyle}" MinHeight="96" Visibility="{x:Bind ShowPlaceholder, Mode=OneWay}">
                                             <StackPanel Spacing="8">
                                                 <ProgressRing IsActive="{x:Bind IsLoading, Mode=OneWay}" HorizontalAlignment="Left" Width="24" Height="24"
                                                               Visibility="{x:Bind IsLoading, Mode=OneWay}" />
-                                                <TextBlock Text="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}" TextWrapping="Wrap"
-                                                           Style="{StaticResource BodyTextBlockStyle}" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
                                                 <controls:ServiceStatusInline Visibility="{x:Bind ShowError, Mode=OneWay}" Status="{x:Bind Status}" />
                                             </StackPanel>
                                         </Border>
+                                        <controls:EmptyStateView IsCompact="True" Title="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}" />
                                         <!-- Top-ten rows open the player; the player's own row eleven opens the full board at their
                                              page (web InstrumentCardRowLink). -->
                                         <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" VerticalCacheLength="20"
@@ -266,13 +266,12 @@
                                                 <ProgressRing IsActive="{x:Bind IsLoading, Mode=OneWay}" HorizontalAlignment="Left" Width="24" Height="24"
                                                               Visibility="{x:Bind IsLoading, Mode=OneWay}" AutomationProperties.Name="Loading band scores"
                                                               AutomationProperties.AutomationId="{x:Bind LoadingAutomationId}" />
-                                                <TextBlock Text="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}" TextWrapping="Wrap"
-                                                           Style="{StaticResource BodyTextBlockStyle}" Foreground="{ThemeResource FSTSecondaryTextBrush}"
-                                                           AutomationProperties.AutomationId="{x:Bind EmptyAutomationId}" />
                                                 <controls:ServiceStatusInline Visibility="{x:Bind ShowError, Mode=OneWay}" Status="{x:Bind Status}"
                                                                               RetryAutomationId="{x:Bind RetryAutomationId}" />
                                             </StackPanel>
                                         </Border>
+                                        <controls:EmptyStateView IsCompact="True" Title="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}"
+                                                                 TitleAutomationId="{x:Bind EmptyAutomationId}" />
                                         <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" VerticalCacheLength="20"
                                                        Visibility="{x:Bind ShowRows, Mode=OneWay}" controls:BandScoreFooterPanel.IsSection="True"
                                                        controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="96">

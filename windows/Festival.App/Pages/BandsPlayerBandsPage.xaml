@@ -64,15 +64,10 @@
                                         Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}"
                                         AutomationProperties.AutomationId="fst.player-bands.error" />
 
-            <StackPanel Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" VerticalAlignment="Center" HorizontalAlignment="Center"
-                        controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
-                        Spacing="8">
-                <!-- The ID sits on the heading: a StackPanel has no UI Automation peer. -->
-                <TextBlock Text="No bands found" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
-                           AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.player-bands.empty" />
-                <TextBlock Text="{x:Bind ViewModel.EmptyMessage, Mode=OneWay}" HorizontalAlignment="Center" TextAlignment="Center"
-                           TextWrapping="Wrap" />
-            </StackPanel>
+            <controls:EmptyStateView Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}"
+                                     controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
+                                     Title="No bands found" Subtitle="{x:Bind ViewModel.EmptyMessage, Mode=OneWay}"
+                                     TitleAutomationId="fst.player-bands.empty" />
         </Grid>
 
         <!-- Contrast themes only: the footer fade cuts the cards hard at the pager's top and this window-colour plate (pager
