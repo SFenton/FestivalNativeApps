@@ -707,9 +707,10 @@ struct ReloadGateAccessibilityTests {
         let clock = ContinuousClock()
         let start = clock.now
         storage.set(ShopViewMode.grid.rawValue, forKey: "fst.shop.viewMode")
-        try await nativeHostedSettle(host, timeout: .seconds(5)) {
-            !Self.busyIndicators(Self.reachable(host)).isEmpty
-        }
+        // Read in the same update, before any timer can run: polling under a loaded main
+        // actor can miss the 400 ms spinner entirely.
+        host.layoutSubtreeIfNeeded()
+        host.displayIfNeeded()
         let reloading = Self.reachable(host)
         let spinner = try #require(Self.busyIndicators(reloading).only, "\(Self.dump(reloading))")
         #expect(spinner.label == "Loading Item Shop", "\(spinner)")
