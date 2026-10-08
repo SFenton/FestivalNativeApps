@@ -110,7 +110,9 @@ private struct SongHistoryCard: View {
                 .fixedSize()
             }
             .padding(.horizontal, 4)
-            FestivalGlassSection {
+            // Flush entries (#381): the score rows bring their own padding and draw flat
+            // fills inside this one card; status text keeps the standard row padding.
+            FestivalGlassSection(rows: .flush(separatorInset: 14)) {
                 content
             }
         }
@@ -130,8 +132,10 @@ private struct SongHistoryCard: View {
         case .loading:
             FestivalLoadingView(accessibilityLabel: "Loading \(instrument.label) history")
                 .frame(maxWidth: .infinity, minHeight: 120)
+                .modifier(FestivalRowPadding())
         case let .failed(issue):
             ServiceStatusInline(issue, scope: "dual.song-history.\(instrument.rawValue)") { retryRevision += 1 }
+                .modifier(FestivalRowPadding())
         case let .loaded(payload):
             switch payload.state {
             case .syncing:
@@ -153,6 +157,7 @@ private struct SongHistoryCard: View {
                     Text("\(sorted.count) score \(sorted.count == 1 ? "change" : "changes") tracked")
                         .font(.caption)
                         .foregroundStyle(BrandTokens.textSecondary)
+                        .modifier(FestivalRowPadding())
                 }
             }
         }
@@ -163,6 +168,7 @@ private struct SongHistoryCard: View {
             .font(.subheadline)
             .foregroundStyle(BrandTokens.textSecondary)
             .padding(.vertical, 8)
+            .modifier(FestivalRowPadding())
     }
 
     /// Read the allowlisted score-history GET for the selected player.
