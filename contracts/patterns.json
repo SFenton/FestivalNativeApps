@@ -975,7 +975,7 @@
       "title": "Modal shell",
       "status": "current",
       "doc": ".agents/patterns/modal-shell.md",
-      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit.",
+      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit; on Apple, Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368).",
       "keywords": [
         "modal",
         "sheet",
@@ -984,7 +984,10 @@
         "close",
         "dismiss",
         "content dialog",
-        "bottom sheet"
+        "bottom sheet",
+        "full screen",
+        "full-screen cover",
+        "full window"
       ],
       "web": [
         {
@@ -1005,6 +1008,18 @@
           {
             "path": "apple/Sources/FestivalUI/Design/SheetStyle.swift",
             "symbol": "FestivalSheetCloseItem"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/FestivalModal.swift",
+            "symbol": "festivalModalPresentation"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/FestivalModal.swift",
+            "symbol": "PullDownToDismiss"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/FestivalModal.swift",
+            "symbol": "MacWindowSizedSheet"
           }
         ],
         "android": [
@@ -1128,7 +1143,8 @@
         125,
         139,
         140,
-        360
+        360,
+        368
       ]
     },
     {
@@ -2872,7 +2888,7 @@
       "title": "Hinge columns",
       "status": "current",
       "doc": ".agents/patterns/hinge-columns.md",
-      "summary": "While a vertical fold crosses a layout (iPhone Duo book pose, Android book posture), grid and two-up row gutters sit on the fold with the same column count each side, full-width titles wrap on their own side, and the flat layout returns in place when unfolded; fully unfolded (flat), splits and page rows divide at the midpoint of the free content area, never on the flat hinge line (owner-approved, #361); cells sharing a row start at its top edge (#365).",
+      "summary": "While a vertical fold crosses a layout (iPhone Duo book pose, Android book posture), grid and two-up row gutters sit on the fold with the same column count each side, full-width titles wrap on their own side, and the flat layout returns in place when unfolded; fully unfolded (flat), splits and page rows divide at the midpoint of the free content area, never on the flat hinge line (owner-approved, #361); cells sharing a row start at its top edge (#365); two-pane viewers (Paths Side by Side) use HingePanes, meeting at the fold in book pose and as equal halves when flat (owner-approved, #368).",
       "keywords": [
         "hinge",
         "fold",
@@ -2901,6 +2917,10 @@
           {
             "path": "apple/Sources/FestivalUI/App/Layout/HingeColumns.swift",
             "symbol": "HingeRow"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/HingeColumns.swift",
+            "symbol": "HingePanes"
           },
           {
             "path": "apple/Sources/FestivalUI/App/Layout/HingeColumns.swift",
@@ -2975,7 +2995,8 @@
         350,
         361,
         365,
-        366
+        366,
+        368
       ]
     },
     {
