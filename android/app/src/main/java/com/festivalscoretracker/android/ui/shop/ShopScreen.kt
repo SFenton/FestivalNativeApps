@@ -113,6 +113,10 @@ import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.map
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.material.icons.automirrored.filled.Sort
+import com.festivalscoretracker.android.ui.songs.Notice
 import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
 
@@ -129,7 +133,14 @@ import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
 fun ShopRouteScreen(container: AppContainer, shellViewModel: ShellViewModel) {
     val api = container.api
     val viewModel: ShopViewModel = viewModel {
-        ShopViewModel(container.shop.state, { api.catalog(it) }, shellViewModel.settings, container.backoff)
+        ShopViewModel(
+            container.shop.state,
+            { api.catalog(it) },
+            shellViewModel.settings,
+            container.backoff,
+            savedSort = container.songsPreferences.state.map { it.shopSort },
+            saveSort = container.songsPreferences::setShopSort,
+        )
     }
     LaunchedEffect(Unit) { container.shop.ensureStarted() }
     val prefs by container.songsPreferences.state.collectAsStateWithLifecycle(null)
@@ -148,9 +159,9 @@ fun ShopRouteScreen(container: AppContainer, shellViewModel: ShellViewModel) {
 // region Screen
 
 /**
- * Item Shop: title-ordered offers with New / Leaving Tomorrow badges, the official
- * Shop link and an in-app Details action for catalogue songs. Compact widths
- * always use the list; wider windows offer a grid/list toggle.
+ * Item Shop: offers in the saved sort (Title, Artist, Year or Duration, issue #379) with
+ * New / Leaving Tomorrow badges, the official Shop link and an in-app Details action for
+ * catalogue songs. Compact widths always use the list; wider windows offer a grid/list toggle.
  *
  * @param viewModel Shop logic.
  * @param viewMode Saved layout.
@@ -168,6 +179,7 @@ fun ShopScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showFilter by rememberSaveable { mutableStateOf(false) }
+    var showSort by rememberSaveable { mutableStateOf(false) }
     // Book/passport posture: content splits at a separating vertical hinge (issue #131).
     val split = rememberHingeSplit(keepWhenSingleColumn = true)
     val singleColumn = rememberSingleColumn()
@@ -183,6 +195,18 @@ fun ShopScreen(
             isRoot = false,
             actions = {
                 if (!state.hidden) {
+                    // Sort before Filter, like Songs; both speak their state, not only their gold tint.
+                    val sortState = state.sort.stateDescription
+                    IconButton(
+                        onClick = { showSort = true },
+                        modifier = Modifier.testTag("fst.shop.sort.open").semantics { stateDescription = sortState },
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Sort,
+                            contentDescription = "Sort Item Shop",
+                            tint = if (state.sort.changed) BrandTokens.gold else BrandTokens.textPrimary,
+                        )
+                    }
                     // The gold tint alone would hide the filter state from TalkBack (issue #145).
                     val filterState = state.filter.stateDescription
                     IconButton(
@@ -207,9 +231,11 @@ fun ShopScreen(
                 }
             },
         ) { padding ->
-            val loadedRevealed = rememberRevealed(state.shop is LoadState.Loaded)
+            val loadedRevealed = rememberRevealed(state.shop is LoadState.Loaded && !state.sortWaiting)
             when {
                 state.hidden -> StartPane(hinge) { HiddenView(padding) }
+                // A Duration sort waits for the catalogue's lengths rather than reordering the shown offers.
+                state.sortWaiting && state.shop is LoadState.Loaded -> StartPane(hinge) { LoadingView("Loading Item Shop", Modifier.padding(padding)) }
                 else -> when (val shop = state.shop) {
                     LoadState.Loading -> StartPane(hinge) { LoadingView("Loading Item Shop", Modifier.padding(padding)) }
                     is LoadState.Failed -> StartPane(hinge) {
@@ -229,6 +255,9 @@ fun ShopScreen(
     }
     if (showFilter && !state.hidden) {
         ShopFilterSheet(state.filter, onChange = viewModel::setFilter, onDismiss = { showFilter = false })
+    }
+    if (showSort && !state.hidden) {
+        ShopSortSheet(state.sort, onChange = viewModel::setSort, onDismiss = { showSort = false })
     }
 }
 
@@ -371,6 +400,7 @@ private fun ShopContent(
                 val side = shopSideMargin(maxWidth.value).dp
                 Column(Modifier.fillMaxSize().padding(start = side, end = side, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 16.dp)) {
                     if (state.detailsUnavailable) DetailsUnavailable(onRetryCatalog)
+                    state.sortPaused?.let { Notice(it, "fst.shop.sort-paused") }
                     if (state.filteredEmpty) NoMatchingOffers(onResetFilter, Modifier.weight(1f)) else EmptyShop(Modifier.weight(1f))
                 }
             }
@@ -378,6 +408,14 @@ private fun ShopContent(
         return
     }
     val grid = mode == ShopViewMode.Grid
+    // A new sort starts the offers from the top, like Songs (not on returning to the page).
+    val gridState = rememberLazyGridState()
+    val sortShape = "${state.sort}"
+    var lastSortShape by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(sortShape) {
+        if (lastSortShape != null && lastSortShape != sortShape) gridState.scrollToItem(0)
+        lastSortShape = sortShape
+    }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val density = LocalDensity.current
         val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
@@ -405,6 +443,7 @@ private fun ShopContent(
         ProvideFoldLane(leadingWidth) {
             LazyVerticalGrid(
                 columns = cells,
+                state = gridState,
                 contentPadding = contentPadding,
                 horizontalArrangement = cells,
                 verticalArrangement = Arrangement.spacedBy(if (grid) 10.dp else 6.dp),
@@ -413,7 +452,10 @@ private fun ShopContent(
                 // Always present: a stable first key keeps the list anchored at the top when offers change.
                 item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
                     FoldLane {
-                        if (state.detailsUnavailable) DetailsUnavailable(onRetryCatalog)
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            if (state.detailsUnavailable) DetailsUnavailable(onRetryCatalog)
+                            state.sortPaused?.let { Notice(it, "fst.shop.sort-paused") }
+                        }
                     }
                 }
                 itemsIndexed(state.offers, key = { _, item -> item.offer.songId }) { index, item ->

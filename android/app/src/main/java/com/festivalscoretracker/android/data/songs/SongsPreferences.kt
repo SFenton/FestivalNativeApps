@@ -5,6 +5,7 @@ import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.settings.MetadataField
 import com.festivalscoretracker.android.core.settings.SettingsOrder
 import com.festivalscoretracker.android.core.settings.SettingsRegistry
+import com.festivalscoretracker.android.core.shop.ShopSortChoice
 import com.festivalscoretracker.android.core.songs.SongFilter
 import com.festivalscoretracker.android.core.songs.SongPlayerScoreFilter
 import com.festivalscoretracker.android.core.songs.SongCatalogBuckets
@@ -38,6 +39,7 @@ enum class ShopViewMode {
  * @property playerFilter Selected-player filter, or null when the saved value is corrupt
  *   (the list is blocked until an explicit Reset).
  * @property shopViewMode Item Shop layout.
+ * @property shopSort Item Shop sort (issue #379).
  * @property metadataOrder Metadata sort priority (row order while independent visual order is off).
  */
 data class SongsPreferencesState(
@@ -46,6 +48,7 @@ data class SongsPreferencesState(
     val playerFilter: SongPlayerScoreFilter? = SongPlayerScoreFilter(),
     val shopViewMode: ShopViewMode = ShopViewMode.Grid,
     val metadataOrder: List<MetadataField> = MetadataField.entries,
+    val shopSort: ShopSortChoice = ShopSortChoice(),
 ) {
     /**
      * Whether any saved filter applies (gold filter icon, web `isFilterActive`): General
@@ -88,18 +91,26 @@ data class SongsPreferencesState(
 
 /**
  * Songs-owned persisted state on the shared settings DataStore (`fst.songs.*`,
- * `fst.shop.viewMode`, all [com.festivalscoretracker.android.core.settings.ResetPolicy.Kept]).
+ * `fst.shop.viewMode`, `fst.shop.sort`, `fst.shop.sortAscending`, all
+ * [com.festivalscoretracker.android.core.settings.ResetPolicy.Kept]).
  *
  * @property settings Shared repository.
  */
 class SongsPreferences(private val settings: SettingsRepository) {
+    private val shopSort: Flow<ShopSortChoice> = combine(
+        settings.blob(SettingsRegistry.SHOP_SORT),
+        settings.blob(SettingsRegistry.SHOP_SORT_ASCENDING),
+        ShopSortChoice::decode,
+    )
+
     /** Current saved state. */
     val state: Flow<SongsPreferencesState> = combine(
         settings.blob(SettingsRegistry.SONG_FILTERS),
         settings.blob(SettingsRegistry.SONG_PLAYER_SCORE_FILTERS),
         settings.blob(SettingsRegistry.SHOP_VIEW_MODE),
         settings.blob(SettingsRegistry.SONG_METADATA_ORDER),
-    ) { filters, player, view, order ->
+        shopSort,
+    ) { filters, player, view, order, sort ->
         val public = decodePublic(filters)
         SongsPreferencesState(
             filter = public.first,
@@ -107,6 +118,7 @@ class SongsPreferences(private val settings: SettingsRepository) {
             playerFilter = SongPlayerScoreFilter.decodeSaved(player),
             shopViewMode = if (view == ShopViewMode.List.name) ShopViewMode.List else ShopViewMode.Grid,
             metadataOrder = SettingsOrder.decode(order, MetadataField.entries, MetadataField::fromToken),
+            shopSort = sort,
         )
     }
 
@@ -158,6 +170,16 @@ class SongsPreferences(private val settings: SettingsRepository) {
      */
     suspend fun setShopViewMode(mode: ShopViewMode) {
         settings.writeBlob(SettingsRegistry.SHOP_VIEW_MODE, mode.name)
+    }
+
+    /**
+     * Persist the Item Shop sort (the default Title ascending is stored as absent).
+     *
+     * @param sort Sort choice.
+     */
+    suspend fun setShopSort(sort: ShopSortChoice) {
+        settings.writeBlob(SettingsRegistry.SHOP_SORT, sort.mode.name.takeIf { sort.mode != SongSortMode.Title })
+        settings.writeBlob(SettingsRegistry.SHOP_SORT_ASCENDING, "false".takeIf { !sort.ascending })
     }
 
     /**
