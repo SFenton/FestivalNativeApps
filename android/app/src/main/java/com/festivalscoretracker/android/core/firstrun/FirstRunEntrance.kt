@@ -142,6 +142,28 @@ object FirstRunDemoFit {
         rowCandidates(modes).map { SortFit(it, showDirection = true) } + rowCandidates(modes).map { SortFit(it, showDirection = false) }
 
     /**
+     * Rival group demos (web `CompeteRivalsDemo`, `RivalsOverviewDemo`, `CompeteHubDemo`) with the
+     * real `RivalRow`: both labelled groups with [max] down to one rival each, then the web's
+     * compact single card that alternates sides (web `isCompactSingleCard`).
+     *
+     * @param max Most rivals per group (web caps each group at 3).
+     * @return Candidates, most content first.
+     */
+    fun rivalGroupCandidates(max: Int = 3): List<RivalGroupsFit> =
+        rowCandidates(max).map { RivalGroupsFit(it) } + RivalGroupsFit(1, labels = false, single = true)
+
+    /**
+     * Web `RivalsInstrumentsDemo` with the real section header and `RivalRow`: [instruments]
+     * down to one instrument section with both its above and below rival, then one section
+     * with a single card that alternates sides (web single-card mode).
+     *
+     * @param instruments Instrument sections available.
+     * @return Candidates, most content first.
+     */
+    fun instrumentSectionCandidates(instruments: Int): List<InstrumentSectionsFit> =
+        rowCandidates(instruments).map { InstrumentSectionsFit(it, cards = 2) } + InstrumentSectionsFit(1, cards = 1)
+
+    /**
      * Uniform scale that fits [contentPx] into [limitPx]; 1 when it already fits.
      *
      * @param contentPx Content height.
@@ -200,6 +222,23 @@ object FirstRunDemoFit {
  * @property showDirection Whether the direction control shows.
  */
 data class SortFit(val modes: Int, val showDirection: Boolean)
+
+/**
+ * A rival group demo candidate.
+ *
+ * @property perGroup Rivals shown in each group.
+ * @property labels Whether the "Above You"/"Below You" headers show.
+ * @property single Web compact mode: one card from one group, alternating groups on each swap.
+ */
+data class RivalGroupsFit(val perGroup: Int, val labels: Boolean = true, val single: Boolean = false)
+
+/**
+ * A Rivals instruments demo candidate.
+ *
+ * @property sections Instrument sections shown.
+ * @property cards Rival cards per section: 2 (above and below) or 1 (alternating).
+ */
+data class InstrumentSectionsFit(val sections: Int, val cards: Int)
 
 /**
  * A square-tile grid.

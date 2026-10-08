@@ -7,6 +7,8 @@ import com.festivalscoretracker.android.core.firstrun.FirstRunInfiniteScroll
 import com.festivalscoretracker.android.core.firstrun.FirstRunPageKey
 import com.festivalscoretracker.android.core.firstrun.FirstRunShopPattern
 import com.festivalscoretracker.android.core.firstrun.FirstRunStillDemoData
+import com.festivalscoretracker.android.core.firstrun.InstrumentSectionsFit
+import com.festivalscoretracker.android.core.firstrun.RivalGroupsFit
 import com.festivalscoretracker.android.core.firstrun.SortFit
 import com.festivalscoretracker.android.core.shop.ShopPulse
 import org.junit.Assert.assertEquals
@@ -118,6 +120,24 @@ class FirstRunEntranceTest {
                 SortFit(3, false), SortFit(2, false), SortFit(1, false),
             ),
             candidates,
+        )
+    }
+
+    /** Web `RivalsOverviewDemo`: labelled groups of 3 → 1, then the compact single card. */
+    @Test
+    fun rivalGroupCandidatesEndOnTheCompactSingleCard() {
+        assertEquals(
+            listOf(RivalGroupsFit(3), RivalGroupsFit(2), RivalGroupsFit(1), RivalGroupsFit(1, labels = false, single = true)),
+            FirstRunDemoFit.rivalGroupCandidates(),
+        )
+    }
+
+    /** Web `RivalsInstrumentsDemo`: sections with both cards, then one section's single card. */
+    @Test
+    fun instrumentSectionCandidatesEndOnOneSingleCardSection() {
+        assertEquals(
+            listOf(InstrumentSectionsFit(3, 2), InstrumentSectionsFit(2, 2), InstrumentSectionsFit(1, 2), InstrumentSectionsFit(1, 1)),
+            FirstRunDemoFit.instrumentSectionCandidates(3),
         )
     }
 

@@ -770,27 +770,30 @@ private fun ScoreList(id: String, rows: Int) {
 @Composable
 private fun RankingsCardDemo(id: String, yourRank: Boolean) {
     val pool = if (yourRank) FirstRunStillDemoData.NEIGHBOURHOOD else FirstRunStillDemoData.RANKINGS
-    DemoFitFirst(remember(pool) { FirstRunDemoFit.rowCandidates(pool.size) }) { count -> RankingsCard(id, yourRank, pool, count) }
+    DemoFitFirst(remember(pool) { FirstRunDemoFit.rowCandidates(pool.size) }) { count ->
+        val shown = remember(count, yourRank) {
+            if (yourRank) pool.slice(FirstRunDemoFit.around(pool.size, FirstRunStillDemoData.PLAYER_INDEX, count)) else pool.take(count)
+        }
+        DemoRankingsCard(id, shown)
+    }
 }
 
 /**
- * The [RankingsCardDemo] card with [count] rows.
+ * A Leaderboards instrument card with [shown] players: the real card header (unless
+ * [header] is off), glass card and account ranking rows, the player's row highlighted like the
+ * real card's own row or pinned footer row.
  *
- * @param id Slide ID.
- * @param yourRank Centre on the player.
- * @param pool Players.
- * @param count Rows shown.
+ * @param id Slide ID (entrance cadence).
+ * @param shown Players, in order.
+ * @param header Whether the Lead card header shows (the Compete hub demo has none, like the web).
  */
 @Composable
-private fun RankingsCard(id: String, yourRank: Boolean, pool: List<FirstRunDemoPlayer>, count: Int) {
-    val shown = remember(count, yourRank) {
-        if (yourRank) pool.slice(FirstRunDemoFit.around(pool.size, FirstRunStillDemoData.PLAYER_INDEX, count)) else pool.take(count)
-    }
+internal fun DemoRankingsCard(id: String, shown: List<FirstRunDemoPlayer>, header: Boolean = true) {
     val entries = remember(shown) {
         shown.map { AccountRankingEntry(accountId = "fst-first-run-${it.rank}", displayName = it.name, totalScore = it.score, totalScoreRank = it.rank) }
     }
     Column(Modifier.fillMaxWidth()) {
-        Box(Modifier.demoEntrance(0)) { RankingsCardHeader(Instrument.Lead.label) { InstrumentIcon(Instrument.Lead, size = 40.dp, decorative = true) } }
+        if (header) Box(Modifier.demoEntrance(0)) { RankingsCardHeader(Instrument.Lead.label) { InstrumentIcon(Instrument.Lead, size = 40.dp, decorative = true) } }
         GlassCard(Modifier.fillMaxWidth().demoEntrance(0)) {
             var rowWidth by rememberRankingRowWidth()
             val density = LocalDensity.current

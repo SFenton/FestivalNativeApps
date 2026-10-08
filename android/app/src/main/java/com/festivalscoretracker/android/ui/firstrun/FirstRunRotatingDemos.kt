@@ -1,25 +1,16 @@
 package com.festivalscoretracker.android.ui.firstrun
 
 import android.net.ConnectivityManager
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -32,24 +23,17 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import coil3.compose.AsyncImage
 import com.festivalscoretracker.android.core.firstrun.FirstRunDemoBars
 import com.festivalscoretracker.android.core.firstrun.FirstRunDemoPools
 import com.festivalscoretracker.android.core.firstrun.FirstRunDemoRival
@@ -68,13 +52,17 @@ import com.festivalscoretracker.android.core.settings.MetadataField
 import com.festivalscoretracker.android.core.songs.SongInstrumentBadge
 import com.festivalscoretracker.android.core.songs.SongInstrumentStatus
 import com.festivalscoretracker.android.core.songs.SongMetadataPill
-import com.festivalscoretracker.android.ui.design.InstrumentIcon
-import com.festivalscoretracker.android.ui.rivals.RivalColors
+import com.festivalscoretracker.android.core.firstrun.FirstRunStillDemoData
+import com.festivalscoretracker.android.core.firstrun.RivalGroupsFit
+import com.festivalscoretracker.android.core.rivals.RivalDirection
+import com.festivalscoretracker.android.ui.rivals.RivalRow
+import com.festivalscoretracker.android.ui.rivals.RivalSectionHeader
+import com.festivalscoretracker.android.ui.rivals.RivalSongRow
+import com.festivalscoretracker.android.ui.rivals.categoryColor
 import com.festivalscoretracker.android.ui.songs.MetadataPill
 import com.festivalscoretracker.android.ui.songs.StatusChips
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
-import java.text.NumberFormat
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -173,8 +161,8 @@ internal fun rememberDataSaver(): Boolean {
 /**
  * The web demos' swap clock (`setInterval` every [intervalMs]): while [running], each tick
  * fades the [plan]ned slots out, [commit]s the new data while they are hidden and fades them
- * back in. Without [fade], or under reduce motion, the data swaps at once (rows then
- * cross-fade through [DemoSlot]). Stopping mid-fade still completes the swap.
+ * back in. Without [fade], or under reduce motion, the data swaps at once with no motion
+ * ([DemoSlot] then shows the new value in the same frame). Stopping mid-fade still completes the swap.
  *
  * @param running Visible settled slide, app in the foreground.
  * @param fade Fade state, or null for an unfaded swap.
@@ -224,7 +212,8 @@ internal fun DemoTicker(
 
 /**
  * One swappable part of a demo. With motion it fades with [fade] (and moves by [shift],
- * positive = down, as it fades out); under reduce motion a new [value] cross-fades in.
+ * positive = down, as it fades out). Under reduce motion a new [value] replaces the old one in
+ * the same frame, with no fade or movement (`load-transition` R6).
  *
  * @param T Content value.
  * @param value Current value.
@@ -237,7 +226,7 @@ internal fun DemoTicker(
 @Composable
 internal fun <T> DemoSlot(value: T, fade: DemoFade, slot: Int, modifier: Modifier = Modifier, shift: Dp = 0.dp, content: @Composable (T) -> Unit) {
     if (LocalFestivalAccessibility.current.reduceMotion) {
-        Crossfade(targetState = value, animationSpec = tween(FirstRunDemoTiming.FADE_MS), label = "fre-demo-swap", modifier = modifier) { content(it) }
+        Box(modifier) { content(value) }
     } else {
         Box(
             modifier.graphicsLayer {
@@ -252,17 +241,6 @@ internal fun <T> DemoSlot(value: T, fade: DemoFade, slot: Int, modifier: Modifie
 // endregion
 
 // region Shared rows
-
-/** Decorative album art (shared Coil loader); none under Data Saver or before the catalogue loads. */
-@Composable
-private fun DemoArt(url: String?, size: Dp) {
-    val modifier = Modifier.size(size).clip(RoundedCornerShape(6.dp)).background(BrandTokens.surfaceMuted)
-    if (url != null && !rememberDataSaver()) {
-        AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = modifier)
-    } else {
-        Box(modifier)
-    }
-}
 
 /**
  * A demo song row: the real Songs [SongRowCard] (web `DemoSongRow` + `SongInfo`), or the
@@ -290,16 +268,6 @@ private fun DemoSongRow(song: FirstRunDemoSong, modifier: Modifier = Modifier, t
         below = below ?: {},
         titleTag = demoSongTag(song.id),
     )
-}
-
-/** A compact song title, or a redacted bar for a placeholder. */
-@Composable
-private fun DemoSongTitle(song: FirstRunDemoSong, modifier: Modifier) {
-    if (song.isPlaceholder) {
-        Box(modifier) { RedactedBar(0.6f, 10.dp) }
-    } else {
-        Text(song.title, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier.testTag("fst.first-run.demo.song.${song.id}"))
-    }
 }
 
 /**
@@ -370,7 +338,7 @@ internal fun FirstRunRotatingDemo(id: String, active: Boolean) {
         "suggestions-category-card" -> CategoryCardDemo(running)
         "leaderboards-experimental-metrics" -> ExperimentalMetricsDemo(running)
         "compete-hub" -> CompeteHubDemo(running)
-        "compete-rivals", "rivals-overview" -> RivalGroupsDemo(running, perGroup = 2)
+        "compete-rivals", "rivals-overview" -> RivalGroupsDemo(id, running)
         "rivals-instruments" -> RivalsInstrumentsDemo(running)
         "rivals-detail" -> RivalsDetailDemo(running)
     }
@@ -520,139 +488,150 @@ private fun ExperimentalMetricsDemo(running: Boolean) {
 }
 
 /**
- * A compact rivals/rankings row.
+ * Rival rows shown by the group demos: the real Rivals [RivalRow] with decorative demo data
+ * (web demos pass `onClick={NOOP}` to their real `RivalRow`).
  *
- * @param leading Rank or direction marker.
- * @param name Player name.
- * @param trailing Trailing text (rankings), ignored when [trailingContent] is set.
- * @param highlight Purple player row.
- * @param leadingColor Marker colour.
- * @param trailingContent Trailing content in place of [trailing] (rival ahead/behind counts).
+ * @param rivals Rivals in order.
+ * @param direction Their side of the list.
+ * @param id Slide ID (entrance cadence).
+ * @param firstEntrance Entrance index of the first row.
  */
 @Composable
-private fun DemoNameRow(
-    leading: String,
-    name: String,
-    trailing: String = "",
-    highlight: Boolean = false,
-    leadingColor: Color = BrandTokens.textSecondary,
-    trailingContent: (@Composable () -> Unit)? = null,
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth()
-            .background(if (highlight) BrandTokens.accentPurple.copy(alpha = 0.5f) else BrandTokens.surfaceFrosted, RoundedCornerShape(8.dp))
-            .padding(horizontal = 12.dp, vertical = 5.dp),
-    ) {
-        Text(leading, color = leadingColor, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(end = 10.dp))
-        Text(name, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).testTag("fst.first-run.demo.name"))
-        if (trailingContent != null) trailingContent() else Text(trailing, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodySmall)
-    }
-}
-
-/**
- * A demo rival's ahead/behind counts from the player's side, green then red like the real
- * `RivalRow` pills. Like that row it never shows the shared-song count (owner decision,
- * issues #40/#67/#175): the count is always ahead + behind. Wraps to two lines in narrow columns.
- *
- * @param rival Demo rival ([FirstRunDemoRival.ahead] counts the songs the rival leads).
- * @param style Text style.
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun DemoRivalCounts(rival: FirstRunDemoRival, style: TextStyle) {
-    val format = NumberFormat.getIntegerInstance()
-    FlowRow(Modifier.testTag("fst.first-run.demo.rival-counts"), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("${format.format(rival.behind)} ahead", color = RivalColors.winText, style = style, maxLines = 1)
-        Text("${format.format(rival.ahead)} behind", color = RivalColors.loseText, style = style, maxLines = 1)
-    }
-}
-
-@Composable
-private fun RivalRows(title: String, rivals: List<FirstRunDemoRival>, above: Boolean) {
-    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text(title, color = if (above) BrandTokens.statusGreen else BrandTokens.statusRed, style = MaterialTheme.typography.labelMedium)
-        rivals.forEach {
-            DemoNameRow(if (above) "▲" else "▼", it.name, leadingColor = if (above) BrandTokens.statusGreen else BrandTokens.statusRed) {
-                DemoRivalCounts(it, MaterialTheme.typography.bodySmall)
-            }
+private fun DemoRivalRows(rivals: List<FirstRunDemoRival>, direction: RivalDirection, id: String, firstEntrance: Int) {
+    Column(verticalArrangement = Arrangement.spacedBy(RIVAL_ROW_GAP)) {
+        rivals.forEachIndexed { index, rival ->
+            RivalRow(rival.entry(direction), onClick = null, modifier = Modifier.demoEntrance(FirstRunEntrance.rowDelay(id, firstEntrance + index)))
         }
     }
 }
 
+/**
+ * An "Above You"/"Below You" label: the real Rivals section header (web demo label, `Font.lg` bold).
+ *
+ * @param title Label.
+ * @param id Slide ID.
+ * @param entrance Entrance index.
+ */
+@Composable
+private fun DemoRivalLabel(title: String, id: String, entrance: Int) {
+    RivalSectionHeader(title, Modifier.demoEntrance(FirstRunEntrance.rowDelay(id, entrance)))
+}
+
+/**
+ * Web `CompeteHubDemo`: the real Leaderboards card (top players plus the player's own row)
+ * alternating with the real rival groups, rising as they swap.
+ */
 @Composable
 private fun CompeteHubDemo(running: Boolean) {
+    val id = "compete-hub"
     var rivalsLayout by remember { mutableStateOf(false) }
     val fade = remember { DemoFade() }
     DemoTicker(running, fade, plan = { listOf(0) }, commit = { rivalsLayout = !rivalsLayout })
     DemoSlot(rivalsLayout, fade, 0, shift = (-FirstRunDemoTiming.HUB_RISE_DP).dp) { rivals ->
         if (rivals) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                RivalRows("Above", FirstRunDemoPools.RIVALS_ABOVE.take(2), above = true)
-                RivalRows("Below", FirstRunDemoPools.RIVALS_BELOW.take(2), above = false)
+            DemoFitFirst(remember { FirstRunDemoFit.rivalGroupCandidates() }) { fit ->
+                if (fit.single) {
+                    DemoRivalRows(FirstRunDemoPools.RIVALS_ABOVE.take(1), RivalDirection.Above, id, 0)
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(RIVAL_GROUP_GAP)) {
+                        DemoRivalLabel(ABOVE_YOU, id, 0)
+                        DemoRivalRows(FirstRunDemoPools.RIVALS_ABOVE.take(fit.perGroup), RivalDirection.Above, id, 1)
+                        DemoRivalLabel(BELOW_YOU, id, fit.perGroup + 1)
+                        DemoRivalRows(FirstRunDemoPools.RIVALS_BELOW.take(fit.perGroup), RivalDirection.Below, id, fit.perGroup + 2)
+                    }
+                }
             }
         } else {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                (FirstRunDemoPools.RANKINGS.take(4) + FirstRunDemoPools.PLAYER).forEach {
-                    DemoNameRow("#${it.rank}", it.name, it.rating, highlight = it.isPlayer)
-                }
+            val player = FirstRunStillDemoData.NEIGHBOURHOOD[FirstRunStillDemoData.PLAYER_INDEX]
+            DemoFitFirst(remember { FirstRunDemoFit.rowCandidates(HUB_RANKING_ROWS) }) { rows ->
+                DemoRankingsCard(id, remember(rows) { FirstRunStillDemoData.RANKINGS.take(rows) + player }, header = false)
             }
         }
     }
 }
 
+/**
+ * Web `CompeteRivalsDemo`/`RivalsOverviewDemo`: the real rival rows under "Above You" and
+ * "Below You", the groups swapping in turn; the web's compact single card (one row that
+ * alternates sides) when two labelled groups don't fit.
+ *
+ * @param id Slide ID.
+ * @param running Whether the groups rotate.
+ */
 @Composable
-private fun RivalGroupsDemo(running: Boolean, perGroup: Int) {
-    DemoFitFirst(remember(perGroup) { FirstRunDemoFit.rowCandidates(perGroup) }) { rows -> RivalGroups(running, rows) }
+private fun RivalGroupsDemo(id: String, running: Boolean) {
+    DemoFitFirst(remember { FirstRunDemoFit.rivalGroupCandidates() }) { fit -> RivalGroups(id, running, fit) }
 }
 
 /**
- * [RivalGroupsDemo] with [perGroup] rivals above and below.
+ * [RivalGroupsDemo] for one fit.
  *
+ * @param id Slide ID.
  * @param running Whether the groups rotate.
- * @param perGroup Rivals per group.
+ * @param fit Rivals per group, labels and compact mode.
  */
 @Composable
-private fun RivalGroups(running: Boolean, perGroup: Int) {
-    var above by remember(perGroup) { mutableStateOf(FirstRunWindowRotation(FirstRunDemoPools.RIVALS_ABOVE, perGroup)) }
-    var below by remember(perGroup) { mutableStateOf(FirstRunWindowRotation(FirstRunDemoPools.RIVALS_BELOW, perGroup)) }
-    var nextAbove by remember { mutableStateOf(true) }
+private fun RivalGroups(id: String, running: Boolean, fit: RivalGroupsFit) {
+    var above by remember(fit) { mutableStateOf(FirstRunWindowRotation(FirstRunDemoPools.RIVALS_ABOVE, fit.perGroup)) }
+    var below by remember(fit) { mutableStateOf(FirstRunWindowRotation(FirstRunDemoPools.RIVALS_BELOW, fit.perGroup)) }
+    var nextAbove by remember(fit) { mutableStateOf(true) }
     val fade = remember { DemoFade() }
-    DemoTicker(running, fade, plan = { listOf(if (nextAbove) 0 else 1) }, commit = {
+    DemoTicker(running, fade, plan = { listOf(if (fit.single || nextAbove) 0 else 1) }, commit = {
         if (nextAbove) above = above.advanced() else below = below.advanced()
         nextAbove = !nextAbove
     })
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        DemoSlot(above.rows, fade, 0, shift = FirstRunDemoTiming.GROUP_DROP_DP.dp) { RivalRows("Above you", it, above = true) }
-        DemoSlot(below.rows, fade, 1, shift = FirstRunDemoTiming.GROUP_DROP_DP.dp) { RivalRows("Below you", it, above = false) }
+    val drop = FirstRunDemoTiming.GROUP_DROP_DP.dp
+    if (fit.single) {
+        // Web compact mode: the shown side advances, then the card switches sides.
+        DemoSlot(if (nextAbove) above.rows to RivalDirection.Above else below.rows to RivalDirection.Below, fade, 0, shift = drop) { (rows, direction) ->
+            DemoRivalRows(rows, direction, id, 0)
+        }
+        return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(RIVAL_GROUP_GAP)) {
+        DemoRivalLabel(ABOVE_YOU, id, 0)
+        DemoSlot(above.rows, fade, 0, shift = drop) { DemoRivalRows(it, RivalDirection.Above, id, 1) }
+        DemoRivalLabel(BELOW_YOU, id, fit.perGroup + 1)
+        DemoSlot(below.rows, fade, 1, shift = drop) { DemoRivalRows(it, RivalDirection.Below, id, fit.perGroup + 2) }
     }
 }
 
+/**
+ * Web `RivalsInstrumentsDemo`: one real Rivals section per instrument (its header with the
+ * instrument icon, then its above and below [RivalRow]s), random cards swapping to the next rival
+ * from their pool. When a section with both cards doesn't fit, one section shows a single card
+ * that alternates sides (web single-card mode).
+ */
 @Composable
 private fun RivalsInstrumentsDemo(running: Boolean) {
-    val instruments = FirstRunDemoPools.INSTRUMENT_RIVAL_ORDER
-    val pools = remember {
-        instruments.flatMap { instrument -> FirstRunDemoPools.INSTRUMENT_RIVALS.getValue(instrument).let { listOf(it.first, it.second) } }
-    }
-    var rotation by remember { mutableStateOf(FirstRunSlotRotation(pools.map { it.size })) }
-    val fade = remember { DemoFade() }
-    DemoTicker(running, fade, plan = { rotation.nextIndices() }, commit = { rotation = rotation.swapped(it) })
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        instruments.forEachIndexed { column, instrument ->
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                InstrumentIcon(instrument, size = 28.dp, decorative = true)
-                listOf(column * 2, column * 2 + 1).forEach { slot ->
-                    val above = slot % 2 == 0
-                    DemoSlot(pools[slot][rotation.positions[slot]], fade, slot) { rival ->
-                        Column(
-                            Modifier.fillMaxWidth()
-                                .background(BrandTokens.surfaceFrosted, RoundedCornerShape(8.dp))
-                                .border(1.dp, if (above) BrandTokens.statusGreen else BrandTokens.statusRed, RoundedCornerShape(8.dp))
-                                .padding(horizontal = 6.dp, vertical = 4.dp),
-                        ) {
-                            Text(if (above) "▲ Above" else "▼ Below", color = if (above) BrandTokens.statusGreen else BrandTokens.statusRed, style = MaterialTheme.typography.labelSmall)
-                            Text(rival.name, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("fst.first-run.demo.name"))
-                            DemoRivalCounts(rival, MaterialTheme.typography.labelSmall)
+    val id = "rivals-instruments"
+    val order = FirstRunDemoPools.INSTRUMENT_RIVAL_ORDER
+    DemoFitFirst(remember { FirstRunDemoFit.instrumentSectionCandidates(order.size) }) { fit ->
+        val instruments = order.take(fit.sections)
+        // One pool per card: above then below per instrument, or one alternating pool per instrument.
+        val pools = remember(fit) {
+            instruments.flatMap { instrument ->
+                val (above, below) = FirstRunDemoPools.INSTRUMENT_RIVALS.getValue(instrument)
+                if (fit.cards == 2) {
+                    listOf(above.map { it.entry(RivalDirection.Above) }, below.map { it.entry(RivalDirection.Below) })
+                } else {
+                    listOf(above.zip(below).flatMap { (a, b) -> listOf(a.entry(RivalDirection.Above), b.entry(RivalDirection.Below)) })
+                }
+            }
+        }
+        var rotation by remember(fit) { mutableStateOf(FirstRunSlotRotation(pools.map { it.size })) }
+        val fade = remember { DemoFade() }
+        DemoTicker(running, fade, plan = { rotation.nextIndices() }, commit = { rotation = rotation.swapped(it) })
+        Column(verticalArrangement = Arrangement.spacedBy(RIVAL_GROUP_GAP)) {
+            var entrance = 0
+            instruments.forEachIndexed { section, instrument ->
+                Column(verticalArrangement = Arrangement.spacedBy(RIVAL_ROW_GAP)) {
+                    RivalSectionHeader(instrument.label, Modifier.demoEntrance(FirstRunEntrance.rowDelay(id, entrance++)), instrument = instrument)
+                    repeat(fit.cards) { card ->
+                        val slot = section * fit.cards + card
+                        val delay = FirstRunEntrance.rowDelay(id, entrance++)
+                        DemoSlot(pools[slot][rotation.positions[slot]], fade, slot, Modifier.demoEntrance(delay)) { entry ->
+                            RivalRow(entry, onClick = null)
                         }
                     }
                 }
@@ -661,35 +640,47 @@ private fun RivalsInstrumentsDemo(running: Boolean) {
     }
 }
 
+/**
+ * Web `RivalsDetailDemo`: one real Rival Detail category (its tinted section header and real
+ * [RivalSongRow]s on catalogue songs) changing every few seconds; skeleton rows until real songs
+ * arrive.
+ */
 @Composable
 private fun RivalsDetailDemo(running: Boolean) {
+    val id = "rivals-detail"
     val pool = demoPool()
+    if (!pool.rotates) {
+        DemoPlaceholderRows(id)
+        return
+    }
+    val catalog = LocalFirstRunDemoCatalog.current.songs
+    val dataSaver = rememberDataSaver()
     val categories = FirstRunDemoPools.RIVAL_DETAIL_CATEGORIES
-    var category by remember { mutableIntStateOf(0) }
-    var songs by remember(pool) { mutableStateOf(FirstRunWindowRotation(pool, 4)) }
-    val fade = remember { DemoFade() }
-    DemoTicker(running, fade, plan = { listOf(0) }, commit = {
-        category = (category + 1) % categories.size
-        songs = songs.advanced()
-    })
-    DemoSlot(category to songs.rows, fade, 0) { (index, rows) ->
-        val shown = categories[index]
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(shown.title, color = BrandTokens.textPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f).testTag("fst.first-run.demo.category"))
-                Text("vs ${FirstRunDemoPools.DETAIL_RIVAL}", color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodySmall)
-            }
-            rows.zip(shown.ranks).forEach { (song, rank) ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().background(BrandTokens.surfaceFrosted, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 3.dp),
-                ) {
-                    DemoArt(song.artUrl, 28.dp)
-                    DemoSongTitle(song, Modifier.weight(1f).padding(horizontal = 8.dp))
-                    Text(
-                        "#${rank.userRank} vs #${rank.rivalRank}",
-                        color = if (rank.playerWins) BrandTokens.statusGreen else BrandTokens.statusRed,
-                        style = MaterialTheme.typography.labelMedium,
+    DemoFitFirst(remember { FirstRunDemoFit.rowCandidates(DETAIL_ROWS) }) { rows ->
+        var category by remember(rows) { mutableIntStateOf(0) }
+        var songs by remember(pool, rows) { mutableStateOf(FirstRunWindowRotation(pool, rows)) }
+        val fade = remember { DemoFade() }
+        DemoTicker(running, fade, plan = { listOf(0) }, commit = {
+            category = (category + 1) % categories.size
+            songs = songs.advanced()
+        })
+        DemoSlot(category to songs.rows, fade, 0) { (index, shownSongs) ->
+            val shown = categories[index]
+            Column(verticalArrangement = Arrangement.spacedBy(RIVAL_ROW_GAP)) {
+                RivalSectionHeader(
+                    shown.title,
+                    Modifier.demoEntrance(0).testTag("fst.first-run.demo.category"),
+                    titleColor = categoryColor(shown.sentiment),
+                )
+                shownSongs.zip(shown.ranks).forEachIndexed { row, (song, rank) ->
+                    RivalSongRow(
+                        song = rank.comparison(song),
+                        catalogSong = catalog?.firstOrNull { it.songId == song.id },
+                        artUrl = song.artUrl.takeUnless { dataSaver },
+                        playerName = PLAYER_NAME,
+                        rivalName = FirstRunDemoPools.DETAIL_RIVAL,
+                        onClick = null,
+                        modifier = Modifier.demoEntrance(FirstRunEntrance.rowDelay(id, row, lead = 1)),
                     )
                 }
             }
@@ -697,6 +688,24 @@ private fun RivalsDetailDemo(running: Boolean) {
     }
 }
 
+/** Gap between rival rows (the real Rivals list's 8 dp). */
+private val RIVAL_ROW_GAP = 8.dp
+
+/** Gap between rival groups and sections (web `Gap.md`). */
+private val RIVAL_GROUP_GAP = 12.dp
+
+/** Web rival demo labels. */
+private const val ABOVE_YOU = "Above You"
+private const val BELOW_YOU = "Below You"
+
+/** The player's name in the demo comparisons. */
+private const val PLAYER_NAME = "You"
+
+/** Most top players the hub's Leaderboards card shows above the player's row (web `CompeteHubDemo`). */
+private const val HUB_RANKING_ROWS = 4
+
+/** Most songs the Rival Detail demo shows (web: four per category). */
+private const val DETAIL_ROWS = 4
 // endregion
 
 // region Infinite scroll

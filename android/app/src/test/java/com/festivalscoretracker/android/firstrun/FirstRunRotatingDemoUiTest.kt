@@ -152,16 +152,24 @@ class FirstRunRotatingDemoUiTest {
         assertEquals("inactive slide holds still", landed, texts("fst.first-run.demo.song."))
     }
 
+    /**
+     * `load-transition` R6 (issue #380 review): under Reduce Motion the swap lands in one frame
+     * with no cross-fade. A cross-fade would compose the outgoing and incoming row together (three
+     * titles) and keep the old row's title for the fade's length.
+     */
     @Test
-    fun reduceMotionStillSwapsWithACrossFade() {
+    fun reduceMotionSwapsInOneFrameWithoutAnimating() {
         show("songs-song-list", reduceMotion = true)
         val before = texts("fst.first-run.demo.song.")
-        rule.mainClock.advanceTimeBy(FirstRunDemoTiming.SWAP_INTERVAL_MS + FirstRunDemoTiming.FADE_MS + 100L)
+        assertEquals(2, before.size)
+        rule.mainClock.advanceTimeBy(FirstRunDemoTiming.SWAP_INTERVAL_MS)
+        rule.mainClock.advanceTimeByFrame()
         val after = texts("fst.first-run.demo.song.")
-        assertEquals(before.size, after.size)
-        assertNotEquals(before, after)
+        assertEquals("no outgoing copy composed beside the new row", 2, after.size)
+        assertEquals(1, before.indices.count { before[it] != after[it] })
+        rule.mainClock.advanceTimeBy(FirstRunDemoTiming.FADE_MS.toLong())
+        assertEquals("nothing settles after the swap", after, texts("fst.first-run.demo.song."))
     }
-
     @Test
     fun categoryCardCyclesTemplates() {
         show("suggestions-category-card")
@@ -233,7 +241,10 @@ class FirstRunRotatingDemoUiTest {
         rule.mainClock.advanceTimeByFrame()
     }
 
-    /** Issues #67/#175: rival demos show the player's ahead/behind counts, never the shared-song count. */
+    /**
+     * Issues #67/#175/#380: rival demos draw the real Rivals row, which reads the player's
+     * ahead/behind counts and never the shared-song count.
+     */
     @Test
     fun rivalDemosShowAheadAndBehindWithoutTheSharedCount() {
         var id by mutableStateOf("compete-rivals")
@@ -244,25 +255,51 @@ class FirstRunRotatingDemoUiTest {
             }
         }
         rule.mainClock.advanceTimeByFrame()
-        fun shown(): List<String> =
-            rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.Text), useUnmergedTree = true).fetchSemanticsNodes().map { node ->
-                node.config[SemanticsProperties.Text].joinToString("") { it.text }
-            }
-        val bareCount = Regex("""^[\d,]+ songs$""")
-        // KeyDrifter leads 82 songs and trails 66; DrumSurge leads 58 and trails 84 (player's side: ahead = rival trails).
-        assertTrue(shown().containsAll(listOf("66 ahead", "82 behind", "84 ahead", "58 behind")))
+        fun rows(): List<String> =
+            rule.onAllNodes(SemanticsMatcher("rival row") { it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("fst.rivals.row.") == true }, useUnmergedTree = true)
+                .fetchSemanticsNodes().map { it.config[SemanticsProperties.ContentDescription].joinToString() }
+        // KeyDrifter leads 82 songs and trails 66 (player's side: ahead = rival trails).
+        assertTrue(rows().toString(), "KeyDrifter, ahead of you, 66 songs ahead, 82 songs behind" in rows())
+        // DrumSurge leads 58 and trails 84. It shows after the first swap in both layouts: the
+        // labelled groups show it from the start, the phone's compact card switches to it.
+        rule.mainClock.advanceTimeBy(cycle)
+        assertTrue(rows().toString(), "DrumSurge, you lead, 84 songs ahead, 58 songs behind" in rows())
         listOf("compete-rivals", "rivals-overview", "rivals-instruments", "compete-hub").forEach { demo ->
             rule.runOnIdle { id = demo }
             rule.mainClock.advanceTimeByFrame()
             // Compete Hub opens on its rankings layout and swaps to the rivals one on the first tick.
             if (demo == "compete-hub") rule.mainClock.advanceTimeBy(cycle)
-            val texts = shown()
-            assertEquals("$demo counts", texts.count { it.endsWith(" ahead") }, texts.count { it.endsWith(" behind") })
-            assertTrue("$demo shows ahead/behind", texts.any { it.endsWith(" ahead") })
-            assertTrue("$demo hides the shared count: $texts", texts.none { bareCount.matches(it) || it.contains("shared", ignoreCase = true) })
+            val shown = rows()
+            assertTrue("$demo draws real rival rows", shown.isNotEmpty())
+            shown.forEach { row ->
+                assertTrue("$demo: $row", Regex("""^\w+, (you lead|ahead of you), [\d,]+ songs ahead, [\d,]+ songs behind$""").matches(row))
+                assertTrue("$demo hides the shared count: $row", !row.contains("shared", ignoreCase = true))
+            }
         }
     }
 
+    /** Issue #380 review: decorative rival rows are not buttons (TalkBack never offers to open them). */
+    @Test
+    fun rivalDemoRowsAreNotClickable() {
+        show("rivals-overview")
+        val nodes = rule.onAllNodes(SemanticsMatcher("rival row") { it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("fst.rivals.row.") == true }, useUnmergedTree = true).fetchSemanticsNodes()
+        assertTrue(nodes.isNotEmpty())
+        nodes.forEach { node ->
+            assertTrue(node.config.getOrNull(androidx.compose.ui.semantics.SemanticsActions.OnClick) == null)
+            assertTrue(node.config.getOrNull(SemanticsProperties.Role) == null)
+        }
+    }
+
+    /** Issue #380 review: Rival Detail's demo draws the real tinted category header and song rows. */
+    @Test
+    fun rivalDetailDemoUsesTheRealSongRows() {
+        show("rivals-detail")
+        val songs = rule.onAllNodes(SemanticsMatcher("song row") { it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("fst.rivals.song.") == true }, useUnmergedTree = true).fetchSemanticsNodes()
+        assertTrue("at least one real RivalSongRow", songs.isNotEmpty())
+        assertEquals(1, rule.onAllNodesWithText("Closest Battles", useUnmergedTree = true).fetchSemanticsNodes().size)
+        rule.mainClock.advanceTimeBy(cycle)
+        assertEquals(1, rule.onAllNodesWithText("Almost Passed", useUnmergedTree = true).fetchSemanticsNodes().size)
+    }
     /** A lifecycle the test moves between RESUMED (foreground) and STARTED (backgrounded or covered). */
     private class TestLifecycle : LifecycleOwner {
         val registry: LifecycleRegistry = LifecycleRegistry.createUnsafe(this).apply { currentState = Lifecycle.State.RESUMED }
