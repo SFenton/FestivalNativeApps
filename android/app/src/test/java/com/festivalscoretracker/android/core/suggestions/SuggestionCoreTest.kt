@@ -172,6 +172,29 @@ class SuggestionCoreTest {
     }
 
     @Test
+    fun stateDescriptionSaysWhatTheGoldTintShows() {
+        // Issue #418, like Songs (#181) and Item Shop (#145): "No filters" exactly when inactive,
+        // else the sheet sections with a switch off, in sheet order.
+        val none = SuggestionFilterSettings.DEFAULTS
+        assertEquals("No filters", none.stateDescription)
+        assertEquals("Filters on: Instruments", none.withInstrument(Instrument.Bass, false).stateDescription)
+        // A General switch cascades to every row; that alone is not an Instrument-Specific change.
+        val general = none.withGlobalType(SuggestionCategoryType.Stale, false, listOf(Instrument.Lead, Instrument.Bass))
+        assertEquals("Filters on: General", general.stateDescription)
+        val specific = none.withPerInstrumentType(SuggestionCategoryType.NearFC, Instrument.Lead, false, listOf(Instrument.Lead, Instrument.Bass))
+        assertEquals("Filters on: Instrument-Specific", specific.stateDescription)
+        val all = general.withInstrument(Instrument.Bass, false)
+            .withPerInstrumentType(SuggestionCategoryType.NearFC, Instrument.Lead, false, listOf(Instrument.Lead, Instrument.Bass))
+        assertEquals("Filters on: Instruments, General, Instrument-Specific", all.stateDescription)
+        // The last row off turns the General switch off too.
+        val lastRow = specific.withPerInstrumentType(SuggestionCategoryType.NearFC, Instrument.Bass, false, listOf(Instrument.Lead, Instrument.Bass))
+        assertEquals("Filters on: General", lastRow.stateDescription)
+        assertEquals("No filters", all.withInstrument(Instrument.Bass, true)
+            .withGlobalType(SuggestionCategoryType.Stale, true, listOf(Instrument.Lead, Instrument.Bass))
+            .withPerInstrumentType(SuggestionCategoryType.NearFC, Instrument.Lead, true, listOf(Instrument.Lead, Instrument.Bass)).stateDescription)
+    }
+
+    @Test
     fun categoryFilterDropsOrTrimsRows() {
         val all = Instrument.entries.toSet()
         val filter = SuggestionFilterSettings.DEFAULTS
