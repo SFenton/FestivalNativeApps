@@ -1011,6 +1011,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackPhotoLibraryPlacement.swift",
             "symbol": "FeedbackPhotoLibraryPlacement"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackFormPanes.swift",
+            "symbol": "FeedbackFormPanes"
           }
         ],
         "android": [
@@ -1106,7 +1110,8 @@
       ],
       "related": {
         "patterns": [
-          "scroll-edge"
+          "scroll-edge",
+          "hinge-columns"
         ],
         "controls": [
           "chopt-paths",
@@ -2912,7 +2917,8 @@
       "related": {
         "patterns": [
           "section-headers",
-          "wide-columns"
+          "wide-columns",
+          "modal-shell"
         ],
         "pages": [
           "statistics",
@@ -2944,7 +2950,8 @@
         350,
         361,
         365,
-        366
+        366,
+        373
       ]
     },
     {
