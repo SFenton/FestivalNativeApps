@@ -496,6 +496,7 @@ final class SongsChromeJourneyTests: XCTestCase {
         var accepted: [String] = []
         var failures: [String] = []
         var unattributedClipped = 0
+        var unattributedContrast: [String] = []
         try app.performAccessibilityAudit(for: .all) { issue in
             let element = issue.element.map {
                 "\($0.elementType.rawValue) '\($0.identifier)' '\($0.label)' \($0.frame)"
@@ -526,6 +527,8 @@ final class SongsChromeJourneyTests: XCTestCase {
                             + "ramp ends \(current.rampEnd), chrome top \(current.chromeTop)"
                     )
                 }
+            } else if issue.auditType == .contrast, issue.element == nil {
+                unattributedContrast.append(description)
             } else if issue.auditType == .textClipped, issue.element == nil, unattributedClipped == 0 {
                 unattributedClipped += 1
                 accepted.append(description)
@@ -533,6 +536,16 @@ final class SongsChromeJourneyTests: XCTestCase {
                 failures.append(description)
             }
             return true
+        }
+        if !unattributedContrast.isEmpty, let page {
+            // No element to measure: accept only when every text in the content band
+            // renders ≥ 4.5:1 (the iPad `unattributed-contrast-page-floor` evidence).
+            let weak = try pageContrastFloorFailures(in: app, page: page)
+            if weak.isEmpty {
+                accepted.append("page floor ≥ 4.5:1: \(unattributedContrast)")
+            } else {
+                failures.append("\(unattributedContrast) with weak page text \(weak)")
+            }
         }
         XCTContext.runActivity(named: "Audit \(name): accepted \(accepted)") { _ in }
         if !failures.isEmpty, let image = page?.image {
@@ -542,6 +555,33 @@ final class SongsChromeJourneyTests: XCTestCase {
             add(shot)
         }
         XCTAssertTrue(failures.isEmpty, "Audit \(name): \(failures.joined(separator: "; "))")
+    }
+
+    /// The static texts between the top ramp and the bottom chrome that do not render
+    /// at least 4.5:1 with at least 20 glyph pixels.
+    ///
+    /// - Parameters:
+    ///   - app: Songs, as the audit left it.
+    ///   - page: The page read for the audit.
+    /// - Returns: A description of each weak or unmeasurable text; empty when the floor holds.
+    /// - Throws: A missing screenshot crop.
+    @MainActor
+    private func pageContrastFloorFailures(
+        in app: XCUIApplication, page: ScrollAwayAuditPage
+    ) throws -> [String] {
+        var weak: [String] = []
+        var measured = 0
+        for text in app.staticTexts.allElementsBoundByIndex {
+            let frame = text.frame
+            guard !frame.isEmpty, page.window.contains(frame),
+                  frame.minY >= page.rampEnd, frame.maxY <= page.chromeTop else { continue }
+            let reading = try? renderedContrast(of: frame, in: page.image, window: page.window)
+            measured += 1
+            if let reading, reading.ratio >= 4.5, reading.brightPixels >= 20 { continue }
+            weak.append("'\(text.label)' \(frame) \(String(describing: reading))")
+        }
+        if measured == 0 { weak.append("no text measured") }
+        return weak
     }
 
     /// The rendered text contrast inside one frame of a screenshot.
