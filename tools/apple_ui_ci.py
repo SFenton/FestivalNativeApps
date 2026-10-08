@@ -28,6 +28,7 @@ import argparse
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import tempfile
@@ -192,11 +193,11 @@ def ci_simulator() -> Iterator[str]:
 
 
 @contextmanager
-def fixture_service(args: tuple[str, ...], timeout: float = 30.0) -> Iterator[str]:
+def fixture_service(args: tuple[str, ...], timeout: float = 90.0) -> Iterator[str]:
     """Serve ``mock_service.py`` on a free loopback port for the block.
 
     Its output goes to a log file (never an undrained pipe, which would block a chatty server) and is echoed
-    when the block fails.
+    when the block fails; a service that never gets ready is aborted first, so the log holds its stack.
 
     Args:
         args: Extra ``mock_service.py`` flags.
@@ -210,7 +211,7 @@ def fixture_service(args: tuple[str, ...], timeout: float = 30.0) -> Iterator[st
     """
     with tempfile.NamedTemporaryFile("w+", prefix="fst-apple-ui-ci-fixture-", suffix=".log", delete=False) as log:
         log_path = Path(log.name)
-        proc = subprocess.Popen([sys.executable, "-u", str(MOCK_SERVICE), "--port", "0", *args],
+        proc = subprocess.Popen([sys.executable, "-u", "-X", "faulthandler", str(MOCK_SERVICE), "--port", "0", *args],
                                 stdout=log, stderr=subprocess.STDOUT, text=True)
     succeeded = False
     try:
@@ -219,6 +220,13 @@ def fixture_service(args: tuple[str, ...], timeout: float = 30.0) -> Iterator[st
         while port is None:
             port = next(filter(None, map(ready_port, log_path.read_text(errors="replace").splitlines())), None)
             if port is None and (proc.poll() is not None or time.monotonic() > deadline):
+                if proc.poll() is None:
+                    # faulthandler writes every thread's stack to the log: where the start stalled.
+                    proc.send_signal(signal.SIGABRT)
+                    try:
+                        proc.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        pass
                 raise RuntimeError(f"mock_service.py not ready (exit {proc.poll()}); log {log_path}")
             if port is None:
                 time.sleep(0.1)
