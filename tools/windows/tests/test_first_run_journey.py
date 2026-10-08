@@ -54,6 +54,88 @@ class PatternTests(unittest.TestCase):
         self.assertEqual(len(j.check_tree(untagged, j.Phase([], forbid=j.NO_PAGING))), 1)
 
 
+# The selected slide's control view in a real `uiwin.py tree` dump (2026-10-08), after a rotation swap.
+SLIDE = [
+    '          Unknown(flip view) "Songs" id=fst.first-run.slides class=FlipView rect=1260,336,1320,1110 patterns=Scroll',
+    '            ListItem "Song List" id= class=FlipViewItem rect=1260,336,1320,1110 [focused,focusable,selected] patterns=SelectionItem',
+]
+HEADING_AND_DESCRIPTION = [
+    '              Text "Song List" id= class=TextBlock rect=1272,1002,1296,80 heading=2',
+    '              Text "Browse and search the entire Festival library. Tap a song to see leaderboards and more details." id= class=TextBlock rect=1272,1118,1296,112',
+]
+PAGER = ['          Menu "Pager" id=fst.first-run.pips class=Microsoft.UI.Xaml.Controls.PipsPager rect=1830,1482,180,70']
+# Before issue #421 the demo's rows were promoted into the slide's control view (only the demo itself was raw).
+DEMO_ROW = [
+    '              Image "" id= class=Image rect=1305,765,108,108',
+    '              Text "7 Nights" id= class=TextBlock rect=1443,767,161,56',
+    '              Text "Synthetic Artist 3 · 2002" id= class=TextBlock rect=1443,823,382,48',
+]
+
+
+class SlideContentTests(unittest.TestCase):
+    """Issue #421: the selected slide's control view is its heading and description, never the demo's rows."""
+
+    def test_slide_content_stops_at_the_slides_sibling(self):
+        tree = "\n".join(SLIDE + HEADING_AND_DESCRIPTION + PAGER)
+        self.assertEqual(j.slide_content(tree), [line.strip() for line in HEADING_AND_DESCRIPTION])
+        self.assertIsNone(j.slide_content("\n".join(PAGER)))
+
+    def test_heading_and_description_pass_and_demo_rows_fail(self):
+        phase = j.Phase([], slide=j._slide_content("Song List"))
+        self.assertEqual(j.check_tree("\n".join(SLIDE + HEADING_AND_DESCRIPTION + PAGER), phase), [])
+        self.assertEqual(j.check_tree("\n".join(SLIDE + HEADING_AND_DESCRIPTION + PAGER), j.Phase([], slide=j._slide_content())), [])
+        leaked = "\n".join(SLIDE + DEMO_ROW + HEADING_AND_DESCRIPTION + PAGER)
+        self.assertEqual(len(j.check_tree(leaked, phase)), 1)
+        self.assertEqual(len(j.check_tree("\n".join(SLIDE + HEADING_AND_DESCRIPTION[1:]), phase)), 1)
+        self.assertEqual(j.check_tree("\n".join(PAGER), phase), ["no selected slide in the UIA tree"])
+        self.assertEqual(len(j.check_tree("\n".join(SLIDE + HEADING_AND_DESCRIPTION), j.Phase([], slide=j._slide_content("Sort Songs")))), 1)
+
+    def test_rotating_and_demo_phases_check_the_slide(self):
+        for name in ("rotation", "rotation-reduced", "rotation-background", "top-songs-rotation"):
+            scenario = next(s for s in j.SCENARIOS if s.name == name)
+            checked = [p for p in scenario.phases if p.slide is not None]
+            self.assertTrue(checked, name)
+            for phase in checked:
+                self.assertTrue(any(re.search(r"assertstatus:id=fst\.first-run\.demo\..*swap|assertstatus:raw=.*\|rotated", s)
+                                    for s in phase.steps), f"{name}: slide checked only after a swap")
+        demo = next(s for s in j.SCENARIOS if s.name == "demo-songs")
+        self.assertEqual(sum(p.slide is not None for p in demo.phases), len(j.PAGE_SLIDES))
+
+    def test_a11y_matrix_rotation_pages_check_after_a_real_swap(self):
+        # Issue #421: the CI matrix (journeys/a11y.json: Axe scan and Tab walk after `after_ready`) waits for a real
+        # swap, then checks focus held, nothing announced, the slide's phrase and the dialog's reading order.
+        import a11y_matrix
+        import uiwin
+        pages = {p["name"]: p for p in json.loads((REPO / "tools" / "windows" / "journeys" / "a11y.json").read_text(encoding="utf-8"))}
+        for name, swap, ordered in (("first-run-rotation", "fade", True), ("first-run-rotation-reduced", "instant", True),
+                                    ("first-run-rotation-text", "fade", False)):
+            page = pages[name]
+            self.assertEqual(page["fixture"], ["--large-catalogue"])
+            steps = page["after_ready"]
+            status = next(i for i, s in enumerate(steps) if s.startswith("assertstatus:id=fst.first-run.demo.songs-song-list|"))
+            self.assertIn(f"swap={swap}$", steps[status])
+            self.assertLess(steps.index("listen:announcements"), status)
+            after = steps[status + 1:]
+            self.assertIn("assertfocus:name=Song List&class=FlipViewItem", after)
+            self.assertIn("assertannouncedcount:0|~.", after)
+            # The demo's artwork never reaches the control view (its rows are decorative; the slide reads as one item).
+            self.assertIn("waitgone:class=Image@2", after)
+            self.assertIn("assertread:name=Song List&class=FlipViewItem|Song List, list item, selected", after)
+            self.assertEqual(any(s.startswith("assertorder:id=fst.first-run.slides|name=Song List&class=FlipViewItem|id=fst.first-run.pips|")
+                                 for s in after), ordered)
+            for step in a11y_matrix.page_steps(page, "medium", Path("out"), "", True, 30):
+                uiwin.parse_step(step)
+        self.assertTrue(pages["first-run-rotation-reduced"]["settings"]["reduceMotion"])
+        self.assertEqual(a11y_matrix.mode_pages([pages["first-run-rotation"]], "no-animations"), [])
+        # At 200–225% text the dialog body scrolls (#244) and the pips sit below it, so the text variant drops the
+        # order step; every text size still checks the demo itself.
+        rotation = [pages[n] for n in ("first-run-rotation", "first-run-rotation-reduced", "first-run-rotation-text")]
+        for mode in ("normal", "text-150"):
+            self.assertEqual([p["name"] for p in a11y_matrix.mode_pages(rotation, mode)],
+                             ["first-run-rotation", "first-run-rotation-reduced"])
+        for mode in ("text-200", "text-225"):
+            self.assertEqual([p["name"] for p in a11y_matrix.mode_pages(rotation, mode)], ["first-run-rotation-text"])
+
 class SeenTests(unittest.TestCase):
     """Seen-state predicates and the version-bump rewrite."""
 

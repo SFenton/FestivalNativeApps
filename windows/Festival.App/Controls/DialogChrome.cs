@@ -85,6 +85,29 @@ public static class DialogChrome
         dialog.Opened += (_, _) => Apply();
     }
 
+    /// <summary>
+    /// Gives every command button Fluent's 40 epx minimum touch target (<c>FSTMinTargetSize</c>, issues #72 and #400), like
+    /// the app's other action buttons: the template's buttons are 32 epx tall, so a tap just above or below the label
+    /// missed Close. Larger text still grows them.
+    /// </summary>
+    /// <param name="dialog">Dialog, before it is shown.</param>
+    public static void CommandTargets(ContentDialog dialog)
+    {
+        var size = Application.Current?.Resources.TryGetValue("FSTMinTargetSize", out var value) == true && value is double d
+            ? d
+            : MinTargetSize;
+        void Apply()
+        {
+            foreach (var name in CommandButtons)
+                if (Find(dialog, name) is Button button) button.MinHeight = size;
+        }
+        dialog.Loaded += (_, _) => Apply();
+        dialog.Opened += (_, _) => Apply();
+    }
+
+    /// <summary>Fallback for <c>FSTMinTargetSize</c> (Styles.xaml) when the app resources are not loaded.</summary>
+    internal const double MinTargetSize = 40;
+
     /// <summary>Template part names of the dialog's command buttons.</summary>
     internal static readonly string[] CommandButtons = ["PrimaryButton", "SecondaryButton", "CloseButton"];
 
