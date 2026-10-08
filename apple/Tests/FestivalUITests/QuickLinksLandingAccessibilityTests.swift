@@ -166,6 +166,19 @@ struct QuickLinksLandingAccessibilityTests {
 
 // MARK: - The shared container: where a jump lands the heading
 
+/// The transparency setting a landing case renders with (scroll-edge R7).
+enum QuickLinksLandingTransparency: Sendable {
+    /// Neither the system's nor the app's Reduce Transparency.
+    case standard
+    /// The system Reduce Transparency setting.
+    case systemReduceTransparency
+    /// The app's own Reduce Transparency toggle (`fst.accessibility.lessTransparency`).
+    case lessTransparency
+
+    /// The page header's top edge this setting must give.
+    var expectedEdge: PageTopScrollEdge { self == .standard ? .soft : .hard }
+}
+
 /// One hosted landing case: how the page differs from the default.
 struct QuickLinksLandingCase: CustomTestStringConvertible, Sendable {
     let name: String
@@ -174,14 +187,24 @@ struct QuickLinksLandingCase: CustomTestStringConvertible, Sendable {
     /// Rows grown as at the largest accessibility text size, so one section is
     /// taller than the screen (the anchor then goes negative).
     let largestText: Bool
+    /// Reduce Transparency, which makes the page header a hard edge.
+    var transparency: QuickLinksLandingTransparency = .standard
     var testDescription: String { name }
 }
 
+/// The top-edge style the fixture's page header (`TopEdgeScrim`) resolved.
+@MainActor
+private final class PageTopEdgeReading {
+    var edge: PageTopScrollEdge?
+}
+
 /// A Settings-shaped page on the canonical container: `FestivalSectionHeader` cards
-/// in an eager stack, the Quick Links control above it, as the page tools show it.
+/// in an eager stack under the page header (`TopEdgeScrim`), the Quick Links control
+/// above it, as the page tools show it.
 private struct LandingFixturePage: View {
     let controller: QuickLinksController
     let largestText: Bool
+    var edgeReading: PageTopEdgeReading?
 
     /// (id, title, row count): short and long sections, one longer than the screen
     /// at the largest text size.
@@ -210,6 +233,10 @@ private struct LandingFixturePage: View {
                 .padding(16)
             }
             .quickLinks(controller, title: "Quick Links")
+            .modifier(TopEdgeScrim())
+            .onPreferenceChange(PageTopScrollEdgeKey.self) { edge in
+                MainActor.assumeIsolated { edgeReading?.edge = edge }
+            }
         }
         .dynamicTypeSize(largestText ? .accessibility5 : .large)
     }
@@ -223,18 +250,41 @@ extension QuickLinksLandingAccessibilityTests {
     /// taller than the screen. The last section cannot scroll that far, so it only has
     /// to be fully visible below the line (HIG Layout: system bars must not "cover
     /// controls/content"; HIG Typography: "Make sure your layout adapts to all font sizes").
+    ///
+    /// With Reduce Transparency (the system's or the app's own) the page header is a
+    /// hard edge rather than the soft blur (scroll-edge R7, #393): the same landings
+    /// hold, and the header resolves `PageTopScrollEdge.hard`, which the app's toggle
+    /// alone did not reach before #393.
     @Test(arguments: [
         QuickLinksLandingCase(name: "default", reduceMotion: false, largestText: false),
         QuickLinksLandingCase(name: "reduce motion", reduceMotion: true, largestText: false),
         QuickLinksLandingCase(name: "largest text", reduceMotion: false, largestText: true),
         QuickLinksLandingCase(name: "largest text, reduce motion", reduceMotion: true, largestText: true),
+        QuickLinksLandingCase(
+            name: "reduce transparency", reduceMotion: false, largestText: false,
+            transparency: .systemReduceTransparency
+        ),
+        QuickLinksLandingCase(
+            name: "app reduce transparency", reduceMotion: false, largestText: false,
+            transparency: .lessTransparency
+        ),
+        QuickLinksLandingCase(
+            name: "largest text, reduce transparency", reduceMotion: false, largestText: true,
+            transparency: .systemReduceTransparency
+        ),
     ])
     func jumpsLandTheHeadingWholeBelowTheTopEdge(_ landing: QuickLinksLandingCase) async throws {
         let controller = QuickLinksController()
         let size = CGSize(width: 402, height: 700)
+        let storage = UserDefaults(suiteName: "fst.tests.quick-links-landing.\(UUID().uuidString)")!
+        storage.set(landing.transparency == .lessTransparency, forKey: "fst.accessibility.lessTransparency")
+        let edgeReading = PageTopEdgeReading()
         let host = nativeHostedView(
-            LandingFixturePage(controller: controller, largestText: landing.largestText)
+            LandingFixturePage(controller: controller, largestText: landing.largestText, edgeReading: edgeReading)
                 .environment(\._accessibilityReduceMotion, landing.reduceMotion)
+                // Pinned either way: GitHub's macOS runner reports Reduce Transparency on.
+                .environment(\._accessibilityReduceTransparency, landing.transparency == .systemReduceTransparency)
+                .defaultAppStorage(storage)
                 .preferredColorScheme(.dark),
             size: size
         )
@@ -243,6 +293,7 @@ extension QuickLinksLandingAccessibilityTests {
         _ = try await nativeHostedSettle(host, untilText: ["App Settings"], timeout: .seconds(60))
         let sections = LandingFixturePage.sections
         #expect(controller.sections.map(\.title) == sections.map(\.title))
+        #expect(edgeReading.edge == landing.transparency.expectedEdge, "the page header's top edge is \(String(describing: edgeReading.edge))")
 
         let scrollView = try #require(scrollViewFrame(in: host))
         let line = QuickLinks.defaultActivationOffset
