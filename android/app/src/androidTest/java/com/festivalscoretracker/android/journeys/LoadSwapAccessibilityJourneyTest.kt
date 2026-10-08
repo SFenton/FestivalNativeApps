@@ -44,6 +44,10 @@ import java.util.concurrent.CopyOnWriteArrayList
  *   placeholder "of 1", through a Rank By switch); TalkBack reads the spinner before the pager, and the new rows before the
  *   pager once they commit. A page-only reload keeps the pinned "your score" row readable (R2, #190).
  * - The same page reload with the in-app Reduce Motion setting (R6).
+ * - Band Rankings band-size change (animations on) and Rank By change (200% text): the spinner is
+ *   one indeterminate "Loading band rankings" stop read before the pager, no stale band row stays
+ *   in the tree, the pager keeps "Page 1 of 2" with a usable Next, the pager and both pickers stay
+ *   at least 48 dp and the pickers speak their new choice; the new rows are read before the pager.
  * - Leaderboards overview Rank By change: the cards that keep loading under the spinner are silent
  *   to TalkBack (R2, #178), the spinner reads "Loading leaderboards" and Rank By its new choice.
  *
@@ -67,6 +71,8 @@ class LoadSwapAccessibilityJourneyTest {
     private val board = "fst.full-rankings"
     private val boardSpinner = "$board.loading"
     private val rowPrefix = "fst.rankings.row."
+    private val bands = "fst.band-rankings"
+    private val bandRowPrefix = "$bands.row."
     private var savedAnimatorScale: String? = null
 
     // region Helpers
@@ -160,16 +166,27 @@ class LoadSwapAccessibilityJourneyTest {
         return order
     }
 
+    /**
+     * Controls outside a paged board's swap stay readable, full size and usable while it reloads,
+     * and the pager keeps the last page count, even through a chart, band size or Rank By switch
+     * (load-transition R4; "Page 1 of 1" with a disabled Next before #431).
+     *
+     * @param prefix Board id prefix (`fst.full-rankings`, `fst.band-rankings`).
+     * @param pages The last loaded board's page count.
+     * @param menus Top-bar pickers that must stay usable.
+     */
+    private fun assertPagerKept(prefix: String, pages: Int, menus: List<String>) {
+        assertTarget("$prefix.page-previous")
+        assertTarget("$prefix.page-next", enabled = true)
+        menus.forEach { assertTarget(it, enabled = true) }
+        val info = visibleNodes("$prefix.page-info").first { it.viewIdResourceName == "$prefix.page-info" }
+        assertTrue("pager lost its page count while loading: ${info.contentDescription}", info.contentDescription?.endsWith(" of $pages") == true)
+    }
+
     /** Full Rankings spinner for a reload away from the shown row [staleRank]. */
     private fun assertBoardSpinner(screen: String, staleRank: Int) {
         assertSpinner(screen, boardSpinner, "Loading rankings", rowPrefix, rowTag(staleRank), after = "Page ")
-        // Controls stay outside the swap: readable, full size and usable, and the pager keeps the
-        // last page count, even through a Rank By switch (load-transition R4; "Page 1 of 1" before #431).
-        assertTarget("$board.page-previous")
-        assertTarget("$board.page-next", enabled = true)
-        assertTarget("fst.rankings.rank-by-menu", enabled = true)
-        val pages = visibleNodes("$board.page-info").first { it.viewIdResourceName == "$board.page-info" }
-        assertTrue("pager lost its page count while loading: ${pages.contentDescription}", pages.contentDescription?.endsWith(" of 3") == true)
+        assertPagerKept(board, pages = 3, menus = listOf("fst.rankings.rank-by-menu"))
     }
 
     /**
@@ -189,7 +206,36 @@ class LoadSwapAccessibilityJourneyTest {
         assertTrue("rows not read before the pager: $order", pager > row)
     }
 
-    private fun populationHeight(): Float = rule.onAllNodes(hasTestTag("$board.population"), useUnmergedTree = true).fetchSemanticsNodes().first().size.height.toFloat()
+    private fun populationHeight(prefix: String = board): Float = rule.onAllNodes(hasTestTag("$prefix.population"), useUnmergedTree = true).fetchSemanticsNodes().first().size.height.toFloat()
+
+    /** Band Rankings row tag for [rank] (the fixture's rank 2 includes the selected player). */
+    private fun bandRowTag(rank: Int): String {
+        val first = if (rank == 2) RankingsFixtures.SELECTED else RankingsFixtures.accountId(1000 + rank)
+        return "$bandRowPrefix$first:${RankingsFixtures.accountId(2000 + rank)}"
+    }
+
+    /** Band Rankings spinner for a reload away from row 1; the board has two pages (30 bands). */
+    private fun assertBandSpinner(screen: String) {
+        assertSpinner(screen, "$bands.loading", "Loading band rankings", bandRowPrefix, bandRowTag(1), after = "Page ")
+        assertPagerKept(bands, pages = 2, menus = listOf("$bands.band-type-menu", "$bands.rank-by-menu"))
+    }
+
+    /** Band Rankings settled on page 1: no spinner, the committed rows read before the pager. */
+    private fun assertBandsSettled(screen: String) {
+        h.waitForTag(bandRowTag(1))
+        h.waitGone("$bands.loading")
+        h.awaitAccessibilityTree(present = bandRowTag(1), absent = "$bands.loading")
+        val order = h.readingOrder(screen, fresh = true)
+        assertTrue("spinner still read after the reload: $order", order.none { it.startsWith("Loading band rankings") })
+        val row = order.indexOfFirst { it.contains("Member 1A") }
+        val pager = order.indexOfFirst { it.startsWith("Page ") }
+        assertTrue("band row 1 not read: $order", row >= 0)
+        assertTrue("rows not read before the pager: $order", pager > row)
+        assertTrue("pager count changed: $order", order[pager].startsWith("Page 1 of 2"))
+    }
+
+    /** The top-bar picker [tag]'s spoken name. */
+    private fun spoken(tag: String): String? = visibleNodes(tag).first { it.viewIdResourceName == tag }.contentDescription?.toString()
 
     // endregion
 
@@ -245,6 +291,44 @@ class LoadSwapAccessibilityJourneyTest {
         assertBoardSpinner("full-rankings-reduce-motion-loading", staleRank = 1)
         page2.complete(Unit)
         assertBoardSettled("full-rankings-reduce-motion-page-2", rank = RankingsFixtures.SELECTED_RANK)
+        h.assertAccessible()
+    }
+
+    /**
+     * Band Rankings (animations on): a band-size reload, then a Rank By reload at 200% text. Its
+     * pager count is the same view-model state as Full Rankings' (#431), so both switches keep
+     * "Page 1 of 2" and a usable Next while the new board loads.
+     */
+    @Test
+    fun bandRankingsReloadsReadOneSpinnerAndKeepThePageCount() {
+        shell("settings put global animator_duration_scale 1")
+        var scale by mutableFloatStateOf(1f)
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(route = DebugLaunch.parseRoute("bandRankings:Band_Duets"), profile = player, stillBackground = true), transport, fontScale = { scale })
+        h.waitForTag("$bands.population")
+        assertBandsSettled("band-rankings")
+        val populationAt1 = populationHeight(bands)
+
+        // Band size reload: the rows swap to the spinner; the pager and both pickers stay usable.
+        val trios = hold { it.contains("/api/rankings/bands/Band_Trios?") && !it.contains("rankBy=fcrate") }
+        h.tap("$bands.band-type-menu")
+        h.tap("$bands.band-type-menu.1")
+        assertBandSpinner("band-rankings-band-size-loading")
+        assertEquals("Band Size, Trios", spoken("$bands.band-type-menu"))
+        trios.complete(Unit)
+        assertBandsSettled("band-rankings-trios")
+
+        // 200% text: the same contract while Rank By reloads the board.
+        scale = 2f
+        rule.waitForIdle()
+        assertTrue("2.0× text did not apply", populationHeight(bands) > populationAt1 * 1.5f)
+        val fcRate = hold { it.contains("/api/rankings/bands/Band_Trios?") && it.contains("rankBy=fcrate") }
+        h.tap("$bands.rank-by-menu")
+        h.tap("$bands.rank-by-menu.2")
+        assertBandSpinner("band-rankings-rank-by-loading-2x")
+        assertEquals("Rank By, FC Rate", spoken("$bands.rank-by-menu"))
+        fcRate.complete(Unit)
+        assertBandsSettled("band-rankings-fc-rate-2x")
         h.assertAccessible()
     }
 
