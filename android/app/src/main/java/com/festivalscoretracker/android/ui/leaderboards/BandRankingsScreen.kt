@@ -68,6 +68,7 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
     val page by viewModel.page.collectAsStateWithLifecycle()
     val board by viewModel.board.collectAsStateWithLifecycle()
     val current by viewModel.displayed.collectAsStateWithLifecycle()
+    val pageCount by viewModel.pageCount.collectAsStateWithLifecycle()
     val navigate = LocalShellActions.current.navigate
     val listState = rememberLazyListState()
     // Band size, Rank By and page reloads fade the rows out, show the spinner and stagger
@@ -116,7 +117,7 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
                 }
             },
             footer = {},
-            pager = { RankingsPager(page, current?.rankings?.pageCount ?: 1, "fst.band-rankings", viewModel::goTo) },
+            pager = { RankingsPager(page, pageCount, "fst.band-rankings", viewModel::goTo) },
             // Rows fade out above the floating pager and leave touch/TalkBack beneath it (issue #116).
             fadeAboveFooter = true,
         ) {
