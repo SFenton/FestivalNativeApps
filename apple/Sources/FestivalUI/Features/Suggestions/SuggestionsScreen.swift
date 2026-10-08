@@ -143,25 +143,23 @@ struct SuggestionsScreen: View {
     // MARK: - States
 
     private var noProfile: some View {
-        ContentUnavailableView {
-            Label("No Profile Selected", systemImage: "sparkles")
-        } description: {
-            Text("Select a player to see personalized suggestions.")
-        } actions: {
+        FestivalEmptyState(
+            "No Profile Selected", systemImage: "sparkles",
+            subtitle: "Select a player to see personalized suggestions.",
+            accessibilityIdentifier: "fst.suggestions.empty"
+        ) {
             Button("Choose Profile") { openProfile() }
                 .festivalProminentButton()
                 .accessibilityIdentifier("fst.suggestions.choose-profile")
         }
-        .accessibilityIdentifier("fst.suggestions.empty")
     }
 
     private var syncing: some View {
-        ContentUnavailableView {
-            Label("Scores Syncing", systemImage: "arrow.triangle.2.circlepath")
-        } description: {
-            Text("This player's scores are still being published. Check back soon.")
-        }
-        .accessibilityIdentifier("fst.suggestions.syncing")
+        FestivalEmptyState(
+            "Scores Syncing", systemImage: "arrow.triangle.2.circlepath",
+            subtitle: "This player's scores are still being published. Check back soon.",
+            accessibilityIdentifier: "fst.suggestions.syncing"
+        )
     }
 
     /// Whether the first page is still loading (the gate shows its spinner).
@@ -192,16 +190,13 @@ struct SuggestionsScreen: View {
     }
 
     private var emptyState: some View {
-        ContentUnavailableView {
-            Label("No Suggestions", systemImage: "sparkles")
-        } description: {
-            Text(
-                viewModel.filter.isActive()
-                    ? "No suggestions match your filters."
-                    : "Play some songs to get personalized suggestions."
-            )
-        }
-        .accessibilityIdentifier("fst.suggestions.no-results")
+        FestivalEmptyState(
+            "No Suggestions", systemImage: "sparkles",
+            subtitle: viewModel.filter.isActive()
+                ? "No suggestions match your filters."
+                : "Play some songs to get personalized suggestions.",
+            accessibilityIdentifier: "fst.suggestions.no-results"
+        )
     }
 
     private var list: some View {

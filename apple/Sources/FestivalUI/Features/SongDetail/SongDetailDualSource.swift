@@ -48,23 +48,23 @@ struct SongHistoryCarouselPane: View {
     var body: some View {
         DualSourcePane("Your Score History", systemImage: "clock.arrow.circlepath", identifier: "song.history") {
             if session.selectedPlayer == nil {
-                DualSourceMessage(
+                FestivalEmptyState(
                     "No Profile Selected", systemImage: "person.crop.circle",
-                    message: "Select a player to see their score history for this song."
+                    subtitle: "Select a player to see their score history for this song."
                 ) {
                     Button("Choose Profile") { openProfile() }
                         .festivalProminentButton()
                         .accessibilityIdentifier("fst.dual.song.history.choose-profile")
                 }
             } else if session.playerLoadState == .syncing {
-                DualSourceMessage(
+                FestivalEmptyState(
                     "Scores Syncing", systemImage: "arrow.triangle.2.circlepath",
-                    message: "This player's scores are still being published. Check back soon."
+                    subtitle: "This player's scores are still being published. Check back soon."
                 )
             } else if instruments.isEmpty {
-                DualSourceMessage(
+                FestivalEmptyState(
                     "No Scores Yet", systemImage: "music.note",
-                    message: "No scores on this song for your visible instruments yet."
+                    subtitle: "No scores on this song for your visible instruments yet."
                 )
             } else {
                 HorizontalCarousel("Your Score History", items: instruments, minimumCardWidth: 300) { instrument in

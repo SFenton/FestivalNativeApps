@@ -38,9 +38,9 @@ struct RivalDualDetailPane: View {
             .id(selection)
         } else {
             DualSourcePane("Rivalry", systemImage: "person.2.fill", identifier: "rivals.detail") {
-                DualSourceMessage(
+                FestivalEmptyState(
                     "Select a Rival", systemImage: "hand.tap",
-                    message: "Choose a rival above to see where you're winning and losing."
+                    subtitle: "Choose a rival above to see where you're winning and losing."
                 )
             }
             .accessibilityIdentifier("fst.dual.rivals.placeholder")
@@ -85,9 +85,9 @@ private struct RivalDualDetailContent: View {
             case let .loaded(detail):
                 let categories = RivalCategorization.categorize(detail.songs)
                 if categories.isEmpty {
-                    DualSourceMessage(
+                    FestivalEmptyState(
                         "No Shared Songs", systemImage: "music.note.list",
-                        message: "You and this rival don't share any scored songs yet."
+                        subtitle: "You and this rival don't share any scored songs yet."
                     )
                 } else {
                     HorizontalCarousel("\(displayName) Rivalry", items: categories, minimumCardWidth: 300) { category in

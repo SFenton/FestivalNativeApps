@@ -33,9 +33,9 @@ struct LeaderboardsRankHistoryPane: View {
         ) {
             if let player {
                 if visible.instruments.isEmpty {
-                    DualSourceMessage(
+                    FestivalEmptyState(
                         "No Instruments", systemImage: "slider.horizontal.3",
-                        message: "Enable at least one instrument in Settings to see rank history."
+                        subtitle: "Enable at least one instrument in Settings to see rank history."
                     )
                 } else {
                     HorizontalCarousel("Your Rank History", items: visible.instruments, minimumCardWidth: 300) { instrument in
@@ -44,9 +44,9 @@ struct LeaderboardsRankHistoryPane: View {
                     .id(player.accountId)
                 }
             } else {
-                DualSourceMessage(
+                FestivalEmptyState(
                     "No Profile Selected", systemImage: "chart.line.uptrend.xyaxis",
-                    message: "Select a player to follow their rank on every leaderboard here."
+                    subtitle: "Select a player to follow their rank on every leaderboard here."
                 ) {
                     Button("Choose Profile") { openProfile() }
                         .festivalProminentButton()

@@ -98,9 +98,9 @@ struct SuggestionsCarouselPane: View {
 
     @ViewBuilder private var content: some View {
         if session.selectedPlayer == nil {
-            DualSourceMessage(
+            FestivalEmptyState(
                 "No Profile Selected", systemImage: "sparkles",
-                message: source == .itemShop
+                subtitle: source == .itemShop
                     ? "Select a player to see which Item Shop songs suit them."
                     : "Select a player to see personalized suggestions here."
             ) {
@@ -109,37 +109,37 @@ struct SuggestionsCarouselPane: View {
                     .accessibilityIdentifier("fst.dual.suggestions.choose-profile")
             }
         } else if source == .itemShop, hideShop {
-            DualSourceMessage(
+            FestivalEmptyState(
                 "Item Shop Hidden", systemImage: "bag",
-                message: "Turn off Hide Item Shop in Settings to see Item Shop picks."
+                subtitle: "Turn off Hide Item Shop in Settings to see Item Shop picks."
             )
         } else if session.playerLoadState == .syncing {
-            DualSourceMessage(
+            FestivalEmptyState(
                 "Scores Syncing", systemImage: "arrow.triangle.2.circlepath",
-                message: "This player's scores are still being published. Check back soon."
+                subtitle: "This player's scores are still being published. Check back soon."
             )
         } else if case let .failed(issue) = session.playerLoadState {
             retryable(issue)
         } else if case let .failed(issue) = shopGate {
             retryable(issue)
         } else if shopGate == .empty {
-            DualSourceMessage(
+            FestivalEmptyState(
                 "Item Shop Empty", systemImage: "bag",
-                message: "No Festival songs are in the Item Shop right now."
+                subtitle: "No Festival songs are in the Item Shop right now."
             )
         } else if viewModel.candidatesPaused {
-            DualSourceMessage(
+            FestivalEmptyState(
                 "Picks Paused", systemImage: "pause.circle",
-                message: "The Item Shop updated before the song list. Picks resume once Songs update."
+                subtitle: "The Item Shop updated before the song list. Picks resume once Songs update."
             )
         } else {
             switch viewModel.loadState {
             case let .failed(issue):
                 retryable(issue)
             case .loaded where categories.isEmpty && !viewModel.hasMore:
-                DualSourceMessage(
+                FestivalEmptyState(
                     "No Suggestions", systemImage: "sparkles",
-                    message: viewModel.filter.isActive()
+                    subtitle: viewModel.filter.isActive()
                         ? "No suggestions match your filters."
                         : "Play some songs to get personalized suggestions."
                 )
