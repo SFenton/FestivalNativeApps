@@ -235,13 +235,26 @@ private func barPixels(_ image: CGImage) -> (segment: Int, track: Int) {
     }
 }
 
+/// One capture of the bar: segment and track pixels plus the frame's signature.
+private typealias BarSample = (segment: Int, track: Int, signature: Int)
+
+/// A bar sampling journey's captures and the phase row VoiceOver reads.
+private struct BarJourney {
+    var samples: [BarSample] = []
+    let phase: MacAXNode
+    let reachable: [String]
+    /// Why the host was too starved for its frames to show motion, or nil when responsive.
+    var starved: String?
+}
+
 /// Host the card with an indeterminate bar under the given Reduce Motion settings and sample
-/// the bar's rect every 50 ms for `duration`, or until `stop` holds.
+/// the bar's rect every 50 ms until `done` holds, inside one `NativeHostedEvidenceDeadline`.
+/// An expired deadline is recorded (`nativeHostedRecordExpired`: a starved host is an
+/// intermittent known issue, a responsive one fails) and returns nil.
 @MainActor
-private func indeterminateBarSamples(
-    system: Bool, app: Bool, for duration: Duration, name: String,
-    stop: ([(segment: Int, track: Int, signature: Int)]) -> Bool = { _ in false }
-) async throws -> (samples: [(segment: Int, track: Int, signature: Int)], phase: MacAXNode, reachable: [String]) {
+private func indeterminateBarJourney(
+    system: Bool, app: Bool, name: String, done: ([BarSample], Duration) -> Bool
+) async throws -> BarJourney? {
     let suiteName = "fst-service-info-motion-\(UUID().uuidString)"
     let storage = try #require(UserDefaults(suiteName: suiteName))
     defer { storage.removePersistentDomain(forName: suiteName) }
@@ -263,54 +276,75 @@ private func indeterminateBarSamples(
     try await nativeHostedSettle(host, untilText: [ServiceInfoText.progressIndeterminate])
     let nodes = macAccessibilityTree(host)
     macAccessibilityDump(nodes, name: name)
-    let phase = try #require(nodes.first { $0.identifier == phaseID })
+    var journey = BarJourney(
+        phase: try #require(nodes.first { $0.identifier == phaseID }), reachable: reachableRoles(host)
+    )
     // The bar is the phase row's last 10 pt (no attempt line in this phase).
     let row = try #require(nativeHostedAccessibilityFrame(phaseID, in: host))
     let bar = CGRect(x: row.minX, y: row.maxY - 10, width: row.width, height: 10)
-    var samples: [(segment: Int, track: Int, signature: Int)] = []
-    let deadline = ContinuousClock.now + duration
-    while ContinuousClock.now < deadline, !stop(samples) {
-        let image = try nativeHostedImage(host, in: bar)
-        let pixels = barPixels(image)
-        samples.append((pixels.segment, pixels.track, nativeHostedSignature(image)))
-        try await Task.sleep(for: .milliseconds(50))
+    var deadline = NativeHostedEvidenceDeadline()
+    do {
+        try await deadline.awaitResponsiveMainActor()
+        let start = ContinuousClock.now
+        while !done(journey.samples, ContinuousClock.now - start) {
+            let image = try nativeHostedImage(host, in: bar)
+            let pixels = barPixels(image)
+            journey.samples.append((pixels.segment, pixels.track, nativeHostedSignature(image)))
+            try deadline.check("\(name) took \(journey.samples.count) bar samples")
+            try await deadline.sleep(for: .milliseconds(50))
+        }
+    } catch let expired as NativeHostedEvidenceExpired {
+        nativeHostedRecordExpired(expired)
+        return nil
     }
-    return (samples, phase, reachableRoles(host))
+    journey.starved = deadline.starved
+    return journey
 }
 
 /// Under system or in-app Reduce Motion an unknown total holds a still, empty track for
 /// longer than one 1.25 s sweep: no segment, the same frame every time, while VoiceOver
 /// still hears that the total isn't known (#22's bar; load-transition R6; HIG Accessibility
-/// "reduce automatic and repetitive animation").
+/// "reduce automatic and repetitive animation"). A still view can't look still by accident
+/// of starvation the wrong way, so the frames are judged strictly.
 @MainActor
 @Test(arguments: [(system: true, app: false), (system: false, app: true)])
 func serviceInfoIndeterminateBarHoldsStillUnderReduceMotion(setting: (system: Bool, app: Bool)) async throws {
-    let (samples, phase, reachable) = try await indeterminateBarSamples(
-        system: setting.system, app: setting.app, for: .milliseconds(1_600),
-        name: "service-info-indeterminate-reduce-motion-\(setting.system ? "system" : "app")"
-    )
-    #expect(samples.count >= 5, "too few samples: \(samples.count)")
+    let name = "service-info-indeterminate-reduce-motion-\(setting.system ? "system" : "app")"
+    guard let journey = try await indeterminateBarJourney(
+        system: setting.system, app: setting.app, name: name,
+        done: { samples, elapsed in samples.count >= 8 && elapsed >= .milliseconds(1_400) }
+    ) else { return }
+    let samples = journey.samples
     #expect(samples.allSatisfy { $0.segment == 0 }, "segment drawn: \(samples.map(\.segment))")
     #expect(samples.allSatisfy { $0.track > 0 }, "track missing: \(samples.map(\.track))")
     #expect(Set(samples.map(\.signature)).count == 1, "bar moved under Reduce Motion")
-    #expect(phase.role == "AXStaticText")
-    #expect(phase.label == ServiceInfoRows.make(try serviceInfoIndeterminateSnapshot()).phaseTitle)
-    #expect(phase.value == ServiceInfoText.progressIndeterminate)
-    #expect(progressRoles.isDisjoint(with: reachable), "\(reachable)")
+    #expect(journey.phase.role == "AXStaticText")
+    #expect(journey.phase.label == ServiceInfoRows.make(try serviceInfoIndeterminateSnapshot()).phaseTitle)
+    #expect(journey.phase.value == ServiceInfoText.progressIndeterminate)
+    #expect(progressRoles.isDisjoint(with: journey.reachable), "\(journey.reachable)")
 }
 
 /// The contrast case: with motion allowed the same bar draws the moving segment, so the
-/// still track above is Reduce Motion's doing and not a bar that never sweeps.
+/// still track above is Reduce Motion's doing and not a bar that never sweeps. Its evidence
+/// is rendered animation frames, so a starved host's frames prove nothing (`apple-ci`
+/// reruns it alone).
 @MainActor
 @Test func serviceInfoIndeterminateBarSweepsWithMotion() async throws {
-    let (samples, phase, _) = try await indeterminateBarSamples(
-        system: false, app: false, for: .seconds(10), name: "service-info-indeterminate-motion",
-        stop: { samples in
-            samples.contains { $0.segment > 0 } && Set(samples.map(\.signature)).count > 1
+    guard let journey = try await indeterminateBarJourney(
+        system: false, app: false, name: "service-info-indeterminate-motion",
+        done: { samples, _ in samples.contains { $0.segment > 0 } && Set(samples.map(\.signature)).count > 1 }
+    ) else { return }
+    #expect(journey.phase.value == ServiceInfoText.progressIndeterminate)
+    func expectSweep() {
+        #expect(journey.samples.contains { $0.segment > 0 }, "segment never drawn")
+        #expect(Set(journey.samples.map(\.signature)).count > 1, "bar never moved")
+    }
+    if let starved = journey.starved {
+        withKnownIssue("Starved host (\(starved)): its frames can't show the sweep", isIntermittent: true) {
+            expectSweep()
         }
-    )
-    #expect(samples.contains { $0.segment > 0 }, "segment never drawn: \(samples.map(\.segment))")
-    #expect(Set(samples.map(\.signature)).count > 1, "bar never moved")
-    #expect(phase.value == ServiceInfoText.progressIndeterminate)
+    } else {
+        expectSweep()
+    }
 }
 #endif
