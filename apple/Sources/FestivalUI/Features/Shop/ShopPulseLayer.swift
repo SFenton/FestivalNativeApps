@@ -52,6 +52,9 @@ enum ShopPulseShape: Equatable {
     /// SwiftUI's `RoundedRectangle(cornerRadius:style: .continuous).stroke(lineWidth:)`
     /// (half the line falls outside the frame).
     case roundedStroke(cornerRadius: CGFloat, lineWidth: CGFloat)
+    /// A centred stroke around a capsule (a pill or prominent button), like SwiftUI's
+    /// `Capsule().stroke(lineWidth:)`.
+    case capsuleStroke(lineWidth: CGFloat)
     /// A filled circle of the frame's shorter side, centred, like SwiftUI's `Circle().fill`.
     case disc
 
@@ -65,6 +68,9 @@ enum ShopPulseShape: Equatable {
             // A centred stroke's outer edge is the path offset by half the line.
             let frame = CGRect(origin: .zero, size: size).insetBy(dx: -width / 2, dy: -width / 2)
             return (frame, radius + width / 2, width)
+        case let .capsuleStroke(width):
+            let frame = CGRect(origin: .zero, size: size).insetBy(dx: -width / 2, dy: -width / 2)
+            return (frame, min(frame.width, frame.height) / 2, width)
         case .disc:
             let side = min(size.width, size.height)
             let frame = CGRect(
@@ -182,7 +188,7 @@ final class ShopPulseView: PlatformLayerHostView {
             layoutShape()
         }
         switch shape {
-        case .roundedStroke:
+        case .roundedStroke, .capsuleStroke:
             shapeLayer.backgroundColor = nil
             shapeLayer.borderColor = color
         case .disc:

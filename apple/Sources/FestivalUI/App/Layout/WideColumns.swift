@@ -9,9 +9,10 @@ import SwiftUI
 /// Split View or Stage Manager windows).
 ///
 /// Rows flow row-major (left then right, then down) under full-width section headers;
-/// a short last row keeps its card at column width. Rows draw through ``HingeRow`` with
-/// ``HingeRow/Hinge/page``, so on iPhone Duo the gutter sits on the hinge whether the
-/// display is flat or folded (`.agents/patterns/wide-columns.md`).
+/// a short last row keeps its card at column width. Rows draw through ``HingeRow``,
+/// so on iPhone Duo the gutter sits on the hinge in book pose
+/// and at the midpoint of the free space when flat (owner #361,
+/// `.agents/patterns/wide-columns.md`).
 ///
 /// HIG Layout: "Choose layout from size classes, not device type/idiom or orientation"
 /// (the size classes and measured width gate it; landscape-only is the owner's explicit
@@ -243,7 +244,7 @@ struct WideColumnsRow<Content: View>: View {
 
     var body: some View {
         if columns > 1 {
-            HingeRow(spacing: WideColumns.spacing, hinge: .page) {
+            HingeRow(spacing: WideColumns.spacing) {
                 content
                 ForEach(count..<max(count, columns), id: \.self) { _ in
                     Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
@@ -289,7 +290,8 @@ private struct WideColumnsCountModifier: ViewModifier {
 /// column-major columns balanced by height in wide landscape (pattern `wide-columns`
 /// R7, agent decision #355). Reading order stays top to bottom, then the next column,
 /// so VoiceOver, Quick Links and the load-in stagger keep the one-column sequence. The
-/// columns meet at the iPhone Duo hinge like ``HingeRow`` (R3). One view for both
+/// columns meet at the iPhone Duo book-pose hinge like ``HingeRow`` (R3; flat, at the
+/// free space's midpoint, owner #361). One view for both
 /// counts, so rotating reflows the same sections in place (R4).
 struct WideColumnStack<Content: View>: View {
     private let columns: Int

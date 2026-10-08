@@ -516,7 +516,7 @@ struct SongRowView: View {
     /// splits the panel row at; nil without a fold through it.
     private var panelFoldBand: HingeBand? {
         HingeColumns.band(
-            span: rowSpan, fold: deviceLayout.foldFrame, gutter: SongProfilePanelPolicy.gap,
+            span: rowSpan, fold: deviceLayout.splitHinge, gutter: SongProfilePanelPolicy.gap,
             minimumSide: HingeColumns.minimumSide
         )
     }

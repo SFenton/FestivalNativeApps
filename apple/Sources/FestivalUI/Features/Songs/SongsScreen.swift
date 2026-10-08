@@ -1538,7 +1538,7 @@ struct SongsScreen: View, Equatable {
     private func songGridRow(
         _ songs: [Song], columns: Int, catalogueObservation: Int, fadeOrder: [String: Int]
     ) -> some View {
-        HingeRow(spacing: SongGridPolicy.spacing, hinge: .page) {
+        HingeRow(spacing: SongGridPolicy.spacing) {
             ForEach(songs) { song in
                 songCell(
                     for: song, catalogueObservation: catalogueObservation,

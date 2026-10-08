@@ -98,24 +98,22 @@ private enum Windows {
 
 // MARK: - Hinge
 
-/// On a flat inner display the page hinge is the window's middle, so two columns meet
-/// there (R3) even with the vertical bar's inset on one side; the fold-only hinge
-/// keeps equal cells while flat.
-@Test func wideColumnsMeetAtTheFlatDuoHinge() throws {
+/// On a flat inner display there is no page hinge (owner #361), so two columns are
+/// equal and meet at the midpoint of the free space beside the vertical bar (R3), not
+/// at the window's middle.
+@Test func wideColumnsMeetAtTheFreeSpaceMidpointOnTheFlatDuo() throws {
     let layout = Windows.duoInnerLandscape
     // A row inside the 16 pt list insets, left of the 84 pt vertical bar.
     let span = HorizontalSpan(minX: 16, maxX: 951 - 84 - 16)
-    let hinge = try #require(layout.splitHinge)
-    let band = try #require(HingeColumns.band(
-        span: span, fold: hinge, gutter: WideColumns.spacing, minimumSide: HingeColumns.minimumSide
-    ))
+    #expect(layout.splitHinge == nil && layout.foldFrame == nil)
+    let band = HingeColumns.band(
+        span: span, fold: layout.splitHinge, gutter: WideColumns.spacing, minimumSide: HingeColumns.minimumSide
+    )
+    #expect(band == nil)
     let cells = HingeRowLayout(spacing: WideColumns.spacing, band: band).cells(width: span.width, count: 2)
     let gutterMid = span.minX + (cells[0].x + cells[0].width + cells[1].x) / 2
-    #expect(abs(gutterMid - 951 / 2) < 0.5)
-    #expect(layout.foldFrame == nil)
-    #expect(HingeColumns.band(
-        span: span, fold: layout.foldFrame, gutter: WideColumns.spacing, minimumSide: HingeColumns.minimumSide
-    ) == nil)
+    #expect(abs(gutterMid - (951 - 84) / 2) < 0.5)
+    #expect(abs(cells[0].width - cells[1].width) < 0.5)
 }
 
 /// In book pose both hinges are the fold, so the columns straddle it.

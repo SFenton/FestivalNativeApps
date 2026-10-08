@@ -160,18 +160,22 @@ private func pagerSpan(width: CGFloat, layout: DeviceLayout) async throws -> Clo
 }
 
 /// Unfolded in landscape the pager sits whole on the screen beside the trailing
-/// vertical bar, clear of the hinge (issue #345); elsewhere it stays centred.
+/// vertical bar (issue #345): beyond the free space's midpoint flat (owner #361), where
+/// the board's columns meet; elsewhere it stays centred.
 @MainActor
 @Test func pagerMovesBesideTheVerticalBarWhenUnfolded() async throws {
     let unfolded = DeviceLayout.resolve(LayoutSignals(
         size: CGSize(width: 951, height: 669), widthClass: .regular,
+        safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 21, trailing: 71),
         verticalBarEdge: .trailing, hinge: .fullyOpen
     ))
-    let hinge = try #require(unfolded.splitHinge)
+    #expect(unfolded.splitHinge == nil)
+    let divide = try #require(unfolded.screenDivide())
+    #expect(divide.minX == 440)
     let moved = try await pagerSpan(width: 880, layout: unfolded)
-    #expect(moved.lowerBound > hinge.maxX, "pager \(moved) overlaps the hinge at \(hinge.minX)")
-    // Centred on the trailing screen (475.5…880), within a point or two.
-    #expect(abs((moved.lowerBound + moved.upperBound) / 2 - (hinge.maxX + 880) / 2) <= 2)
+    #expect(moved.lowerBound > divide.maxX, "pager \(moved) crosses the free-space midline at \(divide.minX)")
+    // Centred on the trailing screen (440…880), within a point or two.
+    #expect(abs((moved.lowerBound + moved.upperBound) / 2 - (divide.maxX + 880) / 2) <= 2)
 
     let centred = try await pagerSpan(width: 880, layout: .standardPhone)
     #expect(abs((centred.lowerBound + centred.upperBound) / 2 - 440) <= 2)
