@@ -36,7 +36,7 @@ FestivalScreen(title, isRoot, actions = { QuickLinksAction(quickLinks, windowWid
 
 | Page | Status |
 |---|---|
-| Settings | Done: `app-settings`, `diagnostics` (debug), `item-shop`, `show-instruments`, `show-metadata`, `accessibility` (native), `version`, `service-info`, `first-run`, `licenses`, `privacy-policy`, `reset` (no `refresh-profile-name`/`export` rows) |
+| Settings | Done: `app-settings`, `item-shop`, `show-instruments`, `show-metadata`, `accessibility` (native), `version`, `service-info`, `first-run`, `licenses`, `privacy-policy`, `reset` (no `refresh-profile-name`/`export` rows; no `diagnostics`, the section is gone in every build, #374) |
 | Player / Statistics | Done: `global` "Global Statistics", `instrument:<wire>` per visible chart, `top-songs`, `bands` (staggered grid; with a separating hinge the grid splits at the fold and Quick Links stay in the top bar instead of taking a panel) |
 | Songs | Done: sort buckets (`<webId>:<token>`, e.g. `duration:lt2`, `shop:in-shop`, `hasfc:fc`) for every sort except Title/Artist/Year, which keep the section index (as iPhone) |
 | Song Detail (pushed page only) | Done: `intensity`, `score-history` (only when the page shows the card: one `showHistory` flag feeds `SongDetailLayout.items` and `.quickLinks`), `instrument-<wire>` per visible chart, `band-<wire>` per band size |
