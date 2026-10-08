@@ -287,6 +287,91 @@ final class SongsChromeJourneyTests: XCTestCase {
         )
     }
 
+    /// Issue #391 (#10's fade): rows fade out under the floating section title on iOS 26.
+    /// At the largest accessibility text size the title grows with Dynamic Type and stays
+    /// the named element over the list, the rows crossing the fade under it stay named
+    /// buttons, the first row below the fade stays hittable, and Songs passes the system
+    /// accessibility audit while scrolled under the bar. The hosted macOS tests
+    /// (`SongsSectionBarAccessibilityTests`) cover heading order and the hard edge;
+    /// `--a11y increase-contrast` / `reduce-transparency` run this with the hard edge.
+    ///
+    /// Needs the large fixture like the tests above (skips otherwise).
+    @MainActor
+    func testSectionBarFadeAtLargestTextKeepsRowsNamedAndPassesTheAudit() throws {
+        guard #available(iOS 26.0, *) else {
+            throw XCTSkip("The floating section bar and its fade need iOS 26.")
+        }
+        continueAfterFailure = false
+        let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"]
+            ?? "http://127.0.0.1:8765"
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": base,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_STILL_BACKGROUND": "1",
+        ])
+        let sectionBar = app.staticTexts["fst.songs.section-bar"]
+        let list = app.descendants(matching: .any)["fst.songs.list"]
+        func rowSnapshots() -> [XCUIElementSnapshot] {
+            func rows(_ node: XCUIElementSnapshot) -> [XCUIElementSnapshot] {
+                (node.identifier.hasPrefix("fst.songs.row.") ? [node] : [])
+                    + node.children.flatMap(rows)
+            }
+            return ((try? list.snapshot()).map(rows)) ?? []
+        }
+        /// Launch at a text size, jump to C with the rail and drag rows under the bar.
+        func scrolledUnderTheBar(_ size: UIContentSizeCategory) throws -> CGRect {
+            app.launchArguments = ["-UIPreferredContentSizeCategoryName", size.rawValue]
+            app.launch()
+            XCTAssertTrue(list.waitForExistence(timeout: 15))
+            let rail = app.descendants(matching: .any)
+                .matching(identifier: "fst.songs.section-index").firstMatch
+            guard rail.waitForExistence(timeout: 5),
+                  rail.staticTexts.matching(NSPredicate(format: "label == 'C'")).firstMatch.exists
+            else {
+                throw XCTSkip("Catalogue lacks the A–Z sections; use mock_service.py --large-catalogue.")
+            }
+            // As in the rail journey below, the first tap after launch only wakes the rail.
+            for letter in ["#", "C"] {
+                rail.staticTexts.matching(NSPredicate(format: "label == %@", letter)).firstMatch.tap()
+            }
+            let landed = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "exists == true AND label == 'C'"), object: sectionBar
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [landed], timeout: 5), .completed,
+                           "Section title reads '\(sectionBar.label)', not C")
+            let start = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -60)))
+            XCTAssertEqual(sectionBar.label, "C")
+            return sectionBar.frame
+        }
+
+        let standardBar = try scrolledUnderTheBar(.large)
+        app.terminate()
+        let largeBar = try scrolledUnderTheBar(.accessibilityExtraExtraExtraLarge)
+        XCTAssertGreaterThan(
+            largeBar.height, standardBar.height * 1.5,
+            "Section title did not grow with Dynamic Type: \(standardBar) → \(largeBar)"
+        )
+        // The fade runs 40 pt below the title (`PinnedHeaderEdgeFade.height`).
+        let fade = CGRect(x: 0, y: largeBar.maxY, width: app.windows.firstMatch.frame.width, height: 40)
+        let rows = rowSnapshots()
+        let faded = rows.filter { $0.frame.intersects(fade) }
+        XCTAssertFalse(faded.isEmpty, "No row crosses the fade under \(largeBar)")
+        for row in faded {
+            XCTAssertEqual(row.elementType, .button, row.identifier)
+            XCTAssertFalse(row.label.isEmpty, "\(row.identifier) is unnamed")
+        }
+        let below = try XCTUnwrap(
+            rows.filter { $0.frame.minY >= fade.maxY }.min { $0.frame.minY < $1.frame.minY },
+            "No row below the fade"
+        )
+        XCTAssertTrue(app.buttons[below.identifier].isHittable, "\(below.identifier) not reachable")
+        XCTAssertGreaterThanOrEqual(below.frame.height, 44)
+        try app.performAccessibilityAudit(for: .all) { issue in
+            SongsUITestSupport.isSystemSearchPlaceholderContrast(issue)
+        }
+    }
+
     /// Issue #9: a far A–Z rail jump (# → P) showed Q's songs, or P's songs under a "Q"
     /// or "B" section bar, and re-tapping the same letter after scrolling did nothing.
     /// Every tap must land the letter's title on the landing line under the navigation
