@@ -71,7 +71,7 @@ iPadOS decides the size class; the app never checks a width for the shell (layou
 | Songs → Song Detail | Full width, two cards per row under each header; Song Detail pushes full width, its full boards and score history open in the trailing half | One card per row; everything pushes | iPhone tabs, drawer |
 | Leaderboards → Full/Band Rankings → Player/Band | Overview and rankings full width; a player or band opens in the trailing half | Push | iPhone (Compete slot) |
 | Rivals → Rival Detail | Rivals full width; a rival opens in the trailing half (Rivalry pushes inside it) | Push | iPhone (Compete) |
-| Settings → Licenses | Licenses opens in the trailing half | Push | iPhone |
+| Settings → topic or Licenses | The list stays on the left; with nothing selected, the right half shows the Settings placeholder. A chevron row opens its topic or Licenses there ([split-panes](../../patterns/split-panes.md) R6, #371) | Push | iPhone |
 | Statistics, Item Shop, Suggestions, Compete | Full width, existing adaptive grids | Same | iPhone |
 
 ## Menu bar
