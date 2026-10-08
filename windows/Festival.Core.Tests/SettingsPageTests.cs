@@ -46,7 +46,10 @@ public class SettingsPageTests
     {
         var (vm, store, _) = Create();
         Assert.Equal(8, vm.SongRowOrder.Count);
-        Assert.Equal("Score · Percentage · Percentile · Season Achieved · Intensity · Difficulty · Stars · Last Played", vm.VisualOrderSummary);
+        Assert.Equal("Score · Percentage · Percentile · Stars · Season Achieved · Song Intensity · Difficulty · Last Played", vm.VisualOrderSummary);
+        Assert.Equal(["Score", "Percentage", "Percentile", "Season Achieved", "Intensity", "Difficulty", "Stars", "Last Played"],
+            vm.Metadata.Select(m => m.Label));
+        Assert.Equal("Song Intensity", vm.SongRowOrder[5].Label);
         Assert.Equal("Note · Beat · Time · OD · Score", vm.PathColumnSummary);
         var first = vm.SongRowOrder[0];
         Assert.Equal(("Score", "1", "Score, position 1 of 8", "fst.settings.song-row-order.score"), (first.Label, first.Position, first.AccessibleName, first.AutomationId));

@@ -158,12 +158,9 @@ public sealed record SongMetadataField(MetadataField Kind, string Text, string A
 /// <summary>Builds the icons-off / single-chart selected-player metadata row.</summary>
 public static class SongMetadataPolicy
 {
-    /// <summary>Web <c>DEFAULT_METADATA_ORDER</c> (used unless Settings enables a custom visual order).</summary>
-    public static IReadOnlyList<MetadataField> DefaultOrder { get; } =
-    [
-        MetadataField.Score, MetadataField.Percentage, MetadataField.Percentile, MetadataField.Stars,
-        MetadataField.Season, MetadataField.Intensity, MetadataField.Difficulty, MetadataField.LastPlayed,
-    ];
+    /// <summary>Web <c>DEFAULT_METADATA_ORDER</c> (used unless Settings enables a custom visual order): the
+    /// <see cref="MetadataField"/> declaration order, also the default Song Row Visual Order.</summary>
+    public static IReadOnlyList<MetadataField> DefaultOrder { get; } = SettingsOrder.Normalize<MetadataField>(null);
 
     /// <summary>Game difficulty names 0–3.</summary>
     public static IReadOnlyList<string> DifficultyNames { get; } = ["Easy", "Medium", "Hard", "Expert"];

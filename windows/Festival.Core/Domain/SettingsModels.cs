@@ -1,7 +1,11 @@
 namespace Festival.Core.Domain;
 
 #region Metadata fields
-/// <summary>The eight independently visible Song-row metadata fields (web <c>SongRowVisualKey</c>).</summary>
+/// <summary>
+/// The eight independently visible Song-row metadata fields (web <c>SongRowVisualKey</c>). Declaration order is the web
+/// <c>DEFAULT_METADATA_ORDER</c> (the default Song Row Visual Order, issue #372); the Show Instrument Metadata switches use
+/// <see cref="SettingsLabels.ToggleOrder"/>. Persisted by name, so the order is not a storage format.
+/// </summary>
 public enum MetadataField
 {
     /// <summary>Best score.</summary>
@@ -10,14 +14,14 @@ public enum MetadataField
     Percentage,
     /// <summary>Leaderboard percentile.</summary>
     Percentile,
+    /// <summary>Stars.</summary>
+    Stars,
     /// <summary>Season achieved.</summary>
     Season,
     /// <summary>Chart intensity meter.</summary>
     Intensity,
     /// <summary>Game difficulty played.</summary>
     Difficulty,
-    /// <summary>Stars.</summary>
-    Stars,
     /// <summary>Last played date.</summary>
     LastPlayed,
 }
@@ -49,6 +53,13 @@ public enum PathDisplayMode
 /// <summary>Labels for settings enums.</summary>
 public static class SettingsLabels
 {
+    /// <summary>Show Instrument Metadata switch order (web <c>METADATA_TOGGLES</c>).</summary>
+    public static IReadOnlyList<MetadataField> ToggleOrder { get; } =
+    [
+        MetadataField.Score, MetadataField.Percentage, MetadataField.Percentile, MetadataField.Season,
+        MetadataField.Intensity, MetadataField.Difficulty, MetadataField.Stars, MetadataField.LastPlayed,
+    ];
+
     /// <summary>Title Case label (web <c>settings.en.json</c> / Apple <c>MetadataField.label</c>).</summary>
     /// <param name="field">Field.</param>
     /// <returns>Label.</returns>
@@ -63,6 +74,11 @@ public static class SettingsLabels
         MetadataField.Stars => "Stars",
         _ => "Last Played",
     };
+
+    /// <summary>Song Row Visual Order row title (web <c>METADATA_SORT_DISPLAY</c>; Apple <c>reorderLabel</c>).</summary>
+    /// <param name="field">Field.</param>
+    /// <returns>"Song Intensity" for <see cref="MetadataField.Intensity"/>, else <see cref="Label(MetadataField)"/>.</returns>
+    public static string ReorderLabel(this MetadataField field) => field == MetadataField.Intensity ? "Song Intensity" : field.Label();
 
     /// <summary>Column header shared by the Paths text table and its Settings reorder row.</summary>
     /// <param name="column">Column.</param>

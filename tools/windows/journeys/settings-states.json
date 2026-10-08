@@ -3,6 +3,7 @@
     "name": "settings-expanded",
     "tab": "settings",
     "profile": "fixture-player-1:Demo Player",
+    "sizes": ["compact", "medium"],
     "settings": {"enableVisualOrder": true, "filterInvalidScores": true, "hideShop": true},
     "ready": [
       "waitfor:id=fst.settings.show-instrument-icons@20"
@@ -37,7 +38,7 @@
     "name": "settings-keyboard",
     "tab": "settings",
     "tabs": 0,
-    "sizes": ["compact", "wide"],
+    "sizes": ["compact", "medium"],
     "ready": [
       "waitfor:id=fst.settings.show-instrument-icons@20"
     ],
