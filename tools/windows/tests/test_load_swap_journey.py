@@ -147,6 +147,17 @@ class LoadSwapJourneyTests(unittest.TestCase):
         self.assertTrue(all(p.get("fixture") for p in _PAGES))
         self.assertEqual(m.live_pages(_PAGES), [])
 
+    def test_every_page_ends_on_a_row_for_the_ci_scan(self):
+        # ui_ci.py runs every page with --scan (#431 review), so the 225% text and motion pages end on a row too: a
+        # focused pager button's tooltip would trip Axe's framework-popup finding (open issue 8).
+        for page in _PAGES:
+            if page["name"] == "load-swap-leaderboards":
+                continue  # ends on the Rank By menu after it closes; no pager on the overview
+            with self.subTest(page=page["name"]):
+                steps = page["after_ready"]
+                self.assertTrue(steps[-2].startswith("focus:id=") and ".row." in steps[-2], steps[-2])
+                self.assertEqual(steps[-1], "wait:1")
+
 
 if __name__ == "__main__":
     unittest.main()
