@@ -1520,6 +1520,14 @@
           {
             "path": "apple/Sources/FestivalUI/Common/PageTitle.swift",
             "symbol": "festivalNavigationTitle"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/FirstRunMotion.swift",
+            "symbol": "FirstRunMotion"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/FirstRun/Demo/FirstRunDemoSupport.swift",
+            "symbol": "firstRunStagger"
           }
         ],
         "android": [
@@ -1750,7 +1758,8 @@
         177,
         304,
         316,
-        323
+        323,
+        380
       ]
     },
     {
