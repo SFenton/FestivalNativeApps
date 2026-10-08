@@ -6,8 +6,9 @@ namespace Festival.Core.ViewModels;
 
 #region Shop page
 /// <summary>
-/// Item Shop page: title-sorted offers with New / Leaving Tomorrow badges, official links and in-app Song Detail
-/// links for validated catalogue songs. A genuine empty feed and a failed read are never interchangeable.
+/// Item Shop page: offers in the saved Title / Artist / Year / Duration order (<see cref="ShopOfferSort"/>) with New /
+/// Leaving Tomorrow badges, official links and in-app Song Detail links for validated catalogue songs. A genuine empty
+/// feed and a failed read are never interchangeable.
 /// </summary>
 public sealed partial class ShopViewModel : ObservableObject
 {
@@ -21,6 +22,12 @@ public sealed partial class ShopViewModel : ObservableObject
         Status = new ServiceStatusViewModel("shop", "Item Shop unavailable", () => LoadAsync(force: true), session.Time);
         session.PropertyChanged += OnSessionChanged;
         session.PublicationAdvanced += (_, _) => _ = LoadAsync(force: true);
+        SortDraft = SongSortDraft.ForShop(session);
+        // Like Songs, the Sort flyout applies live: every change (and Reset) commits at once; no Cancel/Apply.
+        SortDraft.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SongSortDraft.CanApply) && SortDraft.IsLive && SortDraft.CanApply) ApplySort();
+        };
         FilterRows =
         [
             new("New", "Songs that are new in the Item Shop today.", "fst.shop.filter.new", () => Filter.New, v => SetFilter(Filter with { New = v })),
@@ -34,12 +41,15 @@ public sealed partial class ShopViewModel : ObservableObject
     /// <summary>Failed-read presentation.</summary>
     public ServiceStatusViewModel Status { get; }
 
+    /// <summary>Sort flyout draft (the Songs Sort form with <see cref="ShopOfferSort.Modes"/>).</summary>
+    public SongSortDraft SortDraft { get; }
+
     /// <summary>Load lifecycle.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsLoading), nameof(ShowOffers), nameof(ShowEmpty), nameof(ShowError), nameof(ShowGrid), nameof(ShowList), nameof(ShowNoMatches), nameof(CanToggleView))]
     private LoadState state = LoadState.Idle;
 
-    /// <summary>Offers in title order that pass <see cref="Filter"/>.</summary>
+    /// <summary>Offers in the saved sort order that pass <see cref="Filter"/>.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowNoMatches))]
     private List<ShopOfferItem> offers = [];
@@ -110,6 +120,18 @@ public sealed partial class ShopViewModel : ObservableObject
     /// </summary>
     public string FilterStatus => IsFilterActive ? "Filters applied" : "";
 
+    /// <summary>Whether a non-default sort is applied (gold Sort button, like Songs).</summary>
+    public bool IsSortChanged => session.Settings.ShopSort != SongSortMode.Title || !session.Settings.ShopSortAscending;
+
+    /// <summary>Applied sort label, e.g. "Title ↑".</summary>
+    public string SortSummary => session.Settings.ShopSort.Label() + (session.Settings.ShopSortAscending ? " ↑" : " ↓");
+
+    /// <summary>
+    /// Applied sort in words for UI Automation help text, e.g. "Title, ascending" (the button's name stays "Sort Item
+    /// Shop", so screen readers would otherwise not hear <see cref="SortSummary"/>'s arrow label).
+    /// </summary>
+    public string SortDescription => session.Settings.ShopSort.Label() + (session.Settings.ShopSortAscending ? ", ascending" : ", descending");
+
     /// <summary>The feed has offers but the filter hides them all ("No Matching Songs", never the empty-Shop card).</summary>
     public bool ShowNoMatches => ShowOffers && Offers.Count == 0;
 
@@ -172,6 +194,11 @@ public sealed partial class ShopViewModel : ObservableObject
         OnPropertyChanged(nameof(ToggleLabel));
     }
 
+    /// <summary>Saves the sort draft (the settings change re-projects both layouts).</summary>
+    [RelayCommand]
+    private void ApplySort() =>
+        session.UpdateSettings(s => s with { ShopSort = SortDraft.Mode, ShopSortAscending = SortDraft.Ascending });
+
     /// <summary>Shows every offer again (Reset in the flyout, Reset Filters on the no-match notice).</summary>
     [RelayCommand]
     private void ResetFilter() => SetFilter(new());
@@ -192,7 +219,8 @@ public sealed partial class ShopViewModel : ObservableObject
     private void Project(ShopResponse feed)
     {
         var settings = session.Settings;
-        var sorted = feed.SortedSongs();
+        var sorted = ShopOfferSort.Sort(feed.Songs, settings.ShopSort, settings.ShopSortAscending,
+            id => session.FindSong(id)?.DurationSeconds);
         totalOffers = sorted.Count;
         Offers = [.. sorted.Where(Filter.Matches).Select(offer => new ShopOfferItem(
             offer,
@@ -203,7 +231,7 @@ public sealed partial class ShopViewModel : ObservableObject
         State = totalOffers == 0 ? LoadState.Empty : LoadState.Loaded;
     }
 
-    /// <summary>Re-projects on highlight/visibility changes.</summary>
+    /// <summary>Re-projects on highlight, visibility and sort changes.</summary>
     /// <param name="sender">Session.</param>
     /// <param name="e">Changed property.</param>
     private void OnSessionChanged(object? sender, PropertyChangedEventArgs e)
@@ -213,6 +241,9 @@ public sealed partial class ShopViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowGrid));
         OnPropertyChanged(nameof(ShowList));
         OnPropertyChanged(nameof(ToggleLabel));
+        OnPropertyChanged(nameof(IsSortChanged));
+        OnPropertyChanged(nameof(SortSummary));
+        OnPropertyChanged(nameof(SortDescription));
         if (IsHidden) State = LoadState.Idle;
         else if (session.Shop is { } feed) Project(feed);
         else _ = LoadAsync();
