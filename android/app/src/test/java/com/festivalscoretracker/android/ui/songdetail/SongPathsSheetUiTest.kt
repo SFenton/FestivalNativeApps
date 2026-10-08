@@ -534,6 +534,66 @@ class SongPathsSheetUiTest {
 
     private fun bounds(tag: String) = rule.onNodeWithTag(tag).fetchSemanticsNode().boundsInWindow
 
+    /**
+     * Issue #289 (tracker #384): the half-open sheet keeps its accessibility on its side of the
+     * hinge. "Paths" is a heading and Close a labelled 48 dp button, both before the hinge; the
+     * first card is one spoken stop; each control is a labelled button with its Expanded/Collapsed
+     * state and a 48 dp+ target; and the layout gives TalkBack's top-to-bottom, start-to-end
+     * order heading → cards → controls (Instrument, Difficulty, View; Difficulty first when the
+     * row stacks).
+     *
+     * @param hinge The hinge's x position in window pixels.
+     * @param config Configuration name for messages.
+     */
+    private fun assertHalfOpenAccessible(hinge: Float, config: String) {
+        val heading = rule.onNode(isHeading() and hasText("Paths")).fetchSemanticsNode().boundsInWindow
+        assertTrue("$config: heading before the hinge", heading.right <= hinge)
+        rule.onNodeWithTag("fst.paths.close").assertTouchHeightIsEqualTo(48.dp).assertTouchWidthIsEqualTo(48.dp)
+        assertEquals("$config: Close label", "Close", description("fst.paths.close"))
+        assertEquals("$config: Close role", Role.Button, rule.onNodeWithTag("fst.paths.close").fetchSemanticsNode().config.getOrNull(SemanticsProperties.Role))
+        assertTrue("$config: Close before the hinge", bounds("fst.paths.close").right <= hinge)
+        assertTrue("$config: card is one spoken stop", description("fst.paths.row.1").startsWith("Activation 1: frets "))
+        val labels = mapOf("fst.paths.instrument.open" to "Instrument: Lead", "fst.paths.difficulty.open" to "Difficulty: Expert", "fst.paths.display.open" to "View: Text")
+        labels.forEach { (tag, label) ->
+            val node = rule.onNodeWithTag(tag).fetchSemanticsNode().config
+            assertEquals("$config: $tag label", label, description(tag))
+            assertEquals("$config: $tag role", Role.Button, node.getOrNull(SemanticsProperties.Role))
+            assertEquals("$config: $tag state", "Collapsed", node.getOrNull(SemanticsProperties.StateDescription))
+            assertTrue("$config: $tag target", heightDp(tag) >= 48f)
+            assertTrue("$config: $tag before the hinge", bounds(tag).right <= hinge)
+        }
+        val card = bounds("fst.paths.row.1")
+        val instrument = bounds("fst.paths.instrument.open")
+        val difficulty = bounds("fst.paths.difficulty.open")
+        val display = bounds("fst.paths.display.open")
+        assertTrue("$config: heading above the cards", heading.bottom <= card.top)
+        assertTrue("$config: cards above the controls", card.top < bounds("fst.paths.selectors").top)
+        if (count("fst.paths.selectors.stacked") == 0) {
+            assertTrue("$config: Instrument, Difficulty, View in one row", instrument.right <= difficulty.left && difficulty.right <= display.left)
+        } else {
+            assertTrue("$config: Difficulty above Instrument and View", difficulty.bottom <= instrument.top && instrument.right <= display.left)
+        }
+    }
+
+    /**
+     * The open difficulty panel on a half-open fold: four 48 dp radio buttons before the hinge,
+     * Expert selected.
+     *
+     * @param hinge The hinge's x position in window pixels.
+     * @param config Configuration name for messages.
+     */
+    private fun assertDifficultyOptionsAccessible(hinge: Float, config: String) {
+        assertEquals("$config: panel open", "Expanded", state("fst.paths.difficulty.open"))
+        listOf("easy", "medium", "hard", "expert").forEach {
+            val tag = "fst.paths.difficulty.$it"
+            val option = rule.onNodeWithTag(tag).fetchSemanticsNode().config
+            assertEquals("$config: $it role", Role.RadioButton, option.getOrNull(SemanticsProperties.Role))
+            assertEquals("$config: $it selected", it == "expert", option.getOrNull(SemanticsProperties.Selected))
+            assertTrue("$config: $it target", heightDp(tag) >= 48f)
+            assertTrue("$config: $it before the hinge", bounds(tag).right <= hinge)
+        }
+    }
+
     @Test
     @Config(qualifiers = "w852dp-h883dp-xhdpi")
     fun halfOpenBookPostureKeepsPathAndControlsOffTheHinge() {
@@ -549,8 +609,10 @@ class SongPathsSheetUiTest {
         assertTrue("controls end before the hinge", bounds("fst.paths.selectors").right <= hinge)
         assertEquals("the ~426 dp half keeps one control row", 0, count("fst.paths.selectors.stacked"))
         assertEquals("Expert stays on one line", 1, difficultyLines())
+        assertHalfOpenAccessible(hinge, "half-open 100%")
         click("fst.paths.difficulty.open")
         waitForTag("fst.paths.difficulty.easy")
+        assertDifficultyOptionsAccessible(hinge, "half-open 100%")
         listOf("easy", "medium", "hard", "expert").forEach { assertTrue("$it before the hinge", bounds("fst.paths.difficulty.$it").right <= hinge) }
         click("fst.paths.difficulty.open")
         click("fst.paths.display.open")
@@ -581,6 +643,10 @@ class SongPathsSheetUiTest {
         rule.waitUntil(10_000) { settle(100); bounds("fst.song-detail.paths").right <= hinge }
         assertTrue("row ends before the hinge", bounds("fst.paths.row.1").right <= hinge)
         assertTrue("controls end before the hinge", bounds("fst.paths.selectors").right <= hinge)
+        assertHalfOpenAccessible(hinge, "half-open 200%")
+        click("fst.paths.difficulty.open")
+        waitForTag("fst.paths.difficulty.easy")
+        assertDifficultyOptionsAccessible(hinge, "half-open 200%")
     }
 
     // endregion
