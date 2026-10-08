@@ -15,10 +15,57 @@ import Testing
 // platform, since the gate is the same SwiftUI on iPhone, iPad, iPhone Duo and Mac:
 // one named spinner and no stale rows while loading, selectors that stay named, selected
 // and pressable outside the gate, a retained header that stays readable, visual reading
-// order after the reveal, the same at AX5, and Reduce Motion's instant swap that still
+// order after the reveal, 44 pt selector targets, text that grows whole at AX5 with the
+// selectors still reachable and operable, and Reduce Motion's instant swap that still
 // holds the spinner for its minimum (pattern `load-transition` R2, R4, R6).
 
 // MARK: - Fixture
+
+/// Fixture text at the iOS Dynamic Type point size for the environment's size.
+///
+/// HIG Typography: "macOS doesn't support Dynamic Type", so on this macOS host a text
+/// style (and `@ScaledMetric`) renders the same at AX5 as at Large. The fixture reads the
+/// environment's `dynamicTypeSize` **where it is drawn** (inside the gate for the header
+/// and rows) and applies the HIG's iOS size table, so a gate that clamped Dynamic Type
+/// or clipped its grown content fails the measured glyph growth here, as it would on
+/// iPhone and iPad.
+struct ReloadGateA11yText: View {
+    /// The iOS text style the fixture stands in for.
+    enum Style {
+        /// Title 2, bold (the song leaderboard's header).
+        case title2
+        /// Body (rows and selectors).
+        case body
+    }
+
+    let text: String
+    let style: Style
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// HIG Typography, "iOS, iPadOS Dynamic Type sizes" (xS…xxxL, then AX1…AX5).
+    private static let sizes: [DynamicTypeSize] = [
+        .xSmall, .small, .medium, .large, .xLarge, .xxLarge, .xxxLarge,
+        .accessibility1, .accessibility2, .accessibility3, .accessibility4, .accessibility5,
+    ]
+    private static let title2Points: [CGFloat] = [19, 20, 21, 22, 24, 26, 28, 34, 39, 44, 50, 56]
+    private static let bodyPoints: [CGFloat] = [14, 15, 16, 17, 19, 21, 23, 28, 33, 40, 47, 53]
+
+    /// The iOS point size of `style` at `size`.
+    ///
+    /// - Parameters:
+    ///   - style: The text style.
+    ///   - size: A Dynamic Type size.
+    /// - Returns: Its point size from the HIG table.
+    static func points(_ style: Style, _ size: DynamicTypeSize) -> CGFloat {
+        let index = sizes.firstIndex(of: size) ?? 3
+        return (style == .title2 ? title2Points : bodyPoints)[index]
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: Self.points(style, dynamicTypeSize), weight: style == .title2 ? .bold : .regular))
+    }
+}
 
 /// What a page around the gate selects and whether its data is loading.
 @MainActor @Observable
@@ -51,6 +98,14 @@ struct ReloadGateA11yPage: View {
     static let rowCount = 3
     static let spinnerLabel = "Loading leaderboard"
     static let spinnerID = "fst.gate-a11y.loading"
+    /// Long enough to wrap at AX5, as long song titles do, so a cut line shows.
+    static let headerTitle = "Fixture Song With A Long Encore Title"
+    /// HIG Accessibility: iOS, iPadOS default control size 44×44 pt.
+    static let minimumTarget: CGFloat = 44
+
+    /// The selectors' identifiers, in reading order.
+    static let optionIDs = options.indices.map { "fst.gate-a11y.option.\($0)" }
+    static let headerID = "fst.gate-a11y.header"
 
     /// The identifier of a row of `option`'s board.
     static func rowID(_ option: Int, _ row: Int) -> String { "fst.gate-a11y.row.\(option).\(row)" }
@@ -59,8 +114,12 @@ struct ReloadGateA11yPage: View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 ForEach(Self.options.indices, id: \.self) { index in
-                    Button(Self.options[index]) { model.select(index) }
-                        .frame(minWidth: 44, minHeight: 44)
+                    Button { model.select(index) } label: {
+                        ReloadGateA11yText(text: Self.options[index], style: .body)
+                            .foregroundStyle(.white)
+                            .frame(minWidth: Self.minimumTarget, minHeight: Self.minimumTarget)
+                            .contentShape(Rectangle())
+                    }
                         .accessibilityAddTraits(model.key == index ? .isSelected : [])
                         .accessibilityIdentifier("fst.gate-a11y.option.\(index)")
                 }
@@ -72,8 +131,7 @@ struct ReloadGateA11yPage: View {
                 ) { reveal in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Fixture Song")
-                                .font(.title2.bold())
+                            ReloadGateA11yText(text: Self.headerTitle, style: .title2)
                                 .accessibilityAddTraits(.isHeader)
                                 .accessibilityIdentifier("fst.gate-a11y.header")
                             if reveal.showsResult { rows }
@@ -99,7 +157,7 @@ struct ReloadGateA11yPage: View {
     private var rows: some View {
         LazyVStack(alignment: .leading, spacing: 8) {
             ForEach(0..<Self.rowCount, id: \.self) { row in
-                Text("\(Self.options[model.key]) rank \(row + 1)")
+                ReloadGateA11yText(text: "\(Self.options[model.key]) rank \(row + 1)", style: .body)
                     .accessibilityIdentifier(Self.rowID(model.key, row))
             }
         }
@@ -263,6 +321,115 @@ struct ReloadGateAccessibilityTests {
         nodes.map(\.description).joined(separator: "\n")
     }
 
+    // MARK: Measurement
+
+    /// Expect each selector's accessibility frame to be at least a 44×44 pt target lying
+    /// wholly on the page (not pushed off it or clipped by the gate below).
+    ///
+    /// - Parameters:
+    ///   - hosted: The hosted page.
+    ///   - context: The state being checked, for failure messages.
+    static func expectSelectorTargets(
+        _ hosted: Hosted, _ context: String, sourceLocation: SourceLocation = #_sourceLocation
+    ) {
+        hosted.host.layoutSubtreeIfNeeded()
+        let page = hosted.host.bounds.insetBy(dx: -0.5, dy: -0.5)
+        for id in ReloadGateA11yPage.optionIDs {
+            guard let frame = nativeHostedAccessibilityFrame(id, in: hosted.host) else {
+                Issue.record("\(context): \(id) has no accessibility frame", sourceLocation: sourceLocation)
+                continue
+            }
+            let minimum = ReloadGateA11yPage.minimumTarget - 0.5
+            #expect(frame.width >= minimum && frame.height >= minimum,
+                    "\(context): \(id) is a 44×44 pt target: \(frame)", sourceLocation: sourceLocation)
+            #expect(page.contains(frame), "\(context): \(id) lies wholly on the page: \(frame)", sourceLocation: sourceLocation)
+        }
+    }
+
+    /// Height, in points, of the text ink (bright pixels) inside `rect` of a capture.
+    ///
+    /// - Parameters:
+    ///   - hosted: The hosted page.
+    ///   - rect: An element's frame, in the host's top-left points.
+    /// - Returns: From the first to the last pixel row holding ink; 0 without ink.
+    /// - Throws: An unavailable capture.
+    static func inkHeight(_ hosted: Hosted, in rect: CGRect) throws -> CGFloat {
+        let image = try nativeHostedImage(hosted.host, in: rect)
+        let width = image.width, height = image.height
+        var bytes = [UInt8](repeating: 0, count: width * height * 4)
+        let drawn = bytes.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(
+                data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8,
+                bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return false }
+            context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        try #require(drawn, "capture of \(rect)")
+        var first: Int?
+        var last = 0
+        for y in 0..<height {
+            for x in 0..<width {
+                let pixel = (y * width + x) * 4
+                if Int(bytes[pixel]) + Int(bytes[pixel + 1]) + Int(bytes[pixel + 2]) > 3 * 150 {
+                    first = first ?? y
+                    last = y
+                    break
+                }
+            }
+        }
+        guard let first else { return 0 }
+        return CGFloat(last - first + 1) * rect.height / CGFloat(height)
+    }
+
+    /// The size `text` needs to show whole in `style` at `typeSize`.
+    ///
+    /// - Parameters:
+    ///   - text: The string.
+    ///   - style: Its fixture style.
+    ///   - typeSize: Dynamic Type size.
+    ///   - width: The width it is offered, or nil for one unbounded line.
+    /// - Returns: Its ideal size.
+    static func idealSize(
+        _ text: String, _ style: ReloadGateA11yText.Style, _ typeSize: DynamicTypeSize, width: CGFloat? = nil
+    ) -> CGSize {
+        NSHostingController(
+            rootView: ReloadGateA11yText(text: text, style: style).environment(\.dynamicTypeSize, typeSize)
+        ).sizeThatFits(in: CGSize(width: width ?? 10_000, height: 10_000))
+    }
+
+    /// The page's texts once option 0 has loaded: the selectors (outside the gate), the
+    /// retained header and the rows (inside it).
+    static func texts(retainsFrame: Bool) -> [(id: String, text: String, style: ReloadGateA11yText.Style)] {
+        let selectors = ReloadGateA11yPage.options.indices.map {
+            (id: ReloadGateA11yPage.optionIDs[$0], text: ReloadGateA11yPage.options[$0], style: ReloadGateA11yText.Style.body)
+        }
+        let header = retainsFrame
+            ? [(id: ReloadGateA11yPage.headerID, text: ReloadGateA11yPage.headerTitle, style: ReloadGateA11yText.Style.title2)]
+            : []
+        let rows = (0..<ReloadGateA11yPage.rowCount).map {
+            (id: ReloadGateA11yPage.rowID(0, $0), text: "Lead rank \($0 + 1)", style: ReloadGateA11yText.Style.body)
+        }
+        return selectors + header + rows
+    }
+
+    /// Expect the element `id` showing `text` to have the whole height its text needs at
+    /// its width (wrapped, never cut to fewer lines) and to lie wholly on the page.
+    static func expectWhole(
+        _ hosted: Hosted, _ item: (id: String, text: String, style: ReloadGateA11yText.Style),
+        typeSize: DynamicTypeSize, sourceLocation: SourceLocation = #_sourceLocation
+    ) throws -> CGRect {
+        let frame = try #require(nativeHostedAccessibilityFrame(item.id, in: hosted.host),
+                                 "\(item.id) has a frame", sourceLocation: sourceLocation)
+        let needed = idealSize(item.text, item.style, typeSize, width: frame.width)
+        #expect(frame.height >= needed.height - 0.5,
+                "\(item.id) is untruncated: \(frame) for \(needed)", sourceLocation: sourceLocation)
+        #expect(hosted.host.bounds.insetBy(dx: -0.5, dy: -0.5).contains(frame),
+                "\(item.id) lies wholly on the page: \(frame)", sourceLocation: sourceLocation)
+        return frame
+    }
+
     // MARK: First load
 
     /// While the first load runs the content area is one named spinner: no rows, no
@@ -297,9 +464,11 @@ struct ReloadGateAccessibilityTests {
         #expect(options.allSatisfy { $0.role == "AXButton" }, "\(options)")
         #expect(options.map(\.spokenName) == ReloadGateA11yPage.options)
         #expect(options.map(\.selected) == [true, false], "the current selector is selected: \(options)")
+        Self.expectSelectorTargets(hosted, "\(typeSize) first load")
 
         hosted.model.isLoading = false
         try await Self.settleOnRows(hosted, option: 0)
+        Self.expectSelectorTargets(hosted, "\(typeSize) loaded")
         let loaded = Self.elements(hosted.tree())
         #expect(Self.spinners(loaded).isEmpty, "the spinner leaves the tree:\n\(Self.dump(loaded))")
         #expect(loaded.map(\.identifier) == ["fst.gate-a11y.option.0", "fst.gate-a11y.option.1"]
@@ -333,6 +502,7 @@ struct ReloadGateAccessibilityTests {
         #expect(reloading.map(\.identifier) == ["fst.gate-a11y.option.0", "fst.gate-a11y.option.1", ReloadGateA11yPage.spinnerID],
                 "\(Self.dump(reloading))")
         #expect(reloading.filter { $0.identifier.hasPrefix("fst.gate-a11y.option.") }.map(\.selected) == [false, true])
+        Self.expectSelectorTargets(hosted, "reloading")
 
         // A newer choice during the spinner: the selector is still pressable.
         let lead = try #require(nativeHostedAccessibilityElement("fst.gate-a11y.option.0", in: hosted.host))
@@ -387,19 +557,90 @@ struct ReloadGateAccessibilityTests {
         hosted.model.select(1)
         let reloading = Self.elements(hosted.tree())
         let header = try #require(reloading.first { $0.identifier == "fst.gate-a11y.header" }, "\(Self.dump(reloading))")
-        #expect(header.spokenName == "Fixture Song", "\(header)")
+        #expect(header.spokenName == ReloadGateA11yPage.headerTitle, "\(header)")
         #expect(header.role == "AXHeading", "the header stays a heading: \(header)")
         #expect(Self.rows(reloading).isEmpty, "\(Self.dump(reloading))")
         let ids = reloading.map(\.identifier)
         let headerIndex = try #require(ids.firstIndex(of: "fst.gate-a11y.header"))
         let spinnerIndex = try #require(ids.firstIndex(of: ReloadGateA11yPage.spinnerID), "\(Self.dump(reloading))")
         #expect(headerIndex < spinnerIndex, "header, then the spinner:\n\(Self.dump(reloading))")
+        Self.expectSelectorTargets(hosted, "\(typeSize) retained-frame reload")
 
         hosted.model.isLoading = false
         try await Self.settleOnRows(hosted, option: 1)
         let shown = Self.elements(hosted.tree()).map(\.identifier)
         #expect(shown == ["fst.gate-a11y.option.0", "fst.gate-a11y.option.1", "fst.gate-a11y.header"]
             + (0..<ReloadGateA11yPage.rowCount).map { ReloadGateA11yPage.rowID(1, $0) }, "\(shown)")
+    }
+
+    // MARK: Text scaling
+
+    /// At AX5 every text on the page grows (rendered glyphs over 1.35× their Large
+    /// height), the rows and header inside the gate exactly as the selectors outside it,
+    /// and each shows whole (no line cut off, nothing off the page). The selectors stay
+    /// 44×44 pt targets on the page while the spinner shows and pressing each still
+    /// selects it and restarts the reload; the retained header stays whole through it.
+    @Test(arguments: [false, true])
+    func textGrowsWholeAndSelectorsStayOperableAtAX5(_ retainsFrame: Bool) async throws {
+        let texts = Self.texts(retainsFrame: retainsFrame)
+        var baseline: [String: CGFloat] = [:]
+        do {
+            let hosted = try Self.host(retainsFrame: retainsFrame)
+            defer { hosted.close() }
+            hosted.model.isLoading = false
+            try await Self.settleOnRows(hosted, option: 0)
+            for item in texts {
+                let frame = try Self.expectWhole(hosted, item, typeSize: .large)
+                baseline[item.id] = try Self.inkHeight(hosted, in: frame)
+            }
+        }
+
+        let hosted = try Self.host(retainsFrame: retainsFrame, typeSize: .accessibility5)
+        defer { hosted.close() }
+        hosted.model.isLoading = false
+        try await Self.settleOnRows(hosted, option: 0)
+        Self.expectSelectorTargets(hosted, "AX5 shown")
+        var grown: [String: CGFloat] = [:]
+        for item in texts {
+            let frame = try Self.expectWhole(hosted, item, typeSize: .accessibility5)
+            let ink = try Self.inkHeight(hosted, in: frame)
+            let base = try #require(baseline[item.id])
+            #expect(base >= 8 && ink > base * 1.35, "\(item.id) glyphs grow at AX5: \(ink) pt from \(base) pt")
+            grown[item.id] = ink
+        }
+        // "Lead" and "Lead rank 1" share their tallest glyphs: the gate passes the size through.
+        let selector = try #require(grown[ReloadGateA11yPage.optionIDs[0]])
+        let row = try #require(grown[ReloadGateA11yPage.rowID(0, 0)])
+        #expect(abs(selector - row) <= 1.5, "rows in the gate scale as the selectors outside it: \(row) vs \(selector)")
+        let lead = try #require(texts.first)
+        let leadFrame = try #require(nativeHostedAccessibilityFrame(lead.id, in: hosted.host))
+        #expect(leadFrame.width >= Self.idealSize(lead.text, lead.style, .accessibility5).width - 0.5,
+                "the selector label keeps its whole line: \(leadFrame)")
+
+        // Operable at AX5: each press reloads behind the named spinner, selectors intact.
+        let press = NSSelectorFromString("accessibilityPerformPress")
+        let bass = try #require(nativeHostedAccessibilityElement(ReloadGateA11yPage.optionIDs[1], in: hosted.host))
+        #expect(bass.responds(to: press))
+        _ = bass.perform(press)
+        #expect(hosted.model.key == 1, "pressing Bass at AX5 selects it")
+        let reloading = Self.elements(hosted.tree())
+        #expect(Self.rows(reloading).isEmpty && Self.spinners(reloading).count == 1, "\(Self.dump(reloading))")
+        #expect(reloading.filter { $0.identifier.hasPrefix("fst.gate-a11y.option.") }.map(\.selected) == [false, true])
+        Self.expectSelectorTargets(hosted, "AX5 reloading")
+        if retainsFrame, let header = texts.first(where: { $0.id == ReloadGateA11yPage.headerID }) {
+            _ = try Self.expectWhole(hosted, header, typeSize: .accessibility5)
+        }
+        let leadElement = try #require(nativeHostedAccessibilityElement(ReloadGateA11yPage.optionIDs[0], in: hosted.host))
+        _ = leadElement.perform(press)
+        #expect(hosted.model.key == 0, "pressing Lead during the AX5 reload selects it")
+        let restarted = Self.elements(hosted.tree())
+        #expect(restarted.filter { $0.identifier.hasPrefix("fst.gate-a11y.option.") }.map(\.selected) == [true, false])
+        Self.expectSelectorTargets(hosted, "AX5 restarted")
+        hosted.model.isLoading = false
+        try await Self.settleOnRows(hosted, option: 0)
+        for item in texts where item.id.hasPrefix("fst.gate-a11y.row.") {
+            _ = try Self.expectWhole(hosted, item, typeSize: .accessibility5)
+        }
     }
 
     // MARK: Reduce Motion
