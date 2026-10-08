@@ -75,7 +75,7 @@ struct FestivalEmptyState<Actions: View>: View {
         case .fill:
             GeometryReader { proxy in
                 let region = FoldAvoidingPlacement.region(
-                    container: proxy.frame(in: .global), fold: layout.foldFrame
+                    container: proxy.frame(in: .global), fold: layout.splitHinge
                 )
                 ScrollView {
                     content
@@ -222,7 +222,7 @@ enum FoldAvoidingPlacement {
     ///
     /// - Parameters:
     ///   - container: The container's frame in window coordinates.
-    ///   - fold: The active fold division in window coordinates, or nil.
+    ///   - fold: The book-pose hinge (``DeviceLayout/splitHinge``) in window coordinates, or nil.
     /// - Returns: The whole container when there is no fold crossing it; otherwise the
     ///   larger side of the fold (leading or top on a tie), unless that side is
     ///   smaller than ``minimumRegion``.

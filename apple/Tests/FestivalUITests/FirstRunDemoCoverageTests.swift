@@ -20,4 +20,22 @@ import FestivalCore
     @Test func unknownSlideIDFallsBackToStaticIllustration() {
         #expect(!FirstRunDemoContent.hasLiveDemo(id: "not-a-real-slide"))
     }
+
+    /// Item Shop demo rows cycle like the web: the highlighting slide alternates green and
+    /// plain; New and Leaving Tomorrow cycle their badge, green, then plain.
+    @Test func shopDemoRowsCycleTheWebHighlightPhases() {
+        let highlighting = (0..<4).map { FirstRunShopRowPhase.phase(at: $0, highlight: nil) }
+        #expect(highlighting == [.inShop, .plain, .inShop, .plain])
+        let new = (0..<6).map { FirstRunShopRowPhase.phase(at: $0, highlight: .new) }
+        #expect(new == [.highlighted(.new), .inShop, .plain, .highlighted(.new), .inShop, .plain])
+        let leaving = (0..<3).map { FirstRunShopRowPhase.phase(at: $0, highlight: .leavingTomorrow) }
+        #expect(leaving == [.highlighted(.leavingTomorrow), .inShop, .plain])
+    }
+
+    /// The infinite-scroll demo shows the web's six category templates in its order.
+    @Test func infiniteScrollUsesTheWebsSixTemplates() {
+        #expect(FirstRunSuggestionsCategoryCardDemo.scrollTemplates.map(\.key) == [
+            "unfc_guitar", "pct_push_bass", "stale_vocals_1", "near_fc_any", "unplayed_drums", "variety_pack",
+        ])
+    }
 }
