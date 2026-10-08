@@ -4,7 +4,7 @@ import SwiftUI
 // MARK: - Geometry (pure)
 
 /// A container's horizontal extent in window coordinates (leading-edge x, like
-/// ``DeviceLayout/foldFrame``). Measured instead of the whole frame so vertical
+/// ``DeviceLayout/splitHinge``). Measured instead of the whole frame so vertical
 /// scrolling never reports a change.
 struct HorizontalSpan: Sendable, Equatable {
     /// Leading edge in window coordinates.
@@ -94,7 +94,8 @@ struct HingeColumnSpec: Sendable, Equatable {
 
 /// Hinge-aligned columns (pattern `hinge-columns`, issue #343): while an iPhone Duo
 /// is partially folded with a vertical fold (book pose), two-column layouts put their
-/// centre gutter on the fold instead of at half their own width, and full-width titles
+/// centre gutter on the fold (``DeviceLayout/splitHinge``: the reported fold, else the
+/// inner display's middle) instead of at half their own width, and full-width titles
 /// stay on the side they start on. Fully open, folded and every other device keep the
 /// flat layout; the same views reflow, nothing reloads.
 ///
@@ -124,7 +125,7 @@ enum HingeColumns {
     ///
     /// - Parameters:
     ///   - span: The container's horizontal extent in window coordinates; nil before it is measured.
-    ///   - fold: The active fold (``DeviceLayout/foldFrame``) in window coordinates, or nil.
+    ///   - fold: The book-pose hinge (``DeviceLayout/splitHinge``) in window coordinates, or nil.
     ///   - gutter: The container's normal gap between columns (the narrowest clearance).
     ///   - minimumSide: Narrowest side the split is worth making.
     /// - Returns: The band, or nil without a vertical fold through the container's interior
@@ -285,7 +286,7 @@ private struct HingeSideTitle: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .frame(maxWidth: HingeColumns.titleWidth(span: span, fold: layout.foldFrame) ?? .infinity, alignment: .leading)
+            .frame(maxWidth: HingeColumns.titleWidth(span: span, fold: layout.splitHinge) ?? .infinity, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .leading)
             .measuresHorizontalSpan($span)
     }
@@ -331,10 +332,10 @@ struct HingeGrid<Content: View>: View {
 
     private var band: HingeBand? {
         if case let .fit(minimum) = perSide {
-            return HingeColumns.adaptiveBand(span: span, fold: layout.foldFrame, gutter: gutter, minimum: minimum)
+            return HingeColumns.adaptiveBand(span: span, fold: layout.splitHinge, gutter: gutter, minimum: minimum)
         }
         return HingeColumns.band(
-            span: span, fold: layout.foldFrame, gutter: gutter, minimumSide: HingeColumns.minimumSide
+            span: span, fold: layout.splitHinge, gutter: gutter, minimumSide: HingeColumns.minimumSide
         )
     }
 
@@ -385,7 +386,7 @@ struct HingeEagerGrid<Content: View>: View {
     var body: some View {
         HingeEagerGridLayout(
             minimum: minimum, spacing: spacing, rowSpacing: rowSpacing,
-            band: HingeColumns.adaptiveBand(span: span, fold: layout.foldFrame, gutter: spacing, minimum: minimum)
+            band: HingeColumns.adaptiveBand(span: span, fold: layout.splitHinge, gutter: spacing, minimum: minimum)
         ) { content }
             .measuresHorizontalSpan($span)
     }
@@ -451,23 +452,14 @@ struct HingeEagerGridLayout: Layout {
 
 // MARK: - One row
 
-/// One row of equal cells whose gutter sits on an iPhone Duo fold in book pose; equal
-/// widths otherwise, like an `HStack` of `.frame(maxWidth: .infinity)` cells. Page
-/// columns in wide landscape (Songs' and Search's two-card rows, pattern `wide-columns`)
-/// pass ``Hinge/page`` so the gutter meets the hinge while flat too.
+/// One row of equal cells whose gutter sits on an iPhone Duo hinge in book pose
+/// (``DeviceLayout/splitHinge``: the fold, else the inner display's middle); equal
+/// widths otherwise, like an `HStack` of `.frame(maxWidth: .infinity)` cells. Flat, the
+/// cells are equal, so a full-width row's gutter sits at the midpoint of its free space
+/// (pattern `hinge-columns` R7, owner #361). Page columns in wide landscape (Songs' and
+/// Search's two-card rows, pattern `wide-columns` R3) and halves inside a page use it alike.
 struct HingeRow<Content: View>: View {
-    /// Which hinge the gutter follows.
-    enum Hinge: Sendable {
-        /// Only an active fold (book pose); flat rows keep equal cells (R4).
-        case fold
-        /// The page's hinge (``DeviceLayout/splitHinge``): the fold, else the flat
-        /// inner display's hinge, like the on-demand split's divider (pattern
-        /// `wide-columns` R3, issue #350).
-        case page
-    }
-
     private let spacing: CGFloat
-    private let hinge: Hinge
     private let content: Content
     @Environment(\.deviceLayout) private var layout
     @State private var span: HorizontalSpan?
@@ -475,19 +467,16 @@ struct HingeRow<Content: View>: View {
     /// Create a row.
     ///
     /// - Parameters:
-    ///   - spacing: Gap between cells (and the narrowest clearance over the fold).
-    ///   - hinge: Which hinge the gutter follows (default ``Hinge/fold``).
+    ///   - spacing: Gap between cells (and the narrowest clearance over the hinge).
     ///   - content: The cells, an even count (pad a short row with clear cells).
-    init(spacing: CGFloat, hinge: Hinge = .fold, @ViewBuilder content: () -> Content) {
+    init(spacing: CGFloat, @ViewBuilder content: () -> Content) {
         self.spacing = spacing
-        self.hinge = hinge
         self.content = content()
     }
 
     var body: some View {
         let band = HingeColumns.band(
-            span: span, fold: hinge == .page ? layout.splitHinge : layout.foldFrame,
-            gutter: spacing, minimumSide: HingeColumns.minimumSide
+            span: span, fold: layout.splitHinge, gutter: spacing, minimumSide: HingeColumns.minimumSide
         )
         HingeRowLayout(spacing: spacing, band: band) { content }
             .measuresHorizontalSpan($span)

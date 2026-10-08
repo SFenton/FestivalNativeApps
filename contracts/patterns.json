@@ -1136,7 +1136,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, off the Duo hinge when unfolded, #345), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, with the owner-approved #370 variant that a Compete preview's separate rank row jumps to the full board at the player's position (Apple and Android Compete cards; Windows overview instrument cards, as they draw Compete), the owner-approved #364 variant that a song board in a split's trailing pane turns every row and its pinned row into a multi-row card (full name above rank and score, chevron centred) when any name would marquee, and one measured section-wide score-footer stack plan that never truncates the score.",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, on the Duo screen beside the vertical bar when unfolded, #345, #361), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, with the owner-approved #370 variant that a Compete preview's separate rank row jumps to the full board at the player's position (Apple and Android Compete cards; Windows overview instrument cards, as they draw Compete), the owner-approved #364 variant that a song board in a split's trailing pane turns every row and its pinned row into a multi-row card (full name above rank and score, chevron centred) when any name would marquee, and one measured section-wide score-footer stack plan that never truncates the score.",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -2884,7 +2884,8 @@
         "grid columns",
         "two column",
         "gutter",
-        "iphone duo"
+        "iphone duo",
+        "free space midpoint"
       ],
       "web": [],
       "canonical": {
@@ -2941,7 +2942,8 @@
       "related": {
         "patterns": [
           "section-headers",
-          "wide-columns"
+          "wide-columns",
+          "split-panes"
         ],
         "pages": [
           "statistics",
@@ -3090,7 +3092,8 @@
         "pane",
         "panes",
         "hinge band",
-        "vertical divider"
+        "vertical divider",
+        "free space midpoint"
       ],
       "web": [],
       "canonical": {
@@ -3106,6 +3109,10 @@
           {
             "path": "apple/Sources/FestivalUI/App/Layout/SplitPaneChrome.swift",
             "symbol": "SplitPaneChrome"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/DeviceLayout.swift",
+            "symbol": "splitHinge"
           }
         ],
         "android": [

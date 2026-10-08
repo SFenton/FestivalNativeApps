@@ -78,8 +78,8 @@ private func expectInContentPager(
         #expect(frame.width >= 44 && frame.height >= 44, "\(pose): \(frame) under 44 pt",
                 sourceLocation: sourceLocation)
     }
-    if let hinge = layout.splitHinge, hinge.minX < board.width {
-        #expect(span.minX >= hinge.maxX, "\(pose): pager \(span) is not beside the bar (hinge \(hinge))",
+    if let hinge = layout.screenDivide(), hinge.minX < board.width {
+        #expect(span.minX >= hinge.maxX, "\(pose): pager \(span) is not beside the bar (divide \(hinge))",
                 sourceLocation: sourceLocation)
     }
 }

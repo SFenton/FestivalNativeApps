@@ -53,7 +53,7 @@ struct PlayerStatGrid: View {
             // A grid that spans an iPhone Duo book-pose fold (Global Statistics) puts a
             // gutter on it (pattern `hinge-columns`); tiles inside a half column never do.
             band: HingeColumns.band(
-                span: span, fold: layout.foldFrame, gutter: StatGridColumns.spacing,
+                span: span, fold: layout.splitHinge, gutter: StatGridColumns.spacing,
                 minimumSide: max(CGFloat(minimumTileWidth), HingeColumns.minimumSide)
             )
         ) {

@@ -36,13 +36,13 @@ struct BottomSearchFieldPlacementTests {
             hinge: .partiallyOpen, divisions: [fold]
         ))
         #expect(BottomSearchFieldPlacement.pageHinge(for: book) == fold)
-        // Owner (#349): fully unfolded, the field takes the full bottom width, even
-        // though the split hinge reports the flat display's midline.
+        // Owner (#349): fully unfolded, the field takes the full bottom width; since
+        // #361 the split hinge is nil flat too.
         let flat = DeviceLayout.resolve(LayoutSignals(
             size: CGSize(width: 951, height: 669), widthClass: .regular,
             verticalBarEdge: .trailing, hinge: .fullyOpen
         ))
-        #expect(flat.splitHinge != nil)
+        #expect(flat.splitHinge == nil)
         #expect(BottomSearchFieldPlacement.pageHinge(for: flat) == nil)
         let folded = DeviceLayout.resolve(LayoutSignals(
             size: CGSize(width: 466, height: 678), widthClass: .compact,
@@ -242,7 +242,7 @@ struct BottomSearchFieldPlacementTests {
         let portrait = CGSize(width: 669, height: 951)
         // The bug: lying flat, the inactive hinge put the field on the right half.
         let flat = Self.duo(.fullyOpen, size: landscape, hinges: [Self.verticalHinge])
-        #expect(flat.splitHinge == Self.verticalHinge)
+        #expect(flat.hingeFrame == Self.verticalHinge && flat.splitHinge == nil)
         #expect(BottomSearchFieldPlacement.pageHinge(for: flat) == nil)
         // Flat with no reported region (midline fallback) also keeps the full width.
         #expect(BottomSearchFieldPlacement.pageHinge(for: Self.duo(.fullyOpen, size: landscape)) == nil)
