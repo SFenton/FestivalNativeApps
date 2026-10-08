@@ -114,6 +114,9 @@ public struct MarqueeText: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(self.text)
+        // `.ignore` drops the inner Text's role; keep every branch static text like the
+        // wrapped one, so an unwrapped marquee is not an unknown element (macOS AXUnknown).
+        .accessibilityAddTraits(.isStaticText)
     }
 
     /// The Core Animation track, built only for text that overflows.
