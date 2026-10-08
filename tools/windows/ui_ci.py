@@ -159,11 +159,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--only", help="comma-separated run names")
     parser.add_argument("--exe", help="app under test (a11y_matrix --exe; default: the Debug build)")
     parser.add_argument("--list", action="store_true", help="print the runs and exit")
+    parser.add_argument("--shard", type=int, default=1)
+    parser.add_argument("--shards", type=int, default=1)
     args = parser.parse_args(argv)
     try:
         runs = select(RUNS, args.only)
     except ValueError as error:
         parser.error(str(error))
+    if not 1 <= args.shard <= args.shards:
+        parser.error("--shard must be within --shards")
+    buckets = [[] for _ in range(args.shards)]
+    weights = [0] * args.shards
+    for run in sorted(runs, key=lambda item: (-len(item.only.split(",")) * len(item.sizes.split(",")), item.name)):
+        index = min(range(args.shards), key=lambda candidate: (weights[candidate], candidate))
+        buckets[index].append(run)
+        weights[index] += len(run.only.split(",")) * len(run.sizes.split(","))
+    runs = buckets[args.shard - 1]
     if args.list:
         for run in runs:
             only = f" only={run.only}" if run.only else ""

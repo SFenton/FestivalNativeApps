@@ -74,7 +74,7 @@ class UiCiTests(unittest.TestCase):
         for path in ("'windows/**'", "'tools/windows/**'", "'.github/workflows/windows-ui.yml'"):
             self.assertIn(path, text)
         build, display = text.index("tools/windows/build.ps1"), text.index("tools/windows/ci_display.ps1")
-        dispatch = text.index("python tools/windows/ui_ci.py --out")
+        dispatch = text.index("python tools/windows/ui_ci.py --shard")
         self.assertLess(display, dispatch)
         self.assertLess(build, dispatch)
         self.assertNotIn("--live", text)  # fixtures only: no service calls from CI

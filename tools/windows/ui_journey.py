@@ -78,13 +78,13 @@ def start_mock(log: Path, service_args: tuple[str, ...] = (), fixture: Path | No
     command = ([sys.executable, "-u", str(fixture), "--port", "0", *service_args] if fixture is not None
                else [sys.executable, "-u", "-c", bootstrap, str(MOCK.parent), *service_args])
     proc = subprocess.Popen(command, stdout=handle, stderr=subprocess.STDOUT)
-    for _ in range(200):
+    for _ in range(600):
         match = re.search(r"127\.0\.0\.1:(\d+)", log.read_text(encoding="utf-8", errors="replace"))
         if match:
             return proc, int(match.group(1))
         time.sleep(0.1)
     proc.kill()
-    raise RuntimeError(f"fixture service did not start; see {log}")
+    raise RuntimeError(f"fixture service did not start within 60 s; see {log}")
 
 # endregion
 
