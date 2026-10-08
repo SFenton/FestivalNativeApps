@@ -284,43 +284,41 @@ class BandsCoreTest {
         // Book fold half-open: rail 80 dp, fold at 532 dp in the window, 771 dp of content.
         val half = BandLayout.hingeInContent(532f, 532f, 80f, 771f, separating = true)!!
         assertEquals(452f, half.left)
-        assertEquals(BandLayout.Panes(true, 452f, 0f), BandLayout.panes(851f, 771f, half))
+        assertEquals(BandLayout.Panes(true, 452f, 0f), BandLayout.panes(851f, half))
         val halfGrid = BandLayout.grid(771f, half)
         assertEquals(2, halfGrid.columns)
         val column = (771f - halfGrid.start - halfGrid.end - halfGrid.gutter) / 2
         assertEquals(452f - BandLayout.EDGE, halfGrid.start + column)
         assertEquals(452f + BandLayout.EDGE, halfGrid.start + column + halfGrid.gutter)
-        // Unfolded (flat fold): expanded window splits at the fold; a two-column grid meets at it.
+        // Unfolded flat (issue #361): equal panes and a natural grid divide the free content area at its midpoint, not the fold.
         val flat = half.copy(separating = false)
-        assertEquals(BandLayout.Panes(true, 452f, 0f), BandLayout.panes(851f, 771f, flat))
-        assertEquals(2, BandLayout.grid(771f, flat).columns)
-        // A flat fold in a wide window with room for more columns keeps the natural grid.
+        assertEquals(BandLayout.Panes(true, null, BandLayout.PANE_GAP), BandLayout.panes(851f, flat))
+        assertEquals(BandLayout.Grid(2, 16f, 16f, 12f), BandLayout.grid(771f, flat))
         assertEquals(BandLayout.Grid(4, 16f, 16f, 12f), BandLayout.grid(1400f, BandLayout.Hinge(700f, 700f, false)))
         // Medium window without a separating hinge: single pane.
-        assertEquals(BandLayout.Panes(false, null, 0f), BandLayout.panes(700f, 771f, flat))
-        assertEquals(BandLayout.Panes(false, null, 0f), BandLayout.panes(411f, 411f, null))
-        assertEquals(BandLayout.Panes(true, null, BandLayout.PANE_GAP), BandLayout.panes(1280f, 1200f, null))
+        assertEquals(BandLayout.Panes(false, null, 0f), BandLayout.panes(700f, flat))
+        assertEquals(BandLayout.Panes(false, null, 0f), BandLayout.panes(411f, null))
+        assertEquals(BandLayout.Panes(true, null, BandLayout.PANE_GAP), BandLayout.panes(1280f, null))
         // Phone: one column; hinge too close to an edge is ignored.
         assertEquals(BandLayout.Grid(1, 16f, 16f, 12f), BandLayout.grid(411f, null))
         assertEquals(null, BandLayout.hingeInContent(250f, 250f, 80f, 771f, true))
         assertEquals(null, BandLayout.hingeInContent(700f, 700f, 80f, 771f, true))
-        // Tri-fold unfolded: two flat folds; the central one is picked, and an unbalanced flat fold never anchors panes.
+        // Tri-fold: the central fold is picked; flat folds never anchor panes or the card grid (issues #117, #361).
         val folds = listOf(BandLayout.Hinge(280f, 280f, false), BandLayout.Hinge(640f, 640f, false))
         assertEquals(640f, BandLayout.central(folds, 1000f)!!.left)
         assertEquals(null, BandLayout.central(emptyList(), 1000f))
-        assertEquals(BandLayout.Panes(true, null, BandLayout.PANE_GAP), BandLayout.panes(1080f, 1000f, folds[0]))
-        assertEquals(BandLayout.Panes(true, null, BandLayout.PANE_GAP), BandLayout.panes(1080f, 1000f, folds[1]))
-        assertEquals(BandLayout.Panes(true, 450f, 0f), BandLayout.panes(1080f, 1000f, BandLayout.Hinge(450f, 450f, false)))
-        // ...nor the card grid (issue #117: 280 dp of the leading panel stayed empty); a balanced flat fold still does.
+        assertEquals(BandLayout.Panes(true, null, BandLayout.PANE_GAP), BandLayout.panes(1080f, folds[0]))
+        assertEquals(BandLayout.Panes(true, null, BandLayout.PANE_GAP), BandLayout.panes(1080f, folds[1]))
+        assertEquals(BandLayout.Panes(true, null, BandLayout.PANE_GAP), BandLayout.panes(1080f, BandLayout.Hinge(450f, 450f, false)))
         assertEquals(BandLayout.Grid(2, 16f, 16f, 12f), BandLayout.grid(984f, BandLayout.Hinge(624f, 624f, false)))
         assertEquals(BandLayout.Grid(2, 16f, 16f, 12f), BandLayout.grid(984f, BandLayout.Hinge(264f, 264f, false)))
+        assertEquals(BandLayout.Grid(2, 16f, 16f, 12f), BandLayout.grid(1000f, BandLayout.Hinge(500f, 500f, false)))
         assertEquals(2, BandLayout.grid(984f, BandLayout.Hinge(624f, 624f, true)).columns)
-        assertEquals(BandLayout.Grid(2, 16f, 16f, 32f), BandLayout.grid(1000f, BandLayout.Hinge(500f, 500f, false)))
         // A separating hinge anchors panes even when unbalanced.
-        assertEquals(BandLayout.Panes(true, 300f, 0f), BandLayout.panes(900f, 1000f, BandLayout.Hinge(300f, 300f, true)))
+        assertEquals(BandLayout.Panes(true, 300f, 0f), BandLayout.panes(900f, BandLayout.Hinge(300f, 300f, true)))
         // A physical hinge with width becomes the gutter.
         val hinge = BandLayout.hingeInContent(500f, 520f, 0f, 1000f, true)!!
-        assertEquals(BandLayout.Panes(true, 500f, 20f), BandLayout.panes(1000f, 1000f, hinge))
+        assertEquals(BandLayout.Panes(true, 500f, 20f), BandLayout.panes(1000f, hinge))
         assertEquals(52f, BandLayout.grid(1000f, hinge).gutter)
     }
 
@@ -332,8 +330,8 @@ class BandsCoreTest {
         // TalkBack or narrow large text: one column even on an expanded window.
         assertFalse(BandLayout.splits(1280f, separatingHinge = true, singleColumn = true))
         // A separating hinge outside the content still splits, into equal panes.
-        assertEquals(BandLayout.Panes(true, null, BandLayout.PANE_GAP), BandLayout.panes(673f, 600f, null, split = true))
-        assertEquals(BandLayout.Panes(false, null, 0f), BandLayout.panes(1280f, 1200f, null, split = false))
+        assertEquals(BandLayout.Panes(true, null, BandLayout.PANE_GAP), BandLayout.panes(673f, null, split = true))
+        assertEquals(BandLayout.Panes(false, null, 0f), BandLayout.panes(1280f, null, split = false))
     }
 
     @Test

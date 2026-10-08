@@ -193,6 +193,7 @@ internal object SongsTokens {
  * @param trailing Content after the text column (metadata, Shop indicator).
  * @param below Full-width content under the art row (chips, pills, score state).
  * @param end Interactive content after the padded column (invalid-score icon, Shop link).
+ * @param titleTag Test tag on the title (first-run demo rows), or null.
  */
 @Composable
 fun SongRowCard(
@@ -209,6 +210,7 @@ fun SongRowCard(
     trailing: @Composable RowScope.() -> Unit = {},
     below: @Composable ColumnScope.() -> Unit = {},
     end: @Composable RowScope.() -> Unit = {},
+    titleTag: String? = null,
 ) {
     GlassCard(
         onClick = onClick,
@@ -245,7 +247,7 @@ fun SongRowCard(
                         modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)).background(BrandTokens.surfaceMuted),
                     )
                     Column(Modifier.weight(1f)) {
-                        FestivalMarqueeText(title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), color = BrandTokens.textPrimary)
+                        FestivalMarqueeText(title, if (titleTag != null) Modifier.testTag(titleTag) else Modifier, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), color = BrandTokens.textPrimary)
                         FestivalMarqueeText(subtitle, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary)
                         details()
                     }
@@ -412,7 +414,7 @@ private fun MaxScoreDual(pill: SongMaxScorePill, songId: String) {
  * Shop, gold New, red Leaving Tomorrow) with a clock, sparkle or bag glyph.
  */
 @Composable
-private fun ShopBadge(pulse: ShopPulse, songId: String, breathe: () -> Float) {
+internal fun ShopBadge(pulse: ShopPulse, songId: String, breathe: () -> Float) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier

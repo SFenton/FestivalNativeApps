@@ -10,9 +10,11 @@ import kotlin.math.min
  * Pure adaptive geometry for band pages (all values in dp, unit-tested).
  *
  * Material 3 window classes decide *whether* content splits (expanded width ≥ 840 dp,
- * or a separating hinge such as a half-open book fold); a vertical fold or hinge
- * reported by Jetpack WindowManager decides *where*, so no card, pane or gutter
- * ever straddles the crease.
+ * or a separating hinge such as a half-open book fold). Only a **separating** vertical
+ * fold or hinge reported by Jetpack WindowManager decides *where*, so no card, pane or
+ * gutter straddles the crease in book posture. A flat (fully unfolded) fold is ignored:
+ * panes and columns divide at the midpoint of the free content area, not the fold
+ * (owner override, issue #361; Material 3 "Flat (unfolded): treat as Medium or Expanded").
  */
 object BandLayout {
     /** Expanded window-width breakpoint. */
@@ -29,9 +31,6 @@ object BandLayout {
 
     /** Gap between panes without a hinge. */
     const val PANE_GAP = 24f
-
-    /** Smallest share of the content either side of a flat fold must keep to anchor panes. */
-    const val BALANCED_SHARE = 0.4f
 
     /** Narrowest side a hinge may leave for a pane or column. */
     const val MIN_SIDE = 200f
@@ -95,17 +94,17 @@ object BandLayout {
         !singleColumn && (windowWidth >= EXPANDED_WIDTH || separatingHinge)
 
     /**
-     * Whether and where Band Detail splits into panes.
+     * Whether and where Band Detail splits into panes: at a separating [hinge] (book
+     * posture), otherwise into equal panes meeting at the content midpoint, including
+     * across a flat fold (issue #361).
      *
      * @param windowWidth Window width.
-     * @param contentWidth Content width.
      * @param hinge Vertical hinge in content coordinates.
      * @param split Whether to split; defaults to an expanded window or a separating [hinge].
      * @return Panes.
      */
-    fun panes(windowWidth: Float, contentWidth: Float, hinge: Hinge?, split: Boolean = windowWidth >= EXPANDED_WIDTH || hinge?.separating == true): Panes {
-        // A flat fold only anchors the split when both panes keep a balanced share (tri-fold outer folds do not).
-        val anchor = hinge?.takeIf { it.separating || min(it.left, contentWidth - it.right) >= BALANCED_SHARE * contentWidth }
+    fun panes(windowWidth: Float, hinge: Hinge?, split: Boolean = windowWidth >= EXPANDED_WIDTH || hinge?.separating == true): Panes {
+        val anchor = hinge?.takeIf { it.separating }
         return when {
             !split -> Panes(false, null, 0f)
             anchor != null -> Panes(true, anchor.left, anchor.right - anchor.left)
@@ -135,10 +134,9 @@ object BandLayout {
         hinges.minByOrNull { kotlin.math.abs((it.left + it.right) / 2 - contentWidth / 2) }
 
     /**
-     * Card grid: as many ≥ [CARD_MIN] columns as fit; with a separating hinge, or a
-     * balanced flat fold when two columns fit anyway, exactly two columns whose gutter is
-     * the hinge. An unbalanced flat fold (a tri-fold's off-centre fold) keeps the natural
-     * grid, as in [panes], instead of leaving its narrow side empty.
+     * Card grid: as many ≥ [CARD_MIN] columns as fit; with a separating hinge, exactly two
+     * columns whose gutter is the hinge. A flat fold keeps the natural grid, centred on the
+     * content area (issue #361).
      *
      * @param contentWidth Content width.
      * @param hinge Vertical hinge in content coordinates.
@@ -146,8 +144,7 @@ object BandLayout {
      */
     fun grid(contentWidth: Float, hinge: Hinge?): Grid {
         val fit = max(1, ((contentWidth - 2 * EDGE + GUTTER) / (CARD_MIN + GUTTER)).toInt())
-        val balanced = hinge != null && min(hinge.left, contentWidth - hinge.right) >= BALANCED_SHARE * contentWidth
-        if (hinge != null && (hinge.separating || (fit == 2 && balanced))) {
+        if (hinge != null && hinge.separating) {
             val column = min(hinge.left, contentWidth - hinge.right) - 2 * EDGE
             return Grid(2, hinge.left - EDGE - column, contentWidth - hinge.right - EDGE - column, hinge.right - hinge.left + 2 * EDGE)
         }

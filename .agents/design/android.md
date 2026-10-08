@@ -32,8 +32,8 @@
 | Form factor | Verified on the FST AVDs (`tools/android/search_journey.py`, screenshots `android/reports/screenshots/search-*.png`, `shell-*.png`) |
 |---|---|
 | Phone | Short bar; Songs list only, Detail pushed; search = full-screen view from the top-bar icon |
-| Passport fold | Folded (cover) = phone. Unfolded (≈ 840 dp) = rail + Songs list-detail at the hinge; the list pane is < 400 dp so search is the icon, and its docked panel stays left of the fold |
-| Book fold | Folded = phone. Unfolded / book posture = rail + list-detail at the hinge, docked search left of the fold. **Tabletop** (half-open, rotated) = docked panel capped above the fold (verified); bottom bar per policy (hidden by the IME in the capture). Search text/scope/results survive every posture change (docked ↔ full screen) |
+| Passport fold | Folded (cover) = phone. Unfolded flat (≈ 840 dp) = rail + Songs list-detail at the ordinary list width, not the fold (#361, [split-panes](../patterns/split-panes.md) R5); half-open = list-detail at the hinge. The list pane is < 400 dp so search is the icon, and its docked panel stays left of the fold |
+| Book fold | Folded = phone. Unfolded flat = rail + list-detail at the ordinary list width (#361); book posture (half-open) = list-detail at the hinge, docked search left of the fold. **Tabletop** (half-open, rotated) = docked panel capped above the fold (verified); bottom bar per policy (hidden by the IME in the capture). Search text/scope/results survive every posture change (docked ↔ full screen) |
 | Tablet | Landscape = permanent drawer + list-detail, search icon → docked panel; portrait = rail, docked search re-anchored on rotation |
 | Tri-fold | Folded (360 dp) = phone; partial (720 dp) = rail + docked search; unfolded (1080 dp) = rail + list-detail. FLAT folds only (no tabletop) |
 | Resizable | Presets phone → tablet → desktop switch bar → rail → permanent drawer live with search open |

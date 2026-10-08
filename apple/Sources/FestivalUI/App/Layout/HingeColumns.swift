@@ -238,7 +238,7 @@ enum HingeColumns {
         return .columns(max(1, columns.count / 2))
     }
 
-    /// Columns whose cells start at the top of their row (R7): a column without an
+    /// Columns whose cells start at the top of their row (R8): a column without an
     /// explicit alignment gets `.top` instead of `GridItem`'s default `.center`, which
     /// would push a shorter cell down to the middle of its taller neighbour's row (#365).
     ///
@@ -297,7 +297,7 @@ private struct HingeSideTitle: ViewModifier {
 /// otherwise exactly the grid its flat `columns` describe. The canonical hinge-aware
 /// grid (pattern `hinge-columns`): pages pass their flat columns and never measure the
 /// fold themselves. Cells start at the top of their row, like ``HingeEagerGrid`` and
-/// ``HingeRow``, unless a column names another alignment (R7, #365).
+/// ``HingeRow``, unless a column names another alignment (R8, #365).
 struct HingeGrid<Content: View>: View {
     private let columns: [GridItem]
     private let alignment: HorizontalAlignment

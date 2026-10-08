@@ -194,14 +194,78 @@ private func viewedPlayer(_ rank: Int) throws -> PlayerSearchResult {
                 forKey: SongPlayerScoreFilter.storageKey)
     let general = try SongGeneralFilter(excludedDecades: [1970], doubleBassSupported: false).encoded()
     storage.set(general, forKey: SongGeneralFilter.storageKey)
+    storage.set(SongSortMode.score.rawValue, forKey: SongsPresetStore.sortModeKey)
+    storage.set(false, forKey: SongsPresetStore.sortAscendingKey)
+    let revision = restored.songSettingsResetRevision
     restored.deselectPlayer()
     #expect(restored.selectedPlayer == nil)
     #expect(restored.selectedPlayerScores.isEmpty)
     #expect(restored.selectedPlayerScoreObservation == nil)
     #expect(storage.data(forKey: SelectedPlayerIdentity.storageKey) == nil)
-    #expect(storage.data(forKey: SongPlayerScoreFilter.storageKey) == nil)
-    // General filters use only public metadata and survive deselection.
-    #expect(storage.data(forKey: SongGeneralFilter.storageKey) == general)
+    // Web `resetSongSettingsForDeselect` (#359): every filter returns to its default and
+    // a player chart sort reverts to Title A–Z, so nothing is left paused.
+    #expect(SongsPresetStore.load(from: storage, instrument: nil) == SongsSavedState())
+    #expect(restored.songSettingsResetRevision == revision + 1)
+}
+
+/// Deselecting with nothing selected, and choosing a first player, keep the saved
+/// Songs settings (web `shouldResetSongSettingsForProfileChange`, #359).
+@MainActor
+@Test func songSettingsResetOnlyWhenAProfileIsLeft() async throws {
+    let suiteName = "fst-profile-tests-\(UUID().uuidString)"
+    let storage = try #require(UserDefaults(suiteName: suiteName))
+    defer { storage.removePersistentDomain(forName: suiteName) }
+    let client = try FestivalAPI(transport: ProfileSelectionTransport())
+    let session = FestivalSession(factory: { client }, selectionStorage: storage)
+    let saved = SongsSavedState(
+        sortMode: .artist, sortAscending: false,
+        generalFilter: SongGeneralFilter(excludedDecades: [1970], doubleBassSupported: false),
+        playerFilter: SongPlayerScoreFilter(hasScores: [.lead])
+    )
+    SongsPresetStore.save(saved, to: storage)
+    session.deselectPlayer()
+    #expect(session.songSettingsResetRevision == 0)
+    #expect(SongsPresetStore.load(from: storage, instrument: nil) == saved)
+
+    let result = try viewedPlayer(1)
+    try session.selectPlayer(result, from: await session.viewPlayer(result))
+    #expect(session.songSettingsResetRevision == 0)
+    #expect(SongsPresetStore.load(from: storage, instrument: nil) == saved)
+
+    // Player to player keeps the saved settings, like the web.
+    let other = try viewedPlayer(2)
+    try session.selectPlayer(other, from: await session.viewPlayer(other))
+    #expect(session.songSettingsResetRevision == 0)
+    #expect(SongsPresetStore.load(from: storage, instrument: nil) == saved)
+
+    session.deselectPlayer()
+    #expect(session.songSettingsResetRevision == 1)
+    #expect(SongsPresetStore.load(from: storage, instrument: nil)
+        == SongsSavedState(sortMode: .artist, sortAscending: false))
+}
+
+/// Switching from a band to a player changes the profile type, so Songs resets (#359).
+@MainActor
+@Test func bandToPlayerSwitchResetsSongSettings() async throws {
+    let suiteName = "fst-profile-tests-\(UUID().uuidString)"
+    let storage = try #require(UserDefaults(suiteName: suiteName))
+    defer { storage.removePersistentDomain(forName: suiteName) }
+    let client = try FestivalAPI(transport: ProfileSelectionTransport())
+    let session = FestivalSession(
+        factory: { client }, selectionStorage: storage,
+        debugSelectedBand: SelectedBandIdentity(
+            bandType: .duets, teamKey: "aaa111:bbb222", displayName: "Fixture Duo"
+        )
+    )
+    SongsPresetStore.save(SongsSavedState(
+        sortMode: .stars, sortAscending: false,
+        playerFilter: SongPlayerScoreFilter(hasScores: [.lead])
+    ), to: storage)
+    let result = try viewedPlayer(1)
+    try session.selectPlayer(result, from: await session.viewPlayer(result))
+    #expect(session.selectedBand == nil)
+    #expect(session.songSettingsResetRevision == 1)
+    #expect(SongsPresetStore.load(from: storage, instrument: nil) == SongsSavedState())
 }
 
 @MainActor

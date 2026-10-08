@@ -148,6 +148,11 @@ public struct MacRootView: View {
                 self.songsInstrument = nil
             }
         }
+        // A deselect or player/band switch returns Songs to every instrument with the
+        // saved filters and sort reset (web `resetSongSettingsForDeselect`, issue #359).
+        .onChange(of: session.songSettingsResetRevision) { _, _ in
+            songsInstrument = nil
+        }
     }
 
     private func pushPendingSheetRoute() {

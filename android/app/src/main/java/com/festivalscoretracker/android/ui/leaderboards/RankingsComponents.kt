@@ -1,7 +1,5 @@
 package com.festivalscoretracker.android.ui.leaderboards
 
-import com.festivalscoretracker.android.ui.common.LocalFadeInWindow
-import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -37,9 +35,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -429,9 +424,6 @@ private fun RowScope.StackedRankingRow(rank: Int, name: String, songs: String, r
  * @param route Destination or null.
  * @param onOpen Navigation callback.
  * @param tag Test tag; defaults to `fst.rankings.row.<key>`.
- * @param reveal Scroll the selected row into view when it appears (paginated boards), once its
- *   own entrance has finished, rushing the page's remaining fades (web `navToPlayer`, issue #323).
- * @param revealDelayMillis The row's stagger delay, which the reveal waits out.
  * @param clickLabel TalkBack action label overriding the route's (a pinned footer that may
  *   jump to its page instead, `leaderboard-row` R7).
  */
@@ -443,18 +435,8 @@ fun AccountRankingRow(
     route: AppRoute?,
     onOpen: (AppRoute) -> Unit,
     tag: String = "fst.rankings.row.${entry.key}",
-    reveal: Boolean = false,
-    revealDelayMillis: Int = 0,
     clickLabel: String? = null,
 ) {
-    val requester = remember { BringIntoViewRequester() }
-    if (reveal && isSelected) {
-        val fadeIn = LocalFadeInWindow.current
-        val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
-        LaunchedEffect(entry.key) {
-            if (awaitSelectedRowEntrance(fadeIn, revealDelayMillis, reduceMotion)) requester.bringIntoView()
-        }
-    }
     RankingRowLayout(
         rank = entry.rank(metric),
         name = entry.name,
@@ -467,7 +449,6 @@ fun AccountRankingRow(
         tag = tag,
         clickLabel = clickLabel ?: route?.let(RankingNavigation::actionLabel).orEmpty(),
         unavailable = "Profile unavailable",
-        modifier = Modifier.bringIntoViewRequester(requester),
     )
 }
 
@@ -766,28 +747,56 @@ fun <T> TopBarChoiceAction(
                 .semantics { contentDescription = "$label, ${optionLabel(selected)}" },
         ) { icon() }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, containerColor = BrandTokens.cardBackground) {
-            Text(
-                label,
-                style = MaterialTheme.typography.labelLarge,
-                color = BrandTokens.textPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
-            options.forEachIndexed { index, option ->
-                val isSelected = option == selected
-                DropdownMenuItem(
-                    text = { Text(optionLabel(option), color = BrandTokens.textPrimary) },
-                    leadingIcon = leading?.let { { it(option) } },
-                    trailingIcon = if (isSelected) ({ Icon(Icons.Filled.Check, contentDescription = null, tint = BrandTokens.textPrimary) }) else null,
-                    onClick = {
-                        expanded = false
-                        onSelect(option)
-                    },
-                    modifier = Modifier
-                        .testTag(itemTag(index, option))
-                        .semantics { stateDescription = if (isSelected) "Selected" else "Not selected" },
-                )
+            ChoiceMenuItems(label, options, selected, optionLabel, itemTag, leading) {
+                expanded = false
+                onSelect(it)
             }
         }
+    }
+}
+
+/**
+ * The single-choice menu's content: a Title Case header, then one item per option with a check on
+ * the selected one. Shared by [TopBarChoiceAction] and the First Run Rank By demo.
+ *
+ * @param T Option type.
+ * @param label Header, or null for none (the First Run demo's 220 dp frame).
+ * @param options Options in display order.
+ * @param selected Current option.
+ * @param optionLabel Visible option text.
+ * @param itemTag Test tag of each item.
+ * @param leading Optional leading content for items.
+ * @param onSelect Selection callback.
+ */
+@Composable
+internal fun <T> ChoiceMenuItems(
+    label: String?,
+    options: List<T>,
+    selected: T,
+    optionLabel: (T) -> String,
+    itemTag: (Int, T) -> String,
+    leading: (@Composable (T) -> Unit)? = null,
+    onSelect: (T) -> Unit,
+) {
+    if (label != null) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelLarge,
+            color = BrandTokens.textPrimary,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        )
+    }
+    options.forEachIndexed { index, option ->
+        val isSelected = option == selected
+        DropdownMenuItem(
+            text = { Text(optionLabel(option), color = BrandTokens.textPrimary) },
+            leadingIcon = leading?.let { { it(option) } },
+            trailingIcon = if (isSelected) ({ Icon(Icons.Filled.Check, contentDescription = null, tint = BrandTokens.textPrimary) }) else null,
+            onClick = { onSelect(option) },
+            modifier = Modifier
+                .testTag(itemTag(index, option))
+                .semantics { stateDescription = if (isSelected) "Selected" else "Not selected" },
+        )
     }
 }
 
