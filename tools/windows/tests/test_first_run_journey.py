@@ -199,10 +199,12 @@ class ContractTests(unittest.TestCase):
         for step in steps:
             uiwin.parse_step(step)
         pattern = uiwin.parse_step(j._controls("songs-sort"))["value"][1:]
-        self.assertTrue(re.search(pattern, "controls=DropDownButton+RadioButton+RadioButtons"))
-        # The old replica's slide had no RadioButtons; RadioButton alone or a longer name must not pass.
-        self.assertFalse(re.search(pattern, "controls=DropDownButton+RadioButton"))
-        self.assertFalse(re.search(pattern, "controls=DropDownButton+RadioButtonsX"))
+        self.assertTrue(re.search(pattern, "controls=Button+DropDownButton+RadioButton+RadioButtons+SongSortForm"))
+        # The old replica's slide had no RadioButtons, and a hand-built copy of the flyout has no SongSortForm;
+        # RadioButton alone or a longer name must not pass.
+        self.assertFalse(re.search(pattern, "controls=DropDownButton+RadioButton+RadioButtons"))
+        self.assertFalse(re.search(pattern, "controls=DropDownButton+RadioButton+SongSortForm"))
+        self.assertFalse(re.search(pattern, "controls=DropDownButton+RadioButtonsX+SongSortForm"))
         self.assertFalse(re.search(pattern, ""))
 
     def test_chart_and_scroll_scenarios_assert_the_real_chart_and_scroll_token(self):

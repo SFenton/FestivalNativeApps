@@ -8,6 +8,22 @@ public class FirstRunDemoContentTests
     private static readonly DateTimeOffset Today = new(2026, 10, 7, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
+    public void SortDemoDraft_ShowsTheDefaultSort_OverOnlyTheGivenModes()
+    {
+        SongSortMode[] modes = [SongSortMode.Title, SongSortMode.Artist, SongSortMode.Year];
+        var draft = SongSortDraft.ForDemo(modes);
+
+        Assert.Equal(["Title", "Artist", "Year"], draft.ModeLabels);
+        Assert.Equal((0, 0, false, false), (draft.ModeIndex, draft.DirectionIndex, draft.IsLive, draft.CanApply));
+
+        draft.ModeIndex = 2;
+        draft.DirectionIndex = 1;
+        Assert.True(draft.CanApply);
+        draft.ResetCommand.Execute(null);
+        Assert.Equal((SongSortMode.Title, true, false), (draft.Mode, draft.Ascending, draft.CanApply));
+    }
+
+    [Fact]
     public void Entrance_CoversEveryCatalogueSlide_WithWebDelays()
     {
         var ids = Enum.GetValues<FirstRunPageKey>().SelectMany(FirstRunCatalog.Slides).Select(s => s.Id).ToHashSet();

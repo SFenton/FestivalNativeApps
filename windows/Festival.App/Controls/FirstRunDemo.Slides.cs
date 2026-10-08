@@ -196,46 +196,17 @@ public sealed partial class FirstRunDemo
     };
 
     /// <summary>
-    /// Songs Sort (web <c>SortDemo</c>): the page's Sort drop-down button, then its open flyout with the Sort By and
-    /// Direction radio groups side by side.
+    /// Songs Sort (web <c>SortDemo</c>): the page's Sort drop-down button, then its open flyout: the shared
+    /// <see cref="SongSortForm"/> Songs and the Item Shop host (issue #379), over a detached demo draft.
     /// </summary>
     private void BuildSongsSort()
     {
         Stage(new DropDownButton { Content = GlyphLabel("\uE8CB", "Title"), HorizontalAlignment = HorizontalAlignment.Right });
-        var modes = SongSortModeInfo.ModesFor(false, false, App.Session.Settings.HideShop).Take(4).Select(m => (object)m.Label()).ToList();
-        var sortBy = new RadioButtons { Header = "Sort By", ItemsSource = modes, SelectedIndex = 0 };
-        var direction = new RadioButtons
-        {
-            Header = "Direction",
-            ItemsSource = new List<object> { DirectionOption("\uE74A", "Ascending", "A–Z, low–high"), DirectionOption("\uE74B", "Descending", "Z–A, high–low") },
-            SelectedIndex = 0,
-        };
-        var columns = new Grid { ColumnSpacing = 24 };
-        columns.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        columns.Children.Add(sortBy);
-        Grid.SetColumn(direction, 1);
-        columns.Children.Add(direction);
-        var content = new StackPanel { Spacing = 12 };
-        content.Children.Add(new TextBlock { Text = "Sort Songs", Style = S("FSTSectionHeaderStyle"), Margin = new Thickness(0) });
-        content.Children.Add(columns);
-        Stage(FlyoutSurface(content));
-    }
-
-    /// <summary>A Direction radio item: arrow glyph, label and range caption.</summary>
-    /// <param name="glyph">Arrow glyph.</param>
-    /// <param name="label">Label.</param>
-    /// <param name="caption">Range caption.</param>
-    /// <returns>Item content.</returns>
-    private static StackPanel DirectionOption(string glyph, string label, string caption)
-    {
-        var text = new StackPanel();
-        text.Children.Add(new TextBlock { Text = label });
-        text.Children.Add(new TextBlock { Text = caption, FontSize = 12, Foreground = B("FSTSecondaryTextBrush") });
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        row.Children.Add(new FontIcon { Glyph = glyph, FontSize = 14, VerticalAlignment = VerticalAlignment.Center });
-        row.Children.Add(text);
-        return row;
+        var modes = SongSortModeInfo.ModesFor(false, false, App.Session.Settings.HideShop).Take(4).ToList();
+        var form = new SongSortForm { Draft = SongSortDraft.ForDemo(modes), Title = "Sort Songs", IdPrefix = "fst.songs.sort" };
+        var surface = FlyoutSurface(form);
+        surface.HorizontalAlignment = HorizontalAlignment.Right;
+        Stage(surface);
     }
 
     /// <summary>

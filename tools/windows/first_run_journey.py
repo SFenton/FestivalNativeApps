@@ -271,7 +271,7 @@ def _demo_phases(status: str, pages: list[str] | None = None, settle: float = 0)
 #: (``controls=A+B+…``, ``FirstRunDemoContent.ControlCensus``); a replica of a page control would leave its type out.
 DEMO_CONTROLS = {
     "songs-song-list": ["SongRowCard"],
-    "songs-sort": ["DropDownButton", "RadioButtons"],
+    "songs-sort": ["DropDownButton", "RadioButtons", "SongSortForm"],
     "songs-navigation": ["NavigationView", "NavigationViewItem"],
     "songs-filter": ["Expander", "InstrumentSelector"],
     "songs-icons": ["SongRowCard"],
