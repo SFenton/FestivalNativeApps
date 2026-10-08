@@ -14,12 +14,18 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tools.android.hostlock import HostLock, LockTimeout  # noqa: E402  (shared host lock)
+
+
+def ci_desktop() -> bool:
+    """Return whether this process owns an isolated GitHub Actions desktop."""
+    return os.environ.get("FST_CI") == "1" or os.environ.get("GITHUB_ACTIONS") == "true"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -40,6 +46,8 @@ def main(argv: list[str] | None = None) -> int:
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
     if not command:
         parser.error("missing command after --")
+    if ci_desktop():
+        return subprocess.run(command).returncode
     try:
         with HostLock("desktop", purpose=f"{args.purpose} [{Path.cwd().name}]",
                       hold_seconds=args.hold, wait_seconds=args.wait) as lock:

@@ -59,6 +59,40 @@ from tools.android.hostlock import HostLock, LockTimeout  # noqa: E402  (shared 
 
 # region Configuration
 
+
+def ci_desktop() -> bool:
+    """Return whether this process owns an isolated GitHub Actions desktop."""
+    return os.environ.get("FST_CI") == "1" or os.environ.get("GITHUB_ACTIONS") == "true"
+
+
+class CiDesktopLock:
+    """No-op desktop lock for one isolated GitHub-hosted runner."""
+
+    def __init__(self, _name: str, purpose: str = "", hold_seconds: float = 300.0, **_kwargs: object) -> None:
+        """Record the normal lock constructor values without creating shared-host state."""
+        self.purpose = purpose
+        self.hold_seconds = hold_seconds
+
+    def __enter__(self) -> "CiDesktopLock":
+        """Enter the no-op lock."""
+        return self
+
+    def __exit__(self, _type: object, _value: object, _traceback: object) -> bool:
+        """Leave the no-op lock without suppressing exceptions."""
+        return False
+
+    def track(self, process: subprocess.Popen) -> subprocess.Popen:
+        """Return a child process without registering a shared-host watchdog."""
+        return process
+
+    def remaining(self, floor: float = 0.0) -> float:
+        """Return the normal per-operation budget."""
+        return max(self.hold_seconds, floor)
+
+
+if ci_desktop():
+    HostLock = CiDesktopLock
+
 #: Driver project and cached build root.
 DRIVER_DIR = Path(__file__).resolve().parent / "FstUia"
 DRIVER_BUILD_ROOT = Path.home() / ".fst-tools" / "fstuia"

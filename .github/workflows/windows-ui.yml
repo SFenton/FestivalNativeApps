@@ -1,0 +1,90 @@
+name: windows-ui
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'windows/**'
+      - 'tools/windows/**'
+      - 'tools/mock_service.py'
+      - 'contracts/**'
+      - '.github/workflows/windows-ui.yml'
+  pull_request:
+    paths:
+      - 'windows/**'
+      - 'tools/windows/**'
+      - 'tools/mock_service.py'
+      - 'contracts/**'
+      - '.github/workflows/windows-ui.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-ui-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  windows-ui-shard:
+    name: windows-ui-shard (${{ matrix.shard }}/12)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    env:
+      CI: 'true'
+      FST_CI: '1'
+      PYTHONUTF8: '1'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: windows-ui-nuget-${{ runner.os }}-${{ hashFiles('windows/**/*.csproj') }}
+          restore-keys: |
+            windows-ui-nuget-${{ runner.os }}-
+      - name: Build Debug unpackaged app
+        shell: pwsh
+        run: ./tools/windows/build.ps1 -Configuration Debug
+      - name: Run fixture-backed UI automation
+        shell: pwsh
+        run: >-
+          python tools/windows/ci_ui.py
+          --shard ${{ matrix.shard }}
+          --shards 12
+          --retries 2
+          --out "$env:RUNNER_TEMP\windows-ui\shard-${{ matrix.shard }}"
+      - name: Upload UI automation diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-ui-diagnostics-${{ matrix.shard }}
+          path: |
+            ${{ runner.temp }}\windows-ui\shard-${{ matrix.shard }}
+            ${{ runner.temp }}\fst-*
+          if-no-files-found: warn
+          retention-days: 14
+
+  windows-ui:
+    name: windows-ui
+    needs: windows-ui-shard
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every UI shard
+        if: needs.windows-ui-shard.result != 'success'
+        run: exit 1
+      - run: echo "All fixture-backed Windows UI automation shards passed."
