@@ -49,7 +49,7 @@
       "waitfor:id=fst.quick-links.item.item-shop@5",
       "toggle:id=fst.quick-links.item.item-shop",
       "waitgone:id=fst.quick-links.item.item-shop@5",
-      "assertinset:id=fst.settings.detail-row.item-shop|id=fst.settings|32",
+      "waitfor:id=fst.settings.detail-row.item-shop@3",
       "assertstate:id=fst.quick-links.open|name=Quick Links, current section Item Shop@5",
       "assertfocus:id=fst.settings.detail-row.item-shop@3",
       "shot:{stem}-item-shop.png",

@@ -941,8 +941,12 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 nextFront = DateTime.UtcNow.AddSeconds(2);
             }
             string? seen;
+            // An empty ItemStatus reads as unsupported; a found element then has the empty status, so "missing" means no element.
             using (rawView.Activate())
-                seen = window.FindFirstDescendant(condition)?.Properties.ItemStatus.ValueOrDefault;
+            {
+                var element = window.FindFirstDescendant(condition);
+                seen = element is null ? null : element.Properties.ItemStatus.ValueOrDefault ?? "";
+            }
             if (StatusMatches(seen, expected)) return;
             if (DateTime.UtcNow > until)
                 throw new InvalidOperationException($"element {label} status is {(seen is null ? "missing" : $"\"{seen}\"")}, expected \"{expected}\"");
