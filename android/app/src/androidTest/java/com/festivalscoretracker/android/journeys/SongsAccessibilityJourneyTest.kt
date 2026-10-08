@@ -1,10 +1,18 @@
 package com.festivalscoretracker.android.journeys
 
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -20,6 +28,7 @@ import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.ProfileFixtures
 import com.festivalscoretracker.android.testing.SongsFixtures
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -243,6 +252,7 @@ class SongsAccessibilityJourneyTest {
     }
 
     @Test
+    @DeviceCi
     fun itemShop() {
         val offers = arrayOf("fst.shop.song.s-alpha", "fst.shop.song.s-x", "fst.shop.song.s-beta", "fst.shop.external.s-alpha", "fst.shop.external.s-beta")
         h.enableAccessibilityChecks()
@@ -271,6 +281,101 @@ class SongsAccessibilityJourneyTest {
         // Issue #145: TalkBack hears the active filters, not only the gold tint.
         rule.onNodeWithTag("fst.shop.filter.open").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Filters on: hiding Leaving Tomorrow"))
         h.assertAccessible()
+    }
+
+    /**
+     * Item Shop list rows are the Songs page's shared `SongRowCard` (issue #18; device backfill
+     * #397). At 1.0× and again at 2.0× font scale, with ATF on every step: each row is one
+     * clickable stop that reads its title, artist line and New / Leaving Tomorrow badge and is
+     * never "selected"; its cart link is the next stop, a separate labelled button; rows read in
+     * sort order; row and link are at least 48 × 48 dp and the title stays inside its row.
+     */
+    @Test
+    @DeviceCi
+    fun itemShopSharedSongRow() {
+        var scale by mutableFloatStateOf(1f)
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(route = DebugLaunch.parseRoute("shop"), profile = player, stillBackground = true), transport, fontScale = { scale })
+        rule.waitUntil(15_000) { h.exists("fst.shop.list") || h.exists("fst.shop.grid") }
+        // Wide panes open on the grid; the shared row is the list.
+        if (h.exists("fst.shop.grid")) h.tap("fst.shop.view-toggle")
+        h.waitForTag("fst.shop.list")
+        h.waitForTag("fst.shop.song.s-beta")
+        val titleHeights = mutableListOf<Float>()
+        for (fontScale in listOf(1f, 2f)) {
+            scale = fontScale
+            rule.waitForIdle()
+            titleHeights += assertSharedShopRows("shop-shared-row-${fontScale}x")
+        }
+        assertTrue("2.0× text renders larger titles than 1.0× ($titleHeights)", titleHeights[1] > titleHeights[0] * 1.5f)
+        h.assertAccessible()
+    }
+
+    /**
+     * Assert the Item Shop rows' TalkBack contract and sizes at the current font scale.
+     *
+     * @param screen Reading-order log name.
+     * @return The first row's title height in pixels, to prove the font scale applied.
+     */
+    private fun assertSharedShopRows(screen: String): Float {
+        val minPx = with(rule.density) { 48.dp.toPx() } - 1
+        // Title-ascending sort (ties by song ID): the fixture's three offers.
+        val rows = listOf(
+            ShopRowExpectation("s-alpha", "Alpha Tune", "Band One", "Leaving Tomorrow"),
+            ShopRowExpectation("s-x", "Alpha Tune", "Other", null),
+            ShopRowExpectation("s-beta", "Beta Song", "Band Two · 2019", "New"),
+        )
+        h.scrollTo("fst.shop.list", "fst.shop.song.${rows.first().id}")
+        var previous = -1
+        var firstTitleHeight = 0f
+        rows.forEachIndexed { i, row ->
+            val tag = "fst.shop.song.${row.id}"
+            var order = h.readingOrder("$screen-${i + 1}", fresh = true)
+            var at = order.indexOfFirst { row.matches(it) }
+            if (at < 0) {
+                h.scrollTo("fst.shop.list", "fst.shop.external.${row.id}")
+                order = h.readingOrder("$screen-${i + 1}-scrolled", fresh = true)
+                at = order.indexOfFirst { row.matches(it) }
+                previous = -1
+            }
+            assertTrue("$screen: ${row.id} is a reading stop with its texts and badge in $order", at >= 0)
+            assertTrue("$screen: ${row.id} reads after the previous offer", at > previous)
+            previous = at
+            assertEquals("$screen: the cart link is the stop right after ${row.id}", "Open ${row.title} in the Fortnite Item Shop", order.getOrNull(at + 1))
+            val node = rule.onNodeWithTag(tag).fetchSemanticsNode()
+            assertTrue("$screen: ${row.id} row is clickable", node.config.contains(SemanticsActions.OnClick))
+            assertNull("$screen: single-pane rows are never selected", node.config.getOrNull(SemanticsProperties.Selected))
+            assertNull("$screen: no hidden description repeats the texts", node.config.getOrNull(SemanticsProperties.ContentDescription))
+            listOf(tag, "fst.shop.external.${row.id}").forEach { target ->
+                val size = rule.onNodeWithTag(target, useUnmergedTree = true).fetchSemanticsNode().size
+                assertTrue("$screen: $target is ${size.width}x${size.height} px, at least 48 dp", size.width >= minPx && size.height >= minPx)
+            }
+            val box = node.boundsInWindow
+            val title = rule.onAllNodes(hasText(row.title) and hasAnyAncestor(hasTestTag(tag)), useUnmergedTree = true).fetchSemanticsNodes().single().boundsInWindow
+            assertTrue("$screen: ${row.id} title $title inside row $box", title.left >= box.left - 1 && title.top >= box.top - 1 && title.bottom <= box.bottom + 1 && title.right <= box.right + 1)
+            if (i == 0) firstTitleHeight = title.height
+        }
+        return firstTitleHeight
+    }
+
+    /**
+     * One expected Item Shop row.
+     *
+     * @property id Song ID.
+     * @property title Title text.
+     * @property subtitle Artist line.
+     * @property badge Badge text, or null without a highlight.
+     */
+    private data class ShopRowExpectation(val id: String, val title: String, val subtitle: String, val badge: String?) {
+        /**
+         * Whether a reading-order label is this row's stop.
+         *
+         * @param label Spoken label.
+         * @return True for this row.
+         */
+        fun matches(label: String): Boolean =
+            !label.startsWith("Open ") && title in label && subtitle in label &&
+                (badge == null || badge in label) && (badge != null || ("Leaving Tomorrow" !in label && "New" !in label))
     }
 
     @Test

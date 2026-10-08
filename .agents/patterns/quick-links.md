@@ -2,7 +2,7 @@
 
 > **What:** the ordered per-page section navigator, including its entry point, jump ownership, icons, and accessible current state. **Read when:** adding section navigation to a page or changing a section list.
 
-Status: **current**, 2026-10-05. Provenance: #6, #11, #12, #15, #286, #303, #313.
+Status: **current**, 2026-10-05. Provenance: #6, #11, #12, #15, #286, #303, #313, #389.
 
 ## Intent
 
@@ -22,7 +22,7 @@ Quick Links presents sections in page order and moves directly to the selected s
 3. **R3. Hide inert navigation.** Show an entry point only with at least two current sections; remove unavailable sections rather than offering a no-op choice.
 4. **R4. Land and mark together.** Use the shared 32-unit landing/active line and jump ownership from [section-jump-landing](section-jump-landing.md); selected items remain current through arrival and near-end clamping.
 5. **R5. Use native presentation.** **Approved variants:** Apple uses the tab-bar accessory sheet or toolbar menu (#92 follow-up); Android uses a compact bottom sheet and wider dropdown menu (operator 2026-09-28); Windows uses `QuickLinksMenuButton` or a wide pane. Material 3: "Material Android is Compose-first."
-6. **R6. Preserve accessibility and hit targets.** The entry exposes the current section; the selected row has a current/selected state; rows have names and section jumps announce their destination. Apple touch controls meet HIG Accessibility's 44x44 pt default minimum; Android menu actions use 48 dp; Windows page tools use 40 epx.
+6. **R6. Preserve accessibility and hit targets.** The entry exposes the current section; the selected row has a current/selected state; rows have names and section jumps announce their destination. Apple touch controls meet HIG Accessibility's 44x44 pt default minimum; Android menu actions use 48 dp; Windows page tools use 40 epx. Apple: hosted `QuickLinksAccessibilityTests` (in `apple-ci`) and the iPhone audit journey `QuickLinksAccessibilityJourneyTests` (#389).
 7. **R7. Normalize artwork icons.** Instrument artwork is pre-sized so its *visible* disc matches the adjacent system symbols, and scales with text; it never renders at its 144 pt intrinsic size (#303). The full-bleed artwork's dark outer ring disappears on dark surfaces, so an equal frame reads smaller than the symbols: Apple sizes per chooser (`QuickLinkLabel.Presentation`): 24 pt in the iPhone sheet list beside 20 pt symbols, 17 pt in iOS menus (iPad, Duo) beside 13.5 pt menu symbols, and 16 pt in macOS menus. It follows the row symbols' Dynamic Type curve, which holds from xxxLarge to AX3 while text keeps growing (#313). HIG Icons: "Adjust dimensions for visual weight so they look consistent, rather than forcing equal geometry."
 
 ## Canonical implementation

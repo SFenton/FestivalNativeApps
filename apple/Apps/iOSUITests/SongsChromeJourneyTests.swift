@@ -496,4 +496,141 @@ final class SongsChromeJourneyTests: XCTestCase {
             "Sort did not return to the tab-bar accessory"
         )
     }
+
+    /// Issue #383: on iOS 26 and 27, slow drags a little way down from the top and back
+    /// made the large title jump back and forth and come to rest part-way collapsed. The
+    /// List carried an alpha mask (the row fade under the section bar), and SwiftUI then
+    /// drove its insets from a safe area that lagged UIKit's: when the tab bar expanded on
+    /// release near the top, the List briefly took the collapsed title's inset again and
+    /// the title snapped closed. With a mask band that fell to 0 pt the List also counted
+    /// its top inset twice (170 → 344 pt). Each row now masks itself.
+    ///
+    /// Back at the top after every drag, the large title is expanded again and no section
+    /// title is pinned; past the scroll-away threshold the title is collapsed and the
+    /// section bar names a section. Across the whole pass the List's largest top inset
+    /// (`FST_DEBUG_STALL_LOG` peak `songs.topInset`) never exceeds the expanded title's,
+    /// the scroll-away state flips at most once per threshold crossing, and the screen
+    /// never re-renders or re-sorts. Needs the large fixture like the tests above (skips
+    /// otherwise).
+    @MainActor
+    func testSlowDragsNearTheTopKeepTheLargeTitleSteady() throws {
+        let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"]
+            ?? "http://127.0.0.1:8765"
+        let log = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("songs-near-top-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: log) }
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": base,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1",
+            "FST_DEBUG_STILL_BACKGROUND": "1",
+            "FST_DEBUG_STALL_LOG": log.path,
+        ])
+        app.launch()
+        defer { app.terminate() }
+        XCTAssertTrue(app.buttons["fst.songs.sort"].waitForExistence(timeout: 15))
+        guard app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.section-index").firstMatch
+            .waitForExistence(timeout: 3) else {
+            throw XCTSkip("Catalogue too short to scroll; use mock_service.py --large-catalogue.")
+        }
+        guard #available(iOS 26.0, *) else {
+            throw XCTSkip("The section bar and its row mask exist on iOS 26 and later.")
+        }
+
+        struct Report: Decodable {
+            var counters: [String: Int]
+            var peaks: [String: Double]?
+        }
+        func read() -> Report? {
+            (try? Data(contentsOf: log)).flatMap { try? JSONDecoder().decode(Report.self, from: $0) }
+        }
+        /// The report once it has stopped changing (counters flush at idle).
+        func settledReport() throws -> Report {
+            var last = read()
+            for _ in 0..<20 {
+                Thread.sleep(forTimeInterval: 0.6)
+                let next = read()
+                if let next, let previous = last, next.counters == previous.counters,
+                   next.peaks == previous.peaks { return next }
+                last = next
+            }
+            return try XCTUnwrap(last, "No stall report at \(log.path)")
+        }
+        let sectionBar = app.staticTexts["fst.songs.section-bar"]
+        func barBottom() -> CGFloat { app.navigationBars.firstMatch.frame.maxY }
+        func waitUntil(_ what: String, _ condition: @escaping () -> Bool) {
+            let settled = XCTNSPredicateExpectation(
+                predicate: NSPredicate { _, _ in condition() }, object: nil
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 5), .completed, what)
+        }
+        func drag(_ from: Double, _ to: Double) {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: from)).press(
+                forDuration: 0.1,
+                thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: to)),
+                withVelocity: .slow, thenHoldForDuration: 0.5
+            )
+        }
+
+        // At rest at the top: the expanded large title, nothing pinned.
+        Thread.sleep(forTimeInterval: 2)
+        let expanded = barBottom()
+        XCTAssertFalse(sectionBar.exists, "A section title is pinned at the top")
+        let start = try settledReport()
+        let restingInset = try XCTUnwrap(start.peaks?["songs.topInset"], "No top inset traced")
+        func assertAtTheTop(_ step: String) {
+            waitUntil("\(step): large title stayed collapsed at the top (\(barBottom()) vs \(expanded))") {
+                abs(barBottom() - expanded) <= 2
+            }
+            XCTAssertFalse(sectionBar.exists, "\(step): a section title stayed pinned at the top")
+        }
+        func assertScrolledAway(_ step: String) {
+            waitUntil("\(step): large title did not collapse (\(barBottom()) vs \(expanded))") {
+                barBottom() < expanded - 30
+            }
+            waitUntil("\(step): no section title pinned once scrolled") { sectionBar.exists }
+        }
+
+        // The reported path: a few points to about 100 pt down and back, slowly.
+        // Every drag back up is longer than the drag down, so it ends pulled past the top.
+        let cycles: [(down: (Double, Double), up: (Double, Double), away: Bool)] = [
+            ((0.60, 0.52), (0.52, 0.62), false),
+            ((0.60, 0.50), (0.50, 0.64), false),
+            ((0.60, 0.55), (0.55, 0.62), false),
+            ((0.60, 0.45), (0.45, 0.64), true),
+            ((0.60, 0.40), (0.40, 0.70), true),
+        ]
+        for (index, cycle) in cycles.enumerated() {
+            drag(cycle.down.0, cycle.down.1)
+            if cycle.away { assertScrolledAway("Drag \(index + 1) down") }
+            drag(cycle.up.0, cycle.up.1)
+            assertAtTheTop("Drag \(index + 1) back up")
+        }
+        // Small reversals around the threshold.
+        drag(0.60, 0.55)
+        drag(0.55, 0.57)
+        drag(0.57, 0.53)
+        drag(0.53, 0.62)
+        assertAtTheTop("Reversals")
+
+        let end = try settledReport()
+        XCTAssertEqual(app.state, .runningForeground)
+        func delta(_ name: String) -> Int { (end.counters[name] ?? 0) - (start.counters[name] ?? 0) }
+        let peak = end.peaks?["songs.topInset"] ?? 0
+        let flips = delta("songs.scrolled.flip")
+        let bodies = delta("songs.body")
+        XCTContext.runActivity(
+            named: "top inset at rest \(restingInset), peak \(peak); flips \(flips); "
+                + "bodies \(bodies), sorts \(delta("songs.sort"))"
+        ) { _ in }
+        XCTAssertLessThanOrEqual(
+            peak, restingInset + 1,
+            "The List counted its top inset twice (\(peak) pt, expanded title \(restingInset) pt)"
+        )
+        // Each drag crosses the scroll-away threshold at most once, plus its release.
+        XCTAssertLessThanOrEqual(flips, 2 * (cycles.count * 2 + 4), "Scroll-away state oscillated")
+        XCTAssertEqual(bodies, 0, "Scrolling near the top re-rendered the Songs screen")
+        XCTAssertEqual(delta("songs.sort"), 0, "Scrolling near the top re-sorted the catalogue")
+    }
 }
