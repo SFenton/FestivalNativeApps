@@ -10,6 +10,14 @@ import XCTest
 /// `extension XCTestCase`) so it cannot collide with another lane's identically named helper
 /// when both are extracted from the same monolith in parallel.
 enum SongsUITestSupport {
+    /// Loopback `tools/mock_service.py` origin for the default fixture.
+    ///
+    /// `tools/apple_ui_ci.py` serves the fixture on a free port and passes it as
+    /// `TEST_RUNNER_FST_FIXTURE_URL`; a manual run uses `mock_service.py`'s default port.
+    static var fixtureURL: String {
+        ProcessInfo.processInfo.environment["FST_FIXTURE_URL"] ?? "http://127.0.0.1:8765"
+    }
+
     /// Start each fixture journey without a previously selected app profile.
     ///
     /// - Returns: Native app launcher that clears only the Debug selected-identity key.

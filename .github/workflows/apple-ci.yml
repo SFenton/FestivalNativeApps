@@ -1,6 +1,7 @@
 name: apple-ci
-# Apple unit tests and compile check on a GitHub-hosted Xcode 27 runner (no mesh machine runs CI or
-# release work). The job name is the required check name: keep it `apple-ci`.
+# Apple unit tests, compile check and the iPhone XCUITest accessibility journeys registered in
+# tools/apple_ui_ci.py RUNS, on a GitHub-hosted Xcode 27 runner (no mesh machine runs CI or release work).
+# The job name is the required check name: keep it `apple-ci`.
 on:
   pull_request:
     branches: [master]
@@ -54,6 +55,19 @@ jobs:
         # strictly. Reuses the coverage build and leaves its profile alone. Filter: testing/apple/hosted-snapshots.md.
         working-directory: apple
         run: swift test --skip-build --filter 'selectedRowRevealFadesTheRowItReaches|staggeredListRowsFadeInRatherThanPop|serviceInfoIndeterminateBar'
+      - name: iPhone accessibility journeys (simulator)
+        # XCUITest journeys the macOS host cannot run (iOS Dynamic Type, performAccessibilityAudit): each RUNS entry
+        # in tools/apple_ui_ci.py, on a runner-local iPhone simulator it creates and deletes, against loopback
+        # fixtures (no service calls). Add an entry with each new journey; see testing/apple/xcuitest.md.
+        run: python3 tools/apple_ui_ci.py --create-simulator
+      - name: Upload journey results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple-ci-journeys
+          path: apple/DerivedData/*/Results/*.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload hosted render captures
         if: failure()
         uses: actions/upload-artifact@v4

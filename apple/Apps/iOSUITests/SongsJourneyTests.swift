@@ -1940,6 +1940,7 @@ final class SongsJourneyTests: XCTestCase {
     /// (#91, tests #441): each title grows with Dynamic Type, is named as shown, sits above
     /// its own song with no opaque band, keeps 4.5:1 rendered contrast and passes the audit.
     /// The macOS hosted check for every grouped sort is `SongsSectionTitleAccessibilityTests`.
+    /// `apple-ci` runs this journey on an iPhone simulator (`tools/apple_ui_ci.py` `RUNS`).
     ///
     /// - Throws: A missing or clipped title, rows read out of order or an audit finding.
     @MainActor
@@ -1947,7 +1948,7 @@ final class SongsJourneyTests: XCTestCase {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
         let app = SongsUITestSupport.fixtureApp()
-        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_API_BASE_URL"] = SongsUITestSupport.fixtureURL
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
         let size = UIContentSizeCategory.accessibilityExtraExtraExtraLarge
         app.launchArguments += [
@@ -1990,16 +1991,52 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertEqual(inShop.label, "In Shop")
         XCTAssertGreaterThanOrEqual(inShop.frame.minY, orbit.frame.maxY - 1, "In Shop must read after Leaving Tomorrow's song")
         XCTAssertLessThanOrEqual(inShop.frame.maxY, pulse.frame.minY + 1, "In Shop must read above its song")
+        try auditSectionTitlePage(app)
+    }
+
+    /// Run the full accessibility audit on Songs' grouped Item Shop list (#441).
+    ///
+    /// Only text the shared scroll-edge pattern dims by design is accepted: rows under the
+    /// pinned title's 40 pt row fade (`scroll-edge` R2/R5) and text behind the bottom chrome,
+    /// both covered by their own journeys. A section title is never accepted, and every title on
+    /// screen must measure at least 4.5:1 rendered before an unattributed issue is; any other
+    /// flagged text must measure at least 4.5:1 rendered. Every issue is attached.
+    ///
+    /// - Parameter app: Running app on the Shop sort with both section titles on screen.
+    /// - Throws: An audit failure outside the fade bands.
+    @MainActor
+    private func auditSectionTitlePage(_ app: XCUIApplication) throws {
+        let window = app.windows.firstMatch.frame
+        let titles = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.shop-section.")
+        ).allElementsBoundByIndex.filter { window.intersects($0.frame) }
+        let pinned = try XCTUnwrap(titles.min { $0.frame.minY < $1.frame.minY }, "No section title on screen")
+        let fadeEnd = pinned.frame.maxY + 40
+        let chromeTop = app.tabBars.firstMatch.exists ? app.tabBars.firstMatch.frame.minY : window.maxY
+        let rows = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row.")
+        ).allElementsBoundByIndex.map(\.frame).filter(window.intersects)
+        let rowInFade = rows.contains { $0.minY < fadeEnd || $0.maxY > chromeTop }
+        // The audit may not attribute a contrast issue; no title it could mean may read below 4.5:1.
+        for title in titles {
+            try SongsUITestSupport.assertHeaderContrast(title, in: app, leadingTextWidth: 260)
+        }
         try app.performAccessibilityAudit(for: .all) { issue in
-            // Same iOS 26.5 fixture contrast near-pass as `testSelectedShopSortSongsRowsClearTabBar`;
-            // the section title's own contrast is measured above.
-            guard UIDevice.current.userInterfaceIdiom == .phone,
-                  UIDevice.current.systemVersion == "26.5",
-                  issue.auditType == .contrast,
-                  issue.element?.identifier.hasPrefix("fst.songs.shop-section.") != true else {
-                return false
-            }
-            XCTContext.runActivity(named: "Known iOS 26.5 fixture contrast near-pass") { _ in }
+            let element = issue.element
+            let attachment = XCTAttachment(
+                string: "\(issue.auditType): \(issue.detailedDescription); "
+                    + "element=\(element?.identifier ?? "unidentified"), label=\(element?.label ?? "unidentified"), "
+                    + "frame=\(String(describing: element?.frame)), fadeEnd=\(fadeEnd), chromeTop=\(chromeTop), "
+                    + "rowInFade=\(rowInFade)"
+            )
+            attachment.name = "songs-section-titles-audit-issue"
+            attachment.lifetime = .keepAlways
+            self.add(attachment)
+            guard issue.auditType == .contrast,
+                  element?.identifier.hasPrefix("fst.songs.shop-section.") != true else { return false }
+            guard let element, !element.frame.isEmpty else { return rowInFade }
+            if element.frame.minY < fadeEnd || element.frame.maxY > chromeTop { return true }
+            try SongsUITestSupport.assertHeaderContrast(element, in: app)
             return true
         }
     }

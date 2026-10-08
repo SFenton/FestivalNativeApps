@@ -20,6 +20,13 @@ see `cmd_uitest`'s docstring in `tools/ios_sim.py` for the full contract.
 sequence instead of a written `XCTestCase`, useful for ad hoc exploration
 before writing a real journey.
 
+### Journeys in apple-ci
+
+- **A journey gates pull requests only through `tools/apple_ui_ci.py` `RUNS`** (#441). The macOS hosted tests cannot show iOS Dynamic Type, iOS rendering or `performAccessibilityAudit`, so an iPhone accessibility journey that pins such behavior needs a `Run` entry; `apple-ci` calls `python3 tools/apple_ui_ci.py --create-simulator` after the hosted tests. `tools/tests/test_apple_ui_ci.py` (`contracts` job) checks every entry names a real journey method.
+- **Each run serves its own fixture.** The tool starts `tools/mock_service.py --port 0` (plus the run's `fixture_args`) and passes the origin as `TEST_RUNNER_<fixture_env>` (default `FST_FIXTURE_URL`). A registered journey reads that variable (`SongsUITestSupport.fixtureURL`, which falls back to `mock_service.py`'s default 8765 for a manual run), never a fixed port: another lane's service may already hold it.
+- **CI makes its own simulator; a shared Mac never does.** `--create-simulator` creates an iPhone 17 Pro on the newest iOS runtime that supports it and deletes it afterwards. Locally, leave it out and pass an existing `ios_sim.py` alias (`--device iphone27` matches the runner's iOS 27 runtime); the run goes through `ios_sim.py uitest` and its simulator lock. Failed result bundles upload as the `apple-ci-journeys` artifact.
+- **An audit handler accepts only what a rule dims by design, on every OS version.** No `systemVersion` exemptions in a registered journey: the runner's runtime is not the Mac's. Accept contrast issues only for text under a scroll-edge fade band ([scroll-edge](../../patterns/scroll-edge.md) R2/R5) or behind bottom chrome, never on the element the journey tests (measure its rendered contrast before accepting an unattributed issue), and measure any other flagged text's rendered contrast (`SongsUITestSupport.assertHeaderContrast`). Precedents: `SongDetailJourneyTests` `auditSoloPage`, `SongsJourneyTests` `auditSectionTitlePage`.
+
 ### Shared launch helper (`FestivalApp.swift`, added 2026-09-28)
 
 Every journey launches through `FestivalApp.makeApp(_:)` (build, don't launch)
