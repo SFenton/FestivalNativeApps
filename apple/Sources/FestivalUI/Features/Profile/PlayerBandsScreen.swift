@@ -84,12 +84,12 @@ struct PlayerBandsScreen: View {
                     }
                 case let .loaded(payload):
                     if payload.list.entries.isEmpty {
-                        ContentUnavailableView(
+                        FestivalEmptyState(
                             "No Bands Yet",
                             systemImage: "person.3",
-                            description: Text("No \(group.label.lowercased()) bands were found.")
+                            subtitle: "No \(group.label.lowercased()) bands were found.",
+                            accessibilityIdentifier: "fst.player-bands.empty"
                         )
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         // A `ScrollView` of band cards, not a `List`: the cards are
                         // `NavigationLink`s (a `List` would add a second chevron), and

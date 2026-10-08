@@ -105,15 +105,30 @@ final class ShopJourneyTests: XCTestCase {
         XCTAssertEqual(new.value as? String, "1")
         SongsUITestSupport.setSwitch(new, to: "0")
         app.buttons["fst.shop.filter.done"].tap()
-        let emptyReset = app.buttons["fst.shop.filter-empty.reset"]
-        XCTAssertTrue(emptyReset.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["No offers match these filters"].exists)
+        // Shared centred empty state (issue #377): web-modelled copy, no Reset button.
+        let empty = app.descendants(matching: .any)
+            .matching(identifier: "fst.shop.filter-empty").firstMatch
+        XCTAssertTrue(empty.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["No Item Shop songs match your filters"].exists)
+        XCTAssertFalse(app.buttons["Reset Filters"].exists)
         XCTAssertFalse(pulse.exists)
         XCTAssertFalse(orbit.exists)
         SongsUITestSupport.record(app, name: "shop-filter-no-matches")
-        try app.performAccessibilityAudit(for: .all)
+        // The empty state is text on the page background (no card). The auditor flags its
+        // wrapped white subtitle on the near-black gradient, so measure the composited
+        // pixels for contrast issues instead, like Song Detail's band preview.
+        try app.performAccessibilityAudit(for: .all) { issue in
+            guard issue.auditType == .contrast, let element = issue.element else { return false }
+            try SongsUITestSupport.assertHeaderContrast(element, in: app)
+            return true
+        }
 
-        emptyReset.tap()
+        // The way back is the Filter button's own sheet.
+        filter.tap()
+        let sheetReset = app.buttons["fst.shop.filter.reset"]
+        XCTAssertTrue(sheetReset.waitForExistence(timeout: 10))
+        sheetReset.tap()
+        if app.buttons["fst.shop.filter.done"].exists { app.buttons["fst.shop.filter.done"].tap() }
         XCTAssertTrue(pulse.waitForExistence(timeout: 10))
         XCTAssertTrue(orbit.exists)
         XCTAssertEqual(filter.value as? String, "No filters")

@@ -459,36 +459,21 @@ struct SongsScreen: View, Equatable {
                             disclosures(for: payload)
                                 .padding(.horizontal, 16)
                         }
-                        ContentUnavailableView {
-                            VStack(spacing: 12) {
-                                Image(systemName: "magnifyingglass")
-                                    .font(.largeTitle)
-                                    .accessibilityHidden(true)
-                                Text(
-                                    settledSearch.isEmpty
-                                        ? "No Results" : "No Results for \"\(settledSearch)\""
-                                )
-                                .font(.title2.bold())
-                                .multilineTextAlignment(.center)
-                                .fixedSize(horizontal: false, vertical: true)
-                            }
-                            .foregroundStyle(FestivalText.primary)
-                        } description: {
-                            Text(
-                                settledSearch.isEmpty
-                                    ? (filtersApplied
-                                        ? "No songs match your filters."
-                                        : "No songs are available yet.")
-                                    : (effectiveShopFilter.isActive
-                                        || general.restrictsMetadata
-                                        || effectivePlayerScoreFilter.isActive
-                                        ? "Try a different search or filter."
-                                        : "Try a different search.")
-                            )
-                            .foregroundStyle(FestivalText.primary)
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-                        }
+                        FestivalEmptyState(
+                            settledSearch.isEmpty
+                                ? "No Results" : "No Results for \"\(settledSearch)\"",
+                            systemImage: "magnifyingglass",
+                            subtitle: settledSearch.isEmpty
+                                ? (filtersApplied
+                                    ? "No songs match your filters."
+                                    : "No songs are available yet.")
+                                : (effectiveShopFilter.isActive
+                                    || general.restrictsMetadata
+                                    || effectivePlayerScoreFilter.isActive
+                                    ? "Try a different search or filter."
+                                    : "Try a different search."),
+                            accessibilityIdentifier: "fst.songs.empty"
+                        )
                     }
                 } else {
                     populatedList(

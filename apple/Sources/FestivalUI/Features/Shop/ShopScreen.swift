@@ -319,32 +319,17 @@ struct ShopScreen: View {
     /// Preserve an explicit empty/error/provenance state in either adaptive layout.
     ///
     /// - Parameter snapshot: Public shop feed with optional valid catalog links.
-    /// - Returns: Readable list, adaptive grid, genuine empty message, or a no-match card
-    ///   when the Shop filter hides every offer.
+    /// - Returns: Readable list, adaptive grid, genuine empty message, or the no-match
+    ///   empty state when the Shop filter hides every offer.
     @ViewBuilder
     private func shopContent(_ snapshot: ShopSnapshot) -> some View {
         let offers = displayedOffers(snapshot).offers
         if snapshot.payload.sortedSongs.isEmpty {
-            VStack(spacing: 12) {
-                Image(systemName: "bag")
-                    .font(.largeTitle)
-                    .accessibilityHidden(true)
-                Text("No songs in the Item Shop")
-                    .font(.title2.bold())
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityAddTraits(.isHeader)
-                Text("Check back later - the shop updates regularly.")
-                    .font(.body)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .foregroundStyle(FestivalText.primary)
-            .padding(24)
-            .background(
-                BrandTokens.cardBackground,
-                in: RoundedRectangle(cornerRadius: 12)
+            FestivalEmptyState(
+                ShopEmptyCopy.emptyTitle, systemImage: "bag",
+                subtitle: ShopEmptyCopy.emptySubtitle,
+                accessibilityIdentifier: "fst.shop.empty"
             )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .accessibilityIdentifier("fst.shop.empty")
         } else if offers.isEmpty {
             filteredEmpty(snapshot)
         } else if viewMode == .list {
@@ -530,47 +515,21 @@ struct ShopScreen: View {
             : "No filters"
     }
 
-    /// A loaded Shop whose offers the filter hides: distinct from a genuinely empty
-    /// Shop, with Reset in place.
+    /// A loaded Shop whose offers the filter hides: the shared centred empty state
+    /// (empty-error-states R2, issue #377), distinct from a genuinely empty Shop. No
+    /// card and no Reset: the Filter button stays in the page tools.
     ///
     /// - Parameter snapshot: The loaded Shop, for its disclosures.
-    /// - Returns: A readable card with Reset Filters.
+    /// - Returns: Any disclosures, then the empty state centred in the rest of the page.
     private func filteredEmpty(_ snapshot: ShopSnapshot) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                shopDisclosures(snapshot)
-                VStack(spacing: 12) {
-                    Image(systemName: "line.3.horizontal.decrease")
-                        .font(.largeTitle)
-                        .accessibilityHidden(true)
-                    Text("No offers match these filters")
-                        .font(.title2.bold())
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityAddTraits(.isHeader)
-                    Text("Try different filters, or reset them to see the whole Item Shop.")
-                        .font(.body)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Button("Reset Filters", role: .destructive) {
-                        applyFilter(ShopOfferFilter())
-                    }
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(FestivalSheetActionColor.destructive)
-                    .frame(minHeight: 44)
-                    .accessibilityIdentifier("fst.shop.filter-empty.reset")
-                }
-                .foregroundStyle(FestivalText.primary)
-                .padding(24)
-                .frame(maxWidth: .infinity)
-                .background(
-                    BrandTokens.cardBackground,
-                    in: RoundedRectangle(cornerRadius: 12)
-                )
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("fst.shop.filter-empty")
-            }
-            .padding(16)
+        VStack(spacing: 0) {
+            VStack(spacing: 8) { shopDisclosures(snapshot) }
+                .padding(.horizontal, 16)
+            FestivalEmptyState(
+                ShopEmptyCopy.filteredTitle, systemImage: "line.3.horizontal.decrease",
+                subtitle: ShopEmptyCopy.filteredSubtitle,
+                accessibilityIdentifier: "fst.shop.filter-empty"
+            )
         }
     }
 
@@ -908,4 +867,23 @@ enum ShopGridPolicy {
         evenColumnCount(width: width, layout: layout)
             ?? MacKeyboardPolicy.adaptiveColumns(width: width, minimum: minimumCardWidth, spacing: spacing)
     }
+}
+
+// MARK: - Empty copy
+
+/// Item Shop empty-state copy (issue #377).
+///
+/// The genuine empty Shop is the web `ShopPage` `EmptyState` (`shop.empty` /
+/// `shop.emptyHint`). The web Shop has no filters, so the filtered state follows the web's
+/// filtered-empty copy instead, scoped to the Item Shop and worded like Android's
+/// filtered Shop state (empty-error-states R8).
+enum ShopEmptyCopy {
+    /// Web `shop.empty`.
+    static let emptyTitle = "No songs in the Item Shop"
+    /// Web `shop.emptyHint`.
+    static let emptySubtitle = "Check back later \u{2014} the shop updates regularly."
+    /// Web `songs.noResults` scoped to the Item Shop, without a sentence period as a title.
+    static let filteredTitle = "No Item Shop songs match your filters"
+    /// Web filtered-empty next step.
+    static let filteredSubtitle = "Try changing your filters to see more songs."
 }

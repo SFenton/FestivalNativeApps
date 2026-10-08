@@ -6,4 +6,5 @@
 - At accessibility text sizes the grid reflows to a list (a clipped grid artist label prompted this).
 - Toolbar order: **Sort, Filter, List/Grid** (issue #379; HIG toolbars › "Group by function/frequency and consistently across platforms"). Sort opens the same Songs Sort sheet as a form sheet (HIG popovers › "Avoid popovers in compact views" applies to Slide Over and narrow splits, so iPad keeps the sheet like Songs); the grid and list both follow it ([ios.md](ios.md)).
 - The Filter button (issue #19, [ios.md](ios.md)) sits before the grid/list toggle and filters the grid and list alike; the sheet is the system form sheet with the same switch rows. The no-match card replaces the grid.
+- The Filter button (issue #19, [ios.md](ios.md)) sits before the grid/list toggle and filters the grid and list alike; the sheet is the system form sheet with the same switch rows. The centred filtered-empty state (no card, no Reset; #377) replaces the grid.
 - The web's wide-sidebar Shop entry is not ported.

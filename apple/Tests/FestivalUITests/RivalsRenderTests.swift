@@ -372,7 +372,12 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(host, untilText: ["No Rivals Yet"])
     _ = try nativeHostedPNG(image, filename: "all-rivals-empty.png", environment: "FST_RIVALS_RENDER_OUT")
-    assertRendersContent(host, image: image, containing: ["No Rivals Yet"])
+    // The shared empty state (issue #377) is sparse text on the page background, like
+    // Songs' "No Results"; this guards against a transparent capture.
+    assertRendersContent(
+        host, image: image, minimumNonBackgroundFraction: 0.002, minimumInkFraction: 0.001,
+        containing: ["No Rivals Yet"]
+    )
 }
 
 @MainActor
@@ -555,7 +560,11 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     _ = try nativeHostedPNG(
         image, filename: "rival-detail-no-songs.png", environment: "FST_RIVALS_RENDER_OUT"
     )
-    assertRendersContent(host, image: image, containing: ["No Shared Songs"])
+    // Sparse shared empty state (#377); guards against a transparent capture.
+    assertRendersContent(
+        host, image: image, minimumNonBackgroundFraction: 0.002, minimumInkFraction: 0.001,
+        containing: ["No Shared Songs"]
+    )
 }
 
 /// A `nil` scope (deep link, cold `DebugLaunchRoute`, or `FindRivalSheet`'s
@@ -695,7 +704,11 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     _ = try nativeHostedPNG(
         image, filename: "rivalry-empty-category.png", environment: "FST_RIVALS_RENDER_OUT"
     )
-    assertRendersContent(host, image: image, containing: ["No Songs", "There are no songs in this category."])
+    // Sparse shared empty state (#377); guards against a transparent capture.
+    assertRendersContent(
+        host, image: image, minimumNonBackgroundFraction: 0.002, minimumInkFraction: 0.001,
+        containing: ["No Songs", "There are no songs in this category."]
+    )
 }
 
 /// Songs used by `rival-detail-demo.json`, mirrored here (rather than decoding the

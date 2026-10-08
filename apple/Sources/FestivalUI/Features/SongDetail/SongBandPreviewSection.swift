@@ -137,22 +137,25 @@ struct SongBandPreviewSection: View {
             .accessibilityIdentifier("fst.song-detail.band-empty.\(bandType.rawValue)")
             .festivalFadeInOnAppear()
         } else {
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(displayed.enumerated()), id: \.offset) { index, entry in
-                    SongBandPreviewRow(entry: entry, highlighted: preview.isSelected(entry))
-                        .accessibilityIdentifier("fst.song-detail.band-row.\(bandType.rawValue).\(index)")
-                }
-                // The selected band's row after the top ten jumps to its place in the
-                // full board, like the solo spotlight row (issue #307).
-                if let footer {
-                    SongBandPreviewRow(
-                        entry: footer, highlighted: true,
-                        route: SongBandRowNavigation.previewRoute(
-                            for: footer, song: song, bandType: bandType, isAppended: true
+            VStack(alignment: .leading, spacing: 8) {
+                // The top ten and the selected band are entries in one group card, like
+                // the Rivals cards (issue #381); View full leaderboard stays below it.
+                FestivalGlassSection(rows: .flush(separatorInset: 12)) {
+                    ForEach(Array(displayed.enumerated()), id: \.offset) { index, entry in
+                        SongBandPreviewRow(entry: entry, highlighted: preview.isSelected(entry))
+                            .accessibilityIdentifier("fst.song-detail.band-row.\(bandType.rawValue).\(index)")
+                    }
+                    // The selected band's row after the top ten jumps to its place in the
+                    // full board, like the solo spotlight row (issue #307).
+                    if let footer {
+                        SongBandPreviewRow(
+                            entry: footer, highlighted: true,
+                            route: SongBandRowNavigation.previewRoute(
+                                for: footer, song: song, bandType: bandType, isAppended: true
+                            )
                         )
-                    )
-                    .padding(.top, 4)
-                    .accessibilityIdentifier("fst.song-detail.band-selected.\(bandType.rawValue)")
+                        .accessibilityIdentifier("fst.song-detail.band-selected.\(bandType.rawValue)")
+                    }
                 }
                 // The full band board opens in the trailing pane where Song Detail can
                 // split, like the instrument boards (issue #367).
@@ -170,7 +173,8 @@ struct SongBandPreviewSection: View {
 
 // MARK: - Row
 
-/// One band score card (web `PlayerBandCard` + `SongBandScoreFooter`): each member's
+/// One band score row (web `PlayerBandCard` + `SongBandScoreFooter`): its own card on the
+/// full band board, an entry of the group card in Song Detail's preview (#381). Each member's
 /// name and instruments, then rank, team score, stars and accuracy. The whole card is
 /// one drill-down button with a disclosure chevron: to Band Detail, or for the selected
 /// band's appended row to its place in the full board (issue #307). Shared by the Song

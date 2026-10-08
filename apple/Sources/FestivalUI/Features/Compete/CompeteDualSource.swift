@@ -30,9 +30,9 @@ struct CompeteLeaderboardsCarousel: View {
             entranceIndex: CompeteDualSourceEntrance.leaderboardsHeader
         ) {
             if instruments.isEmpty {
-                DualSourceMessage(
+                FestivalEmptyState(
                     "No Instruments", systemImage: "slider.horizontal.3",
-                    message: "Enable at least one instrument in Settings to see leaderboards."
+                    subtitle: "Enable at least one instrument in Settings to see leaderboards."
                 )
                 .festivalFadeIn(staggerIndex: CompeteDualSourceEntrance.firstLeaderboardCard)
             } else {
@@ -75,9 +75,9 @@ struct CompeteRivalsCarousel: View {
             entranceIndex: header
         ) {
             if instruments.isEmpty {
-                DualSourceMessage(
+                FestivalEmptyState(
                     "No Instruments", systemImage: "slider.horizontal.3",
-                    message: "Enable at least one instrument in Settings to see rivals."
+                    subtitle: "Enable at least one instrument in Settings to see rivals."
                 )
                 .festivalFadeIn(staggerIndex: header + 1)
             } else {
