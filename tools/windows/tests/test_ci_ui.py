@@ -1,12 +1,20 @@
 """Fixture-only task selection for the GitHub-hosted Windows UI workflow."""
 
 import unittest
+from unittest.mock import patch
 
-from tools.windows import ci_ui
+from tools.windows import ci_ui, uiwin
 
 
 class CiUiTests(unittest.TestCase):
     """The CI dispatcher must never select live-service journey entries."""
+
+    def test_ci_desktop_lock_does_not_require_host_state(self):
+        with patch.dict("os.environ", {"FST_CI": "1"}, clear=False):
+            self.assertTrue(uiwin.ci_desktop())
+        lock = uiwin.CiDesktopLock("desktop", hold_seconds=30)
+        self.assertIs(lock.__enter__(), lock)
+        self.assertEqual(lock.remaining(), 30)
 
     def test_fixture_entries_exclude_live_labels(self):
         source = ci_ui.JOURNEYS / "polish.json"

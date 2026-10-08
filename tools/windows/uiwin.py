@@ -893,10 +893,10 @@ def run_driver(request: dict, lock: HostLock, budget: float = 120.0) -> dict:
     req, resp = EXCHANGE_DIR / f"{token}.req.json", EXCHANGE_DIR / f"{token}.resp.json"
     req.write_text(json.dumps(request), encoding="utf-8")
     current, console = session_ids()
-    if console in (0, 0xFFFFFFFF):
+    if not ci_desktop() and console in (0, 0xFFFFFFFF):
         raise RuntimeError("no interactive console session; the operator must be logged on")
     try:
-        if current == console:
+        if ci_desktop() or current == console:
             proc = lock.track(subprocess.Popen([str(exe), "--request", str(req),
                                                 "--response", str(resp)]))
             proc.wait(timeout=min(budget, lock.remaining()))
