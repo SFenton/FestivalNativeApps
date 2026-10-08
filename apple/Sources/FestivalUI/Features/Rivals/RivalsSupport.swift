@@ -120,18 +120,20 @@ struct RivalRowContent<Rival: RivalRowDisplayable>: View {
     }
 }
 
-/// "View All Rivals" link below a rivals preview card (#41): the shared
+/// "View All Rivals" link that ends a rivals preview card (#41): the shared
 /// ``PurpleActionLink`` that Rival Detail's category cards and "View Full Leaderboard"
-/// also draw, sitting under the card rather than inside it, like the web's shared
-/// `viewAllButton`.
+/// also draw, passed as the card's `action` so it sits inside the card after the last
+/// row (#382), where the web's shared `viewAllButton` follows its rows.
 struct RivalsViewAllButton: View {
     /// Full rivals list to push.
     let route: AppRoute
     /// Per-section `…view-all` accessibility identifier.
     let identifier: String
+    /// Card title spoken after the label ("View All Rivals, Lead Rivals"; view-all-cta R4).
+    var card: String? = nil
 
     var body: some View {
-        PurpleActionLink(title: "View All Rivals", route: route, identifier: identifier)
+        PurpleActionLink(title: "View All Rivals", route: route, identifier: identifier, card: card)
     }
 }
 

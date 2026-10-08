@@ -138,19 +138,19 @@ struct FirstRunSongInfoBarSelectDemo: View {
 // MARK: - songinfo-view-all
 
 /// Ported from `pages/songinfo/firstRun/demo/ViewAllDemo.tsx`: the player's own top scores, with
-/// the last row faded (a bottom mask on the web) and a pulsing "View all scores" row below.
+/// the last row faded (a bottom mask on the web) and a pulsing "View all scores" button ending the card.
 struct FirstRunSongInfoViewAllDemo: View {
     var body: some View {
-        VStack(spacing: 8) {
-            // Entries of one card, like Song Detail's Score History card (#381).
-            FestivalGlassSection(rows: .flush(separatorInset: 14)) {
-                ForEach(Array(FirstRunDemoPool.ownScores.enumerated()), id: \.element.id) { index, entry in
-                    scoreRow(entry)
-                        .opacity(index == FirstRunDemoPool.ownScores.count - 1 ? 0.45 : 1)
-                        .firstRunStagger(index)
-                }
+        // Entries of one card ending with View All, like Song Detail's Score History card
+        // (#381, #382).
+        FestivalGlassSection(rows: .flush(separatorInset: 14)) {
+            ForEach(Array(FirstRunDemoPool.ownScores.enumerated()), id: \.element.id) { index, entry in
+                scoreRow(entry)
+                    .opacity(index == FirstRunDemoPool.ownScores.count - 1 ? 0.45 : 1)
+                    .firstRunStagger(index)
             }
-            FirstRunViewAllRow(title: "View all scores")
+        } action: {
+            FirstRunViewAllRow(title: "View All Scores")
         }
         .accessibilityHidden(true)
     }
@@ -200,8 +200,9 @@ struct FirstRunSongInfoTopScoresDemo: View {
                     .padding(.vertical, 11)
                     .firstRunStagger(index)
                 }
+            } action: {
+                FirstRunViewAllRow(title: "View Full Leaderboard")
             }
-            FirstRunViewAllRow(title: "View full leaderboard")
         }
         .accessibilityHidden(true)
     }

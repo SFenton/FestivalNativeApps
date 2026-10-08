@@ -319,46 +319,21 @@ struct FirstRunRivalRow: View {
     }
 }
 
-/// A pulsing "View all…" call-to-action row, echoing the web's `pulseWrap` button.
+/// A pulsing "View all…" call-to-action, echoing the web's `pulseWrap` button. The demos
+/// pass it as their group card's `action`, so it draws the real buttons' flat in-card
+/// purple through the shared ``PurpleActionSurface`` (view-all-cta R1, #382).
 struct FirstRunViewAllRow: View {
     let title: String
 
     var body: some View {
-        // The app's purple "View all" button surface, pulsing as the web demo's
-        // call-to-action does.
         Text(title)
             .font(.body.weight(.semibold))
             .foregroundStyle(FestivalText.primary)
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity, minHeight: 44)
             .padding(.vertical, 4)
-            .modifier(FirstRunPurpleButtonSurface())
-            .firstRunPulse(BrandTokens.accentPurple, shape: .roundedRect(cornerRadius: 12))
-    }
-}
-
-/// Same surface as the Leaderboards / Song Detail "View all" buttons (their
-/// `PurpleActionSurface`): the accent-purple material card on 26, solid purple under
-/// Reduce Transparency or the app's contrast overrides.
-struct FirstRunPurpleButtonSurface: ViewModifier {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
-    @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
-
-    func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
-        if reduceTransparency || lessTransparency || moreContrast {
-            content.background(BrandTokens.accentPurple, in: shape)
-        } else if #available(iOS 26.0, macOS 26.0, *) {
-            content
-                .background(PurpleActionSurface.tint, in: shape)
-                .background(.ultraThinMaterial, in: shape)
-                .overlay(shape.strokeBorder(RowCardStyle.rim, lineWidth: 1))
-        } else {
-            content
-                .background(BrandTokens.accentPurple.opacity(0.85), in: shape)
-                .overlay(shape.stroke(BrandTokens.glassBorder, lineWidth: 1))
-        }
+            .modifier(PurpleActionSurface())
+            .firstRunPulse(BrandTokens.accentPurple, shape: .roundedRect(cornerRadius: PurpleActionSurface.cornerRadius))
     }
 }
 
