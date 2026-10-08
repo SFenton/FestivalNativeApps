@@ -19,7 +19,7 @@
 | Secrets tool | `tools/release/store_secrets.py` | `status`, `asc`, `ios-p12`, `msstore`: validates and uploads credentials to the `store-release` environment through `gh secret set` stdin |
 | Android/macOS | `android-release.yml`, `macos-release.yml` | Disabled scaffolds (below) |
 
-`native.yml` (hosted Windows/Android unit tests) and `contracts.yml` are unchanged; the required checks are `apple-ci` and `contracts`.
+`native.yml` (hosted Windows/Android unit tests and the `android-device` accessibility journeys), `windows-ui.yml` (Windows accessibility journeys) and `contracts.yml` are unchanged by the release machine; the required checks are `apple-ci` and `contracts`.
 
 ## Rule: stores are touched only from Actions
 
