@@ -57,16 +57,18 @@ import com.festivalscoretracker.android.ui.common.shellPosture
 internal val BAND_CONTENT_MAX = 840.dp
 
 /**
- * The most central vertical fold/hinge from Jetpack WindowManager, in content coordinates.
+ * The most central **separating** vertical fold/hinge (book posture, or a physical hinge) from
+ * Jetpack WindowManager, in content coordinates. A flat fold is never returned: unfolded, band
+ * panes and grids divide the free content area evenly (issue #361).
  *
  * @param contentLeftPx Content box's leading edge in the window (px).
  * @param contentWidth Content width.
- * @return Hinge, or null when there is none or it sits too close to an edge.
+ * @return Hinge, or null when there is none, it is flat or it sits too close to an edge.
  */
 @Composable
 internal fun rememberBandHinge(contentLeftPx: Float, contentWidth: Dp): BandLayout.Hinge? {
     val density = LocalDensity.current
-    val hinges = shellPosture().hingeList.filter { it.isVertical }.mapNotNull { hinge ->
+    val hinges = shellPosture().hingeList.filter { it.isVertical && it.isSeparating }.mapNotNull { hinge ->
         with(density) {
             BandLayout.hingeInContent(
                 hinge.bounds.left.toDp().value,

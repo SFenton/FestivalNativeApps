@@ -2735,7 +2735,7 @@
       "title": "Hinge columns",
       "status": "current",
       "doc": ".agents/patterns/hinge-columns.md",
-      "summary": "While a vertical fold crosses a layout (iPhone Duo book pose, Android book posture), grid and two-up row gutters sit on the fold with the same column count each side, full-width titles wrap on their own side, and the flat layout returns in place when unfolded.",
+      "summary": "While a vertical fold crosses a layout (iPhone Duo book pose, Android book posture), grid and two-up row gutters sit on the fold with the same column count each side, full-width titles wrap on their own side, and the flat layout returns in place when unfolded; fully unfolded (flat), splits and page rows divide at the midpoint of the free content area, never on the flat hinge line (owner-approved, #361).",
       "keywords": [
         "hinge",
         "fold",
@@ -2793,6 +2793,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FoldLane.kt",
             "symbol": "FoldLane"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/bands/BandLayout.kt",
+            "symbol": "BandLayout"
           }
         ],
         "windows": []
@@ -2829,7 +2833,8 @@
       "supersedes": [],
       "issues": [
         343,
-        350
+        350,
+        361
       ]
     },
     {
@@ -2837,7 +2842,7 @@
       "title": "Wide columns",
       "status": "current",
       "doc": ".agents/patterns/wide-columns.md",
-      "summary": "Page rows and cards show in two columns only in wide landscape windows (iPad landscape, iPhone Duo unfolded landscape, a wide Mac surface), row-major under full-width headings (pages of unequal section cards such as Settings flow column by column in balanced columns), meeting at the Duo hinge, reflowing without reloading; portrait, compact windows and (for Settings) accessibility text sizes keep one column; full-width leaderboards pair rank rows row-major under one full-width pinned row and pager, while split sub-pages stay one column.",
+      "summary": "Page rows and cards show in two columns only in wide landscape windows (iPad landscape, iPhone Duo unfolded landscape, a wide Mac surface), row-major under full-width headings (pages of unequal section cards such as Settings flow column by column in balanced columns), meeting at the Duo hinge in book pose and at the free content area's midpoint when fully unfolded (owner-approved, #361), reflowing without reloading; portrait, compact windows and (for Settings) accessibility text sizes keep one column; full-width leaderboards pair rank rows row-major under one full-width pinned row and pager, while split sub-pages stay one column.",
       "keywords": [
         "two column",
         "two-column",
@@ -2925,7 +2930,8 @@
       "issues": [
         350,
         353,
-        355
+        355,
+        361
       ]
     },
     {
@@ -2933,7 +2939,7 @@
       "title": "Split panes",
       "status": "current",
       "doc": ".agents/patterns/split-panes.md",
-      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (a fold, or a 1 pt midpoint band plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under Increase Contrast, and the split's one backdrop and top gradient run unbroken across the band.",
+      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (a fold only when partially folded, owner-approved #361; otherwise a 1 pt band at the free content area's midpoint plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under Increase Contrast, and the split's one backdrop and top gradient run unbroken across the band.",
       "keywords": [
         "split view",
         "split",
@@ -2963,7 +2969,16 @@
             "symbol": "SplitPaneChrome"
           }
         ],
-        "android": [],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/nav/FestivalSection.kt",
+            "symbol": "listPaneWidth"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/bands/BandLayout.kt",
+            "symbol": "BandLayout"
+          }
+        ],
         "windows": []
       },
       "related": {
@@ -2994,7 +3009,8 @@
       ],
       "supersedes": [],
       "issues": [
-        344
+        344,
+        361
       ]
     }
   ]
