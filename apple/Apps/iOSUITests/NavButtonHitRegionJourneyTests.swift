@@ -229,6 +229,55 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         app.buttons["fst.songs.filter.done"].tap()
     }
 
+    /// Issue #394 (for #14): at the largest accessibility text size the bell (tab-bar
+    /// accessory) and Profile (navigation bar) stay two separate, labelled buttons with
+    /// 44 pt hit regions; each still opens its own destination, and an accessibility
+    /// audit of hit region, description, Dynamic Type and clipping reports nothing on
+    /// either. Bar buttons keep their size at large text (Profile offers the Large
+    /// Content Viewer); the accessory caps its type at `PageToolsAccessory.maxTypeSize`.
+    @MainActor
+    func testAccountButtonsStaySeparateAndLabelledAtLargestTextSize() throws {
+        continueAfterFailure = false
+        let app = fixtureApp(profile: true)
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
+        ]
+        app.launch()
+        let bell = app.buttons["fst.shell.notifications"]
+        let profile = app.navigationBars.buttons["fst.shell.profile"]
+        XCTAssertTrue(bell.waitForExistence(timeout: 15), "Notifications missing at AX text size")
+        XCTAssertTrue(profile.waitForExistence(timeout: 10), "Profile missing at AX text size")
+        XCTAssertTrue(bell.label.hasPrefix("Notifications"), "bell label '\(bell.label)'")
+        XCTAssertEqual(profile.label, "Profile: Fixture Player 1")
+        for (id, button) in [("bell", bell), ("profile", profile)] {
+            XCTAssertTrue(button.isHittable, "\(id) not hittable")
+            XCTAssertGreaterThanOrEqual(button.frame.height, 44, "\(id) \(button.frame)")
+        }
+        // The accessory bell's slot is a full 44 pt square. The monogram draws its 44 pt
+        // circle past a narrower layout rect (`MonogramMetrics.overhang`, #311), so its
+        // width is proven by the near-miss taps and the `.hitRegion` audit below instead.
+        XCTAssertGreaterThanOrEqual(bell.frame.width, 44, "bell \(bell.frame)")
+        XCTAssertFalse(bell.frame.intersects(profile.frame), "bell \(bell.frame) overlaps profile \(profile.frame)")
+        SongsUITestSupport.record(app, name: "account-buttons-ax-xxxl")
+
+        let account: Set<String> = ["fst.shell.notifications", "fst.shell.profile"]
+        try app.performAccessibilityAudit(
+            for: [.hitRegion, .sufficientElementDescription, .dynamicType, .textClipped]
+        ) { issue in
+            // Audit only the account group; other regions have their own journeys.
+            guard let element = issue.element, account.contains(element.identifier) else { return true }
+            return false
+        }
+
+        assertNearMissesOpen(app, "fst.shell.notifications", opens: app.buttons["fst.notifications.close"]) {
+            app.buttons["fst.notifications.close"].tap()
+        }
+        assertNearMissesOpen(app, "fst.shell.profile", opens: SongsUITestSupport.playerPage(in: app)) {
+            let back = app.navigationBars.buttons["BackButton"]
+            (back.exists ? back : app.navigationBars.buttons.element(boundBy: 0)).tap()
+        }
+    }
+
     // MARK: - Helpers
 
     /// Tap each near miss around button `id`, expect `opens` to appear, then close it.
