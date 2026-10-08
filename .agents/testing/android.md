@@ -18,6 +18,14 @@
 - Cold boots are headless with animations at scale 0 by default. Pass `--animations` when testing animation-scale behavior.
 - Unit tests for the tooling: `python -m unittest discover -s tools/android/tests` (not yet part of CI's `tools/tests` discovery; TODO(orchestrator): wire in).
 
+## CI
+
+- The `android-device` check in [`.github/workflows/android-device.yml`](../../.github/workflows/android-device.yml) runs the complete `:app:connectedDebugAndroidTest` suite on every relevant PR and `master` push. It uses a cached API 35 Google APIs x86_64 Pixel 6 AVD (the supported 411 dp phone geometry closest to `FST_Phone`) with KVM, a cached Gradle user home and animations disabled.
+- Device tests inject synthetic `FakeTransport`/fixture transports; the `MainActivity` naming test uses a closed loopback origin. CI never reaches the public service. Failure artifacts are `android-device-reports` (HTML/XML) and `android-device-logcat`, which includes `FST_ATF` accessibility findings.
+- CI is the phone baseline. The suite's hinge assertions activate only when WindowManager reports a fold; Book Fold half-open coverage remains the explicit device-lab run through `device.py test --avd FST_Book_Fold --posture half`.
+- The rounded-corner device probe self-skips only when the runner lacks its physical-corner preconditions (an edge-attached window and a radius larger than the Material fallback), so its physical-corner assertion cannot be made; all other device tests run. ATF also ignores an unlabelled node only when the scroll viewport has clipped it below 8 dp, because it is not a readable TalkBack stop.
+- CI quarantines: none.
+
 ## Accessibility tooling
 
 | Tool | Coordinates / availability |
