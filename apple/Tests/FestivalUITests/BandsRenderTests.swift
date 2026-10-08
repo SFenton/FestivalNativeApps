@@ -703,6 +703,69 @@ private func renderSongBandPreviews(
     #expect(tree.contains("View All Fixture Player 1's Bands"))
 }
 
+// MARK: - Song Detail band preview columns (#366)
+
+/// Frames of Song Detail's Duos, Trios and Quads sections and of their headers (a header's
+/// text is centred in its 44 pt row, so header centres share a row's line) once loaded.
+@MainActor
+private func songDetailBandFrames(
+    width: CGFloat
+) async throws -> (sections: [BandType: CGRect], headers: [BandType: CGRect]) {
+    let (session, _, _) = try await bandsFixtureSession()
+    let song = try await fixtureSong(session, songId: "fixture-pulse")
+    let size = CGSize(width: width, height: 6000)
+    let host = nativeHostedView(
+        NavigationStack { SongDetailScreen(song: song, session: session) }
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    func read(_ prefix: String) -> [BandType: CGRect] {
+        BandType.allCases.reduce(into: [:]) { result, bandType in
+            result[bandType] = nativeHostedAccessibilityFrame("\(prefix).\(bandType.rawValue)", in: host)
+        }
+    }
+    for _ in 0..<60 {
+        await settle(host, iterations: 1)
+        if read("fst.song-detail.band").count == BandType.allCases.count,
+           nativeHostedAccessibilityFrame("fst.song-detail.band-row.Band_Duets.0", in: host) != nil { break }
+    }
+    // Let the rows' load-in rise (`FestivalFadeIn.riseDistance`) finish.
+    await settle(host, iterations: 10)
+    return (read("fst.song-detail.band"), read("fst.song-detail.band-header"))
+}
+
+/// Wide Song Detail flows the band previews into the instrument cards' columns
+/// (`SongDetailCardGrid`, pattern `hinge-columns`): Duos beside Trios, Quads under Duos.
+/// Before #366 they were full-width sections stacked under the grid.
+@MainActor
+@Test func songDetailBandPreviewsFlowInCardColumnsWhenWide() async throws {
+    let (sections, headers) = try await songDetailBandFrames(width: 1000)
+    let duos = try #require(sections[.duets])
+    let trios = try #require(sections[.trios])
+    let quads = try #require(sections[.quad])
+    #expect(abs(try #require(headers[.duets]).midY - (try #require(headers[.trios]).midY)) < 1.5)
+    #expect(trios.minX - duos.maxX >= SongDetailCardColumns.spacing - 1.5)
+    #expect(abs(duos.width - trios.width) < 1.5)
+    #expect(duos.width >= SongDetailCardColumns.minimumWidth)
+    #expect(abs(quads.minX - duos.minX) < 1.5)
+    #expect(quads.minY > max(duos.maxY, trios.maxY))
+}
+
+/// iPhone width keeps one column: Duos, Trios and Quads stack at full width.
+@MainActor
+@Test func songDetailBandPreviewsStayOneColumnOnIPhone() async throws {
+    let (sections, _) = try await songDetailBandFrames(width: 402)
+    let duos = try #require(sections[.duets])
+    let trios = try #require(sections[.trios])
+    let quads = try #require(sections[.quad])
+    #expect(abs(trios.minX - duos.minX) < 1.5)
+    #expect(abs(quads.minX - duos.minX) < 1.5)
+    #expect(trios.minY > duos.maxY)
+    #expect(quads.minY > trios.maxY)
+}
+
 @Test func playerBandsRouteDefaultsToAllAndCarriesGroup() {
     #expect(AppRoute.playerBands(accountId: "a", displayName: nil)
         == .playerBands(accountId: "a", displayName: nil, group: .all))

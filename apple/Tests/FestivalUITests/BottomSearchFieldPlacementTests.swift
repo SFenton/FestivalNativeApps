@@ -130,6 +130,87 @@ struct BottomSearchFieldPlacementTests {
         #expect(BottomSearchFieldPlacement.keyboardLift(rowBottom: 433.4, keyboardTop: 433) == 1)
     }
 
+    // MARK: Search button alignment (#358)
+
+    @Test func theFieldIsAsTallAsTheSearchButtonInThePose() {
+        // Folded (every rotation) and inner landscape: the vertical bar's 48 pt button.
+        #expect(BottomSearchFieldPlacement.fieldHeight(for: .verticalBar(.trailing)) == 48)
+        #expect(BottomSearchFieldPlacement.fieldHeight(for: .verticalBar(.leading)) == 48)
+        // Inner portrait: the tab bar's 62 pt Search button.
+        #expect(BottomSearchFieldPlacement.fieldHeight(for: .tabBar) == 62)
+    }
+
+    @Test func innerLandscapeCentresTheFieldOnTheRailSearchButton() {
+        // Measured (iOS 27.1 simulator, 951 × 669): rail Search 48 pt at y 597–645,
+        // the row's safe-area bottom at 635. The field reaches 10 pt into the bottom
+        // inset so its 597–645 span matches the button's.
+        let padding = BottomSearchFieldPlacement.searchButtonAlignedBottomPadding(
+            chrome: .verticalBar(.trailing), rowBottom: 635, windowBottom: 669,
+            fieldHeight: 48, keyboardTop: nil
+        )
+        #expect(padding == -10)
+        let fieldBottom = 635 - (padding ?? 0)
+        #expect(fieldBottom - 24 == 621, "Field centre on the button's centre")
+    }
+
+    @Test func foldedPortraitCentresTheFieldOnTheRailSearchButton() {
+        // Folded portrait 466 × 678: rail Search at y 606–654.
+        // Measured live: the row (and `DeviceLayout.size`) ends at 644, 34 pt above the
+        // window's bottom, so the field reaches 10 pt below it.
+        let layout = Self.duo(.closed, size: CGSize(width: 466, height: 678))
+        #expect(layout.sectionChrome.isVerticalBar)
+        let padding = BottomSearchFieldPlacement.bottomPadding(
+            chrome: layout.sectionChrome, rowBottom: 644, windowBottom: 678, fieldHeight: 48,
+            keyboardTop: nil
+        )
+        #expect(644 - padding == 654)
+    }
+
+    @Test func largerTextStaysCentredOnTheButton() {
+        // A 60 pt field (large Dynamic Type) keeps the 621 centre: 591–651.
+        let padding = BottomSearchFieldPlacement.searchButtonAlignedBottomPadding(
+            chrome: .verticalBar(.trailing), rowBottom: 635, windowBottom: 669,
+            fieldHeight: 60, keyboardTop: nil
+        )
+        #expect(padding == -16)
+    }
+
+    @Test func theKeyboardOrATabBarKeepsTheStandardRow() {
+        let landscape = Self.duo(.fullyOpen, size: CGSize(width: 951, height: 669))
+        // Software keyboard up: above it, with any measured lift.
+        #expect(BottomSearchFieldPlacement.bottomPadding(
+            chrome: landscape.sectionChrome, rowBottom: 330, windowBottom: 669, fieldHeight: 48, keyboardTop: 340
+        ) == 8)
+        #expect(BottomSearchFieldPlacement.bottomPadding(
+            chrome: landscape.sectionChrome, rowBottom: 360, windowBottom: 669, fieldHeight: 48, keyboardTop: 340
+        ) == 28)
+        // A hardware keyboard's off-screen frame still aligns with the button.
+        #expect(BottomSearchFieldPlacement.bottomPadding(
+            chrome: landscape.sectionChrome, rowBottom: 635, windowBottom: 669, fieldHeight: 48, keyboardTop: 669
+        ) == -10)
+        // Inner portrait: the Search button is in the tab bar the field must not cover.
+        let portrait = DeviceLayout.resolve(LayoutSignals(
+            size: CGSize(width: 669, height: 951), widthClass: .regular, hinge: .fullyOpen
+        ), dualSource: false)
+        #expect(portrait.sectionChrome == .tabBar)
+        #expect(BottomSearchFieldPlacement.bottomPadding(
+            chrome: portrait.sectionChrome, rowBottom: 868, windowBottom: 951, fieldHeight: 62, keyboardTop: nil
+        ) == 8)
+        // Not measured yet.
+        #expect(BottomSearchFieldPlacement.bottomPadding(
+            chrome: landscape.sectionChrome, rowBottom: 0, windowBottom: 0, fieldHeight: 0, keyboardTop: nil
+        ) == 8)
+        #expect(BottomSearchFieldPlacement.bottomPadding(
+            chrome: DeviceLayout.standardPhone.sectionChrome, rowBottom: 635, windowBottom: 669, fieldHeight: 48, keyboardTop: nil
+        ) == 8)
+    }
+
+    @Test func keyboardCoversOnlyWhenOnScreen() {
+        #expect(!BottomSearchFieldPlacement.keyboardCovers(keyboardTop: nil, windowBottom: 669))
+        #expect(!BottomSearchFieldPlacement.keyboardCovers(keyboardTop: 669, windowBottom: 669))
+        #expect(BottomSearchFieldPlacement.keyboardCovers(keyboardTop: 340, windowBottom: 669))
+    }
+
     // MARK: Fold per pose (#334)
 
     /// Inner landscape: the hinge runs down the middle of the 951 × 669 pt window.
@@ -303,6 +384,39 @@ func searchScopeBarAndBottomFieldShareOneColumn(bookPose: Bool) async throws {
     #expect(field.minX >= column.minX && field.minX <= column.minX + 60, "Field starts at the column")
     #expect(field.maxX <= column.maxX && field.maxX >= column.maxX - 14, "Field ends at the column")
     #expect(field.minY > size.height / 2, "Field sits at the bottom")
+}
+
+/// Issue #358: beside the vertical bar the field is the rail Search button's 48 pt and
+/// shares its centre, 48 pt above the window's bottom (the standard row would centre
+/// it 32 pt above). The Duo's 34 pt gap under the SwiftUI root is covered by the
+/// placement tests; a macOS host has no such gap.
+@MainActor
+@Test func bottomFieldLinesUpWithTheRailSearchButton() async throws {
+    let size = CGSize(width: 867, height: 669)
+    let layout = BottomSearchFieldPlacementTests.duo(.fullyOpen, size: CGSize(width: 951, height: 669))
+    let view = Color.clear
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            BottomSearchField(
+                text: .constant(""), prompt: "Filter Songs", accessibilityLabel: "Filter Songs",
+                identifier: "fst.songs.filter-field", clearIdentifier: "fst.songs.filter-clear",
+                hinge: nil, space: "page"
+            )
+        }
+        .coordinateSpace(.named("page"))
+        .frame(width: size.width, height: size.height)
+        .environment(\.deviceLayout, layout)
+        .preferredColorScheme(.dark)
+    let host = nativeHostedView(view, size: size)
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let centre = size.height - 24 - 24
+    let image = try await nativeHostedSettle(host) {
+        guard let field = nativeHostedAccessibilityFrame("fst.songs.filter-field", in: host) else { return false }
+        return abs(field.midY - centre) < 1.5
+    }
+    _ = try nativeHostedPNG(image, filename: "songs-duo-filter-rail.png", environment: "FST_SHELL_RENDER_OUT")
+    let field = try #require(nativeHostedAccessibilityFrame("fst.songs.filter-field", in: host))
+    #expect(abs(field.midY - centre) < 1.5, "Field centre \(field.midY), rail Search centre \(centre)")
 }
 
 /// Drives one hosted field through a fold/unfold/rotate sequence (issue #334).

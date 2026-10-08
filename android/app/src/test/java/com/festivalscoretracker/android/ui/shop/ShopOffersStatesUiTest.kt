@@ -306,7 +306,21 @@ class ShopOffersStatesUiTest {
         click("fst.shop.filter.done")
         waitForTag("fst.shop.filter.empty")
         assertFalse(exists("fst.shop.empty"))
-        click("fst.shop.filter.empty-reset")
+        // The shared empty state (#377): centred text with no card and no Reset Filters button.
+        assertFalse(exists("fst.shop.filter.empty-reset"))
+        assertTrue(rule.onAllNodesWithText("Reset Filters").fetchSemanticsNodes().isEmpty())
+        assertTrue(textShown(SHOP_FILTERED_EMPTY_TITLE))
+        assertTrue(textShown(SHOP_FILTERED_EMPTY_SUBTITLE))
+        val region = bounds("fst.shop.filter.empty")
+        val title = rule.onAllNodesWithText(SHOP_FILTERED_EMPTY_TITLE).onFirst().fetchSemanticsNode().boundsInWindow
+        assertTrue("centred horizontally", dp(kotlin.math.abs(title.center.x - region.center.x)) < 2f)
+        assertTrue("centred vertically: ${title.center.y} in ${region.top}..${region.bottom}", dp(kotlin.math.abs(title.center.y - region.center.y)) < 60f)
+        assertTrue("fills the page height", dp(region.height) > 400f)
+        // The Filter sheet's Reset is the way back.
+        click("fst.shop.filter.open")
+        waitForTag("fst.shop.filter.reset")
+        click("fst.shop.filter.reset")
+        click("fst.shop.filter.done")
         waitForTag("fst.shop.song.s-x")
     }
 

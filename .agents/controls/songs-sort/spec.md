@@ -33,3 +33,7 @@ The Item Shop page reuses this control; it is not a second sort mechanism. The r
 ## Accessibility and IDs
 
 Announce Sort Songs, mode choices, direction, Reset, Cancel, Apply; selection and disabled Apply perceivable. IDs `fst.songs.sort{,.mode,.direction,.reset,.cancel,.apply}`, `fst.songs.sort-paused`, `fst.songs.shop-section.*`.
+
+## Consumers
+
+The Item Shop sort (#379) reuses this control's UI and catalogue comparator with the Title, Artist, Year and Duration modes only: [shop/spec.md](../../pages/shop/spec.md#sort-native-and-web-agent-decision-379). Rules shared by both consumers (one sort UI, one comparator, direction section, Reset, saved per page): the [catalogue-sort](../../patterns/catalogue-sort.md) pattern.
