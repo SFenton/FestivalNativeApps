@@ -68,6 +68,7 @@ ScrollView { LazyVStack { ForEach(items) { card($0).quickLinkSection(section($0)
   - At AccessibilityXXXL, rows are more than 1.35× taller and pass the Dynamic Type, clipping and hit-region audit.
 
   Neither test found a defect.
+- **Accessory slot** (#395, for #15). In `apple-ci`, the hosted `NavButtonAccessibilityTests` render the real tab-bar accessory: in it the entry is an `AXButton` named "Quick Links" with the current section as value, a whole 44 pt slot between Filter Songs and the bell that overlaps neither, the same at AX5 and in the 222 pt inline width, and pressing it opens `PageToolInlineMenuSheet` with page-order choices and the current one checked. No defect found.
 - Measured frames are `@ObservationIgnored`, so scrolling redraws only when the active section changes.
 
 ## Adoption checklist (owning lanes)
