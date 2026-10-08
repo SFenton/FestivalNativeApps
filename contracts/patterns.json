@@ -1758,7 +1758,7 @@
       "title": "Empty and error states",
       "status": "current",
       "doc": ".agents/patterns/empty-error-states.md",
-      "summary": "Loading, empty and failed outcomes stay distinct: centered scoped title/subtitle empty states, one native loading indicator, and explicit unavailable messages without global-search Retry controls.",
+      "summary": "Loading, empty and failed outcomes stay distinct: every empty page or region uses one shared centered title/subtitle empty-state component with no card and no Reset Filters button, one native loading indicator, and explicit unavailable messages without global-search Retry controls.",
       "keywords": [
         "empty",
         "no results",
@@ -1767,7 +1767,9 @@
         "loading",
         "spinner",
         "retry",
-        "search"
+        "search",
+        "empty state",
+        "reset filters"
       ],
       "web": [
         {
@@ -1810,6 +1812,10 @@
         ],
         "windows": [
           {
+            "path": "windows/Festival.App/Controls/EmptyStateView.xaml",
+            "symbol": "EmptyStateView"
+          },
+          {
             "path": "windows/Festival.App/Pages/SearchPage.xaml",
             "symbol": "fst.global-search.empty"
           },
@@ -1826,6 +1832,13 @@
           "regex": "fst\\.global-search\\.(?:retry|players-retry)",
           "allow": [],
           "message": "Global Search reruns from submit or edit; it has no Retry control (empty-error-states R3)."
+        },
+        {
+          "id": "windows-empty-reset",
+          "glob": "windows/Festival.App/**/*.xaml",
+          "regex": "fst\\.[a-z.-]*(?:empty-reset|reset-filters)",
+          "allow": [],
+          "message": "Empty states have no Reset/Clear Filters button; filters reset from their flyout or sheet (empty-error-states R8)."
         }
       ],
       "related": {
@@ -1841,7 +1854,11 @@
         "pages": [
           "songs",
           "leaderboards",
-          "compete"
+          "compete",
+          "shop",
+          "suggestions",
+          "rivals",
+          "bands"
         ]
       },
       "supersedes": [],
@@ -1854,7 +1871,8 @@
         299,
         312,
         320,
-        348
+        348,
+        377
       ]
     },
     {

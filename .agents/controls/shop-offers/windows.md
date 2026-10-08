@@ -15,7 +15,7 @@ Every reachable contract state runs in `python tools/windows/shop_journey.py [--
 |---|---|
 | hidden | "Item Shop Is Hidden" heading (Level 2), pane item, Filter and List/Grid toggle gone |
 | loading | one ring, `fst.shop.loading` (UIA name "Busy Loading Item Shop" while active); the reveal ring is collapsed while idle so UIA never reports an inactive ring. The journey starts the load from Retry inside the asserting drive, because a read held from launch can outlast the 30 s request timeout ("You're offline") while the drive waits for the shared desktop lock. |
-| empty / failed | empty card or service status + Retry; no Filter, no List/Grid toggle (fixed: the toggle used to show) |
+| empty / failed | centred shared `EmptyStateView` (no card, #377) or service status + Retry; no Filter, no List/Grid toggle (fixed: the toggle used to show) |
 | populated / new / leaving / grid | tiles named "Title, Artist · Year, New/Leaving Tomorrow"; Leaving pill `fst.shop.badge.leaving.<id>`; gold/red pulse |
 | list | `fst.shop.list` rows with badges and the cart button; toggle back to grid |
 | offline | closed loopback port → "You're offline" + Retry (online-only: no offline cache UX) |
