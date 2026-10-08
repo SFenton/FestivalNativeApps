@@ -65,8 +65,12 @@ jobs:
             sleep 1
           done
           UDID=$(python3 tools/ios_sim.py ci-device)
-          python3 tools/ios_sim.py uitest --device "$UDID" --timeout 1200 \
-            --only SongBandRevealAccessibilityJourneyTests
+          # One test per batch, each bounded, and no 600 s failure-diagnostics wait.
+          J=SongBandRevealAccessibilityJourneyTests
+          python3 tools/ios_sim.py uitest --device "$UDID" --timeout 900 --batch-size 1 --no-test-diagnostics \
+            --only "$J/testRevealedBandRowIsAccessibleWithStandardMotion" \
+            --only "$J/testRevealedBandRowIsAccessibleWithReduceMotion" \
+            --only "$J/testRevealedBandRowGrowsAtLargestTextSize"
       - name: Upload iPhone journey results
         if: failure()
         uses: actions/upload-artifact@v4

@@ -17,7 +17,7 @@
 
 ## iPhone journeys in `apple-ci`
 
-`apple-ci` boots its runner's own disposable iPhone 17 Pro (`python3 tools/ios_sim.py ci-device`: newest installed iOS runtime, refuses to run off CI) and runs `SongBandRevealAccessibilityJourneyTests` against `tools/mock_service.py`, keeping the xcresult as an artifact on failure. Add an iPhone journey there only when it is fixture-backed and deterministic; locally run it with `python3 tools/ios_sim.py uitest --device iphone --only <Class>`.
+`apple-ci` boots its runner's own disposable iPhone 17 Pro (`python3 tools/ios_sim.py ci-device`: newest installed iOS runtime, refuses to run off CI) and runs `SongBandRevealAccessibilityJourneyTests` against `tools/mock_service.py`, one test per batch (`--batch-size 1`, 900 s each) with `--no-test-diagnostics` (after a failure xcodebuild otherwise waits up to 600 s collecting simulator diagnostics, which timed out the step), keeping the xcresult as an artifact on failure. Add an iPhone journey there only when it is fixture-backed and deterministic; locally run it with `python3 tools/ios_sim.py uitest --device iphone --only <Class>`.
 
 ## Open findings (not waived)
 

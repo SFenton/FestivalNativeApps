@@ -1868,6 +1868,7 @@ def cmd_uitest(args: argparse.Namespace) -> int:
             udid=udid, derived=derived, selectors=batch, timeout=args.timeout,
             a11y=getattr(args, "a11y", None), pose=getattr(args, "pose", None),
             set_pose=getattr(args, "set_pose", False), rotate=getattr(args, "rotate", None),
+            diagnostics=not getattr(args, "no_test_diagnostics", False),
         )
         if returncode == EXIT_POSE_MISMATCH:
             print(f"uitest {label}: iPhone Duo pose not reached; stopping", file=sys.stderr)
@@ -1931,7 +1932,7 @@ def _result_counts(result_bundle: Path) -> str:
 def _run_uitest_batch(
     *, udid: str, derived: Path, selectors: list[str], timeout: float,
     a11y: list[str] | None = None, pose: str | None = None, set_pose: bool = False,
-    rotate: list[str] | None = None,
+    rotate: list[str] | None = None, diagnostics: bool = True,
 ) -> tuple[int, float, Path, Path]:
     """Run one bounded batch of ``-only-testing:`` selectors under one lock hold.
 
@@ -1949,6 +1950,9 @@ def _run_uitest_batch(
         selectors: One batch's ``Class``/``Class/testMethod`` selectors.
         timeout: Seconds before killing this batch's run.
         a11y: ``A11Y_SETTINGS`` keys switched on for this batch and restored after it.
+        diagnostics: Let ``xcodebuild`` collect its sysdiagnose-like failure
+            diagnostics (False passes ``-collect-test-diagnostics never``: on a CI
+            runner that collection alone has waited 600 s after a failure).
 
     Returns:
         ``(returncode, elapsed_seconds, log_path, result_bundle_path)``.
@@ -1997,6 +2001,8 @@ def _run_uitest_batch(
         ]
         for selector in selectors:
             cmd.append(f"-only-testing:{product().uitest_target}/{selector}")
+        if not diagnostics:
+            cmd += ["-collect-test-diagnostics", "never"]
         cmd += ["test-without-building", "-quiet"]
         print("+", " ".join(cmd), file=sys.stderr)
         with open(log_path, "w") as log, simulator_accessibility(udid, a11y):
@@ -2195,6 +2201,11 @@ def main(argv: list[str] | None = None) -> int:
                              "the lock is released between batches for other lanes")
     uitest.add_argument(
         "--rebuild", action="store_true", help="force a fresh build-for-testing"
+    )
+    uitest.add_argument(
+        "--no-test-diagnostics", action="store_true",
+        help="skip xcodebuild's failure diagnostics collection (-collect-test-diagnostics never), "
+             "which can hold a CI batch for 600 s after a failure",
     )
     uitest.add_argument("--a11y", action="append", choices=sorted(A11Y_SETTINGS),
                         help="switch a simulator accessibility setting on for each batch, "
