@@ -157,13 +157,24 @@ struct FirstRunRotatingDemoDataTests {
 
 #if os(macOS)
 /// A demo on the visible page advances on the web clock; the same demo off-screen does not.
+///
+/// Each host gets its own app storage, so a parallel test's `fst.accessibility.reduceMotion`
+/// in the standard defaults cannot hold the active demo still (issue #380), and the active
+/// demo is polled for its first swap rather than sampled once, so a busy parallel CI run has
+/// time to fire the 2.5 s ticker.
 @MainActor
 @Test func activeBarSelectDemoAdvancesAndInactiveStaysStill() async throws {
     func frames(active: Bool) async throws -> (CGImage, CGImage) {
+        let suiteName = "fst-fre-rotation-active-\(UUID().uuidString)"
+        let storage = try #require(UserDefaults(suiteName: suiteName))
+        defer { storage.removePersistentDomain(forName: suiteName) }
+        storage.set(false, forKey: "fst.accessibility.reduceMotion")
         let size = CGSize(width: 390, height: 300)
         let host = nativeHostedView(
             FirstRunSongInfoBarSelectDemo()
                 .environment(\.firstRunDemoActive, active)
+                .environment(\._accessibilityReduceMotion, false)
+                .defaultAppStorage(storage)
                 .padding(20)
                 .frame(width: size.width, height: size.height)
                 .background(BrandTokens.cardBackground)
@@ -175,7 +186,17 @@ struct FirstRunRotatingDemoDataTests {
         let first = try await nativeHostedSettle(host, animationGrace: .milliseconds(200))
         // One 2.5 s cycle plus the 300 ms fade-out and fade-in.
         try await Task.sleep(for: .milliseconds(3_400))
-        return (first, try nativeHostedImage(host))
+        var after = try nativeHostedImage(host)
+        if active {
+            let deadline = ContinuousClock.now + .seconds(12)
+            while nativeHostedSignature(after) == nativeHostedSignature(first), ContinuousClock.now < deadline {
+                try await Task.sleep(for: .milliseconds(250))
+                host.layoutSubtreeIfNeeded()
+                host.displayIfNeeded()
+                after = try nativeHostedImage(host)
+            }
+        }
+        return (first, after)
     }
 
     let (activeBefore, activeAfter) = try await frames(active: true)
