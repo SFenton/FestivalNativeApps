@@ -520,9 +520,10 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertEqual(filter.value as? String, "No filters")
     }
 
-    /// Pause saved score checks honestly while keeping public Shop choices on deselect.
+    /// Pause saved score checks honestly, then reset every filter on deselect like the
+    /// web's `resetSongSettingsForDeselect` (#359).
     ///
-    /// - Throws: Raw-score filtering, hidden-chart leakage, lost Shop choice or stale identity.
+    /// - Throws: Raw-score filtering, hidden-chart leakage, a kept filter or stale identity.
     @MainActor
     func testPlayerScoreFilterSettingsPauseAndDeselectScope() throws {
         continueAfterFailure = false
@@ -602,24 +603,21 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertFalse(orbit.exists)
         try SongsUITestSupport.deselectFixturePlayer(in: app)
         SongsUITestSupport.reshowSongsToolbar(in: app)
-        SongsUITestSupport.record(app, name: "songs-score-filter-cleared-shop-kept")
-        let shopOnly = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value == %@", "Item Shop filter"),
+        SongsUITestSupport.record(app, name: "songs-filters-reset-after-deselect")
+        let reset = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "No filters"),
             object: filter
         )
         XCTAssertEqual(
-            XCTWaiter.wait(for: [shopOnly], timeout: 10), .completed,
+            XCTWaiter.wait(for: [reset], timeout: 10), .completed,
             "After deselect Filter value: \(filter.value as? String ?? "<missing>"); "
                 + "rows: \(pulse.exists), \(orbit.exists)"
         )
         XCTAssertTrue(pulse.exists && orbit.exists)
+        XCTAssertFalse(paused.exists, "No score-filter notice without a player (#359)")
         SongsUITestSupport.viewFixturePlayer("fixture-player-1", query: "Fixture Player", in: app)
         SongsUITestSupport.selectViewedPlayer(in: app)
-        let activeShop = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value == %@", "Item Shop filter"),
-            object: filter
-        )
-        XCTAssertEqual(XCTWaiter.wait(for: [activeShop], timeout: 10), .completed)
+        XCTAssertEqual(XCTWaiter.wait(for: [reset], timeout: 10), .completed)
         XCTAssertTrue(pulse.waitForExistence(timeout: 10) && orbit.exists)
     }
 
@@ -806,20 +804,28 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertFalse(orbit.exists)
         try SongsUITestSupport.deselectFixturePlayer(in: app)
         SongsUITestSupport.reshowSongsToolbar(in: app)
-        let kept = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value == %@", "Item Shop filter"), object: filter
+        // Web `resetSongSettingsForDeselect` (#359): deselecting resets General filters too.
+        let reset = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "No filters"), object: filter
         )
         XCTAssertEqual(
-            XCTWaiter.wait(for: [kept], timeout: 15), .completed,
-            "General filters survive deselection; value: \(filter.value as? String ?? "<missing>")"
+            XCTWaiter.wait(for: [reset], timeout: 15), .completed,
+            "Deselect resets every filter; value: \(filter.value as? String ?? "<missing>")"
         )
         XCTAssertTrue(pulse.waitForExistence(timeout: 10))
-        XCTAssertFalse(orbit.exists)
+        XCTAssertTrue(orbit.waitForExistence(timeout: 10))
         XCTAssertFalse(paused.exists)
+        // General filters still work without a profile.
         SongsUITestSupport.openSongsFilter(in: app)
         XCTAssertFalse(app.buttons["fst.songs.filter.score-sections"].exists,
                        "Without a profile only General filters are shown")
-        XCTAssertEqual(unavailable.value as? String, "0")
+        XCTAssertEqual(unavailable.value as? String, "1")
+        SongsUITestSupport.setSwitch(unavailable, to: "0")
+        done.tap()
+        XCTAssertTrue(pulse.waitForExistence(timeout: 10))
+        XCTAssertFalse(orbit.exists)
+        XCTAssertEqual(filter.value as? String, "Item Shop filter")
+        SongsUITestSupport.openSongsFilter(in: app)
         SongsUITestSupport.record(app, name: "songs-anonymous-general-filter-sheet")
         SongsUITestSupport.revealFilterReset(in: app).tap()
         done.tap()
