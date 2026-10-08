@@ -3213,6 +3213,10 @@
           {
             "path": "apple/Sources/FestivalCore/ShopOfferSort.swift",
             "symbol": "ShopSortChoice"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Shop/ShopScreen.swift",
+            "symbol": "ShopScreen"
           }
         ],
         "android": [
