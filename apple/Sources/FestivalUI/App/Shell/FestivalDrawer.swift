@@ -513,7 +513,7 @@ struct FestivalDrawer: View {
         .preferredColorScheme(.dark)
         // While closing, taps and VoiceOver already reach the page underneath.
         .allowsHitTesting(isPresented)
-        .accessibilityHidden(!isPresented)
+        .accessibilityHidden(while: !isPresented)
         .onAppear {
             openFocus = AccessibilityFocusRequest(target: .topHeading, token: 1)
             if animatesIn { animatePresence(to: isPresented) }
