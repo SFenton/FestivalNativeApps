@@ -766,28 +766,56 @@ fun <T> TopBarChoiceAction(
                 .semantics { contentDescription = "$label, ${optionLabel(selected)}" },
         ) { icon() }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, containerColor = BrandTokens.cardBackground) {
-            Text(
-                label,
-                style = MaterialTheme.typography.labelLarge,
-                color = BrandTokens.textPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
-            options.forEachIndexed { index, option ->
-                val isSelected = option == selected
-                DropdownMenuItem(
-                    text = { Text(optionLabel(option), color = BrandTokens.textPrimary) },
-                    leadingIcon = leading?.let { { it(option) } },
-                    trailingIcon = if (isSelected) ({ Icon(Icons.Filled.Check, contentDescription = null, tint = BrandTokens.textPrimary) }) else null,
-                    onClick = {
-                        expanded = false
-                        onSelect(option)
-                    },
-                    modifier = Modifier
-                        .testTag(itemTag(index, option))
-                        .semantics { stateDescription = if (isSelected) "Selected" else "Not selected" },
-                )
+            ChoiceMenuItems(label, options, selected, optionLabel, itemTag, leading) {
+                expanded = false
+                onSelect(it)
             }
         }
+    }
+}
+
+/**
+ * The single-choice menu's content: a Title Case header, then one item per option with a check on
+ * the selected one. Shared by [TopBarChoiceAction] and the First Run Rank By demo.
+ *
+ * @param T Option type.
+ * @param label Header, or null for none (the First Run demo's 220 dp frame).
+ * @param options Options in display order.
+ * @param selected Current option.
+ * @param optionLabel Visible option text.
+ * @param itemTag Test tag of each item.
+ * @param leading Optional leading content for items.
+ * @param onSelect Selection callback.
+ */
+@Composable
+internal fun <T> ChoiceMenuItems(
+    label: String?,
+    options: List<T>,
+    selected: T,
+    optionLabel: (T) -> String,
+    itemTag: (Int, T) -> String,
+    leading: (@Composable (T) -> Unit)? = null,
+    onSelect: (T) -> Unit,
+) {
+    if (label != null) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelLarge,
+            color = BrandTokens.textPrimary,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        )
+    }
+    options.forEachIndexed { index, option ->
+        val isSelected = option == selected
+        DropdownMenuItem(
+            text = { Text(optionLabel(option), color = BrandTokens.textPrimary) },
+            leadingIcon = leading?.let { { it(option) } },
+            trailingIcon = if (isSelected) ({ Icon(Icons.Filled.Check, contentDescription = null, tint = BrandTokens.textPrimary) }) else null,
+            onClick = { onSelect(option) },
+            modifier = Modifier
+                .testTag(itemTag(index, option))
+                .semantics { stateDescription = if (isSelected) "Selected" else "Not selected" },
+        )
     }
 }
 

@@ -145,6 +145,50 @@ The app is dark-only, so system light theme looks the same. A remount restarts t
 
 The full unit suite passes, with coverage at 98.1% logic and 96.6% UI. The connected `FirstRunJourneyTest` passes on FST_Phone.
 
+## Issue #380 (2026-10-07): platform-native demos and web motion
+
+Every Android demo now draws the app's own Compose components, gets the web cascade and fits the 220 dp frame with whole rows. Owning pattern: [load-transition](../../patterns/load-transition.md) (First Run demo cascade row); the cascade reuses `festivalFadeIn` and adds no second fade.
+
+**Motion.**
+- The carousel latches `LocalFirstRunReveal` once a slide settles (at once under Reduce Motion), and each visit replays the entrance, like the web remounting the slide.
+- `Modifier.demoEntrance(delay)` is the web `fadeInUp`: 400 ms, a 12 dp rise. Rows are 80 ms apart (60 ms on grids), and the title and description follow at `staggerCount × 125 ms` and one step later (`core/firstrun/FirstRunEntrance.kt`, web `FirstRunCarousel`).
+- Shop pulses follow the web patterns (`FirstRunShopPattern`), and Suggestions scrolls infinitely at 30 dp/s (`FirstRunInfiniteScroll`).
+- Reduce Motion (`LocalFestivalAccessibility.reduceMotion`) removes the rise, the pulse, the breathe and the scroll. Data swaps still land instantly (#166).
+
+**Fit (web `useSlideHeight`).**
+- `DemoFitFirst` measures each candidate as a still, semantics-free probe and shows the most rows that fit whole. Candidates come from `FirstRunDemoFit.rowCandidates` or `sortCandidates`, where the direction section goes before the last mode. The pick is remembered per width and budget, and the probes are disposed on the next measure.
+- `DemoFrame` scales a fixed-structure demo (chart, bar select, Compete hub) from the top centre only if it still overflows. `FirstRunDemoFitUiTest` keeps every demo at or under 220 dp and above a 0.8 scale at 360 dp width.
+- Agent decision: measure the real rows rather than keep dp constants. The real rows change with width, font and density, and static constants overflowed on master (songs rows 276 dp, Rank By 340 dp, rivals 276 dp), squashing the last row inside the fixed frame.
+
+**FREs reviewed (all 42 demo IDs) and what each uses.**
+
+| Slides | Real component |
+|---|---|
+| songs-song-list, songs-icons, songs-metadata, statistics-top-songs | `SongRowCard` (with `StatusChips` and `MetadataPill`); `PlaceholderSongCard` while the catalogue loads; rows rotate (#166) |
+| songs-sort | the Songs sort sheet's `RadioRow` modes and `DirectionRow`s |
+| playerhistory-sort | Player History's `ScoreSortControls` |
+| songs-filter | `InstrumentSelector` + the filter sheet's `ToggleRow`s |
+| songs-navigation | Material 3 `NavigationSuite` short navigation bar with the app's tab sections |
+| songs-shop-highlight, songs-new-in-shop, songs-leaving-tomorrow, shop-highlighting | `SongRowCard` with the Shop `ShopBadge` and pulsing outline |
+| shop-new-items, shop-leaving-tomorrow | Item Shop `ShopListRow` |
+| shop-overview | Item Shop `ShopGridCard` (square grid, `FirstRunDemoFit.squareGrid`) |
+| songinfo-shop-button, songinfo-new-in-shop, songinfo-leaving-tomorrow | Song Details `ShopActionButton` with its breathe |
+| songinfo-chart, songinfo-bar-select | `HistoryChart` in a `GlassCard`; bar select adds the `SongHistoryRow` for the moving selection |
+| songinfo-view-all | `SongHistoryRow`s + the View All button, pulsing |
+| songinfo-top-scores | `SongCardHeader`, `ScoreRow`s and `ViewFullLeaderboardButton` |
+| songinfo-paths | the Paths sheet's `InstrumentSelector` and difficulty `OptionGrid` (no path image: artwork-like content is not bundled) |
+| playerhistory-score-list | `ProfileHistoryRow` |
+| leaderboards-overview, compete-leaderboards, leaderboards-your-rank | the Leaderboards card header, `GlassCard` and ranking rows; your rank centres the player (`FirstRunDemoFit.around`) |
+| leaderboards-experimental-metrics | the real Rank By menu items (`ChoiceMenuItems`, extracted from `TopBarChoiceAction`) on a Material menu surface, header omitted to fit |
+| statistics-select-profile | the filled `Button` with the pulse |
+| statistics-drill-down, statistics-overview, statistics-instrument-breakdown | `PlayerStatTile` grids |
+| statistics-percentiles | `PercentileTable` |
+| suggestions-global-filter, suggestions-instrument-filter | the Suggestions filter sheet's `SwitchRow`s and `InstrumentTypePicker` |
+| suggestions-category-card, suggestions-infinite-scroll | `SuggestionCardView` (narrow); the infinite scroll loops real cards with the scroll-edge fade |
+| compete-hub, compete-rivals, rivals-overview, rivals-instruments, rivals-detail | compact replicas, as on the web: the real `RivalRow`/`RivalSongRow` are 80–140 dp each, so two groups cannot fit the frame. Rival groups fit by rows per group. |
+
+The demos remain decorative: they are hidden from TalkBack, and taps inside them change only local state. Slide versions are unchanged, because the content is the same and only its presentation changed. Tests: `FirstRunEntranceTest`, `FirstRunDemoFitLayoutTest`, `FirstRunDemoFitUiTest`, the updated `FirstRunRotatingDemoUiTest` and `FirstRunDemoSongsUiTest` (two real song rows fit at phone width), and the full unit suite.
+
 ## Open
 
 - Pages owned by other lanes get first-run automatically through the host; no per-screen registration is needed. Songs list-detail on expanded widths shows the Songs carousel even when a song is open in the detail pane.

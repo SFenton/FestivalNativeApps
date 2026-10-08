@@ -200,7 +200,7 @@ fun SortSheet(state: SongsUiState, onApply: (SongSortDraft) -> Unit, onDismiss: 
  * the direction as the title and its meaning as the subtitle.
  */
 @Composable
-private fun DirectionRow(title: String, subtitle: String, icon: ImageVector, selected: Boolean, tag: String, onClick: () -> Unit) {
+internal fun DirectionRow(title: String, subtitle: String, icon: ImageVector, selected: Boolean, tag: String, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -225,7 +225,7 @@ private fun DirectionRow(title: String, subtitle: String, icon: ImageVector, sel
 private val RESET_RED = Color(0xFFFF6B6B)
 
 @Composable
-private fun RadioRow(label: String, selected: Boolean, tag: String, leading: (@Composable () -> Unit)? = null, onClick: () -> Unit) {
+internal fun RadioRow(label: String, selected: Boolean, tag: String, leading: (@Composable () -> Unit)? = null, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -443,7 +443,7 @@ private fun GeneralBuckets(
 }
 
 /** Web global-toggle descriptions. */
-private val SongScoreFilterKind.globalDescription: String
+internal val SongScoreFilterKind.globalDescription: String
     get() = when (this) {
         SongScoreFilterKind.MissingScores -> "Songs missing scores on any visible instrument."
         SongScoreFilterKind.HasScores -> "Songs with scores on any visible instrument."
@@ -453,7 +453,7 @@ private val SongScoreFilterKind.globalDescription: String
     }
 
 /** Web per-instrument toggle labels ("Missing Lead Scores"). */
-private fun SongScoreFilterKind.chartLabel(chart: Instrument): String = when (this) {
+internal fun SongScoreFilterKind.chartLabel(chart: Instrument): String = when (this) {
     SongScoreFilterKind.MissingScores -> "Missing ${chart.label} Scores"
     SongScoreFilterKind.HasScores -> "Has ${chart.label} Scores"
     SongScoreFilterKind.MissingFCs -> "Missing ${chart.label} FCs"
@@ -462,7 +462,7 @@ private fun SongScoreFilterKind.chartLabel(chart: Instrument): String = when (th
 }
 
 /** Web per-instrument toggle descriptions. */
-private fun SongScoreFilterKind.chartDescription(chart: Instrument): String = when (this) {
+internal fun SongScoreFilterKind.chartDescription(chart: Instrument): String = when (this) {
     SongScoreFilterKind.MissingScores -> "Songs missing scores on ${chart.label}."
     SongScoreFilterKind.HasScores -> "Songs with scores on ${chart.label}."
     SongScoreFilterKind.MissingFCs -> "Songs missing FCs on ${chart.label}."

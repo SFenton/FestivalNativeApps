@@ -4,6 +4,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -35,6 +38,12 @@ class FirstRunDemoSongsUiTest {
 
     private fun count(tag: String) = rule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().size
 
+    /** Rows of a song: a demo Songs row, or a real Suggestions card row (`fst.suggestions.row.<songId>[|instrument]`). */
+    private fun songRows(id: String) = count("fst.first-run.demo.song.$id") + rule.onAllNodes(
+        SemanticsMatcher("suggestion row $id") { node -> node.config.getOrNull(SemanticsProperties.TestTag)?.let { it == "fst.suggestions.row.$id" || it.startsWith("fst.suggestions.row.$id|") } == true },
+        useUnmergedTree = true,
+    ).fetchSemanticsNodes().size
+
     /** Highest/lowest-ranked songs (Statistics) and the other song demos. */
     private val songDemos = listOf("statistics-top-songs", "songs-song-list", "rivals-detail", "suggestions-category-card", "songs-metadata", "shop-highlighting")
 
@@ -53,13 +62,13 @@ class FirstRunDemoSongsUiTest {
             catalog = FirstRunDemoCatalog(songs, artworkUrl = { it })
             rule.waitForIdle()
             assertEquals("$demo has no placeholders once loaded", 0, count("fst.first-run.demo.placeholder"))
-            assert(count("fst.first-run.demo.song.epic1") == 1) { "$demo shows Epic Games songs first" }
-            assertEquals(0, count("fst.first-run.demo.song.noart"))
+            assert(songRows("epic1") == 1) { "$demo shows Epic Games songs first" }
+            assertEquals(0, songRows("noart"))
         }
     }
 
     @Test
-    fun topSongsShowsThreeRealSongsInPreferenceOrder() {
+    fun topSongsShowsRealSongsInPreferenceOrder() {
         rule.setContent {
             FestivalTheme {
                 CompositionLocalProvider(LocalFirstRunDemoCatalog provides FirstRunDemoCatalog(songs, artworkUrl = { it })) {
@@ -67,7 +76,9 @@ class FirstRunDemoSongsUiTest {
                 }
             }
         }
-        listOf("epic1", "epic2", "other").forEach { assertEquals(it, 1, count("fst.first-run.demo.song.$it")) }
+        // The rows that fit the 220 dp frame, Epic Games songs first.
+        listOf("epic1", "epic2").forEach { assertEquals(it, 1, count("fst.first-run.demo.song.$it")) }
+        assertEquals(0, count("fst.first-run.demo.song.other"))
     }
 
     @Test

@@ -12,6 +12,8 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.festivalscoretracker.android.core.firstrun.FirstRunDemoBars
@@ -75,16 +77,17 @@ class FirstRunRotatingDemoUiTest {
     @Test
     fun songListSwapsOneRowEveryFiveSecondsWithAFade() {        show("songs-song-list")
         val before = texts("fst.first-run.demo.song.")
-        assertEquals(listOf("Demo Song 0", "Demo Song 1", "Demo Song 2"), before)
+        // Two real song rows fit the 220 dp frame at phone width (web `useSlideHeight`).
+        assertEquals(listOf("Demo Song 0", "Demo Song 1"), before)
         rule.mainClock.advanceTimeBy(FirstRunDemoTiming.SWAP_INTERVAL_MS - 500)
         assertEquals("no swap before the interval", before, texts("fst.first-run.demo.song."))
         rule.mainClock.advanceTimeBy(500L + FirstRunDemoTiming.FADE_MS / 2)
         assertEquals("still fading out the old row", before, texts("fst.first-run.demo.song."))
         rule.mainClock.advanceTimeBy(FirstRunDemoTiming.FADE_MS * 2L)
         val after = texts("fst.first-run.demo.song.")
-        assertEquals(3, after.size)
+        assertEquals(2, after.size)
         assertEquals(1, before.indices.count { before[it] != after[it] })
-        assertEquals(3, after.toSet().size)
+        assertEquals(2, after.toSet().size)
     }
 
     @Test
@@ -155,7 +158,7 @@ class FirstRunRotatingDemoUiTest {
         val before = texts("fst.first-run.demo.song.")
         rule.mainClock.advanceTimeBy(FirstRunDemoTiming.SWAP_INTERVAL_MS + FirstRunDemoTiming.FADE_MS + 100L)
         val after = texts("fst.first-run.demo.song.")
-        assertEquals(3, after.size)
+        assertEquals(before.size, after.size)
         assertNotEquals(before, after)
     }
 
@@ -163,9 +166,11 @@ class FirstRunRotatingDemoUiTest {
     fun categoryCardCyclesTemplates() {
         show("suggestions-category-card")
         val titles = FirstRunDemoSuggestionTemplate.TEMPLATES.map { it.title }
-        assertEquals(listOf(titles[0]), texts("fst.first-run.demo.category"))
+        fun shown(title: String) = rule.onAllNodesWithText(title, useUnmergedTree = true).fetchSemanticsNodes().size
+        assertEquals(1, shown(titles[0]))
         rule.mainClock.advanceTimeBy(cycle)
-        assertEquals(listOf(titles[1]), texts("fst.first-run.demo.category"))
+        assertEquals(1, shown(titles[1]))
+        assertEquals(0, shown(titles[0]))
     }
 
     @Test
@@ -180,7 +185,8 @@ class FirstRunRotatingDemoUiTest {
     @Test
     fun barSelectMovesEveryTwoAndAHalfSeconds() {
         show("songinfo-bar-select")
-        fun shown(bar: Int) = rule.onAllNodesWithText(NumberFormat.getIntegerInstance().format(FirstRunDemoBars.BARS[bar].score), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        // The detail is the real Song Detail history row, which reads its values as one summary.
+        fun shown(bar: Int) = rule.onAllNodes(hasTestTag("fst.first-run.demo.bar-detail.row") and hasContentDescription("score ${NumberFormat.getIntegerInstance().format(FirstRunDemoBars.BARS[bar].score)}", substring = true), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
         assertTrue(shown(0))
         rule.mainClock.advanceTimeBy(FirstRunDemoTiming.BAR_SELECT_INTERVAL_MS + 2L * FirstRunDemoTiming.BAR_SELECT_FADE_MS + 50)
         assertTrue(shown(1))
