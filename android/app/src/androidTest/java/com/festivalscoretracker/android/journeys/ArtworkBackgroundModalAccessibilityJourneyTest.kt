@@ -62,6 +62,7 @@ class ArtworkBackgroundModalAccessibilityJourneyTest {
         on("/api/features") { """{"appManual":false,"feedback":true}""" }
     }
     private var animatorScale = "1"
+    private var automationFlags = 0
 
     // region Setup
 
@@ -70,18 +71,24 @@ class ArtworkBackgroundModalAccessibilityJourneyTest {
         return ParcelFileDescriptor.AutoCloseInputStream(pfd).use { it.readBytes().decodeToString().trim() }
     }
 
-    /** Animations on (CI and `device.py` turn them off), and every window visible to the tree walks. */
+    /**
+     * Animations on (CI and `device.py` turn them off), and every window visible to the tree walks.
+     * The UiAutomation is shared by the whole instrumentation run, so its flags are restored after.
+     */
     @Before
     fun setUp() {
         animatorScale = shell("settings get global animator_duration_scale").takeIf { it != "null" && it.isNotEmpty() } ?: "1"
         shell("settings put global animator_duration_scale 1")
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        automationFlags = automation.serviceInfo.flags
         automation.serviceInfo = automation.serviceInfo.apply { flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS }
     }
 
     @After
     fun restore() {
         shell("settings put global animator_duration_scale $animatorScale")
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        automation.serviceInfo = automation.serviceInfo.apply { flags = automationFlags }
     }
 
     // endregion

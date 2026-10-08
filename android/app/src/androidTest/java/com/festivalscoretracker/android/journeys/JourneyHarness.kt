@@ -4,6 +4,7 @@ import android.content.res.Configuration
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.ViewRootForTest
@@ -79,7 +80,9 @@ class JourneyHarness(private val rule: JourneyRule) {
      * @param preferences Settings store.
      * @param fontScale Font scale to render the app at, read in composition so a test can switch
      *   it in place (backed by snapshot state); `null` keeps the device's own. Modals opened
-     *   after a switch (sheets and dialogs are separate windows) render at it too.
+     *   after a switch (sheets and dialogs are separate windows) render at it too. The
+     *   activity's original scale comes back when the content is disposed at the end of the
+     *   test, so a journey that ends at 200% does not leak it into the next test's activity.
      */
     fun launch(
         debug: DebugLaunch,
@@ -88,12 +91,15 @@ class JourneyHarness(private val rule: JourneyRule) {
         fontScale: (() -> Float)? = null,
     ) {
         val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = preferences)
+        val resources = rule.activity.resources
+        val originalScale = resources.configuration.fontScale
         rule.setContent {
             if (fontScale == null) {
                 FestivalApp(container, debug)
             } else {
                 val scale = fontScale()
-                SideEffect { applyWindowFontScale(scale) }
+                SideEffect { applyWindowFontScale(resources, scale) }
+                DisposableEffect(Unit) { onDispose { applyWindowFontScale(resources, originalScale) } }
                 DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(scale)) { FestivalApp(container, debug) }
             }
         }
@@ -135,12 +141,14 @@ class JourneyHarness(private val rule: JourneyRule) {
      * Give modal windows [scale]. `DeviceConfigurationOverride` stops at a window boundary: a
      * `ModalBottomSheet` or `Dialog` composes in its own window, whose density comes from the
      * activity's resources, so without this a "200%" sheet still renders at the device scale.
+     * `updateConfiguration` changes the process-shared `ResourcesImpl`, which the next test's
+     * activity reuses, so [launch] restores the original scale on dispose.
      *
+     * @param resources The launched activity's resources.
      * @param scale Font scale.
      */
     @Suppress("DEPRECATION")
-    private fun applyWindowFontScale(scale: Float) {
-        val resources = rule.activity.resources
+    private fun applyWindowFontScale(resources: android.content.res.Resources, scale: Float) {
         if (resources.configuration.fontScale == scale) return
         resources.updateConfiguration(Configuration(resources.configuration).apply { fontScale = scale }, resources.displayMetrics)
     }
