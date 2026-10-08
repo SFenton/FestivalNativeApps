@@ -7,6 +7,8 @@ import XCTest
 /// the real system menu and compares the rows' on-screen order (by frame) with the
 /// page's section order, which also catches missing or extra rows.
 /// Settings is covered by `SettingsJourneyTests.testQuickLinksMenuListsSectionsInPageOrder`.
+/// `testQuickLinksSheetIsAccessible*` check the sheet's names, selected state, reading
+/// order, hit size and AX5 text (#392); hosted macOS twins: `QuickLinksAccessibilityTests`.
 ///
 /// Fixture-backed against `tools/mock_service.py` (port 8765; Band Detail uses the
 /// Bands lane's 18790 instance, like `BandsJourneyTests`).
@@ -162,6 +164,127 @@ final class QuickLinksOrderJourneyTests: XCTestCase {
             predicate: NSPredicate(format: "value == %@", "Rank History"), object: app.buttons["fst.quick-links.open"]
         )
         XCTAssertEqual(XCTWaiter.wait(for: [jumped], timeout: 10), .completed)
+    }
+
+    // MARK: - Accessibility of the chooser (#392, for #11)
+
+    /// Player profile with nested sections: open Quick Links, return its rows in
+    /// accessibility (VoiceOver reading) order after checking each is a named,
+    /// hittable button at least 44 pt tall.
+    ///
+    /// - Parameters:
+    ///   - app: Launched app showing the profile.
+    ///   - name: Screenshot attachment name.
+    /// - Returns: The open chooser's rows in accessibility order.
+    @MainActor
+    private func openProfileQuickLinks(
+        _ app: XCUIApplication, name: String, file: StaticString = #filePath, line: UInt = #line
+    ) -> [XCUIElement] {
+        XCTAssertTrue(app.descendants(matching: .any)["fst.player.available"].waitForExistence(timeout: 20))
+        XCTAssertTrue(
+            app.descendants(matching: .any)["fst.player.rank-history.Solo_Guitar"].waitForExistence(timeout: 20)
+        )
+        let open = app.buttons["fst.quick-links.open"]
+        XCTAssertTrue(open.waitForExistence(timeout: 20), "No Quick Links button", file: file, line: line)
+        XCTAssertEqual(open.label, "Quick Links", file: file, line: line)
+        XCTAssertEqual(open.value as? String, "Global Statistics", file: file, line: line)
+        open.tap()
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", Self.itemPrefix))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 10), "The menu did not open", file: file, line: line)
+        SongsUITestSupport.record(app, name: name)
+        return rows.allElementsBoundByIndex
+    }
+
+    /// The Quick Links sheet on a page with nested sections (#11): rows read in page
+    /// order, nested rows say their instrument ("Lead Rank History", not the indented
+    /// short title), only the current section's row is selected (also after jumping to a
+    /// nested section), and every visible row is a hittable target at least 44 pt tall
+    /// (HIG Accessibility: 44x44 pt default minimum).
+    @MainActor
+    func testQuickLinksSheetIsAccessible() throws {
+        continueAfterFailure = false
+        let app = fixtureApp(["FST_DEBUG_TAB": "settings", "FST_DEBUG_ROUTE": "player:fixture-player-1"])
+        app.launch()
+        let rows = openProfileQuickLinks(app, name: "quick-links-a11y-player")
+        let visible = rows.filter { $0.isHittable }
+        XCTAssertGreaterThanOrEqual(visible.count, 4, "Too few rows on screen")
+        // Reading order is the on-screen order.
+        let ids = visible.map(\.identifier)
+        XCTAssertEqual(ids, visible.sorted { $0.frame.minY < $1.frame.minY }.map(\.identifier))
+        XCTAssertEqual(
+            Array(ids.prefix(4)),
+            ["global", "instrument:Solo_Guitar", "rank-history:Solo_Guitar", "percentiles:Solo_Guitar"]
+                .map { Self.itemPrefix + $0 }
+        )
+        for row in visible {
+            XCTAssertGreaterThanOrEqual(row.frame.height, 44, "\(row.identifier) \(row.frame)")
+            XCTAssertFalse(row.label.isEmpty, row.identifier)
+            XCTAssertFalse(row.label.contains("\u{2007}"), "Indent spoken in \(row.identifier)")
+        }
+        let rankHistory = app.buttons[Self.itemPrefix + "rank-history:Solo_Guitar"]
+        XCTAssertEqual(rankHistory.label, "Lead Rank History")
+        XCTAssertEqual(app.buttons[Self.itemPrefix + "percentiles:Solo_Guitar"].label, "Lead Percentiles")
+        XCTAssertEqual(rows.filter(\.isSelected).map(\.identifier), [Self.itemPrefix + "global"])
+
+        rankHistory.tap()
+        let open = app.buttons["fst.quick-links.open"]
+        let jumped = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Rank History"), object: open)
+        XCTAssertEqual(XCTWaiter.wait(for: [jumped], timeout: 10), .completed)
+        let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: open)
+        XCTAssertEqual(XCTWaiter.wait(for: [hittable], timeout: 5), .completed)
+        RunLoop.current.run(until: Date().addingTimeInterval(1))
+        open.tap()
+        let reopened = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", Self.itemPrefix))
+        XCTAssertTrue(reopened.firstMatch.waitForExistence(timeout: 10))
+        XCTAssertEqual(
+            reopened.allElementsBoundByIndex.filter(\.isSelected).map(\.identifier),
+            [Self.itemPrefix + "rank-history:Solo_Guitar"]
+        )
+    }
+
+    /// At the largest text size (AX5) the sheet's rows grow, stay named and hittable,
+    /// keep page order and pass the Dynamic Type, clipped-text, hit-region and
+    /// description audits. Only issues on the sheet's own elements fail; the page behind
+    /// the sheet has its own audits ([accessibility.md](../../../.agents/testing/apple/accessibility.md)).
+    @MainActor
+    func testQuickLinksSheetIsAccessibleAtAX5() throws {
+        continueAfterFailure = false
+        let app = fixtureApp(["FST_DEBUG_TAB": "settings", "FST_DEBUG_ROUTE": "player:fixture-player-1"])
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
+        ]
+        app.launch()
+        let rows = openProfileQuickLinks(app, name: "quick-links-a11y-player-ax5")
+        let visible = rows.filter { $0.isHittable }
+        XCTAssertGreaterThanOrEqual(visible.count, 2, "Too few rows on screen at AX5")
+        let ids = visible.map(\.identifier)
+        XCTAssertEqual(ids, visible.sorted { $0.frame.minY < $1.frame.minY }.map(\.identifier))
+        XCTAssertEqual(ids.first, Self.itemPrefix + "global")
+        for row in visible {
+            // Body text at AX5 is 53 pt: a row that kept its default height clipped it.
+            XCTAssertGreaterThanOrEqual(row.frame.height, 60, "\(row.identifier) \(row.frame)")
+        }
+        let window = app.windows.firstMatch.frame
+        let list = app.collectionViews.containing(.button, identifier: ids[0]).firstMatch
+        let rankHistory = app.buttons[Self.itemPrefix + "rank-history:Solo_Guitar"]
+        for _ in 0..<4 where !(rankHistory.exists && rankHistory.isHittable) {
+            list.swipeUp(velocity: .slow)
+        }
+        XCTAssertTrue(rankHistory.isHittable, "Nested row unreachable at AX5")
+        XCTAssertEqual(rankHistory.label, "Lead Rank History")
+        XCTAssertLessThanOrEqual(rankHistory.frame.maxY, window.maxY)
+        SongsUITestSupport.record(app, name: "quick-links-a11y-player-ax5-nested")
+
+        var sheetIssues: [String] = []
+        try app.performAccessibilityAudit(
+            for: [.dynamicType, .textClipped, .hitRegion, .sufficientElementDescription]
+        ) { issue in
+            let id = issue.element?.identifier ?? ""
+            guard id.hasPrefix("fst.quick-links.") || id.hasPrefix("fst.page-tools.menu.") else { return true }
+            sheetIssues.append("\(id): \(issue.compactDescription)")
+            return true
+        }
+        XCTAssertEqual(sheetIssues, [], "Quick Links sheet audit issues at AX5")
     }
 
     /// Statistics tab (the selected player's profile): same order as the profile.
