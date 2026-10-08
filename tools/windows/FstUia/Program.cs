@@ -625,7 +625,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         var result = Describe(window).AsObject();
         if (announcementHandler is not null)
             response["announcements"] = new JsonArray([.. announcements.Select(a => (JsonNode)JsonValue.Create(a)!)]);
-        foreach (var key in new[] { "focus", "scans", "aligned", "pinned", "announcements", "sizes", "apart", "hits", "presses", "narration", "read", "orders", "paint", "bold", "marquees", "marqueesyncs" })
+        foreach (var key in new[] { "focus", "scans", "aligned", "pinned", "announcements", "sizes", "apart", "hits", "presses", "narration", "read", "orders", "paint", "bold", "marquees", "marqueesyncs", "motions" })
         {
             if (response[key] is not JsonArray collected) continue;
             response.Remove(key);
@@ -784,6 +784,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 break;
             case "assertmarqueesync":
                 AssertMarqueeSync(window, step);
+                break;
+            case "assertmotion":
+                AssertMotion(window, step);
                 break;
             case "listen":
                 Listen(window);
@@ -1667,15 +1670,10 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             throw new InvalidOperationException($"{label} is {height:0.#} epx high, more than one line ({maxEpx:0.#} epx)");
         if (wrapped && height < maxEpx)
             throw new InvalidOperationException($"{label} is {height:0.#} epx high, not wrapped ({maxEpx:0.#} epx minimum)");
-        var frames = new List<Bitmap>();
+        var frames = CaptureThrice(window, step, hwnd);
         try
         {
-            for (var i = 0; i < 3; i++)
-            {
-                if (i > 0) Thread.Sleep(1200);
-                frames.Add(Native.PrintWindow(hwnd, Find(window, step).BoundingRectangle));
-            }
-            var changed = Math.Max(ChangedShare(frames[0], frames[1]), Math.Max(ChangedShare(frames[1], frames[2]), ChangedShare(frames[0], frames[2])));
+            var changed = ChangedAcross(frames);
             if (moving && changed < 0.005)
                 throw new InvalidOperationException($"{label} did not scroll ({changed:P2} of its pixels changed in 2.4 s)");
             if (!moving && changed > 0.001)
@@ -1695,6 +1693,69 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             foreach (var frame in frames) frame.Dispose();
         }
     }
+
+    /// <summary>
+    /// Element motion check for decorative, raw-view animation such as a Shop row's pulsing ring (issue #397). Fails
+    /// unless, for <c>moving</c>, the element's rendered pixels change between some two of three captures 1.2 s apart,
+    /// or, for <c>still</c>, all three captures match: what Reduce Motion or the Windows animation setting must hold.
+    /// Unlike <see cref="AssertMarquee"/> it places no text-line height or ellipsis requirement on the element.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a <c>selector</c> and <c>mode</c> (<c>moving</c>/<c>still</c>).</param>
+    /// <exception cref="InvalidOperationException">Still while it should move, or moving while it should hold.</exception>
+    private void AssertMotion(Window window, JsonObject step)
+    {
+        var label = (string)step["arg"]!;
+        var moving = (string)step["mode"]! == "moving";
+        var frames = CaptureThrice(window, step, window.Properties.NativeWindowHandle.Value);
+        try
+        {
+            var changed = ChangedAcross(frames);
+            if (moving && changed < 0.005)
+                throw new InvalidOperationException($"{label} did not move ({changed:P2} of its pixels changed in 2.4 s)");
+            if (!moving && changed > 0.001)
+                throw new InvalidOperationException($"{label} moved while motion is off ({changed:P2} of its pixels changed)");
+            response["motions"] ??= new JsonArray();
+            response["motions"]!.AsArray().Add(new JsonObject
+            {
+                ["arg"] = label, ["mode"] = moving ? "moving" : "still", ["changed"] = Math.Round(changed, 4),
+            });
+        }
+        finally
+        {
+            foreach (var frame in frames) frame.Dispose();
+        }
+    }
+
+    /// <summary>Captures the element three times, 1.2 s apart (re-finding it each time, so a recycled peer still counts).</summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a <c>selector</c>.</param>
+    /// <param name="hwnd">Window handle.</param>
+    /// <returns>Three captures; the caller disposes them.</returns>
+    private List<Bitmap> CaptureThrice(Window window, JsonObject step, IntPtr hwnd)
+    {
+        var frames = new List<Bitmap>();
+        try
+        {
+            for (var i = 0; i < 3; i++)
+            {
+                if (i > 0) Thread.Sleep(1200);
+                frames.Add(Native.PrintWindow(hwnd, Find(window, step).BoundingRectangle));
+            }
+            return frames;
+        }
+        catch
+        {
+            foreach (var frame in frames) frame.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>Largest <see cref="ChangedShare"/> between any two of three captures.</summary>
+    /// <param name="frames">Three captures.</param>
+    /// <returns>0 (all identical) to 1.</returns>
+    private static double ChangedAcross(IReadOnlyList<Bitmap> frames) =>
+        Math.Max(ChangedShare(frames[0], frames[1]), Math.Max(ChangedShare(frames[1], frames[2]), ChangedShare(frames[0], frames[2])));
 
     /// <summary>Share of pixels whose largest channel differs by more than 32 (1 when the sizes differ).</summary>
     /// <param name="a">First capture.</param>
