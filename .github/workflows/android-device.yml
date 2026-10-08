@@ -41,7 +41,7 @@ jobs:
           path: |
             ~/.android/avd
             ~/.android/adb*
-          key: android-device-avd-api-35-google-apis-x86_64-pixel-9-v1
+          key: android-device-avd-api-35-google-apis-x86_64-pixel-6-v1
       - name: Run instrumented tests
         uses: reactivecircus/android-emulator-runner@v2.34.0
         with:
@@ -49,7 +49,7 @@ jobs:
           target: google_apis
           arch: x86_64
           avd-name: fst-ci-api-35
-          profile: pixel_9
+          profile: pixel_6
           force-avd-creation: false
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
