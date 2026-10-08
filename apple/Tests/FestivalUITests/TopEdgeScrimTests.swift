@@ -58,3 +58,19 @@ func topScrimDarkensUnderTheBarLikeThePage(barEdge: HorizontalEdge) throws {
     #expect(abs(try luminance(x: underBar, y: 280) - luminance(x: onPage, y: 280)) < 0.02)
 }
 #endif
+
+// MARK: - Accessibility hard edge (scroll-edge R7, issue #393)
+
+/// The page header keeps the soft system edge by default and asks for the hard one
+/// whenever `ScrollEdgeHardEdge` is on, so the app's own Reduce Transparency or
+/// Increase Contrast never leaves rows readable behind the bar.
+@Test func pageTopEdgeIsHardWithAnAccessibilitySetting() {
+    #expect(PageTopScrollEdge.resolve(hardEdge: false) == .soft)
+    #expect(PageTopScrollEdge.resolve(hardEdge: true) == .hard)
+    #expect(PageTopScrollEdge.resolve(
+        hardEdge: ScrollEdgeHardEdge.resolve(reduceTransparency: true, increaseContrast: false)
+    ) == .hard)
+    #expect(PageTopScrollEdge.resolve(
+        hardEdge: ScrollEdgeHardEdge.resolve(reduceTransparency: false, increaseContrast: true)
+    ) == .hard)
+}

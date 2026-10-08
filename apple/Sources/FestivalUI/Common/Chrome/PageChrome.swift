@@ -83,14 +83,53 @@ struct TopEdgeScrim: ViewModifier {
     }
 }
 
-/// `scrollEdgeEffectStyle(.soft, for: .top)` where available.
+/// The system top scroll-edge style a page asks for (`.agents/patterns/scroll-edge.md`
+/// R6, R7).
+enum PageTopScrollEdge: Equatable {
+    /// The soft variable blur (R6's approved variant).
+    case soft
+    /// The hard style: an opaque edge, so nothing reads through behind the bar.
+    case hard
+
+    /// The style for the merged accessibility settings.
+    ///
+    /// System Reduce Transparency and Increase Contrast already make the system edge
+    /// opaque, but the app's own Less Transparency and Increase Contrast do not reach
+    /// the system, so with only those on a soft edge still showed rows behind the
+    /// title (#393). HIG Scroll views: a hard style is an "opaque blur, defined edge".
+    ///
+    /// - Parameter hardEdge: `ScrollEdgeHardEdge`'s decision.
+    /// - Returns: ``hard`` when the page's edge must not show content, else ``soft``.
+    static func resolve(hardEdge: Bool) -> PageTopScrollEdge {
+        hardEdge ? .hard : .soft
+    }
+}
+
+/// The top-edge style a page header resolved, published for hosted tests that check
+/// the real modifier rather than a copy of its decision.
+struct PageTopScrollEdgeKey: PreferenceKey {
+    static let defaultValue: PageTopScrollEdge? = nil
+
+    static func reduce(value: inout PageTopScrollEdge?, nextValue: () -> PageTopScrollEdge?) {
+        value = value ?? nextValue()
+    }
+}
+
+/// `scrollEdgeEffectStyle(.soft, for: .top)` where available, or `.hard` with any R7
+/// accessibility setting on (``PageTopScrollEdge``).
 private struct SoftTopScrollEdge: ViewModifier {
+    @ScrollEdgeHardEdge private var hardEdge
+
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, macOS 26.0, *) {
-            content.scrollEdgeEffectStyle(.soft, for: .top)
-        } else {
-            content
+        let edge = PageTopScrollEdge.resolve(hardEdge: hardEdge)
+        Group {
+            if #available(iOS 26.0, macOS 26.0, *) {
+                content.scrollEdgeEffectStyle(edge == .hard ? .hard : .soft, for: .top)
+            } else {
+                content
+            }
         }
+        .preference(key: PageTopScrollEdgeKey.self, value: edge)
     }
 }
 

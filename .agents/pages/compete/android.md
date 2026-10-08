@@ -64,6 +64,7 @@ Rule: Compete → View Full Leaderboards → Back puts the card back at the same
 Tests:
 - `CompeteReturnColumnsUiTest` (Robolectric, 1280 dp, every frame)
 - Connected `CompeteDeviceJourneyTest.leaderboardsGroupOpensTheFullBoardAndComesBack`: songs cells on each of 60 frames, unchanged card bounds, no `.loading`, ATF.
+- Connected `@DeviceCi` `CompeteReturnAccessibilityJourneyTest` (issue #435): the same TalkBack reading order and card bounds before and after Back at 1.0× and 2.0× text, also after a newer publication arrives while the full board is open (#82 refresh in place). "View Full Leaderboards, Lead" is a 48 dp button read once, and ATF passes. Runs in the `android-device` CI job ([testing/android.md](../../testing/android.md)).
 
 Live public service with `SFentonX`, no profile headers. The 19 configurations ran on the build with the row-width fix: they compare end states, so they cannot see a one-frame flash. The grid and posture fix was then confirmed by the per-frame connected test and a recorded half-open Book Fold run. Animator scale was 0 unless noted. Each run compares UIAutomator trees and screenshots before leaving and after Back: all texts are the same, there is no `.loading` node, and the only diff is the Quick Links FAB reappearing (`page-tools-and-nav-chrome` R7 resets the toolbar on navigation). When the FAB overlaps a row, Compose reports the row's uncovered bounds, so its right edge shrinks to the FAB's left edge. This is not a layout move.
 

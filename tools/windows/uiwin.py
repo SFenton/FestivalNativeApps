@@ -131,7 +131,7 @@ PROBE = re.compile(
 #: ``value`` the UIA Value, else the name of the Selection pattern's selected item, e.g. a combo box's current option).
 STATE_KEYS = {"toggle": ("on", "off", "indeterminate"), "enabled": ("true", "false"), "selected": ("true", "false"),
               "name": None, "scroll": None, "type": None, "invoke": ("true", "false"), "focusable": ("true", "false"),
-              "value": None}
+              "value": None, "heading": tuple("0123456789")}
 
 # endregion
 
@@ -296,7 +296,8 @@ def parse_step(step: str) -> dict:
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
     (``on``/``off``/``indeterminate``), ``enabled`` (``true``/``false``), ``selected`` (UIA SelectionItem
     ``IsSelected``: ``true``/``false``, e.g. a list's current item), ``scroll`` (UIA Scroll pattern vertical percent,
-    rounded: ``0`` is a list back at its top), ``name`` or ``value`` (UIA Value, else the selected item's name: what
+    rounded: ``0`` is a list back at its top), ``heading`` (UIA heading level ``1``–``9``, ``0`` for none, e.g. a
+    pinned section title), ``name`` or ``value`` (UIA Value, else the selected item's name: what
     Narrator reads after a combo box's name, e.g. ``Instrument, combo box, Bass``) equals ``<value>``;
     ``pin:<sel>`` records the element's window-relative rectangle and ``assertpinned:<sel>`` (same selector, later in
     the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls;
@@ -494,7 +495,7 @@ def parse_step(step: str) -> dict:
         key, eq, value = assertion.partition("=")
         key, value = key.strip().lower(), value.strip()
         if not sep or not eq or key not in STATE_KEYS or not value:
-            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name|value|scroll|type|invoke|focusable=<value>[@<seconds>]")
+            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name|value|scroll|type|invoke|focusable|heading=<value>[@<seconds>]")
         allowed = STATE_KEYS[key]
         if allowed is not None and value.lower() not in allowed:
             raise ValueError(f"assertstate {key} must be one of {allowed}, not {value!r}")
