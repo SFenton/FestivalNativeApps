@@ -299,6 +299,27 @@ public sealed record AppSettings
     public override int GetHashCode() =>
         HashCode.Combine(SelectedPlayer, SongSort, SongSortAscending, SongFilter, VisibleInstruments?.Count, Leeway, HideShop);
 
+    /// <summary>
+    /// Songs settings after the selected profile is cleared (web <c>resetSongSettingsForDeselect</c> +
+    /// <c>normalizeSongSettings</c>): every Songs filter (General, Item Shop availability, selected instrument with its
+    /// buckets, and player score checks) returns to its default, and a sort the Sort flyout offers only with a player
+    /// (the instrument sorts and Last Played) reverts to Title ascending. Other sorts keep their mode and direction.
+    /// </summary>
+    /// <returns>Updated settings.</returns>
+    public AppSettings ResetSongSettingsForDeselect()
+    {
+        var playerSort = SongSort.IsInstrumentMode() || SongSort == SongSortMode.LastPlayed;
+        return this with
+        {
+            GeneralFilter = SongGeneralFilter.None,
+            ShopFilter = SongShopFilter.None,
+            SongFilter = SongFilter.None,
+            PlayerScoreFilter = SongPlayerScoreFilter.None,
+            SongSort = playerSort ? SongSortMode.Title : SongSort,
+            SongSortAscending = playerSort || SongSortAscending,
+        };
+    }
+
     /// <summary>Toggles a chart's visibility; the last visible chart cannot be hidden.</summary>
     /// <param name="instrument">Chart.</param>
     /// <param name="visible">Desired visibility.</param>
