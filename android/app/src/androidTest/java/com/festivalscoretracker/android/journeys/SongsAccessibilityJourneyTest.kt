@@ -252,6 +252,7 @@ class SongsAccessibilityJourneyTest {
     }
 
     @Test
+    @DeviceCi
     fun itemShop() {
         val offers = arrayOf("fst.shop.song.s-alpha", "fst.shop.song.s-x", "fst.shop.song.s-beta", "fst.shop.external.s-alpha", "fst.shop.external.s-beta")
         h.enableAccessibilityChecks()
@@ -290,6 +291,7 @@ class SongsAccessibilityJourneyTest {
      * sort order; row and link are at least 48 × 48 dp and the title stays inside its row.
      */
     @Test
+    @DeviceCi
     fun itemShopSharedSongRow() {
         var scale by mutableFloatStateOf(1f)
         h.enableAccessibilityChecks()

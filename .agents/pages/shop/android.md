@@ -77,7 +77,7 @@ Checks that the #18 list row (`ShopListRow` → `SongRowCard`) matches Songs in 
 | FST_Book_Fold / FST_Passport_Fold | Folded is the compact list. Unfolded is one full-width list. Half-open at 1.0× is one row per pane with the gap on the fold. Half-open at 2.0× is one full-width column, by design (see Layouts). |
 | FST_TriFold folded/partial/unfolded | Compact list, then the rail with full-width rows (the emulator reports no `FoldingFeature`). 2.0× wraps inside the rows. |
 | TalkBack (FST_Phone) | Item Shop, Search, Choose profile, then each row ("Title. Artist · Year", list position on the first), followed by its "Open … in the Fortnite Item Shop. Button". |
-| Connected | `SongsAccessibilityJourneyTest#itemShop` passes on FST_Phone (ATF touch-target, label and contrast checks). `SongsAccessibilityJourneyTest#itemShopSharedSongRow` (#397) asserts the shared row on the device, below. |
+| Connected | `SongsAccessibilityJourneyTest#itemShop` passes on FST_Phone (ATF touch-target, label and contrast checks). `SongsAccessibilityJourneyTest#itemShopSharedSongRow` (#397) asserts the shared row on the device, below. Both carry `@DeviceCi`, so the `android-device` CI job runs them on every Android PR. |
 
 `ShopListRowUiTest` (Robolectric) pins the shared-row contract:
 - A row opens Song Details when matched, else the official link.
