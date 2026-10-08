@@ -68,6 +68,16 @@ enum SongsPresetStore {
         defaults.set((try? state.playerFilter.encoded()) ?? Data(), forKey: SongPlayerScoreFilter.storageKey)
     }
 
+    /// Reset the saved Songs state after a deselect or a player/band switch (web
+    /// `resetSongSettingsForDeselect`, ``SongsSavedState/resetForProfileChange()``).
+    /// The instrument filter is root `@State`: roots clear it on
+    /// `FestivalSession.songSettingsResetRevision`.
+    ///
+    /// - Parameter defaults: Store the Songs tab's `@AppStorage` uses.
+    static func resetForProfileChange(in defaults: UserDefaults) {
+        save(load(from: defaults, instrument: nil).resetForProfileChange(), to: defaults)
+    }
+
     /// Apply a preset to the saved Songs state.
     ///
     /// - Parameters:

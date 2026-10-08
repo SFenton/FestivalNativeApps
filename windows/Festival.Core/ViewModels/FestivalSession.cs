@@ -58,6 +58,8 @@ public sealed partial class FestivalSession : ObservableObject
     public void UpdateSettings(Func<AppSettings, AppSettings> change)
     {
         var next = change(Settings).Sanitized();
+        // Web shouldResetSongSettingsForProfileChange: clearing the profile resets Songs; a player-to-player switch doesn't.
+        if (Settings.SelectedPlayer is not null && next.SelectedPlayer is null) next = next.ResetSongSettingsForDeselect();
         if (next == Settings) return;
         Settings = next;
         store.Save(next);
@@ -74,13 +76,11 @@ public sealed partial class FestivalSession : ObservableObject
         return true;
     }
 
-    /// <summary>Deselects the player (score and selected-instrument predicates are cleared; General filters stay).</summary>
-    public void DeselectPlayer() => UpdateSettings(s => s with
-    {
-        SelectedPlayer = null,
-        SongFilter = SongFilter.None,
-        PlayerScoreFilter = SongPlayerScoreFilter.None,
-    });
+    /// <summary>
+    /// Deselects the player. <see cref="UpdateSettings"/> then resets Songs like the web
+    /// (<see cref="AppSettings.ResetSongSettingsForDeselect"/>).
+    /// </summary>
+    public void DeselectPlayer() => UpdateSettings(s => s with { SelectedPlayer = null });
 
     /// <summary>Loads the catalogue once per publication; concurrent callers share the request.</summary>
     /// <param name="force">Re-read even when a catalogue is loaded (Retry, refresh); joins an in-flight read.</param>

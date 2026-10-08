@@ -66,8 +66,8 @@ import com.festivalscoretracker.android.ui.common.rememberMeasuredPx
 internal fun bandRouteFor(entry: PlayerBandEntry): AppRoute = BandRoute(entry.key, entry.membersLabel, entry.bandType, entry.teamKey)
 
 /**
- * Adaptive card grid with full-width header rows; with a vertical fold or hinge the
- * two columns meet exactly at it ([BandLayout.grid]). Across a **separating** hinge
+ * Adaptive card grid with full-width header rows, centred on the content area ([BandLayout.grid]);
+ * a flat (fully unfolded) fold does not move its gutter (issue #361). Across a **separating** hinge
  * (half-open book or passport fold) the [controls] move to a leading pane that ends at
  * the hinge and the cards fill a single column on the trailing side, so no segment,
  * header or pager straddles the crease ([BandLayout.listSplit]). Under TalkBack or at

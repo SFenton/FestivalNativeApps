@@ -1,11 +1,13 @@
 package com.festivalscoretracker.android.core.rankings
 
 import com.festivalscoretracker.android.core.bands.BandType
+import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.LeaderboardEntry
 import com.festivalscoretracker.android.core.model.ProfileSearchText
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.nav.BandRoute
+import com.festivalscoretracker.android.core.nav.FullRankingsRoute
 import com.festivalscoretracker.android.core.nav.PlayerRoute
 import com.festivalscoretracker.android.core.nav.SongLeaderboardRoute
 import com.festivalscoretracker.android.core.nav.StatisticsRoute
@@ -34,15 +36,37 @@ object RankingNavigation {
      * TalkBack click label for a player row, named after where it actually leads (iOS
      * `SongPreviewSpotlightPolicy.hint`, issue #63): the selected player's in-place row opens
      * Statistics; their appended row past the preview jumps to their position in the full
-     * board ([SelectedRowLabels], issue #307).
+     * board ([SelectedRowLabels], issues #307 and #370).
      *
      * @param route Row destination from [playerRoute] or the spotlight row's board page.
      * @return Action label.
      */
     fun actionLabel(route: AppRoute): String = when (route) {
         StatisticsRoute -> SelectedRowLabels.OPEN_STATISTICS
-        is SongLeaderboardRoute -> SelectedRowLabels.JUMP_TO_PLAYER
+        is SongLeaderboardRoute, is FullRankingsRoute -> SelectedRowLabels.JUMP_TO_PLAYER
         else -> "Open profile"
+    }
+
+    /**
+     * Route for the selected player's row appended under a rankings preview (Compete's
+     * leaderboard cards, issue #370): like Song Detail's appended row (`leaderboard-row` R7),
+     * it opens the instrument's full rankings on the page containing the player's rank, where
+     * the board reveals the highlighted row. Without a full board (combo scopes) or a usable
+     * rank it opens Statistics instead.
+     *
+     * @param entry The selected player's ranking row.
+     * @param metric The preview's Rank By.
+     * @param instrument The full board's instrument, or null when the preview has none.
+     * @param selectedAccountId Selected player, or null.
+     * @return [FullRankingsRoute] on the player's page, or [playerRoute]'s destination.
+     */
+    fun previewSpotlightRoute(entry: AccountRankingEntry, metric: RankingMetric, instrument: Instrument?, selectedAccountId: String?): AppRoute? {
+        val profile = playerRoute(entry.accountId, entry.displayName, selectedAccountId)
+        if (instrument == null || profile == null) return profile
+        return when (val action = SelectedRowAction.preview(entry.rank(metric), RankingPaging.PAGE_SIZE)) {
+            is SelectedRowAction.Jump -> FullRankingsRoute(instrument.wireId, metric.wireId, action.page)
+            SelectedRowAction.OpenProfile -> profile
+        }
     }
 
     /**

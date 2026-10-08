@@ -447,6 +447,11 @@ public struct FestivalRootView: View {
                 self.songsInstrument = nil
             }
         }
+        // A deselect or player/band switch returns Songs to every instrument with the
+        // saved filters and sort reset (web `resetSongSettingsForDeselect`, issue #359).
+        .onChange(of: session.songSettingsResetRevision) { _, _ in
+            songsInstrument = nil
+        }
         .onChange(of: hideShop) { _, hidden in
             guard hidden else { return }
             for (section, path) in paths {
