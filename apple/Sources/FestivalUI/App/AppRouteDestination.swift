@@ -143,8 +143,11 @@ struct AppRouteDestination: View {
             )
         case .leaderboards:
             LeaderboardsScreen(session: session)
-        case let .fullRankings(instrument, rankBy):
-            FullRankingsScreen(session: session, instrument: instrument, rankBy: rankBy)
+        case let .fullRankings(instrument, rankBy, page, focusSelected):
+            FullRankingsScreen(
+                session: session, instrument: instrument, rankBy: rankBy,
+                page: page, focusSelected: focusSelected
+            )
         case let .bandRankings(bandType):
             BandRankingsScreen(session: session, bandType: bandType)
         case .rivals:
