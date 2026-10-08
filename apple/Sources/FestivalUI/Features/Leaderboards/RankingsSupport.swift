@@ -350,11 +350,14 @@ struct LeaderboardNameText: View {
     let name: String
     /// Bold, for the selected player's own row (web `isPlayer`).
     var emphasized: Bool = false
+    /// The name has a line of its own in a multi-row card (#364): it wraps rather
+    /// than scrolls at every text size.
+    var stacked: Bool = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         Group {
-            switch Self.presentation(for: dynamicTypeSize) {
+            switch Self.presentation(for: dynamicTypeSize, stacked: stacked) {
             case .marquee:
                 MarqueeText(name, font: Self.font(emphasized: emphasized))
             case .wrapping:
@@ -369,11 +372,13 @@ struct LeaderboardNameText: View {
 
     /// The name's layout at a text size.
     ///
-    /// - Parameter size: Current Dynamic Type size.
-    /// - Returns: ``Presentation/wrapping`` at accessibility sizes, else
-    ///   ``Presentation/marquee``.
-    static func presentation(for size: DynamicTypeSize) -> Presentation {
-        size.isAccessibilitySize ? .wrapping : .marquee
+    /// - Parameters:
+    ///   - size: Current Dynamic Type size.
+    ///   - stacked: The name is on its own line of a multi-row card (#364).
+    /// - Returns: ``Presentation/wrapping`` at accessibility sizes or when stacked,
+    ///   else ``Presentation/marquee``.
+    static func presentation(for size: DynamicTypeSize, stacked: Bool = false) -> Presentation {
+        stacked || size.isAccessibilitySize ? .wrapping : .marquee
     }
 
     /// The name's font: body, bold for the selected player's row.

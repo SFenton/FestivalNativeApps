@@ -422,7 +422,7 @@ private fun SongList(
                     item(key = "notice-$index", contentType = "notice") { Notice(notice, if (notice == state.sortPaused) "fst.songs.sort-paused" else "fst.songs.notice.$index") }
                 }
                 // Web full-page EmptyState, vertically centred in the viewport (6.33).
-                if (state.rows.isEmpty()) festivalEmptyStateItem(state.emptyMessage, subtitle = "Try adjusting your search or filters.", tag = "fst.songs.empty")
+                if (state.rows.isEmpty()) festivalEmptyStateItem(state.emptyMessage, subtitle = "Try adjusting your search or filters.", tag = "fst.songs.empty", state = listState)
                 val songRow: @Composable (SongRowModel) -> Unit = { row ->
                     SongRow(
                         row, artworkUrl(row.song.albumArt), selected = row.song.songId == selectedSongId, pulse = pulse, breathe = breathe,
@@ -607,8 +607,14 @@ private fun headerKey(header: SongListHeader): String = HEADER_KEY_PREFIX + head
 
 private val IS_HEADER_KEY: (Any) -> Boolean = { key -> key is String && key.startsWith(HEADER_KEY_PREFIX) }
 
+/**
+ * A pause notice card (gold info icon), shared by Songs and the Item Shop sort pause.
+ *
+ * @param text Notice text.
+ * @param tag Test tag.
+ */
 @Composable
-private fun Notice(text: String, tag: String) {
+internal fun Notice(text: String, tag: String) {
     GlassCard(Modifier.fillMaxWidth().padding(bottom = 4.dp).testTag(tag)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(12.dp)) {
             Icon(Icons.Filled.Info, contentDescription = null, tint = BrandTokens.gold, modifier = Modifier.size(20.dp))

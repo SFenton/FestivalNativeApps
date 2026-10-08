@@ -2,10 +2,12 @@ import FestivalCore
 import FestivalDesign
 import SwiftUI
 
-/// The Item Shop's New / Available / Leaving Tomorrow filter (issue #19), built from the
+/// The Item Shop's New / Available / Leaving Tomorrow filter (issues #19, #376), built from the
 /// Songs filter sheet's pieces: the shared ``FestivalModal`` with the system Close, a
 /// grouped `Form` of switch rows and the red Reset action. Changes apply as they are
-/// made, like ``SongsFilterSheet`` (operator, 2026-09-28: no Cancel/Apply).
+/// made, like ``SongsFilterSheet`` (operator, 2026-09-28: no Cancel/Apply). The switches
+/// start on and turning one off hides its group (issue #376), like the Songs Item Shop
+/// switches.
 ///
 /// HIG Toggles (iOS, iPadOS): "Use the switch style only in a list row"; HIG Sheets
 /// (iOS, iPadOS): "Support swiping vertically to dismiss".
@@ -36,7 +38,7 @@ struct ShopFilterSheet: View {
           Text("Availability")
         } footer: {
           Text(
-            "Show offers in any selected group. With none selected, every offer shows."
+            "Turn a switch off to hide those offers. With every switch on, every offer shows."
           )
           .foregroundStyle(FestivalText.primary)
         }

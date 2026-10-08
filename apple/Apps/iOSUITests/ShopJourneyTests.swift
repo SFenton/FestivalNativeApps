@@ -53,7 +53,8 @@ final class ShopJourneyTests: XCTestCase {
         XCTAssertTrue(app.buttons["fst.song-detail.paths"].exists)
     }
 
-    /// Issue #19: the Filter sheet narrows offers live, reopens with its saved state and resets.
+    /// Issues #19, #376: the Filter sheet starts with every switch on, turning one off hides
+    /// that group live, the sheet reopens with its saved state and Reset turns them back on.
     ///
     /// - Throws: A missing Filter action, switches that do not filter, lost state or a broken Reset.
     @MainActor
@@ -81,21 +82,23 @@ final class ShopJourneyTests: XCTestCase {
         XCTAssertEqual(new.label, "New")
         XCTAssertEqual(available.label, "Available")
         XCTAssertEqual(leaving.label, "Leaving Tomorrow")
-        XCTAssertEqual(new.value as? String, "0")
+        for toggle in [new, available, leaving] {
+            XCTAssertEqual(toggle.value as? String, "1", "\(toggle.label) did not start on")
+        }
         try app.performAccessibilityAudit(for: .all)
-        SongsUITestSupport.setSwitch(new, to: "1")
-        SongsUITestSupport.record(app, name: "shop-filter-sheet-new")
+        SongsUITestSupport.setSwitch(leaving, to: "0")
+        SongsUITestSupport.record(app, name: "shop-filter-sheet-hide-leaving")
         app.buttons["fst.shop.filter.done"].tap()
 
         XCTAssertTrue(pulse.waitForExistence(timeout: 10))
-        XCTAssertFalse(orbit.exists, "New filter left a Leaving Tomorrow offer visible")
-        XCTAssertEqual(filter.value as? String, "New")
+        XCTAssertFalse(orbit.exists, "Leaving Tomorrow switched off left its offer visible")
+        XCTAssertEqual(filter.value as? String, "Hiding Leaving Tomorrow")
 
         filter.tap()
-        XCTAssertTrue(new.waitForExistence(timeout: 10))
-        XCTAssertEqual(new.value as? String, "1", "Reopened sheet lost the New filter")
+        XCTAssertTrue(leaving.waitForExistence(timeout: 10))
+        XCTAssertEqual(leaving.value as? String, "0", "Reopened sheet lost the hidden group")
+        XCTAssertEqual(new.value as? String, "1")
         SongsUITestSupport.setSwitch(new, to: "0")
-        SongsUITestSupport.setSwitch(available, to: "1")
         app.buttons["fst.shop.filter.done"].tap()
         let emptyReset = app.buttons["fst.shop.filter-empty.reset"]
         XCTAssertTrue(emptyReset.waitForExistence(timeout: 10))
