@@ -110,6 +110,10 @@ targets:
       - path: Apps/iOSUITests/DriverTests.swift
       - path: Apps/iOSUITests/HomeScreenNameJourneyTests.swift
       - path: Apps/iOSUITests/WindowResize.swift
+      # Issue #362 drawer open/close sequence, run on the iPad flyout too.
+      - path: Apps/iOSUITests/DrawerMotionJourneyTests.swift
+      - path: Apps/iOSUITests/ButtonFillPixels.swift
+      - path: Apps/iOSUITests/ShellUITestSupport.swift
       # Issue #311 avatar journey, run on iPad too (its Search page has the avatar).
       - path: Apps/iOSUITests/ProfileAvatarFillJourneyTests.swift
       - path: Apps/iOSUITests/ProfileAvatarPixels.swift

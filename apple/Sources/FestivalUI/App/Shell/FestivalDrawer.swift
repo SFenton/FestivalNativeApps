@@ -205,6 +205,138 @@ struct DrawerPlacement: Equatable {
     }
 }
 
+// MARK: - Drawer motion
+
+/// Open and close choreography of the drawer and flyout (#362, owner-approved variant of
+/// `page-tools-and-nav-chrome` R16).
+///
+/// One presence value runs from 0 (closed) to 1 (open). Its first share fades the
+/// whole-window scrim in place; the rest slides the panel in. Closing runs the same
+/// value back, so the panel slides out first and the scrim then fades. With Reduce
+/// Motion the panel fades in place instead of sliding (HIG Accessibility: "replacing
+/// axis transitions with fades").
+struct DrawerMotion: Equatable {
+    /// Scrim fade, in seconds.
+    static let scrimDuration: Double = 0.15
+    /// Panel slide, in seconds (web `Sidebar` `SIDEBAR_DURATION`, 250 ms).
+    static let panelDuration: Double = 0.25
+    /// Whole open or close sequence, in seconds.
+    static var totalDuration: Double { scrimDuration + panelDuration }
+    /// Share of the presence the scrim fade takes.
+    static var scrimShare: Double { scrimDuration / totalDuration }
+    /// Scrim opacity when the drawer is fully open.
+    static let scrimOpacity: Double = 0.45
+    /// Extra travel past the panel's trailing edge so its shadow leaves the window too.
+    static let shadowClearance: CGFloat = 24
+
+    /// Drives ``presence`` for an open or close; linear because ``scrim`` and ``panel``
+    /// carry each stage's own easing.
+    static var animation: Animation { .linear(duration: totalDuration * timeScale) }
+
+    /// Slow-motion factor for the whole sequence: 1 in Release.
+    ///
+    /// Debug builds read `FST_DEBUG_DRAWER_SLOWMO=<factor>` (at least 1) so the rendered
+    /// UI journey `DrawerMotionJourneyTests` can sample each stage in screenshots.
+    static let timeScale: Double = {
+        #if DEBUG
+        let raw = ProcessInfo.processInfo.environment["FST_DEBUG_DRAWER_SLOWMO"]
+        return debugTimeScale(raw)
+        #else
+        return 1
+        #endif
+    }()
+
+    /// Parse a slow-motion factor.
+    ///
+    /// - Parameter raw: The `FST_DEBUG_DRAWER_SLOWMO` value, if any.
+    /// - Returns: The factor clamped to 1…60; 1 when missing or not a number.
+    static func debugTimeScale(_ raw: String?) -> Double {
+        guard let value = raw.flatMap(Double.init), value.isFinite else { return 1 }
+        return max(1, min(60, value))
+    }
+
+    /// 0 when closed, 1 when open.
+    var presence: Double = 1
+    /// Whether the panel slides in (false: it fades in place for Reduce Motion).
+    var slides = true
+
+    /// Scrim stage, 0…1 (ease in-out), complete before the panel starts moving.
+    var scrim: Double {
+        let t = Self.clamp(presence / Self.scrimShare)
+        return t * t * (3 - 2 * t)
+    }
+
+    /// Panel stage, 0…1 (ease-out cubic on opening, so ease-in on closing).
+    var panel: Double {
+        let t = Self.clamp((presence - Self.scrimShare) / (1 - Self.scrimShare))
+        return 1 - pow(1 - t, 3)
+    }
+
+    /// Horizontal panel offset before any drag.
+    ///
+    /// - Parameter hiddenDistance: How far left the panel must travel to leave the window.
+    /// - Returns: 0 when open, `-hiddenDistance` when closed; always 0 with Reduce Motion.
+    func panelOffset(hiddenDistance: CGFloat) -> CGFloat {
+        slides ? -CGFloat(1 - panel) * hiddenDistance : 0
+    }
+
+    /// Panel opacity: 1 while sliding, the panel stage when fading.
+    var panelOpacity: Double { slides ? 1 : panel }
+
+    /// Clamp to 0…1.
+    ///
+    /// - Parameter value: Any fraction.
+    /// - Returns: The fraction limited to 0…1.
+    private static func clamp(_ value: Double) -> Double { max(0, min(1, value)) }
+}
+
+/// Fades the scrim by the drawer's animated presence (scrim stage) and drag progress.
+///
+/// An `Animatable` modifier rather than an environment value: SwiftUI interpolates
+/// ``presence`` here every frame, but does not re-render children that read a value
+/// such a modifier writes into the environment.
+struct DrawerScrimStage: ViewModifier, Animatable {
+    var presence: Double
+    let slides: Bool
+    /// Share of the panel still on screen while it is dragged (1 when not dragging).
+    var dragProgress: Double
+
+    /// Presence and drag both animate (a released drag snaps back).
+    nonisolated var animatableData: AnimatablePair<Double, Double> {
+        get { AnimatablePair(presence, dragProgress) }
+        set { (presence, dragProgress) = (newValue.first, newValue.second) }
+    }
+
+    func body(content: Content) -> some View {
+        let motion = DrawerMotion(presence: presence, slides: slides)
+        content.opacity(DrawerMotion.scrimOpacity * motion.scrim * dragProgress)
+    }
+}
+
+/// Places the panel (and the scrim's cut-out under it) by the drawer's animated presence
+/// (panel stage) and any drag.
+struct DrawerPanelStage: ViewModifier, Animatable {
+    var presence: Double
+    let slides: Bool
+    /// How far left the panel travels to leave the window, shadow included.
+    let hiddenDistance: CGFloat
+    /// Horizontal drag translation (only leftward moves the panel).
+    var dragOffset: CGFloat
+
+    /// Presence and drag both animate (a released drag snaps back).
+    nonisolated var animatableData: AnimatablePair<Double, CGFloat> {
+        get { AnimatablePair(presence, dragOffset) }
+        set { (presence, dragOffset) = (newValue.first, newValue.second) }
+    }
+
+    func body(content: Content) -> some View {
+        let motion = DrawerMotion(presence: presence, slides: slides)
+        content
+            .offset(x: motion.panelOffset(hiddenDistance: hiddenDistance) + min(0, dragOffset))
+            .opacity(motion.panelOpacity)
+    }
+}
+
 // MARK: - Drawer corners
 
 /// Corner geometry of the floating drawer panel.
@@ -288,7 +420,9 @@ private extension View {
 /// Dismisses on scrim tap, a leading swipe, the close button, or the VoiceOver
 /// escape gesture (two-finger Z); the iPad and iPhone Duo flyout also on Escape. The
 /// panel is announced as modal so VoiceOver focus stays inside it. It always slides
-/// over the content and never resizes it (`.agents/design/apple/split-view.md`).
+/// over the content and never resizes it (`.agents/design/apple/split-view.md`). Opening
+/// fades the scrim in place before the panel slides in; closing slides the panel out
+/// before the scrim fades (``DrawerMotion``, #362).
 struct FestivalDrawer: View {
     let session: FestivalSession
     let visibleSections: [FestivalSection]
@@ -307,9 +441,21 @@ struct FestivalDrawer: View {
     /// scrolls with the rows instead of staying pinned, so it stays reachable (the old
     /// iPad sidebar's AX5 rule, Lane A11Y2). The iPhone drawer keeps its pinned footer.
     var footerScrollsAtAccessibilitySizes = false
+    /// Open (true) or closing (false). The root keeps the drawer mounted until
+    /// ``onDismissed`` reports the close sequence finished.
+    var isPresented = true
+    /// Run the open sequence on appear (the root); previews and snapshots start open.
+    var animatesIn = false
+    /// Whether the panel slides; false fades it in place (Reduce Motion, #362).
+    var slides = true
     let onIntent: (DrawerIntent) -> Void
     let onClose: () -> Void
+    /// The close sequence finished: the panel left, then the scrim faded.
+    var onDismissed: () -> Void = {}
 
+    /// Animated presence, 0 closed … 1 open (``DrawerMotion``); nil before the first
+    /// open sequence starts.
+    @State private var presence: Double?
     @State private var dragOffset: CGFloat = 0
     @State private var deselectPending = false
     /// Moves assistive-technology focus to the panel's title once it slid in.
@@ -328,8 +474,17 @@ struct FestivalDrawer: View {
                 size: geometry.size, safeArea: geometry.safeAreaInsets, layout: layout
             )
             let width = placement.width
+            // The cut-out follows the panel's real position: its slide, then any drag.
+            let stage = DrawerPanelStage(
+                presence: currentPresence, slides: slides,
+                hiddenDistance: placement.panelPadding.leading + width + DrawerMotion.shadowClearance,
+                dragOffset: dragOffset
+            )
             ZStack(alignment: .leading) {
-                Color.black.opacity(0.45 * progress(width: width))
+                Color.black
+                    .modifier(DrawerScrimStage(
+                        presence: currentPresence, slides: slides, dragProgress: progress(width: width)
+                    ))
                     // Leave the content under the panel undimmed so its glass refracts
                     // real colour rather than the scrim.
                     .mask {
@@ -340,7 +495,7 @@ struct FestivalDrawer: View {
                                 .frame(width: width)
                                 .drawerPanelShape(.clip)
                                 .padding(placement.cutoutPadding)
-                                .offset(x: min(0, dragOffset))
+                                .modifier(stage)
                                 .blendMode(.destinationOut)
                         }
                         .compositingGroup()
@@ -358,7 +513,7 @@ struct FestivalDrawer: View {
                     #endif
                     .shadow(color: .black.opacity(0.3), radius: 20, x: 4)
                     .padding(placement.panelPadding)
-                    .offset(x: min(0, dragOffset))
+                    .modifier(stage)
                     .gesture(dismissDrag(width: width))
                     .accessibilityAddTraits(.isModal)
                     .accessibilityAction(.escape, onClose)
@@ -378,7 +533,14 @@ struct FestivalDrawer: View {
             .ignoresSafeArea()
         }
         .preferredColorScheme(.dark)
-        .onAppear { openFocus = AccessibilityFocusRequest(target: .topHeading, token: 1) }
+        // While closing, taps and VoiceOver already reach the page underneath.
+        .allowsHitTesting(isPresented)
+        .accessibilityHidden(while: !isPresented)
+        .onAppear {
+            openFocus = AccessibilityFocusRequest(target: .topHeading, token: 1)
+            if animatesIn { animatePresence(to: isPresented) }
+        }
+        .onChange(of: isPresented) { _, presented in animatePresence(to: presented) }
         .confirmationDialog(
             "Deselect \(session.selectedPlayer?.displayName ?? "Profile")?",
             isPresented: $deselectPending, titleVisibility: .visible
@@ -386,6 +548,25 @@ struct FestivalDrawer: View {
             Button("Deselect Profile", role: .destructive) { onIntent(.deselectProfile) }
         } message: {
             Text("Scores and profile tabs will be hidden until you select a profile again.")
+        }
+    }
+
+    /// Presence to draw: before the first open sequence, closed if it will animate in.
+    private var currentPresence: Double {
+        presence ?? (animatesIn ? 0 : 1)
+    }
+
+    /// Run the open or close sequence (#362): scrim, then panel; or panel, then scrim.
+    ///
+    /// - Parameter presented: Open (true) or close (false).
+    private func animatePresence(to presented: Bool) {
+        if presence == nil { presence = currentPresence }
+        withAnimation(DrawerMotion.animation, completionCriteria: .logicallyComplete) {
+            presence = presented ? 1 : 0
+            // Reopened mid-close after a drag: return the panel to its resting place.
+            if presented { dragOffset = 0 }
+        } completion: {
+            if !presented { onDismissed() }
         }
     }
 
