@@ -142,7 +142,11 @@ struct SettingsServiceInfoSection: View {
     /// False on the list/detail Settings' Service Info page (issue #371).
     let titled: Bool
     @State private var model: SettingsServiceInfoModel
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
+
+    /// System or in-app Reduce Motion (Settings' additive preference, load-transition R6).
+    private var reduceMotion: Bool { systemReduceMotion || appReduceMotion }
 
     /// Create the section.
     ///
@@ -206,7 +210,9 @@ struct SettingsServiceInfoSection: View {
 
     /// The web's phase row: semibold title (`toggleLabel`), the bar a gap-xs below, and the
     /// registered-band discovery lookup line under it (`toggleDesc`). Percent and units are
-    /// spoken, not printed — `SettingsServiceProgressCard` shows neither.
+    /// spoken, not printed — `SettingsServiceProgressCard` shows neither. One static-text
+    /// element like `SettingsValueRow` (R3): without the trait the Mac tree reports an unknown
+    /// role and drops the value, so VoiceOver never read the progress or attempt line (#399).
     private func phaseRow(title: String, rows: ServiceInfoRows) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
@@ -225,6 +231,7 @@ struct SettingsServiceInfoSection: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isStaticText)
         .accessibilityLabel(title)
         .accessibilityValue(
             [rows.progressText, rows.unitsText, rows.attemptText].compactMap { $0 }.joined(separator: ". ")
@@ -237,12 +244,24 @@ struct SettingsServiceInfoSection: View {
 
 /// Web-style capsule progress bar (purple fill on a muted track, 0.65 rem tall). An unknown
 /// total shows the web's sliding 38 % segment (1.25 s ease-in-out); it holds still under
-/// Reduce Motion and in UI-test runs (`FST_DEBUG_STILL_BACKGROUND`), where a perpetual
-/// animation would keep XCUITest from idling.
-private struct ServiceProgressBar: View {
+/// system or in-app Reduce Motion and in UI-test runs (`FST_DEBUG_STILL_BACKGROUND`), where
+/// a perpetual animation would keep XCUITest from idling.
+struct ServiceProgressBar: View {
     /// 0–100, or nil for an unknown total.
     let percent: Double?
+    /// System or in-app Reduce Motion.
     let reduceMotion: Bool
+
+    /// Whether an unknown total sweeps the indeterminate segment.
+    ///
+    /// - Parameters:
+    ///   - percent: 0–100, or nil for an unknown total.
+    ///   - reduceMotion: System or in-app Reduce Motion.
+    ///   - still: The UI-test still-animation override.
+    /// - Returns: True only for an unknown total with motion allowed.
+    static func sweeps(percent: Double?, reduceMotion: Bool, still: Bool) -> Bool {
+        percent == nil && !reduceMotion && !still
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -252,7 +271,9 @@ private struct ServiceProgressBar: View {
                     Capsule()
                         .fill(BrandTokens.accentPurple)
                         .frame(width: max(8, proxy.size.width * percent / 100))
-                } else if !reduceMotion && !DebugAnimationOverride.stillBackground {
+                } else if Self.sweeps(
+                    percent: percent, reduceMotion: reduceMotion, still: DebugAnimationOverride.stillBackground
+                ) {
                     IndeterminateSegment(width: proxy.size.width)
                 }
             }
