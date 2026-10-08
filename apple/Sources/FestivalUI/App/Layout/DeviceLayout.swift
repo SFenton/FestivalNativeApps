@@ -195,17 +195,59 @@ struct DeviceLayout: Sendable, Equatable {
         )
     }
 
-    /// The hinge an on-demand split aligns its divider to, in window coordinates: the
-    /// active fold, else the hinge the system reports while flat, else (iPhone Duo inner
-    /// display with no reported region) the line through the window's middle, where the
-    /// inner display's hinge runs. Nil without a hinge (iPhone, iPad, Mac, folded Duo).
+    /// The hinge on-demand splits and two-column layouts divide on, in window
+    /// coordinates, only while the iPhone Duo inner display is partially folded (book
+    /// pose): the active fold, else the hinge the system reports, else the line through
+    /// the window's middle, where the inner display's hinge runs.
+    ///
+    /// Nil when flat: fully unfolded, a split divides at the midpoint of the free space
+    /// beside the vertical bar, not on the hinge (owner, issue #361: "When completely
+    /// unfolded, midpoint should still be midpoint of free space, not hinge. When
+    /// partially folded, midpoint should be hinge"; HIG Designing for iPhone Duo:
+    /// "Folding region | Present when partially open"). Also nil without a hinge
+    /// (iPhone, iPad, Mac, folded Duo).
     var splitHinge: CGRect? {
+        guard pose == .partiallyFolded else { return nil }
         if let foldFrame { return foldFrame }
         if let hingeFrame { return hingeFrame }
-        guard pose == .unfolded || pose == .partiallyFolded, size.width > 0, size.height > 0 else { return nil }
+        guard size.width > 0, size.height > 0 else { return nil }
         return orientation == .landscape
             ? CGRect(x: size.width / 2, y: 0, width: 0, height: size.height)
             : CGRect(x: 0, y: size.height / 2, width: size.width, height: 0)
+    }
+
+    /// The window's free horizontal span in window coordinates: its width inside the
+    /// safe area, so the iPhone Duo vertical bar (part of the safe area) is excluded.
+    ///
+    /// - Parameter layoutDirection: The layout direction the insets are relative to. The
+    ///   window coordinates are physical, so a right-to-left layout's leading inset is on
+    ///   the right (the Duo's vertical bar keeps its physical side, HIG Designing for
+    ///   iPhone Duo).
+    /// - Returns: The span, or nil before the first geometry pass.
+    func freeSpan(layoutDirection: LayoutDirection = .leftToRight) -> ClosedRange<CGFloat>? {
+        let left = layoutDirection == .leftToRight ? safeAreaInsets.leading : safeAreaInsets.trailing
+        let right = layoutDirection == .leftToRight ? safeAreaInsets.trailing : safeAreaInsets.leading
+        let upper = size.width - max(0, right)
+        let lower = max(0, left)
+        guard size.width > 0, upper > lower else { return nil }
+        return lower...upper
+    }
+
+    /// Where a page divides into its two screens, in window coordinates: ``splitHinge``
+    /// in book pose; on the flat iPhone Duo inner display in landscape, a zero-width line
+    /// at the midpoint of ``freeSpan(layoutDirection:)`` (owner #361); else nil.
+    ///
+    /// Two-column rows and on-demand splits divide at their own free-space midpoint
+    /// when flat without reading this; controls that sit on one screen (a board's pager,
+    /// #345) read it so they stay on the same side of the columns' gutter.
+    ///
+    /// - Parameter layoutDirection: The layout direction (see ``freeSpan(layoutDirection:)``).
+    /// - Returns: The dividing line, or nil.
+    func screenDivide(layoutDirection: LayoutDirection = .leftToRight) -> CGRect? {
+        if let splitHinge { return splitHinge }
+        guard pose == .unfolded, orientation == .landscape, sectionChrome.isVerticalBar,
+              size.height > 0, let span = freeSpan(layoutDirection: layoutDirection) else { return nil }
+        return CGRect(x: (span.lowerBound + span.upperBound) / 2, y: 0, width: 0, height: size.height)
     }
 
     /// Default before the first geometry pass: an ordinary compact phone.

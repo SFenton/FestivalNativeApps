@@ -32,6 +32,9 @@ public sealed partial class ShopPage : Page
     private double tileSize = 200;
     private int revealGeneration;
 
+    /// <summary>Sort the shown offers were projected with (a change returns both layouts to the top).</summary>
+    private string? appliedSort;
+
     /// <summary>Creates the page.</summary>
     public ShopPage()
     {
@@ -43,14 +46,14 @@ public sealed partial class ShopPage : Page
             // Compact: no right gutter for the overlaying scroll indicator (operator 7.24; right edge 16 → 12 epx).
             Root.Padding = ViewModel.IsCompact ? new Thickness(12, 8, 12, 0) : new Thickness(24, 12, 12, 0);
             GridScroller.Padding = OfferList.Padding = ViewModel.IsCompact ? new Thickness(0, 0, 0, 24) : new Thickness(0, 0, 12, 24);
-            Header.Margin = DetailsNotice.Margin = ViewModel.IsCompact ? new Thickness(0) : new Thickness(0, 0, 12, 0);
+            Header.Margin = Notices.Margin = ViewModel.IsCompact ? new Thickness(0) : new Thickness(0, 0, 12, 0);
         };
         ViewModel.PropertyChanged += OnViewModelChanged;
         // The tint is set from code (inline brushes don't follow {ThemeResource}), so a contrast-theme switch re-applies it;
         // Loaded also reaches the DropDownButton chevron, which exists only once the template applies.
         Loaded += (_, _) =>
         {
-            UpdateFilterTint();
+            UpdateButtonTints();
             ContrastTheme.Changed -= OnColorsChanged;
             ContrastTheme.Changed += OnColorsChanged;
         };
@@ -68,7 +71,7 @@ public sealed partial class ShopPage : Page
     {
         base.OnNavigatedTo(e);
         UpdateToggleGlyph();
-        UpdateFilterTint();
+        UpdateButtonTints();
         await ViewModel.AppearCommand.ExecuteAsync(null);
     }
 
@@ -78,23 +81,39 @@ public sealed partial class ShopPage : Page
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(ShopViewModel.ToggleLabel)) UpdateToggleGlyph();
-        if (e.PropertyName == nameof(ShopViewModel.IsFilterActive)) UpdateFilterTint();
-        if (e.PropertyName == nameof(ShopViewModel.Offers)) PerfLog.Mark("shop-rendered");
+        if (e.PropertyName is nameof(ShopViewModel.IsFilterActive) or nameof(ShopViewModel.IsSortChanged)) UpdateButtonTints();
+        if (e.PropertyName == nameof(ShopViewModel.Offers))
+        {
+            PerfLog.Mark("shop-rendered");
+            // A new sort starts at the top of either layout, like Songs (operator batch 5; every sortable list).
+            if (appliedSort is not null && appliedSort != ViewModel.SortSummary) ScrollToTop();
+            appliedSort = ViewModel.SortSummary;
+        }
         // Offers are projected before the state turns Loaded; a re-projection while loaded (settings) reveals again.
         if (e.PropertyName is nameof(ShopViewModel.Offers) or nameof(ShopViewModel.State) && ViewModel.ShowOffers) _ = RevealAsync();
     }
 
     /// <summary>
-    /// Marks the Filter button while a switch is on, exactly like the Songs Filter button: gold text, the Highlight /
-    /// HighlightText pair under a contrast theme (gold resolves to WindowText there, so the tint alone vanished), and
-    /// "Filters applied" as its UIA item status (the tint alone was silent to Narrator).
+    /// Marks the Sort button while the sort isn't Title ascending and the Filter button while a switch is off, exactly
+    /// like the Songs buttons: gold text, the Highlight / HighlightText pair under a contrast theme (gold resolves to
+    /// WindowText there, so the tint alone vanished), and "Filters applied" as Filter's UIA item status (the tint alone
+    /// was silent to Narrator; Sort's help text already names the applied sort).
     /// </summary>
-    private void UpdateFilterTint() => AppliedButtonState.Apply(FilterButton, ViewModel.IsFilterActive, ViewModel.FilterStatus);
+    private void UpdateButtonTints()
+    {
+        AppliedButtonState.Apply(SortButton, ViewModel.IsSortChanged);
+        AppliedButtonState.Apply(FilterButton, ViewModel.IsFilterActive, ViewModel.FilterStatus);
+    }
 
-    /// <summary>Re-resolves the code-set Filter tint on the UI thread after a system colour (contrast theme) change.</summary>
+    /// <summary>Re-resolves the code-set button tints on the UI thread after a system colour (contrast theme) change.</summary>
     /// <param name="sender">Unused.</param>
     /// <param name="e">Unused.</param>
-    private void OnColorsChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(UpdateFilterTint);
+    private void OnColorsChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(UpdateButtonTints);
+
+    /// <summary>Loads the applied sort into the live draft as the Sort flyout opens.</summary>
+    /// <param name="sender">Flyout.</param>
+    /// <param name="e">Unused.</param>
+    private void OnSortOpening(object sender, object e) => ViewModel.SortDraft.Begin();
 
     /// <summary>Fits the filter flyout to the window and re-reads the switches.</summary>
     /// <param name="sender">Flyout.</param>
@@ -120,9 +139,15 @@ public sealed partial class ShopPage : Page
     {
         ViewModel.ToggleViewCommand.Execute(null);
         // The new layout starts at the top and replays the entrance, like the web's view toggle (operator batch 6.10).
+        ScrollToTop();
+        _ = RevealAsync();
+    }
+
+    /// <summary>Returns the grid and the list to their first offer.</summary>
+    private void ScrollToTop()
+    {
         GridScroller.ChangeView(null, 0, null, true);
         if (ViewModel.Offers.Count > 0) OfferList.ScrollIntoView(ViewModel.Offers[0]);
-        _ = RevealAsync();
     }
 
     /// <summary>

@@ -22,7 +22,7 @@ extension EnvironmentValues {
 /// With `rotates`, the rows rotate through a larger pool on the web's `useDemoSongs` cycle
 /// (``FirstRunRowRotation``): every 5 s one row (two for 4-6 rows) fades out for 400 ms, takes
 /// a song not already shown and fades back in, while the slide is visible. Content marks each
-/// row with ``SwiftUI/View/firstRunSwapRow(_:key:rise:)`` and positional `ForEach` identity.
+/// row with ``SwiftUI/View/firstRunSwapRow(_:rise:)`` and positional `ForEach` identity.
 struct FirstRunCatalogueSongs<Content: View>: View {
     /// Where preferred songs come from.
     enum Source {
@@ -36,7 +36,7 @@ struct FirstRunCatalogueSongs<Content: View>: View {
     static var rotationPoolSize: Int { 24 }
 
     @Environment(\.firstRunSession) private var session
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FirstRunReduceMotion private var reduceMotion
     @State private var live: FirstRunRowRotation<Song>?
     @State private var fading: Set<Int> = []
     @State private var swapTick = 0
@@ -132,8 +132,28 @@ private struct FirstRunInertPreview: ViewModifier {
     }
 }
 
-private extension View {
+extension View {
+    /// Shows real app UI read-only (``FirstRunInertPreview``).
     func firstRunInert() -> some View { modifier(FirstRunInertPreview()) }
+
+    /// Shows the top `height` points of a real sheet read-only, framed as a sheet card, as the
+    /// Songs Sort and Filter demos do.
+    func firstRunSheetPreview(height: CGFloat) -> some View {
+        frame(height: height, alignment: .top)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .firstRunPreviewCard()
+            .firstRunInert()
+    }
+
+    /// Frames a piece of real app UI as a rounded card with the glass hairline, so a cropped
+    /// sheet or screen edge reads as a picture of the app.
+    func firstRunPreviewCard() -> some View {
+        clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(BrandTokens.glassBorder, lineWidth: 1)
+            )
+    }
 }
 
 /// A demo row built from the real Songs row pieces when no session exists to drive
@@ -179,22 +199,25 @@ private struct FirstRunRowChrome<Detail: View, Trailing: View>: View {
 }
 
 /// The real `SongRowView` when a session exists, otherwise the same layout from its parts.
-private struct FirstRunSongRow: View {
+/// Songs and the Item Shop demos share it, so a highlighted row pulses with the row's own
+/// ``ShopRowPulseBorder`` (green in the shop, gold when new, red when leaving tomorrow).
+struct FirstRunSongRow: View {
     let song: Song
     let session: FestivalSession?
     var highlight: ShopHighlight?
+    /// In the Item Shop with highlighting on (green pulse and bag, web `shopHighlight`).
+    var inShop = false
 
     var body: some View {
         if let session {
             SongRowView(
                 song: song, instrument: nil, session: session, highContrast: false,
-                shopHighlight: highlight
+                shopHighlight: highlight, inShop: inShop
             )
         } else {
             FirstRunRowChrome(
                 song: song, session: nil,
-                outline: highlight == .leavingTomorrow ? BrandTokens.statusRed
-                    : highlight == .new ? BrandTokens.gold : nil,
+                outline: inShop || highlight != nil ? ShopStatusTone(highlight: highlight).borderColor : nil,
                 detail: { EmptyView() }, trailing: { EmptyView() }
             )
         }
@@ -210,7 +233,7 @@ struct FirstRunNativeSongListDemo: View {
             VStack(spacing: 8) {
                 ForEach(Array(songs.enumerated()), id: \.offset) { index, song in
                     FirstRunSongRow(song: song, session: session)
-                        .firstRunSwapRow(index, key: song.id)
+                        .firstRunSwapRow(index)
                 }
             }
         }
@@ -224,14 +247,7 @@ struct FirstRunNativeSongListDemo: View {
 struct FirstRunNativeSortDemo: View {
     var body: some View {
         SongsSortSheet(mode: .title, ascending: true, showShop: true, shopAvailable: true) { _, _ in }
-            .frame(height: 420, alignment: .top)
-            .frame(maxHeight: .infinity, alignment: .top)
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(BrandTokens.glassBorder, lineWidth: 1)
-            )
-            .firstRunInert()
+            .firstRunSheetPreview(height: 420)
     }
 }
 
@@ -246,14 +262,7 @@ struct FirstRunNativeFilterDemo: View {
             availableDecades: [1970, 1980, 1990, 2000, 2010, 2020],
             appliedInstrument: .lead, selectedPlayer: true, scoreAvailable: true
         ) { _, _, _ in }
-            .frame(height: 460, alignment: .top)
-            .frame(maxHeight: .infinity, alignment: .top)
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(BrandTokens.glassBorder, lineWidth: 1)
-            )
-            .firstRunInert()
+            .firstRunSheetPreview(height: 460)
     }
 }
 
@@ -266,22 +275,45 @@ struct FirstRunNativeNavigationDemo: View {
 
     var body: some View {
         TabView(selection: $selection) {
-            ForEach(Array(Self.tabs.enumerated()), id: \.offset) { index, tab in
-                Color.clear
-                    .tabItem { Label(tab.title, systemImage: tab.symbol) }
+            ForEach(Array(Self.tabs.enumerated()), id: \.offset) { index, section in
+                BrandTokens.appBackground
+                    .ignoresSafeArea()
+                    .tabItem { Label(section.title, systemImage: section.symbol) }
                     .tag(index)
             }
         }
+        // The carousel's `.page` style is inherited by nested tab views, which would turn
+        // this one into an empty pager with no tab bar (issue #380).
+        .tabViewStyle(.automatic)
+        .modifier(FirstRunDemoTabBarChrome())
         .frame(height: 150)
+        .firstRunPreviewCard()
         .frame(maxHeight: .infinity, alignment: .bottom)
         .firstRunInert()
     }
 
-    private static let tabs: [(title: String, symbol: String)] = [
-        ("Songs", "music.note.list"), ("Suggestions", "sparkles"),
-        ("Compete", "trophy.fill"), ("Statistics", "chart.bar.fill"),
-        ("Settings", "gearshape.fill"),
-    ]
+    /// The shell's own tab titles and symbols (``FestivalSection``).
+    private static let tabs: [FestivalSection] = [.songs, .suggestions, .compete, .statistics, .settings]
+}
+
+/// Keeps the Navigation demo's tab view to just its tab bar: the shell's page-tools
+/// accessory (Songs' Sort and Filter) is inherited by nested tab views on iOS 26.1
+/// (``SwiftUICore/View/festivalPageToolsAccessoryHidden()``), and the
+/// system tab-bar backdrop would draw a grey panel over the guide.
+private struct FirstRunDemoTabBarChrome: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        if #available(iOS 18, *) {
+            content
+                .festivalPageToolsAccessoryHidden()
+                .toolbarBackgroundVisibility(.hidden, for: .tabBar)
+        } else {
+            content.toolbarBackground(.hidden, for: .tabBar)
+        }
+        #else
+        content
+        #endif
+    }
 }
 
 // MARK: - songs-icons
@@ -301,7 +333,7 @@ struct FirstRunNativeIconsDemo: View {
                             keyboard: song.usesKeyboardIcon
                         )
                     } trailing: { EmptyView() }
-                    .firstRunSwapRow(index, key: song.id)
+                    .firstRunSwapRow(index)
                 }
             }
         }
@@ -326,7 +358,7 @@ struct FirstRunNativeMetadataDemo: View {
                 } trailing: {
                     SongMetadataFieldView(field: .score(meta.score), songId: song.songId)
                 }
-                .firstRunSwapRow(0, key: song.id)
+                .firstRunSwapRow(0)
             }
         }
         .firstRunInert()

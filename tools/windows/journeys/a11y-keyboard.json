@@ -600,7 +600,41 @@
       "key:enter",
       "waitfor:id=fst.shop.filter.reset@5",
       "key:esc",
-      "assertfocus:id=fst.shop.filter@3"
+      "assertfocus:id=fst.shop.filter@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.shop.sort"
+    ]
+  },
+  {
+    "name": "kb-shop-sort",
+    "route": "/shop",
+    "tabs": 0,
+    "sizes": [
+      "compact",
+      "medium"
+    ],
+    "ready": [
+      "waitfor:id=fst.shop.song.fixture-pulse@20",
+      "wait:2"
+    ],
+    "after_ready": [
+      "focus:id=fst.shop.sort",
+      "key:enter",
+      "waitfor:id=fst.shop.sort.reset@5",
+      "assertfocus:name=Title@3",
+      "key:tab",
+      "assertfocus:id=fst.shop.sort.direction.ascending@3",
+      "key:down",
+      "assertfocus:id=fst.shop.sort.direction.descending@3",
+      "waitfor:name=Title ↓@5",
+      "key:tab",
+      "assertfocus:id=fst.shop.sort.reset@3",
+      "key:enter",
+      "waitfor:name=Title ↑@5",
+      "key:esc",
+      "assertfocus:id=fst.shop.sort@3",
+      "key:tab",
+      "assertfocus:id=fst.shop.filter"
     ]
   },
   {

@@ -13,7 +13,7 @@ struct FirstRunShopOverviewDemo: View {
     var body: some View {
         FirstRunCatalogueSongs(count: 6, source: .itemShop) { songs, session in
             LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(songs) { song in
+                ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
                     Color.clear
                         .aspectRatio(1, contentMode: .fit)
                         .overlay {
@@ -21,6 +21,8 @@ struct FirstRunShopOverviewDemo: View {
                                 FirstRunSongArt(song: song, session: session, size: proxy.size.width)
                             }
                         }
+                        // Web `ShopOverviewDemo` `delay={i * 60}`.
+                        .firstRunStagger(index, interval: FirstRunMotion.tileStaggerSeconds)
                 }
             }
         }
@@ -28,37 +30,57 @@ struct FirstRunShopOverviewDemo: View {
     }
 }
 
-// MARK: - Shop row primitive (highlighting / new items / leaving tomorrow)
+// MARK: - Shop rows (highlighting / new items / leaving tomorrow)
 
-private struct FirstRunShopRow: View {
-    let song: Song
-    let session: FestivalSession?
-    /// `nil` renders a flat row with no pulse, matching the web's "no highlight" phase.
-    let pulseTint: Color?
+/// One phase of the web shop demos' row cycle (`ShopHighlightingDemo`, `ShopNewItemsDemo`,
+/// `ShopLeavingTomorrowDemo`).
+enum FirstRunShopRowPhase: Equatable {
+    /// No highlight.
+    case plain
+    /// In the shop: green pulse.
+    case inShop
+    /// New or leaving tomorrow: gold or red pulse.
+    case highlighted(ShopHighlight)
 
-    var body: some View {
-        HStack(spacing: 12) {
-            FirstRunSongArt(song: song, session: session)
-            VStack(alignment: .leading, spacing: 2) {
-                MarqueeText(song.title).font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                MarqueeText(song.artist).font(.caption)
-                    .lineLimit(1)
-            }
-            .foregroundStyle(FestivalText.primary)
-            .firstRunRedacted(song)
-            Spacer(minLength: 0)
+    /// The phases the web demo cycles each row through by index.
+    ///
+    /// - Parameters:
+    ///   - index: Row position.
+    ///   - highlight: The slide's badge (`nil`: the highlighting slide's green/plain pairs).
+    /// - Returns: `index % 2` green/plain without a badge; otherwise `index % 3`
+    ///   badge/green/plain.
+    static func phase(at index: Int, highlight: ShopHighlight?) -> Self {
+        guard let highlight else { return index.isMultiple(of: 2) ? .inShop : .plain }
+        switch index % 3 {
+        case 0: return .highlighted(highlight)
+        case 1: return .inShop
+        default: return .plain
         }
-        .padding(10)
-        .festivalCard(cornerRadius: 12)
-        .modifier(OptionalPulse(tint: pulseTint))
     }
 }
 
-private struct OptionalPulse: ViewModifier {
-    let tint: Color?
-    func body(content: Content) -> some View {
-        if let tint { content.firstRunPulse(tint) } else { content }
+/// The Songs/Item Shop list's real rows (``FirstRunSongRow`` over ``SongRowView``) in the
+/// web demo's highlight cycle, cascading in 80 ms apart like its `FadeIn delay={i * 80}`.
+private struct FirstRunShopRows: View {
+    let count: Int
+    /// The slide's badge, or nil for the plain highlighting slide.
+    let highlight: ShopHighlight?
+
+    var body: some View {
+        FirstRunCatalogueSongs(count: count, source: .itemShop) { songs, session in
+            VStack(spacing: 8) {
+                ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
+                    let phase = FirstRunShopRowPhase.phase(at: index, highlight: highlight)
+                    FirstRunSongRow(
+                        song: song, session: session,
+                        highlight: { if case let .highlighted(badge) = phase { badge } else { nil } }(),
+                        inShop: phase != .plain
+                    )
+                    .firstRunStagger(index, interval: FirstRunMotion.rowStaggerSeconds)
+                }
+            }
+        }
+        .firstRunInert()
     }
 }
 
@@ -68,17 +90,7 @@ private struct OptionalPulse: ViewModifier {
 /// green highlight and no highlight, to contrast shop vs. non-shop songs.
 struct FirstRunShopHighlightingDemo: View {
     var body: some View {
-        FirstRunCatalogueSongs(count: 4, source: .itemShop) { songs, session in
-            VStack(spacing: 8) {
-                ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
-                    FirstRunShopRow(
-                        song: song, session: session,
-                        pulseTint: index.isMultiple(of: 2) ? BrandTokens.statusGreenStroke : nil
-                    )
-                }
-            }
-        }
-        .accessibilityHidden(true)
+        FirstRunShopRows(count: 4, highlight: nil)
     }
 }
 
@@ -88,22 +100,7 @@ struct FirstRunShopHighlightingDemo: View {
 /// (regular shop), and no highlight.
 struct FirstRunShopNewItemsDemo: View {
     var body: some View {
-        FirstRunCatalogueSongs(count: 6, source: .itemShop) { songs, session in
-            VStack(spacing: 8) {
-                ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
-                    FirstRunShopRow(song: song, session: session, pulseTint: tint(for: index))
-                }
-            }
-        }
-        .accessibilityHidden(true)
-    }
-
-    private func tint(for index: Int) -> Color? {
-        switch index % 3 {
-        case 0: BrandTokens.gold
-        case 1: BrandTokens.statusGreenStroke
-        default: nil
-        }
+        FirstRunShopRows(count: 6, highlight: .new)
     }
 }
 
@@ -113,21 +110,6 @@ struct FirstRunShopNewItemsDemo: View {
 /// green (regular shop), and no highlight.
 struct FirstRunShopLeavingTomorrowDemo: View {
     var body: some View {
-        FirstRunCatalogueSongs(count: 6, source: .itemShop) { songs, session in
-            VStack(spacing: 8) {
-                ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
-                    FirstRunShopRow(song: song, session: session, pulseTint: tint(for: index))
-                }
-            }
-        }
-        .accessibilityHidden(true)
-    }
-
-    private func tint(for index: Int) -> Color? {
-        switch index % 3 {
-        case 0: BrandTokens.statusRed
-        case 1: BrandTokens.statusGreenStroke
-        default: nil
-        }
+        FirstRunShopRows(count: 6, highlight: .leavingTomorrow)
     }
 }

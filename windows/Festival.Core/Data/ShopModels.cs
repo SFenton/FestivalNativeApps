@@ -63,17 +63,7 @@ public sealed record ShopResponse
 
     /// <summary>Offers in the source's title-first order (ties by ID), independent of service iteration.</summary>
     /// <returns>New sorted list.</returns>
-    public List<ShopSong> SortedSongs()
-    {
-        var culture = CultureInfo.CurrentCulture.CompareInfo;
-        var sorted = Songs.ToList();
-        sorted.Sort((a, b) =>
-        {
-            var order = culture.Compare(a.Title, b.Title, CompareOptions.IgnoreCase);
-            return order != 0 ? order : string.CompareOrdinal(a.SongId, b.SongId);
-        });
-        return sorted;
-    }
+    public List<ShopSong> SortedSongs() => ShopOfferSort.Sort(Songs, SongSortMode.Title, ascending: true);
 
     /// <summary>Whether a link is an official HTTPS Jam Track page with no credentials, port, query or fragment.</summary>
     /// <param name="raw">Wire value.</param>
@@ -149,6 +139,59 @@ public sealed record ShopOfferFilter(bool New = true, bool Available = true, boo
         (New && offer.IsNew) ||
         (LeavingTomorrow && offer.LeavingTomorrow) ||
         (Available && !offer.IsNew && !offer.LeavingTomorrow);
+}
+
+/// <summary>
+/// Item Shop page sort (issue #379): the Songs list's Title, Artist, Year and Duration modes with a direction, ordered
+/// by the same comparison as Songs (<see cref="SongCatalogQuery.Compare"/>: ties by title, then ID; a missing year or
+/// duration sorts as zero). The feed has no duration, so it comes from the validated catalogue song when one exists.
+/// </summary>
+public static class ShopOfferSort
+{
+    /// <summary>Sort fields the Item Shop offers, in menu order.</summary>
+    public static IReadOnlyList<SongSortMode> Modes { get; } =
+        [SongSortMode.Title, SongSortMode.Artist, SongSortMode.Year, SongSortMode.Duration];
+
+    /// <summary>Maps a saved mode the Shop doesn't offer (or an undefined value) to Title.</summary>
+    /// <param name="mode">Saved mode.</param>
+    /// <returns>A member of <see cref="Modes"/>.</returns>
+    public static SongSortMode Normalize(SongSortMode mode) => Modes.Contains(mode) ? mode : SongSortMode.Title;
+
+    /// <summary>
+    /// Why a saved Duration sort can't use catalogue lengths right now (catalogue-sort R7): the feed has no duration,
+    /// so it needs a catalogue observed under the Shop feed's publication. The page then shows title order in the saved
+    /// direction and keeps the choice, like the Songs Item Shop sort pause.
+    /// </summary>
+    /// <param name="mode">Saved mode.</param>
+    /// <param name="catalogueLoaded">Whether a validated catalogue exists.</param>
+    /// <param name="samePublication">Whether catalogue, Shop feed and session share one observed publication.</param>
+    /// <returns>Readable notice, or <see langword="null"/> when the sort applies.</returns>
+    public static string? DurationPause(SongSortMode mode, bool catalogueLoaded, bool samePublication) =>
+        Normalize(mode) != SongSortMode.Duration ? null
+        : !catalogueLoaded ? "Duration sort paused until song details load. Showing title order; your choice is saved."
+        : !samePublication ? "Duration sort paused until Item Shop and song details update together. Showing title order; your choice is saved."
+        : null;
+
+    /// <summary>Sorts offers.</summary>
+    /// <param name="offers">Validated offers.</param>
+    /// <param name="mode">Sort field (normalized with <see cref="Normalize"/>).</param>
+    /// <param name="ascending">Direction.</param>
+    /// <param name="duration">Catalogue duration in seconds by song ID, or <see langword="null"/> when unknown.</param>
+    /// <returns>New sorted list.</returns>
+    public static List<ShopSong> Sort(IEnumerable<ShopSong> offers, SongSortMode mode, bool ascending, Func<string, int?>? duration = null)
+    {
+        mode = Normalize(mode);
+        var keyed = offers.Select(offer => (Offer: offer, Key: new Song
+        {
+            SongId = offer.SongId,
+            Title = offer.Title,
+            Artist = offer.Artist,
+            Year = offer.Year,
+            DurationSeconds = mode == SongSortMode.Duration ? duration?.Invoke(offer.SongId) : null,
+        })).ToList();
+        keyed.Sort((a, b) => SongCatalogQuery.Compare(a.Key, b.Key, mode, ascending));
+        return [.. keyed.Select(k => k.Offer)];
+    }
 }
 
 /// <summary>Catalogue rows and their related data (Shop, player scores) must share one observed publication.</summary>

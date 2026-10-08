@@ -421,6 +421,7 @@ struct OnDemandSplitStack<Root: View>: View {
     let root: (Bool) -> Root
 
     @Environment(\.deviceLayout) private var layout
+    @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.splitOpenReporter) private var openReporter
     /// The container's frame in window coordinates (for the midpoint and the hinge).
     @State private var container: CGRect = .zero
@@ -470,7 +471,9 @@ struct OnDemandSplitStack<Root: View>: View {
 
     /// The panes the window allows now, whatever page is on top, or nil.
     private var windowGeometry: OnDemandSplitPolicy.Geometry? {
-        OnDemandSplitPolicy.geometry(OnDemandSplitPolicy.context(layout: layout, container: container))
+        OnDemandSplitPolicy.geometry(OnDemandSplitPolicy.context(
+            layout: layout, container: container, layoutDirection: layoutDirection
+        ))
     }
 
     /// What the window allows now, for deferring shape changes.

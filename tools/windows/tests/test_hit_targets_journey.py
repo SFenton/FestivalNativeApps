@@ -19,8 +19,8 @@ _TOOLS = {
     "fst.global-search.open", "fst.shell.profile", "fst.shell.notifications", "fst.songs.sort", "fst.songs.filter",
     "fst.songs.section-index-button", "fst.suggestions.filter-button", "fst.rankings.rank-by-menu",
     "fst.full-rankings.instrument-menu", "fst.band-rankings.band-type-menu", "fst.band-rankings.rank-by-menu",
-    "fst.song-detail.paths", "fst.song-detail.pinned-paths", "fst.history.sort.open", "fst.shop.filter",
-    "fst.quick-links.open",
+    "fst.song-detail.paths", "fst.song-detail.pinned-paths", "fst.history.sort.open", "fst.shop.sort",
+    "fst.shop.filter", "fst.quick-links.open",
 }
 # Sized and probed, but never pressed: it opens the Item Shop in the external browser (Launcher), which a shared
 # desktop run must not do.
@@ -45,6 +45,7 @@ _OUTCOMES = {
     "fst.song-detail.paths": ("waitfor:id=fst.paths@",),
     "fst.song-detail.pinned-paths": ("waitfor:id=fst.paths@",),
     "fst.history.sort.open": ("waitfor:id=fst.history.sort.mode.",),
+    "fst.shop.sort": ("waitfor:id=fst.shop.sort.mode@",),
     "fst.shop.filter": ("waitfor:id=fst.shop.filter.reset@",),
     "fst.rival-detail.view-profile": ("waitfor:id=fst.player@",),
     "fst.quick-links.open": ("waitfor:id=fst.quick-links.item.",),
