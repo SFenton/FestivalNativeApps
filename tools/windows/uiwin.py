@@ -106,6 +106,7 @@ STEP_VERBS = {
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
     "scrollto": "scrollto",
     "assertname": "setvalue", "assertaligned": "pair", "assertbelow": "pair", "assertlevel": "pair", "assertgap": "gap",
+    "assertcentred": "centred",
     "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state",
     "markspan": "span", "assertspan": "span", "film": "path", "filmstop": "path", "pin": "selector",
     "assertpinned": "selector", "foreground": "onoff", "listen": "listen", "assertannounced": "announced",
@@ -266,6 +267,9 @@ def parse_step(step: str) -> dict:
     and ``assertlevel:<sel>|<sel>`` unless both vertical centres are within 4 px (a line);
     ``assertgap:<sel>|<sel>|<epx>`` fails unless the gap from the first element's bottom edge to the second's top
     edge is ``<epx>`` effective pixels (window DPI) within 1 epx, e.g. a list's last row above a pinned footer;
+    ``assertcentred:<region>|<first>|<last>`` fails unless the block from the first element's top edge to the last
+    element's bottom edge sits in the region's vertical middle (top and bottom gaps within 2 epx) and the first element's
+    horizontal centre is the region's within 2 epx, e.g. an empty state centred in its page region rather than top-aligned;
     ``assertinset:<sel>|<sel>|<epx>`` waits (up to 3 s) until the first element's top edge is ``<epx>`` effective
     pixels below the second's top edge within 1 epx, e.g. a Quick Links target landed under its page scroller's top;
     ``scrollinset:<sel>|<scroller>|<epx>`` scrolls the second element (UIA Scroll pattern, no input) until the first
@@ -379,6 +383,13 @@ def parse_step(step: str) -> dict:
         result["epx"] = float(epx)
         if verb == "scrollinset" and result["epx"] <= 0:
             raise ValueError(f"scrollinset needs a positive inset (a clipped top reads as 0), not {epx!r}")
+    elif shape == "centred":
+        parts = arg.split("|")
+        if len(parts) != 3 or not all(part.strip() for part in parts):
+            raise ValueError(f"bad {verb} {arg!r}; use <region>|<first>|<last>")
+        result["selector"], result["other"], result["last"] = (parse_selector(part) for part in parts)
+        if any(result[key]["kind"] == "xy" for key in ("selector", "other", "last")):
+            raise ValueError(f"{verb} needs element selectors, not coordinates")
     elif shape == "span":
         first, sep, rest = arg.partition("|")
         second, sep2, name = rest.rpartition("|")

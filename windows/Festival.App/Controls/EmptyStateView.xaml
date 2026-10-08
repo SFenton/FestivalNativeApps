@@ -13,8 +13,12 @@
             <Setter Property="Foreground" Value="{ThemeResource FSTSecondaryTextBrush}" />
         </Style>
     </UserControl.Resources>
+    <!-- HorizontalContentAlignment/VerticalContentAlignment state the centring contract on the scroller itself; WinUI's
+         ScrollContentPresenter also arranges the stack at least viewport-sized, so its own Center alignment centres it
+         in the region (rendered check: songs_journey.py assertcentred, review of #426). -->
     <ScrollViewer x:Name="Scroller" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
-                  VerticalScrollBarVisibility="Auto" IsTabStop="False">
+                  VerticalScrollBarVisibility="Auto" IsTabStop="False"
+                  HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
         <StackPanel x:Name="Stack" Spacing="8" MaxWidth="480" Padding="12,48" HorizontalAlignment="Center" VerticalAlignment="Center">
             <FontIcon x:Name="IconGlyph" FontSize="40" Foreground="{ThemeResource FSTSecondaryTextBrush}" HorizontalAlignment="Center"
                       Visibility="Collapsed" AutomationProperties.AccessibilityView="Raw" />

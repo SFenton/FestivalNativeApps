@@ -39,6 +39,9 @@ public class EmptyStateMarkupTests
     {
         Assert.DoesNotContain(Control.Descendants(), e => e.Name.LocalName is "Border" or "Button");
         Assert.DoesNotContain(Control.Descendants(), e => Attr(e, "Style")?.Contains("FSTCardStyle", StringComparison.Ordinal) ?? false);
+        var scroller = Control.Descendants().Single(e => Attr(e, "Name") == "Scroller");
+        Assert.Equal("Center", Attr(scroller, "HorizontalContentAlignment"));
+        Assert.Equal("Center", Attr(scroller, "VerticalContentAlignment"));
         var stack = Control.Descendants().Single(e => Attr(e, "Name") == "Stack");
         Assert.Equal("Center", Attr(stack, "HorizontalAlignment"));
         Assert.Equal("Center", Attr(stack, "VerticalAlignment"));

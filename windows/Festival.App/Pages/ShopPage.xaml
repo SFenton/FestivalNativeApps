@@ -226,13 +226,14 @@
                  Filters button. Web ShopPage copy ("No songs in the Item Shop" / "Check back later…"). -->
             <controls:EmptyStateView Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" Glyph="&#xE719;"
                                      Title="No Songs in the Item Shop" Subtitle="Check back later. The shop updates regularly."
-                                     TitleAutomationId="fst.shop.empty" />
+                                     TitleAutomationId="fst.shop.empty" RegionAutomationId="fst.shop.empty-region" />
 
             <!-- Every offer is hidden by the page filter: distinct copy from the genuine empty Shop; the filter button
                  above is the way back (web Songs filtered-empty model; the web Shop has no filters). -->
             <controls:EmptyStateView Visibility="{x:Bind ViewModel.ShowNoMatches, Mode=OneWay}"
                                      Title="No Matching Songs" Subtitle="No Item Shop songs match your filters. Try changing your filters to see more songs."
-                                     TitleAutomationId="fst.shop.filter.empty" />
+                                     TitleAutomationId="fst.shop.filter.empty" SubtitleAutomationId="fst.shop.filter.empty-message"
+                                     RegionAutomationId="fst.shop.filter.empty-region" />
 
             <controls:EmptyStateView Visibility="{x:Bind ViewModel.IsHidden, Mode=OneWay}"
                                      Title="Item Shop Is Hidden" Subtitle="Turn off Hide Item Shop in Settings to see today's songs."

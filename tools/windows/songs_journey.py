@@ -420,6 +420,8 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, dict, list[str]]] = {
             "waitfor:name=No Results@10",
             # Issue #377: no Clear Filters button in the empty state; the flyout's Reset is the way back.
             "waitgone:name=Clear Filters",
+            # Centred in the list region (empty-error-states R2/R8), not top-aligned.
+            "assertcentred:id=fst.songs.empty-region|id=fst.songs.empty|id=fst.songs.empty-message",
             "{shot:songs-filter-empty}",
             "expand:id=fst.songs.filter",
             "waitfor:id=fst.songs.filter.reset@5",
@@ -497,6 +499,7 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, dict, list[str]]] = {
             "collapse:id=fst.shop.filter",
             "waitfor:id=fst.shop.filter.empty@5",
             "waitfor:name=0 of 2 songs",
+            "assertcentred:id=fst.shop.filter.empty-region|id=fst.shop.filter.empty|id=fst.shop.filter.empty-message",
             "{shot:shop-filter-empty}",
             "expand:id=fst.shop.filter",
             "waitfor:id=fst.shop.filter.reset@5",
