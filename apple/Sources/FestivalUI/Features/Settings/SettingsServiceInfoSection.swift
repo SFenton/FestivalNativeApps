@@ -206,7 +206,9 @@ struct SettingsServiceInfoSection: View {
 
     /// The web's phase row: semibold title (`toggleLabel`), the bar a gap-xs below, and the
     /// registered-band discovery lookup line under it (`toggleDesc`). Percent and units are
-    /// spoken, not printed — `SettingsServiceProgressCard` shows neither.
+    /// spoken, not printed — `SettingsServiceProgressCard` shows neither. One static-text
+    /// element like `SettingsValueRow` (R3): without the trait the Mac tree reports an unknown
+    /// role and drops the value, so VoiceOver never read the progress or attempt line (#399).
     private func phaseRow(title: String, rows: ServiceInfoRows) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
@@ -225,6 +227,7 @@ struct SettingsServiceInfoSection: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isStaticText)
         .accessibilityLabel(title)
         .accessibilityValue(
             [rows.progressText, rows.unitsText, rows.attemptText].compactMap { $0 }.joined(separator: ". ")
