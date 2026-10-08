@@ -58,7 +58,7 @@ struct FirstRunSongInfoBarSelectDemo: View {
     private var points: [FirstRunDemoPool.ScorePoint] { FirstRunDemoPool.scoreHistory }
     private var selected: FirstRunDemoPool.ScorePoint { points[selectedIndex % points.count] }
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FirstRunReduceMotion private var reduceMotion
     @State private var selectedIndex = 0
     @State private var fading: Set<Int> = []
 
@@ -99,7 +99,7 @@ struct FirstRunSongInfoBarSelectDemo: View {
             .padding(.horizontal, 14)
             .frame(height: 44)
             .background(BrandTokens.accentPurple.opacity(0.18), in: RoundedRectangle(cornerRadius: 10))
-            .firstRunSwapRow(0, key: selectedIndex)
+            .firstRunSwapRow(0)
         }
         .padding(14)
         .festivalCard(cornerRadius: 16)
@@ -190,55 +190,43 @@ struct FirstRunSongInfoTopScoresDemo: View {
 
 // MARK: - songinfo-paths
 
-/// Ported from `pages/songinfo/firstRun/demo/PathPreviewDemo.tsx`: the instrument selector,
-/// difficulty selector, and a static path preview placeholder (the web loads a real chart image
-/// over the network; a demo never does).
+/// Ported from `pages/songinfo/firstRun/demo/PathPreviewDemo.tsx`: the Paths sheet's real
+/// Instrument, Difficulty and View menus (``SongPathsSelectorRow``, inert) below the sheet's
+/// path area. The web loads a real chart image over the network; a demo never does, so the
+/// path area is a still placeholder. As on the web, the selectors fade in first and the path
+/// area one step later.
 struct FirstRunSongInfoPathsDemo: View {
-    private let instruments: [Instrument] = [.lead, .bass, .drums, .vocals]
-    private let difficulties = ["Easy", "Medium", "Hard", "Expert"]
+    /// The web demo's four instruments, Lead selected.
+    static let instruments: [Instrument] = [.lead, .bass, .drums, .vocals]
 
     var body: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 10) {
-                ForEach(instruments, id: \.self) { instrument in
-                    InstrumentIcon(instrument, size: 28)
-                        .padding(6)
-                        .background(
-                            instrument == .lead ? BrandTokens.accentBlue.opacity(0.3) : .clear,
-                            in: Circle()
-                        )
-                }
-            }
-            HStack(spacing: 8) {
-                ForEach(difficulties, id: \.self) { difficulty in
-                    Text(difficulty)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(
-                            difficulty == "Expert" ? FestivalText.primary : FestivalText.primary
-                        )
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(
-                            difficulty == "Expert" ? BrandTokens.accentPurple.opacity(0.35) : BrandTokens.surfaceMuted,
-                            in: RoundedRectangle(cornerRadius: 8)
-                        )
-                }
-            }
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(BrandTokens.surfaceMuted)
-                .overlay(
-                    VStack(spacing: 6) {
-                        Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
-                            .font(.title2)
-                        Text("Path Preview").font(.caption)
-                    }
-                    .foregroundStyle(FestivalText.primary)
-                )
-                .frame(maxWidth: .infinity, minHeight: 90)
+        VStack(spacing: 10) {
+            pathArea
+                .firstRunStagger(1)
+            SongPathsSelectorRow(
+                instrument: .constant(.lead), difficulty: .constant(.expert),
+                display: .constant(.image), instruments: Self.instruments,
+                songUsesKeyboardIcon: false
+            )
+            .firstRunStagger(0)
         }
         .padding(14)
         .festivalCard(cornerRadius: 16)
-        .accessibilityHidden(true)
+        .firstRunInert()
+    }
+
+    private var pathArea: some View {
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(BrandTokens.surfaceMuted)
+            .overlay(
+                VStack(spacing: 6) {
+                    Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
+                        .font(.title2)
+                    Text("Path Preview").font(.caption)
+                }
+                .foregroundStyle(FestivalText.primary)
+            )
+            .frame(maxWidth: .infinity, minHeight: 90)
     }
 }
 

@@ -34,7 +34,7 @@ struct FirstRunCarouselView: View {
 
     @State private var index = 0
     @AccessibilityFocusState private var focusedSlide: Int?
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FirstRunReduceMotion private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {

@@ -154,7 +154,7 @@ struct FirstRunStatsTopSongsDemo: View {
                     .padding(10)
                     .festivalCard(cornerRadius: 12)
                     .firstRunStagger(index + 1)
-                    .firstRunSwapRow(index, key: song.id)
+                    .firstRunSwapRow(index)
                 }
             }
         }

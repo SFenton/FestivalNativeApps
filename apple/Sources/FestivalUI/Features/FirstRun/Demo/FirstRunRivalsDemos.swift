@@ -21,7 +21,7 @@ struct FirstRunRivalGroupsDemo: View {
     /// Stagger the rows' first appearance (the Rivals page's version does).
     var staggers = false
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FirstRunReduceMotion private var reduceMotion
     @State private var above: FirstRunWindowRotation<FirstRunDemoPool.RivalEntry>
     @State private var below: FirstRunWindowRotation<FirstRunDemoPool.RivalEntry>
     @State private var nextGroup = 0
@@ -41,14 +41,14 @@ struct FirstRunRivalGroupsDemo: View {
                 .modifier(FirstRunOptionalStagger(index: 0, enabled: staggers))
             ForEach(Array(above.rows.enumerated()), id: \.offset) { index, rival in
                 FirstRunRivalRow(rival: rival, direction: .above)
-                    .firstRunSwapRow(0, key: rival.name, rise: 4)
+                    .firstRunSwapRow(0, rise: 4)
                     .modifier(FirstRunOptionalStagger(index: index + 1, enabled: staggers))
             }
             Text("Below You").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
                 .modifier(FirstRunOptionalStagger(index: visible + 1, enabled: staggers))
             ForEach(Array(below.rows.enumerated()), id: \.offset) { index, rival in
                 FirstRunRivalRow(rival: rival, direction: .below)
-                    .firstRunSwapRow(1, key: rival.name, rise: 4)
+                    .firstRunSwapRow(1, rise: 4)
                     .modifier(FirstRunOptionalStagger(index: index + visible + 2, enabled: staggers))
             }
         }
@@ -88,7 +88,7 @@ private struct FirstRunOptionalStagger: ViewModifier {
 struct FirstRunRivalsInstrumentsDemo: View {
     private static let instruments: [Instrument] = [.lead, .drums, .vocals]
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FirstRunReduceMotion private var reduceMotion
     /// Pool position per slot: instrument `i` above is slot `2i`, below is `2i + 1`.
     @State private var positions = Array(repeating: 0, count: 6)
     @State private var tick = 0
@@ -118,7 +118,7 @@ struct FirstRunRivalsInstrumentsDemo: View {
     private func rivalRow(slot: Int, direction: FirstRunRivalRow.Direction) -> some View {
         if let rival = Self.rival(slot: slot, position: positions[slot]) {
             FirstRunRivalRow(rival: rival, direction: direction)
-                .firstRunSwapRow(slot, key: rival.name, rise: 4)
+                .firstRunSwapRow(slot, rise: 4)
         }
     }
 
@@ -179,7 +179,7 @@ private struct FirstRunRivalsDetailCard: View {
         }
         // Rows remount after each swap so they restagger in, like the web's `staggerKey`.
         .id(tick)
-        .firstRunSwapRow(0, key: tick, rise: 4)
+        .firstRunSwapRow(0, rise: 4)
     }
 
     private func comparisonRow(

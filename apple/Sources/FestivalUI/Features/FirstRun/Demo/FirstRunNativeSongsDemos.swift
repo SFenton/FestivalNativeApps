@@ -22,7 +22,7 @@ extension EnvironmentValues {
 /// With `rotates`, the rows rotate through a larger pool on the web's `useDemoSongs` cycle
 /// (``FirstRunRowRotation``): every 5 s one row (two for 4-6 rows) fades out for 400 ms, takes
 /// a song not already shown and fades back in, while the slide is visible. Content marks each
-/// row with ``SwiftUI/View/firstRunSwapRow(_:key:rise:)`` and positional `ForEach` identity.
+/// row with ``SwiftUI/View/firstRunSwapRow(_:rise:)`` and positional `ForEach` identity.
 struct FirstRunCatalogueSongs<Content: View>: View {
     /// Where preferred songs come from.
     enum Source {
@@ -36,7 +36,7 @@ struct FirstRunCatalogueSongs<Content: View>: View {
     static var rotationPoolSize: Int { 24 }
 
     @Environment(\.firstRunSession) private var session
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FirstRunReduceMotion private var reduceMotion
     @State private var live: FirstRunRowRotation<Song>?
     @State private var fading: Set<Int> = []
     @State private var swapTick = 0
@@ -233,7 +233,7 @@ struct FirstRunNativeSongListDemo: View {
             VStack(spacing: 8) {
                 ForEach(Array(songs.enumerated()), id: \.offset) { index, song in
                     FirstRunSongRow(song: song, session: session)
-                        .firstRunSwapRow(index, key: song.id)
+                        .firstRunSwapRow(index)
                 }
             }
         }
@@ -333,7 +333,7 @@ struct FirstRunNativeIconsDemo: View {
                             keyboard: song.usesKeyboardIcon
                         )
                     } trailing: { EmptyView() }
-                    .firstRunSwapRow(index, key: song.id)
+                    .firstRunSwapRow(index)
                 }
             }
         }
@@ -358,7 +358,7 @@ struct FirstRunNativeMetadataDemo: View {
                 } trailing: {
                     SongMetadataFieldView(field: .score(meta.score), songId: song.songId)
                 }
-                .firstRunSwapRow(0, key: song.id)
+                .firstRunSwapRow(0)
             }
         }
         .firstRunInert()

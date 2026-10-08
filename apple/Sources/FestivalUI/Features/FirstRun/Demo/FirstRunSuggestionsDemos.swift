@@ -11,7 +11,7 @@ struct FirstRunSuggestionsCategoryCardDemo: View {
     /// Songs each card shows.
     static let songsPerCard = 2
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FirstRunReduceMotion private var reduceMotion
     @State private var template = 0
     @State private var fading: Set<Int> = []
 
@@ -20,7 +20,7 @@ struct FirstRunSuggestionsCategoryCardDemo: View {
             let songs = Self.window(of: pool, template: template)
             let category = Self.templates[template].category(songs)
             FirstRunSuggestionCard(category: category, session: session)
-                .firstRunSwapRow(0, key: template, rise: 8)
+                .firstRunSwapRow(0, rise: 8)
         }
         .environment(\.firstRunFadingRows, fading)
         .accessibilityHidden(true)
