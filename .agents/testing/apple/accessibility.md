@@ -1,6 +1,6 @@
 # Apple accessibility audits
 
-> **What:** audit rules, rendered-contrast checks and the currently open Apple audit findings. **Read when:** the accessibility phase, or when a change touches text over artwork, the tab edge or large text.
+> **What:** audit rules, rendered-contrast checks and the currently open Apple audit findings. **Read when:** writing the accessibility test every Apple UI change ships with ([strategy](../strategy.md#accessibility-tests-with-every-change)), the whole-app audit phase, or a change touching text over artwork, the tab edge or large text.
 
 ## Rules
 

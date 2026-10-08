@@ -9,11 +9,38 @@
 | Build | Every commit | `swift build --build-tests` + iOS build (via `tools/lane_integrate.sh`) |
 | Unit | As you go | Tests for new non-UX logic; run only new/changed tests while iterating |
 | Visual smoke | While building UI | `tools/ios_sim.py shot` compared with the web app at the same viewport ([screenshot-compare](../skills/screenshot-compare/SKILL.md)) |
-| UX tests | A **feature** is complete | XCUITest journeys + hosted snapshot per control state (target 90% UX lines) |
-| Accessibility | The **app** is complete (per platform) | Audits, focus order, Dynamic Type, contrast, in-app a11y toggles ([apple/accessibility.md](apple/accessibility.md)) |
-| VoiceOver | After accessibility | Scripted screen-reader walkthroughs per page ([apple/voiceover.md](apple/voiceover.md)) |
+| UX tests | Every UI fix or feature, in the same PR | A hosted snapshot or journey that fails without the change (target 90% UX lines) |
+| Accessibility tests | Every UI fix or feature, in the same PR (operator, 2026-10-08) | See [Accessibility tests with every change](#accessibility-tests-with-every-change) |
+| Full audits | The **app** is complete (per platform) | Whole-app audit sweeps, contrast over artwork, in-app a11y toggles ([apple/accessibility.md](apple/accessibility.md)) |
+| Screen-reader walkthroughs | After full audits | Scripted VoiceOver/TalkBack/Narrator walkthroughs per page ([apple/voiceover.md](apple/voiceover.md)) |
 
 Do not run full device matrices or coverage gates on every slice. Online-only: do not add new offline/warm-cache test journeys.
+
+## Accessibility tests with every change
+
+Accessibility is tested as each feature is built or bug is fixed, not deferred to app completion (operator, 2026-10-08). A PR that adds or changes a visible control, page, sheet, row, navigation or layout on a platform **adds or updates an accessibility test on that platform** that would fail if the change regressed accessibility. Review treats a missing one as **major**. Pure logic, data or copy-only changes are exempt; say why in the PR.
+
+Cover what the change touches:
+
+| Concern | Assert |
+|---|---|
+| Name, role, value, state | Every new or changed interactive element has a label (not an icon name or file name), the right trait/role and its current state (selected, expanded, toggled) |
+| Reading and focus order | The changed region reads in visual order, headings before their content; nothing focusable is hidden or decorative-only elements are hidden |
+| Target size | Interactive elements meet the platform minimum (Apple 44 pt, Android 48 dp, Windows 40 epx touch / keyboard reachable) |
+| Text scaling | At the largest size (Apple AX5, Android 200% font, Windows 225% text) text grows, isn't clipped, and actions stay reachable |
+| Motion, transparency, contrast | Reduce Motion / Reduce Transparency paths when the change animates or uses materials; rendered contrast for text over artwork |
+| Keyboard (macOS, iPad, Windows) | New actions are reachable and operable by keyboard |
+
+Where to write them:
+
+| Platform | Mechanism |
+|---|---|
+| Apple | Hosted tests in `apple/Tests/FestivalUITests` asserting accessibility label/traits/order/hit size, plus an XCUITest `performAccessibilityAudit` journey for new pages and sheets ([apple/accessibility.md](apple/accessibility.md), [apple/xcuitest.md](apple/xcuitest.md)) |
+| Android | ATF journeys in `androidTest/.../journeys/` with `JourneyHarness`: `assertAccessible()` and `readingOrder` ([android.md](android.md), [android-accessibility.md](android-accessibility.md)) |
+| Windows | A page/state in `tools/windows/journeys/a11y-*.json` for `a11y_matrix.py`, plus UIA name/order checks in the feature journey ([windows-accessibility.md](windows-accessibility.md)) |
+| Web (scraper repo) | Testing Library/Playwright assertions by role and accessible name (`getByRole(..., { name })`), focus order and target size in the changed component's spec |
+
+Tests run in CI: Apple `apple-ci`, Android `android-device`, Windows `windows-ui`. A behavior that existing accessibility tests already pin down only needs those tests updated, not duplicated.
 
 ## Certification (per platform, per language) — two independent gates
 
