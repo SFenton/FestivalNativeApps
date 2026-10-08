@@ -734,7 +734,7 @@
       "title": "Page tools and navigation chrome",
       "status": "current",
       "doc": ".agents/patterns/page-tools-and-nav-chrome.md",
-      "summary": "Native shell navigation owns destinations; page tools use the approved Apple tab accessory, Android compact floating toolbar or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose.",
+      "summary": "Native shell navigation owns destinations; page tools use the approved Apple tab accessory, Android compact floating toolbar or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose, except song pages, which show their pinned song title only after the header scrolls away (owner-approved, #363).",
       "keywords": [
         "navigation",
         "page tools",
@@ -949,7 +949,8 @@
         338,
         339,
         341,
-        351
+        351,
+        363
       ]
     },
     {
@@ -2258,7 +2259,7 @@
       "title": "Song header",
       "status": "current",
       "doc": ".agents/patterns/song-header.md",
-      "summary": "Song pages show the song through one shared header whose title and artist each fill the width beside the art on one line and marquee only on overflow (Reduce Motion truncates, accessibility sizes wrap in-page); one compact pinned bar title marquees on one line.",
+      "summary": "Song pages show the song through one shared header whose title and artist each fill the width beside the art on one line and marquee only on overflow (Reduce Motion truncates, accessibility sizes wrap in-page); one compact pinned bar title marquees on one line and appears only once the header scrolls away, under the iPhone Duo vertical bar too (owner-approved, #363).",
       "keywords": [
         "song header",
         "song title",
@@ -2272,7 +2273,8 @@
         "hero",
         "wrap",
         "artist line",
-        "lockstep"
+        "lockstep",
+        "duo title"
       ],
       "web": [
         {
@@ -2309,6 +2311,10 @@
           {
             "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
             "symbol": "SongBarTitleToolbarItem"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
+            "symbol": "songBarTitleKeepsBarVisible"
           }
         ],
         "android": [
@@ -2362,6 +2368,15 @@
           "allow": [],
           "debt": [],
           "message": "Song header titles use the shared SongHeaderText column (one MarqueeText line that scrolls on overflow and wraps in-page at 150%+ text), never a page-local TextBlock or MarqueeText (song-header R1, R2, R3)."
+        },
+        {
+          "id": "apple-bar-minimization",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "toolbarMinimizationBehavior\\(|navigationBarMinimization",
+          "allow": [
+            "apple/Sources/FestivalUI/Common/SongHeaderText.swift"
+          ],
+          "message": "Only the song pages keep their navigation bar from minimizing, through songBarTitleKeepsBarVisible (song-header R4 Duo variant, page-tools-and-nav-chrome R14 exception, #363)."
         }
       ],
       "related": {
@@ -2383,7 +2398,8 @@
       "issues": [
         315,
         317,
-        342
+        342,
+        363
       ]
     },
     {
