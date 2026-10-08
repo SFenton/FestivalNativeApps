@@ -1117,7 +1117,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, off the Duo hinge when unfolded, #345), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, and one measured section-wide score-footer stack plan that never truncates the score.",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, off the Duo hinge when unfolded, #345), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands (Compete previews jump to the full board, owner variant #370), and one measured section-wide score-footer stack plan that never truncates the score.",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -1242,6 +1242,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/RankingFormatting.kt",
             "symbol": "RankingSpotlight"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/SelectedRowRevealEffect.kt",
+            "symbol": "revealSelectedRow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/LeaderboardsPolicy.kt",
+            "symbol": "previewSpotlightRoute"
           }
         ],
         "windows": [

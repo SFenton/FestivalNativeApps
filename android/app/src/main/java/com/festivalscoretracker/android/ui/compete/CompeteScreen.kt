@@ -288,11 +288,13 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
                             value.spotlight?.let { own ->
                                 Column(Modifier.festivalFadeIn(revealed, fadeInStagger(body + value.entries.size))) {
                                     HorizontalDivider(color = BrandTokens.glassBorder, modifier = Modifier.padding(vertical = 4.dp))
+                                    // Like Song Detail's appended row (`leaderboard-row` R7, owner variant #370): it opens
+                                    // the full board on the player's page and reveals the row; combo scopes open Statistics.
                                     AccountRankingRow(
                                         entry = own,
                                         metric = RankingMetric.TotalScore,
                                         isSelected = true,
-                                        route = RankingNavigation.playerRoute(own.accountId, own.displayName, selected),
+                                        route = RankingNavigation.previewSpotlightRoute(own, RankingMetric.TotalScore, (scope as? CompeteScope.Single)?.instrument, selected),
                                         onOpen = navigate,
                                         tag = "fst.compete.spotlight.${scope.key}",
                                     )

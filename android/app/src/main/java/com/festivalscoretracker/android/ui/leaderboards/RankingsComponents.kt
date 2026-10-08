@@ -1,7 +1,5 @@
 package com.festivalscoretracker.android.ui.leaderboards
 
-import com.festivalscoretracker.android.ui.common.LocalFadeInWindow
-import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -37,9 +35,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -429,9 +424,6 @@ private fun RowScope.StackedRankingRow(rank: Int, name: String, songs: String, r
  * @param route Destination or null.
  * @param onOpen Navigation callback.
  * @param tag Test tag; defaults to `fst.rankings.row.<key>`.
- * @param reveal Scroll the selected row into view when it appears (paginated boards), once its
- *   own entrance has finished, rushing the page's remaining fades (web `navToPlayer`, issue #323).
- * @param revealDelayMillis The row's stagger delay, which the reveal waits out.
  * @param clickLabel TalkBack action label overriding the route's (a pinned footer that may
  *   jump to its page instead, `leaderboard-row` R7).
  */
@@ -443,18 +435,8 @@ fun AccountRankingRow(
     route: AppRoute?,
     onOpen: (AppRoute) -> Unit,
     tag: String = "fst.rankings.row.${entry.key}",
-    reveal: Boolean = false,
-    revealDelayMillis: Int = 0,
     clickLabel: String? = null,
 ) {
-    val requester = remember { BringIntoViewRequester() }
-    if (reveal && isSelected) {
-        val fadeIn = LocalFadeInWindow.current
-        val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
-        LaunchedEffect(entry.key) {
-            if (awaitSelectedRowEntrance(fadeIn, revealDelayMillis, reduceMotion)) requester.bringIntoView()
-        }
-    }
     RankingRowLayout(
         rank = entry.rank(metric),
         name = entry.name,
@@ -467,7 +449,6 @@ fun AccountRankingRow(
         tag = tag,
         clickLabel = clickLabel ?: route?.let(RankingNavigation::actionLabel).orEmpty(),
         unavailable = "Profile unavailable",
-        modifier = Modifier.bringIntoViewRequester(requester),
     )
 }
 
