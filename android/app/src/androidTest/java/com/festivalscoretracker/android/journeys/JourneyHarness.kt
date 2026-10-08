@@ -313,6 +313,17 @@ class JourneyHarness(private val rule: JourneyRule) {
     }
 
     /**
+     * Fail when the run asked for a hinge (instrumentation argument `fstRequireHinge=true`,
+     * set by the `android-fold` CI job) and the window has no separating vertical one, so a
+     * [HalfOpenFoldJourney] can't pass by skipping its straddle checks. Without the argument
+     * (phones, `device.py test` on any AVD) it does nothing.
+     */
+    fun requireHingeWhenAsked() {
+        if (InstrumentationRegistry.getArguments().getString(REQUIRE_HINGE_ARG) != "true") return
+        assertTrue("$REQUIRE_HINGE_ARG=true but the window reports no separating vertical hinge", hinges().isNotEmpty())
+    }
+
+    /**
      * Assert that no node with any of [tags] crosses a separating hinge.
      *
      * @param tags Test tags.
@@ -412,7 +423,21 @@ class JourneyHarness(private val rule: JourneyRule) {
 
         /** Logcat tag of Accessibility Test Framework findings. */
         const val ATF_TAG = "FST_ATF"
+
+        /** Instrumentation argument that makes [requireHingeWhenAsked] demand a separating hinge. */
+        const val REQUIRE_HINGE_ARG = "fstRequireHinge"
     }
 }
+
+/**
+ * Marks a journey whose assertions need a half-open book fold (a separating vertical hinge).
+ * The `android-fold` CI job runs only these, on a Pixel 9 Pro Fold emulator with its hinge
+ * at 90°, through the runner's `annotation` argument; call [JourneyHarness.requireHingeWhenAsked]
+ * once the activity is up. Tag a journey only after it passes `device.py test … --avd
+ * FST_Book_Fold --posture half`.
+ */
+@Retention(AnnotationRetention.RUNTIME)
+@Target(AnnotationTarget.FUNCTION, AnnotationTarget.CLASS)
+annotation class HalfOpenFoldJourney
 
 // endregion

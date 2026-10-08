@@ -174,14 +174,17 @@ class SongPathsDeviceTest {
      * controls; the card grows at 200% (the scale reaches the sheet's window); no text is
      * clipped; and ATF (labels, 48 dp targets, contrast) finds no errors.
      * On a device without a separating hinge the straddle checks pass trivially, so run it with
-     * `--avd FST_Book_Fold --posture half`.
+     * `--avd FST_Book_Fold --posture half`; the `android-fold` CI job runs it on a half-open
+     * Pixel 9 Pro Fold emulator and fails here if the hinge is missing.
      */
     @Test
+    @HalfOpenFoldJourney
     fun halfOpenSheetStaysOnOneSideAndReadsInOrderAtEveryTextSize() {
         var scale by mutableFloatStateOf(1f)
         h.enableAccessibilityChecks()
         h.launch(DebugLaunch(songQuery = "s-alpha", stillBackground = true), transport, textPreferences, fontScale = { scale })
         h.waitForTag("fst.song-detail.list")
+        h.requireHingeWhenAsked()
         val cardHeights = mutableListOf<Float>()
         listOf(1f, 2f).forEach { s ->
             scale = s
