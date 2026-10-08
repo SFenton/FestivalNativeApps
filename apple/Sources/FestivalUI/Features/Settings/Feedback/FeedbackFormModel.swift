@@ -128,27 +128,64 @@ final class FeedbackFormModel {
     ///
     /// - Parameter items: Picker selection; the picker needs no library permission.
     func importPhotos(_ items: [PhotosPickerItem]) async {
+        for item in items { await importPhoto(item) }
+    }
+
+    /// Copy one photo or video chosen in the system photo picker (presented or inline).
+    ///
+    /// - Parameter item: Picker item; the picker needs no library permission.
+    /// - Returns: The new attachment's ID, or nil when it was refused (the reason is in
+    ///   ``attachmentMessage``).
+    @discardableResult
+    func importPhoto(_ item: PhotosPickerItem) async -> UUID? {
+        importing += 1
+        defer { importing -= 1 }
+        do {
+            guard let picked = try await item.loadTransferable(type: FeedbackPickedMedia.self)
+            else {
+                attachmentMessage = FeedbackAttachmentRejection.unreadable.errorDescription
+                return nil
+            }
+            return await admit(picked.url, displayName: picked.url.lastPathComponent)
+        } catch {
+            attachmentMessage = FeedbackAttachmentRejection.unreadable.errorDescription
+            return nil
+        }
+    }
+
+    /// Admit photos, videos or image/movie files dropped onto the form (issue #373).
+    ///
+    /// The drop has already copied each item into its own staging folder
+    /// (``FeedbackPickedMedia/transferRepresentation``); every copy goes through the same
+    /// location removal and limits as a picked file, so a drop past the limits shows the
+    /// same notice.
+    ///
+    /// - Parameter items: Staged copies, in drop order.
+    func importDropped(_ items: [FeedbackPickedMedia]) async {
         for item in items {
             importing += 1
             defer { importing -= 1 }
-            do {
-                guard let picked = try await item.loadTransferable(type: FeedbackPickedMedia.self)
-                else {
-                    attachmentMessage = FeedbackAttachmentRejection.unreadable.errorDescription
-                    continue
-                }
-                await admit(picked.url, displayName: picked.url.lastPathComponent)
-            } catch {
-                attachmentMessage = FeedbackAttachmentRejection.unreadable.errorDescription
-            }
+            await admit(item.url, displayName: item.url.lastPathComponent)
         }
     }
+
+    /// Whether the form takes new media now (drops and the inline library): not while
+    /// uploading or filing.
+    var acceptsMedia: Bool { !isBusy }
 
     /// Remove one attachment and its private copy.
     ///
     /// - Parameter attachment: Attachment to drop.
     func remove(_ attachment: FeedbackAttachment) {
-        attachments.removeAll { $0.id == attachment.id }
+        remove(id: attachment.id)
+    }
+
+    /// Remove one attachment by ID and delete its private copy; unknown IDs are ignored.
+    ///
+    /// - Parameter id: Attachment to drop.
+    func remove(id: UUID) {
+        guard let index = attachments.firstIndex(where: { $0.id == id }) else { return }
+        let attachment = attachments.remove(at: index)
         Self.deleteCopy(attachment.fileURL)
         attachmentMessage = nil
     }
@@ -177,7 +214,8 @@ final class FeedbackFormModel {
 
     /// Accept or refuse a staged copy against the type and size limits, after
     /// removing location metadata (the issue is public).
-    private func admit(_ url: URL, displayName: String) async {
+    @discardableResult
+    private func admit(_ url: URL, displayName: String) async -> UUID? {
         let media = FeedbackAttachmentPolicy.media(forFilename: url.lastPathComponent)
         if let media {
             do {
@@ -188,7 +226,7 @@ final class FeedbackFormModel {
                         ? .unreadable : .locationNotRemoved(displayName)
                 attachmentMessage = rejection.errorDescription
                 Self.deleteCopy(url)
-                return
+                return nil
             }
         }
         let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init)
@@ -205,13 +243,15 @@ final class FeedbackFormModel {
         guard rejection == nil, let media, let size else {
             attachmentMessage = rejection?.errorDescription
             Self.deleteCopy(url)
-            return
+            return nil
         }
         attachmentMessage = nil
-        attachments.append(FeedbackAttachment(
+        let attachment = FeedbackAttachment(
             fileURL: url, filename: displayName, mimeType: media.mimeType,
             byteCount: size, isVideo: media.isVideo
-        ))
+        )
+        attachments.append(attachment)
+        return attachment.id
     }
 
     /// Delete every staged media copy. Called when a feedback sheet goes away by any

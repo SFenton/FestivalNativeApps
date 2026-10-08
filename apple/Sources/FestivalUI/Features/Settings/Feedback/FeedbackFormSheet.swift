@@ -18,6 +18,11 @@ import UIKit
 /// user-generated content, get confirmation before closing". Each box keeps a visible
 /// subtitle, since HIG (Text fields) notes placeholder text "disappears on typing, so a
 /// separate label can also help".
+///
+/// Photos, videos and image or movie files dropped anywhere on the form attach to it, and
+/// at regular width on iPad and the iPhone Duo inner display Photo Library opens in a pane
+/// beside the form rather than over it (issue #373, ``FeedbackPhotoLibraryPlacement``).
+/// HIG (Entering data): "As much as possible, support drag and drop and paste."
 struct FeedbackFormSheet: View {
     private let kind: FeedbackKind
     private let session: FestivalSession
@@ -26,7 +31,15 @@ struct FeedbackFormSheet: View {
     @State private var showingPhotos = false
     @State private var showingFiles = false
     @State private var photoSelection: [PhotosPickerItem] = []
+    /// The beside-the-form library is open (regular-width iPad and Duo only).
+    @State private var showingLibraryPane = false
+    /// Items ticked in the beside-the-form library, mirrored into ``model``'s attachments.
+    @State private var librarySelection: [PhotosPickerItem] = []
+    @State private var libraryLinks = FeedbackPickerLinks<PhotosPickerItem>()
+    /// Something droppable is over the form.
+    @State private var dropTargeted = false
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.deviceLayout) private var layout
 
     /// Create an empty form.
@@ -42,9 +55,15 @@ struct FeedbackFormSheet: View {
 
     var body: some View {
         NavigationStack {
-            form
-                // Fade under the header like every `FestivalModal` (#94).
-                .modifier(ModalTopEdgeFadeModifier())
+            panes
+                .overlay { if dropTargeted { FeedbackDropHighlight() } }
+                .dropDestination(for: FeedbackPickedMedia.self) { items, _ in
+                    guard model.acceptsMedia, !items.isEmpty else { return false }
+                    Task { await model.importDropped(items) }
+                    return true
+                } isTargeted: { targeted in
+                    dropTargeted = targeted && model.acceptsMedia
+                }
                 .navigationTitle(kind.formTitle)
                 #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
@@ -69,6 +88,15 @@ struct FeedbackFormSheet: View {
             photoSelection = []
             Task { await model.importPhotos(items) }
         }
+        .onChange(of: librarySelection) { old, new in syncLibrarySelection(from: old, to: new) }
+        .onChange(of: model.attachments.map(\.id)) { _, ids in
+            // Attachments discarded or removed elsewhere untick their library items.
+            let stale = libraryLinks.prune(keeping: Set(ids))
+            if !stale.isEmpty { librarySelection.removeAll { stale.contains($0) } }
+        }
+        .onChange(of: photoLibraryPlacement) { _, placement in
+            if placement == .presented { showingLibraryPane = false }
+        }
         .fileImporter(
             isPresented: $showingFiles, allowedContentTypes: [.image, .movie],
             allowsMultipleSelection: true
@@ -86,6 +114,63 @@ struct FeedbackFormSheet: View {
         } message: {
             Text(failureMessage)
         }
+        // Page-sized at regular width on iPad and Duo so the library fits beside the form.
+        .festivalSheet(.large, sizing: .regularPage)
+    }
+
+    // MARK: - Panes
+
+    /// The form alone, or the form and the photo library side by side (issue #373).
+    /// Equal halves, so on the flat Duo inner display the split meets the hinge like the
+    /// app's other splits (pattern `hinge-columns`).
+    private var panes: some View {
+        HStack(spacing: 0) {
+            form
+                // Fade under the header like every `FestivalModal` (#94).
+                .modifier(ModalTopEdgeFadeModifier())
+                .frame(maxWidth: .infinity)
+            if libraryPaneVisible {
+                Divider()
+                    .ignoresSafeArea(edges: .bottom)
+                libraryPane
+                    .frame(maxWidth: .infinity)
+                    .transition(reduceMotion ? .opacity : .move(edge: .trailing).combined(with: .opacity))
+            }
+        }
+        .animation(reduceMotion ? nil : .snappy, value: showingLibraryPane)
+    }
+
+    /// The system photo picker shown inline beside the form. Ticking a photo attaches it,
+    /// unticking removes it; it runs out of process, so no library permission is needed.
+    /// `photoLibrary: .shared()` only gives the picked items identifiers, so the form can
+    /// untick a photo whose attachment was removed.
+    private var libraryPane: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Photo Library")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 12)
+                Button("Hide") { showingLibraryPane = false }
+                    .frame(minHeight: 44)
+                    .accessibilityLabel("Hide Photo Library")
+                    .accessibilityIdentifier("fst.settings.feedback.library.hide")
+            }
+            .padding(.horizontal, 16)
+            PhotosPicker(
+                selection: $librarySelection, maxSelectionCount: FeedbackLimits.attachments,
+                selectionBehavior: .continuousAndOrdered, matching: .any(of: [.images, .videos]),
+                preferredItemEncoding: .current, photoLibrary: .shared()
+            ) {
+                Text("Photo Library")
+            }
+            .photosPickerStyle(.inline)
+            .photosPickerDisabledCapabilities(.selectionActions)
+            .disabled(!model.acceptsMedia)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("fst.settings.feedback.library")
     }
 
     // MARK: - Form
@@ -153,12 +238,14 @@ struct FeedbackFormSheet: View {
     private var mediaSection: some View {
         Section {
             if !model.attachments.isEmpty {
-                FeedbackAttachmentStrip(attachments: model.attachments) { model.remove($0) }
+                FeedbackAttachmentStrip(attachments: model.attachments) { removeAttachment($0) }
                     .disabled(model.isBusy)
             }
             Menu {
-                Button("Photo Library", systemImage: "photo.on.rectangle") { showingPhotos = true }
-                    .accessibilityIdentifier("fst.settings.feedback.attach.media")
+                Button(
+                    libraryMenuTitle, systemImage: "photo.on.rectangle", action: openPhotoLibrary
+                )
+                .accessibilityIdentifier("fst.settings.feedback.attach.media")
                 Button("Choose File…", systemImage: "folder") { showingFiles = true }
                     .accessibilityIdentifier("fst.settings.feedback.attach.files")
             } label: {
@@ -182,14 +269,7 @@ struct FeedbackFormSheet: View {
                     .accessibilityIdentifier("fst.settings.feedback.attachments.notice")
             }
         } header: {
-            FeedbackFieldHeader(
-                "Media",
-                detail: "Optional screenshots or screen recordings: up to "
-                    + "\(FeedbackLimits.attachments) photos or videos, "
-                    + ByteCountFormatter.string(
-                        fromByteCount: FeedbackLimits.totalAttachmentBytes, countStyle: .file
-                    ) + " in total."
-            )
+            FeedbackFieldHeader("Media", detail: mediaDetail)
         }
     }
 
@@ -244,6 +324,46 @@ struct FeedbackFormSheet: View {
 
     // MARK: - Actions
 
+    /// Photo Library from Attach Media: the pane beside the form where there is room,
+    /// otherwise the system picker over it.
+    private func openPhotoLibrary() {
+        switch photoLibraryPlacement {
+        case .beside: showingLibraryPane.toggle()
+        case .presented: showingPhotos = true
+        }
+    }
+
+    /// Remove an attachment from the form, unticking it in the library pane.
+    private func removeAttachment(_ attachment: FeedbackAttachment) {
+        if let item = libraryLinks.unlink(attachmentID: attachment.id) {
+            librarySelection.removeAll { $0 == item }
+        }
+        model.remove(attachment)
+    }
+
+    /// Mirror the library pane's ticks into attachments: newly ticked items are copied
+    /// (a refused one is unticked again), unticked ones are removed.
+    private func syncLibrarySelection(from old: [PhotosPickerItem], to new: [PhotosPickerItem]) {
+        let changes = FeedbackPickerLinks<PhotosPickerItem>.changes(from: old, to: new)
+        for item in changes.removed {
+            if let id = libraryLinks.unlink(item) { model.remove(id: id) }
+        }
+        for item in changes.added {
+            Task {
+                guard let id = await model.importPhoto(item) else {
+                    librarySelection.removeAll { $0 == item }
+                    return
+                }
+                if librarySelection.contains(item) {
+                    libraryLinks.link(item, to: id)
+                } else {
+                    // Unticked while it was still being copied.
+                    model.remove(id: id)
+                }
+            }
+        }
+    }
+
     /// Cancel, Escape or a swipe: confirm first when something would be lost. While the
     /// service files an accepted report nothing can be lost, so it closes at once.
     private func requestClose() {
@@ -261,6 +381,18 @@ struct FeedbackFormSheet: View {
         dismiss()
     }
 
+    private var libraryPaneVisible: Bool {
+        showingLibraryPane && photoLibraryPlacement == .beside
+    }
+
+    private var photoLibraryPlacement: FeedbackPhotoLibraryPlacement {
+        #if os(macOS)
+        FeedbackPhotoLibraryPlacement.resolve(isMac: true, windowWidthClass: layout.windowWidthClass)
+        #else
+        FeedbackPhotoLibraryPlacement.resolve(isMac: false, windowWidthClass: layout.windowWidthClass)
+        #endif
+    }
+
     private var platform: FeedbackPlatform {
         #if os(macOS)
         FeedbackPlatform.resolve(isMac: true, isPad: false, hasHinge: false)
@@ -273,6 +405,19 @@ struct FeedbackFormSheet: View {
     }
 
     // MARK: - Text
+
+    private var libraryMenuTitle: String {
+        photoLibraryPlacement == .beside && showingLibraryPane
+            ? "Hide Photo Library" : "Photo Library"
+    }
+
+    private var mediaDetail: String {
+        "Optional screenshots or screen recordings: up to "
+            + "\(FeedbackLimits.attachments) photos or videos, "
+            + ByteCountFormatter.string(
+                fromByteCount: FeedbackLimits.totalAttachmentBytes, countStyle: .file
+            ) + " in total." + (platform == .ios ? "" : " You can also drag them here.")
+    }
 
     private var titleDetail: String {
         "Keep the \(kind.titlePrefix.trimmingCharacters(in: .whitespaces)) prefix and "
@@ -360,6 +505,34 @@ private struct FeedbackFieldHeader: View {
         }
         .textCase(nil)
         .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Drop highlight
+
+/// Shows the form accepts what is being dragged over it. HIG (Drag and drop): "Show
+/// whether a destination accepts the content, like an insertion point or highlight if it
+/// can"; nothing is shown for content it can't take.
+private struct FeedbackDropHighlight: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .strokeBorder(BrandTokens.accentBlue, lineWidth: 3)
+            .background(
+                BrandTokens.accentBlue.opacity(0.12),
+                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+            )
+            .padding(6)
+            .overlay {
+                Label("Drop to Attach", systemImage: "paperclip")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(BrandTokens.accentBlue, in: Capsule())
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .accessibilityIdentifier("fst.settings.feedback.drop")
     }
 }
 

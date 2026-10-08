@@ -207,6 +207,69 @@ struct FeedbackFormModelTests {
         }
     }
 
+    @Test("Dropped media attaches with the picker's limits and can be removed by ID")
+    func dropImport() async throws {
+        let model = FeedbackFormModel(kind: .bug)
+        let shots = try (1...(FeedbackLimits.attachments + 1)).map { try sourceImage("drop\($0).png") }
+        let text = try sourceFile("notes.txt")
+        defer {
+            for url in shots + [text] {
+                try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
+            }
+        }
+        // A drop stages its own copies (FeedbackPickedMedia's file representation).
+        let staged = try (shots + [text]).map(FeedbackPickedMedia.stage)
+
+        await model.importDropped([staged[shots.count]])
+        #expect(model.attachments.isEmpty)
+        #expect(model.attachmentMessage?.contains("notes.txt") == true)
+        #expect(!FileManager.default.fileExists(atPath: staged[shots.count].url.path))
+
+        await model.importDropped(Array(staged[..<shots.count]))
+        #expect(model.attachments.count == FeedbackLimits.attachments)
+        #expect(model.attachmentMessage == FeedbackAttachmentRejection.tooMany.errorDescription)
+        #expect(!FileManager.default.fileExists(atPath: staged[shots.count - 1].url.path))
+        #expect(model.importing == 0)
+
+        let first = try #require(model.attachments.first)
+        model.remove(id: first.id)
+        #expect(model.attachments.count == FeedbackLimits.attachments - 1)
+        #expect(!FileManager.default.fileExists(atPath: first.fileURL.path))
+        #expect(model.attachmentMessage == nil)
+        model.remove(id: UUID())
+        #expect(model.attachments.count == FeedbackLimits.attachments - 1)
+        model.discardMedia()
+    }
+
+    @Test("Photo Library opens beside the form only on regular-width iPad and Duo windows")
+    func libraryPlacement() {
+        #expect(FeedbackPhotoLibraryPlacement.resolve(isMac: false, windowWidthClass: .regular) == .beside)
+        #expect(FeedbackPhotoLibraryPlacement.resolve(isMac: false, windowWidthClass: .compact) == .presented)
+        #expect(FeedbackPhotoLibraryPlacement.resolve(isMac: true, windowWidthClass: .regular) == .presented)
+        #expect(FeedbackPhotoLibraryPlacement.resolve(isMac: true, windowWidthClass: .compact) == .presented)
+    }
+
+    @Test("Library ticks map to attachments both ways")
+    func pickerLinks() {
+        let diff = FeedbackPickerLinks<String>.changes(from: ["a", "b"], to: ["b", "c", "d", "c"])
+        #expect(diff.added == ["c", "d"])
+        #expect(diff.removed == ["a"])
+        #expect(FeedbackPickerLinks<String>.changes(from: ["a"], to: ["a"]) == ([], []))
+
+        var links = FeedbackPickerLinks<String>()
+        let a = UUID(), b = UUID(), c = UUID()
+        links.link("a", to: a)
+        links.link("b", to: b)
+        links.link("c", to: c)
+        #expect(links.unlink("a") == a)
+        #expect(links.unlink("a") == nil)
+        #expect(links.unlink(attachmentID: b) == "b")
+        #expect(links.unlink(attachmentID: b) == nil)
+        #expect(links.prune(keeping: [c]).isEmpty)
+        #expect(links.prune(keeping: []) == ["c"])
+        #expect(links.attachmentIDs.isEmpty)
+    }
+
     @Test("An attached photo loses its location; the original keeps it")
     func locationRemoved() async throws {
         let source = try sourceImage("trip.jpg", type: .jpeg, gps: true)
@@ -355,8 +418,10 @@ struct FeedbackFormModelTests {
         let model = validBug()
         model.submit(session: session(HangingTransport()), platform: .iphoneDuo)
         #expect(model.isSubmitting)
+        #expect(!model.acceptsMedia)
         model.cancelSubmit()
         #expect(model.phase == .editing)
+        #expect(model.acceptsMedia)
         try? await Task.sleep(for: .milliseconds(50))
         #expect(model.phase == .editing)
         #expect(model.hasUnsavedInput)

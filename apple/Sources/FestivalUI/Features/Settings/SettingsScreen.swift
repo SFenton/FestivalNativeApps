@@ -141,8 +141,8 @@ struct SettingsScreen: View {
             PrivacyPolicySheet()
         }
         .sheet(item: $feedbackForm, onDismiss: FeedbackFormModel.purgeStagedMedia) { kind in
+            // Applies its own `.festivalSheet`, widening while its photo library is open.
             FeedbackFormSheet(kind: kind, session: session)
-                .festivalSheet(.large)
         }
         .whatsNewPresentation(isPresented: $showingWhatsNew) {
             WhatsNewChannelSheet(version: WhatsNewGate.appVersion()) {

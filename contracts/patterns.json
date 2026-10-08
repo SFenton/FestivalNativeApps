@@ -971,7 +971,7 @@
       "title": "Modal shell",
       "status": "current",
       "doc": ".agents/patterns/modal-shell.md",
-      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit.",
+      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit; on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it.",
       "keywords": [
         "modal",
         "sheet",
@@ -980,7 +980,9 @@
         "close",
         "dismiss",
         "content dialog",
-        "bottom sheet"
+        "bottom sheet",
+        "drag and drop",
+        "photo picker"
       ],
       "web": [
         {
@@ -1001,6 +1003,14 @@
           {
             "path": "apple/Sources/FestivalUI/Design/SheetStyle.swift",
             "symbol": "FestivalSheetCloseItem"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/SheetStyle.swift",
+            "symbol": "FestivalSheetSizing"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackPhotoLibraryPlacement.swift",
+            "symbol": "FeedbackPhotoLibraryPlacement"
           }
         ],
         "android": [
