@@ -111,6 +111,7 @@ STEP_VERBS = {
     "markspan": "span", "assertspan": "span", "film": "path", "filmstop": "path", "pin": "selector",
     "assertpinned": "selector", "foreground": "onoff", "listen": "listen", "assertannounced": "announced",
     "assertsize": "size", "assertapart": "pair", "assertat": "offset", "tapat": "offset", "clickat": "offset",
+    "drag": "drag",
     "narrate": "selector", "assertread": "read", "assertorder": "order",
     "assertpaint": "paint", "assertbold": "bold", "assertannouncedcount": "announcedcount",
     "assertmarquee": "marquee", "assertmarqueesync": "pair",
@@ -323,6 +324,10 @@ def parse_step(step: str) -> dict:
     tap, or a left mouse click; unlocked console only, and only when the app's own window is topmost at the point;
     results in ``presses``), and the following steps assert what it activated (e.g. ``waitfor:`` a flyout item), so
     the title bar's caption region and the control's own pointer handling decide the outcome.
+    ``drag:<sel>|<sel>[|<dy>]`` is a real left-button mouse drag (unlocked console only, the app topmost at both points)
+    from 16 epx inside the first element's left edge, vertically centred (a reorder row's grip), to the same inset on the
+    second element offset ``<dy>`` epx from its centre, in small steps so a ``ListView`` reorder starts and drops
+    (issue #372; results in ``drags``); later steps assert the new order.
     Narrator model (Narrator itself can't be scripted; issue #271): ``narrate:<sel>`` records Narrator's scan-mode
     reading order under the element with each item's phrase (results in ``narration``); ``assertread:<sel>|<phrase>[@<seconds>]``
     waits (default 5 s) until the element's Narrator phrase (name, role, state, value, status, help text, shortcut,
@@ -413,6 +418,15 @@ def parse_step(step: str) -> dict:
         if result["selector"]["kind"] == "xy":
             raise ValueError(f"{verb} needs an element selector, not coordinates")
         result["width"], result["height"] = float(match.group(1)), float(match.group(2))
+    elif shape == "drag":
+        parts = arg.split("|")
+        if len(parts) not in (2, 3) or not all(part.strip() for part in parts) or (
+                len(parts) == 3 and not re.fullmatch(r"-?\d+(\.\d+)?", parts[2].strip())):
+            raise ValueError(f"bad {verb} {arg!r}; use <selector>|<selector>[|<dy epx>]")
+        result["selector"], result["other"] = parse_selector(parts[0]), parse_selector(parts[1])
+        if "xy" in (result["selector"]["kind"], result["other"]["kind"]):
+            raise ValueError(f"{verb} needs element selectors, not coordinates")
+        result["dy"] = float(parts[2]) if len(parts) == 3 else 0.0
     elif shape == "offset":
         selector, sep, offset = arg.rpartition("|")
         match = re.fullmatch(r"(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)", offset.replace(" ", ""))

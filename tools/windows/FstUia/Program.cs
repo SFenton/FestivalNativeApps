@@ -804,6 +804,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "clickat":
                 PressAt(window, step, verb == "tapat");
                 break;
+            case "drag":
+                Drag(window, step);
+                break;
             case "narrate":
                 Narrate(window, step);
                 break;
@@ -1593,6 +1596,47 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         });
         if (touch) Touch.Tap(point);
         else Mouse.Click(point, MouseButton.Left);
+    }
+
+    /// <summary>
+    /// Real left-button mouse drag from the first element's left edge (16 epx in, vertically centred: a reorder row's grip)
+    /// to the second element's centre plus <c>dy</c> epx, moved in small steps so a <c>ListView</c> starts its drag and
+    /// shows the insertion point (issue #372). Needs an unlocked console, and the app's own window must be the topmost
+    /// window at both points. Results in <c>drags</c>; the following steps assert what moved.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c> (the dragged element), <c>other</c> (the drop target) and <c>dy</c>.</param>
+    /// <exception cref="InvalidOperationException">The console is locked or another process covers either point.</exception>
+    private void Drag(Window window, JsonObject step)
+    {
+        var arg = (string)step["arg"]!;
+        if (PostedInput.IsSessionLocked())
+            throw new InvalidOperationException($"{arg}: a real drag needs an unlocked console (the session is locked)");
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        var source = Find(window, step).BoundingRectangle;
+        var target = Find(window, step, "other").BoundingRectangle;
+        var start = new Point((int)Math.Round(source.Left + 16 * scale), (int)Math.Round(source.Top + source.Height / 2.0));
+        var end = new Point((int)Math.Round(target.Left + 16 * scale),
+            (int)Math.Round(target.Top + target.Height / 2.0 + (double)step["dy"]! * scale));
+        var pid = window.Properties.ProcessId.ValueOrDefault;
+        foreach (var point in new[] { start, end })
+            if (Native.ProcessAt(point) is var owner && owner != pid)
+                throw new InvalidOperationException($"{arg}: the point {point} is covered by process {owner}; no input sent");
+        response["drags"] ??= new JsonArray();
+        response["drags"]!.AsArray().Add(new JsonObject { ["arg"] = arg, ["from"] = $"{start.X},{start.Y}", ["to"] = $"{end.X},{end.Y}" });
+        Mouse.MoveTo(start);
+        Thread.Sleep(150);
+        Mouse.Down(MouseButton.Left);
+        Thread.Sleep(200);
+        const int steps = 24;
+        for (var i = 1; i <= steps; i++)
+        {
+            Mouse.MoveTo(new Point(start.X + (end.X - start.X) * i / steps, start.Y + (end.Y - start.Y) * i / steps));
+            Thread.Sleep(25);
+        }
+        Thread.Sleep(400);
+        Mouse.Up(MouseButton.Left);
+        Thread.Sleep(400);
     }
 
     #endregion
