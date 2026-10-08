@@ -231,7 +231,7 @@ SCENARIOS: dict[str, Scenario] = {
         env={"FST_DEBUG_PROFILE": "fixture-syncing:Syncing Player"}),
     "deselect": Scenario(
         ("deselected-paused", "reselected-restored-native"),
-        # Deselect clears score/instrument filters; General stays. Reselecting does not restore the cleared ones.
+        # Deselect resets every filter like the web (#359): General too. Reselecting does not restore them.
         [*opened(), "scrollinto:id=fst.songs.filter.score.chart.prolead@5", "expand:id=fst.songs.filter.score.chart.prolead",
          "scrollinto:id=fst.songs.filter.score.chart.prolead.missing-scores@5",
          "toggle:id=fst.songs.filter.score.chart.prolead.missing-scores", f"waitgone:{PULSE}@10",
@@ -239,8 +239,10 @@ SCENARIOS: dict[str, Scenario] = {
          "toggle:id=fst.songs.filter.double-bass.unsupported", "collapse:id=fst.songs.filter",
          "key:ctrl+shift+p", "waitfor:id=fst.profile.deselect@5", "invoke:id=fst.profile.deselect",
          "waitfor:id=PrimaryButton@10", "invoke:id=PrimaryButton", "waitgone:id=PrimaryButton@10",
-         "{status:Filters applied}", "expand:id=fst.songs.filter", "waitfor:id=fst.songs.filter.reset@5",
-         "waitgone:id=fst.songs.filter.score.global", "{shot:filter-deselected}", "collapse:id=fst.songs.filter",
+         "{status:}", "expand:id=fst.songs.filter", "waitfor:id=fst.songs.filter.reset@5",
+         "waitgone:id=fst.songs.filter.score.global", "scrollinto:id=fst.songs.filter.double-bass@5",
+         "expand:id=fst.songs.filter.double-bass", "{toggle:fst.songs.filter.double-bass.unsupported=On}",
+         "{shot:filter-deselected}", "collapse:id=fst.songs.filter",
          "invoke:id=fst.shell.profile", "waitfor:id=fst.profile.search@5",
          "setvalue:id=fst.profile.search|Fixture Player 1", "waitfor:name=Fixture Player 1@10",
          "invoke:name=Fixture Player 1", "waitfor:id=fst.player.select@15", "invoke:id=fst.player.select",
@@ -249,7 +251,7 @@ SCENARIOS: dict[str, Scenario] = {
          "scrollinto:id=fst.songs.filter.score.chart.prolead@5", "expand:id=fst.songs.filter.score.chart.prolead",
          "{toggle:fst.songs.filter.score.chart.prolead.missing-scores=Off}",
          "scrollinto:id=fst.songs.filter.double-bass@5", "expand:id=fst.songs.filter.double-bass",
-         "{toggle:fst.songs.filter.double-bass.unsupported=Off}", "{shot:filter-reselected}",
+         "{toggle:fst.songs.filter.double-bass.unsupported=On}", "{shot:filter-reselected}",
          "invoke:id=fst.songs.filter.reset", "collapse:id=fst.songs.filter", "{status:}"]),
 }
 

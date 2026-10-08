@@ -657,21 +657,76 @@ public class SongsViewModelPlayerTests
     }
 
     [Fact]
-    public async Task Deselect_ClearsInstrumentIntensityAndPlayerFiltersButKeepsGeneral()
+    public async Task Deselect_ResetsEveryFilterAndInstrumentAndPlayerChartSort_LikeWeb()
     {
         var general = new SongGeneralFilter { ExcludedDurationBuckets = [0], DoubleBassSupported = true, DoubleBassUnsupported = false };
-        var (_, session, _) = await Loaded(new AppSettings
+        var (_, session, vm) = await Loaded(new AppSettings
         {
             GeneralFilter = general,
             SongFilter = new SongFilter(Instrument.Lead, [1, 2]),
             ShopFilter = new SongShopFilter(available: true, unavailable: false),
             PlayerScoreFilter = SongPlayerScoreFilter.None.With(SongScoreFilterKind.HasScores, Instrument.Lead, true),
+            SongSort = SongSortMode.Score,
+            SongSortAscending = false,
         });
+        Assert.True(vm.IsFilterActive);
         session.DeselectPlayer();
         Assert.Null(session.SelectedPlayer);
-        Assert.Equal(general, session.Settings.GeneralFilter);
-        Assert.True(session.Settings.ShopFilter.IsActive);
+        // Web resetSongSettingsForDeselect: defaultSongFilters() (General and Shop availability too), no instrument, and
+        // normalizeSongSettings reverts an instrument sort to Title ascending.
+        Assert.Equal(SongGeneralFilter.None, session.Settings.GeneralFilter);
+        Assert.False(session.Settings.ShopFilter.IsActive);
         Assert.Equal(SongFilter.None, session.Settings.SongFilter);
         Assert.False(session.Settings.PlayerScoreFilter.IsActive);
+        Assert.Equal(SongSortMode.Title, session.Settings.SongSort);
+        Assert.True(session.Settings.SongSortAscending);
+        Assert.False(vm.IsFilterActive);
+        Assert.False(vm.IsSortChanged);
+        Assert.Equal("Title ↑", vm.SortSummary);
+        Assert.Empty(vm.Notices);
+        Assert.Equal(3, vm.ResultCount);
+    }
+
+    [Theory]
+    [InlineData(SongSortMode.LastPlayed, false, SongSortMode.Title, true)] // only offered with a player
+    [InlineData(SongSortMode.MaxScoreDiff, false, SongSortMode.Title, true)]
+    [InlineData(SongSortMode.Artist, false, SongSortMode.Artist, false)] // public sorts keep mode and direction
+    [InlineData(SongSortMode.HasFC, false, SongSortMode.HasFC, false)]
+    [InlineData(SongSortMode.Shop, false, SongSortMode.Shop, false)]
+    public async Task Deselect_RevertsOnlyPlayerSorts(SongSortMode saved, bool ascending, SongSortMode expected, bool expectedAscending)
+    {
+        var (_, session, _) = await Loaded(new AppSettings { SongSort = saved, SongSortAscending = ascending });
+        session.DeselectPlayer();
+        Assert.Equal(expected, session.Settings.SongSort);
+        Assert.Equal(expectedAscending, session.Settings.SongSortAscending);
+    }
+
+    [Fact]
+    public async Task ProfileChange_ResetsOnlyOnDeselect_LikeWebShouldResetSongSettingsForProfileChange()
+    {
+        var filters = new AppSettings
+        {
+            GeneralFilter = new SongGeneralFilter { ExcludedDecades = [1990] },
+            SongFilter = new SongFilter(Instrument.Lead),
+            PlayerScoreFilter = SongPlayerScoreFilter.None.With(SongScoreFilterKind.HasScores, Instrument.Lead, true),
+            SongSort = SongSortMode.Score,
+        };
+        var (_, session, _) = await Loaded(filters);
+        // Player → another player keeps the type, so nothing resets (web: previous.type === next.type).
+        session.UpdateSettings(s => s with { SelectedPlayer = new SelectedPlayer("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "Other") });
+        Assert.Equal(SongSortMode.Score, session.Settings.SongSort);
+        Assert.Equal(Instrument.Lead, session.Settings.SongFilter.Instrument);
+        Assert.True(session.Settings.PlayerScoreFilter.IsActive);
+        Assert.True(session.Settings.GeneralFilter.IsActive);
+        // Any path that clears the identity resets, not just DeselectPlayer (web clearSelectedProfileStorage).
+        session.UpdateSettings(s => s with { SelectedPlayer = null });
+        Assert.Equal(SongSortMode.Title, session.Settings.SongSort);
+        Assert.Equal(SongFilter.None, session.Settings.SongFilter);
+        Assert.False(session.Settings.PlayerScoreFilter.IsActive);
+        Assert.False(session.Settings.GeneralFilter.IsActive);
+        // Without a previous profile there is nothing to reset: General filters set anonymously stay.
+        session.UpdateSettings(s => s with { GeneralFilter = new SongGeneralFilter { ExcludedDecades = [1990] } });
+        session.UpdateSettings(s => s with { HideShop = true });
+        Assert.True(session.Settings.GeneralFilter.IsActive);
     }
 }

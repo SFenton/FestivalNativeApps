@@ -8,6 +8,8 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -422,6 +424,44 @@ class CompeteUiTest {
             rule.onAllNodesWithTag("fst.compete.grid").fetchSemanticsNodes().isEmpty()
         }
     }
+
+    /**
+     * Issue #370 (`leaderboard-row` R7, owner variant): the selected player's row under a
+     * Compete preview opens the full board on the page holding their rank (#40, page 2) and
+     * reveals the highlighted row, like Song Detail's appended row; other rows open profiles.
+     */
+    @Test
+    fun selectedPreviewRowJumpsToItsFullBoardPage() {
+        launch(DebugLaunch(route = CompeteRoute, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true))
+        waitForTag("fst.compete.leaderboard-card.Solo_Guitar")
+        val own = "fst.compete.spotlight.Solo_Guitar"
+        rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag(own))
+        assertEquals("Jump to your position", clickLabel(own))
+        assertEquals("Open profile", clickLabel("fst.compete.rank.Solo_Guitar.${RankingsFixtures.accountId(1)}"))
+        // Combo boards have no full board on Android, so their row still opens Statistics.
+        rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag("fst.compete.spotlight.0f"))
+        assertEquals("Open your statistics", clickLabel("fst.compete.spotlight.0f"))
+        rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag(own))
+        rule.onNodeWithTag(own).performSemanticsAction(SemanticsActions.OnClick)
+        rule.waitUntil(10_000) {
+            repeat(2) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100)); rule.waitForIdle() }
+            rule.onAllNodesWithContentDescription("Page 2 of 3").fetchSemanticsNodes().isNotEmpty()
+        }
+        val row = "fst.rankings.row.${RankingsFixtures.SELECTED}"
+        waitForTag(row)
+        // The reveal centres the highlighted row above the pinned footer and pager.
+        rule.waitUntil(10_000) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100))
+            rule.waitForIdle()
+            val bounds = rule.onNodeWithTag(row).fetchSemanticsNode().boundsInRoot
+            val list = rule.onNodeWithTag("fst.full-rankings.list").fetchSemanticsNode().boundsInRoot
+            val footer = rule.onNodeWithTag("fst.full-rankings.bottom-bar").fetchSemanticsNode().boundsInRoot
+            bounds.height > 0f && bounds.top >= list.top && bounds.bottom <= footer.top
+        }
+        rule.onNodeWithTag(row).assertIsDisplayed()
+    }
+
+    private fun clickLabel(tag: String) = rule.onNodeWithTag(tag).fetchSemanticsNode().config.getOrNull(SemanticsActions.OnClick)?.label
 
     @Test
     fun rowsKeepTheSongsCountInTheirDescription() {

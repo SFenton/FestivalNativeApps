@@ -8,6 +8,7 @@ import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.LeaderboardEntry
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.BandRoute
+import com.festivalscoretracker.android.core.nav.FullRankingsRoute
 import com.festivalscoretracker.android.core.nav.PlayerRoute
 import com.festivalscoretracker.android.core.nav.SongLeaderboardRoute
 import com.festivalscoretracker.android.core.nav.StatisticsRoute
@@ -263,6 +264,27 @@ class RankingsCoreTest {
         assertEquals("Open profile", RankingNavigation.actionLabel(PlayerRoute(RankingsFixtures.accountId(1), "Them")))
         assertEquals("Open your statistics", RankingNavigation.actionLabel(StatisticsRoute))
         assertEquals("Jump to your position", RankingNavigation.actionLabel(SongLeaderboardRoute("s-alpha", "Solo_Guitar", 3, navToPlayer = true)))
+        assertEquals("Jump to your position", RankingNavigation.actionLabel(FullRankingsRoute("Solo_Guitar", "totalscore", 4)))
+    }
+
+    /** Issue #370: Compete's appended selected row opens the full board on its page, like Song Detail's (R7). */
+    @Test
+    fun previewSpotlightJumpsToTheFullBoardPageHoldingTheRank() {
+        val selected = RankingsFixtures.SELECTED
+        val own = AccountRankingEntry(accountId = selected, displayName = "Me", totalScoreRank = 76)
+        // 25 rows per page: rank 76 is on page 4.
+        assertEquals(
+            FullRankingsRoute("Solo_Guitar", "totalscore", 4),
+            RankingNavigation.previewSpotlightRoute(own, RankingMetric.TotalScore, Instrument.Lead, selected),
+        )
+        assertEquals(
+            FullRankingsRoute("Solo_Guitar", "totalscore", 1),
+            RankingNavigation.previewSpotlightRoute(own.copy(totalScoreRank = 25), RankingMetric.TotalScore, Instrument.Lead, selected),
+        )
+        // No full board (combo scopes) or no usable rank: Statistics, as before.
+        assertEquals(StatisticsRoute, RankingNavigation.previewSpotlightRoute(own, RankingMetric.TotalScore, null, selected))
+        assertEquals(StatisticsRoute, RankingNavigation.previewSpotlightRoute(own.copy(totalScoreRank = 0), RankingMetric.TotalScore, Instrument.Lead, selected))
+        assertNull(RankingNavigation.previewSpotlightRoute(own.copy(accountId = ""), RankingMetric.TotalScore, Instrument.Lead, selected))
     }
 
     @Test
