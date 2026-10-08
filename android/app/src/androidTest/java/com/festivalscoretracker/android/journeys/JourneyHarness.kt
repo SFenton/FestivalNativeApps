@@ -4,6 +4,7 @@ import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.ViewRootForTest
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ComposeAccessibilityValidator
@@ -95,6 +96,23 @@ class JourneyHarness(private val rule: JourneyRule) {
 
     /** Distinct ATF findings so far (`TYPE | Check | element | message`). */
     val accessibilityFindings = linkedSetOf<String>()
+
+    /**
+     * Make Compose publish its TalkBack traversal order (the `traversalBefore` links
+     * [readingOrder] follows) and drop covered nodes as it does with TalkBack running. Compose
+     * computes them only while an accessibility service is enabled, which UiAutomation alone is
+     * not, so without this [readingOrder] falls back to child order. Call after [launch].
+     */
+    fun publishTraversalOrder() {
+        rule.runOnUiThread {
+            fun force(view: android.view.View) {
+                if (view is ViewRootForTest) view.forceAccessibilityForTesting(true)
+                if (view is android.view.ViewGroup) for (i in 0 until view.childCount) force(view.getChildAt(i))
+            }
+            force(rule.activity.window.decorView)
+        }
+        rule.waitForIdle()
+    }
 
     /**
      * Run the Accessibility Test Framework on the whole window before every interaction
@@ -321,7 +339,27 @@ class JourneyHarness(private val rule: JourneyRule) {
      * @param screen Name for the log.
      * @return Labels in reading order.
      */
-    fun readingOrder(screen: String): List<String> {
+    fun readingOrder(screen: String): List<String> = readingStops(screen).map { it.label }
+
+    /**
+     * One stop of [readingStops].
+     *
+     * @property id The node's test tag (its resource id), or null.
+     * @property label What TalkBack speaks (`<unlabelled>` when nothing).
+     * @property isHeading Whether TalkBack announces it as a heading.
+     * @property isClickable Whether it is a button.
+     * @property bounds Its visible bounds on screen in px.
+     */
+    data class ReadingStop(val id: String?, val label: String, val isHeading: Boolean, val isClickable: Boolean, val bounds: android.graphics.Rect)
+
+    /**
+     * [readingOrder] with each stop's test tag, heading/button role and visible bounds, for
+     * journeys that assert which tagged nodes TalkBack visits and in what order.
+     *
+     * @param screen Name for the log.
+     * @return Stops in reading order.
+     */
+    fun readingStops(screen: String): List<ReadingStop> {
         rule.waitForIdle()
         checkNow()
         // Resolve clipping artifacts while the flagged nodes are still composed.
@@ -365,7 +403,7 @@ class JourneyHarness(private val rule: JourneyRule) {
                 ownLabel(child).takeIf { it.isNotEmpty() }?.let(::add) ?: descendantsLabel(child).takeIf { it.isNotEmpty() }?.let(::add)
             }
         }.joinToString(", ")
-        val labels = mutableListOf<String>()
+        val stops = mutableListOf<ReadingStop>()
         order.forEach { i ->
             val node = nodes[i]
             val own = ownLabel(node)
@@ -381,10 +419,10 @@ class JourneyHarness(private val rule: JourneyRule) {
                 node.className?.toString()?.substringAfterLast('.')?.takeIf { it != "View" && it != "ViewGroup" }?.let(::add)
             }.joinToString(" ")
             val bounds = android.graphics.Rect().also(node::getBoundsInScreen)
-            labels += label.ifEmpty { "<unlabelled>" }
-            Log.i(READING_ORDER_TAG, "$screen | ${labels.size} | $role | ${labels.last()} | ${bounds.width()}x${bounds.height()}")
+            stops += ReadingStop(node.viewIdResourceName, label.ifEmpty { "<unlabelled>" }, node.isHeading, node.isClickable, bounds)
+            Log.i(READING_ORDER_TAG, "$screen | ${stops.size} | $role | ${stops.last().label} | ${bounds.width()}x${bounds.height()}")
         }
-        return labels
+        return stops
     }
 
     companion object {

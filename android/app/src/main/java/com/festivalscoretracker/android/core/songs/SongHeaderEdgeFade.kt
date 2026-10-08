@@ -92,6 +92,18 @@ object SongHeaderEdgeFade {
      */
     fun headersOverEdge(items: List<EdgeFadeItem>, viewportStart: Int, top: Float, depth: Float): List<EdgeFadeItem> =
         items.filter { it.isHeader && it.offset - viewportStart < top + depth && it.offset - viewportStart + it.size > 0 }
+
+    /**
+     * Rows wholly in the cut, so nobody can see them: they end at or above the cut. TalkBack must
+     * skip them (issue #417); a row with any part below the cut, even inside the ramp, stays a stop.
+     *
+     * @param items Visible items.
+     * @param viewportStart Viewport start offset.
+     * @param top The cut ([EdgeFade.top]) in px from the list's top edge.
+     * @return The hidden rows (never headers), in list order.
+     */
+    fun cutRows(items: List<EdgeFadeItem>, viewportStart: Int, top: Float): List<EdgeFadeItem> =
+        items.filter { !it.isHeader && it.offset - viewportStart + it.size <= top }
 }
 
 // endregion

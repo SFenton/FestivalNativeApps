@@ -20,6 +20,8 @@ import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.hideFromAccessibility
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -62,6 +64,12 @@ internal class PinnedHeaderEdgeState(
     val edge: EdgeFade? by derivedStateOf {
         if (firstHeaderKey == null) null
         else SongHeaderEdgeFade.edge(visible(), listState.layoutInfo.viewportStartOffset, spacing, depth)
+    }
+
+    /** Keys of the rows wholly in the cut under the pinned header ([SongHeaderEdgeFade.cutRows]). */
+    val cutKeys: Set<Any> by derivedStateOf {
+        val fade = edge ?: return@derivedStateOf emptySet()
+        SongHeaderEdgeFade.cutRows(visible(), listState.layoutInfo.viewportStartOffset, fade.top).mapTo(HashSet()) { it.key }
     }
 
     /**
@@ -127,6 +135,24 @@ internal fun rememberPinnedHeaderRecorder(key: Any, layers: MutableMap<Any, Grap
 }
 
 /**
+ * Hides a row from TalkBack while it lies wholly in the cut under the pinned header
+ * ([PinnedHeaderEdgeState.cutKeys]), where nobody can see it (issue #417). Compose would otherwise
+ * keep the invisible row as a stop read before the section's heading: its touch bounds reach past
+ * the list's top clip (minimum touch-target slop), beyond the header covering it. The row keeps
+ * its touch handling and tags, and returns to TalkBack as soon as any part of it scrolls below
+ * the cut.
+ *
+ * @param state The list's edge state.
+ * @param key The row's list key.
+ * @return Semantics modifier, empty while the row is not cut.
+ */
+@Composable
+internal fun rememberHiddenUnderPinnedHeader(state: PinnedHeaderEdgeState, key: Any): Modifier {
+    val cut by remember(state, key) { derivedStateOf { key in state.cutKeys } }
+    return if (cut) Modifier.semantics { hideFromAccessibility() } else Modifier
+}
+
+/**
  * Hides rows under the pinned section header and fades them in over the linear ramp just below
  * it ([SongHeaderEdgeFade]), so the header needs no backing (issue #91). On an offscreen layer it
  * clears everything above the header's resting bottom edge, masks the ramp
@@ -134,8 +160,9 @@ internal fun rememberPinnedHeaderRecorder(key: Any, layers: MutableMap<Any, Grap
  * whole ([SongHeaderEdgeFade.headersOverEdge]), so their text stays fully opaque, the next header
  * pushes the pinned one out without fading (issue #288) and no row ever shows behind a header.
  * With a hard edge ([PinnedHeaderEdgeState.depth] 0) rows end at the header's bottom edge.
- * Drawing only: hit testing, semantics and TalkBack order are unchanged. Without an edge it draws
- * nothing and skips the offscreen layer.
+ * Drawing only: hit testing and TalkBack order are unchanged, except that rows wholly in the cut
+ * leave TalkBack through [rememberHiddenUnderPinnedHeader]. Without an edge it draws nothing and
+ * skips the offscreen layer.
  *
  * @param state The list's edge state.
  * @param headerStart Headers' start inset in px (the list's start content padding).

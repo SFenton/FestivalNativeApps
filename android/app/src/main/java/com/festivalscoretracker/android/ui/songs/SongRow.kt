@@ -276,6 +276,7 @@ fun SongRowCard(
  * @param pulse Shared Shop outline alpha, read only while drawing.
  * @param breathe Shared Shop badge breathe fraction, read only while drawing.
  * @param onWarning Open the invalid-score alert (shown when the row has a warning).
+ * @param modifier Applied to the card after its test tag.
  * @param onClick Open the song.
  */
 @Composable
@@ -286,6 +287,7 @@ fun SongRow(
     pulse: () -> Float = { 0f },
     breathe: () -> Float = { 1f },
     onWarning: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     val song = row.song
@@ -294,7 +296,7 @@ fun SongRow(
         subtitle = song.subtitle,
         artUrl = artUrl,
         onClick = onClick,
-        modifier = Modifier.testTag("fst.songs.row.${song.songId}"),
+        modifier = Modifier.testTag("fst.songs.row.${song.songId}").then(modifier),
         description = row.announcement,
         selected = selected,
         outline = row.pulse?.let(SongsTokens::pulse),
