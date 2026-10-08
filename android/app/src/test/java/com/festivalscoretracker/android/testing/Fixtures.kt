@@ -3,6 +3,8 @@ package com.festivalscoretracker.android.testing
 import com.festivalscoretracker.android.data.HttpRequest
 import com.festivalscoretracker.android.data.HttpResult
 import com.festivalscoretracker.android.data.HttpTransport
+import com.festivalscoretracker.android.data.RequestGate
+import com.festivalscoretracker.android.core.service.ServiceFreezeReason
 import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.core.model.SongDifficulty
 import kotlinx.coroutines.test.TestDispatcher
@@ -119,12 +121,32 @@ class FakeTransport(private val routes: MutableMap<String, (HttpRequest) -> Http
         routes[path] = respond
     }
 
+    /** Publication every stamped response reports once [publish] ran, or `null` for each route's own. */
+    @Volatile
+    private var published: Int? = null
+
+    /**
+     * Publish a newer generation mid-test: `/api/publication` answers [id] and every response
+     * that carries a publication header reports [id], so the next read the app makes adopts it
+     * and `FestivalApi.publicationChanges` announces it (issue #82: Compete refreshing in place).
+     *
+     * @param id New publication ID.
+     */
+    fun publish(id: Int) {
+        on("/api/publication") { Fixtures.publication(id) }
+        published = id
+    }
+
     override suspend fun send(request: HttpRequest): HttpResult {
         requests += request
         beforeRespond(request)
         val path = request.url.substringAfter("://").substringAfter('/').substringBefore('?').let { "/$it" }
         val route = routes[path] ?: return HttpResult(404, "{}".toByteArray())
-        return route(request)
+        val result = route(request)
+        val id = published ?: return result
+        if (result.header(PUBLICATION_HEADER) == null) return result
+        val kept = KEPT_HEADERS.mapNotNull { name -> result.header(name)?.let { name to it } }.toMap()
+        return HttpResult(result.status, result.body, kept + (PUBLICATION_HEADER to id.toString()))
     }
 
     /**
@@ -136,6 +158,11 @@ class FakeTransport(private val routes: MutableMap<String, (HttpRequest) -> Http
     fun sent(path: String) = requests.filter { it.url.substringAfter("://").substringAfter('/').substringBefore('?').let { p -> "/$p" } == path }
 
     companion object {
+        private const val PUBLICATION_HEADER = RequestGate.PUBLICATION_HEADER
+
+        /** Response headers the app reads, kept when [publish] restamps a response. */
+        private val KEPT_HEADERS = listOf("ETag", "Retry-After", ServiceFreezeReason.HEADER)
+
         /**
          * Transport serving a publication, the synthetic songs and generic leaderboards.
          *
