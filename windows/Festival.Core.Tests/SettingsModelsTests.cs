@@ -63,17 +63,15 @@ public class SettingsModelsTests
     {
         var raw = new AppSettings
         {
-            Leeway = 12, ExperimentalRanks = true, TapTelemetry = true, TapDiagnostics = false,
+            Leeway = 12, ExperimentalRanks = true,
             PathDefaultView = (PathDisplayMode)9, SongRowVisualOrder = [MetadataField.Stars], PathColumnOrder = null!,
         }.Sanitized();
         Assert.Equal(5, raw.Leeway);
         Assert.False(raw.ExperimentalRanks);
-        Assert.False(raw.TapTelemetry);
         Assert.Equal(PathDisplayMode.Image, raw.PathDefaultView);
         Assert.Equal(MetadataField.Stars, raw.SongRowVisualOrder[0]);
         Assert.Equal(8, raw.SongRowVisualOrder.Count);
         Assert.Equal(5, raw.PathColumnOrder.Count);
-        Assert.True(new AppSettings { TapDiagnostics = true, TapTelemetry = true }.Sanitized().TapTelemetry);
         Assert.Equal("totalscore", new AppSettings { LeaderboardRankBy = "bogus" }.Sanitized().LeaderboardRankBy);
         Assert.Equal("totalscore", new AppSettings { LeaderboardRankBy = null! }.Sanitized().LeaderboardRankBy);
         Assert.Equal("fcrate", new AppSettings { LeaderboardRankBy = "fcrate" }.Sanitized().LeaderboardRankBy);
@@ -98,8 +96,8 @@ public class SettingsModelsTests
             SelectedPlayer = player, SongSort = SongSortMode.Artist, SongSortAscending = false,
             ShowInstrumentIcons = false, EnableVisualOrder = true, SongRowVisualOrder = [MetadataField.Stars],
             PathColumnOrder = [PathColumnKey.Score], FilterInvalidScores = true, Leeway = -2, PathDefaultView = PathDisplayMode.Text,
-            PathUnavailableWarningDismissed = true, HideShop = true, DisableShopHighlighting = true, TapDiagnostics = true,
-            TapTelemetry = true, MetadataScore = false, MetadataPercentage = false, MetadataPercentile = false, MetadataSeason = false,
+            PathUnavailableWarningDismissed = true, HideShop = true, DisableShopHighlighting = true,
+            MetadataScore = false, MetadataPercentage = false, MetadataPercentile = false, MetadataSeason = false,
             MetadataIntensity = false, MetadataDifficulty = false, MetadataStars = false, MetadataLastPlayed = false,
             VisibleInstruments = [Instrument.Bass], ReduceMotion = true, DisableAnimatedArtwork = true, SaveData = true,
             MoreContrast = true, LessTransparency = true,
@@ -123,8 +121,8 @@ public class SettingsModelsTests
             baseline with { PathColumnOrder = SettingsOrder.Move(baseline.PathColumnOrder, 0, 1) },
             baseline with { FilterInvalidScores = true }, baseline with { Leeway = 2 }, baseline with { PathDefaultView = PathDisplayMode.Text },
             baseline with { PathUnavailableWarningDismissed = true }, baseline with { ExperimentalRanks = true },
-            baseline with { HideShop = true }, baseline with { DisableShopHighlighting = true }, baseline with { TapDiagnostics = true },
-            baseline with { TapTelemetry = true }, baseline with { MetadataScore = false }, baseline with { MetadataPercentage = false },
+            baseline with { HideShop = true }, baseline with { DisableShopHighlighting = true },
+            baseline with { MetadataScore = false }, baseline with { MetadataPercentage = false },
             baseline with { MetadataPercentile = false }, baseline with { MetadataSeason = false }, baseline with { MetadataIntensity = false },
             baseline with { MetadataDifficulty = false }, baseline with { MetadataStars = false }, baseline with { MetadataLastPlayed = false },
             baseline with { MoreContrast = true }, baseline with { LessTransparency = true },
@@ -143,11 +141,34 @@ public class SettingsModelsTests
             {
                 ShowInstrumentIcons = false, EnableVisualOrder = true, SongRowVisualOrder = [MetadataField.LastPlayed],
                 PathColumnOrder = [PathColumnKey.Od], FilterInvalidScores = true, Leeway = -1.5, PathDefaultView = PathDisplayMode.Text,
-                HideShop = true, DisableShopHighlighting = true, TapDiagnostics = true, TapTelemetry = true, MetadataStars = false,
+                HideShop = true, DisableShopHighlighting = true, MetadataStars = false,
                 MoreContrast = true, LessTransparency = true,
             }.Sanitized();
             store.Save(settings);
             Assert.Equal(settings, new JsonFileSettingsStore(path).Load());
+        }
+        finally
+        {
+            Directory.Delete(Path.GetDirectoryName(path)!, true);
+        }
+    }
+
+    [Fact]
+    public void JsonStore_DropsRemovedTapDiagnosticsKeys()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "fst-settings-" + Guid.NewGuid().ToString("N"), "settings.json");
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, """{"version":2,"tapDiagnostics":true,"tapTelemetry":true,"hideShop":true}""");
+            var loaded = new JsonFileSettingsStore(path).Load();
+            Assert.True(loaded.HideShop);
+
+            new JsonFileSettingsStore(path).Save(loaded);
+            var saved = File.ReadAllText(path);
+            Assert.DoesNotContain("tapDiagnostics", saved);
+            Assert.DoesNotContain("tapTelemetry", saved);
+            Assert.True(new JsonFileSettingsStore(path).Load().HideShop);
         }
         finally
         {

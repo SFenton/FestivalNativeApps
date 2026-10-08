@@ -64,10 +64,11 @@ public class QuickLinksOrderMarkupTests
     }
 
     [Fact]
-    public void SettingsRelease_DropsOnlyDiagnostics()
+    public void SettingsRelease_MatchesMarkupWithoutDiagnostics()
     {
         var vm = new SettingsViewModel(new FestivalSession(new FakeService().Client(), new InMemorySettingsStore()), "0.1.0", false);
-        Assert.Equal(Anchors("Pages/SettingsPage.xaml").Where(id => id != "diagnostics"), vm.QuickLinks.Items.Select(i => i.Section.Id));
+        Assert.Equal(Anchors("Pages/SettingsPage.xaml"), vm.QuickLinks.Items.Select(i => i.Section.Id));
+        Assert.DoesNotContain("diagnostics", Anchors("Pages/SettingsPage.xaml"));
     }
 
     [Fact]

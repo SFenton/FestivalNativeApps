@@ -71,27 +71,17 @@ public class SettingsPageTests
     }
 
     [Fact]
-    public void Diagnostics_TelemetryRequiresDiagnostics()
+    public void QuickLinks_NoDiagnosticsInAnyBuild()
     {
-        var (vm, store, _) = Create();
-        Assert.True(vm.IsDebugBuild);
-        Assert.Equal("Debug", vm.BuildConfiguration);
-        Assert.StartsWith("Enable Tap Diagnostics first", vm.TapTelemetryDescription);
-        vm.TapTelemetry = true;
-        Assert.False(store.Current.TapTelemetry);
-        vm.TapDiagnostics = true;
-        vm.TapTelemetry = true;
-        Assert.True(vm.TapDiagnostics && vm.TapTelemetry);
-        Assert.StartsWith("Send sanitized", vm.TapTelemetryDescription);
-        vm.TapDiagnostics = false;
-        Assert.False(store.Current.TapTelemetry);
-        Assert.Contains(vm.QuickLinks.Items, i => i.Section.Id == "diagnostics");
+        string[] expected = ["app-settings", "item-shop", "show-instruments", "show-metadata", "accessibility", "version", "service-info", "first-run", "licenses", "privacy-policy", "reset"];
+        var (debug, _, _) = Create();
+        Assert.True(debug.IsDebugBuild);
+        Assert.Equal("Debug", debug.BuildConfiguration);
+        Assert.Equal(expected, debug.QuickLinks.Items.Select(i => i.Section.Id));
 
         var (release, _, _) = Create(debug: false);
         Assert.Equal("Release", release.BuildConfiguration);
-        Assert.DoesNotContain(release.QuickLinks.Items, i => i.Section.Id == "diagnostics");
-        Assert.Equal(["app-settings", "item-shop", "show-instruments", "show-metadata", "accessibility", "version", "service-info", "first-run", "licenses", "privacy-policy", "reset"],
-            release.QuickLinks.Items.Select(i => i.Section.Id));
+        Assert.Equal(expected, release.QuickLinks.Items.Select(i => i.Section.Id));
     }
 
     [Fact]

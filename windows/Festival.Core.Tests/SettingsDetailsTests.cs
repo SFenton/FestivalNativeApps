@@ -55,7 +55,7 @@ public class SettingsDetailsTests
     public void QuickLinkId_MapsEverySectionRowToItsQuickLinkInMenuOrder()
     {
         var (vm, _) = Create();
-        var sectionIds = vm.QuickLinks.Items.Select(i => i.Section.Id).Where(id => id is not "app-settings" and not "diagnostics" and not "reset");
+        var sectionIds = vm.QuickLinks.Items.Select(i => i.Section.Id).Where(id => id is not "app-settings" and not "reset");
         Assert.Equal(sectionIds, SettingsDetails.Items.Select(i => SettingsDetails.QuickLinkId(i.Detail)).OfType<string>());
         Assert.Null(SettingsDetails.QuickLinkId(SettingsDetail.Leeway));
         Assert.Null(SettingsDetails.QuickLinkId(SettingsDetail.None));
