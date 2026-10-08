@@ -49,8 +49,14 @@ import kotlin.math.abs
  * for each test and restored. Pixel-level fades at load and under Reduce Motion are covered on the
  * JVM by `FadeInWindowTest`, `FadeInTimingTest` and `StaggerRushTest`.
  *
+ * Reading order is TalkBack's linear order: each journey calls
+ * [JourneyHarness.publishTalkBackTree] after launch, so `readingOrder` follows the published
+ * traversal links and reads a fresh tree after each scroll. `@DeviceCi`, so the `android-device`
+ * CI job runs it on a phone.
+ *
  * `device.py test com.festivalscoretracker.android.journeys.LoadFadeWindowAccessibilityJourneyTest --avd …`
  */
+@DeviceCi
 @RunWith(AndroidJUnit4::class)
 class LoadFadeWindowAccessibilityJourneyTest {
     @get:Rule
@@ -113,6 +119,7 @@ class LoadFadeWindowAccessibilityJourneyTest {
             fontScale = fontScale?.let { scale -> { scale } },
         )
         h.waitForTag("fst.player.overview")
+        h.publishTalkBackTree()
         h.readingOrder("fade-window-profile-load")
 
         // The reader scrolls (a real drag closes the page's fade window), reaching Bass while its history loads.
@@ -151,7 +158,12 @@ class LoadFadeWindowAccessibilityJourneyTest {
         awaitTree(present = "fst.player.bands.header.duos", absent = "fst.player.bands.loading")
         val bandsLoaded = h.readingOrder("fade-window-profile-bands-loaded")
         assertTrue("Bands loading state still read: $bandsLoaded", bandsLoaded.none { it.startsWith("Loading bands") })
-        assertTrue("Duos group heading is not read: $bandsLoaded", bandsLoaded.any { it.startsWith("Duos") })
+        val duos = bandsLoaded.indexOf("Duos")
+        assertTrue("Duos group heading is not read: $bandsLoaded", duos >= 0)
+        val section = bandsLoaded.indexOf("Synthetic Player's Bands")
+        assertTrue("Bands section heading is not read before the Duos group: $bandsLoaded", section in 0 until duos)
+        // The fixture player has no duos, so the group reads its heading, then its empty state.
+        assertTrue("Duos heading is not followed by its group's content: $bandsLoaded", bandsLoaded.getOrNull(duos + 1)?.startsWith("No Bands Yet") == true)
         assertHeading("Duos")
         h.assertAccessible()
     }
@@ -179,6 +191,7 @@ class LoadFadeWindowAccessibilityJourneyTest {
         h.waitForTag("fst.leaderboards.rank-history")
         h.waitGone("fst.leaderboards.loading")
         settle()
+        h.publishTalkBackTree()
         h.readingOrder("fade-window-leaderboards-load")
 
         swipe(LIST)
