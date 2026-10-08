@@ -39,14 +39,33 @@
         <Grid x:Name="Header" ColumnSpacing="12" Margin="0,0,12,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <TextBlock Text="Item Shop" Style="{StaticResource FSTPageTitleStyle}" AutomationProperties.HeadingLevel="Level1" />
             <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.CountText, Mode=OneWay}" VerticalAlignment="Bottom" Margin="0,0,0,4"
                        Style="{StaticResource FSTSecondaryTextStyle}" Visibility="{x:Bind ViewModel.ShowOffers, Mode=OneWay}"
                        AutomationProperties.AutomationId="fst.shop.count" />
-            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+            <!-- Sort, Filter and the layout toggle wrap onto a second line instead of clipping at large text sizes
+                 (page-tools-and-nav-chrome R11). -->
+            <controls:WrapPanel x:Name="HeaderActions" Grid.Column="2" HorizontalSpacing="8" VerticalSpacing="8"
+                                HorizontalAlignment="Right" VerticalAlignment="Bottom">
+            <!-- Issue #379: the Songs Sort flyout (shared SongSortForm) with the Item Shop's Title, Artist, Year and Duration
+                 modes. Changes apply live and persist; gold while the sort isn't Title ascending, like Songs. -->
+            <DropDownButton x:Name="SortButton" AutomationProperties.Name="Sort Item Shop" MinHeight="{StaticResource FSTMinTargetSize}"
+                            Visibility="{x:Bind ViewModel.ShowOffers, Mode=OneWay}"
+                            AutomationProperties.HelpText="{x:Bind ViewModel.SortDescription, Mode=OneWay}"
+                            AutomationProperties.AutomationId="fst.shop.sort">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE8CB;" FontSize="14" />
+                    <TextBlock x:Name="SortLabel" Text="{x:Bind ViewModel.SortSummary, Mode=OneWay}" />
+                </StackPanel>
+                <DropDownButton.Flyout>
+                    <Flyout x:Name="SortFlyout" Placement="BottomEdgeAlignedRight" Opening="OnSortOpening">
+                        <controls:SongSortForm Draft="{x:Bind ViewModel.SortDraft}" Title="Sort Item Shop" IdPrefix="fst.shop.sort" />
+                    </Flyout>
+                </DropDownButton.Flyout>
+            </DropDownButton>
             <!-- Issues #19, #376: New / Available / Leaving Tomorrow include switches (all on by default) in the Songs filter
                  flyout's layout (title, switch rows, red Reset). Changes apply live; light dismiss / Esc closes. Gold while a
                  switch is off, like Songs. -->
@@ -112,7 +131,7 @@
                     <TextBlock Text="{x:Bind ViewModel.ToggleLabel, Mode=OneWay}" />
                 </StackPanel>
             </Button>
-            </StackPanel>
+            </controls:WrapPanel>
         </Grid>
 
         <InfoBar x:Name="DetailsNotice" Grid.Row="1" IsOpen="{x:Bind ViewModel.HasSongDetailsIssue, Mode=OneWay}" IsClosable="False" Severity="Warning"

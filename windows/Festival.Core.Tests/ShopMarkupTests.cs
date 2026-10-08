@@ -45,6 +45,29 @@ public class ShopMarkupTests
         Assert.Equal("{x:Bind AutomationId}", Attr(toggle, "AutomationProperties.AutomationId"));
     }
 
+    [Fact]
+    public void HeaderTools_WrapInSortFilterToggleOrder()
+    {
+        // Issue #379 (page-tools-and-nav-chrome R11): three header buttons wrap instead of clipping at large text.
+        var row = Page.Descendants().Single(e => e.Name.LocalName == "WrapPanel" && Attr(e, "Name") == "HeaderActions");
+        Assert.Equal(["fst.shop.sort", "fst.shop.filter", "fst.shop.view-toggle"],
+            row.Elements().Select(e => Attr(e, "AutomationProperties.AutomationId")));
+    }
+
+    [Fact]
+    public void SortFlyout_ReusesTheSongsSortForm()
+    {
+        // Issue #379: one Sort form for Songs and the Item Shop, each with its own automation IDs and heading.
+        var songs = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Festival.App", "Pages", "SongsPage.xaml"));
+        foreach (var (doc, prefix, title) in new[] { (Page, "fst.shop.sort", "Sort Item Shop"), (songs, "fst.songs.sort", "Sort Songs") })
+        {
+            var button = doc.Descendants().Single(e => Attr(e, "AutomationProperties.AutomationId") == prefix);
+            var form = Assert.Single(button.Descendants(), e => e.Name.LocalName == "SongSortForm");
+            Assert.Equal((prefix, title, "{x:Bind ViewModel.SortDraft}"), (Attr(form, "IdPrefix"), Attr(form, "Title"), Attr(form, "Draft")));
+            Assert.Equal("OnSortOpening", Attr(form.Parent!, "Opening"));
+        }
+    }
+
     [Theory]
     [InlineData("fst.shop.empty")]
     [InlineData("fst.shop.filter.empty")]
