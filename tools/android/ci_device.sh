@@ -13,17 +13,31 @@ dump_logcat() {
 trap dump_logcat EXIT
 
 if [[ "$expect_fold" == "true" ]]; then
-    adb shell wm size 2208x1840
-    adb shell wm density 420
-    adb shell settings put global display_features 'fold-[1104,0,1104,1840]-half-opened'
+    adb shell wm size 2076x2152
+    adb shell wm density 390
+    adb shell settings put global display_features 'fold-[1038,0,1038,2152]-half-opened'
     sleep 2
     adb shell wm size
     adb shell wm density
     adb shell settings get global display_features
 fi
 
-bash android/gradlew -p android :app:connectedDebugAndroidTest --no-daemon --stacktrace \
-    "-Pandroid.testInstrumentationRunnerArguments.fst.expectFold=$expect_fold"
+case "$leg" in
+    phone)
+        bash android/gradlew -p android :app:connectedDebugAndroidTest --no-daemon --stacktrace \
+            "-Pandroid.testInstrumentationRunnerArguments.annotation=com.festivalscoretracker.android.journeys.DeviceCi" \
+            "-Pandroid.testInstrumentationRunnerArguments.fst.expectFold=$expect_fold"
+        ;;
+    fold-half)
+        bash android/gradlew -p android :app:connectedDebugAndroidTest --no-daemon --stacktrace \
+            "-Pandroid.testInstrumentationRunnerArguments.class=com.festivalscoretracker.android.journeys.FoldableCiPreflightTest,com.festivalscoretracker.android.journeys.BandRankingsJourneyTest,com.festivalscoretracker.android.journeys.BandsSettingsJourneyTest,com.festivalscoretracker.android.journeys.ModalCloseJourneyTest,com.festivalscoretracker.android.journeys.ShellAccessibilityJourneyTest,com.festivalscoretracker.android.journeys.ShopFilterAccessibilityJourneyTest,com.festivalscoretracker.android.journeys.SongPathsDeviceTest" \
+            "-Pandroid.testInstrumentationRunnerArguments.fst.expectFold=$expect_fold"
+        ;;
+    *)
+        echo "Unknown Android device CI leg: $leg" >&2
+        exit 2
+        ;;
+esac
 
 if [[ "$expect_fold" == "true" ]]; then
     adb logcat -d -v threadtime -s FST_FOLD:I

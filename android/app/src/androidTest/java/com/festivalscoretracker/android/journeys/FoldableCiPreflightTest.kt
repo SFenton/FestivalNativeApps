@@ -43,7 +43,6 @@ class FoldableCiPreflightTest {
             hinge = observed.firstOrNull {
                 it.isSeparating &&
                     it.state == FoldingFeature.State.HALF_OPENED &&
-                    it.bounds.width() > 0 &&
                     it.bounds.height() > 0
             }
             if (hinge == null) SystemClock.sleep(500)
@@ -53,7 +52,7 @@ class FoldableCiPreflightTest {
         val confirmedHinge = hinge ?: throw AssertionError("No separating half-open FoldingFeature: $observed")
         assertTrue(
             "half-open hinge has empty bounds: $confirmedHinge",
-            confirmedHinge.bounds.width() > 0 && confirmedHinge.bounds.height() > 0,
+            confirmedHinge.bounds.height() > 0,
         )
     }
 
