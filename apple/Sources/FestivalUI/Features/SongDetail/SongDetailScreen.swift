@@ -173,6 +173,7 @@ struct SongDetailScreen: View {
         .festivalNavigationTitle(song.title)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: heroTitleHidden)
         .toolbar { detailToolbar }
+        .songBarTitleKeepsBarVisible()
         // iPhone tab-bar accessory (issue #92): Item Shop, then Paths, then Quick Links.
         .festivalPageTool(
             token: [shopOffer?.shopUrl.absoluteString ?? "", shopTone.map { "\($0)" } ?? ""],
@@ -236,19 +237,20 @@ struct SongDetailScreen: View {
 
     /// Song Detail's bar items.
     ///
-    /// In the iPhone Duo vertical bar the pinned title (a custom view) is left out: the
-    /// rail never draws it. Item Shop and Paths carry high visibility priority so they
-    /// stay in the rail ahead of Quick Links (`/duo` D4, operator 2026-10-02: page-unique
-    /// actions first; HIG iPhone Duo: "Set visibility priority by group").
+    /// The pinned title is in every iOS chrome, the iPhone Duo vertical bar included:
+    /// there the navigation bar stays at the top of the page
+    /// (``SwiftUI/View/songBarTitleKeepsBarVisible(_:)``), empty until the hero title
+    /// scrolls away, as on iPhone (owner, #363). Item Shop and Paths carry high
+    /// visibility priority so they stay in the rail ahead of Quick Links (`/duo` D4,
+    /// operator 2026-10-02: page-unique actions first; HIG iPhone Duo: "Set visibility
+    /// priority by group").
     @ToolbarContentBuilder
     private var detailToolbar: some ToolbarContent {
         #if os(iOS)
-        if !deviceLayout.sectionChrome.isVerticalBar {
-            SongBarTitleToolbarItem(
-                song: song, session: session, caption: nil, isShown: heroTitleHidden,
-                identifier: "fst.song-detail.pinned-title"
-            )
-        }
+        SongBarTitleToolbarItem(
+            song: song, session: session, caption: nil, isShown: heroTitleHidden,
+            identifier: "fst.song-detail.pinned-title"
+        )
         #endif
         if pageTools == nil, let offer = shopOffer {
             ToolbarItem(placement: .festivalPageAction) {

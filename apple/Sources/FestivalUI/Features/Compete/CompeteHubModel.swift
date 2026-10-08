@@ -26,8 +26,9 @@ struct CompetePageLoadKey: Hashable, Sendable {
 
 // MARK: - CompeteHubModel
 
-/// Every read on Compete: one Top-5 leaderboard preview and one rivals list per visible
-/// instrument, held for the whole page so it loads behind one spinner (load-transition R1,
+/// Every read on Compete: one Top-5 leaderboard preview (with the selected player's own
+/// rank when the top five lack it) and one rivals list per visible instrument, held for
+/// the whole page so it loads behind one spinner (load-transition R1,
 /// #354) like the web's `CompetePage`, instead of each card showing its own spinner under
 /// its header.
 ///
@@ -41,6 +42,10 @@ final class CompeteHubModel {
     private(set) var key: CompetePageLoadKey?
     /// Leaderboard preview per instrument; missing means pending.
     private(set) var boards: [Instrument: RankLoadState<RankingsPayload>] = [:]
+    /// The selected player's own row per instrument, read with its preview when the top
+    /// five lack it (web `CompetePage` `playerEntry`). Missing when they are in the top
+    /// five, unranked, or their rank could not be read: the web shows no row then.
+    private(set) var spotlights: [Instrument: AccountRankingEntry] = [:]
     /// Rivals list per instrument; missing means pending.
     private(set) var rivals: [Instrument: RivalsLoadState<RivalsListResponse>] = [:]
     @ObservationIgnored private var gate = ReappearanceLoadGate<CompetePageLoadKey>()
@@ -56,7 +61,7 @@ final class CompeteHubModel {
     }
 
     private enum Read: Sendable {
-        case board(Instrument, Result<RankingsPayload, any Error>)
+        case board(Instrument, Result<RankingsPayload, any Error>, AccountRankingEntry?)
         case rivals(Instrument, Result<RivalsListResponse, any Error>)
     }
 
@@ -107,6 +112,7 @@ final class CompeteHubModel {
         if self.key != key {
             self.key = key
             boards = [:]
+            spotlights = [:]
             rivals = [:]
             inFlight = []
         }
@@ -127,7 +133,8 @@ final class CompeteHubModel {
         await withTaskGroup(of: Read.self) { group in
             for read in reads {
                 switch read {
-                case let .board(instrument): group.addTask { await Self.readBoard(session, instrument) }
+                case let .board(instrument):
+                    group.addTask { await Self.readBoard(session, instrument, accountId: key.accountId) }
                 case let .rivals(instrument): group.addTask { await Self.readRivals(session, instrument) }
                 }
             }
@@ -143,10 +150,12 @@ final class CompeteHubModel {
 
     private func apply(_ read: Read) {
         switch read {
-        case let .board(instrument, result):
+        case let .board(instrument, result, spotlight):
             inFlight.remove(.board(instrument))
             switch result {
-            case let .success(payload): boards[instrument] = .loaded(payload)
+            case let .success(payload):
+                spotlights[instrument] = spotlight
+                boards[instrument] = .loaded(payload)
             case let .failure(error) where Self.isCancellation(error): boards[instrument] = nil
             case let .failure(error): boards[instrument] = .failed(ServiceIssue(error))
             }
@@ -160,13 +169,44 @@ final class CompeteHubModel {
         }
     }
 
-    private static func readBoard(_ session: FestivalSession, _ instrument: Instrument) async -> Read {
+    /// Read one instrument's Top 5, then the selected player's own row when the top five
+    /// lack it, so the card reveals with it rather than growing afterwards.
+    ///
+    /// - Parameters:
+    ///   - session: Shared app session.
+    ///   - instrument: The preview's instrument.
+    ///   - accountId: The selected player, if any.
+    /// - Returns: The preview, with the player's row when it is shown apart.
+    private static func readBoard(
+        _ session: FestivalSession, _ instrument: Instrument, accountId: String?
+    ) async -> Read {
+        let payload: RankingsPayload
         do {
-            return .board(instrument, .success(try await session.rankings(
+            payload = try await session.rankings(
                 instrument: instrument, rankBy: .totalscore, page: 1, pageSize: previewCount
-            )))
+            )
         } catch {
-            return .board(instrument, .failure(error))
+            return .board(instrument, .failure(error), nil)
+        }
+        guard let accountId, !payload.rankings.entries.contains(where: {
+            $0.accountId.caseInsensitiveCompare(accountId) == .orderedSame
+        }) else {
+            return .board(instrument, .success(payload), nil)
+        }
+        do {
+            let ranking = try await session.playerInstrumentRanking(instrument: instrument, accountId: accountId)
+            let spotlight = RankingSpotlight.placement(
+                selectedAccountId: accountId, visibleEntries: payload.rankings.entries,
+                source: ranking.ranking.map { .available($0.entry) } ?? .unranked
+            )
+            guard case let .footer(entry) = spotlight else { return .board(instrument, .success(payload), nil) }
+            return .board(instrument, .success(payload), entry)
+        } catch let error where isCancellation(error) {
+            // Left mid-read: stay pending, so the return reads the card again.
+            return .board(instrument, .failure(error), nil)
+        } catch {
+            // Web `CompetePage` shows no row when the player's own rank fails.
+            return .board(instrument, .success(payload), nil)
         }
     }
 

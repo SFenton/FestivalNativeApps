@@ -304,10 +304,10 @@ struct SuggestionsScreen: View {
 
 /// How Suggestions lays out its category cards (`/duo` G1, operator 2026-10-02).
 enum SuggestionsLayout {
-    /// Two flexible card columns, top-aligned.
+    /// Two flexible card columns (``HingeGrid`` top-aligns them).
     static let gridColumns = [
-        GridItem(.flexible(), spacing: 20, alignment: .top),
-        GridItem(.flexible(), spacing: 20, alignment: .top),
+        GridItem(.flexible(), spacing: 20),
+        GridItem(.flexible(), spacing: 20),
     ]
 
     /// Whether the cards form the two-column grid.

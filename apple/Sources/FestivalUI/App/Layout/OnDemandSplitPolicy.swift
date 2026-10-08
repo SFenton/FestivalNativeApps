@@ -18,12 +18,12 @@ import Foundation
 /// |---|---|
 /// | Rivals root, `.rivals`, `.allRivals` | `.rivalDetail` |
 /// | Leaderboards root, `.leaderboards` | `.fullRankings`, `.bandRankings`; `.player`, `.band` (full page) |
-/// | `.songDetail` | `.songLeaderboard`, `.playerHistory` |
+/// | `.songDetail` | `.songLeaderboard`, `.songBandLeaderboard` (issue #367), `.playerHistory` |
 /// | Settings root | `.licenses` |
 ///
-/// Songs, Song Leaderboard, Full and Band Rankings, Item Shop, Suggestions, Statistics,
-/// Compete, Band Detail, Player Bands and Rivalry never split: what they push opens
-/// full width.
+/// Songs, Song Leaderboard, Song Band Leaderboard, Full and Band Rankings, Item Shop,
+/// Suggestions, Statistics, Compete, Band Detail, Player Bands and Rivalry never split:
+/// what they push opens full width.
 ///
 /// **Profiles are full pages** (issue #352, agent decision the owner may override):
 /// a player or band profile never sits in a half pane. Opened from the list page it
@@ -38,7 +38,7 @@ enum OnDemandSplitPolicy {
         case rivals
         /// The Leaderboards overview (instrument and band cards).
         case leaderboards
-        /// Song Detail (its full leaderboards and score history).
+        /// Song Detail (its full instrument and band leaderboards and score history).
         case songDetail
         /// The Settings list (iPad, iPhone Duo; the Mac has a Settings window).
         case settings
@@ -52,7 +52,8 @@ enum OnDemandSplitPolicy {
             case (.rivals, .rivalDetail),
                  (.leaderboards, .fullRankings), (.leaderboards, .bandRankings),
                  (.leaderboards, .player), (.leaderboards, .band),
-                 (.songDetail, .songLeaderboard), (.songDetail, .playerHistory),
+                 (.songDetail, .songLeaderboard), (.songDetail, .songBandLeaderboard),
+                 (.songDetail, .playerHistory),
                  (.settings, .licenses):
                 true
             default:
