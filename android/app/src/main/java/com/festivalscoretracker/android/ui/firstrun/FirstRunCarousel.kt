@@ -32,7 +32,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -399,12 +401,20 @@ private fun ScaledDemo(id: String, active: Boolean, modifier: Modifier) {
  * The slide's decorative demo, hidden from accessibility services. It is drawn at font scale
  * 1.0 like a picture: the slide's title and description carry the meaning and follow the
  * user's font size, while a scaled illustration would only clip inside its fixed frame.
+ * Keyboard focus never enters it either (issue #420): the demos reuse real clickable rows and
+ * controls, which would otherwise be Tab stops that TalkBack and the user cannot see.
  */
 @Composable
 private fun DemoIllustration(id: String, active: Boolean, modifier: Modifier) {
     val density = LocalDensity.current
     CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = 1f)) {
-        Box(modifier.testTag("fst.first-run.demo").clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
+        Box(
+            modifier.testTag("fst.first-run.demo")
+                .clearAndSetSemantics { }
+                .focusProperties { onEnter = { cancelFocusChange() } }
+                .focusGroup(),
+            contentAlignment = Alignment.Center,
+        ) {
             FirstRunDemo(id, active = active)
         }
     }
