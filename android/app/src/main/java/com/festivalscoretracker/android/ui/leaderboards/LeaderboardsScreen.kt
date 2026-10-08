@@ -320,7 +320,7 @@ private fun BandsHeader(onBrowse: () -> Unit) {
  * @param icon Leading icon, or null.
  */
 @Composable
-private fun CardHeader(title: String, icon: (@Composable () -> Unit)? = null) {
+internal fun CardHeader(title: String, icon: (@Composable () -> Unit)? = null) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),

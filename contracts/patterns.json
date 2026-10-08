@@ -1545,6 +1545,10 @@
             "symbol": "FadeInWindow"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/firstrun/FirstRunEntrance.kt",
+            "symbol": "demoEntrance"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/SelectedRowRevealEffect.kt",
             "symbol": "awaitSelectedRowEntrance"
           }

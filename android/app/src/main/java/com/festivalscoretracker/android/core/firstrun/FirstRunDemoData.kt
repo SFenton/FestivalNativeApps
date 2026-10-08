@@ -3,6 +3,12 @@ package com.festivalscoretracker.android.core.firstrun
 import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.format.StarRatingSpec
 import com.festivalscoretracker.android.core.model.Instrument
+import com.festivalscoretracker.android.core.rivals.RivalCategorization
+import com.festivalscoretracker.android.core.rivals.RivalDirection
+import com.festivalscoretracker.android.core.rivals.RivalEntry
+import com.festivalscoretracker.android.core.rivals.RivalSentiment
+import com.festivalscoretracker.android.core.rivals.RivalSongComparison
+import com.festivalscoretracker.android.core.rivals.RivalSummary
 import com.festivalscoretracker.android.core.settings.MetadataField
 import com.festivalscoretracker.android.core.songs.SongMetadataPill
 import com.festivalscoretracker.android.core.songs.SongPercentileTier
@@ -80,7 +86,32 @@ data class FirstRunDemoRanking(val rank: Int, val name: String, val rating: Stri
  * @property behind Songs the rival trails.
  * @property avgDelta Average rank delta.
  */
-data class FirstRunDemoRival(val name: String, val rivalScore: Int, val shared: Int, val ahead: Int, val behind: Int, val avgDelta: Int)
+data class FirstRunDemoRival(val name: String, val rivalScore: Int, val shared: Int, val ahead: Int, val behind: Int, val avgDelta: Int) {
+    /**
+     * The rival as the service's summary, so demos draw the real `RivalRow` (web demos pass
+     * their `RivalSummary` to the real row too). The synthetic account ID is a valid,
+     * navigable ID so the row shows the name and chevron; demos never open it.
+     *
+     * @return Summary.
+     */
+    fun summary(): RivalSummary = RivalSummary(
+        accountId = "fst-first-run-${name.lowercase(Locale.ROOT)}",
+        displayName = name,
+        rivalScore = rivalScore.toDouble(),
+        sharedSongCount = shared,
+        aheadCount = ahead,
+        behindCount = behind,
+        avgSignedDelta = avgDelta.toDouble(),
+    )
+
+    /**
+     * The rival as a row on one side of the list.
+     *
+     * @param direction List side ([RivalDirection.Above] = the rival leads).
+     * @return Entry for the real `RivalRow`.
+     */
+    fun entry(direction: RivalDirection): RivalEntry = RivalEntry(summary(), direction)
+}
 
 /**
  * One head-to-head rank pair (web `RivalsDetailDemo` `CATEGORY_RANK_DATA`).
@@ -93,15 +124,40 @@ data class FirstRunDemoRival(val name: String, val rivalScore: Int, val shared: 
 data class FirstRunDemoComparison(val userRank: Int, val rivalRank: Int, val userScore: Int, val rivalScore: Int) {
     /** Whether the player leads. */
     val playerWins: Boolean get() = userRank < rivalRank
+
+    /**
+     * This pair on a real song as the service's comparison (web `RivalsDetailDemo`: Lead,
+     * `rankDelta = rivalRank - userRank`), for the real `RivalSongRow`.
+     *
+     * @param song Demo song (never a placeholder).
+     * @return Comparison.
+     */
+    fun comparison(song: FirstRunDemoSong): RivalSongComparison = RivalSongComparison(
+        songId = song.id,
+        title = song.title,
+        artist = song.artist,
+        instrument = Instrument.Lead.wireId,
+        userRank = userRank,
+        rivalRank = rivalRank,
+        rankDelta = rivalRank - userRank,
+        userScore = userScore.toLong(),
+        rivalScore = rivalScore.toLong(),
+    )
 }
 
 /**
  * A Rivals detail category with its four rank rows.
  *
- * @property title Category title.
+ * @property key Rival Detail category key ([RivalCategorization.keys]).
  * @property ranks Rank rows.
  */
-data class FirstRunDemoRivalCategory(val title: String, val ranks: List<FirstRunDemoComparison>)
+data class FirstRunDemoRivalCategory(val key: String, val ranks: List<FirstRunDemoComparison>) {
+    /** Rival Detail's heading for the category. */
+    val title: String get() = RivalCategorization.title(key)
+
+    /** Rival Detail's heading tone for the category. */
+    val sentiment: RivalSentiment get() = RivalCategorization.sentiment(key)
+}
 
 /** Web `firstRun/demoData.ts` and per-demo pools. */
 object FirstRunDemoPools {
@@ -155,12 +211,12 @@ object FirstRunDemoPools {
 
     /** Web `RivalsDetailDemo` `CATEGORIES` with `CATEGORY_RANK_DATA`, in display order. */
     val RIVAL_DETAIL_CATEGORIES: List<FirstRunDemoRivalCategory> = listOf(
-        FirstRunDemoRivalCategory("Closest Battles", ranks(14, 15, 988_000, 987_500, 23, 22, 965_000, 965_800, 8, 9, 995_200, 994_900, 31, 30, 942_000, 942_600)),
-        FirstRunDemoRivalCategory("Almost Passed", ranks(18, 15, 971_000, 978_000, 12, 9, 986_000, 992_000, 26, 22, 950_000, 958_000, 35, 31, 930_000, 938_000)),
-        FirstRunDemoRivalCategory("Slipping Away", ranks(28, 12, 945_000, 985_000, 40, 18, 910_000, 970_000, 35, 15, 930_000, 978_000, 48, 22, 890_000, 960_000)),
-        FirstRunDemoRivalCategory("Barely Winning", ranks(15, 18, 978_000, 971_000, 9, 12, 992_000, 986_000, 22, 26, 958_000, 950_000, 31, 35, 938_000, 930_000)),
-        FirstRunDemoRivalCategory("Pulling Forward", ranks(8, 22, 994_000, 960_000, 5, 18, 998_000, 970_000, 12, 30, 986_000, 940_000, 10, 26, 990_000, 952_000)),
-        FirstRunDemoRivalCategory("Dominating Them", ranks(3, 45, 999_000, 895_000, 2, 38, 999_500, 915_000, 5, 52, 998_000, 880_000, 4, 60, 998_500, 860_000)),
+        FirstRunDemoRivalCategory("closest_battles", ranks(14, 15, 988_000, 987_500, 23, 22, 965_000, 965_800, 8, 9, 995_200, 994_900, 31, 30, 942_000, 942_600)),
+        FirstRunDemoRivalCategory("almost_passed", ranks(18, 15, 971_000, 978_000, 12, 9, 986_000, 992_000, 26, 22, 950_000, 958_000, 35, 31, 930_000, 938_000)),
+        FirstRunDemoRivalCategory("slipping_away", ranks(28, 12, 945_000, 985_000, 40, 18, 910_000, 970_000, 35, 15, 930_000, 978_000, 48, 22, 890_000, 960_000)),
+        FirstRunDemoRivalCategory("barely_winning", ranks(15, 18, 978_000, 971_000, 9, 12, 992_000, 986_000, 22, 26, 958_000, 950_000, 31, 35, 938_000, 930_000)),
+        FirstRunDemoRivalCategory("pulling_forward", ranks(8, 22, 994_000, 960_000, 5, 18, 998_000, 970_000, 12, 30, 986_000, 940_000, 10, 26, 990_000, 952_000)),
+        FirstRunDemoRivalCategory("dominating_them", ranks(3, 45, 999_000, 895_000, 2, 38, 999_500, 915_000, 5, 52, 998_000, 880_000, 4, 60, 998_500, 860_000)),
     )
 
     /** Web `TopSongsDemo` `DEMO_PERCENTILES`, assigned by row index. */

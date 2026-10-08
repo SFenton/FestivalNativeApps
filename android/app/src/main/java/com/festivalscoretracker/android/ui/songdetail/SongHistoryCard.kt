@@ -70,6 +70,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.festivalscoretracker.android.core.format.ScoreFormatting
@@ -244,13 +245,29 @@ private suspend fun releasePin(pin: Animatable<Float, AnimationVector1D>, natura
  * @param reservesPager Whether to keep the pager row's space for a page size, so the card
  *   keeps its size across charts that do and don't page.
  * @param modifier Modifier (the swap fade).
+ * @param plotHeight Plot height (first-run demos draw a shorter plot in their fixed frame).
+ * @param showAll Show every point on one page (first-run demos, like the web demo chart).
+ * @param selected Externally driven selection (the bar-select demo), or null to follow taps.
+ * @param detailTag Test tag of the selected bar's detail row.
+ * @param showDetail Draw the selected bar's detail row (the bar-select demo fades its own).
  */
 @Composable
-private fun HistoryChart(points: List<SongHistoryPoint>, chart: Instrument, reservesPager: (Int) -> Boolean, modifier: Modifier = Modifier) {
+internal fun HistoryChart(
+    points: List<SongHistoryPoint>,
+    chart: Instrument,
+    reservesPager: (Int) -> Boolean,
+    modifier: Modifier = Modifier,
+    plotHeight: Dp = PLOT_HEIGHT,
+    showAll: Boolean = false,
+    selected: Int? = null,
+    detailTag: String = "fst.song-detail.history.detail",
+    showDetail: Boolean = true,
+) {
     BoxWithConstraints(modifier.fillMaxWidth()) {
-        val maxBars = SongHistoryChart.maxBars((maxWidth - AXES_WIDTH).value)
+        val maxBars = if (showAll) maxOf(1, points.size) else SongHistoryChart.maxBars((maxWidth - AXES_WIDTH).value)
         var paging by remember(chart) { mutableStateOf(SongHistoryPaging(points.size, maxBars)) }
         if (paging.size != points.size || paging.maxBars != maxBars) paging = paging.resized(points.size, maxBars)
+        if (selected != null && paging.selected != selected) paging = paging.copy(selected = selected)
         val page = points.subList(paging.pageStart, paging.pageEnd)
         val measurer = rememberTextMeasurer()
         val summary = remember(points, chart) { summary(points, chart) }
@@ -259,7 +276,7 @@ private fun HistoryChart(points: List<SongHistoryPoint>, chart: Instrument, rese
                 Canvas(
                     Modifier
                         .fillMaxWidth()
-                        .height(PLOT_HEIGHT)
+                        .height(plotHeight)
                         .testTag("fst.song-detail.history.chart")
                         .semantics { contentDescription = summary }
                         .pointerInput(page, paging.pageStart) {
@@ -321,7 +338,7 @@ private fun HistoryChart(points: List<SongHistoryPoint>, chart: Instrument, rese
             }
             Legend(page)
             AnimatedVisibility(
-                visible = paging.selected != null,
+                visible = showDetail && paging.selected != null,
                 enter = expandVertically() + fadeIn(),
                 exit = shrinkVertically() + fadeOut(),
             ) {
@@ -329,7 +346,7 @@ private fun HistoryChart(points: List<SongHistoryPoint>, chart: Instrument, rese
                     HistoryRow(
                         it,
                         best = false,
-                        tag = "fst.song-detail.history.detail",
+                        tag = detailTag,
                         showSeason = ScoreRowSeasonPolicy.showsSeason(ScoreRowSeasonPolicy.Surface.HistoryDetail, Float.NaN, it.season),
                     )
                 }
@@ -392,7 +409,7 @@ private fun Pager(paging: SongHistoryPaging, onChange: (SongHistoryPaging) -> Un
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun HistoryRow(point: SongHistoryPoint, best: Boolean, tag: String, showSeason: Boolean) {
+internal fun HistoryRow(point: SongHistoryPoint, best: Boolean, tag: String, showSeason: Boolean) {
     val season = point.season?.takeIf { showSeason }
     val shape = RoundedCornerShape(12.dp)
     val date = longDate(point.dateKey)

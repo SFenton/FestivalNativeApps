@@ -763,7 +763,7 @@ private fun EmptyState(subtitle: String, tag: String) {
  * whose card shows the empty state).
  */
 @Composable
-private fun CardHeader(song: Song, instrument: Instrument, totalEntries: Int?) {
+internal fun CardHeader(song: Song, instrument: Instrument, totalEntries: Int?) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp, bottom = 6.dp).semantics(mergeDescendants = true) { heading() }) {
         InstrumentIcon(instrument, keyboard = song.usesKeyboardIcon, size = 32.dp, decorative = true)
         Column(Modifier.padding(start = 10.dp)) {

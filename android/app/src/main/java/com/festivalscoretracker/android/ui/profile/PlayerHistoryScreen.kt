@@ -241,7 +241,7 @@ private fun LazyListScope.historyRows(rows: List<ScoreHistoryRow>, revealed: Boo
 }
 
 @Composable
-private fun HistoryRow(row: ScoreHistoryRow) {
+internal fun HistoryRow(row: ScoreHistoryRow) {
     val border = if (row.isHighScore) BorderStroke(1.dp, BrandTokens.gold) else BorderStroke(1.dp, BrandTokens.glassBorder)
     Surface(
         color = if (row.isHighScore) BrandTokens.accentPurple.copy(alpha = 0.25f) else BrandTokens.surfaceFrosted,
@@ -313,9 +313,38 @@ private fun SortSheet(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.verticalScroll(rememberScrollState()).testTag("fst.history.sort.form").padding(horizontal = 24.dp).padding(bottom = 24.dp).widthIn(max = 560.dp)) {
+        ScoreSortControls(mode, ascending, onMode, onAscending)
+    }
+}
+
+/**
+ * The Sort Scores sheet's choices: "Sort By" radio rows, then the "Sort Direction" segmented
+ * buttons. Shared by the sheet and its first-run demo (issue #380).
+ *
+ * @param mode Current sort mode.
+ * @param ascending Current direction.
+ * @param onMode Select a mode.
+ * @param onAscending Select a direction.
+ * @param modes Modes listed (the demo shows the ones that fit).
+ * @param modesModifier Modifier on the mode group (the demo's first entrance step).
+ * @param directionModifier Modifier on the direction group (the demo's second entrance step).
+ * @param showDirection Draw the direction group (the demo drops it when it doesn't fit).
+ */
+@Composable
+internal fun ScoreSortControls(
+    mode: PlayerScoreSortMode,
+    ascending: Boolean,
+    onMode: (PlayerScoreSortMode) -> Unit,
+    onAscending: (Boolean) -> Unit,
+    modes: List<PlayerScoreSortMode> = PlayerScoreSortMode.entries,
+    modesModifier: Modifier = Modifier,
+    directionModifier: Modifier = Modifier,
+    showDirection: Boolean = true,
+) {
+    Column(modesModifier) {
         SectionHeader("Sort By")
         Column(Modifier.selectableGroup()) {
-            PlayerScoreSortMode.entries.forEach { option ->
+            modes.forEach { option ->
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -329,6 +358,8 @@ private fun SortSheet(
                 }
             }
         }
+    }
+    if (showDirection) Column(directionModifier) {
         SectionHeader("Sort Direction")
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             listOf(true to "Ascending", false to "Descending").forEachIndexed { index, (value, label) ->

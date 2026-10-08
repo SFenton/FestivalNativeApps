@@ -374,7 +374,7 @@ private fun ControlButton(open: Boolean, label: String, tag: String, modifier: M
 
 /** Web option grid (2 columns): the choice is purple-highlighted. Tagged `$tag.<label lowercase>`. */
 @Composable
-private fun <T> OptionGrid(options: List<T>, selected: T, text: (T) -> String, tag: String, onSelect: (T) -> Unit) {
+internal fun <T> OptionGrid(options: List<T>, selected: T, text: (T) -> String, tag: String, onSelect: (T) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 12.dp).selectableGroup()) {
         options.chunked(2).forEach { pair ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
