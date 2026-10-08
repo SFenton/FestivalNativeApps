@@ -111,6 +111,7 @@ Live public service, SFentonX selected, dark scheme, animator scale 0. Each conf
 | Reduced motion | — | Nothing animates: both controls never move |
 | TalkBack | — | Top bar → Filter → cards (issue #112) |
 | Connected scroll journey | — | `journeys/PinnedPageControlsDeviceTest`: scrolls the feed three times, Filter and global search keep their bounds and open while scrolled, restore at the top, ATF plus traversal top bar (−2) → toolbar (−1) → list (0) on compact. Pass on FST_Phone (floating toolbar), FST_Book_Fold half-open and FST_Tablet (top bar) |
+| Accessibility of the pinned controls (issue #418) | Filter's target size was never measured, and no journey scrolled the feed at 200 % text | The same journey asserts at the top and while scrolled that Filter (or ⋮) and global search are named buttons, with targets ≥ 48 dp that don't overlap and lie on screen. `suggestionsFilterAndGlobalSearchStayPinnedAndReachableAtDoubleFontScale` repeats it at 200 % text. Pass on FST_Phone, FST_Tablet and FST_Book_Fold half-open; no defect found |
 
 Tests: `ui/PinnedPageControlsUiTest` (phone, medium, expanded Suggestions cases) and the connected `journeys/PinnedPageControlsDeviceTest`.
 
