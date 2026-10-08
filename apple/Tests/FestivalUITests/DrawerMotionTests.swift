@@ -72,3 +72,16 @@ import Testing
     #expect(DrawerMotion().presence == 1)
     #expect(DrawerMotion().scrim == 1 && DrawerMotion().panel == 1)
 }
+
+/// The Debug slow-motion factor for the rendered journey is bounded, and tests run at
+/// normal speed.
+@Test func drawerMotionDebugTimeScale() {
+    #expect(DrawerMotion.debugTimeScale(nil) == 1)
+    #expect(DrawerMotion.debugTimeScale("20") == 20)
+    #expect(DrawerMotion.debugTimeScale("0.5") == 1)
+    #expect(DrawerMotion.debugTimeScale("abc") == 1)
+    #expect(DrawerMotion.debugTimeScale("1000") == 60)
+    #expect(DrawerMotion.debugTimeScale("inf") == 1)
+    #expect(DrawerMotion.debugTimeScale("nan") == 1)
+    #expect(DrawerMotion.timeScale == 1)
+}

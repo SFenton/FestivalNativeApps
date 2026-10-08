@@ -231,7 +231,29 @@ struct DrawerMotion: Equatable {
 
     /// Drives ``presence`` for an open or close; linear because ``scrim`` and ``panel``
     /// carry each stage's own easing.
-    static var animation: Animation { .linear(duration: totalDuration) }
+    static var animation: Animation { .linear(duration: totalDuration * timeScale) }
+
+    /// Slow-motion factor for the whole sequence: 1 in Release.
+    ///
+    /// Debug builds read `FST_DEBUG_DRAWER_SLOWMO=<factor>` (at least 1) so the rendered
+    /// UI journey `DrawerMotionJourneyTests` can sample each stage in screenshots.
+    static let timeScale: Double = {
+        #if DEBUG
+        let raw = ProcessInfo.processInfo.environment["FST_DEBUG_DRAWER_SLOWMO"]
+        return debugTimeScale(raw)
+        #else
+        return 1
+        #endif
+    }()
+
+    /// Parse a slow-motion factor.
+    ///
+    /// - Parameter raw: The `FST_DEBUG_DRAWER_SLOWMO` value, if any.
+    /// - Returns: The factor clamped to 1…60; 1 when missing or not a number.
+    static func debugTimeScale(_ raw: String?) -> Double {
+        guard let value = raw.flatMap(Double.init), value.isFinite else { return 1 }
+        return max(1, min(60, value))
+    }
 
     /// 0 when closed, 1 when open.
     var presence: Double = 1
