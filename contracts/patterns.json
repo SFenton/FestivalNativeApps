@@ -2869,7 +2869,7 @@
       "title": "Songs profile panel",
       "status": "current",
       "doc": ".agents/patterns/songs-profile-panel.md",
-      "summary": "On wide Songs rows (iPad, iPhone Duo inner display, Mac) with a selected player or band whose score index is available and publication-matched, the row splits: song on the left, that profile's compact score cards (per scored instrument, or one band card) on the right. Compact cards keep one line or the row stays plain; loading, paused, failed, Filter Invalid Scores, accessibility sizes and Shop rows keep today's row.",
+      "summary": "On wide Songs rows (iPad, iPhone Duo inner display, Mac) with a selected player or band whose score index is available and publication-matched, the row splits: song on the left, that profile's compact score cards (per scored instrument, or one band card) on the right. Compact cards keep one line or the row stays plain; loading, paused, failed, Filter Invalid Scores, accessibility sizes and Shop rows keep today's row. Card fields follow the saved Song Row Visual Order only while Independent Visual Order is on, else the web default order (MetadataField.songRowOrder).",
       "keywords": [
         "profile panel",
         "wide row",
@@ -2879,12 +2879,18 @@
         "selected profile",
         "songs row",
         "one line",
-        "fit"
+        "fit",
+        "visual order",
+        "field order"
       ],
       "web": [
         {
           "path": "pages/songs/SongsPage.tsx",
           "symbol": "bandPerformanceToPlayerScore"
+        },
+        {
+          "path": "pages/songs/SongsPage.tsx",
+          "symbol": "visibleMetadataOrder"
         }
       ],
       "canonical": {
@@ -2904,6 +2910,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Songs/SongProfilePanel.swift",
             "symbol": "songProfilePanelAccessibility"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/SettingsScreen.swift",
+            "symbol": "songRowOrder"
           },
           {
             "path": "apple/Sources/FestivalUI/Features/Songs/SongRowView.swift",

@@ -11,7 +11,7 @@ Selected-player scores are available, identity- and publication-validated, and *
 ## Wide rows: the profile panel
 
 Wide shells (Apple: iPad, the iPhone Duo inner display and Mac) split a selected player's or band's scored Songs rows into song | score cards. The rules (gates, one-line fit, player and band cards, grid, surfaces, accessibility, test IDs) and the A/B/C agent decision live in the [songs-profile-panel](../../patterns/songs-profile-panel.md) pattern. This control supplies the cards' pills:
-- "All instruments" and band cards show only Score, Accuracy/FC, Percentile and Stars (where enabled), in the saved order, and keep them on **one line**; when they can't, the row keeps the plain presentation above (pattern R3).
+- "All instruments" and band cards show only Score, Accuracy/FC, Percentile and Stars (where enabled), in the Song row order (Settings' Song Row Visual Order only while Independent Visual Order is on, else the web default), and keep them on **one line**; when they can't, the row keeps the plain presentation above (pattern R3).
 - A filtered chart's single card shows every enabled field and wraps its pills in the half, like the one-chart row.
 
 ## Fields (source default order)

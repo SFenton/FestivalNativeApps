@@ -475,6 +475,112 @@ private func expectPanelFollowsSong(
     expectPanelFollowsSong(bandTree, songId: song, cards: [("band", "Fixture Duo")])
 }
 
+// MARK: - Song Row Visual Order (#372)
+
+/// A deliberately non-default saved Song Row Visual Order: Stars, Percentile, Accuracy,
+/// then Score (the web default leads with Score).
+private let reversedSongRowOrder: [MetadataField] = [
+    .stars, .percentile, .percentage, .score, .season, .intensity, .difficulty, .lastPlayed,
+]
+
+/// Host a real Songs view with a persisted, non-default Song Row Visual Order, then
+/// turn Independent Visual Order on in the live host and read the tree after each state.
+///
+/// - Parameters:
+///   - size: Host size.
+///   - ready: True once the row (or its profile panel) shows scores.
+///   - content: The real `SongRowView` or `SongsScreen` under test.
+/// - Returns: Accessibility trees with Independent Visual Order off, then on.
+/// - Throws: A failed hosted render.
+@MainActor
+private func visualOrderTrees<Content: View>(
+    size: CGSize, ready: @escaping @MainActor (NSView) -> Bool,
+    @ViewBuilder content: () -> Content
+) async throws -> (off: [MacAXNode], on: [MacAXNode]) {
+    let suiteName = "fst-song-row-order-\(UUID().uuidString)"
+    let storage = try #require(UserDefaults(suiteName: suiteName))
+    defer { storage.removePersistentDomain(forName: suiteName) }
+    storage.set(true, forKey: "fst.accessibility.moreContrast")
+    storage.set(true, forKey: "fst.settings.hideShop")
+    storage.set(SettingsOrder.encode(reversedSongRowOrder), forKey: "fst.settings.songRowVisualOrder")
+    storage.set(false, forKey: "fst.settings.enableVisualOrder")
+    let host = nativeHostedView(
+        content().defaultAppStorage(storage).preferredColorScheme(.dark), size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    _ = try await nativeHostedSettle(host) { ready(host) }
+    let off = macAccessibilityTree(host)
+    storage.set(true, forKey: "fst.settings.enableVisualOrder")
+    _ = try await nativeHostedSettle(host) {
+        macAccessibilityTree(host).map(\.description) != off.map(\.description)
+    }
+    return (off, macAccessibilityTree(host))
+}
+
+/// The pill identifiers' field names in a node's (combined) identifier, in order.
+///
+/// - Parameters:
+///   - nodes: A hosted tree.
+///   - songId: The row's song.
+/// - Returns: Field names such as `score`, `accuracy`, from the first node that has them.
+private func pillOrder(_ nodes: [MacAXNode], songId: String) -> [String] {
+    let prefix = "fst.songs.metadata."
+    let suffix = ".\(songId)"
+    guard let node = nodes.first(where: { $0.identifier.contains(prefix) }) else { return [] }
+    return node.identifier.components(separatedBy: prefix).compactMap { part in
+        let trimmed = part.hasSuffix("-") ? String(part.dropLast()) : part
+        return trimmed.hasSuffix(suffix) ? String(trimmed.dropLast(suffix.count)) : nil
+    }
+}
+
+/// Songs rows follow a saved Song Row Visual Order only while Independent Visual Order
+/// is on (web `SongsPage.visibleMetadataOrder`, `songs-profile-panel` R3, #372): a plain
+/// row's pills and a wide row's profile-panel card both keep the web default
+/// (Score, Accuracy, Percentile, Stars, …) while it is off, and switch to the saved
+/// order (Stars, Percentile, Accuracy, Score) live when it turns on.
+@MainActor
+@Test func songRowsFollowSavedVisualOrderOnlyWhileEnabled() async throws {
+    let fixtures = try selectedRowFixtures()
+    let player = try await selectedRowSession(accountId: "fixture-player-2", fixtures: fixtures)
+    let song = fixtures.song.songId
+
+    let plain = try await visualOrderTrees(
+        size: CGSize(width: 390, height: 320),
+        ready: { nativeHostedAccessibility($0).contains("Score") }
+    ) {
+        SongRowView(
+            song: fixtures.song, instrument: nil, session: player, highContrast: false,
+            shopHighlight: nil, profileChart: .lead, catalogueObservation: 7,
+            metadata: SongMetadataVisibility(), filterInvalidScores: false,
+            showInstrumentIcons: false, visibleInstruments: Set(Instrument.allCases),
+            currentSeason: fixtures.season
+        )
+        .background(BrandTokens.appBackground)
+    }
+    #expect(pillOrder(plain.off, songId: song)
+        == ["score", "accuracy", "percentile", "stars", "season", "intensity", "difficulty"])
+    #expect(pillOrder(plain.on, songId: song)
+        == ["stars", "percentile", "accuracy", "score", "season", "intensity", "difficulty"])
+    let plainOn = try #require(plain.on.first { $0.identifier.contains("fst.songs.metadata.") })
+    #expect(plainOn.spokenName.contains("5 stars, Top 10%, Full combo"), "\(plainOn)")
+
+    let card = "fst.songs.profile-panel.\(song).\(Instrument.lead.rawValue)"
+    let wide = try await visualOrderTrees(
+        size: CGSize(width: 1100, height: 700),
+        ready: { nativeHostedAccessibilityElement(card, in: $0) != nil }
+    ) {
+        NavigationStack {
+            SongsScreen(session: player, initialState: .loaded(fixtures.catalog), isVisible: false)
+        }
+    }
+    let leadOff = try #require(wide.off.first { $0.identifier == card })
+    let leadOn = try #require(wide.on.first { $0.identifier == card })
+    #expect(leadOff.spokenName.hasPrefix("Lead: Score 99,800, Full combo"), "\(leadOff)")
+    #expect(leadOn.spokenName.hasPrefix("Lead: 5 stars, Top 10%, Full combo"), "\(leadOn)")
+    #expect(leadOn.spokenName.contains("Score 99,800"), "\(leadOn)")
+}
+
 /// The same anonymous native card must paint the source's optional duration.
 @MainActor
 @Test func songRowPaintsOptionalCatalogueDuration() throws {
