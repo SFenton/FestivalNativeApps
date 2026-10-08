@@ -15,11 +15,13 @@ import FestivalDesign
 ///   - name: Evidence file stem.
 ///   - save: Writes the saved filter (or older "show only" switches) into the app storage.
 ///   - settled: Stops polling once the accents show the expected rows.
+///   - inspect: Reads the settled host (accessibility tree, element frames).
 /// - Returns: Accent counts of the settled render.
 @MainActor
 private func renderFilteredShop(
     name: String, save: (UserDefaults) -> Void,
-    settled: ((gold: Int, red: Int, bright: Int)) -> Bool
+    settled: ((gold: Int, red: Int, bright: Int)) -> Bool,
+    inspect: ((NSView) -> Void)? = nil
 ) async throws -> (gold: Int, red: Int, bright: Int) {
     let bytes = try shopFixtureBytes()
     let suiteName = "fst-shop-filter-\(UUID().uuidString)"
@@ -64,6 +66,7 @@ private func renderFilteredShop(
         )
         if settled(last) { break }
     }
+    inspect?(host)
     return last
 }
 
@@ -73,16 +76,18 @@ private func renderFilteredShop(
 ///   - filter: The saved Shop filter.
 ///   - name: Evidence file stem.
 ///   - settled: Stops polling once the accents show the expected rows.
+///   - inspect: Reads the settled host (accessibility tree, element frames).
 /// - Returns: Accent counts of the settled render.
 @MainActor
 private func renderFilteredShop(
     _ filter: ShopOfferFilter, name: String,
-    settled: ((gold: Int, red: Int, bright: Int)) -> Bool
+    settled: ((gold: Int, red: Int, bright: Int)) -> Bool,
+    inspect: ((NSView) -> Void)? = nil
 ) async throws -> (gold: Int, red: Int, bright: Int) {
     try await renderFilteredShop(
         name: name,
         save: { $0.set(filter.encoded(), forKey: ShopOfferFilter.storageKey) },
-        settled: settled
+        settled: settled, inspect: inspect
     )
 }
 
@@ -135,15 +140,35 @@ private func renderFilteredShop(
     #expect(noneSelected.red > 10)
 }
 
-/// A filter that hides every offer paints the no-match card, not a highlighted row.
+/// A filter that hides every offer shows the shared centred empty state (issue #377):
+/// web-modelled copy, no card, no Reset Filters button, centred in the page.
 @MainActor
-@Test func shopFilterWithNoMatchesPaintsResetCard() async throws {
+@Test func shopFilterWithNoMatchesShowsCentredEmptyState() async throws {
+    var tree = NativeHostedAccessibility(texts: [], identifiers: [])
+    var frame: CGRect?
+    var hostSize = CGSize.zero
     let none = try await renderFilteredShop(
-        ShopOfferFilter(new: false, leavingTomorrow: false), name: "no-match"
-    ) { _ in false }
+        ShopOfferFilter(new: false, leavingTomorrow: false), name: "no-match",
+        settled: { _ in false },
+        inspect: { host in
+            tree = nativeHostedAccessibility(host)
+            frame = nativeHostedAccessibilityFrame("fst.shop.filter-empty", in: host)
+            hostSize = host.bounds.size
+        }
+    )
     #expect(none.bright > 20)
-    // No gold New border; the only red is the Reset Filters text, not a Leaving border.
+    // No gold New border, and no red at all: the Reset Filters button is gone.
     #expect(none.gold < 5)
+    #expect(none.red < 5)
+    #expect(tree.contains(ShopEmptyCopy.filteredTitle))
+    #expect(tree.contains(ShopEmptyCopy.filteredSubtitle))
+    #expect(!tree.contains("Reset Filters"))
+    #expect(!tree.identifiers.contains("fst.shop.filter-empty.reset"))
+    #expect(!tree.contains("No offers match these filters"))
+    // Centred horizontally in the page, and below the page's top half-way mark.
+    let empty = try #require(frame)
+    #expect(abs(empty.midX - hostSize.width / 2) < 2)
+    #expect(empty.midY > hostSize.height * 0.35)
 }
 
 /// The sheet paints its switch rows and Reset over the Festival sheet surface.

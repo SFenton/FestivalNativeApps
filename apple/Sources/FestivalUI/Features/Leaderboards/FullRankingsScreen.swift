@@ -200,10 +200,11 @@ struct FullRankingsScreen: View {
                             .festivalFadeInOnAppear()
                         }
                         if payload.rankings.entries.isEmpty {
-                            Text("No ranked players yet.")
-                                .foregroundStyle(FestivalText.primary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .festivalFadeInOnAppear()
+                            FestivalEmptyState(
+                                "No ranked players yet", placement: .inline,
+                                accessibilityIdentifier: "fst.full-rankings.empty"
+                            )
+                            .festivalFadeInOnAppear()
                         }
                         // Row-major pairs in wide landscape (wide-columns R2, #353).
                         ForEach(WideColumns.indexedRows(payload.rankings.entries, columns: columns)) { row in

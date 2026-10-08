@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -82,12 +83,7 @@ import com.festivalscoretracker.android.ui.common.FestivalModalSheet
  */
 @Composable
 fun LicensesScreen(loadManifest: (suspend () -> LicenseManifest)? = null) {
-    val context = LocalContext.current
-    val manifest by produceState<LicenseManifest?>(null) {
-        value = loadManifest?.invoke() ?: withContext(Dispatchers.IO) {
-            LicenseManifest.parse(runCatching { context.assets.open(ASSET).bufferedReader().use { it.readText() } }.getOrNull())
-        }
-    }
+    val manifest = rememberLicenseManifest(loadManifest)
     val split = rememberHingeSplit()
     // The app's shared list-detail rule (Songs): an expanded window (≥ 840 dp, in text-scaled
     // dp at large text) or a separating vertical hinge, so a flat unfolded book fold gets panes
@@ -107,15 +103,68 @@ fun LicensesScreen(loadManifest: (suspend () -> LicenseManifest)? = null) {
  */
 @Composable
 internal fun LicensesContent(manifest: LicenseManifest?, wide: Boolean, hinge: Pair<Float, Float>?) {
-    var openId by rememberSaveable { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
     val scrolled by remember(listState) { derivedStateOf { listState.canScrollBackward } }
+    FestivalScreen(title = "Licenses", isRoot = false, scrolled = scrolled) { padding ->
+        LicensesBody(manifest, wide, hinge, padding, listState)
+    }
+}
+
+/**
+ * Settings → Licenses in the Settings detail pane (list/detail Settings, issue #371): the same
+ * package card as the page, under the pane's [header], without a page bar of its own. The pane
+ * is a single column, so a package opens its license in the standard sheet, as on a phone.
+ *
+ * @param padding Page content padding from the Settings screen.
+ * @param header Pane heading (the detail's title and hint), the first list item.
+ * @param loadManifest Manifest source (the bundled asset by default).
+ */
+@Composable
+internal fun LicensesPane(padding: PaddingValues, header: @Composable () -> Unit, loadManifest: (suspend () -> LicenseManifest)? = null) {
+    LicensesBody(rememberLicenseManifest(loadManifest), wide = false, hinge = null, padding, rememberLazyListState(), header)
+}
+
+/**
+ * The bundled license manifest, read off the main thread; null until it is read.
+ *
+ * @param loadManifest Manifest source (the bundled asset by default).
+ */
+@Composable
+private fun rememberLicenseManifest(loadManifest: (suspend () -> LicenseManifest)?): LicenseManifest? {
+    val context = LocalContext.current
+    val manifest by produceState<LicenseManifest?>(null) {
+        value = loadManifest?.invoke() ?: withContext(Dispatchers.IO) {
+            LicenseManifest.parse(runCatching { context.assets.open(ASSET).bufferedReader().use { it.readText() } }.getOrNull())
+        }
+    }
+    return manifest
+}
+
+/**
+ * The Licenses list (and its detail pane or sheet) inside a page or pane.
+ *
+ * @param manifest Loaded manifest, or null while it is read (load gate).
+ * @param wide Show list and detail side by side.
+ * @param hinge (start pane width, hinge width) in pixels across a separating vertical hinge, or null.
+ * @param padding Content padding from the enclosing screen.
+ * @param listState Package list scroll state.
+ * @param header Optional heading before the package list (the Settings pane title).
+ */
+@Composable
+private fun LicensesBody(
+    manifest: LicenseManifest?,
+    wide: Boolean,
+    hinge: Pair<Float, Float>?,
+    padding: PaddingValues,
+    listState: LazyListState,
+    header: (@Composable () -> Unit)? = null,
+) {
+    var openId by rememberSaveable { mutableStateOf<String?>(null) }
     val density = LocalDensity.current
     // List-detail always populated (operator 2026-09-28): the package picked last, else the
     // first one; a sheet otherwise.
-    FestivalScreen(title = "Licenses", isRoot = false, scrolled = scrolled) { padding ->
-        // Shared load gate (batch 6.41): spinner until the manifest is read, then the rows stagger in.
-        FestivalLoadGate(ready = manifest != null, modifier = Modifier.fillMaxSize(), label = "Loading licenses") {
+    // Shared load gate (batch 6.41): spinner until the manifest is read, then the rows stagger in.
+    FestivalLoadGate(ready = manifest != null, modifier = Modifier.fillMaxSize(), label = "Loading licenses") {
         val current = manifest ?: return@FestivalLoadGate
         val open = current.packages.firstOrNull { it.id == openId }
         val shown = open ?: current.packages.firstOrNull()?.takeIf { wide }
@@ -131,6 +180,11 @@ internal fun LicensesContent(manifest: LicenseManifest?, wide: Boolean, hinge: P
                     else -> Modifier.weight(1f)
                 }.fillMaxHeight().testTag("fst.licenses.list"),
             ) {
+                if (header != null) {
+                    item(key = "pane-header") {
+                        Column(Modifier.widthIn(max = PAGE_CONTENT_MAX_WIDTH).fillMaxWidth().padding(top = 8.dp)) { header() }
+                    }
+                }
                 item(key = "software-header") {
                     Header(
                         "Open Source Software",
@@ -164,7 +218,6 @@ internal fun LicensesContent(manifest: LicenseManifest?, wide: Boolean, hinge: P
             }
         }
         if (!wide && open != null) LicenseSheet(open, current.text(open)) { openId = null }
-        }
     }
 }
 

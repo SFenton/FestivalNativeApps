@@ -2,7 +2,7 @@
 
 > **What:** shared policy for translucent content cards, rows and floating controls over artwork. **Read when:** adding or changing a card, row, capsule, sheet fallback or custom glass effect.
 
-Status: **current**, 2026-10-08. Provenance: #291, #312 (R7), #319, #358 (R2 Duo variant).
+Status: **current**, 2026-10-08. Provenance: #291, #312 (R7), #319, #358 (R2 Duo variant), #381 (R8), #382 (R7 Apple in-card CTA).
 
 ## Intent
 
@@ -29,15 +29,18 @@ Content must remain legible and cheap to scroll over animated artwork. Use one p
 - **R6. Avoid nesting surfaces.** A group owns one card; its rows, pills, badges and meters use flat fills. System sheets own their own material and must not contain a second glass card.
   - Example: the Apple Songs wide-row profile panel (#340, `Features/Songs/SongProfilePanel.swift`). Its instrument and band cards are flat `surfaceMuted` fills inside the one row card, with no material of their own ([songs-profile-panel](songs-profile-panel.md) R7).
 - **R7. A "View all" call to action takes the web's surface.** Where the web frosts it (player page `BandViewAllCard`), it is a full-width frosted card on the canonical surface: 48 dp/pt/epx minimum height, centred Title Case label and the in-card chevron, one button named by its label. The purple filled leaderboard CTA is an **approved variant** only where the operator chose it over the web's frosted fill (6.29: leaderboard, song, ranking and rivals cards); do not extend it to new View-all rows.
+  - Apple (#382): inside a `FestivalGlassSection` the purple CTA is the card's `action`, a **flat, opaque** `accentPurple` fill with no material or rim of its own (R6), 10 pt from the card's edges. It is never Liquid Glass (R2; HIG Materials: "Don't use Liquid Glass in the content layer"). Only a CTA outside a group card (Player Bands' tile grid) keeps the tinted material. [view-all-cta](view-all-cta.md#agent-decision-apple-view-all-inside-the-card-382).
   - Agent decision (#312, 2026-10-06): Android's player-page "View All Bands (N)" is a clickable `GlassCard` (web frosted card), not `ViewFullLeaderboardButton`; owner may override with `/choose`.
   - Windows (#312 review): the profile Bands groups' "View All Bands (N)" is `Controls/ViewAllCard` on its implicit `Themes/Styles.xaml` style (`FSTCardSurfaceBrush`/`FSTCardStrokeBrush`, `FSTViewAllCardMinHeight` 48 epx, card hover/press fills), never `FSTViewAllButtonStyle`; `ViewAllCardTests`, the `windows-profile-purple-view-all` guard and the `profile.py` `bands-section` paint probe (no purple fill, white chevron right of the label) hold it.
+
+- **R8. Apple groups a dashboard section's repeated rows in one card (#381).** On iPhone, iPad and Mac, a titled section on a dashboard page (Song Detail, Compete, Leaderboards overview, and their First Run demos, Leaderboards' your-rank and Song Info's top-scores demos included) puts its rows into one `FestivalGlassSection(rows: .flush(separatorInset:))` card, like the Rivals cards. Rows sit edge to edge with inset hairlines on every supported OS: iOS 17 and macOS 14, which can't enumerate subviews, draw each row's hairline above it (`FestivalLeadingHairline`) with the first one clipped by the card, so the layout matches iOS 18 (`GroupedRowsHostedTests` renders both). The selected-player row fills its full band in the player purple, and Mac hover and focus draw inside the band. The section's View All button ends the card inside it (`FestivalGlassSection` `action:`, R7, #382). A page that is itself one list keeps a card per row: Songs and Item Shop song rows, the full boards (solo, band, Full Rankings, Band Rankings), the Score History page, Player Bands and search results. Rows inside a flush group read `festivalGroupedRow` and drop their own card (`RankingRowSurface.treatment`, `ScoreHistoryListRow`, `CardMessageSurface`, `RankingsSkeletonRows`, `MacRowInteractionEffect`), so no new row surface exists. HIG Lists and tables: "iOS/iPadOS **grouped style** — headers, footers, extra spacing to separate groups." [Agent decision below](#agent-decision-apple-grouped-dashboard-rows-381).
 
 ## Canonical implementation
 
 | Sub-behavior | Apple | Android | Windows |
 |---|---|---|---|
 | Content card and row | `FestivalUI/Design/RowCardSurface.swift` `FestivalCardModifier`, `festivalCard`, `festivalRowCard` | `ui/design/DesignPrimitives.kt` `GlassCard` | `Festival.App/Themes/Styles.xaml` `FSTCardSurfaceBrush`; `Controls/SongRowCard.xaml.cs` `SongRowCard` |
-| Group and floating capsule | `FestivalUI/Design/GlassSection.swift` `FestivalGlassSection`; `RowCardSurface.swift` `festivalCardCapsule` | `ui/design/DesignPrimitives.kt` `GlassCard` | `Controls/LeaderboardEntryRow.xaml.cs` `LeaderboardEntryRow`; `Controls/LeaderboardsPager.xaml.cs` `LeaderboardsPager`; `Themes/Styles.xaml` `FSTFloatingBackplateBrush` (pinned row only) |
+| Group and floating capsule | `FestivalUI/Design/GlassSection.swift` `FestivalGlassSection` (`rows: .flush(separatorInset:)` for grouped dashboard rows, R8; `festivalGroupedRow` environment); `RowCardSurface.swift` `festivalCardCapsule` | `ui/design/DesignPrimitives.kt` `GlassCard` | `Controls/LeaderboardEntryRow.xaml.cs` `LeaderboardEntryRow`; `Controls/LeaderboardsPager.xaml.cs` `LeaderboardsPager`; `Themes/Styles.xaml` `FSTFloatingBackplateBrush` (pinned row only) |
 | Glass exception | `FestivalUI/Design/GlassSurface.swift` `FestivalGlassModifier` (drawer; Duo bottom search field via `Features/Search/GlobalSearchView.swift` `GlobalSearchFieldSurface`, #358) | Native navigation chrome | Native pane/overlay chrome |
 | Frosted View-all card (R7) | — (not yet ported) | `ui/profile/ProfileBands.kt` `ProfileBandsViewAll` (`GlassCard(onClick)` + `RowChevron`) | `Festival.App/Controls/ViewAllCard.cs` `ViewAllCard` (implicit style in `Themes/Styles.xaml`) |
 | Purple View-all CTA (approved variant, 6.29) | `Features/Leaderboards/PurpleActionButton.swift` | `ui/design/ViewFullLeaderboardButton.kt` | `Themes/Styles.xaml` `FSTViewAllButtonStyle` |
@@ -68,6 +71,18 @@ Agent decision (#319, 2026-10-06, owner may override with `/choose`). Question: 
 
 The change covered every board-footer Your page button: those two, plus the Song Band Leaderboard's `fst.song-band-leaderboard.spotlight-jump` in `Pages/BandsSongLeaderboardPage.xaml` (#306 copied the Solo footer before #319 landed; #326 moved it). They were the only other XAML consumers of the retired `FSTPagerButtonBrush` (the `windows-pager-only-plate` guard keeps it retired). A new board footer copies the card-surface button, never the old plate. The pinned row's `FSTFloatingBackplateBrush` is a backplate under that row's own card surface (#208), not a control surface, so it stays. Since #307 (song and song band boards) and #318 (Full Rankings) no board has a Your page button: each pinned row is the jump-or-open control ([leaderboard-row](leaderboard-row.md) R7); `PagerSurfaceMarkupTests` `SongBoardPinnedRow_IsTheJumpControl` and `FullRankingsPinnedRow_IsItsOwnJumpControl` pin that.
 
+### Agent decision: Apple grouped dashboard rows (#381)
+
+Agent decision (#381, 2026-10-07, owner may override with `/choose`). The owner asked that score history and graphs, per-category user lists "and other patterns like this" take after the Rivals cards (several entries in one card), while song rows stay separate cards. Which lists count?
+
+| Option | What you'd see | Guidance (strength) | Web / pattern precedent | Trade-offs |
+|---|---|---|---|---|
+| **A. Group titled dashboard sections; full single-list pages keep row cards (chosen)** | Song Detail's Score History (graph and recent scores in one card), its instrument and band leaderboard previews, Compete and Leaderboards overview cards, the Duo history pane and the matching First Run demos each show one card. Boards, Score History page, Songs and Shop keep separate cards. | HIG Lists and tables (**should**, style): "Match style to data and platform … iOS/iPadOS grouped style — headers, footers, extra spacing to separate groups." | Apple Rivals `RivalCommonSection` / `RivalComboSection` (`FestivalGlassSection`, padded rows). Web keeps frosted rows per entry (`RankingCard`, `InstrumentCard`); owner asked for the Apple divergence. | Pinned footers, pagers, wide/hinge columns and the boards' staggered reveal keep working unchanged. |
+| B. Also group every full board and list page | One long card per board. | Same HIG clause. | None. | Breaks [leaderboard-row](leaderboard-row.md) R5 (rows fade above the pager) and R7 pinned footers, [wide-columns](wide-columns.md) R8 paired columns and the List-based boards' virtualization. |
+| C. Keep separate cards | No change. | — | Web. | Ignores the request. |
+
+**Chose A.** The owner's request decides that grouping happens, and the HIG grouped style applies to sections with headers. Song rows stay cards on the owner's word, and boards that are a page's only list behave like song rows: each row is a destination with its own pinned/footer chrome. The Player Bands preview on the player page is a tile grid on wide layouts, so it stays as band cards. The purple View All CTAs (R7) stayed below the cards; #382 then moved them inside (R7, [view-all-cta](view-all-cta.md#agent-decision-apple-view-all-inside-the-card-382)).
+
 ## Known debt
 
 | Debt | Breaks | Plan |
@@ -78,7 +93,7 @@ The change covered every board-footer Your page button: those two, plus the Song
 
 - `surface-materials/apple-glass-effect`
 - `surface-materials/apple-glass-consumers` — shipping glass (`festivalGlass`, `festivalGlassCapsule`, `FestivalGlassModifier`) stays in the design layer, the drawer and the iPhone Duo bottom search field (`GlobalSearchView.swift`, owner-approved #358).
-- `surface-materials/apple-raw-material-background` — approved allows: `PurpleActionButton`, the pre-26 First Run sheet fallback, and First Run's matching purple demo control.
+- `surface-materials/apple-raw-material-background` — approved allows: `PurpleActionButton` and the pre-26 First Run sheet fallback. First Run's purple demo control draws `PurpleActionSurface` (#382), so it has no allow of its own.
 - `surface-materials/apple-feature-opaque-card` — no feature draws `.background(BrandTokens.cardBackground, in:)`: that opaque plate is `FestivalCardModifier`'s accessibility fallback (#319 removed the pager's private `PagerPlate`).
 - `surface-materials/windows-pager-only-plate` — no Windows XAML uses the retired pager-only `FSTPagerButtonBrush` / `FSTPagerBadgeBrush` plates (#319).
 - `surface-materials/windows-profile-purple-view-all` — the Windows profile's View All Bands (N) never takes `FSTViewAllButtonStyle` (R7, #312).

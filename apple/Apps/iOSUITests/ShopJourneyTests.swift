@@ -42,7 +42,12 @@ final class ShopJourneyTests: XCTestCase {
             toggle.tap()
             XCTAssertEqual(toggle.label, current)
         } else {
-            XCTAssertEqual(app.tabBars.buttons.count, 3)
+            // The Shop opens inside Songs navigation, never as its own compact tab.
+            let shopTab = app.tabBars.buttons.matching(
+                NSPredicate(format: "label CONTAINS[c] %@", "Shop")
+            )
+            XCTAssertEqual(shopTab.count, 0)
+            XCTAssertTrue(app.tabBars.buttons["Songs"].exists)
         }
         SongsUITestSupport.record(app, name: "shop-populated-offers")
         try app.performAccessibilityAudit(for: .all)
@@ -100,18 +105,88 @@ final class ShopJourneyTests: XCTestCase {
         XCTAssertEqual(new.value as? String, "1")
         SongsUITestSupport.setSwitch(new, to: "0")
         app.buttons["fst.shop.filter.done"].tap()
-        let emptyReset = app.buttons["fst.shop.filter-empty.reset"]
-        XCTAssertTrue(emptyReset.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["No offers match these filters"].exists)
+        // Shared centred empty state (issue #377): web-modelled copy, no Reset button.
+        let empty = app.descendants(matching: .any)
+            .matching(identifier: "fst.shop.filter-empty").firstMatch
+        XCTAssertTrue(empty.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["No Item Shop songs match your filters"].exists)
+        XCTAssertFalse(app.buttons["Reset Filters"].exists)
         XCTAssertFalse(pulse.exists)
         XCTAssertFalse(orbit.exists)
         SongsUITestSupport.record(app, name: "shop-filter-no-matches")
-        try app.performAccessibilityAudit(for: .all)
+        // The empty state is text on the page background (no card). The auditor flags its
+        // wrapped white subtitle on the near-black gradient, so measure the composited
+        // pixels for contrast issues instead, like Song Detail's band preview.
+        try app.performAccessibilityAudit(for: .all) { issue in
+            guard issue.auditType == .contrast, let element = issue.element else { return false }
+            try SongsUITestSupport.assertHeaderContrast(element, in: app)
+            return true
+        }
 
-        emptyReset.tap()
+        // The way back is the Filter button's own sheet.
+        filter.tap()
+        let sheetReset = app.buttons["fst.shop.filter.reset"]
+        XCTAssertTrue(sheetReset.waitForExistence(timeout: 10))
+        sheetReset.tap()
+        if app.buttons["fst.shop.filter.done"].exists { app.buttons["fst.shop.filter.done"].tap() }
         XCTAssertTrue(pulse.waitForExistence(timeout: 10))
         XCTAssertTrue(orbit.exists)
         XCTAssertEqual(filter.value as? String, "No filters")
+    }
+
+    /// Issue #379: the Shop's Sort sheet offers Songs' Title, Artist, Year and Duration
+    /// modes with a direction, reorders the offers live, survives a relaunch and resets.
+    ///
+    /// - Throws: Missing modes, an order that ignores the sort, a lost choice or a broken Reset.
+    @MainActor
+    func testShopSortReordersOffersAndPersists() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = SongsUITestSupport.fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
+        SongsUITestSupport.openItemShop(in: app)
+        let pulse = app.buttons["fst.shop.song.fixture-pulse"]
+        let orbit = app.buttons["fst.shop.song.fixture-orbit"]
+        let sort = app.buttons["fst.shop.sort"]
+        XCTAssertTrue(sort.waitForExistence(timeout: 15))
+        XCTAssertTrue(orbit.waitForExistence(timeout: 15))
+        XCTAssertEqual(sort.label, "Sort Item Shop")
+
+        sort.tap()
+        let reset = SongsUITestSupport.revealSheetReset(
+            "fst.shop.sort.reset", cancelId: "fst.shop.sort.done", sheetName: "Shop Sort", in: app
+        )
+        reset.tap()
+        let modes = app.buttons.matching(identifier: "fst.shop.sort.mode")
+        let labels = modes.allElementsBoundByIndex.map(\.label)
+        XCTAssertEqual(labels, ["Title", "Artist", "Year", "Duration"])
+        try app.performAccessibilityAudit(for: .all)
+        app.buttons["fst.shop.sort.direction.descending"].tap()
+        SongsUITestSupport.record(app, name: "shop-sort-sheet-title-descending")
+        app.buttons["fst.shop.sort.done"].tap()
+
+        XCTAssertTrue(pulse.waitForExistence(timeout: 10))
+        XCTAssertEqual(sort.value as? String, "Title, descending")
+        XCTAssertLessThan(pulse.frame.minY, orbit.frame.minY, "Title Z–A left Orbit first")
+
+        app.terminate()
+        app.launchEnvironment.removeValue(forKey: "FST_UI_TEST_RESET_SONG_CARDS")
+        app.launch()
+        SongsUITestSupport.openItemShop(in: app)
+        XCTAssertTrue(orbit.waitForExistence(timeout: 15))
+        XCTAssertEqual(sort.value as? String, "Title, descending", "Relaunch lost the Shop sort")
+        XCTAssertLessThan(pulse.frame.minY, orbit.frame.minY)
+
+        sort.tap()
+        SongsUITestSupport.revealSheetReset(
+            "fst.shop.sort.reset", cancelId: "fst.shop.sort.done", sheetName: "Shop Sort", in: app
+        ).tap()
+        app.buttons["fst.shop.sort.done"].tap()
+        XCTAssertTrue(orbit.waitForExistence(timeout: 10))
+        XCTAssertEqual(sort.value as? String, "Title, ascending")
+        XCTAssertLessThan(orbit.frame.minY, pulse.frame.minY, "Reset left Title Z–A")
     }
 
     /// PWA parity (gap #17): compact two-line rows with the bag before the chevron,

@@ -44,7 +44,7 @@ enum SongBandPreviewLoader {
 
 /// One band size's leaderboard preview on Song Detail, porting the web
 /// `SongBandLeaderboardPreview`: a title, up to ten band cards (the selected player's
-/// band highlighted, or appended when outside the top ten) and View full leaderboard.
+/// band highlighted, or appended when outside the top ten) ending with View Full Leaderboard.
 struct SongBandPreviewSection: View {
     let song: Song
     let bandType: BandType
@@ -137,7 +137,9 @@ struct SongBandPreviewSection: View {
             .accessibilityIdentifier("fst.song-detail.band-empty.\(bandType.rawValue)")
             .festivalFadeInOnAppear()
         } else {
-            VStack(alignment: .leading, spacing: 6) {
+            // The top ten and the selected band are entries in one group card, like the
+            // Rivals cards (issue #381), ending with View Full Leaderboard inside it (#382).
+            FestivalGlassSection(rows: .flush(separatorInset: 12)) {
                 ForEach(Array(displayed.enumerated()), id: \.offset) { index, entry in
                     SongBandPreviewRow(entry: entry, highlighted: preview.isSelected(entry))
                         .accessibilityIdentifier("fst.song-detail.band-row.\(bandType.rawValue).\(index)")
@@ -151,16 +153,16 @@ struct SongBandPreviewSection: View {
                             for: footer, song: song, bandType: bandType, isAppended: true
                         )
                     )
-                    .padding(.top, 4)
                     .accessibilityIdentifier("fst.song-detail.band-selected.\(bandType.rawValue)")
                 }
+            } action: {
                 // The full band board opens in the trailing pane where Song Detail can
                 // split, like the instrument boards (issue #367).
                 ListDetailLink(value: AppRoute.songBandLeaderboard(song, bandType: bandType.rawValue)) {
-                    PurpleActionLabel(title: "View full leaderboard")
+                    PurpleActionLabel(title: "View Full Leaderboard")
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("View full \(bandType.label) leaderboard")
+                .accessibilityLabel(PurpleActionName.spoken("View Full Leaderboard", card: bandType.label))
                 .accessibilityIdentifier("fst.song-detail.band-leaderboard.\(bandType.rawValue)")
             }
             .festivalFadeInOnAppear()
@@ -170,7 +172,8 @@ struct SongBandPreviewSection: View {
 
 // MARK: - Row
 
-/// One band score card (web `PlayerBandCard` + `SongBandScoreFooter`): each member's
+/// One band score row (web `PlayerBandCard` + `SongBandScoreFooter`): its own card on the
+/// full band board, an entry of the group card in Song Detail's preview (#381). Each member's
 /// name and instruments, then rank, team score, stars and accuracy. The whole card is
 /// one drill-down button with a disclosure chevron: to Band Detail, or for the selected
 /// band's appended row to its place in the full board (issue #307). Shared by the Song

@@ -14,7 +14,8 @@ import FestivalDesign
 /// - a combined chart: accuracy bars on a trailing 0–100% axis (web `accuracyColor`,
 ///   gold for a 100% full combo) and the score line on the leading axis, paged like the
 ///   Rank History chart; tapping a bar shows that score's detail row;
-/// - the best five scores as separate rows, the best one highlighted and bold;
+/// - the best five scores as entries under the graph in the same group card (like the
+///   Rivals cards, issue #381), the best one highlighted and bold;
 /// - "View All Scores" (more than five, web `GraphCard` `viewAllLabel`) opens the
 ///   separate, sortable Score History page (``PlayerHistoryScreen``, issue #324):
 ///   pushed on iPhone, in the trailing pane where Song Detail splits.
@@ -61,9 +62,12 @@ struct SongScoreHistorySection: View {
             let current = displayed.flatMap { available.contains($0) ? $0 : nil } ?? shown
             let rows = SongScoreHistoryModel.chronological(entries, instrument: current)
             let list = SongScoreHistoryModel.bestFirst(rows, limit: SongScoreHistoryModel.listLimit)
-            VStack(alignment: .leading, spacing: 8) {
-                FestivalSectionHeader("Score History", subtitle: "Select a bar to see more score details.")
-                    .padding(.horizontal, 4)
+            // One group card for the graph and the best scores, like Rivals (#381),
+            // ending with View All Scores inside it (view-all-cta R1, #382).
+            FestivalGlassSection(
+                "Score History", subtitle: "Select a bar to see more score details.",
+                rows: .flush(separatorInset: 14)
+            ) {
                 VStack(spacing: 12) {
                     InstrumentSelector(
                         instruments: available,
@@ -89,32 +93,33 @@ struct SongScoreHistorySection: View {
                 }
                 .frame(minHeight: pinnedHeight, alignment: .top)
                 .padding(14)
-                .festivalCard(cornerRadius: 16)
-                Group {
-                    VStack(spacing: 6) {
-                        ForEach(Array(list.enumerated()), id: \.offset) { index, entry in
-                            ScoreHistoryListRow(
-                                entry: entry, isBest: index == 0,
-                                seasonColumn: ScoreRowSeasonPolicy.showsColumn(
-                                    .historyList, width: Double(viewportWidth)
-                                ),
-                                currentSeason: currentSeason
-                            )
-                                .accessibilityIdentifier("fst.song-detail.history.row.\(index)")
-                        }
-                    }
-                    if rows.count > SongScoreHistoryModel.listLimit {
-                        // Pushes the Score History page; opens it in the trailing pane
-                        // where Song Detail can split (view-all-cta R4 label first).
-                        ListDetailLink(value: AppRoute.playerHistory(song, current)) {
-                            PurpleActionLabel(title: "View All Scores")
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("View All Scores, \(current.label) Score History")
-                        .accessibilityIdentifier("fst.song-detail.history.view-all")
-                    }
+                // The tapped bar's detail row keeps its own card inside the graph.
+                .environment(\.festivalGroupedRow, false)
+                ForEach(Array(list.enumerated()), id: \.offset) { index, entry in
+                    ScoreHistoryListRow(
+                        entry: entry, isBest: index == 0,
+                        seasonColumn: ScoreRowSeasonPolicy.showsColumn(
+                            .historyList, width: Double(viewportWidth)
+                        ),
+                        currentSeason: currentSeason
+                    )
+                    .opacity(contentOpacity)
+                    .accessibilityIdentifier("fst.song-detail.history.row.\(index)")
                 }
-                .opacity(contentOpacity)
+            } action: {
+                if rows.count > SongScoreHistoryModel.listLimit {
+                    // Pushes the Score History page; opens it in the trailing pane
+                    // where Song Detail can split (view-all-cta R4 label first).
+                    ListDetailLink(value: AppRoute.playerHistory(song, current)) {
+                        PurpleActionLabel(title: "View All Scores")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(
+                        PurpleActionName.spoken("View All Scores", card: "\(current.label) Score History")
+                    )
+                    .accessibilityIdentifier("fst.song-detail.history.view-all")
+                    .opacity(contentOpacity)
+                }
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier(Self.anchor)
@@ -441,7 +446,8 @@ private struct ScoreHistoryChart: View {
 
 /// One score beneath the chart (web score list card with `LeaderboardEntry`): date,
 /// optional season pill, score and the shared accuracy badge; the best score purple
-/// and bold.
+/// and bold. Its own card on the Score History page; a flat entry inside the song
+/// page's grouped Score History card (``EnvironmentValues/festivalGroupedRow``, #381).
 struct ScoreHistoryListRow: View {
     let entry: ScoreHistoryEntry
     let isBest: Bool
@@ -462,6 +468,7 @@ struct ScoreHistoryListRow: View {
     }
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.festivalGroupedRow) private var grouped
 
     var body: some View {
         // Accessibility sizes stack the season under the date (HIG layout: horizontal
@@ -508,7 +515,11 @@ struct ScoreHistoryListRow: View {
         .frame(maxWidth: .infinity, minHeight: 48)
         .background {
             let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
-            if isBest {
+            if grouped {
+                // Inside the Score History group card: the best score is a flat purple
+                // band between the hairlines, other rows draw nothing (issue #381).
+                if isBest { Rectangle().fill(RankingRowSurface.playerFill) }
+            } else if isBest {
                 shape.fill(Color(.sRGB, red: 75 / 255, green: 15 / 255, blue: 99 / 255, opacity: 0.75))
                     .overlay(shape.stroke(BrandTokens.accentPurple.opacity(0.5), lineWidth: 1))
             } else {

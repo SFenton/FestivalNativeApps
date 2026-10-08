@@ -4,19 +4,24 @@ import FestivalDesign
 
 // MARK: - statistics-select-profile
 
-/// Ported from `pages/player/firstRun/demo/SelectProfileDemo.tsx`: the pulsing "select this
-/// player" pill from the page header.
+/// Ported from `pages/player/firstRun/demo/SelectProfileDemo.tsx`: the player page's header
+/// with its real **Select** button (``ProfileIdentityButton``), ringed by the web's 2 s
+/// accent `pulseWrap` hint.
 struct FirstRunStatsSelectProfileDemo: View {
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "person.crop.circle.badge.checkmark")
-            Text("Select This Player").font(.subheadline.weight(.semibold))
+        HStack(spacing: 12) {
+            Text(FirstRunDemoPool.rankings[0].name)
+                .font(.title2.weight(.bold))
+                .foregroundStyle(FestivalText.primary)
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            ProfileIdentityButton(action: .select) { _ in }
+                .firstRunPulse(BrandTokens.accentBlue, shape: .capsule)
+                .firstRunInert()
         }
-        .foregroundStyle(FestivalText.primary)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 10)
-        .background(BrandTokens.accentPurple.opacity(0.8), in: Capsule())
-        .firstRunPulse(BrandTokens.accentPurple, shape: .capsule)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .festivalCard(cornerRadius: 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityHidden(true)
     }
@@ -87,7 +92,9 @@ struct FirstRunStatsOverviewDemo: View {
 struct FirstRunStatsInstrumentBreakdownDemo: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            FirstRunInstrumentHeader(instrument: .lead)
+            // The Statistics page's real instrument header (`PlayerProfileContent`).
+            InstrumentSectionHeader(.lead, size: .medium)
+                .firstRunStagger(0)
             FirstRunStatTiles(tiles: [
                 FirstRunStatTiles.linked("played", "Played", "98 / 206"),
                 FirstRunStatTiles.linked("fc", "Full Combos", "24 (24.5%)"),
@@ -101,38 +108,18 @@ struct FirstRunStatsInstrumentBreakdownDemo: View {
 
 // MARK: - statistics-percentiles
 
-/// Ported from `pages/player/firstRun/demo/PercentileDemo.tsx`: the percentile distribution
-/// table, echoing `PlayerPercentileHeader`/`Row`'s two-column layout.
+/// Ported from `pages/player/firstRun/demo/PercentileDemo.tsx`: the Statistics page's real
+/// percentile table (``PlayerPercentileTableCard``, percentile pills and Songs chevrons).
 struct FirstRunStatsPercentilesDemo: View {
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("Percentile").font(.caption.weight(.semibold))
-                Spacer()
-                Text("Songs").font(.caption.weight(.semibold))
-            }
-            .foregroundStyle(FestivalText.primary)
-            .padding(.horizontal, 14)
-            .frame(height: 32)
-            ForEach(Array(FirstRunDemoPool.percentileBuckets.enumerated()), id: \.element.id) { index, bucket in
-                HStack {
-                    Text("Top \(bucket.percent)%")
-                        .font(.subheadline)
-                        .foregroundStyle(FestivalText.primary)
-                    Spacer()
-                    Text("\(bucket.count)")
-                        .font(.subheadline.weight(.semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(FestivalText.primary)
-                }
-                .padding(.horizontal, 14)
-                .frame(height: 40)
-                .firstRunStagger(index)
-                Divider().overlay(BrandTokens.borderSubtle)
-            }
-        }
-        .festivalCard(cornerRadius: 12)
-        .accessibilityHidden(true)
+        PlayerPercentileTableCard(
+            buckets: FirstRunDemoPool.percentileBuckets.map {
+                PlayerPercentileBucket(topPercent: $0.percent, count: $0.count)
+            },
+            instrument: .lead, linkFilter: { $0 }, onSelect: { _ in }
+        )
+        .firstRunStagger(0)
+        .firstRunInert()
     }
 }
 
@@ -166,8 +153,8 @@ struct FirstRunStatsTopSongsDemo: View {
                     }
                     .padding(10)
                     .festivalCard(cornerRadius: 12)
-                    .firstRunStagger(index)
-                    .firstRunSwapRow(index, key: song.id)
+                    .firstRunStagger(index + 1)
+                    .firstRunSwapRow(index)
                 }
             }
         }

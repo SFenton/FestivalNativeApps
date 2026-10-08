@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.journeys
 
+import com.festivalscoretracker.android.core.settings.SettingsDetail
 import android.os.Build
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
@@ -101,7 +102,7 @@ class ServiceInfoJourneyTest {
         scales.forEach { s ->
             scale = s
             rule.waitForIdle()
-            h.scrollTo("fst.settings.list", "fst.settings.service-info")
+            h.openSetting(SettingsDetail.ServiceInfo.rowTag, "fst.settings.service-info")
             h.waitForTag("fst.settings.service-info.phase")
             h.waitForTag("fst.settings.service-info.last-published")
             assertStateRowFits("fs $s", s)

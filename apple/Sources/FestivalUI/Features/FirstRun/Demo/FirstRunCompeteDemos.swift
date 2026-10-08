@@ -1,4 +1,5 @@
 import SwiftUI
+import FestivalCore
 import FestivalDesign
 
 // MARK: - compete-hub
@@ -7,7 +8,7 @@ import FestivalDesign
 /// alternates every 5 s between a leaderboard layout (top rankings plus the player's row) and a
 /// rivals layout (Above You / Below You), fading the whole demo out and in with a 6 pt drop.
 struct FirstRunCompeteHubDemo: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FirstRunReduceMotion private var reduceMotion
     @State private var showsRivals = false
     @State private var fading: Set<Int> = []
 
@@ -19,14 +20,15 @@ struct FirstRunCompeteHubDemo: View {
                 leaderboard
             }
         }
-        .firstRunSwapRow(0, key: showsRivals, rise: 6)
+        .firstRunSwapRow(0, rise: 6)
         .environment(\.firstRunFadingRows, fading)
         .accessibilityHidden(true)
         .firstRunDemoTicker { await swap() }
     }
 
+    // Group cards like the real Compete and Rivals cards (#381).
     private var leaderboard: some View {
-        VStack(spacing: 6) {
+        FestivalGlassSection(rows: .flush(separatorInset: RankingRowLayout.horizontalPadding)) {
             ForEach(FirstRunDemoPool.rankings.prefix(4)) { FirstRunRankRow(entry: $0) }
             FirstRunRankRow(entry: FirstRunDemoPool.rankingNeighborhood[3])
         }
@@ -35,9 +37,13 @@ struct FirstRunCompeteHubDemo: View {
     private var rivals: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Above You").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
-            ForEach(FirstRunDemoPool.rivalsAbove.prefix(2)) { FirstRunRivalRow(rival: $0, direction: .above) }
+            FestivalGlassSection(rows: .flush(separatorInset: 16)) {
+                ForEach(FirstRunDemoPool.rivalsAbove.prefix(2)) { FirstRunRivalRow(rival: $0, direction: .above) }
+            }
             Text("Below You").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
-            ForEach(FirstRunDemoPool.rivalsBelow.prefix(2)) { FirstRunRivalRow(rival: $0, direction: .below) }
+            FestivalGlassSection(rows: .flush(separatorInset: 16)) {
+                ForEach(FirstRunDemoPool.rivalsBelow.prefix(2)) { FirstRunRivalRow(rival: $0, direction: .below) }
+            }
         }
     }
 
@@ -67,6 +73,6 @@ struct FirstRunCompeteLeaderboardsDemo: View {
 /// sections, alternately swapping each whole group every 5 s like the web.
 struct FirstRunCompeteRivalsDemo: View {
     var body: some View {
-        FirstRunRivalGroupsDemo(visible: 2)
+        FirstRunRivalGroupsDemo(visible: 2, staggers: true)
     }
 }

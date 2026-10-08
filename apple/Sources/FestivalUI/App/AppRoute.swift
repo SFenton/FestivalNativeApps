@@ -83,4 +83,7 @@ enum AppRoute: Hashable {
     case shop
     /// `/settings/licenses`
     case licenses
+    /// One Settings group opened on the right of the list/detail Settings (iPad, unfolded
+    /// iPhone Duo in landscape; issue #371). iPhone and portrait keep the single page.
+    case settingsTopic(SettingsTopic)
 }

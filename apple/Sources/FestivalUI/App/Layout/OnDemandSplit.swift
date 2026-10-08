@@ -421,6 +421,7 @@ struct OnDemandSplitStack<Root: View>: View {
     let root: (Bool) -> Root
 
     @Environment(\.deviceLayout) private var layout
+    @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.splitOpenReporter) private var openReporter
     /// The container's frame in window coordinates (for the midpoint and the hinge).
     @State private var container: CGRect = .zero
@@ -470,7 +471,9 @@ struct OnDemandSplitStack<Root: View>: View {
 
     /// The panes the window allows now, whatever page is on top, or nil.
     private var windowGeometry: OnDemandSplitPolicy.Geometry? {
-        OnDemandSplitPolicy.geometry(OnDemandSplitPolicy.context(layout: layout, container: container))
+        OnDemandSplitPolicy.geometry(OnDemandSplitPolicy.context(
+            layout: layout, container: container, layoutDirection: layoutDirection
+        ))
     }
 
     /// What the window allows now, for deferring shape changes.
@@ -488,11 +491,15 @@ struct OnDemandSplitStack<Root: View>: View {
         let _ = MainThreadStallMonitor.count("splitstack.body")
         let cut = cut
         let geometry = geometry
-        let showsTrailing = geometry != nil && cut?.selection != nil
+        let content = OnDemandSplitPolicy.trailingContent(cut: cut, allowsSplit: geometry != nil)
+        // The trailing pane shows an open item, or a list page's placeholder (Settings,
+        // issue #371) that keeps the split shape while nothing is open.
+        let showsTrailing = content != .none
+        let itemOpen = geometry != nil && cut?.selection != nil
         let cover = cut?.cover ?? .none
         // Side by side: a covered list page has no item open beside it (Escape and the
-        // row highlight wait until Back uncovers it).
-        let open = showsTrailing && cover == .none
+        // row highlight wait until Back uncovers it). A placeholder is not an open item.
+        let open = itemOpen && cover == .none
         // While a split is possible (open or not) the container draws the one backdrop,
         // so opening and closing never change the image under the list.
         let sharesBackdrop = geometry != nil && SplitPaneChrome.sharesBackdrop
@@ -502,13 +509,23 @@ struct OnDemandSplitStack<Root: View>: View {
             backdrop: sharesBackdrop ? session.backgroundCoordinator : nil,
             topScrimHeight: topScrim.height
         ) {
-            leadingStack(cut: geometry == nil ? nil : cut, paneWidth: showsTrailing ? geometry?.leadingWidth : nil)
+            leadingStack(
+                cut: geometry == nil ? nil : cut, paneWidth: showsTrailing ? geometry?.leadingWidth : nil,
+                canClose: itemOpen
+            )
         } trailing: {
-            if let cut, let selection = cut.selection, let geometry {
-                trailingStack(
-                    cut: cut, selection: selection,
-                    width: cover == .none ? geometry.trailingWidth : OnDemandSplitLayout<EmptyView, EmptyView>.fullWidth(geometry)
-                )
+            if let cut, let geometry {
+                switch content {
+                case .item(let selection):
+                    trailingStack(
+                        cut: cut, selection: selection,
+                        width: cover == .none ? geometry.trailingWidth : OnDemandSplitLayout<EmptyView, EmptyView>.fullWidth(geometry)
+                    )
+                case .placeholder(let placeholder):
+                    placeholderPane(placeholder, page: cut.page, width: geometry.trailingWidth)
+                case .none:
+                    EmptyView()
+                }
             }
         }
         .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { frame in
@@ -533,7 +550,7 @@ struct OnDemandSplitStack<Root: View>: View {
         .onChange(of: open, initial: true) { _, open in
             if isVisible { openReporter?(section, isOpen: open) }
         }
-        .onChange(of: showsTrailing, initial: true) { wasOpen, open in
+        .onChange(of: itemOpen, initial: true) { wasOpen, open in
             guard wasOpen != open else { return }
             focusToken += 1
             if open {
@@ -558,9 +575,10 @@ struct OnDemandSplitStack<Root: View>: View {
     ///
     /// - Parameters:
     ///   - cut: The path's cut while the window allows a split, else nil.
-    ///   - paneWidth: The leading pane's width while an item is open.
+    ///   - paneWidth: The leading pane's width while the trailing pane shows.
+    ///   - canClose: Whether an item is open beside the list (a placeholder is not).
     /// - Returns: The leading stack.
-    private func leadingStack(cut: OnDemandSplitPolicy.Cut?, paneWidth: CGFloat?) -> some View {
+    private func leadingStack(cut: OnDemandSplitPolicy.Cut?, paneWidth: CGFloat?, canClose: Bool) -> some View {
         let binding = cut == nil ? $path : listPath
         let context = cut.map { cut in
             SplitPaneContext(
@@ -574,7 +592,7 @@ struct OnDemandSplitStack<Root: View>: View {
         return FestivalTabStack(
             session: session, visibleInstruments: visibleInstruments,
             path: binding, isVisible: isVisible, paneContext: context,
-            closeTrailing: paneWidth == nil ? nil : { close() }
+            closeTrailing: canClose ? { close() } : nil
         ) {
             root(binding.wrappedValue.isEmpty)
         }
@@ -642,6 +660,34 @@ struct OnDemandSplitStack<Root: View>: View {
         // A container, so the identifier names the pane without replacing its rows' own.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.split.trailing")
+    }
+
+    /// The trailing pane while nothing is open on a list page that keeps it (Settings,
+    /// issue #371): the page's centred placeholder over the shared backdrop, with no Close
+    /// button (nothing is open to close).
+    ///
+    /// - Parameters:
+    ///   - placeholder: The list page's placeholder.
+    ///   - page: The list page beside it.
+    ///   - width: The trailing pane's width.
+    /// - Returns: The placeholder pane.
+    private func placeholderPane(
+        _ placeholder: OnDemandSplitPolicy.Placeholder, page: OnDemandSplitPolicy.ListPage, width: CGFloat
+    ) -> some View {
+        let context = SplitPaneContext(paneWidth: width, role: .trailing, topScrim: topScrim, besideList: page)
+        // A stack of its own, so the empty state sits under the same bar height as an
+        // open item and centres in the space below it.
+        return NavigationStack {
+            FestivalEmptyState(
+                placeholder.title, systemImage: placeholder.systemImage, subtitle: placeholder.subtitle,
+                accessibilityIdentifier: placeholder.accessibilityIdentifier
+            )
+            .modifier(TopEdgeScrim())
+            .splitPaneContext(context)
+            .rootTabBarVisibility()
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("fst.split.placeholder")
     }
 
     /// Routes after the detail root; writes go through

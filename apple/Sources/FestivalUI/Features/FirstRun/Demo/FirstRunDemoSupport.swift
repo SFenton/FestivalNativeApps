@@ -1,4 +1,3 @@
-import QuartzCore
 import SwiftUI
 import FestivalCore
 import FestivalDesign
@@ -10,46 +9,45 @@ import AppKit
 
 // MARK: - Reduce-motion aware pulse
 
-/// The outline a demo's glow follows (the shape of the surface it decorates).
+/// The outline a demo's pulse follows (the shape of the surface it decorates).
 enum FirstRunGlowShape: Equatable {
     /// A continuous rounded rectangle (cards, the purple "View all" surface, stat tiles).
     case roundedRect(cornerRadius: CGFloat)
-    /// A capsule (pills).
+    /// A capsule (pills and prominent buttons).
     case capsule
 
-    /// The shadow outline for a surface of this size.
-    ///
-    /// - Parameter size: The surface's size.
-    /// - Returns: The outline path in the surface's coordinates.
-    func path(in size: CGSize) -> CGPath {
-        let rect = CGRect(origin: .zero, size: size)
-        let radius: CGFloat
+    /// The canonical pulse layer's shape for this outline: the web's 2 px pulse border.
+    var pulseShape: ShopPulseShape {
         switch self {
-        case let .roundedRect(cornerRadius): radius = min(cornerRadius, min(size.width, size.height) / 2)
-        case .capsule: radius = min(size.width, size.height) / 2
+        case let .roundedRect(cornerRadius):
+            .roundedStroke(cornerRadius: cornerRadius, lineWidth: FirstRunPulse.lineWidth)
+        case .capsule:
+            .capsuleStroke(lineWidth: FirstRunPulse.lineWidth)
         }
-        return Path(roundedRect: rect, cornerRadius: radius, style: .continuous).cgPath
     }
 }
 
-/// A soft looping glow, standing in for the web's `shopBreathe*`/`pulseWrap` CSS animations.
-/// Skipped entirely under Reduce Motion, matching the requirement that demos have "lightweight
-/// looping animations only where the web animates" and none while Reduce Motion is on.
+/// The web demos' call-to-action pulse (`anim.pulseWrap`, `shopHighlight*`,
+/// `styles/animations.module.css`): a 2 pt border in `tint` whose opacity eases
+/// 0 → 0.7 → 0 every 2 s around the decorated surface (issue #380).
 ///
-/// The loop runs on Core Animation (``FirstRunGlowLayer``: a shadow-only layer whose
-/// opacity and blur breathe on the render server), so the app does no work per frame;
-/// the former `repeatForever` SwiftUI shadow re-rendered the sheet every frame (about 14%
-/// CPU with the sheet open, `.agents/platforms/apple/architecture.md` § Performance). It
-/// runs only on the slide on screen in a visible, active window (`firstRunSlideActive`,
-/// issue #28); elsewhere SwiftUI draws the dim resting glow, so `ImageRenderer` captures
-/// keep it.
-private struct FirstRunPulse: ViewModifier {
+/// It is the app's own Item Shop row pulse (``ShopRowPulseBorder``, the shared
+/// ``ShopPulseLayer`` on ``ShopPulseClock``), so the render server plays it with no app
+/// work per frame. It loops only on the slide on screen in a visible, active window
+/// (`firstRunSlideActive`, issue #28). Reduce Motion (system or the app's), another slide
+/// or the UI-test still override hold the border at the web's reduced-motion 0.7, like
+/// `@media (prefers-reduced-motion)`.
+struct FirstRunPulse: ViewModifier {
     let tint: Color
     let shape: FirstRunGlowShape
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
     @Environment(\.firstRunSlideActive) private var slideActive
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.festivalWindowVisible) private var windowVisible
+
+    /// Border width (web `border: 2px solid`).
+    static let lineWidth: CGFloat = 2
 
     /// The slide is on screen in an active scene whose window can be seen.
     private var visible: Bool {
@@ -58,163 +56,44 @@ private struct FirstRunPulse: ViewModifier {
 
     func body(content: Content) -> some View {
         let running = FirstRunPulsePolicy.runs(
-            slideActive: visible, reduceMotion: reduceMotion,
+            slideActive: visible, reduceMotion: systemReduceMotion || appReduceMotion,
             stillBackground: DebugAnimationOverride.stillBackground
         )
-        if running {
-            content.background { FirstRunGlowLayer(tint: tint, shape: shape) }
-        } else {
-            content.shadow(color: tint.opacity(FirstRunGlowLayer.restingOpacity), radius: FirstRunGlowLayer.restingRadius)
+        content.overlay {
+            Group {
+                if running {
+                    ShopPulseLayer(
+                        shape: shape.pulseShape, color: tint, period: ShopRowPulseBorder.period,
+                        restingOpacity: ShopRowPulseBorder.peak, running: true
+                    ) { ShopRowPulseBorder.opacity(at: $0, animating: true) }
+                } else {
+                    // Still: a plain SwiftUI stroke (captured by `ImageRenderer`).
+                    still.opacity(ShopRowPulseBorder.peak)
+                }
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+
+    @ViewBuilder private var still: some View {
+        switch shape {
+        case let .roundedRect(cornerRadius):
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(tint, lineWidth: Self.lineWidth)
+        case .capsule:
+            Capsule().stroke(tint, lineWidth: Self.lineWidth)
         }
     }
 }
 
-// MARK: - Glow layer
-
-/// The breathing glow behind a demo surface, played by the render server: a shadow-only
-/// `CALayer` (``FirstRunGlowShape`` outline as its `shadowPath`, no fill) whose shadow
-/// opacity and radius ease between the resting and lit values, like the old SwiftUI
-/// `.shadow(color: tint.opacity(lit ? 0.55 : 0.12), radius: lit ? 10 : 3)` loop.
-struct FirstRunGlowLayer {
-    let tint: Color
-    let shape: FirstRunGlowShape
-
-    /// Shadow opacity and radius at rest (and under Reduce Motion).
-    static let restingOpacity = 0.12
-    static let restingRadius: CGFloat = 3
-    /// Shadow opacity and radius at the peak.
-    static let litOpacity = 0.55
-    static let litRadius: CGFloat = 10
-    /// Seconds from rest to peak (the loop reverses, so one breath is twice this).
-    static let halfPeriod = 1.1
-}
-
-#if os(iOS)
-extension FirstRunGlowLayer: UIViewRepresentable {
-    func makeUIView(context: Context) -> FirstRunGlowView { FirstRunGlowView() }
-
-    func updateUIView(_ view: FirstRunGlowView, context: Context) {
-        view.apply(shape: shape, color: tint.resolve(in: context.environment).cgColor)
-    }
-}
-#elseif os(macOS)
-extension FirstRunGlowLayer: NSViewRepresentable {
-    func makeNSView(context: Context) -> FirstRunGlowView { FirstRunGlowView() }
-
-    func updateNSView(_ view: FirstRunGlowView, context: Context) {
-        view.apply(shape: shape, color: tint.resolve(in: context.environment).cgColor)
-    }
-}
-#endif
-
-/// Platform host of one glow: a single shadow layer, never clipped, never a hit-test or
-/// accessibility target.
-final class FirstRunGlowView: PlatformLayerHostView {
-    private let glowLayer = CALayer()
-    private var shape: FirstRunGlowShape = .capsule
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        #if os(iOS)
-        isUserInteractionEnabled = false
-        isAccessibilityElement = false
-        clipsToBounds = false
-        layer.addSublayer(glowLayer)
-        #elseif os(macOS)
-        wantsLayer = true
-        setAccessibilityElement(false)
-        layer?.masksToBounds = false
-        layer?.addSublayer(glowLayer)
-        #endif
-        glowLayer.shadowOffset = .zero
-        glowLayer.shadowOpacity = Float(FirstRunGlowLayer.restingOpacity)
-        glowLayer.shadowRadius = FirstRunGlowLayer.restingRadius
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { nil }
-
-    #if os(iOS)
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        layoutGlow()
-    }
-
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        // Animations are dropped while detached (paging re-hosts slides).
-        if window != nil { startBreathing() }
-    }
-    #elseif os(macOS)
-    override func layout() {
-        super.layout()
-        layoutGlow()
-    }
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        if window != nil { startBreathing() }
-    }
-
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
-    #endif
-
-    /// Apply the outline and colour.
-    ///
-    /// - Parameters:
-    ///   - shape: The surface outline.
-    ///   - color: Resolved tint.
-    func apply(shape: FirstRunGlowShape, color: CGColor) {
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        glowLayer.shadowColor = color
-        if shape != self.shape {
-            self.shape = shape
-            layoutGlow()
-        }
-        CATransaction.commit()
-    }
-
-    private func layoutGlow() {
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        glowLayer.frame = bounds
-        glowLayer.shadowPath = shape.path(in: bounds.size)
-        CATransaction.commit()
-    }
-
-    /// One repeating, autoreversing opacity + radius animation on the render server.
-    private func startBreathing() {
-        guard glowLayer.animation(forKey: "breathe") == nil else { return }
-        let opacity = CABasicAnimation(keyPath: "shadowOpacity")
-        opacity.fromValue = FirstRunGlowLayer.restingOpacity
-        opacity.toValue = FirstRunGlowLayer.litOpacity
-        let radius = CABasicAnimation(keyPath: "shadowRadius")
-        radius.fromValue = FirstRunGlowLayer.restingRadius
-        radius.toValue = FirstRunGlowLayer.litRadius
-        // Children need the group's duration: a 0 duration means 0.25 s, after which
-        // they would sit at the resting value for most of each breath.
-        opacity.duration = FirstRunGlowLayer.halfPeriod
-        radius.duration = FirstRunGlowLayer.halfPeriod
-        let breathe = CAAnimationGroup()
-        breathe.animations = [opacity, radius]
-        breathe.duration = FirstRunGlowLayer.halfPeriod
-        breathe.autoreverses = true
-        breathe.repeatCount = .infinity
-        breathe.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        breathe.isRemovedOnCompletion = false
-        breathe.preferredFrameRateRange = CAFrameRateRange(minimum: 10, maximum: 30, preferred: 30)
-        glowLayer.add(breathe, forKey: "breathe")
-    }
-}
-
-/// When a first-run demo's looping glow may run.
+/// When a first-run demo's looping pulse may run.
 enum FirstRunPulsePolicy {
     /// Whether the pulse loops.
     ///
     /// - Parameters:
     ///   - slideActive: Whether the demo's slide is the one on screen.
-    ///   - reduceMotion: System Reduce Motion.
+    ///   - reduceMotion: System or app Reduce Motion.
     ///   - stillBackground: Debug override freezing decorative motion.
     /// - Returns: True only on the visible slide with motion allowed.
     static func runs(slideActive: Bool, reduceMotion: Bool, stillBackground: Bool) -> Bool {
@@ -224,62 +103,101 @@ enum FirstRunPulsePolicy {
 
 extension EnvironmentValues {
     /// Whether the enclosing first-run slide is the page on screen. Neighbouring slides that
-    /// the paged carousel keeps alive see false, so their looping demos stay idle. True
-    /// outside a carousel (hosted tests, previews).
+    /// the paged carousel keeps alive see false, so their looping demos stay idle and their
+    /// entrance cascade replays when they come on screen. True outside a carousel (hosted
+    /// tests, previews).
     @Entry var firstRunSlideActive: Bool = true
 }
 
 extension View {
-    /// Apply a looping glow pulse in `tint` around a surface of `shape`; the dim resting
-    /// glow only under Reduce Motion.
+    /// Pulse a 2 pt `tint` border around a surface of `shape` (the web's `pulseWrap`); a
+    /// steady border under Reduce Motion.
     ///
     /// - Parameters:
-    ///   - tint: Glow colour.
+    ///   - tint: Border colour.
     ///   - shape: The decorated surface's outline (a 12 pt card by default).
-    /// - Returns: The view with its glow.
+    /// - Returns: The view with its pulse.
     func firstRunPulse(_ tint: Color, shape: FirstRunGlowShape = .roundedRect(cornerRadius: 12)) -> some View {
         modifier(FirstRunPulse(tint: tint, shape: shape))
     }
 }
 
-// MARK: - Reduce-motion aware stagger
+// MARK: - Reduce-motion aware entrance
 
-/// A per-row fade/rise-in on the web's cascading `FadeIn` timing (`fadeInUp`: 400 ms ease-out
-/// from 12 pt below, 125 ms apart). Skipped under Reduce Motion so rows simply appear —
-/// matching the spec's "no stagger… when Reduce Motion is on."
+/// The web's `FadeIn` (`fadeInUp`: 400 ms ease-out from 12 pt below) after `delay`.
+///
+/// The web remounts a slide each time it becomes the visible page, so its cascade replays;
+/// here the entrance plays whenever the slide becomes active and the content eases out
+/// (web 200 ms ease-in) when it leaves. Reduce Motion (system or the app's) and the
+/// UI-test still override show the content at rest with no motion (issue #380).
 private struct FirstRunStagger: ViewModifier {
-    let index: Int
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let delay: Double
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
+    @Environment(\.firstRunSlideActive) private var slideActive
     @State private var shown = false
 
+    private var animates: Bool {
+        FirstRunMotion.entranceAnimates(
+            reduceMotion: systemReduceMotion || appReduceMotion,
+            stillBackground: DebugAnimationOverride.stillBackground
+        )
+    }
+
     func body(content: Content) -> some View {
+        let visible = shown || !animates
         content
-            .opacity(shown ? 1 : 0)
-            .offset(y: shown ? 0 : FirstRunDemoTiming.entranceRise)
-            .onAppear {
-                if reduceMotion {
-                    shown = true
-                    return
-                }
-                withAnimation(
-                    .easeOut(duration: FirstRunDemoTiming.fadeSeconds)
-                        .delay(Double(index) * FirstRunDemoTiming.staggerSeconds)
-                ) {
-                    shown = true
+            .opacity(visible ? 1 : 0)
+            .offset(y: visible ? 0 : FirstRunDemoTiming.entranceRise)
+            .onAppear { if slideActive { reveal() } }
+            .onChange(of: slideActive) { _, active in
+                if active {
+                    reveal()
+                } else if animates {
+                    withAnimation(.easeIn(duration: FirstRunMotion.exitSeconds)) { shown = false }
                 }
             }
+    }
+
+    private func reveal() {
+        guard animates else {
+            shown = true
+            return
+        }
+        withAnimation(.easeOut(duration: FirstRunDemoTiming.fadeSeconds).delay(delay)) {
+            shown = true
+        }
     }
 }
 
 extension View {
-    /// Stagger this row's entrance by `index`; appears immediately under Reduce Motion.
-    func firstRunStagger(_ index: Int) -> some View { modifier(FirstRunStagger(index: index)) }
+    /// Cascade this row's entrance by `index` steps of `interval` (web `FadeIn
+    /// delay={i * interval}`); at rest under Reduce Motion.
+    ///
+    /// - Parameters:
+    ///   - index: Cascade position.
+    ///   - interval: Seconds per step; the web's 125 ms `STAGGER_INTERVAL` by default.
+    /// - Returns: The view with its entrance.
+    func firstRunStagger(_ index: Int, interval: Double = FirstRunMotion.staggerSeconds) -> some View {
+        modifier(FirstRunStagger(delay: Double(index) * interval))
+    }
+
+    /// Fade this view up after `delay` seconds each time its slide comes on screen (web
+    /// `FadeIn delay`); at rest under Reduce Motion.
+    ///
+    /// - Parameter delay: Seconds after the slide becomes visible.
+    /// - Returns: The view with its entrance.
+    func firstRunFadeIn(delay: Double) -> some View {
+        modifier(FirstRunStagger(delay: delay))
+    }
 }
 
 // MARK: - Shared row styles
 
 /// A leaderboard row drawn with the app's real Leaderboards row (`RankingRowLayout` on a
-/// `RankingRowSurface` material card, the selected player's purple accent), operator batch 7.
+/// `RankingRowSurface`, the selected player's purple accent), operator batch 7: an entry of
+/// a flush ``FestivalGlassSection`` like the real overview cards (#381), its own card
+/// elsewhere.
 struct FirstRunRankRow: View {
     let entry: FirstRunDemoPool.RankingEntry
 
@@ -300,56 +218,36 @@ struct FirstRunRivalRow: View {
 
     let rival: FirstRunDemoPool.RivalEntry
     let direction: Direction
+    @Environment(\.festivalGroupedRow) private var grouped
 
     var body: some View {
-        // The app's real rival row (`RivalRowContent`) on a material card (operator batch 7).
-        RivalRowContent(rival: rival, direction: direction == .above ? .above : .below)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .festivalCard(cornerRadius: 12)
+        // The app's real rival row (`RivalRowContent`, operator batch 7): an entry of the
+        // group card like the Rivals page (#381), or its own material card.
+        let content = RivalRowContent(rival: rival, direction: direction == .above ? .above : .below)
+        if grouped {
+            content.modifier(FestivalRowPadding())
+        } else {
+            content
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .festivalCard(cornerRadius: 12)
+        }
     }
 }
 
-/// A pulsing "View all…" call-to-action row, echoing the web's `pulseWrap` button.
+/// A pulsing "View all…" call-to-action: the app's real purple button
+/// (``PurpleActionLabel``, view-all-cta) inside the web's blue `pulseWrap` border. The demos
+/// pass it as their group card's `action`, so it draws the real buttons' flat in-card
+/// purple through the shared ``PurpleActionSurface`` (view-all-cta R1, #382).
 struct FirstRunViewAllRow: View {
     let title: String
 
     var body: some View {
-        // The app's purple "View all" button surface, pulsing as the web demo's
-        // call-to-action does.
-        Text(title)
-            .font(.body.weight(.semibold))
-            .foregroundStyle(FestivalText.primary)
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity, minHeight: 44)
-            .padding(.vertical, 4)
-            .modifier(FirstRunPurpleButtonSurface())
-            .firstRunPulse(BrandTokens.accentPurple, shape: .roundedRect(cornerRadius: 12))
-    }
-}
-
-/// Same surface as the Leaderboards / Song Detail "View all" buttons (their
-/// `PurpleActionSurface`): the accent-purple material card on 26, solid purple under
-/// Reduce Transparency or the app's contrast overrides.
-struct FirstRunPurpleButtonSurface: ViewModifier {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
-    @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
-
-    func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
-        if reduceTransparency || lessTransparency || moreContrast {
-            content.background(BrandTokens.accentPurple, in: shape)
-        } else if #available(iOS 26.0, macOS 26.0, *) {
-            content
-                .background(PurpleActionSurface.tint, in: shape)
-                .background(.ultraThinMaterial, in: shape)
-                .overlay(shape.strokeBorder(RowCardStyle.rim, lineWidth: 1))
-        } else {
-            content
-                .background(BrandTokens.accentPurple.opacity(0.85), in: shape)
-                .overlay(shape.stroke(BrandTokens.glassBorder, lineWidth: 1))
-        }
+        PurpleActionLabel(title: title)
+            .firstRunPulse(
+                BrandTokens.accentBlue,
+                shape: .roundedRect(cornerRadius: PurpleActionSurface.cornerRadius)
+            )
     }
 }
 

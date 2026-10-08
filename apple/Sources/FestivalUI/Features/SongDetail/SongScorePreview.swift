@@ -68,27 +68,28 @@ struct SongScorePreview: View {
                     FestivalLoadingView(accessibilityLabel: "Loading \(instrument.label) scores")
                         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                 case let .failed(message):
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Scores unavailable: \(message)")
-                            .font(.body)
-                            .foregroundStyle(FestivalText.primary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Button("Retry \(instrument.label) scores") {
-                            Task { await load() }
+                    // The failure message is the card's one row; View Full Leaderboard
+                    // still ends the card so the full chart stays reachable (#382).
+                    FestivalGlassSection {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Scores unavailable: \(message)")
+                                .font(.body)
+                                .foregroundStyle(FestivalText.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Button("Retry \(instrument.label) scores") {
+                                Task { await load() }
+                            }
+                            .frame(minHeight: 44)
+                            // The accent tint is a fill colour: as text on the card it is
+                            // below 4.5:1 (as "Check Publication" measured 3.6:1).
+                            .tint(AccentText.blue)
                         }
-                        .frame(minHeight: 44)
-                        // The accent tint is a fill colour: as text on the card it is
-                        // below 4.5:1 (as "Check Publication" measured 3.6:1).
-                        .tint(AccentText.blue)
+                        .padding(.vertical, 8)
+                    } action: {
+                        viewFullLink
                     }
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .festivalCard(cornerRadius: 12)
                 case let .loaded(payload):
                     previewRows(payload)
-                }
-                if showsViewFull {
-                    viewFullLink
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -168,18 +169,19 @@ struct SongScorePreview: View {
         .accessibilityIdentifier("fst.song-detail.card-header.\(instrument.rawValue)")
     }
 
-    /// Card-bottom hand-off to the paginated Solo chart (web `ViewFullLeaderboardCta`).
+    /// Card-bottom hand-off to the paginated Solo chart (web `ViewFullLeaderboardCta`),
+    /// passed as the card's `action` so it ends the card inside it (view-all-cta R1, #382).
     ///
-    /// Shown in every state (not only with rows) so an empty or failed preview still
-    /// reaches the full chart; the spoken label names the instrument because nine
-    /// otherwise identical actions share the page.
+    /// Shown with rows and on a failed read so the full chart stays reachable; the
+    /// spoken name adds the instrument after the visible label (view-all-cta R4)
+    /// because nine otherwise identical actions share the page.
     private var viewFullLink: some View {
         // The full board opens in the trailing pane where Song Detail can split.
         ListDetailLink(value: AppRoute.songLeaderboard(song, instrument, 1)) {
-            PurpleActionLabel(title: "View full leaderboard")
+            PurpleActionLabel(title: "View Full Leaderboard")
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("View full \(instrument.label) leaderboard")
+        .accessibilityLabel(PurpleActionName.spoken("View Full Leaderboard", card: instrument.label))
         .accessibilityIdentifier(
             "fst.song-detail.leaderboard.\(instrument.rawValue)"
         )
@@ -217,7 +219,9 @@ struct SongScorePreview: View {
             .festivalCard(cornerRadius: 12)
             .festivalFadeInOnAppear()
         } else {
-            VStack(alignment: .leading, spacing: 6) {
+            // The top ten and the spotlight row are entries in one group card, like the
+            // Rivals cards (issue #381), ending with View Full Leaderboard inside it (#382).
+            FestivalGlassSection(rows: .flush(separatorInset: 12)) {
                 ForEach(Array(displayed.enumerated()), id: \.offset) { index, entry in
                     previewRow(
                         entry,
@@ -230,13 +234,16 @@ struct SongScorePreview: View {
                     )
                 }
                 // Web `InstrumentCard` spotlight footer: the selected player's own row
-                // (rank 11+) sits after the top ten, before View full leaderboard.
+                // (rank 11+) sits after the top ten, before View Full Leaderboard.
                 if let spotlight {
                     previewRow(spotlight, highlighted: true, isFooter: true)
-                        .padding(.top, 4)
                         .accessibilityIdentifier(
                             "fst.song-detail.spotlight.\(instrument.rawValue)"
                         )
+                }
+            } action: {
+                if showsViewFull {
+                    viewFullLink
                 }
             }
             // One rank/score width for the top ten and the spotlight row (web
@@ -255,7 +262,7 @@ struct SongScorePreview: View {
     ///
     /// Rows with an account are one navigation button (web `InstrumentCardRowLink`),
     /// so VoiceOver reads rank, name, score and accuracy as a single button and the
-    /// whole 48 pt card is the hit target.
+    /// whole 48 pt row is the hit target.
     ///
     /// - Parameters:
     ///   - entry: Score row to draw.
@@ -270,9 +277,9 @@ struct SongScorePreview: View {
             for: entry, selected: session.selectedPlayer,
             song: song, instrument: instrument, isFooter: isFooter
         )
-        // Web `InstrumentCard` `entryRow`: every row its own 48 pt material card, the
-        // player's purple (the one leaderboard row design, operator batch 7.4), with
-        // the drill-down chevron inside the card like the Solo chart.
+        // Web `InstrumentCard` `entryRow`: a 48 pt row, the player's purple (the one
+        // leaderboard row design, operator batch 7.4), with the drill-down chevron inside
+        // the row like the Solo chart; an entry of the preview's group card (#381).
         let content = HStack(spacing: 8) {
             SongLeaderboardEntryRow(
                 entry: entry, isPlayer: highlighted,

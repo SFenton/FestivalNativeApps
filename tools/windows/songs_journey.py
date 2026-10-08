@@ -309,6 +309,54 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, dict, list[str]]] = {
             "collapse:id=fst.songs.sort",
         ],
     ),
+    # Item Shop Sort (issue #379): the Songs Sort form with Title, Artist, Year and Duration, applied live to the grid
+    # and the list, kept across a relaunch and independent of the Songs sort. The fixture has no durations, so Title
+    # descending is the order check (Orbit before Pulse ascending).
+    "shop-sort-states": (
+        {}, "/shop", {"selectedPlayer": {"accountId": "fixture-player-1", "displayName": "Fixture Player 1"}},
+        [
+            "waitfor:id=fst.shop.song.fixture-pulse@20",
+            "waitfor:name=Title ↑",
+            "assertorder:id=fst.shop.song.fixture-orbit|id=fst.shop.song.fixture-pulse",
+            "expand:id=fst.shop.sort",
+            "waitfor:id=fst.shop.sort.mode@5",
+            "waitfor:id=fst.shop.sort.direction",
+            "waitfor:id=fst.shop.sort.direction.ascending",
+            "waitfor:id=fst.shop.sort.direction.descending",
+            "waitfor:id=fst.shop.sort.reset",
+            "waitfor:name=Artist",
+            "waitfor:name=Year",
+            "waitfor:name=Duration",
+            "waitgone:name=Last Played",  # Shop modes are the four base sorts only
+            "waitgone:name=Has FC",
+            "{shot:shop-sort-default}",
+            "select:id=fst.shop.sort.direction.descending",
+            "waitfor:name=Title ↓@5",
+            "assertorder:id=fst.shop.song.fixture-pulse|id=fst.shop.song.fixture-orbit@5",
+            "select:name=Year",
+            "waitfor:name=Year ↓@5",
+            "{shot:shop-sort-changed}",
+            "collapse:id=fst.shop.sort",
+            "waitgone:id=fst.shop.sort.mode@5",
+            "invoke:id=fst.shop.view-toggle",
+            "waitfor:id=fst.shop.list@5",
+            "assertorder:id=fst.shop.song.fixture-pulse|id=fst.shop.song.fixture-orbit@5",
+            "{relaunch}",
+            "waitfor:name=Year ↓@20",  # relaunch-persisted
+            "waitfor:id=fst.shop.list@10",
+            "assertorder:id=fst.shop.song.fixture-pulse|id=fst.shop.song.fixture-orbit@5",
+            "select:id=fst.nav.songs",
+            "waitfor:id=fst.songs.row.fixture-pulse@20",
+            "waitfor:name=Title ↑@5",  # the Songs sort is separate
+            "select:id=fst.nav.shop",
+            "waitfor:id=fst.shop.sort@20",
+            "expand:id=fst.shop.sort",
+            "invoke:id=fst.shop.sort.reset@5",
+            "waitfor:name=Title ↑@5",
+            "collapse:id=fst.shop.sort",
+            "assertorder:id=fst.shop.song.fixture-orbit|id=fst.shop.song.fixture-pulse@5",
+        ],
+    ),
     "songs-sort-shop": (
         PLAYER, "/songs", {"songSort": "Shop"},
         [
@@ -547,7 +595,7 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, dict, list[str]]] = {
 
 # Scenarios that only make sense at some window sizes (compact windows force the Shop grid, without the toggle).
 SIZES = {"shop": {"medium", "wide"}, "shop-compact": {"compact"}, "shop-states": {"medium", "wide"},
-         "shop-compact-states": {"compact"}}
+         "shop-compact-states": {"compact"}, "shop-sort-states": {"medium", "wide"}}
 
 # Scenarios whose /api/shop read carries a mock_service.py ``scenario`` query (through ShopScenarioProxy).
 SHOP_FEEDS = {

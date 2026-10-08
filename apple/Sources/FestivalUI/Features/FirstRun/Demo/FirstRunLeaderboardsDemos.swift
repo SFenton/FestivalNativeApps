@@ -10,13 +10,17 @@ struct FirstRunLeaderboardsOverviewDemo: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             FirstRunInstrumentHeader(instrument: .lead)
-            VStack(spacing: 6) {
+                .firstRunStagger(0)
+            // One group card ending with View All, like the real overview cards (#381, #382).
+            FestivalGlassSection(rows: .flush(separatorInset: RankingRowLayout.horizontalPadding)) {
                 ForEach(Array(FirstRunDemoPool.rankings.prefix(5).enumerated()), id: \.element.id) { index, entry in
                     FirstRunRankRow(entry: entry)
-                        .firstRunStagger(index)
+                        .firstRunStagger(index + 1, interval: FirstRunMotion.rowStaggerSeconds)
                 }
+            } action: {
+                FirstRunViewAllRow(title: "View all rankings (12,480)")
+                    .firstRunStagger(6, interval: FirstRunMotion.rowStaggerSeconds)
             }
-            FirstRunViewAllRow(title: "View all rankings (12,480)")
         }
         .accessibilityHidden(true)
     }
@@ -67,12 +71,17 @@ struct FirstRunLeaderboardsExperimentalMetricsDemo: View {
 /// player's own rank, plus a pulsing "View all rankings" row.
 struct FirstRunLeaderboardsYourRankDemo: View {
     var body: some View {
-        VStack(spacing: 6) {
+        // One group card ending with View All, like the real overview cards (#381, #382).
+        FestivalGlassSection(rows: .flush(separatorInset: RankingRowLayout.horizontalPadding)) {
             ForEach(Array(FirstRunDemoPool.rankingNeighborhood.enumerated()), id: \.element.id) { index, entry in
                 FirstRunRankRow(entry: entry)
-                    .firstRunStagger(index)
+                    .firstRunStagger(index, interval: FirstRunMotion.rowStaggerSeconds)
             }
+        } action: {
             FirstRunViewAllRow(title: "View all rankings (12,480)")
+                .firstRunStagger(
+                    FirstRunDemoPool.rankingNeighborhood.count, interval: FirstRunMotion.rowStaggerSeconds
+                )
         }
         .accessibilityHidden(true)
     }

@@ -98,22 +98,21 @@ struct RivalDetailScreen: View {
         case let .loaded(detail):
             let categories = RivalCategorization.categorize(detail.songs)
             if categories.isEmpty {
-                ContentUnavailableView(
+                FestivalEmptyState(
                     "No Shared Songs", systemImage: "music.note.list",
-                    description: Text("You and this rival don't share any scored songs yet.")
+                    subtitle: "You and this rival don't share any scored songs yet."
                 )
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
                         ForEach(Array(categories.enumerated()), id: \.element.id) { index, category in
-                            // The card's "View All" sits under it, like the Rivals hub's
-                            // View All Rivals (view-all-cta R1; #321).
-                            VStack(alignment: .leading, spacing: 8) {
-                                FestivalGlassSection(category.title, subtitle: category.subtitle) {
-                                    ForEach(category.songs.prefix(5)) { song in
-                                        songRow(song, rivalName: detail.rival.displayName ?? name ?? "Rival")
-                                    }
+                            // The card ends with its "View All" inside it, like the Rivals
+                            // hub's View All Rivals (view-all-cta R1; #321, #382).
+                            FestivalGlassSection(category.title, subtitle: category.subtitle) {
+                                ForEach(category.songs.prefix(5)) { song in
+                                    songRow(song, rivalName: detail.rival.displayName ?? name ?? "Rival")
                                 }
+                            } action: {
                                 PurpleActionLink(
                                     title: "View All",
                                     route: .rivalry(

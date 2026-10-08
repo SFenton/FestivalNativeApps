@@ -21,10 +21,11 @@ enum RankLoadState<Value> {
 
 /// One account-rankings row, shared by the overview cards and the full board.
 ///
-/// A compact single-line card row (rank, name, `728 / 729`, accent-coloured value),
-/// matching the web client's `RankingEntry` inside `RankingCard.tsx`: every row is
-/// its own frosted card there, so each row here carries its own material card and
-/// the surrounding page adds none (no card in a card).
+/// A compact single-line row (rank, name, `728 / 729`, accent-coloured value),
+/// matching the web client's `RankingEntry` inside `RankingCard.tsx`. On the full
+/// boards each row carries its own material card; in the Leaderboards overview and
+/// Compete previews the rows are entries of one group card, like the Rivals cards
+/// (``EnvironmentValues/festivalGroupedRow``, issue #381; no card in a card).
 ///
 /// Navigates to the viewed player's profile, matching the web client's row link
 /// to `/player/:accountId` (or Statistics for the signed-in player, which native
@@ -38,8 +39,9 @@ struct AccountRankingRow: View {
     /// the web client's `isPlayer` accent treatment
     /// (`RankingCard.tsx`'s `playerEntryRow` style: a tinted fill plus border).
     var isSelected: Bool = false
-    /// Draw the row as its own material card (Leaderboards, Full Rankings). Off where
-    /// the row already sits inside a card (Compete previews): no card in a card.
+    /// Draw the row as its own material card (Full Rankings). Ignored inside a flush
+    /// ``FestivalGlassSection`` (Leaderboards overview, Compete), whose card is the
+    /// surface: no card in a card.
     var cardSurface: Bool = false
     /// Wrap the row in its profile link. Off for a board's pinned footer, whose caller
     /// wraps the row in the selected-row action instead (``SelectedRowAction``, #318).
@@ -520,6 +522,11 @@ struct RankingRowWidthProbe: View {
 /// reveal), so the selected player's row, which never had glass, faded in last
 /// (issue #295). HIG Materials: "Don't use Liquid Glass in the content layer. Use
 /// standard materials for content-layer elements".
+///
+/// Inside a flush ``FestivalGlassSection`` (``EnvironmentValues/festivalGroupedRow``,
+/// issue #381) the group card is the surface: the row draws no card, and the selected
+/// player's row is a flat, full-width purple band between the group's hairlines
+/// (surface-materials R6: no card in a card).
 struct RankingRowSurface: ViewModifier {
     /// Web `Colors.purpleHighlight`.
     static let playerFill = Color(.sRGB, red: 75 / 255, green: 15 / 255, blue: 99 / 255, opacity: 0.75)
@@ -529,10 +536,48 @@ struct RankingRowSurface: ViewModifier {
     let isSelected: Bool
     /// False keeps only the selected-row accent, for rows already inside a card.
     var card: Bool = true
+    @Environment(\.festivalGroupedRow) private var grouped
+
+    /// What a row draws, given where it sits.
+    enum Treatment: Equatable {
+        /// Its own rounded material card.
+        case card
+        /// Nothing: the surrounding card shows through.
+        case bare
+        /// The selected player's rounded purple card with its border.
+        case selectedCard
+        /// The selected player's flat, full-width purple band inside a group card.
+        case selectedBand
+    }
+
+    /// The row's treatment.
+    ///
+    /// - Parameters:
+    ///   - isSelected: The selected player's own row.
+    ///   - card: The row is allowed its own card when ungrouped.
+    ///   - grouped: The row sits in a flush ``FestivalGlassSection``.
+    /// - Returns: What the row draws.
+    static func treatment(isSelected: Bool, card: Bool, grouped: Bool) -> Treatment {
+        if grouped { return isSelected ? .selectedBand : .bare }
+        if isSelected { return .selectedCard }
+        return card ? .card : .bare
+    }
 
     func body(content: Content) -> some View {
+        switch Self.treatment(isSelected: isSelected, card: card, grouped: grouped) {
+        case .selectedBand:
+            content.background { Rectangle().fill(Self.playerFill) }
+        case .bare:
+            content
+        case .card, .selectedCard:
+            ungrouped(content)
+        }
+    }
+
+    /// The per-row card treatment outside a group.
+    private func ungrouped(_ content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
-        content
+        return content
             .background {
                 if isSelected {
                     shape.fill(Self.playerFill)
@@ -678,29 +723,38 @@ struct BandRankingRow: View {
 
 /// Redacted placeholder rows shown while a rankings request is in flight; card
 /// rows where the loaded rows are cards, at the loaded rows' height so nothing jumps
-/// when the data arrives (issue #90).
+/// when the data arrives (issue #90). Inside a flush ``FestivalGlassSection`` the
+/// placeholders are the group's own entries, separated by its hairlines (#381).
 struct RankingsSkeletonRows: View {
     let count: Int
-    /// Match card rows (Leaderboards) instead of plain rows inside a card.
+    /// Match full-height leaderboard rows (Leaderboards) instead of plain rows inside a card.
     var cardRows: Bool = false
+    @Environment(\.festivalGroupedRow) private var grouped
 
     var body: some View {
-        VStack(spacing: 6) {
-            ForEach(0..<count, id: \.self) { _ in
-                HStack(spacing: 10) {
-                    Capsule().frame(width: 28, height: 14)
-                    Capsule().frame(width: 120, height: 14)
-                    Spacer()
-                    Capsule().frame(width: 56, height: 14)
-                }
-                .foregroundStyle(BrandTokens.surfaceMuted)
-                .padding(.horizontal, cardRows ? 14 : 0)
-                .frame(minHeight: cardRows ? LeaderboardRowMetrics.minHeight : nil)
-                .modifier(RankingRowSurface(isSelected: false, card: cardRows))
-            }
+        if grouped {
+            // Top-level rows, so the group card separates them like the loaded rows.
+            rows
+        } else {
+            VStack(spacing: 6) { rows }
         }
-        .redacted(reason: .placeholder)
-        .accessibilityHidden(true)
+    }
+
+    private var rows: some View {
+        ForEach(0..<count, id: \.self) { _ in
+            HStack(spacing: 10) {
+                Capsule().frame(width: 28, height: 14)
+                Capsule().frame(width: 120, height: 14)
+                Spacer()
+                Capsule().frame(width: 56, height: 14)
+            }
+            .foregroundStyle(BrandTokens.surfaceMuted)
+            .padding(.horizontal, cardRows ? 14 : 0)
+            .frame(minHeight: cardRows ? LeaderboardRowMetrics.minHeight : nil)
+            .modifier(RankingRowSurface(isSelected: false, card: cardRows))
+            .redacted(reason: .placeholder)
+            .accessibilityHidden(true)
+        }
     }
 }
 
@@ -831,11 +885,12 @@ struct RankingsPagerView: View {
 
 /// Which side of an iPhone Duo hinge a board's pager sits on (issue #345).
 ///
-/// Unfolded (or in book pose) in landscape the inner display's hinge runs down the
-/// middle of a full-width board, so a centred pager would straddle it. The pager moves
-/// to the screen beside the vertical bar instead (the right screen in the usual
-/// landscape), within thumb reach of the rail, as Android's unfolded song band board
-/// puts its pager on the trailing side. HIG Designing for iPhone Duo: "use
+/// Unfolded (or in book pose) in landscape a full-width board divides into two screens:
+/// at the hinge in book pose, at the midpoint of the free space beside the vertical bar
+/// when flat (``DeviceLayout/screenDivide(layoutDirection:)``, owner #361), where the
+/// board's two columns meet. The pager moves to the screen beside the vertical bar (the
+/// right screen in the usual landscape), within thumb reach of the rail, as Android's
+/// unfolded song band board puts its pager on the trailing side. HIG Designing for iPhone Duo: "use
 /// reserved-region APIs to keep important elements clear of the center" and "move only
 /// what's necessary": the rows and the pinned selected row keep their full width.
 enum PagerScreenPlacement {
@@ -847,8 +902,8 @@ enum PagerScreenPlacement {
     ///
     /// - Parameters:
     ///   - container: The pager container's frame in window coordinates (leading-edge x).
-    ///   - hinge: ``DeviceLayout/splitHinge``: the fold, the flat hinge, or the inner
-    ///     display's middle line; nil without a hinge.
+    ///   - hinge: ``DeviceLayout/screenDivide(layoutDirection:)``: the book-pose hinge,
+    ///     or the flat inner display's free-space midline; nil without either.
     ///   - preferredEdge: The vertical bar's edge (the pager's screen); `.trailing`
     ///     when there is no vertical bar.
     /// - Returns: Nil (centre in the whole container) unless a vertical hinge crosses
@@ -868,16 +923,18 @@ enum PagerScreenPlacement {
     }
 }
 
-/// Centres the pager on one screen of an iPhone Duo hinge (``PagerScreenPlacement``),
+/// Centres the pager on one screen of an iPhone Duo inner display (``PagerScreenPlacement``),
 /// else across the whole width. Measures its own full-width frame, so the placement
 /// never feeds back into the measurement.
 private struct PagerScreenPlacementModifier: ViewModifier {
     @Environment(\.deviceLayout) private var layout
+    @Environment(\.layoutDirection) private var layoutDirection
     @State private var container: CGRect = .zero
 
     func body(content: Content) -> some View {
         let region = PagerScreenPlacement.region(
-            container: container, hinge: layout.splitHinge, preferredEdge: preferredEdge
+            container: container, hinge: layout.screenDivide(layoutDirection: layoutDirection),
+            preferredEdge: preferredEdge
         )
         content
             .frame(width: region?.width)

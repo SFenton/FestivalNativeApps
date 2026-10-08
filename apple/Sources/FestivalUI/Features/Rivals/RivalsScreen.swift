@@ -218,7 +218,7 @@ struct RivalCommonSection: View {
         case let .loaded(result):
             shell(viewAll: RivalsViewAllButton(
                 route: AppRoute.allRivals(scope: .song(instruments: instruments.map(\.rawValue))),
-                identifier: "fst.rivals.common.view-all"
+                identifier: "fst.rivals.common.view-all", card: "Common Rivals"
             )) {
                 ForEach(previewRows(result)) { row in
                     ListDetailLink(value: AppRoute.rivalDetail(
@@ -256,19 +256,18 @@ struct RivalCommonSection: View {
             + result.below.prefix(previewCount).map { Row(rival: $0, direction: .below) }
     }
 
-    /// The section's material card, with its optional "View All Rivals" button below
-    /// the card (not a row inside it), like "View Full Leaderboard" (#41).
+    /// The section's material card, ending with its optional "View All Rivals" button
+    /// inside the card below the rows, like "View Full Leaderboard" (#41, #382).
     ///
     /// - Parameters:
-    ///   - viewAll: Button shown under the card once rivals loaded; nil while loading or failed.
+    ///   - viewAll: Button that ends the card once rivals loaded; nil while loading or failed.
     ///   - content: The card's rows.
     /// - Returns: The padded section.
     @ViewBuilder private func shell<Content: View>(
         viewAll: RivalsViewAllButton? = nil, @ViewBuilder _ content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            FestivalGlassSection("Common Rivals") { content() }
-            viewAll
+            FestivalGlassSection("Common Rivals") { content() } action: { viewAll }
         }
         .padding(.horizontal, 16)
     }
@@ -328,7 +327,7 @@ struct RivalComboSection: View {
                 route: AppRoute.allRivals(
                     scope: .combo(token: scope.token, instruments: scope.instruments.map(\.rawValue))
                 ),
-                identifier: "fst.rivals.combo.view-all"
+                identifier: "fst.rivals.combo.view-all", card: "\(scope.label) Rivals"
             )) {
                 ForEach(previewRows(response)) { row in
                     ListDetailLink(value: AppRoute.rivalDetail(
@@ -366,19 +365,18 @@ struct RivalComboSection: View {
             + response.below.prefix(previewCount).map { Row(rival: $0, direction: .below) }
     }
 
-    /// The section's material card, with its optional "View All Rivals" button below
-    /// the card (not a row inside it), like "View Full Leaderboard" (#41).
+    /// The section's material card, ending with its optional "View All Rivals" button
+    /// inside the card below the rows, like "View Full Leaderboard" (#41, #382).
     ///
     /// - Parameters:
-    ///   - viewAll: Button shown under the card once rivals loaded; nil while loading or failed.
+    ///   - viewAll: Button that ends the card once rivals loaded; nil while loading or failed.
     ///   - content: The card's rows.
     /// - Returns: The padded section.
     @ViewBuilder private func shell<Content: View>(
         viewAll: RivalsViewAllButton? = nil, @ViewBuilder _ content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            FestivalGlassSection("\(scope.label) Rivals") { content() }
-            viewAll
+            FestivalGlassSection("\(scope.label) Rivals") { content() } action: { viewAll }
         }
         .padding(.horizontal, 16)
     }
@@ -489,7 +487,8 @@ struct RivalInstrumentSongCard: View {
         case let .loaded(response):
             entrance(taggedShell(viewAll: RivalsViewAllButton(
                 route: AppRoute.allRivals(scope: .song(instruments: [instrument.rawValue])),
-                identifier: "fst.rivals.song.\(instrument.rawValue).view-all"
+                identifier: "fst.rivals.song.\(instrument.rawValue).view-all",
+                card: "\(instrument.label) Rivals"
             )) {
                 ForEach(previewRows(response)) { row in
                     ListDetailLink(
@@ -544,11 +543,11 @@ struct RivalInstrumentSongCard: View {
             + response.below.prefix(previewCount).map { Row(rival: $0, direction: .below) }
     }
 
-    /// The section's material card, with its optional "View All Rivals" button below
-    /// the card (not a row inside it), like "View Full Leaderboard" (#41).
+    /// The section's material card, ending with its optional "View All Rivals" button
+    /// inside the card below the rows, like "View Full Leaderboard" (#41, #382).
     ///
     /// - Parameters:
-    ///   - viewAll: Button shown under the card once rivals loaded; nil while loading or failed.
+    ///   - viewAll: Button that ends the card once rivals loaded; nil while loading or failed.
     ///   - content: The card's rows.
     /// - Returns: The padded section.
     @ViewBuilder private func shell<Content: View>(
@@ -557,8 +556,7 @@ struct RivalInstrumentSongCard: View {
         // Web `InstrumentHeader` SM above the card, never inside it.
         VStack(alignment: .leading, spacing: 8) {
             InstrumentSectionHeader(instrument, title: "\(instrument.label) Rivals")
-            FestivalGlassSection { content() }
-            viewAll
+            FestivalGlassSection { content() } action: { viewAll }
         }
         .padding(.horizontal, 16)
     }
@@ -606,7 +604,8 @@ struct RivalInstrumentLeaderboardSection: View {
                 route: AppRoute.allRivals(
                     scope: .leaderboard(instrument: instrument.rawValue, rankBy: rankBy)
                 ),
-                identifier: "fst.rivals.leaderboard.\(instrument.rawValue).view-all"
+                identifier: "fst.rivals.leaderboard.\(instrument.rawValue).view-all",
+                card: "\(instrument.label) Rivals"
             )) {
                 ForEach(previewRows(response)) { row in
                     ListDetailLink(
@@ -653,11 +652,11 @@ struct RivalInstrumentLeaderboardSection: View {
             + response.below.prefix(previewCount).map { Row(rival: $0, direction: .below) }
     }
 
-    /// The section's material card, with its optional "View All Rivals" button below
-    /// the card (not a row inside it), like "View Full Leaderboard" (#41).
+    /// The section's material card, ending with its optional "View All Rivals" button
+    /// inside the card below the rows, like "View Full Leaderboard" (#41, #382).
     ///
     /// - Parameters:
-    ///   - viewAll: Button shown under the card once rivals loaded; nil while loading or failed.
+    ///   - viewAll: Button that ends the card once rivals loaded; nil while loading or failed.
     ///   - content: The card's rows.
     /// - Returns: The padded section.
     @ViewBuilder private func shell<Content: View>(
@@ -666,8 +665,7 @@ struct RivalInstrumentLeaderboardSection: View {
         // Web `InstrumentHeader` SM above the card, never inside it.
         VStack(alignment: .leading, spacing: 8) {
             InstrumentSectionHeader(instrument, title: "\(instrument.label) Rivals")
-            FestivalGlassSection { content() }
-            viewAll
+            FestivalGlassSection { content() } action: { viewAll }
         }
         .padding(.horizontal, 16)
     }

@@ -25,6 +25,17 @@ private let flat = DeviceLayout.resolve(LayoutSignals(
     verticalBarEdge: .trailing, hinge: .fullyOpen, hinges: [bookFold]
 ))
 
+/// Book pose with no division or hinge reported (`hinge: .partiallyOpen` only):
+/// ``DeviceLayout/splitHinge`` synthesizes the inner display's middle line (#361 review).
+private let bookPoseUnreported = DeviceLayout.resolve(LayoutSignals(
+    size: CGSize(width: 951, height: 669), widthClass: .regular,
+    safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 20, trailing: 84),
+    verticalBarEdge: .trailing, hinge: .partiallyOpen
+))
+
+/// The synthesized book-pose hinge: a zero-width line through the window's middle.
+private let midline = CGRect(x: 475.5, y: 0, width: 0, height: 669)
+
 private let hostSize = CGSize(width: 951, height: 669)
 
 /// Frame tolerance: on a 1x display (headless CI) SwiftUI snaps half-point edges to whole
@@ -146,6 +157,21 @@ private let ids = ["fixture.header", "fixture.grid.0", "fixture.grid.1", "fixtur
     #expect(flat0.maxX < bookFold.minX - 20)
     // The title spans the content again.
     #expect(try #require(open["fixture.header"]).maxX > bookFold.maxX)
+
+    // Book pose with no reported fold: the same grid, row and title divide at the
+    // synthesized middle line, like the on-demand split (R7, #361 review).
+    #expect(bookPoseUnreported.foldFrame == nil)
+    #expect(bookPoseUnreported.splitHinge == midline)
+    box.layout = bookPoseUnreported
+    var synthesized = try await frames(host, ids)
+    for _ in 0..<20 where abs((synthesized["fixture.grid.0"]?.maxX ?? 0) - (midline.midX - 10)) >= pixelTolerance {
+        synthesized = try await frames(host, ids)
+    }
+    #expect(abs(try #require(synthesized["fixture.grid.0"]).maxX - (midline.midX - 10)) < pixelTolerance)
+    #expect(abs(try #require(synthesized["fixture.grid.1"]).minX - (midline.midX + 10)) < pixelTolerance)
+    #expect(abs(try #require(synthesized["fixture.row.0"]).maxX - (midline.midX - 6)) < pixelTolerance)
+    #expect(abs(try #require(synthesized["fixture.row.1"]).minX - (midline.midX + 6)) < pixelTolerance)
+    #expect(try #require(synthesized["fixture.header"]).maxX <= midline.midX - HingeColumns.titleClearance + pixelTolerance)
 }
 
 // MARK: - Song Detail instrument cards (accessibility sizes)
@@ -174,27 +200,37 @@ private struct SongDetailCardFixture: View {
 
 private let cardIds = ["fixture.card.0", "fixture.card.1", "fixture.card.2"]
 
-/// Song Detail's cards at `typeSize`: in book pose the two-card row meets at the fold and
+/// Song Detail's cards at `typeSize`: in book pose the two-card row meets at the hinge and
 /// the third card starts a new row under the first; unfolding the same view restores equal
 /// columns.
+///
+/// - Parameters:
+///   - typeSize: The Dynamic Type size (accessibility sizes use the eager grid).
+///   - pose: A book-pose layout.
+///   - leadingEnd: Where the leading card must end (the hinge clearance's leading edge).
+///   - trailingStart: Where the trailing card must start.
 @MainActor
-private func assertSongDetailCardsSplitAtTheFold(_ typeSize: DynamicTypeSize) async throws {
-    let box = LayoutBox(bookPose)
+private func assertSongDetailCardsSplitAtTheFold(
+    _ typeSize: DynamicTypeSize, pose: DeviceLayout = bookPose,
+    leadingEnd: CGFloat = bookFold.minX, trailingStart: CGFloat = bookFold.maxX
+) async throws {
+    let box = LayoutBox(pose)
     let host = nativeHostedView(SongDetailCardFixture(box: box, typeSize: typeSize), size: hostSize)
     let window = nativeHostedWindow(host, size: hostSize)
     defer { withExtendedLifetime(window) {} }
 
     _ = try await frames(host, cardIds)
     var folded = try await frames(host, cardIds)
-    for _ in 0..<20 where (folded["fixture.card.0"]?.maxX ?? 0) > bookFold.minX + pixelTolerance {
+    for _ in 0..<20 where abs((folded["fixture.card.0"]?.maxX ?? 0) - leadingEnd) >= pixelTolerance {
         folded = try await frames(host, cardIds)
     }
     let card0 = try #require(folded["fixture.card.0"])
     let card1 = try #require(folded["fixture.card.1"])
     let card2 = try #require(folded["fixture.card.2"])
-    // The gutter is the fold even though the 356 pt trailing side is under the 360 pt minimum.
-    #expect(abs(card0.maxX - bookFold.minX) < pixelTolerance)
-    #expect(abs(card1.minX - bookFold.maxX) < pixelTolerance)
+    // The gutter is the hinge even though the 356 pt trailing side (beside a 40 pt fold)
+    // is under the 360 pt minimum.
+    #expect(abs(card0.maxX - leadingEnd) < pixelTolerance)
+    #expect(abs(card1.minX - trailingStart) < pixelTolerance)
     // One row, top-aligned in the eager and the lazy grid alike (#365).
     #expect(abs(card1.minY - card0.minY) < pixelTolerance)
     #expect(abs(card2.minX - card0.minX) < pixelTolerance)
@@ -220,22 +256,35 @@ private func assertSongDetailCardsSplitAtTheFold(_ typeSize: DynamicTypeSize) as
 @MainActor @Test func songDetailCardsSplitAtTheFoldAtStandardSizes() async throws {
     try await assertSongDetailCardsSplitAtTheFold(.large)
 }
+
+/// Book pose with no reported division: Song Detail's standard (`HingeGrid`) and
+/// accessibility (`HingeEagerGrid`) card grids straddle the synthesized middle line that
+/// the on-demand split and page rows divide on (R7, #361 review).
+@MainActor @Test func songDetailCardsSplitAtTheSynthesizedHingeInBookPose() async throws {
+    let half = SongDetailCardColumns.spacing / 2
+    for typeSize in [DynamicTypeSize.large, .accessibility3] {
+        try await assertSongDetailCardsSplitAtTheFold(
+            typeSize, pose: bookPoseUnreported,
+            leadingEnd: midline.midX - half, trailingStart: midline.midX + half
+        )
+    }
+}
 // MARK: - Page hinge (issue #350, pattern `wide-columns` R3)
 
-/// Flat inner display with no reported hinge: the page hinge is the window's middle.
+/// Flat inner display with no reported hinge.
 private let flatUnreported = DeviceLayout.resolve(LayoutSignals(
     size: CGSize(width: 951, height: 669), widthClass: .regular,
     safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 20, trailing: 84),
     verticalBarEdge: .trailing, hinge: .fullyOpen
 ))
 
-/// Wide-landscape page rows (Search results, Songs grid) beside a fold-only row.
+/// Wide-landscape page rows (Search results, Songs grid) beside a second row.
 private struct PageHingeFixture: View {
     @ObservedObject var box: LayoutBox
 
     var body: some View {
         VStack(spacing: 12) {
-            HingeRow(spacing: WideColumns.spacing, hinge: .page) {
+            HingeRow(spacing: WideColumns.spacing) {
                 ForEach(0..<2, id: \.self) { index in
                     Color.green.frame(height: 40)
                         .frame(maxWidth: .infinity)
@@ -265,9 +314,10 @@ private struct PageHingeFixture: View {
 
 private let pageIds = ["fixture.page.0", "fixture.page.1", "fixture.fold.0", "fixture.fold.1"]
 
-/// Page rows meet at the hinge flat and folded (the reported hinge, else the window's
-/// middle); fold-only rows keep equal cells while flat. Changing pose reflows in place.
-@MainActor @Test func pageHingeRowsMeetAtTheHingeFlatAndFolded() async throws {
+/// Page rows meet at the hinge only in book pose (reported or synthesized); flat (hinge
+/// reported or not) they are equal and meet at the midpoint of the free space beside the
+/// bar (owner #361). Changing pose reflows in place.
+@MainActor @Test func pageHingeRowsMeetAtTheHingeOnlyInBookPose() async throws {
     let box = LayoutBox(flat)
     let host = nativeHostedView(PageHingeFixture(box: box), size: hostSize)
     let window = nativeHostedWindow(host, size: hostSize)
@@ -282,25 +332,37 @@ private let pageIds = ["fixture.page.0", "fixture.page.1", "fixture.fold.0", "fi
         return result
     }
 
-    // Flat with a reported hinge: the page row's gutter is the hinge; the fold row is equal.
-    var open = try await settled(at: bookFold.minX)
-    #expect(abs(try #require(open["fixture.page.0"]).maxX - bookFold.minX) < pixelTolerance)
-    #expect(abs(try #require(open["fixture.page.1"]).minX - bookFold.maxX) < pixelTolerance)
-    let fold0 = try #require(open["fixture.fold.0"])
-    let fold1 = try #require(open["fixture.fold.1"])
-    #expect(abs(fold0.width - fold1.width) < pixelTolerance)
+    // Flat with a reported hinge: both rows are equal, the gutter on the free space's
+    // midpoint (16…851 inside the padding, left of the 84 pt bar), not the hinge.
+    let freeMiddle = (16 + hostSize.width - 84 - 16) / 2
+    var open = try await settled(at: freeMiddle - WideColumns.spacing / 2)
+    for prefix in ["fixture.page", "fixture.fold"] {
+        let cell0 = try #require(open["\(prefix).0"])
+        let cell1 = try #require(open["\(prefix).1"])
+        #expect(abs(cell0.width - cell1.width) < pixelTolerance)
+        #expect(abs((cell0.maxX + cell1.minX) / 2 - freeMiddle) < pixelTolerance)
+    }
 
     // Book pose: both rows straddle the fold.
     box.layout = bookPose
     let folded = try await settled(at: bookFold.minX)
+    #expect(abs(try #require(folded["fixture.page.0"]).maxX - bookFold.minX) < pixelTolerance)
     #expect(abs(try #require(folded["fixture.page.1"]).minX - bookFold.maxX) < pixelTolerance)
 
-    // Flat, no reported hinge: the gutter is centred on the window's middle.
+    // Book pose, no reported fold: both rows straddle the synthesized middle line.
+    box.layout = bookPoseUnreported
+    let synthesized = try await settled(at: midline.midX - WideColumns.spacing / 2)
+    for prefix in ["fixture.page", "fixture.fold"] {
+        let cell0 = try #require(synthesized["\(prefix).0"])
+        let cell1 = try #require(synthesized["\(prefix).1"])
+        #expect(abs((cell0.maxX + cell1.minX) / 2 - midline.midX) < pixelTolerance)
+    }
+
+    // Flat, no reported hinge: the same free-space midpoint, never the window's middle.
     box.layout = flatUnreported
-    let middle = hostSize.width / 2
-    open = try await settled(at: middle - WideColumns.spacing / 2)
+    open = try await settled(at: freeMiddle - WideColumns.spacing / 2)
     let page0 = try #require(open["fixture.page.0"])
     let page1 = try #require(open["fixture.page.1"])
-    #expect(abs((page0.maxX + page1.minX) / 2 - middle) < pixelTolerance)
+    #expect(abs((page0.maxX + page1.minX) / 2 - freeMiddle) < pixelTolerance)
 }
 #endif

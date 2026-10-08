@@ -229,9 +229,10 @@ struct CompeteInstrumentLeaderboardSection: View {
         .accessibilityIdentifier("fst.compete.leaderboard-card.\(instrument.rawValue)")
     }
 
-    /// The one leaderboard design (operator batch 7.4): no card around the rows; each
-    /// row its own material card (the player's purple), then the shared purple "View Full
-    /// Leaderboard" button (batch 7.6).
+    /// The one leaderboard design (operator batch 7.4): the top five and the player's own
+    /// row (the player's purple) as entries of one group card, like the Rivals cards
+    /// (issue #381), ending with the shared purple "View Full Leaderboard" button inside
+    /// the card (batch 7.6, #382).
     private var card: some View {
         VStack(alignment: .leading, spacing: 6) {
             switch state {
@@ -249,7 +250,7 @@ struct CompeteInstrumentLeaderboardSection: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .festivalCard(cornerRadius: 12)
             case let .loaded(payload):
-                VStack(spacing: 6) {
+                FestivalGlassSection(rows: .flush(separatorInset: RankingRowLayout.horizontalPadding)) {
                     ForEach(payload.rankings.entries) { entry in
                         AccountRankingRow(
                             entry: entry, metric: .totalscore,
@@ -259,6 +260,16 @@ struct CompeteInstrumentLeaderboardSection: View {
                     if let spotlight {
                         spotlightRow(spotlight)
                     }
+                } action: {
+                    // Ends the card inside it, after the player's own row (#382).
+                    NavigationLink(
+                        value: AppRoute.fullRankings(instrument: instrument, rankBy: "totalscore")
+                    ) {
+                        PurpleActionLabel(title: "View Full Leaderboard")
+                    }
+                    .festivalRowButtonStyle()
+                    .accessibilityLabel(PurpleActionName.spoken("View Full Leaderboard", card: instrument.label))
+                    .accessibilityIdentifier("fst.compete.leaderboard-card.\(instrument.rawValue).view-all")
                 }
                 // One rank, songs and score width for the card and the player's own row
                 // (issue #37, web `computeRankWidth` with `playerEntry`); on a narrow
@@ -272,13 +283,6 @@ struct CompeteInstrumentLeaderboardSection: View {
                         )
                     }
                 )
-                NavigationLink(
-                    value: AppRoute.fullRankings(instrument: instrument, rankBy: "totalscore")
-                ) {
-                    PurpleActionLabel(title: "View Full Leaderboard")
-                }
-                .festivalRowButtonStyle()
-                .accessibilityIdentifier("fst.compete.leaderboard-card.\(instrument.rawValue).view-all")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

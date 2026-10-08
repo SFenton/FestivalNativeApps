@@ -28,22 +28,12 @@ struct PrivacyPolicySheet: View {
     var body: some View {
         FestivalModal(policy.title, closeIdentifier: "fst.privacy-policy.close") {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    Text(policy.effectiveDateText)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(FestivalText.primary)
-                        .accessibilityIdentifier("fst.privacy-policy.effective-date")
-                    ForEach(policy.sections) { section in
-                        sectionView(section)
-                    }
-                }
-                .textSelection(.enabled)
-                .tint(BrandTokens.accentBlue)
-                .frame(maxWidth: 680, alignment: .leading)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 32)
+                PrivacyPolicyContent(policy: policy)
+                    .frame(maxWidth: 680, alignment: .leading)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                    .padding(.bottom, 32)
             }
             .accessibilityIdentifier("fst.privacy-policy.content")
         }
@@ -53,6 +43,29 @@ struct PrivacyPolicySheet: View {
         .frame(minWidth: 480, idealWidth: 620, minHeight: 420, idealHeight: 560)
         #endif
         .festivalSheet(.large)
+    }
+}
+
+// MARK: - Policy content
+
+/// The policy's effective date and sections, shared by ``PrivacyPolicySheet`` and the
+/// list/detail Settings' Privacy Policy pane (issue #371), which shows it inline on the
+/// right instead of a sheet. The caller scrolls and pads it.
+struct PrivacyPolicyContent: View {
+    let policy: PrivacyPolicy
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Text(policy.effectiveDateText)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(FestivalText.primary)
+                .accessibilityIdentifier("fst.privacy-policy.effective-date")
+            ForEach(policy.sections) { section in
+                sectionView(section)
+            }
+        }
+        .textSelection(.enabled)
+        .tint(BrandTokens.accentBlue)
     }
 
     // MARK: - Blocks

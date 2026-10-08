@@ -79,6 +79,13 @@ private func offers(_ art: [String?]) throws -> [ShopSong] {
     #expect(ShopArtworkPrimePolicy.paths(for: list, limit: 0).isEmpty)
 }
 
+/// A two-column Shop list warms one screen of covers per column (wide-columns, #378).
+@Test func shopPrimeLimitScalesWithListColumns() {
+    #expect(ShopArtworkPrimePolicy.limit(columns: 1) == ShopArtworkPrimePolicy.count)
+    #expect(ShopArtworkPrimePolicy.limit(columns: 2) == ShopArtworkPrimePolicy.count * 2)
+    #expect(ShopArtworkPrimePolicy.limit(columns: 0) == ShopArtworkPrimePolicy.count)
+}
+
 /// The priming budget is one phone screen and never longer than the Songs gate.
 @Test func shopPrimeBudgetIsBounded() {
     #expect(ShopArtworkPrimePolicy.count >= 10 && ShopArtworkPrimePolicy.count <= 16)

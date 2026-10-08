@@ -31,7 +31,7 @@ struct FeedbackFormPanes<Form: View, Library: View>: View {
     }
 
     var body: some View {
-        HingeRow(spacing: 0, hinge: .fold, fillsHeight: true) {
+        HingeRow(spacing: 0, fillsHeight: true) {
             form
             if showsLibrary {
                 library

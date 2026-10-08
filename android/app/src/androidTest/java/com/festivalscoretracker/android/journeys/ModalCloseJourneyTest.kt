@@ -212,8 +212,10 @@ class ModalCloseJourneyTest {
         h.enableAccessibilityChecks()
         h.launch(DebugLaunch(section = FestivalSection.Settings, stillBackground = true), transport)
         h.scrollTo("fst.settings.list", "fst.settings.privacy-policy")
+        // List/detail windows (issue #371) show the policy in the detail pane, not a modal.
+        val panes = h.exists("fst.settings.detail-pane")
         h.tap("fst.settings.privacy-policy")
-        assertCloseAndDismiss("modal-privacy-policy", "fst.privacy-policy.close", "fst.privacy-policy.sheet")
+        if (panes) h.waitForTag("fst.privacy-policy.pane") else assertCloseAndDismiss("modal-privacy-policy", "fst.privacy-policy.close", "fst.privacy-policy.sheet")
         h.scrollTo("fst.settings.list", "fst.settings.feedback.bug")
         h.tap("fst.settings.feedback.bug")
         assertCloseAndDismiss("modal-feedback", "fst.settings.feedback.close", "fst.settings.feedback.dialog", "fst.settings.feedback.title")

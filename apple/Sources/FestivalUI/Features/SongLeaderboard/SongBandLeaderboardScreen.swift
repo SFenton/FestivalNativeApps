@@ -539,9 +539,14 @@ struct SongBandLeaderboardContent: View {
             // both pages, issue #90), each row its own material card.
             LazyVStack(spacing: Self.rowGap) {
                 if payload.leaderboard.entries.isEmpty {
-                    Text("No \(bandType.label.lowercased()) scores yet.")
-                        .foregroundStyle(FestivalText.primary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    // Web `songBandLeaderboard.emptyTitle` / `emptySubtitle`.
+                    FestivalEmptyState(
+                        "No band scores found",
+                        subtitle: "No \(bandType.label.lowercased()) scores have been "
+                            + "recorded for this song yet.",
+                        placement: .inline,
+                        accessibilityIdentifier: "fst.song-band-leaderboard.empty"
+                    )
                 }
                 // Row-major pairs in wide landscape (wide-columns R2, #353).
                 ForEach(WideColumns.indexedRows(payload.leaderboard.entries, columns: columns)) { row in

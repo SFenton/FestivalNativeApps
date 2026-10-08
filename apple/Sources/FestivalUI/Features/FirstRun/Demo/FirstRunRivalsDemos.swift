@@ -21,7 +21,7 @@ struct FirstRunRivalGroupsDemo: View {
     /// Stagger the rows' first appearance (the Rivals page's version does).
     var staggers = false
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FirstRunReduceMotion private var reduceMotion
     @State private var above: FirstRunWindowRotation<FirstRunDemoPool.RivalEntry>
     @State private var below: FirstRunWindowRotation<FirstRunDemoPool.RivalEntry>
     @State private var nextGroup = 0
@@ -36,17 +36,25 @@ struct FirstRunRivalGroupsDemo: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            // One group card per direction, like the Rivals page (#381); web
+            // `delay={(idx++) * 80}` over headers and rows alike.
             Text("Above You").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
-            ForEach(Array(above.rows.enumerated()), id: \.offset) { index, rival in
-                FirstRunRivalRow(rival: rival, direction: .above)
-                    .firstRunSwapRow(0, key: rival.name, rise: 4)
-                    .modifier(FirstRunOptionalStagger(index: index, enabled: staggers))
+                .modifier(FirstRunOptionalStagger(index: 0, enabled: staggers))
+            FestivalGlassSection(rows: .flush(separatorInset: 16)) {
+                ForEach(Array(above.rows.enumerated()), id: \.offset) { index, rival in
+                    FirstRunRivalRow(rival: rival, direction: .above)
+                        .firstRunSwapRow(0, rise: 4)
+                        .modifier(FirstRunOptionalStagger(index: index + 1, enabled: staggers))
+                }
             }
             Text("Below You").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
-            ForEach(Array(below.rows.enumerated()), id: \.offset) { index, rival in
-                FirstRunRivalRow(rival: rival, direction: .below)
-                    .firstRunSwapRow(1, key: rival.name, rise: 4)
-                    .modifier(FirstRunOptionalStagger(index: index + visible, enabled: staggers))
+                .modifier(FirstRunOptionalStagger(index: visible + 1, enabled: staggers))
+            FestivalGlassSection(rows: .flush(separatorInset: 16)) {
+                ForEach(Array(below.rows.enumerated()), id: \.offset) { index, rival in
+                    FirstRunRivalRow(rival: rival, direction: .below)
+                        .firstRunSwapRow(1, rise: 4)
+                        .modifier(FirstRunOptionalStagger(index: index + visible + 2, enabled: staggers))
+                }
             }
         }
         .environment(\.firstRunFadingRows, fading)
@@ -66,13 +74,14 @@ struct FirstRunRivalGroupsDemo: View {
     }
 }
 
-/// ``SwiftUI/View/firstRunStagger(_:)`` when `enabled`.
+/// ``SwiftUI/View/firstRunStagger(_:interval:)`` on the web rival demos' 80 ms cascade
+/// when `enabled`.
 private struct FirstRunOptionalStagger: ViewModifier {
     let index: Int
     let enabled: Bool
 
     func body(content: Content) -> some View {
-        if enabled { content.firstRunStagger(index) } else { content }
+        if enabled { content.firstRunStagger(index, interval: FirstRunMotion.rowStaggerSeconds) } else { content }
     }
 }
 
@@ -84,7 +93,7 @@ private struct FirstRunOptionalStagger: ViewModifier {
 struct FirstRunRivalsInstrumentsDemo: View {
     private static let instruments: [Instrument] = [.lead, .drums, .vocals]
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FirstRunReduceMotion private var reduceMotion
     /// Pool position per slot: instrument `i` above is slot `2i`, below is `2i + 1`.
     @State private var positions = Array(repeating: 0, count: 6)
     @State private var tick = 0
@@ -94,10 +103,16 @@ struct FirstRunRivalsInstrumentsDemo: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(Array(Self.instruments.enumerated()), id: \.offset) { section, instrument in
+                // The Rivals page's real section header; web `delay={(idx++) * 80}`.
                 VStack(alignment: .leading, spacing: 6) {
-                    FirstRunInstrumentHeader(instrument: instrument)
-                    rivalRow(slot: section * 2, direction: .above)
-                    rivalRow(slot: section * 2 + 1, direction: .below)
+                    InstrumentSectionHeader(instrument, title: "\(instrument.label) Rivals")
+                        .firstRunStagger(section * 3, interval: FirstRunMotion.rowStaggerSeconds)
+                    FestivalGlassSection(rows: .flush(separatorInset: 16)) {
+                        rivalRow(slot: section * 2, direction: .above)
+                            .firstRunStagger(section * 3 + 1, interval: FirstRunMotion.rowStaggerSeconds)
+                        rivalRow(slot: section * 2 + 1, direction: .below)
+                            .firstRunStagger(section * 3 + 2, interval: FirstRunMotion.rowStaggerSeconds)
+                    }
                 }
             }
         }
@@ -110,7 +125,7 @@ struct FirstRunRivalsInstrumentsDemo: View {
     private func rivalRow(slot: Int, direction: FirstRunRivalRow.Direction) -> some View {
         if let rival = Self.rival(slot: slot, position: positions[slot]) {
             FirstRunRivalRow(rival: rival, direction: direction)
-                .firstRunSwapRow(slot, key: rival.name, rise: 4)
+                .firstRunSwapRow(slot, rise: 4)
         }
     }
 
@@ -163,14 +178,15 @@ private struct FirstRunRivalsDetailCard: View {
         let category = categories[tick % categories.count]
         VStack(alignment: .leading, spacing: 10) {
             Text(category.title).font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
+                .firstRunStagger(0)
             ForEach(Array(songs.enumerated()), id: \.offset) { index, song in
                 comparisonRow(song, session: session, ranks: category.ranks[index % category.ranks.count])
-                    .firstRunStagger(index + 1)
+                    .firstRunStagger(index + 1, interval: FirstRunMotion.detailStaggerSeconds)
             }
         }
         // Rows remount after each swap so they restagger in, like the web's `staggerKey`.
         .id(tick)
-        .firstRunSwapRow(0, key: tick, rise: 4)
+        .firstRunSwapRow(0, rise: 4)
     }
 
     private func comparisonRow(
