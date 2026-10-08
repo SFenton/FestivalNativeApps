@@ -471,6 +471,54 @@ struct SongsSectionJumpTests {
         #expect(fired.value)
     }
 
+    /// Runs `write` and reports whether an observer of the row mask's inputs was invalidated.
+    private func rowFadeInvalidated(
+        _ chrome: SongsScrollChrome, by write: (SongsScrollChrome) -> Void
+    ) -> Bool {
+        let fired = JumpFlag()
+        withObservationTracking { _ = chrome.rowFade(enabled: true) } onChange: { fired.value = true }
+        write(chrome)
+        return fired.value
+    }
+
+    /// Issue #383: at the top the row mask must not follow the section bar's edge or the
+    /// fade limit, which move with the expanding large title; re-rendering the List's
+    /// mask there made the large title jump back and forth.
+    @Test func rowFadeAtTheTopIgnoresTheMovingBar() {
+        let chrome = SongsScrollChrome()
+        chrome.setBarMetrics(top: 170, height: 28)
+        chrome.setFadeLimit("#", limit: 12)
+        #expect(chrome.rowFade(enabled: true) == .inactive)
+        #expect(!rowFadeInvalidated(chrome) {
+            $0.setBarMetrics(top: 172, height: 28)
+        })
+        #expect(!rowFadeInvalidated(chrome) {
+            $0.setFadeLimit("#", limit: 0)
+        })
+        // Only leaving the top reaches the mask.
+        #expect(rowFadeInvalidated(chrome) {
+            $0.setScrolled(true)
+        })
+    }
+
+    @Test func rowFadeOnceScrolledFollowsTheBarAndTheLimit() {
+        let chrome = SongsScrollChrome()
+        chrome.setScrolled(true)
+        chrome.setBarMetrics(top: 170, height: 28)
+        chrome.setFadeLimit("A", limit: 6)
+        #expect(chrome.rowFade(enabled: true) == .init(edge: 198, active: true, depthLimit: 6))
+        #expect(rowFadeInvalidated(chrome) {
+            $0.setFadeLimit("A", limit: 2)
+        })
+        #expect(rowFadeInvalidated(chrome) {
+            $0.setBarMetrics(top: 180, height: 28)
+        })
+        // No sections (or no section bar): never masked.
+        #expect(chrome.rowFade(enabled: false) == .inactive)
+        chrome.setScrolled(false)
+        #expect(chrome.rowFade(enabled: true) == .inactive)
+    }
+
     @Test func topInsetIgnoresNonFiniteValuesAndNotifiesNoOne() {
         let chrome = SongsScrollChrome()
         let fired = JumpFlag()
@@ -657,6 +705,25 @@ struct MainThreadStallRecorderTests {
         #expect(recorder.report.stalls.count == 1)
         #expect(recorder.report.stalls.first?.counts == ["songs.row": 2, "songdetail.body": 1])
         #expect(recorder.report.counters["songs.row"] == 3)
+    }
+
+    /// Issue #383: the near-top journey reads the List's largest top inset.
+    @Test func peaksKeepTheLargestFiniteSampleAndAreFlushedWhenIdle() throws {
+        let (recorder, url) = recorder()
+        defer { try? FileManager.default.removeItem(at: url) }
+        recorder.peak("songs.topInset", 170)
+        recorder.peak("songs.topInset", 222.2)
+        recorder.peak("songs.topInset", 183)
+        recorder.peak("songs.topInset", .nan)
+        recorder.peak("songs.topInset", .infinity)
+        recorder.peak("other", -3)
+        #expect(recorder.report.peaks == ["songs.topInset": 222, "other": -3])
+        recorder.record(.afterWaiting, at: 100)
+        recorder.record(.beforeWaiting, at: 100.01)
+        let written = try JSONDecoder().decode(
+            MainThreadStallReport.self, from: Data(contentsOf: url)
+        )
+        #expect(written.peaks == ["songs.topInset": 222, "other": -3])
     }
 
     @Test func countersAreFlushedWhenIdle() throws {

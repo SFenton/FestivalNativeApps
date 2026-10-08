@@ -93,6 +93,25 @@ Fixed in #251:
 
 Design (`winui-design` skill, Fluent layout and scrolling): no markup, brush or control changes. The jump stays an instant `ChangeView`/`StartBringIntoView` (operator batch 7.15), and the 32-epx offset is the web's default scroll margin.
 
+## Landing accessibility (issue #416, 2026-10-08)
+
+`tools/windows/journeys/a11y-quick-links-landing.json` (`a11y_matrix.py`; guard `tools/windows/tests/test_quick_links_landing_a11y.py`) pins what #51 changed on Settings and Leaderboards, keyboard only. Pages are fixture-only (`"fixture": []`): they focus fixture rows.
+
+- `qla-settings-menu` (compact, medium, snap-left): Enter opens the menu on App Settings; Down walks the page order to Show Instruments, then Accessibility. Each jump announces "… section", lands the level-2 heading 40 epx below the scroller top (`LandingOffset` + the header style's 8 epx), reads it before the section's first control, focuses that control (the Lead toggle, Reduce Motion) and keeps "current section …" on the button one second after the jump settles. Esc returns focus to the ≥ 40×40 epx button. Every menu item the keyboard walks (App Settings through Accessibility) is measured at ≥ 40×40 epx while the menu is open.
+- `qla-leaderboards-menu` (compact, medium): the same for Drums (card group at 32 epx, its heading before its View All button, focus on its first row), with Lead, Bass and Drums measured at ≥ 40×40 epx.
+- `qla-leaderboards-pane` (wide at display 100% or 150%): the Lead, Bass and Drums rows are each ≥ 40×40 epx; Enter on the focused Drums row does the same and moves the UIA selection from Lead to Drums.
+- `assertstate:…|heading=2` (new driver key) proves the landed title is a heading; the Narrator model's phrase omits heading levels.
+
+| Configuration | Result |
+|---|---|
+| Menus: compact, medium, snap-left (300% host) | Pass, Axe 0 before the menu opens |
+| Menus: text 225%, compact and medium | Pass, Axe 0: headings, focus and current section unchanged; the title still lands fully below the title bar |
+| Pane: wide at display 150% and 100% (`--scan`) | Pass, Axe 0 |
+
+Defect found and fixed (#416 design review): the menu items' hit-testable pills were 27 epx tall (WinUI's keyboard/mouse `MenuFlyoutItemThemePaddingNarrow`). Every app menu item now has `MinHeight` `FSTMenuItemMinHeight` (44: 40 plus the template's 2 + 2 epx `MenuFlyoutItemMargin`), a 40 epx pill ([page-tools-and-nav-chrome](../../patterns/page-tools-and-nav-chrome.md) R10). A final `--scan` after a menu opened reports only open item 8 (WinUI `PopupHost`).
+
+CI (#416 retry, 2026-10-08): the `windows-ui` job runs the menu pages through `tools/windows/ui_ci.py` (`quick-links-landing` at compact and medium, `quick-links-landing-text-225` at compact) with `--scan`. The menu pages list `"axe_allow": ["framework-popup"]`, so only that framework finding is dropped; on Leaderboards it lingered after Esc on this host (2 errors per size before the allowance). Local runs: 4/4 at default text and 2/2 at text 225%, Axe 0 with the allowance. The wide pane page needs a 1440 epx window, which the runner's 1920×1080 desktop can't fit with its taskbar; it stays a host-matrix run.
+
 ## Validation (issue #246, 2026-10-05)
 
 #46 asked that Quick Links list sections in on-page order on Settings and on a player profile, from every entry point, and that jumps land and stay marked. Order journeys in `journeys/quick-links.json`:
@@ -144,6 +163,22 @@ Journeys (they need the split, so use display 150% or collapse the nav pane with
 - `qlo-split-settings` in `quick-links-order.json`.
 
 These replace `ql-pane-jumped`, `ql-pane-active-section`, `ql-pane-keyboard`, `ql-pane-order`, `qll-settings-pane` and `qlo-pane-settings`. All passed when driven live with the nav pane collapsed (1280×672 epx).
+
+## Jump accessibility (issue #414, 2026-10-08)
+
+`tools/windows/journeys/a11y-quick-links-jump.json` (`a11y_matrix.py`; guard `tools/windows/tests/test_quick_links_jump_journey.py`) pins what #46 changed on the player profile, keyboard only:
+
+- `qlj-profile-menu` (compact, medium, snap-left): Enter opens the menu on the current item. The items are in page order (Global, nine instruments, Bands), and only the current one is `toggle=on` and named "…, current section". Down ×10 and Enter jump to Bands. Narrator gets "Bands section", and the button still reads "current section Bands" one second after the jump settles. Bands lands at 32 epx. The same follows for Drums (40 epx, as a heading). Esc returns focus to the button (≥ 40×40 epx). Scrolling back to the header button makes Global current again: the menu button sits in the scrolling header, so the reopened menu marks the scroll position, not the last jump.
+- `qlj-profile-pane` (wide, maximized; display 100% or 150% on a 300% host): rows read in page order (`assertorder`) and are ≥ 40 epx tall. Enter on a focused row moves the UIA selection, the pane's current-section mark, to Bands and then Drums. The selection is still there after the jump settles. Pane rows carry no name suffix. Bands is not inset-checked when maximized, because it clamps at the end of the page (near-end lock).
+- The menu page scans before the menu first opens (`scan:` step); later scans would only report open item 8.
+
+| Configuration | Result |
+|---|---|
+| Menu: compact, medium, snap-left (300% host) | Pass, Axe 0 |
+| Menu: text 225%, compact and medium | Pass, Axe 0 (button 50 epx tall, text grows) |
+| Pane: wide, maximized at display 100% (`--scan`) | Pass, Axe 0 |
+
+No accessibility defect found.
 
 ## Open
 

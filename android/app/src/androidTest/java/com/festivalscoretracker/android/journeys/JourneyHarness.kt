@@ -1,9 +1,12 @@
 package com.festivalscoretracker.android.journeys
 
+import android.content.res.Configuration
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.ViewRootForTest
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ComposeAccessibilityValidator
@@ -75,7 +78,8 @@ class JourneyHarness(private val rule: JourneyRule) {
      * @param transport Fixture transport.
      * @param preferences Settings store.
      * @param fontScale Font scale to render the app at, read in composition so a test can switch
-     *   it in place (backed by snapshot state); `null` keeps the device's own.
+     *   it in place (backed by snapshot state); `null` keeps the device's own. Modals opened
+     *   after a switch (sheets and dialogs are separate windows) render at it too.
      */
     fun launch(
         debug: DebugLaunch,
@@ -88,9 +92,57 @@ class JourneyHarness(private val rule: JourneyRule) {
             if (fontScale == null) {
                 FestivalApp(container, debug)
             } else {
-                DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(fontScale())) { FestivalApp(container, debug) }
+                val scale = fontScale()
+                SideEffect { applyWindowFontScale(scale) }
+                DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(scale)) { FestivalApp(container, debug) }
             }
         }
+    }
+
+    /** [readingOrder] walks the tree Compose publishes to TalkBack ([publishTalkBackTree]). */
+    private var talkBackTree = false
+
+    /**
+     * Make every Compose view in the window publish to the test's UiAutomation what it publishes
+     * to TalkBack. Compose computes `traversalIndex`/`isTraversalGroup` order as
+     * `traversalBefore`/`traversalAfter` links, and sends the content-change events that refresh
+     * UiAutomation's node cache, only while a real accessibility service is on; without this,
+     * [readingOrder] sees no links (it falls back to tree order) and can read rows that scrolled
+     * away. Call after [launch]; from then on [readingOrder] is TalkBack's linear order and
+     * reads a fresh tree. UiAutomation connects first: a forced view sends events, and the
+     * platform throws "Accessibility off" for any sent before the app's AccessibilityManager is on.
+     */
+    fun publishTalkBackTree() {
+        InstrumentationRegistry.getInstrumentation().uiAutomation
+        val manager = rule.activity.getSystemService(android.view.accessibility.AccessibilityManager::class.java)
+        rule.waitUntil(10_000) { manager.isEnabled }
+        rule.waitForIdle()
+        rule.runOnUiThread {
+            fun roots(view: android.view.View): List<ViewRootForTest> = when {
+                view is ViewRootForTest -> listOf(view)
+                view is android.view.ViewGroup -> (0 until view.childCount).flatMap { roots(view.getChildAt(it)) }
+                else -> emptyList()
+            }
+            val found = roots(rule.activity.window.decorView)
+            assertTrue("no Compose view to publish", found.isNotEmpty())
+            found.forEach { it.forceAccessibilityForTesting(true) }
+        }
+        talkBackTree = true
+        rule.waitForIdle()
+    }
+
+    /**
+     * Give modal windows [scale]. `DeviceConfigurationOverride` stops at a window boundary: a
+     * `ModalBottomSheet` or `Dialog` composes in its own window, whose density comes from the
+     * activity's resources, so without this a "200%" sheet still renders at the device scale.
+     *
+     * @param scale Font scale.
+     */
+    @Suppress("DEPRECATION")
+    private fun applyWindowFontScale(scale: Float) {
+        val resources = rule.activity.resources
+        if (resources.configuration.fontScale == scale) return
+        resources.updateConfiguration(Configuration(resources.configuration).apply { fontScale = scale }, resources.displayMetrics)
     }
 
     /** Distinct ATF findings so far (`TYPE | Check | element | message`). */
@@ -157,6 +209,28 @@ class JourneyHarness(private val rule: JourneyRule) {
         return runCatching { rule.waitUntil(5_000) { fullSize() } }.isSuccess
     }
 
+    /** ATF can expose an unlabelled Compose child after the scroll viewport clips it to a sliver. */
+    private fun clippedUnlabelledView(element: String): Boolean {
+        val match = Regex("""View Rect\((-?\d+), (-?\d+) - (-?\d+), (-?\d+)\)""").matchEntire(element) ?: return false
+        val bounds = android.graphics.Rect(
+            match.groupValues[1].toInt(),
+            match.groupValues[2].toInt(),
+            match.groupValues[3].toInt(),
+            match.groupValues[4].toInt(),
+        )
+        if (bounds.height() > with(rule.density) { 8.dp.roundToPx() }) return false
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        if (android.os.Build.VERSION.SDK_INT >= 34) automation.clearCache()
+        fun find(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+            node ?: return null
+            val nodeBounds = android.graphics.Rect().also(node::getBoundsInScreen)
+            if (node.isVisibleToUser && nodeBounds == bounds) return node
+            for (i in 0 until node.childCount) find(node.getChild(i))?.let { return it }
+            return null
+        }
+        return find(automation.rootInActiveWindow) != null
+    }
+
     /**
      * Visible nodes in the window's accessibility tree whose resource id is [tag].
      *
@@ -185,8 +259,29 @@ class JourneyHarness(private val rule: JourneyRule) {
 
     /** Fail with every ATF error collected during the journey (warnings only log). */
     fun assertAccessible() {
-        val errors = accessibilityFindings.filter { it.startsWith("ERROR") && !clippedTouchTarget(it) }
+        val errors = accessibilityFindings.filter { finding ->
+            finding.startsWith("ERROR") &&
+                !clippedTouchTarget(finding) &&
+                !scrimSliver(finding) &&
+                !(finding.split(" | ").getOrNull(1) == "SpeakableTextPresentCheck" &&
+                    clippedUnlabelledView(finding.split(" | ").getOrNull(2).orEmpty()))
+        }
         assertTrue("Accessibility errors:\n" + errors.joinToString("\n"), errors.isEmpty())
+    }
+
+    /**
+     * Material's `ModalBottomSheet` scrim is a clickable "Close sheet" node; Compose reports its
+     * uncovered part, which above a fully expanded compact sheet on API 34 is only the
+     * [com.festivalscoretracker.android.ui.common.SHEET_TOP_GAP_DP] strip (1080×21 px on a
+     * Pixel 6), so ATF measures an 8 dp target. Every Festival sheet has the equivalent 48 dp
+     * header Close and Back (modal-shell R3/R4, `ModalCloseJourneyTest`), the WCAG 2.5.8
+     * "equivalent" exception, so only that touch-target finding is ignored (issue #418).
+     *
+     * @param finding Collected finding line.
+     * @return True for the scrim strip's touch-target finding.
+     */
+    private fun scrimSliver(finding: String): Boolean = finding.split(" | ").let {
+        it.getOrNull(1) == "TouchTargetSizeCheck" && it.getOrNull(2) == "Close sheet"
     }
 
     /**
@@ -294,6 +389,17 @@ class JourneyHarness(private val rule: JourneyRule) {
     }
 
     /**
+     * Fail when the run asked for a hinge (instrumentation argument `fstRequireHinge=true`,
+     * set by the `android-fold` CI job) and the window has no separating vertical one, so a
+     * [HalfOpenFoldJourney] can't pass by skipping its straddle checks. Without the argument
+     * (phones, `device.py test` on any AVD) it does nothing.
+     */
+    fun requireHingeWhenAsked() {
+        if (InstrumentationRegistry.getArguments().getString(REQUIRE_HINGE_ARG) != "true") return
+        assertTrue("$REQUIRE_HINGE_ARG=true but the window reports no separating vertical hinge", hinges().isNotEmpty())
+    }
+
+    /**
      * Assert that no node with any of [tags] crosses a separating hinge.
      *
      * @param tags Test tags.
@@ -319,14 +425,19 @@ class JourneyHarness(private val rule: JourneyRule) {
      * [READING_ORDER_TAG] as `<screen> | <index> | <role> | <label> | <w>x<h>`.
      *
      * @param screen Name for the log.
+     * @param fresh Drop UiAutomation's node cache first (API 34+), after a change made in place
+     *   such as a font-scale switch, which the cache can trail.
      * @return Labels in reading order.
      */
-    fun readingOrder(screen: String): List<String> {
+    fun readingOrder(screen: String, fresh: Boolean = false): List<String> {
         rule.waitForIdle()
         checkNow()
         // Resolve clipping artifacts while the flagged nodes are still composed.
         accessibilityFindings.forEach { clippedTouchTarget(it) }
-        val root = InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow ?: return emptyList()
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        // After an in-place change (font scale, issue #397) the node cache can keep the old bounds and labels.
+        if ((fresh || talkBackTree) && android.os.Build.VERSION.SDK_INT >= 34) automation.clearCache()
+        val root = automation.rootInActiveWindow ?: return emptyList()
         val nodes = mutableListOf<AccessibilityNodeInfo>()
         val insideFocusable = mutableListOf<Boolean>()
         fun ownLabel(node: AccessibilityNodeInfo) = listOfNotNull(node.contentDescription, node.text, node.stateDescription)
@@ -393,7 +504,21 @@ class JourneyHarness(private val rule: JourneyRule) {
 
         /** Logcat tag of Accessibility Test Framework findings. */
         const val ATF_TAG = "FST_ATF"
+
+        /** Instrumentation argument that makes [requireHingeWhenAsked] demand a separating hinge. */
+        const val REQUIRE_HINGE_ARG = "fstRequireHinge"
     }
 }
+
+/**
+ * Marks a journey whose assertions need a half-open book fold (a separating vertical hinge).
+ * The `android-fold` CI job runs only these, on a Pixel 9 Pro Fold emulator with its hinge
+ * at 90°, through the runner's `annotation` argument; call [JourneyHarness.requireHingeWhenAsked]
+ * once the activity is up. Tag a journey only after it passes `device.py test … --avd
+ * FST_Book_Fold --posture half`.
+ */
+@Retention(AnnotationRetention.RUNTIME)
+@Target(AnnotationTarget.FUNCTION, AnnotationTarget.CLASS)
+annotation class HalfOpenFoldJourney
 
 // endregion

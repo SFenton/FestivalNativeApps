@@ -59,7 +59,7 @@ tools/**                      → orchestrator
 2. **Instrument features and missing pages** — UX match to web, Apple HIG first, Fluent second.
 3. **Profile pages** (selected and unselected) → other missing pages → refinement. *Features first, then full UX parity.*
 4. **Shared animated background & seamless transitions.**
-5. Testing phases: unit tests as we go → UX tests when a *feature* is complete → accessibility tests when the *app* is complete → VoiceOver testing after that.
+5. Testing phases: unit, UX and accessibility tests with every change (operator, 2026-10-08) → whole-app accessibility audits when the *app* is complete → VoiceOver testing after that.
 
 Platform order: **iPhone (iOS 26.5) → iPhone Duo → iPadOS → macOS → iPhone on iOS 17 (no Liquid Glass)**. Android/Windows run in parallel on the Windows host (resumed 2026-09-28) via `tools/win_relay.py`.
 
@@ -72,8 +72,9 @@ Platform order: **iPhone (iOS 26.5) → iPhone Duo → iPadOS → macOS → iPho
 | **Build** | Every commit | `swift build --build-tests`, iOS build (via `lane_integrate.sh`) |
 | **Unit** | As we go | Swift Testing for new Core logic (target 95% non-UX); run only new/changed tests while iterating |
 | **Visual smoke** | While building UI | `tools/ios_sim.py shot` screenshots compared to the web app at the same viewport |
-| **UX tests** | Feature complete | XCUITest journeys + hosted snapshot states per control (target 90% UX coverage) |
-| **Accessibility** | App complete (per platform) | Audits, focus order, Dynamic Type, contrast, in-app a11y toggles |
+| **UX tests** | Every UI change | XCUITest journeys + hosted snapshot states per control (target 90% UX coverage) |
+| **Accessibility tests** | Every UI change (operator, 2026-10-08) | Name/role/state, reading order, target size, text scaling for what changed ([strategy](.agents/testing/strategy.md#accessibility-tests-with-every-change)) |
+| **Accessibility audits** | App complete (per platform) | Whole-app audits, contrast over artwork, in-app a11y toggles |
 | **VoiceOver** | After accessibility | Scripted VoiceOver walkthroughs per page |
 
 ---

@@ -135,9 +135,9 @@ private struct ScrollAwayHost {
         _ = try await nativeHostedSettle(host, timeout: .seconds(60), until: ready)
     }
 
-    /// The accessibility tree in walk (VoiceOver) order.
+    /// The accessibility tree in VoiceOver's navigation order.
     func tree(_ name: String) -> [MacAXNode] {
-        let nodes = macAccessibilityTree(host)
+        let nodes = macAccessibilityTree(host, navigationOrder: true)
         macAccessibilityDump(nodes, name: "songs-scroll-away-\(name)")
         return nodes
     }
