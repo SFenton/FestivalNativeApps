@@ -79,6 +79,10 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         var flagged: Set<String> = []
         try standard.performAccessibilityAudit(for: [.dynamicType, .textClipped]) { issue in
             let detail = self.attach(issue, name: "default-text")
+            if issue.auditType == .dynamicType, let frame = issue.element?.frame,
+               Self.isSystemBadge(frame, in: self.systemBadgeFrame(in: standard)) {
+                return true
+            }
             if issue.auditType == .dynamicType, let label = issue.element?.label,
                standardText[Self.textKind(label)] != nil {
                 flagged.insert(Self.textKind(label))
@@ -250,7 +254,8 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         return (row.label, row.frame, chromeTop)
     }
 
-    /// Run the audit, attaching every issue. Every type but contrast must come back clean.
+    /// Run the audit, attaching every issue. Every type but contrast must come back clean,
+    /// except a Dynamic Type issue on the bell's system badge (``systemBadgeFrame(in:)``).
     /// Contrast follows the audit-waiver rules (testing/apple/accessibility.md): the shell's
     /// system toolbar badge is accepted (`system-toolbar-badge`), text in a bar's 8 pt
     /// scroll-edge band or the 36 pt fade above the pinned chrome is dimmed by design
@@ -269,8 +274,13 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         _ app: XCUIApplication, types: XCUIAccessibilityAuditType, chromeTop: CGFloat, name: String
     ) throws {
         SongsUITestSupport.record(app, name: "song-band-reveal-\(name)")
+        let badge = systemBadgeFrame(in: app)
         try app.performAccessibilityAudit(for: types.subtracting(.contrast)) { issue in
-            XCTFail("Band board audit (\(name)): \(self.attach(issue, name: name))")
+            let detail = self.attach(issue, name: name)
+            if issue.auditType == .dynamicType, let frame = issue.element?.frame, Self.isSystemBadge(frame, in: badge) {
+                return true
+            }
+            XCTFail("Band board audit (\(name)): \(detail)")
             return false
         }
         guard types.contains(.contrast) else { return }
@@ -279,7 +289,6 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         let content = CGRect(
             x: window.minX, y: barBottom + 8, width: window.width, height: chromeTop - 36 - barBottom - 8
         )
-        let badge = app.buttons["fst.shell.notifications"].frame
         try app.performAccessibilityAudit(for: .contrast) { issue in
             let detail = self.attach(issue, name: name)
             guard let element = issue.element, element.exists, !element.frame.isEmpty else {
@@ -287,7 +296,7 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
                 return true
             }
             let frame = element.frame
-            if !badge.isEmpty, badge.insetBy(dx: -4, dy: -4).contains(frame) { return true }
+            if Self.isSystemBadge(frame, in: badge) { return true }
             guard content.contains(frame) else { return true }
             let ratio = try self.renderedContrast(of: frame, in: app)
             XCTAssertGreaterThanOrEqual(ratio, 4.5, "Band board contrast (\(name)): \(detail), rendered \(ratio):1")
@@ -348,6 +357,32 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         let frame = element.frame
         return !frame.isEmpty && frame.midY >= window.minY + window.height * 0.1
             && frame.maxY <= window.minY + window.height * below
+    }
+
+    // MARK: - System badge
+
+    /// The Notifications bell's frame when its system toolbar-item badge is the only place
+    /// its count is drawn and the bell's own label speaks the count ("Notifications, 2
+    /// unread"), so VoiceOver never needs the badge (`system-toolbar-badge`: UIKit draws
+    /// and sizes the badge, as it caps what a bar hosts, `system-bar-title-size`).
+    ///
+    /// - Parameter app: Running app.
+    /// - Returns: The bell's frame, or `.null` when the bell does not speak its count.
+    @MainActor
+    private func systemBadgeFrame(in app: XCUIApplication) -> CGRect {
+        let bell = app.buttons["fst.shell.notifications"]
+        guard bell.exists, bell.label.hasSuffix("unread") else { return .null }
+        return bell.frame
+    }
+
+    /// Whether a flagged element lies on the bell's system badge.
+    ///
+    /// - Parameters:
+    ///   - frame: The flagged element's frame.
+    ///   - bell: ``systemBadgeFrame(in:)``.
+    /// - Returns: True inside the bell's frame (4 pt slack for the badge's overhang).
+    private static func isSystemBadge(_ frame: CGRect, in bell: CGRect) -> Bool {
+        !bell.isNull && !bell.isEmpty && !frame.isEmpty && bell.insetBy(dx: -4, dy: -4).contains(frame)
     }
 
     // MARK: - Text evidence
