@@ -47,8 +47,6 @@ object SettingsRegistry {
     const val EXPERIMENTAL_RANKS = "fst.settings.experimentalRanks"
     const val HIDE_SHOP = "fst.settings.hideShop"
     const val DISABLE_SHOP_HIGHLIGHTING = "fst.settings.disableShopHighlighting"
-    const val TAP_DIAGNOSTICS = "fst.settings.tapDiagnostics"
-    const val TAP_TELEMETRY = "fst.settings.tapTelemetry"
     const val VISIBLE_METADATA = "fst.settings.visibleMetadata"
     const val FIRST_RUN_SEEN = "fst.firstRun.seen.v1"
     const val NOTIFICATIONS_SEEN = "fst.notifications.seen.v1"
@@ -83,8 +81,6 @@ object SettingsRegistry {
         RegisteredSetting(EXPERIMENTAL_RANKS, ResetPolicy.AppSetting, "settings"),
         RegisteredSetting(HIDE_SHOP, ResetPolicy.AppSetting, "settings"),
         RegisteredSetting(DISABLE_SHOP_HIGHLIGHTING, ResetPolicy.AppSetting, "settings"),
-        RegisteredSetting(TAP_DIAGNOSTICS, ResetPolicy.AppSetting, "settings"),
-        RegisteredSetting(TAP_TELEMETRY, ResetPolicy.AppSetting, "settings"),
         RegisteredSetting(VISIBLE_METADATA, ResetPolicy.AppSetting, "settings"),
         RegisteredSetting(FIRST_RUN_SEEN, ResetPolicy.Kept, "first-run"),
         RegisteredSetting(NOTIFICATIONS_SEEN, ResetPolicy.Kept, "notifications"),
@@ -100,6 +96,12 @@ object SettingsRegistry {
 
     /** Keys Reset removes. */
     val appSettingKeys: List<String> get() = entries.filter { it.policy == ResetPolicy.AppSetting }.map { it.key }
+
+    /**
+     * Keys older builds wrote that no longer exist (Tap Diagnostics / Tap Telemetry, #374).
+     * `RetiredSettingsMigration` deletes them when the store first opens.
+     */
+    val retiredKeys: List<String> = listOf("fst.settings.tapDiagnostics", "fst.settings.tapTelemetry")
 
     /**
      * Whether a key is registered.

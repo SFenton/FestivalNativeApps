@@ -90,7 +90,7 @@ class QuickLinksPageOrderUiTest {
     }
 
     private fun settingsOrder(sheet: Boolean) {
-        val sections = settingsSections(debug = true)
+        val sections = settingsSections()
         journey.launch(DebugLaunch(section = FestivalSection.Settings, stillBackground = true))
         journey.waitForTag("fst.settings.list")
         journey.waitForTag(OPEN)

@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.settings
 
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.mutablePreferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -15,6 +16,7 @@ import com.festivalscoretracker.android.core.settings.SettingsCodec
 import com.festivalscoretracker.android.core.settings.SettingsOrder
 import com.festivalscoretracker.android.core.settings.SettingsRegistry
 import com.festivalscoretracker.android.core.songs.SongSortMode
+import com.festivalscoretracker.android.data.RetiredSettingsMigration
 import com.festivalscoretracker.android.data.SettingsRepository
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.Fixtures
@@ -75,14 +77,10 @@ class SettingsModelTest {
     }
 
     @Test
-    fun shopHighlightDiagnosticsAndSanitize() {
+    fun shopHighlightAndSanitize() {
         assertFalse(AppSettings(hideShop = true).shopHighlightEnabled)
         assertFalse(AppSettings(disableShopHighlighting = true).shopHighlightEnabled)
-        val diag = AppSettings().withTapDiagnostics(true).copy(tapTelemetry = true)
-        assertTrue(diag.tapTelemetry)
-        assertFalse(diag.withTapDiagnostics(false).tapTelemetry)
-        val sanitized = AppSettings(tapTelemetry = true, experimentalRanks = true, leeway = 9.0).sanitized()
-        assertFalse(sanitized.tapTelemetry)
+        val sanitized = AppSettings(experimentalRanks = true, leeway = 9.0).sanitized()
         assertFalse(sanitized.experimentalRanks)
         assertEquals(5.0, sanitized.leeway, 0.0)
     }
@@ -162,7 +160,7 @@ class SettingsModelTest {
             songRowVisualOrder = MetadataField.entries.reversed(), pathColumnOrder = PathColumnKey.entries.reversed(),
             pathDefaultView = PathDisplayMode.Text, pathUnavailableWarningDismissed = true,
             filterInvalidScores = true, leeway = -1.2, hideShop = true, disableShopHighlighting = true,
-            tapDiagnostics = true, tapTelemetry = true, visibleMetadata = setOf(MetadataField.Stars),
+            visibleMetadata = setOf(MetadataField.Stars),
         )
         repo.update { changed }
         repo.writeBlob(SettingsRegistry.FIRST_RUN_SEEN, "{}")
@@ -215,6 +213,23 @@ class SettingsModelTest {
         assertFalse(SettingsRegistry.FIRST_RUN_SEEN in SettingsRegistry.appSettingKeys)
         assertTrue(SettingsRegistry.LEEWAY in SettingsRegistry.appSettingKeys)
         assertEquals(ResetPolicy.Kept, SettingsRegistry.entries.first { it.key == SettingsRegistry.SONG_SORT }.policy)
+        // Retired keys are never registered again (#374).
+        SettingsRegistry.retiredKeys.forEach { assertFalse(it, SettingsRegistry.isRegistered(it)) }
+    }
+
+    @Test
+    fun retiredTapDiagnosticsKeysAreDeletedAndOthersKept() = runBlocking {
+        val prefs = mutablePreferencesOf(
+            booleanPreferencesKey("fst.settings.tapDiagnostics") to true,
+            booleanPreferencesKey("fst.settings.tapTelemetry") to true,
+            booleanPreferencesKey(SettingsRegistry.HIDE_SHOP) to true,
+        )
+        assertTrue(RetiredSettingsMigration.shouldMigrate(prefs))
+        val migrated = RetiredSettingsMigration.migrate(prefs)
+        assertEquals(setOf(SettingsRegistry.HIDE_SHOP), migrated.asMap().keys.map { it.name }.toSet())
+        assertFalse(RetiredSettingsMigration.shouldMigrate(migrated))
+        assertFalse(RetiredSettingsMigration.shouldMigrate(mutablePreferencesOf()))
+        RetiredSettingsMigration.cleanUp()
     }
 
     // endregion

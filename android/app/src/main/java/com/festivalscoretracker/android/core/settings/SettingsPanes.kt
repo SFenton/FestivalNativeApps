@@ -57,7 +57,7 @@ enum class SettingsDetail(val id: String, val title: String, val hint: String?, 
          * The detail a whole Settings section collapses to on wide windows.
          *
          * @param sectionId Quick Links section id.
-         * @return The section's detail, or null for sections that stay in the list (App Settings, Diagnostics, Reset).
+         * @return The section's detail, or null for sections that stay in the list (App Settings, Reset).
          */
         fun forSection(sectionId: String): SettingsDetail? = entries.firstOrNull { it.section && it.id == sectionId }
 
