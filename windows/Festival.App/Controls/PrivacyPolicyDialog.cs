@@ -12,7 +12,8 @@ namespace Festival.App.Controls;
 /// Settings → Privacy Policy (issue #98): the shared policy (<c>contracts/privacy-policy.json</c>, bundled as
 /// <c>Assets\privacy-policy.json</c>) in the standard <see cref="FestivalDialog"/>, titled "Privacy Policy" with its
 /// spanning Close (Esc and an outside click also close it). Native, selectable text that follows the Windows text size;
-/// section titles are Narrator headings and HTTPS addresses are hyperlinks. No WebView and no network.
+/// section titles are Narrator headings and HTTPS addresses are hyperlinks. No WebView and no network. The wide Settings
+/// list/detail layout (issue #371) shows the same <see cref="Body"/> in its trailing pane instead of the dialog.
 /// </summary>
 public static class PrivacyPolicyDialog
 {
@@ -40,13 +41,31 @@ public static class PrivacyPolicyDialog
         await FestivalDialog.ShowAsync(dialog);
     }
 
-    /// <summary>Effective date, then each section's heading (level 2), paragraphs and bullets, in a scroller capped to the window.</summary>
+    /// <summary>The policy body in a scroller capped to the window.</summary>
     /// <param name="policy">Policy.</param>
     /// <param name="root">Window XAML root (height cap).</param>
     /// <returns>Dialog content.</returns>
     private static FrameworkElement Content(PrivacyPolicy policy, XamlRoot root)
     {
-        var panel = new StackPanel { Spacing = 20, Padding = new Thickness(8, 6, 16, 6) };
+        var panel = Body(policy);
+        panel.Padding = new Thickness(8, 6, 16, 6);
+        var height = root.Size.Height;
+        // A tab stop, so the dialog opens focused on the text (arrow/Page keys scroll) rather than its last hyperlink.
+        var scroller = new ScrollViewer { Content = panel, IsTabStop = true, MaxHeight = Math.Max(200, (double.IsNaN(height) ? 640 : height) - 240) };
+        AutomationProperties.SetAutomationId(scroller, "fst.privacy-policy.content");
+        AutomationProperties.SetName(scroller, policy.Title);
+        return scroller;
+    }
+
+    /// <summary>
+    /// Effective date, then each section's heading (level 2), paragraphs and bullets. The dialog wraps it in a scroller;
+    /// the wide Settings list/detail layout (issue #371) shows it in its trailing pane, which scrolls itself.
+    /// </summary>
+    /// <param name="policy">Policy.</param>
+    /// <returns>Unscrolled body.</returns>
+    public static StackPanel Body(PrivacyPolicy policy)
+    {
+        var panel = new StackPanel { Spacing = 20 };
         if (policy.IsEmpty)
         {
             panel.Children.Add(new TextBlock { Text = "The privacy policy could not be loaded.", TextWrapping = TextWrapping.Wrap });
@@ -87,12 +106,7 @@ public static class PrivacyPolicyDialog
             }
             panel.Children.Add(block);
         }
-        var height = root.Size.Height;
-        // A tab stop, so the dialog opens focused on the text (arrow/Page keys scroll) rather than its last hyperlink.
-        var scroller = new ScrollViewer { Content = panel, IsTabStop = true, MaxHeight = Math.Max(200, (double.IsNaN(height) ? 640 : height) - 240) };
-        AutomationProperties.SetAutomationId(scroller, "fst.privacy-policy.content");
-        AutomationProperties.SetName(scroller, policy.Title);
-        return scroller;
+        return panel;
     }
 
     /// <summary>A wrapped, selectable paragraph whose HTTPS addresses are hyperlinks.</summary>

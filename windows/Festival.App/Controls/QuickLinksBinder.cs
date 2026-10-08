@@ -265,7 +265,9 @@ public sealed class QuickLinksBinder
         var title = model.Items.FirstOrDefault(i => i.Section.Id == id)?.Section.AccessibleTitle;
         target.DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
         {
-            if (FocusManager.FindFirstFocusableElement(target) is UIElement first) first.Focus(FocusState.Programmatic);
+            // A focusable anchor (a Settings list/detail chevron row, #371) takes focus itself.
+            var first = target is Control { IsTabStop: true, IsEnabled: true } control ? (DependencyObject)control : FocusManager.FindFirstFocusableElement(target);
+            if (first is UIElement focusable) focusable.Focus(FocusState.Programmatic);
             if (title is { Length: > 0 }) ScreenReader.Announce(target, new Announcement($"{title} section", AnnouncementKind.Completed));
         });
     }

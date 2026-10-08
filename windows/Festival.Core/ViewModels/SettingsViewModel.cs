@@ -426,6 +426,28 @@ public sealed partial class SettingsViewModel : ObservableObject
         rows.Count == keys.Count && rows.Select((r, i) => r.Key.Equals(keys[i]) && r.Index == i && r.Count == keys.Count).All(ok => ok);
     #endregion
 
+    #region List/detail
+    /// <summary>
+    /// Entry open in the wide list/detail layout's trailing pane (issue #371); <see cref="SettingsDetail.None"/> shows the
+    /// placeholder. Ignored in one column, where every entry is inline.
+    /// </summary>
+    [ObservableProperty]
+    private SettingsDetail selectedDetail;
+
+    /// <summary>Whether Song Row Visual Order has a list row (Visual Order on).</summary>
+    public bool HasSongRowOrderRow => SettingsDetails.IsAvailable(SettingsDetail.SongRowOrder, session.Settings);
+
+    /// <summary>Whether Maximum Score Leeway has a list row (Filter Invalid Scores on).</summary>
+    public bool HasLeewayRow => SettingsDetails.IsAvailable(SettingsDetail.Leeway, session.Settings);
+
+    /// <summary>CHOpt Path Default View row value ("Image" or "Text").</summary>
+    public string PathDefaultViewValue => SettingsDetails.Value(SettingsDetail.PathDefaultView, session.Settings);
+
+    /// <summary>Opens an entry in the trailing pane (selecting the open entry keeps it open).</summary>
+    /// <param name="detail">Entry; unavailable entries fall back to the placeholder.</param>
+    public void SelectDetail(SettingsDetail detail) => SelectedDetail = SettingsDetails.Reconcile(detail, session.Settings);
+    #endregion
+
     /// <summary>Re-raises derived properties on settings changes.</summary>
     /// <param name="sender">Session.</param>
     /// <param name="e">Changed property.</param>
@@ -435,6 +457,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         foreach (var toggle in Instruments) toggle.Refresh();
         foreach (var toggle in Metadata) toggle.Refresh();
         RebuildOrders();
+        SelectedDetail = SettingsDetails.Reconcile(SelectedDetail, session.Settings);
         OnPropertyChanged(string.Empty);
     }
 }

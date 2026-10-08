@@ -112,13 +112,13 @@
         </Style>
     </Page.Resources>
 
+    <!-- One column (Quick Links menu or pane) below Core SettingsDetails.SplitWidth; from it the list/detail layout
+         (issue #371): the list in a fixed ListColumn and the selected setting's options in the DetailHost. -->
     <Grid x:Name="Root" SizeChanged="OnRootSizeChanged">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition x:Name="ListColumn" Width="*" />
+            <ColumnDefinition x:Name="DetailColumn" Width="Auto" />
         </Grid.ColumnDefinitions>
-
-
 
         <ScrollViewer x:Name="Scroller" controls:FadeIn.OnShow="True" AutomationProperties.AutomationId="fst.settings">
             <StackPanel Padding="24,12,24,32" Spacing="4" MaxWidth="880" HorizontalAlignment="Left">
@@ -165,34 +165,45 @@
                                               AutomationProperties.Name="Enable Independent Song Row Visual Order"
                                               AutomationProperties.AutomationId="fst.settings.enable-visual-order" />
                             </Grid>
+                            <!-- List/detail (issue #371): the multi-option settings below become chevron rows (collapsed in one
+                                 column); their *Body elements move into the detail card while selected (code-behind). -->
+                            <controls:SettingsDetailRow x:Name="SongRowOrderRow" Tag="SongRowOrder" Click="OnDetailRowClick" Visibility="{x:Bind SplitVisibility(ViewModel.HasSongRowOrderRow, IsSplit), Mode=OneWay}"
+                                                        AutomationProperties.AutomationId="fst.settings.detail-row.song-row-order" />
                             <!-- Web: the order list appears directly under the switch while it is on (no expander). -->
-                            <StackPanel Visibility="{x:Bind ViewModel.EnableVisualOrder, Mode=OneWay}" Padding="0,0,0,8" Spacing="4">
+                            <StackPanel x:Name="SongRowOrderInline" Visibility="{x:Bind InlineVisibility(ViewModel.EnableVisualOrder, IsSplit), Mode=OneWay}" Padding="0,0,0,8" Spacing="4">
                                 <TextBlock Text="Song Row Visual Order" Style="{StaticResource SubsettingTitleStyle}" AutomationProperties.HeadingLevel="Level3" />
                                 <TextBlock Text="When filtering to a single instrument in the song list, extra metadata is displayed. Choose the order it appears in on the bottom row."
                                            Style="{StaticResource SettingDescriptionStyle}" />
-                                <TextBlock Text="{x:Bind ViewModel.VisualOrderSummary, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}"
-                                           Visibility="{x:Bind ViewModel.HasVisibleMetadata, Mode=OneWay, Converter={StaticResource FSTInverseVisibility}}" />
-                                <ListView Style="{StaticResource ReorderListStyle}" ItemsSource="{x:Bind ViewModel.SongRowOrder, Mode=OneWay}"
-                                          Visibility="{x:Bind ViewModel.HasVisibleMetadata, Mode=OneWay}" DragItemsCompleted="OnReorderCompleted"
-                                          AutomationProperties.Name="Song Row Visual Order"
-                                          AutomationProperties.AutomationId="fst.settings.song-row-order" />
+                                <StackPanel x:Name="SongRowOrderBody" Spacing="4">
+                                    <TextBlock Text="{x:Bind ViewModel.VisualOrderSummary, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}"
+                                               Visibility="{x:Bind ViewModel.HasVisibleMetadata, Mode=OneWay, Converter={StaticResource FSTInverseVisibility}}" />
+                                    <ListView Style="{StaticResource ReorderListStyle}" ItemsSource="{x:Bind ViewModel.SongRowOrder, Mode=OneWay}"
+                                              Visibility="{x:Bind ViewModel.HasVisibleMetadata, Mode=OneWay}" DragItemsCompleted="OnReorderCompleted"
+                                              AutomationProperties.Name="Song Row Visual Order"
+                                              AutomationProperties.AutomationId="fst.settings.song-row-order" />
+                                </StackPanel>
                             </StackPanel>
+                            <controls:SettingsDetailRow x:Name="PathDefaultViewRow" Tag="PathDefaultView" Click="OnDetailRowClick" Visibility="{x:Bind SplitVisibility(x:True, IsSplit), Mode=OneWay}"
+                                                        Value="{x:Bind ViewModel.PathDefaultViewValue, Mode=OneWay}"
+                                                        AutomationProperties.AutomationId="fst.settings.detail-row.path-default-view" />
                             <!-- Web: title, description, then Image/Text radio buttons (not a dropdown). -->
-                            <StackPanel Spacing="4" Padding="0,8">
+                            <StackPanel x:Name="PathDefaultViewInline" Spacing="4" Padding="0,8" Visibility="{x:Bind InlineVisibility(x:True, IsSplit), Mode=OneWay}">
                                 <TextBlock Text="CHOpt Path Default View" Style="{StaticResource SettingTitleStyle}" AutomationProperties.HeadingLevel="Level3" />
                                 <TextBlock Text="Choose whether CHOpt paths open as an image or text table by default." Style="{StaticResource SettingDescriptionStyle}" />
-                                <RadioButtons SelectedIndex="{x:Bind ViewModel.PathDefaultViewIndex, Mode=TwoWay}" Margin="0,4,0,0"
+                                <RadioButtons x:Name="PathDefaultViewBody" SelectedIndex="{x:Bind ViewModel.PathDefaultViewIndex, Mode=TwoWay}" Margin="0,4,0,0"
                                               AutomationProperties.Name="CHOpt Path Default View"
                                               AutomationProperties.AutomationId="fst.settings.path-default-view">
                                     <RadioButton Content="Image" AutomationProperties.AutomationId="fst.settings.path-default-view.image" />
                                     <RadioButton Content="Text" AutomationProperties.AutomationId="fst.settings.path-default-view.text" />
                                 </RadioButtons>
                             </StackPanel>
-                            <StackPanel Padding="0,8" Spacing="4">
+                            <controls:SettingsDetailRow x:Name="PathColumnOrderRow" Tag="PathColumnOrder" Click="OnDetailRowClick" Visibility="{x:Bind SplitVisibility(x:True, IsSplit), Mode=OneWay}"
+                                                        AutomationProperties.AutomationId="fst.settings.detail-row.path-column-order" />
+                            <StackPanel x:Name="PathColumnOrderInline" Padding="0,8" Spacing="4" Visibility="{x:Bind InlineVisibility(x:True, IsSplit), Mode=OneWay}">
                                 <TextBlock Text="CHOpt Text Path Column Order" Style="{StaticResource SettingTitleStyle}" AutomationProperties.HeadingLevel="Level3" />
                                 <TextBlock Text="Choose the order columns appear in the CHOpt text path view."
                                            Style="{StaticResource SettingDescriptionStyle}" />
-                                <ListView Style="{StaticResource ReorderListStyle}" ItemsSource="{x:Bind ViewModel.PathColumnOrder, Mode=OneWay}"
+                                <ListView x:Name="PathColumnOrderBody" Style="{StaticResource ReorderListStyle}" ItemsSource="{x:Bind ViewModel.PathColumnOrder, Mode=OneWay}"
                                           DragItemsCompleted="OnReorderCompleted"
                                           AutomationProperties.Name="CHOpt Text Path Column Order"
                                           AutomationProperties.AutomationId="fst.settings.path-column-order" />
@@ -210,14 +221,19 @@
                                               AutomationProperties.Name="Filter Invalid Scores"
                                               AutomationProperties.AutomationId="fst.settings.filter-invalid-scores" />
                             </Grid>
-                            <StackPanel Visibility="{x:Bind ViewModel.FilterInvalidScores, Mode=OneWay}" Padding="0,0,0,8">
-                                <Slider Header="{x:Bind ViewModel.LeewayText, Mode=OneWay}" Minimum="-5" Maximum="5" StepFrequency="0.1"
-                                        SmallChange="0.1" LargeChange="1" TickFrequency="1" TickPlacement="Outside"
-                                        Value="{x:Bind ViewModel.Leeway, Mode=TwoWay}" ThumbToolTipValueConverter="{StaticResource FSTLeeway}"
-                                        AutomationProperties.Name="Maximum Score Leeway"
-                                        AutomationProperties.ItemStatus="{x:Bind ViewModel.LeewayValue, Mode=OneWay}"
-                                        AutomationProperties.AutomationId="fst.settings.leeway" />
-                                <TextBlock Text="{x:Bind ViewModel.LeewayDescription, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}" />
+                            <controls:SettingsDetailRow x:Name="LeewayRow" Tag="Leeway" Click="OnDetailRowClick" Visibility="{x:Bind SplitVisibility(ViewModel.HasLeewayRow, IsSplit), Mode=OneWay}"
+                                                        Value="{x:Bind ViewModel.LeewayValue, Mode=OneWay}"
+                                                        AutomationProperties.AutomationId="fst.settings.detail-row.leeway" />
+                            <StackPanel x:Name="LeewayInline" Visibility="{x:Bind InlineVisibility(ViewModel.FilterInvalidScores, IsSplit), Mode=OneWay}">
+                                <StackPanel x:Name="LeewayBody" Padding="0,0,0,8">
+                                    <Slider Header="{x:Bind ViewModel.LeewayText, Mode=OneWay}" Minimum="-5" Maximum="5" StepFrequency="0.1"
+                                            SmallChange="0.1" LargeChange="1" TickFrequency="1" TickPlacement="Outside"
+                                            Value="{x:Bind ViewModel.Leeway, Mode=TwoWay}" ThumbToolTipValueConverter="{StaticResource FSTLeeway}"
+                                            AutomationProperties.Name="Maximum Score Leeway"
+                                            AutomationProperties.ItemStatus="{x:Bind ViewModel.LeewayValue, Mode=OneWay}"
+                                            AutomationProperties.AutomationId="fst.settings.leeway" />
+                                    <TextBlock Text="{x:Bind ViewModel.LeewayDescription, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}" />
+                                </StackPanel>
                             </StackPanel>
                             <Grid ColumnSpacing="12" MinHeight="56">
                                 <Grid.ColumnDefinitions>
@@ -317,11 +333,35 @@
                     </Border>
                 </StackPanel>
 
+                <!-- List/detail (issue #371): each section below is one chevron row (the Licenses row look) whose options open in
+                     the detail pane; the sections themselves collapse. Shown only in the split layout. -->
+                <StackPanel x:Name="SectionRows" Spacing="12" Margin="0,8,0,0" Visibility="{x:Bind SplitVisibility(x:True, IsSplit), Mode=OneWay}">
+                    <controls:SettingsDetailRow x:Name="ItemShopRow" Tag="ItemShop" IsSection="True" Click="OnDetailRowClick"
+                                                AutomationProperties.AutomationId="fst.settings.detail-row.item-shop" />
+                    <controls:SettingsDetailRow x:Name="InstrumentsRow" Tag="Instruments" IsSection="True" Click="OnDetailRowClick"
+                                                AutomationProperties.AutomationId="fst.settings.detail-row.show-instruments" />
+                    <controls:SettingsDetailRow x:Name="MetadataRow" Tag="Metadata" IsSection="True" Click="OnDetailRowClick"
+                                                Description="{x:Bind ViewModel.MetadataDescription, Mode=OneWay}"
+                                                AutomationProperties.AutomationId="fst.settings.detail-row.show-metadata" />
+                    <controls:SettingsDetailRow x:Name="AccessibilityRow" Tag="Accessibility" IsSection="True" Click="OnDetailRowClick"
+                                                AutomationProperties.AutomationId="fst.settings.detail-row.accessibility" />
+                    <controls:SettingsDetailRow x:Name="VersionRow" Tag="Version" IsSection="True" Click="OnDetailRowClick"
+                                                AutomationProperties.AutomationId="fst.settings.detail-row.version" />
+                    <controls:SettingsDetailRow x:Name="ServiceInfoRow" Tag="ServiceInfo" IsSection="True" Click="OnDetailRowClick"
+                                                AutomationProperties.AutomationId="fst.settings.detail-row.service-info" />
+                    <controls:SettingsDetailRow x:Name="FirstRunRow" Tag="FirstRun" IsSection="True" Click="OnDetailRowClick"
+                                                AutomationProperties.AutomationId="fst.settings.detail-row.first-run" />
+                    <controls:SettingsDetailRow x:Name="LicensesRow" Tag="Licenses" IsSection="True" Click="OnDetailRowClick"
+                                                AutomationProperties.AutomationId="fst.settings.detail-row.licenses" />
+                    <controls:SettingsDetailRow x:Name="PrivacyPolicyRow" Tag="PrivacyPolicy" IsSection="True" Click="OnDetailRowClick"
+                                                AutomationProperties.AutomationId="fst.settings.detail-row.privacy-policy" />
+                </StackPanel>
+
                 <!-- Item Shop -->
-                <StackPanel controls:QuickLinkAnchor.Id="item-shop">
+                <StackPanel controls:QuickLinkAnchor.Id="item-shop" Visibility="{x:Bind InlineVisibility(x:True, IsSplit), Mode=OneWay}">
                     <TextBlock Text="Item Shop" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
                     <TextBlock Text="Control how Item Shop availability is displayed." Style="{StaticResource SectionSubtitleStyle}" />
-                    <Border Style="{StaticResource FSTCardStyle}" Padding="16,8">
+                    <Border x:Name="ItemShopCard" Style="{StaticResource FSTCardStyle}" Padding="16,8">
                         <StackPanel Spacing="4">
                             <Grid ColumnSpacing="12" MinHeight="56">
                                 <Grid.ColumnDefinitions>
@@ -355,10 +395,10 @@
                 </StackPanel>
 
                 <!-- Show Instruments -->
-                <StackPanel controls:QuickLinkAnchor.Id="show-instruments">
+                <StackPanel controls:QuickLinkAnchor.Id="show-instruments" Visibility="{x:Bind InlineVisibility(x:True, IsSplit), Mode=OneWay}">
                     <TextBlock Text="Show Instruments" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
                     <TextBlock Text="Choose which instruments to display throughout the app." Style="{StaticResource SectionSubtitleStyle}" />
-                    <Border Style="{StaticResource FSTCardStyle}" Padding="16,8">
+                    <Border x:Name="InstrumentsCard" Style="{StaticResource FSTCardStyle}" Padding="16,8">
                         <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Instruments}">
                             <ItemsRepeater.ItemTemplate>
                                 <DataTemplate x:DataType="vm:InstrumentToggle">
@@ -386,10 +426,10 @@
                 </StackPanel>
 
                 <!-- Show Instrument Metadata -->
-                <StackPanel controls:QuickLinkAnchor.Id="show-metadata">
+                <StackPanel controls:QuickLinkAnchor.Id="show-metadata" Visibility="{x:Bind InlineVisibility(x:True, IsSplit), Mode=OneWay}">
                     <TextBlock Text="Show Instrument Metadata" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
                     <TextBlock Text="{x:Bind ViewModel.MetadataDescription, Mode=OneWay}" Style="{StaticResource SectionSubtitleStyle}" />
-                    <Border Style="{StaticResource FSTCardStyle}" Padding="16,8">
+                    <Border x:Name="MetadataCard" Style="{StaticResource FSTCardStyle}" Padding="16,8">
                         <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Metadata}">
                             <ItemsRepeater.ItemTemplate>
                                 <DataTemplate x:DataType="vm:MetadataToggle">
@@ -415,11 +455,11 @@
                 </StackPanel>
 
                 <!-- Accessibility (native additive section) -->
-                <StackPanel controls:QuickLinkAnchor.Id="accessibility">
+                <StackPanel controls:QuickLinkAnchor.Id="accessibility" Visibility="{x:Bind InlineVisibility(x:True, IsSplit), Mode=OneWay}">
                     <TextBlock Text="Accessibility" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
                     <TextBlock Text="Off follows Windows; On adds an app override. Narrator and text size are managed in Windows Settings."
                                Style="{StaticResource SectionSubtitleStyle}" />
-                    <Border Style="{StaticResource FSTCardStyle}" Padding="16,8">
+                    <Border x:Name="AccessibilityCard" Style="{StaticResource FSTCardStyle}" Padding="16,8">
                         <StackPanel Spacing="4">
                             <Grid ColumnSpacing="12" MinHeight="48">
                                 <Grid.ColumnDefinitions>
@@ -480,10 +520,10 @@
                 </StackPanel>
 
                 <!-- Version -->
-                <StackPanel controls:QuickLinkAnchor.Id="version">
+                <StackPanel controls:QuickLinkAnchor.Id="version" Visibility="{x:Bind InlineVisibility(x:True, IsSplit), Mode=OneWay}">
                     <TextBlock Text="Festival Score Tracker Version" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
                     <TextBlock Text="Festival Score Tracker information to help with debugging." Style="{StaticResource SectionSubtitleStyle}" />
-                    <Border Style="{StaticResource FSTCardStyle}">
+                    <Border x:Name="VersionCard" Style="{StaticResource FSTCardStyle}">
                         <!-- Label/value pairs: values share a right column while everything fits, else every value moves under
                              its label (narrow window, 200% text, long release version) instead of clipping the label. -->
                         <controls:SettingValueGrid>
@@ -507,11 +547,11 @@
                 <!-- Service Info (web SettingsServiceProgressCard): live update state, phase progress, last publication. Percent and
                      units are spoken on the phase row rather than printed (web parity); band discovery adds its attempt line, and
                      each newly accepted attempt count is announced once from that line (code-behind, issue #275). -->
-                <StackPanel controls:QuickLinkAnchor.Id="service-info">
+                <StackPanel controls:QuickLinkAnchor.Id="service-info" Visibility="{x:Bind InlineVisibility(x:True, IsSplit), Mode=OneWay}">
                     <TextBlock Text="Service Info" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
                     <TextBlock Text="Live leaderboard update status, exact phase progress when available, and publication timing." Style="{StaticResource SectionSubtitleStyle}" />
                     <!-- Test IDs sit on the TextBlocks: a Border, Grid or unnamed StackPanel has no UIA element (issue #275). -->
-                    <Border Style="{StaticResource FSTCardStyle}" Padding="16,8">
+                    <Border x:Name="ServiceInfoCard" Style="{StaticResource FSTCardStyle}" Padding="16,8">
                         <StackPanel Spacing="4">
                             <!-- At 150%+ Windows text size the process state moves under the label (code-behind) instead of squeezing it. -->
                             <Grid x:Name="ServiceStateGrid" ColumnSpacing="12" MinHeight="56" Padding="0,8">
@@ -562,10 +602,10 @@
                 </StackPanel>
 
                 <!-- First Run Guides -->
-                <StackPanel controls:QuickLinkAnchor.Id="first-run">
+                <StackPanel controls:QuickLinkAnchor.Id="first-run" Visibility="{x:Bind InlineVisibility(x:True, IsSplit), Mode=OneWay}">
                     <TextBlock Text="First Run Guides" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
                     <TextBlock Text="Re-visit the first run experience for each page." Style="{StaticResource SectionSubtitleStyle}" />
-                    <Border Style="{StaticResource FSTCardStyle}" Padding="16,8">
+                    <Border x:Name="FirstRunCard" Style="{StaticResource FSTCardStyle}" Padding="16,8">
                         <!-- Web btnPrimary: translucent blue chip with a blue outline (lightweight styling scoped to this card);
                              system button colours under a contrast theme. -->
                         <Border.Resources>
@@ -596,7 +636,7 @@
                 </StackPanel>
 
                 <!-- Licenses: web navigation row — the section header itself is the link, with a trailing chevron (no card). -->
-                <StackPanel controls:QuickLinkAnchor.Id="licenses" Margin="0,8,0,0">
+                <StackPanel controls:QuickLinkAnchor.Id="licenses" Visibility="{x:Bind InlineVisibility(x:True, IsSplit), Mode=OneWay}" Margin="0,8,0,0">
                     <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="-1,0" Padding="0,3,4,3" Click="OnLicensesClick"
                             Background="Transparent" BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}"
                             AutomationProperties.Name="Licenses" AutomationProperties.HelpText="Open source package license details."
@@ -623,7 +663,7 @@
                 </StackPanel>
 
                 <!-- Privacy Policy (issue #98): the same navigation row; opens the shared policy in a ContentDialog. -->
-                <StackPanel controls:QuickLinkAnchor.Id="privacy-policy" Margin="0,8,0,0">
+                <StackPanel controls:QuickLinkAnchor.Id="privacy-policy" Visibility="{x:Bind InlineVisibility(x:True, IsSplit), Mode=OneWay}" Margin="0,8,0,0">
                     <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="-1,0" Padding="0,3,4,3" Click="OnPrivacyPolicyClick"
                             Background="Transparent" BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}"
                             AutomationProperties.Name="Privacy Policy" AutomationProperties.HelpText="How Festival Score Tracker handles your information."
@@ -674,6 +714,46 @@
                 </Grid>
             </StackPanel>
         </ScrollViewer>
+
+        <!-- List/detail trailing pane (issue #371). Nothing selected: the centred placeholder (the Rivals empty-state shape:
+             icon, subtitle heading, secondary line). Selected: the setting's title and description over its moved card or
+             body, or Licenses in the frame. One backdrop and no drawn divider (split-panes). -->
+        <Grid x:Name="DetailHost" Grid.Column="1" Visibility="Collapsed">
+            <ScrollViewer x:Name="PlaceholderScroller" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="480" Padding="24"
+                            AutomationProperties.AutomationId="fst.settings.detail.placeholder">
+                    <FontIcon Glyph="&#xE713;" FontSize="40" Foreground="{ThemeResource FSTSecondaryTextBrush}"
+                              AutomationProperties.AccessibilityView="Raw" />
+                    <TextBlock x:Name="PlaceholderTitle" Style="{StaticResource SubtitleTextBlockStyle}" TextAlignment="Center" TextWrapping="Wrap"
+                               HorizontalAlignment="Center" AutomationProperties.HeadingLevel="Level2"
+                               AutomationProperties.AutomationId="fst.settings.detail.placeholder.title" />
+                    <TextBlock x:Name="PlaceholderMessage" TextAlignment="Center" TextWrapping="Wrap" HorizontalAlignment="Center"
+                               Foreground="{ThemeResource FSTSecondaryTextBrush}"
+                               AutomationProperties.AutomationId="fst.settings.detail.placeholder.message" />
+                </StackPanel>
+            </ScrollViewer>
+            <ScrollViewer x:Name="DetailScroller" Visibility="Collapsed" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
+                          AutomationProperties.AutomationId="fst.settings.detail">
+                <!-- Full pane width up to the page's 880 epx content width, left-aligned like the one-column page. -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MaxWidth="928" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Padding="24,12,24,32" Spacing="4">
+                        <TextBlock x:Name="DetailTitle" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level1"
+                                   AutomationProperties.AutomationId="fst.settings.detail.title" />
+                        <TextBlock x:Name="DetailDescription" Style="{StaticResource SectionSubtitleStyle}" Margin="0,0,0,8"
+                                   AutomationProperties.AutomationId="fst.settings.detail.description" />
+                        <!-- A moved section card (Item Shop … First Run Guides) or the inline Privacy Policy card. -->
+                        <StackPanel x:Name="DetailBody" />
+                        <!-- A moved App Settings body (order list, Image/Text choice, leeway slider) keeps a card around it. -->
+                        <Border x:Name="DetailCard" Style="{StaticResource FSTCardStyle}" Padding="16,8" Visibility="Collapsed" />
+                    </StackPanel>
+                </Grid>
+            </ScrollViewer>
+            <Frame x:Name="DetailFrame" IsNavigationStackEnabled="False" Visibility="Collapsed" />
+        </Grid>
 
         <controls:QuickLinksPane x:Name="Pane" Grid.Column="1" Width="240" Margin="0,64,24,24" Visibility="Collapsed"
                                  Model="{x:Bind ViewModel.QuickLinks}" />
