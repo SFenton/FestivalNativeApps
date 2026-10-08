@@ -59,6 +59,9 @@ jobs:
       - name: Build Debug unpackaged app
         shell: pwsh
         run: ./tools/windows/build.ps1 -Configuration Debug
+      - name: Enable animation effects for transition journeys
+        shell: pwsh
+        run: python tools/windows/uiwin.py sysset --animations true --transparency true
       - name: Run fixture-backed UI automation
         shell: pwsh
         run: >-

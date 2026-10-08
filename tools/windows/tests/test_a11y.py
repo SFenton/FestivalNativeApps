@@ -73,6 +73,10 @@ class A11yStepTests(unittest.TestCase):
         self.assertEqual(parser.parse_args(["scan", "out", "--scan-id", "x"]).scan_id, "x")
         args = parser.parse_args(["focus-order", "--count", "7", "--reverse"])
         self.assertEqual((args.count, args.reverse), (7, True))
+        sysset = parser.parse_args(["sysset", "--animations", "true", "--transparency", "false"])
+        self.assertEqual((sysset.animations, sysset.transparency), (True, False))
+        with self.assertRaises(SystemExit):
+            parser.parse_args(["sysset", "--animations", "yes"])
 
 
 class MatrixTests(unittest.TestCase):

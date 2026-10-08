@@ -1256,6 +1256,35 @@ def cmd_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def parse_bool_argument(value: str) -> bool:
+    """Parse a ``true`` or ``false`` command-line value.
+
+    Args:
+        value: Text supplied after a boolean option.
+
+    Returns:
+        The parsed boolean.
+
+    Raises:
+        argparse.ArgumentTypeError: The value is not ``true`` or ``false``.
+    """
+    normalized = value.lower()
+    if normalized == "true":
+        return True
+    if normalized == "false":
+        return False
+    raise argparse.ArgumentTypeError("expected true or false")
+
+
+def cmd_sysset(args: argparse.Namespace) -> int:
+    """Set the requested Windows accessibility system settings through the desktop driver."""
+    values = {name: value for name, value in (("animations", args.animations),
+                                              ("transparency", args.transparency)) if value is not None}
+    with _lock(args, "system settings") as lock:
+        _report(run_driver({"command": "sysset", "set": values}, lock))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI parser (exposed for unit tests)."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
@@ -1320,6 +1349,10 @@ def build_parser() -> argparse.ArgumentParser:
     focus.add_argument("--reverse", action="store_true", help="Shift+Tab")
     focus.add_argument("--out", help="save the walk as JSON")
     focus.set_defaults(func=cmd_focus_order)
+    sysset = sub.add_parser("sysset", parents=[common], help="set accessibility system settings")
+    sysset.add_argument("--animations", type=parse_bool_argument)
+    sysset.add_argument("--transparency", type=parse_bool_argument)
+    sysset.set_defaults(func=cmd_sysset)
     sub.add_parser("status", help="lock and session state").set_defaults(func=cmd_status)
     return parser
 
