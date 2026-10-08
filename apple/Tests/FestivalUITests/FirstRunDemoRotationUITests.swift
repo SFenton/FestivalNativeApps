@@ -10,8 +10,8 @@ import FestivalDesign
 
 // MARK: - Swap sequence
 
-/// The web demos' swap is fade out → replace while hidden → fade in; under Reduce Motion it is
-/// a single cross-fade with no hidden phase (issue #27).
+/// The web demos' swap is fade out → replace while hidden → fade in (issue #27); under Reduce
+/// Motion the ticker holds demos still, and a requested swap only updates (issue #380).
 @Suite("FirstRunDemoSwap")
 @MainActor
 struct FirstRunDemoSwapTests {
@@ -25,7 +25,7 @@ struct FirstRunDemoSwapTests {
         #expect(steps == ["out", "update", "in"])
     }
 
-    @Test("Under Reduce Motion a swap only updates, as one cross-fade")
+    @Test("Under Reduce Motion a swap only updates, with no fade")
     func reduceMotionSequence() async {
         var steps: [String] = []
         await FirstRunDemoSwap.run(
@@ -47,6 +47,33 @@ struct FirstRunDemoSwapTests {
         task.cancel()
         await task.value
         #expect(steps == ["out", "update", "in"])
+    }
+}
+
+// MARK: - Ticker policy
+
+@Suite("FirstRunDemoTickerPolicy")
+struct FirstRunDemoTickerPolicyTests {
+    @Test("The swap clock runs only on the visible slide with motion allowed")
+    func runsOnlyWhenNothingHoldsStill() {
+        #expect(FirstRunDemoTickerPolicy.runs(
+            active: true, enabled: true, constrained: false, reduceMotion: false, stillBackground: false
+        ))
+        #expect(!FirstRunDemoTickerPolicy.runs(
+            active: true, enabled: true, constrained: false, reduceMotion: true, stillBackground: false
+        ))
+        #expect(!FirstRunDemoTickerPolicy.runs(
+            active: false, enabled: true, constrained: false, reduceMotion: false, stillBackground: false
+        ))
+        #expect(!FirstRunDemoTickerPolicy.runs(
+            active: true, enabled: false, constrained: false, reduceMotion: false, stillBackground: false
+        ))
+        #expect(!FirstRunDemoTickerPolicy.runs(
+            active: true, enabled: true, constrained: true, reduceMotion: false, stillBackground: false
+        ))
+        #expect(!FirstRunDemoTickerPolicy.runs(
+            active: true, enabled: true, constrained: false, reduceMotion: false, stillBackground: true
+        ))
     }
 }
 
@@ -130,13 +157,24 @@ struct FirstRunRotatingDemoDataTests {
 
 #if os(macOS)
 /// A demo on the visible page advances on the web clock; the same demo off-screen does not.
+///
+/// Each host gets its own app storage, so a parallel test's `fst.accessibility.reduceMotion`
+/// in the standard defaults cannot hold the active demo still (issue #380), and the active
+/// demo is polled for its first swap rather than sampled once, so a busy parallel CI run has
+/// time to fire the 2.5 s ticker.
 @MainActor
 @Test func activeBarSelectDemoAdvancesAndInactiveStaysStill() async throws {
     func frames(active: Bool) async throws -> (CGImage, CGImage) {
+        let suiteName = "fst-fre-rotation-active-\(UUID().uuidString)"
+        let storage = try #require(UserDefaults(suiteName: suiteName))
+        defer { storage.removePersistentDomain(forName: suiteName) }
+        storage.set(false, forKey: "fst.accessibility.reduceMotion")
         let size = CGSize(width: 390, height: 300)
         let host = nativeHostedView(
             FirstRunSongInfoBarSelectDemo()
                 .environment(\.firstRunDemoActive, active)
+                .environment(\._accessibilityReduceMotion, false)
+                .defaultAppStorage(storage)
                 .padding(20)
                 .frame(width: size.width, height: size.height)
                 .background(BrandTokens.cardBackground)
@@ -148,12 +186,52 @@ struct FirstRunRotatingDemoDataTests {
         let first = try await nativeHostedSettle(host, animationGrace: .milliseconds(200))
         // One 2.5 s cycle plus the 300 ms fade-out and fade-in.
         try await Task.sleep(for: .milliseconds(3_400))
-        return (first, try nativeHostedImage(host))
+        var after = try nativeHostedImage(host)
+        if active {
+            let deadline = ContinuousClock.now + .seconds(12)
+            while nativeHostedSignature(after) == nativeHostedSignature(first), ContinuousClock.now < deadline {
+                try await Task.sleep(for: .milliseconds(250))
+                host.layoutSubtreeIfNeeded()
+                host.displayIfNeeded()
+                after = try nativeHostedImage(host)
+            }
+        }
+        return (first, after)
     }
 
     let (activeBefore, activeAfter) = try await frames(active: true)
     #expect(nativeHostedSignature(activeBefore) != nativeHostedSignature(activeAfter), "selection did not move")
     let (stillBefore, stillAfter) = try await frames(active: false)
     #expect(nativeHostedSignature(stillBefore) == nativeHostedSignature(stillAfter), "inactive demo changed")
+}
+
+/// Reduce Motion, from the system or the app's own setting, holds a visible rotating demo on its
+/// first state past the swap interval (issue #380, load-transition R6).
+@MainActor
+@Test(arguments: [(system: true, app: false), (system: false, app: true)])
+func reduceMotionHoldsActiveRotatingDemoStill(setting: (system: Bool, app: Bool)) async throws {
+    let suiteName = "fst-fre-rotation-\(UUID().uuidString)"
+    let storage = try #require(UserDefaults(suiteName: suiteName))
+    defer { storage.removePersistentDomain(forName: suiteName) }
+    storage.set(setting.app, forKey: "fst.accessibility.reduceMotion")
+    let size = CGSize(width: 390, height: 300)
+    let host = nativeHostedView(
+        FirstRunSongInfoBarSelectDemo()
+            .environment(\.firstRunDemoActive, true)
+            .environment(\._accessibilityReduceMotion, setting.system)
+            .defaultAppStorage(storage)
+            .padding(20)
+            .frame(width: size.width, height: size.height)
+            .background(BrandTokens.cardBackground)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let before = try await nativeHostedSettle(host, animationGrace: .milliseconds(200))
+    // Past one 2.5 s cycle plus both 300 ms fades.
+    try await Task.sleep(for: .milliseconds(3_400))
+    let after = try nativeHostedImage(host)
+    #expect(nativeHostedSignature(before) == nativeHostedSignature(after), "demo rotated under Reduce Motion")
 }
 #endif

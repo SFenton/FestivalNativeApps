@@ -51,7 +51,8 @@
     Toolbars: "Leading: back/previous-document … controls, then the view title"; only after
     page one, never disabled); one large accent-tinted `.glassProminent` **Next/Done**
     (`.borderedProminent` before iOS 26; `.controlSize(.large)`, ≈48 pt on screen); then a
-    quiet full-width text **Skip** beneath it (white `FestivalText.primary`, ≥48 pt row) until
+    full-width `.borderless` accent-tinted **Skip** beneath it (body text, ≥48 pt row; issue
+    #380, see [Native controls and web motion](#native-controls-and-web-motion-issue-380)) until
     the last page. The Skip row stays reserved on the last page so Done doesn't move; a one-page
     guide shows only Done (`FirstRunControls` in `FestivalCore/FirstRunViewing.swift`:
     `showsBack`, `showsSkip`, `reservesSkipRow`, `minimumHeight`). iOS 26 draws the 86 % sheet
@@ -63,7 +64,8 @@
     (`FirstRunSheetStyle`) so tapping the dimmed page above it, or swiping down, dismisses.
     VoiceOver focus is left to the system on open, so the navigation title is announced first
     (HIG VoiceOver: a screen's title is announced first); `@AccessibilityFocusState` then moves
-    focus to each new slide on a page change. Animations skip under Reduce Motion.
+    focus to each new slide on a page change. Animations skip under Reduce Motion. Each slide's
+    title and description fade up after its demo cascade (`FirstRunMotion.textDelays`).
   - **Seen pages only**: the carousel records every page shown in a `FirstRunViewing` binding;
     the presenter's `onDismiss` marks only those seen (however it closed), so unviewed pages
     show next time (web new-info rule). Settings replays do the same after resetting the page.
@@ -132,14 +134,81 @@ Every song-using demo (Songs, `statistics-top-songs`, `rivals-detail`,
 |---|---|---|
 | `songs-song-list` | `FirstRunNativeSongListDemo` | `SongRowView` ×3 |
 | `songs-sort` | `FirstRunNativeSortDemo` | `SongsSortSheet` (top, clipped) |
-| `songs-navigation` | `FirstRunNativeNavigationDemo` | System `TabView` tab bar (Liquid Glass on 26) |
+| `songs-navigation` | `FirstRunNativeNavigationDemo` | System `TabView` tab bar (Liquid Glass on 26) with the shell's `FestivalSection` titles and symbols; it sets `.tabViewStyle(.automatic)` because the carousel's `.page` style is inherited by nested tab views and would leave a blank pager with no tab bar, and on iOS 26.1 turns off the inherited page-tools bottom accessory and the tab-bar backdrop; each tab shows `BrandTokens.appBackground` inside `firstRunPreviewCard()` (fixed in #380) |
 | `songs-filter` | `FirstRunNativeFilterDemo` | `SongsFilterSheet` (top, clipped) |
 | `songs-icons` | `FirstRunNativeIconsDemo` | Row chrome + `SongInstrumentStatusChips` (`SongInstrumentBadge.demoPattern`) |
 | `songs-metadata` | `FirstRunNativeMetadataDemo` | Row chrome + `SongMetadataFieldView` + `SongProfileMetadataPills` |
 | `songs-shop-highlight` / `-new-in-shop` / `-leaving-tomorrow` | `FirstRunNativeShopDemo` | `SongRowView` with its Shop outline/badge |
 
-Other pages' demos below are still approximations built from design primitives; the batch-7
-deep port (real Song Info, Statistics, Suggestions, Leaderboards, Compete, Rivals, Shop) is open.
+Issue #380 moved the other pages' demos onto the app's real views where one exists (below);
+the rest are still demo layouts built from the app's tokens.
+
+## Native controls and web motion (issue #380)
+
+Owner: "every single FRE needs a deep pass … to actually use platform UX that it's showing,
+match web behaviors for animations, fades, infinite scrolls … and iOS needs a pass on
+Next/Skip/Back". HIG Onboarding: "make onboarding fast, fun, and optional" and teach through the
+app's own interface.
+
+- **Rule: a demo shows the real control.** When the page has a reusable view for what the slide
+  teaches, the demo embeds it inert (`firstRunInert()`), and sheets go in a
+  `firstRunSheetPreview(height:)` frame. Never add a look-alike copy to `Demo/`. If a page's view
+  can't be built without a session, extract a small public view from it (as with
+  `ProfileIdentityButton`, `SongDetailShopGlyph`, `ScoreHistoryEntry.init(songId:…)` and
+  `PlayerPercentileBucket.init(topPercent:count:)`, `SongPathsSelectorRow`).
+- **Web motion lives in Core:**
+  - `FestivalCore/FirstRunMotion.swift` holds the web timings. The cascade steps 125 ms, rows
+    80 ms, Item Shop tiles 60 ms, Rivals detail 100 ms, with a 200 ms exit.
+  - Each slide's `contentStaggerCount` (one per `FirstRunCatalog` slide id; `FirstRunMotionTests`
+    checks coverage) delays the title by count × 125 ms and the description one step more.
+  - `FirstRunAutoScroll` glides at 30 pt/s after 100 ms and wraps to the top. Its 36 pt fades
+    show only on edges that hide cards.
+  - Unit tests: `FirstRunMotionTests` (every catalogue slide has a count). The hosted tests
+    `FirstRunDemoCoverageTests` cover the Item Shop row phases and the six scroll templates.
+- **Replays like the web.** The web remounts a slide whenever it becomes visible, so cascades
+  replay each time a page is shown, keyed on `\.firstRunSlideActive`. The still override
+  (`FST_DEBUG_STILL_BACKGROUND`) shows everything at rest.
+- **Reduce Motion** (system or app; HIG Accessibility: "reduce automatic and repetitive
+  animation"):
+  - no cascade and no title fade;
+  - the infinite scroll holds at the top;
+  - pulses hold at 0.7;
+  - rotating demos never tick: they rest on their first state with no fade or transition.
+  - Every First Run motion reads the one `@FirstRunReduceMotion` value (system or app).
+    Never read `accessibilityReduceMotion` alone in `FirstRun/`.
+- **Pulses** reuse the Item Shop row pulse (`ShopPulseLayer`, `ShopRowPulseBorder`; see
+  [Apple architecture](../../platforms/apple/architecture.md)). Accent blue marks a CTA. Song rows and the
+  Song Details action pulse in their own Item Shop tone.
+- **Skip (agent decision, #380; the owner may override with `/choose`).**
+  - Skip is now a full-width `.borderless` button: body text tinted `AccentText.blue`, ≥48 pt.
+    It replaces the white plain text, which read as a web link.
+  - Next/Done keep `.glassProminent`/`.borderedProminent`. HIG Buttons: "use a prominent style
+    (accent-color background) for the most likely action" and "Distinguish the preferred choice
+    by style, not size". This prominent primary with a tinted borderless secondary is the
+    layout of Apple's own setup screens.
+  - Back stays the system toolbar chevron (HIG Toolbars), and the white page dots stay (an
+    operator decision).
+  - Rejected: a bordered Skip, which competes with Next; and Skip in the toolbar, where Close
+    already dismisses.
+
+### FREs reviewed (#380)
+
+One shared implementation serves every Apple form factor. Every slide was checked against the web demo and its page's real view. Rotating slides hold still under system or app Reduce Motion.
+
+| Page | Slides | Outcome |
+|---|---|---|
+| Songs (9) | song-list, sort, navigation, filter, icons, metadata, shop-highlight, new-in-shop, leaving-tomorrow | Already the real Songs UI (batch 7). The text cascade was added; Item Shop rows use the real pulse |
+| Song Info (8) | chart, bar-select, view-all, top-scores, paths, shop-button, new-in-shop, leaving-tomorrow | Real score rows, `PurpleActionLabel`, the Paths sheet's real menus (`SongPathsSelectorRow`) and the real Item Shop action; web cascade |
+| Player History (2) | score-list, sort | Real rows and the real sort sheet |
+| Statistics (6) | select-profile, drill-down, overview, instrument-breakdown, percentiles, top-songs | Real Select Player button, section header and percentile table; the stat grids already use the page's cards |
+| Suggestions (4) | category-card, global-filter, instrument-filter, infinite-scroll | Real filter sheet; the infinite scroll is ported |
+| Leaderboards (3) | overview, experimental-metrics, your-rank | Web cascade (80 ms rows) |
+| Compete (3) | hub, leaderboards, rivals | Web cascade |
+| Rivals (3) | overview, instruments, detail | Real instrument headers; web cascade (80/100 ms) |
+| Item Shop (4) | overview, highlighting, new-items, leaving-tomorrow | Real Songs rows with the Item Shop pulse; 60 ms tile cascade |
+
+What's New has no demos, so it's not applicable. Android and Windows follow in their own
+platform notes.
 
 ## Other pages (31 slides) — live native demos (Lane D2, 2026-09-28)
 
@@ -158,9 +227,14 @@ Shared building blocks live in `Features/FirstRun/Demo/`:
   history, percentiles, rival rank/score comparisons), mirroring the shape of the web's
   `demoData.ts`. It holds no songs: song-using demos read the catalogue (see "Demo songs come
   from the catalogue" above).
-- `FirstRunDemoSupport.swift` — `firstRunPulse(_:)` (a `repeatForever` glow, standing in for the web's `shopBreathe*`/`pulseWrap` CSS animations; a no-op under Reduce Motion and on any slide but the visible one, via `\.firstRunSlideActive` and `FirstRunPulsePolicy`, because the paged `TabView` keeps neighbours alive; the sheet also pauses the backdrop, see [artwork background](../artwork-background/ios.md#power-and-frame-budget-issue-28)) and
-  `firstRunStagger(_:)` (a brief per-row fade/rise-in echoing the web's cascading `FadeIn`, also a
-  no-op under Reduce Motion — appears immediately instead), plus shared row views
+- `FirstRunDemoSupport.swift` — `firstRunPulse(_:)` (the web's `pulseWrap`: a 2 pt border
+  tracing the surface, opacity 0 → 0.7 → 0 over 2 s, drawn by the Item Shop row pulse's
+  `ShopPulseLayer`; held at 0.7 under Reduce Motion and still on any slide but the visible one,
+  via `\.firstRunSlideActive` and `FirstRunPulsePolicy`, because the paged `TabView` keeps
+  neighbours alive; the sheet also pauses the backdrop, see [artwork background](../artwork-background/ios.md#power-and-frame-budget-issue-28)),
+  `firstRunStagger(_:interval:)` (the web's cascading `FadeIn`, replayed each time the slide
+  becomes the visible page and faded out over 0.2 s as it leaves; content appears at rest under
+  Reduce Motion) and `firstRunFadeIn(delay:)` for slide text, plus shared row views
   (`FirstRunRankRow`, `FirstRunRivalRow`, `FirstRunViewAllRow`, `FirstRunInstrumentHeader`,
   `FirstRunSongArt`, which draws a real song's shared-cache artwork or a muted placeholder tile)
   and `firstRunAccuracyTint(_:isFullCombo:)`, an accuracy-to-color
@@ -188,12 +262,12 @@ Before #27 iOS showed one static state per demo; now each rotating demo swaps li
   update without animation → fade in; `.firstRunSwapRow` hides the fading slots (opacity 0 plus the
   web's per-demo rise). Rows use positional identity so the same view fades instead of being
   replaced. Swapped-in artwork is prefetched into the shared bounded cache during the fade-out.
-- **Reduce Motion** (HIG Accessibility: "reduce automatic and repetitive animation… replacing axis
-  transitions with fades"): rotation continues, but each swap is one ~0.4 s cross-fade with no
-  hidden phase and no rise.
-- Hosted tests: `FirstRunDemoRotationUITests` (swap order, Reduce Motion path, cancellation
-  completes, web pools/templates, and an active bar-select demo advances while an inactive one
-  stays still).
+- **Reduce Motion** (system or app, `@FirstRunReduceMotion`; HIG Accessibility: "reduce
+  automatic and repetitive animation"): the ticker stops (`FirstRunDemoTickerPolicy`), so each
+  demo rests on its first state with no fade, rise or transition (#380, load-transition R6).
+- Hosted tests: `FirstRunDemoRotationUITests` (swap order, ticker policy, cancellation
+  completes, web pools/templates; an active bar-select demo advances while an inactive one
+  stays still, and system or app Reduce Motion holds an active one still past its interval).
 
 | Slide | Rotation (web source) |
 |---|---|
@@ -209,31 +283,31 @@ Before #27 iOS showed one static state per demo; now each rotating demo swaps li
 | `rivals-instruments` | 6 rival slots, 2 per tick, each walking its own above/below pool |
 | `rivals-detail` | Whole card fades; the category advances through the web's 6 and rows re-stagger |
 
-The infinite-scroll demo's `requestAnimationFrame` auto-scroll is still not ported (a perpetual
-scroll loop); Shop demos have no rotation on the web either.
+The infinite-scroll demo's auto-scroll is ported in #380 (see below); Shop demos have no
+rotation on the web either.
 
 | Slide id | Live demo | Notes |
 |---|---|---|
 | `songinfo-chart` | `FirstRunSongInfoChartDemo` | Swift Charts `BarMark` (accuracy, gold when FC) with score annotated per bar |
 | `songinfo-bar-select` | `FirstRunSongInfoBarSelectDemo` | Same chart; the selection stroke and detail card cycle bars like the web (see rotation table) |
-| `songinfo-view-all` | `FirstRunSongInfoViewAllDemo` | Own score rows (last one faded) + pulsing "View all scores" |
+| `songinfo-view-all` | `FirstRunSongInfoViewAllDemo` | Real `ScoreHistoryListRow`s (last one faded) + pulsing `PurpleActionLabel` "View All Scores" |
 | `songinfo-top-scores` | `FirstRunSongInfoTopScoresDemo` | Instrument header + top leaderboard rows + pulsing "View full leaderboard" |
-| `songinfo-paths` | `FirstRunSongInfoPathsDemo` | Instrument row + difficulty row + static path-preview placeholder (no network image fetch) |
-| `songinfo-shop-button` | `FirstRunSongInfoShopPillDemo(tone: .shop)` | Green pill, pulsing |
-| `songinfo-new-in-shop` | `FirstRunSongInfoShopPillDemo(tone: .new)` | Gold pill, pulsing |
-| `songinfo-leaving-tomorrow` | `FirstRunSongInfoShopPillDemo(tone: .leaving)` | Red pill, pulsing |
-| `playerhistory-score-list` | `FirstRunPlayerHistoryScoreListDemo` | Score rows, personal best highlighted purple |
-| `playerhistory-sort` | `FirstRunPlayerHistorySortDemo` | Sort-mode list (Date/Score/Accuracy/Season) + direction row, mirroring `FirstRunSortDemo`'s established layout |
-| `statistics-select-profile` | `FirstRunStatsSelectProfileDemo` | Pulsing "Select This Player" pill |
+| `songinfo-paths` | `FirstRunSongInfoPathsDemo` | The Paths sheet's real Instrument/Difficulty/View menus (`SongPathsSelectorRow`, inert) below a still path-area placeholder (no network image fetch); selectors fade in first, as on the web |
+| `songinfo-shop-button` | `FirstRunSongInfoShopPillDemo(tone: .shop)` | Song header card with the real Song Details Item Shop action (`SongDetailShopActionStyle`: breathing bag, or the titled `festivalCardCapsule` on a vertical section bar — a demo replica is a custom control, so never shipping glass (surface-materials `apple-glass-consumers`)); green |
+| `songinfo-new-in-shop` | `FirstRunSongInfoShopPillDemo(tone: .new)` | Same, gold |
+| `songinfo-leaving-tomorrow` | `FirstRunSongInfoShopPillDemo(tone: .leaving)` | Same, red |
+| `playerhistory-score-list` | `FirstRunPlayerHistoryScoreListDemo` | Real `ScoreHistoryListRow`s, personal best highlighted |
+| `playerhistory-sort` | `FirstRunPlayerHistorySortDemo` | The real `PlayerHistorySortSheet` in a sheet preview |
+| `statistics-select-profile` | `FirstRunStatsSelectProfileDemo` | Player card with the real Profile `ProfileIdentityButton` (Select Player), pulsing |
 | `statistics-drill-down` | `FirstRunStatsDrillDownDemo` | 2-col stat grid; drillable cards pulse |
 | `statistics-overview` | `FirstRunStatsOverviewDemo` | 2-col global summary stat grid |
-| `statistics-instrument-breakdown` | `FirstRunStatsInstrumentBreakdownDemo` | Instrument header + 2-col stat grid |
-| `statistics-percentiles` | `FirstRunStatsPercentilesDemo` | Percentile/song-count table |
+| `statistics-instrument-breakdown` | `FirstRunStatsInstrumentBreakdownDemo` | Real `InstrumentSectionHeader` + 2-col stat grid |
+| `statistics-percentiles` | `FirstRunStatsPercentilesDemo` | The real `PlayerPercentileTableCard` |
 | `statistics-top-songs` | `FirstRunStatsTopSongsDemo` | 4 catalogue song rows (art, artist · year) with the web's demo percentile badges |
 | `suggestions-category-card` | `FirstRunSuggestionsCategoryCardDemo` | Rotating themed card of 2 catalogue songs: the real `SuggestionCategoryCardView` with a session, else a redacted approximation |
-| `suggestions-global-filter` | `FirstRunSuggestionsGlobalFilterDemo` | Suggestion-type toggle list, all enabled |
-| `suggestions-instrument-filter` | `FirstRunSuggestionsInstrumentFilterDemo` | Instrument row + that instrument's toggles |
-| `suggestions-infinite-scroll` | `FirstRunSuggestionsInfiniteScrollDemo` | Stacked cards with a bottom fade mask (web auto-scrolls via `requestAnimationFrame`; a perpetual scroll loop is exactly the excluded "heavy" case) |
+| `suggestions-global-filter` | `FirstRunSuggestionsGlobalFilterDemo` | The real `SuggestionsFilterSheet` in a sheet preview |
+| `suggestions-instrument-filter` | `FirstRunSuggestionsInstrumentFilterDemo` | The same sheet with its per-instrument sections |
+| `suggestions-infinite-scroll` | `FirstRunSuggestionsInfiniteScrollDemo` | The web's 6 category cards glide up at 30 pt/s and loop, with 36 pt edge fades only on edges hiding cards (`FirstRunAutoScroll`); still under Reduce Motion |
 | `leaderboards-overview` | `FirstRunLeaderboardsOverviewDemo` | Instrument header + top rankings |
 | `leaderboards-experimental-metrics` | `FirstRunLeaderboardsExperimentalMetricsDemo` | Metric radio list with hints |
 | `leaderboards-your-rank` | `FirstRunLeaderboardsYourRankDemo` | Rank neighborhood, player row highlighted, pulsing "View all rankings" |
@@ -241,12 +315,12 @@ scroll loop); Shop demos have no rotation on the web either.
 | `compete-leaderboards` | `FirstRunCompeteLeaderboardsDemo` | Reuses `FirstRunLeaderboardsOverviewDemo` |
 | `compete-rivals` | `FirstRunCompeteRivalsDemo` | Above/Below rival rows (2 each), rotating |
 | `rivals-overview` | `FirstRunRivalsOverviewDemo` | Above/Below rival rows (3 each), staggered and rotating |
-| `rivals-instruments` | `FirstRunRivalsInstrumentsDemo` | Per-instrument (Lead/Drums/Vocals) rival sections, rotating 2 slots per tick |
+| `rivals-instruments` | `FirstRunRivalsInstrumentsDemo` | Per-instrument rival sections under the real `InstrumentSectionHeader`, rotating 2 slots per tick |
 | `rivals-detail` | `FirstRunRivalsDetailDemo` | Category card ("Closest Battles" first) of 3 catalogue songs with demo rank comparisons; cycles the web's 6 categories |
 | `shop-overview` | `FirstRunShopOverviewDemo` | 3-column grid of 6 Item Shop/catalogue song art tiles |
-| `shop-highlighting` | `FirstRunShopHighlightingDemo` | Item Shop/catalogue song rows alternate a pulsing green highlight and none |
-| `shop-new-items` | `FirstRunShopNewItemsDemo` | Rows cycle gold/green/none by index (static per-row assignment, no timer) |
-| `shop-leaving-tomorrow` | `FirstRunShopLeavingTomorrowDemo` | Rows cycle red/green/none by index |
+| `shop-highlighting` | `FirstRunShopHighlightingDemo` | Real Songs rows (`SongRowView`) alternate the green Item Shop pulse and none |
+| `shop-new-items` | `FirstRunShopNewItemsDemo` | Real Songs rows cycle gold/green/none by index (`FirstRunShopRowPhase`, no timer) |
+| `shop-leaving-tomorrow` | `FirstRunShopLeavingTomorrowDemo` | Real Songs rows cycle red/green/none by index |
 
 Simplified vs. the web on every demo: song-using demos show catalogue songs and their art, but
 ranks, scores and percentiles are static demo numbers rather than the player's session data
