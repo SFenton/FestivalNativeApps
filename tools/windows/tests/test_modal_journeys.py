@@ -1,7 +1,9 @@
 """Modal accessibility matrix (``journeys/a11y-modals.json``, issues #23, #239 and #400).
 
-Every ``FestivalDialog`` caller has a matrix page that asserts its commands' Narrator phrase (name, role, state),
-reading order (title, body, commands, Close last), Close target size and keyboard reach, and closes on Esc.
+Every ``FestivalDialog`` caller has a matrix page that asserts its title and body text are on screen, its commands'
+Narrator phrase (name, role, state), reading order (title, body, commands, Close last), Close's 40x40 epx target (with hit
+probes 18.5 epx from its centre) and keyboard reach, and closes on Esc. ``ui_ci.py`` runs the pages in the ``windows-ui``
+CI job at default text and at 225% text; this file only guards the page list's structure.
 
 Run: ``python -m unittest discover -s tools/windows/tests`` from the repo root.
 """
@@ -12,6 +14,7 @@ import unittest
 from pathlib import Path
 
 from tools.windows import a11y_matrix as m
+from tools.windows import ui_ci as ci
 from tools.windows import uiwin as u
 
 _REPO = Path(__file__).resolve().parents[3]
@@ -31,6 +34,8 @@ _CALLERS = {
 }
 #: The Karaoke notice is an alert with its own two choices and no Close (modal-shell R3 deviation, issue #239).
 _ALERTS = {"modal-paths-warning"}
+#: Hit probes at the edges of a 40x40 epx target (the hit-target journey's offsets, issue #271).
+_PROBES = ("-18.5,0", "18.5,0", "0,-18.5", "0,18.5")
 
 
 def _steps(page: dict) -> list[str]:
@@ -51,17 +56,31 @@ def _close(page: dict) -> str:
 class ModalJourneyTests(unittest.TestCase):
     """The page list parses, runs in the CI matrix and covers every modal with each accessibility concern."""
 
-    def test_runs_as_an_accessibility_matrix(self):
-        # The windows-ui CI dispatcher runs only journeys/a11y*.json through a11y_matrix.py (Axe scan + Tab walk).
-        self.assertTrue(_FILE.name.startswith("a11y"))
+    def test_runs_in_the_windows_ui_job(self):
+        # ui_ci.RUNS is what the windows-ui workflow runs; every page must run in each of its modes and sizes.
+        runs = [run for run in ci.RUNS if run.pages == _FILE.name]
+        self.assertEqual({"normal", "text-225"}, {run.mode for run in runs})
         self.assertFalse((_FILE.parent / "modals.json").exists())
+        for run in runs:
+            self.assertTrue(run.scan and run.tabs >= 1, run.name)
+            self.assertEqual(sorted(p["name"] for p in _PAGES), sorted(p["name"] for p in m.mode_pages(_PAGES, run.mode)))
+            for page in _PAGES:
+                self.assertEqual(run.sizes.split(","), m.page_sizes(page, run.sizes.split(","), run.mode), page["name"])
 
     def test_every_step_parses(self):
         for page in _PAGES:
-            self.assertFalse(page.get("modes"), page["name"])  # runs in the default (CI) mode
             for step in m.page_steps(page, "medium", Path("C:/tmp"), "", True, 30):
                 with self.subTest(page=page["name"], step=step):
                     u.parse_step(step)
+
+    def test_text_is_on_screen_first(self):
+        # waitfor fails while an element is missing or off screen: at 225% text the title and body must still show.
+        for page in _PAGES:
+            with self.subTest(page=page["name"]):
+                first = page["after_ready"][0]
+                self.assertTrue(first.startswith("waitfor:"), first)
+                if page["name"] != "modal-whats-new":  # its title is the versioned list name; the section is the text
+                    self.assertTrue(first.startswith("waitfor:name="), first)
 
     def test_every_dialog_caller_has_pages(self):
         callers = sorted(
@@ -85,8 +104,8 @@ class ModalJourneyTests(unittest.TestCase):
                 # Read first: the dialog title (What's New: its list, named like the versioned title).
                 self.assertTrue(any(s.startswith(("assertorder:name=", "assertorder:id=fst.whats-new.list|"))
                                     for s in orders))
-                self.assertIn(f"assertsize:{close}|40x32", steps)
-                self.assertEqual(4, sum(1 for s in steps if s.startswith(f"assertat:{close}|")))
+                self.assertIn(f"assertsize:{close}|40x40", steps)
+                self.assertEqual([f"assertat:{close}|{p}" for p in _PROBES], [s for s in steps if s.startswith(f"assertat:{close}|")])
                 keyed = max(i for i, s in enumerate(steps) if s.startswith(f"assertfocus:{close}@"))
                 self.assertTrue(steps[keyed - 1].startswith("key:tab"))
 
@@ -95,7 +114,8 @@ class ModalJourneyTests(unittest.TestCase):
         steps = _steps(page)
         for button in ("id=PrimaryButton", "id=SecondaryButton"):
             self.assertTrue(any(s.startswith(f"assertread:{button}|") for s in steps))
-            self.assertIn(f"assertsize:{button}|40x32", steps)
+            self.assertIn(f"assertsize:{button}|40x40", steps)
+            self.assertEqual([f"assertat:{button}|{p}" for p in _PROBES], [s for s in steps if s.startswith(f"assertat:{button}|")])
         self.assertIn("assertorder:name=Some Instruments Unavailable|id=PrimaryButton|id=SecondaryButton", steps)
         self.assertIn("waitgone:id=CloseButton@2", steps)
 

@@ -400,13 +400,13 @@ Fixed: Feedback field hints were a `TextBox.Description` that clipped at compact
 
 ## Modal accessibility tests (issue #400, 2026-10-08)
 
-`journeys/modals.json` became `journeys/a11y-modals.json`. The windows-ui dispatcher runs only `a11y*` files through `a11y_matrix.py --scan --tabs 30`. Each `FestivalDialog` page now also asserts:
+`journeys/modals.json` became `journeys/a11y-modals.json`. The `windows-ui` workflow (`.github/workflows/windows-ui.yml`) builds the Debug app, sets the runner display to 1920×1080 (`tools/windows/ci_display.ps1`) and runs `tools/windows/ui_ci.py`, which runs this file through `a11y_matrix.py --scan --tabs 30` at default text (compact, medium) and at `--mode text-225` (compact). Each `FestivalDialog` page first waits for its title and body text to be on screen (`waitfor`), then asserts:
 - the Narrator phrase of every command (for example "Cancel, button", "Submit, button, unavailable", "Back, button, unavailable");
 - the reading order: the title (What's New: its list), the body, the commands, and Close last (modal-shell R2);
-- Close at least 40×32 epx, with hit probes 16 epx left/right and 12 epx up/down from its centre;
+- Close and every alert command at least 40×40 epx, with hit probes 18.5 epx left, right, up and down from the centre (the #271 probe);
 - that Tab from the last body control reaches Close.
 
-`tests/test_modal_journeys.py` maps every `FestivalDialog.Create` caller to its pages and fails when one has none or drops a check. Commands keep WinUI's standard 32 epx height at full column width, as First Run does (#241). Microsoft's targeting guidance: "Typically, WinUI controls align with 7.5mm touch target."
+`tests/test_modal_journeys.py` maps every `FestivalDialog.Create` caller to its pages and fails when one has none, drops a check or leaves the `windows-ui` runs; `tests/test_ui_ci.py` checks the runs and the workflow. Fixed (design review of #468): `ContentDialog` commands were WinUI's 32 epx tall, under the 40 epx Windows target; `DialogChrome.CommandTargets` now raises Primary, Secondary and Close to `FSTMinTargetSize` (40 epx) for every `FestivalDialog` ([modal-shell](../patterns/modal-shell.md) agent decision #400). Microsoft Learn, Targeting: "In general, set your touch target size to 7.5mm square range (40x40 pixels …)."
 
 | Configuration | Result |
 | --- | --- |

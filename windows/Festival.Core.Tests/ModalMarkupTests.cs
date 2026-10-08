@@ -96,6 +96,18 @@ public class ModalMarkupTests
     }
 
     [Fact]
+    public void Commands_KeepTheMinimumTouchTarget()
+    {
+        // Issue #400: the template's 32 epx command buttons missed taps just above or below the label.
+        var factory = Sources(".cs").Single(source => source.Path == "Controls/FestivalDialog.cs").Text;
+        Assert.Contains("DialogChrome.CommandTargets(dialog);", factory, StringComparison.Ordinal);
+        var chrome = Sources(".cs").Single(source => source.Path == "Controls/DialogChrome.cs").Text;
+        Assert.Contains(@"TryGetValue(""FSTMinTargetSize""", chrome, StringComparison.Ordinal);
+        Assert.Contains("button.MinHeight = size;", chrome, StringComparison.Ordinal);
+        Assert.Contains("internal const double MinTargetSize = 40;", chrome, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CommandLabels_DropTheContrastBackplate()
     {
         // Issue #239: under Desert/Night sky the default button's label sat on a Window-coloured box inside its Highlight fill.

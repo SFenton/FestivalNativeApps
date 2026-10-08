@@ -1065,6 +1065,10 @@
           {
             "path": "windows/Festival.App/Controls/FestivalDialog.cs",
             "symbol": "FestivalDialog"
+          },
+          {
+            "path": "windows/Festival.App/Controls/DialogChrome.cs",
+            "symbol": "CommandTargets"
           }
         ]
       },
@@ -1158,7 +1162,8 @@
         139,
         140,
         360,
-        368
+        368,
+        400
       ]
     },
     {
