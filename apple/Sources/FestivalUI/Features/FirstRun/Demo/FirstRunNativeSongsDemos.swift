@@ -141,12 +141,18 @@ extension View {
     func firstRunSheetPreview(height: CGFloat) -> some View {
         frame(height: height, alignment: .top)
             .frame(maxHeight: .infinity, alignment: .top)
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .firstRunPreviewCard()
+            .firstRunInert()
+    }
+
+    /// Frames a piece of real app UI as a rounded card with the glass hairline, so a cropped
+    /// sheet or screen edge reads as a picture of the app.
+    func firstRunPreviewCard() -> some View {
+        clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .stroke(BrandTokens.glassBorder, lineWidth: 1)
             )
-            .firstRunInert()
     }
 }
 
@@ -270,7 +276,8 @@ struct FirstRunNativeNavigationDemo: View {
     var body: some View {
         TabView(selection: $selection) {
             ForEach(Array(Self.tabs.enumerated()), id: \.offset) { index, section in
-                Color.clear
+                BrandTokens.appBackground
+                    .ignoresSafeArea()
                     .tabItem { Label(section.title, systemImage: section.symbol) }
                     .tag(index)
             }
@@ -278,13 +285,35 @@ struct FirstRunNativeNavigationDemo: View {
         // The carousel's `.page` style is inherited by nested tab views, which would turn
         // this one into an empty pager with no tab bar (issue #380).
         .tabViewStyle(.automatic)
+        .modifier(FirstRunDemoTabBarChrome())
         .frame(height: 150)
+        .firstRunPreviewCard()
         .frame(maxHeight: .infinity, alignment: .bottom)
         .firstRunInert()
     }
 
     /// The shell's own tab titles and symbols (``FestivalSection``).
     private static let tabs: [FestivalSection] = [.songs, .suggestions, .compete, .statistics, .settings]
+}
+
+/// Keeps the Navigation demo's tab view to just its tab bar: the shell's page-tools
+/// accessory (Songs' Sort and Filter) is inherited by nested tab views on iOS 26.1
+/// (``SwiftUICore/View/festivalPageToolsAccessoryHidden()``), and the
+/// system tab-bar backdrop would draw a grey panel over the guide.
+private struct FirstRunDemoTabBarChrome: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        if #available(iOS 18, *) {
+            content
+                .festivalPageToolsAccessoryHidden()
+                .toolbarBackgroundVisibility(.hidden, for: .tabBar)
+        } else {
+            content.toolbarBackground(.hidden, for: .tabBar)
+        }
+        #else
+        content
+        #endif
+    }
 }
 
 // MARK: - songs-icons

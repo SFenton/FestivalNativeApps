@@ -134,7 +134,7 @@ Every song-using demo (Songs, `statistics-top-songs`, `rivals-detail`,
 |---|---|---|
 | `songs-song-list` | `FirstRunNativeSongListDemo` | `SongRowView` ×3 |
 | `songs-sort` | `FirstRunNativeSortDemo` | `SongsSortSheet` (top, clipped) |
-| `songs-navigation` | `FirstRunNativeNavigationDemo` | System `TabView` tab bar (Liquid Glass on 26) with the shell's `FestivalSection` titles and symbols; it sets `.tabViewStyle(.automatic)` because the carousel's `.page` style is inherited by nested tab views and would leave a blank pager with no tab bar (fixed in #380) |
+| `songs-navigation` | `FirstRunNativeNavigationDemo` | System `TabView` tab bar (Liquid Glass on 26) with the shell's `FestivalSection` titles and symbols; it sets `.tabViewStyle(.automatic)` because the carousel's `.page` style is inherited by nested tab views and would leave a blank pager with no tab bar, and on iOS 26.1 turns off the inherited page-tools bottom accessory and the tab-bar backdrop; each tab shows `BrandTokens.appBackground` inside `firstRunPreviewCard()` (fixed in #380) |
 | `songs-filter` | `FirstRunNativeFilterDemo` | `SongsFilterSheet` (top, clipped) |
 | `songs-icons` | `FirstRunNativeIconsDemo` | Row chrome + `SongInstrumentStatusChips` (`SongInstrumentBadge.demoPattern`) |
 | `songs-metadata` | `FirstRunNativeMetadataDemo` | Row chrome + `SongMetadataFieldView` + `SongProfileMetadataPills` |
