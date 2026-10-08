@@ -82,6 +82,105 @@ enum BottomSearchFieldPlacement {
         guard let keyboardTop else { return 0 }
         return max(0, (rowBottom - fieldBottomPadding) - (keyboardTop - gap)).rounded(.up)
     }
+
+    // MARK: Search button alignment (#358)
+
+    /// Diameter of the system Search button in the iPhone Duo vertical bar (measured
+    /// folded portrait and inner landscape, iOS 27.1 simulator).
+    nonisolated static let railSearchButtonSize: CGFloat = 48
+
+    /// Gap between the vertical bar's Search button and the window's bottom edge.
+    nonisolated static let railSearchButtonBottomInset: CGFloat = 24
+
+    /// Diameter of the tab bar's Search button on the iPhone Duo inner display in
+    /// portrait, the one pose with a horizontal tab bar.
+    nonisolated static let tabBarSearchButtonSize: CGFloat = 62
+
+    /// Padding above and below the field in its safe-area row.
+    nonisolated static let rowPadding: CGFloat = 8
+
+    /// The field's minimum height: the system Search button's in the same pose
+    /// (owner, issue #358: "align with Search button vertically (in height too)").
+    ///
+    /// - Parameter chrome: The window's section chrome.
+    /// - Returns: The vertical bar's Search button size beside a vertical bar, else
+    ///   the tab bar's.
+    nonisolated static func fieldHeight(for chrome: DeviceLayout.SectionChrome) -> CGFloat {
+        chrome.isVerticalBar ? railSearchButtonSize : tabBarSearchButtonSize
+    }
+
+    /// Whether the software keyboard covers the bottom of the window.
+    ///
+    /// - Parameters:
+    ///   - keyboardTop: The keyboard's top in window (screen) points, or `nil` while hidden.
+    ///   - windowBottom: The window's bottom edge in the same space.
+    /// - Returns: False when hidden, or for a hardware keyboard's off-screen frame.
+    nonisolated static func keyboardCovers(keyboardTop: CGFloat?, windowBottom: CGFloat) -> Bool {
+        guard let keyboardTop else { return false }
+        return windowBottom <= 0 || keyboardTop < windowBottom
+    }
+
+    /// Padding under the field that centres it on the vertical bar's Search button
+    /// (issue #358), or `nil` to keep the standard row.
+    ///
+    /// Beside a vertical bar (folded in every rotation, inner display in landscape) the
+    /// system Search button's centre lies ``railSearchButtonBottomInset`` plus half
+    /// ``railSearchButtonSize`` above the window's bottom; the row's own bottom is the
+    /// page's bottom safe area, 10–34 pt higher, so the padding can be negative
+    /// (the field reaches into the home-indicator area, level with the button). Only
+    /// while the keyboard is hidden: above the keyboard the standard row and
+    /// ``keyboardLift(rowBottom:keyboardTop:fieldBottomPadding:gap:)`` apply. With no
+    /// vertical bar (inner portrait) the Search button sits in the tab bar, which the
+    /// field must not cover, so the row stays above the bar.
+    ///
+    /// The row's bottom is the safe-area inset's anchor and does not depend on this
+    /// padding, so the result never feeds back into its own input.
+    ///
+    /// - Parameters:
+    ///   - chrome: The window's section chrome.
+    ///   - rowBottom: The field row's bottom edge, in window (global) points.
+    ///   - windowBottom: The window's bottom edge in the same space (measured past the
+    ///     bottom safe area: ``DeviceLayout/size`` stops at it on iPhone Duo).
+    ///   - fieldHeight: The field's measured height (taller than the button at large
+    ///     Dynamic Type sizes; it stays centred).
+    ///   - keyboardTop: The keyboard's top in the same space, or `nil` while hidden.
+    /// - Returns: The bottom padding, in points, or `nil` for the standard row.
+    nonisolated static func searchButtonAlignedBottomPadding(
+        chrome: DeviceLayout.SectionChrome, rowBottom: CGFloat, windowBottom: CGFloat,
+        fieldHeight: CGFloat, keyboardTop: CGFloat?
+    ) -> CGFloat? {
+        guard chrome.isVerticalBar, rowBottom > 0, windowBottom >= rowBottom, fieldHeight > 0,
+              !keyboardCovers(keyboardTop: keyboardTop, windowBottom: windowBottom)
+        else { return nil }
+        let centre = windowBottom - railSearchButtonBottomInset - railSearchButtonSize / 2
+        return (rowBottom - (centre + fieldHeight / 2)).rounded()
+    }
+
+    /// The row's padding under the field: centred on the vertical bar's Search button
+    /// while the keyboard is hidden, else the standard ``rowPadding`` plus any
+    /// ``keyboardLift(rowBottom:keyboardTop:fieldBottomPadding:gap:)``.
+    ///
+    /// - Parameters:
+    ///   - chrome: The window's section chrome.
+    ///   - rowBottom: The field row's bottom edge, in window (global) points.
+    ///   - windowBottom: The window's bottom edge in the same space.
+    ///   - fieldHeight: The field's measured height.
+    ///   - keyboardTop: The keyboard's top in the same space, or `nil` while hidden.
+    /// - Returns: The bottom padding, in points.
+    nonisolated static func bottomPadding(
+        chrome: DeviceLayout.SectionChrome, rowBottom: CGFloat, windowBottom: CGFloat,
+        fieldHeight: CGFloat, keyboardTop: CGFloat?
+    ) -> CGFloat {
+        if let aligned = searchButtonAlignedBottomPadding(
+            chrome: chrome, rowBottom: rowBottom, windowBottom: windowBottom,
+            fieldHeight: fieldHeight, keyboardTop: keyboardTop
+        ) {
+            return aligned
+        }
+        return rowPadding + keyboardLift(
+            rowBottom: rowBottom, keyboardTop: keyboardTop, fieldBottomPadding: rowPadding
+        )
+    }
 }
 
 // MARK: - Column
@@ -124,13 +223,15 @@ extension View {
 
 // MARK: - Field
 
-/// The iPhone Duo bottom search field: the shared ``GlobalSearchField`` on the
-/// floating-control surface, in a page's bottom safe area, in the
+/// The iPhone Duo bottom search field: the shared ``GlobalSearchField`` on Liquid
+/// Glass (owner, issue #358), in a page's bottom safe area, in the
 /// ``BottomSearchFieldColumn`` (full width, or the trailing page across a book fold).
 ///
 /// Used by Songs' Filter field (issue #333) and the Search tab on the inner display
-/// (issue #349). As a bottom safe-area inset it rises with the keyboard, plus any
-/// measured
+/// (issue #349). It is as tall as the system Search button in the same pose and, beside
+/// the vertical bar with the keyboard hidden, centred on it
+/// (``BottomSearchFieldPlacement/bottomPadding(chrome:rowBottom:windowBottom:fieldHeight:keyboardTop:)``).
+/// As a bottom safe-area inset it rises with the keyboard, plus any measured
 /// ``BottomSearchFieldPlacement/keyboardLift(rowBottom:keyboardTop:fieldBottomPadding:gap:)``
 /// the system leaves it short. It can report its top for a list's
 /// ``SwiftUI/View/bottomChromeFade(chromeTop:distance:in:)``.
@@ -157,23 +258,36 @@ struct BottomSearchField: View {
     /// The software keyboard's top in screen points (an iPhone window fills its
     /// screen, so global points), or `nil` while it is hidden.
     @State private var keyboardTop: CGFloat?
+    /// The field's height (the Search button's, or taller at large Dynamic Type sizes).
+    @State private var fieldHeight: CGFloat = 0
+    /// The window's bottom edge in global points, past the bottom safe area
+    /// (``WindowBottomProbe``).
+    @State private var windowBottom: CGFloat = 0
+    @Environment(\.deviceLayout) private var layout
 
     var body: some View {
-        let lift = BottomSearchFieldPlacement.keyboardLift(
-            rowBottom: rowBottom, keyboardTop: keyboardTop
+        let minHeight = BottomSearchFieldPlacement.fieldHeight(for: layout.sectionChrome)
+        let bottom = BottomSearchFieldPlacement.bottomPadding(
+            chrome: layout.sectionChrome, rowBottom: rowBottom, windowBottom: windowBottom,
+            fieldHeight: max(fieldHeight, minHeight), keyboardTop: keyboardTop
         )
         GlobalSearchField(
             text: $text, prompt: prompt, accessibilityLabel: accessibilityLabel,
             identifier: identifier, clearIdentifier: clearIdentifier,
-            focusesOnAppear: focusesOnAppear, surface: .floating, submit: submit
+            focusesOnAppear: focusesOnAppear, surface: .floating, minHeight: minHeight,
+            submit: submit
         )
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+            fieldHeight = height
+        }
         .modifier(BottomChromeTopReport(space: space, changed: chromeTopChanged))
         .bottomSearchFieldColumn(hinge: hinge)
-        .padding(.top, 8)
-        .padding(.bottom, 8 + lift)
+        .padding(.top, BottomSearchFieldPlacement.rowPadding)
+        .padding(.bottom, bottom)
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { bottom in
             rowBottom = bottom
         }
+        .background { WindowBottomProbe { windowBottom = $0 } }
         #if os(iOS)
         .onReceive(
             NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)
@@ -189,6 +303,79 @@ struct BottomSearchField: View {
         #endif
     }
 }
+
+/// Reports the window's bottom edge in global points: the edge the system Search button
+/// is placed from (issue #358).
+///
+/// On iPhone Duo the SwiftUI hierarchy ends at the bottom safe area (the root measures
+/// 644 pt of a 678 pt folded window), so even a probe that ignores the safe area stops
+/// short; iOS reads the hosting `UIWindow`'s bounds instead (window points, which are
+/// SwiftUI's global points on iPhone). Elsewhere (the macOS hosted tests) a full-bleed
+/// SwiftUI probe suffices.
+private struct WindowBottomProbe: View {
+    let changed: (CGFloat) -> Void
+
+    var body: some View {
+        #if os(iOS)
+        WindowBoundsReader(changed: changed)
+            .accessibilityHidden(true)
+        #else
+        Color.clear
+            .ignoresSafeArea(.container, edges: .bottom)
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { bottom in
+                changed(bottom)
+            }
+            .accessibilityHidden(true)
+        #endif
+    }
+}
+
+#if os(iOS)
+/// A zero-content UIKit view that reports its window's bottom whenever it moves to a
+/// window or is laid out again (rotation, fold and unfold re-lay the row out).
+private struct WindowBoundsReader: UIViewRepresentable {
+    let changed: (CGFloat) -> Void
+
+    func makeUIView(context: Context) -> ProbeView {
+        let view = ProbeView()
+        view.isUserInteractionEnabled = false
+        view.accessibilityElementsHidden = true
+        view.changed = changed
+        return view
+    }
+
+    func updateUIView(_ view: ProbeView, context: Context) {
+        view.changed = changed
+        view.report()
+    }
+
+    /// Posts the window's bottom after layout, only when it changes.
+    final class ProbeView: UIView {
+        var changed: ((CGFloat) -> Void)?
+        private var reported: CGFloat?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            report()
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            report()
+        }
+
+        /// Report `window.bounds.maxY` if it differs from the last report.
+        func report() {
+            guard let window, window.bounds.maxY != reported else { return }
+            let bottom = window.bounds.maxY
+            reported = bottom
+            let changed = changed
+            // Never mutate SwiftUI state during its own layout pass.
+            DispatchQueue.main.async { changed?(bottom) }
+        }
+    }
+}
+#endif
 
 /// Reports the field's top for a faded list when the page shares a coordinate space.
 private struct BottomChromeTopReport: ViewModifier {

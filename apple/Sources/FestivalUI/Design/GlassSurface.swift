@@ -12,12 +12,14 @@ import FestivalDesign
 ///
 /// Content cards and custom floating controls no longer use glass (issue #291): they
 /// draw the material card (``View/festivalCard(cornerRadius:)``,
-/// ``View/festivalCardCapsule()``). Only the drawer (``overlay``) ships glass; ``card``
-/// and ``control`` remain for the Debug A/B comparison and hosted-capture canaries.
+/// ``View/festivalCardCapsule()``). Glass ships on the drawer (``overlay``) and the
+/// iPhone Duo bottom search field (``control``, owner-approved variant, issue #358);
+/// ``card`` remains for the Debug A/B comparison and hosted-capture canaries.
 public enum FestivalGlassRole: Sendable {
     /// The Liquid Glass card the material card replaced (Debug A/B comparison only).
     case card
-    /// The Liquid Glass control capsule the material capsule replaced (Debug A/B only).
+    /// Regular Liquid Glass for a floating control: the iPhone Duo bottom search field
+    /// (issue #358) and the Debug A/B comparison of the material capsule.
     case control
     /// Modal and drawer backgrounds that must stay dark enough for contrast.
     case overlay

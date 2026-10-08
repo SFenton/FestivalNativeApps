@@ -668,6 +668,19 @@
           "message": "Liquid Glass implementation belongs only to GlassSurface (surface-materials R2)."
         },
         {
+          "id": "apple-glass-consumers",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\.festivalGlass(?:Capsule)?\\s*\\(|FestivalGlassModifier\\s*\\(",
+          "allow": [
+            "apple/Sources/FestivalUI/Design/GlassSurface.swift",
+            "apple/Sources/FestivalUI/Design/RowCardSurface.swift",
+            "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
+            "apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift"
+          ],
+          "debt": [],
+          "message": "Shipping Liquid Glass is only the drawer and the owner-approved iPhone Duo bottom search field (#358); other controls use festivalCardCapsule (surface-materials R1/R2)."
+        },
+        {
           "id": "apple-raw-material-background",
           "glob": "apple/Sources/**/*.swift",
           "regex": "(?:\\.background|\\.fill)\\(\\.(?:ultraThinMaterial|thinMaterial|regularMaterial|thickMaterial)\\b",
