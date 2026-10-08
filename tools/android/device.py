@@ -720,8 +720,9 @@ def gradle_test_args(test_filter: str | None, task: str,
     """Gradle arguments for a filtered connected-test run.
 
     Args:
-        test_filter: ``pkg.Class``, ``pkg.Class#method`` or ``package:pkg.name``;
-            None runs everything.
+        test_filter: ``pkg.Class``, ``pkg.Class#method``, ``package:pkg.name`` or
+            ``annotation:pkg.Annotation`` (e.g. the ``@DeviceCi`` suite the
+            ``android-device`` CI job runs); None runs everything.
         task: Connected test task, e.g. ``:app:connectedDebugAndroidTest``.
         runner_args: Extra ``KEY=VALUE`` instrumentation runner arguments, e.g.
             ``annotation=pkg.Annotation`` (combined with the filter) or
@@ -736,8 +737,9 @@ def gradle_test_args(test_filter: str | None, task: str,
     args = [task, "--console=plain"]
     prefix = "-Pandroid.testInstrumentationRunnerArguments."
     if test_filter:
-        if test_filter.startswith("package:"):
-            args.append(f"{prefix}package={test_filter[len('package:'):]}")
+        kind, sep, value = test_filter.partition(":")
+        if sep and kind in ("package", "annotation"):
+            args.append(f"{prefix}{kind}={value}")
         else:
             args.append(f"{prefix}class={test_filter}")
     for runner_arg in runner_args:
@@ -1804,7 +1806,7 @@ def build_parser() -> argparse.ArgumentParser:
     features.set_defaults(func=cmd_features)
     test = sub.add_parser("test", parents=[target], help="connected tests on one AVD")
     test.add_argument("filter", nargs="?",
-                      help="pkg.Class, pkg.Class#method or package:pkg (default: all)")
+                      help="pkg.Class, pkg.Class#method, package:pkg or annotation:pkg.Annotation (default: all)")
     test.add_argument("--project", default=str(REPO_ROOT / "android"))
     test.add_argument("--task", default=":app:connectedDebugAndroidTest")
     test.add_argument("--posture", help="apply a posture (or resizable preset) before the tests run")

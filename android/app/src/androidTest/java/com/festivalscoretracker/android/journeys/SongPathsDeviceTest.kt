@@ -175,9 +175,11 @@ class SongPathsDeviceTest {
      * clipped; and ATF (labels, 48 dp targets, contrast) finds no errors.
      * On a device without a separating hinge the straddle checks pass trivially, so run it with
      * `--avd FST_Book_Fold --posture half`; the `android-fold` CI job runs it on a half-open
-     * Pixel 9 Pro Fold emulator and fails here if the hinge is missing.
+     * Pixel 9 Pro Fold emulator and fails here if the hinge is missing; `android-device` runs it
+     * on a phone for the text-size, reading-order and ATF checks.
      */
     @Test
+    @DeviceCi
     @HalfOpenFoldJourney
     fun halfOpenSheetStaysOnOneSideAndReadsInOrderAtEveryTextSize() {
         var scale by mutableFloatStateOf(1f)
@@ -196,7 +198,7 @@ class SongPathsDeviceTest {
             h.assertNothingStraddles("fst.song-detail.paths", "fst.paths.close", "fst.paths.row.1", "fst.paths.selectors", *controls)
             cardHeights += rule.onNodeWithTag("fst.paths.row.1").fetchSemanticsNode().size.height.toFloat()
 
-            val order = h.readingOrder("paths-fold-$config")
+            val order = h.readingOrder("paths-fold-$config", fresh = true)
             val heading = order.indexOf("Paths")
             val close = order.indexOf("Close")
             val card = order.indexOfFirst { it.startsWith("Activation 1:") }

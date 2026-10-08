@@ -272,6 +272,8 @@ class GradleAndParserTests(unittest.TestCase):
                       d.gradle_test_args("a.B#c", task))
         self.assertIn("-Pandroid.testInstrumentationRunnerArguments.package=a.b",
                       d.gradle_test_args("package:a.b", task))
+        self.assertIn("-Pandroid.testInstrumentationRunnerArguments.annotation=a.DeviceCi",
+                      d.gradle_test_args("annotation:a.DeviceCi", task))
 
     def test_gradle_test_args_runner_args(self):
         task = ":app:connectedDebugAndroidTest"

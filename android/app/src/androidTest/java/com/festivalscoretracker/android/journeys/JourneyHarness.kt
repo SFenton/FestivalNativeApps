@@ -349,14 +349,19 @@ class JourneyHarness(private val rule: JourneyRule) {
      * [READING_ORDER_TAG] as `<screen> | <index> | <role> | <label> | <w>x<h>`.
      *
      * @param screen Name for the log.
+     * @param fresh Drop UiAutomation's node cache first (API 34+), after a change made in place
+     *   such as a font-scale switch, which the cache can trail.
      * @return Labels in reading order.
      */
-    fun readingOrder(screen: String): List<String> {
+    fun readingOrder(screen: String, fresh: Boolean = false): List<String> {
         rule.waitForIdle()
         checkNow()
         // Resolve clipping artifacts while the flagged nodes are still composed.
         accessibilityFindings.forEach { clippedTouchTarget(it) }
-        val root = InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow ?: return emptyList()
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        // After an in-place change (font scale, issue #397) the node cache can keep the old bounds and labels.
+        if (fresh && android.os.Build.VERSION.SDK_INT >= 34) automation.clearCache()
+        val root = automation.rootInActiveWindow ?: return emptyList()
         val nodes = mutableListOf<AccessibilityNodeInfo>()
         val insideFocusable = mutableListOf<Boolean>()
         fun ownLabel(node: AccessibilityNodeInfo) = listOfNotNull(node.contentDescription, node.text, node.stateDescription)

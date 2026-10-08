@@ -95,7 +95,7 @@ final class WhatsNewJourneyTests: XCTestCase {
             .matching(identifier: "fst.settings.service-info.state").firstMatch
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 20))
         SongsUITestSupport.reveal(state, in: app, scrollingUp: true)
-        let idle = NSPredicate(format: "label CONTAINS %@", "Idle")
+        let idle = NSPredicate(format: "value CONTAINS %@", "Idle")
         expectation(for: idle, evaluatedWith: state)
         waitForExpectations(timeout: 15)
         let published = app.descendants(matching: .any)
