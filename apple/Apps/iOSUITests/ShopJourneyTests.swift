@@ -42,7 +42,12 @@ final class ShopJourneyTests: XCTestCase {
             toggle.tap()
             XCTAssertEqual(toggle.label, current)
         } else {
-            XCTAssertEqual(app.tabBars.buttons.count, 3)
+            // The Shop opens inside Songs navigation, never as its own compact tab.
+            let shopTab = app.tabBars.buttons.matching(
+                NSPredicate(format: "label CONTAINS[c] %@", "Shop")
+            )
+            XCTAssertEqual(shopTab.count, 0)
+            XCTAssertTrue(app.tabBars.buttons["Songs"].exists)
         }
         SongsUITestSupport.record(app, name: "shop-populated-offers")
         try app.performAccessibilityAudit(for: .all)
