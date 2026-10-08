@@ -17,7 +17,7 @@
 | Stateless screen + `SuggestionsActions`; category header above a glass card of rows; `LazyVerticalStaggeredGrid`; live filter `ModalBottomSheet` | `ui/suggestions/SuggestionsScreen.kt`, `SuggestionCardView.kt`, `SuggestionsFilterSheet.kt` |
 | Nav registration for `SuggestionsTab` and `SuggestionsRoute` (one call in `FestivalApp`) | `ui/suggestions/SuggestionsDestinations.kt` |
 
-States: no player (Choose Profile opens the profile sheet), loading, syncing (202, Retry), failed (shared `ServiceStatusView`, scrape-freeze countdown), empty (Play some songs first! / filtered → Reset Filters), loaded, loading-more footer, 1,000 cap. Rows push `SongDetailRoute(songId)`.
+States: no player (Choose Profile opens the profile sheet), loading, syncing (202, Retry), failed (shared `ServiceStatusView`, scrape-freeze countdown), empty (shared `FestivalEmptyState` `fst.suggestions.no-results`: "No suggestions available." with the no-plays or filtered subtitle, centred, no card and no Reset button; the filter sheet resets, [empty-error-states](../../patterns/empty-error-states.md) R8, #377), loaded, loading-more footer, 1,000 cap. Rows push `SongDetailRoute(songId)`.
 
 ## Apple parity evidence
 
@@ -50,7 +50,7 @@ Filter sheet (operator 2026-09-28): **applies live** — every switch, cascade a
 - **Rival row text contrast (issue #167):** the web's `statusRed` #C62828 "behind" delta measured 3.0:1 on device (12 sp bold, fails WCAG AA 4.5:1) and the blue song-rival badge text (#4285F4 on its own 20% tint) 3.6–4.0:1. The delta now uses the Rivals page's readable red #FF8A80 (`SuggestionTokens.rivalBehindText`, as `RivalColors.loseText`; Apple uses `RivalStatusText.red`) and the badge text a same-hue #A8C7FA (`songRivalText`), keeping the tint, sizes and layout. Measured on device after the change: behind 6.8–8.2:1, badge 7.9–11.5:1; green ahead was already 7.8–8.8:1.
 - Filter stays reachable while the cards scroll (issue #52): `FestivalScreen(pinActions = true)` pins the compact floating toolbar instead of hiding it on scroll; global search is already in the pinned top app bar.
 - Filter reads before the feed (issue #112): the shell reads the floating toolbar after page content (traversal index 1), but this feed loads cards as TalkBack scrolls, so linear navigation never reached Filter. `FestivalScreen(actionsReadFirst = true)` makes the top app bar a traversal group at −2 and the toolbar −1: top bar → Filter → cards. Songs reads its toolbar first too (issue #160); other pages keep the default.
-- Button copy follows the web strings (`FortniteFestivalWeb/src/i18n/en.json` `suggestions.*`) in the repo's Title Case for buttons ([design](../../design/README.md)): `Start a New Mix` (web "Start a new mix"), `Reset Filters`.
+- Button copy follows the web strings (`FortniteFestivalWeb/src/i18n/en.json` `suggestions.*`) in the repo's Title Case for buttons ([design](../../design/README.md)): `Start a New Mix` (web "Start a new mix"), `Reset Filters` (filter sheet only).
 
 ## Debug and fixtures
 
@@ -146,4 +146,4 @@ A few low or old-colour hits in the contrast scan (Book_Fold half, Tablet, TriFo
 
 ## IDs
 
-`fst.suggestions.{filter-button,list,loading,loading-more,syncing,error,no-results,choose-profile,reset-filters,mix-limit,start-new-mix}`, `fst.suggestions.category.<key>[.<mix>]`, `fst.suggestions.row.<songId|songId|Solo_X>`, `fst.suggestions.filter.{form,title,instruments,general,instrument-specific,instrument-picker[.<Solo_X>],instrument.<Solo_X>,type.<type>,type.<Solo_X>.<type>,reset,cancel,apply,discard,keep-editing}`.
+`fst.suggestions.{filter-button,list,loading,loading-more,syncing,error,no-results,choose-profile,mix-limit,start-new-mix}`, `fst.suggestions.category.<key>[.<mix>]`, `fst.suggestions.row.<songId|songId|Solo_X>`, `fst.suggestions.filter.{form,title,instruments,general,instrument-specific,instrument-picker[.<Solo_X>],instrument.<Solo_X>,type.<type>,type.<Solo_X>.<type>,reset,cancel,apply,discard,keep-editing}`.

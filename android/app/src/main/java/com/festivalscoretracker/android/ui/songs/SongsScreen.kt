@@ -422,7 +422,7 @@ private fun SongList(
                     item(key = "notice-$index", contentType = "notice") { Notice(notice, if (notice == state.sortPaused) "fst.songs.sort-paused" else "fst.songs.notice.$index") }
                 }
                 // Web full-page EmptyState, vertically centred in the viewport (6.33).
-                if (state.rows.isEmpty()) festivalEmptyStateItem(state.emptyMessage, subtitle = "Try adjusting your search or filters.", tag = "fst.songs.empty")
+                if (state.rows.isEmpty()) festivalEmptyStateItem(state.emptyMessage, subtitle = "Try adjusting your search or filters.", tag = "fst.songs.empty", state = listState)
                 val songRow: @Composable (SongRowModel) -> Unit = { row ->
                     SongRow(
                         row, artworkUrl(row.song.albumArt), selected = row.song.songId == selectedSongId, pulse = pulse, breathe = breathe,

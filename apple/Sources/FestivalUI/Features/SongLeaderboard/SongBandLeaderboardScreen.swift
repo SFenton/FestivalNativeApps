@@ -325,6 +325,7 @@ struct SongBandLeaderboardContent: View {
                 ToolbarItem(placement: .festivalPageAction) { bandTypeMenu }
             }
         }
+        .songBarTitleKeepsBarVisible(showsSongHeader)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

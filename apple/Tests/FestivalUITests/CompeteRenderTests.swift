@@ -389,6 +389,104 @@ private let competeDuoPortrait = DeviceLayout.resolve(LayoutSignals(
     )
 }
 
+// MARK: - Your rank under a preview (#370)
+
+/// Ranks the viewer (`fixture-riv`) 45th on every instrument, forwarding everything else
+/// to the real loopback fixture (which doesn't rank them). Their row reuses the fixture's
+/// own-rank response, so it keeps the fixture's publication pin.
+private actor ViewerRankedTransport: HTTPTransport {
+    private let inner = URLSessionHTTPTransport()
+    static let rank = 45
+
+    func send(_ request: URLRequest) async throws -> HTTPResult {
+        guard let url = request.url, url.lastPathComponent == "fixture-riv",
+              url.pathComponents.count == 5, url.pathComponents[2] == "rankings" else {
+            return try await inner.send(request)
+        }
+        var proxy = request
+        proxy.url = url.deletingLastPathComponent().appendingPathComponent("fixture-player-1")
+        let result = try await inner.send(proxy)
+        guard result.status == 200,
+              var body = try JSONSerialization.jsonObject(with: result.data) as? [String: Any] else { return result }
+        body["accountId"] = "fixture-riv"
+        body["displayName"] = "Fixture Viewer"
+        for key in ["adjustedSkillRank", "weightedRank", "fcRateRank", "totalScoreRank", "maxScorePercentRank"] {
+            body[key] = Self.rank
+        }
+        body["totalRankedAccounts"] = 60
+        let pin = result.header("X-FST-Publication-Id").map { ["X-FST-Publication-Id": $0] } ?? [:]
+        return HTTPResult(status: 200, data: try JSONSerialization.data(withJSONObject: body), headers: pin)
+    }
+}
+
+/// When the viewer ranks outside a preview's top five, their own highlighted row follows
+/// it (web `CompetePage` `playerEntry`). Unlike the top five's rows, which open a profile,
+/// it names and opens their position on the full board: page 2 of 25-row pages for rank
+/// 45, revealed on arrival (leaderboard-row R7 Compete variant, #370).
+@MainActor
+@Test func competePreviewShowsYourRankRowThatJumpsToYourPosition() async throws {
+    let baseURL = try await RivalsMockService.shared.baseURL()
+    let client = try FestivalAPI(baseURL: baseURL, transport: ViewerRankedTransport())
+    let suite = "fst.tests.compete.\(UUID().uuidString)"
+    let storage = try #require(UserDefaults(suiteName: suite))
+    defer { storage.removePersistentDomain(forName: suite) }
+    let identity: [String: String] = ["accountId": "fixture-riv", "displayName": "Fixture Viewer"]
+    storage.set(try JSONSerialization.data(withJSONObject: identity), forKey: SelectedPlayerIdentity.storageKey)
+    for key in allInstrumentKeys { storage.set(key == "fst.settings.showLead", forKey: key) }
+    let session = FestivalSession(factory: { client }, selectionStorage: storage)
+    let size = CGSize(width: 402, height: 1000)
+    let host = nativeHostedView(
+        NavigationStack { CompeteScreen(session: session) }
+            .defaultAppStorage(storage)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+
+    let jump = "Your rank, 45th. Jump to your position."
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Fixture Player 1", jump], excluding: ["Loading"]
+    )
+    _ = try nativeHostedPNG(image, filename: "compete-your-rank-row.png", environment: "FST_COMPETE_RENDER_OUT")
+    assertRendersContent(host, image: image, containing: ["Fixture Player 1", jump])
+    // The top five's rows still open profiles; only the viewer's own row jumps.
+    #expect(nativeHostedAccessibility(host).texts.filter { $0.contains("Jump to your position") } == [jump])
+
+    let entry = try competeSpotlightEntry(rank: ViewerRankedTransport.rank)
+    #expect(CompetePreviewSpotlight.route(for: entry, instrument: .lead)
+        == .fullRankings(instrument: .lead, rankBy: "totalscore", page: 2, focusSelected: true))
+}
+
+/// The policy behind the viewer's own preview row: rank 45 opens page 2 (25 rows a page)
+/// with the row revealed, rank 26 page 2, rank 6 page 1; a row with no usable rank opens
+/// Statistics, as the full board's pinned footer does (#370).
+@Test(arguments: [(45, 2), (26, 2), (25, 1), (6, 1)])
+func competePreviewSpotlightOpensThePageWithTheRank(rank: Int, page: Int) throws {
+    let entry = try competeSpotlightEntry(rank: rank)
+    #expect(CompetePreviewSpotlight.route(for: entry, instrument: .bass)
+        == .fullRankings(instrument: .bass, rankBy: "totalscore", page: page, focusSelected: true))
+    #expect(CompetePreviewSpotlight.action(for: entry).footerLabel(for: .player, rank: rank).hasSuffix(
+        "Jump to your position."
+    ))
+}
+
+@Test func competePreviewSpotlightWithoutRankOpensStatistics() throws {
+    #expect(CompetePreviewSpotlight.route(for: try competeSpotlightEntry(rank: 0), instrument: .lead) == .statistics)
+}
+
+/// A viewer's ranking row at `rank` on every metric.
+private func competeSpotlightEntry(rank: Int) throws -> AccountRankingEntry {
+    let body: [String: Any] = [
+        "accountId": "fixture-riv", "displayName": "Fixture Viewer", "songsPlayed": 40, "totalChartedSongs": 50,
+        "coverage": 0.8, "rawSkillRating": 0.02, "adjustedSkillRating": 0.02, "adjustedSkillRank": rank,
+        "weightedRating": 0.03, "weightedRank": rank, "fcRate": 0.5, "fcRateRank": rank, "totalScore": 1000,
+        "totalScoreRank": rank, "maxScorePercent": 0.9, "maxScorePercentRank": rank, "avgAccuracy": 0.9,
+        "fullComboCount": 2, "avgStars": 4.5, "bestRank": 1, "avgRank": 2.5,
+    ]
+    return try JSONDecoder().decode(AccountRankingEntry.self, from: JSONSerialization.data(withJSONObject: body))
+}
+
 // MARK: - Back from a pushed page (#39)
 
 /// Counts the rankings reads Compete's leaderboard previews make, forwarding every
@@ -438,7 +536,8 @@ private actor CountingTransport: HTTPTransport {
         host, untilText: ["Fixture Player 1", "Fixture Rival Golf"], excluding: ["Loading"]
     )
     let readsBeforeLeaving = await transport.rankingsReads
-    #expect(readsBeforeLeaving == 1)
+    // The Top 5, then the viewer's own rank: they aren't in it (#370; unranked here).
+    #expect(readsBeforeLeaving == 2)
 
     window.contentView = NSView()
     try await Task.sleep(for: .milliseconds(200))

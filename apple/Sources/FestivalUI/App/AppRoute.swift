@@ -49,8 +49,10 @@ enum AppRoute: Hashable {
     // MARK: Competitive
     /// `/leaderboards` when pushed rather than shown as a tab (e.g. from Compete).
     case leaderboards
-    /// `/leaderboards/all?instrument=&rankBy=`
-    case fullRankings(instrument: Instrument, rankBy: String)
+    /// `/leaderboards/all?instrument=&rankBy=[&page=&navToPlayer=true]` (1-based page).
+    /// `focusSelected` is the web's `navToPlayer`: bring the selected player's row on
+    /// that page into view, as a Compete preview's "your rank" row asks (issue #370).
+    case fullRankings(instrument: Instrument, rankBy: String, page: Int = 1, focusSelected: Bool = false)
     /// `/leaderboards/bands/:bandType`
     case bandRankings(bandType: String)
     /// `/rivals`
