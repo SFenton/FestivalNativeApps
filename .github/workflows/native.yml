@@ -1,5 +1,5 @@
 name: native
-# Windows and Android unit tests, plus the Android connected @DeviceCi journeys on an emulator
+# Windows and Android unit tests (Android device tests: android-device.yml and android-fold.yml)
 # (the Apple builds run on the Mac through tools/lane_integrate.sh).
 on:
   push:
@@ -56,54 +56,3 @@ jobs:
         run: bash android/gradlew -p android testDebugUnitTest --no-daemon
       - name: Licenses manifest is current
         run: python3 tools/android/licenses.py --check
-  android-device:
-    # Connected accessibility journeys opted in with @DeviceCi (androidTest/.../journeys/DeviceCi.kt),
-    # on one fresh emulator per run against FakeTransport fixtures: no network, no service calls.
-    # This is the CI form of `device.py test`; the host emulator lock it takes is not needed on a
-    # single-tenant runner.
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-      - name: Build app and test APKs
-        run: bash android/gradlew -p android assembleDebug assembleDebugAndroidTest --no-daemon
-      - name: Connected @DeviceCi journeys
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 34
-          # AOSP image: Google APIs images update Play/GMS packages after boot, and the resulting
-          # input reconfiguration recreated the test activity mid-journey (dropping setContent).
-          target: default
-          arch: x86_64
-          profile: pixel_6
-          disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
-          # One command per line (the runner execs each separately). Wake, unlock and clear system
-          # dialogs so the first test owns a resumed, focused window; dump logcat on failure.
-          script: |
-            adb shell svc power stayon true
-            adb shell wm dismiss-keyguard
-            adb shell input keyevent 82
-            adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS || true
-            sleep 20
-            mkdir -p android/app/build/outputs/androidTest-results/connected
-            bash android/gradlew -p android connectedDebugAndroidTest --no-daemon --console=plain -Pandroid.testInstrumentationRunnerArguments.annotation=com.festivalscoretracker.android.journeys.DeviceCi || (adb logcat -d > android/app/build/outputs/androidTest-results/connected/logcat.txt; exit 1)
-      - name: Upload connected test reports
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-device-reports
-          path: |
-            android/app/build/reports/androidTests/connected
-            android/app/build/outputs/androidTest-results/connected
-          if-no-files-found: ignore
