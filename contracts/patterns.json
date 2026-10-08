@@ -883,6 +883,10 @@
             "symbol": "FSTMinTargetSize"
           },
           {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "FSTMenuItemMinHeight"
+          },
+          {
             "path": "windows/Festival.App/Controls/WrapPanel.cs",
             "symbol": "WrapPanel"
           }

@@ -3,8 +3,8 @@
 Issue #51 made Quick Links land a section's top ``QuickLinks.LandingOffset`` (32 epx) below the page top and moved the
 current-section line to the same 32 epx, on Settings and Leaderboards. These checks keep the a11y_matrix pages honest:
 keyboard-only jumps, the "… section" announcement, a level-2 heading fully below the title bar and read before its
-first control, focus moved into the section, the current section kept after the jump settles, 40 epx targets, text
-225% and Esc focus return.
+first control, focus moved into the section, the current section kept after the jump settles, 40x40 epx targets (the
+launcher, every menu item the keyboard walks and every pane row), text 225% and Esc focus return.
 
 Run: ``python -m unittest discover -s tools/windows/tests`` from the repo root.
 """
@@ -128,6 +128,29 @@ class QuickLinksLandingA11yJourneyTests(unittest.TestCase):
                 self.assertEqual(steps[-3], "key:esc")
                 self.assertEqual(steps[-1], "assertfocus:id=fst.quick-links.open@3")
 
+    def test_every_keyboard_walked_menu_item_is_a_40_epx_target(self):
+        # Quick Links R6 / page-tools R10 (#416 review): every item the keyboard walks over or picks is measured at
+        # 40x40 epx (both sides) while the menu is open, not only the launcher button.
+        cases = (("qla-settings-menu", _SETTINGS_ORDER, ("show-instruments", "accessibility")),
+                 ("qla-leaderboards-menu", _LEADERBOARDS_ORDER, ("instrument:Solo_Drums",)))
+        for name, order, targets in cases:
+            steps = _steps(_BY_NAME[name])
+            for target in targets:
+                with self.subTest(page=name, target=target):
+                    end = steps.index(f"assertfocus:{_ITEM}{target}@3")
+                    opened = max(i for i, s in enumerate(steps[:end]) if s == "key:enter")
+                    # Measured while this opening's menu is up: after it opens, before the pick's Enter.
+                    measured = {s for s in steps[opened:end] if s.startswith("assertsize:")}
+                    walked = order[:order.index(target) + 1]
+                    required = {f"assertsize:{_ITEM}{item}|40x40" for item in walked}
+                    earlier = {s for s in steps[:opened] if s.startswith(f"assertsize:{_ITEM}")}
+                    # Items already measured in an earlier opening of the same menu needn't be measured again.
+                    self.assertFalse(required - measured - earlier, required - measured - earlier)
+            sizes = [s for s in steps if s.startswith(f"assertsize:{_ITEM}")]
+            with self.subTest(page=name):
+                self.assertTrue(sizes)
+                self.assertTrue(all(s.endswith("|40x40") for s in sizes), sizes)
+
     def test_pane_jump_is_keyboard_only_and_moves_selection(self):
         steps = _steps(_BY_NAME["qla-leaderboards-pane"])
         drums = _ITEM + "instrument:Solo_Drums"
@@ -140,7 +163,11 @@ class QuickLinksLandingA11yJourneyTests(unittest.TestCase):
         self.assertLess(after.index(f"assertstate:{drums}|selected=true@5"), after.index("wait:1"))
         self.assertLess(after.index("wait:1"), after.index(f"assertstate:{drums}|selected=true"))
         self.assertIn(f"assertstate:{_ITEM}instrument:Solo_Guitar|selected=false", after)
-        self.assertIn(f"assertsize:{drums}|0x40", steps)
+        # Every pane row the keyboard can reach is a full 40x40 epx target (width too), measured before the jump.
+        for item in _LEADERBOARDS_ORDER:
+            with self.subTest(row=item):
+                self.assertLess(steps.index(f"assertsize:{_ITEM}{item}|40x40"), start)
+        self.assertFalse([s for s in steps if s.startswith("assertsize:") and not s.endswith("|40x40")])
 
 
 if __name__ == "__main__":

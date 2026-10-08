@@ -97,9 +97,9 @@ Design (`winui-design` skill, Fluent layout and scrolling): no markup, brush or 
 
 `tools/windows/journeys/a11y-quick-links-landing.json` (`a11y_matrix.py`; guard `tools/windows/tests/test_quick_links_landing_a11y.py`) pins what #51 changed on Settings and Leaderboards, keyboard only. Pages are fixture-only (`"fixture": []`): they focus fixture rows.
 
-- `qla-settings-menu` (compact, medium, snap-left): Enter opens the menu on App Settings; Down walks the page order to Show Instruments, then Accessibility. Each jump announces "… section", lands the level-2 heading 40 epx below the scroller top (`LandingOffset` + the header style's 8 epx), reads it before the section's first control, focuses that control (the Lead toggle, Reduce Motion) and keeps "current section …" on the button one second after the jump settles. Esc returns focus to the ≥ 40×40 epx button.
-- `qla-leaderboards-menu` (compact, medium): the same for Drums (card group at 32 epx, its heading before its View All button, focus on its first row).
-- `qla-leaderboards-pane` (wide at display 100% or 150%): Enter on the focused ≥ 40-epx Drums row does the same and moves the UIA selection from Lead to Drums.
+- `qla-settings-menu` (compact, medium, snap-left): Enter opens the menu on App Settings; Down walks the page order to Show Instruments, then Accessibility. Each jump announces "… section", lands the level-2 heading 40 epx below the scroller top (`LandingOffset` + the header style's 8 epx), reads it before the section's first control, focuses that control (the Lead toggle, Reduce Motion) and keeps "current section …" on the button one second after the jump settles. Esc returns focus to the ≥ 40×40 epx button. Every menu item the keyboard walks (App Settings through Accessibility) is measured at ≥ 40×40 epx while the menu is open.
+- `qla-leaderboards-menu` (compact, medium): the same for Drums (card group at 32 epx, its heading before its View All button, focus on its first row), with Lead, Bass and Drums measured at ≥ 40×40 epx.
+- `qla-leaderboards-pane` (wide at display 100% or 150%): the Lead, Bass and Drums rows are each ≥ 40×40 epx; Enter on the focused Drums row does the same and moves the UIA selection from Lead to Drums.
 - `assertstate:…|heading=2` (new driver key) proves the landed title is a heading; the Narrator model's phrase omits heading levels.
 
 | Configuration | Result |
@@ -108,7 +108,7 @@ Design (`winui-design` skill, Fluent layout and scrolling): no markup, brush or 
 | Menus: text 225%, compact and medium | Pass, Axe 0: headings, focus and current section unchanged; the title still lands fully below the title bar |
 | Pane: wide at display 150% and 100% (`--scan`) | Pass, Axe 0 |
 
-No accessibility defect found. A final `--scan` after a menu opened reports only open item 8 (WinUI `PopupHost`).
+Defect found and fixed (#416 design review): the menu items' hit-testable pills were 27 epx tall (WinUI's keyboard/mouse `MenuFlyoutItemThemePaddingNarrow`). Every app menu item now has `MinHeight` `FSTMenuItemMinHeight` (44: 40 plus the template's 2 + 2 epx `MenuFlyoutItemMargin`), a 40 epx pill ([page-tools-and-nav-chrome](../../patterns/page-tools-and-nav-chrome.md) R10). A final `--scan` after a menu opened reports only open item 8 (WinUI `PopupHost`).
 
 ## Validation (issue #246, 2026-10-05)
 
