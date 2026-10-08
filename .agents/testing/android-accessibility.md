@@ -6,7 +6,7 @@
 
 | Check | How | Devices |
 |---|---|---|
-| Accessibility Test Framework (touch targets ≥ 48 dp, labels, contrast, duplicate/redundant text) | 16 instrumented journeys in `androidTest/.../journeys/` (Songs, Sort/Filter, Song Detail, Paths, song board, Shop, Suggestions, Statistics, Leaderboards, Full Rankings, Rivals hub/detail/rivalry, Compete, Bands, Band Detail, song band board, Settings, Licenses, drawer, profile sheet, global search, notifications, first run, What's New); ATF on every interaction and screen | FST_Phone; FST_Book_Fold `--posture half` |
+| Accessibility Test Framework (touch targets ≥ 48 dp, labels, contrast, duplicate/redundant text) | 17 instrumented journeys in `androidTest/.../journeys/` (Songs, Sort/Filter, Song Detail, Paths, song board, Shop, Suggestions, Statistics, Leaderboards, Full Rankings, Rivals hub/detail/rivalry, Compete, Bands, Band Detail, song band board, Settings, Licenses, drawer, profile sheet, global search, notifications, first run, What's New, the load/reload swap's spinner state); ATF on every interaction and screen | FST_Phone; FST_Book_Fold `--posture half` |
 | TalkBack reading order and speech | `tools/android/talkback_walk.py`: real TalkBack, "next item" key chord (a real touchscreen swipe past text fields), utterances from TalkBack's own log | FST_Phone: 11 screens + 10 sheets/dialogs; FST_Passport_Fold unfolded, FST_TriFold unfolded, FST_Tablet: Songs, Song Detail, Leaderboards, Full Rankings, Settings, Rivals, Compete, Statistics, Suggestions, Item Shop, Band Detail; FST_Book_Fold half-open (Song Detail, Leaderboards, Settings) |
 | Large text | 200% font scale plus the largest display size (`wm density` 1.3×: 546 on FST_Phone, 507 on FST_Book_Fold), 16 screens and sheets captured, fixed, recaptured | FST_Phone; FST_Book_Fold half-open |
 | Unit/Robolectric | `LargeTextUiTest` (rows at 200%, wrapping, axis style), `StatGridColumnsTest`, `NavigationPolicyTest` (two panes at large text) | JVM |
@@ -21,6 +21,7 @@ Statistics re-check (issue #111, 2026-10-03, live service, SFentonX): the `talkb
 
 | Finding | Where | Fix |
 |---|---|---|
+| Rank By switch made the Full Rankings and Band Rankings pager announce "Page 1 of 1" and disable Next while the new board loaded (`LoadSwapAccessibilityJourneyTest`, held Full Rankings page/Rank By and Band Rankings band-size/Rank By reloads; issue #431) | Full Rankings, Band Rankings | The pager keeps the last loaded page count until the new board commits ([load-transition](../patterns/load-transition.md) R4) |
 | Leaderboard rows 45 dp tall (ATF touch target) | Song Detail previews, full song board (`ScoreRow`) | Minimum height 48 dp |
 | Issue #72 check (iOS #15, nav buttons needing a forgiving tap area): not reproducible | Quick Links, Sort, Filter (floating toolbar), Search, bell, profile (top bar) | None needed: all are M3 `IconButton`s (40 dp layout, 48 dp touch bounds via `minimumInteractiveComponentSize`, no overlap). A Robolectric probe on a w411dp phone tapped each 20 dp off-centre in four directions; 24/24 activated |
 | White on `#2D82E6` is 3.86:1 (ATF contrast) | Filled buttons | `BrandTokens.accentBlueFill` `#1A6FD8` (4.9:1) via `festivalFilledButtonColors()` |
