@@ -226,6 +226,15 @@ func serviceInfoDiscoverySnapshot() throws -> SettingsServiceInfoModel.Phase {
     #expect(naRows.barPercent == nil)
 }
 
+/// Only an unknown total sweeps, and system or in-app Reduce Motion (passed combined) or the
+/// UI-test still override holds the track empty (issue #399, load-transition R6).
+@Test func serviceProgressBarSweepsOnlyForUnknownTotalsWithMotion() {
+    #expect(ServiceProgressBar.sweeps(percent: nil, reduceMotion: false, still: false))
+    #expect(!ServiceProgressBar.sweeps(percent: nil, reduceMotion: true, still: false))
+    #expect(!ServiceProgressBar.sweeps(percent: nil, reduceMotion: false, still: true))
+    #expect(!ServiceProgressBar.sweeps(percent: 42, reduceMotion: false, still: false))
+}
+
 // MARK: - Service Info model
 
 private struct Boom: Error {}
@@ -394,8 +403,8 @@ private let sampleWhatsNewEntries = [
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    // The attempt line is the phase element's value, which the hosted macOS tree does not
-    // expose; `serviceInfoRowsShowDiscoveryAttemptsUnderTheBar` pins its text.
+    // The attempt line is the phase element's value (`SettingsServiceInfoAccessibilityTests`
+    // pins it); `serviceInfoRowsShowDiscoveryAttemptsUnderTheBar` pins its text.
     let expected = ["Registered Player Band Discovery", "Last Successful Publication"]
     let image = try await nativeHostedSettle(host, untilText: expected)
     _ = try nativeHostedPNG(image, filename: "service-info-discovery.png", environment: "FST_SETTINGS_RENDER_OUT")

@@ -463,6 +463,8 @@ struct FestivalDrawer: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.deviceLayout) private var layout
+    /// ``DrawerRow/iconWidth`` scaled with Dynamic Type, for the avatar's column.
+    @ScaledMetric(relativeTo: .body) private var iconColumnWidth = DrawerRow.iconWidth
 
     private var profile: FestivalProfileKind {
         session.selectedPlayer == nil ? .none : .player
@@ -673,7 +675,7 @@ struct FestivalDrawer: View {
                     )))
                 } label: {
                     HStack(spacing: DrawerRow.iconSpacing) {
-                        ProfileAvatarImage(name: player.displayName, size: DrawerRow.iconWidth)
+                        ProfileAvatarImage(name: player.displayName, size: iconColumnWidth)
                         MarqueeText(player.displayName)
                             .font(.body)
                             .foregroundStyle(BrandTokens.textPrimary)
@@ -689,8 +691,11 @@ struct FestivalDrawer: View {
                 .accessibilityLabel(DrawerMenu.selectedPlayerAccessibilityLabel(player.displayName))
                 .accessibilityHint("Opens your profile")
                 .accessibilityIdentifier("fst.shell.drawer.view-profile")
+                // The large control size gives a 44 pt target (HIG Buttons: "the hit region
+                // is at least 44x44 pt"); the regular size was 34 pt tall (#396).
                 Button("Deselect") { deselectPending = true }
                     .buttonStyle(.bordered)
+                    .controlSize(.large)
                     .tint(.red)
                     .accessibilityLabel("Deselect Profile")
                     .accessibilityIdentifier("fst.shell.drawer.deselect-profile")
@@ -780,17 +785,22 @@ struct DrawerRow: View {
     var isCurrent = false
     let action: () -> Void
 
-    /// Width of the leading symbol column (the selected-player avatar uses it too).
+    /// Width of the leading symbol column at the default text size (the selected-player
+    /// avatar uses it too); both scale with Dynamic Type.
     static let iconWidth: CGFloat = 26
     /// Gap between the leading symbol column and the title.
     static let iconSpacing: CGFloat = 14
+
+    /// ``iconWidth`` scaled like the body-text symbol it holds: a fixed column let the
+    /// symbol spill over its title at accessibility sizes (#396).
+    @ScaledMetric(relativeTo: .body) private var iconColumnWidth = Self.iconWidth
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: Self.iconSpacing) {
                 Image(systemName: symbol)
                     .font(.body.weight(.medium))
-                    .frame(width: Self.iconWidth)
+                    .frame(width: iconColumnWidth)
                     .foregroundStyle(tint == BrandTokens.textPrimary ? BrandTokens.textSecondary : tint)
                     .accessibilityHidden(true)
                 Text(title)
