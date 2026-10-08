@@ -434,7 +434,8 @@ struct OnDemandSplitStack<Root: View>: View {
     @Environment(\.deviceLayout) private var layout
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.splitOpenReporter) private var openReporter
-    /// The container's frame in window coordinates (for the midpoint and the hinge).
+    /// The container's horizontal span in window coordinates (for the midpoint and the
+    /// hinge; ``OnDemandSplitPolicy/horizontalSpan(of:)``).
     @State private var container: CGRect = .zero
     /// The leading page's top-scrim height, shared with the trailing pane and the band.
     @State private var topScrim = SplitTopScrim()
@@ -539,8 +540,11 @@ struct OnDemandSplitStack<Root: View>: View {
                 }
             }
         }
-        .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { frame in
-            if frame != container { container = frame }
+        // Only the horizontal span: the iOS 26 tab bar minimizing or expanding changes the
+        // container's height, which re-ran this stack in the middle of every large-title
+        // transition (issue #383).
+        .onGeometryChange(for: CGRect.self, of: { OnDemandSplitPolicy.horizontalSpan(of: $0.frame(in: .global)) }) { span in
+            if span != container { container = span }
         }
         .onChange(of: windowGeometry, initial: true) { _, live in
             if let live { heldGeometry = live }
