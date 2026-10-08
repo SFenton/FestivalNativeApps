@@ -270,11 +270,14 @@ struct PlayerHistoryScreen: View {
             case let .loaded(payload):
                 switch payload.state {
                 case .unregistered:
-                    FestivalEmptyState(
-                        "History Unavailable", systemImage: "clock.badge.xmark",
-                        subtitle: "Score history is only available for registered users.",
-                        accessibilityIdentifier: "fst.history.unregistered"
+                    // Unavailable, not empty: keeps its failure title and Retry (R1, R8).
+                    ServiceUnavailableView(
+                        title: "History Unavailable",
+                        message: "Score history is only available for registered users.",
+                        systemImage: "clock.badge.xmark",
+                        retry: { Task { await load() } }
                     )
+                    .accessibilityIdentifier("fst.history.unregistered")
                 case .syncing:
                     ServiceUnavailableView(
                         title: "History Is Syncing",

@@ -241,6 +241,39 @@ private func suggestionsScreenImage(
     #expect(image.width > 0 && image.height > 0)
 }
 
+/// Syncing is a paused state, not a no-results one: the page and the iPhone Duo
+/// picks region keep their syncing title and offer Retry (empty-error-states R1, R8).
+@MainActor
+@Test func suggestionsSyncingStatesOfferRetry() async throws {
+    let (session, storage, suite) = try await suggestionsFixtureSession(identity: "fixture-syncing")
+    defer { if let suite { storage?.removePersistentDomain(forName: suite) } }
+    let appStorage = UserDefaults(suiteName: "fst.tests.suggestions.syncing-retry.\(UUID().uuidString)")!
+    let size = CGSize(width: 402, height: 900)
+    let page = nativeHostedView(
+        NavigationStack { SuggestionsScreen(session: session, visibleInstruments: Set(Instrument.allCases)) }
+            .defaultAppStorage(appStorage)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let pageWindow = nativeHostedWindow(page, size: size)
+    defer { pageWindow.orderOut(nil) }
+    let pageImage = try await nativeHostedSettle(page, untilText: ["Scores Syncing", "Retry"])
+    assertRendersContent(page, image: pageImage, containing: ["still being published"])
+    #expect(session.playerLoadState == .syncing)
+
+    let pane = nativeHostedView(
+        NavigationStack { SuggestionsCarouselPane(session: session, source: .all) }
+            .defaultAppStorage(appStorage)
+            .frame(width: size.width, height: 420)
+            .preferredColorScheme(.dark),
+        size: CGSize(width: size.width, height: 420)
+    )
+    let paneWindow = nativeHostedWindow(pane, size: CGSize(width: size.width, height: 420))
+    defer { paneWindow.orderOut(nil) }
+    try await nativeHostedSettle(pane, untilText: ["Scores Syncing", "Retry"])
+    #expect(nativeHostedAccessibility(pane).identifiers.contains("fst.service-status.retry"))
+}
+
 @MainActor
 @Test func suggestionsScreenShowsFailedStateForDeniedProfile() async throws {
     let (session, storage, suite) = try await suggestionsFixtureSession(identity: "fixture-denied")

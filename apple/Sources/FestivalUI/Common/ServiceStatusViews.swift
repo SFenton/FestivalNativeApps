@@ -67,17 +67,24 @@ struct FreshnessDisclosure: View {
     }
 }
 
-/// A plain-message error page for failures that are not service reads (for
-/// example a local sort or filter failure). Service reads should use
-/// `ServiceStatusView(ServiceIssue(error), title:retry:)` so freezes, offline and
-/// syncing states read consistently.
+/// A plain-message unavailable or paused page with Retry: failures that are not
+/// service reads (a local sort or filter failure) and successful reads whose data
+/// is not ready to show (a player's scores still syncing, picks paused until Songs
+/// update, history unavailable for an unregistered player). Never a no-results
+/// state, which is `FestivalEmptyState` (empty-error-states R1, R8). Failed service
+/// reads should use `ServiceStatusView(ServiceIssue(error), title:retry:)` so
+/// freezes, offline and syncing failures read consistently.
 struct ServiceUnavailableView: View {
     let title: String
     let message: String
+    /// State-specific SF Symbol, or nil for the generic warning glyph.
+    var systemImage: String?
     let retry: () -> Void
 
     var body: some View {
-        ServiceStatusView(.other(message: message), title: title, retry: retry)
+        ServiceStatusView(
+            .other(message: message), title: title, systemImage: systemImage, retry: retry
+        )
     }
 }
 

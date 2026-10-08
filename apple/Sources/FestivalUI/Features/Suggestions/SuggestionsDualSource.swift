@@ -114,10 +114,19 @@ struct SuggestionsCarouselPane: View {
                 subtitle: "Turn off Hide Item Shop in Settings to see Item Shop picks."
             )
         } else if session.playerLoadState == .syncing {
-            FestivalEmptyState(
-                "Scores Syncing", systemImage: "arrow.triangle.2.circlepath",
-                subtitle: "This player's scores are still being published. Check back soon."
+            // Paused, not empty: Retry rereads the player, then this region (R1, R8).
+            ServiceUnavailableView(
+                title: "Scores Syncing",
+                message: "This player's scores are still being published. Check back soon.",
+                systemImage: "arrow.triangle.2.circlepath",
+                retry: {
+                    Task {
+                        await session.refreshSelectedPlayer()
+                        retryRevision += 1
+                    }
+                }
             )
+            .accessibilityIdentifier("fst.dual.suggestions.syncing")
         } else if case let .failed(issue) = session.playerLoadState {
             retryable(issue)
         } else if case let .failed(issue) = shopGate {
@@ -128,10 +137,14 @@ struct SuggestionsCarouselPane: View {
                 subtitle: "No Festival songs are in the Item Shop right now."
             )
         } else if viewModel.candidatesPaused {
-            FestivalEmptyState(
-                "Picks Paused", systemImage: "pause.circle",
-                subtitle: "The Item Shop updated before the song list. Picks resume once Songs update."
+            // Publication-paused, not empty: Retry rereads the Shop and song list.
+            ServiceUnavailableView(
+                title: "Picks Paused",
+                message: "The Item Shop updated before the song list. Picks resume once Songs update.",
+                systemImage: "pause.circle",
+                retry: { retryRevision += 1 }
             )
+            .accessibilityIdentifier("fst.dual.suggestions.paused")
         } else {
             switch viewModel.loadState {
             case let .failed(issue):

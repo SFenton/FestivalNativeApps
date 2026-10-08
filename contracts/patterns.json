@@ -1758,7 +1758,7 @@
       "title": "Empty and error states",
       "status": "current",
       "doc": ".agents/patterns/empty-error-states.md",
-      "summary": "Loading, empty and failed outcomes stay distinct: every empty page or region uses the shared centred title/subtitle empty state with no card and no Reset Filters or Retry button (only a prerequisite action such as Choose Profile), one native loading indicator, and explicit unavailable messages without global-search Retry controls.",
+      "summary": "Loading, empty, paused/unavailable and failed outcomes stay distinct: every empty page or region uses the shared centred title/subtitle empty state with no card and no Reset Filters or Retry button (only a prerequisite action such as Choose Profile); syncing, publication-paused and unavailable states use the shared unavailable status with Retry; one native loading indicator; explicit unavailable messages without global-search Retry controls.",
       "keywords": [
         "empty",
         "no results",
@@ -1772,7 +1772,9 @@
         "no card",
         "reset filters",
         "centred",
-        "filtered empty"
+        "filtered empty",
+        "paused",
+        "syncing"
       ],
       "web": [
         {
@@ -1849,6 +1851,13 @@
           "regex": "DualSourceMessage|fst\\.shop\\.filter-empty\\.reset",
           "allow": [],
           "message": "Empty states are centred text with no card or Reset button (empty-error-states R8, #377)."
+        },
+        {
+          "id": "paused-not-empty",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "(?:FestivalEmptyState\\(\\s*|^\\s*)\"[^\"]*\\b(?:Syncing|Paused|Unavailable)\\b[^\"]*\",\\s*systemImage:",
+          "allow": [],
+          "message": "Syncing, paused and unavailable states are not no-results: use ServiceUnavailableView with Retry, not FestivalEmptyState (empty-error-states R1/R8)."
         },
         {
           "id": "android-empty-reset-filters",

@@ -154,12 +154,15 @@ struct SuggestionsScreen: View {
         }
     }
 
+    /// A paused state, not a no-results one: Retry rereads the player (R1, R8).
     private var syncing: some View {
-        FestivalEmptyState(
-            "Scores Syncing", systemImage: "arrow.triangle.2.circlepath",
-            subtitle: "This player's scores are still being published. Check back soon.",
-            accessibilityIdentifier: "fst.suggestions.syncing"
+        ServiceUnavailableView(
+            title: "Scores Syncing",
+            message: "This player's scores are still being published. Check back soon.",
+            systemImage: "arrow.triangle.2.circlepath",
+            retry: { Task { await session.refreshSelectedPlayer() } }
         )
+        .accessibilityIdentifier("fst.suggestions.syncing")
     }
 
     /// Whether the first page is still loading (the gate shows its spinner).

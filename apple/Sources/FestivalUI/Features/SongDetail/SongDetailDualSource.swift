@@ -57,10 +57,23 @@ struct SongHistoryCarouselPane: View {
                         .accessibilityIdentifier("fst.dual.song.history.choose-profile")
                 }
             } else if session.playerLoadState == .syncing {
-                FestivalEmptyState(
-                    "Scores Syncing", systemImage: "arrow.triangle.2.circlepath",
-                    subtitle: "This player's scores are still being published. Check back soon."
+                // Paused, not empty: Retry rereads the player (R1, R8).
+                ServiceUnavailableView(
+                    title: "Scores Syncing",
+                    message: "This player's scores are still being published. Check back soon.",
+                    systemImage: "arrow.triangle.2.circlepath",
+                    retry: { Task { await session.refreshSelectedPlayer() } }
                 )
+                .accessibilityIdentifier("fst.dual.song.history.syncing")
+            } else if case let .failed(issue) = session.playerLoadState {
+                // A failed player read is never "No Scores Yet" (R1).
+                ServiceStatusInline(issue, scope: "dual.song-history") {
+                    Task { await session.refreshSelectedPlayer() }
+                }
+                .padding(.horizontal, 16)
+            } else if session.playerLoadState == .loading {
+                FestivalLoadingView(accessibilityLabel: "Loading Your Score History")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if instruments.isEmpty {
                 FestivalEmptyState(
                     "No Scores Yet", systemImage: "music.note",
