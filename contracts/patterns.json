@@ -932,6 +932,13 @@
           "regex": "navigationBarHidden\\(|\\.(toolbar|toolbarVisibility)\\(\\s*\\.hidden\\s*,\\s*for:\\s*\\.navigationBar",
           "allow": [],
           "message": "Pages keep the system navigation bar and its title in every pose; don't hide it (page-tools-and-nav-chrome R14, #341)."
+        },
+        {
+          "id": "apple-shell-a11y-order",
+          "glob": "apple/Sources/FestivalUI/App/Shell/*.swift",
+          "regex": "\\.accessibilitySortPriority\\(",
+          "allow": [],
+          "message": "Shell chrome reads in hierarchy order; the order journeys cannot see a sort priority (page-tools-and-nav-chrome R17, #394)."
         }
       ],
       "related": {
@@ -966,7 +973,8 @@
         339,
         341,
         351,
-        363
+        363,
+        394
       ]
     },
     {

@@ -10,14 +10,16 @@ import Testing
 //
 // #14 split the notifications bell and the profile avatar into two independent buttons
 // (since #300 the iPhone bell sits in the tab-bar accessory and Profile stays the
-// navigation bar's trailing-most button). These tests pin what VoiceOver gets from that
-// account group: two separate buttons read bell → profile (``RootChromeTrailingGroups``
-// order), each with its own label, hint and state; the badge digit and the monogram
+// navigation bar's trailing-most button). These component tests pin what VoiceOver gets
+// from each button: its own label, hint and state; the badge digit and the monogram
 // initial are never read on their own; and the accessory bell's hit region is the full
-// 44 pt slot. HIG VoiceOver: "Provide alternative labels for all key interface elements
-// ... keep labels current as interface and content change"; HIG Buttons: "the hit region
-// is at least 44x44 pt". Device-only evidence (bar placement, near-miss taps, AX text
-// size) lives in `NavButtonHitRegionJourneyTests` and `ShellJourneyTests`.
+// 44 pt slot. They host the buttons side by side in the single-bar order
+// (``RootChromeTrailingGroups``: bell, then Profile; Duo, iPad, iOS < 26.1) and do not
+// model the iPhone, where the two live in different system containers and Profile is read
+// first: that production order is measured from the iPhone's accessibility hierarchy by
+// `NavButtonHitRegionJourneyTests` (page-tools-and-nav-chrome R17). HIG VoiceOver:
+// "Provide alternative labels for all key interface elements ... keep labels current as
+// interface and content change"; HIG Buttons: "the hit region is at least 44x44 pt".
 
 /// A notifications feed whose rows are new to the seen store, so they count as unread.
 ///
@@ -65,8 +67,10 @@ private func accountSession(unread: Int, player: Bool = true) async throws -> Fe
     return session
 }
 
-/// The account group as the shell lays it out, leading to trailing, from the canonical
-/// ``RootChromeTrailingGroups`` order: the bell (a profile is selected), then Profile.
+/// The account group as a single navigation bar lists it (Duo, iPad, iOS < 26.1), leading
+/// to trailing, from the canonical ``RootChromeTrailingGroups`` order: the bell (a profile
+/// is selected), then Profile. A component harness, not the iPhone layout (bell in the
+/// tab-bar accessory, Profile in the navigation bar; see `NavButtonHitRegionJourneyTests`).
 private struct AccountGroup: View {
     let session: FestivalSession
     /// Draw the bell as in the iPhone tab-bar accessory (badge on the glyph, 44 pt slot).
@@ -119,9 +123,10 @@ private func accountTree(
 
 // MARK: - Labels, roles, state and reading order
 
-/// With unread notifications the bell and the avatar are two buttons read bell → profile,
-/// the bell's label carrying the exact count and the avatar naming the player, in the
-/// navigation bar's badge style and the iPhone accessory's badge-on-glyph style.
+/// With unread notifications the bell and the avatar are two buttons (bell → profile in the
+/// single-bar order), the bell's label carrying the exact count and the avatar naming the
+/// player, in the navigation bar's badge style and the iPhone accessory's badge-on-glyph
+/// style.
 @MainActor
 @Test(arguments: [false, true])
 func bellAndProfileReadAsTwoLabelledButtonsInOrder(accessoryBell: Bool) async throws {
