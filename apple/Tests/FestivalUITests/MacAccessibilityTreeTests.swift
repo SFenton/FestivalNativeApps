@@ -295,6 +295,33 @@ struct MacAccessibilityTreeTests {
         #expect(Set(labels).count == labels.count, "no two toolbar items share a label: \(labels)")
     }
 
+    /// Compete beside a rival (issue #369): the pane's root has Close; Rivalry pushed inside
+    /// the pane has Back instead, and Compete (a section root) adds no Back of its own.
+    @Test(arguments: [false, true])
+    func macTreeCompeteRivalPaneHasCloseThenBack(pushesRivalry: Bool) async throws {
+        let size = MacWindowMetrics.defaultSize
+        let model = MacAppModel(session: try await macTreeSession(player: true), storage: nil, initial: .compete)
+        let rival = AppRoute.rivalDetail(rivalId: "f1c749eb07c32578cfa3e59ec38c03a8", name: "uwphe", scope: nil)
+        let rivalry = AppRoute.rivalry(rivalId: "f1c749eb07c32578cfa3e59ec38c03a8", mode: "song", name: "uwphe", scope: nil)
+        model.navigation.paths[.compete] = pushesRivalry ? [rival, rivalry] : [rival]
+        let controller = NSHostingController(rootView: MacRootView(model: model).frame(width: size.width, height: size.height))
+        controller.sceneBridgingOptions = [.toolbars, .title]
+        let window = NSWindow(contentViewController: controller)
+        window.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
+        window.setFrame(NSRect(x: -10_000, y: -10_000, width: size.width, height: size.height), display: false)
+        window.orderOut(nil)
+        defer { window.close() }
+        let expected = pushesRivalry ? "Back" : "Close"
+        var budget = NativeHostedPollBudget(.seconds(20))
+        while !(window.toolbar?.items.contains { $0.label == expected } ?? false), !budget.isExhausted {
+            try await budget.sleep(for: .milliseconds(100))
+        }
+        let labels = try #require(window.toolbar?.items).map(\.label)
+        #expect(labels.filter { $0 == expected }.count == 1, "one \(expected): \(labels)")
+        #expect(!labels.contains(pushesRivalry ? "Close" : "Back"), "\(labels)")
+        #expect(model.navigation.paths[.compete] == (pushesRivalry ? [rival, rivalry] : [rival]), "nothing rewrote the path")
+    }
+
     /// A profile covering the list page (issue #352) has one Back and no Close in the
     /// window toolbar, and the hidden overview's own tools (Rank By) stay out of it.
     @Test func macTreeCoveringProfileToolbarHasOnlyBack() async throws {
@@ -407,6 +434,10 @@ struct MacAccessibilityTreeTests {
          [AppRoute.fullRankings(instrument: .lead, rankBy: "totalscore")], "fst.leaderboards.card.Solo_Guitar.view-all"),
         ("rivals", .rivals,
          [.rivalDetail(rivalId: "f1c749eb07c32578cfa3e59ec38c03a8", name: "uwphe", scope: nil)], "fst.rivals.row."),
+        // Compete opens its rival rows beside it (issue #369).
+        ("compete", .compete,
+         [.rivalDetail(rivalId: "f1c749eb07c32578cfa3e59ec38c03a8", name: "Fixture Rival Golf", scope: .song(instruments: ["Solo_Guitar"]))],
+         "fst.rivals.row."),
     ])
     func macTreeSplitPagesReadLeadingThenTrailing(
         name: String, destination: MacDestination, path: [AppRoute], rowPrefix: String
@@ -438,6 +469,13 @@ struct MacAccessibilityTreeTests {
             let selected = elements.filter { $0.identifier.hasPrefix(rowPrefix) && $0.selected }
             #expect(!selected.isEmpty && selected.allSatisfy { $0.identifier == "\(rowPrefix)\(accountId)" },
                     "\(name): only the opened item's rows are selected: \(selected)")
+        }
+        if case .rivalDetail(let rivalId, _, .song(let instruments)?) = path.last {
+            // The rival appears on every instrument card; only the opened card's row (the
+            // same rival and scope) reads selected.
+            let selected = elements.filter { $0.identifier.hasPrefix(rowPrefix) && $0.selected }
+            #expect(selected.count == instruments.count && selected.allSatisfy { $0.identifier == "\(rowPrefix)\(rivalId)" },
+                    "\(name): only the opened rival's row is selected: \(selected)")
         }
         #expect(macAccessibilityFindings(elements) == [], "\(name)")
     }

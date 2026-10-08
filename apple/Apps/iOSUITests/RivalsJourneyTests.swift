@@ -19,7 +19,7 @@ final class RivalsJourneyTests: XCTestCase {
     @MainActor
     private func fixtureApp() -> XCUIApplication {
         FestivalApp.makeApp([
-            "FST_API_BASE_URL": "http://127.0.0.1:8765",
+            "FST_API_BASE_URL": ProcessInfo.processInfo.environment["FST_FIXTURE_URL"] ?? "http://127.0.0.1:8765",
             "FST_UI_TEST_CLEAR_PROFILE": "1",
             "FST_DEBUG_PROFILE": "fixture-riv:Fixture Riv",
         ])
@@ -74,6 +74,52 @@ final class RivalsJourneyTests: XCTestCase {
         XCTAssertFalse(app.buttons["See All"].exists)
         categoryViewAll.tap()
         XCTAssertTrue(app.buttons["fst.rivalry.view-profile"].waitForExistence(timeout: 15))
+    }
+
+    // MARK: - Compete -> rival row (#369)
+
+    /// A phone window (iPhone, the folded iPhone Duo) never splits: a rival row on
+    /// Compete pushes Rival Detail full width with the system Back (no split Close), a
+    /// category's View All pushes Rivalry on the same stack, and Back returns step by
+    /// step to Compete. The split-capable layouts open the rival beside Compete instead
+    /// (`IPadShellJourneyTests.testCompeteRivalOpensBesideCompete`).
+    @MainActor
+    func testCompeteRivalRowPushesFullPageOnPhone() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launchEnvironment["FST_DEBUG_TAB"] = "compete"
+        app.launch()
+        XCTAssertTrue(app.navigationBars["Compete"].waitForExistence(timeout: 15))
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.rivals.row."))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 15), "Compete lists rivals")
+        for _ in 0..<8 where !rows.allElementsBoundByIndex.contains(where: \.isHittable) {
+            app.swipeUp()
+        }
+        let row = try XCTUnwrap(rows.allElementsBoundByIndex.first(where: \.isHittable), "an on-screen rival row")
+        row.tap()
+        XCTAssertTrue(app.buttons["fst.rival-detail.view-profile"].waitForExistence(timeout: 15), "Rival Detail opens")
+        XCTAssertFalse(app.descendants(matching: .any)["fst.split.trailing"].exists, "no trailing pane on a phone")
+        XCTAssertFalse(app.buttons["fst.split.close"].exists, "a pushed page has Back, not Close")
+        XCTAssertFalse(app.navigationBars["Compete"].exists, "Rival Detail covers Compete")
+        let viewAll = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH %@ AND identifier ENDSWITH %@", "fst.rival-detail.category.", ".view-all"
+        )).firstMatch
+        XCTAssertTrue(viewAll.waitForExistence(timeout: 15))
+        viewAll.tap()
+        XCTAssertTrue(app.buttons["fst.rivalry.view-profile"].waitForExistence(timeout: 15), "Rivalry opens")
+        XCTAssertFalse(app.buttons["fst.split.close"].exists, "Rivalry has Back, not Close")
+        tapBack(app)
+        XCTAssertTrue(app.buttons["fst.rival-detail.view-profile"].waitForExistence(timeout: 10), "Back to Rival Detail")
+        tapBack(app)
+        XCTAssertTrue(app.navigationBars["Compete"].waitForExistence(timeout: 10), "Back to Compete")
+    }
+
+    /// The system Back: in the iPhone Duo vertical bar when it has one, else the
+    /// navigation bar's first button.
+    @MainActor
+    private func tapBack(_ app: XCUIApplication) {
+        let bar = app.buttons["BackButton"]
+        (bar.exists && bar.isHittable ? bar : app.navigationBars.buttons.firstMatch).tap()
     }
 
     // MARK: - Compete -> View Full Leaderboard (#36)

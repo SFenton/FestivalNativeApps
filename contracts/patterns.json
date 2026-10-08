@@ -2757,7 +2757,8 @@
         39,
         82,
         276,
-        347
+        347,
+        369
       ]
     },
     {
@@ -3088,6 +3089,7 @@
         ],
         "pages": [
           "rivals",
+          "compete",
           "leaderboards",
           "song-detail",
           "settings",
@@ -3109,7 +3111,8 @@
       "supersedes": [],
       "issues": [
         344,
-        361
+        361,
+        369
       ]
     },
     {
