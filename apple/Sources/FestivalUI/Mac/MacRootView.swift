@@ -280,7 +280,8 @@ public struct MacRootView: View {
                     .firstRun(.statistics, session: session)
             }
         case .compete:
-            stack(destination) {
+            // Its rival rows open Rival Detail beside it (issue #369).
+            listDetail(.compete, destination: destination) { _ in
                 CompeteScreen(session: session)
                     .refreshesOnPublication(session: session)
                     .firstRun(.compete, session: session)

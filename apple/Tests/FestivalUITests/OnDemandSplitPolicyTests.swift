@@ -93,21 +93,31 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
     #expect(!Page.songDetail.accepts(player("p")) && !Page.songDetail.accepts(bandBoard))
     #expect(!Page.songDetail.accepts(detail))
     #expect(Page.settings.accepts(.licenses) && !Page.settings.accepts(.shop))
+    // Compete opens only its rival rows beside it (issue #369): its leaderboard previews,
+    // View Full Leaderboard, Rivals and View All Rivals push full width.
+    #expect(Page.compete.accepts(rival("r")))
+    for route in [player("p"), band("b"), rankings, bandRankings, allRivals, AppRoute.rivals, .leaderboards] {
+        #expect(!Page.compete.accepts(route), "\(route)")
+    }
 }
 
-/// Never-split pages: Songs, Song Leaderboard, Shop, Statistics, Suggestions, Compete,
-/// Band Detail, Player Bands and Rivalry have no cut, so their pushes are full width.
+/// Never-split pages: Songs, Song Leaderboard, Shop, Statistics, Suggestions, Band Detail,
+/// Player Bands and Rivalry have no cut, so their pushes are full width. Compete's
+/// non-rival pushes leave its split (issue #369).
 @Test func neverSplitPagesHaveNoCut() throws {
     let board = try AppRoute.songLeaderboard(song("a"), .lead, 1)
     #expect(OnDemandSplitPolicy.cut(section: .songs, path: []) == nil)
     #expect(OnDemandSplitPolicy.cut(section: .songs, path: [try .songDetail(song("a")), board, player("p")])
         == .init(list: [try .songDetail(song("a"))], detail: [board, player("p")], page: .songDetail))
-    for section in [FestivalSection.shop, .statistics, .suggestions, .compete] {
+    for section in [FestivalSection.shop, .statistics, .suggestions] {
         #expect(OnDemandSplitPolicy.cut(section: section, path: []) == nil)
     }
     #expect(OnDemandSplitPolicy.cut(section: .songs, path: [board]) == nil)
     // Band Detail and Player Bands never split (a band opened from Compete pushes).
     #expect(OnDemandSplitPolicy.cut(section: .compete, path: [band("b"), .playerBands(accountId: "p", displayName: nil)]) == nil)
+    // Compete's View Full Leaderboard and player rows push full width (issue #369).
+    #expect(OnDemandSplitPolicy.cut(section: .compete, path: [rankings]) == nil)
+    #expect(OnDemandSplitPolicy.cut(section: .compete, path: [player("p")]) == nil)
     #expect(OnDemandSplitPolicy.cut(section: .rivals, path: [rival("r"), .rivalry(rivalId: "r", mode: "song", name: nil, scope: nil)])
         == .init(list: [], detail: [rival("r"), .rivalry(rivalId: "r", mode: "song", name: nil, scope: nil)], page: .rivals))
 }
@@ -127,6 +137,20 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
         == .init(list: [], detail: [bandRankings, band("b")], page: .leaderboards))
     #expect(OnDemandSplitPolicy.cut(section: .settings, path: [.licenses])
         == .init(list: [], detail: [.licenses], page: .settings))
+    // Compete opens a rival beside it; Rivalry and View All push inside the pane (issue #369).
+    #expect(OnDemandSplitPolicy.cut(section: .compete, path: []) == .init(list: [], detail: [], page: .compete))
+    let rivalry = AppRoute.rivalry(rivalId: "r", mode: "song", name: nil, scope: nil)
+    #expect(OnDemandSplitPolicy.cut(section: .compete, path: [rival("r"), rivalry])
+        == .init(list: [], detail: [rival("r"), rivalry], page: .compete))
+    #expect(OnDemandSplitPolicy.cut(section: .compete, path: [rival("r"), rivalry])?.cover == OnDemandSplitPolicy.Cover.none)
+    // A rival's profile pushed inside the pane covers Compete (issue #352).
+    #expect(OnDemandSplitPolicy.cut(section: .compete, path: [rival("r"), player("r")])?.cover == .overSplit)
+    // View All Rivals from Compete pushes All Rivals, which opens its own rows beside it.
+    #expect(OnDemandSplitPolicy.cut(section: .compete, path: [allRivals, rival("x")])
+        == .init(list: [allRivals], detail: [rival("x")], page: .rivals))
+    // A Compete pushed on another stack (deep link) splits the same way.
+    #expect(OnDemandSplitPolicy.cut(section: .songs, path: [.compete, rival("r")])
+        == .init(list: [.compete], detail: [rival("r")], page: .compete))
     // Compete › Leaderboards (pushed) is a list page too.
     #expect(OnDemandSplitPolicy.cut(section: .compete, path: [.leaderboards, player("p")])
         == .init(list: [.leaderboards], detail: [player("p")], page: .leaderboards))
@@ -191,6 +215,16 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
     // A section root list page (Rivals) closes its item; at the root there is no Back.
     #expect(OnDemandSplitPolicy.pathAfterListBack([rival("r")], section: .rivals) == [])
     #expect(OnDemandSplitPolicy.pathAfterListBack([], section: .rivals) == nil)
+    // Compete (back-keeps-place R6, issue #369): Back closes the rival's pane first, even
+    // with Rivalry pushed inside it; a pushed Compete then pops.
+    let rivalry = AppRoute.rivalry(rivalId: "r", mode: "song", name: nil, scope: nil)
+    #expect(OnDemandSplitPolicy.pathAfterListBack([rival("r"), rivalry], section: .compete) == [])
+    #expect(OnDemandSplitPolicy.pathAfterListBack([], section: .compete) == nil)
+    #expect(OnDemandSplitPolicy.pathAfterListBack([.compete, rival("r")], section: .songs) == [.compete])
+    #expect(OnDemandSplitPolicy.pathAfterListBack([.compete], section: .songs) == [])
+    // Selecting another rival replaces the open one; a non-detail push closes it.
+    #expect(OnDemandSplitPolicy.path(selecting: rival("b"), in: [rival("a"), rivalry], section: .compete) == [rival("b")])
+    #expect(OnDemandSplitPolicy.path(settingList: [rankings], in: [rival("a")], section: .compete) == [rankings])
     // A page that never splits pops normally.
     #expect(OnDemandSplitPolicy.pathAfterListBack([.bands, player("p")], section: .statistics) == [.bands])
 }
