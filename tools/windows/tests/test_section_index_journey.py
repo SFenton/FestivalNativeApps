@@ -14,6 +14,10 @@ import uiwin  # noqa: E402  (sibling module)
 
 JOURNEY = Path(__file__).resolve().parents[1] / "journeys" / "a11y-section-index.json"
 HEADER = "id=fst.songs.section-header"
+#: "Rhythm Signal", the third of four R rows in the large catalogue. Placing it 8 epx below the list top (not a scroll
+#: percent, which lands on Q at some window sizes and scales) keeps R's title above the viewport and S's two rows below,
+#: so the bar names R whatever the window size, display scale or text size.
+R_ROW = "id=fst.songs.row.fixture-song-75"
 
 
 def load() -> dict[str, dict]:
@@ -49,7 +53,8 @@ class SectionIndexJourneyTests(unittest.TestCase):
             page = pages[name]
             self.assertIn("--large-catalogue", page.get("fixture", []), name)
             drive = steps(page)
-            order = [f"assertname:{HEADER}|P", "scrollto:id=fst.songs.list,74", f"assertname:{HEADER}|R",
+            order = [f"assertname:{HEADER}|P", f"scrollinto:{R_ROW}@5", f"scrollinset:{R_ROW}|id=fst.songs.list|8",
+                     f"assertname:{HEADER}|R",
                      "assertfocus:name=R@5", f"assertname:{HEADER}|B", f"assertread:{HEADER}|B, text",
                      f"assertstate:{HEADER}|heading=2"]
             positions = [drive.index(step) for step in order]

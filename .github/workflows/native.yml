@@ -3,7 +3,7 @@ name: native
 # @DeviceCi journeys on an emulator (the Apple builds run on the Mac through tools/lane_integrate.sh).
 on:
   push:
-    branches: [master, report/415-windows]
+    branches: [master]
     paths:
       - 'windows/**'
       - 'android/**'
