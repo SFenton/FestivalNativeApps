@@ -74,7 +74,31 @@ public class HitTargetMarkupTests
         if (iconOnly) Assert.Equal(Resource, Attr(button, "MinWidth"));
     }
 
-[Fact]
+    [Theory]
+    [InlineData("Pages/SongsPage.xaml", 1)]
+    [InlineData("Pages/ShopPage.xaml", 1)]
+    [InlineData("Pages/SuggestionsPage.xaml", 1)]
+    [InlineData("Controls/SongSortForm.xaml", 1)]
+    public void FlyoutResetFooters_UseMinTarget(string file, int count)
+    {
+        // Issue #432 (#77): the sort/filter flyouts' red Reset footer was WinUI's 32 epx button height.
+        var resets = Load(file).Descendants()
+            .Where(e => e.Name.LocalName == "Button" && Attr(e, "Content") == "Reset").ToList();
+        Assert.Equal(count, resets.Count);
+        Assert.All(resets, b => Assert.Equal(Resource, Attr(b, "MinHeight")));
+    }
+
+    [Fact]
+    public void SongsFilterSelectAllClearAll_UseMinTarget()
+    {
+        // Issue #432 (#77): the Year/Duration and instrument bucket Select All / Clear All links were 31 epx tall.
+        var links = Load(Path.Combine("Pages", "SongsPage.xaml")).Descendants()
+            .Where(e => e.Name.LocalName == "HyperlinkButton" && Attr(e, "Content") is "Select All" or "Clear All").ToList();
+        Assert.Equal(4, links.Count);
+        Assert.All(links, b => Assert.Equal(Resource, Attr(b, "MinHeight")));
+    }
+
+    [Fact]
     public void EveryDropDownButton_UsesMinTarget()
     {
         // Issue #271: #72 listed its buttons one by one and missed the Full/Band Rankings pickers (31 epx tall). Every
