@@ -80,7 +80,7 @@ Status per page: **adopts** (follows R1–R5), **exempt** (a layout the rule doe
 |---|---|---|
 | Search results (`global-search`) | adopts | Two columns per R1, at the hinge (R3); Mac sheet R6. |
 | Songs | adopts | `SongGridPolicy` → `WideColumns`, `HingeRow`. The Mac keeps one row per song, a sortable table ([songs-section-index](../controls/songs-section-index/spec.md) owns its layout). |
-| Song Detail | exempt | Content-sized adaptive grids (`HingeGrid`, Intensity and instrument cards) already fill width in any orientation. |
+| Song Detail | exempt | Content-sized adaptive grids (`HingeGrid`, Intensity, instrument cards and, since #366, the Duos/Trios/Quads previews in `SongDetailCardGrid`) already fill width in any orientation. |
 | Item Shop | exempt | Adaptive even-column card grid (`ShopGridPolicy`, [hinge-columns](hinge-columns.md) R2). |
 | Statistics | exempt | Adaptive stat tile grid (`StatTileGridLayout`). |
 | Leaderboards | follow-up | Two `HingeGrid` columns whenever the width class is regular, including iPad portrait. Should switch to R1. |

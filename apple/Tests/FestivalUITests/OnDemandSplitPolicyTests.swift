@@ -89,9 +89,12 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
     // View All Rankings opens the full boards beside the overview (issue #352).
     #expect(Page.leaderboards.accepts(rankings) && Page.leaderboards.accepts(bandRankings))
     #expect(Page.songDetail.accepts(board) && Page.songDetail.accepts(history))
-    // Song Detail's player rows, band boards and other songs push full width.
-    #expect(!Page.songDetail.accepts(player("p")) && !Page.songDetail.accepts(bandBoard))
+    // Duos, Trios and Quads boards open beside their song like instrument boards
+    // (issue #367); its player and band rows and other songs push full width.
+    #expect(Page.songDetail.accepts(bandBoard))
+    #expect(!Page.songDetail.accepts(player("p")) && !Page.songDetail.accepts(band("b")))
     #expect(!Page.songDetail.accepts(detail))
+    #expect(!Page.leaderboards.accepts(bandBoard) && !Page.rivals.accepts(bandBoard))
     #expect(Page.settings.accepts(.licenses) && !Page.settings.accepts(.shop))
 }
 
@@ -130,6 +133,35 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
     // Compete › Leaderboards (pushed) is a list page too.
     #expect(OnDemandSplitPolicy.cut(section: .compete, path: [.leaderboards, player("p")])
         == .init(list: [.leaderboards], detail: [player("p")], page: .leaderboards))
+}
+
+/// A band board opened from Song Detail sits in the trailing pane (issue #367): View
+/// full leaderboard and the selected band's jump both cut there, a band opened from
+/// it covers the split, Back on Song Detail closes it first, and opened anywhere else
+/// it still pushes full width.
+@Test func songBandBoardsOpenBesideSongDetail() throws {
+    let detail = try AppRoute.songDetail(song("s"))
+    let duos = try AppRoute.songBandLeaderboard(song("s"), bandType: "Band_Duets")
+    let quadsJump = try AppRoute.songBandLeaderboard(
+        song("s"), bandType: "Band_Quad", page: 2,
+        focus: SongBandRowFocus(bandId: "b", bandType: "Band_Quad", teamKey: "b")
+    )
+    #expect(OnDemandSplitPolicy.cut(section: .songs, path: [detail, duos])
+        == .init(list: [detail], detail: [duos], page: .songDetail))
+    #expect(OnDemandSplitPolicy.cut(section: .songs, path: [detail, quadsJump])?.selection == quadsJump)
+    // Picking another board from Song Detail replaces the open one.
+    let lead = try AppRoute.songLeaderboard(song("s"), .lead, 1)
+    #expect(OnDemandSplitPolicy.path(selecting: lead, in: [detail, duos], section: .songs) == [detail, lead])
+    #expect(OnDemandSplitPolicy.path(settingList: [detail, duos], in: [detail, lead], section: .songs)
+        == [detail, duos])
+    // A band row inside the board is a full page over the split (issue #352).
+    #expect(OnDemandSplitPolicy.cut(section: .songs, path: [detail, duos, band("b")])?.cover == .overSplit)
+    // Back keeps Song Detail and closes the board first (issue #347).
+    #expect(OnDemandSplitPolicy.pathAfterListBack([detail, duos], section: .songs) == [detail])
+    #expect(OnDemandSplitPolicy.pathAfterListBack([detail, duos, band("b")], section: .songs) == [detail])
+    // Without Song Detail under it the board is not a split's detail.
+    #expect(OnDemandSplitPolicy.cut(section: .songs, path: [duos]) == nil)
+    #expect(OnDemandSplitPolicy.cut(section: .compete, path: [band("b"), duos]) == nil)
 }
 
 // MARK: - Path writes

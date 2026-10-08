@@ -158,6 +158,7 @@ struct CompeteScreen: View {
                 ForEach(Array(visible.instruments.enumerated()), id: \.element) { offset, instrument in
                     CompeteInstrumentLeaderboardSection(
                         session: session, instrument: instrument, state: model.boards[instrument] ?? .loading,
+                        spotlight: model.spotlights[instrument],
                         entranceIndex: Self.leaderboardsHeaderIndex + 1 + offset, retry: retryFailedReads
                     )
                 }
@@ -199,10 +200,17 @@ struct CompeteScreen: View {
 /// rows match `LeaderboardsScreen`'s own overview cards. The page reads it
 /// (``CompeteHubModel``) and only builds it once every read settled, so it never shows a
 /// spinner of its own (#354).
+///
+/// When the selected player ranks outside the top five, their own row follows them (web
+/// `CompetePage` `playerEntry`) and jumps to their position on the full board
+/// (``CompetePreviewSpotlight``, leaderboard-row R7 owner variant, #370).
 struct CompeteInstrumentLeaderboardSection: View {
     let session: FestivalSession
     let instrument: Instrument
     let state: RankLoadState<RankingsPayload>
+    /// The selected player's own row, shown apart from the top five; nil when they are
+    /// among them, unranked or unknown.
+    var spotlight: AccountRankingEntry? = nil
     /// The card's place in the page's first-load stagger.
     var entranceIndex: Int? = nil
     /// Reads the preview again after a failure.
@@ -248,13 +256,17 @@ struct CompeteInstrumentLeaderboardSection: View {
                             isSelected: isSelected(entry.accountId), cardSurface: true
                         )
                     }
+                    if let spotlight {
+                        spotlightRow(spotlight)
+                    }
                 }
-                // One rank, songs and score width for the card (issue #37); on a
-                // narrow card (portrait iPhone) every row drops songs played/total
-                // when it would truncate a name (issue #38).
+                // One rank, songs and score width for the card and the player's own row
+                // (issue #37, web `computeRankWidth` with `playerEntry`); on a narrow
+                // card (portrait iPhone) every row drops songs played/total when it
+                // would truncate a name (issue #38).
                 .leaderboardSectionColumns(
-                    .rankings(payload.rankings.entries, metric: .totalscore),
-                    hidingCrowdedSongsFor: payload.rankings.entries.map {
+                    .rankings(cardRows(payload), metric: .totalscore),
+                    hidingCrowdedSongsFor: cardRows(payload).map {
                         RankingRowName(
                             name: AccountRankingRow.displayName($0), emphasized: isSelected($0.accountId)
                         )
@@ -275,6 +287,72 @@ struct CompeteInstrumentLeaderboardSection: View {
     private func isSelected(_ accountId: String) -> Bool {
         guard let selected = session.selectedPlayer?.accountId else { return false }
         return selected.caseInsensitiveCompare(accountId) == .orderedSame
+    }
+
+    /// Every row the card draws: the top five, then the player's own row.
+    ///
+    /// - Parameter payload: The loaded preview.
+    /// - Returns: Rows in display order.
+    private func cardRows(_ payload: RankingsPayload) -> [AccountRankingEntry] {
+        payload.rankings.entries + (spotlight.map { [$0] } ?? [])
+    }
+
+    /// The selected player's own row under the top five: the same highlighted row, as a
+    /// link to their position on the full board (``CompetePreviewSpotlight``, #370).
+    ///
+    /// - Parameter entry: The player's row on this instrument's board.
+    private func spotlightRow(_ entry: AccountRankingEntry) -> some View {
+        let rank = entry.rank(for: .totalscore)
+        // Plain, as the ranking rows: `ListDetailLink` draws the Mac hover, ring and Return.
+        return ListDetailLink(value: CompetePreviewSpotlight.route(for: entry, instrument: instrument)) {
+            AccountRankingRow(
+                entry: entry, metric: .totalscore, isSelected: true, cardSurface: true, opensProfile: false
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(CompetePreviewSpotlight.action(for: entry).footerLabel(for: .player, rank: rank))
+        .accessibilityIdentifier("fst.compete.leaderboard-card.\(instrument.rawValue).spotlight")
+    }
+}
+
+// MARK: - Preview spotlight route
+
+/// Where the selected player's own row under a Compete leaderboard preview goes: the
+/// owner-approved Compete variant of leaderboard-row R7 (#370). Like Song Detail's
+/// appended row, it opens the instrument's full rankings for the card's metric on the
+/// page containing the rank, which then reveals the highlighted row (web `navToPlayer`),
+/// instead of the profile the web `CompetePage` links it to. A row with no usable rank
+/// opens Statistics, as the full board's pinned footer does.
+enum CompetePreviewSpotlight {
+    /// Compete's previews rank by total score (web `CompetePage`).
+    static let metric = RankingMetric.totalscore
+
+    /// The row's selected-row action.
+    ///
+    /// - Parameter entry: The player's row, shown apart from the top five.
+    /// - Returns: ``SelectedRowAction/jump(page:)`` to their full-board page, or
+    ///   ``SelectedRowAction/openProfile`` without a usable rank.
+    static func action(for entry: AccountRankingEntry) -> SelectedRowAction {
+        SelectedRowAction.preview(
+            rank: entry.rank(for: metric), isAppended: true, pageSize: FullRankingsScreen.pageSize
+        )
+    }
+
+    /// The route the row opens.
+    ///
+    /// - Parameters:
+    ///   - entry: The player's row, shown apart from the top five.
+    ///   - instrument: The preview's instrument.
+    /// - Returns: Full Rankings on the player's page with their row revealed, or
+    ///   Statistics without a usable rank.
+    static func route(for entry: AccountRankingEntry, instrument: Instrument) -> AppRoute {
+        switch action(for: entry) {
+        case let .jump(page):
+            .fullRankings(instrument: instrument, rankBy: metric.rawValue, page: page, focusSelected: true)
+        case .openProfile:
+            .statistics
+        }
     }
 }
 

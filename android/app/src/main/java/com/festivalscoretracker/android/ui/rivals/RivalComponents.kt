@@ -133,30 +133,32 @@ internal fun RivalPill(text: String, win: Boolean?, modifier: Modifier = Modifie
  * ahead + behind, so it only repeated the pills.
  *
  * @param entry Row data and side.
- * @param onClick Opens Rival Detail; ignored for anonymous rows.
+ * @param onClick Opens Rival Detail; ignored for anonymous rows. Null draws a decorative,
+ *   non-interactive row (First Run demos, issue #380) with the same look.
  * @param modifier Modifier.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun RivalRow(entry: RivalEntry, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun RivalRow(entry: RivalEntry, onClick: (() -> Unit)?, modifier: Modifier = Modifier) {
     val rival = entry.rival
     val winning = entry.direction == RivalDirection.Below
     val format = NumberFormat.getIntegerInstance()
     val ahead = "${format.format(rival.behindCount)} songs ahead"
     val behind = "${format.format(rival.aheadCount)} songs behind"
     val description = "${rival.shownName}, ${if (winning) "you lead" else "ahead of you"}, $ahead, $behind"
+    val open = onClick?.takeIf { rival.isNavigable }
     GlassCard(
         modifier = modifier
             .fillMaxWidth()
             .testTag(if (rival.isNavigable) "fst.rivals.row.${rival.accountId}" else "fst.rivals.row.anonymous")
             .clearAndSetSemantics {
                 contentDescription = description
-                if (rival.isNavigable) {
+                if (open != null) {
                     role = Role.Button
-                    onClick(label = "Open rival") { onClick(); true }
+                    onClick(label = "Open rival") { open(); true }
                 }
             },
-        onClick = if (rival.isNavigable) onClick else null,
+        onClick = open,
     ) {
         // The tint bar is drawn behind the row rather than measured with IntrinsicSize.Min:
         // FlowRow's intrinsic height ignores wrapped lines, so at large text (or narrow widths)
@@ -364,7 +366,8 @@ fun RivalsMessage(title: String, subtitle: String?, tag: String, action: (() -> 
  * @param artUrl Resolved artwork URL.
  * @param playerName Selected player's name.
  * @param rivalName Rival's name.
- * @param onClick Opens Song Detail.
+ * @param onClick Opens Song Detail; null draws a decorative, non-interactive row (First Run
+ *   demos, issue #380) with the same look.
  * @param modifier Modifier.
  */
 @Composable
@@ -374,7 +377,7 @@ fun RivalSongRow(
     artUrl: String?,
     playerName: String?,
     rivalName: String?,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val format = NumberFormat.getIntegerInstance()
@@ -397,8 +400,10 @@ fun RivalSongRow(
             .testTag("fst.rivals.song.${song.songId}.${song.instrument}")
             .clearAndSetSemantics {
                 contentDescription = description
-                role = Role.Button
-                onClick(label = "Open song") { onClick(); true }
+                if (onClick != null) {
+                    role = Role.Button
+                    onClick(label = "Open song") { onClick(); true }
+                }
             },
         onClick = onClick,
     ) {

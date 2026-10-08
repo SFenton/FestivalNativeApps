@@ -238,6 +238,21 @@ enum HingeColumns {
         }
         return .columns(max(1, columns.count / 2))
     }
+
+    /// Columns whose cells start at the top of their row (R8): a column without an
+    /// explicit alignment gets `.top` instead of `GridItem`'s default `.center`, which
+    /// would push a shorter cell down to the middle of its taller neighbour's row (#365).
+    ///
+    /// - Parameter columns: The grid's columns.
+    /// - Returns: The same columns, top-aligned where they named no alignment.
+    static func topAligned(_ columns: [GridItem]) -> [GridItem] {
+        columns.map { column in
+            guard column.alignment == nil else { return column }
+            var aligned = column
+            aligned.alignment = .top
+            return aligned
+        }
+    }
 }
 
 // MARK: - Measuring
@@ -282,7 +297,8 @@ private struct HingeSideTitle: ViewModifier {
 /// A `LazyVGrid` whose centre gutter sits on an iPhone Duo fold (book pose) and that is
 /// otherwise exactly the grid its flat `columns` describe. The canonical hinge-aware
 /// grid (pattern `hinge-columns`): pages pass their flat columns and never measure the
-/// fold themselves.
+/// fold themselves. Cells start at the top of their row, like ``HingeEagerGrid`` and
+/// ``HingeRow``, unless a column names another alignment (R8, #365).
 struct HingeGrid<Content: View>: View {
     private let columns: [GridItem]
     private let alignment: HorizontalAlignment
@@ -304,7 +320,7 @@ struct HingeGrid<Content: View>: View {
         columns: [GridItem], alignment: HorizontalAlignment = .center, spacing: CGFloat? = nil,
         perSide: HingeColumns.PerSide? = nil, @ViewBuilder content: () -> Content
     ) {
-        self.columns = columns
+        self.columns = HingeColumns.topAligned(columns)
         self.alignment = alignment
         self.spacing = spacing
         self.perSide = perSide ?? HingeColumns.perSide(for: columns)

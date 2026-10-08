@@ -33,9 +33,12 @@ struct ShopScreen: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.playerStatNavigator) private var navigator
     @AppStorage("fst.shop.viewMode") private var preferredMode = ShopViewMode.grid
-    @AppStorage("fst.shop.filterNew") private var filterNew = false
-    @AppStorage("fst.shop.filterAvailable") private var filterAvailable = false
-    @AppStorage("fst.shop.filterLeavingTomorrow") private var filterLeavingTomorrow = false
+    @AppStorage(ShopOfferFilter.storageKey) private var savedFilter = ""
+    /// Older "show only" switches (issue #19), read only to migrate into ``savedFilter``.
+    @AppStorage(ShopOfferFilter.legacyNewKey) private var legacyFilterNew = false
+    @AppStorage(ShopOfferFilter.legacyAvailableKey) private var legacyFilterAvailable = false
+    @AppStorage(ShopOfferFilter.legacyLeavingTomorrowKey)
+    private var legacyFilterLeavingTomorrow = false
     @State private var filterPresented = false
     @AppStorage("fst.settings.hideShop") private var hideShop = false
     @AppStorage("fst.settings.disableShopHighlighting") private var disableHighlights = false
@@ -85,20 +88,22 @@ struct ShopScreen: View {
             ? .list : preferredMode
     }
 
-    /// The saved New / Available / Leaving Tomorrow filter (issue #19).
+    /// The saved New / Available / Leaving Tomorrow filter (issues #19, #376).
     private var appliedFilter: ShopOfferFilter {
-        ShopOfferFilter(
-            new: filterNew, available: filterAvailable, leavingTomorrow: filterLeavingTomorrow
+        ShopOfferFilter.decodeSaved(
+            savedFilter, legacyNew: legacyFilterNew, legacyAvailable: legacyFilterAvailable,
+            legacyLeavingTomorrow: legacyFilterLeavingTomorrow
         )
     }
 
-    /// Save a filter from the sheet or a Reset action.
+    /// Save a filter from the sheet or a Reset action and retire the migrated older switches.
     ///
     /// - Parameter filter: The filter to apply.
     private func applyFilter(_ filter: ShopOfferFilter) {
-        filterNew = filter.new
-        filterAvailable = filter.available
-        filterLeavingTomorrow = filter.leavingTomorrow
+        savedFilter = filter.encoded()
+        legacyFilterNew = false
+        legacyFilterAvailable = false
+        legacyFilterLeavingTomorrow = false
     }
 
     private var offerActionsLayout: AnyLayout {
@@ -400,10 +405,10 @@ struct ShopScreen: View {
     /// What the Filter button announces after its label.
     ///
     /// - Parameter filter: The applied Shop filter.
-    /// - Returns: "No filters", or the selected groups in display order.
+    /// - Returns: "No filters", or "Hiding" and the switched-off groups in display order.
     static func filterAccessibilityValue(_ filter: ShopOfferFilter) -> String {
         filter.isActive
-            ? filter.selected.map(\.label).joined(separator: ", ")
+            ? "Hiding " + filter.hidden.map(\.label).joined(separator: ", ")
             : "No filters"
     }
 

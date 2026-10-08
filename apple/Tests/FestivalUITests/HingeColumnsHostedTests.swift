@@ -183,7 +183,7 @@ private struct SongDetailCardFixture: View {
     let typeSize: DynamicTypeSize
 
     var body: some View {
-        SongDetailCardGrid(instruments: [.lead, .bass, .drums]) { index, _ in
+        SongDetailCardGrid(items: [0, 1, 2]) { index, _ in
             Color.orange.frame(height: CGFloat(120 + 40 * index))
                 .accessibilityElement()
                 .accessibilityLabel("Card \(index)")
@@ -231,8 +231,8 @@ private func assertSongDetailCardsSplitAtTheFold(
     // is under the 360 pt minimum.
     #expect(abs(card0.maxX - leadingEnd) < pixelTolerance)
     #expect(abs(card1.minX - trailingStart) < pixelTolerance)
-    // One row: the eager grid top-aligns it, the lazy grid centres it.
-    #expect(card1.minY < card0.maxY && card0.minY < card1.maxY)
+    // One row, top-aligned in the eager and the lazy grid alike (#365).
+    #expect(abs(card1.minY - card0.minY) < pixelTolerance)
     #expect(abs(card2.minX - card0.minX) < pixelTolerance)
     #expect(card2.minY >= card1.maxY - pixelTolerance)
 
@@ -244,6 +244,7 @@ private func assertSongDetailCardsSplitAtTheFold(
     let flat0 = try #require(open["fixture.card.0"])
     let flat1 = try #require(open["fixture.card.1"])
     #expect(abs(flat0.width - flat1.width) < pixelTolerance)
+    #expect(abs(flat1.minY - flat0.minY) < pixelTolerance)
     #expect(abs(flat1.minX - flat0.maxX - SongDetailCardColumns.spacing) < pixelTolerance)
     #expect(flat0.maxX < bookFold.minX - SongDetailCardColumns.spacing)
 }

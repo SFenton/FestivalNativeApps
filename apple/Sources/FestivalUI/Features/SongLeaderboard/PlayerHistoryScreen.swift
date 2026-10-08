@@ -156,6 +156,7 @@ struct PlayerHistoryScreen: View {
                 }
             }
         }
+        .songBarTitleKeepsBarVisible(showsSongHeader)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

@@ -111,6 +111,14 @@ object RivalCategorization {
     fun description(key: String): String? = META[key]?.description
 
     /**
+     * Heading tone for a key.
+     *
+     * @param key Category key.
+     * @return Sentiment, neutral when unknown.
+     */
+    fun sentiment(key: String): RivalSentiment = META[key]?.sentiment ?: RivalSentiment.Neutral
+
+    /**
      * Split compared songs into non-empty categories in web order. A song may appear in
      * Closest Battles and its directional category; ties beyond Closest Battles are dropped.
      *
