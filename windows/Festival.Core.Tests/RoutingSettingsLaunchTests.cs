@@ -26,6 +26,9 @@ public class RoutingTests
         { new AppRoute.Leaderboards(), "/leaderboards", AppSection.Leaderboards },
         { new AppRoute.FullRankings(Instrument.Drums, "adjusted"), "/leaderboards/all?instrument=Solo_Drums&rankBy=adjusted", AppSection.Leaderboards },
         { new AppRoute.FullRankings(Instrument.Drums, "adjusted", 37), "/leaderboards/all?instrument=Solo_Drums&rankBy=adjusted&page=37", AppSection.Leaderboards },
+        // A Leaderboards card's "your rank" row opens the player's page and reveals their row (leaderboard-row R7, #370).
+        { new AppRoute.FullRankings(Instrument.Drums, "adjusted", 1, RevealSelected: true), "/leaderboards/all?instrument=Solo_Drums&rankBy=adjusted&page=1&navToPlayer=true", AppSection.Leaderboards },
+        { new AppRoute.FullRankings(Instrument.Lead, "totalscore", 5, RevealSelected: true), "/leaderboards/all?instrument=Solo_Guitar&rankBy=totalscore&page=5&navToPlayer=true", AppSection.Leaderboards },
         { new AppRoute.BandRankings("Band_Trios"), "/leaderboards/bands/Band_Trios", AppSection.Leaderboards },
         { new AppRoute.Rivals(), "/rivals", AppSection.Rivals },
         { new AppRoute.AllRivals(new RivalScope.FromSettings(RivalSettingsScope.Common)), "/rivals/all?category=common", AppSection.Rivals },
