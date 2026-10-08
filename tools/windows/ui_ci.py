@@ -5,8 +5,11 @@
 unlocked desktop), then calls this script. Every run serves the loopback fixtures, so CI makes no service calls.
 A run with a system ``mode`` (e.g. ``text-225``) changes the runner's own desktop setting and restores it afterwards.
 
-A journey is in CI only when it has a :data:`RUNS` entry; ``tests/test_ui_ci.py`` checks the entries and that the modal
-journey runs at default text and at 225% text (issue #400). Add an entry with each new ``journeys/a11y-*.json``.
+This is the one registry of Windows accessibility journeys that gate pull requests: a journey is in CI only when it has a
+:data:`RUNS` entry (``only`` limits a run to some of a file's pages). ``tests/test_ui_ci.py`` checks the entries and
+that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415) and the Quick Links landings
+(issue #416) run at default and 225% text.
+Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
 Usage::
 
@@ -41,6 +44,7 @@ class Run:
         mode: ``a11y_matrix`` mode (``normal`` or a ``MODES`` key, ``+``-joined).
         tabs: Tab presses per page and size (0: no walk).
         scan: Fail on any Axe.Windows error.
+        only: Comma-separated page names to run from ``pages`` (empty: every page).
     """
 
     name: str
@@ -49,6 +53,7 @@ class Run:
     mode: str = "normal"
     tabs: int = 30
     scan: bool = True
+    only: str = ""
 
     def argv(self, out: Path, exe: str | None = None) -> list[str]:
         """``a11y_matrix.main`` arguments for this run.
@@ -64,10 +69,16 @@ class Run:
                 "--tabs", str(self.tabs), "--out", str(out / self.name)]
         if self.scan:
             args.append("--scan")
+        if self.only:
+            args += ["--only", self.only]
         if exe:
             args += ["--exe", exe]
         return args
 
+
+#: The ``a11y-section-index.json`` fixture pages for the #48 backward pick (the file's other pages are ``--live``-capable
+#: host checks).
+SECTION_INDEX_BACKWARD = "index-backward-after-scroll,index-backward-after-scroll-keyboard"
 
 #: Journeys the ``windows-ui`` job runs, in order. ``wide`` (1440 epx) is left to the host matrix: the runner's
 #: desktop is 1920x1080 at 100% scale, so compact (500x800) and medium (900x700) fit with room for the taskbar.
@@ -76,6 +87,15 @@ RUNS: tuple[Run, ...] = (
     Run("modals", "a11y-modals.json"),
     # The same pages at Windows' largest text size: text on screen, commands reachable by Tab and hit-testable.
     Run("modals-text-225", "a11y-modals.json", sizes="compact", mode="text-225"),
+    # Songs Jump backward pick after a scroll (issues #48, #415): the pinned title names the picked section, reads
+    # "B, text", stays a Level 2 heading, Jump -> title -> list order, Jump's name and 40x40 target, by pointer and keys.
+    Run("section-index-backward", "a11y-section-index.json", only=SECTION_INDEX_BACKWARD),
+    Run("section-index-backward-text-225", "a11y-section-index.json", mode="text-225", only=SECTION_INDEX_BACKWARD),
+    # Quick Links landings on Settings and Leaderboards (issues #51, #416): entry name and current section, 40 epx
+    # entry and items, keyboard order, the jump announcement, heading landing inset and focus. The wide pane page
+    # (scale-100/150 modes) stays in the host matrix.
+    Run("quick-links-landing", "a11y-quick-links-landing.json", tabs=0),
+    Run("quick-links-landing-text-225", "a11y-quick-links-landing.json", sizes="compact", mode="text-225", tabs=0),
 )
 
 
@@ -124,7 +144,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(str(error))
     if args.list:
         for run in runs:
-            print(f"{run.name}: {run.pages} sizes={run.sizes} mode={run.mode} tabs={run.tabs} scan={run.scan}")
+            only = f" only={run.only}" if run.only else ""
+            print(f"{run.name}: {run.pages}{only} sizes={run.sizes} mode={run.mode} tabs={run.tabs} scan={run.scan}")
         return 0
     if args.out is None:
         parser.error("--out is required")
