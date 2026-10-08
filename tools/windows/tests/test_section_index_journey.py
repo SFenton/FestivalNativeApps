@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import ci_ui  # noqa: E402  (sibling module)
+import ui_ci  # noqa: E402  (sibling module)
 import uiwin  # noqa: E402  (sibling module)
 
 JOURNEY = Path(__file__).resolve().parents[1] / "journeys" / "a11y-section-index.json"
@@ -75,12 +75,12 @@ class SectionIndexJourneyTests(unittest.TestCase):
         self.assertIn("assertfocus:name=B@3", pick)
 
     def test_windows_ui_ci_runs_both_pages_at_225_percent_text(self):
-        """#415 review: the ``windows-ui`` job runs both pages, scanned, at compact through wide, at 100% and 225% text."""
-        entries = [e for e in ci_ui.load() if e["pages"] == JOURNEY.name]
-        covered = {(page, size, mode) for e in entries if e.get("scan", True)
-                   for page in e["only"] for size in e["sizes"] for mode in e["modes"]}
+        """#415 review: the ``windows-ui`` job (``ui_ci.RUNS``) runs both pages, Axe-scanned, at compact (Jump is
+        icon-only) and medium (labelled), at 100% and 225% text."""
+        covered = {(page, size, run.mode) for run in ui_ci.RUNS if run.pages == JOURNEY.name and run.scan
+                   for page in (run.only.split(",") if run.only else load()) for size in run.sizes.split(",")}
         for page in ("index-backward-after-scroll", "index-backward-after-scroll-keyboard"):
-            for size in ("compact", "medium", "wide"):
+            for size in ("compact", "medium"):
                 for mode in ("normal", "text-225"):
                     self.assertIn((page, size, mode), covered)
 

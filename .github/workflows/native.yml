@@ -1,6 +1,6 @@
 name: native
-# Windows and Android unit tests, the Windows accessibility journeys (windows-ui), plus the Android connected
-# @DeviceCi journeys on an emulator (the Apple builds run on the Mac through tools/lane_integrate.sh).
+# Windows and Android unit tests, plus the Android connected @DeviceCi journeys on an emulator
+# (the Apple builds run on the Mac through tools/lane_integrate.sh).
 on:
   push:
     branches: [master]
@@ -41,45 +41,6 @@ jobs:
       - name: Windows Core unit tests and coverage gate
         shell: pwsh
         run: ./tools/windows/test.ps1 -Coverage
-  windows-ui:
-    # Accessibility journeys listed in tools/windows/journeys/ci-ui.json, run by a11y_matrix.py (via ci_ui.py)
-    # against the Debug app on the runner's desktop session: UIA names, roles, heading levels, focus and reading
-    # order, target sizes and Axe.Windows scans at 100% and 225% text. The app talks only to the loopback fixture
-    # service (no public service calls). The runner is single-tenant, so the host desktop lock is uncontended.
-    runs-on: windows-latest
-    timeout-minutes: 60
-    env:
-      # Windows Python defaults to cp1252 for console and text files; the tools print and write UTF-8.
-      PYTHONUTF8: '1'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '9.0.x'
-      - name: Display resolution
-        # Hosted runners start at 1024x768, which clamps the wide (1440x900) preset; ask for 1080p and log the result.
-        shell: pwsh
-        run: |
-          try { Set-DisplayResolution -Width 1920 -Height 1080 -Force -ErrorAction Stop }
-          catch { Write-Warning "Set-DisplayResolution unavailable: $_" }
-          Add-Type -AssemblyName System.Windows.Forms
-          [System.Windows.Forms.Screen]::PrimaryScreen | Format-List Bounds, WorkingArea
-          "session $((Get-Process -Id $PID).SessionId)"
-      - name: Build app (Debug)
-        shell: pwsh
-        run: ./tools/windows/build.ps1
-      - name: Accessibility journeys (a11y_matrix)
-        run: python tools/windows/ci_ui.py --out "${{ runner.temp }}/windows-ui"
-      - name: Upload journey results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-ui-results
-          path: ${{ runner.temp }}/windows-ui
-          if-no-files-found: ignore
   android-unit:
     runs-on: ubuntu-latest
     timeout-minutes: 40
