@@ -7,17 +7,19 @@ import Testing
 @testable import FestivalUI
 import FestivalDesign
 
-/// Host the phone Shop list with a saved New / Available / Leaving Tomorrow filter
-/// (issue #19) over the synthetic feed: one New offer (gold border) and one Leaving
-/// Tomorrow offer (red border), no plain offers.
+/// Host the phone Shop list with saved Shop filter preferences (issues #19, #376) over
+/// the synthetic feed: one New offer (gold border) and one Leaving Tomorrow offer (red
+/// border), no plain offers.
 ///
 /// - Parameters:
-///   - filter: The saved Shop filter.
 ///   - name: Evidence file stem.
+///   - save: Writes the saved filter (or older "show only" switches) into the app storage.
+///   - settled: Stops polling once the accents show the expected rows.
 /// - Returns: Accent counts of the settled render.
 @MainActor
 private func renderFilteredShop(
-    _ filter: ShopOfferFilter, name: String
+    name: String, save: (UserDefaults) -> Void,
+    settled: ((gold: Int, red: Int, bright: Int)) -> Bool
 ) async throws -> (gold: Int, red: Int, bright: Int) {
     let bytes = try shopFixtureBytes()
     let suiteName = "fst-shop-filter-\(UUID().uuidString)"
@@ -25,9 +27,7 @@ private func renderFilteredShop(
     defer { storage.removePersistentDomain(forName: suiteName) }
     storage.set(true, forKey: "fst.accessibility.lessTransparency")
     storage.set(true, forKey: "fst.accessibility.reduceMotion")
-    storage.set(filter.new, forKey: "fst.shop.filterNew")
-    storage.set(filter.available, forKey: "fst.shop.filterAvailable")
-    storage.set(filter.leavingTomorrow, forKey: "fst.shop.filterLeavingTomorrow")
+    save(storage)
     let size = CGSize(width: 390, height: 844)
     let transport = HostedShopTransport(
         scenario: .populated, offers: bytes.offers, catalogue: bytes.catalogue
@@ -62,30 +62,85 @@ private func renderFilteredShop(
         _ = try nativeHostedPNG(
             image, filename: "shop-filter-\(name).png", environment: "FST_SHOP_RENDER_OUT"
         )
-        if (filter.new && last.gold > 10) || (filter.leavingTomorrow && last.red > 10) {
-            break
-        }
+        if settled(last) { break }
     }
     return last
 }
 
-/// New shows only the gold New offer; Leaving Tomorrow only the red one.
+/// Host the Shop with a saved filter.
+///
+/// - Parameters:
+///   - filter: The saved Shop filter.
+///   - name: Evidence file stem.
+///   - settled: Stops polling once the accents show the expected rows.
+/// - Returns: Accent counts of the settled render.
 @MainActor
-@Test func shopFilterShowsOnlySelectedAvailability() async throws {
-    let new = try await renderFilteredShop(ShopOfferFilter(new: true), name: "new")
-    #expect(new.gold > 10)
-    #expect(new.red < 5)
-    let leaving = try await renderFilteredShop(
-        ShopOfferFilter(leavingTomorrow: true), name: "leaving"
+private func renderFilteredShop(
+    _ filter: ShopOfferFilter, name: String,
+    settled: ((gold: Int, red: Int, bright: Int)) -> Bool
+) async throws -> (gold: Int, red: Int, bright: Int) {
+    try await renderFilteredShop(
+        name: name,
+        save: { $0.set(filter.encoded(), forKey: ShopOfferFilter.storageKey) },
+        settled: settled
     )
-    #expect(leaving.red > 10)
-    #expect(leaving.gold < 5)
+}
+
+/// A fresh Shop filter (every switch on) lists both the New and Leaving Tomorrow offers.
+@MainActor
+@Test func shopFilterDefaultShowsEveryOffer() async throws {
+    let all = try await renderFilteredShop(ShopOfferFilter(), name: "default") {
+        $0.gold > 10 && $0.red > 10
+    }
+    #expect(all.gold > 10)
+    #expect(all.red > 10)
+}
+
+/// Turning Leaving Tomorrow off hides the red offer; turning New off hides the gold one.
+@MainActor
+@Test func shopFilterHidesSwitchedOffAvailability() async throws {
+    let hideLeaving = try await renderFilteredShop(
+        ShopOfferFilter(leavingTomorrow: false), name: "hide-leaving"
+    ) { $0.gold > 10 }
+    #expect(hideLeaving.gold > 10)
+    #expect(hideLeaving.red < 5)
+    let hideNew = try await renderFilteredShop(
+        ShopOfferFilter(new: false), name: "hide-new"
+    ) { $0.red > 10 }
+    #expect(hideNew.red > 10)
+    #expect(hideNew.gold < 5)
+}
+
+/// Saved "show only" switches from before issue #376 keep the same offers on screen.
+@MainActor
+@Test func shopFilterMigratesSavedShowOnlySwitches() async throws {
+    let newOnly = try await renderFilteredShop(
+        name: "legacy-new",
+        save: { $0.set(true, forKey: ShopOfferFilter.legacyNewKey) },
+        settled: { $0.gold > 10 }
+    )
+    #expect(newOnly.gold > 10)
+    #expect(newOnly.red < 5)
+    let noneSelected = try await renderFilteredShop(
+        name: "legacy-none",
+        save: { storage in
+            for key in [
+                ShopOfferFilter.legacyNewKey, ShopOfferFilter.legacyAvailableKey,
+                ShopOfferFilter.legacyLeavingTomorrowKey,
+            ] { storage.set(false, forKey: key) }
+        },
+        settled: { $0.gold > 10 && $0.red > 10 }
+    )
+    #expect(noneSelected.gold > 10)
+    #expect(noneSelected.red > 10)
 }
 
 /// A filter that hides every offer paints the no-match card, not a highlighted row.
 @MainActor
 @Test func shopFilterWithNoMatchesPaintsResetCard() async throws {
-    let none = try await renderFilteredShop(ShopOfferFilter(available: true), name: "no-match")
+    let none = try await renderFilteredShop(
+        ShopOfferFilter(new: false, leavingTomorrow: false), name: "no-match"
+    ) { _ in false }
     #expect(none.bright > 20)
     // No gold New border; the only red is the Reset Filters text, not a Leaving border.
     #expect(none.gold < 5)
@@ -96,7 +151,7 @@ private func renderFilteredShop(
 @Test func shopFilterSheetPaints() async throws {
     let size = CGSize(width: 420, height: 360)
     let host = nativeHostedView(
-        ShopFilterSheet(applied: ShopOfferFilter(new: true)) { _ in }
+        ShopFilterSheet(applied: ShopOfferFilter(leavingTomorrow: false)) { _ in }
             .macSheetFrame(width: size.width, height: size.height)
             .preferredColorScheme(.dark),
         size: size
@@ -109,12 +164,17 @@ private func renderFilteredShop(
     #expect(nativeHostedControlPixels(image).bright > 20)
 }
 
-/// The Filter button announces the selected groups in display order.
+/// The Filter button announces the switched-off groups in display order.
 @Test func shopFilterButtonAccessibilityValue() {
     #expect(ShopScreen.filterAccessibilityValue(ShopOfferFilter()) == "No filters")
     #expect(
-        ShopScreen.filterAccessibilityValue(ShopOfferFilter(new: true, leavingTomorrow: true))
-            == "New, Leaving Tomorrow"
+        ShopScreen.filterAccessibilityValue(ShopOfferFilter(new: false, leavingTomorrow: false))
+            == "Hiding New, Leaving Tomorrow"
+    )
+    #expect(
+        ShopScreen.filterAccessibilityValue(
+            ShopOfferFilter(new: false, available: false, leavingTomorrow: false)
+        ) == "Hiding New, Available, Leaving Tomorrow"
     )
     #expect(ShopAvailability.allCases.allSatisfy { !ShopFilterSheet.hint($0).isEmpty })
 }
