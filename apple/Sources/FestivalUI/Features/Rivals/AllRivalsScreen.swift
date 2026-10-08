@@ -50,9 +50,9 @@ struct AllRivalsScreen: View {
             if session.selectedPlayer == nil {
                 RivalsChooseProfileState { openProfile() }
             } else if instruments.isEmpty {
-                ContentUnavailableView(
+                FestivalEmptyState(
                     "Unknown Category", systemImage: "questionmark.circle",
-                    description: Text("This rivals list could not be identified.")
+                    subtitle: "This rivals list could not be identified."
                 )
             } else {
                 content
@@ -85,9 +85,9 @@ struct AllRivalsScreen: View {
         case let .failed(issue):
             ServiceStatusView(issue, title: "Rivals Unavailable") { Task { await load() } }
         case let .loaded(rows) where rows.isEmpty:
-            ContentUnavailableView(
+            FestivalEmptyState(
                 "No Rivals Yet", systemImage: "person.2.slash",
-                description: Text("No rivals have been found for this scope yet.")
+                subtitle: "No rivals have been found for this scope yet."
             )
         case let .loaded(rows):
             // iPhone Duo inner display, portrait: the list on top, the selected
