@@ -32,11 +32,14 @@ import org.junit.runner.RunWith
  * First Run song demos on a real device window (issue #420, for #57's real catalogue songs).
  * The Songs tour's song demos (song list, Shop highlight, New in Shop, Leaving tomorrow) are
  * decorative: with catalogue songs or with redacted placeholders, TalkBack reads each slide as
- * its heading then its description, never a song title or artist, ATF finds nothing, hardware
- * Tab never stops inside a demo, and at 200% text the footer stays inside the dialog.
- * Run with `device.py test com.festivalscoretracker.android.journeys.FirstRunDemoSongsJourneyTest --avd …`.
+ * its heading then its description, never a song title or artist, ATF finds nothing, the first
+ * hardware Tab from touch mode lands on a dialog control, Tab and Shift+Tab never stop inside a
+ * demo, and at 200% text the footer stays inside the dialog.
+ * `@DeviceCi`: the `android-device` CI job runs it; locally,
+ * `device.py test com.festivalscoretracker.android.journeys.FirstRunDemoSongsJourneyTest --avd …`.
  * The Robolectric `FirstRunDemoSongsAccessibilityUiTest` covers every song demo of every tour.
  */
+@DeviceCi
 @RunWith(AndroidJUnit4::class)
 class FirstRunDemoSongsJourneyTest {
     @get:Rule
@@ -124,20 +127,35 @@ class FirstRunDemoSongsJourneyTest {
         return drawn
     }
 
-    /** Presses hardware Tab until Next/Done has focus, failing if focus ever lands inside a demo. */
+    /**
+     * From the state the slide left (a touch-mode window after tapping Next: nothing focused),
+     * presses hardware Tab until Next/Done has focus, then Shift+Tab until Close has focus,
+     * failing if focus ever lands inside a demo or nowhere in the dialog.
+     */
     private fun assertTabSkipsTheDemo(slide: FirstRunSlide, last: Boolean) {
         val target = if (last) "fst.first-run.done" else "fst.first-run.next"
+        tabUntil(slide, KeyEvent.KEYCODE_TAB, 0, target)
+        tabUntil(slide, KeyEvent.KEYCODE_TAB, KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON, "fst.first-run.close")
+    }
+
+    /** Presses [code] with [meta] until [target] has focus; never a demo node, never nowhere after the first press. */
+    private fun tabUntil(slide: FirstRunSlide, code: Int, meta: Int, target: String) {
+        val key = if (meta != 0) "Shift+Tab" else "Tab"
         val stops = mutableListOf<String?>()
         for (step in 0 until 8) {
-            InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_TAB)
+            val time = android.os.SystemClock.uptimeMillis()
+            val instrumentation = InstrumentationRegistry.getInstrumentation()
+            instrumentation.sendKeySync(KeyEvent(time, time, KeyEvent.ACTION_DOWN, code, 0, meta))
+            instrumentation.sendKeySync(KeyEvent(time, time, KeyEvent.ACTION_UP, code, 0, meta))
             rule.waitForIdle()
             val inDemo = rule.onAllNodes(isFocused() and hasAnyAncestor(hasTestTag("fst.first-run.demo")), useUnmergedTree = true).fetchSemanticsNodes()
-            assertTrue("${slide.id}: Tab ${step + 1} after $stops focused a hidden demo node", inDemo.isEmpty())
+            assertTrue("${slide.id}: $key ${step + 1} after $stops focused a hidden demo node", inDemo.isEmpty())
             val focused = rule.onAllNodes(isFocused() and hasAnyAncestor(hasTestTag("fst.first-run.dialog")), useUnmergedTree = true).fetchSemanticsNodes()
             stops += focused.firstOrNull()?.config?.getOrNull(SemanticsProperties.TestTag)
             if (stops.last() == target) break
         }
-        assertEquals("${slide.id}: Tab reaches $target (stops $stops)", target, stops.last())
+        assertEquals("${slide.id}: $key reaches $target (stops $stops)", target, stops.last())
+        assertTrue("${slide.id}: $key never leaves focus nowhere after entering the dialog (stops $stops)", stops.drop(1).none { it == null })
     }
 
     /** Catalogue songs fill the demos (#57) but stay hidden from TalkBack and keyboard focus. */
