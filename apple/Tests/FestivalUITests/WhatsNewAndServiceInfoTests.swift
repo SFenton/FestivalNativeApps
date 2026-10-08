@@ -226,6 +226,15 @@ func serviceInfoDiscoverySnapshot() throws -> SettingsServiceInfoModel.Phase {
     #expect(naRows.barPercent == nil)
 }
 
+/// Only an unknown total sweeps, and system or in-app Reduce Motion (passed combined) or the
+/// UI-test still override holds the track empty (issue #399, load-transition R6).
+@Test func serviceProgressBarSweepsOnlyForUnknownTotalsWithMotion() {
+    #expect(ServiceProgressBar.sweeps(percent: nil, reduceMotion: false, still: false))
+    #expect(!ServiceProgressBar.sweeps(percent: nil, reduceMotion: true, still: false))
+    #expect(!ServiceProgressBar.sweeps(percent: nil, reduceMotion: false, still: true))
+    #expect(!ServiceProgressBar.sweeps(percent: 42, reduceMotion: false, still: false))
+}
+
 // MARK: - Service Info model
 
 private struct Boom: Error {}

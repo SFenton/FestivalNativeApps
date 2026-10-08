@@ -203,4 +203,114 @@ func serviceInfoPhaseRowWrapsInsteadOfTruncatingInANarrowColumn(_ width: CGFloat
     let state = try #require(nodes.first { $0.identifier == stateID })
     #expect(state.label == "Leaderboard Service State, Registered Player Band Discovery")
 }
+
+// MARK: - Reduce Motion (the indeterminate bar)
+
+/// A scrape subphase with no progress: the bar has no known total (web
+/// `settings-progress-indeterminate`).
+private func serviceInfoIndeterminateSnapshot() throws -> SettingsServiceInfoModel.Phase {
+    let body = try JSONDecoder().decode(ServiceInfo.self, from: Data("""
+    {"lastCompletedUpdate":{"publishedAt":"2026-01-01T12:00:00Z"},
+     "currentUpdate":{"status":"updating","startedAt":null,"phase":"Scraping",
+      "subOperation":null,"phaseId":"scrape.leaderboards","subphaseId":"deep_scraping"},
+     "workerStatus":{"status":"online"},"nextScheduledUpdateAt":null}
+    """.utf8))
+    return .loaded(
+        ServiceInfoSnapshot(info: body, freezeReasonHeader: nil),
+        ServiceProgressReducer.reduce(nil, body).display
+    )
+}
+
+/// Pixels of the sweeping segment's fill (`BrandTokens.accentPurple` #7C3AED, antialiased)
+/// and of the muted track (`BrandTokens.surfaceMuted` #223047) in a bar capture.
+private func barPixels(_ image: CGImage) -> (segment: Int, track: Int) {
+    NativeHostedPixels(image).withBytes { bytes in
+        var segment = 0, track = 0
+        for i in stride(from: 0, to: bytes.count, by: 4) where bytes[i + 3] > 200 {
+            let r = Int(bytes[i]), g = Int(bytes[i + 1]), b = Int(bytes[i + 2])
+            if b > 170, r > 80, b - g > 100 { segment += 1 }
+            if abs(r - 34) < 12, abs(g - 48) < 12, abs(b - 71) < 12 { track += 1 }
+        }
+        return (segment, track)
+    }
+}
+
+/// Host the card with an indeterminate bar under the given Reduce Motion settings and sample
+/// the bar's rect every 50 ms for `duration`, or until `stop` holds.
+@MainActor
+private func indeterminateBarSamples(
+    system: Bool, app: Bool, for duration: Duration, name: String,
+    stop: ([(segment: Int, track: Int, signature: Int)]) -> Bool = { _ in false }
+) async throws -> (samples: [(segment: Int, track: Int, signature: Int)], phase: MacAXNode, reachable: [String]) {
+    let suiteName = "fst-service-info-motion-\(UUID().uuidString)"
+    let storage = try #require(UserDefaults(suiteName: suiteName))
+    defer { storage.removePersistentDomain(forName: suiteName) }
+    storage.set(app, forKey: "fst.accessibility.reduceMotion")
+    let session = FestivalSession(factory: { throw FestivalAPIError.invalidResource })
+    let size = CGSize(width: 402, height: 400)
+    let host = nativeHostedView(
+        SettingsServiceInfoSection(session: session, isVisible: false, initialPhase: try serviceInfoIndeterminateSnapshot())
+            .environment(\._accessibilityReduceMotion, system)
+            .defaultAppStorage(storage)
+            .padding(16)
+            .frame(width: size.width, height: size.height, alignment: .top)
+            .background(BrandTokens.cardBackground)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    try await nativeHostedSettle(host, untilText: [ServiceInfoText.progressIndeterminate])
+    let nodes = macAccessibilityTree(host)
+    macAccessibilityDump(nodes, name: name)
+    let phase = try #require(nodes.first { $0.identifier == phaseID })
+    // The bar is the phase row's last 10 pt (no attempt line in this phase).
+    let row = try #require(nativeHostedAccessibilityFrame(phaseID, in: host))
+    let bar = CGRect(x: row.minX, y: row.maxY - 10, width: row.width, height: 10)
+    var samples: [(segment: Int, track: Int, signature: Int)] = []
+    let deadline = ContinuousClock.now + duration
+    while ContinuousClock.now < deadline, !stop(samples) {
+        let image = try nativeHostedImage(host, in: bar)
+        let pixels = barPixels(image)
+        samples.append((pixels.segment, pixels.track, nativeHostedSignature(image)))
+        try await Task.sleep(for: .milliseconds(50))
+    }
+    return (samples, phase, reachableRoles(host))
+}
+
+/// Under system or in-app Reduce Motion an unknown total holds a still, empty track for
+/// longer than one 1.25 s sweep: no segment, the same frame every time, while VoiceOver
+/// still hears that the total isn't known (#22's bar; load-transition R6; HIG Accessibility
+/// "reduce automatic and repetitive animation").
+@MainActor
+@Test(arguments: [(system: true, app: false), (system: false, app: true)])
+func serviceInfoIndeterminateBarHoldsStillUnderReduceMotion(setting: (system: Bool, app: Bool)) async throws {
+    let (samples, phase, reachable) = try await indeterminateBarSamples(
+        system: setting.system, app: setting.app, for: .milliseconds(1_600),
+        name: "service-info-indeterminate-reduce-motion-\(setting.system ? "system" : "app")"
+    )
+    #expect(samples.count >= 5, "too few samples: \(samples.count)")
+    #expect(samples.allSatisfy { $0.segment == 0 }, "segment drawn: \(samples.map(\.segment))")
+    #expect(samples.allSatisfy { $0.track > 0 }, "track missing: \(samples.map(\.track))")
+    #expect(Set(samples.map(\.signature)).count == 1, "bar moved under Reduce Motion")
+    #expect(phase.role == "AXStaticText")
+    #expect(phase.label == ServiceInfoRows.make(try serviceInfoIndeterminateSnapshot()).phaseTitle)
+    #expect(phase.value == ServiceInfoText.progressIndeterminate)
+    #expect(progressRoles.isDisjoint(with: reachable), "\(reachable)")
+}
+
+/// The contrast case: with motion allowed the same bar draws the moving segment, so the
+/// still track above is Reduce Motion's doing and not a bar that never sweeps.
+@MainActor
+@Test func serviceInfoIndeterminateBarSweepsWithMotion() async throws {
+    let (samples, phase, _) = try await indeterminateBarSamples(
+        system: false, app: false, for: .seconds(10), name: "service-info-indeterminate-motion",
+        stop: { samples in
+            samples.contains { $0.segment > 0 } && Set(samples.map(\.signature)).count > 1
+        }
+    )
+    #expect(samples.contains { $0.segment > 0 }, "segment never drawn: \(samples.map(\.segment))")
+    #expect(Set(samples.map(\.signature)).count > 1, "bar never moved")
+    #expect(phase.value == ServiceInfoText.progressIndeterminate)
+}
 #endif

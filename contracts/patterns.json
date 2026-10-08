@@ -2711,8 +2711,8 @@
       ],
       "web": [
         {
-          "path": "pages/settings/SettingsPage.tsx",
-          "symbol": "versionRow"
+          "path": "pages/settings/SettingsVersionList.tsx",
+          "symbol": "SettingsVersionList"
         },
         {
           "path": "pages/settings/SettingsServiceProgress.tsx",

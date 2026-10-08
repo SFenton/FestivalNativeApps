@@ -12,7 +12,7 @@ A Settings row that reports a value never squeezes its title into a sliver or cl
 
 | Web | Behavior |
 |---|---|
-| `FortniteFestivalWeb/src/pages/settings/SettingsPage.tsx` (`versionRow`) | Version card rows: label start, value (`versionValue`, secondary text) end. |
+| `FortniteFestivalWeb/src/pages/settings/SettingsVersionList.tsx` (`SettingsVersionList`) | Version card rows as a description list (`<dt>` label start, `<dd>` value end in secondary text); the row is a wrapping flex row, so the value drops under the label when both don't fit, and assistive technology ties each value to its label. |
 | `FortniteFestivalWeb/src/pages/settings/SettingsServiceProgress.tsx` (`ServiceInfoRow`) | Service Info rows (`modalStyles.toggleRow`): label and description in a flexible column, the process state (`ProcessStateDisplay`, text plus spinner) as the trailing element. |
 
 The web lets the browser's flex layout wrap; the natives make the same "never crush the title" outcome explicit with a measured fit rule.
