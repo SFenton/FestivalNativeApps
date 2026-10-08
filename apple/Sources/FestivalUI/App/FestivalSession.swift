@@ -70,6 +70,10 @@ final class FestivalSession {
     private(set) var selectedBandScoreObservation: Int?
     private(set) var bandLoadState: SelectedPlayerLoadState = .none
     @ObservationIgnored private var bandRequestRevision = 0
+    /// Bumped each time a profile change resets the saved Songs settings (web
+    /// `resetSongSettingsForDeselect`, issue #359); roots clear the Songs instrument
+    /// they own when it changes.
+    private(set) var songSettingsResetRevision = 0
     /// The last catalogue's current season; only highlights song-page season pills.
     private(set) var catalogCurrentSeason: Int?
 
@@ -262,6 +266,7 @@ final class FestivalSession {
         let scores = try payload.profile.scoreIndex(requestedAccountId: identity.accountId)
         let stored = try JSONEncoder().encode(identity)
         selectionStorage?.set(stored, forKey: SelectedPlayerIdentity.storageKey)
+        let previous = songsProfileScope
         profileRequestRevision += 1
         clearSelectedBand()
         selectedPlayer = identity
@@ -269,20 +274,42 @@ final class FestivalSession {
         selectedPlayerScoreObservation = payload.observedPublicationId
         playerLoadState = .available
         playerError = nil
+        resetSongSettingsIfNeeded(from: previous)
         selectionRevision += 1
     }
 
-    /// Remove identity and process-only scores while keeping app Settings intact.
+    /// Remove identity and process-only scores while keeping app Settings intact, and
+    /// return Songs to its default filters, instrument and sort like the web.
     func deselectPlayer() {
+        let previous = songsProfileScope
         selectionStorage?.removeObject(forKey: SelectedPlayerIdentity.storageKey)
-        selectionStorage?.removeObject(forKey: SongPlayerScoreFilter.storageKey)
         profileRequestRevision += 1
         selectedPlayer = nil
         selectedPlayerScores.removeAll()
         selectedPlayerScoreObservation = nil
         playerLoadState = .none
         playerError = nil
+        resetSongSettingsIfNeeded(from: previous)
         selectionRevision += 1
+    }
+
+    /// The selected profile's kind for the web's Songs reset rule, or nil without one.
+    private var songsProfileScope: SongsProfileScope? {
+        if selectedPlayer != nil { return .player }
+        return selectedBand == nil ? nil : .band
+    }
+
+    /// Reset the saved Songs settings when a deselect or a player/band switch calls for
+    /// it (web `shouldResetSongSettingsForProfileChange` then `resetSongSettingsForDeselect`,
+    /// issue #359), so no saved player filter or sort is left paused without a player.
+    ///
+    /// - Parameter previous: The profile scope before this change.
+    private func resetSongSettingsIfNeeded(from previous: SongsProfileScope?) {
+        guard SongSettingsReset.shouldReset(from: previous, to: songsProfileScope) else { return }
+        if let selectionStorage {
+            SongsPresetStore.resetForProfileChange(in: selectionStorage)
+        }
+        songSettingsResetRevision += 1
     }
 
     /// Reload only the selected account, refusing stale completion after a switch.
