@@ -16,8 +16,9 @@ import SwiftUI
 /// Two layouts draw pinned titles, and both mask rows with ``PinnedHeaderFadeMask``:
 ///
 /// - **Songs** (iOS 26 and later) draws its own floating section bar over the List and
-///   masks the whole List under it (``SwiftUI/View/pinnedHeaderEdgeFadeMask(edge:active:depthLimit:)``,
-///   issues #10, #298).
+///   masks each row against the bar's edge
+///   (``SwiftUI/View/pinnedHeaderEdgeFadeRowMask(edge:active:depthLimit:rowLimit:)``,
+///   issues #10, #298); never a List-wide mask, which snapped the large title closed (#383).
 /// - **Sheet lists** (Notifications) use the List's native pinned section headers, so
 ///   each row masks itself (``SwiftUI/View/pinnedHeaderEdgeFadeRow(_:first:background:)``,
 ///   issue #301). A single mask over the whole List cannot show the header while hiding

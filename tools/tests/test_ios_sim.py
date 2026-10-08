@@ -140,6 +140,67 @@ class ResolveDeviceTests(unittest.TestCase):
         self.assertEqual(resolve_device("SOME-OTHER-UDID"), "SOME-OTHER-UDID")
 
 
+class RequireRunTests(unittest.TestCase):
+    """``uitest --require-run`` rejects green batches that executed nothing."""
+
+    def test_passed_without_skips_counts(self):
+        self.assertIsNone(ios_sim.require_run_problem({"passedTests": 1, "skippedTests": 0}))
+
+    def test_any_skip_fails(self):
+        self.assertEqual(
+            ios_sim.require_run_problem({"passedTests": 2, "skippedTests": 1}), "1 test(s) skipped"
+        )
+
+    def test_empty_run_fails(self):
+        self.assertEqual(ios_sim.require_run_problem({"passedTests": 0}), "no test ran")
+
+    def test_unreadable_summary_fails(self):
+        self.assertEqual(
+            ios_sim.require_run_problem(None), "the result summary could not be read"
+        )
+
+
+class CIDeviceTests(unittest.TestCase):
+    """``ci-device`` picks the newest available iOS runtime and refuses to run locally."""
+
+    RUNTIMES = [
+        {"identifier": "com.apple.CoreSimulator.SimRuntime.iOS-18-6", "version": "18.6",
+         "platform": "iOS", "isAvailable": True},
+        {"identifier": "com.apple.CoreSimulator.SimRuntime.iOS-26-5", "version": "26.5",
+         "platform": "iOS", "isAvailable": True},
+        {"identifier": "com.apple.CoreSimulator.SimRuntime.iOS-27-1", "version": "27.1",
+         "platform": "iOS", "isAvailable": False},
+        {"identifier": "com.apple.CoreSimulator.SimRuntime.watchOS-27-1", "version": "27.1",
+         "platform": "watchOS", "isAvailable": True},
+        {"identifier": "com.apple.CoreSimulator.SimRuntime.iOS-27-0", "version": "27.0",
+         "platform": "iOS", "isAvailable": True},
+    ]
+
+    def test_newest_available_ios_runtime_wins(self):
+        self.assertEqual(
+            ios_sim.pick_ios_runtime(self.RUNTIMES), "com.apple.CoreSimulator.SimRuntime.iOS-27-0"
+        )
+
+    def test_versions_compare_numerically(self):
+        runtimes = [
+            {"identifier": "com.apple.CoreSimulator.SimRuntime.iOS-26-10", "version": "26.10"},
+            {"identifier": "com.apple.CoreSimulator.SimRuntime.iOS-26-9", "version": "26.9"},
+        ]
+        self.assertEqual(
+            ios_sim.pick_ios_runtime(runtimes), "com.apple.CoreSimulator.SimRuntime.iOS-26-10"
+        )
+
+    def test_nothing_new_enough(self):
+        self.assertIsNone(ios_sim.pick_ios_runtime(self.RUNTIMES[:1]))
+
+    def test_refuses_outside_ci(self):
+        from unittest import mock
+        with mock.patch.dict(ios_sim.os.environ, {"CI": ""}), \
+                mock.patch.object(ios_sim, "_run") as run:
+            self.assertEqual(ios_sim.main(["ci-device"]), 2)
+            run.assert_not_called()
+
+
 class SourceHashTests(unittest.TestCase):
     """The driver rebuild cache must react to real edits and nothing else."""
 

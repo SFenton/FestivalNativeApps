@@ -37,6 +37,12 @@ Examples::
     python3 tools/ios_sim.py uitest \
         --only ShellJourneyTests --only LeaderboardsJourneyTests
 
+    # CI only (GitHub runner, never this Mac): create a runner simulator, then run a
+    # journey that must execute (a skipped or empty run fails).
+    UDID=$(python3 tools/ios_sim.py ci-device)
+    python3 tools/ios_sim.py uitest --device "$UDID" --require-run \
+        --only SongsChromeJourneyTests/testSectionBarFadeAtLargestTextKeepsRowsNamedAndPassesTheAudit
+
 Devices are named by alias (see ``DEVICES``) or UDID. The default is the
 iPhone 17 Pro on iOS 26.5 (Liquid Glass).
 """
@@ -700,6 +706,8 @@ POSE_EXPECTED_CLASS = {"folded": "folded", "unfolded": "unfolded", "half": "unfo
 EXIT_POSE_MISMATCH = 3
 EXIT_NO_ACCESSIBILITY = 4
 EXIT_NO_CONTROL = 5
+#: ``uitest --require-run``: the batch was green but skipped tests or ran none.
+EXIT_NOT_RUN = 6
 
 #: Compiled accessibility helper (System Events reports DeviceHub with pid 0 and no
 #: windows on macOS 27, so JXA cannot see it; the AX API addressed by pid can).
@@ -1795,6 +1803,13 @@ def cmd_uitest(args: argparse.Namespace) -> int:
             print(f"uitest {label} FAILED after {elapsed:.1f}s; last lines of {log_path}:", file=sys.stderr)
             print("\n".join(log_text.splitlines()[-60:]), file=sys.stderr)
             print(f"result bundle: {result_bundle}", file=sys.stderr)
+        elif getattr(args, "require_run", False) and (
+            problem := require_run_problem(_result_summary(result_bundle))
+        ):
+            failed_batches.append((batch, EXIT_NOT_RUN))
+            print(f"uitest {label} FAILED (--require-run): {problem}{_result_counts(result_bundle)}",
+                  file=sys.stderr)
+            print(f"result bundle: {result_bundle}", file=sys.stderr)
         else:
             print(f"uitest {label} OK in {elapsed:.1f}s ({len(batch)} selector(s)){_result_counts(result_bundle)}",
                   file=sys.stderr)
@@ -1821,6 +1836,27 @@ def cmd_uitest(args: argparse.Namespace) -> int:
     return 0
 
 
+def _result_summary(result_bundle: Path) -> dict | None:
+    """Read a result bundle's test summary (``xcresulttool get test-results summary``).
+
+    Args:
+        result_bundle: The batch's ``.xcresult`` path.
+
+    Returns:
+        The summary object (``passedTests``, ``skippedTests``, ``failedTests`` …), or None
+        when it cannot be read.
+    """
+    try:
+        out = subprocess.run(
+            ["xcrun", "xcresulttool", "get", "test-results", "summary", "--path", str(result_bundle)],
+            env=_env(), capture_output=True, text=True, check=True, timeout=60,
+        ).stdout
+        summary = json.loads(out)
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+    return summary if isinstance(summary, dict) else None
+
+
 def _result_counts(result_bundle: Path) -> str:
     """Summarize a result bundle's passed/skipped/failed counts (``-quiet`` hides them).
 
@@ -1833,16 +1869,35 @@ def _result_counts(result_bundle: Path) -> str:
     Returns:
         ``": N passed, N skipped, N failed"``, or an empty string when unavailable.
     """
-    try:
-        out = subprocess.run(
-            ["xcrun", "xcresulttool", "get", "test-results", "summary", "--path", str(result_bundle)],
-            env=_env(), capture_output=True, text=True, check=True, timeout=60,
-        ).stdout
-        summary = json.loads(out)
-    except (OSError, subprocess.SubprocessError, ValueError):
+    summary = _result_summary(result_bundle)
+    if summary is None:
         return ""
     return (f": {summary.get('passedTests', 0)} passed, {summary.get('skippedTests', 0)} skipped, "
             f"{summary.get('failedTests', 0)} failed")
+
+
+def require_run_problem(summary: dict | None) -> str | None:
+    """Explain why a green batch does not count under ``--require-run``.
+
+    ``xcodebuild`` exits 0 when every selected test skips (a missing fixture, an older
+    runtime) or when a selector matches nothing, so CI could pass without running the
+    journey it names.
+
+    Args:
+        summary: ``_result_summary`` output, or None when it was unreadable.
+
+    Returns:
+        None when at least one test passed and none skipped; otherwise the reason.
+    """
+    if summary is None:
+        return "the result summary could not be read"
+    passed = int(summary.get("passedTests", 0) or 0)
+    skipped = int(summary.get("skippedTests", 0) or 0)
+    if skipped:
+        return f"{skipped} test(s) skipped"
+    if not passed:
+        return "no test ran"
+    return None
 
 
 def _run_uitest_batch(
@@ -1933,6 +1988,67 @@ def _run_uitest_batch(
                 log.write(f"\nTIMEOUT after {timeout}s; killed.\n")
     elapsed = time.time() - start
     return process.returncode, elapsed, log_path, result_bundle
+
+#: Oldest iOS runtime ``ci-device`` accepts: the floating Songs section bar needs iOS 26.
+CI_MIN_IOS = (26, 0)
+
+
+def _version_tuple(text: str) -> tuple[int, ...]:
+    """Parse ``"27.1"`` into ``(27, 1)``; non-numeric parts count as 0."""
+    return tuple(int(part) if part.isdigit() else 0 for part in text.split("."))
+
+
+def pick_ios_runtime(runtimes: list[dict], minimum: tuple[int, ...] = CI_MIN_IOS) -> str | None:
+    """Choose the newest available iOS simulator runtime from ``simctl list -j runtimes``.
+
+    Args:
+        runtimes: The ``runtimes`` array of ``xcrun simctl list -j runtimes``.
+        minimum: Oldest acceptable iOS version.
+
+    Returns:
+        The runtime ``identifier``, or None when no available iOS runtime is new enough.
+    """
+    candidates = [
+        runtime for runtime in runtimes
+        if runtime.get("platform", "iOS") == "iOS"
+        and str(runtime.get("identifier", "")).startswith("com.apple.CoreSimulator.SimRuntime.iOS")
+        and runtime.get("isAvailable", True)
+        and _version_tuple(str(runtime.get("version", "0"))) >= minimum
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda runtime: _version_tuple(str(runtime.get("version", "0"))))["identifier"]
+
+
+def cmd_ci_device(args: argparse.Namespace) -> int:
+    """Create a fresh simulator on a CI runner and print its UDID.
+
+    GitHub's ephemeral macOS runners have none of the ``DEVICES`` UDIDs. This creates
+    one ``--device-type`` simulator on the newest available iOS runtime (at least
+    ``CI_MIN_IOS``) for ``uitest --device <UDID>``. It refuses to run outside CI so it
+    never adds devices to a shared Mac.
+
+    Args:
+        args: Parsed CLI arguments (device_type, name).
+
+    Returns:
+        Process exit code.
+    """
+    if os.environ.get("CI", "").lower() != "true":
+        print("ci-device runs only on CI runners (CI=true); locally use a DEVICES alias", file=sys.stderr)
+        return 2
+    listed = _run(["xcrun", "simctl", "list", "-j", "runtimes"], capture_output=True, text=True)
+    runtime = pick_ios_runtime(json.loads(listed.stdout).get("runtimes", []))
+    if runtime is None:
+        print(f"no available iOS runtime >= {'.'.join(map(str, CI_MIN_IOS))}", file=sys.stderr)
+        return 1
+    created = _run(["xcrun", "simctl", "create", args.name, args.device_type, runtime],
+                   capture_output=True, text=True)
+    udid = created.stdout.strip()
+    print(f"created {args.name} ({args.device_type}, {runtime}): {udid}", file=sys.stderr)
+    print(udid)
+    return 0
+
 
 def _with_sim_lock(udid: str, action) -> int:
     """Boot ``udid`` exclusively under the simulator lock and run ``action(udid)``.
@@ -2126,7 +2242,16 @@ def main(argv: list[str] | None = None) -> int:
     uitest.add_argument("--rotate", action="append", choices=["left", "right"],
                         help="with --set-pose: Device Hub rotations after the pose, applied from a fresh "
                              "boot (default orientation) whenever the Duo had to boot (repeatable)")
+    uitest.add_argument("--require-run", action="store_true",
+                        help="fail a batch whose tests all skipped, that skipped any test, or that ran "
+                             "none (CI: a green run must have executed the journeys it names)")
     uitest.set_defaults(func=cmd_uitest)
+
+    ci_device = sub.add_parser("ci-device", help="CI only: create a runner simulator and print its UDID")
+    ci_device.add_argument("--device-type", default="iPhone 17 Pro",
+                           help="simctl device type name or identifier (default: iPhone 17 Pro)")
+    ci_device.add_argument("--name", default="FST CI iPhone", help="simulator name")
+    ci_device.set_defaults(func=cmd_ci_device)
 
     pose = sub.add_parser("pose", help="print, set (Device Hub UI scripting) or calibrate the iPhone Duo pose")
     pose.add_argument("--device", default="duo", help=f"alias {sorted(DEVICES)} or UDID")

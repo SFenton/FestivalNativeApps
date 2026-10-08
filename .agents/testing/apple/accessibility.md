@@ -13,6 +13,17 @@
 - A single passing run of a flaky audit is not certification; a source-identical rerun must pass too.
 - Never write `.accessibilityHidden(someBool)`: `.accessibilityHidden(false)` on an ancestor **un-hides** every descendant marked hidden (measured in macOS hosting: the fade-in wrapper exposed each Leaderboards card's decorative instrument icon, read "Lead, image" before the "Lead" heading). Use `.accessibilityHidden(while:)` (`Common/FadeInOnLoad.swift`), which applies `accessibilityHidden(true, isEnabled:)` on iOS 18 / macOS 15 and later and hides nothing before.
 
+## iOS journeys in CI
+
+`apple-ci` runs the hosted tests on macOS, where hosting ignores `dynamicTypeSize` and there is no device tree or system audit. Its **iOS accessibility journeys** step covers that on the runner's own simulator (#391):
+
+- `python3 tools/ios_sim.py ci-device` creates an iPhone 17 Pro on the newest iOS runtime (≥ 26) and prints its UDID; it refuses to run without `CI=true`, so it never adds devices to a shared Mac.
+- `tools/mock_service.py --large-catalogue` serves the loopback fixture on 127.0.0.1:8765.
+- Every selector in the workflow's `FST_CI_IOS_A11Y_JOURNEYS` runs three times: as is, with `--a11y increase-contrast` and with `--a11y reduce-transparency`.
+- `uitest --require-run` fails a batch that skipped any test or ran none (a missing fixture or an older runtime skips, and `xcodebuild` exits 0 on an all-skipped run). Failed runs upload their `.xcresult` as `apple-ci-ios-journeys`.
+
+Add a journey to `FST_CI_IOS_A11Y_JOURNEYS` when it is the only test of a device behavior. Keep it self-contained (it launches the app itself and needs only the large fixture) and stable on a fresh simulator. Listed: `SongsChromeJourneyTests/testSectionBarFadeAtLargestTextKeepsRowsNamedAndPassesTheAudit` (Songs section-title fade, #10).
+
 ## Open findings (not waived)
 
 | Screen | Device | Finding |
@@ -150,7 +161,7 @@ Automation Mode is not authorised on this Mac ([macos host limits](../../platfor
 | Toolbar | Every item labelled and tooltipped, labels unique; Songs' field placeholder "Filter Songs" |
 | Charts | No mark named by its plotted range ("0 to 1"): the rank-history chart is one adjustable element ("Lead rank history chart") whose value reads each visible snapshot's date, rank and total score (per-bar elements until Lane A11Y4) |
 | Song detail | The song title is the detail's first heading (`fst.song-detail.hero-title`) |
-| Songs floating section title and row fade (#10, #391) | Scrolled under the bar, pinned and mid-push: exactly one bar heading (`fst.songs.section-bar`) naming the current section, before `fst.songs.list`; the pushed-out and incoming copies are hidden; rows crossing the 40 pt fade stay named `AXButton`s at least 44 pt tall; Reduce Transparency, Increase Contrast and the in-app Less Transparency / More Contrast draw a hard edge (pixels) with an identical tree. `SongsSectionBarAccessibilityTests`. macOS hosting ignores `dynamicTypeSize`, so text scaling and the system audit are on iOS: `SongsChromeJourneyTests/testSectionBarFadeAtLargestTextKeepsRowsNamedAndPassesTheAudit` (large fixture; also run with `--a11y increase-contrast`) |
+| Songs floating section title and row fade (#10, #391) | Scrolled under the bar, pinned and mid-push: exactly one bar heading (`fst.songs.section-bar`) naming the current section, before `fst.songs.list`; the pushed-out and incoming copies are hidden; rows crossing the 40 pt fade stay named `AXButton`s at least 44 pt tall; Reduce Transparency, Increase Contrast and the in-app Less Transparency / More Contrast draw a hard edge (pixels) with an identical tree. `SongsSectionBarAccessibilityTests`. macOS hosting ignores `dynamicTypeSize`, so text scaling and the system audit are on iOS: `SongsChromeJourneyTests/testSectionBarFadeAtLargestTextKeepsRowsNamedAndPassesTheAudit` (large fixture), which `apple-ci` runs on a simulator as is and with Increase Contrast and Reduce Transparency ([iOS journeys in CI](#ios-journeys-in-ci)) |
 | Fixed-divider split (Lane A11Y3) | Full Rankings, Leaderboards and Rivals with an item open: sidebar → list → trailing pane, only the opened item's rows selected (Leaderboards lists the same player once per card), divider decorative, nothing unnamed; the window toolbar names Close ("Close (Esc)", unique labels). `macTreeSplitPagesReadLeadingThenTrailing`, `macTreeSplitToolbarNamesClose` |
 
 Fixed (before → after): rank-history bars read "0 to 1", "1 to 2" … and the line and point marks repeated them → one element per bar named by its date (line and points hidden); the song detail's hero (title, artist, year) had no heading trait → heading. Leaderboards read 9 decorative instrument images before their headings (fade-in un-hiding, rule above; app-wide on iOS 18+ too) → 0; the footer's Deselect button now says "Deselect Profile"; with a player, the profile toolbar item had an empty label (the monogram was the whole label) → "Profile: <name>"; two toolbar items were named "Search" (global search and Songs' system filter field) → the global one is "Search Festival", as in Edit › Search Festival….

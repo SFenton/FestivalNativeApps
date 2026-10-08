@@ -1,5 +1,5 @@
 name: apple-ci
-# Apple unit tests and compile check on a GitHub-hosted Xcode 27 runner (no mesh machine runs CI or
+# Apple unit tests, compile check and iOS accessibility journeys on a GitHub-hosted Xcode 27 runner (no mesh machine runs CI or
 # release work). The job name is the required check name: keep it `apple-ci`.
 on:
   pull_request:
@@ -18,7 +18,7 @@ jobs:
   apple-ci:
     name: apple-ci
     runs-on: xcode-27
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,6 +54,35 @@ jobs:
         # strictly. Reuses the coverage build and leaves its profile alone. Filter: testing/apple/hosted-snapshots.md.
         working-directory: apple
         run: swift test --skip-build --filter 'selectedRowRevealFadesTheRowItReaches|staggeredListRowsFadeInRatherThanPop'
+      - name: iOS accessibility journeys (simulator, large fixture)
+        # Device checks the macOS-hosted tests cannot make: Dynamic Type, the device accessibility tree, hit testing
+        # and performAccessibilityAudit (#391). Each journey runs as is, with Increase Contrast and with Reduce
+        # Transparency. The runner's own simulator (`ci-device`) and the loopback fixture are never shared;
+        # `--require-run` fails a skipped or empty run. List: testing/apple/accessibility.md "In CI".
+        env:
+          FST_CI_IOS_A11Y_JOURNEYS: >-
+            SongsChromeJourneyTests/testSectionBarFadeAtLargestTextKeepsRowsNamedAndPassesTheAudit
+        run: |
+          python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service.log" 2>&1 &
+          for _ in $(seq 60); do grep -q "Local test fixture service" "$RUNNER_TEMP/mock_service.log" && break; sleep 1; done
+          grep -q "Local test fixture service" "$RUNNER_TEMP/mock_service.log" || { cat "$RUNNER_TEMP/mock_service.log"; exit 1; }
+          UDID=$(python3 tools/ios_sim.py ci-device)
+          ONLY=(); for journey in $FST_CI_IOS_A11Y_JOURNEYS; do ONLY+=(--only "$journey"); done
+          for mode in default increase-contrast reduce-transparency; do
+            A11Y=(); [ "$mode" = default ] || A11Y=(--a11y "$mode")
+            echo "::group::iOS accessibility journeys ($mode)"
+            FST_UITEST_KEEP_RESULTS=1 python3 tools/ios_sim.py uitest --device "$UDID" --require-run --timeout 900 \
+              "${A11Y[@]}" "${ONLY[@]}"
+            echo "::endgroup::"
+          done
+      - name: Upload iOS journey results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple-ci-ios-journeys
+          path: apple/DerivedData/*/Results/*.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload hosted render captures
         if: failure()
         uses: actions/upload-artifact@v4
