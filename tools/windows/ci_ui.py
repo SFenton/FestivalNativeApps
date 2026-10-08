@@ -21,6 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WINDOWS_TOOLS = REPO_ROOT / "tools" / "windows"
 JOURNEYS = WINDOWS_TOOLS / "journeys"
 MATRIX_GROUP_SIZE = 6
+SKIP_FILE = WINDOWS_TOOLS / "ci_skip.json"
 
 
 @dataclass(frozen=True)
@@ -82,7 +83,8 @@ def all_tasks() -> list[Task]:
         else:
             tasks.append(Task(f"{kind}:{source.stem}", kind, source, entries=names))
     tasks.extend(Task(f"runner:{name}", "runner", command=command) for name, command in DEDICATED_RUNNERS)
-    return tasks
+    skips = json.loads(SKIP_FILE.read_text(encoding="utf-8")).get("tasks", {})
+    return [task for task in tasks if task.name not in skips]
 
 
 def task_weight(task: Task) -> int:
