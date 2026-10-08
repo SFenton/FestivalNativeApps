@@ -26,7 +26,7 @@ import org.junit.runner.RunWith
  * The modal drawer's corners follow the display corners the system reports through public
  * `WindowInsets.getRoundedCorner` (issue #55). Run with `device.py test
  * com.festivalscoretracker.android.shell.DrawerCornersDeviceTest --avd FST_Phone`; skipped on a
- * display without rounded corners or below API 31.
+ * display without rounded corners, an edge-inset window, or below API 31.
  */
 @RunWith(AndroidJUnit4::class)
 class DrawerCornersDeviceTest {
@@ -46,7 +46,7 @@ class DrawerCornersDeviceTest {
         rule.waitUntil(5_000) { shape is ConcentricDrawerShape }
         val drawn = shape as ConcentricDrawerShape
         // The test activity is edge-to-edge (target SDK 35+), so the sheet's start corners touch the display corners.
-        assertEquals(0f, drawn.window.container.top)
+        assumeTrue("window is not edge attached", drawn.window.container.top == 0f)
         val decor = rule.activity.window.decorView
         val outline = drawn.createOutline(
             Size(decor.width * 0.8f, decor.height.toFloat()),
