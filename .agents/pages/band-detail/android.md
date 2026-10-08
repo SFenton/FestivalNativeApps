@@ -44,7 +44,7 @@ Quads band route (4 members × 7 instruments), `FST_*` AVDs, animator scale 0 ex
 | FST_Phone font 2.0 portrait/landscape | Fixed: stat values clipped, names and song titles broke mid-word, Statistics heading wrapped beside Rank By. Now one tile per row, stacked members and song rows, heading above Rank By |
 | FST_Tablet landscape (1280 dp) / portrait (800 dp) | Two panes / one column. Fixed: portrait member names truncated in 2 columns (now 1 per row); Rank By touched the summary tiles (now 8 dp inset) |
 | FST_Resizable phone / foldable (841 dp flat fold) / tablet / desktop, font 1.0 and 2.0 | Fixed: ~290 dp fold pane truncated member names (now stacked); Quick Links could stay visible beside two panes after a resize (now one pane decision) |
-| FST_Book_Fold folded / unfolded / half-open, font 1.0 and 2.0, folded landscape | Folded: one column; open/half: panes split at the fold |
+| FST_Book_Fold folded / unfolded / half-open, font 1.0 and 2.0, folded landscape | Folded: one column; fully unfolded (flat): equal panes meeting at the content midpoint beside the rail, not the fold (#361); half-open (separating): panes split at the hinge |
 | FST_Passport_Fold folded / unfolded, font 1.0 and 2.0 | Folded: one column; unfolded (~895 dp): two panes, members stacked in the narrow pane; font 2.0: one column |
 | FST_TriFold folded / partial / unfolded, font 1.0 and 2.0 | Folded and partial: one column; unfolded: equal panes (off-centre flat folds do not anchor) |
 
