@@ -279,7 +279,9 @@ extension View {
 // MARK: - Shared row styles
 
 /// A leaderboard row drawn with the app's real Leaderboards row (`RankingRowLayout` on a
-/// `RankingRowSurface` material card, the selected player's purple accent), operator batch 7.
+/// `RankingRowSurface`, the selected player's purple accent), operator batch 7: an entry of
+/// a flush ``FestivalGlassSection`` like the real overview cards (#381), its own card
+/// elsewhere.
 struct FirstRunRankRow: View {
     let entry: FirstRunDemoPool.RankingEntry
 
@@ -300,13 +302,20 @@ struct FirstRunRivalRow: View {
 
     let rival: FirstRunDemoPool.RivalEntry
     let direction: Direction
+    @Environment(\.festivalGroupedRow) private var grouped
 
     var body: some View {
-        // The app's real rival row (`RivalRowContent`) on a material card (operator batch 7).
-        RivalRowContent(rival: rival, direction: direction == .above ? .above : .below)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .festivalCard(cornerRadius: 12)
+        // The app's real rival row (`RivalRowContent`, operator batch 7): an entry of the
+        // group card like the Rivals page (#381), or its own material card.
+        let content = RivalRowContent(rival: rival, direction: direction == .above ? .above : .below)
+        if grouped {
+            content.modifier(FestivalRowPadding())
+        } else {
+            content
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .festivalCard(cornerRadius: 12)
+        }
     }
 }
 

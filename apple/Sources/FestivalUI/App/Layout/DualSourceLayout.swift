@@ -181,54 +181,6 @@ struct DualSourcePane<Content: View>: View {
     }
 }
 
-/// A compact message filling a secondary region: loading, empty, paused or error.
-struct DualSourceMessage<Actions: View>: View {
-    private let title: String
-    private let systemImage: String
-    private let message: String
-    private let actions: Actions
-
-    /// Create a message.
-    ///
-    /// - Parameters:
-    ///   - title: Short Title Case headline.
-    ///   - systemImage: SF Symbol.
-    ///   - message: One explanatory sentence.
-    ///   - actions: Optional buttons (Choose Profile, Retry).
-    init(
-        _ title: String, systemImage: String, message: String,
-        @ViewBuilder actions: () -> Actions = { EmptyView() }
-    ) {
-        self.title = title
-        self.systemImage = systemImage
-        self.message = message
-        self.actions = actions()
-    }
-
-    var body: some View {
-        VStack(spacing: 10) {
-            Image(systemName: systemImage)
-                .font(.title2)
-                .foregroundStyle(BrandTokens.textSecondary)
-                .accessibilityHidden(true)
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(BrandTokens.textPrimary)
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(BrandTokens.textSecondary)
-                .multilineTextAlignment(.center)
-            actions
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity)
-        .festivalCard(cornerRadius: 22)
-        .padding(.horizontal, 16)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .accessibilityElement(children: .contain)
-    }
-}
-
 // MARK: - Selection inside a dual page
 
 extension View {

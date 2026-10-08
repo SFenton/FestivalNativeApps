@@ -51,15 +51,14 @@ struct RivalsChooseProfileState: View {
     let action: () -> Void
 
     var body: some View {
-        ContentUnavailableView {
-            Label("No Player Selected", systemImage: "person.crop.circle.badge.questionmark")
-        } description: {
-            Text("Choose a profile to see your rivals.")
-        } actions: {
+        FestivalEmptyState(
+            "No Player Selected", systemImage: "person.crop.circle.badge.questionmark",
+            subtitle: "Choose a profile to see your rivals.",
+            accessibilityIdentifier: "fst.rivals.chooseProfile"
+        ) {
             Button("Choose Profile", action: action)
                 .festivalProminentButton()
         }
-        .accessibilityIdentifier("fst.rivals.chooseProfile")
     }
 }
 

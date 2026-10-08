@@ -122,9 +122,9 @@ struct RivalryScreen: View {
                 }
                 .quickLinks(quickLinks, title: "Quick Links")
             } else {
-                ContentUnavailableView(
+                FestivalEmptyState(
                     "No Songs", systemImage: "music.note.list",
-                    description: Text("There are no songs in this category.")
+                    subtitle: "There are no songs in this category."
                 )
             }
         }

@@ -23,7 +23,7 @@ Every reachable contract state runs in `python tools/windows/shop_journey.py [--
 | official-link | context menu by Shift+F10 (`fst.shop.external.<id>`, never invoked in tests) and the list cart button |
 | song-detail | tile → Song Detail "Open in Item Shop, Leaving Tomorrow"; a failed Shop read shows `fst.song-detail.shop-error` |
 | highlight-disabled | no badges or pulse; links kept |
-| filtered / filter-no-match | Leaving only → "1 of 2 songs"; Available only → "No Matching Songs" + Reset → "2 songs" |
+| filtered / filter-no-match | Leaving only → "1 of 2 songs"; Available only → "No Item Shop songs match your filters" + flyout Reset → "2 songs" |
 
 Contrast: tile captions use `FSTShopTileTextBrush` on `FSTShopTileCaptionBrush` (white on the art scrim by default; WindowText on a Window plate under a contrast theme), and the New pill uses `FSTShopNewBadgeSurfaceBrush`, with no inline colours. Under a contrast theme, badge text sets `HighContrastAdjustment=None`: it is already HighlightText on Highlight, and WinUI's automatic adjustment would otherwise paint a Window backplate inside the pill.
 

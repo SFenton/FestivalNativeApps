@@ -57,26 +57,36 @@ private struct MacRowButtonBody: View {
 
 /// Hover tint and keyboard focus ring for a row's card; apply it to a button's label
 /// (the nearest focusable ancestor is then the button, so `isFocused` is its focus).
+///
+/// Inside a flush ``FestivalGlassSection`` (``EnvironmentValues/festivalGroupedRow``)
+/// the tint fills the row's full-width rectangle (the group card clips its corners) and
+/// the focus ring is inset inside the row, so neither draws a separate rounded card.
 struct MacRowInteractionEffect: ViewModifier {
     let cornerRadius: CGFloat
     var isPressed = false
     @Environment(\.isFocused) private var isFocused
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.festivalGroupedRow) private var grouped
     @State private var isHovered = false
 
     func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let shape = RoundedRectangle(
+            cornerRadius: grouped ? MacRowInteraction.groupedCornerRadius : cornerRadius, style: .continuous
+        )
         content
             .overlay {
-                shape
-                    .fill(Color.white.opacity(MacRowInteraction.tint(hovered: isHovered, pressed: isPressed)))
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
+                Group {
+                    if grouped { Rectangle() } else { shape }
+                }
+                .foregroundStyle(Color.white.opacity(MacRowInteraction.tint(hovered: isHovered, pressed: isPressed)))
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
             }
             .overlay {
                 if isFocused {
                     shape
                         .strokeBorder(Color(nsColor: .keyboardFocusIndicatorColor), lineWidth: 3)
+                        .padding(grouped ? MacRowInteraction.groupedFocusInset : 0)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
@@ -100,6 +110,12 @@ enum MacRowInteraction {
     static func tint(hovered: Bool, pressed: Bool) -> Double {
         pressed ? 0.14 : hovered ? 0.07 : 0
     }
+
+    /// Focus-ring corner radius for a row inside a group card.
+    static let groupedCornerRadius: CGFloat = 8
+    /// How far a grouped row's focus ring sits inside the row, clear of the group card's
+    /// clipped corners and the neighbouring hairlines.
+    static let groupedFocusInset: CGFloat = 2
 }
 
 extension View {

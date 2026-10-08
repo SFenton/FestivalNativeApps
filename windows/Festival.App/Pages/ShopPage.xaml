@@ -231,7 +231,7 @@
             <!-- Every offer is hidden by the page filter: distinct copy from the genuine empty Shop; the filter button
                  above is the way back (web Songs filtered-empty model; the web Shop has no filters). -->
             <controls:EmptyStateView Visibility="{x:Bind ViewModel.ShowNoMatches, Mode=OneWay}"
-                                     Title="No Matching Songs" Subtitle="No Item Shop songs match your filters. Try changing your filters to see more songs."
+                                     Title="No Item Shop songs match your filters" Subtitle="Try changing your filters to see more songs."
                                      TitleAutomationId="fst.shop.filter.empty" SubtitleAutomationId="fst.shop.filter.empty-message"
                                      RegionAutomationId="fst.shop.filter.empty-region" />
 

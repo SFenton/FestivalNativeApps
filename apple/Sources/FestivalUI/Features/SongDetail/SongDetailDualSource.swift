@@ -48,23 +48,36 @@ struct SongHistoryCarouselPane: View {
     var body: some View {
         DualSourcePane("Your Score History", systemImage: "clock.arrow.circlepath", identifier: "song.history") {
             if session.selectedPlayer == nil {
-                DualSourceMessage(
+                FestivalEmptyState(
                     "No Profile Selected", systemImage: "person.crop.circle",
-                    message: "Select a player to see their score history for this song."
+                    subtitle: "Select a player to see their score history for this song."
                 ) {
                     Button("Choose Profile") { openProfile() }
                         .festivalProminentButton()
                         .accessibilityIdentifier("fst.dual.song.history.choose-profile")
                 }
             } else if session.playerLoadState == .syncing {
-                DualSourceMessage(
-                    "Scores Syncing", systemImage: "arrow.triangle.2.circlepath",
-                    message: "This player's scores are still being published. Check back soon."
+                // Paused, not empty: Retry rereads the player (R1, R8).
+                ServiceUnavailableView(
+                    title: "Scores Syncing",
+                    message: "This player's scores are still being published. Check back soon.",
+                    systemImage: "arrow.triangle.2.circlepath",
+                    retry: { Task { await session.refreshSelectedPlayer() } }
                 )
+                .accessibilityIdentifier("fst.dual.song.history.syncing")
+            } else if case let .failed(issue) = session.playerLoadState {
+                // A failed player read is never "No Scores Yet" (R1).
+                ServiceStatusInline(issue, scope: "dual.song-history") {
+                    Task { await session.refreshSelectedPlayer() }
+                }
+                .padding(.horizontal, 16)
+            } else if session.playerLoadState == .loading {
+                FestivalLoadingView(accessibilityLabel: "Loading Your Score History")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if instruments.isEmpty {
-                DualSourceMessage(
+                FestivalEmptyState(
                     "No Scores Yet", systemImage: "music.note",
-                    message: "No scores on this song for your visible instruments yet."
+                    subtitle: "No scores on this song for your visible instruments yet."
                 )
             } else {
                 HorizontalCarousel("Your Score History", items: instruments, minimumCardWidth: 300) { instrument in
@@ -110,7 +123,9 @@ private struct SongHistoryCard: View {
                 .fixedSize()
             }
             .padding(.horizontal, 4)
-            FestivalGlassSection {
+            // Flush entries (#381): the score rows bring their own padding and draw flat
+            // fills inside this one card; status text keeps the standard row padding.
+            FestivalGlassSection(rows: .flush(separatorInset: 14)) {
                 content
             }
         }
@@ -130,8 +145,10 @@ private struct SongHistoryCard: View {
         case .loading:
             FestivalLoadingView(accessibilityLabel: "Loading \(instrument.label) history")
                 .frame(maxWidth: .infinity, minHeight: 120)
+                .modifier(FestivalRowPadding())
         case let .failed(issue):
             ServiceStatusInline(issue, scope: "dual.song-history.\(instrument.rawValue)") { retryRevision += 1 }
+                .modifier(FestivalRowPadding())
         case let .loaded(payload):
             switch payload.state {
             case .syncing:
@@ -153,6 +170,7 @@ private struct SongHistoryCard: View {
                     Text("\(sorted.count) score \(sorted.count == 1 ? "change" : "changes") tracked")
                         .font(.caption)
                         .foregroundStyle(BrandTokens.textSecondary)
+                        .modifier(FestivalRowPadding())
                 }
             }
         }
@@ -163,6 +181,7 @@ private struct SongHistoryCard: View {
             .font(.subheadline)
             .foregroundStyle(BrandTokens.textSecondary)
             .padding(.vertical, 8)
+            .modifier(FestivalRowPadding())
     }
 
     /// Read the allowlisted score-history GET for the selected player.

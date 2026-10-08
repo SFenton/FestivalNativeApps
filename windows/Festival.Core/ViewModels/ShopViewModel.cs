@@ -110,7 +110,7 @@ public sealed partial class ShopViewModel : ObservableObject
     /// </summary>
     public string FilterStatus => IsFilterActive ? "Filters applied" : "";
 
-    /// <summary>The feed has offers but the filter hides them all ("No Matching Songs", never the empty-Shop card).</summary>
+    /// <summary>The feed has offers but the filter hides them all ("No Item Shop songs match your filters", never the empty-Shop card).</summary>
     public bool ShowNoMatches => ShowOffers && Offers.Count == 0;
 
     /// <summary>"133 songs", or "1 of 133 songs" while filtered.</summary>

@@ -60,9 +60,9 @@ struct PlayerChartsCarousel: View {
         DualSourcePane("Graphs", systemImage: "chart.xyaxis.line", identifier: "player.graphs") {
             let cards = cards
             if cards.isEmpty {
-                DualSourceMessage(
+                FestivalEmptyState(
                     "No Graphs Yet", systemImage: "chart.xyaxis.line",
-                    message: "Graphs appear once this player has scores on a visible instrument."
+                    subtitle: "Graphs appear once this player has scores on a visible instrument."
                 )
             } else {
                 HorizontalCarousel("Graphs", items: cards, minimumCardWidth: 300) { card in
