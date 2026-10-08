@@ -269,22 +269,22 @@ struct FirstRunNativeNavigationDemo: View {
 
     var body: some View {
         TabView(selection: $selection) {
-            ForEach(Array(Self.tabs.enumerated()), id: \.offset) { index, tab in
+            ForEach(Array(Self.tabs.enumerated()), id: \.offset) { index, section in
                 Color.clear
-                    .tabItem { Label(tab.title, systemImage: tab.symbol) }
+                    .tabItem { Label(section.title, systemImage: section.symbol) }
                     .tag(index)
             }
         }
+        // The carousel's `.page` style is inherited by nested tab views, which would turn
+        // this one into an empty pager with no tab bar (issue #380).
+        .tabViewStyle(.automatic)
         .frame(height: 150)
         .frame(maxHeight: .infinity, alignment: .bottom)
         .firstRunInert()
     }
 
-    private static let tabs: [(title: String, symbol: String)] = [
-        ("Songs", "music.note.list"), ("Suggestions", "sparkles"),
-        ("Compete", "trophy.fill"), ("Statistics", "chart.bar.fill"),
-        ("Settings", "gearshape.fill"),
-    ]
+    /// The shell's own tab titles and symbols (``FestivalSection``).
+    private static let tabs: [FestivalSection] = [.songs, .suggestions, .compete, .statistics, .settings]
 }
 
 // MARK: - songs-icons
