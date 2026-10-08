@@ -218,8 +218,23 @@ class JourneyHarness(private val rule: JourneyRule) {
 
     /** Fail with every ATF error collected during the journey (warnings only log). */
     fun assertAccessible() {
-        val errors = accessibilityFindings.filter { it.startsWith("ERROR") && !clippedTouchTarget(it) }
+        val errors = accessibilityFindings.filter { it.startsWith("ERROR") && !clippedTouchTarget(it) && !scrimSliver(it) }
         assertTrue("Accessibility errors:\n" + errors.joinToString("\n"), errors.isEmpty())
+    }
+
+    /**
+     * Material's `ModalBottomSheet` scrim is a clickable "Close sheet" node; Compose reports its
+     * uncovered part, which above a fully expanded compact sheet on API 34 is only the
+     * [com.festivalscoretracker.android.ui.common.SHEET_TOP_GAP_DP] strip (1080×21 px on a
+     * Pixel 6), so ATF measures an 8 dp target. Every Festival sheet has the equivalent 48 dp
+     * header Close and Back (modal-shell R3/R4, `ModalCloseJourneyTest`), the WCAG 2.5.8
+     * "equivalent" exception, so only that touch-target finding is ignored (issue #418).
+     *
+     * @param finding Collected finding line.
+     * @return True for the scrim strip's touch-target finding.
+     */
+    private fun scrimSliver(finding: String): Boolean = finding.split(" | ").let {
+        it.getOrNull(1) == "TouchTargetSizeCheck" && it.getOrNull(2) == "Close sheet"
     }
 
     /**
