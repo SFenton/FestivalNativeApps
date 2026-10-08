@@ -1855,7 +1855,7 @@ private struct QuickLinksJumpHeaderSync: ViewModifier {
 ///
 /// Observes ``SongsScrollChrome`` itself, so a passed title or a scroll-away change
 /// re-renders only this bar, never the List (issue #8).
-private struct SongsSectionBar: View {
+struct SongsSectionBar: View {
     /// One section title in list order.
     struct Entry: Equatable {
         let key: String
@@ -1981,7 +1981,7 @@ private struct SongsSectionBarLabel: View {
 /// changes (issue #8). It also reports its top to a settling jump and how far the row
 /// fade may reach near it (``SongsScrollChrome/fadeLimit(titleTop:barHeight:)``), and
 /// hosts the locator that finds the List's scroll view for ``ListScrollNudger``.
-private struct SongsInlineSectionTitle: View {
+struct SongsInlineSectionTitle: View {
     let key: String
     let label: String
     let spokenLabel: String
