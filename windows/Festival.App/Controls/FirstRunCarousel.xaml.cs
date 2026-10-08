@@ -130,6 +130,10 @@ public sealed partial class FirstRunCarousel : UserControl
     private void UpdateActiveDemo()
     {
         var selected = Slides.SelectedIndex;
+        // One entrance per slide shown (web FirstRunCarousel remounts the slide's FadeIns): begun before the demo
+        // activates so its blocks and this title and description share it.
+        if (selected >= 0 && selected != textEntranceIndex && Slides.ContainerFromIndex(selected) is not null)
+            FadeIn.BeginEntrance(Slides);
         for (var i = 0; i < Slides.Items.Count; i++)
         {
             if (Slides.ContainerFromIndex(i) is not DependencyObject container) continue;
@@ -140,7 +144,7 @@ public sealed partial class FirstRunCarousel : UserControl
             {
                 var entrance = FirstRunEntrance.For(Carousel.Slides[i].Id);
                 foreach (var block in text)
-                    FadeIn.Play(block, block.Name == "SlideTitle" ? entrance.TitleDelay : entrance.DescriptionDelay);
+                    FadeIn.Enter(Slides, block, block.Name == "SlideTitle" ? entrance.TitleDelay : entrance.DescriptionDelay);
                 textEntranceIndex = i;
             }
             else if (i != selected && Services.Motion.Allowed)

@@ -1378,11 +1378,25 @@ public sealed partial class FirstRunDemo
     #endregion
 
     #region Entrance
-    /// <summary>Fades the demo's blocks up one stagger step apart (web <c>FadeIn</c> delays; instant with motion off).</summary>
+    /// <summary>
+    /// Fades the demo's blocks up one stagger step apart (web <c>FadeIn</c> delays; instant with motion off) as part of
+    /// the slide's entrance, which the carousel begins on its <c>FlipView</c> when the slide is shown. A rebuild after the
+    /// entrance ended (the catalogue arriving) shows the blocks in place instead of replaying them.
+    /// </summary>
     private void PlayEntrance()
     {
         var entrance = FirstRunEntrance.For(SlideId);
-        for (var i = 0; i < staged.Count; i++) FadeIn.Play(staged[i], entrance.ItemDelay(i));
+        var owner = EntranceOwner();
+        for (var i = 0; i < staged.Count; i++) FadeIn.Enter(owner, staged[i], entrance.ItemDelay(i));
+    }
+
+    /// <summary>The slide entrance's owner: the carousel's <c>FlipView</c>, else this demo (hosted on its own).</summary>
+    /// <returns>Owner.</returns>
+    private FrameworkElement EntranceOwner()
+    {
+        for (var node = VisualTreeHelper.GetParent(this); node is not null; node = VisualTreeHelper.GetParent(node))
+            if (node is FlipView slides) return slides;
+        return this;
     }
 
     /// <summary>

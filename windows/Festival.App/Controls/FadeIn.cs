@@ -397,13 +397,15 @@ public static class FadeIn
     /// Starts a page's own first-load entrance (Song Detail's sections and cards, Player Profile's title and Overview):
     /// a load arm owned by the page's scroller, whose first movement rushes every <see cref="Enter"/> fade of the page
     /// that hasn't started (a drag, wheel, Quick Links jump or programmatic scroll; web <c>useStaggerRush</c>, issue #323).
+    /// An owner that isn't a scroller (a First Run carousel's <c>FlipView</c>, one entrance per slide shown, issue #380)
+    /// follows its nearest scrolling ancestor, so its own paging never rushes the slide it pages to.
     /// </summary>
-    /// <param name="scroller">The page's scroller.</param>
-    public static void BeginEntrance(ScrollViewer scroller)
+    /// <param name="owner">The page's scroller, or another entrance owner.</param>
+    public static void BeginEntrance(FrameworkElement owner)
     {
-        TrackerOf(scroller).Hook();
-        Restagger(scroller);
-        SettleNow(scroller);
+        TrackerOf(owner).Hook();
+        Restagger(owner);
+        SettleNow(owner);
     }
 
     /// <summary>
@@ -619,14 +621,6 @@ public static class FadeIn
     /// </summary>
     /// <param name="element">Element.</param>
     public static void Play(UIElement element) => PlayCore(element, TimeSpan.Zero);
-
-    /// <summary>
-    /// Plays <c>fadeInUp</c> after a delay outside any list or page entrance (a first-run slide's demo items, title and
-    /// description, web <c>FadeIn delay</c>): nothing can rush it, and motion off shows the element in place.
-    /// </summary>
-    /// <param name="element">Element.</param>
-    /// <param name="delay">Start delay.</param>
-    public static void Play(UIElement element, TimeSpan delay) => PlayCore(element, delay);
 
     /// <summary>Plays a fade and remembers it until it starts.</summary>
     /// <param name="element">Element.</param>
