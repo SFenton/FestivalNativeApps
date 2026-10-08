@@ -75,6 +75,11 @@ struct SettingsScreen: View {
     let isVisible: Bool
     /// One Mac Settings pane's subset, or nil for the whole page (iPhone, iPad, web).
     let pane: SettingsPane?
+    /// One list/detail topic's page on the right (issue #371), or nil.
+    let topic: SettingsTopic?
+    /// Set while the window allows Settings' list/detail split (iPad, unfolded iPhone Duo
+    /// in landscape): the root page is then the list, its groups opening on the right.
+    @Environment(\.listDetailSelect) private var listDetailSelect
     @Environment(\.deviceLayout) private var layout
     @Environment(\.accessibilityReduceMotion) private var reduceMotionEnvironment
 
@@ -84,21 +89,41 @@ struct SettingsScreen: View {
     ///   - session: Shared service and artwork connection.
     ///   - isVisible: True only while the Settings destination is selected.
     ///   - pane: A Mac Settings pane to show alone, or nil for the whole page.
-    init(session: FestivalSession, isVisible: Bool = true, pane: SettingsPane? = nil) {
+    ///   - topic: A list/detail topic to show alone on the right, or nil.
+    init(
+        session: FestivalSession, isVisible: Bool = true, pane: SettingsPane? = nil,
+        topic: SettingsTopic? = nil
+    ) {
         self.session = session
         self.isVisible = isVisible
         self.pane = pane
+        self.topic = topic
     }
+
+    /// Whether sections show their titles: not on a topic page, whose pane title names it.
+    private var showsSectionTitles: Bool { topic == nil }
+
+    /// The root page as the list/detail list (issue #371): the window allows the split.
+    private var isList: Bool {
+        pane == nil && topic == nil && listDetailSelect?.accepts(.settingsTopic(.accessibility)) == true
+    }
+
+    /// The whole page or the list, with its Quick Links and root toolbar items.
+    private var isRootPage: Bool { pane == nil && topic == nil }
 
     var body: some View {
         let columns = columns
         ScrollView {
             // Eager (not Lazy): the page is short, and a lazily recycled card would replay
-            // its load-in fade when scrolled back into view. Wide landscape splits the
-            // sections into two balanced columns (pattern `wide-columns` R7, #355).
+            // its load-in fade when scrolled back into view. The Mac Settings window splits
+            // its panes' sections into two balanced columns (pattern `wide-columns` R7).
             WideColumnStack(columns: columns, spacing: 28) {
                 if let pane {
                     paneContent(pane)
+                } else if let topic {
+                    topicContent(topic)
+                } else if isList {
+                    listPage
                 } else {
                     fullPage
                 }
@@ -114,17 +139,17 @@ struct SettingsScreen: View {
         .debugPageScrollStress()
         .scrollDisabled(reorderDragging)
         .onPreferenceChange(SettingsReorderDragActiveKey.self) { reorderDragging = $0 }
-        .modifier(SettingsQuickLinks(controller: quickLinks, isEnabled: pane == nil))
+        .modifier(SettingsQuickLinks(controller: quickLinks, isEnabled: isRootPage))
         .scrollDismissesKeyboard(.interactively)
         .festivalBackground(.carousel, session: session, visible: isVisible)
-        .navigationTitle(pane?.title ?? "Settings")
+        .modifier(SettingsPageTitle(title: pane?.title ?? topic?.pageTitle ?? "Settings", isRoute: topic != nil))
         .toolbar {
-            if pane == nil {
+            if isRootPage {
                 QuickLinksToolbarItem(quickLinks)
                 FestivalRootTrailingItems(session: session)
             }
         }
-        .festivalProvidesRootTrailingItems()
+        .modifier(SettingsProvidesRootTrailingItems(isEnabled: topic == nil))
         .confirmationDialog(
             "Reset Settings",
             isPresented: $resetPending,
@@ -152,24 +177,25 @@ struct SettingsScreen: View {
         }
         .task(id: isVisible) {
             guard isVisible else { return }
+            // A topic page reads only what it shows: the service version on Version.
             async let features: Void = loadFeedbackAvailability()
-            if serviceVersion == nil { await loadServiceVersion() }
+            if serviceVersion == nil, topic == nil || topic == .version { await loadServiceVersion() }
             await features
         }
     }
 
     // MARK: - Page and panes
 
-    /// Section columns: two in wide landscape when two columns fit the page (iPad
-    /// landscape, iPhone Duo unfolded in landscape, the Mac Settings window), otherwise
-    /// one; accessibility text sizes always stack (pattern `wide-columns` R1, R7).
+    /// Section columns: two in a Mac Settings pane when two columns fit, otherwise one;
+    /// accessibility text sizes always stack (pattern `wide-columns` R1, R7). iPad and the
+    /// unfolded iPhone Duo show the list/detail Settings in wide landscape instead of two
+    /// columns (issue #371, which replaced #355's two-column page there).
     private var columns: Int {
         #if os(macOS)
-        let fitted = WideColumns.count(size: pageSize)
+        isList || topic != nil ? 1 : WideColumns.readable(WideColumns.count(size: pageSize), typeSize: typeSize)
         #else
-        let fitted = WideColumns.count(layout: layout, width: pageSize.width > 0 ? pageSize.width : nil)
+        1
         #endif
-        return WideColumns.readable(fitted, typeSize: typeSize)
     }
 
     /// The whole page in the web's order (iPhone, iPad).
@@ -217,6 +243,80 @@ struct SettingsScreen: View {
                     .festivalFadeIn(isLoaded: true, index: 10)
                 reset.quickLinkSection(id: "reset", title: "Reset Settings", symbol: "trash")
                     .festivalFadeIn(isLoaded: true, index: 11)
+    }
+
+    /// The list/detail list (iPad, unfolded iPhone Duo in landscape; issue #371, owner-
+    /// approved `split-panes` variant): the full page's order, with plain toggles acting
+    /// in place and every group with more options a chevron row opening on the right.
+    @ViewBuilder private var listPage: some View {
+        appSettings.festivalFadeIn(isLoaded: true, index: 0)
+        diagnostics.festivalFadeIn(isLoaded: true, index: 1)
+        topicRow(.accessibility)
+            .quickLinkSection(id: "accessibility", title: "Accessibility", symbol: "accessibility")
+            .festivalFadeIn(isLoaded: true, index: 2)
+        topicRow(.itemShop).quickLinkSection(id: "item-shop", title: "Item Shop", symbol: "bag.fill")
+            .festivalFadeIn(isLoaded: true, index: 3)
+        topicRow(.instruments)
+            .quickLinkSection(id: "show-instruments", title: "Show Instruments", symbol: "music.note")
+            .festivalFadeIn(isLoaded: true, index: 4)
+        topicRow(.metadata)
+            .quickLinkSection(id: "show-metadata", title: "Show Instrument Metadata", symbol: "list.bullet")
+            .festivalFadeIn(isLoaded: true, index: 5)
+        topicRow(.version)
+            .quickLinkSection(id: "version", title: "Festival Score Tracker Version", symbol: "info.circle")
+            .festivalFadeIn(isLoaded: true, index: 6)
+        topicRow(.serviceInfo)
+            .quickLinkSection(id: "service-info", title: ServiceInfoText.title, symbol: "server.rack")
+            .festivalFadeIn(isLoaded: true, index: 7)
+        if SettingsFixtureTools.isEnabled() {
+            SettingsFixtureToolsSection(session: session)
+        }
+        topicRow(.firstRun)
+            .quickLinkSection(id: "first-run", title: "First Run Guides", symbol: "sparkles")
+            .festivalFadeIn(isLoaded: true, index: 8)
+        licensesRow.quickLinkSection(id: "licenses", title: "Licenses", symbol: "doc.text")
+            .festivalFadeIn(isLoaded: true, index: 9)
+        topicRow(.privacyPolicy)
+            .quickLinkSection(id: "privacy-policy", title: "Privacy Policy", symbol: "hand.raised")
+            .festivalFadeIn(isLoaded: true, index: 10)
+        reset.quickLinkSection(id: "reset", title: "Reset Settings", symbol: "trash")
+            .festivalFadeIn(isLoaded: true, index: 11)
+    }
+
+    /// One topic's page on the right of the list/detail Settings: the same rows, storage
+    /// keys and identifiers as the full page, untitled under the pane's own title.
+    ///
+    /// - Parameter topic: The open topic.
+    @ViewBuilder private func topicContent(_ topic: SettingsTopic) -> some View {
+        switch topic {
+        case .songRowOrder:
+            SettingsSectionCard(topic.rowTitle, subtitle: topic.subtitle, titled: false) {
+                if enableVisualOrder {
+                    songRowOrderList
+                } else {
+                    Text("Turn on Enable Independent Song Row Visual Order to choose this order.")
+                        .font(.subheadline)
+                        .foregroundStyle(FestivalText.primary)
+                        .accessibilityIdentifier("fst.settings.song-row-order.off")
+                }
+            }
+        case .paths:
+            SettingsSectionCard(topic.rowTitle, subtitle: topic.subtitle, titled: false) {
+                pathRows
+            }
+        case .accessibility: accessibility
+        case .itemShop: itemShop
+        case .instruments: instruments
+        case .metadata: metadata
+        case .version: version
+        case .serviceInfo:
+            SettingsServiceInfoSection(session: session, isVisible: isVisible, titled: false)
+        case .firstRun:
+            FirstRunSettingsSection(session: session, titled: false)
+        case .privacyPolicy:
+            PrivacyPolicyContent(policy: .current)
+                .padding(.horizontal, 4)
+        }
     }
 
     /// One Mac Settings pane: the same sections and rows (same storage keys and
@@ -285,7 +385,11 @@ struct SettingsScreen: View {
         ) {
             instrumentIconsRow
             visualOrderRows
-            pathRows
+            if isList {
+                cardTopicRow(.paths)
+            } else {
+                pathRows
+            }
             invalidScoreRows
             experimentalRanksRow
             if feedbackEnabled {
@@ -321,27 +425,33 @@ struct SettingsScreen: View {
         }
         .accessibilityIdentifier("fst.settings.enable-visual-order")
         if enableVisualOrder {
-            // Shown directly under its switch, like the web's collapse (no disclosure).
-            reorderBlock(
-                "Song Row Visual Order",
-                detail: "When filtering to a single instrument in the song list, extra "
-                    + "metadata is displayed. Choose the order it appears in on the bottom row."
-            ) {
-                if visibleVisualOrder.isEmpty {
-                    Text("No metadata fields are currently visible.")
-                        .font(.subheadline)
-                        .foregroundStyle(FestivalText.primary)
-                } else {
-                    SettingsReorderList(
-                        items: visibleVisualOrder,
-                        identifier: "fst.settings.song-row-order",
-                        label: \.reorderLabel, key: \.rawValue
-                    ) { reordered in
-                        songRowVisualOrder.wrappedValue = SettingsReorder.merging(
-                            visible: reordered, into: songRowVisualOrder.wrappedValue
-                        )
-                    }
+            if isList {
+                // The draggable list opens on the right (issue #371).
+                cardTopicRow(.songRowOrder)
+            } else {
+                // Shown directly under its switch, like the web's collapse (no disclosure).
+                reorderBlock(SettingsTopic.songRowOrder.rowTitle, detail: SettingsTopic.songRowOrder.subtitle) {
+                    songRowOrderList
                 }
+            }
+        }
+    }
+
+    /// The Song Row Visual Order list, or a note while no metadata field is visible.
+    @ViewBuilder private var songRowOrderList: some View {
+        if visibleVisualOrder.isEmpty {
+            Text("No metadata fields are currently visible.")
+                .font(.subheadline)
+                .foregroundStyle(FestivalText.primary)
+        } else {
+            SettingsReorderList(
+                items: visibleVisualOrder,
+                identifier: "fst.settings.song-row-order",
+                label: \.reorderLabel, key: \.rawValue
+            ) { reordered in
+                songRowVisualOrder.wrappedValue = SettingsReorder.merging(
+                    visible: reordered, into: songRowVisualOrder.wrappedValue
+                )
             }
         }
     }
@@ -455,10 +565,11 @@ struct SettingsScreen: View {
     }
 
     private var accessibility: some View {
-        FestivalGlassSection(
+        SettingsSectionCard(
             "Accessibility",
             subtitle: "Off follows your device; On adds an app override. "
-                + "VoiceOver and text size are managed in \(Self.systemSettingsName)."
+                + "VoiceOver and text size are managed in \(Self.systemSettingsName).",
+            titled: showsSectionTitles
         ) {
             Toggle(isOn: $reduceMotion) { SettingLabel("Reduce Motion") }
                 .accessibilityIdentifier("fst.settings.reduce-motion")
@@ -474,8 +585,9 @@ struct SettingsScreen: View {
     }
 
     private var itemShop: some View {
-        FestivalGlassSection(
-            "Item Shop", subtitle: "Control how Item Shop availability is displayed."
+        SettingsSectionCard(
+            "Item Shop", subtitle: "Control how Item Shop availability is displayed.",
+            titled: showsSectionTitles
         ) {
             Toggle(isOn: $hideShop) {
                 SettingLabel(
@@ -498,9 +610,10 @@ struct SettingsScreen: View {
     }
 
     private var instruments: some View {
-        FestivalGlassSection(
+        SettingsSectionCard(
             "Show Instruments",
-            subtitle: "Choose which instruments to display throughout the app."
+            subtitle: "Choose which instruments to display throughout the app.",
+            titled: showsSectionTitles
         ) {
             ForEach(Instrument.allCases) { instrument in
                 let shown = instrumentBinding(for: instrument)
@@ -519,7 +632,7 @@ struct SettingsScreen: View {
     }
 
     private var metadata: some View {
-        FestivalGlassSection(
+        SettingsSectionCard(
             "Show Instrument Metadata",
             subtitle: session.selectedPlayer == nil
                 ? "Select a player to customize score metadata."
@@ -528,7 +641,8 @@ struct SettingsScreen: View {
                         + "metadata. Turn icons off or filter one chart to show these fields."
                     : "Visible score fields update Songs cards. Enable Independent Song Row "
                         + "Visual Order above to choose which field leads; Last Played sort is "
-                        + "still being ported."
+                        + "still being ported.",
+            titled: showsSectionTitles
         ) {
             ForEach(MetadataField.allCases) { field in
                 Toggle(isOn: metadataBinding(for: field)) { SettingLabel(field.label) }
@@ -575,9 +689,10 @@ struct SettingsScreen: View {
     }
 
     private var version: some View {
-        FestivalGlassSection(
+        SettingsSectionCard(
             "Festival Score Tracker Version",
-            subtitle: "Festival Score Tracker information to help with debugging."
+            subtitle: "Festival Score Tracker information to help with debugging.",
+            titled: showsSectionTitles
         ) {
             versionRow("App Version", value: appVersionText)
             versionRow("Build Configuration", value: buildConfigurationText)
@@ -611,14 +726,41 @@ struct SettingsScreen: View {
     /// trailing chevron, the whole row tappable, no card (`SettingsPage.tsx` "Licenses").
     private var licensesRow: some View {
         // Licenses opens in the trailing pane where Settings can split (iPad, Duo).
-        ListDetailLink(value: AppRoute.licenses) {
+        chevronRow(
+            "Licenses", subtitle: "Open source package license details.", route: .licenses,
+            label: "View Licenses", identifier: "fst.settings.licenses"
+        )
+    }
+
+    /// A list/detail topic's standalone chevron row, styled like the Licenses link
+    /// (issue #371).
+    ///
+    /// - Parameter topic: The topic it opens on the right.
+    private func topicRow(_ topic: SettingsTopic) -> some View {
+        chevronRow(
+            topic.rowTitle, subtitle: topic.subtitle, route: .settingsTopic(topic),
+            label: topic.rowTitle, identifier: topic.accessibilityIdentifier
+        )
+    }
+
+    /// A standalone link row: the section title and description with a trailing chevron,
+    /// the whole row tappable, no card. It opens on the right where Settings splits and is
+    /// pushed everywhere else (``ListDetailLink``), highlighted while open.
+    ///
+    /// - Parameters:
+    ///   - title: Title Case section title.
+    ///   - subtitle: Sentence-case description, also the accessibility hint.
+    ///   - route: The page it opens.
+    ///   - label: Accessibility label.
+    ///   - identifier: Accessibility identifier.
+    private func chevronRow(
+        _ title: String, subtitle: String, route: AppRoute, label: String, identifier: String
+    ) -> some View {
+        ListDetailLink(value: route) {
             HStack(alignment: .center, spacing: 16) {
-                FestivalSectionHeader("Licenses", subtitle: "Open source package license details.")
+                FestivalSectionHeader(title, subtitle: subtitle)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Image(systemName: "chevron.forward")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(FestivalText.primary)
-                    .accessibilityHidden(true)
+                SettingsChevron()
             }
             .padding(.horizontal, 4)
             .contentShape(Rectangle())
@@ -630,9 +772,28 @@ struct SettingsScreen: View {
         // and left the inner button exposed as well (landscape Settings split audit:
         // "Potentially inaccessible element/text", Lane A11Y3/A11Y4). Rivals' split
         // rows label the link the same way.
-        .accessibilityLabel("View Licenses")
-        .accessibilityHint("Open source package license details")
-        .accessibilityIdentifier("fst.settings.licenses")
+        .accessibilityLabel(label)
+        .accessibilityHint(subtitle)
+        .accessibilityIdentifier(identifier)
+    }
+
+    /// A list/detail topic's row inside the App Settings card, beside the toggles it
+    /// belongs to (issue #371): the setting's label and description with a chevron.
+    ///
+    /// - Parameter topic: The topic it opens on the right.
+    private func cardTopicRow(_ topic: SettingsTopic) -> some View {
+        ListDetailLink(value: .settingsTopic(topic)) {
+            HStack(spacing: 8) {
+                SettingLabel(topic.rowTitle, detail: topic.subtitle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                SettingsChevron()
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(topic.rowTitle)
+        .accessibilityHint(topic.subtitle)
+        .accessibilityIdentifier(topic.accessibilityIdentifier)
     }
 
     /// Settings › Privacy Policy (issue #98): styled like the Licenses link, but it opens
@@ -648,10 +809,7 @@ struct SettingsScreen: View {
                     subtitle: "How Festival Score Tracker handles your information."
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
-                Image(systemName: "chevron.forward")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(FestivalText.primary)
-                    .accessibilityHidden(true)
+                SettingsChevron()
             }
             .padding(.horizontal, 4)
             .contentShape(Rectangle())
@@ -769,7 +927,7 @@ struct SettingsScreen: View {
     /// Show the feedback rows once the service reports in-app feedback is on (pure
     /// `GET /api/features`). Off or unreadable keeps them hidden; an open form stays open.
     func loadFeedbackAvailability() async {
-        guard !feedbackEnabled else { return }
+        guard topic == nil, !feedbackEnabled else { return }
         do {
             feedbackEnabled = try await session.client().feedbackEnabled()
         } catch {
@@ -904,6 +1062,38 @@ struct SettingsScreen: View {
     }
 }
 
+// MARK: - Title and root items
+
+/// The page's navigation title: a topic page is a pushed route, so it publishes its title
+/// like every route (``SwiftUI/View/festivalNavigationTitle(_:)``); the root and the Mac
+/// panes keep the plain title.
+private struct SettingsPageTitle: ViewModifier {
+    let title: String
+    let isRoute: Bool
+
+    func body(content: Content) -> some View {
+        if isRoute {
+            content.festivalNavigationTitle(title)
+        } else {
+            content.navigationTitle(title)
+        }
+    }
+}
+
+/// Tags the root page (and the Mac panes) as ending its toolbar with the root trailing
+/// items; a topic page is a pushed route, which gets the stack's own items.
+private struct SettingsProvidesRootTrailingItems: ViewModifier {
+    let isEnabled: Bool
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.festivalProvidesRootTrailingItems()
+        } else {
+            content
+        }
+    }
+}
+
 // MARK: - Quick links
 
 /// The page's Quick Links container, only for the whole page: a Mac Settings pane is
@@ -953,6 +1143,19 @@ struct ReadableWidthContainer: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+// MARK: - Chevron
+
+/// The trailing chevron of Settings' link rows (Licenses, Privacy Policy, list/detail
+/// topics). HIG Lists and tables: "for drill-down, use a disclosure indicator".
+private struct SettingsChevron: View {
+    var body: some View {
+        Image(systemName: "chevron.forward")
+            .font(.body.weight(.semibold))
+            .foregroundStyle(FestivalText.primary)
+            .accessibilityHidden(true)
     }
 }
 
