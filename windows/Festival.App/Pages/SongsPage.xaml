@@ -140,9 +140,9 @@
                                                     </Expander.Header>
                                                     <StackPanel>
                                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4" Margin="0,0,-8,0">
-                                                            <HyperlinkButton Content="Select All" Command="{x:Bind SelectAllCommand}"
+                                                            <HyperlinkButton Content="Select All" Command="{x:Bind SelectAllCommand}" MinHeight="{StaticResource FSTMinTargetSize}"
                                                                              AutomationProperties.Name="{x:Bind SelectAllName}" AutomationProperties.AutomationId="{x:Bind SelectAllId}" />
-                                                            <HyperlinkButton Content="Clear All" Command="{x:Bind ClearAllCommand}"
+                                                            <HyperlinkButton Content="Clear All" Command="{x:Bind ClearAllCommand}" MinHeight="{StaticResource FSTMinTargetSize}"
                                                                              AutomationProperties.Name="{x:Bind ClearAllName}" AutomationProperties.AutomationId="{x:Bind ClearAllId}" />
                                                         </StackPanel>
                                                         <ItemsControl ItemsSource="{x:Bind Rows}" ItemTemplate="{StaticResource FilterToggleTemplate}" IsTabStop="False" />
@@ -253,9 +253,9 @@
                                                                 <StackPanel>
                                                                     <!-- Web BulkActions as trailing text actions (7.17). -->
                                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4" Margin="0,0,-8,0">
-                                                                        <HyperlinkButton Content="Select All" Command="{x:Bind SelectAllCommand}"
+                                                                        <HyperlinkButton Content="Select All" Command="{x:Bind SelectAllCommand}" MinHeight="{StaticResource FSTMinTargetSize}"
                                                                                          AutomationProperties.Name="{x:Bind SelectAllName}" AutomationProperties.AutomationId="{x:Bind SelectAllId}" />
-                                                                        <HyperlinkButton Content="Clear All" Command="{x:Bind ClearAllCommand}"
+                                                                        <HyperlinkButton Content="Clear All" Command="{x:Bind ClearAllCommand}" MinHeight="{StaticResource FSTMinTargetSize}"
                                                                                          AutomationProperties.Name="{x:Bind ClearAllName}" AutomationProperties.AutomationId="{x:Bind ClearAllId}" />
                                                                     </StackPanel>
                                                                     <ItemsControl ItemsSource="{x:Bind Rows}" ItemTemplate="{StaticResource FilterToggleTemplate}" IsTabStop="False" />

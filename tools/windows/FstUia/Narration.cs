@@ -73,7 +73,8 @@ internal sealed partial class Driver
     /// <summary>
     /// Narrator's scan-mode reading order under <paramref name="root"/>: a pre-order walk of the UIA control view that
     /// skips off-screen elements and unnamed containers, and stops at a named item that Narrator reads whole
-    /// (<see cref="NarratorLeafTypes"/>). A named group or pane is read on entry, then its content.
+    /// (<see cref="NarratorLeafTypes"/>). A named group or pane is read on entry, then its content. An open Flyout's
+    /// windowed <c>Popup</c> host (off screen, empty bounds) is walked through, so its content is read (issue #432).
     /// </summary>
     /// <param name="root">Walk root (the window, or a region such as the title bar).</param>
     /// <returns>Elements in reading order.</returns>
@@ -84,9 +85,9 @@ internal sealed partial class Driver
         void Visit(AutomationElement element, int depth)
         {
             var p = element.Properties;
-            // WinUI hosts an open flyout under a "Popup" window with empty bounds, which UIA reports off screen while
-            // its content is shown and read (issue #428): walk into it without reading the host itself.
-            var popupHost = p.ClassName.ValueOrDefault == "Popup" && p.BoundingRectangle.ValueOrDefault.IsEmpty;
+            // A WinUI windowed popup (a Flyout's host, class Popup) reports IsOffscreen with an empty rectangle while its
+            // content is on screen and read by Narrator, so the host is walked through but never read itself.
+            var popupHost = depth > 0 && p.ClassName.ValueOrDefault == "Popup" && p.BoundingRectangle.ValueOrDefault is { Width: <= 0, Height: <= 0 };
             if (p.IsOffscreen.ValueOrDefault && !popupHost) return;
             var named = !popupHost && !string.IsNullOrEmpty(p.Name.ValueOrDefault);
             ControlType type;

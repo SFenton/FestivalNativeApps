@@ -34,11 +34,23 @@ Issue #92 removed the header Search button and the custom accessory dock (`Float
 
 Mirrors the web sidebar: Songs, Suggestions*, Statistics*, Rivals*, Leaderboards, Item Shop (*player; a visible tab switches, otherwise pushes), current destination highlighted (`DrawerMenu.isCurrent`); footer pinned at the bottom: the profile row (name → profile, Deselect) or Select Profile, then Settings. No Bands or Licenses rows (operator, 2026-09-28). The drawer stays (agent decision #338, [page-tools-and-nav-chrome R13](../../patterns/page-tools-and-nav-chrome.md)): on the phone it is the only route to Item Shop and, with a player, to the Leaderboards and Rivals overviews and Deselect; tabs and the Profile button cover the rest.
 
-The player row uses `DrawerRow`'s metrics (`.body`, primary text, avatar in the 26 pt symbol column, 14 pt gap) and shows only the name: no "Selected Player" caption (issue #16, 2026-10-01). VoiceOver still reads "‹name›, Selected Player" (`DrawerMenu.selectedPlayerAccessibilityLabel`).
+The player row uses `DrawerRow`'s metrics (`.body`, primary text, avatar in the symbol column, 14 pt gap) and shows only the name: no "Selected Player" caption (issue #16, 2026-10-01). VoiceOver still reads "‹name›, Selected Player" (`DrawerMenu.selectedPlayerAccessibilityLabel`).
 
 ### Drawer corners
 
 Issue #17 (2026-10-01): the panel follows the display corners with public API only. On iOS 26+ `DrawerCorners.panelShape` is `ConcentricRectangle(corners: .concentric(minimum: .fixed(26)), isUniform: false)` at the window root, so each corner is the display/window corner radius minus its distance from that corner. The system supplies the hardware shape per device, per Duo display and per rotation. Corners far from a display corner, such as the trailing corners or a Duo hinge-side corner, use the 26 pt minimum, which is the 14 pt row highlight plus the 12 pt content inset. That keeps the panel concentric with its own rows. The scrim cut-out (`DrawerPlacement.cutoutPadding`) has the same layout frame as the panel so both resolve the same radii. iOS 17–25 has no public API for the display radius and keeps a fixed 44 pt. Never read `_displayCornerRadius` (private API; App Review).
 
 Measured (`FST_DEBUG_DRAWER_RADII=1` shows the panel frame and `GeometryProxy.concentricCornerRadii` on iOS 27): iPhone 18 Pro leading corners 54 pt (display ≈62 pt − 8 pt margin); iPhone 17e, the iPhone 13 display geometry, 39.3 pt (≈47.3 − 8). Display radii were taken from the simulator framebuffer masks: 18/17 Pro ≈62.6 pt, 13/17e ≈47.8 pt, Duo outer 8 hinge side / ≈58 outer side, Duo inner ≈53.
+
+### Drawer accessibility (#396)
+
+Rules, enforced by the tests below:
+- Each drawer control is a target of at least 44×44 pt (HIG Buttons: "the hit region is at least 44x44 pt"). Deselect uses `.controlSize(.large)`; the regular bordered size was 34 pt tall.
+- The symbol column (`DrawerRow.iconWidth`, 26 pt at the default size) and the footer avatar scale with `@ScaledMetric(relativeTo: .body)`. At AX5 a fixed column let symbols overlap their titles and spill toward the rounded corner.
+- Every target lies wholly inside the concentric panel shape.
+- The page behind leaves `app.snapshot()` while the drawer is open.
+
+Tests:
+- `DrawerCornersAccessibilityTests` (hosted, `apple-ci`). It covers 7 iPhone and Duo geometries × default/AX5 × anonymous/player. It checks reading order, names, roles, selected state, the 12 pt inset, target size and clearance from the worst-case corner, plus the same tree under Reduce Transparency.
+- `DrawerAccessibilityJourneyTests` (simulator, iPhone and `--device duo`). It runs a `performAccessibilityAudit` `.all` and an AX5 audit, using the measured-contrast, behind-modal and page-floor rules in [Apple accessibility audits](../../testing/apple/accessibility.md#drawer-journey-iphone-and-iphone-duo).
 

@@ -128,8 +128,7 @@ PROBE = re.compile(
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text; ``scroll`` takes a rounded
 #: vertical scroll percent, ``0``-``100`` or ``-1`` when the content fits; ``type`` the lower-case UIA control type such as
 #: ``button`` or ``text``; ``invoke`` whether the Invoke pattern is offered; ``focusable`` UIA IsKeyboardFocusable;
-#: ``value`` the UIA Value, else the name of the Selection pattern's selected item, e.g. a combo box's current option;
-#: ``heading`` the UIA HeadingLevel, ``1``-``9``, or ``0`` for none: Narrator's "heading level N", which its phrase omits).
+#: ``value`` the UIA Value, else the name of the Selection pattern's selected item, e.g. a combo box's current option).
 STATE_KEYS = {"toggle": ("on", "off", "indeterminate"), "enabled": ("true", "false"), "selected": ("true", "false"),
               "name": None, "scroll": None, "type": None, "invoke": ("true", "false"), "focusable": ("true", "false"),
               "value": None, "heading": tuple("0123456789")}
@@ -257,7 +256,7 @@ def parse_step(step: str) -> dict:
     ``setvalue:<sel>|<text>`` writes text through the UIA Value pattern (no keyboard input,
     so it also works while the console session is locked; an empty text clears the field);
     ``scrollto:<selector>,<percent>`` sets a scroller's vertical position through the UIA
-    Scroll pattern (a no-op when its content fits, so nothing scrolls) and ``reveal:<selector>`` scrolls the target into view (UIA ScrollItem, else
+    Scroll pattern and ``reveal:<selector>`` scrolls the target into view (UIA ScrollItem, else
     stepping its scroller from the top), with no input, so both work while the console is locked;
     ``assertname:<sel>|<text>`` waits (default 5 s) until the element's UIA Name is exactly the text (each ``*`` matches
     any run of characters, so ``|*<text>`` waits until it ends with the text, for names that start with a local-time date);
@@ -297,9 +296,10 @@ def parse_step(step: str) -> dict:
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
     (``on``/``off``/``indeterminate``), ``enabled`` (``true``/``false``), ``selected`` (UIA SelectionItem
     ``IsSelected``: ``true``/``false``, e.g. a list's current item), ``scroll`` (UIA Scroll pattern vertical percent,
-    rounded: ``0`` is a list back at its top), ``heading`` (UIA HeadingLevel ``1``-``9``, ``0`` for none: Narrator's
-    "heading level N", which ``assertread`` phrases omit), ``name`` or ``value`` (UIA Value, else the selected item's name: what
-    Narrator reads after a combo box's name, e.g. ``Instrument, combo box, Bass``) equals ``<value>``;
+    rounded: ``0`` is a list back at its top), ``heading`` (UIA heading level ``1``-``9``, ``0`` for none: Narrator's
+    H/Shift+H stops, e.g. a pinned section title or one a Quick Links jump lands on), ``name`` or ``value`` (UIA Value,
+    else the selected item's name: what Narrator reads after a combo box's name, e.g. ``Instrument, combo box, Bass``)
+    equals ``<value>``;
     ``pin:<sel>`` records the element's window-relative rectangle and ``assertpinned:<sel>`` (same selector, later in
     the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls;
     ``assertmarquee:<sel>|moving|<epx>`` fails unless the element is at most ``<epx>`` effective pixels high (one line)
@@ -821,6 +821,25 @@ def frame_stats(csv_text: str) -> dict:
     summary = summarize(times)
     return {"frames": len(times), "fps_mean": round(1000.0 / statistics.fmean(times), 1),
             "frame_ms": summary}
+
+
+def framework_popup_finding(finding: dict) -> bool:
+    """Whether an Axe finding is WinUI's own windowed popup host (windows-accessibility.md open item 8).
+
+    A flyout or tooltip popup's ``InputSiteWindowClass`` is exactly the size of its ``PopupHost`` bridge, so Axe reports
+    ``BoundingRectangleCompletelyObscuresContainer`` with no app element involved.
+
+    Args:
+        finding: One ``findings`` entry from a scan.
+
+    Returns:
+        ``True`` only for that framework finding.
+    """
+    element = finding.get("element") or {}
+    parents = finding.get("parents") or []
+    return (finding.get("rule") == "BoundingRectangleCompletelyObscuresContainer"
+            and element.get("ClassName") == "InputSiteWindowClass"
+            and bool(parents) and "PopupWindowSiteBridge" in parents[0])
 
 # endregion
 
