@@ -293,7 +293,7 @@ rotation on the web either.
 | `songinfo-view-all` | `FirstRunSongInfoViewAllDemo` | Real `ScoreHistoryListRow`s (last one faded) + pulsing `PurpleActionLabel` "View All Scores" |
 | `songinfo-top-scores` | `FirstRunSongInfoTopScoresDemo` | Instrument header + top leaderboard rows + pulsing "View full leaderboard" |
 | `songinfo-paths` | `FirstRunSongInfoPathsDemo` | The Paths sheet's real Instrument/Difficulty/View menus (`SongPathsSelectorRow`, inert) below a still path-area placeholder (no network image fetch); selectors fade in first, as on the web |
-| `songinfo-shop-button` | `FirstRunSongInfoShopPillDemo(tone: .shop)` | Song header card with the real Song Details Item Shop action (`SongDetailShopActionStyle`: breathing bag, or the titled capsule on a vertical section bar); green |
+| `songinfo-shop-button` | `FirstRunSongInfoShopPillDemo(tone: .shop)` | Song header card with the real Song Details Item Shop action (`SongDetailShopActionStyle`: breathing bag, or the titled `festivalCardCapsule` on a vertical section bar — a demo replica is a custom control, so never shipping glass (surface-materials `apple-glass-consumers`)); green |
 | `songinfo-new-in-shop` | `FirstRunSongInfoShopPillDemo(tone: .new)` | Same, gold |
 | `songinfo-leaving-tomorrow` | `FirstRunSongInfoShopPillDemo(tone: .leaving)` | Same, red |
 | `playerhistory-score-list` | `FirstRunPlayerHistoryScoreListDemo` | Real `ScoreHistoryListRow`s, personal best highlighted |
