@@ -4,7 +4,7 @@ The shared mock always answers ``/api/shop`` with the two-offer demo feed (a New
 native app never sends the mock's ``?scenario=`` query, so this wrapper picks the Shop state itself and lets a
 journey change it between phases through a loopback control route:
 
-``GET /__shop__/mode?shop=<demo|empty|error|slow|shop-single>&songs=<ok|error>``
+``GET /__shop__/mode?shop=<demo|empty|error|slow|shop-single|long-title>&songs=<ok|error>``
 
 * ``demo``: the unchanged mock feed (ETag/304 included).
 * ``empty``: a genuine ``count=0`` feed (the empty-Shop card, never the failure view).
@@ -12,6 +12,8 @@ journey change it between phases through a loopback control route:
 * ``slow``: holds the demo feed until a control request leaves ``slow`` (at most ``--slow-seconds``), so the loading
   ring stays up however long the journey waits for the shared desktop lock.
 * ``shop-single``: the mock's one-offer ``?scenario=shop-single`` feed.
+* ``long-title``: the demo feed with ``fixture-pulse`` renamed to :data:`LONG_TITLE` by :data:`LONG_ARTIST`, too long
+  for any Item Shop list row, so the shared Song Row's marquee scrolls (motion) or ellipsizes (Reduce Motion) (issue #397).
 * ``songs=error``: ``/api/songs`` answers 503, so Shop keeps its offers with "Song details unavailable" and every
   tile falls back to the official Item Shop action.
 
@@ -36,11 +38,35 @@ import mock_service  # noqa: E402  (path set above)
 import rivals_fixture  # noqa: E402  (sibling wrapper)
 
 #: Shop states this wrapper can serve.
-SHOP_MODES = ("demo", "empty", "error", "slow", "shop-single")
+SHOP_MODES = ("demo", "empty", "error", "slow", "shop-single", "long-title")
 #: Catalogue states this wrapper can serve.
 SONGS_MODES = ("ok", "error")
 #: Control route a journey calls between phases.
 CONTROL_PATH = "/__shop__/mode"
+#: ``long-title`` offer: wider than the list row's title column at the medium and wide presets.
+LONG_SONG_ID = "fixture-pulse"
+LONG_TITLE = "Fixture Pulse and the Extraordinarily Long Item Shop Song Title That Never Fits on One Row of the List"
+LONG_ARTIST = "Synthetic Quartet featuring the Extraordinarily Long Guest Ensemble Name"
+LONG_ETAG = '"fst-fixture-shop-long-title-v1"'
+
+
+def long_title_feed(feed: dict) -> dict:
+    """The Shop feed with :data:`LONG_SONG_ID` renamed to :data:`LONG_TITLE` by :data:`LONG_ARTIST`.
+
+    Args:
+        feed: Demo Shop feed (unchanged).
+
+    Returns:
+        A copy with the one offer renamed.
+
+    Raises:
+        ValueError: The demo feed no longer has :data:`LONG_SONG_ID`.
+    """
+    if not any(song["songId"] == LONG_SONG_ID for song in feed["songs"]):
+        raise ValueError(f"{LONG_SONG_ID} is missing from the demo Shop feed")
+    songs = [{**song, "title": LONG_TITLE, "artist": LONG_ARTIST} if song["songId"] == LONG_SONG_ID else song
+             for song in feed["songs"]]
+    return {**feed, "songs": songs}
 
 
 class ShopState:
@@ -101,8 +127,8 @@ class ShopState:
             path: Request path without the query string.
 
         Returns:
-            ``"control"``, ``"shop-empty"``, ``"shop-error"``, ``"shop-slow"``, ``"shop-shop-single"`` or
-            ``"songs-error"``; ``None`` defers to the mock.
+            ``"control"``, ``"shop-empty"``, ``"shop-error"``, ``"shop-slow"``, ``"shop-shop-single"``,
+            ``"shop-long-title"`` or ``"songs-error"``; ``None`` defers to the mock.
         """
         if path == CONTROL_PATH:
             return "control"
@@ -141,6 +167,14 @@ def install(state: ShopState) -> None:
         elif kind == "shop-shop-single":
             self.path = "/api/shop?scenario=shop-single"
             original(self)
+        elif kind == "shop-long-title":
+            pin = self.headers.get("X-FST-Publication-Id")
+            if pin is not None and pin != str(self.fixture.publication_id):
+                self._json(409, {"status": "publication_changed"})
+            elif self.headers.get("If-None-Match") == LONG_ETAG:
+                self._json(304, None, etag=LONG_ETAG)
+            else:
+                self._json(200, long_title_feed(mock_service.SHOP_DEMO), etag=LONG_ETAG)
         else:  # shop-slow
             state.released.wait(state.slow_seconds)
             original(self)
