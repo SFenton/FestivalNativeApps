@@ -3,37 +3,54 @@ package com.festivalscoretracker.android.journeys
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.dp
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.mutablePreferencesOf
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
+import com.festivalscoretracker.android.core.settings.SettingsRegistry
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.ProfileFixtures
 import com.festivalscoretracker.android.testing.RankingsFixtures
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * The solo song leaderboard on a device (issues #93, #190): before any scroll the top bar
+ * The solo song leaderboard on a device (issues #93, #190, #443): before any scroll the top bar
  * carries no title, and takes the song title once the in-page header has scrolled under it;
  * the pinned score and pager float at the bottom while rows beneath them leave the
  * accessibility tree (no visible row node overlaps the footer); TalkBack reads header → rows →
- * pinned score → pager; the pinned row is one 48 dp "Jump to your position" button; and a
- * page change keeps the pinned score and pager in place while only the rows show the spinner. ATF runs
- * throughout and nothing straddles a hinge
+ * pinned score → pager; the pinned row is one 48 dp "Jump to your position" button and every
+ * pager button is a labelled 48 dp button; and a page change keeps the pinned score and pager in
+ * place while only the rows show the spinner. The same journey runs at 200 % text (the header,
+ * pinned row and page label lay out at that scale without clipping, and the pager stays on
+ * screen) and with Reduce Transparency, whose hard edge (scroll-edge R7) must still cut rows at
+ * the footer. ATF runs throughout and nothing straddles a hinge. `@DeviceCi`: the `android-device`
+ * job runs it on a plain phone
  * (`device.py test com.festivalscoretracker.android.journeys.SongLeaderboardJourneyTest --avd …`).
  */
+@DeviceCi
 @RunWith(AndroidJUnit4::class)
 class SongLeaderboardJourneyTest {
     @get:Rule
@@ -82,17 +99,77 @@ class SongLeaderboardJourneyTest {
 
     private fun screenBox(n: AccessibilityNodeInfo) = android.graphics.Rect().also(n::getBoundsInScreen)
 
+    /** Each shown pager button is a labelled button at least 48 dp square, inside the window. */
+    private fun assertPagerTargets(screen: String) {
+        val min = with(rule.density) { 48.dp.toPx() } - 1
+        val width = rule.activity.window.decorView.width
+        mapOf("first" to "First page", "previous" to "Previous page", "next" to "Next page", "last" to "Last page").forEach { (id, label) ->
+            val tag = "$prefix.page-$id"
+            val node = rule.onAllNodes(hasTestTag(tag), useUnmergedTree = true).fetchSemanticsNodes().firstOrNull() ?: return@forEach
+            assertEquals("$screen: $tag label", label, node.config.getOrNull(SemanticsProperties.ContentDescription)?.joinToString())
+            assertEquals("$screen: $tag role", Role.Button, node.config.getOrNull(SemanticsProperties.Role))
+            val box = node.boundsInWindow
+            assertTrue("$screen: $tag $box under 48 dp", box.width >= min && box.height >= min)
+            assertTrue("$screen: $tag $box leaves the window", box.left >= 0f && box.right <= width + 1)
+        }
+    }
+
+    /**
+     * Every text node matching [matcher] is laid out at [scale] and fits its box: no line wider
+     * than the box and no paragraph taller than it; no ellipsis unless [allowEllipsis] (score-row
+     * names may shorten to keep their columns, like the board rows).
+     */
+    private fun assertTextScaled(screen: String, matcher: SemanticsMatcher, scale: Float, allowEllipsis: Boolean = false) {
+        val nodes = rule.onAllNodes(matcher and SemanticsMatcher.keyIsDefined(SemanticsActions.GetTextLayoutResult), useUnmergedTree = true)
+        val count = nodes.fetchSemanticsNodes().size
+        assertTrue("$screen: no text matches $matcher", count > 0)
+        for (i in 0 until count) {
+            val layouts = mutableListOf<TextLayoutResult>()
+            nodes[i].performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            val layout = layouts.single()
+            val text = layout.layoutInput.text.text
+            assertEquals("$screen: \"$text\" laid out at ${scale}x text", scale, layout.layoutInput.density.fontScale, 0.01f)
+            val lines = 0 until layout.lineCount
+            assertFalse("$screen: \"$text\" is wider than its box", lines.any { layout.getLineRight(it) - layout.getLineLeft(it) > layout.size.width + 1 })
+            assertFalse("$screen: \"$text\" is taller than its box", layout.multiParagraph.height > layout.size.height + 1)
+            if (!allowEllipsis) assertFalse("$screen: \"$text\" is ellipsized", lines.any(layout::isLineEllipsized))
+        }
+    }
+
     // endregion
 
+    // region Journeys
+
+    /** Device text size, effects on: the fade above the footer (issue #93). */
     @Test
-    fun titleWaitsForScrollFooterFloatsAndPagingKeepsThePager() {
+    fun titleWaitsForScrollFooterFloatsAndPagingKeepsThePager() = journey("song-leaderboard")
+
+    /** 200 % text: the header, pinned score and pager grow, stay unclipped and reachable (#443). */
+    @Test
+    fun largeTextKeepsTheHeaderPinnedScoreAndPagerReadableAndReachable() = journey("song-leaderboard-font-2", scale = 2f)
+
+    /** Reduce Transparency: the hard edge still hides rows under the footer from sight and TalkBack (#443). */
+    @Test
+    fun reduceTransparencyStillCutsRowsAtTheFooter() = journey(
+        "song-leaderboard-reduce-transparency",
+        preferences = MemoryPreferences(mutablePreferencesOf(booleanPreferencesKey(SettingsRegistry.REDUCE_TRANSPARENCY) to true)),
+    )
+
+    /**
+     * The board journey: title, reading order, targets, the footer cut, then a held page change.
+     *
+     * @param screen Name for the reading-order log and failure messages.
+     * @param scale Font scale to render at, or null for the device's own.
+     * @param preferences Settings store (accessibility modes).
+     */
+    private fun journey(screen: String, scale: Float? = null, preferences: MemoryPreferences = MemoryPreferences()) {
         h.enableAccessibilityChecks()
         val debug = DebugLaunch(
             route = DebugLaunch.parseRoute("songLeaderboard:s-alpha:Solo_Guitar"),
             profile = SelectedPlayer(RankingsFixtures.SELECTED, "Selected Player"),
             stillBackground = true,
         )
-        h.launch(debug, transport)
+        h.launch(debug, transport, preferences, fontScale = scale?.let { s -> { s } })
         h.waitForTag(footer)
         h.waitForTag("$prefix.row.${Fixtures.ACCOUNT_A.dropLast(2)}10")
         h.awaitAccessibilityTree(footer)
@@ -100,11 +177,17 @@ class SongLeaderboardJourneyTest {
         // Before any scroll the in-page header carries the title; the bar is empty.
         assertTrue("song header missing", rule.onAllNodes(hasText("Alpha Tune"), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         assertTrue("the bar shows the title before any scroll", !barShows("Alpha Tune"))
+        if (scale != null) {
+            assertTextScaled(screen, hasText("Alpha Tune") and !hasAnyAncestor(hasTestTag("fst.nav.title")), scale)
+            assertTextScaled(screen, hasAnyAncestor(hasTestTag(footer)), scale, allowEllipsis = true)
+            assertTextScaled(screen, hasTestTag("$prefix.page-info"), scale)
+        }
+        assertPagerTargets(screen)
 
         // Reading order: header → rows → pinned score → pager (spec accessibility order). Around a
         // separating hinge (only without TalkBack: rememberSingleColumn drops the split under it) the
         // rows pane reads first, then the supporting pane's header → pinned score → pager.
-        val order = h.readingOrder("song-leaderboard")
+        val order = h.readingOrder(screen)
         fun at(label: String) = order.indexOfFirst { it.contains(label) }.also { assertTrue("$label not read in $order", it >= 0) }
         val firstRow = at("Synthetic Player 1,")
         val header = at("Alpha Tune")
@@ -166,6 +249,9 @@ class SongLeaderboardJourneyTest {
         h.waitForTag(footer)
         assertEquals("pager moved after paging", pagerBefore, bounds("$prefix.pager"))
         assertEquals("pinned score moved after paging", footerBefore, bounds(footer))
+        assertPagerTargets("$screen-page-2")
         h.assertAccessible()
     }
+
+    // endregion
 }
