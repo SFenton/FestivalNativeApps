@@ -1117,7 +1117,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, off the Duo hinge when unfolded, #345), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, and one measured section-wide score-footer stack plan that never truncates the score.",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, on the Duo screen beside the vertical bar when unfolded, #345, #361), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, and one measured section-wide score-footer stack plan that never truncates the score.",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -2735,7 +2735,7 @@
       "title": "Hinge columns",
       "status": "current",
       "doc": ".agents/patterns/hinge-columns.md",
-      "summary": "While a vertical fold crosses a layout (iPhone Duo book pose, Android book posture), grid and two-up row gutters sit on the fold with the same column count each side, full-width titles wrap on their own side, and the flat layout returns in place when unfolded.",
+      "summary": "While a vertical fold crosses a layout (iPhone Duo book pose, Android book posture), grid and two-up row gutters sit on the fold with the same column count each side, full-width titles wrap on their own side, and the flat layout returns in place when unfolded; fully unfolded, every split and two-column layout divides at the midpoint of the free space, never the inactive hinge (owner, #361).",
       "keywords": [
         "hinge",
         "fold",
@@ -2747,7 +2747,8 @@
         "grid columns",
         "two column",
         "gutter",
-        "iphone duo"
+        "iphone duo",
+        "free space midpoint"
       ],
       "web": [],
       "canonical": {
@@ -2800,7 +2801,8 @@
       "related": {
         "patterns": [
           "section-headers",
-          "wide-columns"
+          "wide-columns",
+          "split-panes"
         ],
         "pages": [
           "statistics",
@@ -2829,7 +2831,8 @@
       "supersedes": [],
       "issues": [
         343,
-        350
+        350,
+        361
       ]
     },
     {
@@ -2837,7 +2840,7 @@
       "title": "Wide columns",
       "status": "current",
       "doc": ".agents/patterns/wide-columns.md",
-      "summary": "Page rows and cards show in two columns only in wide landscape windows (iPad landscape, iPhone Duo unfolded landscape, a wide Mac surface), row-major under full-width headings (pages of unequal section cards such as Settings flow column by column in balanced columns), meeting at the Duo hinge, reflowing without reloading; portrait, compact windows and (for Settings) accessibility text sizes keep one column; full-width leaderboards pair rank rows row-major under one full-width pinned row and pager, while split sub-pages stay one column.",
+      "summary": "Page rows and cards show in two columns only in wide landscape windows (iPad landscape, iPhone Duo unfolded landscape, a wide Mac surface), row-major under full-width headings (pages of unequal section cards such as Settings flow column by column in balanced columns), meeting at the Duo hinge in book pose and at the free space's midpoint when flat (owner, #361), reflowing without reloading; portrait, compact windows and (for Settings) accessibility text sizes keep one column; full-width leaderboards pair rank rows row-major under one full-width pinned row and pager, while split sub-pages stay one column.",
       "keywords": [
         "two column",
         "two-column",
@@ -2925,7 +2928,8 @@
       "issues": [
         350,
         353,
-        355
+        355,
+        361
       ]
     },
     {
@@ -2933,7 +2937,7 @@
       "title": "Split panes",
       "status": "current",
       "doc": ".agents/patterns/split-panes.md",
-      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (a fold, or a 1 pt midpoint band plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under Increase Contrast, and the split's one backdrop and top gradient run unbroken across the band.",
+      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (the fold in iPhone Duo book pose, else a 1 pt band at the midpoint of the free space beside any vertical bar, owner #361, plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under Increase Contrast, and the split's one backdrop and top gradient run unbroken across the band.",
       "keywords": [
         "split view",
         "split",
@@ -2945,7 +2949,8 @@
         "pane",
         "panes",
         "hinge band",
-        "vertical divider"
+        "vertical divider",
+        "free space midpoint"
       ],
       "web": [],
       "canonical": {
@@ -2961,6 +2966,10 @@
           {
             "path": "apple/Sources/FestivalUI/App/Layout/SplitPaneChrome.swift",
             "symbol": "SplitPaneChrome"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/DeviceLayout.swift",
+            "symbol": "splitHinge"
           }
         ],
         "android": [],
@@ -2994,7 +3003,8 @@
       ],
       "supersedes": [],
       "issues": [
-        344
+        344,
+        361
       ]
     }
   ]
