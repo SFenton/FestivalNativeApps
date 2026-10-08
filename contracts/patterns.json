@@ -2737,7 +2737,7 @@
       "title": "Hinge columns",
       "status": "current",
       "doc": ".agents/patterns/hinge-columns.md",
-      "summary": "While a vertical fold crosses a layout (iPhone Duo book pose, Android book posture), grid and two-up row gutters sit on the fold with the same column count each side, full-width titles wrap on their own side, and the flat layout returns in place when unfolded.",
+      "summary": "While a vertical fold crosses a layout (iPhone Duo book pose, Android book posture), grid and two-up row gutters sit on the fold with the same column count each side, full-width titles wrap on their own side, and the flat layout returns in place when unfolded; cells sharing a row start at its top edge.",
       "keywords": [
         "hinge",
         "fold",
@@ -2831,7 +2831,8 @@
       "supersedes": [],
       "issues": [
         343,
-        350
+        350,
+        365
       ]
     },
     {

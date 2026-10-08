@@ -625,7 +625,7 @@ struct PlayerProfileContent: View {
     // MARK: Regular-width grid
 
     private var instrumentGridColumns: [GridItem] {
-        [GridItem(.flexible(), spacing: 20, alignment: .top), GridItem(.flexible(), spacing: 20, alignment: .top)]
+        [GridItem(.flexible(), spacing: 20), GridItem(.flexible(), spacing: 20)]
     }
 
     /// One instrument's block: header, Rank History, stat cards and Percentiles (each

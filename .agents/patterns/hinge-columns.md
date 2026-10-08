@@ -2,7 +2,7 @@
 
 > **What:** where two-column layouts (grids, side-by-side rows) put their centre gutter and where full-width titles wrap when a foldable is partially folded with a vertical fold (iPhone Duo book pose, Android book posture). **Read when:** adding a grid, a two-up row or a full-width title to a page that can show on a foldable's inner display, or changing column counts on the Duo inner display.
 
-Status: **current**, 2026-10-07. Provenance: #343 (split from #332); Android precedent from the Rivals, Shop, Songs and Settings hinge work.
+Status: **current**, 2026-10-07. Provenance: #343 (split from #332), #365 (R7); Android precedent from the Rivals, Shop, Songs and Settings hinge work.
 
 ## Intent
 
@@ -21,6 +21,7 @@ The web app has no fold. This is a native platform requirement (HIG Designing fo
    - Approved variant ([wide-columns](wide-columns.md) R3, #350): a row that is already two columns flat (Songs grid, Search results) passes `HingeRow(hinge: .page)`, so its gutter also sits on the flat Duo's hinge midline (`DeviceLayout.splitHinge`), like the on-demand split divider. Other rows keep `.fold` (only an active fold).
 5. **R5. Reflow in place.** Fold changes swap column widths on the same grid or row view; they never change view identity, restart a load or replay a fade-in.
 6. **R6. One component per platform.** Grids and two-up rows use the canonical component below and pass their flat columns; pages never measure the fold themselves. Every state of a layout follows the policy, including accessibility-size fallbacks: an eager replacement for a lazy grid uses `HingeEagerGrid`, never an `HStack` of equal cells (#343 review). A new `LazyVGrid` on Apple is a review failure unless it is listed under the guard's allowed files.
+7. **R7. Cells start at the top of their row.** Cards of different heights that share a row align to the row's top edge, folded, flat and at every text size: `HingeGrid` top-aligns any column that names no alignment (`HingeColumns.topAligned`; `GridItem` otherwise centres a shorter cell in its taller neighbour's row), and `HingeEagerGrid`, `HingeRow` and `StatTileGridLayout` place cells top-leading. Pages pass plain columns and never add their own `.top`. #365: Song Detail's Pro Lead card started lower than the taller Pro Bass card beside it because its columns named no alignment. HIG Layout: "Align components to aid scanning and communicate organization" (should).
 
 ## Agent decision (#343, 2026-10-07): each side fills its half; P2 overridden
 

@@ -109,8 +109,8 @@ struct LeaderboardsScreen: View {
     /// column unchanged.
     private var regularWidthColumns: [GridItem] {
         [
-            GridItem(.flexible(), spacing: Self.cardSpacing, alignment: .top),
-            GridItem(.flexible(), spacing: Self.cardSpacing, alignment: .top),
+            GridItem(.flexible(), spacing: Self.cardSpacing),
+            GridItem(.flexible(), spacing: Self.cardSpacing),
         ]
     }
 
