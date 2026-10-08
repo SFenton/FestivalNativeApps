@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.journeys
 
 import android.app.UiAutomation
 import android.os.ParcelFileDescriptor
+import android.os.SystemClock
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
@@ -188,6 +189,14 @@ class ShellHitTargetRotatedDeviceTest : ShellHitTargetJourney(rotation = UiAutom
  * Freezes the display at [rotation] for one test, then restores the device's previous rotation
  * settings (a shared AVD is left as found).
  *
+ * The whole connected suite shares one device, so the restore must not hand a later test a
+ * rotated display (issue #528). With auto-rotate on, the orientation listener can still propose
+ * the test's quarter turn for a while after the freeze ends; the next activity with an
+ * unspecified orientation then turned landscape (`ShopFilterAccessibilityJourneyTest` failed on
+ * CI's API 35 emulator). [after] therefore waits, while the launcher holds the natural rotation,
+ * until the sensor agrees with it, and keeps the display locked at the natural rotation if it
+ * never does.
+ *
  * @property rotation `UiAutomation.ROTATION_FREEZE_*`, or `null` to leave the display alone.
  */
 private class DisplayRotation(private val rotation: Int?) : ExternalResource() {
@@ -208,11 +217,62 @@ private class DisplayRotation(private val rotation: Int?) : ExternalResource() {
     override fun after() {
         val (accelerometer, user) = saved ?: return
         automation.setRotation(UiAutomation.ROTATION_FREEZE_0)
-        shell("settings put system user_rotation $user")
-        shell("settings put system accelerometer_rotation $accelerometer")
+        restoreSetting("user_rotation", user)
+        restoreSetting("accelerometer_rotation", accelerometer)
+        if (accelerometer == "1" && !awaitSensorAtNaturalRotation()) {
+            automation.setRotation(UiAutomation.ROTATION_FREEZE_0)
+            Log.w(TAG, "sensor still proposes a turned display; left rotation locked at 0 (${rotationState()})")
+        }
+        Log.i(TAG, "restored accelerometer_rotation=$accelerometer user_rotation=$user (${rotationState()})")
     }
 
+    /**
+     * Puts a saved system setting back, deleting it when it was unset.
+     *
+     * @param name `Settings.System` key.
+     * @param value Value read before the test (`null` when it was unset).
+     */
+    private fun restoreSetting(name: String, value: String) {
+        shell(if (value.isEmpty() || value == "null") "settings delete system $name" else "settings put system $name $value")
+    }
+
+    /**
+     * Waits until the display is at its natural rotation and the orientation listener's proposal
+     * stays natural (or empty) for [SENSOR_AGREE_POLLS] polls in a row.
+     *
+     * @return `true` once the sensor agrees, `false` after [SENSOR_SETTLE_TIMEOUT_MS].
+     */
+    private fun awaitSensorAtNaturalRotation(): Boolean {
+        val deadline = SystemClock.uptimeMillis() + SENSOR_SETTLE_TIMEOUT_MS
+        var agreeing = 0
+        while (SystemClock.uptimeMillis() < deadline) {
+            val (display, proposed) = rotations(shell("dumpsys window displays"))
+            agreeing = if (display == 0 && (proposed == null || proposed <= 0)) agreeing + 1 else 0
+            if (agreeing >= SENSOR_AGREE_POLLS) return true
+            Thread.sleep(SENSOR_POLL_MS)
+        }
+        return false
+    }
+
+    /** @return The default display's rotation and the sensor's proposal, for logcat `FST_ROTATION`. */
+    private fun rotationState(): String = rotations(shell("dumpsys window displays")).let { "display=${it.first} proposed=${it.second}" }
+
+    /**
+     * Reads `dumpsys window displays`' `DisplayRotation` section.
+     *
+     * @param dump Command output.
+     * @return The display's `mRotation` and the accelerometer judge's `mProposedRotation`
+     *   (`null` when the listener isn't reported).
+     */
+    private fun rotations(dump: String): Pair<Int?, Int?> =
+        Regex("""\bmRotation=(\d) mDeferredRotationPauseCount""").find(dump)?.groupValues?.get(1)?.toInt() to
+            Regex("""mProposedRotation=(-?\d+)""").find(dump)?.groupValues?.get(1)?.toInt()
+
     private companion object {
+        const val TAG = "FST_ROTATION"
         const val ROTATION_SETTLE_MS = 1_000L
+        const val SENSOR_SETTLE_TIMEOUT_MS = 15_000L
+        const val SENSOR_POLL_MS = 300L
+        const val SENSOR_AGREE_POLLS = 4
     }
 }
