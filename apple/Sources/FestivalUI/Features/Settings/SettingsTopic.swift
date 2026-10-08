@@ -86,6 +86,17 @@ enum SettingsTopic: String, CaseIterable, Identifiable, Hashable, Sendable {
         self == .privacyPolicy ? "fst.settings.privacy-policy" : "fst.settings.topic.\(rawValue)"
     }
 
+    /// Whether the list/detail list shows this topic's row: Song Row Visual Order only
+    /// while Enable Independent Song Row Visual Order is on (web `SettingsPage`'s
+    /// collapse). A topic open on the right whose row leaves the list closes back to the
+    /// placeholder (pattern `split-panes` R6, issue #372).
+    ///
+    /// - Parameter independentVisualOrder: `fst.settings.enableVisualOrder`.
+    /// - Returns: True when the row is listed.
+    func isListed(independentVisualOrder: Bool) -> Bool {
+        self != .songRowOrder || independentVisualOrder
+    }
+
     /// Whether the row sits inside the App Settings card (beside the toggles it belongs
     /// to) rather than standing alone like the Licenses link.
     var isAppSettingsRow: Bool {

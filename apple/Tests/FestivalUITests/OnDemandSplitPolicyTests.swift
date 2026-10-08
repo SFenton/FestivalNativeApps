@@ -477,6 +477,19 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
     #expect(ListDetailSelectAction(section: .songs) { _ in }.accepts(rankings))
 }
 
+/// The select action's close hook returns the trailing pane to its placeholder
+/// (`split-panes` R6) without affecting equality; without a hook it does nothing.
+@MainActor
+@Test func selectActionCloseCallsItsHook() {
+    var closed = 0
+    let action = ListDetailSelectAction(section: .settings, page: .settings, close: { closed += 1 }) { _ in }
+    action.close()
+    #expect(closed == 1)
+    #expect(action == ListDetailSelectAction(section: .settings, page: .settings) { _ in })
+    ListDetailSelectAction(section: .settings, page: .settings) { _ in }.close()
+    #expect(closed == 1)
+}
+
 /// Songs uses two cards per row only in landscape regular windows.
 @Test func songsGridColumns() {
     #expect(SongGridPolicy.columns(layout: SplitLayouts.iPadLandscape) == 2)

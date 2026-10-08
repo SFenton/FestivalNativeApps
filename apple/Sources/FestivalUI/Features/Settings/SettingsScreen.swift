@@ -80,6 +80,8 @@ struct SettingsScreen: View {
     /// Set while the window allows Settings' list/detail split (iPad, unfolded iPhone Duo
     /// in landscape): the root page is then the list, its groups opening on the right.
     @Environment(\.listDetailSelect) private var listDetailSelect
+    /// The route open on the right of the list/detail Settings, if any.
+    @Environment(\.listDetailSelection) private var listDetailSelection
     @Environment(\.deviceLayout) private var layout
     @Environment(\.accessibilityReduceMotion) private var reduceMotionEnvironment
 
@@ -139,6 +141,7 @@ struct SettingsScreen: View {
         .debugPageScrollStress()
         .scrollDisabled(reorderDragging)
         .onPreferenceChange(SettingsReorderDragActiveKey.self) { reorderDragging = $0 }
+        .onChange(of: enableVisualOrder) { _, enabled in closeUnlistedTopic(independentVisualOrder: enabled) }
         .modifier(SettingsQuickLinks(controller: quickLinks, isEnabled: isRootPage))
         .scrollDismissesKeyboard(.interactively)
         .festivalBackground(.carousel, session: session, visible: isVisible)
@@ -294,6 +297,7 @@ struct SettingsScreen: View {
                 if enableVisualOrder {
                     songRowOrderList
                 } else {
+                    // A deep link only: the list closes this page when the switch turns off.
                     Text("Turn on Enable Independent Song Row Visual Order to choose this order.")
                         .font(.subheadline)
                         .foregroundStyle(FestivalText.primary)
@@ -435,6 +439,17 @@ struct SettingsScreen: View {
                 }
             }
         }
+    }
+
+    /// Return the right-hand pane to its placeholder when the open topic's row just left
+    /// the list (pattern `split-panes` R6), as Song Row Visual Order does when Independent
+    /// Visual Order turns off (by its switch or Reset Settings).
+    ///
+    /// - Parameter independentVisualOrder: The switch's new value.
+    private func closeUnlistedTopic(independentVisualOrder: Bool) {
+        guard isList, case .settingsTopic(let open)? = listDetailSelection,
+              !open.isListed(independentVisualOrder: independentVisualOrder) else { return }
+        listDetailSelect?.close()
     }
 
     /// The Song Row Visual Order list, or a note while no metadata field is visible.

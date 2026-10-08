@@ -36,3 +36,13 @@ import Testing
     #expect(SettingsTopic.privacyPolicy.accessibilityIdentifier == "fst.settings.privacy-policy")
     #expect(SettingsTopic.instruments.accessibilityIdentifier == "fst.settings.topic.instruments")
 }
+
+/// Song Row Visual Order is listed only while Independent Visual Order is on; an open
+/// topic whose row leaves the list closes to the placeholder (`split-panes` R6, #372).
+@Test func settingsSongRowOrderTopicFollowsItsSwitch() {
+    #expect(SettingsTopic.songRowOrder.isListed(independentVisualOrder: true))
+    #expect(!SettingsTopic.songRowOrder.isListed(independentVisualOrder: false))
+    for topic in SettingsTopic.allCases where topic != .songRowOrder {
+        #expect(topic.isListed(independentVisualOrder: false), "\(topic)")
+    }
+}
