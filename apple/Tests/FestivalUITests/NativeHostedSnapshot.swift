@@ -4,6 +4,7 @@ import CoreGraphics
 import Foundation
 import SwiftUI
 import Testing
+import Vision
 import FestivalUI
 
 // MARK: - Hosting
@@ -841,6 +842,33 @@ func nativeHostedContent(_ image: CGImage) -> NativeHostedContent {
             background: background
         )
     }
+}
+
+// MARK: - Rendered text
+
+/// Lines of text recognized (Vision, accurate, no language correction) in a capture,
+/// top to bottom. Each entry is one drawn line, so a number broken between digits reads
+/// as several short lines rather than one.
+///
+/// - Parameter image: A capture, usually one element's rect (``nativeHostedImage(_:in:)``).
+/// - Returns: The recognized lines; empty when recognition fails.
+func nativeHostedRecognizedLines(_ image: CGImage) -> [String] {
+    let request = VNRecognizeTextRequest()
+    request.recognitionLevel = .accurate
+    request.usesLanguageCorrection = false
+    request.minimumTextHeight = 0
+    guard (try? VNImageRequestHandler(cgImage: image, options: [:]).perform([request])) != nil else { return [] }
+    return (request.results ?? [])
+        .sorted { $0.boundingBox.maxY > $1.boundingBox.maxY }
+        .compactMap { $0.topCandidates(1).first?.string }
+}
+
+/// The decimal digits of `text`, for comparing a recognized number with its value.
+///
+/// - Parameter text: Drawn or spoken text.
+/// - Returns: Its digits in order.
+func nativeHostedDigits(_ text: String) -> String {
+    String(text.filter(\.isWholeNumber))
 }
 
 // MARK: - Accessibility text

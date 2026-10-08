@@ -377,7 +377,11 @@ private func hostedHistoryPage(
 /// 44 pt minimum and, at AX5, stack, grow taller and stay inside the column: macOS
 /// hosting keeps the font size (13 pt body), so a 160 pt page reproduces an iPhone 17 Pro
 /// at AX5 (53 pt body, 342 pt of row content), as
-/// `rankingsRowsFitANarrowColumnAtAccessibilitySizes` does. The one-line row overflowed it.
+/// `rankingsRowsFitANarrowColumnAtAccessibilitySizes` does. The one-line row overflowed it
+/// and broke the score between digits: `scoreHistoryRowDrawsWholeNumbersAtAccessibilitySizes`
+/// reads the drawn text back (macOS List rows do not draw into a hosted capture), and
+/// `ScoreHistoryAccessibilityJourneyTests` proves the iOS and iPadOS AX5 metrics (53 pt
+/// body) on device.
 ///
 /// - Parameter besideSongDetail: Host the page in a split's trailing pane.
 @MainActor
@@ -429,6 +433,81 @@ func playerHistoryScreenRootKeepsItsReadingOrder(besideSongDetail: Bool) async t
         rowHeights.append(frame.height)
     }
     #expect(rowHeights[1] > rowHeights[0], "AX5 rows grow with the text: \(rowHeights)")
+}
+
+/// The digits of the score and accuracy a Score History row's spoken label names
+/// ("…, score 850,000, accuracy 99.1 percent, …" → ["850000", "991"]).
+///
+/// - Parameter label: The row's accessibility label.
+/// - Returns: The score's digits, then the accuracy's when the row has one.
+func scoreHistoryDrawnNumbers(_ label: String) -> [String] {
+    ["score ", "accuracy "].compactMap { key in
+        guard let start = label.range(of: key)?.upperBound else { return nil }
+        let value = label[start...].prefix { $0 != " " }
+        let digits = nativeHostedDigits(String(value))
+        return digits.isEmpty ? nil : digits
+    }
+}
+
+/// The shared Score History row draws its score and accuracy whole, each on one line, at
+/// the standard size and at AX5 in a column as narrow as an iPhone 17 Pro's at AX5 (13 pt
+/// macOS body in 160 pt; issue #385). The one-line row kept its label and frame valid but
+/// broke "850,000" between digits; only the drawn text shows that, so the row is hosted
+/// on its own (a macOS List row does not draw into a hosted capture) and read back with
+/// text recognition (Vision). Standard rows stay one line; AX5 rows stack and grow.
+@MainActor
+@Test func scoreHistoryRowDrawsWholeNumbersAtAccessibilitySizes() async throws {
+    let json = Data("""
+        [{"songId":"fixture-anthem","instrument":"Solo_Guitar","oldScore":700000,"newScore":850000,
+          "oldRank":9,"newRank":4,"accuracy":991200,"isFullCombo":true,"season":40,
+          "scoreAchievedAt":"2026-02-08T00:00:00Z","changedAt":"2026-02-08T00:00:00Z"},
+         {"songId":"fixture-anthem","instrument":"Solo_Guitar","oldScore":null,"newScore":700000,
+          "oldRank":null,"newRank":9,"accuracy":954500,"isFullCombo":false,"season":39,
+          "scoreAchievedAt":"2026-01-08T00:00:00Z","changedAt":"2026-01-08T00:00:00Z"}]
+        """.utf8)
+    let entries = try JSONDecoder().decode([ScoreHistoryEntry].self, from: json)
+    var heights: [CGFloat] = []
+    for (textSize, width) in [(DynamicTypeSize.large, CGFloat(420)), (.accessibility5, 160)] {
+        let name = "history-row-\(textSize)"
+        let size = CGSize(width: width, height: 600)
+        let host = nativeHostedView(
+            VStack(spacing: 8) {
+                ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
+                    ScoreHistoryListRow(entry: entry, isBest: index == 0)
+                        .accessibilityIdentifier("fst.history.row.\(index)")
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            .environment(\.dynamicTypeSize, textSize)
+            .frame(width: size.width, height: size.height)
+            .preferredColorScheme(.dark),
+            size: size
+        )
+        let window = nativeHostedWindow(host, size: size)
+        defer { window.orderOut(nil) }
+        let image = try await nativeHostedSettle(host, untilText: ["score 850,000", "score 700,000"])
+        _ = try nativeHostedPNG(image, filename: "\(name).png", environment: "FST_HISTORY_RENDER_OUT")
+        let tree = macAccessibilityTree(host)
+        for index in entries.indices {
+            let id = "fst.history.row.\(index)"
+            let label = try #require(tree.first { $0.identifier == id && $0.isElement }, "\(name): \(id)").spokenName
+            let frame = try #require(nativeHostedAccessibilityFrame(id, in: host), "\(name): \(id) frame")
+            #expect(frame.height >= 44 && frame.minX >= 0 && frame.maxX <= width, "\(name): \(id) \(frame)")
+            let lines = nativeHostedRecognizedLines(try nativeHostedImage(host, in: frame))
+            let numbers = scoreHistoryDrawnNumbers(label)
+            #expect(numbers.count == 2, "\(name): score and accuracy in \(label)")
+            for digits in numbers {
+                #expect(
+                    lines.contains { nativeHostedDigits($0).contains(digits) },
+                    "\(name): \(id) draws \(digits) whole on one line: \(lines)"
+                )
+            }
+            #expect(!lines.contains { $0.contains("\u{2026}") }, "\(name): \(id) is truncated: \(lines)")
+            if index == 0 { heights.append(frame.height) }
+        }
+    }
+    #expect(heights[1] > heights[0], "AX5 rows stack and grow: \(heights)")
 }
 
 /// A chart without scores reads the web's empty copy.

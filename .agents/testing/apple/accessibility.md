@@ -62,6 +62,22 @@ Re-check single pages with `TEST_RUNNER_FST_AUDIT_PAGES=song-detail,player` (pag
 
 Heading traits are read from the snapshot's `traits` (readable on iPadOS 26.5).
 
+### Score History at AX5
+
+`apple/Apps/iPadOSUITests/ScoreHistoryAccessibilityJourneyTests.swift` (#385, the #302 region) launches at the default size and at AX5 against the fixture service (`fixture-history-multi`; `FST_FIXTURE_URL`, default 127.0.0.1:8765) and checks the drawn text, because the one-line row broke "850,000" into "85 / 0, / 00" while its spoken label and frame stayed valid. Each launch: the heading (`fst.history.header`, or `fst.history.board-title` in the pane) is a heading and reads before the rows, rows read in order, are named, ≥ 44 pt and inside their column; the best row, scrolled wholly into the `ContentArea`, has its score and accuracy each recognized whole on one line with no ellipsis; the score's recognized word is ≥ 1.35× taller at AX5 (measured 22.5 → 59.1 pt on iPhone). The pane journey also requires focus on the pane's heading.
+
+| Journey | Where |
+|---|---|
+| `testScoreHistoryPageAtAX5` | iPhone (`uitest --device iphone --app ipad`) and iPad portrait. iPad portrait is wide enough that the one-line row passed there too |
+| `testScoreHistorySplitPaneAtAX5` | iPad landscape, the trailing pane beside Song Detail (skips on iPhone) |
+
+```bash
+TEST_RUNNER_FST_AUDIT_OUT=/tmp/history python3 tools/ios_sim.py uitest --device iphone --app ipad --timeout 1500 \
+  --only ScoreHistoryAccessibilityJourneyTests   # ≈ 8 min; writes each capture and the recognized lines
+```
+
+`apple-ci` runs no simulator, so its required check covers this region with the hosted `scoreHistoryRowDrawsWholeNumbersAtAccessibilitySizes` (the row hosted directly and read with Vision); these journeys run on the serialized device lane.
+
 ### iPad audit waivers
 
 `apple/Apps/iPadOSUITests/IPadAuditWaivers.swift`. (b) = verified auditor false positive, (c) = system control we do not own. Every (b) entry is proved per issue in the same run; a waived issue stays in the JSON with its waiver id.
