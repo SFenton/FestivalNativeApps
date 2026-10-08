@@ -24,6 +24,18 @@
 | Item Shop list, Songs list | iPhone | One nil-element "Text clipped" finding each (no identifier, label or frame), reproduced on the pre-#18 Shop rows too. The shared Song row's marquee title/artist findings (Songs since the marquee landed, Shop once it reused the row) were fixed by wrapping at accessibility sizes (issue #18) |
 | Karaoke path warning alert | iPhone | System alert title contrast and message Dynamic Type |
 
+## Drawer journey (iPhone and iPhone Duo)
+
+`DrawerAccessibilityJourneyTests` (#396) audits the open navigation drawer with `.all` and never drops a whole audit type. It applies the iPad lane's evidence rules within the same run:
+- **Named drawer element, contrast:** accepted when its rendered text in the app screenshot is ≥ 4.5:1 (`contrast-rendered`). The audit misjudges every white row on the dark glass.
+- **Page element under the drawer, contrast:** accepted when it is absent from `app.snapshot()` (`behind-modal-drawer`). This counts only when that snapshot holds the drawer's own rows.
+- **No element (iPhone Duo), contrast:** accepted when every static text in the panel renders ≥ 4.5:1 (`unattributed-contrast-page-floor`).
+- **Unattributed "may be clipped at larger sizes" prediction:** accepted only when the drawer relaunched at AX5 audits clean for clipping.
+
+`app.debugDescription` still prints SwiftUI views hidden with `accessibilityHidden`, such as the page under the drawer. Assert hiding against `app.snapshot()`, never the debug description. On the iPhone Duo simulator, `app.snapshot()` stops after about 11 nodes (depth 6), short of the drawer, and comes back empty after an audit. Before using a snapshot as evidence, check that it reaches the region under test. Element queries still work there. The Duo drawer's modality is proved by `DuoDrawerJourneyTests` (`isModal`).
+
+Allow one pixel of tolerance on target sizes. A fixed 44 pt control reports 43.67 pt (131 px at 3×) when layout lands it off the pixel grid.
+
 ## iPadOS and iPhone Duo audit journeys
 
 `apple/Apps/iPadOSUITests/IPadAccessibilityAuditTests.swift` (FST Native iPad Pro 11" and iPhone Duo (FST), fixture service) audits every page and sheet, collects every issue per page and writes `<mode>-<group>.json` plus each page's upright capture (`.png`) and element tree (`.tree.txt`) to `FST_AUDIT_OUT` (pass `TEST_RUNNER_FST_AUDIT_OUT=<dir>` to `ios_sim.py uitest`; `FST_UITEST_KEEP_RESULTS=1` keeps a green batch's `.xcresult`). Groups: **browse** (Songs, Song Detail, Sort, Filter, Paths, Item Shop, Search), **rankings** (Leaderboards, Full Rankings, Player, Settings, Licenses, profile selection, What's New), **profile** (Statistics, Suggestions, Rivals, Rival Detail, Bands, Notifications), **shell** (the overlay flyout open with a player; and, in a window that splits, each split page with its trailing pane open: Song Detail → Lead board, Song Detail → score history, Rivals → Rival Detail, Leaderboards → player, Full Rankings → player, Settings → Licenses; JSON `skipped` lists split pages a portrait or compact window leaves out). An issue passes only through a waiver below; everything else fails the method.
