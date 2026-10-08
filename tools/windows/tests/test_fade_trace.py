@@ -225,6 +225,36 @@ BOARD = ["fade-arm list=RowsRepeater start=0 at=1000",
 """Song Detail → player score: the board loads, holds its tail, rushes row 12 and scrolls to row 16."""
 
 
+class CascadeTests(unittest.TestCase):
+    """A web ``FadeIn delay={i * step}`` cascade (First Run infinite-scroll cards, review of #422)."""
+
+    CARDS = ["c0", "c1", "c2"]
+
+    def lines(self, delays, motion=1, owner="Slides", order=None):
+        names = order or self.CARDS
+        return events(*(f"fade-enter list={owner} target={n} delay={d} motion={motion} at=1000"
+                        for n, d in zip(names, delays)))
+
+    def test_ordered_steps_pass(self):
+        self.assertEqual([], f.check_cascade(self.lines([0, 125, 250]), "Slides", self.CARDS, 125, True))
+        self.assertEqual([], f.check_cascade(self.lines([0, 125, 250], motion=0), "Slides", self.CARDS, 125, False))
+        # A later re-entrance of the same card (the slide shown again) is judged by its first entry.
+        again = [*self.lines([0, 125, 250]), *self.lines([0, 0, 0])]
+        self.assertEqual([], f.check_cascade(again, "Slides", self.CARDS, 125, True))
+
+    def test_each_regression_is_caught(self):
+        self.assertEqual(3, len(f.check_cascade(events("fade-enter list=Slides target=frame delay=0 motion=1"),
+                                                "Slides", self.CARDS, 125, True)))
+        self.assertIn("starts after 0 ms, expected 125", "\n".join(
+            f.check_cascade(self.lines([0, 0, 0]), "Slides", self.CARDS, 125, True)))
+        self.assertIn("out of order", f.check_cascade(self.lines([0, 125, 250], order=["c1", "c0", "c2"]),
+                                                      "Slides", self.CARDS, 125, True)[0])
+        self.assertIn("faded with Reduce Motion on",
+                      f.check_cascade(self.lines([0, 125, 250]), "Slides", self.CARDS, 125, False)[0])
+        self.assertIn("did not fade", f.check_cascade(self.lines([0, 125, 250], motion=0), "Slides", self.CARDS, 125, True)[0])
+        self.assertEqual(3, len(f.check_cascade(self.lines([0, 125, 250], owner="Other"), "Slides", self.CARDS, 125, True)))
+
+
 class RevealTests(unittest.TestCase):
     def test_the_reveal_rushes_the_board_then_scrolls(self):
         self.assertEqual([], f.check_reveal(events(*BOARD), "RowsRepeater", 16, ["SpotlightPanel"]))

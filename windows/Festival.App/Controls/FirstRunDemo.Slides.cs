@@ -397,8 +397,8 @@ public sealed partial class FirstRunDemo
         chart.Width = ChartLayoutWidth;
         Stage(new Viewbox { Child = chart, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly });
         if (!selectable) return;
-        var last = FirstRunDemos.BarSelectBars.Count - 1;
-        model.SelectPoint(last);
+        // Web BarSelectDemo: selectedIdx starts at 0 (the oldest play) and steps 0 → 1 → 2 → 0.
+        model.SelectPoint(0);
         // Song Detail's detail row (HistoryRowTemplate: the shared leaderboard row over the model's selected row).
         var detail = new LeaderboardEntryRow { Row = model.SelectedRow, HorizontalAlignment = HorizontalAlignment.Stretch, MaxWidth = 560 };
         Stage(detail);
@@ -804,13 +804,20 @@ public sealed partial class FirstRunDemo
     /// <summary>
     /// Suggestions infinite scroll (web <c>InfiniteScrollDemo</c>): six category cards that scroll down at 30 epx/s,
     /// jump back to the top at the end, and fade 36 epx at an edge while content lies past it. Reduce Motion holds the
-    /// list at the top.
+    /// list at the top. Like the web (each <c>CategoryCard</c> in its own <c>FadeIn</c>, <c>i × STAGGER_INTERVAL</c>),
+    /// every card joins the slide entrance on its own, 125 ms apart, while the clipped frame itself never fades.
     /// </summary>
     private void BuildInfiniteScroll()
     {
         var list = new StackPanel { Spacing = 16 };
         for (var i = 0; i < FirstRunAutoScroll.Cards; i++)
-            list.Children.Add(SuggestionCard(FirstRunDemoContent.ScrollTemplates[i], i * FirstRunAutoScroll.SongsPerCard, FirstRunAutoScroll.SongsPerCard));
+        {
+            var template = FirstRunDemoContent.ScrollTemplates[i];
+            var card = SuggestionCard(template, i * FirstRunAutoScroll.SongsPerCard, FirstRunAutoScroll.SongsPerCard);
+            AutomationProperties.SetAutomationId(card, $"fst.first-run.demo.{SlideId}.card.{i}");
+            list.Children.Add(card);
+            Enroll(card);
+        }
         var viewer = new ScrollViewer
         {
             Height = 200,
@@ -828,7 +835,7 @@ public sealed partial class FirstRunDemo
         scrollFade = new AutoScrollEdgeFade(viewer, fadeHost);
         viewer.ViewChanged += (_, _) => UpdateScrollFade();
         viewer.SizeChanged += (_, _) => UpdateScrollFade();
-        Stage(frame);
+        root.Children.Add(frame);
     }
 
     /// <summary>Runs the scroll clock only on the visible, loaded, foreground slide with motion allowed.</summary>
@@ -1311,8 +1318,15 @@ public sealed partial class FirstRunDemo
     private void Stage(UIElement element)
     {
         root.Children.Add(element);
-        staged.Add(element);
+        Enroll(element);
     }
+
+    /// <summary>
+    /// Adds an element already placed inside a demo block (a card inside the auto-scroll frame) as the next step of
+    /// the slide entrance, so it fades on its own delay like a web demo's nested <c>FadeIn</c>.
+    /// </summary>
+    /// <param name="element">Element.</param>
+    private void Enroll(UIElement element) => staged.Add(element);
 
     /// <summary>Finds a song's current pool index.</summary>
     /// <param name="song">Song item.</param>
