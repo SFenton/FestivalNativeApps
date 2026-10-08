@@ -107,17 +107,103 @@ public class FirstRunDemoContentTests
     }
 
     [Fact]
-    public void Chart_SelectsOneBar_AndWrapsTheDetail()
+    public void Chart_IsTheRealScoreHistoryModel_OverThreeLeadPlays()
     {
-        var points = FirstRunDemoContent.ChartPoints(Today);
-        Assert.Equal(FirstRunDemos.BarSelectBars.Count, points.Count);
-        Assert.Equal(Today.Date, points[^1].Date.Date);
-        var bars = FirstRunDemoContent.ChartBars(Today, 1);
-        Assert.Equal([false, true, false], bars.Select(b => b.IsSelected).Take(3));
-        Assert.DoesNotContain(FirstRunDemoContent.ChartBars(Today, null), b => b.IsSelected);
-        var detail = FirstRunDemoContent.ChartDetail(Today, -1);
-        Assert.True(detail.IsDetail);
-        Assert.Equal(points[^1].Entry.NewScore, detail.Point.Entry.NewScore);
+        var plays = FirstRunDemoContent.ChartPlays(Today);
+        Assert.Equal(FirstRunDemos.BarSelectBars.Count, plays.Count);
+        Assert.All(plays, p => Assert.Equal(Instrument.Lead.ServiceId(), p.Instrument));
+        Assert.Equal(Today.Date, plays[^1].DisplayDate!.Value.Date);
+        Assert.Equal(Today.AddDays(-2).Date, plays[0].DisplayDate!.Value.Date);
+        Assert.Equal(FirstRunDemos.BarSelectBars.Select(b => (long)b.Score), plays.Select(p => p.NewScore));
+        Assert.True(plays[^1].IsFullCombo);
+        Assert.Equal(1_000_000, plays[^1].Accuracy);
+
+        var model = FirstRunDemoContent.ChartModel(Today, TimeProvider.System);
+        Assert.Equal(SongScoreHistoryPhase.Loaded, model.Phase);
+        Assert.Equal(Instrument.Lead, model.Selected);
+        Assert.Equal(3, model.Points.Count);
+        Assert.Equal(3, model.Bars.Count);
+        Assert.False(model.HasSelectedPoint);
+        Assert.StartsWith("Lead score history, 3 of 3 scores from ", model.ChartSummary);
+    }
+
+    [Fact]
+    public void Chart_SelectPoint_MovesTheSelectionAndItsDetailRow()
+    {
+        var model = FirstRunDemoContent.ChartModel(Today, TimeProvider.System);
+        model.SelectPoint(2);
+        Assert.Equal([false, false, true], model.Bars.Select(b => b.IsSelected));
+        Assert.True(model.SelectedRow!.IsDetail);
+        Assert.Equal(486500, model.SelectedRow.Point.Entry.NewScore);
+        model.SelectPoint(0);
+        Assert.Equal([true, false, false], model.Bars.Select(b => b.IsSelected));
+        Assert.Equal(218400, model.SelectedRow!.Point.Entry.NewScore);
+        // Selecting the selected bar keeps it (ToggleBar would clear it); out of range is ignored.
+        model.SelectPoint(0);
+        model.SelectPoint(7);
+        Assert.Equal(0, model.Pager.SelectedIndex);
+    }
+
+    [Fact]
+    public void Chart_SelectPoint_PagesToKeepTheSelectedBarVisible()
+    {
+        // Large text: one bar per page shows the newest play first; selecting another pages to it.
+        var model = FirstRunDemoContent.ChartModel(Today, TimeProvider.System);
+        model.SetPlotWidth(ScoreHistoryChartScale.MinBarWidth);
+        Assert.Equal(1, model.Pager.MaxBars);
+        Assert.Equal(2, model.Bars.Single().Index);
+        model.SelectPoint(0);
+        Assert.Equal(0, model.Bars.Single().Index);
+        Assert.True(model.Bars.Single().IsSelected);
+        model.SelectPoint(1);
+        Assert.Equal(1, model.Bars.Single().Index);
+    }
+
+    [Fact]
+    public void Pager_Select_RevealsWithoutToggling()
+    {
+        var pager = new ScoreHistoryPager();
+        pager.Reset(10);
+        pager.SetMaxBars(4);
+        Assert.Equal((6, 10), (pager.PageStart, pager.PageEnd));
+        pager.Select(1);
+        Assert.Equal(1, pager.SelectedIndex);
+        Assert.True(pager.PageStart <= 1 && 1 < pager.PageEnd);
+        pager.Select(1);
+        Assert.Equal(1, pager.SelectedIndex);
+        pager.Select(9);
+        Assert.True(pager.PageStart <= 9 && 9 < pager.PageEnd);
+        pager.Select(-1);
+        pager.Select(10);
+        Assert.Equal(9, pager.SelectedIndex);
+    }
+
+    [Fact]
+    public void AutoScroll_Status_ReportsClockPositionWrapsAndDrawnFades()
+    {
+        Assert.Equal("scroll=held pos=top wraps=0 fade=bottom",
+            FirstRunAutoScroll.Status(FirstRunAutoScrollState.Held, 0, 500, 0, true, false, true));
+        Assert.Equal("scroll=running pos=mid wraps=2 fade=top+bottom",
+            FirstRunAutoScroll.Status(FirstRunAutoScrollState.Running, 250, 500, 2, true, true, true));
+        Assert.Equal("scroll=paused pos=end wraps=1 fade=top",
+            FirstRunAutoScroll.Status(FirstRunAutoScrollState.Paused, 499.5, 500, 1, true, true, false));
+        Assert.Equal("scroll=running pos=top wraps=0 fade=off",
+            FirstRunAutoScroll.Status(FirstRunAutoScrollState.Running, 0, 500, 0, false, false, true));
+        Assert.Equal("scroll=held pos=top wraps=0 fade=none",
+            FirstRunAutoScroll.Status(FirstRunAutoScrollState.Held, 0, 0, 0, true, false, false));
+        Assert.DoesNotContain(";", FirstRunAutoScroll.Status(FirstRunAutoScrollState.Running, 1, 2, 3, true, true, true));
+
+        Assert.True(FirstRunAutoScroll.Wrapped(480, 2));
+        Assert.False(FirstRunAutoScroll.Wrapped(2, 2.5));
+        Assert.False(FirstRunAutoScroll.Wrapped(2.5, 2));
+    }
+
+    [Fact]
+    public void ControlCensus_IsSortedAndDistinct()
+    {
+        Assert.Equal("controls=CardHeader+LeaderboardEntryRow+SongScoreHistoryChart",
+            FirstRunDemoContent.ControlCensus(["SongScoreHistoryChart", "LeaderboardEntryRow", "", "CardHeader", "LeaderboardEntryRow"]));
+        Assert.Equal("controls=", FirstRunDemoContent.ControlCensus([]));
     }
 
     [Fact]

@@ -27,6 +27,15 @@ Every reachable ``first-run`` contract state (``contracts/product.json``) runs a
 * ``rotation-background``: a window that stays visible and uncovered but loses activation to the taskbar holds its
   demo still, then resumes once reactivated (rotation runs only while the app is in the foreground). Needs an unlocked
   console, like ``keyboard``.
+* ``demo-controls`` (issue #380): every page's Settings replay pages through all 42 slides; each demo's control census
+  (its UIA HelpText) includes the production controls it shows (``DEMO_CONTROLS``), e.g. Song Detail's
+  ``SongScoreHistoryChart`` or the Songs ``NavigationView``, never a hand-drawn replica.
+* ``demo-chart``: the Score History slides host Song Detail's real chart (its ``fst.history.*`` plot summary and bar
+  toggle buttons); bar-select moves the model's selection bar to bar with Song Detail's detail row following.
+* ``infinite-scroll``: Suggestions' auto-scroll demo scrolls, shows its top fade beside the bottom fade once the first
+  card leaves the top, and wraps back to its start (web ``useAutoScroll``).
+* ``infinite-scroll-reduced``: with Reduce Motion the same demo holds at its first card (bottom fade only), never
+  scrolling or wrapping.
 
 Each phase is one ``drive`` call (a launching phase runs inside the ``launch`` call's desktop-lock hold) and the UIA
 tree dumped after it is checked with regular expressions (pips are named "Page N", so the slide count is asserted
@@ -257,6 +266,99 @@ def _demo_phases(status: str, pages: list[str] | None = None, settle: float = 0)
     return phases
 
 
+#: Production controls each slide's demo must be built from (issue #380: the guide shows the real platform UI, never a
+#: hand-drawn replica). Each demo publishes the Festival.App and XAML control types it hosts as its UIA HelpText
+#: (``controls=A+B+…``, ``FirstRunDemoContent.ControlCensus``); a replica of a page control would leave its type out.
+DEMO_CONTROLS = {
+    "songs-song-list": ["SongRowCard"],
+    "songs-sort": ["DropDownButton", "RadioButtons"],
+    "songs-navigation": ["NavigationView", "NavigationViewItem"],
+    "songs-filter": ["Expander", "InstrumentSelector"],
+    "songs-icons": ["SongRowCard"],
+    "songs-metadata": ["SongRowCard", "DifficultyMeter", "MetadataPill"],
+    "songs-shop-highlight": ["SongRowCard", "ShopPulseRing"],
+    "songs-new-in-shop": ["SongRowCard", "ShopPulseRing"],
+    "songs-leaving-tomorrow": ["SongRowCard", "ShopPulseRing"],
+    "songinfo-chart": ["SongScoreHistoryChart"],
+    "songinfo-bar-select": ["SongScoreHistoryChart", "LeaderboardEntryRow"],
+    "songinfo-view-all": ["CardHeader", "LeaderboardEntryRow"],
+    "songinfo-top-scores": ["CardHeader", "LeaderboardEntryRow"],
+    "songinfo-paths": ["InstrumentSelector", "RadioButtons"],
+    "songinfo-shop-button": ["SongHeaderText", "ShopPulseFill"],
+    "songinfo-new-in-shop": ["SongHeaderText", "ShopPulseFill"],
+    "songinfo-leaving-tomorrow": ["SongHeaderText", "ShopPulseFill"],
+    "playerhistory-score-list": ["LeaderboardEntryRow"],
+    "playerhistory-sort": ["DropDownButton", "RadioMenuFlyoutItem"],
+    "statistics-select-profile": ["Button"],
+    "statistics-drill-down": ["PlayerStatTileView"],
+    "statistics-overview": ["PlayerStatTileView"],
+    "statistics-instrument-breakdown": ["PlayerStatTileView", "InstrumentIcon"],
+    "statistics-percentiles": ["PlayerPercentileRowView"],
+    "statistics-top-songs": ["SongRowCard", "MetadataPill"],
+    "suggestions-category-card": ["SuggestionSongRow"],
+    "suggestions-global-filter": ["Expander", "ToggleSwitch"],
+    "suggestions-instrument-filter": ["InstrumentSelector", "ToggleSwitch"],
+    "suggestions-infinite-scroll": ["ScrollViewer", "SuggestionSongRow"],
+    "leaderboards-overview": ["CardHeader", "LeaderboardEntryRow"],
+    "leaderboards-experimental-metrics": ["DropDownButton", "RadioMenuFlyoutItem"],
+    "leaderboards-your-rank": ["CardHeader", "LeaderboardEntryRow"],
+    "compete-hub": ["CardHeader", "LeaderboardEntryRow"],
+    "compete-leaderboards": ["CardHeader", "LeaderboardEntryRow"],
+    "compete-rivals": ["RivalRowView"],
+    "rivals-overview": ["RivalRowView"],
+    "rivals-instruments": ["RivalRowView"],
+    "rivals-detail": ["RivalSongRowView"],
+    "shop-overview": ["ShopPulseRing"],
+    "shop-highlighting": ["SongRowCard", "ShopPulseRing"],
+    "shop-new-items": ["SongRowCard", "ShopPulseRing"],
+    "shop-leaving-tomorrow": ["SongRowCard", "ShopPulseRing"],
+}
+
+
+def _controls(slide_id: str, seconds: float = 15) -> str:
+    """``assertstate`` step requiring every ``DEMO_CONTROLS`` type in a demo's control census (raw UIA view)."""
+    needs = "".join(rf"(?=.*\b{name}\b)" for name in DEMO_CONTROLS[slide_id])
+    return f"assertstate:raw=fst.first-run.demo.{slide_id}|help=~^controls={needs}@{seconds:g}"
+
+
+def _control_phases() -> list[Phase]:
+    """Settings replay of each page's guide, paging through every slide and asserting each demo's control census."""
+    phases = []
+    for index, (key, slides) in enumerate(PAGE_SLIDES.items()):
+        row = f"id=fst.settings.first-run.{key}"
+        steps = [SETTINGS_READY, "scrollinto:id=fst.settings.licenses", "wait:0.5"] if index == 0 else []
+        steps += [f"scrollinto:{row}", f"invoke:{row}", OPEN, "wait:1"]
+        for number, slide in enumerate(slides):
+            steps.append(_controls(slide))
+            if number < len(slides) - 1:
+                steps += ["invoke:id=PrimaryButton", "wait:0.6"]
+        phases.append(Phase(steps, expect=[_dialog(PAGE_TITLES[key])]))
+        phases.append(Phase([f"invoke:id={CLOSE}", CLOSED, "wait:0.5"], forbid=[DIALOG]))
+    return phases
+
+
+#: Song Detail's Score History chart inside a demo (production ``fst.history.*`` IDs under the demo's prefix).
+CHART = "raw=fst.first-run.demo.songinfo-chart.fst.history"
+SELECT = "raw=fst.first-run.demo.songinfo-bar-select.fst.history"
+
+
+def _replay(key: str, slide: int = 0) -> list[str]:
+    """Steps opening a page's guide from Settings and paging forward to its ``slide``-th slide."""
+    row = f"id=fst.settings.first-run.{key}"
+    return [SETTINGS_READY, "scrollinto:id=fst.settings.licenses", "wait:0.5", f"scrollinto:{row}", f"invoke:{row}",
+            OPEN, "wait:1", *(["invoke:id=PrimaryButton", "wait:0.6"] * slide)]
+
+
+def _scroll(pattern: str, seconds: float = 0) -> str:
+    """``assertstatus`` regex step for the Suggestions infinite-scroll demo's scroll token (issue #380), e.g.
+    ``catalogue scroll=running pos=mid wraps=1 fade=top+bottom`` (``FirstRunAutoScroll.Status``)."""
+    return _rotation("suggestions-infinite-scroll", rf"^catalogue scroll={pattern}$", seconds)
+
+
+#: Seconds for the auto-scroll to pass its six cards once and wrap (30 epx/s; web ``useAutoScroll``).
+SCROLL_WRAP_WAIT = 75
+
+
 def _older(slide_id: str) -> Callable[[Seen], Seen]:
     """Seen-state rewrite that records ``slide_id`` at version 0, as if the slide's replay version was bumped."""
     def rewrite(seen: Seen) -> Seen:
@@ -479,6 +581,57 @@ SCENARIOS = [
         settings={"reduceMotion": True},
         fixture=("--large-catalogue",),
         phases=[Phase([OPEN, _rotation("songs-song-list", SWAPPED_INSTANT, SWAP_WAIT)], expect=[_slide("Song List")])],
+    ),
+    Scenario(
+        name="demo-controls",
+        state="every demo built from the production controls it shows (issue #380)",
+        tab="settings",
+        phases=_control_phases(),
+    ),
+    Scenario(
+        name="demo-chart",
+        state="Song Detail's real Score History chart in the chart and bar-select demos (issue #380)",
+        tab="settings",
+        phases=[
+            # The chart slide hosts the production chart (its plot's ChartSummary and per-bar toggle buttons), all three
+            # sample plays on one page, nothing selected.
+            Phase([*_replay("songinfo"), f"assertname:{CHART}.chart@15|Lead score history, 3 of 3 scores from *",
+                   *(f"assertstate:{CHART}.bar.{bar}|toggle=off" for bar in range(3))],
+                  expect=[_slide("Score History Chart")]),
+            # Bar-select starts on the latest bar with Song Detail's detail row, then moves the model's selection to the
+            # first bar (one selected at a time) and on to the second, the row following each.
+            Phase(["invoke:id=PrimaryButton", "wait:0.6", f"assertstate:{SELECT}.bar.2|toggle=on@10",
+                   f"assertname:{SELECT}.detail|*, score 486,500, accuracy 100%, full combo",
+                   f"assertstate:{SELECT}.bar.0|toggle=on@8", f"assertstate:{SELECT}.bar.2|toggle=off",
+                   f"assertname:{SELECT}.detail|*, score 218,400, accuracy 62%",
+                   f"assertstate:{SELECT}.bar.1|toggle=on@8", f"assertstate:{SELECT}.bar.0|toggle=off",
+                   f"assertname:{SELECT}.detail|*, score 347,100, accuracy 78%"],
+                  expect=[_slide("Select a Bar for Details")]),
+        ],
+    ),
+    Scenario(
+        name="infinite-scroll",
+        state="Suggestions auto-scroll with its edge fades and wrap (issue #380; web useAutoScroll)",
+        tab="settings",
+        phases=[
+            # The cards scroll by themselves: the top fade appears once the first card leaves the top, the bottom fade
+            # stays while more cards follow, and the list wraps back to its start after the last card.
+            Phase([*_replay("suggestions", 3), _scroll(r"running pos=mid wraps=0 fade=top\+bottom", 10),
+                   _scroll(r"running pos=(top|mid) wraps=[1-9]\d* fade=(bottom|top\+bottom)", SCROLL_WRAP_WAIT)],
+                  expect=[_slide("More Suggestions")]),
+        ],
+    ),
+    Scenario(
+        name="infinite-scroll-reduced",
+        state="Suggestions auto-scroll held at the top with Reduce Motion (issue #380)",
+        tab="settings",
+        settings={"reduceMotion": True},
+        phases=[
+            # Reduce Motion holds the list at its first card (bottom fade only) and it never starts or wraps.
+            Phase([*_replay("suggestions", 3), _scroll(r"held pos=top wraps=0 fade=bottom", 10), "wait:5",
+                   _scroll(r"held pos=top wraps=0 fade=bottom")],
+                  expect=[_slide("More Suggestions")]),
+        ],
     ),
     Scenario(
         name="rotation-background",

@@ -167,6 +167,12 @@ internal sealed class AutoScrollEdgeFade
     /// <summary>Whether the ramps are currently drawn.</summary>
     public bool IsActive => active;
 
+    /// <summary>Whether the drawn mask fades the top edge (content lies above).</summary>
+    public bool TopFaded { get; private set; }
+
+    /// <summary>Whether the drawn mask fades the bottom edge (content lies below).</summary>
+    public bool BottomFaded { get; private set; }
+
     /// <summary>Draws the ramps for a scroll position, or the plain hard edges.</summary>
     /// <param name="on">Whether fades are enabled (<see cref="SongHeaderEdgeFade.IsEnabled"/>).</param>
     /// <param name="offset">Scroll offset.</param>
@@ -189,6 +195,8 @@ internal sealed class AutoScrollEdgeFade
         stops[2].Offset = (float)Math.Clamp(1 - bottom / height, 0.5, 0.999);
         stops[0].Color = Windows.UI.Color.FromArgb(top > 0 ? (byte)0 : (byte)255, 0, 0, 0);
         stops[3].Color = Windows.UI.Color.FromArgb(bottom > 0 ? (byte)0 : (byte)255, 0, 0, 0);
+        TopFaded = top > 0;
+        BottomFaded = bottom > 0;
         if (active) return;
         active = true;
         sprite!.IsVisible = true;

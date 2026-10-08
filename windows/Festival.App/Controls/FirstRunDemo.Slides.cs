@@ -31,6 +31,8 @@ public sealed partial class FirstRunDemo
     private static readonly Instrument[] DemoInstruments = [Instrument.Lead, Instrument.Bass, Instrument.Drums, Instrument.Vocals];
 
     private readonly List<UIElement> staged = [];
+    private readonly SortedSet<string> census = new(StringComparer.Ordinal);
+    private bool censusChanged;
     private bool inertQueued;
     private bool inertHooked;
 
@@ -51,6 +53,8 @@ public sealed partial class FirstRunDemo
         pulseRings.Clear();
         pulseFills.Clear();
         staged.Clear();
+        census.Clear();
+        censusChanged = true;
         scroller = null;
         scrollFade = null;
         advance = null;
@@ -404,103 +408,47 @@ public sealed partial class FirstRunDemo
 
     #region Song Detail
     /// <summary>
-    /// Score History chart (web <c>ChartDemo</c>/<c>BarSelectDemo</c>): the Song Detail chart's axes, accuracy bars, gold
-    /// FC bar, score line and date labels; <c>songinfo-bar-select</c> moves the selection every 2.5 s and fades the real
-    /// detail row under it.
+    /// Score History chart (web <c>ChartDemo</c>/<c>BarSelectDemo</c>): Song Detail's own <see cref="SongScoreHistoryChart"/>
+    /// over the real Score History model holding three sample plays (<see cref="FirstRunDemoContent.ChartModel"/>), so the
+    /// guide shows the production axes, measured text-scale gutters, bars, score line and legend. <c>songinfo-bar-select</c>
+    /// also shows Song Detail's detail row for the selected bar and moves the selection through the model every 2.5 s,
+    /// fading the row as it changes.
     /// </summary>
     /// <param name="selectable">Whether the selection cycles.</param>
     private void BuildChart(bool selectable)
     {
-        var today = DateTimeOffset.Now;
-        var canvas = new Canvas { Height = selectable ? 150 : 200 };
-        var selected = FirstRunDemos.BarSelectBars.Count - 1;
-        void Draw() => DrawChart(canvas, FirstRunDemoContent.ChartBars(today, selectable ? selected : null));
-        canvas.SizeChanged += (_, _) => Draw();
-        Stage(canvas);
+        var model = FirstRunDemoContent.ChartModel(DateTimeOffset.Now, TimeProvider.System);
+        var chart = new SongScoreHistoryChart { Model = model, PlotHeight = selectable ? ChartSelectPlotHeight : ChartPlotHeight };
+        // The chart rebuilds its bar toggle buttons on every redraw; keep the new ones inert too.
+        chart.Redrawn += (_, _) => QueueInert();
+        // Laid out at Song Detail's narrow-window width so all three sample bars fit beside the measured gutters (the
+        // 432 epx frame leaves under the three 96 epx bars' 304 epx), then shrunk to the frame.
+        chart.Width = ChartLayoutWidth;
+        Stage(new Viewbox { Child = chart, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly });
         if (!selectable) return;
-        var detail = new LeaderboardEntryRow { Row = FirstRunDemoContent.ChartDetail(today, selected) };
+        var last = FirstRunDemos.BarSelectBars.Count - 1;
+        model.SelectPoint(last);
+        // Song Detail's detail row (HistoryRowTemplate: the shared leaderboard row over the model's selected row).
+        var detail = new LeaderboardEntryRow { Row = model.SelectedRow, HorizontalAlignment = HorizontalAlignment.Stretch, MaxWidth = 560 };
         Stage(detail);
         slots.Add(detail);
         activeInterval = FirstRunDemoTiming.BarSelect;
-        void Select(int index)
+        advance = _ => Fade(detail, () =>
         {
-            selected = index % FirstRunDemos.BarSelectBars.Count;
-            Draw();
-            detail.Row = FirstRunDemoContent.ChartDetail(today, selected);
+            model.SelectPoint((model.Pager.SelectedIndex + 1) % model.Points.Count);
+            detail.Row = model.SelectedRow;
             QueueInert();
-        }
-        advance = _ => Fade(detail, () => Select(selected + 1), FirstRunDemoTiming.BarSelectFade);
+        }, FirstRunDemoTiming.BarSelectFade);
     }
 
-    /// <summary>Draws the Song Detail chart replica (same geometry and brushes as <see cref="SongScoreHistoryChart"/>).</summary>
-    /// <param name="plot">Canvas.</param>
-    /// <param name="bars">Bars.</param>
-    private static void DrawChart(Canvas plot, IReadOnlyList<ScoreHistoryBar> bars)
-    {
-        plot.Children.Clear();
-        var width = plot.ActualWidth;
-        if (width <= 0 || bars.Count == 0) return;
-        const double left = 44, right = 40, topPad = 8, labelBand = 22;
-        var plotWidth = width - left - right;
-        var plotHeight = plot.Height - topPad - labelBand;
-        var bottom = topPad + plotHeight;
-        var niceMax = ScoreHistoryChartScale.NiceMax(bars.Max(b => b.Point.Score));
-        var axis = ContrastTheme.Brush("FSTChartAxisBrush");
-        void Line(double x1, double y1, double x2, double y2) => plot.Children.Add(new Microsoft.UI.Xaml.Shapes.Line { X1 = x1, Y1 = y1, X2 = x2, Y2 = y2, Stroke = axis, StrokeThickness = 1 });
-        void Label(string text, double x, double y, double w, TextAlignment alignment)
-        {
-            var block = new TextBlock { Text = text, FontSize = 12, Width = Math.Max(0, w), TextAlignment = alignment, TextWrapping = TextWrapping.NoWrap };
-            Canvas.SetLeft(block, x);
-            Canvas.SetTop(block, y);
-            plot.Children.Add(block);
-        }
-        Line(left, topPad, left, bottom);
-        Line(left + plotWidth, topPad, left + plotWidth, bottom);
-        Line(left, bottom, left + plotWidth, bottom);
-        for (var i = 0; i <= 4; i += 2)
-        {
-            Label(ScoreHistoryChartScale.Tick(niceMax * i / 4.0), 0, bottom - plotHeight * i / 4 - 8, left - 6, TextAlignment.Right);
-            Label($"{25 * i}%", left + plotWidth + 6, bottom - (plotHeight - 4) * i / 4 - 8, right - 6, TextAlignment.Left);
-        }
-        var lineBrush = ContrastTheme.Brush("FSTChartLineBrush");
-        var contrast = ContrastTheme.IsOn;
-        var slot = plotWidth / bars.Count;
-        var barWidth = Math.Max(4, slot * 0.8);
-        var line = new Polyline { Stroke = lineBrush, StrokeThickness = 2 };
-        var dots = new List<Ellipse>();
-        foreach (var bar in bars)
-        {
-            var point = bar.Point;
-            var centre = left + slot * (bar.Index + 0.5);
-            var height = Math.Max(2, (plotHeight - 4) * point.AccuracyPercent / 100);
-            Brush fill;
-            if (point.IsGold) fill = ContrastTheme.Brush("FSTChartFcBrush");
-            else if (contrast) fill = ContrastTheme.Brush("FSTChartBarBrush");
-            else
-            {
-                var (r, g, b) = SongScoreHistory.AccuracyColor(point.AccuracyPercent);
-                fill = new SolidColorBrush(ColorHelper.FromArgb(0xFF, r, g, b));
-            }
-            var rect = new Border
-            {
-                Width = barWidth, Height = height, CornerRadius = new CornerRadius(4, 4, 0, 0), Background = fill,
-                BorderBrush = bar.IsSelected ? ContrastTheme.Brush("FSTChartSelectedStrokeBrush") : null,
-                BorderThickness = new Thickness(bar.IsSelected ? 3 : 0),
-            };
-            Canvas.SetLeft(rect, centre - barWidth / 2);
-            Canvas.SetTop(rect, bottom - height);
-            plot.Children.Add(rect);
-            Label(point.DateLabel, centre - slot / 2, bottom + 4, slot, TextAlignment.Center);
-            var y = bottom - plotHeight * point.Score / (double)niceMax;
-            line.Points.Add(new Windows.Foundation.Point(centre, y));
-            var dot = new Ellipse { Width = 8, Height = 8, Fill = lineBrush };
-            Canvas.SetLeft(dot, centre - 4);
-            Canvas.SetTop(dot, y - 4);
-            dots.Add(dot);
-        }
-        plot.Children.Add(line);
-        foreach (var dot in dots) plot.Children.Add(dot);
-    }
+    /// <summary>Plot height of the chart demo (the 210 epx frame holds it and the legend).</summary>
+    private const double ChartPlotHeight = 160;
+
+    /// <summary>Plot height of the bar-select demo (the frame also holds the detail row).</summary>
+    private const double ChartSelectPlotHeight = 112;
+
+    /// <summary>Layout width of the demo chart before it shrinks to the frame (room for three bars at 100% text).</summary>
+    private const double ChartLayoutWidth = 480;
 
     /// <summary>
     /// Song Detail score cards: Score History (web <c>ViewAllDemo</c>: the player's plays, best highlighted, then a pulsing
@@ -878,6 +826,9 @@ public sealed partial class FirstRunDemo
     private DispatcherQueueTimer? scrollTimer;
     private readonly Stopwatch scrollClock = new();
     private UISettings? fadeSettings;
+    private double scrollOffset;
+    private int scrollWraps;
+    private string? scrollStatus;
 
     /// <summary>
     /// Suggestions infinite scroll (web <c>InfiniteScrollDemo</c>): six category cards that scroll down at 30 epx/s,
@@ -921,9 +872,11 @@ public sealed partial class FirstRunDemo
             if (!Motion.Allowed)
             {
                 scrollClock.Reset();
+                scrollOffset = 0;
                 viewer.ChangeView(null, 0, null, true);
             }
             UpdateScrollFade();
+            PublishScroll();
             return;
         }
         if (scrollTimer is null)
@@ -934,6 +887,7 @@ public sealed partial class FirstRunDemo
         }
         scrollClock.Start();
         if (!scrollTimer.IsRunning) scrollTimer.Start();
+        PublishScroll();
     }
 
     /// <summary>Moves the list to the web's offset for the elapsed time (wrapping to the top at the end).</summary>
@@ -942,6 +896,8 @@ public sealed partial class FirstRunDemo
         if (scroller is not { } viewer) return;
         var range = FirstRunAutoScroll.Range(viewer.ExtentHeight, viewer.ViewportHeight);
         var offset = FirstRunAutoScroll.Offset(scrollClock.Elapsed - FirstRunAutoScroll.StartDelay, range);
+        if (FirstRunAutoScroll.Wrapped(scrollOffset, offset)) scrollWraps++;
+        scrollOffset = offset;
         viewer.ChangeView(null, offset, null, true);
     }
 
@@ -953,6 +909,24 @@ public sealed partial class FirstRunDemo
         var settings = App.Session.Settings;
         var on = SongHeaderEdgeFade.IsEnabled(ContrastTheme.IsOn, fadeSettings.AdvancedEffectsEnabled, settings.LessTransparency, settings.MoreContrast);
         scrollFade.Update(on, viewer.VerticalOffset, FirstRunAutoScroll.Range(viewer.ExtentHeight, viewer.ViewportHeight));
+        PublishScroll();
+    }
+
+    /// <summary>
+    /// Republishes the demo's ItemStatus when its scroll token (<see cref="FirstRunAutoScroll.Status"/>: clock state,
+    /// position, wraps and the drawn edge fades) changes, so UI tests can follow the motion without reading pixels.
+    /// </summary>
+    private void PublishScroll()
+    {
+        if (scroller is not { } viewer || scrollFade is null) return;
+        var state = scrollTimer?.IsRunning == true ? FirstRunAutoScrollState.Running
+            : !Motion.Allowed ? FirstRunAutoScrollState.Held
+            : FirstRunAutoScrollState.Paused;
+        var token = FirstRunAutoScroll.Status(state, viewer.VerticalOffset, FirstRunAutoScroll.Range(viewer.ExtentHeight, viewer.ViewportHeight),
+            scrollWraps, scrollFade.IsActive, scrollFade.TopFaded, scrollFade.BottomFaded);
+        if (token == scrollStatus) return;
+        scrollStatus = token;
+        PublishOwnStatus();
     }
 
     /// <summary>Stops the scroll clock (rebuild or unload).</summary>
@@ -960,6 +934,9 @@ public sealed partial class FirstRunDemo
     {
         scrollTimer?.Stop();
         scrollClock.Reset();
+        scrollOffset = 0;
+        scrollWraps = 0;
+        scrollStatus = null;
     }
     #endregion
 
@@ -1435,13 +1412,26 @@ public sealed partial class FirstRunDemo
     private void QueueInert()
     {
         Inert(root);
+        PublishCensus();
         if (inertQueued) return;
         inertQueued = true;
         DispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
         {
             inertQueued = false;
             Inert(root);
+            PublishCensus();
         });
+    }
+
+    /// <summary>
+    /// Publishes the controls the demo is built from as the raw-view peer's HelpText (<see cref="FirstRunDemoContent.ControlCensus"/>),
+    /// so UI tests can prove a slide composes the page's real controls (issue #380).
+    /// </summary>
+    private void PublishCensus()
+    {
+        if (!censusChanged) return;
+        censusChanged = false;
+        AutomationProperties.SetHelpText(this, kind is null ? "" : FirstRunDemoContent.ControlCensus(census));
     }
 
     /// <summary>Walks a part's subtree once its template has realized.</summary>
@@ -1452,6 +1442,7 @@ public sealed partial class FirstRunDemo
         var element = (FrameworkElement)sender;
         element.Loaded -= OnInertLoaded;
         Inert(element);
+        PublishCensus();
     }
 
     /// <summary>
@@ -1463,6 +1454,9 @@ public sealed partial class FirstRunDemo
     private void Inert(DependencyObject node)
     {
         if (node is Control control && control.IsTabStop) control.IsTabStop = false;
+        // Census: WinUI controls and the app's own controls (panels such as CardHeader or FlowPanel included).
+        if ((node is Control || node.GetType().Namespace?.StartsWith("Festival.App", StringComparison.Ordinal) == true) && node != this)
+            censusChanged |= census.Add(node.GetType().Name);
         if (node is FrameworkElement { IsLoaded: false } pending && pending.GetValue(InertHookedProperty) is not true)
         {
             pending.SetValue(InertHookedProperty, true);

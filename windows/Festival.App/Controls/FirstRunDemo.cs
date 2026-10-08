@@ -249,7 +249,9 @@ public sealed partial class FirstRunDemo : UserControl
     private void PublishOwnStatus()
     {
         if (kind is null) return;
-        AutomationProperties.SetItemStatus(this, FirstRunDemoRotationStatus.Format(FirstRunDemos.DataStatus(songs), RotationState, swaps, lastSwapFaded, CurrentPulse(), PulseDemos.Count));
+        var status = FirstRunDemoRotationStatus.Format(FirstRunDemos.DataStatus(songs), RotationState, swaps, lastSwapFaded, CurrentPulse(), PulseDemos.Count);
+        // The infinite-scroll demo appends its motion (FirstRunAutoScroll.Status).
+        AutomationProperties.SetItemStatus(this, scrollStatus is null ? status : $"{status} {scrollStatus}");
     }
 
     /// <summary>Records one drawn data swap (a tick whose pool can't replace rows draws none).</summary>

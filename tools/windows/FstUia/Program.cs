@@ -1054,7 +1054,8 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>
     /// Waits until the selected element's toggle state (<c>on</c>/<c>off</c>/<c>indeterminate</c>), enabled flag
     /// (<c>true</c>/<c>false</c>), SelectionItem <c>IsSelected</c> (<c>true</c>/<c>false</c>), rounded vertical scroll
-    /// percent (<c>scroll</c>) or name equals the step's value.
+    /// percent (<c>scroll</c>), HelpText (<c>help</c>) or name equals the step's value (or matches it as a regex when
+    /// the value starts with <c>~</c>). A <c>raw=</c> selector searches the raw view.
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector, <c>key</c>, <c>value</c> and an optional timeout (default 5 s).</param>
@@ -1068,7 +1069,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         while (true)
         {
             string? seen = null;
-            if (window.FindFirstDescendant(condition) is { } element)
+            if (InView(IsRaw(step), () => window.FindFirstDescendant(condition)) is { } element)
             {
                 seen = key switch
                 {
@@ -1097,10 +1098,12 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                         : element.Patterns.Selection.PatternOrDefault?.Selection.ValueOrDefault is { Length: > 0 } picked
                             ? picked[0].Properties.Name.ValueOrDefault
                             : null,
+                    // A raw-view peer's HelpText, e.g. a First Run demo's control census (controls=A+B+C).
+                    "help" => element.Properties.HelpText.ValueOrDefault ?? "",
                     _ => element.Properties.Name.ValueOrDefault,
                 };
             }
-            if (seen == expected) return;
+            if (StatusMatches(seen, expected)) return;
             if (DateTime.UtcNow > until)
                 throw new InvalidOperationException($"element {label} {key} is {(seen is null ? "missing" : $"\"{seen}\"")}, expected \"{expected}\"");
             Thread.Sleep(200);

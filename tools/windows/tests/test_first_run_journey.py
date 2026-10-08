@@ -187,6 +187,45 @@ class ContractTests(unittest.TestCase):
         self.assertFalse(any("catalogue" in step.partition("|")[2] for step in down_steps))
         self.assertIn(f"wait:{1 + j.UNAVAILABLE_WAIT}", down_steps)
 
+    def test_control_census_covers_every_slide_with_its_production_controls(self):
+        # Issue #380: every demo must name the production controls it shows; the census regex needs each one whole.
+        import uiwin
+        self.assertEqual(sorted(j.DEMO_CONTROLS), sorted(s for slides in j.PAGE_SLIDES.values() for s in slides))
+        self.assertIn("SongScoreHistoryChart", j.DEMO_CONTROLS["songinfo-chart"])
+        scenario = next(s for s in j.SCENARIOS if s.name == "demo-controls")
+        steps = [step for phase in scenario.phases for step in phase.steps]
+        for slide in j.DEMO_CONTROLS:
+            self.assertIn(j._controls(slide), steps)
+        for step in steps:
+            uiwin.parse_step(step)
+        pattern = uiwin.parse_step(j._controls("songs-sort"))["value"][1:]
+        self.assertTrue(re.search(pattern, "controls=DropDownButton+RadioButton+RadioButtons"))
+        # The old replica's slide had no RadioButtons; RadioButton alone or a longer name must not pass.
+        self.assertFalse(re.search(pattern, "controls=DropDownButton+RadioButton"))
+        self.assertFalse(re.search(pattern, "controls=DropDownButton+RadioButtonsX"))
+        self.assertFalse(re.search(pattern, ""))
+
+    def test_chart_and_scroll_scenarios_assert_the_real_chart_and_scroll_token(self):
+        import uiwin
+        chart = "\n".join(step for phase in next(s for s in j.SCENARIOS if s.name == "demo-chart").phases
+                          for step in phase.steps)
+        for token in ("fst.history.chart", "3 of 3 scores", "fst.history.bar.2|toggle=on", "fst.history.bar.0|toggle=on",
+                      "fst.history.detail"):
+            self.assertIn(token, chart)
+        scroll = next(s for s in j.SCENARIOS if s.name == "infinite-scroll")
+        held = next(s for s in j.SCENARIOS if s.name == "infinite-scroll-reduced")
+        self.assertEqual(held.settings, {"reduceMotion": True})
+        steps = "\n".join(scroll.phases[0].steps)
+        self.assertIn(r"fade=top\+bottom", steps)
+        self.assertIn("wraps=[1-9]", steps)
+        self.assertIn(r"scroll=held pos=top wraps=0 fade=bottom$", "\n".join(held.phases[0].steps))
+        for scenario in (scroll, held):
+            for step in scenario.phases[0].steps:
+                uiwin.parse_step(step)
+        status = "catalogue scroll=running pos=mid wraps=2 fade=top+bottom"
+        self.assertTrue(re.search(r"^catalogue scroll=running pos=(top|mid) wraps=[1-9]\d* fade=(bottom|top\+bottom)$",
+                                  status))
+
     def test_live_demo_pages_parse_and_assert_catalogue_songs(self):
         import a11y_matrix
         import uiwin

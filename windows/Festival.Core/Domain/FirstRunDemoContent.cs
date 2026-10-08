@@ -184,6 +184,48 @@ public static class FirstRunAutoScroll
     /// <returns>Fade heights in epx.</returns>
     public static (double Top, double Bottom) Fades(double offset, double range) =>
         (Math.Clamp(offset, 0, EdgeFade), Math.Clamp(range - offset, 0, EdgeFade));
+
+    /// <summary>
+    /// The demo's UIA ItemStatus token for UI tests, appended after its data status, e.g.
+    /// <c>scroll=running pos=mid wraps=1 fade=top+bottom</c> (space-separated: UI test steps split on semicolons).
+    /// </summary>
+    /// <param name="state">Whether the list scrolls, is held at the top (motion off) or paused (inactive or hidden).</param>
+    /// <param name="offset">Scroll offset.</param>
+    /// <param name="range">Scroll range.</param>
+    /// <param name="wraps">Jumps back to the top observed since the demo was built.</param>
+    /// <param name="fadeDrawn">Whether the edge-fade mask is drawn (off: contrast themes, transparency off and similar).</param>
+    /// <param name="topFaded">Whether the drawn mask fades the top edge.</param>
+    /// <param name="bottomFaded">Whether the drawn mask fades the bottom edge.</param>
+    /// <returns>Token.</returns>
+    public static string Status(FirstRunAutoScrollState state, double offset, double range, int wraps, bool fadeDrawn, bool topFaded, bool bottomFaded)
+    {
+        var name = state switch
+        {
+            FirstRunAutoScrollState.Running => "running",
+            FirstRunAutoScrollState.Held => "held",
+            _ => "paused",
+        };
+        var position = offset < 1 ? "top" : offset >= range - 1 ? "end" : "mid";
+        var fade = !fadeDrawn ? "off" : topFaded && bottomFaded ? "top+bottom" : topFaded ? "top" : bottomFaded ? "bottom" : "none";
+        return string.Create(CultureInfo.InvariantCulture, $"scroll={name} pos={position} wraps={wraps} fade={fade}");
+    }
+
+    /// <summary>Whether a new offset is the jump back to the top (the list wrapped) rather than forward motion.</summary>
+    /// <param name="previous">Offset before the tick.</param>
+    /// <param name="next">Offset after the tick.</param>
+    /// <returns>Whether it wrapped.</returns>
+    public static bool Wrapped(double previous, double next) => next < previous - 1;
+}
+
+/// <summary>The infinite-scroll demo's clock state (<see cref="FirstRunAutoScroll.Status"/>).</summary>
+public enum FirstRunAutoScrollState
+{
+    /// <summary>Scrolling: the visible, loaded, foreground slide with motion allowed.</summary>
+    Running,
+    /// <summary>Held at the top: animations are off (Windows Animation effects or in-app Reduce Motion).</summary>
+    Held,
+    /// <summary>Stopped where it is: the slide isn't the visible one, or the window is hidden or in the background.</summary>
+    Paused,
 }
 #endregion
 
@@ -292,32 +334,47 @@ public static class FirstRunDemoContent
         return [.. rows.Select(r => r with { Section = section })];
     }
 
-    /// <summary>The Song Detail chart's sample plays (web <c>ChartDemo</c>/<c>BarSelectDemo</c>: two days ago, yesterday, today).</summary>
+    /// <summary>
+    /// A demo's control census for UI tests (UIA HelpText of its raw-view peer): the distinct type names of the controls it
+    /// is built from, sorted ordinally, e.g. <c>controls=CardHeader+LeaderboardEntryRow+SongScoreHistoryChart</c>.
+    /// </summary>
+    /// <param name="types">Control type names (duplicates allowed).</param>
+    /// <returns>Census text; <c>controls=</c> when empty.</returns>
+    public static string ControlCensus(IEnumerable<string> types) =>
+        "controls=" + string.Join('+', types.Where(t => t.Length > 0).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
+
+    /// <summary>The Song Detail chart's song (the guide's chart model never reads the service).</summary>
+    public const string ChartSongId = "first-run-demo";
+
+    /// <summary>The Song Detail chart's chart (web <c>ChartDemo</c>/<c>BarSelectDemo</c> show Lead).</summary>
+    public const Instrument ChartInstrument = Instrument.Lead;
+
+    /// <summary>
+    /// The Song Detail chart's sample plays as service history rows (web <c>ChartDemo</c>/<c>BarSelectDemo</c>: two days
+    /// ago, yesterday, today), for the real Score History model behind the guide's real chart (issue #380).
+    /// </summary>
     /// <param name="today">Date of the newest play.</param>
-    /// <returns>Points, oldest first.</returns>
-    public static IReadOnlyList<ScoreHistoryPoint> ChartPoints(DateTimeOffset today) =>
+    /// <returns>Plays, oldest first.</returns>
+    public static IReadOnlyList<ScoreHistoryEntry> ChartPlays(DateTimeOffset today) =>
     [
-        .. FirstRunDemos.BarSelectBars.Select((bar, i) => Point(today.AddDays(i - (FirstRunDemos.BarSelectBars.Count - 1)), bar.Score,
-            bar.Accuracy * ScoreHistoryPoint.AccuracyScale, bar.FullCombo, bar.FullCombo ? 6 : 5, null)),
+        .. FirstRunDemos.BarSelectBars.Select((bar, i) => new ScoreHistoryEntry
+        {
+            SongId = ChartSongId,
+            Instrument = ChartInstrument.ServiceId(),
+            NewScore = bar.Score,
+            Accuracy = bar.Accuracy * ScoreHistoryPoint.AccuracyScale,
+            IsFullCombo = bar.FullCombo,
+            Stars = bar.FullCombo ? 6 : 5,
+            ScoreAchievedAt = today.AddDays(i - (FirstRunDemos.BarSelectBars.Count - 1)).ToString("o", CultureInfo.InvariantCulture),
+        }),
     ];
 
-    /// <summary>The chart's bars with one selected (web <c>BarSelectDemo</c> cycles the selection).</summary>
+    /// <summary>The real Score History model over <see cref="ChartPlays"/> (loaded, no bar selected).</summary>
     /// <param name="today">Date of the newest play.</param>
-    /// <param name="selected">Selected bar, or <see langword="null"/>.</param>
-    /// <returns>Bars.</returns>
-    public static IReadOnlyList<ScoreHistoryBar> ChartBars(DateTimeOffset today, int? selected) =>
-        [.. ChartPoints(today).Select((p, i) => new ScoreHistoryBar(i, p, i == selected))];
-
-    /// <summary>The selected bar's detail row (the real Song Detail detail row under the chart).</summary>
-    /// <param name="today">Date of the newest play.</param>
-    /// <param name="selected">Selected bar (wraps).</param>
-    /// <returns>Row.</returns>
-    public static ScoreHistoryListRow ChartDetail(DateTimeOffset today, int selected)
-    {
-        var points = ChartPoints(today);
-        var row = new ScoreHistoryListRow(points[((selected % points.Count) + points.Count) % points.Count], false) { IsDetail = true };
-        return row with { Section = LeaderboardColumns.Measure([row]) };
-    }
+    /// <param name="time">Clock for the model's status presenter.</param>
+    /// <returns>Model.</returns>
+    public static SongScoreHistoryViewModel ChartModel(DateTimeOffset today, TimeProvider time) =>
+        SongScoreHistoryViewModel.Demo(ChartSongId, ChartInstrument, ChartPlays(today), time);
 
     /// <summary>A sample play.</summary>
     /// <param name="date">Play date.</param>
