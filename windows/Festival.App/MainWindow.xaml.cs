@@ -347,7 +347,7 @@ public sealed partial class MainWindow : Window
     /// <summary>Segoe Fluent Icons glyph per section.</summary>
     /// <param name="section">Section.</param>
     /// <returns>Glyph.</returns>
-    internal static string Glyph(AppSection section) => section switch
+    private static string Glyph(AppSection section) => section switch
     {
         AppSection.Songs => "",
         AppSection.Suggestions => "",

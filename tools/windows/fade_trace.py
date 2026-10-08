@@ -342,42 +342,6 @@ def check_enrolled(events: list[FadeEvent], owner: str, targets: tuple[str, ...]
     return failures
 
 
-def check_cascade(events: list[FadeEvent], owner: str, targets: list[str], step_ms: int, motion: bool) -> list[str]:
-    """Each target enters its owner's entrance once, in order, ``step_ms`` apart from 0 (a web ``FadeIn`` cascade
-    such as ``delay={i * STAGGER_INTERVAL}``), fading with motion on and shown at once (``motion=0``) with it off.
-
-    Args:
-        events: Events of the phase that showed the entrance.
-        owner: Entrance owner (e.g. the First Run carousel's ``Slides`` FlipView).
-        targets: Element names in cascade order.
-        step_ms: Delay between consecutive targets.
-        motion: Whether animations are on (Reduce Motion off).
-
-    Returns:
-        Failures.
-    """
-    entered = [e for e in events if e.kind == "enter" and e.list == owner and e.values.get("target") in targets]
-    first: dict[str, FadeEvent] = {}
-    for event in entered:
-        first.setdefault(str(event.values["target"]), event)
-    failures = [f"{owner}: {t} never entered the entrance (no fade-enter target={t})" for t in targets if t not in first]
-    if failures:
-        return failures
-    order = list(first)
-    if order != targets:
-        failures.append(f"{owner}: entered out of order: {order}")
-    for index, target in enumerate(targets):
-        event = first[target]
-        delay, played = event.values.get("delay"), event.values.get("motion")
-        expected = index * step_ms
-        if not isinstance(delay, int) or abs(delay - expected) > CLOCK_SLOP_MS:
-            failures.append(f"{owner}: {target} starts after {delay} ms, expected {expected} ms")
-        if played != (1 if motion else 0):
-            failures.append(f"{owner}: {target} {'did not fade' if motion else 'faded with Reduce Motion on'} "
-                            f"(motion={played})")
-    return failures
-
-
 def _at(event: FadeEvent) -> int | None:
     """The event's clock value (ms), if traced."""
     value = event.values.get("at")

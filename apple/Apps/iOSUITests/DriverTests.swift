@@ -56,10 +56,18 @@ import UIKit
 /// - `systemDrag:<identifier-prefix-or-label>><x>,<y>` — long-press a SpringBoard element
 ///   and drag it slowly to a normalized screen point, then hold before release (e.g. a
 ///   Multitasking Dock icon to a screen edge for Split View on the iPhone Duo inner display).
-/// - `fill` — iPad windowed multitasking: make the window fill the screen again
-///   (always end a script that resized with it: iPadOS remembers window sizes).
-/// - `tile:<Left|Right|Arrange thirds|Left and Right>` — iPad: exact tiling from the
-///   window-controls menu (long-press Zoom); end with `fill`.
+/// - `appDrag:<bundleId>|<identifier-prefix-or-label>><x>,<y>` — long-press another app's
+///   element and drag it slowly to a normalized screen point, then hold before release
+///   (e.g. a Photos photo onto the feedback form in a side-by-side window, issue #373).
+/// - `screenDrag:<x>,<y>><x>,<y>` — long-press a normalized screen point and drag it slowly
+///   to another, then hold before release: drags from a background app beside yours, whose
+///   elements are not in the tree (e.g. a tiled Photos window's thumbnail onto the form).
+/// - `fill[:<bundleId>]` — iPad windowed multitasking: make the window fill the screen again
+///   (always end a script that resized with it: iPadOS remembers window sizes). With a
+///   bundle ID, fill that app's window (bring it forward with `appLaunch` first).
+/// - `tile:<Left|Right|Arrange thirds|Left and Right>[@<bundleId>]` — iPad: exact tiling
+///   from the window-controls menu (long-press Zoom); end with `fill`. With a bundle ID,
+///   tile that app's front window instead (e.g. Photos beside the app, issue #373).
 /// - `appTree:<bundleId>|<path>` / `appTap:<bundleId>|<identifier-or-label>` — dump or
 ///   tap another app's tree (e.g. `com.apple.Preferences`, after `appLaunch:`), for
 ///   reading simulator settings such as Full Keyboard Access.
@@ -96,12 +104,14 @@ enum DriverStep {
     case rotate(UIDeviceOrientation)
     case home(String?)
     case resize(Double)
-    case fill
+    case fill(String?)
     case systemTree(String)
     case systemTap(String)
     case systemHold(String)
     case systemDrag(String, CGVector)
-    case tile(WindowResize.Tile)
+    case appDrag(String, String, CGVector)
+    case screenDrag(CGVector, CGVector)
+    case tile(WindowResize.Tile, String?)
     case windowFrame(String)
     case closeWindow
     case appLaunch(String)
@@ -195,7 +205,7 @@ enum DriverStep {
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .audit(arg)
         case "fill":
-            return .fill
+            return .fill(arg.isEmpty ? nil : arg)
         case "systemHold":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .systemHold(arg)
@@ -210,6 +220,25 @@ enum DriverStep {
             }
             guard !target.isEmpty, values.count == 2 else { throw ParseError.malformed(raw) }
             return .systemDrag(target, CGVector(dx: values[0], dy: values[1]))
+        case "appDrag":
+            guard let split = arg.range(of: ">", options: .backwards) else { throw ParseError.malformed(raw) }
+            let bits = arg[..<split.lowerBound].split(separator: "|", maxSplits: 1).map(String.init)
+            let values = arg[split.upperBound...].split(separator: ",").compactMap {
+                Double($0.trimmingCharacters(in: .whitespaces))
+            }
+            guard bits.count == 2, !bits[0].isEmpty, !bits[1].isEmpty, values.count == 2 else {
+                throw ParseError.malformed(raw)
+            }
+            return .appDrag(bits[0], bits[1], CGVector(dx: values[0], dy: values[1]))
+        case "screenDrag":
+            let points = arg.split(separator: ">").map { part in
+                part.split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+            }
+            guard points.count == 2, points.allSatisfy({ $0.count == 2 && $0.allSatisfy((0...1).contains) }) else {
+                throw ParseError.malformed(raw)
+            }
+            return .screenDrag(
+                CGVector(dx: points[0][0], dy: points[0][1]), CGVector(dx: points[1][0], dy: points[1][1]))
         case "systemTree":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .systemTree(arg)
@@ -222,8 +251,11 @@ enum DriverStep {
         case "home":
             return .home(arg.isEmpty ? nil : arg)
         case "tile":
-            guard let tile = WindowResize.Tile(rawValue: arg) else { throw ParseError.malformed(raw) }
-            return .tile(tile)
+            let bits = arg.split(separator: "@", maxSplits: 1).map(String.init)
+            guard let first = bits.first, let tile = WindowResize.Tile(rawValue: first) else {
+                throw ParseError.malformed(raw)
+            }
+            return .tile(tile, bits.count == 2 && !bits[1].isEmpty ? bits[1] : nil)
         case "closeWindow":
             return .closeWindow
         case "appLaunch":
@@ -542,6 +574,23 @@ final class DriverTests: XCTestCase {
                 forDuration: 1.0,
                 thenDragTo: springboard.coordinate(withNormalizedOffset: destination),
                 withVelocity: .slow, thenHoldForDuration: 1.0)
+        case let .appDrag(bundle, identifier, destination):
+            let other = XCUIApplication(bundleIdentifier: bundle)
+            let target = other.descendants(matching: .any).matching(
+                NSPredicate(format: "identifier BEGINSWITH %@ OR label == %@", identifier, identifier)
+            ).firstMatch
+            guard target.waitForExistence(timeout: 5) else { throw DriverError.elementNotFound(identifier) }
+            let screen = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+            target.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
+                forDuration: 1.0,
+                thenDragTo: screen.coordinate(withNormalizedOffset: destination),
+                withVelocity: .slow, thenHoldForDuration: 1.0)
+        case let .screenDrag(from, to):
+            let screen = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+            screen.coordinate(withNormalizedOffset: from).press(
+                forDuration: 1.0,
+                thenDragTo: screen.coordinate(withNormalizedOffset: to),
+                withVelocity: .slow, thenHoldForDuration: 1.0)
         case let .systemTree(path):
             try XCUIApplication(bundleIdentifier: "com.apple.springboard").debugDescription
                 .write(toFile: path, atomically: true, encoding: .utf8)
@@ -552,10 +601,11 @@ final class DriverTests: XCTestCase {
             if let label { _ = try visibleHomeScreenIcon(label) }
         case let .resize(fraction):
             WindowResize.resize(app, toScreenFraction: CGFloat(fraction))
-        case .fill:
-            WindowResize.fill(app)
-        case let .tile(tile):
-            guard WindowResize.tile(app, tile) else { throw DriverError.elementNotFound(tile.rawValue) }
+        case let .fill(bundle):
+            WindowResize.fill(bundle.map { XCUIApplication(bundleIdentifier: $0) } ?? app)
+        case let .tile(tile, bundle):
+            let target = bundle.map { XCUIApplication(bundleIdentifier: $0) } ?? app
+            guard WindowResize.tile(target, tile) else { throw DriverError.elementNotFound(tile.rawValue) }
         case let .windowFrame(path):
             let line = "\(NSCoder.string(for: app.windows.firstMatch.frame))\n"
             let url = URL(fileURLWithPath: path)

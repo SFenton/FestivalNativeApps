@@ -42,14 +42,14 @@
             <FlipView.ItemTemplate>
                 <DataTemplate x:DataType="domain:FirstRunSlide">
                     <StackPanel Spacing="12" Padding="4,0" AutomationProperties.AutomationId="{x:Bind Id}">
-                        <!-- Live demo (visible slide only; its blocks, then this title and description, fade in with the web FadeIn stagger). -->
+                        <!-- Live demo (6 s loop, visible slide only); the static illustration covers any slide without one. -->
                         <Grid Height="210">
                             <controls:FirstRunIllustration SlideId="{x:Bind Id}" Visibility="{x:Bind controls:FirstRunCarousel.NoDemo(Id)}" />
                             <controls:FirstRunDemo SlideId="{x:Bind Id}" />
                         </Grid>
-                        <TextBlock x:Name="SlideTitle" Text="{x:Bind Title}" Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap"
+                        <TextBlock Text="{x:Bind Title}" Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap"
                                    AutomationProperties.HeadingLevel="Level2" />
-                        <TextBlock x:Name="SlideDescription" Text="{x:Bind Description}" TextWrapping="Wrap" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                        <TextBlock Text="{x:Bind Description}" TextWrapping="Wrap" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
                     </StackPanel>
                 </DataTemplate>
             </FlipView.ItemTemplate>

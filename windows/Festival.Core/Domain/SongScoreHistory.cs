@@ -252,15 +252,6 @@ public sealed class ScoreHistoryPager
     /// <summary>Clears the selection.</summary>
     public void ClearSelection() => SelectedIndex = -1;
 
-    /// <summary>Selects a point and pages so its bar is visible (unlike <see cref="Toggle"/>, never clears it).</summary>
-    /// <param name="index">Point index; out of range is ignored.</param>
-    public void Select(int index)
-    {
-        if (index < 0 || index >= Count) return;
-        SelectedIndex = index;
-        Reveal(index);
-    }
-
     /// <summary>« : a page back (older), or the selection a page back.</summary>
     public void BackPage() => Step(-MaxBars);
 
@@ -285,13 +276,6 @@ public sealed class ScoreHistoryPager
         }
         var target = Math.Clamp(SelectedIndex + delta, 0, Count - 1);
         SelectedIndex = target;
-        Reveal(target);
-    }
-
-    /// <summary>Pages the least distance that shows a point's bar.</summary>
-    /// <param name="target">Point index.</param>
-    private void Reveal(int target)
-    {
         if (target >= PageStart && target < PageEnd) return;
         offset = target < PageStart ? Math.Min(Count - target - MaxBars, MaxOffset) : Math.Max(Count - target - 1, 0);
     }

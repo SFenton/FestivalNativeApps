@@ -11,7 +11,6 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import fade_trace as f  # noqa: E402  (sibling module)
 import first_run_journey as j  # noqa: E402  (sibling module)
 
 REPO = Path(__file__).resolve().parents[3]
@@ -187,76 +186,6 @@ class ContractTests(unittest.TestCase):
         self.assertIn(j._demo("rivals-detail", "placeholder", 15), down_steps)
         self.assertFalse(any("catalogue" in step.partition("|")[2] for step in down_steps))
         self.assertIn(f"wait:{1 + j.UNAVAILABLE_WAIT}", down_steps)
-
-    def test_control_census_covers_every_slide_with_its_production_controls(self):
-        # Issue #380: every demo must name the production controls it shows; the census regex needs each one whole.
-        import uiwin
-        self.assertEqual(sorted(j.DEMO_CONTROLS), sorted(s for slides in j.PAGE_SLIDES.values() for s in slides))
-        self.assertIn("SongScoreHistoryChart", j.DEMO_CONTROLS["songinfo-chart"])
-        scenario = next(s for s in j.SCENARIOS if s.name == "demo-controls")
-        steps = [step for phase in scenario.phases for step in phase.steps]
-        for slide in j.DEMO_CONTROLS:
-            self.assertIn(j._controls(slide), steps)
-        for step in steps:
-            uiwin.parse_step(step)
-        pattern = uiwin.parse_step(j._controls("songs-sort"))["value"][1:]
-        self.assertTrue(re.search(pattern, "controls=Button+DropDownButton+RadioButton+RadioButtons+SongSortForm"))
-        # The old replica's slide had no RadioButtons, and a hand-built copy of the flyout has no SongSortForm;
-        # RadioButton alone or a longer name must not pass.
-        self.assertFalse(re.search(pattern, "controls=DropDownButton+RadioButton+RadioButtons"))
-        self.assertFalse(re.search(pattern, "controls=DropDownButton+RadioButton+SongSortForm"))
-        self.assertFalse(re.search(pattern, "controls=DropDownButton+RadioButtonsX+SongSortForm"))
-        self.assertFalse(re.search(pattern, ""))
-
-    def test_chart_and_scroll_scenarios_assert_the_real_chart_and_scroll_token(self):
-        import uiwin
-        chart = "\n".join(step for phase in next(s for s in j.SCENARIOS if s.name == "demo-chart").phases
-                          for step in phase.steps)
-        for token in ("fst.history.chart", "3 of 3 scores", "fst.history.bar.2|toggle=on", "fst.history.bar.0|toggle=on",
-                      "fst.history.detail"):
-            self.assertIn(token, chart)
-        # Web BarSelectDemo: selectedIdx starts at 0 and steps 0 → 1 → 2 (review of #422).
-        selected = re.findall(r"songinfo-bar-select\.fst\.history\.bar\.(\d)\|toggle=on", chart)
-        self.assertEqual(selected, ["0", "1", "2"])
-        self.assertLess(chart.index("score 218,400"), chart.index("score 347,100"))
-        self.assertLess(chart.index("score 347,100"), chart.index("score 486,500"))
-        scroll = next(s for s in j.SCENARIOS if s.name == "infinite-scroll")
-        held = next(s for s in j.SCENARIOS if s.name == "infinite-scroll-reduced")
-        self.assertEqual(held.settings, {"reduceMotion": True})
-        steps = "\n".join(step for phase in scroll.phases for step in phase.steps)
-        self.assertIn(r"fade=top\+bottom", steps)
-        self.assertIn("wraps=[1-9]", steps)
-        self.assertIn(r"scroll=held pos=top wraps=0 fade=bottom$", "\n".join(held.phases[0].steps))
-        for scenario in (scroll, held):
-            for phase in scenario.phases:
-                for step in phase.steps:
-                    uiwin.parse_step(step)
-        status = "catalogue scroll=running pos=mid wraps=2 fade=top+bottom"
-        self.assertTrue(re.search(r"^catalogue scroll=running pos=(top|mid) wraps=[1-9]\d* fade=(bottom|top\+bottom)$",
-                                  status))
-
-    def test_scroll_scenarios_judge_the_card_cascade_from_the_fade_trace(self):
-        # Review of #422: each card is its own FadeIn (web delay=i × 125 ms); Reduce Motion shows them at once.
-        scroll = next(s for s in j.SCENARIOS if s.name == "infinite-scroll")
-        held = next(s for s in j.SCENARIOS if s.name == "infinite-scroll-reduced")
-        self.assertTrue(scroll.perf_log and held.perf_log)
-        self.assertIsNotNone(scroll.phases[0].fades)
-        self.assertIsNotNone(held.phases[0].fades)
-        self.assertEqual(len(j.SCROLL_CARDS), 6)
-
-        def lines(motion: int, delays: list[int]) -> list[str]:
-            return [f"fade-enter list=Slides target={card} delay={d} motion={motion} at=1000"
-                    for card, d in zip(j.SCROLL_CARDS, delays)]
-
-        cascade = [0, 125, 250, 375, 500, 625]
-        self.assertEqual(scroll.phases[0].fades(f.parse(lines(1, cascade))), [])
-        self.assertEqual(held.phases[0].fades(f.parse(lines(0, cascade))), [])
-        # The reviewed head faded the whole frame once: no card entered on its own.
-        frame = f.parse(["fade-enter list=Slides target=? delay=0 motion=1 at=1000"])
-        self.assertEqual(len(scroll.phases[0].fades(frame)), 6)
-        # Cards fading together, or fading with Reduce Motion on, fail.
-        self.assertTrue(scroll.phases[0].fades(f.parse(lines(1, [0] * 6))))
-        self.assertTrue(held.phases[0].fades(f.parse(lines(1, cascade))))
 
     def test_live_demo_pages_parse_and_assert_catalogue_songs(self):
         import a11y_matrix

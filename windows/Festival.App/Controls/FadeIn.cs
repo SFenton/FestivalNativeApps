@@ -397,15 +397,13 @@ public static class FadeIn
     /// Starts a page's own first-load entrance (Song Detail's sections and cards, Player Profile's title and Overview):
     /// a load arm owned by the page's scroller, whose first movement rushes every <see cref="Enter"/> fade of the page
     /// that hasn't started (a drag, wheel, Quick Links jump or programmatic scroll; web <c>useStaggerRush</c>, issue #323).
-    /// An owner that isn't a scroller (a First Run carousel's <c>FlipView</c>, one entrance per slide shown, issue #380)
-    /// follows its nearest scrolling ancestor, so its own paging never rushes the slide it pages to.
     /// </summary>
-    /// <param name="owner">The page's scroller, or another entrance owner.</param>
-    public static void BeginEntrance(FrameworkElement owner)
+    /// <param name="scroller">The page's scroller.</param>
+    public static void BeginEntrance(ScrollViewer scroller)
     {
-        TrackerOf(owner).Hook();
-        Restagger(owner);
-        SettleNow(owner);
+        TrackerOf(scroller).Hook();
+        Restagger(scroller);
+        SettleNow(scroller);
     }
 
     /// <summary>

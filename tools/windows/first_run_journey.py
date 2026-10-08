@@ -27,17 +27,6 @@ Every reachable ``first-run`` contract state (``contracts/product.json``) runs a
 * ``rotation-background``: a window that stays visible and uncovered but loses activation to the taskbar holds its
   demo still, then resumes once reactivated (rotation runs only while the app is in the foreground). Needs an unlocked
   console, like ``keyboard``.
-* ``demo-controls`` (issue #380): every page's Settings replay pages through all 42 slides; each demo's control census
-  (its UIA HelpText) includes the production controls it shows (``DEMO_CONTROLS``), e.g. Song Detail's
-  ``SongScoreHistoryChart`` or the Songs ``NavigationView``, never a hand-drawn replica.
-* ``demo-chart``: the Score History slides host Song Detail's real chart (its ``fst.history.*`` plot summary and bar
-  toggle buttons); bar-select starts on the first bar like the web and moves the model's selection 0 → 1 → 2 with Song
-  Detail's detail row following.
-* ``infinite-scroll``: Suggestions' auto-scroll demo fades its six cards in one by one 125 ms apart (``--perf-log``
-  ``fade-enter`` trace; web ``InfiniteScrollDemo`` ``FadeIn delay={i * STAGGER_INTERVAL}``), scrolls, shows its top
-  fade beside the bottom fade once the first card leaves the top, and wraps back to its start (web ``useAutoScroll``).
-* ``infinite-scroll-reduced``: with Reduce Motion the same demo shows its six cards at once (``motion=0``) and holds at
-  its first card (bottom fade only), never scrolling or wrapping.
 
 Each phase is one ``drive`` call (a launching phase runs inside the ``launch`` call's desktop-lock hold) and the UIA
 tree dumped after it is checked with regular expressions (pips are named "Page N", so the slide count is asserted
@@ -67,7 +56,6 @@ from typing import Any, Callable
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import a11y_matrix  # noqa: E402  (tools/windows module: fixture service)
-import fade_trace  # noqa: E402
 import journey_exe  # noqa: E402
 import uiwin  # noqa: E402
 
@@ -87,7 +75,6 @@ class Phase:
         seen: Predicates over the saved ``first-run.json`` (name → check), evaluated after the steps.
         relaunch: Close and relaunch the app (same settings and data folder) before this phase.
         mutate: Rewrites ``first-run.json`` before the relaunch (e.g. an older slide version).
-        fades: Check over the ``fade-*`` perf-log lines the phase appended (needs ``Scenario.perf_log``).
     """
 
     steps: list[str]
@@ -96,7 +83,6 @@ class Phase:
     seen: dict[str, Callable[[Seen], bool]] = field(default_factory=dict)
     relaunch: bool = False
     mutate: Callable[[Seen], Seen] | None = None
-    fades: Callable[[list[fade_trace.FadeEvent]], list[str]] | None = None
 
 
 @dataclass
@@ -112,7 +98,6 @@ class Scenario:
         profile: ``FST_DEBUG_PROFILE`` (``id:Name``) for a selected player, else anonymous.
         preset: Window preset.
         fixture: Extra fixture-service flags; scenarios sharing flags share one fixture service.
-        perf_log: Launch with ``--perf-log`` so phases can judge the ``FadeIn`` trace (``Phase.fades``).
     """
 
     name: str
@@ -123,7 +108,6 @@ class Scenario:
     profile: str | None = None
     preset: str = "medium"
     fixture: tuple[str, ...] = ()
-    perf_log: bool = False
 
 
 DIALOG = "id=fst.first-run.dialog"
@@ -271,113 +255,6 @@ def _demo_phases(status: str, pages: list[str] | None = None, settle: float = 0)
         phases.append(Phase(steps, expect=[_dialog(PAGE_TITLES[key]), _button("PrimaryButton", "Done")]))
         phases.append(Phase([f"invoke:id={CLOSE}", CLOSED, "wait:0.5"], forbid=[DIALOG]))
     return phases
-
-
-#: Production controls each slide's demo must be built from (issue #380: the guide shows the real platform UI, never a
-#: hand-drawn replica). Each demo publishes the Festival.App and XAML control types it hosts as its UIA HelpText
-#: (``controls=A+B+…``, ``FirstRunDemoContent.ControlCensus``); a replica of a page control would leave its type out.
-DEMO_CONTROLS = {
-    "songs-song-list": ["SongRowCard"],
-    "songs-sort": ["DropDownButton", "RadioButtons", "SongSortForm"],
-    "songs-navigation": ["NavigationView", "NavigationViewItem"],
-    "songs-filter": ["Expander", "InstrumentSelector"],
-    "songs-icons": ["SongRowCard"],
-    "songs-metadata": ["SongRowCard", "DifficultyMeter", "MetadataPill"],
-    "songs-shop-highlight": ["SongRowCard", "ShopPulseRing"],
-    "songs-new-in-shop": ["SongRowCard", "ShopPulseRing"],
-    "songs-leaving-tomorrow": ["SongRowCard", "ShopPulseRing"],
-    "songinfo-chart": ["SongScoreHistoryChart"],
-    "songinfo-bar-select": ["SongScoreHistoryChart", "LeaderboardEntryRow"],
-    "songinfo-view-all": ["CardHeader", "LeaderboardEntryRow"],
-    "songinfo-top-scores": ["CardHeader", "LeaderboardEntryRow"],
-    "songinfo-paths": ["InstrumentSelector", "RadioButtons"],
-    "songinfo-shop-button": ["SongHeaderText", "ShopPulseFill"],
-    "songinfo-new-in-shop": ["SongHeaderText", "ShopPulseFill"],
-    "songinfo-leaving-tomorrow": ["SongHeaderText", "ShopPulseFill"],
-    "playerhistory-score-list": ["LeaderboardEntryRow"],
-    "playerhistory-sort": ["DropDownButton", "RadioMenuFlyoutItem"],
-    "statistics-select-profile": ["Button"],
-    "statistics-drill-down": ["PlayerStatTileView"],
-    "statistics-overview": ["PlayerStatTileView"],
-    "statistics-instrument-breakdown": ["PlayerStatTileView", "InstrumentIcon"],
-    "statistics-percentiles": ["PlayerPercentileRowView"],
-    "statistics-top-songs": ["SongRowCard", "MetadataPill"],
-    "suggestions-category-card": ["SuggestionSongRow"],
-    "suggestions-global-filter": ["Expander", "ToggleSwitch"],
-    "suggestions-instrument-filter": ["InstrumentSelector", "ToggleSwitch"],
-    "suggestions-infinite-scroll": ["ScrollViewer", "SuggestionSongRow"],
-    "leaderboards-overview": ["CardHeader", "LeaderboardEntryRow"],
-    "leaderboards-experimental-metrics": ["DropDownButton", "RadioMenuFlyoutItem"],
-    "leaderboards-your-rank": ["CardHeader", "LeaderboardEntryRow"],
-    "compete-hub": ["CardHeader", "LeaderboardEntryRow"],
-    "compete-leaderboards": ["CardHeader", "LeaderboardEntryRow"],
-    "compete-rivals": ["RivalRowView"],
-    "rivals-overview": ["RivalRowView"],
-    "rivals-instruments": ["RivalRowView"],
-    "rivals-detail": ["RivalSongRowView"],
-    "shop-overview": ["ShopPulseRing"],
-    "shop-highlighting": ["SongRowCard", "ShopPulseRing"],
-    "shop-new-items": ["SongRowCard", "ShopPulseRing"],
-    "shop-leaving-tomorrow": ["SongRowCard", "ShopPulseRing"],
-}
-
-
-def _controls(slide_id: str, seconds: float = 15) -> str:
-    """``assertstate`` step requiring every ``DEMO_CONTROLS`` type in a demo's control census (raw UIA view)."""
-    needs = "".join(rf"(?=.*\b{name}\b)" for name in DEMO_CONTROLS[slide_id])
-    return f"assertstate:raw=fst.first-run.demo.{slide_id}|help=~^controls={needs}@{seconds:g}"
-
-
-def _control_phases() -> list[Phase]:
-    """Settings replay of each page's guide, paging through every slide and asserting each demo's control census."""
-    phases = []
-    for index, (key, slides) in enumerate(PAGE_SLIDES.items()):
-        row = f"id=fst.settings.first-run.{key}"
-        steps = [SETTINGS_READY, "scrollinto:id=fst.settings.licenses", "wait:0.5"] if index == 0 else []
-        steps += [f"scrollinto:{row}", f"invoke:{row}", OPEN, "wait:1"]
-        for number, slide in enumerate(slides):
-            steps.append(_controls(slide))
-            if number < len(slides) - 1:
-                steps += ["invoke:id=PrimaryButton", "wait:0.6"]
-        phases.append(Phase(steps, expect=[_dialog(PAGE_TITLES[key])]))
-        phases.append(Phase([f"invoke:id={CLOSE}", CLOSED, "wait:0.5"], forbid=[DIALOG]))
-    return phases
-
-
-#: Song Detail's Score History chart inside a demo (production ``fst.history.*`` IDs under the demo's prefix).
-CHART = "raw=fst.first-run.demo.songinfo-chart.fst.history"
-SELECT = "raw=fst.first-run.demo.songinfo-bar-select.fst.history"
-
-
-def _replay(key: str, slide: int = 0) -> list[str]:
-    """Steps opening a page's guide from Settings and paging forward to its ``slide``-th slide."""
-    row = f"id=fst.settings.first-run.{key}"
-    return [SETTINGS_READY, "scrollinto:id=fst.settings.licenses", "wait:0.5", f"scrollinto:{row}", f"invoke:{row}",
-            OPEN, "wait:1", *(["invoke:id=PrimaryButton", "wait:0.6"] * slide)]
-
-
-def _scroll(pattern: str, seconds: float = 0) -> str:
-    """``assertstatus`` regex step for the Suggestions infinite-scroll demo's scroll token (issue #380), e.g.
-    ``catalogue scroll=running pos=mid wraps=1 fade=top+bottom`` (``FirstRunAutoScroll.Status``)."""
-    return _rotation("suggestions-infinite-scroll", rf"^catalogue scroll={pattern}$", seconds)
-
-
-#: Seconds for the auto-scroll to pass its six cards once and wrap (30 epx/s; web ``useAutoScroll``).
-SCROLL_WRAP_WAIT = 75
-
-#: The carousel ``FlipView`` that owns every slide's entrance (``FadeIn.BeginEntrance(Slides)``).
-ENTRANCE_OWNER = "Slides"
-
-#: The infinite-scroll demo's six category cards, in web ``CATEGORY_TEMPLATES`` order.
-SCROLL_CARDS = [f"fst.first-run.demo.suggestions-infinite-scroll.card.{i}" for i in range(6)]
-
-#: Web ``STAGGER_INTERVAL``: ``InfiniteScrollDemo`` wraps card ``i`` in ``FadeIn delay={i * STAGGER_INTERVAL}``.
-SCROLL_CARD_STEP_MS = 125
-
-
-def _card_cascade(motion: bool) -> Callable[[list[fade_trace.FadeEvent]], list[str]]:
-    """Fade check: the six infinite-scroll cards enter the slide entrance one by one, 0–625 ms (issue #380 review)."""
-    return lambda events: fade_trace.check_cascade(events, ENTRANCE_OWNER, SCROLL_CARDS, SCROLL_CARD_STEP_MS, motion)
 
 
 def _older(slide_id: str) -> Callable[[Seen], Seen]:
@@ -604,65 +481,6 @@ SCENARIOS = [
         phases=[Phase([OPEN, _rotation("songs-song-list", SWAPPED_INSTANT, SWAP_WAIT)], expect=[_slide("Song List")])],
     ),
     Scenario(
-        name="demo-controls",
-        state="every demo built from the production controls it shows (issue #380)",
-        tab="settings",
-        phases=_control_phases(),
-    ),
-    Scenario(
-        name="demo-chart",
-        state="Song Detail's real Score History chart in the chart and bar-select demos (issue #380)",
-        tab="settings",
-        phases=[
-            # The chart slide hosts the production chart (its plot's ChartSummary and per-bar toggle buttons), all three
-            # sample plays on one page, nothing selected.
-            Phase([*_replay("songinfo"), f"assertname:{CHART}.chart@15|Lead score history, 3 of 3 scores from *",
-                   *(f"assertstate:{CHART}.bar.{bar}|toggle=off" for bar in range(3))],
-                  expect=[_slide("Score History Chart")]),
-            # Bar-select starts on the oldest bar like the web (BarSelectDemo selectedIdx 0) with Song Detail's detail
-            # row, then moves the model's selection to the second bar (one selected at a time) and on to the latest,
-            # the row following each. The first checks are bounded well inside the first 2.5 s interval, so a demo that
-            # starts elsewhere fails even though its cycle later passes through 0 → 1 → 2.
-            Phase(["invoke:id=PrimaryButton", "wait:0.6", f"assertstate:{SELECT}.bar.0|toggle=on@1",
-                   f"assertstate:{SELECT}.bar.2|toggle=off@1",
-                   f"assertname:{SELECT}.detail|*, score 218,400, accuracy 62%",
-                   f"assertstate:{SELECT}.bar.1|toggle=on@8", f"assertstate:{SELECT}.bar.0|toggle=off",
-                   f"assertname:{SELECT}.detail|*, score 347,100, accuracy 78%",
-                   f"assertstate:{SELECT}.bar.2|toggle=on@8", f"assertstate:{SELECT}.bar.1|toggle=off",
-                   f"assertname:{SELECT}.detail|*, score 486,500, accuracy 100%, full combo"],
-                  expect=[_slide("Select a Bar for Details")]),
-        ],
-    ),
-    Scenario(
-        name="infinite-scroll",
-        state="Suggestions auto-scroll with its card cascade, edge fades and wrap (issue #380; web InfiniteScrollDemo)",
-        tab="settings",
-        perf_log=True,
-        phases=[
-            # Each card fades up on its own, 125 ms apart (web FadeIn delay=i × STAGGER_INTERVAL), while the cards
-            # scroll by themselves: the top fade appears once the first card leaves the top, the bottom fade stays while
-            # more cards follow, and the list wraps back to its start after the last card.
-            Phase([*_replay("suggestions", 3), _scroll(r"running pos=mid wraps=0 fade=top\+bottom", 10)],
-                  expect=[_slide("More Suggestions")], fades=_card_cascade(motion=True)),
-            Phase([_scroll(r"running pos=(top|mid) wraps=[1-9]\d* fade=(bottom|top\+bottom)", SCROLL_WRAP_WAIT)],
-                  expect=[_slide("More Suggestions")]),
-        ],
-    ),
-    Scenario(
-        name="infinite-scroll-reduced",
-        state="Suggestions auto-scroll held at the top with Reduce Motion (issue #380)",
-        tab="settings",
-        settings={"reduceMotion": True},
-        perf_log=True,
-        phases=[
-            # Reduce Motion shows all six cards at once (each still joins the entrance, with motion=0) and holds the
-            # list at its first card (bottom fade only); it never starts or wraps.
-            Phase([*_replay("suggestions", 3), _scroll(r"held pos=top wraps=0 fade=bottom", 10), "wait:5",
-                   _scroll(r"held pos=top wraps=0 fade=bottom")],
-                  expect=[_slide("More Suggestions")], fades=_card_cascade(motion=False)),
-        ],
-    ),
-    Scenario(
         name="rotation-background",
         state="demo rotation paused while the visible window is inactive (issue #258: foreground only)",
         fixture=("--large-catalogue",),
@@ -753,20 +571,17 @@ def _close_last() -> None:
         pass
 
 
-def launch(exe: Path, port: int, scenario: Scenario, settings: Path, data: Path, steps: list[str],
-           log: Path | None = None) -> int:
+def launch(exe: Path, port: int, scenario: Scenario, settings: Path, data: Path, steps: list[str]) -> int:
     """Launches the app for a scenario, runs a phase's steps in the same desktop-lock hold and returns its pid.
 
     Running the launching phase's steps in the launch's hold keeps timing-sensitive first checks (such as the
-    ``late-catalogue`` placeholder rows) from queueing behind another lane's lock use. ``log`` turns on the app's
-    ``--perf-log`` (the ``FadeIn`` trace).
+    ``late-catalogue`` placeholder rows) from queueing behind another lane's lock use.
     """
     extra = ["--extra", f"FST_DEBUG_DATA_DIR={data}"]
     if scenario.profile:
         extra += ["--extra", f"FST_DEBUG_PROFILE={scenario.profile}"]
-    perf = [f"--arg=--perf-log={log}"] if log is not None else []
     out = _uiwin("launch", str(exe), "--arg=--base-url", f"--arg=http://127.0.0.1:{port}/", "--arg=--settings-path",
-                 f"--arg={settings}", "--arg=--first-run=on", "--arg=--tab", f"--arg={scenario.tab}", *perf,
+                 f"--arg={settings}", "--arg=--first-run=on", "--arg=--tab", f"--arg={scenario.tab}",
                  "--preset", scenario.preset, "--timeout", str(LAUNCH_TIMEOUT), *extra, "--steps", "; ".join(steps))
     match = re.search(r'"pid":\s*(\d+)', out)
     if not match:
@@ -781,8 +596,6 @@ def run(scenario: Scenario, exe: Path, port: int, shots: Path | None) -> list[st
     settings, data = work / "settings.json", work / "data"
     data.mkdir()
     seen_file = data / "first-run.json"
-    log = work / "perf.log" if scenario.perf_log else None
-    mark = 0
     if scenario.settings:
         settings.write_text(json.dumps(scenario.settings), encoding="utf-8")
     pid = None
@@ -795,14 +608,12 @@ def run(scenario: Scenario, exe: Path, port: int, shots: Path | None) -> list[st
                 seen_file.write_text(json.dumps(phase.mutate(load_seen(seen_file))), encoding="utf-8")
             tree = work / f"tree-{index}.txt"
             steps = [*phase.steps, f"tree:{tree}"]
-            if phase.fades is not None:
-                steps.append(fade_trace.SETTLE_STEP)
             if shots is not None:
                 steps.append(f"shot:{shots / f'first-run-{scenario.name}-{index}.png'}")
             try:
                 if pid is None:
                     try:
-                        pid = launch(exe, port, scenario, settings, data, steps, log)
+                        pid = launch(exe, port, scenario, settings, data, steps)
                     except RuntimeError:
                         # The launch may have succeeded before a step failed: close the worktree's last launch.
                         _close_last()
@@ -814,11 +625,6 @@ def run(scenario: Scenario, exe: Path, port: int, shots: Path | None) -> list[st
                 break
             text = tree.read_text(encoding="utf-8", errors="replace") if tree.exists() else ""
             failures += [f"phase {index}: {f}" for f in check_tree(text, phase) + check_seen(seen_file, phase)]
-            if log is not None:
-                lines = fade_trace.read_lines(log)
-                events, mark = fade_trace.parse(lines[mark:]), len(lines)
-                if phase.fades is not None:
-                    failures += [f"phase {index}: {f}" for f in phase.fades(events)]
     except RuntimeError as error:
         failures.append(str(error))
     finally:

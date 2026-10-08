@@ -403,19 +403,6 @@ public sealed partial class SongSortDraft : ObservableObject
     public static SongSortDraft ForShop(FestivalSession session) =>
         new(() => [.. ShopOfferSort.Modes], () => session.Settings.ShopSort, () => session.Settings.ShopSortAscending);
 
-    /// <summary>
-    /// Creates a detached draft for the First Run <c>songs-sort</c> demo (issue #380): the given modes with the default
-    /// Title ascending sort applied, never live and bound to no settings, so the guide shows the real form without
-    /// touching the user's sort.
-    /// </summary>
-    /// <param name="modes">Modes offered, in menu order.</param>
-    /// <returns>Draft showing the default sort.</returns>
-    public static SongSortDraft ForDemo(IReadOnlyList<SongSortMode> modes)
-    {
-        List<SongSortMode> offered = [.. modes];
-        return new(() => offered, () => SongSortMode.Title, () => true);
-    }
-
     /// <summary>Whether changes commit immediately (set once <see cref="Begin"/> finishes loading).</summary>
     public bool IsLive { get; private set; }
 

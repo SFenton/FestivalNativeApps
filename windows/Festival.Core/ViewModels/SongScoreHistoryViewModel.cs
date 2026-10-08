@@ -27,7 +27,7 @@ public enum SongScoreHistoryPhase
 /// </summary>
 public sealed partial class SongScoreHistoryViewModel : ObservableObject
 {
-    private readonly FestivalSession? session;
+    private readonly FestivalSession session;
     private List<ScoreHistoryEntry> entries = [];
     private Dictionary<Instrument, int> counts = [];
     private Song? song;
@@ -38,37 +38,11 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
     /// <param name="songId">Song.</param>
     /// <param name="requested">Chart to show first (route instrument), if any.</param>
     public SongScoreHistoryViewModel(FestivalSession session, string songId, Instrument? requested)
-        : this(session, songId, requested, session.Time)
-    {
-    }
-
-    /// <summary>Creates the section, optionally without a session (<see cref="Demo"/>: never reads).</summary>
-    /// <param name="session">Shared session, or null for fixed plays.</param>
-    /// <param name="songId">Song.</param>
-    /// <param name="requested">Chart to show first.</param>
-    /// <param name="time">Clock for the status presenter.</param>
-    private SongScoreHistoryViewModel(FestivalSession? session, string songId, Instrument? requested, TimeProvider time)
     {
         this.session = session;
         SongId = songId;
         Requested = requested;
-        Status = new ServiceStatusViewModel("song-history", "Score history unavailable", () => LoadAsync(song, pool), time);
-    }
-
-    /// <summary>
-    /// A loaded section over fixed plays that never reads the service: the First Run guide hosts the real
-    /// <c>SongScoreHistoryChart</c> over it (issue #380), so the guide always shows the production chart.
-    /// </summary>
-    /// <param name="songId">Song the plays belong to.</param>
-    /// <param name="chart">The only chart (the plays' instrument).</param>
-    /// <param name="plays">Plays for <paramref name="chart"/>.</param>
-    /// <param name="time">Clock for the status presenter.</param>
-    /// <returns>Loaded model with no bar selected.</returns>
-    public static SongScoreHistoryViewModel Demo(string songId, Instrument chart, IEnumerable<ScoreHistoryEntry> plays, TimeProvider time)
-    {
-        var model = new SongScoreHistoryViewModel(null, songId, chart, time) { pool = [chart] };
-        model.Show(SongScoreHistoryPhase.Loaded, [.. plays]);
-        return model;
+        Status = new ServiceStatusViewModel("song-history", "Score history unavailable", () => LoadAsync(song, pool), session.Time);
     }
 
     /// <summary>Song.</summary>
@@ -205,7 +179,7 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
     {
         song = catalogSong;
         pool = visibleCharted;
-        if (session is null || session.SelectedPlayer is not { } player)
+        if (session.SelectedPlayer is not { } player)
         {
             Show(SongScoreHistoryPhase.Hidden, []);
             return;
@@ -258,15 +232,6 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
     {
         ReservesDetail = false;
         Pager.Toggle(index);
-        RefreshPage();
-    }
-
-    /// <summary>Selects a point (never clears it) and pages so its bar shows: the guide's scripted bar selection.</summary>
-    /// <param name="index">Point index; out of range is ignored.</param>
-    public void SelectPoint(int index)
-    {
-        ReservesDetail = false;
-        Pager.Select(index);
         RefreshPage();
     }
 

@@ -116,11 +116,6 @@ class StepTests(unittest.TestCase):
         # Issue #280: a combo box's current option keeps its case (Narrator reads "Instrument, combo box, Pro Bass").
         current = u.parse_step("assertstate:id=fst.paths.instrument.compact|value=Pro Bass@5")
         self.assertEqual((current["key"], current["value"], current["timeout"]), ("value", "Pro Bass", 5.0))
-        # Issue #380: a raw-view demo's HelpText census keeps its case and may be a regex (`~`, `|` after the first).
-        census = u.parse_step(r"assertstate:raw=fst.first-run.demo.songs-sort|help=~^controls=(?=.*\bRadioButtons\b)@15")
-        self.assertEqual(census["selector"], {"kind": "raw", "value": "fst.first-run.demo.songs-sort"})
-        self.assertEqual((census["key"], census["value"], census["timeout"]),
-                         ("help", r"~^controls=(?=.*\bRadioButtons\b)", 15.0))
         for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe", "assertstate:id=x|value=",
                     "assertstate:id=x|enabled=yes", "assertstate:id=x|color=red", "assertstate:@1,2|toggle=on",
                     "assertstate:id=x|name=", "assertstate:id=x|selected=on", "assertstate:id=x|scroll=top",
