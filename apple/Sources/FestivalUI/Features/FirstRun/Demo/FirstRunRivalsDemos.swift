@@ -36,20 +36,25 @@ struct FirstRunRivalGroupsDemo: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Web `delay={(idx++) * 80}` over headers and rows alike.
+            // One group card per direction, like the Rivals page (#381); web
+            // `delay={(idx++) * 80}` over headers and rows alike.
             Text("Above You").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
                 .modifier(FirstRunOptionalStagger(index: 0, enabled: staggers))
-            ForEach(Array(above.rows.enumerated()), id: \.offset) { index, rival in
-                FirstRunRivalRow(rival: rival, direction: .above)
-                    .firstRunSwapRow(0, rise: 4)
-                    .modifier(FirstRunOptionalStagger(index: index + 1, enabled: staggers))
+            FestivalGlassSection(rows: .flush(separatorInset: 16)) {
+                ForEach(Array(above.rows.enumerated()), id: \.offset) { index, rival in
+                    FirstRunRivalRow(rival: rival, direction: .above)
+                        .firstRunSwapRow(0, rise: 4)
+                        .modifier(FirstRunOptionalStagger(index: index + 1, enabled: staggers))
+                }
             }
             Text("Below You").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
                 .modifier(FirstRunOptionalStagger(index: visible + 1, enabled: staggers))
-            ForEach(Array(below.rows.enumerated()), id: \.offset) { index, rival in
-                FirstRunRivalRow(rival: rival, direction: .below)
-                    .firstRunSwapRow(1, rise: 4)
-                    .modifier(FirstRunOptionalStagger(index: index + visible + 2, enabled: staggers))
+            FestivalGlassSection(rows: .flush(separatorInset: 16)) {
+                ForEach(Array(below.rows.enumerated()), id: \.offset) { index, rival in
+                    FirstRunRivalRow(rival: rival, direction: .below)
+                        .firstRunSwapRow(1, rise: 4)
+                        .modifier(FirstRunOptionalStagger(index: index + visible + 2, enabled: staggers))
+                }
             }
         }
         .environment(\.firstRunFadingRows, fading)
@@ -102,10 +107,12 @@ struct FirstRunRivalsInstrumentsDemo: View {
                 VStack(alignment: .leading, spacing: 6) {
                     InstrumentSectionHeader(instrument, title: "\(instrument.label) Rivals")
                         .firstRunStagger(section * 3, interval: FirstRunMotion.rowStaggerSeconds)
-                    rivalRow(slot: section * 2, direction: .above)
-                        .firstRunStagger(section * 3 + 1, interval: FirstRunMotion.rowStaggerSeconds)
-                    rivalRow(slot: section * 2 + 1, direction: .below)
-                        .firstRunStagger(section * 3 + 2, interval: FirstRunMotion.rowStaggerSeconds)
+                    FestivalGlassSection(rows: .flush(separatorInset: 16)) {
+                        rivalRow(slot: section * 2, direction: .above)
+                            .firstRunStagger(section * 3 + 1, interval: FirstRunMotion.rowStaggerSeconds)
+                        rivalRow(slot: section * 2 + 1, direction: .below)
+                            .firstRunStagger(section * 3 + 2, interval: FirstRunMotion.rowStaggerSeconds)
+                    }
                 }
             }
         }

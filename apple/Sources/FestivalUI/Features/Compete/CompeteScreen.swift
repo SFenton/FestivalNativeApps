@@ -229,9 +229,10 @@ struct CompeteInstrumentLeaderboardSection: View {
         .accessibilityIdentifier("fst.compete.leaderboard-card.\(instrument.rawValue)")
     }
 
-    /// The one leaderboard design (operator batch 7.4): no card around the rows; each
-    /// row its own material card (the player's purple), then the shared purple "View Full
-    /// Leaderboard" button (batch 7.6).
+    /// The one leaderboard design (operator batch 7.4): the top five and the player's own
+    /// row (the player's purple) as entries of one group card, like the Rivals cards
+    /// (issue #381), then the shared purple "View Full Leaderboard" button below it
+    /// (batch 7.6).
     private var card: some View {
         VStack(alignment: .leading, spacing: 6) {
             switch state {
@@ -249,7 +250,7 @@ struct CompeteInstrumentLeaderboardSection: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .festivalCard(cornerRadius: 12)
             case let .loaded(payload):
-                VStack(spacing: 6) {
+                FestivalGlassSection(rows: .flush(separatorInset: RankingRowLayout.horizontalPadding)) {
                     ForEach(payload.rankings.entries) { entry in
                         AccountRankingRow(
                             entry: entry, metric: .totalscore,

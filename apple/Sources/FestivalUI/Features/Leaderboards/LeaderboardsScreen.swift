@@ -257,39 +257,45 @@ struct LeaderboardsScreen: View {
 
     // MARK: Instrument cards
 
-    /// One instrument's top ten: an icon header, then compact card rows and the
-    /// "View all rankings (N)" row — the web's `RankingCard.tsx` layout, where the
-    /// rows themselves are the frosted cards and the section has no outer card.
+    /// One instrument's top ten: an icon header, then one group card holding the rows
+    /// and the selected player's spotlight row (like the Rivals cards, issue #381; the
+    /// web's `RankingCard.tsx` draws each row as its own frosted card), then the
+    /// "View all rankings (N)" button below the card.
     @ViewBuilder
     private func instrumentCard(_ instrument: Instrument, fadeIndex: Int) -> some View {
+        let state = instrumentStates[instrument] ?? .loading
         VStack(alignment: .leading, spacing: 6) {
             cardHeader(instrument.label) {
                 InstrumentIcon(instrument, size: 36)
             }
-            switch instrumentStates[instrument] ?? .loading {
-            case .loading:
-                RankingsSkeletonRows(count: 5, cardRows: true)
-            case let .failed(issue):
-                ServiceStatusInline(issue, scope: "leaderboards.\(instrument.rawValue)") {
-                    Task { await loadInstrument(instrument, rankBy: rankBy) }
-                }
-                .modifier(CardMessageSurface())
-            case let .loaded(payload):
-                if payload.rankings.entries.isEmpty {
-                    cardEmpty("No ranked \(instrument.label) players yet.")
-                } else {
-                    VStack(spacing: 6) {
+            // One card through loading, failure and the loaded rows, so only its
+            // contents fade (load-transition R1).
+            FestivalGlassSection(rows: .flush(separatorInset: RankingRowLayout.horizontalPadding)) {
+                switch state {
+                case .loading:
+                    RankingsSkeletonRows(count: 5, cardRows: true)
+                case let .failed(issue):
+                    ServiceStatusInline(issue, scope: "leaderboards.\(instrument.rawValue)") {
+                        Task { await loadInstrument(instrument, rankBy: rankBy) }
+                    }
+                    .modifier(CardMessageSurface())
+                case let .loaded(payload):
+                    if payload.rankings.entries.isEmpty {
+                        cardEmpty("No ranked \(instrument.label) players yet.")
+                    } else {
                         ForEach(payload.rankings.entries) { entry in
                             AccountRankingRow(
                                 entry: entry, metric: rankBy,
                                 isSelected: isSelectedAccount(entry.accountId), cardSurface: true
                             )
                             .macKeyboardRow("\(instrument.rawValue)|\(entry.id)")
+                            .festivalFadeInOnAppear()
                         }
                     }
-                    .festivalFadeInOnAppear()
+                    spotlightSection(instrument: instrument, entries: payload.rankings.entries)
                 }
-                spotlightSection(instrument: instrument, entries: payload.rankings.entries)
+            }
+            if case let .loaded(payload) = state {
                 if !payload.rankings.entries.isEmpty {
                     viewAllLink(
                         AppRoute.fullRankings(instrument: instrument, rankBy: rankByRaw),
@@ -449,42 +455,50 @@ struct LeaderboardsScreen: View {
     @ViewBuilder
     private func bandCard(_ bandType: BandType, fadeIndex: Int) -> some View {
         let metric = rankBy.bandMetric
+        let state = bandStates[bandType] ?? .loading
+        let loadedBands: [BandRankingEntry] = {
+            if case let .loaded(payload) = state { return payload.rankings.entries }
+            return []
+        }()
         VStack(alignment: .leading, spacing: 6) {
             cardHeader(bandType.label) {
                 EmptyView()
             }
-            switch bandStates[bandType] ?? .loading {
-            case .loading:
-                RankingsSkeletonRows(count: 5, cardRows: true)
-            case let .failed(issue):
-                ServiceStatusInline(issue, scope: "leaderboards.\(bandType.rawValue)") {
-                    Task { await loadBand(bandType, rankBy: metric) }
-                }
-                .modifier(CardMessageSurface())
-            case let .loaded(payload):
-                if payload.rankings.entries.isEmpty {
-                    cardEmpty("No ranked \(bandType.label.lowercased()) yet.")
-                } else {
-                    VStack(spacing: 6) {
+            // One group card per band size, like the instrument cards (issue #381).
+            FestivalGlassSection(rows: .flush(separatorInset: RankingRowLayout.horizontalPadding)) {
+                switch state {
+                case .loading:
+                    RankingsSkeletonRows(count: 5, cardRows: true)
+                case let .failed(issue):
+                    ServiceStatusInline(issue, scope: "leaderboards.\(bandType.rawValue)") {
+                        Task { await loadBand(bandType, rankBy: metric) }
+                    }
+                    .modifier(CardMessageSurface())
+                case let .loaded(payload):
+                    if payload.rankings.entries.isEmpty {
+                        cardEmpty("No ranked \(bandType.label.lowercased()) yet.")
+                    } else {
                         ForEach(payload.rankings.entries) { entry in
                             BandRankingRow(entry: entry, metric: metric, bandType: bandType, cardSurface: true)
                                 .macKeyboardRow("\(bandType.rawValue)|\(entry.teamKey)")
+                                .festivalFadeInOnAppear()
                         }
                     }
-                    .leaderboardSectionColumns(
-                        .bandRankings(payload.rankings.entries, metric: metric),
-                        hidingCrowdedSongsFor: payload.rankings.entries.map { RankingRowName(name: $0.membersLabel) }
-                    )
-                    .festivalFadeInOnAppear()
-                    viewAllLink(
-                        AppRoute.bandRankings(bandType: bandType.rawValue),
-                        title: RankingsCountText.viewAllBandRankings(
-                            totalTeams: payload.rankings.totalTeams
-                        ),
-                        id: "fst.leaderboards.band-card.\(bandType.rawValue).view-all"
-                    )
-                    .macKeyboardRow("\(bandType.rawValue)|view-all")
                 }
+            }
+            .leaderboardSectionColumns(
+                loadedBands.isEmpty ? nil : .bandRankings(loadedBands, metric: metric),
+                hidingCrowdedSongsFor: loadedBands.map { RankingRowName(name: $0.membersLabel) }
+            )
+            if case let .loaded(payload) = state, !payload.rankings.entries.isEmpty {
+                viewAllLink(
+                    AppRoute.bandRankings(bandType: bandType.rawValue),
+                    title: RankingsCountText.viewAllBandRankings(
+                        totalTeams: payload.rankings.totalTeams
+                    ),
+                    id: "fst.leaderboards.band-card.\(bandType.rawValue).view-all"
+                )
+                .macKeyboardRow("\(bandType.rawValue)|view-all")
             }
         }
         // See the matching comment in `instrumentCard`: `.contain` keeps
@@ -622,15 +636,21 @@ struct LeaderboardsScreen: View {
 
 // MARK: - Card message surface
 
-/// Card row for a card's non-row states (failure, empty, unranked), so they sit on
-/// the same surface as the rows they replace.
+/// Row for a card's non-row states (failure, empty, unranked), padded like the rows it
+/// replaces; inside the group card (#381) it draws no card of its own.
 private struct CardMessageSurface: ViewModifier {
+    @Environment(\.festivalGroupedRow) private var grouped
+
     func body(content: Content) -> some View {
-        content
+        let padded = content
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .festivalCard(cornerRadius: 12)
+        if grouped {
+            padded
+        } else {
+            padded.festivalCard(cornerRadius: 12)
+        }
     }
 }
 

@@ -26,8 +26,9 @@ struct FirstRunCompeteHubDemo: View {
         .firstRunDemoTicker { await swap() }
     }
 
+    // Group cards like the real Compete and Rivals cards (#381).
     private var leaderboard: some View {
-        VStack(spacing: 6) {
+        FestivalGlassSection(rows: .flush(separatorInset: RankingRowLayout.horizontalPadding)) {
             ForEach(FirstRunDemoPool.rankings.prefix(4)) { FirstRunRankRow(entry: $0) }
             FirstRunRankRow(entry: FirstRunDemoPool.rankingNeighborhood[3])
         }
@@ -36,9 +37,13 @@ struct FirstRunCompeteHubDemo: View {
     private var rivals: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Above You").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
-            ForEach(FirstRunDemoPool.rivalsAbove.prefix(2)) { FirstRunRivalRow(rival: $0, direction: .above) }
+            FestivalGlassSection(rows: .flush(separatorInset: 16)) {
+                ForEach(FirstRunDemoPool.rivalsAbove.prefix(2)) { FirstRunRivalRow(rival: $0, direction: .above) }
+            }
             Text("Below You").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
-            ForEach(FirstRunDemoPool.rivalsBelow.prefix(2)) { FirstRunRivalRow(rival: $0, direction: .below) }
+            FestivalGlassSection(rows: .flush(separatorInset: 16)) {
+                ForEach(FirstRunDemoPool.rivalsBelow.prefix(2)) { FirstRunRivalRow(rival: $0, direction: .below) }
+            }
         }
     }
 

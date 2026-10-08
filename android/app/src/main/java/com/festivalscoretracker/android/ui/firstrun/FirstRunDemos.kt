@@ -18,8 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -84,7 +82,6 @@ import com.festivalscoretracker.android.ui.common.MotionProbes
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.InstrumentSelector
-import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.design.ViewFullLeaderboardButton
 import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.leaderboards.AccountRankingRow
@@ -106,11 +103,11 @@ import com.festivalscoretracker.android.ui.shop.ShopListRow
 import com.festivalscoretracker.android.ui.songdetail.HistoryChart
 import com.festivalscoretracker.android.ui.songdetail.OptionGrid
 import com.festivalscoretracker.android.ui.songdetail.ScoreRow
-import com.festivalscoretracker.android.ui.songs.DirectionRow
 import com.festivalscoretracker.android.ui.songs.RadioRow
 import com.festivalscoretracker.android.ui.songs.ShopBadge
 import com.festivalscoretracker.android.ui.songs.SongRowCard
 import com.festivalscoretracker.android.ui.songs.SongsTokens
+import com.festivalscoretracker.android.ui.songs.SortDirectionSection
 import com.festivalscoretracker.android.ui.songs.ToggleRow
 import com.festivalscoretracker.android.ui.songs.chartDescription
 import com.festivalscoretracker.android.ui.songs.chartLabel
@@ -371,9 +368,7 @@ private fun SongsSortDemo(id: String) {
         }
         if (fit.showDirection) {
             Column(Modifier.demoEntrance(FirstRunEntrance.SECOND_GROUP_MS)) {
-                SectionHeader("Sort Direction")
-                DirectionRow("Ascending", "A–Z, low–high", Icons.Filled.ArrowUpward, ascending, "fst.first-run.demo.sort.ascending") { ascending = true }
-                DirectionRow("Descending", "Z–A, high–low", Icons.Filled.ArrowDownward, !ascending, "fst.first-run.demo.sort.descending") { ascending = false }
+                SortDirectionSection(ascending, "fst.first-run.demo.sort") { ascending = it }
             }
         }
     }

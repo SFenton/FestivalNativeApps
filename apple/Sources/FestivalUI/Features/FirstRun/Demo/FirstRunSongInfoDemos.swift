@@ -143,10 +143,13 @@ struct FirstRunSongInfoBarSelectDemo: View {
 struct FirstRunSongInfoViewAllDemo: View {
     var body: some View {
         VStack(spacing: 8) {
-            ForEach(Array(FirstRunDemoPool.ownHistory.enumerated()), id: \.offset) { index, entry in
-                ScoreHistoryListRow(entry: entry, isBest: index == 0)
-                    .opacity(index == FirstRunDemoPool.ownHistory.count - 1 ? 0.45 : 1)
-                    .firstRunStagger(index)
+            // Entries of one card, like Song Detail's Score History card (#381).
+            FestivalGlassSection(rows: .flush(separatorInset: 14)) {
+                ForEach(Array(FirstRunDemoPool.ownHistory.enumerated()), id: \.offset) { index, entry in
+                    ScoreHistoryListRow(entry: entry, isBest: index == 0)
+                        .opacity(index == FirstRunDemoPool.ownHistory.count - 1 ? 0.45 : 1)
+                        .firstRunStagger(index)
+                }
             }
             FirstRunViewAllRow(title: "View All Scores")
                 .firstRunStagger(FirstRunDemoPool.ownHistory.count)
@@ -164,8 +167,9 @@ struct FirstRunSongInfoTopScoresDemo: View {
         VStack(alignment: .leading, spacing: 8) {
             FirstRunInstrumentHeader(instrument: .lead)
                 .firstRunStagger(0)
-            // The Song Detail card's real rows (`SongLeaderboardEntryRow`, operator batch 7).
-            VStack(alignment: .leading, spacing: 0) {
+            // The Song Detail card's real rows (`SongLeaderboardEntryRow`, operator batch 7)
+            // in the same flush group card as the real preview (#381).
+            FestivalGlassSection(rows: .flush(separatorInset: 14)) {
                 ForEach(Array(FirstRunDemoPool.topScores.enumerated()), id: \.element.id) { index, entry in
                     SongLeaderboardEntryRow(entry: LeaderboardEntry(
                         accountId: "fre-\(entry.rank)", displayName: entry.name,
@@ -174,13 +178,11 @@ struct FirstRunSongInfoTopScoresDemo: View {
                         isFullCombo: entry.isFullCombo, stars: entry.isFullCombo ? 6 : 5,
                         season: nil, difficulty: nil
                     ))
+                    .padding(.horizontal, 14)
                     .padding(.vertical, 11)
                     .firstRunStagger(index + 1)
-                    if index < FirstRunDemoPool.topScores.count - 1 { Divider() }
                 }
             }
-            .padding(.horizontal, 14)
-            .festivalCard(cornerRadius: 16)
             FirstRunViewAllRow(title: "View full leaderboard")
                 .firstRunStagger(FirstRunDemoPool.topScores.count + 1)
         }
@@ -288,8 +290,9 @@ struct FirstRunSongInfoShopPillDemo: View {
                 .foregroundStyle(FestivalText.primary)
                 .padding(.horizontal, 12)
                 .frame(minHeight: 34)
-                // The system bar's glass button, which the page's titled toolbar item gets.
-                .festivalGlassCapsule(.control)
+                // A demo replica is a custom control, so it wears the material capsule, not
+                // the system bar's glass (surface-materials R1, guard apple-glass-consumers).
+                .festivalCardCapsule()
         }
     }
 }

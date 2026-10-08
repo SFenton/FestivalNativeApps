@@ -35,7 +35,8 @@ Songs keeps its own list filter: the **inline** `.searchable(placement: .navigat
 | Pure rules: scopes, prompts, ≥2 chars, 250 ms debounce, ≤20 songs in catalogue order, ≤10 players | `FestivalCore/GlobalSearch.swift` (+ `GlobalSearchTests`) |
 | `GlobalSearchModel`: query, scope, per-section state, cancellation via `.task(id: runKey)`, catalogue reloaded per publication | `Features/Search/GlobalSearchModel.swift` |
 | `GlobalSearchResults`, `GlobalSearchSheet` (Mac), `GlobalSearchButton` (Mac), `PageTrailingItems` | `Features/Search/GlobalSearchView.swift` |
-| `GlobalSearchEmptyStateView`, `FoldAvoidingPlacement` (+ `FoldAvoidingPlacementTests`) | `Features/Search/GlobalSearchEmptyState.swift` |
+| `GlobalSearchEmptyStateView` (wraps the shared `FestivalEmptyState`, #377) | `Features/Search/GlobalSearchEmptyState.swift` |
+| `FestivalEmptyState`, `FoldAvoidingPlacement` (+ `FoldAvoidingPlacementTests`, `FestivalEmptyStateTests`) | `Common/FestivalEmptyState.swift` |
 | `GlobalSearchTab`, `RootTabBarBehavior` | `Features/Search/GlobalSearchTab.swift` |
 | `RootTab`, `RootTabTransition` (+ `RootTabTransitionTests`) | `App/Shell/RootTab.swift` |
 | Search tab, ⌘K/⌘F, `openGlobalSearch()`, iPad sidebar search detail | `App/FestivalRootView.swift` |

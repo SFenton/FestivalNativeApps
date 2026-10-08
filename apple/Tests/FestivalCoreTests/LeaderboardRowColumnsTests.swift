@@ -183,3 +183,33 @@ private func rankingRow(
     #expect(columns.songsLabel == nil)
     #expect(columns.fittingSongs(availableWidth: 100, requiredWidth: 400).showsSongs)
 }
+
+// MARK: - Name stacking (#364)
+
+@Test func fittedColumnsStartOnOneLine() {
+    #expect(!LeaderboardRowColumns.fit(.songLeaderboard, width: 400, ranks: [1], scores: [1]).stacksName)
+    #expect(!LeaderboardRowColumns.unconstrained.stacksName)
+}
+
+@Test func fittingNameStacksTheWholeSectionOnlyWhenTheWidestRowOverflows() {
+    let columns = LeaderboardRowColumns.fit(.songLeaderboard, width: 360, ranks: [1, 25], scores: [99_000, 98_000])
+    let crowded = columns.fittingName(availableWidth: 328, requiredWidth: 412)
+    #expect(crowded.stacksName)
+    // Everything else about the section is unchanged, so ranks and scores still align.
+    var restored = crowded
+    restored.stacksName = false
+    #expect(restored == columns)
+    // Exactly fitting names never marquee, so they keep one line.
+    #expect(!columns.fittingName(availableWidth: 328, requiredWidth: 328).stacksName)
+    // A fraction of a point too wide would already scroll a name.
+    #expect(columns.fittingName(availableWidth: 328, requiredWidth: 328.25).stacksName)
+    // Re-fitting a stacked section at a wider pane returns to one line.
+    #expect(!crowded.fittingName(availableWidth: 640, requiredWidth: 412).stacksName)
+}
+
+@Test func fittingNameKeepsOneLineUntilBothWidthsAreMeasured() {
+    let columns = LeaderboardRowColumns.fit(.songLeaderboard, width: 0)
+    for (available, required) in [(0.0, 400.0), (370, 0), (-1, 400), (.infinity, 400), (370, .nan)] {
+        #expect(!columns.fittingName(availableWidth: available, requiredWidth: required).stacksName)
+    }
+}

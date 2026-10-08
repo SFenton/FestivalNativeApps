@@ -245,4 +245,30 @@ private struct SelectionProbe<Label: View>: View {
     defer { boardsWindow.orderOut(nil) }
     try await nativeHostedSettle(boardsHosted, untilText: ["Your Rank History", "No Profile Selected"])
 }
+
+/// A failed player read in the Song Detail history region is a failure with Retry,
+/// never the "No Scores Yet" empty state (empty-error-states R1).
+@MainActor
+@Test func songHistoryPaneFailedPlayerReadOffersRetry() async throws {
+    let suite = "fst.tests.dual.history.\(UUID().uuidString)"
+    let storage = try #require(UserDefaults(suiteName: suite))
+    defer { storage.removePersistentDomain(forName: suite) }
+    let identity: [String: String] = ["accountId": "fixture-dual", "displayName": "Fixture Dual"]
+    storage.set(try JSONSerialization.data(withJSONObject: identity), forKey: SelectedPlayerIdentity.storageKey)
+    let session = FestivalSession(factory: { throw FestivalAPIError.invalidResource }, selectionStorage: storage)
+    await session.refreshSelectedPlayer()
+    guard case .failed = session.playerLoadState else {
+        Issue.record("Expected a failed player read, got \(session.playerLoadState)")
+        return
+    }
+    let song = try JSONDecoder().decode(Song.self, from: Data("""
+    {"songId":"fixture-song","title":"Fixture Song","artist":"Fixture Artist"}
+    """.utf8))
+    let page = DualSourceLayout { Text("Fixture Song Detail") } secondary: {
+        SongHistoryCarouselPane(session: session, song: song)
+    }
+    let (hosted, window) = host(page, layout: halfFoldPortrait, size: innerPortraitSize, storage: storage)
+    defer { window.orderOut(nil) }
+    try await nativeHostedSettle(hosted, untilText: ["Your Score History", "Retry"], excluding: ["No Scores Yet"])
+}
 #endif

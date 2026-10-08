@@ -267,8 +267,14 @@ struct SoloLeaderboardScreen: View {
         }
         // One set of columns for the page's rows and the pinned footer (web
         // `LeaderboardPage` `rankWidth`/`scoreWidth`, operator batch 7.3), with
-        // season from 520 pt and stars from 768 pt of chart width.
-        .leaderboardSectionColumns(sectionColumns(shownPayload))
+        // season from 520 pt and stars from 768 pt of chart width. In the trailing
+        // pane, every row becomes a multi-row card when any name would scroll (#364).
+        .songLeaderboardSectionColumns(
+            sectionColumns(shownPayload), names: sectionNames(shownPayload),
+            template: shownPayload?.leaderboard.entries.first ?? selectedPlayerEntry(),
+            currentSeason: session.catalogCurrentSeason,
+            rowInset: WideColumns.rowMargins + layout.cutoutInsets.trailing
+        )
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
             chartWidth = width
         }
@@ -325,19 +331,10 @@ struct SoloLeaderboardScreen: View {
         return Button {
             path.append(playerRoute(for: entry))
         } label: {
-            HStack(spacing: 8) {
-                SongLeaderboardEntryRow(
-                    entry: entry, isPlayer: isSelectedRow,
-                    currentSeason: session.catalogCurrentSeason
-                )
-                Image(systemName: "chevron.forward")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(FestivalText.deemphasized)
-                    .accessibilityHidden(true)
-            }
-            .padding(.horizontal, 14)
-            .frame(minHeight: LeaderboardRowMetrics.minHeight)
-            .modifier(RankingRowSurface(isSelected: isSelectedRow))
+            SongLeaderboardRowCard(
+                entry: entry, isPlayer: isSelectedRow,
+                currentSeason: session.catalogCurrentSeason
+            )
             .contentShape(Rectangle())
         }
         .festivalRowButtonStyle()
@@ -509,6 +506,24 @@ struct SoloLeaderboardScreen: View {
             .songLeaderboard, width: Double(WideColumns.columnPageWidth(chartWidth, columns: columns)),
             ranks: rows.map(\.rank), scores: rows.map(\.score)
         )
+    }
+
+    /// Every name the page's rows and pinned footer row show, bold for the selected
+    /// player, for the trailing pane's multi-row card decision (#364).
+    ///
+    /// - Parameter payload: The last loaded page, kept while the next one loads.
+    /// - Returns: The section's names as the rows draw them.
+    private func sectionNames(_ payload: LeaderboardPayload?) -> [RankingRowName] {
+        let rows = (payload?.leaderboard.entries ?? []).map { entry in
+            RankingRowName(
+                name: SongLeaderboardEntryRow.displayName(entry),
+                emphasized: isSelectedAccount(entry.accountId)
+            )
+        }
+        let footer = selectedPlayerEntry().map {
+            RankingRowName(name: SongLeaderboardEntryRow.displayName($0), emphasized: true)
+        }
+        return rows + [footer].compactMap { $0 }
     }
 
     /// The player's footer row, drawn exactly like a list row (shared with the band

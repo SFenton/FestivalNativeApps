@@ -160,6 +160,23 @@
     "tabs": 12
   },
   {
+    "name": "shop-sort",
+    "route": "/shop",
+    "ready": [
+      "waitfor:id=fst.shop.count@20",
+      "wait:2"
+    ],
+    "after_ready": [
+      "expand:id=fst.shop.sort",
+      "waitfor:id=fst.shop.sort.reset@5"
+    ],
+    "teardown": [
+      "collapse:id=fst.shop.sort",
+      "waitgone:id=fst.shop.sort.reset@5"
+    ],
+    "tabs": 12
+  },
+  {
     "name": "shop-filter-empty",
     "route": "/shop",
     "ready": [

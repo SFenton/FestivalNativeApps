@@ -76,7 +76,7 @@ class ShopJourneyPhaseTests(unittest.TestCase):
         for marker in ("fst.shop.hidden", "fst.shop.empty", "fst.service-status.retry", "fst.shop.list",
                        "fst.shop.grid", "fst.shop.badge.new", "fst.shop.badge.leaving", "fst.shop.external",
                        "fst.song-detail.shop", "fst.shop.song-details-error", "fst.shop.filter.empty",
-                       "fst.shop.filter.empty-reset", "shop=slow", "You're offline"):
+                       "fst.shop.filter.empty-reset", "fst.shop.sort-paused", "shop=slow", "You're offline"):
             self.assertIn(marker, steps)
 
 
