@@ -53,6 +53,7 @@ SSH runs in session 0 (no desktop). `_common.ps1` runs GUI work through a one-sh
 
 - `.github/workflows/windows-ui.yml` runs every fixture-backed `ui_journey.py`-compatible JSON journey, dedicated journey runner and the canonical `a11y.json` Axe/UIA matrix on `windows-latest`; `tools/windows/ci_ui.py` excludes entries explicitly labelled `live`, so CI always supplies a loopback fixture origin and never invokes `--live`.
 - Twelve deterministic shards build the Debug unpackaged app through `tools/windows/build.ps1`; the final `windows-ui` job aggregates their result as the stable required check. `FST_CI=1` makes the shared-desktop lock a no-op only on the isolated hosted runner.
+- Each shard enables Windows animation/transparency effects and sets the hosted desktop to 1920×1080 before driving, preventing narrow virtual displays from clamping the `wide` preset.
 - Failed shards upload their screenshots, UIA/Axe results, fixture logs, driver logs and temporary failure dumps as `windows-ui-diagnostics-<shard>`.
 - There are currently no CI skips. A proven hosted-runner-only failure must be recorded in `tools/windows/ci_skip.json` with its tracker issue, reason and the smallest affected journey before it is excluded.
 - CI (`.github/workflows/native.yml`, on changes under `windows/`, `android/`, `tools/`, `contracts/`): `windows-latest` runs both tool suites and `tools/windows/test.ps1 -Coverage`; `ubuntu-latest` runs `android/gradlew testDebugUnitTest`. Lint workflow edits with `actionlint` (`~/.fst-tools/actionlint/actionlint.exe` on `sfenton-music`).

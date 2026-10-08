@@ -62,6 +62,11 @@ jobs:
       - name: Enable animation effects for transition journeys
         shell: pwsh
         run: python tools/windows/uiwin.py sysset --animations true --transparency true
+      - name: Set deterministic UI desktop resolution
+        shell: pwsh
+        run: |
+          Set-DisplayResolution -Width 1920 -Height 1080 -Force
+          Start-Sleep -Seconds 2
       - name: Run fixture-backed UI automation
         shell: pwsh
         run: >-
