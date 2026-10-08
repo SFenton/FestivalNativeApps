@@ -90,6 +90,24 @@ public class HitTargetMarkupTests
     }
 
     [Fact]
+    public void EveryFlyoutResetButton_UsesMinTarget()
+    {
+        // Issue #428: the red Reset of the Songs, Suggestions and Item Shop filter flyouts and the shared Sort form kept
+        // WinUI's 32 epx button height. Every danger-red button (lightweight ButtonBackground styling) is such a Reset.
+        var resets = Directory.EnumerateFiles(AppRoot, "*.xaml", SearchOption.AllDirectories)
+            .Where(path => Path.GetRelativePath(AppRoot, path).Split(Path.DirectorySeparatorChar)[0] is not ("bin" or "obj"))
+            .SelectMany(path => XDocument.Load(path).Descendants()
+                .Where(e => e.Name.LocalName == "Button"
+                            && e.Descendants().Any(r => Attr(r, "Key") == "ButtonBackground" && Attr(r, "ResourceKey") == "FSTDangerBackgroundBrush"))
+                .Select(e => (File: Path.GetFileName(path), MinHeight: Attr(e, "MinHeight"))))
+            .ToList();
+        Assert.Equal(
+            ["ShopPage.xaml", "SongSortForm.xaml", "SongsPage.xaml", "SuggestionsPage.xaml"],
+            resets.Select(r => r.File).Order(StringComparer.Ordinal).ToList());
+        Assert.All(resets, r => Assert.True(r.MinHeight == Resource, $"{r.File}: MinHeight {r.MinHeight ?? "unset"}"));
+    }
+
+    [Fact]
     public void TitleBar_RecomputesPassthroughAfterDynamicChanges()
     {
         // Issue #271: the TitleBar computes its clickable (passthrough) regions before the search box/button swap and

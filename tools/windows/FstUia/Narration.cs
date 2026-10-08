@@ -84,8 +84,11 @@ internal sealed partial class Driver
         void Visit(AutomationElement element, int depth)
         {
             var p = element.Properties;
-            if (p.IsOffscreen.ValueOrDefault) return;
-            var named = !string.IsNullOrEmpty(p.Name.ValueOrDefault);
+            // WinUI hosts an open flyout under a "Popup" window with empty bounds, which UIA reports off screen while
+            // its content is shown and read (issue #428): walk into it without reading the host itself.
+            var popupHost = p.ClassName.ValueOrDefault == "Popup" && p.BoundingRectangle.ValueOrDefault.IsEmpty;
+            if (p.IsOffscreen.ValueOrDefault && !popupHost) return;
+            var named = !popupHost && !string.IsNullOrEmpty(p.Name.ValueOrDefault);
             ControlType type;
             try
             {

@@ -128,10 +128,11 @@ PROBE = re.compile(
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text; ``scroll`` takes a rounded
 #: vertical scroll percent, ``0``-``100`` or ``-1`` when the content fits; ``type`` the lower-case UIA control type such as
 #: ``button`` or ``text``; ``invoke`` whether the Invoke pattern is offered; ``focusable`` UIA IsKeyboardFocusable;
-#: ``value`` the UIA Value, else the name of the Selection pattern's selected item, e.g. a combo box's current option).
+#: ``value`` the UIA Value, else the name of the Selection pattern's selected item, e.g. a combo box's current option;
+#: ``heading`` the UIA HeadingLevel, ``1``-``9``, or ``0`` for none: Narrator's "heading level N", which its phrase omits).
 STATE_KEYS = {"toggle": ("on", "off", "indeterminate"), "enabled": ("true", "false"), "selected": ("true", "false"),
               "name": None, "scroll": None, "type": None, "invoke": ("true", "false"), "focusable": ("true", "false"),
-              "value": None}
+              "value": None, "heading": tuple("0123456789")}
 
 # endregion
 
@@ -256,7 +257,7 @@ def parse_step(step: str) -> dict:
     ``setvalue:<sel>|<text>`` writes text through the UIA Value pattern (no keyboard input,
     so it also works while the console session is locked; an empty text clears the field);
     ``scrollto:<selector>,<percent>`` sets a scroller's vertical position through the UIA
-    Scroll pattern and ``reveal:<selector>`` scrolls the target into view (UIA ScrollItem, else
+    Scroll pattern (a no-op when its content fits, so nothing scrolls) and ``reveal:<selector>`` scrolls the target into view (UIA ScrollItem, else
     stepping its scroller from the top), with no input, so both work while the console is locked;
     ``assertname:<sel>|<text>`` waits (default 5 s) until the element's UIA Name is exactly the text (each ``*`` matches
     any run of characters, so ``|*<text>`` waits until it ends with the text, for names that start with a local-time date);
@@ -296,7 +297,8 @@ def parse_step(step: str) -> dict:
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
     (``on``/``off``/``indeterminate``), ``enabled`` (``true``/``false``), ``selected`` (UIA SelectionItem
     ``IsSelected``: ``true``/``false``, e.g. a list's current item), ``scroll`` (UIA Scroll pattern vertical percent,
-    rounded: ``0`` is a list back at its top), ``name`` or ``value`` (UIA Value, else the selected item's name: what
+    rounded: ``0`` is a list back at its top), ``heading`` (UIA HeadingLevel ``1``-``9``, ``0`` for none: Narrator's
+    "heading level N", which ``assertread`` phrases omit), ``name`` or ``value`` (UIA Value, else the selected item's name: what
     Narrator reads after a combo box's name, e.g. ``Instrument, combo box, Bass``) equals ``<value>``;
     ``pin:<sel>`` records the element's window-relative rectangle and ``assertpinned:<sel>`` (same selector, later in
     the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls;
@@ -494,7 +496,7 @@ def parse_step(step: str) -> dict:
         key, eq, value = assertion.partition("=")
         key, value = key.strip().lower(), value.strip()
         if not sep or not eq or key not in STATE_KEYS or not value:
-            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name|value|scroll|type|invoke|focusable=<value>[@<seconds>]")
+            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name|value|scroll|type|invoke|focusable|heading=<value>[@<seconds>]")
         allowed = STATE_KEYS[key]
         if allowed is not None and value.lower() not in allowed:
             raise ValueError(f"assertstate {key} must be one of {allowed}, not {value!r}")
