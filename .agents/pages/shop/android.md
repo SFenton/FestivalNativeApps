@@ -77,7 +77,7 @@ Checks that the #18 list row (`ShopListRow` → `SongRowCard`) matches Songs in 
 | FST_Book_Fold / FST_Passport_Fold | Folded is the compact list. Unfolded is one full-width list. Half-open at 1.0× is one row per pane with the gap on the fold. Half-open at 2.0× is one full-width column, by design (see Layouts). |
 | FST_TriFold folded/partial/unfolded | Compact list, then the rail with full-width rows (the emulator reports no `FoldingFeature`). 2.0× wraps inside the rows. |
 | TalkBack (FST_Phone) | Item Shop, Search, Choose profile, then each row ("Title. Artist · Year", list position on the first), followed by its "Open … in the Fortnite Item Shop. Button". |
-| Connected | `SongsAccessibilityJourneyTest#itemShop` passes on FST_Phone (ATF touch-target, label and contrast checks). |
+| Connected | `SongsAccessibilityJourneyTest#itemShop` passes on FST_Phone (ATF touch-target, label and contrast checks). `SongsAccessibilityJourneyTest#itemShopSharedSongRow` (#397) asserts the shared row on the device, below. |
 
 `ShopListRowUiTest` (Robolectric) pins the shared-row contract:
 - A row opens Song Details when matched, else the official link.
@@ -85,6 +85,12 @@ Checks that the #18 list row (`ShopListRow` → `SongRowCard`) matches Songs in 
 - A long title runs as a one-line marquee.
 - Under reduced motion a long title holds still and ends in "…".
 - At 2.0× a long title wraps inside the row.
+
+The connected `SongsAccessibilityJourneyTest#itemShopSharedSongRow` (issue #397) pins the same row on a device, at 1.0× and again at 2.0× font scale (switched in place), with ATF before every step:
+- Each row is one clickable stop whose spoken label holds its title, artist line and New / Leaving Tomorrow badge, with no description and no selected state.
+- Its "Open <title> in the Fortnite Item Shop" button is the very next stop, and rows read in sort order, including across a half-open fold's split list.
+- Row and link are at least 48 × 48 dp, and each title stays inside its row. The 2.0× titles must render taller than at 1.0×.
+- Known ATF warning, not an error: two offers with the same title (the fixture's two "Alpha Tune" rows) give their links identical labels. Each link directly follows its row, so the row provides the context.
 
 ## Open
 
