@@ -148,14 +148,10 @@
                                         Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}"
                                         AutomationProperties.AutomationId="fst.song-band-leaderboard.error" />
 
-            <StackPanel Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" VerticalAlignment="Center" HorizontalAlignment="Center"
-                        controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
-                        Spacing="8">
-                <TextBlock Text="No band scores found" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
-                           AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.song-band-leaderboard.empty" />
-                <TextBlock Text="{x:Bind ViewModel.EmptyMessage, Mode=OneWay}" HorizontalAlignment="Center" TextAlignment="Center"
-                           TextWrapping="Wrap" />
-            </StackPanel>
+            <controls:EmptyStateView Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}"
+                                     controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
+                                     Title="No band scores found" Subtitle="{x:Bind ViewModel.EmptyMessage, Mode=OneWay}"
+                                     TitleAutomationId="fst.song-band-leaderboard.empty" />
         </Grid>
 
         <!-- Contrast themes only: a window-colour plate (footer height plus its bottom margin, sized by BoardFooterFade)

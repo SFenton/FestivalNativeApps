@@ -97,10 +97,9 @@
         </Grid>
         <!-- Paints BoardFadeSource with its rows faded above the footer; never hit-testable, UIA raw view only. -->
         <controls:EdgeFadeLayer x:Name="BoardFadeHost" Grid.Row="1" Grid.RowSpan="3" AutomationProperties.AutomationId="fst.full-rankings.footer-fade" />
-        <TextBlock Grid.Row="1" Text="No ranked players yet." Style="{StaticResource FSTSecondaryTextStyle}"
-                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                   controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
-                   Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" />
+        <controls:EmptyStateView Grid.Row="1" Title="No ranked players yet." TitleAutomationId="fst.full-rankings.empty"
+                                 controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
+                                 Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" />
         <ProgressRing Grid.Row="1" Width="48" Height="48" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
                       controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Spinner"
                       AutomationProperties.Name="Loading rankings" />

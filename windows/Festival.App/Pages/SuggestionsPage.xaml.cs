@@ -106,11 +106,6 @@ public sealed partial class SuggestionsPage : Page
     /// <param name="instrument">New selection.</param>
     private void OnFilterInstrumentChanged(object? sender, Instrument? instrument) => ViewModel.FilterDraft.SelectedInstrument = instrument;
 
-    /// <summary>Clears the filter from the empty state.</summary>
-    /// <param name="sender">Button.</param>
-    /// <param name="e">Unused.</param>
-    private void OnResetFilters(object sender, RoutedEventArgs e) => ViewModel.ApplyFilter(SuggestionFilterSettings.Default);
-
     /// <summary>Tints the filter button gold while a filter is applied (like Songs).</summary>
     private void UpdateFilterTint()
     {

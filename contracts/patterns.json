@@ -1888,6 +1888,10 @@
         ],
         "windows": [
           {
+            "path": "windows/Festival.App/Controls/EmptyStateView.xaml",
+            "symbol": "EmptyStateView"
+          },
+          {
             "path": "windows/Festival.App/Pages/SearchPage.xaml",
             "symbol": "fst.global-search.empty"
           },
@@ -1904,6 +1908,13 @@
           "regex": "fst\\.global-search\\.(?:retry|players-retry)",
           "allow": [],
           "message": "Global Search reruns from submit or edit; it has no Retry control (empty-error-states R3)."
+        },
+        {
+          "id": "windows-empty-reset",
+          "glob": "windows/Festival.App/**/*.xaml",
+          "regex": "fst\\.[a-z.-]*(?:empty-reset|reset-filters)",
+          "allow": [],
+          "message": "Empty states have no Reset/Clear Filters button; filters reset from their flyout or sheet (empty-error-states R8)."
         },
         {
           "id": "no-content-unavailable-view",

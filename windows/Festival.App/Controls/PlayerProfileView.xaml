@@ -94,11 +94,9 @@
                                 </StackPanel>
 
                                 <!-- Empty state (web InstrumentEmptyState) -->
-                                <Border Style="{StaticResource FSTCardStyle}" Visibility="{x:Bind IsEmpty}">
-                                    <TextBlock Text="{x:Bind EmptyText}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap"
-                                               HorizontalAlignment="Center" TextAlignment="Center"
-                                               AutomationProperties.AutomationId="{x:Bind controls:PlayerProfileView.EmptyId(AutomationKey)}" />
-                                </Border>
+                                <!-- Shared EmptyStateView, compact in-section variant (issue #377): centred text, no card. -->
+                                <controls:EmptyStateView IsCompact="True" Visibility="{x:Bind IsEmpty}" Title="{x:Bind EmptyText}"
+                                                         TitleAutomationId="{x:Bind controls:PlayerProfileView.EmptyId(AutomationKey)}" />
 
                                 <!-- Rank History card (web RankHistoryChart in GraphCard). Fixed-height placeholder while loading. -->
                                 <Border Style="{StaticResource FSTCardStyle}" Visibility="{x:Bind ShowRankHistoryCard, Mode=OneWay}">
@@ -233,15 +231,10 @@
                                                 </ItemsRepeater.ItemTemplate>
                                             </ItemsRepeater>
                                             <!-- Empty group (web InstrumentEmptyState "No bands yet"). -->
-                                            <Border Style="{StaticResource FSTCardStyle}" Visibility="{x:Bind IsEmpty}">
-                                                <StackPanel Spacing="4" HorizontalAlignment="Center">
-                                                    <TextBlock Text="{x:Bind vm:PlayerProfileBandGroup.EmptyTitle}" Style="{StaticResource BodyStrongTextBlockStyle}"
-                                                               TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center"
-                                                               AutomationProperties.AutomationId="{x:Bind EmptyAutomationId}" />
-                                                    <TextBlock Text="{x:Bind vm:PlayerProfileBandGroup.EmptySubtitle}" Style="{StaticResource FSTSecondaryTextStyle}"
-                                                               TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center" />
-                                                </StackPanel>
-                                            </Border>
+                                            <controls:EmptyStateView IsCompact="True" Visibility="{x:Bind IsEmpty}"
+                                                                     Title="{x:Bind vm:PlayerProfileBandGroup.EmptyTitle}"
+                                                                     Subtitle="{x:Bind vm:PlayerProfileBandGroup.EmptySubtitle}"
+                                                                     TitleAutomationId="{x:Bind EmptyAutomationId}" />
                                             <!-- Frosted View All Bands (N) card (surface-materials R7), not the purple
                                                  leaderboard CTA. -->
                                             <controls:ViewAllCard Label="{x:Bind ViewAllText}" Tag="{x:Bind ViewAllRoute}" Click="OnBandsViewAllClick"

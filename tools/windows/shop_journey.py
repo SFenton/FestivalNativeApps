@@ -208,7 +208,7 @@ SCENARIOS: dict[str, tuple[dict[str, str], str, dict, list[str], set[str] | None
     "filter": (
         # Issues #238, #376: include switches that start on (every offer listed, Filter not applied), live apply while
         # the flyout is open, the applied status Narrator reads while a switch is off, state kept on reopen, each group
-        # hidden alone, the flyout's Reset and the no-match Reset card.
+        # hidden alone, the flyout's Reset and the centred no-match empty state (no Reset button, #377).
         PLAYER, "/shop", {},
         [
             "waitfor:id=fst.shop.song.fixture-pulse@20",
@@ -265,7 +265,12 @@ SCENARIOS: dict[str, tuple[dict[str, str], str, dict, list[str], set[str] | None
             "waitgone:id=fst.shop.empty",
             "waitfor:name=0 of 2 songs",
             "{shot:shop-filter-no-match}",
-            "invoke:id=fst.shop.filter.empty-reset",
+            # Issue #377: the empty state has no Reset Filters button; the flyout's Reset is the way back.
+            "waitgone:name=Reset Filters",
+            "expand:id=fst.shop.filter",
+            "waitfor:id=fst.shop.filter.reset@5",
+            "invoke:id=fst.shop.filter.reset",
+            "collapse:id=fst.shop.filter",
             "waitfor:id=fst.shop.song.fixture-pulse@10",
             "waitfor:name=2 songs",
             "waitgone:id=fst.shop.filter.empty",

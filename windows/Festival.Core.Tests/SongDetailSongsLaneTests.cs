@@ -187,6 +187,7 @@ public class SongDetailSongsLaneTests
         var lead = vm.Leaderboards.Single(b => b.Instrument == Instrument.Lead);
         await lead.LoadAsync();
         Assert.True(lead.ShowEmpty);
+        Assert.False(lead.ShowPlaceholder); // empty is the card-less EmptyStateView (#377)
         Assert.False(lead.ShowRows); // View Full Leaderboard is bound to ShowRows
         Assert.Equal(LeaderboardPreviewViewModel.NoScoresText, lead.TotalEntriesText);
         Assert.Equal("Lead, No scores recorded yet", lead.HeaderName);

@@ -150,6 +150,7 @@ public class SongBandPreviewTests
 
         var quads = vm.BandPreviews[2];
         Assert.True(quads.ShowEmpty);
+        Assert.False(quads.ShowPlaceholder); // empty is the card-less EmptyStateView (#377)
         Assert.False(quads.ShowRows);
         Assert.Equal(SongBandPreviewViewModel.NoScoresText, quads.Subtitle);
         Assert.Equal("When Quads scores are submitted for this song, they will show up here on the next leaderboard update.", quads.EmptyText);

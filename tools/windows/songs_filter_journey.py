@@ -187,7 +187,7 @@ SCENARIOS: dict[str, Scenario] = {
          "toggle:id=fst.songs.filter.shop-unavailable", f"waitfor:{PULSE}@10", f"waitfor:{ORBIT}",
          "toggle:id=fst.songs.filter.shop-available", f"waitfor:{NO_RESULTS}@10", f"waitgone:{ORBIT}@5",
          "{shot:filter-shop-draft}", "collapse:id=fst.songs.filter", "{status:Filters applied}",
-         "waitfor:name=Clear Filters@5", "{shot:filter-shop-applied}",
+         f"waitfor:{NO_RESULTS}@5", "waitgone:name=Clear Filters", "{shot:filter-shop-applied}",
          RELAUNCH,
          f"waitfor:{NO_RESULTS}@20", "{status:Filters applied}", "expand:id=fst.songs.filter",
          "waitfor:id=fst.songs.filter.reset@5", "expand:id=fst.songs.filter.shop",

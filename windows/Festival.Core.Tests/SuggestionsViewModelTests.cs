@@ -391,7 +391,7 @@ public sealed class SuggestionsViewModelTests
         var none = SuggestionCategoryTypeInfo.All.Aggregate(SuggestionFilterSettings.Default, (f, t) => f.WithGlobalType(t, false));
         model.ApplyFilter(none);
         Assert.True(model.ShowEmpty);
-        Assert.Equal("No suggestions match your filters.", model.EmptyMessage);
+        Assert.Equal("No suggestions match your filters. Try changing your filters to see more suggestions.", model.EmptyMessage);
         var generated = model.Generated.Count;
         model.LoadMore();
         Assert.Equal(generated, model.Generated.Count);

@@ -189,6 +189,17 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_assertcentred(self):
+        step = u.parse_step("assertcentred:id=fst.shop.filter.empty-region|id=fst.shop.filter.empty|name=No Item Shop songs")
+        self.assertEqual(step["verb"], "assertcentred")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.shop.filter.empty-region"})
+        self.assertEqual(step["other"], {"kind": "id", "value": "fst.shop.filter.empty"})
+        self.assertEqual(step["last"], {"kind": "name", "value": "No Item Shop songs"})
+        for bad in ("assertcentred:id=a|id=b", "assertcentred:id=a|id=b|", "assertcentred:id=a|1,2|id=c",
+                    "assertcentred:id=a|id=b|id=c|id=d"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_assertpaint(self):
         step = u.parse_step("assertpaint:id=fst.notifications.row.x|fill:L8,M0=#162133~4|L4,M-10,L5,M10=#1e2a3a"
                             "|R25,M-24!=@fill~40|C-0.5,B2.5,C20,B-3!=@fill")

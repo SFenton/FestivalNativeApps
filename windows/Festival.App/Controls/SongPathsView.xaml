@@ -85,9 +85,9 @@
                                             Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}"
                                             AutomationProperties.AutomationId="fst.paths.error" />
 
-                <TextBlock Text="No path has been generated for this instrument and difficulty yet." TextWrapping="Wrap"
-                           HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" MaxWidth="360"
-                           Visibility="{x:Bind ViewModel.ShowNotGenerated, Mode=OneWay}" AutomationProperties.AutomationId="fst.paths.empty" />
+                <!-- Shared EmptyStateView (compact: the chart region's header is the heading), centred, no card (#377). -->
+                <controls:EmptyStateView IsCompact="True" Title="No path has been generated for this instrument and difficulty yet."
+                                         Visibility="{x:Bind ViewModel.ShowNotGenerated, Mode=OneWay}" TitleAutomationId="fst.paths.empty" />
 
                 <!-- Image: native pinch / Ctrl+wheel zoom plus explicit buttons; fades in with ChartContent (web fadeInImage).
                      Centred with equal margins at fit zoom (issue #87); Fluent's auto-hiding scroll bars overlay it. -->

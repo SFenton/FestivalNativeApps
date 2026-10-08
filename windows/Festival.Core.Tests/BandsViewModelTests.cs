@@ -318,6 +318,7 @@ public class BandDetailViewModelTests
         var vm = new BandDetailViewModel(bands.Service.Session(), Route());
         await vm.LoadAsync();
         Assert.True(vm.HistoryEmpty);
+        Assert.False(vm.ShowHistoryCard); // empty is the card-less EmptyStateView (#377)
         Assert.Empty(vm.HistoryPoints);
         Assert.Equal("History is catching up. Current rankings are already fresh.", vm.HistoryNote);
         Assert.EndsWith("fresh.", vm.HistoryHint);

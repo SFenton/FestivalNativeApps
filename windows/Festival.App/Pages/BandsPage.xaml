@@ -2,6 +2,7 @@
     x:Class="Festival.App.Pages.BandsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Festival.App.Controls"
     Background="Transparent">
 
     <!-- /bands without an ID: the web BandPage's "Band not found" empty state (operator 2026-09-28: no hub). -->
@@ -12,17 +13,10 @@
         </Grid.RowDefinitions>
         <TextBlock Text="Band" Style="{StaticResource FSTPageTitleStyle}" AutomationProperties.HeadingLevel="Level1"
                    AutomationProperties.AutomationId="fst.bands.title" />
-        <!-- Scrolls when large text or a short window would otherwise clip the message (centred while it fits). -->
-        <ScrollViewer Grid.Row="1" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
-                      AutomationProperties.AutomationId="fst.bands.screen">
-            <StackPanel Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="560" Padding="0,24,0,32">
-                <TextBlock x:Name="NotFoundTitle" Text="Band not found" Style="{StaticResource SubtitleTextBlockStyle}"
-                           TextAlignment="Center" TextWrapping="Wrap" HorizontalAlignment="Center"
-                           AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.bands.not-found" />
-                <TextBlock x:Name="NotFoundMessage" Text="This band link is missing an ID and cannot be resolved."
-                           TextAlignment="Center" TextWrapping="Wrap" HorizontalAlignment="Center"
-                           AutomationProperties.AutomationId="fst.bands.not-found.message" />
-            </StackPanel>
-        </ScrollViewer>
+        <!-- Shared empty state (issue #377): centred, scrolls when large text or a short window would clip it. -->
+        <controls:EmptyStateView x:Name="NotFound" Grid.Row="1" Title="Band not found"
+                                 Subtitle="This band link is missing an ID and cannot be resolved."
+                                 TitleAutomationId="fst.bands.not-found" SubtitleAutomationId="fst.bands.not-found.message"
+                                 RegionAutomationId="fst.bands.screen" />
     </Grid>
 </Page>

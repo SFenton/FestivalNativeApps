@@ -19,7 +19,7 @@ public sealed partial class BandsPage : Page
         // Like ServiceStatusView errors: navigation only reads focus and the title, so speak the failure itself.
         Loaded += (_, _) => DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
         {
-            if (IsLoaded) ScreenReader.Announce(this, Announcement.Failure(NotFoundTitle.Text, NotFoundMessage.Text));
+            if (IsLoaded) ScreenReader.Announce(this, Announcement.Failure(NotFound.Title ?? "", NotFound.Subtitle ?? ""));
         });
     }
 }
