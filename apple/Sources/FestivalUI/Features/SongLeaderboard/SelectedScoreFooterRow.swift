@@ -90,3 +90,16 @@ struct PinnedFooterBacking: ViewModifier {
         }
     }
 }
+
+// MARK: - Pinned placement
+
+extension View {
+    /// Report the selected row's height wherever the board draws it (pinned above the
+    /// pager or after the rows), for ``SelectedRowPinning`` (leaderboard-row R10, #386).
+    ///
+    /// - Parameter height: Receives the row's height.
+    /// - Returns: The row, measured.
+    func reportsSelectedRowHeight(_ height: Binding<CGFloat>) -> some View {
+        onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height.wrappedValue = $0 }
+    }
+}

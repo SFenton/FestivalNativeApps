@@ -113,3 +113,32 @@ public struct SongBandRowFocus: Hashable, Sendable {
             || (bandType == entry.bandType && !teamKey.isEmpty && teamKey == entry.teamKey)
     }
 }
+
+// MARK: - Pinned placement
+
+/// Whether a board pins the selected profile's row above its pager (leaderboard-row R7)
+/// or lets it scroll at the end of the page's rows (R10, #386).
+///
+/// At accessibility text sizes the pinned row grows with its text: on iPhone a band's
+/// row at the largest size measured 545 pt of a 690 pt board, so the other rows had no
+/// visible space left (HIG Typography: "Adapt layouts for all Dynamic Type sizes").
+/// The row stays pinned at every other size, and at accessibility sizes while it takes
+/// no more than ``maximumPinnedShare`` of the board.
+public enum SelectedRowPinning {
+    /// The largest share of the board's height a pinned row may cover at accessibility
+    /// text sizes, so at least two thirds stay for the page's rows and pager.
+    public static let maximumPinnedShare = 1.0 / 3.0
+
+    /// Decide where the selected row goes.
+    ///
+    /// - Parameters:
+    ///   - isAccessibilitySize: The text size is one of the accessibility sizes.
+    ///   - rowHeight: The selected row's measured height; 0 before it is measured.
+    ///   - boardHeight: The board's height including its pinned chrome; 0 before it is
+    ///     measured.
+    /// - Returns: True to pin the row above the pager, false to place it after the rows.
+    public static func pins(isAccessibilitySize: Bool, rowHeight: Double, boardHeight: Double) -> Bool {
+        guard isAccessibilitySize, rowHeight > 0, boardHeight > 0 else { return true }
+        return rowHeight <= boardHeight * maximumPinnedShare
+    }
+}

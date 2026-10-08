@@ -96,6 +96,10 @@ struct SongBandLeaderboardContent: View {
     @State private var headerHidden = false
     /// Visible height of the scroll view, for the reload gate's spinner area.
     @State private var viewportHeight: CGFloat = 0
+    /// The selected band row's height and the board's, for ``SelectedRowPinning`` (R10).
+    @State private var selectedRowHeight: CGFloat = 0
+    @State private var boardHeight: CGFloat = 0
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Height of the song header with its padding, for the reload gate's spinner area.
     @State private var headerHeight: CGFloat = 0
     /// A page change under the collapsed header: the gate stays a full visible page tall
@@ -283,6 +287,9 @@ struct SongBandLeaderboardContent: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             bottomChrome
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+            boardHeight = height
+        }
         // The pinned band row's columns. In the trailing pane, when any member name on
         // the page's band cards or the pinned row's names would scroll, the cards wrap
         // their member names in full and the pinned row becomes a multi-row card (#364).
@@ -387,8 +394,8 @@ struct SongBandLeaderboardContent: View {
     private var bottomChrome: some View {
         let spacing = chromeSpacing
         return VStack(spacing: 0) {
-            if let entry = footerEntry {
-                selectedBandFooter(entry)
+            if pinsFooter, let entry = footerEntry {
+                selectedBandFooter(entry, horizontalPadding: 16)
                     .padding(.top, spacing.footerTop)
                     .padding(.bottom, spacing.footerBottom)
             }
@@ -404,12 +411,22 @@ struct SongBandLeaderboardContent: View {
         .reportsBottomChromeTop(in: Self.pageSpace) { bottomChromeTop = $0 }
     }
 
+    /// Whether the band's row is pinned above the pager; at accessibility text sizes a
+    /// row that would cover more than a third of the board follows the cards instead
+    /// (leaderboard-row R10, #386).
+    private var pinsFooter: Bool {
+        SelectedRowPinning.pins(
+            isAccessibilitySize: dynamicTypeSize.isAccessibilitySize,
+            rowHeight: Double(selectedRowHeight), boardHeight: Double(boardHeight)
+        )
+    }
+
     /// Padding that rests the last card one gap above the footer (or the pager without
     /// one) and the footer one gap above the pager (issue #293).
     private var chromeSpacing: PinnedChromeSpacing {
         PinnedChromeSpacing.resolve(
             rowGap: Double(Self.rowGap), rowBottomInset: Double(Self.rowGap), edgePadding: 8,
-            hasFooter: footerEntry != nil,
+            hasFooter: pinsFooter && footerEntry != nil,
             hasPager: chromePayload != nil
         )
     }
@@ -441,9 +458,11 @@ struct SongBandLeaderboardContent: View {
     /// `getBandProfileRoute`); otherwise it jumps to the page holding the band's rank
     /// and brings the highlighted row into view.
     ///
-    /// - Parameter entry: The selected player's band row.
-    /// - Returns: The pinned footer button or link.
-    private func selectedBandFooter(_ entry: SongBandLeaderboardEntry) -> some View {
+    /// - Parameters:
+    ///   - entry: The selected player's band row.
+    ///   - horizontalPadding: 16 pinned; 0 after the cards, which the page already insets.
+    /// - Returns: The footer button or link.
+    private func selectedBandFooter(_ entry: SongBandLeaderboardEntry, horizontalPadding: CGFloat) -> some View {
         let action = footerAction(for: entry)
         let row = SelectedScoreFooterRow(
             entry: entry.footerLeaderboardEntry, currentSeason: session.catalogCurrentSeason,
@@ -466,7 +485,8 @@ struct SongBandLeaderboardContent: View {
             }
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 16)
+        .reportsSelectedRowHeight($selectedRowHeight)
+        .padding(.horizontal, horizontalPadding)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.song-band-leaderboard.spotlight-footer")
     }
@@ -564,6 +584,11 @@ struct SongBandLeaderboardContent: View {
                             .frame(maxWidth: .infinity)
                         }
                     }
+                }
+                // Too tall to pin at this text size: the band's row follows the cards
+                // (leaderboard-row R10, #386).
+                if !pinsFooter, !payload.leaderboard.entries.isEmpty, let entry = footerEntry {
+                    selectedBandFooter(entry, horizontalPadding: 0)
                 }
             }
             // Rows start under the header even when they are fewer than a screen.
