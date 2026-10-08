@@ -782,6 +782,13 @@ private struct PinnedHeaderListMask: ViewModifier {
 /// ``PinnedHeaderEdgeFade/gradientStops`` `depth` points deep below it, opaque after.
 /// With no `cut` everything is drawn. The gradient band sits under the opaque shape when
 /// inactive, so it changes nothing there.
+///
+/// The band is never laid out empty (``bandHeight(depth:)``): a band that collapsed to
+/// 0 pt whenever the fade had no depth (at the top, or a title landed on the bar) and
+/// grew back made SwiftUI rebuild the masked List's layer, and the List briefly counted
+/// its top inset twice (issue #383: 170 → 344 pt on iOS 27). Near the top that collapsed
+/// the expanding large title again, so the header jumped back and forth under the
+/// finger.
 struct PinnedHeaderFadeMask: View {
     /// Where the pinned title's bottom edge crosses this view, in local points; nil when
     /// no part of the view reaches it.
@@ -789,10 +796,25 @@ struct PinnedHeaderFadeMask: View {
     /// Current depth of the ramp below the edge (0: a hard edge).
     let depth: CGFloat
 
+    /// The thinnest the gradient band is laid out, in points.
+    static let minimumBandHeight: CGFloat = 1
+
+    /// The gradient band's laid-out height for a ramp `depth` points deep.
+    ///
+    /// At least ``minimumBandHeight``, so the band never leaves the render tree. Any part
+    /// below `depth` lies under the opaque shape (which starts at `cut + depth`), so a
+    /// 0 pt depth still draws a hard edge.
+    ///
+    /// - Parameter depth: The ramp's depth; negative or non-finite counts as 0.
+    /// - Returns: The band height.
+    static func bandHeight(depth: CGFloat) -> CGFloat {
+        max(minimumBandHeight, depth.isFinite ? depth : 0)
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             LinearGradient(stops: PinnedHeaderEdgeFade.gradientStops, startPoint: .top, endPoint: .bottom)
-                .frame(height: max(0, depth))
+                .frame(height: Self.bandHeight(depth: depth))
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, -BelowCutShape.far)
                 .offset(y: cut ?? 0)

@@ -2059,19 +2059,19 @@ private struct SongsInlineSectionTitle: View {
 /// section's first row and an incoming title are never dimmed (issue #298).
 ///
 /// Observes ``SongsScrollChrome`` here, so a scroll re-renders only this modifier, never
-/// the List (issue #8).
+/// the List (issue #8). At the top it observes only the scroll-away state
+/// (``SongsScrollChrome/rowFade(enabled:)``), so the expanding large title never
+/// re-renders the mask (issue #383).
 private struct SectionBarRowFade: ViewModifier {
     let chrome: SongsScrollChrome
     /// False when the List has no sections or the OS has no section bar.
     let enabled: Bool
 
     func body(content: Content) -> some View {
+        let fade = chrome.rowFade(enabled: enabled)
         content
             .environment(\.defaultMinListRowHeight, 0)
-            .pinnedHeaderEdgeFadeMask(
-                edge: chrome.sectionBarBottom, active: enabled && chrome.listScrolled,
-                depthLimit: chrome.rowFadeLimit
-            )
+            .pinnedHeaderEdgeFadeMask(edge: fade.edge, active: fade.active, depthLimit: fade.depthLimit)
     }
 }
 

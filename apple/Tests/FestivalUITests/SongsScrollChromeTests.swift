@@ -471,6 +471,54 @@ struct SongsSectionJumpTests {
         #expect(fired.value)
     }
 
+    /// Runs `write` and reports whether an observer of the row mask's inputs was invalidated.
+    private func rowFadeInvalidated(
+        _ chrome: SongsScrollChrome, by write: (SongsScrollChrome) -> Void
+    ) -> Bool {
+        let fired = JumpFlag()
+        withObservationTracking { _ = chrome.rowFade(enabled: true) } onChange: { fired.value = true }
+        write(chrome)
+        return fired.value
+    }
+
+    /// Issue #383: at the top the row mask must not follow the section bar's edge or the
+    /// fade limit, which move with the expanding large title; re-rendering the List's
+    /// mask there made the large title jump back and forth.
+    @Test func rowFadeAtTheTopIgnoresTheMovingBar() {
+        let chrome = SongsScrollChrome()
+        chrome.setBarMetrics(top: 170, height: 28)
+        chrome.setFadeLimit("#", limit: 12)
+        #expect(chrome.rowFade(enabled: true) == .inactive)
+        #expect(!rowFadeInvalidated(chrome) {
+            $0.setBarMetrics(top: 172, height: 28)
+        })
+        #expect(!rowFadeInvalidated(chrome) {
+            $0.setFadeLimit("#", limit: 0)
+        })
+        // Only leaving the top reaches the mask.
+        #expect(rowFadeInvalidated(chrome) {
+            $0.setScrolled(true)
+        })
+    }
+
+    @Test func rowFadeOnceScrolledFollowsTheBarAndTheLimit() {
+        let chrome = SongsScrollChrome()
+        chrome.setScrolled(true)
+        chrome.setBarMetrics(top: 170, height: 28)
+        chrome.setFadeLimit("A", limit: 6)
+        #expect(chrome.rowFade(enabled: true) == .init(edge: 198, active: true, depthLimit: 6))
+        #expect(rowFadeInvalidated(chrome) {
+            $0.setFadeLimit("A", limit: 2)
+        })
+        #expect(rowFadeInvalidated(chrome) {
+            $0.setBarMetrics(top: 180, height: 28)
+        })
+        // No sections (or no section bar): never masked.
+        #expect(chrome.rowFade(enabled: false) == .inactive)
+        chrome.setScrolled(false)
+        #expect(chrome.rowFade(enabled: true) == .inactive)
+    }
+
     @Test func topInsetIgnoresNonFiniteValuesAndNotifiesNoOne() {
         let chrome = SongsScrollChrome()
         let fired = JumpFlag()

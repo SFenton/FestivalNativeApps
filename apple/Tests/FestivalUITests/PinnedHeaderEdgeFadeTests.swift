@@ -44,6 +44,23 @@ func pinnedHeaderAccessibilitySettingsKeepAHardEdge(reduceTransparency: Bool, in
     #expect(stops.map(\.location) == [0, 1])
 }
 
+/// Issue #383: the ramp band is never laid out empty, so a fade reaching or leaving 0 pt
+/// never rebuilds the masked List (which then counted its top inset twice); the opaque
+/// shape covers the band below `depth`, so a 0 pt depth is still a hard edge.
+@Test func pinnedHeaderRampBandIsNeverEmpty() {
+    #expect(PinnedHeaderFadeMask.minimumBandHeight > 0)
+    #expect(PinnedHeaderFadeMask.bandHeight(depth: 0) == PinnedHeaderFadeMask.minimumBandHeight)
+    #expect(PinnedHeaderFadeMask.bandHeight(depth: -5) == PinnedHeaderFadeMask.minimumBandHeight)
+    #expect(PinnedHeaderFadeMask.bandHeight(depth: .nan) == PinnedHeaderFadeMask.minimumBandHeight)
+    #expect(PinnedHeaderFadeMask.bandHeight(depth: 0.5) == PinnedHeaderFadeMask.minimumBandHeight)
+    #expect(PinnedHeaderFadeMask.bandHeight(depth: 12) == 12)
+    #expect(PinnedHeaderFadeMask.bandHeight(depth: PinnedHeaderEdgeFade.height) == PinnedHeaderEdgeFade.height)
+    for step in stride(from: 0, through: 40, by: 0.5) {
+        let depth = CGFloat(step)
+        #expect(PinnedHeaderFadeMask.bandHeight(depth: depth) >= depth)
+    }
+}
+
 // MARK: - Pinned header row fade (issue #301)
 
 /// Rows must have faded out by the bottom of the pinned header, which sits on the pin line.
