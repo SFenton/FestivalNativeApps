@@ -81,12 +81,23 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
-          target: google_apis
+          # AOSP image: Google APIs images update Play/GMS packages after boot, and the resulting
+          # input reconfiguration recreated the test activity mid-journey (dropping setContent).
+          target: default
           arch: x86_64
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
-          script: bash android/gradlew -p android connectedDebugAndroidTest --no-daemon --console=plain -Pandroid.testInstrumentationRunnerArguments.annotation=com.festivalscoretracker.android.journeys.DeviceCi
+          # One command per line (the runner execs each separately). Wake, unlock and clear system
+          # dialogs so the first test owns a resumed, focused window; dump logcat on failure.
+          script: |
+            adb shell svc power stayon true
+            adb shell wm dismiss-keyguard
+            adb shell input keyevent 82
+            adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS || true
+            sleep 20
+            mkdir -p android/app/build/outputs/androidTest-results/connected
+            bash android/gradlew -p android connectedDebugAndroidTest --no-daemon --console=plain -Pandroid.testInstrumentationRunnerArguments.annotation=com.festivalscoretracker.android.journeys.DeviceCi || (adb logcat -d > android/app/build/outputs/androidTest-results/connected/logcat.txt; exit 1)
       - name: Upload connected test reports
         if: failure()
         uses: actions/upload-artifact@v4
