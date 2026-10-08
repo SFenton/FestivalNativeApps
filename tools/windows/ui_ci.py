@@ -76,6 +76,11 @@ RUNS: tuple[Run, ...] = (
     Run("modals", "a11y-modals.json"),
     # The same pages at Windows' largest text size: text on screen, commands reachable by Tab and hit-testable.
     Run("modals-text-225", "a11y-modals.json", sizes="compact", mode="text-225"),
+    # What's New (issues #80, #274, #434): placeholder and grouped tester/store notes; level-2 version and level-3
+    # category headings, reading order, the Raw bullet glyph, 40x40 Dismiss, keyboard scrolling and Esc.
+    Run("whats-new", "a11y-whats-new.json"),
+    # The grouped notes at Windows' largest text size: headings wrap and the keyboard still reaches "Other" and Dismiss.
+    Run("whats-new-text-225", "a11y-whats-new.json", sizes="compact", mode="text-225"),
 )
 
 
