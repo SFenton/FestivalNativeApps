@@ -143,7 +143,6 @@ struct SettingsServiceInfoSection: View {
     let titled: Bool
     @State private var model: SettingsServiceInfoModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// Create the section.
     ///
@@ -183,34 +182,26 @@ struct SettingsServiceInfoSection: View {
         }
     }
 
-    /// Title and state description with the process state trailing, like the other
-    /// Settings value rows; at accessibility text sizes the state stacks under the label so
-    /// "Leaderboard Service State" is never squeezed into hyphenation.
+    /// Title and state description with the process state trailing: the shared
+    /// `SettingsValueRow`, so the state stacks under the label only when it doesn't fit
+    /// beside it (pattern `settings-value-row` R1) and "Leaderboard Service State" is never
+    /// squeezed into hyphenation.
     private func stateRow(_ rows: ServiceInfoRows) -> some View {
-        let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
-            : AnyLayout(HStackLayout(alignment: .center, spacing: 12))
-        return layout {
-            SettingLabel(ServiceInfoText.serviceStateTitle, detail: rows.stateDescription)
-            if !dynamicTypeSize.isAccessibilitySize {
-                Spacer(minLength: 8)
-            }
+        SettingsValueRow(
+            ServiceInfoText.serviceStateTitle, detail: rows.stateDescription,
+            spokenValue: rows.processState.label, identifier: "fst.settings.service-info.state"
+        ) {
             HStack(spacing: 8) {
                 Text(rows.processState.label)
                     .font(.headline)
                     .foregroundStyle(FestivalText.primary)
-                    .fixedSize(horizontal: false, vertical: true)
                 if rows.processState == .loading || rows.processState == .updating {
                     FestivalLoadingView()
                         .controlSize(.small)
                         .accessibilityHidden(true)
                 }
             }
-            .fixedSize(horizontal: !dynamicTypeSize.isAccessibilitySize, vertical: false)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("fst.settings.service-info.state")
     }
 
     /// The web's phase row: semibold title (`toggleLabel`), the bar a gap-xs below, and the

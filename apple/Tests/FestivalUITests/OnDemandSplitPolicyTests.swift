@@ -276,6 +276,21 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
     #expect(windowGeometry(SplitLayouts.duoInnerLandscape) != nil)
 }
 
+/// Issue #383: the stack keeps only the container's horizontal span, so the iOS 26 tab
+/// bar changing the container's height never re-runs it, and the split is unchanged.
+@Test func splitStackIgnoresTheContainersHeight() throws {
+    let expanded = CGRect(x: 0, y: 0, width: 1194, height: 673)
+    let minimized = CGRect(x: 0, y: 12, width: 1194, height: 729)
+    let span = OnDemandSplitPolicy.horizontalSpan(of: expanded)
+    #expect(span == CGRect(x: 0, y: 0, width: 1194, height: 0))
+    #expect(OnDemandSplitPolicy.horizontalSpan(of: minimized) == span)
+    #expect(OnDemandSplitPolicy.horizontalSpan(of: CGRect(x: 40, y: 5, width: 800, height: 9))
+        == CGRect(x: 40, y: 0, width: 800, height: 0))
+    let full = OnDemandSplitPolicy.geometry(.init(container: expanded, isLandscape: true, isRegular: true))
+    let spanned = OnDemandSplitPolicy.geometry(.init(container: span, isLandscape: true, isRegular: true))
+    #expect(try #require(spanned) == #require(full))
+}
+
 /// Each half must be at least 360 pt.
 @Test func eachPaneNeedsMinimumWidth() {
     #expect(windowGeometry(SplitLayouts.iPadNarrowLandscape) == nil)
