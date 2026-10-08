@@ -7,8 +7,8 @@ A run with a system ``mode`` (e.g. ``text-225``) changes the runner's own deskto
 
 This is the one registry of Windows accessibility journeys that gate pull requests: a journey is in CI only when it has a
 :data:`RUNS` entry (``only`` limits a run to some of a file's pages). ``tests/test_ui_ci.py`` checks the entries and
-that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415) and the Quick Links landings
-(issue #416) run at default and 225% text.
+that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
+(issue #416) and the Songs section push (issue #452) run at default and 225% text.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
 Usage::
@@ -95,6 +95,11 @@ RUNS: tuple[Run, ...] = (
     # "B, text", stays a Level 2 heading, Jump -> title -> list order, Jump's name and 40x40 target, by pointer and keys.
     Run("section-index-backward", "a11y-section-index.json", only=SECTION_INDEX_BACKWARD),
     Run("section-index-backward-text-225", "a11y-section-index.json", mode="text-225", only=SECTION_INDEX_BACKWARD),
+    # Songs section push (issues #288, #452): mid-push, scrolling down into the boundary and back up, the bar still reads
+    # the outgoing section as a Level 2 heading, the incoming in-list title (transparent under the drawn copy) stays the
+    # Level 2 heading in order Jump -> bar -> title, and the copy is drawn but never a second Narrator stop.
+    Run("songs-section-push", "a11y-songs-section-push.json", tabs=0),
+    Run("songs-section-push-text-225", "a11y-songs-section-push.json", sizes="compact", mode="text-225", tabs=0),
     # Quick Links landings on Settings and Leaderboards (issues #51, #416): entry name and current section, 40 epx
     # entry and items, keyboard order, the jump announcement, heading landing inset and focus. The wide pane page
     # (scale-100/150 modes) stays in the host matrix.

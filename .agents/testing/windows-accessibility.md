@@ -431,6 +431,22 @@ Fixed: the flyout **Reset** footer and the Year/Duration **Select All / Clear Al
 | Compact, medium (3 pages, `--scan --tabs 30`) | Pass, Axe 0 |
 | Text 225% (compact, 3 pages) | Pass, Axe 0 |
 
+## Songs section push (issue #452, 2026-10-08)
+
+Accessibility tests for #288's Windows section push. `journeys/a11y-songs-section-push.json` (`push-band`, `push-band-reverse`) runs on the large fixture catalogue; `tools/windows/ui_ci.py` runs it in `windows-ui` at default text (compact, medium) and 225% text (compact), both with `--scan`, and `tests/test_ui_ci.py` keeps both runs and the key steps. A Jump pick of M then `scrollinset:` puts the M title 16 epx below the list top (`push-band` scrolls down to it from 120 epx, `push-band-reverse` up from the pinned title), inside the 40 epx push band, where `IncomingHeader` draws a copy over it. The pages assert:
+- the copy is drawn (`assertname:raw=fst.songs.section-header.incoming|M`) but isn't in the control view, so Narrator and scan mode never meet the title twice;
+- the pinned bar still reads "L, text" as a level-2 heading, and the transparent in-list title reads "M, text" as a level-2 heading;
+- Narrator's order is Jump → bar → M title;
+- at 120 epx the copy is gone again;
+- Jump keeps its name and 40×40 epx target.
+
+The push follows the scroll with no animation of its own, so Reduce Motion has nothing to stop, and the copy is hit-test-invisible and never focusable, so the keyboard order is unchanged. No app defect was found; the copy gained only its raw-view test ID. Check: with the copy's `AccessibilityView="Raw"` removed, `push-band` fails (`waitgone:id=fst.songs.section-header.incoming`). Fixed (test only): an Axe `BoundingRectangleSizeReasonable` on a row title clipped to zero height at the viewport bottom (item 3) appeared at one exact medium-size position, so the pages reach the band from a Jump pick of M rather than L.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (2 pages, `--scan`) | Pass, Axe 0 |
+| Text 225% (compact, 2 pages) | Pass, Axe 0 |
+
 ## Feedback Form validation (issue #236, 2026-10-05)
 
 Evidence: `a11y_matrix.py --scan --pages journeys/a11y-feedback.json --fixture tools/windows/feedback_fixture.py` (one page per state: `unavailable`, `editing-empty`, `invalid`, `editing-dirty`, `attachments`, `discard-confirm`, `sending`, `filing`, `sent`, `error`) at compact, medium, wide, maximized and both snaps, then Desert, Night sky, light and dark theme, text 200% and display 100%/150%: 0 Axe errors in the dialog. The only findings are 2 on Settings behind the dialog (open issue 7, medium at display 150%). `journeys/feedback.py` (`unavailable`, `validation`, `submit`, `error`) passes at every size preset. The live public service has `feedback:false`, so only `unavailable` is reachable there. Per configuration: [feedback-form/windows.md](../controls/feedback-form/windows.md#validation-issue-236-2026-10-05).

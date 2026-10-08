@@ -70,6 +70,28 @@ class UiCiTests(unittest.TestCase):
                        "fst.songs.filter.year.clear-all|"):
             self.assertIn(f"assertsize:id={target}40x40", steps)
 
+    def test_songs_section_push_runs_at_default_and_largest_text(self):
+        # Issue #452 (#288): the pushed section title's Narrator names, headings, order and raw copy, in CI at both sizes.
+        runs = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-songs-section-push.json"}
+        self.assertEqual({("normal", True), ("text-225", True)}, runs)
+        pages = json.loads((ci.JOURNEYS / "a11y-songs-section-push.json").read_text(encoding="utf-8"))
+        self.assertEqual({"push-band", "push-band-reverse"}, {page["name"] for page in pages})
+        for page in pages:
+            with self.subTest(page=page["name"]):
+                steps = page["after_ready"]
+                inset = steps.index("scrollinset:name=M&class=TextBlock|id=fst.songs.list|16")
+                drawn = steps.index("assertname:raw=fst.songs.section-header.incoming|M")
+                self.assertLess(inset, drawn)  # inside the 40 epx push band the copy is drawn...
+                self.assertEqual(steps[drawn + 1], "waitgone:id=fst.songs.section-header.incoming@2")  # ...but raw
+                self.assertIn("assertread:id=fst.songs.section-header|L, text", steps[drawn:])
+                self.assertIn("assertread:name=M&class=TextBlock|M, text", steps[drawn:])
+                self.assertTrue(any(s.startswith("assertorder:id=fst.songs.section-index-button|id=fst.songs.section-header|"
+                                                  "name=M&class=TextBlock") for s in steps))
+        for page in pages:  # outside the band (120 epx) the copy is gone again
+            steps = page["after_ready"]
+            self.assertIn("waitgone:raw=fst.songs.section-header.incoming@3", steps[steps.index(
+                "scrollinset:name=M&class=TextBlock|id=fst.songs.list|120"):])
+
     def test_argv(self):
         run = ci.Run("x", "a11y-modals.json", sizes="compact", mode="text-225", tabs=30)
         argv = run.argv(Path("C:/out"), "debug")
