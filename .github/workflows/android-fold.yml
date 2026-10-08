@@ -36,11 +36,19 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - name: Build app and test APKs
         run: bash android/gradlew -p android :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
-      - name: Install the emulator system image (with retries)
+      - name: Install cmdline-tools 23.0 (pixel_9_pro_fold profile) and the system image
         run: |
           set +o pipefail  # `yes` dies of SIGPIPE once sdkmanager exits
+          # The runner image's avdmanager predates the Pixel 9 Pro Fold profile; the emulator
+          # runner uses whatever is in cmdline-tools/latest.
+          curl -fsSL --retry 4 -o /tmp/cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip
+          rm -rf /tmp/cmdline-tools && unzip -q /tmp/cmdline-tools.zip -d /tmp
+          rm -rf "$ANDROID_HOME/cmdline-tools/latest" && mkdir -p "$ANDROID_HOME/cmdline-tools" && mv /tmp/cmdline-tools "$ANDROID_HOME/cmdline-tools/latest"
+          tools="$ANDROID_HOME/cmdline-tools/latest/bin"
+          "$tools/avdmanager" list device -c | grep -qx pixel_9_pro_fold
+          yes | "$tools/sdkmanager" --licenses > /dev/null
           for attempt in 1 2 3 4; do
-            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install 'system-images;android-35;google_apis;x86_64' emulator > /dev/null && break
+            "$tools/sdkmanager" --install 'system-images;android-35;google_apis;x86_64' emulator > /dev/null && break
             echo "sdkmanager attempt $attempt failed; retrying"
             rm -rf "$ANDROID_HOME/system-images/android-35/google_apis/x86_64" "$ANDROID_HOME/.temp"
             sleep 20
