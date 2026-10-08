@@ -303,6 +303,17 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_assertmotion(self):
+        moving = u.parse_step("assertmotion:id=fst.shop.song.fixture-orbit|moving")
+        self.assertEqual(moving["verb"], "assertmotion")
+        self.assertEqual(moving["selector"], {"kind": "id", "value": "fst.shop.song.fixture-orbit"})
+        self.assertEqual(moving["mode"], "moving")
+        still = u.parse_step("assertmotion:raw=fst.shop.song.fixture-pulse| still ")
+        self.assertEqual((still["selector"]["kind"], still["mode"]), ("raw", "still"))
+        for bad in ("assertmotion:id=x", "assertmotion:id=x|", "assertmotion:id=x|static", "assertmotion:10,20|moving"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_assertinset(self):
         step = u.parse_step("assertinset:name=Show Instruments&class=TextBlock|id=fst.settings|40")
         self.assertEqual(step["verb"], "assertinset")

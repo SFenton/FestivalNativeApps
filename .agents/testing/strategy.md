@@ -40,7 +40,7 @@ Where to write them:
 | Windows | A page/state in `tools/windows/journeys/a11y-*.json` for `a11y_matrix.py`, plus UIA name/order checks in the feature journey, listed in `tools/windows/journeys/ci-ui.json` (sizes and modes, `normal` and `text-225` at least) so the `windows-ui` job runs it ([windows-accessibility.md](windows-accessibility.md), [windows.md](windows.md)) |
 | Web (scraper repo) | Testing Library/Playwright assertions by role and accessible name (`getByRole(..., { name })`), focus order and target size in the changed component's spec |
 
-Tests run in CI: Apple `apple-ci`, Android `android-device`, Windows `windows-ui`. A behavior that existing accessibility tests already pin down only needs those tests updated, not duplicated.
+Tests run in CI: Apple `apple-ci`, Android `android-device` (plus `android-fold` for journeys that need a half-open book fold, see [android.md](android.md#ci-fold-journeys)), Windows `windows-ui` (`.github/workflows/windows-ui.yml`, which runs each `a11y_matrix.py` journey listed in `tools/windows/ui_ci.py` `RUNS`; add yours there). A behavior that existing accessibility tests already pin down only needs those tests updated, not duplicated.
 
 ## Certification (per platform, per language) — two independent gates
 
