@@ -114,6 +114,8 @@ Journeys (`uiwin` `assertstatus:id=fst.shell.artwork-background|<status>[@secs]`
 | Keyboard | 12-press Tab walk in every run | The dialog keeps focus (4–5 stops: Next, Back, Close, pips; none outside the app). On Suggestions, Tab moves row by row. One wide run focused two cards' rows for the same fixture song at the same scrolled spot. That's a repeat, not a trap: the next Tab moved on |
 | Live public service (compact, medium, wide; Desert contrast medium) | Tour over Songs: paused under the dialog, `animated` after Close; the Item Shop guide's visible slide runs its pulse ring with `pulse-slides=1` | Paused shows as `not-visible` when the first cover had decoded before the tour opened, or as `no-art` (brand surface) when it hadn't. Both happened in different launches. The cover fades in when the tour closes (recording) |
 
+CI (issue #436): the `windows-ui` job runs `a11y-modal-motion.json` on every Windows pull request (`tools/windows/ui_ci.py` `modal-motion` at compact and medium, `modal-motion-text-225` and `modal-motion-no-animations` at compact), Axe-scanned and Tab-walked. The Item Shop guide pages also check the guide's name, Narrator phrases, reading order and Close target on the first and last slide.
+
 Suggestions art: rows use the shared `ArtworkImages` decoded LRU (160 entries), so scrolling back reuses decoded covers. Unchanged since #83.
 
 Not changed: Songs-row Shop pulse rings share one `ShopPulseClock`, which also drives the visible tour slide. They keep breathing under a dialog, because pausing the clock under every modal would also stop the visible demo's pulses.

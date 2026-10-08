@@ -45,6 +45,23 @@ class UiCiTests(unittest.TestCase):
         self.assertIn("compact", large.sizes.split(","))
         self.assertGreaterEqual(large.tabs, 1)
 
+    def test_modal_motion_runs_at_default_largest_text_and_motion_off(self):
+        """#436: the #83 work-behind-dialogs journey gates PRs with motion on, at 225% text and with motion off."""
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-modal-motion.json"}
+        self.assertEqual({"normal", "text-225", "no-animations"}, set(runs))
+        self.assertTrue(all(run.scan and not run.only for run in runs.values()))
+        pages = json.loads((ci.JOURNEYS / "a11y-modal-motion.json").read_text(encoding="utf-8"))
+        names = {mode: {page["name"] for page in m.mode_pages(pages, mode)} for mode in runs}
+        for mode in ("normal", "text-225"):
+            self.assertLessEqual({"mm-first-run-backdrop", "mm-whats-new-backdrop", "mm-first-run-shop-pulses"}, names[mode])
+        self.assertLessEqual({"mm-first-run-backdrop-static", "mm-first-run-shop-pulses-static"}, names["no-animations"])
+        shop = next(page for page in pages if page["name"] == "mm-first-run-shop-pulses")
+        steps = shop["after_ready"]
+        for check in ("assertname:id=fst.first-run.slides|Item Shop", "assertread:id=SecondaryButton|Back, button",
+                      "assertorder:id=fst.first-run.slides|id=PrimaryButton|id=SecondaryButton|id=fst.first-run.close",
+                      "assertsize:id=fst.first-run.close|40x40", "key:enter"):
+            self.assertIn(check, steps)
+
     def test_argv(self):
         run = ci.Run("x", "a11y-modals.json", sizes="compact", mode="text-225", tabs=30)
         argv = run.argv(Path("C:/out"), "debug")

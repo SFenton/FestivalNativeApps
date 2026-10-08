@@ -7,7 +7,8 @@ A run with a system ``mode`` (e.g. ``text-225``) changes the runner's own deskto
 
 This is the one registry of Windows accessibility journeys that gate pull requests: a journey is in CI only when it has a
 :data:`RUNS` entry (``only`` limits a run to some of a file's pages). ``tests/test_ui_ci.py`` checks the entries and
-that the modal journey (issue #400) and the Songs Jump backward-pick pages (issue #415) run at default and 225% text.
+that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415) and the work-behind-dialogs journey
+(issues #83, #436) run at default and 225% text.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
 Usage::
@@ -90,6 +91,13 @@ RUNS: tuple[Run, ...] = (
     # "B, text", stays a Level 2 heading, Jump -> title -> list order, Jump's name and 40x40 target, by pointer and keys.
     Run("section-index-backward", "a11y-section-index.json", only=SECTION_INDEX_BACKWARD),
     Run("section-index-backward-text-225", "a11y-section-index.json", mode="text-225", only=SECTION_INDEX_BACKWARD),
+    # Work paused behind dialogs (issues #83, #277, #436): the decorative backdrop is not-visible under the first-run
+    # tour and What's New and animates again after Close/Esc; the Item Shop guide pulses only its visible slide (by
+    # Invoke and Enter) and holds when minimized; the guide's name, Narrator phrases, reading order and Close target
+    # hold on every slide. Windows "Animation effects off" and in-app Reduce Motion keep everything still.
+    Run("modal-motion", "a11y-modal-motion.json"),
+    Run("modal-motion-text-225", "a11y-modal-motion.json", sizes="compact", mode="text-225"),
+    Run("modal-motion-no-animations", "a11y-modal-motion.json", sizes="compact", mode="no-animations"),
 )
 
 
