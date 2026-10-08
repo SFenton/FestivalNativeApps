@@ -3050,6 +3050,114 @@
         344,
         361
       ]
+    },
+    {
+      "id": "catalogue-sort",
+      "title": "Catalogue sort",
+      "status": "current",
+      "doc": ".agents/patterns/catalogue-sort.md",
+      "summary": "Pages that list catalogue songs (Songs, Item Shop) sort through the platform's Songs Sort sheet/flyout: one radio group of the page's modes, the shared Sort Direction section, Reset to Title ascending, a gold trigger with a '<Mode>, <direction>' state, per-page saved choice, one comparator (web useFilteredSongs) for grid, list and hinge layouts, and a visible pause when a mode's data is missing. Item Shop offers Title, Artist, Year and Duration on native and web (agent decision #379).",
+      "keywords": [
+        "sort",
+        "sorting",
+        "sort sheet",
+        "sort direction",
+        "ascending",
+        "descending",
+        "item shop sort",
+        "shop sort",
+        "songs sort",
+        "title",
+        "artist",
+        "year",
+        "duration",
+        "sort modal",
+        "sort flyout"
+      ],
+      "web": [
+        {
+          "path": "pages/songs/modals/SortModal.tsx",
+          "symbol": "SortModal"
+        },
+        {
+          "path": "hooks/data/useFilteredSongs.ts",
+          "symbol": "useFilteredSongs"
+        },
+        {
+          "path": "pages/shop/ShopPage.tsx",
+          "symbol": "ShopPage"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalCore/SongCatalogSort.swift",
+            "symbol": "SongCatalogSort"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongsSortSheet.swift",
+            "symbol": "SongsSortSheet"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongsSortSheet.swift",
+            "symbol": "SortDirectionControl"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/ShopOfferSort.swift",
+            "symbol": "ShopOfferSort"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/ShopOfferSort.swift",
+            "symbol": "ShopSortChoice"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/songs/SongCatalogSort.kt",
+            "symbol": "SongCatalogSort"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsSheets.kt",
+            "symbol": "LiveSheet"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsSheets.kt",
+            "symbol": "RadioRow"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/SongQuery.cs",
+            "symbol": "SongCatalogQuery"
+          },
+          {
+            "path": "windows/Festival.App/Pages/SongsPage.xaml",
+            "symbol": "SortFlyout"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/SongsViewModel.cs",
+            "symbol": "SongSortDraft"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "modal-shell",
+          "page-tools-and-nav-chrome",
+          "hinge-columns",
+          "wide-columns"
+        ],
+        "pages": [
+          "songs",
+          "shop"
+        ]
+      },
+      "guards": [],
+      "supersedes": [],
+      "issues": [
+        125,
+        379
+      ]
     }
   ]
 }
