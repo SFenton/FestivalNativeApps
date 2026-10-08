@@ -145,6 +145,22 @@ Journeys (they need the split, so use display 150% or collapse the nav pane with
 
 These replace `ql-pane-jumped`, `ql-pane-active-section`, `ql-pane-keyboard`, `ql-pane-order`, `qll-settings-pane` and `qlo-pane-settings`. All passed when driven live with the nav pane collapsed (1280×672 epx).
 
+## Jump accessibility (issue #414, 2026-10-08)
+
+`tools/windows/journeys/a11y-quick-links-jump.json` (`a11y_matrix.py`; guard `tools/windows/tests/test_quick_links_jump_journey.py`) pins what #46 changed on the player profile, keyboard only:
+
+- `qlj-profile-menu` (compact, medium, snap-left): Enter opens the menu on the current item. The items are in page order (Global, nine instruments, Bands), and only the current one is `toggle=on` and named "…, current section". Down ×10 and Enter jump to Bands. Narrator gets "Bands section", and the button still reads "current section Bands" one second after the jump settles. Bands lands at 32 epx. The same follows for Drums (40 epx, as a heading). Esc returns focus to the button (≥ 40×40 epx). Scrolling back to the header button makes Global current again: the menu button sits in the scrolling header, so the reopened menu marks the scroll position, not the last jump.
+- `qlj-profile-pane` (wide, maximized; display 100% or 150% on a 300% host): rows read in page order (`assertorder`) and are ≥ 40 epx tall. Enter on a focused row moves the UIA selection, the pane's current-section mark, to Bands and then Drums. The selection is still there after the jump settles. Pane rows carry no name suffix. Bands is not inset-checked when maximized, because it clamps at the end of the page (near-end lock).
+- The menu page scans before the menu first opens (`scan:` step); later scans would only report open item 8.
+
+| Configuration | Result |
+|---|---|
+| Menu: compact, medium, snap-left (300% host) | Pass, Axe 0 |
+| Menu: text 225%, compact and medium | Pass, Axe 0 (button 50 epx tall, text grows) |
+| Pane: wide, maximized at display 100% (`--scan`) | Pass, Axe 0 |
+
+No accessibility defect found.
+
 ## Open
 
 The Axe popup-host finding with the menu open (open item 8) is in WinUI, not app markup.

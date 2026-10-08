@@ -1,6 +1,6 @@
 # Android accessibility results
 
-> **What:** the Android accessibility phase: tools, what was checked on which device, findings, fixes and open gaps. **Read when:** changing semantics, touch targets, colours, text sizes or multi-column layouts on Android, or re-running the TalkBack/ATF/large-text passes. Tooling: [android.md](android.md#accessibility-tooling).
+> **What:** the Android accessibility phase: tools, what was checked on which device, findings, fixes and open gaps. **Read when:** writing the ATF journey every Android UI change ships with ([strategy](strategy.md#accessibility-tests-with-every-change)), changing semantics, touch targets, colours, text sizes or multi-column layouts on Android, or re-running the TalkBack/ATF/large-text passes. Tooling: [android.md](android.md#accessibility-tooling).
 
 ## Method
 
