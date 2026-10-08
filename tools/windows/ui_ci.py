@@ -79,6 +79,11 @@ class Run:
 #: host checks).
 SECTION_INDEX_BACKWARD = "index-backward-after-scroll,index-backward-after-scroll-keyboard"
 
+#: The ``a11y-board-footer-fade.json`` song-leaderboard pages (issue #93's footer fade; the file's other boards and its
+#: system-mode pages stay host checks).
+SONG_BOARD_FOOTER_FADE = ("footer-fade-song-leaderboard-rest,footer-fade-song-leaderboard-mid,footer-fade-song-leaderboard-end,"
+                          "footer-fade-song-leaderboard-more-contrast,footer-fade-song-leaderboard-less-transparency")
+
 #: Journeys the ``windows-ui`` job runs, in order. ``wide`` (1440 epx) is left to the host matrix: the runner's
 #: desktop is 1920x1080 at 100% scale, so compact (500x800) and medium (900x700) fit with room for the taskbar.
 RUNS: tuple[Run, ...] = (
@@ -90,6 +95,18 @@ RUNS: tuple[Run, ...] = (
     # "B, text", stays a Level 2 heading, Jump -> title -> list order, Jump's name and 40x40 target, by pointer and keys.
     Run("section-index-backward", "a11y-section-index.json", only=SECTION_INDEX_BACKWARD),
     Run("section-index-backward-text-225", "a11y-section-index.json", mode="text-225", only=SECTION_INDEX_BACKWARD),
+    # Song leaderboard footer and paging (issues #93, #443): pinned row and pager names, states and 40x40 targets,
+    # header -> rows -> pinned row -> pager order, the fade layer kept out of the control view, and a keyboard page
+    # change that keeps the header, pinned row and pager in order with focus on Next; also with in-app Reduce Motion.
+    Run("song-leaderboard", "a11y-song-leaderboard.json"),
+    Run("song-leaderboard-text-225", "a11y-song-leaderboard.json", sizes="compact", mode="text-225"),
+    Run("song-leaderboard-reduced-motion", "a11y-song-leaderboard.json", sizes="medium", mode="app-reduced",
+        only="song-board-paging-keyboard"),
+    # The rows fade 40 epx above the footer at rest, mid-scroll and end, and cut hard under More Contrast and
+    # Less Transparency (issue #93).
+    Run("song-leaderboard-footer-fade", "a11y-board-footer-fade.json", only=SONG_BOARD_FOOTER_FADE),
+    Run("song-leaderboard-footer-fade-text-225", "a11y-board-footer-fade.json", sizes="compact", mode="text-225",
+        only=SONG_BOARD_FOOTER_FADE),
 )
 
 

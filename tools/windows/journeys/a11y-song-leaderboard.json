@@ -1,0 +1,66 @@
+[
+  {
+    "name": "song-board-footer",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "fixture": ["--song-leaderboard-paging"],
+    "ready": [
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-2@20",
+      "waitfor:id=fst.song-leaderboard.spotlight-footer@10",
+      "waitfor:id=fst.song-leaderboard.page-info@10",
+      "wait:1"
+    ],
+    "after_ready": [
+      "assertread:id=fst.song-leaderboard.song|Fixture Pulse, button, Opens Song Details",
+      "assertstate:id=fst.song-leaderboard.title|heading=1",
+      "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 1st\\. Open your statistics\\. Fixture Player 1, .+, button$",
+      "assertread:id=fst.song-leaderboard.page-first|First page, button, unavailable",
+      "assertread:id=fst.song-leaderboard.page-previous|Previous page, button, unavailable",
+      "assertread:id=fst.song-leaderboard.page-info|Page 1 of 4, text",
+      "assertread:id=fst.song-leaderboard.page-next|Next page, button",
+      "assertread:id=fst.song-leaderboard.page-last|Last page, button",
+      "assertsize:id=fst.song-leaderboard.page-first|40x40",
+      "assertsize:id=fst.song-leaderboard.page-previous|40x40",
+      "assertsize:id=fst.song-leaderboard.page-next|40x40",
+      "assertsize:id=fst.song-leaderboard.page-last|40x40",
+      "assertsize:id=fst.song-leaderboard.spotlight-footer|40x40",
+      "assertapart:id=fst.song-leaderboard.spotlight-footer|id=fst.song-leaderboard.page-next",
+      "assertorder:id=fst.song-leaderboard.song|id=fst.song-leaderboard.row.fixture-player-2|id=fst.song-leaderboard.spotlight-footer|id=fst.song-leaderboard.page-first|id=fst.song-leaderboard.page-previous|id=fst.song-leaderboard.page-info|id=fst.song-leaderboard.page-next|id=fst.song-leaderboard.page-last",
+      "waitgone:id=fst.song-leaderboard.footer-fade@2",
+      "assertstatus:id=fst.song-leaderboard.footer-fade|fading:40@5"
+    ]
+  },
+  {
+    "name": "song-board-paging-keyboard",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "fixture": ["--song-leaderboard-paging"],
+    "ready": [
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-2@20",
+      "waitfor:id=fst.song-leaderboard.spotlight-footer@10",
+      "waitfor:id=fst.song-leaderboard.page-info@10",
+      "wait:1"
+    ],
+    "after_ready": [
+      "focus:id=fst.song-leaderboard.page-next",
+      "key:enter",
+      "waitgone:id=fst.song-leaderboard.row.fixture-player-2@5",
+      "assertread:class=Microsoft.UI.Xaml.Controls.ProgressRing|~Loading leaderboard@2",
+      "assertfocus:id=fst.song-leaderboard.page-next",
+      "assertread:id=fst.song-leaderboard.song|Fixture Pulse, button, Opens Song Details",
+      "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 1st\\. .+, button$",
+      "assertread:id=fst.song-leaderboard.page-next|Next page, button",
+      "assertorder:id=fst.song-leaderboard.song|id=fst.song-leaderboard.spotlight-footer|id=fst.song-leaderboard.page-first|id=fst.song-leaderboard.page-info|id=fst.song-leaderboard.page-next|id=fst.song-leaderboard.page-last",
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-26@15",
+      "assertread:id=fst.song-leaderboard.page-info|Page 2 of 4, text@5",
+      "assertread:id=fst.song-leaderboard.page-previous|Previous page, button",
+      "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 1st\\. Jump to your position\\. Fixture Player 1, .+, button$",
+      "assertfocus:id=fst.song-leaderboard.page-next",
+      "assertorder:id=fst.song-leaderboard.song|id=fst.song-leaderboard.row.fixture-player-26|id=fst.song-leaderboard.spotlight-footer|id=fst.song-leaderboard.page-first|id=fst.song-leaderboard.page-next",
+      "assertstatus:id=fst.song-leaderboard.footer-fade|fading:40@5",
+      "focus:id=fst.song-leaderboard.song",
+      "waitgone:class=ToolTip@5"
+    ],
+    "tabs": 0
+  }
+]

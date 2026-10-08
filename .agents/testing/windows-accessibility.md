@@ -415,6 +415,26 @@ Fixed: Feedback field hints were a `TextBox.Description` that clipped at compact
 
 Fixed (test only): the First Run page still asserted the template `CloseButton` ID, but #244 gave that Close `fst.first-run.close`. No app defect was found.
 
+## Song leaderboard accessibility tests (issue #443, 2026-10-08)
+
+Backfills CI tests for the #93 Windows change (rows fade above the floating pinned row and pager; paging keeps the header, pinned row and pager). New `journeys/a11y-song-leaderboard.json` (fixture `--song-leaderboard-paging`, Fixture Player 1 selected) and the song-board pages of `a11y-board-footer-fade.json` are now `windows-ui` runs in `tools/windows/ui_ci.py`. They assert:
+- the pinned row's and pager's Narrator phrases and states: "Your rank, 1st. Open your statistics. …, button", "First page, button, unavailable", "Page 1 of 4, text", then "Page 2 of 4, text", "Previous page, button" and "Your rank, 1st. Jump to your position. …" after a page change;
+- the four pager buttons and the pinned row are at least 40×40 epx, and the pinned row doesn't overlap the pager;
+- the reading order is header → rows → pinned row → First → Previous → page text → Next → Last, and it holds while the next page loads, with the rows gone and the ring named "Loading leaderboard";
+- a keyboard page change (Enter on Next) keeps focus on Next during and after the load;
+- the footer-fade layer is out of the control view but fades rows over 40 epx, with a hard edge under More Contrast and Less Transparency.
+
+Each run is Axe-scanned with a 30-press Tab walk. The paging page ends by focusing the header: the keyboard tooltip on Next ("Next page (Ctrl+Right)") otherwise leaves a `PopupHost` input site that Axe reports as `BoundingRectangleCompletelyObscuresContainer` (open item 8, a framework finding). `tests/test_song_leaderboard_a11y_journey.py` pins the checks and the runs.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (`song-leaderboard`, both pages) | Pass, Axe 0. At rest the Tab walk makes 10 stops (title bar, header, list, pinned row, enabled pager buttons, Back), none outside the window or repeated |
+| Text 225% (compact, both pages) | Pass, Axe 0 |
+| In-app Reduce Motion (medium, paging) | Pass, Axe 0 |
+| Footer fade rest, mid, end, More Contrast, Less Transparency (compact, medium; compact at 225%) | Pass, Axe 0 |
+
+No accessibility defect was found.
+
 ## Feedback Form validation (issue #236, 2026-10-05)
 
 Evidence: `a11y_matrix.py --scan --pages journeys/a11y-feedback.json --fixture tools/windows/feedback_fixture.py` (one page per state: `unavailable`, `editing-empty`, `invalid`, `editing-dirty`, `attachments`, `discard-confirm`, `sending`, `filing`, `sent`, `error`) at compact, medium, wide, maximized and both snaps, then Desert, Night sky, light and dark theme, text 200% and display 100%/150%: 0 Axe errors in the dialog. The only findings are 2 on Settings behind the dialog (open issue 7, medium at display 150%). `journeys/feedback.py` (`unavailable`, `validation`, `submit`, `error`) passes at every size preset. The live public service has `feedback:false`, so only `unavailable` is reachable there. Per configuration: [feedback-form/windows.md](../controls/feedback-form/windows.md#validation-issue-236-2026-10-05).
