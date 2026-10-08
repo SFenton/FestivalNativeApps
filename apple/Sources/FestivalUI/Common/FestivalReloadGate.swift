@@ -129,6 +129,9 @@ struct FestivalReloadGate<Key: Equatable, Content: View>: View {
                     content(FestivalReloadReveal(showsResult: showsResult, generation: transition.generation))
                         .animation(nil, value: key)
                         .transition(.asymmetric(insertion: .opacity, removal: .identity))
+                        // The frame and the spinner share a frame, so geometry can't
+                        // order them: the header reads before the spinner (#431).
+                        .accessibilitySortPriority(1)
                 }
             } else if showsResult {
                 content(FestivalReloadReveal(showsResult: true, generation: transition.generation))
@@ -145,6 +148,10 @@ struct FestivalReloadGate<Key: Equatable, Content: View>: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // A container at the default priority, so the frame's priority orders it before
+        // the spinner without lifting the gate above the page's own controls.
+        .accessibilityElement(children: .contain)
+        .accessibilitySortPriority(0)
         .animation(animation(to: .spinner), value: key)
         .onChange(of: key) { _, newKey in
             shownKey = newKey
