@@ -20,7 +20,6 @@ import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -41,7 +40,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.style.TextAlign
@@ -56,6 +54,7 @@ import com.festivalscoretracker.android.core.suggestions.SuggestionFilterSetting
 import com.festivalscoretracker.android.presentation.suggestions.SuggestionsPhase
 import com.festivalscoretracker.android.presentation.suggestions.SuggestionsUiState
 import com.festivalscoretracker.android.presentation.suggestions.SuggestionsViewModel
+import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LoadingView
@@ -186,35 +185,32 @@ private fun SuggestionsContent(
             state.issue ?: ServiceIssue.Other("Something went wrong. Try again."), "Suggestions unavailable", state.countdown, actions.retry,
             Modifier.testTag("fst.suggestions.error"), padding,
         )
-        SuggestionsPhase.Empty -> if (state.filteredOut) {
-            Message(
-                "No suggestions available.",
-                "Try changing your filters to see more suggestions.",
-                padding,
-                "fst.suggestions.reset-filters",
-                "Reset Filters",
-            ) { actions.applyFilter(SuggestionFilterSettings.DEFAULTS) }
-        } else {
-            Message("No suggestions available.", "Play some songs first!", padding)
-        }
+        SuggestionsPhase.Empty -> Message(
+            "No suggestions available.",
+            // Web `noSuggestionsFiltered`: the subtitle points at the filter; no Reset button (#377).
+            if (state.filteredOut) "Try changing your filters to see more suggestions." else "Play some songs first!",
+            padding,
+        )
         SuggestionsPhase.Loaded -> SuggestionsGrid(state, padding, actions, artworkUrl, onSong)
     }
 }
 
-/** Centered title, subtitle and optional action (web `EmptyState`). */
+/**
+ * The shared centred empty state ([FestivalEmptyState], web `EmptyState fullPage`) below the
+ * page chrome, with an optional gate action (Choose Profile).
+ */
 @Composable
 private fun Message(title: String, subtitle: String, padding: PaddingValues, tag: String? = null, action: String? = null, onAction: () -> Unit = {}) {
-    Column(
-        Modifier.fillMaxSize().padding(padding).padding(24.dp).testTag("fst.suggestions.no-results"),
-        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(title, style = MaterialTheme.typography.titleLarge, color = BrandTokens.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() })
-        Text(subtitle, color = BrandTokens.textSecondary, textAlign = TextAlign.Center)
-        if (action != null && tag != null) {
-            FilledTonalButton(onClick = onAction, modifier = Modifier.heightIn(min = 48.dp).testTag(tag)) { Text(action) }
-        }
-    }
+    FestivalEmptyState(
+        title,
+        Modifier.fillMaxSize().padding(padding).testTag("fst.suggestions.no-results"),
+        subtitle = subtitle,
+        action = if (action != null && tag != null) {
+            { FilledTonalButton(onClick = onAction, modifier = Modifier.heightIn(min = 48.dp).testTag(tag)) { Text(action) } }
+        } else {
+            null
+        },
+    )
 }
 
 // endregion

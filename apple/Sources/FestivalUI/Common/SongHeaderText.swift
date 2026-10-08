@@ -237,6 +237,11 @@ private struct SongHeaderScrollAwayReader: ViewModifier {
 /// point, not a hidden copy of the title: a hidden full-length title beside the
 /// marquee kept the bar re-sizing its title slot and hung Song Details (#315).
 ///
+/// Every iOS chrome uses it, the iPhone Duo vertical bar included, where the
+/// placeholder also keeps the system title off the top of the page (#363). Pair it
+/// with ``SwiftUI/View/songBarTitleKeepsBarVisible(_:)`` so the bar is still there
+/// when the header has scrolled away.
+///
 /// iOS and iPadOS only: a Mac toolbar gives a centred item its ideal width and moves
 /// trailing actions into overflow to make room (HIG Toolbars: trailing items "remain
 /// visible at every window size"), so the Mac keeps its leading window title, as Song
@@ -264,6 +269,35 @@ struct SongBarTitleToolbarItem: ToolbarContent {
                     .accessibilityHidden(true)
             }
         }
+    }
+}
+
+extension View {
+    /// Keeps the navigation bar that holds ``SongBarTitleToolbarItem`` in view while the
+    /// page scrolls, so the pinned song title stays visible once the header has scrolled
+    /// away (pattern `song-header` R4; `page-tools-and-nav-chrome` R14 song-page
+    /// exception, issue #363).
+    ///
+    /// From iOS 27 the system minimizes the navigation bar on scroll under the iPhone Duo
+    /// vertical bar, taking the principal item with it, so a song page showed its title
+    /// only at rest, above its own header. With minimization off the same system bar
+    /// stays at the top: empty while the header is visible, then the pinned title, as on
+    /// iPhone. Earlier systems never minimize this bar; the Mac has no pinned title.
+    ///
+    /// - Parameter isEnabled: Whether the page shows ``SongBarTitleToolbarItem`` (false
+    ///   for a board titled by its board beside Song Detail).
+    /// - Returns: The page, with its navigation bar kept unminimized when enabled.
+    @ViewBuilder
+    func songBarTitleKeepsBarVisible(_ isEnabled: Bool = true) -> some View {
+        #if os(iOS)
+        if isEnabled, #available(iOS 27.0, *) {
+            toolbarMinimizationBehavior(.never, for: .navigationBar)
+        } else {
+            self
+        }
+        #else
+        self
+        #endif
     }
 }
 

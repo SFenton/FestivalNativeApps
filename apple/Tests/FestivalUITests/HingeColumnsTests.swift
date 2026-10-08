@@ -85,6 +85,18 @@ private let grid = HorizontalSpan(minX: 16, maxX: 851)
     #expect(HingeColumns.perSide(for: [GridItem(.adaptive(minimum: 210))]) == .fit(minimum: 210))
 }
 
+/// #365: `GridItem`'s default `.center` sank Song Detail's shorter instrument card to the
+/// middle of its row; grid columns now top-align unless they name an alignment.
+@Test func gridColumnsTopAlignUnlessTheyNameAnAlignment() {
+    let columns = HingeColumns.topAligned([
+        GridItem(.adaptive(minimum: 360), spacing: 12),
+        GridItem(.flexible(), alignment: .bottomTrailing),
+    ])
+    #expect(columns.map(\.alignment) == [.top, .bottomTrailing])
+    #expect(columns.map(\.spacing) == [12, nil])
+    if case let .adaptive(minimum, _) = columns[0].size { #expect(minimum == 360) } else { Issue.record("size changed") }
+}
+
 @Test func gridItemsFixTheLeadingSideAndGapTheFold() throws {
     let band = try #require(HingeColumns.band(span: grid, fold: fold, gutter: 20, minimumSide: 120))
     let items = HingeColumns.gridItems(HingeColumns.spec(band: band, spacing: 20, perSide: .columns(1)),

@@ -101,21 +101,8 @@ fun SuggestionsFilterSheet(
             if (instruments.isNotEmpty()) {
                 item { SectionTitle("Instrument-Specific", "fst.suggestions.filter.instrument-specific") }
                 item {
-                    Row(
-                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp).testTag("fst.suggestions.filter.instrument-picker"),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        instruments.forEach { instrument ->
-                            val isSelected = instrument == pickedInstrument
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { selected = if (isSelected) null else instrument.wireId },
-                                label = { Text(instrument.label) },
-                                leadingIcon = { InstrumentIcon(instrument, size = 18.dp, decorative = true) },
-                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = BrandTokens.accentPurple),
-                                modifier = Modifier.testTag("fst.suggestions.filter.instrument-picker.${instrument.wireId}"),
-                            )
-                        }
+                    InstrumentTypePicker(instruments, pickedInstrument) { instrument ->
+                        selected = if (instrument == pickedInstrument) null else instrument.wireId
                     }
                 }
                 if (pickedInstrument != null) {
@@ -153,9 +140,37 @@ private fun SectionTitle(title: String, tag: String) {
     SectionHeader(title, Modifier.padding(horizontal = 16.dp).testTag(tag))
 }
 
+/**
+ * The Instrument-Specific section's chip row: one filter chip per instrument, the picked one
+ * filled purple. Shared by the sheet and its first-run demo (issue #380).
+ *
+ * @param instruments Instruments to offer.
+ * @param picked Picked instrument, or null.
+ * @param modifier Modifier.
+ * @param onPick Tap on an instrument's chip.
+ */
+@Composable
+internal fun InstrumentTypePicker(instruments: List<Instrument>, picked: Instrument?, modifier: Modifier = Modifier, onPick: (Instrument) -> Unit) {
+    Row(
+        modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp).testTag("fst.suggestions.filter.instrument-picker"),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        instruments.forEach { instrument ->
+            FilterChip(
+                selected = instrument == picked,
+                onClick = { onPick(instrument) },
+                label = { Text(instrument.label) },
+                leadingIcon = { InstrumentIcon(instrument, size = 18.dp, decorative = true) },
+                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = BrandTokens.accentPurple),
+                modifier = Modifier.testTag("fst.suggestions.filter.instrument-picker.${instrument.wireId}"),
+            )
+        }
+    }
+}
+
 /** One full-row switch (the row is the toggle target, TalkBack role Switch). */
 @Composable
-private fun SwitchRow(
+internal fun SwitchRow(
     title: String,
     checked: Boolean,
     tag: String,

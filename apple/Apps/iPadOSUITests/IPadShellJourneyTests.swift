@@ -263,6 +263,61 @@ final class IPadShellJourneyTests: XCTestCase {
         XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "Close returns to full width")
     }
 
+    /// Song Detail → a band size's "View full leaderboard" opens that band board in the
+    /// trailing half beside the song, titled by its band size (issue #367, #342 variant);
+    /// Back on Song Detail closes it first and keeps the song (issue #347).
+    ///
+    /// The band preview routes are newer than the shared `:8765` listener, so this
+    /// journey needs a fixture service from this revision:
+    ///
+    ///     python3 tools/mock_service.py --port 18934
+    @MainActor
+    func testSongDetailOpensBandLeaderboardInTrailingHalf() throws {
+        let origin = "http://127.0.0.1:18934"
+        let probe = expectation(description: "band fixture probe")
+        var reachable = false
+        URLSession.shared.dataTask(with: URL(string: "\(origin)/api/leaderboard/fixture-pulse/bands/all")!) { _, response, _ in
+            reachable = (response as? HTTPURLResponse)?.statusCode == 200
+            probe.fulfill()
+        }.resume()
+        wait(for: [probe], timeout: 5)
+        try XCTSkipUnless(reachable, "Start `mock_service.py --port 18934` from this revision")
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": origin,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1",
+        ])
+        launchFilled(app)
+        let row = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(row.waitForExistence(timeout: 20))
+        row.tap()
+        XCTAssertTrue(element(app, "fst.song-detail.intensity").waitForExistence(timeout: 20))
+        let quickLinks = app.buttons["fst.quick-links.open"]
+        XCTAssertTrue(quickLinks.waitForExistence(timeout: 15))
+        quickLinks.tap()
+        let duos = app.buttons["fst.quick-links.item.band-Band_Duets"]
+        XCTAssertTrue(duos.waitForExistence(timeout: 10), "Quick Links has no Duos section")
+        duos.tap()
+        let viewFull = app.buttons["fst.song-detail.band-leaderboard.Band_Duets"]
+        XCTAssertTrue(viewFull.waitForExistence(timeout: 15))
+        for _ in 0..<4 where !viewFull.isHittable { app.swipeUp() }
+        viewFull.tap()
+        let trailing = element(app, "fst.split.trailing")
+        XCTAssertTrue(trailing.waitForExistence(timeout: 10), "the band board opens in the trailing half")
+        XCTAssertEqual(trailing.frame.minX, app.windows.firstMatch.frame.midX, accuracy: 2, "split at the midpoint")
+        XCTAssertTrue(element(app, "fst.song-detail.intensity").exists, "the song page stays beside it")
+        // Beside its song the board is titled by its band size, never a second song header.
+        let title = element(app, "fst.song-band-leaderboard.board-title")
+        XCTAssertTrue(title.waitForExistence(timeout: 15))
+        XCTAssertGreaterThanOrEqual(title.frame.minX, trailing.frame.minX, "the title is in the trailing pane")
+        XCTAssertFalse(element(app, "fst.song-band-leaderboard.header").exists, "no repeated song header")
+        let back = app.buttons["fst.split.list-back"]
+        XCTAssertTrue(back.waitForExistence(timeout: 5), "Song Detail's Back closes the open pane")
+        back.tap()
+        XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "Back closes the band board")
+        XCTAssertTrue(element(app, "fst.song-detail.hero-title").waitForExistence(timeout: 5), "Song Detail stays")
+    }
+
     /// The leading pane's Back: the split's own while the trailing pane is open (issue
     /// #347), else the system Back of the leading pane's bar.
     @MainActor

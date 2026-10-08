@@ -19,13 +19,13 @@ import Foundation
 /// | Rivals root, `.rivals`, `.allRivals` | `.rivalDetail` |
 /// | Compete root, `.compete` | `.rivalDetail` (issue #369) |
 /// | Leaderboards root, `.leaderboards` | `.fullRankings`, `.bandRankings`; `.player`, `.band` (full page) |
-/// | `.songDetail` | `.songLeaderboard`, `.playerHistory` |
+/// | `.songDetail` | `.songLeaderboard`, `.songBandLeaderboard` (issue #367), `.playerHistory` |
 /// | Settings root | `.licenses` |
 ///
-/// Songs, Song Leaderboard, Full and Band Rankings, Item Shop, Suggestions, Statistics,
-/// Band Detail, Player Bands and Rivalry never split: what they push opens full width.
-/// Compete splits for its rival rows only; its leaderboard previews, View Full
-/// Leaderboard and View All Rivals push full width (issue #369).
+/// Songs, Song Leaderboard, Song Band Leaderboard, Full and Band Rankings, Item Shop,
+/// Suggestions, Statistics, Band Detail, Player Bands and Rivalry never split: what
+/// they push opens full width. Compete splits for its rival rows only; its leaderboard
+/// previews, View Full Leaderboard and View All Rivals push full width (issue #369).
 ///
 /// **Profiles are full pages** (issue #352, agent decision the owner may override):
 /// a player or band profile never sits in a half pane. Opened from the list page it
@@ -42,7 +42,7 @@ enum OnDemandSplitPolicy {
         case compete
         /// The Leaderboards overview (instrument and band cards).
         case leaderboards
-        /// Song Detail (its full leaderboards and score history).
+        /// Song Detail (its full instrument and band leaderboards and score history).
         case songDetail
         /// The Settings list (iPad, iPhone Duo; the Mac has a Settings window).
         case settings
@@ -56,7 +56,8 @@ enum OnDemandSplitPolicy {
             case (.rivals, .rivalDetail), (.compete, .rivalDetail),
                  (.leaderboards, .fullRankings), (.leaderboards, .bandRankings),
                  (.leaderboards, .player), (.leaderboards, .band),
-                 (.songDetail, .songLeaderboard), (.songDetail, .playerHistory),
+                 (.songDetail, .songLeaderboard), (.songDetail, .songBandLeaderboard),
+                 (.songDetail, .playerHistory),
                  (.settings, .licenses):
                 true
             default:

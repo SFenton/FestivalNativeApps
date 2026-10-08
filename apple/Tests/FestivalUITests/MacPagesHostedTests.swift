@@ -179,6 +179,45 @@ func macSongBoardBesideSongDetailIsTitledByItsInstrument(pushedDeeper: Bool) asy
     #expect(tree.identifiers.contains(expected))
     #expect(!tree.identifiers.contains(absent))
 }
+/// Song Detail → a band's View full leaderboard in the Mac split (issue #367): the Duos
+/// board opens in the trailing pane beside the song, titled by its band size with no
+/// repeated song header, as instrument boards do (#342).
+@MainActor
+@Test func macSongBandBoardOpensBesideSongDetailTitledByBandSize() async throws {
+    let size = CGSize(width: 1280, height: 820)
+    let client = try FestivalAPI(
+        baseURL: try await RivalsMockService.shared.baseURL(), transport: URLSessionHTTPTransport()
+    )
+    let session = FestivalSession(factory: { client })
+    let song = try #require(try await session.catalog().catalog.songs.first { $0.songId == "fixture-pulse" })
+    let path: [AppRoute] = [.songDetail(song), .songBandLeaderboard(song, bandType: "Band_Duets")]
+    let host = nativeHostedView(
+        MacPageHost(path: path, recorder: MacPageRecorder()) { binding in
+            MacListDetailStack(
+                section: .songs, session: session, visibleInstruments: Set(Instrument.allCases),
+                path: binding, isVisible: true, onSplitChange: { _ in }
+            ) { _ in Text("Songs Root") }
+        }
+        .frame(width: size.width, height: size.height)
+        .preferredColorScheme(.dark)
+        .macHostedStorage(),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(host, timeout: .seconds(60)) {
+        let tree = nativeHostedAccessibility(host)
+        return tree.identifiers.contains("fst.split.trailing")
+            && tree.identifiers.contains("fst.song-band-leaderboard.board-title")
+    }
+    _ = try nativeHostedPNG(image, filename: "mac-song-band-board-split.png", environment: "FST_SHELL_RENDER_OUT")
+    let tree = nativeHostedAccessibility(host)
+    #expect(tree.identifiers.contains("fst.split.trailing"))
+    #expect(tree.identifiers.contains("fst.song-band-leaderboard.board-title"))
+    #expect(!tree.identifiers.contains("fst.song-band-leaderboard.header"))
+    #expect(tree.contains("Duos"))
+}
+
 
 /// `nativeHostedAccessibility` does).
 @MainActor

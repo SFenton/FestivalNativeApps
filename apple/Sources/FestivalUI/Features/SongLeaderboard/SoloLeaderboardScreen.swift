@@ -296,6 +296,7 @@ struct SoloLeaderboardScreen: View {
             }
             #endif
         }
+        .songBarTitleKeepsBarVisible(showsSongHeader)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

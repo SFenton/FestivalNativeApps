@@ -98,8 +98,9 @@ struct InstrumentPageTitle: View {
 /// Built only while shown: a hidden (opacity 0) copy was still audited, and its icon
 /// failed Dynamic Type on Song Leaderboard. Until then the placeholder holds the slot,
 /// so the bar does not fall back to `navigationTitle` above the in-list title (issue
-/// #93). Callers skip it on the iPhone Duo vertical bar, whose rail never draws a
-/// custom title view (`/duo` D4).
+/// #93). Callers skip it on the iPhone Duo vertical bar, where iOS 27 minimizes the
+/// top navigation bar on scroll, so the system title stays (pattern
+/// `page-tools-and-nav-chrome` R14; only song pages keep that bar, #363).
 struct InstrumentPageTitleToolbarItem: ToolbarContent {
     let instrument: Instrument?
     let title: String

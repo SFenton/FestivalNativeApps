@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
@@ -44,7 +43,6 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -59,6 +57,7 @@ import com.festivalscoretracker.android.core.rivals.RivalSentiment
 import com.festivalscoretracker.android.core.rivals.RivalSongComparison
 import com.festivalscoretracker.android.core.rivals.RivalText
 import com.festivalscoretracker.android.core.service.ServiceIssue
+import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
@@ -133,30 +132,32 @@ internal fun RivalPill(text: String, win: Boolean?, modifier: Modifier = Modifie
  * ahead + behind, so it only repeated the pills.
  *
  * @param entry Row data and side.
- * @param onClick Opens Rival Detail; ignored for anonymous rows.
+ * @param onClick Opens Rival Detail; ignored for anonymous rows. Null draws a decorative,
+ *   non-interactive row (First Run demos, issue #380) with the same look.
  * @param modifier Modifier.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun RivalRow(entry: RivalEntry, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun RivalRow(entry: RivalEntry, onClick: (() -> Unit)?, modifier: Modifier = Modifier) {
     val rival = entry.rival
     val winning = entry.direction == RivalDirection.Below
     val format = NumberFormat.getIntegerInstance()
     val ahead = "${format.format(rival.behindCount)} songs ahead"
     val behind = "${format.format(rival.aheadCount)} songs behind"
     val description = "${rival.shownName}, ${if (winning) "you lead" else "ahead of you"}, $ahead, $behind"
+    val open = onClick?.takeIf { rival.isNavigable }
     GlassCard(
         modifier = modifier
             .fillMaxWidth()
             .testTag(if (rival.isNavigable) "fst.rivals.row.${rival.accountId}" else "fst.rivals.row.anonymous")
             .clearAndSetSemantics {
                 contentDescription = description
-                if (rival.isNavigable) {
+                if (open != null) {
                     role = Role.Button
-                    onClick(label = "Open rival") { onClick(); true }
+                    onClick(label = "Open rival") { open(); true }
                 }
             },
-        onClick = if (rival.isNavigable) onClick else null,
+        onClick = open,
     ) {
         // The tint bar is drawn behind the row rather than measured with IntrinsicSize.Min:
         // FlowRow's intrinsic height ignores wrapped lines, so at large text (or narrow widths)
@@ -330,25 +331,26 @@ fun RivalCardFailure(issue: ServiceIssue, title: String, countdown: Int?, onRetr
 // region Empty and no-player states
 
 /**
- * Centered full-page message (web `EmptyState fullPage`).
+ * Centered full-page message: the shared [FestivalEmptyState] (web `EmptyState fullPage`, #377).
  *
  * @param title Heading.
  * @param subtitle Body.
  * @param tag Test tag.
- * @param action Optional button.
+ * @param action Optional gate button (Select Player).
  * @param actionLabel Button text.
  */
 @Composable
 fun RivalsMessage(title: String, subtitle: String?, tag: String, action: (() -> Unit)? = null, actionLabel: String? = null) {
-    Box(Modifier.fillMaxSize().padding(24.dp).testTag(tag), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.widthIn(max = 480.dp)) {
-            Text(title, style = MaterialTheme.typography.titleLarge, color = BrandTokens.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() })
-            if (subtitle != null) Text(subtitle, color = BrandTokens.textSecondary, textAlign = TextAlign.Center)
-            if (action != null && actionLabel != null) {
-                FilledTonalButton(onClick = action, modifier = Modifier.heightIn(min = 48.dp).testTag("$tag.action")) { Text(actionLabel) }
-            }
-        }
-    }
+    FestivalEmptyState(
+        title,
+        Modifier.fillMaxSize().testTag(tag),
+        subtitle = subtitle,
+        action = if (action != null && actionLabel != null) {
+            { FilledTonalButton(onClick = action, modifier = Modifier.heightIn(min = 48.dp).testTag("$tag.action")) { Text(actionLabel) } }
+        } else {
+            null
+        },
+    )
 }
 
 // endregion
@@ -364,7 +366,8 @@ fun RivalsMessage(title: String, subtitle: String?, tag: String, action: (() -> 
  * @param artUrl Resolved artwork URL.
  * @param playerName Selected player's name.
  * @param rivalName Rival's name.
- * @param onClick Opens Song Detail.
+ * @param onClick Opens Song Detail; null draws a decorative, non-interactive row (First Run
+ *   demos, issue #380) with the same look.
  * @param modifier Modifier.
  */
 @Composable
@@ -374,7 +377,7 @@ fun RivalSongRow(
     artUrl: String?,
     playerName: String?,
     rivalName: String?,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val format = NumberFormat.getIntegerInstance()
@@ -397,8 +400,10 @@ fun RivalSongRow(
             .testTag("fst.rivals.song.${song.songId}.${song.instrument}")
             .clearAndSetSemantics {
                 contentDescription = description
-                role = Role.Button
-                onClick(label = "Open song") { onClick(); true }
+                if (onClick != null) {
+                    role = Role.Button
+                    onClick(label = "Open song") { onClick(); true }
+                }
             },
         onClick = onClick,
     ) {

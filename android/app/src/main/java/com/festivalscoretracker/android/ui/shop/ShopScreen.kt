@@ -89,11 +89,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
@@ -221,7 +219,7 @@ fun ShopScreen(
                     // fade/stagger again (web `useViewTransition`, operator 6.10).
                     is LoadState.Loaded -> key(effective) {
                         val switched = rememberViewSwitch(effective)
-                        ShopContent(state, effective, artworkUrl, viewModel::retryCatalog, viewModel::resetFilter, padding, loadedRevealed && switched, contentHinge)
+                        ShopContent(state, effective, artworkUrl, viewModel::retryCatalog, padding, loadedRevealed && switched, contentHinge)
                     }
                 }
             }
@@ -338,15 +336,12 @@ internal fun shopSideMargin(widthDp: Float): Float =
 @Composable
 private fun HiddenView(padding: PaddingValues) {
     val shell = LocalShellActions.current
-    Column(
-        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp).testTag("fst.shop.hidden"),
-    ) {
-        Text("Item Shop Is Hidden", style = MaterialTheme.typography.titleMedium, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
-        Text("Turn off Hide Item Shop in Settings to see today's Jam Tracks.", color = BrandTokens.textSecondary, textAlign = TextAlign.Center)
-        OutlinedButton(onClick = shell.back) { Text("Go Back") }
-    }
+    FestivalEmptyState(
+        "Item Shop Is Hidden",
+        Modifier.fillMaxSize().padding(padding).testTag("fst.shop.hidden"),
+        subtitle = "Turn off Hide Item Shop in Settings to see today's Jam Tracks.",
+        action = { OutlinedButton(onClick = shell.back) { Text("Go Back") } },
+    )
 }
 
 @Composable
@@ -355,7 +350,6 @@ private fun ShopContent(
     mode: ShopViewMode,
     artworkUrl: (String?) -> String?,
     onRetryCatalog: () -> Unit,
-    onResetFilter: () -> Unit,
     padding: PaddingValues,
     revealed: Boolean,
     hinge: Pair<Float, Float>?,
@@ -371,7 +365,7 @@ private fun ShopContent(
                 val side = shopSideMargin(maxWidth.value).dp
                 Column(Modifier.fillMaxSize().padding(start = side, end = side, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 16.dp)) {
                     if (state.detailsUnavailable) DetailsUnavailable(onRetryCatalog)
-                    if (state.filteredEmpty) NoMatchingOffers(onResetFilter, Modifier.weight(1f)) else EmptyShop(Modifier.weight(1f))
+                    if (state.filteredEmpty) NoMatchingOffers(Modifier.weight(1f)) else EmptyShop(Modifier.weight(1f))
                 }
             }
         }
@@ -441,22 +435,25 @@ private fun EmptyShop(modifier: Modifier = Modifier) {
 }
 
 /**
- * Every offer is hidden by the page filter: distinct from the genuine empty Shop, with a way back.
- *
- * @param onReset Clear the filter.
+ * Every offer is hidden by the page filter: the shared centred empty state with copy distinct
+ * from the genuine empty Shop. No card and no Reset button (#377); the Filter sheet's Reset restores every offer.
+ * The web Shop has no filter, so the copy follows its Songs (`songs.noResults`) and Suggestions
+ * (`suggestions.noSuggestionsFiltered`) filtered empty states.
  */
 @Composable
-private fun NoMatchingOffers(onReset: () -> Unit, modifier: Modifier = Modifier) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier.fillMaxSize().padding(24.dp).testTag("fst.shop.filter.empty"),
-    ) {
-        Text("No Matching Songs", style = MaterialTheme.typography.titleMedium, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
-        Text("No Item Shop songs match your filters.", color = BrandTokens.textSecondary, textAlign = TextAlign.Center)
-        OutlinedButton(onClick = onReset, modifier = Modifier.testTag("fst.shop.filter.empty-reset")) { Text("Reset Filters") }
-    }
+private fun NoMatchingOffers(modifier: Modifier = Modifier) {
+    FestivalEmptyState(
+        SHOP_FILTERED_EMPTY_TITLE,
+        modifier.fillMaxSize().testTag("fst.shop.filter.empty"),
+        subtitle = SHOP_FILTERED_EMPTY_SUBTITLE,
+    )
 }
+
+/** Filtered-empty title (web `songs.noResults` wording for the Item Shop). */
+internal const val SHOP_FILTERED_EMPTY_TITLE = "No Item Shop songs match your filters."
+
+/** Filtered-empty subtitle (web `suggestions.noSuggestionsFiltered` wording). */
+internal const val SHOP_FILTERED_EMPTY_SUBTITLE = "Try changing your filters to see more songs."
 
 @Composable
 private fun DetailsUnavailable(onRetry: () -> Unit) {
@@ -507,7 +504,7 @@ fun ShopBadgeLabel(highlight: ShopHighlight, songId: String, modifier: Modifier 
  * @param highlight Accent.
  * @return Outline color, or null without a highlight.
  */
-private fun shopOutline(highlight: ShopHighlight?): Color? = when (highlight) {
+internal fun shopOutline(highlight: ShopHighlight?): Color? = when (highlight) {
     ShopHighlight.LeavingTomorrow -> SongsTokens.pulse(ShopPulse.LeavingTomorrow)
     ShopHighlight.New -> SongsTokens.pulse(ShopPulse.New)
     null -> null
@@ -531,7 +528,7 @@ private fun Modifier.shopPulse(highlight: ShopHighlight?, pulse: () -> Float): M
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ShopGridCard(item: ShopOfferItem, artUrl: String?, pulse: () -> Float, onOfficial: () -> Unit, onDetail: () -> Unit) {
+internal fun ShopGridCard(item: ShopOfferItem, artUrl: String?, pulse: () -> Float, onOfficial: () -> Unit, onDetail: () -> Unit) {
     val offer = item.offer
     val shape = RoundedCornerShape(12.dp)
     val open = if (item.officialUrl != null) onOfficial else onDetail
@@ -590,14 +587,15 @@ private fun ShopGridCard(item: ShopOfferItem, artUrl: String?, pulse: () -> Floa
  * opens Song Details when matched, else the official link; TalkBack reads its texts.
  */
 @Composable
-private fun ShopListRow(item: ShopOfferItem, artUrl: String?, pulse: () -> Float, onOfficial: () -> Unit, onDetail: () -> Unit) {
+internal fun ShopListRow(item: ShopOfferItem, artUrl: String?, pulse: () -> Float, onOfficial: () -> Unit, onDetail: () -> Unit, modifier: Modifier = Modifier, titleTag: String? = null) {
     val offer = item.offer
     SongRowCard(
         title = offer.title,
         subtitle = offer.subtitle,
         artUrl = artUrl,
         onClick = if (item.detailSongId != null) onDetail else onOfficial,
-        modifier = Modifier.testTag("fst.shop.song.${offer.songId}"),
+        modifier = modifier.testTag("fst.shop.song.${offer.songId}"),
+        titleTag = titleTag,
         outline = shopOutline(item.highlight),
         pulse = pulse,
         details = { item.highlight?.let { ShopBadgeLabel(it, offer.songId, Modifier.padding(top = 4.dp)) } },
@@ -638,25 +636,39 @@ private fun ShopListRow(item: ShopOfferItem, artUrl: String?, pulse: () -> Float
 fun ShopDetailAction(highlight: ShopHighlight?, url: String, songId: String, pulse: ShopPulse? = null) {
     val uri = LocalUriHandler.current
     val fraction = rememberShopBreathe(active = pulse != null)
-    val breathe: (() -> Color)? = pulse?.let { status -> { SongsTokens.breathe(status, fraction()) } }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("fst.song-detail.shop")) {
-        Button(
-            onClick = { uri.openUri(url) },
-            colors = if (breathe != null) ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = BrandTokens.textPrimary) else festivalFilledButtonColors(),
-            modifier = Modifier
-                .semantics { contentDescription = listOfNotNull("Item Shop", highlight?.label, "opens the Fortnite Item Shop").joinToString(", ") }
-                .then(
-                    if (breathe != null) {
-                        Modifier.testTag("fst.song-detail.shop-breathe.${pulse!!.name}").drawBehind { drawRoundRect(breathe(), cornerRadius = CornerRadius(size.height / 2)) }
-                    } else {
-                        Modifier
-                    },
-                ),
-        ) {
-            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
-            // The button's description already says "Item Shop".
-            Text("Item Shop", modifier = Modifier.padding(start = 6.dp).clearAndSetSemantics {})
-        }
+        ShopActionButton(highlight, pulse, fraction) { uri.openUri(url) }
+    }
+}
+
+/**
+ * The "Item Shop" pill itself: filled, or breathing in the [pulse] color with [fraction] read
+ * only while drawing. Shared by Song Detail and its first-run demos (issue #380).
+ *
+ * @param highlight Effective badge (spoken).
+ * @param pulse Effective Shop pulse, or null for the plain filled button.
+ * @param fraction Breathe fraction ([rememberShopBreathe]).
+ * @param onClick Open the official Shop page.
+ */
+@Composable
+internal fun ShopActionButton(highlight: ShopHighlight?, pulse: ShopPulse?, fraction: () -> Float, onClick: () -> Unit) {
+    val breathe: (() -> Color)? = pulse?.let { status -> { SongsTokens.breathe(status, fraction()) } }
+    Button(
+        onClick = onClick,
+        colors = if (breathe != null) ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = BrandTokens.textPrimary) else festivalFilledButtonColors(),
+        modifier = Modifier
+            .semantics { contentDescription = listOfNotNull("Item Shop", highlight?.label, "opens the Fortnite Item Shop").joinToString(", ") }
+            .then(
+                if (breathe != null) {
+                    Modifier.testTag("fst.song-detail.shop-breathe.${pulse!!.name}").drawBehind { drawRoundRect(breathe(), cornerRadius = CornerRadius(size.height / 2)) }
+                } else {
+                    Modifier
+                },
+            ),
+    ) {
+        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+        // The button's description already says "Item Shop".
+        Text("Item Shop", modifier = Modifier.padding(start = 6.dp).clearAndSetSemantics {})
     }
 }
 

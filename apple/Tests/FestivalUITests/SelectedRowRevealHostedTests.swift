@@ -84,6 +84,13 @@ private actor LongRankingsTransport: HTTPTransport {
         ] as [String: Any]), headers: pinned)
     }
 
+    /// The selected player's row, as Compete shows it under a preview.
+    static func selectedEntry() throws -> AccountRankingEntry {
+        try JSONDecoder().decode(
+            AccountRankingEntry.self, from: JSONSerialization.data(withJSONObject: entry(rank: selectedRank))
+        )
+    }
+
     /// One account row: the selected player at their rank, a fixture account elsewhere.
     private static func entry(rank: Int) -> [String: Any] {
         let selected = rank == selectedRank
@@ -109,9 +116,10 @@ enum RevealMotion: String, CaseIterable, CustomTestStringConvertible {
     var testDescription: String { rawValue }
 }
 
-/// The three boards with a selected-row reveal.
+/// The boards with a selected-row reveal. `fullRankingsArrival` is Full Rankings opened
+/// on the player's page for their row, as a Compete preview's own row opens it (#370).
 enum RevealBoard: String, CaseIterable, CustomTestStringConvertible {
-    case solo, songBand, fullRankings
+    case solo, songBand, fullRankings, fullRankingsArrival
 
     var testDescription: String { rawValue }
 
@@ -120,7 +128,7 @@ enum RevealBoard: String, CaseIterable, CustomTestStringConvertible {
         switch self {
         case .solo: "fst.song-leaderboard.row.fixture-spotlight-player"
         case .songBand: "fst.song-band-leaderboard.row.fade-band-20:20"
-        case .fullRankings: "fst.rankings.row.\(LongRankingsTransport.selectedAccount)"
+        case .fullRankings, .fullRankingsArrival: "fst.rankings.row.\(LongRankingsTransport.selectedAccount)"
         }
     }
 
@@ -129,12 +137,12 @@ enum RevealBoard: String, CaseIterable, CustomTestStringConvertible {
     var threshold: Int {
         switch self {
         case .solo: 80
-        case .songBand, .fullRankings: 110
+        case .songBand, .fullRankings, .fullRankingsArrival: 110
         }
     }
 
-    /// The board, opened for its selected row (Full Rankings opens on page 1; its
-    /// footer jump opens the selected player's page).
+    /// The board, opened for its selected row (Full Rankings opens on page 1, and its
+    /// footer jump opens the selected player's page; the arrival case opens on that page).
     @MainActor
     func screen() async throws -> AnyView {
         switch self {
@@ -158,7 +166,7 @@ enum RevealBoard: String, CaseIterable, CustomTestStringConvertible {
                 session: session, song: song, bandType: "Band_Duets",
                 focus: SongBandRowFocus(bandId: "fade-band-20", bandType: "Band_Duets", teamKey: "fade-team-20")
             ))
-        case .fullRankings:
+        case .fullRankings, .fullRankingsArrival:
             let client = try FestivalAPI(baseURL: URL(string: "http://localhost")!, transport: LongRankingsTransport())
             let result = try JSONDecoder().decode(PlayerSearchResult.self, from: Data("""
             {"accountId":"\(LongRankingsTransport.selectedAccount)","displayName":"Reveal Player"}
@@ -166,7 +174,18 @@ enum RevealBoard: String, CaseIterable, CustomTestStringConvertible {
             let session = FestivalSession(
                 factory: { client }, debugSelectedPlayer: try SelectedPlayerIdentity(searchResult: result)
             )
-            return AnyView(FullRankingsScreen(session: session, instrument: .lead, rankBy: "totalscore"))
+            guard self == .fullRankingsArrival else {
+                return AnyView(FullRankingsScreen(session: session, instrument: .lead, rankBy: "totalscore"))
+            }
+            let route = CompetePreviewSpotlight.route(
+                for: try LongRankingsTransport.selectedEntry(), instrument: .lead
+            )
+            guard case let .fullRankings(instrument, rankBy, page, focusSelected) = route else {
+                throw CocoaError(.featureUnsupported)
+            }
+            return AnyView(FullRankingsScreen(
+                session: session, instrument: instrument, rankBy: rankBy, page: page, focusSelected: focusSelected
+            ))
         }
     }
 }
