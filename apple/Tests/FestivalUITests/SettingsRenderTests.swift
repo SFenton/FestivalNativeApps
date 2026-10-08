@@ -107,17 +107,6 @@ private func freshSuite() -> UserDefaults {
     #expect(image.width > 0 && image.height > 0)
 }
 
-// MARK: - Diagnostics (DEBUG-only section)
-
-@MainActor
-@Test func settingsScreenDiagnosticsToggleEnablesTelemetryRow() throws {
-    let storage = freshSuite()
-    storage.set(true, forKey: "fst.settings.tapDiagnostics")
-    let image = try settingsImage(session: settingsSession(selected: false), storage: storage)
-    _ = try nativeHostedPNG(image, filename: "settings-diagnostics-on.png", environment: "FST_SETTINGS_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
-}
-
 // MARK: - Accessibility overrides
 
 @MainActor

@@ -260,7 +260,7 @@ history-and-catalog-linked-songs/loaded-with-empty-history-and-songs/failed-
 503, Player Bands loaded-with-pager/empty, Song Band Leaderboard loaded/empty/
 band-type-switch), `SettingsRenderTests.swift` (10: anonymous/selected-player
 defaults, expanded leeway+visual-order row, Item Shop hidden, single-visible-
-instrument disables its toggle, diagnostics on, accessibility overrides on,
+instrument disables its toggle, accessibility overrides on,
 inline `SettingsReorderList` lists (sheet replaced 2026-09-28), `SettingsServiceSummary`'s four
 publication-message branches), `SuggestionsRenderTests.swift` (10: category
 card FC/stars/percent, rival badge ±delta, multi-instrument mix, filter sheet

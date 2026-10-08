@@ -113,7 +113,7 @@ The build script passes the same ASC released versions it uses for What's New. A
 - The App Store iOS app is universal (`TARGETED_DEVICE_FAMILY: "1,2"`, operator 2026-10-02): portrait-locked on iPhone, every orientation on iPad. App Store Connect needs iPad screenshots before the next review submission. macOS ships as a separate app later. `testDuoOuterFourRotations` is skipped until rotation returns for Duo pose work.
 - `AppIcon` is the opaque 1024 px PWA icon, rendered at 2× from `https://festivalscoretracker.com/?pwaIconCapture=1&pwaIconSize=512` (the web `generate-pwa-icons.mjs` route). `ITSAppUsesNonExemptEncryption` is `false` because the app uses only system HTTPS.
 - Before the first review submission, App Store Connect needs the following. App Privacy has no public API; the rest is set once:
-  - App Privacy ("Data Not Collected": the app has no analytics, and Tap Telemetry is DEBUG-only)
+  - App Privacy ("Data Not Collected": the app has no analytics or telemetry; the Debug-only Tap Telemetry toggle was removed in #374)
   - Screenshots (one-off uploads, never committed)
   - Description, keywords, support and privacy URLs
   - Age rating, price, review contact and content-rights answers

@@ -33,8 +33,6 @@ enum SettingsRegistry {
         ("fst.settings.experimentalRanks", .bool(false)),
         ("fst.settings.hideShop", .bool(false)),
         ("fst.settings.disableShopHighlighting", .bool(false)),
-        ("fst.settings.tapDiagnostics", .bool(false)),
-        ("fst.settings.tapTelemetry", .bool(false)),
         (SuggestionFilterSettings.storageKey, .data(Data())),
         ("fst.settings.showLead", .bool(true)),
         ("fst.settings.showBass", .bool(true)),

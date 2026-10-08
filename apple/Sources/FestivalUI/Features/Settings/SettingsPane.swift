@@ -9,7 +9,7 @@ import Foundation
 /// settings, storage keys and accessibility identifiers; iPhone and iPad keep the
 /// single long page (`pane == nil`), like the web.
 enum SettingsPane: String, CaseIterable, Identifiable, Sendable {
-    /// Accessibility overrides, Item Shop, Leaderboards, Diagnostics (Debug), Reset.
+    /// Accessibility overrides, Item Shop, Leaderboards, Feedback, Reset.
     case general
     /// Song rows (icons, visual order), visible instruments and instrument metadata.
     case songs

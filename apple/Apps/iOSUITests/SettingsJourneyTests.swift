@@ -224,6 +224,37 @@ final class SettingsJourneyTests: XCTestCase {
         SongsUITestSupport.record(app, name: "settings-hide-shop-after-reset")
     }
 
+    /// **Removed (#374):** the Debug-only Diagnostics section (Tap Diagnostics, Tap
+    /// Telemetry) must not render in this Debug build. Sweeps the whole page from the top
+    /// to Reset App Settings so a lazily realized section cannot slip past offscreen.
+    @MainActor
+    func testDiagnosticsSectionIsAbsentInDebug() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.quick-links.open"].waitForExistence(timeout: 15), "Settings did not load")
+        let reset = app.buttons["fst.settings.reset"]
+        // Positive control: the sweep must pass Accessibility, where Diagnostics used to sit.
+        let accessibility = app.switches["fst.settings.more-contrast"]
+        var sawAccessibility = false
+        var reachedReset = false
+        for _ in 0..<24 {
+            XCTAssertFalse(app.switches["fst.settings.tap-diagnostics"].exists, "Tap Diagnostics is back")
+            XCTAssertFalse(app.switches["fst.settings.tap-telemetry"].exists, "Tap Telemetry is back")
+            XCTAssertFalse(app.staticTexts["Diagnostics"].exists, "The Diagnostics section header is back")
+            XCTAssertFalse(app.staticTexts["Tap Diagnostics"].exists, "Tap Diagnostics copy is back")
+            sawAccessibility = sawAccessibility || accessibility.exists
+            if reset.exists && reset.isHittable {
+                reachedReset = true
+                break
+            }
+            app.swipeUp()
+        }
+        XCTAssertTrue(sawAccessibility, "The sweep never passed the Accessibility section")
+        XCTAssertTrue(reachedReset, "Did not sweep Settings down to Reset App Settings")
+        SongsUITestSupport.record(app, name: "settings-no-diagnostics")
+    }
+
     /// **Fixed bug (#6):** the iPhone Quick Links menu must keep the page's section
     /// order instead of letting iOS reorder an `.automatic` menu. `QuickLinksMenu` now
     /// uses `.menuOrder(.fixed)`. Rows must stack top-to-bottom in page order, the active
@@ -238,12 +269,16 @@ final class SettingsJourneyTests: XCTestCase {
         quickLinks.tap()
 
         let pageOrder = [
-            "app-settings", "diagnostics", "accessibility", "item-shop", "show-instruments",
+            "app-settings", "accessibility", "item-shop", "show-instruments",
             "show-metadata", "version", "service-info", "first-run", "licenses", "privacy-policy",
             "reset",
         ]
         let rows = pageOrder.map { app.buttons["fst.quick-links.item.\($0)"] }
         XCTAssertTrue(rows[0].waitForExistence(timeout: 10))
+        XCTAssertFalse(
+            app.buttons["fst.quick-links.item.diagnostics"].exists,
+            "The removed Diagnostics section is offered as a Quick Link (#374)"
+        )
         let tops = rows.map(\.frame.minY)
         XCTAssertEqual(tops, tops.sorted(), "Quick Links rows are not in page order: \(zip(pageOrder, tops).map { "\($0.0)@\(Int($0.1))" })")
         XCTAssertLessThan(tops[0], tops[tops.count - 1])

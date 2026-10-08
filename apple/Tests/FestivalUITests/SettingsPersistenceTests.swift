@@ -77,3 +77,20 @@ private func changed(_ value: SettingDefault) -> SettingDefault {
     #expect(!found.isEmpty)
     #expect(found.subtracting(registered).isEmpty, "Unregistered: \(found.subtracting(registered).sorted())")
 }
+
+/// The Tap Diagnostics / Tap Telemetry settings were removed (owner #374): neither key is
+/// registered, stored by Settings or offered as a Quick Link in any build.
+@Test func tapDiagnosticsSettingsStayRemoved() throws {
+    let retired = ["fst.settings.tapDiagnostics", "fst.settings.tapTelemetry"]
+    #expect(Set(SettingsRegistry.defaults.map(\.key)).isDisjoint(with: retired))
+    let settings = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent("Sources/FestivalUI/Features/Settings")
+    let files = try #require(FileManager.default.enumerator(at: settings, includingPropertiesForKeys: nil))
+    for case let url as URL in files where url.pathExtension == "swift" {
+        let text = try String(contentsOf: url, encoding: .utf8)
+        for needle in retired + ["fst.settings.tap-diagnostics", "fst.settings.tap-telemetry", "id: \"diagnostics\""] {
+            #expect(!text.contains(needle), "\(url.lastPathComponent) still mentions \(needle)")
+        }
+    }
+}
