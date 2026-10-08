@@ -25,6 +25,11 @@ class UiCiTests(unittest.TestCase):
             with self.subTest(run=run.name):
                 pages = json.loads((ci.JOURNEYS / run.pages).read_text(encoding="utf-8"))
                 self.assertTrue(run.pages.startswith("a11y"))
+                if run.only:
+                    names = {page["name"] for page in pages}
+                    only = run.only.split(",")
+                    self.assertLessEqual(set(only), names, "--only names a missing page")
+                    pages = [page for page in pages if page["name"] in only]
                 m.mode_spec(run.mode)
                 sizes = run.sizes.split(",")
                 for size in sizes:
@@ -49,6 +54,9 @@ class UiCiTests(unittest.TestCase):
         self.assertIn("--scan", argv)
         self.assertEqual(argv[-2:], ["--exe", "debug"])
         self.assertNotIn("--scan", ci.Run("y", "a11y-modals.json", scan=False).argv(Path("C:/out")))
+        self.assertNotIn("--only", argv)
+        only = ci.Run("z", "a11y-section-index.json", only="a,b").argv(Path("C:/out"))
+        self.assertEqual(only[only.index("--only") + 1], "a,b")
 
     def test_select(self):
         self.assertEqual(ci.select(ci.RUNS, None), list(ci.RUNS))
@@ -70,6 +78,15 @@ class UiCiTests(unittest.TestCase):
         self.assertLess(display, dispatch)
         self.assertLess(build, dispatch)
         self.assertNotIn("--live", text)  # fixtures only: no service calls from CI
+
+    def test_one_registry_and_dispatcher(self):
+        """#415 review: ``RUNS`` + ``windows-ui.yml`` is the only accessibility-journey gate; no second manifest or job
+        (``native.yml`` lacked the hard-failing ``ci_display.ps1`` and let wide/compact clamp silently)."""
+        self.assertFalse((ci.JOURNEYS / "ci-ui.json").exists())
+        self.assertFalse((ci.JOURNEYS.parent / "ci_ui.py").exists())
+        native = (_REPO / ".github" / "workflows" / "native.yml").read_text(encoding="utf-8")
+        self.assertNotIn("a11y_matrix", native)
+        self.assertNotIn("ui_ci.py", native)
 
 
 if __name__ == "__main__":
