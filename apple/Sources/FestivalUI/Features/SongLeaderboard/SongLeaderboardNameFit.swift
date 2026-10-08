@@ -6,8 +6,9 @@ import FestivalCore
 extension View {
     /// Share a song board's fitted columns with its rows and pinned footer, and, in a
     /// split's trailing pane, turn **every** row into a multi-row card when any of
-    /// `names` would have to scroll in a one-line row (owner-approved variant of
-    /// leaderboard-row R3, #364; ``LeaderboardRowColumns/fittingName(availableWidth:requiredWidth:)``).
+    /// `names` would have to scroll in a one-line row, or any band card member in
+    /// `bandRows` would have to scroll beside its instruments (owner-approved variant
+    /// of leaderboard-row R3, #364; ``LeaderboardRowColumns/fittingName(availableWidth:requiredWidth:)``).
     ///
     /// Full-width and iPhone boards, and accessibility text sizes (whose rows already
     /// stack and wrap), keep `columns` unchanged. The decision re-runs when the pane
@@ -15,7 +16,10 @@ extension View {
     ///
     /// - Parameters:
     ///   - columns: The section's fitted columns (`LeaderboardRowColumns.fit`).
-    ///   - names: Every row's name in the section, the pinned footer's included.
+    ///   - names: Every one-line row's name in the section (``SongLeaderboardRowCard``:
+    ///     Solo rows and both boards' pinned footers).
+    ///   - bandRows: Every band card's members in the section (``SongBandPreviewRow``:
+    ///     the band board's page rows); empty on the Solo board.
     ///   - template: A row of the section, for the probe's rank, season, score, stars
     ///     and accuracy columns (their widths are shared by every row); nil while the
     ///     section has no rows.
@@ -24,21 +28,23 @@ extension View {
     ///   - rowInset: Horizontal space between this view's edges and its rows.
     /// - Returns: This view with the decided columns in its environment.
     func songLeaderboardSectionColumns(
-        _ columns: LeaderboardRowColumns, names: [RankingRowName], template: LeaderboardEntry?,
-        currentSeason: Int?, starsAfterScore: Bool = false, rowInset: CGFloat
+        _ columns: LeaderboardRowColumns, names: [RankingRowName], bandRows: [SongBandNameRow] = [],
+        template: LeaderboardEntry?, currentSeason: Int?, starsAfterScore: Bool = false, rowInset: CGFloat
     ) -> some View {
         modifier(SongLeaderboardNameFit(
-            columns: columns, names: names, template: template, currentSeason: currentSeason,
-            starsAfterScore: starsAfterScore, rowInset: rowInset
+            columns: columns, names: names, bandRows: bandRows, template: template,
+            currentSeason: currentSeason, starsAfterScore: starsAfterScore, rowInset: rowInset
         ))
     }
 }
 
-/// Measures a song board and its widest one-line row, then stacks the section's rows
-/// when that row would not fit (``SwiftUI/View/songLeaderboardSectionColumns(_:names:template:currentSeason:starsAfterScore:rowInset:)``).
+/// Measures a song board, its widest one-line row and its widest band member line,
+/// then stacks the section's rows when either would not fit
+/// (``SwiftUI/View/songLeaderboardSectionColumns(_:names:bandRows:template:currentSeason:starsAfterScore:rowInset:)``).
 struct SongLeaderboardNameFit: ViewModifier {
     let columns: LeaderboardRowColumns
     let names: [RankingRowName]
+    var bandRows: [SongBandNameRow] = []
     let template: LeaderboardEntry?
     let currentSeason: Int?
     var starsAfterScore = false
@@ -47,13 +53,18 @@ struct SongLeaderboardNameFit: ViewModifier {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var availableWidth: CGFloat = 0
     @State private var requiredWidth: CGFloat = 0
+    @State private var bandRequiredWidth: CGFloat = 0
 
     func body(content: Content) -> some View {
         let fits = Self.fitsNames(subPage: subPage, size: dynamicTypeSize)
+        let probesRows = template != nil && !names.isEmpty
+        let probesBands = !bandRows.isEmpty
         content
             .leaderboardSectionColumns(fits ? columns.fittingName(
                 availableWidth: Double(availableWidth > 0 ? availableWidth - rowInset : 0),
-                requiredWidth: Double(requiredWidth)
+                requiredWidth: Double(Self.requiredWidth(
+                    rows: probesRows ? requiredWidth : nil, bands: probesBands ? bandRequiredWidth : nil
+                ))
             ) : columns)
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { availableWidth = $0 }
             .background(alignment: .topLeading) {
@@ -71,6 +82,28 @@ struct SongLeaderboardNameFit: ViewModifier {
                     .accessibilityHidden(true)
                 }
             }
+            .background(alignment: .topLeading) {
+                if fits, probesBands {
+                    // The band card the longest member line needs, in the real card's
+                    // columns.
+                    SongBandMemberWidthProbe(rows: bandRows)
+                        .fixedSize()
+                        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { bandRequiredWidth = $0 }
+                        .hidden()
+                        .accessibilityHidden(true)
+                }
+            }
+    }
+
+    /// The width the section's widest card needs on one line per name.
+    ///
+    /// - Parameters:
+    ///   - rows: The one-line row probe's width, or nil when the section has no such rows.
+    ///   - bands: The band card probe's width, or nil when the section has no band cards.
+    /// - Returns: The wider of the two; zero (unmeasured, keep one line) when neither
+    ///   applies or neither has been measured.
+    nonisolated static func requiredWidth(rows: CGFloat?, bands: CGFloat?) -> CGFloat {
+        max(rows ?? 0, bands ?? 0)
     }
 
     /// Whether a board decides between one-line rows and multi-row cards.

@@ -235,4 +235,101 @@ func longNameStacksTheWholeTrailingBoard(trailing: Bool) async throws {
     #expect(abs(heights.row1 - LeaderboardRowMetrics.minHeight) < 1, "heights: \(heights)")
     #expect(abs(heights.row3 - LeaderboardRowMetrics.minHeight) < 1, "heights: \(heights)")
 }
+// MARK: - Band board decision
+
+/// Passes requests to the fixture service, renaming rank 3's first member on the Duos
+/// band board, so one member name overflows a trailing pane's band card.
+private struct LongMemberTransport: HTTPTransport {
+    let base = URLSessionHTTPTransport()
+    /// Rank 3's new first-member name; nil leaves the fixture names (all fit).
+    let longMember: String?
+
+    /// Send a request, rewriting the Duos band board's rank 3 member name.
+    ///
+    /// - Parameter request: Public GET to the fixture service.
+    /// - Returns: The fixture service's response, renamed where asked.
+    /// - Throws: Transport failures from the fixture service.
+    func send(_ request: URLRequest) async throws -> HTTPResult {
+        let result = try await base.send(request)
+        guard let longMember, request.url?.path.hasSuffix("/bands/Band_Duets") == true,
+              let text = String(data: result.data, encoding: .utf8) else { return result }
+        let renamed = text.replacingOccurrences(of: "Band 3 Member A", with: longMember)
+        // The headers the client reads; the rest don't affect a band board read.
+        let headers = ["Content-Type", "ETag", "X-FST-Publication-Id", "Retry-After"]
+            .reduce(into: [String: String]()) { kept, name in kept[name] = result.header(name) }
+        return HTTPResult(status: result.status, data: Data(renamed.utf8), headers: headers)
+    }
+}
+
+/// Host the Duos band board, in the trailing pane beside Song Detail or full width,
+/// and return the heights of band cards 1 and 3 once settled (`grown`: once card 3 has
+/// grown past card 1).
+@MainActor
+private func bandCardHeights(
+    longMember: String?, trailing: Bool, grown: Bool = false, width: CGFloat = 420
+) async throws -> (card1: CGFloat, card3: CGFloat) {
+    let transport = LongMemberTransport(longMember: longMember)
+    let client = try FestivalAPI(baseURL: try await RivalsMockService.shared.baseURL(), transport: transport)
+    let session = FestivalSession(factory: { client })
+    let catalog = try await session.catalog()
+    let song = try #require(catalog.catalog.songs.first { $0.songId == "fixture-pulse" })
+    let size = CGSize(width: width, height: 900)
+    let host = nativeHostedView(
+        NavigationStack {
+            SongBandLeaderboardContent(session: session, song: song, bandType: .constant(.duets))
+                .splitPaneContext(trailing ? SplitPaneContext(role: .trailing, besideList: .songDetail) : nil)
+        }
+        .frame(width: size.width, height: size.height)
+        .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    func heights() -> (card1: CGFloat, card3: CGFloat) {
+        (nativeHostedAccessibilityFrame("fst.song-band-leaderboard.row.fixture-band-1:1", in: host)?.height ?? 0,
+         nativeHostedAccessibilityFrame("fst.song-band-leaderboard.row.fixture-band-3:3", in: host)?.height ?? 0)
+    }
+    let image = try await nativeHostedSettle(host, timeout: .seconds(60)) {
+        let measured = heights()
+        return measured.card1 > 0 && measured.card3 > 0 && (!grown || measured.card3 > measured.card1 + 4)
+    }
+    if trailing, longMember != nil {
+        _ = try nativeHostedPNG(
+            image, filename: "song-band-leaderboard-trailing-long-member.png",
+            environment: "FST_LEADERBOARDS_RENDER_OUT"
+        )
+    }
+    return heights()
+}
+
+/// In the trailing pane, a band member name that would scroll wraps in full, so its
+/// card grows (leaderboard-row R3 variant, #364); full width, the same name scrolls
+/// and every card keeps its height (base R3).
+@MainActor
+@Test(arguments: [true, false])
+func longBandMemberWrapsOnlyInTheTrailingPane(trailing: Bool) async throws {
+    let heights = try await bandCardHeights(longMember: longName, trailing: trailing, grown: trailing)
+    if trailing {
+        #expect(heights.card3 > heights.card1 + 4, "heights: \(heights)")
+    } else {
+        #expect(abs(heights.card3 - heights.card1) < 1, "heights: \(heights)")
+    }
+}
+
+/// A trailing-pane band board whose member names all fit keeps today's cards.
+@MainActor
+@Test func fittingBandMembersKeepTheirCardsInTheTrailingPane() async throws {
+    let trailing = try await bandCardHeights(longMember: nil, trailing: true)
+    let fullWidth = try await bandCardHeights(longMember: nil, trailing: false)
+    #expect(abs(trailing.card3 - trailing.card1) < 1, "trailing: \(trailing)")
+    #expect(abs(trailing.card1 - fullWidth.card1) < 1, "trailing: \(trailing), full: \(fullWidth)")
+}
+
+/// The section's required width is the wider probe; a section with neither keeps one
+/// line.
+@Test func sectionRequiredWidthTakesTheWiderProbe() {
+    #expect(SongLeaderboardNameFit.requiredWidth(rows: 300, bands: 420) == 420)
+    #expect(SongLeaderboardNameFit.requiredWidth(rows: 500, bands: nil) == 500)
+    #expect(SongLeaderboardNameFit.requiredWidth(rows: nil, bands: nil) == 0)
+}
 #endif

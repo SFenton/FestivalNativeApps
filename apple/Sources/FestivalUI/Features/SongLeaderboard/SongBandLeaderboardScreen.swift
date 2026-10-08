@@ -283,15 +283,17 @@ struct SongBandLeaderboardContent: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             bottomChrome
         }
-        // The pinned band row's columns; in the trailing pane it becomes a multi-row
-        // card, like the band rows above it, when its names would scroll (#364).
+        // The pinned band row's columns. In the trailing pane, when any member name on
+        // the page's band cards or the pinned row's names would scroll, the cards wrap
+        // their member names in full and the pinned row becomes a multi-row card (#364).
         .songLeaderboardSectionColumns(
             footerColumns,
             names: footerEntry.map {
                 [RankingRowName(name: SongLeaderboardEntryRow.displayName($0.footerLeaderboardEntry), emphasized: true)]
             } ?? [],
+            bandRows: sectionBandRows,
             template: footerEntry?.footerLeaderboardEntry, currentSeason: session.catalogCurrentSeason,
-            starsAfterScore: true, rowInset: WideColumns.rowMargins
+            starsAfterScore: true, rowInset: WideColumns.rowMargins + layout.cutoutInsets.trailing
         )
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
             chartWidth = width
@@ -358,6 +360,16 @@ struct SongBandLeaderboardContent: View {
         return chromePayload?.leaderboard.selectedEntry
     }
 
+    /// Every band card's members on the shown page, bold for the highlighted band, for
+    /// the trailing pane's multi-row card decision (#364). The last shown page while
+    /// the next one loads, so the pinned row keeps its layout through a page change.
+    private var sectionBandRows: [SongBandNameRow] {
+        guard let leaderboard = chromePayload?.leaderboard else { return [] }
+        return leaderboard.entries.map {
+            SongBandNameRow(members: $0.members, emphasized: isHighlighted($0, in: leaderboard))
+        }
+    }
+
     /// The footer's columns: rank and score fitted to the footer row (web
     /// `selectedFooterRankWidth`), season from 520 pt and stars from 768 pt of width,
     /// matching the web footer's desktop-only season/stars.
@@ -421,8 +433,9 @@ struct SongBandLeaderboardContent: View {
     }
 
     /// The selected player's band as one Solo-style footer row (the shared
-    /// ``SelectedScoreFooterRow``: rank, the members' names scrolling when long, score,
-    /// stars on wide layouts and the accuracy/full-combo badge), following the Solo
+    /// ``SelectedScoreFooterRow``: rank, the members' names scrolling when long (a
+    /// multi-row card in a crowded trailing pane, #364), score, stars on wide layouts
+    /// and the accuracy/full-combo badge), following the Solo
     /// footer's rule (issue #307, ``SongBandRowNavigation/footerAction(for:pageEntries:)``):
     /// while the band's row is on this page it opens Band Detail (web
     /// `getBandProfileRoute`); otherwise it jumps to the page holding the band's rank

@@ -1208,6 +1208,10 @@
             "symbol": "SongLeaderboardNameFit"
           },
           {
+            "path": "apple/Sources/FestivalUI/Features/SongDetail/SongBandPreviewSection.swift",
+            "symbol": "SongBandMemberWidthProbe"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/Compete/CompeteScreen.swift",
             "symbol": "CompetePreviewSpotlight"
           }
