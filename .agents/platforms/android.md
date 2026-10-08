@@ -65,7 +65,7 @@ No official tri-fold profile ships with emulator 37.1 or cmdline-tools 23.0. `FS
 | `shot <out.png>… [--no-launch] [launch options]` | Launch, then screenshot the physical display backing logical display 0, plus a `.json` sidecar |
 | `drive --steps "…" [--steps-file] [--launch]` | UIAutomator/`adb input` steps (below) |
 | `features [postures…]` | FoldingFeatures seen by WindowManager, per posture |
-| `test [pkg.Class[#m]\|package:pkg] [--task] [--posture]` | Connected tests on one AVD with `ANDROID_SERIAL` pinned (posture applied first), killed at the hold limit |
+| `test [pkg.Class[#m]\|package:pkg] [--task] [--posture] [--runner-arg K=V]…` | Connected tests on one AVD with `ANDROID_SERIAL` pinned (posture applied first), killed at the hold limit. `--runner-arg` adds instrumentation runner arguments, e.g. CI's `android-fold` filter `annotation=com.festivalscoretracker.android.journeys.HalfOpenFoldJourney` and `fstRequireHinge=true` |
 
 Common options: `--avd` (default `FST_Phone`), `--hold` (≤300 s), `--wait-timeout`, `--window` (only works in an interactive session), `--allow-foreign`, `--animations`. `--animations` only skips zeroing the scales; the AVD keeps whatever an earlier lane left (usually 0), so for motion evidence set them in the steps (`shell:settings put global animator_duration_scale 1`, likewise `transition_animation_scale` and `window_animation_scale`) and relaunch with a `shell:am start -W -S …` step before recording (issue #149). Exit codes: 3 for device/usage errors, 124 for lock timeouts.
 

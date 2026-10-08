@@ -275,6 +275,18 @@ class GradleAndParserTests(unittest.TestCase):
         self.assertIn("-Pandroid.testInstrumentationRunnerArguments.annotation=a.DeviceCi",
                       d.gradle_test_args("annotation:a.DeviceCi", task))
 
+    def test_gradle_test_args_runner_args(self):
+        task = ":app:connectedDebugAndroidTest"
+        args = d.gradle_test_args("a.B", task, ["annotation=a.Fold", "fstRequireHinge=true"])
+        self.assertEqual(args[2:], ["-Pandroid.testInstrumentationRunnerArguments.class=a.B",
+                                    "-Pandroid.testInstrumentationRunnerArguments.annotation=a.Fold",
+                                    "-Pandroid.testInstrumentationRunnerArguments.fstRequireHinge=true"])
+        for bad in ("noequals", "=v", "bad key=v"):
+            with self.assertRaises(ValueError):
+                d.gradle_test_args(None, task, [bad])
+        parsed = d.build_parser().parse_args(["test", "a.B", "--runner-arg", "k=v", "--runner-arg", "x=y"])
+        self.assertEqual(parsed.runner_arg, ["k=v", "x=y"])
+
     def test_parser_defaults_and_choices(self):
         parser = d.build_parser()
         shot = parser.parse_args(["shot", "a.png", "b.png", "--tab", "songs", "--extra", "K=V"])
