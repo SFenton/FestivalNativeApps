@@ -48,6 +48,14 @@ class UiCiTests(unittest.TestCase):
         self.assertTrue(all(run.scan for run in landing.values()))
         self.assertIn("compact", landing["text-225"].sizes.split(","))
 
+    def test_first_run_demos_run_at_default_and_largest_text(self):
+        """#420 review: the first-run demo journey gates PRs, not just its JSON guard."""
+        demos = {run.mode: run for run in ci.RUNS if run.pages == "a11y-first-run-demos.json"}
+        self.assertEqual({"normal", "text-225"}, set(demos))
+        self.assertTrue(all(run.scan and not run.only for run in demos.values()))
+        self.assertIn("compact", demos["text-225"].sizes.split(","))
+        self.assertEqual({"compact", "medium"}, set(demos["normal"].sizes.split(",")))
+
     def test_modals_run_at_default_and_largest_text(self):
         modal = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-modals.json"}
         self.assertEqual({("normal", True), ("text-225", True)}, modal)

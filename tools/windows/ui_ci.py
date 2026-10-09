@@ -8,7 +8,8 @@ A run with a system ``mode`` (e.g. ``text-225``) changes the runner's own deskto
 This is the one registry of Windows accessibility journeys that gate pull requests: a journey is in CI only when it has a
 :data:`RUNS` entry (``only`` limits a run to some of a file's pages). ``tests/test_ui_ci.py`` checks the entries and
 that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
-(issue #416) and the board load swap (issue #431, also with Animation effects off) run at default and 225% text.
+(issue #416), the board load swap (issue #431, also with Animation effects off) and the first-run song demos
+(issue #420) run at default and 225% text.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
 Usage::
@@ -106,6 +107,11 @@ RUNS: tuple[Run, ...] = (
     Run("load-swap", "a11y-load-swap.json", sizes="medium", tabs=0),
     Run("load-swap-text-225", "a11y-load-swap.json", sizes="medium", mode="text-225", tabs=0),
     Run("load-swap-no-animations", "a11y-load-swap.json", sizes="medium", mode="no-animations", tabs=0),
+    # First-run song demos (issues #57, #420): Songs, top-songs and Item Shop demos in placeholder and catalogue states
+    # stay out of the control view, slide name and slide -> pips -> Next -> Back -> Close order, Tab to an on-screen pip,
+    # keyboard Settings replay with Esc focus return, demo frame clear of the title. At 225% the guide body scrolls.
+    Run("first-run-demos", "a11y-first-run-demos.json"),
+    Run("first-run-demos-text-225", "a11y-first-run-demos.json", sizes="compact", mode="text-225"),
 )
 
 
