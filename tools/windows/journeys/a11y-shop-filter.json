@@ -1,0 +1,162 @@
+[
+ {
+  "name": "shop-filter-read",
+  "route": "/shop",
+  "tabs": 0,
+  "scan": true,
+  "sizes": [
+   "compact",
+   "medium",
+   "wide"
+  ],
+  "ready": [
+   "waitfor:id=fst.shop.count@20",
+   "wait:2"
+  ],
+  "after_ready": [
+   "assertread:id=fst.shop.filter|Filter Item Shop, button, collapsed",
+   "expand:id=fst.shop.filter",
+   "waitfor:id=fst.shop.filter.reset@5",
+   "assertread:id=fst.shop.filter.title|Filter Item Shop, text",
+   "assertstate:id=fst.shop.filter.title|heading=2",
+   "assertread:id=fst.shop.filter.new|New, toggle switch, on, Songs that are new in the Item Shop today.",
+   "assertread:id=fst.shop.filter.available|Available, toggle switch, on, Songs in the Item Shop today that aren't new or leaving tomorrow.",
+   "assertread:id=fst.shop.filter.leaving|Leaving Tomorrow, toggle switch, on, Songs that are leaving the Item Shop tomorrow.",
+   "assertread:id=fst.shop.filter.reset|Reset Item Shop Filters, button",
+   "assertorder:id=fst.shop.filter.title|id=fst.shop.filter.new|id=fst.shop.filter.available|id=fst.shop.filter.leaving|id=fst.shop.filter.reset",
+   "assertsize:id=fst.shop.filter.new|40x40",
+   "assertsize:id=fst.shop.filter.available|40x40",
+   "assertsize:id=fst.shop.filter.leaving|40x40",
+   "assertsize:id=fst.shop.filter.reset|0x40",
+   "assertat:id=fst.shop.filter.new|0,-18.5",
+   "assertat:id=fst.shop.filter.new|0,18.5",
+   "assertat:id=fst.shop.filter.new|-18.5,0",
+   "assertat:id=fst.shop.filter.new|18.5,0",
+   "assertat:id=fst.shop.filter.reset|0,-18.5",
+   "assertat:id=fst.shop.filter.reset|0,18.5",
+   "assertapart:id=fst.shop.filter.new|id=fst.shop.filter.available",
+   "assertapart:id=fst.shop.filter.available|id=fst.shop.filter.leaving",
+   "assertapart:id=fst.shop.filter.leaving|id=fst.shop.filter.reset",
+   "narrate:id=FilterFlyout",
+   "shot:{stem}.png"
+  ],
+  "teardown": [
+   "collapse:id=fst.shop.filter",
+   "waitgone:id=fst.shop.filter.reset@5"
+  ],
+  "skip_modes": [
+   "text-200",
+   "text-225"
+  ]
+ },
+ {
+  "name": "shop-filter-state",
+  "route": "/shop",
+  "tabs": 0,
+  "sizes": [
+   "medium"
+  ],
+  "ready": [
+   "waitfor:id=fst.shop.count@20",
+   "wait:2"
+  ],
+  "after_ready": [
+   "assertname:id=fst.shop.count|2 songs",
+   "expand:id=fst.shop.filter",
+   "waitfor:id=fst.shop.filter.new@5",
+   "toggle:id=fst.shop.filter.new",
+   "assertread:id=fst.shop.filter.new|New, toggle switch, off, Songs that are new in the Item Shop today.",
+   "assertstate:id=fst.shop.filter.available|toggle=on",
+   "assertname:id=fst.shop.count|1 of 2 songs",
+   "assertstatus:id=fst.shop.filter|Filters applied@5",
+   "waitgone:id=fst.shop.song.fixture-pulse@5",
+   "invoke:id=fst.shop.filter.reset",
+   "assertread:id=fst.shop.filter.new|New, toggle switch, on, Songs that are new in the Item Shop today.",
+   "assertname:id=fst.shop.count|2 songs",
+   "scrollto:id=fst.shop.filter.scroll,100",
+   "wait:0.5",
+   "toggle:id=fst.shop.filter.leaving",
+   "collapse:id=fst.shop.filter",
+   "waitgone:id=fst.shop.filter.reset@5",
+   "assertread:id=fst.shop.filter|Filter Item Shop, button, collapsed, Filters applied",
+   "assertname:id=fst.shop.count|1 of 2 songs",
+   "waitgone:id=fst.shop.song.fixture-orbit@5",
+   "waitfor:id=fst.shop.song.fixture-pulse@5"
+  ]
+ },
+ {
+  "name": "shop-filter-empty-read",
+  "route": "/shop",
+  "tabs": 0,
+  "scan": true,
+  "sizes": [
+   "compact",
+   "medium"
+  ],
+  "ready": [
+   "waitfor:id=fst.shop.count@20",
+   "wait:2"
+  ],
+  "after_ready": [
+   "expand:id=fst.shop.filter",
+   "waitfor:id=fst.shop.filter.new@5",
+   "toggle:id=fst.shop.filter.new",
+   "scrollto:id=fst.shop.filter.scroll,100",
+   "wait:0.5",
+   "toggle:id=fst.shop.filter.leaving",
+   "collapse:id=fst.shop.filter",
+   "waitgone:id=fst.shop.filter.reset@5",
+   "waitfor:id=fst.shop.filter.empty@5",
+   "assertread:id=fst.shop.filter.empty|No Item Shop songs match your filters, text",
+   "assertread:id=fst.shop.filter.empty-message|Try changing your filters to see more songs., text",
+   "assertread:id=fst.shop.filter|Filter Item Shop, button, collapsed, Filters applied",
+   "assertorder:id=fst.shop.filter|id=fst.shop.filter.empty|id=fst.shop.filter.empty-message",
+   "shot:{stem}.png"
+  ]
+ },
+ {
+  "name": "shop-filter-text",
+  "route": "/shop",
+  "tabs": 0,
+  "sizes": [
+   "compact",
+   "medium"
+  ],
+  "modes": [
+   "text-150",
+   "text-200",
+   "text-225"
+  ],
+  "ready": [
+   "waitfor:id=fst.shop.count@20",
+   "wait:2"
+  ],
+  "after_ready": [
+   "expand:id=fst.shop.filter",
+   "waitfor:id=fst.shop.filter.reset@5",
+   "assertread:id=fst.shop.filter.reset|Reset Item Shop Filters, button",
+   "assertsize:id=fst.shop.filter.reset|0x40",
+   "assertat:id=fst.shop.filter.reset|0,-18.5",
+   "assertat:id=fst.shop.filter.reset|0,18.5",
+   "scrollto:id=fst.shop.filter.scroll,0",
+   "wait:0.5",
+   "assertsize:id=fst.shop.filter.new|40x40",
+   "assertapart:id=fst.shop.filter.new|name=Songs that are new in the Item Shop today.&class=TextBlock",
+   "scrollto:id=fst.shop.filter.scroll,100",
+   "wait:0.5",
+   "assertsize:id=fst.shop.filter.available|40x40",
+   "assertapart:id=fst.shop.filter.available|name=Songs in the Item Shop today that aren't new or leaving tomorrow.&class=TextBlock",
+   "assertsize:id=fst.shop.filter.leaving|40x40",
+   "assertapart:id=fst.shop.filter.leaving|name=Songs that are leaving the Item Shop tomorrow.&class=TextBlock",
+   "assertapart:id=fst.shop.filter.leaving|id=fst.shop.filter.reset",
+   "toggle:id=fst.shop.filter.leaving",
+   "assertread:id=fst.shop.filter.leaving|Leaving Tomorrow, toggle switch, off, Songs that are leaving the Item Shop tomorrow.",
+   "assertstatus:id=fst.shop.filter|Filters applied@5",
+   "shot:{stem}.png"
+  ],
+  "teardown": [
+   "collapse:id=fst.shop.filter",
+   "waitgone:id=fst.shop.filter.reset@5"
+  ]
+ }
+]

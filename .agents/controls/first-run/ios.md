@@ -129,6 +129,17 @@ Every song-using demo (Songs, `statistics-top-songs`, `rivals-detail`,
   until content arrives"); the swap to live songs animates unless Reduce Motion is on
   (`FirstRunHostedTests.songDemosRenderPlaceholdersWithoutCatalogue`). Ranks and percentiles stay
   static `FirstRunDemoPool` numbers (Top Songs uses the web's `DEMO_PERCENTILES`).
+- Song demos are decorative (HIG VoiceOver: "Exclude purely decorative images that convey no
+  useful or actionable information"): placeholders and catalogue songs alike stay hidden, and
+  the slide reads only "title. description", then dots, Next, Skip. Pinned per song demo in both
+  states, at Large and AX5, by `FirstRunDemoSongsAccessibilityTests` (#401), and on iOS at AX5
+  with `performAccessibilityAudit` by `FirstRunJourneyTests.testSongDemoSlideAccessibleAtLargestText`
+  (in `apple-ci`'s simulator journeys).
+- At accessibility text sizes (`dynamicTypeSize.isAccessibilitySize`) the slide takes the
+  compact-height path: a 120 pt demo and the text in a `ScrollView` (#401: at AX5 the full layout
+  cut the Song List description off after "Tap a song to see" under the dots). HIG Typography:
+  "Keep text truncation to a minimum as font size increases." The combined slide keeps
+  `.isStaticText` so the scroll path still reads as text.
 
 | Slide id | Demo | Real UI used |
 |---|---|---|
