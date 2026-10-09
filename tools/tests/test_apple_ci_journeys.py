@@ -1,7 +1,8 @@
 """``apple-ci``'s iPhone simulator journeys: every ``JOURNEYS`` selector names a real XCUITest method.
 
 A selector that matches nothing makes ``xcodebuild`` run no test, so a renamed journey would silently leave CI.
-The account-button reading-order journeys (``page-tools-and-nav-chrome`` R17, #394) must stay listed.
+The account-button reading-order journeys (``page-tools-and-nav-chrome`` R17, #394) and the pinned
+caption-icon journeys (``song-header`` R4, #542) must stay listed.
 """
 
 import re
@@ -61,6 +62,13 @@ class AppleCIJourneysTests(unittest.TestCase):
             "testAccountButtonsStaySeparateAndLabelledAtLargestTextSize",
         ):
             self.assertIn(f"NavButtonHitRegionJourneyTests/{method}", self.journeys)
+
+    def test_pinned_caption_icon_journeys_run_in_ci(self) -> None:
+        for method in (
+            "testSongLeaderboardCaptionIconScalesWithText",
+            "testPlayerHistoryCaptionIconAtLargestText",
+        ):
+            self.assertIn(f"SongBarCaptionIconJourneyTests/{method}", self.journeys)
 
 
 if __name__ == "__main__":

@@ -57,48 +57,6 @@ final class SongHeaderJourneyTests: XCTestCase {
         )
     }
 
-    /// Issue #542: at a large accessibility text size the Song Leaderboard's pinned title,
-    /// now with the instrument icon before its caption, still reads the song and "Lead"
-    /// once as one element (the icon is decorative and hidden) and stays inside the bar.
-    ///
-    /// No `performAccessibilityAudit(for: .dynamicType)` here: the bar caps its title's
-    /// text size (the title offers the Large Content Viewer instead), so the audit
-    /// reports the song title itself; the hidden icon is never audited.
-    @MainActor
-    func testSongLeaderboardPinnedCaptionIconScalesAtLargeText() throws {
-        continueAfterFailure = false
-        try requireLongTitlesFixture()
-        let app = FestivalApp.makeApp([
-            "FST_API_BASE_URL": Self.origin,
-            "FST_UI_TEST_CLEAR_PROFILE": "1",
-            "FST_UI_TEST_RESET_SONG_CARDS": "1",
-            "FST_DEBUG_SONG": "fixture-pulse",
-            "FST_DEBUG_SONG_INSTRUMENT": "Solo_Guitar",
-        ])
-        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityM"]
-        app.launch()
-        SongsUITestSupport.collapseSidebarOnPad(app)
-
-        let pinned = app.descendants(matching: .any)
-            .matching(identifier: "fst.song-leaderboard.pinned-title").firstMatch
-        var attempts = 0
-        repeat {
-            sleep(2)
-            app.swipeUp()
-            attempts += 1
-        } while !(pinned.exists && pinned.isHittable) && attempts < 6
-        XCTAssertTrue(pinned.waitForExistence(timeout: 10), "The song title did not pin to the bar")
-        XCTAssertTrue(pinned.label.hasPrefix(Self.longTitle), pinned.label)
-        XCTAssertEqual(pinned.label.components(separatedBy: "Fixture Pulse").count, 2, pinned.label)
-        XCTAssertEqual(pinned.label.components(separatedBy: "Lead").count, 2, "Instrument once: \(pinned.label)")
-        SongsUITestSupport.record(app, name: "song-leaderboard-pinned-caption-icon-axm")
-
-        let bar = app.navigationBars.firstMatch.frame
-        XCTAssertTrue(bar.insetBy(dx: 0, dy: -2).contains(pinned.frame), "The pinned title \(pinned.frame) left the bar \(bar)")
-        XCTAssertLessThanOrEqual(app.descendants(matching: .any)
-            .matching(identifier: "fst.song-leaderboard.pinned-title").count, 1, "One pinned title")
-    }
-
     /// Open `fixture-pulse` on a page, scroll its header away, then check the pinned
     /// title spans the bar between its nearest leading and trailing items.
     ///

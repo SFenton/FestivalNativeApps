@@ -66,6 +66,8 @@ jobs:
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrderOnPushedPage
             NavButtonHitRegionJourneyTests/testChooseProfileReadsAloneInProductionChrome
             NavButtonHitRegionJourneyTests/testAccountButtonsStaySeparateAndLabelledAtLargestTextSize
+            SongBarCaptionIconJourneyTests/testSongLeaderboardCaptionIconScalesWithText
+            SongBarCaptionIconJourneyTests/testPlayerHistoryCaptionIconAtLargestText
         run: |
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service.log" 2>&1 &
           mock=$!
