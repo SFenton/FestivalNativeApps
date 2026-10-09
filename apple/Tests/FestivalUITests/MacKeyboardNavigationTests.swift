@@ -134,7 +134,7 @@ private func rankingRow(_ accountId: String, rank: Int) throws -> AccountRanking
 /// `experimental-ranks`; HIG The menu bar: the submenu keeps its items).
 @Test func macRankByAccountOptions() {
     let on = MacRankByCommands.accountOptions(experimentalRanks: true)
-    #expect(on.map(\.id) == RankingMetric.allCases.map(\.rawValue))
+    #expect(on.map(\.id) == ["totalscore", "adjusted", "weighted", "fcrate", "maxscore"])
     #expect(on.first?.label == RankingMetric.adjusted.label)
     let off = MacRankByCommands.accountOptions(experimentalRanks: false)
     #expect(off.map(\.id) == ["totalscore"])
@@ -144,7 +144,7 @@ private func rankingRow(_ accountId: String, rank: Int) throws -> AccountRanking
 /// View › Rank By's band options never include Max Score and narrow to Total Score
 /// while Experimental Ranks is off.
 @Test func macRankByBandOptions() {
-    #expect(MacRankByCommands.bandOptions(experimentalRanks: true).map(\.id) == BandRankingMetric.allCases.map(\.rawValue))
+    #expect(MacRankByCommands.bandOptions(experimentalRanks: true).map(\.id) == ["totalscore", "adjusted", "weighted", "fcrate"])
     #expect(!MacRankByCommands.bandOptions(experimentalRanks: true).map(\.id).contains("maxscore"))
     #expect(MacRankByCommands.bandOptions(experimentalRanks: false).map(\.id) == ["totalscore"])
 }

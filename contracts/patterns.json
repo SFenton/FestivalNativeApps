@@ -623,6 +623,10 @@
             "symbol": "FestivalGlassSection"
           },
           {
+            "path": "apple/Sources/FestivalUI/Design/GlassSection.swift",
+            "symbol": "FestivalGroupSegment"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Design/GlassSurface.swift",
             "symbol": "FestivalGlassModifier"
           }
@@ -1302,6 +1306,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Compete/CompeteScreen.swift",
             "symbol": "CompetePreviewSpotlight"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/GlassSection.swift",
+            "symbol": "FestivalGroupSegment"
           }
         ],
         "android": [
@@ -2173,7 +2181,8 @@
           "songs-section-index"
         ],
         "pages": [
-          "songs"
+          "songs",
+          "rivalry"
         ]
       },
       "supersedes": [],
@@ -2331,7 +2340,8 @@
         316,
         317,
         324,
-        342
+        342,
+        542
       ],
       "web": [
         {
@@ -2356,6 +2366,10 @@
           {
             "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
             "symbol": "SongBarTitleToolbarItem"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
+            "symbol": "SongBoardLine"
           },
           {
             "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardHeader.swift",
@@ -2605,7 +2619,8 @@
         315,
         317,
         342,
-        363
+        363,
+        542
       ]
     },
     {
@@ -2816,6 +2831,14 @@
           ],
           "debt": [],
           "message": "Settings title/value rows decide inline vs stacked in one place: use SettingsValueRow (detail/value slots) instead of another text-size AnyLayout switch (settings-value-row R1, R4)."
+        },
+        {
+          "id": "windows-text-scale-stack",
+          "glob": "windows/Festival.App/Pages/SettingsPage.xaml.cs",
+          "regex": "TextScaleFactor",
+          "allow": [],
+          "debt": [],
+          "message": "Settings title/value rows stack by measured fit in SettingValueGrid, never by Windows text size in code-behind (settings-value-row R1, R4; #539)."
         }
       ]
     },
@@ -3605,7 +3628,24 @@
             "symbol": "projectExperimentalRanks"
           }
         ],
-        "windows": []
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/RankingMetrics.cs",
+            "symbol": "RankingMetricInfo"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/BandTypes.cs",
+            "symbol": "BandRankingMetricInfo"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/FestivalSession.Rivals.cs",
+            "symbol": "ResolveRivalScope"
+          },
+          {
+            "path": "windows/Festival.Core/Data/NotificationModels.cs",
+            "symbol": "ProjectExperimentalRanks"
+          }
+        ]
       },
       "related": {
         "patterns": [
@@ -3643,6 +3683,20 @@
           "allow": [],
           "debt": [],
           "message": "Rank By choices come from the experimental-ranks gate (RankingMetric.enabled(experimentalRanks:), BandRankingMetric.enabled, RivalRankMetric.enabled); never list allCases in UI (experimental-ranks R1)."
+        },
+        {
+          "id": "windows-metric-menus",
+          "glob": "windows/**/*.cs",
+          "regex": "(RankingMetricInfo|BandRankingMetricInfo)\\.All\\b",
+          "allow": [
+            "windows/Festival.Core.Tests/**",
+            "windows/Festival.Core/Domain/RankingMetrics.cs",
+            "windows/Festival.Core/Domain/BandTypes.cs",
+            "windows/Festival.Core/ViewModels/BandsDetailViewModel.cs",
+            "windows/Festival.Core/ViewModels/RivalsViewModels.cs"
+          ],
+          "debt": [],
+          "message": "Rank By menus offer RankingMetricInfo.Enabled / BandRankingMetricInfo.Enabled (a view model's gated MetricOptions), never every metric, so Settings → Experimental Ranks gates them (experimental-ranks R1). Band Detail and the Rivals hub list every metric only behind ShowRankBy / ShowMetricPicker."
         }
       ],
       "supersedes": [],

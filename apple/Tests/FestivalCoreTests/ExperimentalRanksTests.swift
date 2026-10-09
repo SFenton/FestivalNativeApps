@@ -11,7 +11,8 @@ import Testing
 
 @Test func accountMetricsNarrowToTotalScoreWhileOff() {
     #expect(RankingMetric.enabled(experimentalRanks: false) == [.totalscore])
-    #expect(RankingMetric.enabled(experimentalRanks: true) == RankingMetric.allCases)
+    #expect(RankingMetric.enabled(experimentalRanks: true) == [.totalscore, .adjusted, .weighted, .fcrate, .maxscore])
+    #expect(Set(RankingMetric.menuOrder) == Set(RankingMetric.allCases))
     #expect(RankingMetric.allCases.filter(\.isExperimental) == [.adjusted, .weighted, .fcrate, .maxscore])
 }
 
@@ -28,7 +29,8 @@ import Testing
 
 @Test func bandMetricsNeverOfferMaxScoreAndNarrowWhileOff() {
     #expect(BandRankingMetric.enabled(experimentalRanks: false) == [.totalscore])
-    #expect(BandRankingMetric.enabled(experimentalRanks: true) == [.adjusted, .weighted, .fcrate, .totalscore])
+    #expect(BandRankingMetric.enabled(experimentalRanks: true) == [.totalscore, .adjusted, .weighted, .fcrate])
+    #expect(Set(BandRankingMetric.menuOrder) == Set(BandRankingMetric.allCases))
     #expect(BandRankingMetric.coerced("maxscore", experimentalRanks: true) == .totalscore)
     #expect(BandRankingMetric.coerced("fcrate", experimentalRanks: true) == .fcrate)
     #expect(BandRankingMetric.coerced("fcrate", experimentalRanks: false) == .totalscore)
@@ -42,7 +44,7 @@ import Testing
 
 @Test func rivalMetricsAndLeaderboardScopesNarrowWhileOff() {
     #expect(RivalRankMetric.enabled(experimentalRanks: false) == [.totalscore])
-    #expect(RivalRankMetric.enabled(experimentalRanks: true) == RivalRankMetric.allCases)
+    #expect(RivalRankMetric.enabled(experimentalRanks: true) == [.totalscore, .adjusted, .weighted, .fcrate, .maxscore])
     #expect(RivalRankMetric.weighted.coerced(experimentalRanks: false) == .totalscore)
     #expect(RivalRankMetric.weighted.coerced(experimentalRanks: true) == .weighted)
 

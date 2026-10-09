@@ -76,12 +76,16 @@ extension RankingMetric {
     /// Whether this metric is one of the web's `EXPERIMENTAL_METRICS`.
     public var isExperimental: Bool { self != .totalscore }
 
+    /// Every metric in the web's menu order, Total Score first (web `RANKING_METRICS`);
+    /// never the enum's declaration order (pattern `experimental-ranks` R1).
+    public static let menuOrder: [RankingMetric] = [.totalscore, .adjusted, .weighted, .fcrate, .maxscore]
+
     /// The metrics a Rank By control offers, in menu order.
     ///
     /// - Parameter experimentalRanks: The Settings switch.
     /// - Returns: Total Score alone while off; every metric while on.
     public static func enabled(experimentalRanks: Bool) -> [RankingMetric] {
-        experimentalRanks ? allCases : [.totalscore]
+        experimentalRanks ? menuOrder : [.totalscore]
     }
 
     /// The metric in effect for a stored or deep-linked raw value.
@@ -107,12 +111,17 @@ extension BandRankingMetric {
     /// Whether this metric is one of the web's `BAND_EXPERIMENTAL_METRICS`.
     public var isExperimental: Bool { self != .totalscore }
 
+    /// Every band metric in the web's menu order, Total Score first (web
+    /// `BAND_RANKING_METRICS`); never the enum's declaration order (pattern
+    /// `experimental-ranks` R1).
+    public static let menuOrder: [BandRankingMetric] = [.totalscore, .adjusted, .weighted, .fcrate]
+
     /// The band metrics a Rank By control offers, in menu order (never Max Score).
     ///
     /// - Parameter experimentalRanks: The Settings switch.
     /// - Returns: Total Score alone while off; every band metric while on.
     public static func enabled(experimentalRanks: Bool) -> [BandRankingMetric] {
-        experimentalRanks ? allCases : [.totalscore]
+        experimentalRanks ? menuOrder : [.totalscore]
     }
 
     /// The band metric in effect for a stored or deep-linked raw value (Max Score and
