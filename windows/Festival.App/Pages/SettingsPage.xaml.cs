@@ -2,7 +2,6 @@ using Festival.App.Controls;
 using Festival.App.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Windows.UI.ViewManagement;
 
 namespace Festival.App.Pages;
 
@@ -33,9 +32,6 @@ public sealed partial class SettingsPage : Page
         Unloaded += OnUnloaded;
     }
 
-    /// <summary>Text-size source for the Service Info state row.</summary>
-    private readonly UISettings uiSettings = new();
-
     /// <summary>
     /// Debug/automation <c>FST_DEBUG_SERVICE_INFO_TIMEOUT_MS</c>: a longer Service Info timeout so UI Automation can check and
     /// scan the Loading card while a fixture holds the first read (the 3 s default is shorter than that journey).
@@ -57,28 +53,7 @@ public sealed partial class SettingsPage : Page
         Motion.Changed -= OnMotionChanged;
         Motion.Changed += OnMotionChanged;
         ViewModel.ServiceInfo.Background = Motion.Paused;
-        uiSettings.TextScaleFactorChanged -= OnTextScaleChanged;
-        uiSettings.TextScaleFactorChanged += OnTextScaleChanged;
-        ApplyServiceStateLayout();
         ViewModel.Activate();
-    }
-
-    /// <summary>Windows text size changed (raised off the UI thread).</summary>
-    /// <param name="sender">Unused.</param>
-    /// <param name="args">Unused.</param>
-    private void OnTextScaleChanged(UISettings sender, object args) => DispatcherQueue.TryEnqueue(ApplyServiceStateLayout);
-
-    /// <summary>
-    /// At 150%+ text the Service Info process state moves under "Leaderboard Service State" (row 1, column 0) so the label
-    /// and description keep the full width; otherwise it sits trailing in column 1.
-    /// </summary>
-    private void ApplyServiceStateLayout()
-    {
-        var stacked = Festival.Core.Domain.ServiceInfoText.StacksStateRow(uiSettings.TextScaleFactor);
-        Grid.SetRow(ServiceProcessPanel, stacked ? 1 : 0);
-        Grid.SetColumn(ServiceProcessPanel, stacked ? 0 : 1);
-        ServiceProcessPanel.HorizontalAlignment = stacked ? HorizontalAlignment.Left : HorizontalAlignment.Stretch;
-        ServiceStateGrid.RowSpacing = stacked ? 4 : 0;
     }
 
     /// <summary>Out of the tree (another section, or Licenses pushed): stop polling.</summary>
@@ -87,7 +62,6 @@ public sealed partial class SettingsPage : Page
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         Motion.Changed -= OnMotionChanged;
-        uiSettings.TextScaleFactorChanged -= OnTextScaleChanged;
         ViewModel.Deactivate();
     }
 

@@ -131,19 +131,19 @@ class UiCiTests(unittest.TestCase):
         scrolled into view before then can be pushed back off screen (``no on-screen element
         id=fst.settings.whats-new`` at 225% text). A CI page that scrolls (``scrollinto:``) or reveals (``reveal:``)
         Settings content brings those rows in first
-        (scrolling back to page chrome such as the Quick Links entry is not a Settings target). A page whose fixture
-        reports ``feedback: false`` (``feedback_fixture.py --features off``) never gets the rows, so it has no wait."""
+        (scrolling back to page chrome such as the Quick Links entry is not a Settings target). #539's
+        ``settings-service-info-unavailable`` revealed the Service Info state row and lost it the same way. A page
+        that opens Settings from another tab (Ctrl+comma) is exposed just the same. A page whose fixture reports
+        ``feedback: false`` (``feedback_fixture.py --features off``) never gets the rows, so it has no wait."""
         wait = "scrollinto:id=fst.settings.feedback.feature"
         checked = 0
         for run in ci.RUNS:
             for page in json.loads((ci.JOURNEYS / run.pages).read_text(encoding="utf-8")):
-                if page.get("tab") != "settings" and page.get("route") != "/settings":
-                    continue
-                fixture = page.get("fixture") or []
-                if "--features" in fixture and fixture[fixture.index("--features") + 1] == "off":
-                    continue
                 steps = [*page.get("setup", ()), *page.get("ready", ()), *page.get("after_ready", ())]
-                scrolls = [step for step in steps if step.startswith(("scrollinto:id=fst.settings.", "reveal:id=fst.settings."))]
+                if page.get("tab") != "settings" and page.get("route") != "/settings" and "key:ctrl+comma" not in steps:
+                    continue
+                scrolls = [step for step in steps
+                           if step.startswith(("scrollinto:id=fst.settings.", "reveal:id=fst.settings."))]
                 if not scrolls:
                     continue
                 fixture = list(page.get("fixture", ()))

@@ -132,10 +132,6 @@
       "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
       "issue": "SFenton/festival-report-tracker#536"
     },
-    "qla-settings-menu": {
-      "reason": "Fails at 225% text (focus/reachability)",
-      "issue": "SFenton/festival-report-tracker#539"
-    },
     "qlj-profile-menu": {
       "reason": "Flaky at 225% text: Quick Links current section read before the jump settles",
       "issue": "SFenton/festival-report-tracker#548"
@@ -143,10 +139,6 @@
     "search-suggestions": {
       "reason": "Two Axe.Windows errors (popup/flyout or board), timing-dependent",
       "issue": "SFenton/festival-report-tracker#534"
-    },
-    "settings-service-info-unavailable": {
-      "reason": "Fails at 225% text (focus/reachability)",
-      "issue": "SFenton/festival-report-tracker#539"
     }
   },
   "tasks": {
