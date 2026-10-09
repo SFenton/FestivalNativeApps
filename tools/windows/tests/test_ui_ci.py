@@ -37,6 +37,8 @@ class UiCiTests(unittest.TestCase):
                 # The runner's 1920x1080 desktop holds compact and medium, not wide (1440x900 plus the taskbar).
                 self.assertNotIn("wide", sizes)
                 self.assertTrue(m.mode_pages(pages, run.mode), "no page runs in this mode")
+                self.assertTrue(any(m.page_sizes(page, sizes, run.mode) for page in m.mode_pages(pages, run.mode)),
+                                "no page runs at this run's sizes")
                 for page in pages:
                     self.assertLessEqual(set(page.get("axe_allow", ())), set(m.AXE_ALLOW), page["name"])
 
@@ -150,6 +152,18 @@ class UiCiTests(unittest.TestCase):
         self.assertEqual("waitgone:raw=fst.songs.section-header.incoming@3", in_band[out + 1])
         self.assertEqual(["focus:id=fst.songs.section-index-button", "key:tab", "wait:1",
                           "assertfocus:id=fst.songs.row.fixture-song-56@3"], steps[-4:])
+
+    def test_load_swap_runs_every_page(self):
+        # Issue #431 (#71) review: every load-swap page (normal, 225% text, Reduce Motion and Animation effects off)
+        # runs in windows-ui, Axe-scanned, at a size the page supports.
+        runs = [run for run in ci.RUNS if run.pages == "a11y-load-swap.json"]
+        self.assertEqual({"normal", "text-225", "no-animations"}, {run.mode for run in runs})
+        self.assertTrue(all(run.scan and not run.only for run in runs))
+        pages = json.loads((ci.JOURNEYS / "a11y-load-swap.json").read_text(encoding="utf-8"))
+        covered = {page["name"] for run in runs for page in m.mode_pages(pages, run.mode)
+                   if m.page_sizes(page, run.sizes.split(","), run.mode)}
+        self.assertEqual({page["name"] for page in pages}, covered)
+        self.assertIn("load-swap-full-rankings-motion-system", covered)
 
     def test_argv(self):
         run = ci.Run("x", "a11y-modals.json", sizes="compact", mode="text-225", tabs=30)

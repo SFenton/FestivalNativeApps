@@ -31,6 +31,7 @@ before writing a real journey.
 - `ci-device` refuses to run outside GitHub Actions: on a shared Mac, use a `DEVICES` alias and never create or change simulators.
 - A failed run uploads the `.xcresult` bundles and the mock's log as the `apple-ci-journeys` artifact.
 - Size every wait and settle pause of a CI journey with `FestivalApp.budget(_:)`, which scales it ×4 in a VM (`kern.hv_vmm_present`, as the hosted `nativeHostedReadinessBudget`). The runner animates several times slower than a Mac: a Notifications sheet took over 5 s to leave the hierarchy there (#394), failing a Mac-sized wait.
+- **An audit handler accepts only what a rule dims by design, on every OS version.** No `systemVersion` exemptions in a registered journey: the runner's runtime is not the Mac's. Accept contrast issues only for text under a scroll-edge fade band ([scroll-edge](../../patterns/scroll-edge.md) R2/R5) or behind bottom chrome, never on the element the journey tests (measure its rendered contrast before accepting an unattributed issue), and measure any other flagged text's rendered contrast (`SongsUITestSupport.assertHeaderContrast`). Precedents: `SongDetailJourneyTests` `auditSoloPage`, `SongsJourneyTests` `auditSectionTitlePage`.
 
 ### Shared launch helper (`FestivalApp.swift`, added 2026-09-28)
 
