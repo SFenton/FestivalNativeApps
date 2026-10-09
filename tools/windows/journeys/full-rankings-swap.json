@@ -4,7 +4,7 @@
     "route": "/leaderboards/all?instrument=Solo_Guitar",
     "preset": "medium",
     "extra": {"FST_DEBUG_PROFILE": "fixture-rank-40:Fixture Rank 40"},
-    "fixture": ["--rankings-delay", "3"],
+    "fixture": ["rankings_fixture.py", "--rankings-delay", "3"],
     "steps": [
       "waitfor:id=fst.rankings.row.fixture-player-1@25",
       "waitfor:id=fst.full-rankings.spotlight-footer@10",
@@ -38,7 +38,7 @@
     "preset": "medium",
     "args": ["--reduce-motion"],
     "extra": {"FST_DEBUG_PROFILE": "fixture-rank-40:Fixture Rank 40"},
-    "fixture": ["--rankings-delay", "3"],
+    "fixture": ["rankings_fixture.py", "--rankings-delay", "3"],
     "steps": [
       "waitfor:id=fst.rankings.row.fixture-player-1@25",
       "waitfor:id=fst.full-rankings.spotlight-footer@10",
