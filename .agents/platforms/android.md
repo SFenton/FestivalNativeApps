@@ -97,9 +97,6 @@ Compose `testTag`s appear as resource ids only when the app sets `testTagsAsReso
 - Shutdown runs `sync` + `reboot -p`, then `emu kill`, then kills leftover qemu processes. A hard `emu kill` can lose recent `/data` writes such as a fresh install. Install and shoot in one hold with `--apk`.
 - Every lane installs its own build of the same package on the shared AVDs. A `drive` or `launch` without `--apk` runs whatever another session installed last. In issue #149 that misled one capture: a stale build showed a misalignment the current branch had already fixed. Pass `--apk` for every evidence or validation run.
 - Emulator logs: `~/.fst-locks/emulator-<AVD>.log`.
-# Android architecture and devices
-
-> **What:** Kotlin/Compose architecture, build/run tooling and device rules for Android. **Read when:** working on the Android app (built on `sfenton-music` via [windows-relay](../workflow/windows-relay.md)). Design: [design/android.md](../design/android.md); tests: [testing/android.md](../testing/android.md).
 
 ## Layers (`android/app/src/main/java/com/festivalscoretracker/android/`)
 

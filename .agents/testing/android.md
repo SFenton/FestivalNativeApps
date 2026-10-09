@@ -6,13 +6,12 @@
 - Control-state snapshots and navigation coverage are separate evidence from line coverage.
 - Installed-PWA reference (Chrome install on every FST AVD, video + measured animations): `tools/android/pwa.py`; findings and gaps in [pwa-reference/](pwa-reference/README.md).
 - Use the [mock service](fixtures.md); no production POSTs. From the emulator, the host loopback is `10.0.2.2`.
-- No Android coverage has been measured yet.
-
 ## Running on devices
 
 - Run every emulator interaction through `tools/android/device.py` ([commands](../platforms/android.md#toolsandroiddevicepy)). It serializes lanes on the host emulator lock (≤300 s per hold). Never start emulators directly or run `connectedAndroidTest` outside `device.py test`.
 - `device.py test <pkg.Class[#method]|package:pkg|annotation:pkg.Annotation> --avd <AVD>` boots the AVD, pins `ANDROID_SERIAL=emulator-5580` and runs `:app:connectedDebugAndroidTest` (override with `--task`). Suites longer than 300 s must be split by class or package.
 - **CI:** `android-device` ([`android-device.yml`](../../.github/workflows/android-device.yml)) runs the **whole** instrumented suite on a phone emulator for every PR touching `android/`, and `android-fold` ([`android-fold.yml`](../../.github/workflows/android-fold.yml)) runs the `@HalfOpenFoldJourney` journeys on a Pixel 9 Pro Fold at 90°. Both gate merges. A new device or ATF test runs in CI just by living in `androidTest`; `@DeviceCi` is only a local subset now.
+- **CI emulator (2026-10-09):** `android-device` uses API 35 Google APIs x86_64 with a retried image install, a wake/unlock/settle step and a 3-minute per-test timeout (`timeout_msec`); the AOSP API 34 image ran the whole suite five times slower with 7 failures and a hang (run 37865512668). `@DeviceCi` (issue #397) is now only a local subset: reproduce it with `device.py test annotation:com.festivalscoretracker.android.journeys.DeviceCi --avd FST_Phone`; its tests must pass on a plain phone, and hinge/posture evidence remains `device.py --posture`. Google APIs images can update Play/GMS packages after boot and recreate the activity ("No compose hierarchies found"); the CI settle step covers that.
 - Form-factor evidence: run each surface on `FST_Phone`, `FST_Book_Fold`, `FST_Passport_Fold`, `FST_TriFold` and `FST_Tablet`, in each supported posture, plus `FST_Resizable` presets for continuity. The sidecar from `shot`/`drive shot:` records API level, window size, device state and hinge angles.
 - Claim fold behavior only from `device.py features` output (real `FoldingFeature`s). The tri-fold's limits are listed in [platforms/android.md](../platforms/android.md#tri-fold-emulation).
 - Cold boots are headless with animations at scale 0 by default. Pass `--animations` when testing animation-scale behavior.
@@ -57,8 +56,6 @@
 - A tagged journey calls `JourneyHarness.requireHingeWhenAsked()` once the shell is up: with `fstRequireHinge=true` it fails when WindowManager reports no separating vertical hinge, so the job can't pass by skipping straddle checks (verified on FST_Book_Fold unfolded, issue #384). Without the argument it does nothing, so the same journey runs on phones in `android-device`.
 - Tag a journey only once it passes `device.py test <class> --avd FST_Book_Fold --posture half --runner-arg annotation=com.festivalscoretracker.android.journeys.HalfOpenFoldJourney --runner-arg fstRequireHinge=true`. Tagged: `SongPathsDeviceTest#halfOpenSheetStaysOnOneSideAndReadsInOrderAtEveryTextSize` (#384). Untagged journeys that docs run `--posture half` by hand (`ModalCloseJourneyTest`, `ShopSortDeviceJourneyTest`, `ProfileDeviceJourneyTest`, `GlobalSearchDeviceTest`, `PinnedPageControlsDeviceTest`, `FeedbackFormJourneyTest`, `ServiceStatusDeviceTest`, `WhatsNewDeviceTest`) stay device-lab runs until their owners tag them.
 - The Robolectric companions (e.g. `SongPathsSheetUiTest`'s half-open tests with `WindowLayoutInfoPublisherRule`) stay in `android-unit` as the fast check; they don't run ATF or read the real accessibility tree.
-> **What:** Android coverage, test layout and device-test rules. **Read when:** writing or running Android tests. Architecture: [platforms/android.md](../platforms/android.md).
-
 ## Layout
 
 | Kind | Where | Runs on |
