@@ -103,6 +103,13 @@ class AppleCIJourneysTests(unittest.TestCase):
 
         self.assertIn(f'ci-device --type "{ios_sim.CI_IPAD_DEVICE_TYPE}"', self.workflow)
 
+    def test_ipad_whats_new_batches_outlast_a_cold_simulator(self) -> None:
+        # The first iPad batch runs on a just-created simulator: >900 s on slow runners (runs 37924278904, 37942308616).
+        step = self.workflow.split("name: iPad simulator journeys", 1)[1].split("\n      - name:", 1)[0]
+        timeout = re.search(r"--batch-size 1 --fail-on-skip --timeout (\d+)", step)
+        self.assertIsNotNone(timeout, "iPad step runs one selector per batch with a timeout")
+        self.assertGreaterEqual(int(timeout.group(1)), 1500)
+
     def test_rival_detail_frozen_journeys_run_on_every_touch_form_factor(self) -> None:
         # #444: the only device evidence for Rival Detail's frozen-service state (#95) on iPhone, iPad and Duo.
         sys.path.insert(0, str(ROOT / "tools"))
