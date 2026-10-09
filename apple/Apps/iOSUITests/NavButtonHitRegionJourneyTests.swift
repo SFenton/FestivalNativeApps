@@ -247,8 +247,8 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         app.launch()
         let bell = app.buttons["fst.shell.notifications"]
         let profile = app.navigationBars.buttons["fst.shell.profile"]
-        XCTAssertTrue(bell.waitForExistence(timeout: 15), "Notifications missing at AX text size")
-        XCTAssertTrue(profile.waitForExistence(timeout: 10), "Profile missing at AX text size")
+        XCTAssertTrue(bell.waitForExistence(timeout: FestivalApp.budget(15)), "Notifications missing at AX text size")
+        XCTAssertTrue(profile.waitForExistence(timeout: FestivalApp.budget(10)), "Profile missing at AX text size")
         XCTAssertTrue(bell.label.hasPrefix("Notifications"), "bell label '\(bell.label)'")
         XCTAssertEqual(profile.label, "Profile: Fixture Player 1")
         for (id, button) in [("bell", bell), ("profile", profile)] {
@@ -293,8 +293,8 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         continueAfterFailure = false
         let app = fixtureApp(profile: true)
         app.launch()
-        XCTAssertTrue(app.buttons["fst.shell.notifications"].waitForExistence(timeout: 15))
-        XCTAssertTrue(app.navigationBars.buttons["fst.shell.profile"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["fst.shell.notifications"].waitForExistence(timeout: FestivalApp.budget(15)))
+        XCTAssertTrue(app.navigationBars.buttons["fst.shell.profile"].waitForExistence(timeout: FestivalApp.budget(10)))
         let order = try assertAccountReadingOrder(in: app, profileLabel: "Profile: Fixture Player 1", expectsBell: true)
         // Songs: drawer → Profile in the bar, Sort → Filter → bell in the accessory.
         XCTAssertEqual(
@@ -313,8 +313,8 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         continueAfterFailure = false
         let app = fixtureApp(profile: true, route: "fullRankings:Solo_Guitar")
         app.launch()
-        XCTAssertTrue(app.buttons["fst.shell.notifications"].waitForExistence(timeout: 15))
-        XCTAssertTrue(app.navigationBars.buttons["fst.shell.profile"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["fst.shell.notifications"].waitForExistence(timeout: FestivalApp.budget(15)))
+        XCTAssertTrue(app.navigationBars.buttons["fst.shell.profile"].waitForExistence(timeout: FestivalApp.budget(10)))
         XCTAssertFalse(app.navigationBars.buttons["fst.shell.drawer.open"].exists, "a pushed page shows the drawer")
         let order = try assertAccountReadingOrder(in: app, profileLabel: "Profile: Fixture Player 1", expectsBell: true)
         XCTAssertGreaterThanOrEqual(order.navigationBar.count, 2, "no Back before Profile \(order)")
@@ -326,8 +326,8 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         continueAfterFailure = false
         let app = fixtureApp(profile: false)
         app.launch()
-        XCTAssertTrue(app.navigationBars.buttons["fst.shell.profile"].waitForExistence(timeout: 15))
-        XCTAssertTrue(app.buttons["fst.songs.sort"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars.buttons["fst.shell.profile"].waitForExistence(timeout: FestivalApp.budget(15)))
+        XCTAssertTrue(app.buttons["fst.songs.sort"].waitForExistence(timeout: FestivalApp.budget(10)))
         try assertAccountReadingOrder(in: app, profileLabel: "Choose Profile", expectsBell: false)
     }
 
@@ -493,25 +493,31 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         file: StaticString = #filePath, line: UInt = #line
     ) {
         let button = app.buttons.matching(identifier: id).firstMatch
-        XCTAssertTrue(button.waitForExistence(timeout: 10), "\(id) missing", file: file, line: line)
+        XCTAssertTrue(button.waitForExistence(timeout: FestivalApp.budget(10)), "\(id) missing", file: file, line: line)
         // A closing sheet briefly leaves the accessory's items without a frame.
         let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: button)
-        XCTAssertEqual(XCTWaiter.wait(for: [hittable], timeout: 5), .completed, "\(id) not hittable", file: file, line: line)
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [hittable], timeout: FestivalApp.budget(5)), .completed, "\(id) not hittable",
+            file: file, line: line
+        )
         // A `Menu` ignores taps while a sheet is still animating away.
-        RunLoop.current.run(until: Date().addingTimeInterval(1))
+        RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(1)))
         let frame = button.frame
         let origin = app.coordinate(withNormalizedOffset: .zero)
         for offset in Self.nearMisses {
             origin.withOffset(CGVector(dx: frame.midX + offset.dx, dy: frame.midY + offset.dy)).tap()
             XCTAssertTrue(
-                opens.waitForExistence(timeout: 3),
+                opens.waitForExistence(timeout: FestivalApp.budget(3)),
                 "\(id) \(frame) ignored a tap at (\(Int(offset.dx)), \(Int(offset.dy))) pt from its centre",
                 file: file, line: line
             )
             close()
             let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: opens)
-            XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 5), .completed, file: file, line: line)
-            RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+            XCTAssertEqual(
+                XCTWaiter.wait(for: [gone], timeout: FestivalApp.budget(5)), .completed,
+                "\(id) destination stayed open", file: file, line: line
+            )
+            RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(0.6)))
         }
     }
 
