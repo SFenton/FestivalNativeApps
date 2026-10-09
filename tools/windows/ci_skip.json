@@ -76,18 +76,6 @@
       "reason": "History page/section not on screen or focus differs",
       "issue": "SFenton/festival-report-tracker#537"
     },
-    "hit-titlebar-box": {
-      "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
-      "issue": "SFenton/festival-report-tracker#536"
-    },
-    "hit-titlebar-button": {
-      "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
-      "issue": "SFenton/festival-report-tracker#536"
-    },
-    "hit-titlebar-transitions": {
-      "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
-      "issue": "SFenton/festival-report-tracker#536"
-    },
     "kb-detail-compact-previews": {
       "reason": "History page/section not on screen or focus differs",
       "issue": "SFenton/festival-report-tracker#537"
@@ -99,18 +87,6 @@
     "narr-player-history": {
       "reason": "History page/section not on screen or focus differs",
       "issue": "SFenton/festival-report-tracker#537"
-    },
-    "narr-titlebar-box": {
-      "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
-      "issue": "SFenton/festival-report-tracker#536"
-    },
-    "narr-titlebar-button": {
-      "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
-      "issue": "SFenton/festival-report-tracker#536"
-    },
-    "narr-titlebar-swap": {
-      "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
-      "issue": "SFenton/festival-report-tracker#536"
     },
     "press-player-history": {
       "reason": "History page/section not on screen or focus differs",
@@ -139,18 +115,6 @@
     "press-songs": {
       "reason": "Two Axe.Windows errors",
       "issue": "SFenton/festival-report-tracker#534"
-    },
-    "press-titlebar-box": {
-      "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
-      "issue": "SFenton/festival-report-tracker#536"
-    },
-    "press-titlebar-button": {
-      "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
-      "issue": "SFenton/festival-report-tracker#536"
-    },
-    "press-titlebar-transitions": {
-      "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
-      "issue": "SFenton/festival-report-tracker#536"
     },
     "qla-settings-menu": {
       "reason": "Fails at 225% text (focus/reachability)",
