@@ -20,13 +20,6 @@ see `cmd_uitest`'s docstring in `tools/ios_sim.py` for the full contract.
 sequence instead of a written `XCTestCase`, useful for ad hoc exploration
 before writing a real journey.
 
-## Journeys in apple-ci
-
-- `apple-ci` runs the XCUITest journeys listed in `tools/ios_ci_journeys.py` `JOURNEYS` after the hosted tests: one throwaway iPhone 17 Pro on the runner's newest iOS runtime, `tools/mock_service.py` on an OS-assigned loopback port per fixture group, then `ios_sim.py uitest`. Failed result bundles upload as `apple-ci-uitest-results`.
-- Add a journey there when a hosted test cannot prove the change: the production navigation bar, tab-bar accessory or system containers (e.g. the account buttons' reading order, `page-tools-and-nav-chrome` R17). Keep the list short; every entry adds simulator time to the required check.
-- A listed journey reads its fixture origin from `FST_SONGS_SCROLL_FIXTURE_URL` (the dispatcher exports `TEST_RUNNER_FST_SONGS_SCROLL_FIXTURE_URL`) and declares any `mock_service.py` flags in its `Journey.fixture`; `tools/tests/test_ios_ci_journeys.py` (contracts) fails on a selector without a matching test method.
-- Locally: `python3 tools/ios_ci_journeys.py --device iphone` (serialized through `ios_sim.py`). `--create-simulator` refuses outside GitHub Actions: never create or delete simulators on a shared Mac.
-
 ### Shared launch helper (`FestivalApp.swift`, added 2026-09-28)
 
 Every journey launches through `FestivalApp.makeApp(_:)` (build, don't launch)

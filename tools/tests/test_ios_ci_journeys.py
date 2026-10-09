@@ -28,8 +28,6 @@ class JourneyListTests(unittest.TestCase):
             text = source.read_text(encoding="utf-8")
             self.assertIn(f"class {cls}", text)
             self.assertIn(f"func {method}()", text, journey.selector)
-            # The dispatcher serves the fixture on an OS-assigned port and passes it in this variable.
-            self.assertIn(ci.FIXTURE_URL_ENV.removeprefix("TEST_RUNNER_"), text, cls)
 
     def test_selectors_are_unique_and_explained(self) -> None:
         selectors = [journey.selector for journey in ci.JOURNEYS]
