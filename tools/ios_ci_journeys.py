@@ -3,8 +3,10 @@
 
 The hosted ``apple-ci`` job compiles the app and runs ``swift test`` on the macOS host; this script adds the few
 XCUITest journeys that only a simulator can prove, such as the production iPhone chrome's accessibility reading order
-(issue #394). For each fixture group it serves ``tools/mock_service.py`` on loopback (so CI never calls the live
-service), then calls ``tools/ios_sim.py uitest`` with that group's selectors.
+(issue #394). For each fixture group it serves ``tools/mock_service.py`` on an OS-assigned loopback port (so CI never
+calls the live service and a shared Mac's other fixtures keep their ports), exports it to the test runner as
+``TEST_RUNNER_FST_SONGS_SCROLL_FIXTURE_URL``, then calls ``tools/ios_sim.py uitest`` with that group's selectors. A
+journey listed here must read its fixture origin from ``FST_SONGS_SCROLL_FIXTURE_URL``.
 
 ``--create-simulator`` makes a throwaway iPhone simulator on the newest available iOS runtime and deletes it
 afterwards. It runs only inside GitHub Actions (``GITHUB_ACTIONS=true``): on a shared Mac, use ``--device`` with one
@@ -37,6 +39,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEVELOPER_DIR = "/Applications/Xcode.app/Contents/Developer"
+
+#: ``xcodebuild`` passes ``TEST_RUNNER_``-prefixed variables to the UI-test runner without the prefix.
+FIXTURE_URL_ENV = "TEST_RUNNER_FST_SONGS_SCROLL_FIXTURE_URL"
 
 #: Device types tried, in order, for ``--create-simulator`` (the journeys' reference width first).
 DEVICE_TYPES = ("iPhone 17 Pro", "iPhone 16 Pro")
@@ -209,12 +214,12 @@ def throwaway_simulator() -> Iterator[str]:
 
 
 @contextmanager
-def fixture_service(flags: Sequence[str], port: int = 8765, ready_timeout: float = 60.0) -> Iterator[int]:
+def fixture_service(flags: Sequence[str], port: int = 0, ready_timeout: float = 60.0) -> Iterator[int]:
     """Serve ``tools/mock_service.py`` on loopback for the duration of the block.
 
     Args:
         flags: Extra fixture flags.
-        port: Loopback port (the journeys' default is 8765).
+        port: Loopback port (0: OS-assigned).
         ready_timeout: Seconds to wait for the ready line.
 
     Yields:
@@ -258,13 +263,15 @@ def run(journeys: Sequence[Journey], device: str, timeout: float) -> int:
     """
     code = 0
     for flags, selectors in fixture_groups(journeys):
-        with fixture_service(flags):
+        with fixture_service(flags) as port:
+            env = _env()
+            env[FIXTURE_URL_ENV] = f"http://127.0.0.1:{port}"
             cmd = [sys.executable, str(REPO_ROOT / "tools" / "ios_sim.py"), "uitest", "--device", device,
                    "--batch-size", str(len(selectors)), "--timeout", str(timeout)]
             for selector in selectors:
                 cmd += ["--only", selector]
             print("+", " ".join(cmd), file=sys.stderr, flush=True)
-            result = subprocess.run(cmd, cwd=REPO_ROOT, env=_env(), check=False)
+            result = subprocess.run(cmd, cwd=REPO_ROOT, env=env, check=False)
             code = result.returncode or code
     return code
 

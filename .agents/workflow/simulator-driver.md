@@ -174,6 +174,9 @@ Journey tests that need the loopback mock service start/assert it themselves
 (same `FST_API_BASE_URL`/`FST_FIXTURE_SCENARIO` convention as
 `FestivalMobileUITests.swift`); `uitest` does not manage
 `tools/mock_service.py` for you — start it separately first.
+`tools/ios_ci_journeys.py` wraps `uitest` for the journeys `apple-ci` runs: it
+serves each one's fixture on an OS-assigned port and passes it to the runner
+([xcuitest.md](../testing/apple/xcuitest.md#journeys-in-apple-ci)).
 
 ## Limitations
 

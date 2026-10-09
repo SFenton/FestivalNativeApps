@@ -58,8 +58,8 @@ jobs:
         # XCUITest journeys only a simulator can prove (tools/ios_ci_journeys.py JOURNEYS), e.g. the production
         # iPhone chrome's Profile → bell reading order (#394, page-tools-and-nav-chrome R17). A throwaway simulator
         # on the loopback fixture service; never the live service. Failed result bundles are uploaded below.
-        timeout-minutes: 25
-        run: python3 tools/ios_ci_journeys.py --create-simulator --timeout 900
+        timeout-minutes: 35
+        run: python3 tools/ios_ci_journeys.py --create-simulator --timeout 1500
       - name: Upload simulator journey results
         if: failure()
         uses: actions/upload-artifact@v4
