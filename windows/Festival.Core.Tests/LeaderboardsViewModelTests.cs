@@ -117,7 +117,7 @@ public sealed class LeaderboardsOverviewTests
     public async Task PageIsReadyOnlyAfterTheFirstCardsSettle()
     {
         var fake = new RankingsFake();
-        var session = fake.Session(new AppSettings { VisibleInstruments = [Instrument.Lead, Instrument.Bass] });
+        var session = fake.Session(new AppSettings { VisibleInstruments = [Instrument.Lead, Instrument.Bass], ExperimentalRanks = true });
         var vm = new LeaderboardsViewModel(session, new FakeReader().Read);
         var readiness = new List<bool>();
         vm.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(vm.IsReady)) readiness.Add(vm.IsReady); };
@@ -137,7 +137,7 @@ public sealed class LeaderboardsOverviewTests
     public async Task MetricSelectionPersistsNarrowsBandsAndReloads()
     {
         var fake = new RankingsFake();
-        var session = fake.Session(new AppSettings { VisibleInstruments = [Instrument.Drums] });
+        var session = fake.Session(new AppSettings { VisibleInstruments = [Instrument.Drums], ExperimentalRanks = true });
         var vm = new LeaderboardsViewModel(session, new FakeReader().Read);
         await vm.ActivateAsync();
         Assert.Equal("Total Score", vm.MetricLabel);
@@ -216,7 +216,7 @@ public sealed class LeaderboardsOverviewTests
     {
         var fake = new RankingsFake();
         var reader = new FakeReader { Result = (_, id) => RankingsWire.Account(26, id) };
-        var session = fake.Session(RankingsFake.Selected("me", [Instrument.Drums]) with { LeaderboardRankBy = "fcrate" });
+        var session = fake.Session(RankingsFake.Selected("me", [Instrument.Drums]) with { LeaderboardRankBy = "fcrate", ExperimentalRanks = true });
         var vm = new LeaderboardsViewModel(session, reader.Read);
         await vm.ActivateAsync();
 
@@ -531,7 +531,7 @@ public sealed class FullRankingsViewModelTests
     public async Task LoadsPageWithPagerAndInstrumentOptions()
     {
         var fake = new RankingsFake { TotalAccounts = 60 };
-        var session = fake.Session(new AppSettings { VisibleInstruments = [Instrument.Lead, Instrument.Bass] });
+        var session = fake.Session(new AppSettings { VisibleInstruments = [Instrument.Lead, Instrument.Bass], ExperimentalRanks = true });
         var vm = new FullRankingsViewModel(session, new AppRoute.FullRankings(Instrument.Drums, "fcrate"), new FakeReader().Read);
         await vm.LoadAsync();
 
@@ -761,7 +761,7 @@ public sealed class FullRankingsViewModelTests
     {
         var fake = new RankingsFake { TotalAccounts = 60 };
         var reader = new FakeReader { Result = (_, _) => RankingsWire.Account(60, "acct60") };
-        var vm = new FullRankingsViewModel(fake.Session(RankingsFake.Selected("acct60")), new AppRoute.FullRankings(Instrument.Lead, "totalscore"), reader.Read);
+        var vm = new FullRankingsViewModel(fake.Session(RankingsFake.Selected("acct60") with { ExperimentalRanks = true }), new AppRoute.FullRankings(Instrument.Lead, "totalscore"), reader.Read);
         await vm.LoadAsync();
         Assert.True(vm.PinnedGate.IsGated);
         Assert.True(vm.Spotlight.IsVisible);
@@ -887,7 +887,7 @@ public sealed class BandRankingsViewModelTests
     public async Task LoadsSwitchesAndPages()
     {
         var fake = new RankingsFake { TotalTeams = 40 };
-        var session = fake.Session(new AppSettings { LeaderboardRankBy = "maxscore" });
+        var session = fake.Session(new AppSettings { LeaderboardRankBy = "maxscore", ExperimentalRanks = true });
         var vm = new BandRankingsViewModel(session, new AppRoute.BandRankings("Band_Trios"));
         Assert.Equal(BandRankingMetric.TotalScore, vm.Metric);
         await vm.LoadAsync();

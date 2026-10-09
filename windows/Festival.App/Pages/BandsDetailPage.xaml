@@ -192,6 +192,7 @@
                                        AutomationProperties.HeadingLevel="Level2" />
                             <!-- Visible Fluent header: the selected metric alone doesn't say what the box controls. -->
                             <ComboBox x:Name="RankBy" Grid.Column="1" VerticalAlignment="Bottom" MinWidth="160" Header="Rank By"
+                                      Visibility="{x:Bind ViewModel.ShowRankBy, Mode=OneWay}"
                                       SelectionChanged="OnRankByChanged" AutomationProperties.Name="Rank By"
                                       AutomationProperties.AutomationId="fst.band.rank-by">
                                 <x:String>Adjusted Skill</x:String>

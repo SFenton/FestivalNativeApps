@@ -212,10 +212,11 @@ public class BandDetailViewModelTests
     {
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
         var bands = new BandService();
-        var vm = new BandDetailViewModel(bands.Service.Session(), Route());
+        var vm = new BandDetailViewModel(bands.Service.Session(settings: new AppSettings { ExperimentalRanks = true }), Route());
         Assert.True(vm.IsLoading);
         Assert.Equal("fixture-band-1", vm.BandId);
         await vm.LoadAsync();
+        Assert.True(vm.ShowRankBy);
         Assert.True(vm.ShowContent);
         Assert.Equal("Fixture Rank One + Unknown User", vm.Title);
         Assert.Equal("Duos · 40 appearances", vm.Subtitle);
@@ -279,6 +280,19 @@ public class BandDetailViewModelTests
         vm.MetricIndex = 12;
         Assert.Equal(2, vm.MetricIndex);
         Assert.Equal(4, vm.Metrics.Count);
+    }
+
+    [Fact]
+    public async Task RankByNeedsExperimentalRanks()
+    {
+        var bands = new BandService();
+        var vm = new BandDetailViewModel(bands.Service.Session(), Route());
+        await vm.LoadAsync();
+        // Web BandPage renders the metric picker only with Settings' Experimental Ranks; Total Score stays.
+        Assert.False(vm.ShowRankBy);
+        vm.MetricIndex = 2;
+        Assert.Equal(BandRankingMetric.TotalScore, vm.Metric);
+        Assert.Equal("Total Score Rank", vm.Statistics[0].Label);
     }
 
     [Fact]
