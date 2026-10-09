@@ -24,10 +24,6 @@
       "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
       "issue": "SFenton/festival-report-tracker#536"
     },
-    "mm-suggestions-scroll": {
-      "reason": "Axe.Windows errors during the Suggestions scroll (timing-dependent; passed in #493's runs)",
-      "issue": "SFenton/festival-report-tracker#534"
-    },
     "narr-titlebar-box": {
       "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
       "issue": "SFenton/festival-report-tracker#536"
