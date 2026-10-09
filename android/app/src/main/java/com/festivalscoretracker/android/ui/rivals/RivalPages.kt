@@ -279,13 +279,8 @@ fun RivalryScreen(viewModel: RivalDetailViewModel, rivalId: String, mode: String
     val sort by viewModel.sort.collectAsStateWithLifecycle()
     var sortOpen by rememberSaveable { mutableStateOf(false) }
     val gridState = rememberLazyStaggeredGridState()
-    val songs = (state as? LoadState.Loaded)?.value?.let { viewModel.category(it, mode, sort) }?.songs.orEmpty()
-    // Web: one per song in the shown order; the grid's first item is the "vs." header.
-    // The page's fade window, here so Quick Links jumps rush it (load-transition R5).
+    // No Quick Links: one link per song only repeated the list (owner, #545; quick-links variant).
     val fadeIn = rememberPageFadeInWindow()
-    val quickLinks = rememberQuickLinks(gridState, "Quick Links", RivalQuickLinks.rivalry(songs), fadeInWindow = fadeIn) { id ->
-        songs.indices.firstOrNull { RivalQuickLinks.songId(songs[it], it) == id }?.plus(1)
-    }
     FestivalScreen(
         title = RivalCategorization.title(mode),
         isRoot = false,
@@ -321,7 +316,6 @@ fun RivalryScreen(viewModel: RivalDetailViewModel, rivalId: String, mode: String
                     }
                 }
             }
-            QuickLinksAction(quickLinks, windowWidthDp().toInt())
             ViewProfileButton(rivalId, name)
         },
     ) { padding ->
