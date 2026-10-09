@@ -2811,6 +2811,14 @@
           ],
           "debt": [],
           "message": "Settings title/value rows decide inline vs stacked in one place: use SettingsValueRow (detail/value slots) instead of another text-size AnyLayout switch (settings-value-row R1, R4)."
+        },
+        {
+          "id": "windows-text-scale-stack",
+          "glob": "windows/Festival.App/Pages/SettingsPage.xaml.cs",
+          "regex": "TextScaleFactor",
+          "allow": [],
+          "debt": [],
+          "message": "Settings title/value rows stack by measured fit in SettingValueGrid, never by Windows text size in code-behind (settings-value-row R1, R4; #539)."
         }
       ]
     },
