@@ -25,7 +25,6 @@ from tools.ios_sim import (
     bmp_is_dark,
     classify_pose,
     match_pose_control,
-    choose_ci_simulator,
     choose_hub_process,
     find_hub_control,
     has_pose_controls,
@@ -36,7 +35,10 @@ from tools.ios_sim import (
     pose_presses,
     rank_device_windows,
     driver_build_stale,
+    existing_ci_device,
     output_paths,
+    pick_ci_runtime,
+    skip_problem,
     parse_steps,
     resolve_device,
     source_hash,
@@ -142,65 +144,63 @@ class ResolveDeviceTests(unittest.TestCase):
         self.assertEqual(resolve_device("SOME-OTHER-UDID"), "SOME-OTHER-UDID")
 
 
-class ChooseCiSimulatorTests(unittest.TestCase):
-    """``ci-device`` picks the newest iOS runtime's iPhone 17 Pro and reuses its own device."""
+class CiDeviceTests(unittest.TestCase):
+    """`ci-device` picks the newest iOS runtime for the iPhone and only runs in CI."""
 
-    IOS_26 = "com.apple.CoreSimulator.SimRuntime.iOS-26-5"
-    IOS_27 = "com.apple.CoreSimulator.SimRuntime.iOS-27-1"
-    PRO = "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro"
-    AIR = "com.apple.CoreSimulator.SimDeviceType.iPhone-Air"
-    PAD = "com.apple.CoreSimulator.SimDeviceType.iPad-Pro-11"
+    RUNTIMES = [
+        {"platform": "iOS", "version": "26.5", "identifier": "ios-26-5", "isAvailable": True,
+         "supportedDeviceTypes": [{"name": "iPhone 17 Pro", "identifier": "dt.iphone-17-pro"}]},
+        {"platform": "iOS", "version": "27.1", "identifier": "ios-27-1", "isAvailable": True,
+         "supportedDeviceTypes": [{"name": "iPhone 17 Pro", "identifier": "dt.iphone-17-pro"},
+                                  {"name": "iPhone Duo", "identifier": "dt.duo"}]},
+        {"platform": "iOS", "version": "28.0", "identifier": "ios-28-0", "isAvailable": False,
+         "supportedDeviceTypes": [{"name": "iPhone 17 Pro", "identifier": "dt.iphone-17-pro"}]},
+        {"platform": "watchOS", "version": "30.0", "identifier": "watch-30", "isAvailable": True,
+         "supportedDeviceTypes": [{"name": "iPhone 17 Pro", "identifier": "dt.iphone-17-pro"}]},
+    ]
 
-    def listing(self, devices=None, types=None):
-        types = types if types is not None else [
-            {"identifier": self.PAD, "name": "iPad Pro 11", "productFamily": "iPad"},
-            {"identifier": self.PRO, "name": "iPhone 17 Pro", "productFamily": "iPhone"},
-            {"identifier": self.AIR, "name": "iPhone Air", "productFamily": "iPhone"},
-        ]
-        return {
-            "runtimes": [
-                {"identifier": self.IOS_27, "version": "27.1", "isAvailable": True, "platform": "iOS",
-                 "supportedDeviceTypes": types},
-                {"identifier": self.IOS_26, "version": "26.5", "isAvailable": True, "platform": "iOS",
-                 "supportedDeviceTypes": types},
-                {"identifier": "com.apple.CoreSimulator.SimRuntime.iOS-28-0", "version": "28.0",
-                 "isAvailable": False, "platform": "iOS", "supportedDeviceTypes": types},
-                {"identifier": "com.apple.CoreSimulator.SimRuntime.watchOS-12-0", "version": "12.0",
-                 "isAvailable": True, "platform": "watchOS", "supportedDeviceTypes": []},
-            ],
-            "devices": devices or {},
-        }
+    def test_newest_available_ios_runtime_wins(self):
+        self.assertEqual(pick_ci_runtime(self.RUNTIMES), ("ios-27-1", "dt.iphone-17-pro"))
 
-    def test_creates_the_preferred_type_on_the_newest_available_runtime(self):
-        self.assertEqual(choose_ci_simulator(self.listing()), (None, self.IOS_27, self.PRO))
+    def test_runtime_must_support_the_device_type(self):
+        self.assertEqual(pick_ci_runtime(self.RUNTIMES, "iPhone Duo"), ("ios-27-1", "dt.duo"))
+        with self.assertRaises(LookupError):
+            pick_ci_runtime(self.RUNTIMES, "iPad Pro")
 
-    def test_falls_back_to_the_newest_iphone_type(self):
-        types = [
-            {"identifier": self.PAD, "name": "iPad Pro 11", "productFamily": "iPad"},
-            {"identifier": self.AIR, "name": "iPhone Air", "productFamily": "iPhone"},
-        ]
-        self.assertEqual(choose_ci_simulator(self.listing(types=types)), (None, self.IOS_27, self.AIR))
+    def test_older_listing_without_platform_key_uses_the_name(self):
+        runtimes = [{"name": "iOS 26.5", "version": "26.5", "identifier": "ios-26-5",
+                     "supportedDeviceTypes": [{"name": "iPhone 17 Pro", "identifier": "dt"}]}]
+        self.assertEqual(pick_ci_runtime(runtimes), ("ios-26-5", "dt"))
 
-    def test_reuses_an_existing_ci_device(self):
-        devices = {self.IOS_27: [
-            {"udid": "OTHER", "name": "Someone's iPhone", "isAvailable": True},
-            {"udid": "CI-UDID", "name": "FST CI iPhone", "isAvailable": True,
-             "deviceTypeIdentifier": self.PRO},
-        ]}
-        self.assertEqual(choose_ci_simulator(self.listing(devices)), ("CI-UDID", self.IOS_27, self.PRO))
+    def test_reuses_the_device_it_created(self):
+        devices = {"ios-27-1": [{"name": "Other", "udid": "A"}, {"name": ios_sim.CI_DEVICE_NAME, "udid": "B"}]}
+        self.assertEqual(existing_ci_device(devices, "ios-27-1"), "B")
+        self.assertIsNone(existing_ci_device(devices, "ios-26-5"))
 
-    def test_no_ios_runtime_or_iphone_type_raises(self):
-        with self.assertRaises(ValueError):
-            choose_ci_simulator({"runtimes": [], "devices": {}})
-        pads = [{"identifier": self.PAD, "name": "iPad Pro 11", "productFamily": "iPad"}]
-        with self.assertRaises(ValueError):
-            choose_ci_simulator(self.listing(types=pads))
+    def test_refuses_outside_ci(self):
+        import argparse
+        import os
+        from unittest import mock
 
-    def test_refuses_to_run_outside_ci(self):
-        with unittest.mock.patch.dict(ios_sim.os.environ, {}, clear=True), \
-                unittest.mock.patch.object(ios_sim, "_run") as run:
-            self.assertEqual(ios_sim.main(["ci-device"]), 2)
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": ""}), mock.patch.object(ios_sim, "_run") as run:
+            self.assertEqual(ios_sim.cmd_ci_device(argparse.Namespace(type=ios_sim.CI_DEVICE_TYPE)), 2)
         run.assert_not_called()
+
+
+class FailOnSkipTests(unittest.TestCase):
+    """`uitest --fail-on-skip` fails a green batch that skipped or ran nothing."""
+
+    def test_all_passed_is_fine(self):
+        self.assertIsNone(skip_problem({"passedTests": 1, "skippedTests": 0, "failedTests": 0}))
+
+    def test_a_skip_fails(self):
+        self.assertIn("skipped", skip_problem({"passedTests": 2, "skippedTests": 1}))
+
+    def test_nothing_ran_fails(self):
+        self.assertEqual(skip_problem({"passedTests": 0, "skippedTests": 0}), "no test ran")
+
+    def test_unreadable_summary_fails(self):
+        self.assertIsNotNone(skip_problem(None))
 
 
 class UitestDiagnosticsTests(unittest.TestCase):

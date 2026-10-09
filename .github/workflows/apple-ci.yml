@@ -53,32 +53,41 @@ jobs:
         # there they end at their 10 s evidence deadline as intermittent known issues; alone they are judged
         # strictly. Reuses the coverage build and leaves its profile alone. Filter: testing/apple/hosted-snapshots.md.
         working-directory: apple
-        run: swift test --skip-build --filter 'selectedRowRevealFadesTheRowItReaches|staggeredListRowsFadeInRatherThanPop'
-      - name: iPhone accessibility journeys (simulator, fixture service)
-        # The runner's own disposable iPhone simulator (`ios_sim.py ci-device`) runs the iPhone accessibility
-        # journeys against this revision's loopback fixture service, never the public service (#386). List:
-        # testing/apple/accessibility.md "iPhone journeys in apple-ci".
+        run: swift test --skip-build --filter 'selectedRowRevealFadesTheRowItReaches|staggeredListRowsFadeInRatherThanPop|serviceInfoIndeterminateBar'
+      - name: iPhone simulator journeys (serialized, loopback fixture)
+        # Evidence only an iOS run gives (real Dynamic Type sizes, performAccessibilityAudit). One throwaway runner
+        # simulator, two loopback fixtures (large catalogue on 8765, band boards on 18934), `ios_sim.py uitest`, one
+        # test per batch without failure diagnostics; a skipped journey fails the step.
+        # Add a journey here only if it runs against one of these fixtures: testing/apple/xcuitest.md#ci-journeys.
+        env:
+          JOURNEYS: >-
+            SongsChromeJourneyTests/testSectionBarHeadingAtLargestText
+            SongBandRevealAccessibilityJourneyTests/testRevealedBandRowIsAccessibleWithStandardMotion
+            SongBandRevealAccessibilityJourneyTests/testRevealedBandRowIsAccessibleWithReduceMotion
+            SongBandRevealAccessibilityJourneyTests/testRevealedBandRowGrowsAtLargestTextSize
         run: |
-          python3 tools/mock_service.py --port 18934 > "$RUNNER_TEMP/mock-service.log" 2>&1 &
-          for attempt in $(seq 1 30); do
-            curl -sf "http://127.0.0.1:18934/api/leaderboard/fixture-pulse/bands/Band_Duets?top=25&offset=25&accountId=fixture-player-1" >/dev/null && break
-            sleep 1
+          python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service.log" 2>&1 &
+          mock=$!
+          python3 tools/mock_service.py --port 18934 > "$RUNNER_TEMP/mock_service_bands.log" 2>&1 &
+          bands=$!
+          trap 'kill "$mock" "$bands" 2>/dev/null || true' EXIT
+          device=$(python3 tools/ios_sim.py ci-device)
+          for log in mock_service.log mock_service_bands.log; do
+            for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/$log" && break; sleep 1; done
+            grep -q "fixture service on" "$RUNNER_TEMP/$log"
           done
-          UDID=$(python3 tools/ios_sim.py ci-device)
-          # One test per batch, each bounded, and no 600 s failure-diagnostics wait.
-          J=SongBandRevealAccessibilityJourneyTests
-          python3 tools/ios_sim.py uitest --device "$UDID" --timeout 900 --batch-size 1 --no-test-diagnostics \
-            --only "$J/testRevealedBandRowIsAccessibleWithStandardMotion" \
-            --only "$J/testRevealedBandRowIsAccessibleWithReduceMotion" \
-            --only "$J/testRevealedBandRowGrowsAtLargestTextSize"
-      - name: Upload iPhone journey results
+          only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
+          python3 tools/ios_sim.py uitest --device "$device" --fail-on-skip --timeout 900 --batch-size 1 \
+            --no-test-diagnostics "${only[@]}"
+      - name: Upload simulator journey results
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: apple-ci-iphone-journeys
+          name: apple-ci-journeys
           path: |
-            apple/DerivedData/*/Results/*.xcresult
-            ${{ runner.temp }}/mock-service.log
+            apple/DerivedData/lane-driver/Results
+            ${{ runner.temp }}/mock_service.log
+            ${{ runner.temp }}/mock_service_bands.log
           if-no-files-found: ignore
           retention-days: 7
       - name: Upload hosted render captures

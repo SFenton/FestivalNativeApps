@@ -443,6 +443,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
             "symbol": "SongsSectionBar"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
+            "symbol": "SongsSectionBarOverlay"
           }
         ],
         "android": [
@@ -2725,8 +2729,8 @@
       ],
       "web": [
         {
-          "path": "pages/settings/SettingsPage.tsx",
-          "symbol": "versionRow"
+          "path": "pages/settings/SettingsVersionList.tsx",
+          "symbol": "SettingsVersionList"
         },
         {
           "path": "pages/settings/SettingsServiceProgress.tsx",

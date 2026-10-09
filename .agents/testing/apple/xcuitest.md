@@ -20,6 +20,17 @@ see `cmd_uitest`'s docstring in `tools/ios_sim.py` for the full contract.
 sequence instead of a written `XCTestCase`, useful for ad hoc exploration
 before writing a real journey.
 
+## CI journeys
+
+`apple-ci` runs a short list of iPhone journeys on a simulator (step "iPhone simulator journeys", `JOURNEYS` in [`apple-ci.yml`](../../../.github/workflows/apple-ci.yml)). Use it for evidence the macOS-hosted suite cannot give: real Dynamic Type sizes (macOS has no Dynamic Type, [accessibility](accessibility.md)) and `performAccessibilityAudit`.
+
+- The step starts two loopback fixtures, `tools/mock_service.py --large-catalogue` on the default port 8765 (Songs) and `tools/mock_service.py --port 18934` (band boards, `SongBandRevealAccessibilityJourneyTests`, #386), creates one throwaway runner simulator with `ios_sim.py ci-device` (an iPhone 17 Pro on the runner's newest iOS runtime) and runs `ios_sim.py uitest --device <UDID> --fail-on-skip --batch-size 1 --no-test-diagnostics`.
+- One test per batch (900 s each) keeps a slow journey from timing out the others. `--no-test-diagnostics` passes `-collect-test-diagnostics never`: after a failure xcodebuild otherwise waits up to 600 s collecting simulator diagnostics, which timed out the step (#386).
+- `--fail-on-skip` fails a batch in which any test skipped or none ran: a journey that cannot find its fixture skips, and an all-skipped batch would otherwise pass.
+- Add a journey only if it is deterministic, passes alone against one of those fixtures and takes about two minutes or less; a journey needing another fixture mode needs its own mock (on its own port) in this step. A selected player comes only from `FST_DEBUG_PROFILE` with a fixture id, never a real profile. Run it first with `ios_sim.py uitest --fail-on-skip` locally (point it at your own mock with `TEST_RUNNER_<VAR>` when another lane holds 8765).
+- `ci-device` refuses to run outside GitHub Actions: on a shared Mac, use a `DEVICES` alias and never create or change simulators.
+- A failed run uploads the `.xcresult` bundles and both mocks' logs as the `apple-ci-journeys` artifact.
+
 ### Shared launch helper (`FestivalApp.swift`, added 2026-09-28)
 
 Every journey launches through `FestivalApp.makeApp(_:)` (build, don't launch)
