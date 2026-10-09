@@ -40,6 +40,10 @@
       "reason": "Two Axe.Windows errors",
       "issue": "SFenton/festival-report-tracker#534"
     },
+    "footer-fade-no-player-band-rankings-system-hard": {
+      "reason": "Two Axe.Windows errors (popup/flyout or board), timing-dependent",
+      "issue": "SFenton/festival-report-tracker#534"
+    },
     "footer-fade-no-player-full-rankings-less-transparency": {
       "reason": "Two Axe.Windows errors",
       "issue": "SFenton/festival-report-tracker#534"
@@ -50,6 +54,10 @@
     },
     "footer-fade-no-player-full-rankings-more-contrast": {
       "reason": "Two Axe.Windows errors",
+      "issue": "SFenton/festival-report-tracker#534"
+    },
+    "footer-fade-no-player-full-rankings-system-hard": {
+      "reason": "Two Axe.Windows errors (popup/flyout or board), timing-dependent",
       "issue": "SFenton/festival-report-tracker#534"
     },
     "footer-fade-no-player-song-band-leaderboard-mid": {
@@ -108,6 +116,22 @@
       "reason": "History page/section not on screen or focus differs",
       "issue": "SFenton/festival-report-tracker#537"
     },
+    "press-quick-links-leaderboards": {
+      "reason": "Two Axe.Windows errors (popup/flyout or board), timing-dependent",
+      "issue": "SFenton/festival-report-tracker#534"
+    },
+    "press-quick-links-rivals": {
+      "reason": "Two Axe.Windows errors (popup/flyout or board), timing-dependent",
+      "issue": "SFenton/festival-report-tracker#534"
+    },
+    "press-quick-links-song-detail": {
+      "reason": "Two Axe.Windows errors (popup/flyout or board), timing-dependent",
+      "issue": "SFenton/festival-report-tracker#534"
+    },
+    "press-quick-links-statistics": {
+      "reason": "Two Axe.Windows errors (popup/flyout or board), timing-dependent",
+      "issue": "SFenton/festival-report-tracker#534"
+    },
     "press-song-detail": {
       "reason": "History page/section not on screen or focus differs",
       "issue": "SFenton/festival-report-tracker#537"
@@ -131,6 +155,10 @@
     "qla-settings-menu": {
       "reason": "Fails at 225% text (focus/reachability)",
       "issue": "SFenton/festival-report-tracker#539"
+    },
+    "search-suggestions": {
+      "reason": "Two Axe.Windows errors (popup/flyout or board), timing-dependent",
+      "issue": "SFenton/festival-report-tracker#534"
     },
     "settings-service-info-unavailable": {
       "reason": "Fails at 225% text (focus/reachability)",
@@ -161,6 +189,38 @@
     "matrix:a11y:12": {
       "reason": "Axe finds two errors in Quick Links popup.",
       "issue": "SFenton/festival-report-tracker#534"
+    },
+    "runner:navigation": {
+      "reason": "Band rankings list / compact back states not reached on the runner (virtualized repeaters; fix in flight)",
+      "issue": "SFenton/festival-report-tracker#533"
+    },
+    "runner:songs": {
+      "reason": "Shop-empty filter state fails (fix in flight)",
+      "issue": "SFenton/festival-report-tracker#533"
+    },
+    "runner:songs-filter": {
+      "reason": "Intensity Clear All / Clear Filters not on screen (fix in flight)",
+      "issue": "SFenton/festival-report-tracker#533"
+    },
+    "runner:profile": {
+      "reason": "Empty player-bands trios can't be revealed (virtualized repeater; fix in flight)",
+      "issue": "SFenton/festival-report-tracker#533"
+    },
+    "runner:fade": {
+      "reason": "song-reveal/song-board fade trace checks fail",
+      "issue": "SFenton/festival-report-tracker#532"
+    },
+    "runner:suggestions": {
+      "reason": "Suggestions fade check fails",
+      "issue": "SFenton/festival-report-tracker#532"
+    },
+    "journey:search": {
+      "reason": "Global search loading state not seen; should run through search_journey.py (fix in flight)",
+      "issue": "SFenton/festival-report-tracker#530"
+    },
+    "journey:songs-section-index": {
+      "reason": "section-index-far-moves-wide lands one section early on the runner (flaky: passed in run 37871893326)",
+      "issue": "SFenton/festival-report-tracker#530"
     }
   }
 }
