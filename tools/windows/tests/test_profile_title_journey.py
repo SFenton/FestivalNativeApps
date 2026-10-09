@@ -49,8 +49,7 @@ class ProfileTitleJourneyTests(unittest.TestCase):
                 self.assertIn("assertinset:id=fst.player.name|id=fst.player.available|12", _steps(_BY_NAME[name]))
 
     def test_each_state_checks_the_title_is_a_plain_heading_without_avatar(self):
-        # Issue #446 (#97): the name is a plain, non-focusable Level 1 heading with no PersonPicture card, and the
-        # row's action keeps the 40 epx minimum height.
+        # Issue #446 (#97): the name is a plain, non-focusable Level 1 heading with no PersonPicture card.
         for name, action in _STATES.items():
             with self.subTest(page=name):
                 steps = _steps(_BY_NAME[name])
@@ -59,8 +58,21 @@ class ProfileTitleJourneyTests(unittest.TestCase):
                 self.assertIn("waitgone:class=PersonPicture@1", steps)
                 title = next(s for s in steps if s.startswith("assertname:id=fst.player.name|")).split("|", 1)[1]
                 self.assertIn(f"assertread:id=fst.player.name|{title}, text", steps)
-                if action != "fst.player.identity-notice":
-                    self.assertIn(f"assertsize:id={action}|0x40", steps)
+
+    def test_each_action_is_an_enabled_invokable_40_epx_button(self):
+        # Issue #446 review: Select/Switch and Deselect stay real, enabled, invokable Buttons that Narrator reads as
+        # "<label>, button", with a 40 x 40 epx minimum target in both directions.
+        for name, action in _STATES.items():
+            if action == "fst.player.identity-notice":
+                continue
+            with self.subTest(page=name):
+                steps = _steps(_BY_NAME[name])
+                self.assertIn(f"assertsize:id={action}|40x40", steps)
+                for check in ("type=button", "enabled=true", "invoke=true"):
+                    self.assertIn(f"assertstate:id={action}|{check}", steps)
+                label = next(s for s in steps if s.startswith(f"assertname:id={action}|")).split("|", 1)[1]
+                self.assertIn(f"assertread:id={action}|{label}, button", steps)
+                self.assertNotIn(f"assertsize:id={action}|0x40", steps)
 
     def test_actions_wrap_only_at_large_text(self):
         row, wrap = _BY_NAME["pt-actions-row"], _BY_NAME["pt-actions-wrap"]
