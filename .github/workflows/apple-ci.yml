@@ -1,5 +1,5 @@
 name: apple-ci
-# Apple unit tests and compile check on a GitHub-hosted Xcode 27 runner (no mesh machine runs CI or
+# Apple unit tests, compile check and a few simulator journeys on a GitHub-hosted Xcode 27 runner (no mesh machine runs CI or
 # release work). The job name is the required check name: keep it `apple-ci`.
 on:
   pull_request:
@@ -18,7 +18,7 @@ jobs:
   apple-ci:
     name: apple-ci
     runs-on: xcode-27
-    timeout-minutes: 60
+    timeout-minutes: 80
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,6 +54,20 @@ jobs:
         # strictly. Reuses the coverage build and leaves its profile alone. Filter: testing/apple/hosted-snapshots.md.
         working-directory: apple
         run: swift test --skip-build --filter 'selectedRowRevealFadesTheRowItReaches|staggeredListRowsFadeInRatherThanPop'
+      - name: iPhone accessibility journeys (simulator)
+        # XCUITest journeys only a simulator can prove (tools/ios_ci_journeys.py JOURNEYS), e.g. the production
+        # iPhone chrome's Profile → bell reading order (#394, page-tools-and-nav-chrome R17). A throwaway simulator
+        # on the loopback fixture service; never the live service. Failed result bundles are uploaded below.
+        timeout-minutes: 25
+        run: python3 tools/ios_ci_journeys.py --create-simulator --timeout 900
+      - name: Upload simulator journey results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple-ci-uitest-results
+          path: apple/DerivedData/lane-driver/Results
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload hosted render captures
         if: failure()
         uses: actions/upload-artifact@v4
