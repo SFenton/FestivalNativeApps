@@ -94,6 +94,8 @@ jobs:
             NavButtonHitRegionJourneyTests/testChooseProfileReadsAloneInProductionChrome
             NavButtonHitRegionJourneyTests/testAccountButtonsStaySeparateAndLabelledAtLargestTextSize
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
+            SongBarCaptionIconJourneyTests/testSongLeaderboardCaptionIconScalesWithText
+            SongBarCaptionIconJourneyTests/testPlayerHistoryCaptionIconAtLargestText
           A11Y_MODE_JOURNEYS: >-
             SongsChromeJourneyTests/testSectionBarFadeAtLargestTextKeepsRowsNamedAndPassesTheAudit
           # xcodebuild's failure diagnostics took about seven minutes per failure on the runner.
