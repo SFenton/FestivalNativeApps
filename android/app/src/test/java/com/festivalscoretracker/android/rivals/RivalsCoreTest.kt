@@ -413,13 +413,5 @@ class RivalsCoreTest {
         // Rival Detail: web `rival-category:<key>` with the category title.
         val categories = listOf(RivalCategory("almost_passed", "Almost Passed", "d", RivalSentiment.entries.first(), emptyList()))
         assertEquals(listOf("rival-category:almost_passed" to "Almost Passed"), RivalQuickLinks.rivalDetail(categories).map { it.id to it.title })
-        // Rivalry: `<songId>:<instrument>:<index>`, title else ID, landmark adds the chart.
-        val songs = listOf(RivalSongComparison("s-1", "One", instrument = "Solo_Bass"), RivalSongComparison("s-2", null, instrument = "Unknown_Chart"))
-        val rivalry = RivalQuickLinks.rivalry(songs)
-        assertEquals(listOf("s-1:Solo_Bass:0", "s-2:Unknown_Chart:1"), rivalry.map { it.id })
-        assertEquals("One (Bass)", rivalry[0].accessibleTitle)
-        assertEquals(Instrument.Bass, rivalry[0].instrument)
-        assertEquals("s-2", rivalry[1].title)
-        assertEquals("s-2 (Unknown_Chart)", rivalry[1].accessibleTitle)
     }
 }

@@ -10,7 +10,7 @@ This is the one registry of Windows accessibility journeys that gate pull reques
 that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
 (issue #416), the Item Shop Filters flyout and its keyboard journey (issue #428), the board load swap (issue #431, also
 with Animation effects off), the first-run song demos (issue #420) and the Songs section push (issue #452) run at default
-and 225% text.
+and 225% text, and that the generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
 Usage::

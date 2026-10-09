@@ -49,6 +49,7 @@ Season display (#62), checked 2026-10 with the winui-design and winui-code-revie
 | Light and dark system theme | Same rendering (the app is dark only, a deliberate deviation). Axe 0. |
 | High Contrast Desert | All four journeys pass. Axe 0. |
 | Text 200% | The chart pages to one bar at compact. The detail row keeps the season; list rows follow the 520 rule. Axe 0. |
+| Text 150–225% Tab walk (#537) | At compact the chart shows one bar (the newest, `fst.history.bar.1` with two fixture scores), so Tab goes selector → that bar → the pager's back button (`fst.history.entry-back`) → the top-five rows. `kb-detail-compact-previews` covers the two-bar walk at normal text (`skip_modes` text-150/200/225); `kb-detail-compact-previews-large-text` covers the one-bar walk. Both check each focused bar is at least 40×40 epx on screen (`assertsize`). Since #324 the history sort button is on Player History, not Song Detail, so the Song Detail a11y pages don't target `fst.history.sort.open`. |
 | Display 100% / 150% | Correct. Axe reports only the known WinUI `PopupHost` item (the bar tooltip, [windows-accessibility.md](../../testing/windows-accessibility.md) open item 8). |
 | Keyboard only | Tab walk: 19–21 stops, none outside the app and no repeats. |
 | Narrator / UIA | Row names read ", season N" only while it is shown (before ", you" on the selected player's row, before the stars on the full board). Season text has `fst.score.season.<badge key>`. `score-accuracy.json` passes 42/42 across 6 sizes. |

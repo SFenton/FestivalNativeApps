@@ -108,6 +108,7 @@ import com.festivalscoretracker.android.presentation.feedback.FeedbackViewModel
 import com.festivalscoretracker.android.ui.common.CoversBackdrop
 import com.festivalscoretracker.android.ui.common.FestivalAlertDialog
 import com.festivalscoretracker.android.ui.common.FestivalLoading
+import com.festivalscoretracker.android.ui.common.FestivalModalBody
 import com.festivalscoretracker.android.ui.common.FestivalModalHeader
 import com.festivalscoretracker.android.ui.common.festivalSheetHingeSide
 import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
@@ -230,33 +231,35 @@ private fun FeedbackForm(form: FeedbackFormState, viewModel: FeedbackViewModel) 
                 ) { Text("Submit", fontWeight = FontWeight.Bold) }
             }
         }
-        if (form.busy) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .padding(horizontal = 24.dp, vertical = 4.dp)
-                    .testTag("fst.settings.feedback.progress")
-                    .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
-            ) {
-                // The app's one loading indicator (design/android.md), not the theme's blue primary.
-                // The status text says what is in progress; one TalkBack stop, not a separate progress bar.
-                Box(Modifier.clearAndSetSemantics {}) { FestivalLoading(label = null, size = 24.dp) }
-                Text(form.progressText, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodyMedium)
+        FestivalModalBody {
+            if (form.busy) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .padding(horizontal = 24.dp, vertical = 4.dp)
+                        .testTag("fst.settings.feedback.progress")
+                        .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+                ) {
+                    // The app's one loading indicator (design/android.md), not the theme's blue primary.
+                    // The status text says what is in progress; one TalkBack stop, not a separate progress bar.
+                    Box(Modifier.clearAndSetSemantics {}) { FestivalLoading(label = null, size = 24.dp) }
+                    Text(form.progressText, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodyMedium)
+                }
             }
-        }
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            when (val phase = form.phase) {
-                is FeedbackPhase.Sent -> SentContent(kind, phase, viewModel::requestClose)
-                else -> EditingContent(form, viewModel)
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                when (val phase = form.phase) {
+                    is FeedbackPhase.Sent -> SentContent(kind, phase, viewModel::requestClose)
+                    else -> EditingContent(form, viewModel)
+                }
             }
         }
     }
