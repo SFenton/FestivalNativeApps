@@ -97,7 +97,7 @@
      "key:shift+tab",
      "assertfocus:id=fst.song-leaderboard.spotlight-footer@3"
    ]},
-  {"name": "cols-full-rankings", "route": "/leaderboards/all?instrument=Solo_Guitar", "profile": "fixture-player-1:Fixture Player 1", "scan": true, "tabs": 0,
+  {"name": "cols-full-rankings", "route": "/leaderboards/all?instrument=Solo_Guitar", "settings": {"experimentalRanks": true}, "profile": "fixture-player-1:Fixture Player 1", "scan": true, "tabs": 0,
    "note": "Rankings rows and their pinned row share one section plan (rank, songs label, rating): one Button stop each reading every column, rows -> pinned row, 40+ epx targets. Keyboard: Up/Down between rows, Tab to the pinned row, Shift+Tab back through the last row to Rank by.",
    "ready": ["waitfor:id=fst.rankings.row.fixture-player-2@30", "waitfor:id=fst.full-rankings.spotlight-footer@15", "wait:1"],
    "after_ready": [

@@ -313,8 +313,8 @@ public sealed partial class AllRivalsViewModel : RivalPageViewModel
     /// <summary>Scope from the route (may be Settings-derived).</summary>
     public RivalScope RouteScope { get; }
 
-    /// <summary>Scope resolved against current Settings.</summary>
-    public RivalScope? Scope => RouteScope.Resolve(Session.Settings.VisibleInstruments);
+    /// <summary>Scope resolved against current Settings (visible charts and Experimental Ranks).</summary>
+    public RivalScope? Scope => Session.ResolveRivalScope(RouteScope);
 
     /// <summary>Heading.</summary>
     public string Title => (Scope ?? RouteScope).ListTitle;
@@ -471,7 +471,7 @@ public sealed partial class RivalDetailViewModel : RivalPageViewModel
     public string Title => RivalName ?? "Rival";
 
     /// <summary>Which scope the comparison covers.</summary>
-    public string ScopeLabel => RivalDetailText.ScopeLabel(Route.Scope, Session.Settings.VisibleInstruments);
+    public string ScopeLabel => RivalDetailText.ScopeLabel(Session.ResolveRivalScope(Route.Scope), Session.Settings.VisibleInstruments);
 
     /// <summary>Profile action label (web <c>common.viewNameProfile</c>).</summary>
     public string ViewProfileLabel => RivalName is { } name ? $"View {name}'s Profile" : "View Profile";
