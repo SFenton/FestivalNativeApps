@@ -2,7 +2,7 @@
 
 > **What:** the Settings switch "Enable Experimental Leaderboard Ranks" and every place it gates: which ranking metrics Rank By offers (Adjusted, Weighted, FC Rate, Max Score beside Total Score), how saved, routed or selected experimental metrics fall back, and the other surfaces that hide experimental ranks while it is off. **Read when:** adding or changing a Rank By control, a per-metric rank tile, a rank notification, a ranking route parameter or the Settings switch itself.
 
-Status: **current**, 2026-10-08. Provenance: #541 (the native toggle was disabled while every page offered all metrics; each platform is fixed in its own #541 session).
+Status: **current**, 2026-10-08. Provenance: #541 (the native toggle was disabled while every page offered all metrics; Android and Windows consolidated first, Apple in its own #541 session).
 
 ## Intent
 
@@ -30,9 +30,20 @@ Experimental ranking metrics are opt-in, app-wide, exactly like the web. With th
 
 | Sub-behavior | Apple | Android | Windows |
 |---|---|---|---|
-| Gate (R1, R2) | pending (#541 Apple session) | pending (#541 Android session) | `Festival.Core/Domain/RankingMetrics.cs` `RankingMetricInfo.Enabled`/`Gate`/`Coerce(id, experimentalRanks)`; `Domain/BandTypes.cs` `BandRankingMetricInfo.Enabled`/`Gate`; `ViewModels/FestivalSession.Rivals.cs` `EffectiveRivalMetric`/`ResolveRivalScope` |
-| Rank By control (R1) | pending | pending (#541 Android session) | Each page's Rank By `DropDownButton` / `ComboBox` binds `Visibility` to its view model's `ShowRankBy` and lists `MetricOptions` (`Enabled(…)`) |
-| Notifications (R4) | pending | pending (#541 Android session) | `Festival.Core/Data/NotificationModels.cs` `NotificationRouting.ProjectExperimentalRanks` |
+| Gate (R1, R2) | pending (#541 Apple session) | `core/rankings/Rankings.kt` `RankingMetric.enabled`/`coerce`; `core/bands/BandTypes.kt` `BandRankingMetric.enabled`/`coerce`; `core/rivals/RivalsModels.kt` `RivalRankMetric.gated`, `core/rivals/RivalScope.kt` `RivalScopes.gated` | `Festival.Core/Domain/RankingMetrics.cs` `RankingMetricInfo.Enabled`/`Gate`/`Coerce(id, experimentalRanks)`; `Domain/BandTypes.cs` `BandRankingMetricInfo.Enabled`/`Gate`; `ViewModels/FestivalSession.Rivals.cs` `EffectiveRivalMetric`/`ResolveRivalScope` |
+| Rank By control (R1) | pending | `ui/leaderboards/RankingsComponents.kt` `RankByAction` (renders nothing while off; `tagPrefix` for Rivals) and `BandRankByAction` | Each page's Rank By `DropDownButton` / `ComboBox` binds `Visibility` to its view model's `ShowRankBy` and lists `MetricOptions` (`Enabled(…)`) |
+| Notifications (R4) | pending | `core/notifications/Notifications.kt` `NotificationRouting.projectExperimentalRanks` | `Festival.Core/Data/NotificationModels.cs` `NotificationRouting.ProjectExperimentalRanks` |
+
+Android paths are under `android/app/src/main/java/com/festivalscoretracker/android/`. Android consumers:
+
+- Leaderboards overview and Full Rankings (`LeaderboardsViewModel`, `FullRankingsViewModel`: coerced saved/routed metric, `experimentalRanks` flow, reset to Total Score page 1 on off), Band Rankings (`BandRankingsViewModel`), Band Detail (`BandDetailViewModel`, `BandDetailScreen`).
+- Rivals: `RivalsHubViewModel.rankByOptions`/`selectRankBy` (per-metric leaderboard lists), `RivalsNavigation` gates All Rivals and Rival Detail scopes.
+- Player profile: `RankLoad.tiles(load, experimentalRanks)` (one tile per metric, web labels, each opening its metric's Full Rankings page).
+- Notifications: `NotificationsViewModel(experimentalRanks = …)`.
+- First run: `FirstRunCenter`/`FirstRunHost` already gate the experimental-metrics slide on `AppSettings.experimentalRanks`.
+- Settings: `SettingsScreen` `fst.settings.experimental-ranks`, `SettingsViewModel.setExperimentalRanks`; `AppSettings.sanitized` no longer forces it off.
+
+Android tests: `rankings/ExperimentalRanksTest` (gate and coercion), `RankingsViewModelTest` "Experimental Ranks (#541)" region (selection gate, deep-link fallback, reset on off for Full and Band Rankings), `BandsViewModelTest.detailRankByFollowsExperimentalRanks`, `RivalsViewModelTest.leaderboardRankByFollowsExperimentalRanks`, `NotificationsTest` "Experimental Ranks (#541)" region, `ProfileActionsTest.tilesCarryTheWebActions`, Robolectric `LeaderboardsUiTest.rankByWaitsForExperimentalRanks`/`bandRankingsHideRankByWithoutExperimentalRanks`, `BandsUiTest.bandDetailRankByWaitsForExperimentalRanks`, `SettingsUiTest.everySettingPersistsAndPropagates`, and the connected ATF journey `journeys/ExperimentalRanksAccessibilityJourneyTest` (switch role/state/48 dp at 1.0 and 2.0, Rank By absent from TalkBack while off and a full-size "Rank By, Total Score" control while on), and `journeys/ExperimentalRanksSurfacesAccessibilityJourneyTest` (`@DeviceCi`, ATF, review of #531) for the other R4 regions with the flag persisted off and on: the profile shows only the Total Score Rank tile while off; while on it shows all five rank tiles in metric order, each a labelled 48 dp `Button` at 1.0 and 2.0 text, and turning the flag off live drops the experimental tiles; Rivals' Leaderboard tab has no Rank By and requests only `rankBy=totalscore` while off, and while on it has one full-size "Rank By, Total Score" control that lists all five metrics and re-requests `rankBy=adjusted`; and the persisted flag excludes or includes the `leaderboards-experimental-metrics` first-run slide, which TalkBack reads. Journeys that exercise Rank By launch with the setting on.
 
 Windows paths are under `windows/`. Windows consumers:
 
@@ -49,9 +60,9 @@ Windows tests: Core `ExperimentalRanksTests` (gate, Settings default/persist/Res
 
 | Debt | Breaks | Plan |
 |---|---|---|
-| Android: Settings sanitizes the switch off and disables it; Leaderboards, Full Rankings and Band Rankings offer every metric | R1–R5 | #541 Android session |
 | Apple: the Settings row is disabled ("Not yet available") and Leaderboards, Full Rankings, Band Rankings and Mac menus offer every metric | R1–R5 | #541 Apple session |
 
 ## Guards (`tools/pattern_guard.py`)
 
+- `experimental-ranks/android-metric-menus`
 - `experimental-ranks/windows-metric-menus`

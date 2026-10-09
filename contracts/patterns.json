@@ -3537,7 +3537,32 @@
       ],
       "canonical": {
         "apple": [],
-        "android": [],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/Rankings.kt",
+            "symbol": "RankingMetric"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/bands/BandTypes.kt",
+            "symbol": "BandRankingMetric"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rivals/RivalScope.kt",
+            "symbol": "RivalScopes"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsComponents.kt",
+            "symbol": "RankByAction"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsComponents.kt",
+            "symbol": "BandRankByAction"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/notifications/Notifications.kt",
+            "symbol": "projectExperimentalRanks"
+          }
+        ],
         "windows": [
           {
             "path": "windows/Festival.Core/Domain/RankingMetrics.cs",
@@ -3570,6 +3595,16 @@
         ]
       },
       "guards": [
+        {
+          "id": "android-metric-menus",
+          "glob": "android/app/src/main/java/com/festivalscoretracker/android/ui/**/*.kt",
+          "regex": "(RankingMetric|BandRankingMetric|RivalRankMetric)\\.entries",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/firstrun/FirstRunRotatingDemos.kt"
+          ],
+          "debt": [],
+          "message": "Rank By menus and metric lists offer RankingMetric.enabled / BandRankingMetric.enabled (or a view model's gated options), never every metric, so Settings → Experimental Ranks gates them (experimental-ranks R1)."
+        },
         {
           "id": "windows-metric-menus",
           "glob": "windows/**/*.cs",
