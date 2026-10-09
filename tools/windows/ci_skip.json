@@ -1,10 +1,6 @@
 {
   "a11y_pages": {},
   "tasks": {
-    "journey:song-header-title": {"reason": "Long-title UIA and marquee assertions fail.", "issue": "SFenton/festival-report-tracker#529"},
-    "journey:star-rating": {"reason": "Gold-star UIA assertions fail.", "issue": "SFenton/festival-report-tracker#529"},
-    "journey:difficulty-meter": {"reason": "Seven-meter fixture title is not realized.", "issue": "SFenton/festival-report-tracker#530"},
-    "journey:songs-section-index": {"reason": "Large-catalogue fixture row is not realized.", "issue": "SFenton/festival-report-tracker#530"},
     "journey:search": {"reason": "Search fixture state assertions fail.", "issue": "SFenton/festival-report-tracker#530"},
     "journey:whats-new-pointer": {"reason": "Injected pointer dismissal assertions fail.", "issue": "SFenton/festival-report-tracker#531"},
     "runner:settings": {"reason": "Visual-order drag assertion fails.", "issue": "SFenton/festival-report-tracker#531"},

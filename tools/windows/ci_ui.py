@@ -22,7 +22,6 @@ WINDOWS_TOOLS = REPO_ROOT / "tools" / "windows"
 JOURNEYS = WINDOWS_TOOLS / "journeys"
 MATRIX_GROUP_SIZE = 6
 SKIP_FILE = WINDOWS_TOOLS / "ci_skip.json"
-FIXTURES = JOURNEYS / "fixtures.json"
 
 
 @dataclass(frozen=True)
@@ -125,14 +124,9 @@ def task_command(task: Task, out: Path, retries: int) -> list[str]:
     if task.kind in ("journey", "matrix"):
         selected = write_entries(task, out / "inputs")
         if task.kind == "journey":
-            config = json.loads(FIXTURES.read_text(encoding="utf-8")).get(task.source.name, {})
-            command = [sys.executable, str(WINDOWS_TOOLS / "ui_journey.py"), str(selected),
-                       "--shots", str(out / "screenshots"), "--retries", str(retries)]
-            if config.get("fixture"):
-                command += ["--fixture", str(REPO_ROOT / config["fixture"])]
-            if "--large-catalogue" in config.get("args", []):
-                command.append("--large-catalogue")
-            return command
+            # Each journey names its fixture wrapper in its own ``fixture`` list (ui_journey.journey_fixture).
+            return [sys.executable, str(WINDOWS_TOOLS / "ui_journey.py"), str(selected),
+                    "--shots", str(out / "screenshots"), "--retries", str(retries)]
         return [sys.executable, str(WINDOWS_TOOLS / "a11y_matrix.py"), "--pages", str(selected),
                 "--out", str(out / "a11y"), "--scan", "--tabs", "30"]
     assert task.command

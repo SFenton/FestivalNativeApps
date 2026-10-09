@@ -1,6 +1,7 @@
 [
   {
     "name": "meter-pulse-two-to-five",
+    "fixture": ["--large-catalogue"],
     "route": "/songs/fixture-pulse",
     "preset": "medium",
     "steps": [
@@ -20,6 +21,7 @@
   },
   {
     "name": "meter-orbit-one-six-sentinel",
+    "fixture": ["--large-catalogue"],
     "route": "/songs/fixture-orbit",
     "preset": "compact",
     "steps": [
@@ -36,6 +38,7 @@
   },
   {
     "name": "meter-seven-wide",
+    "fixture": ["--large-catalogue"],
     "route": "/songs/fixture-song-6",
     "preset": "wide",
     "steps": [
