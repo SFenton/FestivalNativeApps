@@ -219,6 +219,18 @@ class PagesTests(unittest.TestCase):
         self.assertNotIn("settings-service-info-stacked", names)
         self.assertIn("settings-service-info-stacked", {p["name"] for p in m.mode_pages(pages, "text-200")})
 
+    def test_state_row_layout_pages_check_measured_fit_both_ways(self):
+        """#539: the state row stacks by measured fit, so a compact window stacks at 225% and a medium one stays inline."""
+        pages = {p["name"]: p for p in json.loads(PAGES.read_text(encoding="utf-8"))}
+        stacked, inline = pages["settings-service-info-stacked"], pages["settings-service-info-inline-large-text"]
+        self.assertEqual((stacked["sizes"], stacked["modes"][0]), (["compact"], "text-225"))
+        self.assertEqual((inline["sizes"], inline["modes"][0]), (["medium"], "text-225"))
+        self.assertIn("assertbelow:id=fst.settings.service-info.process|id=fst.settings.service-info.state", stacked["after_ready"])
+        self.assertIn("assertbelow:id=fst.settings.service-info.state|id=fst.settings.service-info.process", inline["after_ready"])
+        for page in (stacked, inline):
+            self.assertIn("assertapart:name=Leaderboard Service State&class=TextBlock|id=fst.settings.service-info.process",
+                          page["after_ready"])
+
 
 if __name__ == "__main__":
     unittest.main()

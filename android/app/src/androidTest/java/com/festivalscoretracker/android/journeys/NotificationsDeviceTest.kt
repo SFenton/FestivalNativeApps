@@ -4,13 +4,17 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.dp
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.mutablePreferencesOf
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
+import com.festivalscoretracker.android.core.settings.SettingsRegistry
 import com.festivalscoretracker.android.data.RequestGate
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.RankingsFixtures
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -66,11 +70,15 @@ class NotificationsDeviceTest {
 
     private fun openBell() = h.tap("fst.shell.notifications")
 
+    /** Settings with Experimental Ranks [on] (`experimental-ranks` R4: rank rows show only while on). */
+    private fun experimentalRanks(on: Boolean) =
+        MemoryPreferences(mutablePreferencesOf(booleanPreferencesKey(SettingsRegistry.EXPERIMENTAL_RANKS) to on))
+
     @Test
     fun unreadThenOlderRowsOpenSongDetailAndFullRankings() {
         h.enableAccessibilityChecks()
         val transport = transport(feed)
-        h.launch(DebugLaunch(profile = player, opensNotifications = true, stillBackground = true), transport)
+        h.launch(DebugLaunch(profile = player, opensNotifications = true, stillBackground = true), transport, experimentalRanks(true))
         h.waitForTag("fst.notifications.row.n-song")
         val unread = h.readingOrder("notifications-unread")
         before(unread, "Notifications", "New")
@@ -96,6 +104,20 @@ class NotificationsDeviceTest {
         h.waitGone("fst.notifications.sheet")
         h.waitForTag("fst.full-rankings.pager")
 
+        assertKeyless(transport)
+        h.assertAccessible()
+    }
+
+    @Test
+    fun experimentalRankRowsHideWhileTheSettingIsOff() {
+        h.enableAccessibilityChecks()
+        val transport = transport(feed)
+        h.launch(DebugLaunch(profile = player, opensNotifications = true, stillBackground = true), transport, experimentalRanks(false))
+        h.waitForTag("fst.notifications.row.n-total")
+        val unread = h.readingOrder("notifications-experimental-off")
+        before(unread, "Unread. Alpha Tune", "Unread. Total Score Improved")
+        assertTrue("experimental rank row read with Experimental Ranks off: $unread", unread.none { it.contains("Weighted") })
+        assertFalse(h.exists("fst.notifications.row.n-rank"))
         assertKeyless(transport)
         h.assertAccessible()
     }

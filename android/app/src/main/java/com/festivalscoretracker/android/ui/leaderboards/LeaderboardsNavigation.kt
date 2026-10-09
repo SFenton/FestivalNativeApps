@@ -28,6 +28,8 @@ import com.festivalscoretracker.android.presentation.leaderboards.BandRankingsVi
 import com.festivalscoretracker.android.presentation.leaderboards.FullRankingsViewModel
 import com.festivalscoretracker.android.presentation.leaderboards.LeaderboardsViewModel
 import com.festivalscoretracker.android.presentation.leaderboards.RankingsReads
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 
 // region Graph
 
@@ -81,7 +83,14 @@ fun NavGraphBuilder.leaderboardsGraph(container: AppContainer, shellViewModel: S
     composable<BandRankingsRoute> { entry ->
         val route = entry.savedStateHandle.toRoute<BandRankingsRoute>()
         val viewModel: BandRankingsViewModel = viewModel {
-            BandRankingsViewModel(BandType.fromWireId(route.bandType) ?: BandType.Duets, preferences.rankBy, rankingsReads(container), container.backoff, route.page)
+            BandRankingsViewModel(
+                BandType.fromWireId(route.bandType) ?: BandType.Duets,
+                preferences.rankBy,
+                shellViewModel.settings.filterNotNull().map { it.experimentalRanks },
+                rankingsReads(container),
+                container.backoff,
+                route.page,
+            )
         }
         val bandType by viewModel.bandType.collectAsStateWithLifecycle()
         val page by viewModel.page.collectAsStateWithLifecycle()

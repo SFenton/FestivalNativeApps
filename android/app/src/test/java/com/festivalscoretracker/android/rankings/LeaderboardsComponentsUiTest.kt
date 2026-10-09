@@ -68,7 +68,8 @@ class LeaderboardsComponentsUiTest {
 
     private val fake = FakeReads()
     private val settings = MutableStateFlow<AppSettings?>(
-        AppSettings(selectedPlayer = SelectedPlayer(RankingsFixtures.SELECTED, "Selected Player"), visibleInstruments = setOf(Instrument.Lead)),
+        // Experimental Ranks on: these boards exercise the Weighted metric (#541).
+        AppSettings(selectedPlayer = SelectedPlayer(RankingsFixtures.SELECTED, "Selected Player"), visibleInstruments = setOf(Instrument.Lead), experimentalRanks = true),
     )
     private val rankBy = MutableStateFlow(RankingMetric.Weighted)
 
