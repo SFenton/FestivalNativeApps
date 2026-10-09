@@ -26,7 +26,8 @@ before writing a real journey.
 
 - The step starts `tools/mock_service.py --large-catalogue` on the default port 8765, creates one throwaway runner simulator with `ios_sim.py ci-device` (an iPhone 17 Pro on the runner's newest iOS runtime) and runs `ios_sim.py uitest --device <UDID> --fail-on-skip`.
 - `--fail-on-skip` fails a batch in which any test skipped or none ran: a journey that cannot find its fixture skips, and an all-skipped batch would otherwise pass.
-- Add a journey only if it passes alone against that fixture, launches with no other flags or a selected player, and takes about two minutes or less; a journey needing another fixture mode needs its own mock and step. Run it first with `ios_sim.py uitest --fail-on-skip` locally (point it at your own mock with `TEST_RUNNER_<VAR>` when another lane holds 8765).
+- Add a journey only if it passes alone against that fixture, needs no other mock flags (a selected player is fine when it is `fixture-player-1`, which every fixture mode serves, as the #388 Songs #5 journeys use), and takes about two minutes or less; a journey needing another fixture mode needs its own mock and step. Run it first with `ios_sim.py uitest --fail-on-skip` locally (point it at your own mock with `TEST_RUNNER_<VAR>` when another lane holds 8765).
+- Run it locally on `--device iphone27` too: the runner's newest runtime is iOS 27, and the audit there flags what 26.5 did not (#388: the accessory bell badge's capped Dynamic Type).
 - `ci-device` refuses to run outside GitHub Actions: on a shared Mac, use a `DEVICES` alias and never create or change simulators.
 - A failed run uploads the `.xcresult` bundles and the mock's log as the `apple-ci-journeys` artifact.
 

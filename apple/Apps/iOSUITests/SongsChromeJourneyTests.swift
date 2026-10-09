@@ -511,6 +511,12 @@ final class SongsChromeJourneyTests: XCTestCase {
                       let letter = issue.element, letter.elementType == .staticText,
                       current.rail.contains(CGPoint(x: letter.frame.midX, y: letter.frame.midY)) {
                 accepted.append("rail grows \(railGrowth)×: \(description)")
+            } else if issue.auditType == .dynamicType, let text = issue.element,
+                      text.elementType == .staticText,
+                      current.accessory.contains(CGPoint(x: text.frame.midX, y: text.frame.midY)) {
+                // The bell's unread badge (or another accessory label): the fixed-height
+                // system accessory caps its text and offers the Large Content Viewer.
+                accepted.append("accessory type cap: \(description)")
             } else if issue.auditType == .contrast, let text = issue.element,
                       text.elementType == .staticText, !text.frame.isEmpty {
                 let measured = try? self.renderedContrast(
@@ -1049,6 +1055,9 @@ private struct ScrollAwayAuditPage {
     let rail: CGRect
     /// The top of the bottom chrome: the tab bar, or the page tools above it.
     let chromeTop: CGFloat
+    /// The page-tools tab-bar accessory's frame (`.null` when it is not shown). Its text
+    /// stops growing at `PageToolsAccessoryBar.maxTypeSize` (`page-tools-and-nav-chrome`).
+    let accessory: CGRect
     /// Where the 40 pt top ramp under the section or navigation bar ends
     /// (`scroll-edge` R2/R3).
     let rampEnd: CGFloat
@@ -1070,6 +1079,9 @@ private struct ScrollAwayAuditPage {
         var chromeTop = tabs.exists ? tabs.frame.minY : window.maxY
         if accessory.exists, accessory.frame.minY > window.midY {
             chromeTop = min(chromeTop, accessory.frame.minY)
+            self.accessory = accessory.frame
+        } else {
+            self.accessory = .null
         }
         self.chromeTop = chromeTop
         let sectionBar = app.staticTexts["fst.songs.section-bar"]
