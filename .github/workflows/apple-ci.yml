@@ -54,6 +54,37 @@ jobs:
         # strictly. Reuses the coverage build and leaves its profile alone. Filter: testing/apple/hosted-snapshots.md.
         working-directory: apple
         run: swift test --skip-build --filter 'selectedRowRevealFadesTheRowItReaches|staggeredListRowsFadeInRatherThanPop|serviceInfoIndeterminateBar'
+      - name: iPhone simulator journeys (serialized, loopback fixture)
+        # Evidence only an iOS run gives (real Dynamic Type sizes, performAccessibilityAudit, the production nav bar
+        # and tab-bar accessory reading order, page-tools-and-nav-chrome R17). One throwaway runner
+        # simulator, the large-catalogue loopback fixture, `ios_sim.py uitest`; a skipped journey fails the step.
+        # Add a journey here only if it runs against this fixture: testing/apple/xcuitest.md#ci-journeys.
+        env:
+          JOURNEYS: >-
+            SongsChromeJourneyTests/testSectionBarHeadingAtLargestText
+            NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrder
+            NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrderOnPushedPage
+            NavButtonHitRegionJourneyTests/testChooseProfileReadsAloneInProductionChrome
+            NavButtonHitRegionJourneyTests/testAccountButtonsStaySeparateAndLabelledAtLargestTextSize
+        run: |
+          python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service.log" 2>&1 &
+          mock=$!
+          trap 'kill "$mock" 2>/dev/null || true' EXIT
+          device=$(python3 tools/ios_sim.py ci-device)
+          for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock_service.log" && break; sleep 1; done
+          grep -q "fixture service on" "$RUNNER_TEMP/mock_service.log"
+          only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
+          python3 tools/ios_sim.py uitest --device "$device" --fail-on-skip --timeout 900 "${only[@]}"
+      - name: Upload simulator journey results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple-ci-journeys
+          path: |
+            apple/DerivedData/lane-driver/Results
+            ${{ runner.temp }}/mock_service.log
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload hosted render captures
         if: failure()
         uses: actions/upload-artifact@v4
