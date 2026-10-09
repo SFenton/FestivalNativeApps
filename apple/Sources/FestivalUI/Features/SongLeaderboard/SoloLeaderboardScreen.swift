@@ -289,7 +289,8 @@ struct SoloLeaderboardScreen: View {
             // iOS and iPadOS: the Mac keeps its window title (song-header R4).
             if showsSongHeader {
                 SongBarTitleToolbarItem(
-                    song: song, session: session, caption: instrument.label, isShown: headerHidden,
+                    song: song, session: session, caption: instrument.label,
+                    captionInstrument: instrument, isShown: headerHidden,
                     identifier: "fst.song-leaderboard.pinned-title"
                 )
             } else if !layout.sectionChrome.isVerticalBar {
@@ -584,15 +585,10 @@ struct SoloLeaderboardScreen: View {
     private func scoreHeader(_ payload: LeaderboardPayload) -> some View {
         if showsSongHeader {
             SongHeaderRow(song: song, session: session, onHeightChange: { headerHeight = $0 }) {
-                HStack(spacing: 6) {
-                    InstrumentIcon(instrument, size: 20)
-                        .accessibilityHidden(true)
-                    MarqueeText(SongLeaderboardBoardLine.text(
-                        name: instrument.label, totalEntries: payload.leaderboard.totalEntries,
-                        showsTotals: payload.leaderboard.showLeaderboardEntryTotals
-                    ))
-                    .foregroundStyle(FestivalText.primary)
-                }
+                SongBoardLine(instrument: instrument, text: SongLeaderboardBoardLine.text(
+                    name: instrument.label, totalEntries: payload.leaderboard.totalEntries,
+                    showsTotals: payload.leaderboard.showLeaderboardEntryTotals
+                ))
             }
             .accessibilityIdentifier("fst.song-leaderboard.header")
         } else {

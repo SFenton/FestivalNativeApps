@@ -312,7 +312,8 @@ struct SongBandLeaderboardContent: View {
             #if os(iOS)
             if showsSongHeader {
                 SongBarTitleToolbarItem(
-                    song: song, session: session, caption: bandType.label, isShown: headerHidden,
+                    song: song, session: session, caption: bandType.label,
+                    captionInstrument: nil, isShown: headerHidden,
                     identifier: "fst.song-band-leaderboard.pinned-title"
                 )
             } else if !layout.sectionChrome.isVerticalBar {
@@ -487,11 +488,11 @@ struct SongBandLeaderboardContent: View {
         let loaded = shown.flatMap { $0.key.bandType == bandType ? $0.payload.leaderboard : nil }
         if showsSongHeader {
             SongHeaderRow(song: song, session: session) {
-                MarqueeText(SongLeaderboardBoardLine.text(
+                // A band size has no instrument, so no icon (R1, #542).
+                SongBoardLine(instrument: nil, text: SongLeaderboardBoardLine.text(
                     name: bandType.label, totalEntries: loaded?.totalEntries,
                     showsTotals: loaded?.showLeaderboardEntryTotals
                 ))
-                .foregroundStyle(FestivalText.primary)
             }
             .accessibilityIdentifier("fst.song-band-leaderboard.header")
         } else {

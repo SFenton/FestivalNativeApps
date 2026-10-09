@@ -267,6 +267,94 @@ struct SongHeaderTextTests {
                 == barTitleSize("One", offered: 258, .accessibility5).height
         )
     }
+
+    // MARK: Board line icon (#542)
+
+    /// Lay out a board line's or bar title's natural width.
+    ///
+    /// - Parameter view: The view to measure.
+    /// - Returns: Its fitting width.
+    private func naturalWidth(_ view: some View) -> CGFloat {
+        let host = NSHostingView(rootView: view
+            .environment(\.marqueeAnimationEnabled, false)
+            .fixedSize())
+        host.frame = CGRect(origin: .zero, size: host.fittingSize)
+        host.layoutSubtreeIfNeeded()
+        return host.fittingSize.width
+    }
+
+    /// An instrument caption in the pinned bar title is led by the instrument's icon
+    /// (14 pt and the 4 pt gap at the default size); a band size's caption is not.
+    @Test func barTitleCaptionLeadsWithTheInstrumentIcon() throws {
+        let session = try offlineSession()
+        let caption = "Lead · Score History"
+        let plain = naturalWidth(SongBarTitle(song: song("One"), session: session, caption: caption))
+        let withIcon = naturalWidth(SongBarTitle(
+            song: song("One"), session: session, caption: caption, captionInstrument: .lead
+        ))
+        #expect(withIcon == plain + 14 + 4, "plain \(plain), with icon \(withIcon)")
+        let band = naturalWidth(SongBarTitle(
+            song: song("One"), session: session, caption: "Duos", captionInstrument: nil
+        ))
+        let bandAgain = naturalWidth(SongBarTitle(song: song("One"), session: session, caption: "Duos"))
+        #expect(band == bandAgain, "a band size has no icon")
+    }
+
+    /// The in-page board line is led by the instrument's icon (20 pt and a 6 pt gap at the
+    /// default size); a band size's line is its text alone.
+    @Test func boardLineLeadsWithTheInstrumentIcon() {
+        let text = "Lead · 1,234 entries"
+        let plain = naturalWidth(SongBoardLine(instrument: nil, text: text))
+        let withIcon = naturalWidth(SongBoardLine(instrument: .lead, text: text))
+        #expect(withIcon == plain + 20 + 6, "plain \(plain), with icon \(withIcon)")
+    }
+
+    /// VoiceOver meets the pinned bar title as one heading that reads the song and the
+    /// caption once each: the icon beside the caption is decorative and hidden, so its
+    /// "Lead" label does not repeat the instrument.
+    @Test func barTitleWithIconIsOneHeadingReadingTheInstrumentOnce() throws {
+        nativeHostedEnableAccessibility()
+        let size = CGSize(width: 320, height: 60)
+        let host = nativeHostedView(
+            SongBarTitle(song: song(long), session: try offlineSession(), caption: "Lead", captionInstrument: .lead)
+                .accessibilityIdentifier("fst.test.bar-title")
+                .environment(\.marqueeAnimationEnabled, false),
+            size: size
+        )
+        let window = nativeHostedWindow(host, size: size)
+        defer { window.orderOut(nil) }
+        host.layoutSubtreeIfNeeded()
+        let element = try #require(nativeHostedAccessibilityElement("fst.test.bar-title", in: host))
+        let label = nativeHostedAccessibilityString(element, "accessibilityLabel")
+        #expect(label.components(separatedBy: long).count == 2, "title once: \(label)")
+        #expect(label.components(separatedBy: "Lead").count == 2, "instrument once: \(label)")
+        let tree = nativeHostedAccessibility(host)
+        #expect(tree.texts.filter { $0.contains(long) }.count == 1, "texts: \(tree.texts)")
+        #expect(tree.texts.filter { $0 == "Lead" }.isEmpty, "the icon is not its own element: \(tree.texts)")
+    }
+
+    /// The leaderboard header with an instrument board line still reads as one heading
+    /// naming the song once, and the line's icon adds no second "Lead".
+    @Test func leaderboardHeaderWithBoardIconReadsTheInstrumentOnce() throws {
+        nativeHostedEnableAccessibility()
+        let size = CGSize(width: rowWidth, height: 200)
+        let host = nativeHostedView(
+            SongHeaderRow(song: song(long), session: try offlineSession(), onHeightChange: { _ in }) {
+                SongBoardLine(instrument: .lead, text: "Lead · 1,234 entries")
+            }
+            .accessibilityIdentifier("fst.test.song-header")
+            .environment(\.marqueeAnimationEnabled, false),
+            size: size
+        )
+        let window = nativeHostedWindow(host, size: size)
+        defer { window.orderOut(nil) }
+        host.layoutSubtreeIfNeeded()
+        let element = try #require(nativeHostedAccessibilityElement("fst.test.song-header", in: host))
+        let label = nativeHostedAccessibilityString(element, "accessibilityLabel")
+        #expect(label.components(separatedBy: long).count == 2, "title once: \(label)")
+        #expect(label.components(separatedBy: "Lead").count == 2, "instrument once: \(label)")
+        #expect(label.contains("DragonForce"))
+    }
 }
 
 /// A board's scroll content (the Song Leaderboard's `List` or the Band Song
