@@ -1,5 +1,5 @@
 [
-  {"name": "edge-system-hard", "tab": "songs", "fixture": ["--large-catalogue"],
+  {"name": "edge-system-hard", "modes": ["hc-desert", "no-transparency"], "tab": "songs", "fixture": ["--large-catalogue"],
    "ready": ["waitfor:id=fst.songs.section-header@20"],
    "after_ready": ["assertstatus:id=fst.songs.edge-fade|hard-edge@5", "scrollto:id=fst.songs.list,30", "wait:1",
                    "assertstatus:id=fst.songs.edge-fade|hard-edge@5", "waitfor:id=fst.songs.section-header@5"], "tabs": 8}
