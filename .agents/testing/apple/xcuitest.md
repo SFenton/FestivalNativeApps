@@ -20,6 +20,17 @@ see `cmd_uitest`'s docstring in `tools/ios_sim.py` for the full contract.
 sequence instead of a written `XCTestCase`, useful for ad hoc exploration
 before writing a real journey.
 
+## CI journeys
+
+`apple-ci` runs a short list of iPhone journeys on a simulator (step "iPhone simulator journeys", `JOURNEYS` in [`apple-ci.yml`](../../../.github/workflows/apple-ci.yml)). Use it for evidence the macOS-hosted suite cannot give: real Dynamic Type sizes (macOS has no Dynamic Type, [accessibility](accessibility.md)) and `performAccessibilityAudit`.
+
+- The step starts `tools/mock_service.py --large-catalogue` on the default port 8765, creates one throwaway runner simulator with `ios_sim.py ci-device` (an iPhone 17 Pro on the runner's newest iOS runtime) and runs `ios_sim.py uitest --device <UDID> --fail-on-skip`.
+- `--fail-on-skip` fails a batch in which any test skipped or none ran: a journey that cannot find its fixture skips, and an all-skipped batch would otherwise pass.
+- `A11Y_MODE_JOURNEYS` run again with `--a11y increase-contrast` and `--a11y reduce-transparency` ([accessibility](accessibility.md#ios-journeys-in-ci)); `FST_UITEST_NO_DIAGNOSTICS=1` skips `xcodebuild`'s slow failure diagnostics.
+- Add a journey only if it passes alone against that fixture, launches with no other flags or a selected player, and takes about two minutes or less; a journey needing another fixture mode needs its own mock and step. Run it first with `ios_sim.py uitest --fail-on-skip` locally (point it at your own mock with `TEST_RUNNER_<VAR>` when another lane holds 8765).
+- `ci-device` refuses to run outside GitHub Actions: on a shared Mac, use a `DEVICES` alias and never create or change simulators.
+- A failed run uploads the `.xcresult` bundles and the mock's log as the `apple-ci-journeys` artifact.
+
 ### Shared launch helper (`FestivalApp.swift`, added 2026-09-28)
 
 Every journey launches through `FestivalApp.makeApp(_:)` (build, don't launch)

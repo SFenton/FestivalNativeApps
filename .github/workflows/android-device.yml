@@ -34,28 +34,42 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Enable KVM
         run: sudo chmod a+rw /dev/kvm
-      - name: Cache Android virtual device
-        id: avd-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.android/avd
-            ~/.android/adb*
-          key: android-device-avd-api-35-google-apis-x86_64-pixel-6-v1
-      - name: Run instrumented tests
+      - name: Build app and test APKs
+        run: bash android/gradlew -p android :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
+      - name: Install the system image (retried; the download sometimes arrives corrupt)
+        run: |
+          set +o pipefail  # `yes` dies of SIGPIPE once sdkmanager exits
+          sdk="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$sdk" --licenses > /dev/null
+          for attempt in 1 2 3 4; do
+            "$sdk" --install 'system-images;android-35;google_apis;x86_64' emulator > /dev/null && break
+            echo "sdkmanager attempt $attempt failed; retrying"
+            rm -rf "$ANDROID_HOME/system-images/android-35/google_apis/x86_64" "$ANDROID_HOME/.temp"
+            sleep 20
+            [ "$attempt" = 4 ] && exit 1
+          done
+      - name: Run the whole instrumented suite
         uses: reactivecircus/android-emulator-runner@v2.34.0
         with:
+          # Google APIs 35: the whole suite runs in ~10 min here; the AOSP 34 image (#397's choice for a
+          # small subset) ran it 5x slower with 7 failures and a hang (run 37865512668).
           api-level: 35
           target: google_apis
           arch: x86_64
           avd-name: fst-ci-api-35
           profile: pixel_6
-          force-avd-creation: false
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
+          # The runner execs each line on its own (a `trap` doesn't survive), so the logcat dump rides
+          # on the test command. Wake, unlock and clear system dialogs so the first test owns a resumed,
+          # focused window.
           script: |
-            trap 'adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/android-device-logcat.txt" || true' EXIT
-            bash android/gradlew -p android :app:connectedDebugAndroidTest --no-daemon --stacktrace
+            adb shell svc power stayon true
+            adb shell wm dismiss-keyguard
+            adb shell input keyevent 82
+            adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS || true
+            sleep 20
+            bash android/gradlew -p android :app:connectedDebugAndroidTest --no-daemon --stacktrace -Pandroid.testInstrumentationRunnerArguments.timeout_msec=180000 || (adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/android-device-logcat.txt"; exit 1)
       - name: Upload Android device test reports
         if: failure()
         uses: actions/upload-artifact@v4

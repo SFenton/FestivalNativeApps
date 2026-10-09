@@ -54,33 +54,45 @@ jobs:
         # strictly. Reuses the coverage build and leaves its profile alone. Filter: testing/apple/hosted-snapshots.md.
         working-directory: apple
         run: swift test --skip-build --filter 'selectedRowRevealFadesTheRowItReaches|staggeredListRowsFadeInRatherThanPop|serviceInfoIndeterminateBar'
-      - name: iOS accessibility journeys (simulator, large fixture)
-        # Device checks the macOS-hosted tests cannot make: Dynamic Type, the device accessibility tree, hit testing
-        # and performAccessibilityAudit (#391). Each journey runs as is, with Increase Contrast and with Reduce
-        # Transparency. The runner's own simulator (`ci-device`) and the loopback fixture are never shared;
-        # `--require-run` fails a skipped or empty run. List: testing/apple/accessibility.md#ios-journeys-in-ci.
+      - name: iPhone simulator journeys (serialized, loopback fixture)
+        # Evidence only an iOS run gives (real Dynamic Type sizes, the device accessibility tree, hit testing,
+        # performAccessibilityAudit). One throwaway runner simulator, the large-catalogue loopback fixture,
+        # `ios_sim.py uitest`; a skipped journey fails the step. JOURNEYS run as is; A11Y_MODE_JOURNEYS run again
+        # with Increase Contrast and with Reduce Transparency (#391).
+        # Add a journey here only if it runs against this fixture: testing/apple/xcuitest.md#ci-journeys.
         env:
-          FST_CI_IOS_A11Y_JOURNEYS: >-
+          JOURNEYS: >-
+            SongsChromeJourneyTests/testSectionBarHeadingAtLargestText
             SongsChromeJourneyTests/testSectionBarFadeAtLargestTextKeepsRowsNamedAndPassesTheAudit
+          A11Y_MODE_JOURNEYS: >-
+            SongsChromeJourneyTests/testSectionBarFadeAtLargestTextKeepsRowsNamedAndPassesTheAudit
+          # xcodebuild's failure diagnostics took about seven minutes per failure on the runner.
+          FST_UITEST_NO_DIAGNOSTICS: "1"
         run: |
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service.log" 2>&1 &
-          for _ in $(seq 60); do grep -q "Local test fixture service" "$RUNNER_TEMP/mock_service.log" && break; sleep 1; done
-          grep -q "Local test fixture service" "$RUNNER_TEMP/mock_service.log" || { cat "$RUNNER_TEMP/mock_service.log"; exit 1; }
-          UDID=$(python3 tools/ios_sim.py ci-device)
-          ONLY=(); for journey in $FST_CI_IOS_A11Y_JOURNEYS; do ONLY+=(--only "$journey"); done
-          for mode in default increase-contrast reduce-transparency; do
-            A11Y=(); [ "$mode" = default ] || A11Y=(--a11y "$mode")
-            echo "::group::iOS accessibility journeys ($mode)"
-            FST_UITEST_KEEP_RESULTS=1 FST_UITEST_NO_DIAGNOSTICS=1 python3 tools/ios_sim.py uitest --device "$UDID" --require-run --timeout 900 \
-              "${A11Y[@]}" "${ONLY[@]}"
+          mock=$!
+          trap 'kill "$mock" 2>/dev/null || true' EXIT
+          device=$(python3 tools/ios_sim.py ci-device)
+          for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock_service.log" && break; sleep 1; done
+          grep -q "fixture service on" "$RUNNER_TEMP/mock_service.log"
+          only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
+          echo "::group::iPhone journeys (default settings)"
+          python3 tools/ios_sim.py uitest --device "$device" --fail-on-skip --timeout 1800 "${only[@]}"
+          echo "::endgroup::"
+          only=(); for journey in $A11Y_MODE_JOURNEYS; do only+=(--only "$journey"); done
+          for mode in increase-contrast reduce-transparency; do
+            echo "::group::iPhone journeys ($mode)"
+            python3 tools/ios_sim.py uitest --device "$device" --fail-on-skip --timeout 900 --a11y "$mode" "${only[@]}"
             echo "::endgroup::"
           done
-      - name: Upload iOS journey results
+      - name: Upload simulator journey results
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: apple-ci-ios-journeys
-          path: apple/DerivedData/*/Results/*.xcresult
+          name: apple-ci-journeys
+          path: |
+            apple/DerivedData/lane-driver/Results
+            ${{ runner.temp }}/mock_service.log
           if-no-files-found: ignore
           retention-days: 7
       - name: Upload hosted render captures
