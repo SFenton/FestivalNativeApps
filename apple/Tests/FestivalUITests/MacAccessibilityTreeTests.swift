@@ -36,8 +36,15 @@ struct MacAXNode: CustomStringConvertible {
 
 /// Walk the accessibility tree of a hosted view (accessibility children and AppKit
 /// subviews), recording role, names, identifier and selection for each element.
+///
+/// - Parameters:
+///   - root: The hosted view to walk.
+///   - navigationOrder: Visit children in `accessibilityChildrenInNavigationOrder`, the
+///     order VoiceOver reads (SwiftUI applies `accessibilitySortPriority` there), rather
+///     than `accessibilityChildren` order.
+/// - Returns: The visited nodes, depth first.
 @MainActor
-func macAccessibilityTree(_ root: NSView) -> [MacAXNode] {
+func macAccessibilityTree(_ root: NSView, navigationOrder: Bool = false) -> [MacAXNode] {
     var nodes: [MacAXNode] = []
     var seen = Set<ObjectIdentifier>()
     func read(_ object: NSObject, _ key: String) -> Any? {
@@ -65,7 +72,8 @@ func macAccessibilityTree(_ root: NSView) -> [MacAXNode] {
                 help: string(object, "accessibilityHelp"), isElement: isElement
             ))
         }
-        for child in (read(object, "accessibilityChildren") as? [Any]) ?? [] {
+        let ordered = navigationOrder ? read(object, "accessibilityChildrenInNavigationOrder") as? [Any] : nil
+        for child in ordered ?? (read(object, "accessibilityChildren") as? [Any]) ?? [] {
             walk(child, depth: depth + 1)
         }
         if let view = object as? NSView {
