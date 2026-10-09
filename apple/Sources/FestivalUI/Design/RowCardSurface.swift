@@ -29,10 +29,28 @@ struct FestivalCardModifier<S: InsettableShape>: ViewModifier {
     let shape: S
     /// The Liquid Glass role the Debug A/B switch draws instead (``RowCardComparison``).
     let comparisonRole: FestivalGlassRole
+    /// The row's segment of a board's group card (issue #543), or nil for a whole card.
+    let segment: FestivalGroupSegment?
+    /// The group card's corner radius, for a segment's rim.
+    let segmentRadius: CGFloat
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
     @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
     @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
+
+    /// Create the card surface.
+    ///
+    /// - Parameters:
+    ///   - shape: The card's (or segment's) shape.
+    ///   - comparisonRole: The Liquid Glass role the Debug A/B switch draws instead.
+    ///   - segment: The row's segment of a group card, or nil for a whole card.
+    ///   - segmentRadius: The group card's corner radius (segments only).
+    init(shape: S, comparisonRole: FestivalGlassRole, segment: FestivalGroupSegment? = nil, segmentRadius: CGFloat = 0) {
+        self.shape = shape
+        self.comparisonRole = comparisonRole
+        self.segment = segment
+        self.segmentRadius = segmentRadius
+    }
 
     /// Draw the opaque, material or frosted card behind the content.
     ///
@@ -57,7 +75,9 @@ struct FestivalCardModifier<S: InsettableShape>: ViewModifier {
     /// - Returns: Content on the opaque, material or pre-26 frosted card.
     @ViewBuilder
     private func surface(_ content: Content) -> some View {
-        if reduceTransparency || lessTransparency || moreContrast {
+        if let segment {
+            segmentSurface(content, segment: segment)
+        } else if reduceTransparency || lessTransparency || moreContrast {
             content.background(BrandTokens.cardBackground, in: shape)
                 .overlay(shape.stroke(BrandTokens.borderSubtle, lineWidth: 1))
         } else if #available(iOS 26.0, macOS 26.0, *) {
@@ -71,6 +91,62 @@ struct FestivalCardModifier<S: InsettableShape>: ViewModifier {
                 .background(.ultraThinMaterial, in: shape)
                 .overlay(shape.stroke(BrandTokens.glassBorder, lineWidth: 1))
         }
+    }
+
+    /// The same layers for one row's segment of a group card: the fill in the segment's
+    /// shape and only the segment's share of the card's rim (its sides, plus the top or
+    /// bottom edge where the card ends), so no rim line crosses the card between rows.
+    ///
+    /// - Parameters:
+    ///   - content: The row.
+    ///   - segment: Where the row sits in the card.
+    /// - Returns: The row on its segment of the card.
+    @ViewBuilder
+    private func segmentSurface(_ content: Content, segment: FestivalGroupSegment) -> some View {
+        if reduceTransparency || lessTransparency || moreContrast {
+            content.background(BrandTokens.cardBackground, in: shape)
+                .overlay(FestivalSegmentRim(segment: segment, radius: segmentRadius, style: BrandTokens.borderSubtle))
+        } else if #available(iOS 26.0, macOS 26.0, *) {
+            // The card's rim fades from its top edge: the first row carries the gradient,
+            // the rows below continue its faint end colour down the sides.
+            let rim = segment.isFirst ? AnyShapeStyle(RowCardStyle.rim) : AnyShapeStyle(RowCardStyle.rimEnd)
+            content
+                .background(RowCardStyle.tint(increasedContrast: contrast == .increased), in: shape)
+                .background(.ultraThinMaterial, in: shape)
+                .overlay(FestivalSegmentRim(segment: segment, radius: segmentRadius, style: rim))
+        } else {
+            content
+                .background(BrandTokens.surfaceFrosted, in: shape)
+                .background(.ultraThinMaterial, in: shape)
+                .overlay(FestivalSegmentRim(segment: segment, radius: segmentRadius, style: BrandTokens.glassBorder))
+        }
+    }
+}
+
+// MARK: - Segment rim
+
+/// One row's share of a group card's 1 pt rim: the whole card's rounded border, open
+/// past the segment's inner edges and clipped to the segment, so stacked segments draw
+/// one continuous rim with no line between rows (issue #543).
+struct FestivalSegmentRim<Style: ShapeStyle>: View {
+    let segment: FestivalGroupSegment
+    let radius: CGFloat
+    let style: Style
+
+    var body: some View {
+        // Past an inner edge the border's rounded corner lies beyond the clip. The same
+        // shape type as the fill, which clamps a one-row card's corners alike.
+        let overhang = radius + 2
+        UnevenRoundedRectangle(
+            cornerRadii: FestivalGroupSegment(isFirst: true, isLast: true).cornerRadii(radius),
+            style: .continuous
+        )
+            .strokeBorder(style, lineWidth: 1)
+            .padding(.top, segment.isFirst ? 0 : -overhang)
+            .padding(.bottom, segment.isLast ? 0 : -overhang)
+            .clipShape(Rectangle())
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 
@@ -89,6 +165,8 @@ enum RowCardStyle {
     static let rim = LinearGradient(
         colors: [.white.opacity(0.06), .white.opacity(0)], startPoint: .top, endPoint: .bottom
     )
+    /// The rim's end colour: the sides of a group card's rows below its first (#543).
+    static let rimEnd = Color.white.opacity(0)
     #else
     /// iOS/iPadOS glass stays dark over the dimmed artwork; a 68% near-neutral navy
     /// over the dark ultra-thin material matches it (`cardBackground` reads too blue).
@@ -100,6 +178,8 @@ enum RowCardStyle {
     static let rim = LinearGradient(
         colors: [.white.opacity(0.14), .white.opacity(0.03)], startPoint: .top, endPoint: .bottom
     )
+    /// The rim's end colour: the sides of a group card's rows below its first (#543).
+    static let rimEnd = Color.white.opacity(0.03)
     #endif
 
     /// The tint layer above the material.
