@@ -59,8 +59,10 @@ SCENARIOS: dict[str, tuple[dict[str, str], str, dict, list[str], set[str] | None
         PLAYER, "/shop", LIST,
         [
             "waitfor:id=fst.shop.list@20",
-            "waitfor:id=fst.shop.badge.new.fixture-pulse",
             "waitfor:id=fst.shop.badge.leaving.fixture-orbit",
+            # Issue #562: like the web list, a New row has no pill; the gold pulse and its name ("..., New") carry it.
+            "waitfor:name=Fixture Pulse, Synthetic Quartet · 2026, New",
+            "waitgone:id=fst.shop.badge.new.fixture-pulse",
             # Official link: the row's cart button (never invoked: it would open the real Item Shop).
             "waitfor:id=fst.shop.external.fixture-orbit",
             "waitfor:name=Fixture Orbit, Synthetic Quartet, Open Official Item Shop",
