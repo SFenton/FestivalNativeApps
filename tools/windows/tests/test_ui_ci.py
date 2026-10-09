@@ -56,7 +56,8 @@ class UiCiTests(unittest.TestCase):
     def test_settings_pages_wait_for_feedback_rows_before_scrolling(self):
         """#535: the Feedback rows appear above every later Settings section once ``/api/features`` answers, so a target
         scrolled into view before then can be pushed back off screen (``no on-screen element
-        id=fst.settings.whats-new`` at 225% text). A CI page that scrolls to Settings content brings those rows in first
+        id=fst.settings.whats-new`` at 225% text). A CI page that scrolls (``scrollinto:``) or reveals (``reveal:``)
+        Settings content brings those rows in first
         (scrolling back to page chrome such as the Quick Links entry is not a Settings target). A page whose fixture
         reports ``feedback: false`` (``feedback_fixture.py --features off``) never gets the rows, so it has no wait."""
         wait = "scrollinto:id=fst.settings.feedback.feature"
@@ -69,7 +70,7 @@ class UiCiTests(unittest.TestCase):
                 if "--features" in fixture and fixture[fixture.index("--features") + 1] == "off":
                     continue
                 steps = [*page.get("setup", ()), *page.get("ready", ()), *page.get("after_ready", ())]
-                scrolls = [step for step in steps if step.startswith("scrollinto:id=fst.settings.")]
+                scrolls = [step for step in steps if step.startswith(("scrollinto:id=fst.settings.", "reveal:id=fst.settings."))]
                 if not scrolls:
                     continue
                 checked += 1
