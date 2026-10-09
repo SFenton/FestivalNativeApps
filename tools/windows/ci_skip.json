@@ -156,6 +156,10 @@
       "reason": "Fails at 225% text (focus/reachability)",
       "issue": "SFenton/festival-report-tracker#539"
     },
+    "qlj-profile-menu": {
+      "reason": "Flaky at 225% text: Quick Links current section read before the jump settles",
+      "issue": "SFenton/festival-report-tracker#548"
+    },
     "search-suggestions": {
       "reason": "Two Axe.Windows errors (popup/flyout or board), timing-dependent",
       "issue": "SFenton/festival-report-tracker#534"
@@ -213,6 +217,10 @@
     "runner:suggestions": {
       "reason": "Suggestions fade check fails",
       "issue": "SFenton/festival-report-tracker#532"
+    },
+    "runner:feedback": {
+      "reason": "Flaky: submit phase fails intermittently on the runner",
+      "issue": "SFenton/festival-report-tracker#548"
     }
   }
 }
