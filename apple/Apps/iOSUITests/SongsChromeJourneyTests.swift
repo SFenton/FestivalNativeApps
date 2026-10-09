@@ -321,7 +321,7 @@ final class SongsChromeJourneyTests: XCTestCase {
         let defaultRail = railLetterHeight(regular)
         regular.swipeUp()
         let defaultBar = regular.staticTexts["fst.songs.section-bar"]
-        XCTAssertTrue(defaultBar.waitForExistence(timeout: 5))
+        XCTAssertTrue(defaultBar.waitForExistence(timeout: FestivalApp.budget(5)))
         let defaultHeight = defaultBar.frame.height
         regular.terminate()
 
@@ -361,10 +361,10 @@ final class SongsChromeJourneyTests: XCTestCase {
             ]
         }
         app.launch()
-        XCTAssertTrue(app.buttons["fst.songs.row.fixture-song-1"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-song-1"].waitForExistence(timeout: FestivalApp.budget(15)))
         let rail = app.descendants(matching: .any)
             .matching(identifier: "fst.songs.section-index").firstMatch
-        guard rail.waitForExistence(timeout: 3) else {
+        guard rail.waitForExistence(timeout: FestivalApp.budget(3)) else {
             throw XCTSkip("Catalogue too short to scroll; use mock_service.py --large-catalogue.")
         }
         return app
@@ -403,7 +403,7 @@ final class SongsChromeJourneyTests: XCTestCase {
 
         // Scrolled away: one bar heading naming a section, below the navigation bar.
         app.swipeUp()
-        XCTAssertTrue(bar.waitForExistence(timeout: 5), "Section bar never appeared")
+        XCTAssertTrue(bar.waitForExistence(timeout: FestivalApp.budget(5)), "Section bar never appeared")
         waitForListToSettle(app)
         let letters = Set("#ABCDEFGHIJKLMNOPQRSTUVWXYZ".map(String.init))
         XCTAssertTrue(letters.contains(bar.label), "Section bar reads '\(bar.label)'")
@@ -427,10 +427,13 @@ final class SongsChromeJourneyTests: XCTestCase {
         // The reported path back to the top: the bar leaves, the page stays usable.
         for _ in 0..<12 where bar.exists || !firstRow.isHittable { app.swipeDown() }
         XCTAssertEqual(app.state, .runningForeground)
-        XCTAssertTrue(bar.waitForNonExistence(timeout: 5), "Section bar stayed at the top")
+        XCTAssertTrue(bar.waitForNonExistence(timeout: FestivalApp.budget(5)), "Section bar stayed at the top")
         waitForListToSettle(app)
         let search = SongsUITestSupport.songsSearchEntry(in: app)
-        XCTAssertTrue(search.waitForExistence(timeout: 5) && search.isHittable, "Songs search did not return")
+        XCTAssertTrue(
+            search.waitForExistence(timeout: FestivalApp.budget(5)) && search.isHittable,
+            "Songs search did not return"
+        )
         XCTAssertTrue(firstRow.isHittable, "First row not shown")
         XCTAssertEqual(firstTitle.label, "#")
         XCTAssertTrue(
@@ -449,7 +452,7 @@ final class SongsChromeJourneyTests: XCTestCase {
     private func waitForListToSettle(_ app: XCUIApplication) {
         let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row."))
         var last: [CGRect] = []
-        for _ in 0..<20 {
+        for _ in 0..<Int(FestivalApp.budget(20)) {
             let frames = rows.allElementsBoundByIndex.prefix(4).map(\.frame)
             if !frames.isEmpty, frames == last { return }
             last = frames
@@ -467,7 +470,7 @@ final class SongsChromeJourneyTests: XCTestCase {
         let rail = app.descendants(matching: .any)
             .matching(identifier: "fst.songs.section-index").firstMatch
         let first = rail.staticTexts["#"]
-        XCTAssertTrue(first.waitForExistence(timeout: 5), "Rail has no # label")
+        XCTAssertTrue(first.waitForExistence(timeout: FestivalApp.budget(5)), "Rail has no # label")
         return first.frame.height
     }
 
