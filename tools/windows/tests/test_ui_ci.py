@@ -182,7 +182,7 @@ class UiCiTests(unittest.TestCase):
 
     def test_generated_runs_cover_fixture_a11y_pages(self):
         """Every fixture-backed a11y page runs in CI (in its first declared mode, or normal and large text) unless it
-        is ``live_only`` or visibly skipped."""
+        is ``live_only``, visibly skipped, or sized only for windows the CI desktop can't hold (``ui_ci.runs_on_ci``)."""
         skips = json.loads((ci.JOURNEYS.parent / "ci_skip.json").read_text(encoding="utf-8")).get("a11y_pages", {})
         covered = {(run.pages, page) for run in ci.RUNS
                    for page in (run.only.split(",") if run.only else
@@ -190,8 +190,14 @@ class UiCiTests(unittest.TestCase):
         for source in ci.JOURNEYS.glob("a11y-*.json"):
             for page in json.loads(source.read_text(encoding="utf-8")):
                 name = page["name"]
-                if "live" not in name.lower() and not page.get("live_only") and name not in skips:
+                if "live" not in name.lower() and not page.get("live_only") and name not in skips and ci.runs_on_ci(page):
                     self.assertIn((source.name, name), covered)
+
+    def test_pages_sized_beyond_the_ci_desktop_stay_on_host_runs(self):
+        self.assertFalse(ci.runs_on_ci({"name": "pane", "sizes": ["wide", "maximized"]}))
+        self.assertFalse(ci.runs_on_ci({"name": "text", "sizes": ["medium", "wide"], "modes": ["text-150"]}))
+        self.assertTrue(ci.runs_on_ci({"name": "read", "sizes": ["medium", "wide"]}))
+        self.assertTrue(ci.runs_on_ci({"name": "any"}))
 
 
 if __name__ == "__main__":

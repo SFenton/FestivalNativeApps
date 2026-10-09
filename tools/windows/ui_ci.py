@@ -144,12 +144,29 @@ RUNS: tuple[Run, ...] = (
 )
 
 
+def ci_sizes(mode: str) -> str:
+    """Window sizes a generated CI run uses in one mode (``compact`` at large text, else ``compact,medium``)."""
+    return "compact" if mode.startswith("text-") else "compact,medium"
+
+
+def page_modes(page: dict) -> tuple[str, ...]:
+    """Modes CI runs one page in: its first declared mode, or ``normal`` and ``text-225``."""
+    return tuple(page["modes"][:1]) if page.get("modes") else ("normal", "text-225")
+
+
+def runs_on_ci(page: dict) -> bool:
+    """Whether a page runs at a CI size in any of its CI modes (``sizes`` limited to wide/maximized never do)."""
+    return any(a11y_matrix.page_sizes(page, ci_sizes(mode).split(","), mode) for mode in page_modes(page))
+
+
 def generated_runs(explicit: tuple[Run, ...]) -> tuple[Run, ...]:
     """Add fixture runs for every uncovered ``a11y-*.json`` page, in the modes the page runs in.
 
     A page without ``modes`` runs at ``normal`` and ``text-225``; a page that declares ``modes`` (any of them shows its
     state, e.g. ``["hc-desert", "no-transparency"]`` for a hard edge that only exists under a contrast theme or with
     transparency off) runs once, in its first listed mode. ``live_only`` pages (they need the live service) and ``ci_skip.json`` ``a11y_pages`` are left out.
+    A generated run uses ``compact`` for text modes and ``compact,medium`` otherwise; a page whose ``sizes`` miss those
+    (e.g. ``["wide", "maximized"]`` for a split pane) stays on host matrix runs rather than producing an empty run.
     """
     skip_file = JOURNEYS.parent / "ci_skip.json"
     skipped = json.loads(skip_file.read_text(encoding="utf-8")).get("a11y_pages", {}) if skip_file.exists() else {}
@@ -167,14 +184,15 @@ def generated_runs(explicit: tuple[Run, ...]) -> tuple[Run, ...]:
             continue
         by_mode: dict[str, list[dict]] = {"normal": [], "text-225": []}
         for page in pages:
-            for mode in (page["modes"][:1] if page.get("modes") else ("normal", "text-225")):
+            for mode in page_modes(page):
                 by_mode.setdefault(mode, []).append(page)
         for mode, candidates in by_mode.items():
-            chosen = a11y_matrix.mode_pages(candidates, mode)
+            sizes = ci_sizes(mode)
+            chosen = [page for page in a11y_matrix.mode_pages(candidates, mode)
+                      if a11y_matrix.page_sizes(page, sizes.split(","), mode)]
             if not chosen:
                 continue
             only = ",".join(page["name"] for page in chosen)
-            sizes = "compact" if mode.startswith("text-") else "compact,medium"
             generated.append(Run(f"{source.stem}-{mode}", source.name, sizes=sizes, mode=mode, only=only))
     return (*explicit, *generated)
 
