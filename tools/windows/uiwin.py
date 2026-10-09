@@ -143,7 +143,9 @@ def parse_selector(text: str) -> dict:
 
     Forms: ``id=<AutomationId>``, ``name=<Name>``, ``class=<ClassName>``, ``raw=<AutomationId>`` (searches the
     raw view, for parts a control marks ``AccessibilityView=Raw`` such as a score row's badge text) or
-    ``<x>,<y>`` (window-relative physical pixels, ``click``/``rightclick``/``hover`` only). An ``id=``/``name=``
+    ``<x>,<y>`` (window-relative physical pixels, ``click``/``rightclick``/``hover`` only; physical pixels depend on the
+    display scale, so the driver refuses a click whose point is off the app's own window, and a scale-independent press
+    uses ``clickat`` effective pixels instead, issue #531). An ``id=``/``name=``
     selector may end with ``&class=<ClassName>`` to also match the class, e.g. ``id=1&class=Button`` for a
     system file picker's Open button, which shares AutomationId ``1`` with the picker's first folder.
 
