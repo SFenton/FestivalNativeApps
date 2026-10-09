@@ -131,7 +131,7 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
                 && data.map { String(decoding: $0, as: UTF8.self).contains("\"selectedPlayerEntry\":{") } == true
             probe.fulfill()
         }.resume()
-        wait(for: [probe], timeout: 5)
+        wait(for: [probe], timeout: FestivalApp.budget(5))
         _ = try XCTUnwrap(
             reachable ? true : nil, "Start `python3 tools/mock_service.py --port 18934` from this revision"
         )
@@ -156,7 +156,7 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         app.launchArguments += arguments
         app.launch()
         let song = app.buttons["fst.songs.row.fixture-pulse"]
-        XCTAssertTrue(song.waitForExistence(timeout: 20), "No fixture song row")
+        XCTAssertTrue(song.waitForExistence(timeout: FestivalApp.budget(20)), "No fixture song row")
         // At AX5 the second song's card starts below the floating tab bar: drag it up first.
         // Judge by frame: asking an off-screen row whether it is hittable fails the test.
         let list = app.windows.firstMatch
@@ -166,12 +166,15 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         }
         waitHittable(song, in: app, "The fixture song row did not come into view")
         song.tap()
-        XCTAssertTrue(any("fst.song-detail.intensity", in: app).waitForExistence(timeout: 20), "Song Detail did not open")
+        XCTAssertTrue(
+            any("fst.song-detail.intensity", in: app).waitForExistence(timeout: FestivalApp.budget(20)),
+            "Song Detail did not open"
+        )
         let quickLinks = app.buttons["fst.quick-links.open"]
-        XCTAssertTrue(quickLinks.waitForExistence(timeout: 15))
+        XCTAssertTrue(quickLinks.waitForExistence(timeout: FestivalApp.budget(15)))
         quickLinks.tap()
         let duos = app.buttons["fst.quick-links.item.band-Band_Duets"]
-        XCTAssertTrue(duos.waitForExistence(timeout: 10), "Quick Links has no Duos section")
+        XCTAssertTrue(duos.waitForExistence(timeout: FestivalApp.budget(10)), "Quick Links has no Duos section")
         duos.tap()
         let selected = app.buttons["fst.song-detail.band-selected.Band_Duets"]
         // Quick Links lands on the Duos header; at AX5 the ten preview rows push the
@@ -478,7 +481,7 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
-    /// Wait up to 20 s for an element to be hittable; on timeout record the screen and fail
+    /// Wait up to 20 s (`FestivalApp.budget`) for an element to be hittable; on timeout record the screen and fail
     /// with its frame.
     ///
     /// - Parameters:
@@ -490,7 +493,7 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         let hittable = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "exists == true AND isHittable == true"), object: element
         )
-        guard XCTWaiter().wait(for: [hittable], timeout: 20) != .completed else { return }
+        guard XCTWaiter().wait(for: [hittable], timeout: FestivalApp.budget(20)) != .completed else { return }
         SongsUITestSupport.record(app, name: "song-band-reveal-not-hittable")
         XCTFail("\(message): exists=\(element.exists), frame=\(element.frame), window=\(app.windows.firstMatch.frame)")
     }

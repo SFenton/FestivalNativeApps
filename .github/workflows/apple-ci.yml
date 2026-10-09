@@ -55,13 +55,18 @@ jobs:
         working-directory: apple
         run: swift test --skip-build --filter 'selectedRowRevealFadesTheRowItReaches|staggeredListRowsFadeInRatherThanPop|serviceInfoIndeterminateBar'
       - name: iPhone simulator journeys (serialized, loopback fixture)
-        # Evidence only an iOS run gives (real Dynamic Type sizes, performAccessibilityAudit). One throwaway runner
-        # simulator, two loopback fixtures (large catalogue on 8765, band boards on 18934), `ios_sim.py uitest`, one
-        # test per batch without failure diagnostics; a skipped journey fails the step.
+        # Evidence only an iOS run gives (real Dynamic Type sizes, performAccessibilityAudit, the production nav bar
+        # and tab-bar accessory reading order, page-tools-and-nav-chrome R17). One throwaway runner simulator, two
+        # loopback fixtures (large catalogue on 8765, band boards on 18934), `ios_sim.py uitest`, one test per batch
+        # without failure diagnostics; a skipped journey fails the step.
         # Add a journey here only if it runs against one of these fixtures: testing/apple/xcuitest.md#ci-journeys.
         env:
           JOURNEYS: >-
             SongsChromeJourneyTests/testSectionBarHeadingAtLargestText
+            NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrder
+            NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrderOnPushedPage
+            NavButtonHitRegionJourneyTests/testChooseProfileReadsAloneInProductionChrome
+            NavButtonHitRegionJourneyTests/testAccountButtonsStaySeparateAndLabelledAtLargestTextSize
             SongBandRevealAccessibilityJourneyTests/testRevealedBandRowIsAccessibleWithStandardMotion
             SongBandRevealAccessibilityJourneyTests/testRevealedBandRowIsAccessibleWithReduceMotion
             SongBandRevealAccessibilityJourneyTests/testRevealedBandRowGrowsAtLargestTextSize
