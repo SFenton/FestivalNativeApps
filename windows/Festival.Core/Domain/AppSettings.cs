@@ -100,7 +100,10 @@ public sealed record AppSettings
     /// <summary>The Paths unavailable-chart warning was dismissed.</summary>
     [JsonPropertyName("pathUnavailableWarningDismissed")] public bool PathUnavailableWarningDismissed { get; set; }
 
-    /// <summary>Experimental leaderboard ranks (not yet available: always sanitized to off).</summary>
+    /// <summary>
+    /// Experimental leaderboard ranks (web <c>enableExperimentalRanks</c>; off by default and after Reset). Gates the
+    /// Adjusted, Weighted, FC Rate and Max Score metrics app-wide through <see cref="RankingMetricInfo.Gate"/>.
+    /// </summary>
     [JsonPropertyName("experimentalRanks")] public bool ExperimentalRanks { get; set; }
 
     /// <summary>Hide the Item Shop (navigation and highlights; the highlight preference is kept).</summary>
@@ -256,7 +259,6 @@ public sealed record AppSettings
             PathColumnOrder = SettingsOrder.Normalize(PathColumnOrder),
             Leeway = ScoreLeeway.Clamp(Leeway),
             PathDefaultView = Enum.IsDefined(PathDefaultView) ? PathDefaultView : PathDisplayMode.Image,
-            ExperimentalRanks = false,
             LeaderboardRankBy = RankingMetrics.Contains(LeaderboardRankBy) ? LeaderboardRankBy : "totalscore",
             GeneralFilter = general.IsValid ? general.Normalized() : general,
             ShopFilter = (ShopFilter ?? SongShopFilter.None).Normalized(),

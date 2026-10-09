@@ -30,8 +30,11 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
         LoadSwap = new LoadSwap(session.Time);
     }
 
-    /// <summary>Metrics offered by the Rank By picker.</summary>
-    public IReadOnlyList<RankingMetric> MetricOptions => RankingMetricInfo.All;
+    /// <summary>Metrics offered by the Rank By picker (web <c>getEnabledRankingMetrics</c>).</summary>
+    public IReadOnlyList<RankingMetric> MetricOptions => RankingMetricInfo.Enabled(session.Settings.ExperimentalRanks);
+
+    /// <summary>Whether the Rank By picker shows: only with Settings' Experimental Ranks on, as on the web.</summary>
+    public bool ShowRankBy => session.Settings.ExperimentalRanks;
 
     /// <summary>Shared Rank By metric (band cards narrow it; Max Score falls back to Total Score).</summary>
     [ObservableProperty]
@@ -79,6 +82,7 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
     /// <returns>Load task.</returns>
     public Task ActivateAsync()
     {
+        SyncRankBy();
         if (!attached)
         {
             session.PropertyChanged += OnSessionChanged;
@@ -108,6 +112,7 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
     [RelayCommand]
     public Task SelectMetricAsync(RankingMetric value)
     {
+        value = value.Gate(session.Settings.ExperimentalRanks);
         if (value == Metric && loadedKey == Key) return Task.CompletedTask;
         Metric = value;
         // Start the load first so the settings-change notification sees an up-to-date key (it used to start a second,
@@ -172,12 +177,25 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
         }
     }
 
-    /// <summary>Reloads when the selected player or visible instruments change.</summary>
+    /// <summary>
+    /// Re-derives the metric from the saved Rank By and Settings' Experimental Ranks (web: <c>coerceRankingMetric</c>
+    /// on every render): turning the toggle off falls back to Total Score; turning it on restores the saved metric.
+    /// </summary>
+    private void SyncRankBy()
+    {
+        Metric = LeaderboardPreferences.RankBy(session);
+        OnPropertyChanged(nameof(ShowRankBy));
+        OnPropertyChanged(nameof(MetricOptions));
+    }
+
+    /// <summary>Reloads when the selected player, visible instruments or the allowed metric change.</summary>
     /// <param name="sender">Session.</param>
     /// <param name="e">Changed property.</param>
     private void OnSessionChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(FestivalSession.Settings) && loadedKey != Key) _ = LoadAsync();
+        if (e.PropertyName != nameof(FestivalSession.Settings)) return;
+        SyncRankBy();
+        if (loadedKey != Key) _ = LoadAsync();
     }
 }
 #endregion
@@ -186,10 +204,14 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
 /// <summary>Persisted Rank By metric and the default own-row reader shared by the rankings pages.</summary>
 public static class LeaderboardPreferences
 {
-    /// <summary>Saved Rank By metric (<c>AppSettings.LeaderboardRankBy</c>), coerced like <c>coerceRankingMetric</c>.</summary>
+    /// <summary>
+    /// Saved Rank By metric (<c>AppSettings.LeaderboardRankBy</c>), coerced like <c>coerceRankingMetric</c>: Total Score
+    /// while Settings' Experimental Ranks is off (the saved value is kept for when it is turned back on).
+    /// </summary>
     /// <param name="session">Shared session.</param>
     /// <returns>Metric.</returns>
-    public static RankingMetric RankBy(FestivalSession session) => RankingMetricInfo.Coerce(session.Settings.LeaderboardRankBy);
+    public static RankingMetric RankBy(FestivalSession session) =>
+        RankingMetricInfo.Coerce(session.Settings.LeaderboardRankBy, session.Settings.ExperimentalRanks);
 
     /// <summary>
     /// Reads the selected player's own row through <c>GET /api/rankings/{instrument}/{accountId}</c>

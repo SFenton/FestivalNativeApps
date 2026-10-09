@@ -301,6 +301,48 @@ public static class NotificationRouting
         return coalesced is { Count: > 0 } ? coalesced
             : [new NotificationEventPayload { EventKind = item.EventKind, Instrument = item.Instrument, Metric = item.Metric }];
     }
+
+    /// <summary>
+    /// Hides experimental-metric rank events while Settings' Experimental Ranks is off (web
+    /// <c>projectExperimentalRankNotification</c>): a row of only Adjusted, Weighted, FC Rate or Max Score rank events is
+    /// dropped; a mixed row keeps its other events, takes the first one's values and so routes to its Rank By.
+    /// </summary>
+    /// <param name="item">Notification.</param>
+    /// <param name="experimentalRanks">Settings' Experimental Ranks toggle.</param>
+    /// <returns>The row (unchanged, or narrowed to its visible events), or <see langword="null"/> when nothing is left.</returns>
+    public static ImprovementNotification? ProjectExperimentalRanks(ImprovementNotification item, bool experimentalRanks)
+    {
+        if (experimentalRanks) return item;
+        IReadOnlyList<NotificationEventPayload> events = item.Payload?.CoalescedEvents is { Count: > 0 } coalesced
+            ? [.. coalesced.Where(e => e is not null)]
+            : [new NotificationEventPayload
+            {
+                EventKind = item.EventKind, Instrument = item.Instrument, Metric = item.Metric,
+                OldNumeric = item.OldNumeric, NewNumeric = item.NewNumeric, OldRank = item.OldRank, NewRank = item.NewRank,
+            }];
+        if (!events.Any(e => RankingMetric(e.EventKind, e.Metric) is not null)) return item;
+        var visible = events.Where(e => RankingMetric(e.EventKind, e.Metric) is not { } rankBy
+            || rankBy == RankingMetricInfo.Default.ServiceId()).ToList();
+        if (visible.Count == 0) return null;
+        if (visible.Count == events.Count) return item;
+        var primary = visible[0];
+        return item with
+        {
+            EventKind = primary.EventKind ?? "",
+            Metric = primary.Metric,
+            OldNumeric = primary.OldNumeric,
+            NewNumeric = primary.NewNumeric,
+            OldRank = WholeRank(primary.OldRank),
+            NewRank = WholeRank(primary.NewRank),
+            Payload = (item.Payload ?? new NotificationPayload()) with { CoalescedEvents = visible },
+        };
+    }
+
+    /// <summary>A payload rank as the row's integer rank.</summary>
+    /// <param name="rank">Lenient payload rank.</param>
+    /// <returns>Rounded rank, or <see langword="null"/> when absent or not finite.</returns>
+    private static int? WholeRank(double? rank) =>
+        rank is { } value && double.IsFinite(value) && Math.Abs(value) <= int.MaxValue ? (int)Math.Round(value) : null;
 }
 #endregion
 

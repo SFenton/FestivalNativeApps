@@ -97,7 +97,7 @@
      "key:shift+tab",
      "assertfocus:id=fst.song-leaderboard.spotlight-footer@3"
    ]},
-  {"name": "cols-full-rankings", "route": "/leaderboards/all?instrument=Solo_Guitar", "profile": "fixture-player-1:Fixture Player 1", "scan": true, "tabs": 0,
+  {"name": "cols-full-rankings", "route": "/leaderboards/all?instrument=Solo_Guitar", "settings": {"experimentalRanks": true}, "profile": "fixture-player-1:Fixture Player 1", "scan": true, "tabs": 0,
    "note": "Rankings rows and their pinned row share one section plan (rank, songs label, rating): one Button stop each reading every column, rows -> pinned row, 40+ epx targets. Keyboard: Up/Down between rows, Tab to the pinned row, Shift+Tab back through the last row to Rank by.",
    "ready": ["waitfor:id=fst.rankings.row.fixture-player-2@30", "waitfor:id=fst.full-rankings.spotlight-footer@15", "wait:1"],
    "after_ready": [
@@ -122,16 +122,16 @@
    ]},
   {"name": "cols-full-rankings-focus-clear", "route": "/leaderboards/all?instrument=Solo_Guitar", "profile": "fixture-player-1:Fixture Player 1", "fixture": ["--large-rankings"], "tabs": 0,
    "sizes": ["compact", "medium"], "skip_modes": ["text-150", "text-200", "text-225"],
-   "note": "Full Rankings shares BoardFooter: the arrowed-to row stays clear of the pinned row and pager, then Tab reaches the pinned row (WCAG 2.4.11, issue #409).",
+   "note": "Full Rankings shares BoardFooter: the arrowed-to row stays clear of the pinned row and pager, then Tab reaches the pinned row (WCAG 2.4.11, issue #409). The target is rank 15 because at the 500x800 compact preset rank 12 already sits partly under the floating footer, not below the fold (issue #538).",
    "ready": ["waitfor:id=fst.rankings.row.fixture-player-2@30", "waitfor:id=fst.full-rankings.spotlight-footer@15", "wait:1"],
    "after_ready": [
      "focus:id=fst.rankings.row.fixture-player-1",
-     "waitgone:id=fst.rankings.row.fixture-rank-12@2",
-     "key:down", "key:down", "key:down", "key:down", "key:down", "key:down", "key:down", "key:down", "key:down", "key:down", "key:down",
+     "waitgone:id=fst.rankings.row.fixture-rank-15@2",
+     "key:down", "key:down", "key:down", "key:down", "key:down", "key:down", "key:down", "key:down", "key:down", "key:down", "key:down", "key:down", "key:down", "key:down",
      "wait:0.5",
-     "assertfocus:id=fst.rankings.row.fixture-rank-12@3",
-     "assertapart:id=fst.rankings.row.fixture-rank-12|id=fst.full-rankings.spotlight-footer",
-     "assertapart:id=fst.rankings.row.fixture-rank-12|id=fst.full-rankings.page-next",
+     "assertfocus:id=fst.rankings.row.fixture-rank-15@3",
+     "assertapart:id=fst.rankings.row.fixture-rank-15|id=fst.full-rankings.spotlight-footer",
+     "assertapart:id=fst.rankings.row.fixture-rank-15|id=fst.full-rankings.page-next",
      "key:tab",
      "assertfocus:id=fst.full-rankings.spotlight-footer@3"
    ]},

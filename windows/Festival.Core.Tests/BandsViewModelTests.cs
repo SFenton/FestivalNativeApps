@@ -231,10 +231,11 @@ public class BandDetailViewModelTests
     {
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
         var bands = new BandService();
-        var vm = new BandDetailViewModel(bands.Service.Session(), Route());
+        var vm = new BandDetailViewModel(bands.Service.Session(settings: new AppSettings { ExperimentalRanks = true }), Route());
         Assert.True(vm.IsLoading);
         Assert.Equal("fixture-band-1", vm.BandId);
         await vm.LoadAsync();
+        Assert.True(vm.ShowRankBy);
         Assert.True(vm.ShowContent);
         Assert.Equal("Fixture Rank One + Unknown User", vm.Title);
         Assert.Equal("Duos · 40 appearances", vm.Subtitle);
@@ -290,14 +291,31 @@ public class BandDetailViewModelTests
         Assert.Equal("Fixture Rank One + Unknown User's highest-ranked band songs, sorted by percentile.", vm.BestDescription);
         Assert.StartsWith("Fixture Rank One + Unknown User's lowest", vm.WorstDescription);
 
-        vm.MetricIndex = 2;
+        vm.MetricIndex = 3;
         Assert.Equal(BandRankingMetric.FcRate, vm.Metric);
         Assert.Equal("FC Rate Rank", vm.Statistics[0].Label);
         Assert.Equal("#2", vm.Statistics[0].Value);
         Assert.Equal(["85.0%", "90.0%"], vm.HistoryRows.Select(r => r.Value).Reverse());
         vm.MetricIndex = 12;
-        Assert.Equal(2, vm.MetricIndex);
+        Assert.Equal(3, vm.MetricIndex);
         Assert.Equal(4, vm.Metrics.Count);
+        // The picker lists Total Score first, like web getEnabledBandRankingMetrics.
+        Assert.Equal(["Total Score", "Adjusted Skill", "Weighted", "FC Rate"], vm.MetricLabels);
+        vm.MetricIndex = 0;
+        Assert.Equal(BandRankingMetric.TotalScore, vm.Metric);
+    }
+
+    [Fact]
+    public async Task RankByNeedsExperimentalRanks()
+    {
+        var bands = new BandService();
+        var vm = new BandDetailViewModel(bands.Service.Session(), Route());
+        await vm.LoadAsync();
+        // Web BandPage renders the metric picker only with Settings' Experimental Ranks; Total Score stays.
+        Assert.False(vm.ShowRankBy);
+        vm.MetricIndex = 2;
+        Assert.Equal(BandRankingMetric.TotalScore, vm.Metric);
+        Assert.Equal("Total Score Rank", vm.Statistics[0].Label);
     }
 
     [Fact]
