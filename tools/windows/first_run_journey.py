@@ -23,6 +23,9 @@ Every reachable ``first-run`` contract state (``contracts/product.json``) runs a
 * ``dismissed``: Close, Esc and Done close the carousel and record only the slides actually viewed.
 * ``rotation`` (issue #258, validating #58): the visible rotating demo swaps rows with the web fade, a static neighbour
   holds still, a paged-away demo pauses, and a minimized window holds the visible demo still until it is restored.
+  After each swap the slide's control view is still only its heading and description (issue #421): the rotating songs
+  never reach Narrator. ``rotation-reduced``, ``rotation-background``, ``top-songs-rotation`` and every
+  ``demo-songs`` page check the same.
 * ``rotation-reduced``: with Reduce Motion the visible demo keeps rotating but swaps instantly.
 * ``rotation-background``: a window that stays visible and uncovered but loses activation to the taskbar holds its
   demo still, then resumes once reactivated (rotation runs only while the app is in the foreground). Needs an unlocked
@@ -75,6 +78,8 @@ class Phase:
         seen: Predicates over the saved ``first-run.json`` (name → check), evaluated after the steps.
         relaunch: Close and relaunch the app (same settings and data folder) before this phase.
         mutate: Rewrites ``first-run.json`` before the relaunch (e.g. an older slide version).
+        slide: Regular expressions matching, one each and in order, every control-view element under the selected
+            slide (:func:`slide_content`), e.g. :func:`_slide_content`: the demo must add nothing Narrator can reach.
     """
 
     steps: list[str]
@@ -83,6 +88,7 @@ class Phase:
     seen: dict[str, Callable[[Seen], bool]] = field(default_factory=dict)
     relaunch: bool = False
     mutate: Callable[[Seen], Seen] | None = None
+    slide: list[str] | None = None
 
 
 @dataclass
@@ -143,6 +149,22 @@ def _button(automation_id: str, name: str, enabled: bool = True) -> str:
 def _slide(title: str) -> str:
     """Tree-line pattern for the selected FlipView slide (its UIA name is the slide title)."""
     return rf'ListItem "{re.escape(title)}" id= class=FlipViewItem .*selected'
+
+
+def _slide_content(title: str | None = None) -> list[str]:
+    """``Phase.slide`` patterns for a slide whose control view is only its heading and description (issue #421).
+
+    The live demo is decorative: its song titles, artists, art and stats (which rotate every 5 s) must stay out of
+    the control view, so Narrator reads the slide's title and description and nothing that changes under it.
+
+    Args:
+        title: Slide title (the level-2 heading), or ``None`` for any title.
+
+    Returns:
+        A heading pattern and a description pattern.
+    """
+    heading = re.escape(title) if title is not None else '[^"]+'
+    return [rf'^Text "{heading}" id= class=TextBlock .*heading=2', r'^Text "[^"]+" id= class=TextBlock rect=\S+']
 
 
 def _demo(slide_id: str, status: str, seconds: float = 0) -> str:
@@ -252,7 +274,8 @@ def _demo_phases(status: str, pages: list[str] | None = None, settle: float = 0)
             steps.append(_demo(slide, status, 15))
             if number < len(slides) - 1:
                 steps += ["invoke:id=PrimaryButton", "wait:0.6"]
-        phases.append(Phase(steps, expect=[_dialog(PAGE_TITLES[key]), _button("PrimaryButton", "Done")]))
+        phases.append(Phase(steps, expect=[_dialog(PAGE_TITLES[key]), _button("PrimaryButton", "Done")],
+                            slide=_slide_content()))
         phases.append(Phase([f"invoke:id={CLOSE}", CLOSED, "wait:0.5"], forbid=[DIALOG]))
     return phases
 
@@ -421,7 +444,8 @@ SCENARIOS = [
             # Every slot swaps its song within three ticks; each pill must keep its slot's percentile (the old
             # pool-index pill showed 1.2, 35.1, 1.2, 48.9% after swaps).
             Phase([*_top_song_pills(True, 5 * TOP_SONG_TICKS + 20), _demo("statistics-top-songs", "catalogue")],
-                  expect=[_slide("Highest and Lowest Rank Breakdown")]),
+                  expect=[_slide("Highest and Lowest Rank Breakdown")],
+                  slide=_slide_content("Highest and Lowest Rank Breakdown")),
         ],
     ),
     Scenario(
@@ -458,11 +482,11 @@ SCENARIOS = [
             Phase([OPEN, _rotation("songs-song-list", FIRST_TICK_FADE, SWAP_WAIT),
                    "invoke:id=PrimaryButton", "wait:1", _rotation("songs-sort", r"^catalogue$"), "wait:11",
                    "invoke:id=SecondaryButton", _rotation("songs-song-list", FIRST_TICK_FADE)],
-                  expect=[_slide("Song List")]),
+                  expect=[_slide("Song List")], slide=_slide_content("Song List")),
             # Instrument Icons (slide 5) runs once selected, including a container FlipView realizes late.
             Phase(["invoke:id=PrimaryButton", "wait:0.5", "invoke:id=PrimaryButton", "wait:0.5", "invoke:id=PrimaryButton",
                    "wait:0.5", "invoke:id=PrimaryButton", "wait:0.5", _rotation("songs-icons", SWAPPED_FADE, SWAP_WAIT)],
-                  expect=[_slide("Instrument Icons")]),
+                  expect=[_slide("Instrument Icons")], slide=_slide_content("Instrument Icons")),
             # Metadata becomes visible and the window is minimized before its first 5 s swap: it holds still while
             # hidden (still no swaps 7 s later)...
             Phase(["invoke:id=PrimaryButton", "wait:0.5", "resize:minimized",
@@ -470,7 +494,7 @@ SCENARIOS = [
                    _rotation("songs-metadata", r"^catalogue rotation=not-visible swaps=0 swap=none$")]),
             # ...and resumes once the window is restored.
             Phase(["resize:restored", _rotation("songs-metadata", SWAPPED_FADE, SWAP_WAIT)],
-                  expect=[_slide("Song Metadata")]),
+                  expect=[_slide("Song Metadata")], slide=_slide_content("Song Metadata")),
         ],
     ),
     Scenario(
@@ -478,7 +502,8 @@ SCENARIOS = [
         state="demo rotation with Reduce Motion (instant swaps)",
         settings={"reduceMotion": True},
         fixture=("--large-catalogue",),
-        phases=[Phase([OPEN, _rotation("songs-song-list", SWAPPED_INSTANT, SWAP_WAIT)], expect=[_slide("Song List")])],
+        phases=[Phase([OPEN, _rotation("songs-song-list", SWAPPED_INSTANT, SWAP_WAIT)], expect=[_slide("Song List")],
+                      slide=_slide_content("Song List"))],
     ),
     Scenario(
         name="rotation-background",
@@ -491,7 +516,7 @@ SCENARIOS = [
                    _rotation("songs-song-list", FIRST_TICK_BACKGROUND), "wait:12",
                    _rotation("songs-song-list", FIRST_TICK_BACKGROUND), "foreground:on",
                    _rotation("songs-song-list", RESUMED_FADE, SWAP_WAIT)],
-                  expect=[_slide("Song List")]),
+                  expect=[_slide("Song List")], slide=_slide_content("Song List")),
         ],
     ),
 ]
@@ -501,12 +526,34 @@ SCENARIOS = [
 # region Runner
 
 
+def slide_content(text: str) -> list[str] | None:
+    """The control-view elements under the selected FlipView slide in a tree dump.
+
+    Args:
+        text: UIA tree dump (one element per line, children indented deeper than their parent).
+
+    Returns:
+        The descendants' lines, stripped and in tree order, or ``None`` when no slide is selected.
+    """
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if re.search(r"class=FlipViewItem .*selected", line):
+            depth = len(line) - len(line.lstrip())
+            content = []
+            for child in lines[index + 1:]:
+                if len(child) - len(child.lstrip()) <= depth:
+                    break
+                content.append(child.strip())
+            return content
+    return None
+
+
 def check_tree(text: str, phase: Phase) -> list[str]:
     """Failures for one phase's tree dump.
 
     Args:
         text: UIA tree dump (one element per line).
-        phase: Phase with ``expect``/``forbid`` patterns.
+        phase: Phase with ``expect``/``forbid`` patterns and optional ``slide`` content.
 
     Returns:
         Failure messages (empty when the tree matches).
@@ -514,6 +561,12 @@ def check_tree(text: str, phase: Phase) -> list[str]:
     lines = text.splitlines()
     failures = [f"expected /{p}/ in the UIA tree" for p in phase.expect if not any(re.search(p, line) for line in lines)]
     failures += [f"did not expect /{p}/ in the UIA tree" for p in phase.forbid if any(re.search(p, line) for line in lines)]
+    if phase.slide is not None:
+        content = slide_content(text)
+        if content is None:
+            failures.append("no selected slide in the UIA tree")
+        elif len(content) != len(phase.slide) or not all(re.search(p, line) for p, line in zip(phase.slide, content)):
+            failures.append(f"selected slide's control view is {content}, expected {phase.slide}")
     return failures
 
 

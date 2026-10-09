@@ -201,9 +201,15 @@ struct QuickLinksContainerModifier: ViewModifier {
     /// reported frame until it stops moving (rather than guessing a fixed delay)
     /// before calling `jumpDidSettle()`, so it is correct at any device speed.
     ///
+    /// A newer jump supersedes this one's corrective pass (#393): a held ⌥⌘↓ Next
+    /// Section or a quick rotor flick jumps again within the poll window, and the
+    /// stale pass re-landed its old target, scrolling the page back and settling the
+    /// newer jump on that geometry, so Quick Links named the wrong section.
+    ///
     /// - Parameter proxy: Reader proxy for the wrapped scroll view.
     private func scroll(_ proxy: ScrollViewProxy) {
         guard let target = controller.jumpTarget else { return }
+        let serial = controller.jumpSerial
         // Jumps are instant ("teleport", operator batch 7), with or without Reduce
         // Motion; the corrective pass then lands a lazily built target exactly.
         var instant = Transaction()
@@ -211,7 +217,7 @@ struct QuickLinksContainerModifier: ViewModifier {
         withTransaction(instant) {
             proxy.scrollTo(target, anchor: anchor(for: target))
         }
-        Task { @MainActor in await correctAndSettle(proxy, target: target) }
+        Task { @MainActor in await correctAndSettle(proxy, target: target, serial: serial) }
     }
 
     /// Re-target the scroll, poll until the target's real, now-realized frame
@@ -219,12 +225,15 @@ struct QuickLinksContainerModifier: ViewModifier {
     /// landing line, before handing off to `jumpDidSettle()`.
     ///
     /// A target near either end of the content cannot reach the line; the bounded
-    /// retries then leave it where the scroll view clamps it.
+    /// retries then leave it where the scroll view clamps it. The pass ends without
+    /// scrolling or settling as soon as a newer jump starts; that jump owns both.
     ///
     /// - Parameters:
     ///   - proxy: Reader proxy for the wrapped scroll view.
     ///   - target: The jump's target section id.
-    private func correctAndSettle(_ proxy: ScrollViewProxy, target: String) async {
+    ///   - serial: The jump's `QuickLinksController.jumpSerial`.
+    private func correctAndSettle(_ proxy: ScrollViewProxy, target: String, serial: Int) async {
+        guard controller.jumpSerial == serial else { return }
         proxy.scrollTo(target, anchor: anchor(for: target))
         var lastFrame = controller.currentFrame(for: target)
         var stableStreak = 0
@@ -234,6 +243,7 @@ struct QuickLinksContainerModifier: ViewModifier {
         let deadline = ContinuousClock.now + .seconds(3)
         while ContinuousClock.now < deadline {
             try? await Task.sleep(for: .milliseconds(50))
+            guard controller.jumpSerial == serial else { return }
             let frame = controller.currentFrame(for: target)
             guard frame == lastFrame else {
                 stableStreak = 0
@@ -257,6 +267,7 @@ struct QuickLinksContainerModifier: ViewModifier {
             }
             break
         }
+        guard controller.jumpSerial == serial else { return }
         controller.jumpDidSettle()
     }
 }

@@ -1,11 +1,13 @@
 package com.festivalscoretracker.android.journeys
 
 import android.content.res.Configuration
+import android.content.res.Resources
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.ViewRootForTest
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ComposeAccessibilityValidator
@@ -25,6 +27,8 @@ import androidx.compose.ui.unit.dp
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.window.layout.FoldingFeature
@@ -98,16 +102,80 @@ class JourneyHarness(private val rule: JourneyRule) {
         }
     }
 
+    /** [readingOrder] walks the tree Compose publishes to TalkBack ([publishTalkBackTree]). */
+    private var talkBackTree = false
+
+    /**
+     * Make every Compose view in the window publish to the test's UiAutomation what it publishes
+     * to TalkBack. Compose computes `traversalIndex`/`isTraversalGroup` order as
+     * `traversalBefore`/`traversalAfter` links, and sends the content-change events that refresh
+     * UiAutomation's node cache, only while a real accessibility service is on; without this,
+     * [readingOrder] sees no links (it falls back to tree order) and can read rows that scrolled
+     * away. Call after [launch]; from then on [readingOrder] is TalkBack's linear order and
+     * reads a fresh tree. UiAutomation connects first: a forced view sends events, and the
+     * platform throws "Accessibility off" for any sent before the app's AccessibilityManager is on.
+     */
+    fun publishTalkBackTree() {
+        InstrumentationRegistry.getInstrumentation().uiAutomation
+        val manager = rule.activity.getSystemService(android.view.accessibility.AccessibilityManager::class.java)
+        rule.waitUntil(10_000) { manager.isEnabled }
+        rule.waitForIdle()
+        rule.runOnUiThread {
+            fun roots(view: android.view.View): List<ViewRootForTest> = when {
+                view is ViewRootForTest -> listOf(view)
+                view is android.view.ViewGroup -> (0 until view.childCount).flatMap { roots(view.getChildAt(it)) }
+                else -> emptyList()
+            }
+            val found = roots(rule.activity.window.decorView)
+            assertTrue("no Compose view to publish", found.isNotEmpty())
+            found.forEach { it.forceAccessibilityForTesting(true) }
+        }
+        talkBackTree = true
+        rule.waitForIdle()
+    }
+
     /**
      * Give modal windows [scale]. `DeviceConfigurationOverride` stops at a window boundary: a
      * `ModalBottomSheet` or `Dialog` composes in its own window, whose density comes from the
      * activity's resources, so without this a "200%" sheet still renders at the device scale.
      *
+     * The activity's `Resources` share their implementation with every later activity of the
+     * same configuration in this instrumentation process, so the device's own scale is put back
+     * when the activity is destroyed. Without that, one 200 % journey left every following test
+     * class at 200 % text in a full `connectedDebugAndroidTest` run (issue #528).
+     *
+     * @param scale Font scale.
+     */
+    private fun applyWindowFontScale(scale: Float) {
+        val activity = rule.activity
+        val resources = activity.resources
+        if (resources.configuration.fontScale == scale) return
+        if (activity !in restoresFontScale) {
+            restoresFontScale += activity
+            val original = resources.configuration.fontScale
+            activity.lifecycle.addObserver(
+                LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_DESTROY) {
+                        setFontScale(resources, original)
+                        restoresFontScale -= activity
+                    }
+                },
+            )
+        }
+        setFontScale(resources, scale)
+    }
+
+    /** Activities whose shared resources get the device's font scale back on destroy. */
+    private val restoresFontScale = mutableSetOf<ComponentActivity>()
+
+    /**
+     * Set [scale] on [resources] (shared with the activity's dialogs and sheets).
+     *
+     * @param resources Activity resources.
      * @param scale Font scale.
      */
     @Suppress("DEPRECATION")
-    private fun applyWindowFontScale(scale: Float) {
-        val resources = rule.activity.resources
+    private fun setFontScale(resources: Resources, scale: Float) {
         if (resources.configuration.fontScale == scale) return
         resources.updateConfiguration(Configuration(resources.configuration).apply { fontScale = scale }, resources.displayMetrics)
     }
@@ -229,10 +297,26 @@ class JourneyHarness(private val rule: JourneyRule) {
         val errors = accessibilityFindings.filter { finding ->
             finding.startsWith("ERROR") &&
                 !clippedTouchTarget(finding) &&
+                !scrimSliver(finding) &&
                 !(finding.split(" | ").getOrNull(1) == "SpeakableTextPresentCheck" &&
                     clippedUnlabelledView(finding.split(" | ").getOrNull(2).orEmpty()))
         }
         assertTrue("Accessibility errors:\n" + errors.joinToString("\n"), errors.isEmpty())
+    }
+
+    /**
+     * Material's `ModalBottomSheet` scrim is a clickable "Close sheet" node; Compose reports its
+     * uncovered part, which above a fully expanded compact sheet on API 34 is only the
+     * [com.festivalscoretracker.android.ui.common.SHEET_TOP_GAP_DP] strip (1080×21 px on a
+     * Pixel 6), so ATF measures an 8 dp target. Every Festival sheet has the equivalent 48 dp
+     * header Close and Back (modal-shell R3/R4, `ModalCloseJourneyTest`), the WCAG 2.5.8
+     * "equivalent" exception, so only that touch-target finding is ignored (issue #418).
+     *
+     * @param finding Collected finding line.
+     * @return True for the scrim strip's touch-target finding.
+     */
+    private fun scrimSliver(finding: String): Boolean = finding.split(" | ").let {
+        it.getOrNull(1) == "TouchTargetSizeCheck" && it.getOrNull(2) == "Close sheet"
     }
 
     /**
@@ -387,7 +471,7 @@ class JourneyHarness(private val rule: JourneyRule) {
         accessibilityFindings.forEach { clippedTouchTarget(it) }
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
         // After an in-place change (font scale, issue #397) the node cache can keep the old bounds and labels.
-        if (fresh && android.os.Build.VERSION.SDK_INT >= 34) automation.clearCache()
+        if ((fresh || talkBackTree) && android.os.Build.VERSION.SDK_INT >= 34) automation.clearCache()
         val root = automation.rootInActiveWindow ?: return emptyList()
         val nodes = mutableListOf<AccessibilityNodeInfo>()
         val insideFocusable = mutableListOf<Boolean>()

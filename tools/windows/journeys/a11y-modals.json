@@ -5,6 +5,7 @@
     "tabs": 4,
     "ready": [
       "waitfor:id=fst.settings.show-instrument-icons@20",
+      "scrollinto:id=fst.settings.feedback.feature@20",
       "scrollinto:id=fst.settings.reset",
       "focus:id=fst.settings.reset",
       "key:enter",
@@ -40,6 +41,7 @@
     "tabs": 4,
     "ready": [
       "waitfor:id=fst.settings.show-instrument-icons@20",
+      "scrollinto:id=fst.settings.feedback.feature@20",
       "scrollinto:id=fst.settings.privacy-policy",
       "focus:id=fst.settings.privacy-policy",
       "key:enter",
@@ -76,6 +78,7 @@
     "tabs": 8,
     "ready": [
       "waitfor:id=fst.settings.show-instrument-icons@20",
+      "scrollinto:id=fst.settings.feedback.feature@20",
       "scrollinto:id=fst.settings.feedback.bug",
       "focus:id=fst.settings.feedback.bug",
       "key:enter",
@@ -112,6 +115,7 @@
     "tabs": 8,
     "ready": [
       "waitfor:id=fst.settings.show-instrument-icons@20",
+      "scrollinto:id=fst.settings.feedback.feature@20",
       "scrollinto:id=fst.settings.feedback.feature",
       "focus:id=fst.settings.feedback.feature",
       "key:enter",
@@ -148,6 +152,7 @@
     "tabs": 4,
     "ready": [
       "waitfor:id=fst.settings.show-instrument-icons@20",
+      "scrollinto:id=fst.settings.feedback.feature@20",
       "scrollinto:id=fst.settings.whats-new",
       "focus:id=fst.settings.whats-new",
       "key:enter",

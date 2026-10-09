@@ -131,7 +131,7 @@ PROBE = re.compile(
 #: ``value`` the UIA Value, else the name of the Selection pattern's selected item, e.g. a combo box's current option).
 STATE_KEYS = {"toggle": ("on", "off", "indeterminate"), "enabled": ("true", "false"), "selected": ("true", "false"),
               "name": None, "scroll": None, "type": None, "invoke": ("true", "false"), "focusable": ("true", "false"),
-              "value": None}
+              "value": None, "heading": tuple("0123456789")}
 
 # endregion
 
@@ -296,8 +296,10 @@ def parse_step(step: str) -> dict:
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
     (``on``/``off``/``indeterminate``), ``enabled`` (``true``/``false``), ``selected`` (UIA SelectionItem
     ``IsSelected``: ``true``/``false``, e.g. a list's current item), ``scroll`` (UIA Scroll pattern vertical percent,
-    rounded: ``0`` is a list back at its top), ``name`` or ``value`` (UIA Value, else the selected item's name: what
-    Narrator reads after a combo box's name, e.g. ``Instrument, combo box, Bass``) equals ``<value>``;
+    rounded: ``0`` is a list back at its top), ``heading`` (UIA heading level ``1``-``9``, ``0`` for none: Narrator's
+    H/Shift+H stops, e.g. a pinned section title or one a Quick Links jump lands on), ``name`` or ``value`` (UIA Value,
+    else the selected item's name: what Narrator reads after a combo box's name, e.g. ``Instrument, combo box, Bass``)
+    equals ``<value>``;
     ``pin:<sel>`` records the element's window-relative rectangle and ``assertpinned:<sel>`` (same selector, later in
     the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls;
     ``assertmarquee:<sel>|moving|<epx>`` fails unless the element is at most ``<epx>`` effective pixels high (one line)
@@ -494,7 +496,7 @@ def parse_step(step: str) -> dict:
         key, eq, value = assertion.partition("=")
         key, value = key.strip().lower(), value.strip()
         if not sep or not eq or key not in STATE_KEYS or not value:
-            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name|value|scroll|type|invoke|focusable=<value>[@<seconds>]")
+            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name|value|scroll|type|invoke|focusable|heading=<value>[@<seconds>]")
         allowed = STATE_KEYS[key]
         if allowed is not None and value.lower() not in allowed:
             raise ValueError(f"assertstate {key} must be one of {allowed}, not {value!r}")
@@ -819,6 +821,25 @@ def frame_stats(csv_text: str) -> dict:
     summary = summarize(times)
     return {"frames": len(times), "fps_mean": round(1000.0 / statistics.fmean(times), 1),
             "frame_ms": summary}
+
+
+def framework_popup_finding(finding: dict) -> bool:
+    """Whether an Axe finding is WinUI's own windowed popup host (windows-accessibility.md open item 8).
+
+    A flyout or tooltip popup's ``InputSiteWindowClass`` is exactly the size of its ``PopupHost`` bridge, so Axe reports
+    ``BoundingRectangleCompletelyObscuresContainer`` with no app element involved.
+
+    Args:
+        finding: One ``findings`` entry from a scan.
+
+    Returns:
+        ``True`` only for that framework finding.
+    """
+    element = finding.get("element") or {}
+    parents = finding.get("parents") or []
+    return (finding.get("rule") == "BoundingRectangleCompletelyObscuresContainer"
+            and element.get("ClassName") == "InputSiteWindowClass"
+            and bool(parents) and "PopupWindowSiteBridge" in parents[0])
 
 # endregion
 

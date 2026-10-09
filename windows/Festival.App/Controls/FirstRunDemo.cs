@@ -89,11 +89,37 @@ public sealed partial class FirstRunDemo : UserControl
     }
 
     /// <summary>
-    /// Raw-view peer so UI tests can read the demo's <c>fst.first-run.demo.*</c> AutomationId and ItemStatus
-    /// (Narrator still skips it; its decorative children stay as they were).
+    /// Raw-view peer so UI tests can read the demo's <c>fst.first-run.demo.*</c> AutomationId and ItemStatus. Narrator
+    /// skips it and, since issue #421, everything inside it: <see cref="DemoPeer"/> exposes only raw-view test hooks.
     /// </summary>
-    /// <returns>A framework element peer.</returns>
-    protected override AutomationPeer OnCreateAutomationPeer() => new FrameworkElementAutomationPeer(this);
+    /// <returns>The demo's peer.</returns>
+    protected override AutomationPeer OnCreateAutomationPeer() => new DemoPeer(this);
+
+    /// <summary>
+    /// Keeps the demo's sample rows out of every UIA view. A raw-view parent alone doesn't hide its children: UIA
+    /// promotes them to the slide, so Narrator reached song titles, artists and art that rotate every few seconds
+    /// (issue #421). Only raw-view descendants stay, the test hooks such as Statistics' top-songs pills.
+    /// </summary>
+    /// <param name="owner">Demo.</param>
+    private sealed partial class DemoPeer(FirstRunDemo owner) : FrameworkElementAutomationPeer(owner)
+    {
+        /// <inheritdoc />
+        protected override IList<AutomationPeer> GetChildrenCore() => RawHooks(base.GetChildrenCore());
+
+        /// <summary>The raw-view peers among <paramref name="peers"/> and, under any other peer, its descendants.</summary>
+        /// <param name="peers">Child peers, or <see langword="null"/>.</param>
+        /// <returns>Raw-view peers in tree order.</returns>
+        private static List<AutomationPeer> RawHooks(IEnumerable<AutomationPeer>? peers)
+        {
+            var hooks = new List<AutomationPeer>();
+            foreach (var peer in peers ?? [])
+            {
+                if (peer.IsControlElement()) hooks.AddRange(RawHooks(peer.GetChildren()));
+                else hooks.Add(peer);
+            }
+            return hooks;
+        }
+    }
 
     #region Fit
     private readonly ScaleTransform fit = new();
