@@ -1054,13 +1054,20 @@ struct SongsScreen: View, Equatable {
     ///   - visible: Songs after search, filters and sort have been applied.
     ///   - effectiveMode: Sort mode actually in effect (paused sorts fall back to Title).
     /// - Returns: A scrollable List, with a trailing jump scrubber when applicable.
-    /// Width to keep clear of the trailing `SongSectionIndexScrubber`: its own capsule
-    /// (22 pt, wider at large text sizes: `stripWidth(for:)`), the same Duo vertical-bar
-    /// margin it insets by (`.agents/design/apple/duo.md`'s B4), and a small visual gap
-    /// so a row's trailing content doesn't sit flush against the capsule's edge.
+    /// Width to keep clear of the trailing `SongSectionIndexScrubber`: its own
+    /// capsule (22 pt, wider at larger text sizes), the same Duo vertical-bar margin it
+    /// insets by (`.agents/design/apple/duo.md`'s B4), and a small visual gap so a row's
+    /// trailing content doesn't sit flush against the capsule's edge.
     private var scrubberTrailingReserve: CGFloat {
-        SongSectionIndexScrubber.stripWidth(for: dynamicTypeSize)
+        SongSectionIndexScrubber.width(for: dynamicTypeSize)
             + max(2, deviceLayout.cutoutInsets.trailing) + 6
+    }
+
+    /// The A–Z scrubber region's top: below the collapsed inline bar, fixed so the
+    /// scrubber does not move as the large title and Filter field collapse
+    /// (``ScrubberTopReserve`` lowers it at accessibility sizes).
+    private var scrubberTopReserve: CGFloat {
+        deviceLayout.overlayInsets.top + 52
     }
 
     /// Extra trailing safe area while the rail shows: the rows already keep their
@@ -1184,8 +1191,10 @@ struct SongsScreen: View, Equatable {
                     } : nil
                 ))
                 .modifier(ScrolledAwayTracker(
-                    topInsetChanged: scrollChrome.setListTopInset,
-                    restingTopInsetChanged: { scrollChrome.setRestingTopInset($0, layout: $1) }
+                    topInsetChanged: { [scrollChrome] inset, offsetY in
+                        scrollChrome.setListTopInset(inset)
+                        scrollChrome.noteExpandedTopInset(inset, offsetY: offsetY)
+                    }
                 ) { scrolled in
                     scrollChrome.setScrolled(scrolled)
                 })
@@ -1215,19 +1224,17 @@ struct SongsScreen: View, Equatable {
                     quickLinks: quickLinks, chrome: scrollChrome, keys: headerKeys
                 ))
                 if showsIndex {
-                    let railTop = deviceLayout.overlayInsets.top + 52
-                    SongsIndexRail(
-                        sections: indexSections, chrome: scrollChrome, regionTop: railTop
-                    ) { id in
+                    SongSectionIndexScrubber(sections: indexSections) { id in
                         jumpToSection(AnyHashable(id), keys: headerKeys, proxy: scrollProxy)
                     }
                     // Centered between a *fixed* top (status bar + collapsed inline bar)
                     // and the bottom safe area (tab bar + floating tools), so it neither
                     // jumps when the large title and filter field collapse nor overlaps
-                    // the floating Filter/Sort buttons. It never starts under the
-                    // expanded bar either (issue #391, `SongsIndexRail`).
+                    // the floating Filter/Sort buttons.
                     .frame(maxHeight: .infinity)
-                    .padding(.top, railTop)
+                    .modifier(ScrubberTopReserve(
+                        chrome: scrollChrome, collapsed: scrubberTopReserve
+                    ))
                     .padding(.bottom, 8)
                     .ignoresSafeArea(.container, edges: .top)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -1810,12 +1817,8 @@ private extension SongShopSectionKind {
 /// before). ``ScrollAwayGate`` keeps the chrome this report moves from feeding back
 /// into it (issue #5).
 private struct ScrolledAwayTracker: ViewModifier {
-    /// Receives the List's top content inset on every scroll geometry change.
-    let topInsetChanged: (CGFloat) -> Void
-    /// Receives the List's top content inset while its content is attached to the bar
-    /// (at, or pulled past, its top, or collapsing the large title), with its layout.
-    var restingTopInsetChanged: (CGFloat, SongsScrollChrome.RestingLayout) -> Void = { _, _ in }
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// Receives the List's top content inset and offset on every scroll geometry change.
+    let topInsetChanged: (CGFloat, CGFloat) -> Void
     let changed: (Bool) -> Void
     @State private var gate = ScrollAwayGate()
     /// The last value sent to `changed`; nil until the first decision is reported.
@@ -1840,13 +1843,7 @@ private struct ScrolledAwayTracker: ViewModifier {
                 // Debug trace (issue #383): a List that briefly counts its top inset
                 // twice raises this peak above the expanded large title's inset.
                 MainThreadStallMonitor.peak("songs.topInset", Double(sample.topInset))
-                topInsetChanged(sample.topInset)
-                if sample.width > 0,
-                   sample.offsetY + sample.topInset <= ScrollAwayGate.offsetTolerance {
-                    restingTopInsetChanged(
-                        sample.topInset, .init(width: sample.width, textSize: dynamicTypeSize)
-                    )
-                }
+                topInsetChanged(sample.topInset, sample.offsetY)
                 gate.update(
                     offsetY: sample.offsetY, topInset: sample.topInset,
                     containerWidth: sample.width
@@ -1862,25 +1859,34 @@ private struct ScrolledAwayTracker: ViewModifier {
     }
 }
 
-/// The A–Z rail, kept below the expanded navigation bar (issue #391).
+/// Starts the A–Z scrubber's region below the collapsed inline bar or, at accessibility
+/// sizes, 8 pt below the expanded header (issue #388): the large title and Filter field
+/// then reach below the collapsed top (the field ended at y 312 at AX5, under the rail).
 ///
-/// Reads ``SongsScrollChrome/restingTopInset`` itself, so a new resting inset re-renders
-/// only the rail, never `SongsScreen` (issue #8).
-private struct SongsIndexRail: View {
-    let sections: [SongSection]
+/// Reads ``SongsScrollChrome/expandedTopInset`` itself, so the inset re-renders only
+/// this modifier, never the List (issue #8).
+struct ScrubberTopReserve: ViewModifier {
     let chrome: SongsScrollChrome
-    /// The rail region's top edge in window space (it ignores the top safe area).
-    let regionTop: CGFloat
-    let onSelect: (Int) -> Void
+    /// The top below the collapsed inline bar.
+    let collapsed: CGFloat
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    var body: some View {
-        SongSectionIndexScrubber(
-            sections: sections,
-            topClearance: SongSectionIndexScrubber.topClearance(
-                chromeBottom: chrome.restingTopInset, regionTop: regionTop
-            ),
-            onSelect: onSelect
-        )
+    func body(content: Content) -> some View {
+        content.padding(.top, Self.top(
+            collapsed: collapsed, expandedInset: chrome.expandedTopInset,
+            accessibility: dynamicTypeSize.isAccessibilitySize
+        ))
+    }
+
+    /// The scrubber region's top.
+    ///
+    /// - Parameters:
+    ///   - collapsed: The top below the collapsed inline bar.
+    ///   - expandedInset: ``SongsScrollChrome/expandedTopInset``.
+    ///   - accessibility: Whether an accessibility text size is in effect.
+    /// - Returns: `collapsed`, or 8 pt below the expanded header at accessibility sizes.
+    static func top(collapsed: CGFloat, expandedInset: CGFloat, accessibility: Bool) -> CGFloat {
+        accessibility ? max(collapsed, expandedInset + 8) : collapsed
     }
 }
 

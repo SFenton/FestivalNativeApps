@@ -94,31 +94,6 @@ struct SongsScrollChromeTests {
         #expect(chrome.setSectionBarBottom(120 + SongsScrollChrome.barBottomTolerance))
     }
 
-    /// Issue #391: the rail keeps the expanded bar's inset while the title collapses with
-    /// the content attached, and measures again for a new width or text size.
-    @Test func restingTopInsetKeepsTheExpandedBarPerLayout() {
-        let chrome = SongsScrollChrome()
-        let portrait = SongsScrollChrome.RestingLayout(width: 402, textSize: .accessibility5)
-        #expect(invalidates(chrome, reading: { _ = $0.restingTopInset }) {
-            $0.setRestingTopInset(323, layout: portrait)
-        })
-        // Collapsing: the inset shrinks while the content stays attached to the bar.
-        #expect(!invalidates(chrome, reading: { _ = $0.restingTopInset }) {
-            $0.setRestingTopInset(250, layout: portrait)
-            $0.setRestingTopInset(323.3, layout: portrait)
-        })
-        #expect(chrome.restingTopInset == 323)
-        #expect(!chrome.setRestingTopInset(.nan, layout: portrait))
-        // A smaller text size starts over, even with a smaller inset.
-        #expect(chrome.setRestingTopInset(222, layout: .init(width: 402, textSize: .large)))
-        #expect(chrome.restingTopInset == 222)
-        #expect(chrome.setRestingTopInset(150, layout: .init(width: 874, textSize: .large)))
-        #expect(chrome.restingTopInset == 150)
-        #expect(!invalidates(chrome, reading: { _ = $0.listScrolled }) {
-            $0.setRestingTopInset(400, layout: .init(width: 874, textSize: .large))
-        })
-    }
-
     /// Writes to one property never invalidate observers of another (the List reads none).
     @Test func propertiesAreObservedIndependently() {
         let chrome = SongsScrollChrome()
@@ -553,6 +528,30 @@ struct SongsSectionJumpTests {
         chrome.setListTopInset(.nan)
         #expect(chrome.listTopInset.value == 116)
         #expect(!fired.value)
+    }
+
+    /// Issue #388: the rail starts below the header as it rests at the top, and holds
+    /// still while the List scrolls or is pulled past its top.
+    @Test func expandedTopInsetFollowsTheHeaderAtRestOnly() {
+        let chrome = SongsScrollChrome()
+        #expect(chrome.noteExpandedTopInset(312, offsetY: -312))
+        #expect(!chrome.noteExpandedTopInset(116, offsetY: 400))
+        #expect(!chrome.noteExpandedTopInset(312, offsetY: -380))
+        #expect(chrome.expandedTopInset == 312)
+        let fired = JumpFlag()
+        withObservationTracking { _ = chrome.expandedTopInset } onChange: { fired.value = true }
+        chrome.noteExpandedTopInset(312, offsetY: -312.2)
+        chrome.noteExpandedTopInset(.nan, offsetY: 0)
+        #expect(!fired.value)
+        #expect(chrome.noteExpandedTopInset(300, offsetY: -300))
+        #expect(chrome.expandedTopInset == 300)
+    }
+
+    /// Issue #388: only accessibility sizes move the rail below the expanded header.
+    @Test func scrubberStartsBelowTheExpandedHeaderOnlyAtAccessibilitySizes() {
+        #expect(ScrubberTopReserve.top(collapsed: 114, expandedInset: 312, accessibility: true) == 320)
+        #expect(ScrubberTopReserve.top(collapsed: 114, expandedInset: 312, accessibility: false) == 114)
+        #expect(ScrubberTopReserve.top(collapsed: 114, expandedInset: 0, accessibility: true) == 114)
     }
 }
 

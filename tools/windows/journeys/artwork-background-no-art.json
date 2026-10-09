@@ -1,6 +1,7 @@
 [
   {
     "name": "ab-no-art",
+    "fixture": ["artwork_fixture.py"],
     "tab": "songs",
     "ready": [
       "waitfor:id=fst.songs.row.fixture-pulse@20",
@@ -10,6 +11,7 @@
   },
   {
     "name": "ab-no-art-song",
+    "fixture": ["artwork_fixture.py"],
     "route": "/songs/fixture-pulse",
     "ready": [
       "waitfor:id=fst.song-detail.title@20",

@@ -73,39 +73,29 @@ final class SongsScrollChrome {
         listTopInset.value = inset
     }
 
-    /// The List's top content inset with the large title fully expanded: the bottom of
-    /// the expanded navigation bar (large title and Filter field). Observed by the A–Z
-    /// rail only, which must not start under that bar (issue #391). It changes on launch,
-    /// rotation and text-size changes, never while the title collapses.
-    private(set) var restingTopInset: CGFloat = 0
-    /// The layout (width and text size) ``restingTopInset`` was measured in.
-    private var restingLayout: RestingLayout?
+    /// The List's top content inset the last time it rested at its top: where the
+    /// expanded large title and Filter field end. The A–Z rail starts below it at
+    /// accessibility sizes (issue #388). Held while the List is away from its top, so the
+    /// rail stays put as the header collapses.
+    private(set) var expandedTopInset: CGFloat = 0
 
-    /// The layout an expanded-bar inset belongs to; a new one starts a new measurement.
-    struct RestingLayout: Equatable {
-        /// The List's visible width.
-        let width: CGFloat
-        /// The Dynamic Type size.
-        let textSize: DynamicTypeSize
-    }
-
-    /// Record the List's top content inset while its content is attached to the bar
-    /// (at the top, or collapsing the large title).
+    /// Record the List's top content inset for ``expandedTopInset`` when the List rests
+    /// at its top.
     ///
-    /// The inset shrinks while the title collapses with the content still attached, so
-    /// only the largest value of a layout is the expanded bar; a new layout starts over.
+    /// Samples away from the top, or pulled past it, are ignored. A grow-only maximum
+    /// kept the transient header of the #5 inset swap (about 250 pt taller at AX5) and
+    /// pushed the rail to the bottom of the screen.
     ///
     /// - Parameters:
     ///   - inset: `ScrollGeometry.contentInsets.top`.
-    ///   - layout: The width and text size it was measured in.
-    /// - Returns: True when ``restingTopInset`` changed by more than ``barBottomTolerance``.
+    ///   - offsetY: `ScrollGeometry.contentOffset.y`.
+    /// - Returns: True when ``expandedTopInset`` changed.
     @discardableResult
-    func setRestingTopInset(_ inset: CGFloat, layout: RestingLayout) -> Bool {
-        guard inset.isFinite else { return false }
-        let expanded = layout == restingLayout ? max(restingTopInset, inset) : inset
-        restingLayout = layout
-        guard abs(expanded - restingTopInset) > Self.barBottomTolerance else { return false }
-        restingTopInset = expanded
+    func noteExpandedTopInset(_ inset: CGFloat, offsetY: CGFloat) -> Bool {
+        guard inset.isFinite, offsetY.isFinite,
+              abs(offsetY + inset) < Self.barBottomTolerance,
+              inset != expandedTopInset else { return false }
+        expandedTopInset = inset
         return true
     }
 

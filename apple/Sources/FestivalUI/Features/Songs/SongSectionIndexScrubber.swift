@@ -29,11 +29,16 @@ struct SongSectionIndexScrubber: View {
     static let labelSpacing: CGFloat = 1
     /// Margin above and below the capsule, inside the strip's frame.
     static let outerPadding: CGFloat = 8
-    /// The label line height before the first label is measured (caption2 rounded).
+    /// The label line height before the first label is measured.
     static let defaultLabelHeight: CGFloat = 12
-    /// The largest text size the labels follow: caption2 reaches 24 pt there, over
-    /// 200% of its 11 pt default (issue #391), while the strip stays a narrow column.
-    static let largestTextSize = DynamicTypeSize.accessibility2
+    /// The capsule's width at the default text size; it widens with the labels.
+    static let baseWidth: CGFloat = 22
+    /// The largest text size the labels grow to (issue #388): Caption 2 at AX2 is 24 pt,
+    /// 218% of its 11 pt default, past HIG Accessibility's "Support enlargement up to
+    /// 200%", while the strip stays narrow enough (48 pt) to leave the rows their width
+    /// and keeps enough letters to stay useful (an uncapped AX5 strip would be 80 pt
+    /// wide and condense to a handful).
+    static let maxTypeSize = DynamicTypeSize.accessibility2
     /// What stands in for the labels a condensed strip skips.
     static let bullet = "•"
 
@@ -69,11 +74,6 @@ struct SongSectionIndexScrubber: View {
     }
 
     let sections: [SongSection]
-    /// How far below the top of its region the strip's capsule must start: the part of
-    /// the region the expanded navigation bar covers (``topClearance(chromeBottom:regionTop:)``).
-    /// The strip stays centered in its region and only moves down when it would
-    /// otherwise start under that bar.
-    var topClearance: CGFloat = 0
     let onSelect: (Int) -> Void
     @Environment(\.deviceLayout) private var deviceLayout
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -112,7 +112,10 @@ struct SongSectionIndexScrubber: View {
         Self.entries(
             labels: sections.map(\.label),
             capacity: Self.capacity(
-                availableHeight: availableHeight.map { max(0, $0 - topClearance) },
+                availableHeight: Self.heightLimit(
+                    labelCount: sections.count, labelHeight: labelHeight,
+                    scale: Self.scale(for: dynamicTypeSize)
+                ).map { min($0, availableHeight ?? $0) } ?? availableHeight,
                 labelHeight: labelHeight
             )
         )
@@ -120,9 +123,10 @@ struct SongSectionIndexScrubber: View {
 
     var body: some View {
         let entries = self.entries
-        // Never taller than offered: a rigid strip pushed the page past the window
-        // (issue #336). The rows above fit what this frame measures, less the clearance.
-        ClearedCenterLayout(clearance: topClearance) { strip(entries) }
+        strip(entries)
+            // Never taller than offered: a rigid strip pushed the page past the window
+            // (issue #336). The rows above fit what this frame measures.
+            .frame(minHeight: 0, maxHeight: .infinity)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
                 if height != availableHeight { availableHeight = height }
             }
@@ -148,14 +152,15 @@ struct SongSectionIndexScrubber: View {
                     }
             }
         }
-        // The labels follow Dynamic Type up to `largestTextSize` (issue #391: a fixed
-        // 10 pt never grew); R8 condenses the taller rows to fit.
-        .dynamicTypeSize(...Self.largestTextSize)
+        // Caption 2 grows with Dynamic Type up to `maxTypeSize` (issue #388: fixed 10 pt
+        // labels were audited "Dynamic Type font sizes are unsupported"); a strip too
+        // tall for the larger labels condenses (`entries`).
+        .dynamicTypeSize(...Self.maxTypeSize)
         .padding(.vertical, Self.labelInset)
         // Intrinsic size — as tall as its own letters, never the full list height.
         // The caller centers it in a region with a fixed top, so a collapsing large
         // title does not move it.
-        .frame(width: Self.stripWidth(for: dynamicTypeSize))
+        .frame(width: Self.width(for: dynamicTypeSize))
         .festivalCardCapsule()
         .contentShape(Rectangle())
         .background(
@@ -259,54 +264,49 @@ struct SongSectionIndexScrubber: View {
         return sections.lowerBound + min(sections.count - 1, step)
     }
 
-    /// The part of the strip's region that the expanded navigation bar covers.
-    ///
-    /// The region's top is fixed below the collapsed bar so a collapsing large title
-    /// never moves the strip. At the largest text sizes the *expanded* bar (large title
-    /// and Filter field) reaches past the centered strip's top: on iOS 27 at AX3XL it
-    /// ends at 323 pt while the strip started at 240 pt, so "#" to "D" sat under the bar,
-    /// could not be touched and a tap there focused the search field (issue #391).
-    ///
-    /// - Parameters:
-    ///   - chromeBottom: The List's top content inset while it rests at its top: the
-    ///     expanded bar's bottom edge, in the region's (window) space; 0 when unknown.
-    ///   - regionTop: The region's top edge in the same space.
-    /// - Returns: The clearance, at least 0; ``outerPadding`` already spaces the capsule
-    ///   from the bar.
-    nonisolated static func topClearance(chromeBottom: CGFloat, regionTop: CGFloat) -> CGFloat {
-        guard chromeBottom.isFinite, regionTop.isFinite else { return 0 }
-        return max(0, (chromeBottom - regionTop).rounded(.up))
-    }
-
-    /// Where the strip's top sits inside its region: centered, but never above
-    /// `clearance`.
-    ///
-    /// - Parameters:
-    ///   - regionHeight: The region's height.
-    ///   - stripHeight: The strip's height, outer padding included.
-    ///   - clearance: ``topClearance(chromeBottom:regionTop:)``.
-    /// - Returns: The strip's top offset from the region's top.
-    nonisolated static func stripTop(
-        regionHeight: CGFloat, stripHeight: CGFloat, clearance: CGFloat
-    ) -> CGFloat {
-        max((regionHeight - stripHeight) / 2, clearance)
-    }
-
-    /// The capsule's width for a text size: 22 pt up to Large, then wide enough for
-    /// the caption2 labels, which grow until ``largestTextSize``.
+    /// How much the labels grow at a text size: iOS Caption 2's point size there over its
+    /// 11 pt default (HIG Typography, iOS Dynamic Type sizes), capped at ``maxTypeSize``.
+    /// macOS has no Dynamic Type, so it stays at 1 there.
     ///
     /// - Parameter size: The environment's Dynamic Type size.
-    /// - Returns: 8 pt of padding plus a 14 pt label column scaled like caption2.
-    nonisolated static func stripWidth(for size: DynamicTypeSize) -> CGFloat {
-        let caption2: CGFloat = switch min(size, largestTextSize) {
-        case .xSmall, .small, .medium, .large: 11
-        case .xLarge: 13
-        case .xxLarge: 15
-        case .xxxLarge: 17
-        case .accessibility1: 20
-        default: 24
+    /// - Returns: The scale factor, from 1 to 24 / 11.
+    nonisolated static func scale(for size: DynamicTypeSize) -> CGFloat {
+        let points: CGFloat
+        switch min(size, maxTypeSize) {
+        case .xSmall, .small, .medium, .large: points = 11
+        case .xLarge: points = 13
+        case .xxLarge: points = 15
+        case .xxxLarge: points = 17
+        case .accessibility1: points = 20
+        default: points = 24
         }
-        return (8 + 14 * caption2 / 11).rounded(.up)
+        return points / 11
+    }
+
+    /// The capsule's width at a text size, which the Songs list also keeps clear.
+    ///
+    /// - Parameter size: The environment's Dynamic Type size.
+    /// - Returns: ``baseWidth`` scaled like the labels, rounded to whole points.
+    nonisolated static func width(for size: DynamicTypeSize) -> CGFloat {
+        (baseWidth * scale(for: size)).rounded()
+    }
+
+    /// The tallest the strip grows at a larger text size: every label at the default
+    /// size (issue #388). Larger labels condense into that height instead of reaching up
+    /// beside the navigation bar's expanded search field, which a strip filling its
+    /// whole region overlapped at accessibility sizes.
+    ///
+    /// - Parameters:
+    ///   - labelCount: How many sections the strip indexes.
+    ///   - labelHeight: One label's measured line height at the current size.
+    ///   - scale: The labels' growth at the current size (``scale(for:)``).
+    /// - Returns: The strip's height limit, its outer padding included, or nil at the
+    ///   default size, where it only fits the offered height.
+    nonisolated static func heightLimit(labelCount: Int, labelHeight: CGFloat, scale: CGFloat) -> CGFloat? {
+        guard scale > 1, labelCount > 0, labelHeight.isFinite, labelHeight > 0 else { return nil }
+        let defaultLabel = labelHeight / scale
+        return 2 * outerPadding + 2 * labelInset
+            + CGFloat(labelCount) * (defaultLabel + labelSpacing) - labelSpacing
     }
 
     /// How many rows fit the height offered to the strip.
@@ -369,35 +369,5 @@ struct SongSectionIndexScrubber: View {
 private extension Array {
     subscript(safeIndex index: Int) -> Element? {
         indices.contains(index) ? self[index] : nil
-    }
-}
-
-// MARK: - Placement
-
-/// Centers its one subview vertically in the offered height, but never starts it above
-/// `clearance` (``SongSectionIndexScrubber/stripTop(regionHeight:stripHeight:clearance:)``).
-/// Like `.frame(minHeight: 0, maxHeight: .infinity)` it takes the whole offered height.
-private struct ClearedCenterLayout: Layout {
-    let clearance: CGFloat
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        guard let subview = subviews.first else { return .zero }
-        let ideal = subview.sizeThatFits(ProposedViewSize(width: proposal.width, height: nil))
-        return CGSize(width: ideal.width, height: proposal.height ?? ideal.height + clearance)
-    }
-
-    func placeSubviews(
-        in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
-    ) {
-        guard let subview = subviews.first else { return }
-        let room = max(0, bounds.height - clearance)
-        let height = min(subview.sizeThatFits(ProposedViewSize(width: bounds.width, height: room)).height, room)
-        let top = SongSectionIndexScrubber.stripTop(
-            regionHeight: bounds.height, stripHeight: height, clearance: clearance
-        )
-        subview.place(
-            at: CGPoint(x: bounds.midX, y: bounds.minY + top), anchor: .top,
-            proposal: ProposedViewSize(width: bounds.width, height: height)
-        )
     }
 }
