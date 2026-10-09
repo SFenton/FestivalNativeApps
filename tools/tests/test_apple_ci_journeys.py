@@ -2,8 +2,8 @@
 
 A selector that matches nothing makes ``xcodebuild`` run no test, so a renamed journey would silently leave CI.
 ``JOURNEYS`` (iPhone bundle) must keep the account-button reading-order journeys (``page-tools-and-nav-chrome``
-R17, #394); ``HISTORY_JOURNEYS``/``HISTORY_IPAD_JOURNEYS`` (iPad bundle, on the iPhone and the iPad) must keep the
-Score History AX5 journeys (#385, the region #302 changed).
+R17, #394) and the Songs section-title AX5 journey (#91, #441); ``HISTORY_JOURNEYS``/``HISTORY_IPAD_JOURNEYS`` (iPad
+bundle, on the iPhone and the iPad) must keep the Score History AX5 journeys (#385, the region #302 changed).
 """
 
 import re
@@ -82,6 +82,10 @@ class AppleCIJourneysTests(unittest.TestCase):
         self.assertIn('ci-device --type "iPad Pro 11-inch (M5)"', text)
         self.assertEqual(text.count("uitest --app ipad"), 2)
         self.assertEqual(text.count("--fail-on-skip"), 3)
+
+    def test_section_title_ax5_journey_runs_in_ci(self) -> None:
+        # #91/#441: the only iOS Dynamic Type and audit evidence for Songs' grouped-sort section titles.
+        self.assertIn("SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5", self.journeys)
 
 
 if __name__ == "__main__":
