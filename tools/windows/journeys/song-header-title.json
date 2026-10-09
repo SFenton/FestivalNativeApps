@@ -1,6 +1,7 @@
 [
   {
     "name": "song-detail-moving",
+    "fixture": ["song_header_fixture.py"],
     "route": "/songs/fixture-pulse",
     "preset": "compact",
     "args": ["--no-art"],
@@ -24,6 +25,7 @@
   },
   {
     "name": "song-detail-static",
+    "fixture": ["song_header_fixture.py"],
     "route": "/songs/fixture-pulse",
     "preset": "compact",
     "args": ["--no-art", "--reduce-motion"],
@@ -45,6 +47,7 @@
   },
   {
     "name": "song-leaderboard-moving",
+    "fixture": ["song_header_fixture.py"],
     "route": "/songs/fixture-pulse/Solo_Guitar",
     "preset": "compact",
     "args": ["--no-art"],
@@ -60,6 +63,7 @@
   },
   {
     "name": "song-leaderboard-static",
+    "fixture": ["song_header_fixture.py"],
     "route": "/songs/fixture-pulse/Solo_Guitar",
     "preset": "compact",
     "args": ["--no-art", "--reduce-motion"],
@@ -74,6 +78,7 @@
   },
   {
     "name": "song-band-leaderboard-moving",
+    "fixture": ["song_header_fixture.py"],
     "route": "/songs/fixture-pulse/bands/Band_Duets",
     "preset": "compact",
     "args": ["--no-art"],
@@ -89,6 +94,7 @@
   },
   {
     "name": "song-band-leaderboard-static",
+    "fixture": ["song_header_fixture.py"],
     "route": "/songs/fixture-pulse/bands/Band_Duets",
     "preset": "compact",
     "args": ["--no-art", "--reduce-motion"],
@@ -103,6 +109,7 @@
   },
   {
     "name": "player-history-moving",
+    "fixture": ["song_header_fixture.py"],
     "route": "/songs/fixture-pulse/Solo_Guitar/history",
     "preset": "compact",
     "args": ["--no-art"],
@@ -119,6 +126,7 @@
   },
   {
     "name": "player-history-static",
+    "fixture": ["song_header_fixture.py"],
     "route": "/songs/fixture-pulse/Solo_Guitar/history",
     "preset": "compact",
     "args": ["--no-art", "--reduce-motion"],
@@ -137,7 +145,7 @@
     "route": "/songs/fixture-pulse",
     "preset": "compact",
     "args": ["--no-art"],
-    "fixture": ["--short-artist"],
+    "fixture": ["song_header_fixture.py", "--short-artist"],
     "steps": [
       "waitfor:id=fst.song-detail.title@30",
       "waitgone:name=Loading song@20",
@@ -152,7 +160,7 @@
     "route": "/songs/fixture-pulse/Solo_Guitar",
     "preset": "compact",
     "args": ["--no-art"],
-    "fixture": ["--short-artist"],
+    "fixture": ["song_header_fixture.py", "--short-artist"],
     "steps": [
       "waitfor:id=fst.song-leaderboard.list@30",
       "waitfor:id=fst.song-leaderboard.title@10",

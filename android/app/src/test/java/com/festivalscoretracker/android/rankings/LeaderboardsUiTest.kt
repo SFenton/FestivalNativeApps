@@ -78,7 +78,15 @@ abstract class LeaderboardsHarness {
 
     protected lateinit var container: AppContainer
 
-    protected fun launch(route: String, profile: SelectedPlayer? = null) {
+    /**
+     * Launch the shell on [route].
+     *
+     * @param route Debug route.
+     * @param profile Selected player.
+     * @param experimentalRanks Settings → Experimental Ranks; on by default so the Rank By journeys run (#541).
+     */
+    protected fun launch(route: String, profile: SelectedPlayer? = null, experimentalRanks: Boolean = true) {
+        runBlocking { store.updateData { it.toMutablePreferences().apply { this[booleanPreferencesKey(SettingsRegistry.EXPERIMENTAL_RANKS)] = experimentalRanks } } }
         val debug = DebugLaunch(route = DebugLaunch.parseRoute(route), profile = profile, stillBackground = true)
         val gated = object : HttpTransport {
             override suspend fun send(request: HttpRequest): HttpResult {
@@ -177,6 +185,35 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         waitForText("Bass Leaderboards")
         click("fst.nav.back")
         waitForTag(lead)
+    }
+
+    @Test
+    fun rankByWaitsForExperimentalRanks() {
+        // A saved experimental Rank By with the setting off (#541): Total Score boards, no Rank By.
+        runBlocking { store.updateData { it.toMutablePreferences().apply { this[LeaderboardPreferences.KEY_RANK_BY] = "fcrate" } } }
+        launch("leaderboards", experimentalRanks = false)
+        waitForTag("fst.rankings.row.${RankingsFixtures.accountId(1)}")
+        assertFalse(exists("fst.rankings.rank-by-menu"))
+        assertTrue(transport.requests.filter { it.url.contains("/api/rankings/") }.all { "rankBy=totalscore" in it.url })
+        assertEquals("fcrate", store.current[LeaderboardPreferences.KEY_RANK_BY])
+        // Turning it on restores the saved choice and shows Rank By.
+        runBlocking { store.updateData { it.toMutablePreferences().apply { this[booleanPreferencesKey(SettingsRegistry.EXPERIMENTAL_RANKS)] = true } } }
+        rule.waitUntil(10_000) { settle(100); exists("fst.rankings.rank-by-menu") }
+        rule.waitUntil(10_000) { settle(100); transport.requests.any { it.url.contains("rankBy=fcrate") } }
+        waitForDescription("Rank By, FC Rate")
+        // Turning it off again takes the boards back to Total Score.
+        val before = transport.requests.size
+        runBlocking { store.updateData { it.toMutablePreferences().apply { this[booleanPreferencesKey(SettingsRegistry.EXPERIMENTAL_RANKS)] = false } } }
+        rule.waitUntil(10_000) { settle(100); !exists("fst.rankings.rank-by-menu") }
+        rule.waitUntil(10_000) { settle(100); transport.requests.drop(before).any { it.url.contains("rankBy=totalscore") } }
+    }
+
+    @Test
+    fun bandRankingsHideRankByWithoutExperimentalRanks() {
+        launch("bandRankings:Band_Trios", experimentalRanks = false)
+        waitForTag("fst.band-rankings.population")
+        assertTrue(exists("fst.band-rankings.band-type-menu"))
+        assertFalse(exists("fst.band-rankings.rank-by-menu"))
     }
 
     @Test
@@ -413,7 +450,7 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         waitForText("Quads Leaderboards")
         waitForDescription("Page 1 of 2")
         click("fst.band-rankings.rank-by-menu")
-        click("fst.band-rankings.rank-by-menu.2")
+        click("fst.band-rankings.rank-by-menu.3")
         rule.waitUntil(10_000) { settle(100); transport.requests.any { it.url.contains("/api/rankings/bands/Band_Quad?rankBy=fcrate") } }
         val first = "fst.band-rankings.row.${RankingsFixtures.accountId(1001)}:${RankingsFixtures.accountId(2001)}"
         waitForTag(first)
