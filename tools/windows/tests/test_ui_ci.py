@@ -34,8 +34,9 @@ class UiCiTests(unittest.TestCase):
                 sizes = run.sizes.split(",")
                 for size in sizes:
                     u.preset_op(size)
-                # The runner's 1920x1080 desktop holds compact and medium, not wide (1440x900 plus the taskbar).
-                self.assertNotIn("wide", sizes)
+                # The runner's 1920x1080 desktop (ci_display.ps1) holds compact, medium and wide (1440x900 plus the
+                # taskbar); generated runs add wide only for pages that run at no smaller size.
+                self.assertLessEqual(set(sizes), {"compact", "medium", "wide"})
                 self.assertTrue(m.mode_pages(pages, run.mode), "no page runs in this mode")
                 self.assertTrue(any(m.page_sizes(page, sizes, run.mode) for page in m.mode_pages(pages, run.mode)),
                                 "no page runs at this run's sizes")
@@ -74,21 +75,27 @@ class UiCiTests(unittest.TestCase):
         self.assertGreaterEqual(large.tabs, 1)
 
     def test_modal_motion_runs_at_default_largest_text_and_motion_off(self):
-        """#436: the #83 work-behind-dialogs journey gates PRs with motion on, at 225% text and with motion off.
+        """#436: the #83 work-behind-dialogs journey gates PRs (normal, compact) and runs at 225% text and motion off.
 
-        The hosted runner starts with Animation effects off, so the motion runs force them on explicitly.
+        Its runs are generated (one bounded run per mode, so no single shard carries the whole journey); the workflow's
+        ``ci_effects.ps1`` turns the hosted runner's Animation effects on before the motion pages launch the app.
         """
         runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-modal-motion.json"}
-        self.assertEqual({"animations-on", "text-225+animations-on", "no-animations"}, set(runs))
-        self.assertTrue(all(run.scan and not run.only for run in runs.values()))
-        self.assertEqual({"animations": True}, m.mode_spec("animations-on")["system"])
-        self.assertEqual({"text_scale": 225, "animations": True}, m.mode_spec("text-225+animations-on")["system"])
-        pages = json.loads((ci.JOURNEYS / "a11y-modal-motion.json").read_text(encoding="utf-8"))
-        names = {mode: {page["name"] for page in m.mode_pages(pages, mode)} for mode in runs}
-        for mode in ("animations-on", "text-225+animations-on"):
+        self.assertLessEqual({"normal", "text-225", "no-animations"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        names = {mode: set(run.only.split(",")) for mode, run in runs.items()}
+        for mode in ("normal", "text-225"):
             self.assertNotIn("mm-first-run-backdrop-static", names[mode])
-            self.assertLessEqual({"mm-first-run-backdrop", "mm-whats-new-backdrop", "mm-first-run-shop-pulses"}, names[mode])
-        self.assertLessEqual({"mm-first-run-backdrop-static", "mm-first-run-shop-pulses-static"}, names["no-animations"])
+            self.assertLessEqual({"mm-first-run-backdrop", "mm-whats-new-backdrop", "mm-first-run-shop-pulses",
+                                  "mm-first-run-shop-pulses-reduced"}, names[mode])
+        self.assertIn("mm-first-run-shop-pulses-static", names["no-animations"])
+        self.assertIn("mm-first-run-backdrop-static", {name for run in runs.values() for name in run.only.split(",")})
+        pr = [run for run in ci.tier_runs(list(ci.RUNS), "pr") if run.pages == "a11y-modal-motion.json"]
+        self.assertEqual([("normal", "compact")], [(run.mode, run.sizes) for run in pr])
+        self.assertIn("mm-first-run-shop-pulses", pr[0].only.split(","))
+        workflow = _WORKFLOW.read_text(encoding="utf-8")
+        self.assertLess(workflow.index("ci_effects.ps1"), workflow.index("python tools/windows/ui_ci.py --tier"))
+        pages = json.loads((ci.JOURNEYS / "a11y-modal-motion.json").read_text(encoding="utf-8"))
         shop = next(page for page in pages if page["name"] == "mm-first-run-shop-pulses")
         steps = shop["after_ready"]
         for check in ("assertname:id=fst.first-run.slides|Item Shop", "assertread:id=SecondaryButton|Back, button",
@@ -132,9 +139,15 @@ class UiCiTests(unittest.TestCase):
                 scrolls = [step for step in steps if step.startswith("scrollinto:id=fst.settings.")]
                 if not scrolls:
                     continue
+                fixture = list(page.get("fixture", ()))
+                if "--features" in fixture and fixture[fixture.index("--features") + 1:][:1] == ["off"]:
+                    continue  # the Feedback rows never appear, so nothing can push a target off screen
                 checked += 1
+                # Scrolling to a Feedback row first is itself the wait.
+                first = "scrollinto:id=fst.settings.feedback." if scrolls[0].startswith(
+                    "scrollinto:id=fst.settings.feedback.") else wait + "@"
                 with self.subTest(run=run.name, page=page["name"]):
-                    self.assertTrue(scrolls[0].startswith(wait + "@"), scrolls[0])
+                    self.assertTrue(scrolls[0].startswith(first), scrolls[0])
                     self.assertGreaterEqual(u.parse_step(scrolls[0])["timeout"], 20)
         self.assertGreater(checked, 0)
 
@@ -154,6 +167,35 @@ class UiCiTests(unittest.TestCase):
         for target in ("fst.songs.filter|", "fst.songs.filter.reset|", "fst.songs.filter.year.select-all|",
                        "fst.songs.filter.year.clear-all|"):
             self.assertIn(f"assertsize:id={target}40x40", steps)
+
+    def test_shop_filter_runs_at_default_and_largest_text(self):
+        # Issue #428 (#19): the Item Shop Filters flyout's accessibility pages gate pull requests at default and 225% text.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-shop-filter.json"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        pages = json.loads((ci.JOURNEYS / "a11y-shop-filter.json").read_text(encoding="utf-8"))
+        self.assertIn("shop-filter-read", {p["name"] for p in m.mode_pages(pages, "normal")})
+        self.assertIn("shop-filter-text", {p["name"] for p in m.mode_pages(pages, "text-225")})
+        steps = [s for page in pages for s in (*page.get("ready", []), *page.get("after_ready", []))]
+        self.assertIn("assertsize:id=fst.shop.filter.reset|0x40", steps)  # Reset's 40 epx height (32 epx before #428)
+
+    def test_shop_filter_keyboard_runs_at_default_and_largest_text(self):
+        """#428 review: the flyout's keyboard journey (Enter, Space, Tab/Shift+Tab, Esc focus return) gates PRs too."""
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-keyboard.json" and "kb-shop-filter" in
+                run.only.split(",")}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        pages = json.loads((ci.JOURNEYS / "a11y-keyboard.json").read_text(encoding="utf-8"))
+        page = next(p for p in pages if p["name"] == "kb-shop-filter")
+        for mode, run in runs.items():
+            with self.subTest(mode=mode):
+                self.assertIn(page, m.mode_pages(pages, mode))
+                self.assertTrue(m.page_sizes(page, run.sizes.split(","), mode))
+        steps = page["after_ready"]
+        for key in ("key:enter", "key:space", "key:tab", "key:shift+tab", "key:esc"):
+            self.assertIn(key, steps)
+        self.assertIn("assertfocus:id=fst.shop.filter@3", steps[steps.index("key:esc"):])  # Esc returns focus
 
     def test_songs_section_push_runs_at_default_and_largest_text(self):
         # Issue #452 (#288): the pushed section title's Narrator names, headings, order and raw copy, in CI at both sizes.
@@ -243,19 +285,41 @@ class UiCiTests(unittest.TestCase):
         for path in ("'windows/**'", "'tools/windows/**'", "'.github/workflows/windows-ui.yml'"):
             self.assertIn(path, text)
         build, display = text.index("tools/windows/build.ps1"), text.index("tools/windows/ci_display.ps1")
-        dispatch = text.index("python tools/windows/ui_ci.py --out")
+        dispatch = text.index("python tools/windows/ui_ci.py --tier")
+        self.assertIn("schedule:", text)  # the nightly full matrix
         self.assertLess(display, dispatch)
         self.assertLess(build, dispatch)
         self.assertNotIn("--live", text)  # fixtures only: no service calls from CI
 
     def test_one_registry_and_dispatcher(self):
-        """#415 review: ``RUNS`` + ``windows-ui.yml`` is the only accessibility-journey gate; no second manifest or job
-        (``native.yml`` lacked the hard-failing ``ci_display.ps1`` and let wide/compact clamp silently)."""
+        """Accessibility pages and feature journeys share the one ``windows-ui`` aggregate check."""
         self.assertFalse((ci.JOURNEYS / "ci-ui.json").exists())
-        self.assertFalse((ci.JOURNEYS.parent / "ci_ui.py").exists())
+        self.assertTrue((ci.JOURNEYS.parent / "ci_ui.py").exists())
         native = (_REPO / ".github" / "workflows" / "native.yml").read_text(encoding="utf-8")
         self.assertNotIn("a11y_matrix", native)
         self.assertNotIn("ui_ci.py", native)
+
+    def test_generated_runs_cover_fixture_a11y_pages(self):
+        """Every fixture-backed a11y page runs in CI (in its first declared mode, or normal and large text) unless it
+        is ``live_only`` or visibly skipped."""
+        skips = json.loads((ci.JOURNEYS.parent / "ci_skip.json").read_text(encoding="utf-8")).get("a11y_pages", {})
+        covered = {(run.pages, page) for run in ci.RUNS
+                   for page in (run.only.split(",") if run.only else
+                                [item["name"] for item in json.loads((ci.JOURNEYS / run.pages).read_text(encoding="utf-8"))])}
+        for source in ci.JOURNEYS.glob("a11y-*.json"):
+            for page in json.loads(source.read_text(encoding="utf-8")):
+                name = page["name"]
+                if "live" not in name.lower() and not page.get("live_only") and name not in skips:
+                    self.assertIn((source.name, name), covered)
+
+
+    def test_pr_tier_is_normal_mode_at_compact_and_full_is_everything(self):
+        pr = ci.tier_runs(list(ci.RUNS), "pr")
+        self.assertTrue(pr)
+        self.assertTrue(all(run.mode == "normal" and "," not in run.sizes for run in pr))
+        self.assertLessEqual({run.name for run in pr}, {run.name for run in ci.RUNS if run.mode == "normal"})
+        self.assertTrue(all(ci.run_pages(run) for run in pr))
+        self.assertEqual(ci.tier_runs(list(ci.RUNS), "full"), list(ci.RUNS))
 
 
 if __name__ == "__main__":

@@ -130,7 +130,12 @@ class StepTests(unittest.TestCase):
         # Issue #434: What's New category headings are UIA heading level 3 (Narrator's H / 3 navigation).
         heading = u.parse_step("assertstate:id=fst.whats-new.group.0.0|heading=3@5")
         self.assertEqual((heading["key"], heading["value"], heading["timeout"]), ("heading", "3", 5.0))
-        for bad in ("assertstate:id=x|heading=none", "assertstate:id=x|heading=10", "assertstate:id=x|heading=h2"):
+        # Issue #428: the Item Shop Filters title is heading level 2; 0 asserts "not a heading".
+        heading = u.parse_step("assertstate:id=fst.shop.filter.title|heading=2@5")
+        self.assertEqual((heading["key"], heading["value"], heading["timeout"]), ("heading", "2", 5.0))
+        self.assertEqual(u.parse_step("assertstate:id=x|heading=0")["value"], "0")
+        for bad in ("assertstate:id=x|heading=none", "assertstate:id=x|heading=10", "assertstate:id=x|heading=h2",
+                    "assertstate:id=x|heading="):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
         for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe", "assertstate:id=x|value=",
