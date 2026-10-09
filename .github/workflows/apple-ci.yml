@@ -62,6 +62,7 @@ jobs:
         env:
           JOURNEYS: >-
             SongsChromeJourneyTests/testSectionBarHeadingAtLargestText
+            FirstRunJourneyTests/testSongDemoSlideAccessibleAtLargestText
             SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrder
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrderOnPushedPage

@@ -48,6 +48,16 @@ class UiCiTests(unittest.TestCase):
         self.assertTrue(all(run.scan for run in landing.values()))
         self.assertIn("compact", landing["text-225"].sizes.split(","))
 
+    def test_song_band_pinned_runs_at_default_and_largest_text(self):
+        # Issue #461 (#306): the full band board's pinned "your band" row runs in CI at default and 225% text.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-song-band-pinned.json"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        pages = json.loads((ci.JOURNEYS / "a11y-song-band-pinned.json").read_text(encoding="utf-8"))
+        names = {page["name"] for page in pages}
+        self.assertTrue({"song-band-pin-jump", "song-band-pin-open", "song-band-pin-no-player"} <= names)
+
     def test_first_run_demos_run_at_default_and_largest_text(self):
         """#420 review: the first-run demo journey gates PRs, not just its JSON guard."""
         demos = {run.mode: run for run in ci.RUNS if run.pages == "a11y-first-run-demos.json"}
@@ -62,6 +72,22 @@ class UiCiTests(unittest.TestCase):
         large = next(run for run in ci.RUNS if run.pages == "a11y-modals.json" and run.mode == "text-225")
         self.assertIn("compact", large.sizes.split(","))
         self.assertGreaterEqual(large.tabs, 1)
+
+    def test_whats_new_runs_grouped_notes_at_default_and_largest_text(self):
+        # Issue #434: #80's grouped tester/store notes are checked in CI, with heading levels, at default and 225% text.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-whats-new.json"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        pages = {page["name"]: page for page in json.loads((ci.JOURNEYS / "a11y-whats-new.json").read_text(encoding="utf-8"))}
+        for name in ("whats-new-tester-grouped", "whats-new-store-grouped", "kb-whats-new-tester-grouped"):
+            self.assertIn(name, pages)
+        for name in ("whats-new-tester-grouped", "whats-new-store-grouped"):
+            steps = pages[name]["after_ready"]
+            self.assertIn("assertstate:id=fst.whats-new.section.0|heading=2", steps)
+            self.assertIn("assertstate:id=fst.whats-new.group.0.0|heading=3", steps)
+            self.assertIn("assertsize:id=fst.whats-new.dismiss|40x40", steps)
+            self.assertTrue(any(step.startswith("assertorder:id=fst.whats-new.list|id=fst.whats-new.section.0|") for step in steps))
 
     def test_back_keeps_place_runs_at_default_and_largest_text(self):
         """#435: the Back-to-cached-page pages (#82) gate pull requests at 100% and 225% text, with an Axe scan."""
