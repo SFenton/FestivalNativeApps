@@ -81,8 +81,9 @@ jobs:
         # fixtures need their own mock (port 18944). The same universal test build runs on one runner simulator
         # per device type, one at a time: the iPhone reuses the warm `FST CI iPhone` above, the iPad and Duo get
         # named ones (`ci-device --name`); the Duo runs folded (a new Duo boots folded and `--pose folded`
-        # verifies it). The runner takes ~15 min per device, so each has a 25-min cap.
-        # List and timing: testing/apple/xcuitest.md#ci-journeys.
+        # verifies it). The image ships only the iOS 27.0 simulator runtime, which has no iPhone Duo device type,
+        # so when `ci-device` finds no runtime for a device the step downloads the selected Xcode's (27.1) once.
+        # Each device has a 25-min cap. List and timing: testing/apple/xcuitest.md#ci-journeys.
         env:
           JOURNEYS: >-
             RivalDetailFrozenAccessibilityJourneyTests/testFrozenRivalDetailNamesOrdersSizesAndGrowsItsRows
@@ -98,7 +99,12 @@ jobs:
                         "iPhone Duo|FST CI rivals duo|folded"; do
             IFS='|' read -r type name pose <<< "$device"
             posed=(); [ -z "$pose" ] || posed=(--pose "$pose")
-            udid=$(python3 tools/ios_sim.py ci-device --type "$type" --name "$name")
+            if ! udid=$(python3 tools/ios_sim.py ci-device --type "$type" --name "$name"); then
+              echo "::group::Download the iOS simulator runtime for $type"
+              xcodebuild -downloadPlatform iOS
+              echo "::endgroup::"
+              udid=$(python3 tools/ios_sim.py ci-device --type "$type" --name "$name")
+            fi
             echo "::group::Rival Detail accessibility journeys ($type)"
             TEST_RUNNER_FST_FIXTURE_URL=http://127.0.0.1:18944 \
               python3 tools/ios_sim.py uitest --device "$udid" --app phone --fail-on-skip --timeout 1500 "${posed[@]}" "${only[@]}"
