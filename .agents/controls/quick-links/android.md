@@ -43,7 +43,9 @@ FestivalScreen(title, isRoot, actions = { QuickLinksAction(quickLinks, windowWid
 | Compete | Done: `leaderboards`, `rivals` (staggered grid headers; none while a full-page issue shows) |
 | Leaderboards | Done: `rank-history` (selected player), `instrument:<wire>`, `band:<wire>` |
 | Band Detail (one pane) | Done: `members`, `summary`, `statistics`, `rank-history`, `songs` (`rememberScrollQuickLinks`; no Quick Links in two panes) |
-| Rivals, Rival Detail, Rivalry | Done: the loaded hub cards (`common`, combo, `<wire>` / `leaderboard.<wire>`), `rival-category:<key>`, `<songId>:<wire>:<index>` per song |
+| Rivals | Done: the loaded hub cards (`common`, combo, `<wire>` / `leaderboard.<wire>`) |
+| Rival Detail | Done: `rival-category:<key>` per loaded category |
+| Rivalry | **None** ([quick-links](../../patterns/quick-links.md) R8, owner #545): one link per song only repeated the list, so `RivalryScreen` has no entry point and `RivalQuickLinks` has no per-song builder. Do not restore it |
 
 ## Validation (issue #137)
 
