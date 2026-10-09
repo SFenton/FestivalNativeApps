@@ -95,7 +95,12 @@ RUNS: tuple[Run, ...] = (
 
 
 def generated_runs(explicit: tuple[Run, ...]) -> tuple[Run, ...]:
-    """Add normal and text-225 fixture runs for every uncovered ``a11y-*.json`` page."""
+    """Add fixture runs for every uncovered ``a11y-*.json`` page, in the modes the page runs in.
+
+    A page without ``modes`` runs at ``normal`` and ``text-225``; a page that declares ``modes`` (any of them shows its
+    state, e.g. ``["hc-desert", "no-transparency"]`` for a hard edge that only exists under a contrast theme or with
+    transparency off) runs once, in its first listed mode. ``live_only`` pages (they need the live service) and ``ci_skip.json`` ``a11y_pages`` are left out.
+    """
     skip_file = JOURNEYS.parent / "ci_skip.json"
     skipped = json.loads(skip_file.read_text(encoding="utf-8")).get("a11y_pages", {}) if skip_file.exists() else {}
     covered: dict[str, set[str] | None] = {}
@@ -103,18 +108,24 @@ def generated_runs(explicit: tuple[Run, ...]) -> tuple[Run, ...]:
         covered[run.pages] = None if not run.only else set(run.only.split(","))
     generated = []
     for source in sorted(JOURNEYS.glob("a11y-*.json")):
-        pages = [page["name"] for page in json.loads(source.read_text(encoding="utf-8"))
-                 if "live" not in page["name"].lower() and page["name"] not in skipped]
         if covered.get(source.name) is None and source.name in covered:
             continue
-        pages = [page for page in pages if page not in covered.get(source.name, set())]
-        if pages:
-            only = ",".join(pages)
-            source_pages = [page for page in json.loads(source.read_text(encoding="utf-8")) if page["name"] in pages]
-            if a11y_matrix.mode_pages(source_pages, "normal"):
-                generated.append(Run(f"{source.stem}-normal", source.name, only=only))
-            if a11y_matrix.mode_pages(source_pages, "text-225"):
-                generated.append(Run(f"{source.stem}-text-225", source.name, sizes="compact", mode="text-225", only=only))
+        pages = [page for page in json.loads(source.read_text(encoding="utf-8"))
+                 if "live" not in page["name"].lower() and not page.get("live_only")
+                 and page["name"] not in skipped and page["name"] not in covered.get(source.name, set())]
+        if not pages:
+            continue
+        by_mode: dict[str, list[dict]] = {"normal": [], "text-225": []}
+        for page in pages:
+            for mode in (page["modes"][:1] if page.get("modes") else ("normal", "text-225")):
+                by_mode.setdefault(mode, []).append(page)
+        for mode, candidates in by_mode.items():
+            chosen = a11y_matrix.mode_pages(candidates, mode)
+            if not chosen:
+                continue
+            only = ",".join(page["name"] for page in chosen)
+            sizes = "compact" if mode.startswith("text-") else "compact,medium"
+            generated.append(Run(f"{source.stem}-{mode}", source.name, sizes=sizes, mode=mode, only=only))
     return (*explicit, *generated)
 
 
