@@ -324,6 +324,12 @@
         <Setter Property="AutomationProperties.Name" Value="Options" />
     </Style>
 
+    <!-- Every Expander is an accordion with the sequenced motion (load-transition owner-approved accordion variant, issue
+         #561): the section grows, then its content fades in; closing fades the content out, then collapses. -->
+    <Style TargetType="Expander">
+        <Setter Property="controls:Accordion.Sequenced" Value="True" />
+    </Style>
+
     <!-- Menu items are targets too (page-tools-and-nav-chrome R10, issue #416): WinUI's keyboard/mouse padding
          (MenuFlyoutItemThemePaddingNarrow) left them 27 epx tall. The item template insets its hit-testable pill by
          MenuFlyoutItemMargin (4,2,4,2), so the item is FSTMinTargetSize plus that 2+2 epx for a 40 epx pill. Implicit

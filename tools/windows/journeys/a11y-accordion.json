@@ -1,0 +1,80 @@
+[
+  {
+    "name": "accordion-songs-filter",
+    "tab": "songs",
+    "fixture": ["songs_filter_fixture.py", "--shop", "demo"],
+    "tabs": 4,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "invoke:id=fst.songs.filter",
+      "waitfor:id=fst.songs.filter.reset@5",
+      "scrollinto:id=fst.songs.filter.year@5",
+      "assertread:id=fst.songs.filter.year|Year, button, collapsed",
+      "assertsize:id=fst.songs.filter.year|40x40",
+      "waitgone:id=fst.songs.filter.year.select-all@2",
+      "expand:id=fst.songs.filter.year",
+      "assertread:id=fst.songs.filter.year|Year, button, expanded",
+      "waitfor:id=fst.songs.filter.year.select-all@5",
+      "wait:0.5",
+      "scrollinto:id=fst.songs.filter.year.clear-all@5",
+      "assertread:id=fst.songs.filter.year.select-all|Select All Year, link",
+      "assertread:id=fst.songs.filter.year.clear-all|Clear All Year, link",
+      "collapse:id=fst.songs.filter.year",
+      "assertread:id=fst.songs.filter.year|Year, button, collapsed",
+      "waitgone:id=fst.songs.filter.year.select-all@5",
+      "assertorder:id=fst.songs.filter.year|id=fst.songs.filter.duration",
+      "scrollinto:id=fst.songs.filter.double-bass@5",
+      "expand:id=fst.songs.filter.double-bass",
+      "assertread:id=fst.songs.filter.double-bass|Double Bass, button, expanded",
+      "scrollinto:id=fst.songs.filter.double-bass.unsupported@5",
+      "assertread:id=fst.songs.filter.double-bass.supported|Double Bass Support, toggle switch, on",
+      "assertsize:id=fst.songs.filter.double-bass.supported|40x40",
+      "scrollinto:id=fst.songs.filter.year@5",
+      "expand:id=fst.songs.filter.year",
+      "collapse:id=fst.songs.filter.year",
+      "expand:id=fst.songs.filter.year",
+      "assertread:id=fst.songs.filter.year|Year, button, expanded",
+      "waitfor:id=fst.songs.filter.year.select-all@5",
+      "scrollinto:id=fst.songs.filter.year@5",
+      "wait:0.5"
+    ],
+    "teardown": [
+      "key:esc",
+      "wait:0.5"
+    ]
+  },
+  {
+    "name": "accordion-suggestions-instrument",
+    "route": "/suggestions",
+    "profile": "fixture-player-1:Fixture Player",
+    "env": {"FST_DEBUG_SUGGESTIONS_SEED": "7"},
+    "sizes": ["medium"],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.suggestions.list@20",
+      "wait:1.5"
+    ],
+    "after_ready": [
+      "invoke:id=fst.suggestions.filter-button",
+      "waitfor:id=fst.suggestions.filter.title@5",
+      "waitfor:id=fst.suggestions.filter.instrument-picker.compact@5",
+      "waitgone:id=fst.suggestions.filter.type.Solo_Bass.nearFC@2",
+      "invoke:id=fst.suggestions.filter.instrument-picker.next",
+      "wait:0.3",
+      "toggle:id=fst.suggestions.filter.instrument-picker.compact",
+      "waitfor:id=fst.suggestions.filter.type.Solo_Bass.nearFC@5",
+      "assertorder:id=fst.suggestions.filter.instrument-picker.compact|id=fst.suggestions.filter.type.Solo_Bass.nearFC",
+      "toggle:id=fst.suggestions.filter.instrument-picker.compact",
+      "waitgone:id=fst.suggestions.filter.type.Solo_Bass.nearFC@5",
+      "toggle:id=fst.suggestions.filter.instrument-picker.compact",
+      "waitfor:id=fst.suggestions.filter.type.Solo_Bass.nearFC@5",
+      "wait:0.5"
+    ],
+    "teardown": [
+      "key:esc",
+      "wait:0.5"
+    ]
+  }
+]
