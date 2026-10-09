@@ -10,11 +10,15 @@ object BucketHeaderFixtures {
     /** Songs in the catalogue. */
     const val SIZE = 40
 
+    /** Songs in each decade and minute bucket. */
+    const val SECTION_SIZE = 10
+
     /** `GET /api/songs` body. */
     val catalogueJson: String
         get() {
             val songs = (0 until SIZE).joinToString(",") { i ->
-                """{"songId":"s-$i","title":"Song $i","artist":"Artist","year":${1970 + i / 10 * 10},"durationSeconds":${90 + i / 10 * 60},"difficulty":{"guitar":2}}"""
+                val section = i / SECTION_SIZE
+                """{"songId":"s-$i","title":"Song $i","artist":"Artist","year":${1970 + section * 10},"durationSeconds":${90 + section * 60},"difficulty":{"guitar":2}}"""
             }
             return """{"count":$SIZE,"currentSeason":15,"songs":[$songs]}"""
         }

@@ -12,6 +12,11 @@ import FestivalDesign
 /// (see `.agents/design/apple/liquid-glass.md` — spinners are content, not glass, so they
 /// need no container of their own). Callers keep their own `.frame(...)` sizing: this view
 /// does not force full-screen layout so it can sit inside a row, card or footer unchanged.
+///
+/// The label goes on the system indicator itself, so assistive technology meets one
+/// element with the busy-indicator role and this name (#431). Wrapping it with
+/// `accessibilityElement(children: .ignore)` left a role-less named element (`AXUnknown`
+/// on the Mac) with no busy indicator reachable beneath it.
 struct FestivalLoadingView: View {
     /// Spoken-only context for VoiceOver; never rendered as visible text.
     var accessibilityLabel: String = "Loading"
@@ -19,7 +24,6 @@ struct FestivalLoadingView: View {
     var body: some View {
         ProgressView()
             .tint(.white)
-            .accessibilityElement(children: .ignore)
             .accessibilityLabel(accessibilityLabel)
     }
 }
