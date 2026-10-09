@@ -134,7 +134,8 @@ class UiCiTests(unittest.TestCase):
         self.assertNotIn("ui_ci.py", native)
 
     def test_generated_runs_cover_fixture_a11y_pages(self):
-        """Every fixture-backed a11y page has normal and large-text coverage unless visibly skipped."""
+        """Every fixture-backed a11y page runs in CI (in its first declared mode, or normal and large text) unless it
+        is ``live_only`` or visibly skipped."""
         skips = json.loads((ci.JOURNEYS.parent / "ci_skip.json").read_text(encoding="utf-8")).get("a11y_pages", {})
         covered = {(run.pages, page) for run in ci.RUNS
                    for page in (run.only.split(",") if run.only else
@@ -142,8 +143,7 @@ class UiCiTests(unittest.TestCase):
         for source in ci.JOURNEYS.glob("a11y-*.json"):
             for page in json.loads(source.read_text(encoding="utf-8")):
                 name = page["name"]
-                if ("live" not in name.lower() and name not in skips
-                        and (m.mode_pages([page], "normal") or m.mode_pages([page], "text-225"))):
+                if "live" not in name.lower() and not page.get("live_only") and name not in skips:
                     self.assertIn((source.name, name), covered)
 
 
