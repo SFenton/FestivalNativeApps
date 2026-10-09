@@ -315,6 +315,40 @@ class DuoPoseTests(unittest.TestCase):
         self.assertEqual(classify_pose(outer_dark=True, inner_dark=True), "unknown")
         self.assertEqual(classify_pose(outer_dark=False, inner_dark=False), "unknown")
 
+    def test_panel_screenshot_retries_a_failed_or_stalled_attempt(self):
+        """A fresh boot's first screenshot can fail or stall (apple-ci run 37913520235)."""
+        import subprocess
+        import tempfile
+        from pathlib import Path
+        from types import SimpleNamespace
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "outer.bmp"
+            outcomes = [subprocess.TimeoutExpired("simctl", 120), SimpleNamespace(returncode=1, stderr=b"no display")]
+
+            def fake_run(command, **_):
+                if outcomes:
+                    outcome = outcomes.pop(0)
+                    if isinstance(outcome, Exception):
+                        raise outcome
+                    return outcome
+                path.write_bytes(_bmp([(255, 255, 255)]))
+                return SimpleNamespace(returncode=0, stderr=b"")
+
+            with mock.patch.object(ios_sim, "_run", side_effect=fake_run) as run, \
+                    mock.patch.object(ios_sim.time, "sleep") as sleep, \
+                    mock.patch("sys.stderr"):
+                self.assertTrue(ios_sim.screenshot_panel("UDID", "primary", path))
+            self.assertEqual(run.call_count, 3)
+            self.assertEqual(sleep.call_count, 2)
+
+            outcomes[:] = [SimpleNamespace(returncode=1, stderr=b"no display")] * 3
+            path.unlink()
+            with mock.patch.object(ios_sim, "_run", side_effect=lambda *_, **__: outcomes.pop(0)), \
+                    mock.patch.object(ios_sim.time, "sleep"), mock.patch("sys.stderr"):
+                self.assertFalse(ios_sim.screenshot_panel("UDID", "primary", path))
+
 
 def _control(title=None, role="AXButton", kind="control", **extra):
     """Build one Device Hub ``dump`` entry."""
