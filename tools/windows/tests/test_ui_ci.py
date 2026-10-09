@@ -34,8 +34,9 @@ class UiCiTests(unittest.TestCase):
                 sizes = run.sizes.split(",")
                 for size in sizes:
                     u.preset_op(size)
-                # The runner's 1920x1080 desktop holds compact and medium, not wide (1440x900 plus the taskbar).
-                self.assertNotIn("wide", sizes)
+                # The runner's 1920x1080 desktop (ci_display.ps1) holds compact, medium and wide (1440x900 plus the
+                # taskbar); generated runs add wide only for pages that run at no smaller size.
+                self.assertLessEqual(set(sizes), {"compact", "medium", "wide"})
                 self.assertTrue(m.mode_pages(pages, run.mode), "no page runs in this mode")
                 self.assertTrue(any(m.page_sizes(page, sizes, run.mode) for page in m.mode_pages(pages, run.mode)),
                                 "no page runs at this run's sizes")
@@ -73,6 +74,22 @@ class UiCiTests(unittest.TestCase):
         self.assertIn("compact", large.sizes.split(","))
         self.assertGreaterEqual(large.tabs, 1)
 
+    def test_whats_new_runs_grouped_notes_at_default_and_largest_text(self):
+        # Issue #434: #80's grouped tester/store notes are checked in CI, with heading levels, at default and 225% text.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-whats-new.json"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        pages = {page["name"]: page for page in json.loads((ci.JOURNEYS / "a11y-whats-new.json").read_text(encoding="utf-8"))}
+        for name in ("whats-new-tester-grouped", "whats-new-store-grouped", "kb-whats-new-tester-grouped"):
+            self.assertIn(name, pages)
+        for name in ("whats-new-tester-grouped", "whats-new-store-grouped"):
+            steps = pages[name]["after_ready"]
+            self.assertIn("assertstate:id=fst.whats-new.section.0|heading=2", steps)
+            self.assertIn("assertstate:id=fst.whats-new.group.0.0|heading=3", steps)
+            self.assertIn("assertsize:id=fst.whats-new.dismiss|40x40", steps)
+            self.assertTrue(any(step.startswith("assertorder:id=fst.whats-new.list|id=fst.whats-new.section.0|") for step in steps))
+
     def test_back_keeps_place_runs_at_default_and_largest_text(self):
         """#435: the Back-to-cached-page pages (#82) gate pull requests at 100% and 225% text, with an Axe scan."""
         back = {(run.mode, run.scan, run.only) for run in ci.RUNS if run.pages == "a11y-back-keeps-place.json"}
@@ -93,9 +110,15 @@ class UiCiTests(unittest.TestCase):
                 scrolls = [step for step in steps if step.startswith("scrollinto:id=fst.settings.")]
                 if not scrolls:
                     continue
+                fixture = list(page.get("fixture", ()))
+                if "--features" in fixture and fixture[fixture.index("--features") + 1:][:1] == ["off"]:
+                    continue  # the Feedback rows never appear, so nothing can push a target off screen
                 checked += 1
+                # Scrolling to a Feedback row first is itself the wait.
+                first = "scrollinto:id=fst.settings.feedback." if scrolls[0].startswith(
+                    "scrollinto:id=fst.settings.feedback.") else wait + "@"
                 with self.subTest(run=run.name, page=page["name"]):
-                    self.assertTrue(scrolls[0].startswith(wait + "@"), scrolls[0])
+                    self.assertTrue(scrolls[0].startswith(first), scrolls[0])
                     self.assertGreaterEqual(u.parse_step(scrolls[0])["timeout"], 20)
         self.assertGreater(checked, 0)
 
@@ -157,7 +180,8 @@ class UiCiTests(unittest.TestCase):
         for path in ("'windows/**'", "'tools/windows/**'", "'.github/workflows/windows-ui.yml'"):
             self.assertIn(path, text)
         build, display = text.index("tools/windows/build.ps1"), text.index("tools/windows/ci_display.ps1")
-        dispatch = text.index("python tools/windows/ui_ci.py --shard")
+        dispatch = text.index("python tools/windows/ui_ci.py --tier")
+        self.assertIn("schedule:", text)  # the nightly full matrix
         self.assertLess(display, dispatch)
         self.assertLess(build, dispatch)
         self.assertNotIn("--live", text)  # fixtures only: no service calls from CI
@@ -182,6 +206,15 @@ class UiCiTests(unittest.TestCase):
                 name = page["name"]
                 if "live" not in name.lower() and not page.get("live_only") and name not in skips:
                     self.assertIn((source.name, name), covered)
+
+
+    def test_pr_tier_is_normal_mode_at_compact_and_full_is_everything(self):
+        pr = ci.tier_runs(list(ci.RUNS), "pr")
+        self.assertTrue(pr)
+        self.assertTrue(all(run.mode == "normal" and "," not in run.sizes for run in pr))
+        self.assertLessEqual({run.name for run in pr}, {run.name for run in ci.RUNS if run.mode == "normal"})
+        self.assertTrue(all(ci.run_pages(run) for run in pr))
+        self.assertEqual(ci.tier_runs(list(ci.RUNS), "full"), list(ci.RUNS))
 
 
 if __name__ == "__main__":
