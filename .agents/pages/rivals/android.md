@@ -92,7 +92,7 @@ Checked that every View All Rivals button (hub cards on both tabs, Compete Rival
 
 ## Open
 
-- Leaderboard tab Rank By (`RankByAction`, tags `fst.rivals.rank-by-menu` / `fst.rivals.rank-by.<metric>`) only while Settings → Experimental Ranks is on, like the web `RivalsPage`; not persisted, each metric's lists load once. All Rivals and Rival Detail leaderboard scopes fall back to Total Score while the setting is off (`RivalScopes.gated`). No pull to refresh.
+- Leaderboard tab Rank By (`RankByAction`, tags `fst.rivals.rank-by-menu` / `fst.rivals.rank-by.<metric>`) only while Settings → Experimental Ranks is on, like the web `RivalsPage`; not persisted, each metric's lists load once. All Rivals and Rival Detail leaderboard scopes fall back to Total Score while the setting is off (`RivalScopes.gated`). Connected `@DeviceCi` `journeys/ExperimentalRanksSurfacesAccessibilityJourneyTest` checks, with the flag persisted, that the Leaderboard tab has no Rank By and requests only `rankBy=totalscore` while off, and that while on Rank By is one 48 dp "Rank By, Total Score" stop at 1.0x and 2.0x text whose menu lists all five metrics and re-requests `rankBy=adjusted`. No pull to refresh.
 - Rivals first-run slides and TalkBack pass belong to the accessibility phase.
 - Book Fold half-open (`fold-[1038,…]`): re-measured 2026-09-29 (and-next): the card edges sit 27 px either side of the fold (1011 | 1038 | 1065), so the earlier ~17 px offset no longer reproduces.
 - Screenshots per form factor (fixture mode): `rivals-*-{phone,bookfold-unfolded,bookfold-half,bookfold-folded,tablet}.png`, `compete-{phone,bookfold-unfolded,tablet}.png`, quantized to 256 colours to stay under 300 KB.
