@@ -51,6 +51,9 @@ jobs:
       - name: Desktop at 1920x1080
         shell: pwsh
         run: ./tools/windows/ci_display.ps1 -Width 1920 -Height 1080
+      - name: Animation and transparency effects on
+        shell: pwsh
+        run: ./tools/windows/ci_effects.ps1
       - name: Build the app (Debug)
         shell: pwsh
         run: ./tools/windows/build.ps1
@@ -88,6 +91,9 @@ jobs:
       - name: Desktop at 1920x1080
         shell: pwsh
         run: ./tools/windows/ci_display.ps1 -Width 1920 -Height 1080
+      - name: Animation and transparency effects on
+        shell: pwsh
+        run: ./tools/windows/ci_effects.ps1
       - name: Build the app (Debug)
         shell: pwsh
         run: ./tools/windows/build.ps1
