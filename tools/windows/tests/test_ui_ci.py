@@ -84,6 +84,35 @@ class UiCiTests(unittest.TestCase):
         self.assertIn("compact", large.sizes.split(","))
         self.assertGreaterEqual(large.tabs, 1)
 
+    def test_modal_motion_runs_at_default_largest_text_and_motion_off(self):
+        """#436: the #83 work-behind-dialogs journey gates PRs (normal, compact) and runs at 225% text and motion off.
+
+        Its runs are generated (one bounded run per mode, so no single shard carries the whole journey); the workflow's
+        ``ci_effects.ps1`` turns the hosted runner's Animation effects on before the motion pages launch the app.
+        """
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-modal-motion.json"}
+        self.assertLessEqual({"normal", "text-225", "no-animations"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        names = {mode: set(run.only.split(",")) for mode, run in runs.items()}
+        for mode in ("normal", "text-225"):
+            self.assertNotIn("mm-first-run-backdrop-static", names[mode])
+            self.assertLessEqual({"mm-first-run-backdrop", "mm-whats-new-backdrop", "mm-first-run-shop-pulses",
+                                  "mm-first-run-shop-pulses-reduced"}, names[mode])
+        self.assertIn("mm-first-run-shop-pulses-static", names["no-animations"])
+        self.assertIn("mm-first-run-backdrop-static", {name for run in runs.values() for name in run.only.split(",")})
+        pr = [run for run in ci.tier_runs(list(ci.RUNS), "pr") if run.pages == "a11y-modal-motion.json"]
+        self.assertEqual([("normal", "compact")], [(run.mode, run.sizes) for run in pr])
+        self.assertIn("mm-first-run-shop-pulses", pr[0].only.split(","))
+        workflow = _WORKFLOW.read_text(encoding="utf-8")
+        self.assertLess(workflow.index("ci_effects.ps1"), workflow.index("python tools/windows/ui_ci.py --tier"))
+        pages = json.loads((ci.JOURNEYS / "a11y-modal-motion.json").read_text(encoding="utf-8"))
+        shop = next(page for page in pages if page["name"] == "mm-first-run-shop-pulses")
+        steps = shop["after_ready"]
+        for check in ("assertname:id=fst.first-run.slides|Item Shop", "assertread:id=SecondaryButton|Back, button",
+                      "assertorder:id=fst.first-run.slides|id=PrimaryButton|id=SecondaryButton|id=fst.first-run.close",
+                      "assertsize:id=fst.first-run.close|40x40", "key:enter"):
+            self.assertIn(check, steps)
+
     def test_whats_new_runs_grouped_notes_at_default_and_largest_text(self):
         # Issue #434: #80's grouped tester/store notes are checked in CI, with heading levels, at default and 225% text.
         runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-whats-new.json"}
