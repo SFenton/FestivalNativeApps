@@ -55,7 +55,7 @@ Natives keep the web's anchor point (the bar's centre) and its `preserveStartEnd
 
 Android consumers: `ChartBandLabels` under the Profile (`ui/profile/RankHistoryCard.kt`) and Leaderboards (`ui/leaderboards/RankHistoryCard.kt`) rank-history plots and under the Song Details `SongHistoryCard` canvas (its plot keeps a fixed height; the date row below grows with the text). Canvas charts never draw their own dates. The Player History line chart's start/end dates are inset to sit under the plot, not the y-axis gutter.
 
-Apple consumers: `RankHistoryCharts` (Profile, Statistics, Leaderboards rank-history pane, dual-source Profile) and `SongScoreHistorySection` (Song Details, Player History), on iPhone, iPad, iPhone Duo and Mac. The first-run Song demos plot categorical (string) dates, which Swift Charts already centres.
+Apple consumers: `RankHistoryCharts` (Profile, Statistics, Leaderboards rank-history pane, dual-source Profile, Band Detail's Rank History for the Rank By metric since #555) and `SongScoreHistorySection` (Song Details, Player History), on iPhone, iPad, iPhone Duo and Mac. The first-run Song demos plot categorical (string) dates, which Swift Charts already centres.
 
 ## Known debt
 
