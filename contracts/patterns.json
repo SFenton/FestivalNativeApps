@@ -2169,7 +2169,8 @@
           "songs-section-index"
         ],
         "pages": [
-          "songs"
+          "songs",
+          "rivalry"
         ]
       },
       "supersedes": [],
@@ -2181,7 +2182,8 @@
         15,
         286,
         303,
-        313
+        313,
+        545
       ]
     },
     {
