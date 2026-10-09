@@ -1,3 +1,4 @@
+import SwiftUI
 import Testing
 @testable import FestivalUI
 
@@ -54,5 +55,40 @@ struct RootChromeRailPriorityTests {
             _ = item.staysVisibleAheadOfOthers
         }
         #expect(RootChromeRailItem.allCases.count == 6)
+    }
+}
+
+// MARK: - Bar item spoken state (#432)
+
+/// The iPhone Duo vertical bar drops a toolbar item's accessibility value, so a page
+/// tool's state joins its label there; every other bar keeps label and value apart.
+/// The folded-Duo journey `SongsFilterAccessibilityJourneyTests` checks the rendered rail.
+@Suite("Bar item spoken state")
+struct BarItemSpokenStateTests {
+    @Test("Horizontal bars, the tab-bar accessory and the Mac sidebar keep a separate value")
+    func horizontalChromeKeepsValue() {
+        for chrome in [DeviceLayout.SectionChrome.tabBar, .sidebar] {
+            let spoken = BarItemSpokenState.resolve(label: "Filter Songs", value: "No filters", chrome: chrome)
+            #expect(spoken.label == "Filter Songs")
+            #expect(spoken.value == "No filters")
+        }
+    }
+
+    @Test("The vertical bar reads the state in the label, on either edge")
+    func verticalBarJoinsValueToLabel() {
+        for edge in [HorizontalEdge.leading, .trailing] {
+            let spoken = BarItemSpokenState.resolve(
+                label: "Filter Songs", value: "Year filter, Duration filter", chrome: .verticalBar(edge)
+            )
+            #expect(spoken.label == "Filter Songs, Year filter, Duration filter")
+            #expect(spoken.value.isEmpty)
+        }
+    }
+
+    @Test("A tool with no state keeps its bare name in the vertical bar")
+    func emptyValueKeepsLabel() {
+        let spoken = BarItemSpokenState.resolve(label: "Quick Links", value: "", chrome: .verticalBar(.trailing))
+        #expect(spoken.label == "Quick Links")
+        #expect(spoken.value.isEmpty)
     }
 }

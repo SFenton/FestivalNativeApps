@@ -318,7 +318,9 @@ struct PlayerHistoryScreen: View {
         }
         .help("Sort Scores")
         #endif
-        .accessibilityValue(PlayerScoreHistorySort.spokenValue(mode: sortMode, ascending: sortAscending))
+        .festivalBarItemAccessibility(
+            label: "Sort", value: PlayerScoreHistorySort.spokenValue(mode: sortMode, ascending: sortAscending)
+        )
         .accessibilityIdentifier("fst.history.sort.open")
         .tint(PlayerScoreHistorySort.isCustomized(mode: sortMode, ascending: sortAscending)
             ? BrandTokens.gold : BrandTokens.accentBlue)

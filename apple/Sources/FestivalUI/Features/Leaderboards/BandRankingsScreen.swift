@@ -177,8 +177,7 @@ struct BandRankingsScreen: View {
                 Label(bandType.label, systemImage: "person.3.fill")
             }
             .accessibilityIdentifier("fst.band-rankings.band-type-menu")
-            .accessibilityLabel("Band size")
-            .accessibilityValue(bandType.label)
+            .festivalBarItemAccessibility(label: "Band size", value: bandType.label)
         } else {
             Menu {
                 bandTypeChoices
