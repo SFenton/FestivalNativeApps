@@ -1,8 +1,8 @@
 """``apple-ci``'s simulator journeys: every ``JOURNEYS`` selector, in every step, names a real XCUITest method.
 
 A selector that matches nothing makes ``xcodebuild`` run no test, so a renamed journey would silently leave CI.
-The account-button reading-order journeys (``page-tools-and-nav-chrome`` R17, #394) and the Rival Detail
-frozen-state journeys (#444, iPhone, iPad and iPhone Duo) must stay listed.
+The account-button reading-order journeys (``page-tools-and-nav-chrome`` R17, #394), the Songs section-title AX5
+journey (#91, #441) and the Rival Detail frozen-state journeys (#444, iPhone, iPad and iPhone Duo) must stay listed.
 """
 
 import re
@@ -76,6 +76,10 @@ class AppleCIJourneysTests(unittest.TestCase):
             "testFrozenRivalDetailWithoutSnapshotOffersRetry",
         ):
             self.assertIn(f"RivalDetailFrozenAccessibilityJourneyTests/{method}", self.journeys)
+
+    def test_section_title_ax5_journey_runs_in_ci(self) -> None:
+        # #91/#441: the only iOS Dynamic Type and audit evidence for Songs' grouped-sort section titles.
+        self.assertIn("SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5", self.journeys)
 
 
 if __name__ == "__main__":
