@@ -84,6 +84,7 @@ jobs:
             SongsChromeJourneyTests/testScrollAwaySectionBarAccessibility
             SongsChromeJourneyTests/testScrollAwaySectionBarAccessibilityAtAX5
             SongsChromeJourneyTests/testSectionBarHeadingAtLargestText
+            SongsChromeJourneyTests/testFilterFieldReadyAfterBackFromSongDetail
             FirstRunJourneyTests/testSongDemoSlideAccessibleAtLargestText
             SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrder
