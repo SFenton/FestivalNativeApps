@@ -1,6 +1,7 @@
 [
   {
     "name": "section-index-far-moves-compact",
+    "fixture": ["--large-catalogue"],
     "route": "/songs",
     "preset": "compact",
     "extra": {
@@ -63,6 +64,7 @@
   },
   {
     "name": "section-index-far-moves-medium",
+    "fixture": ["--large-catalogue"],
     "route": "/songs",
     "preset": "medium",
     "extra": {
@@ -125,6 +127,7 @@
   },
   {
     "name": "section-index-far-moves-wide",
+    "fixture": ["--large-catalogue"],
     "route": "/songs",
     "preset": "wide",
     "extra": {
