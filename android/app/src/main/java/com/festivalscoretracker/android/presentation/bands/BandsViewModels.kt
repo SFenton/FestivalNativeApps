@@ -20,6 +20,7 @@ import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.RetryingLoader
 import com.festivalscoretracker.android.presentation.SongResolver
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -143,6 +144,8 @@ data class BandSongsState(val response: BandSongExtremesResponse, val songsById:
  * @param loadSongs Best/worst read `(type, teamKey, limit)`.
  * @param loadCatalog Catalogue read (best effort, for song titles and links).
  * @param backoff Shared retry backoff.
+ * @param experimentalRanksSetting Settings → Experimental Ranks: Rank By is offered only when on, and
+ *   turning it off returns the page to Total Score (experimental-ranks R1, R3).
  */
 class BandDetailViewModel(
     bandTypeWire: String?,
@@ -152,6 +155,7 @@ class BandDetailViewModel(
     loadSongs: suspend (BandType, String, Int) -> BandSongExtremesResponse,
     loadCatalog: suspend () -> CatalogPayload,
     backoff: ServiceRetryBackoff,
+    experimentalRanksSetting: Flow<Boolean>,
 ) : ViewModel() {
     /** Parsed band size, or null for an unresolvable route. */
     val bandType: BandType? = BandType.fromWireId(bandTypeWire).takeIf { BandText.isValidTeamKey(teamKey) }
@@ -161,6 +165,7 @@ class BandDetailViewModel(
 
     private val key = teamKey.orEmpty()
     private val metricFlow = MutableStateFlow(BandRankingMetric.DEFAULT)
+    private val experimentalFlow = MutableStateFlow(false)
     private val detailLoader = RetryingLoader(viewModelScope, "band:$bandTypeWire:$key", backoff) { loadProfile(bandType!!, key) }
     private val historyLoader = RetryingLoader(viewModelScope, "band-history:$bandTypeWire:$key", backoff) {
         loadHistory(bandType!!, key, BandDetailProjection.HISTORY_DAYS)
@@ -189,7 +194,16 @@ class BandDetailViewModel(
     /** Rank-by metric for Statistics and Rank History (no new request). */
     val metric: StateFlow<BandRankingMetric> = metricFlow.asStateFlow()
 
+    /** Settings → Experimental Ranks: the Rank By menu shows only when on. */
+    val experimentalRanks: StateFlow<Boolean> = experimentalFlow.asStateFlow()
+
     init {
+        viewModelScope.launch {
+            experimentalRanksSetting.collect { enabled ->
+                experimentalFlow.value = enabled
+                metricFlow.value = BandRankingMetric.coerce(metricFlow.value, enabled)
+            }
+        }
         if (isResolvable) {
             detailLoader.ensureStarted()
             viewModelScope.launch {
@@ -201,11 +215,12 @@ class BandDetailViewModel(
     }
 
     /**
-     * Select the rank-by metric.
+     * Select the rank-by metric; metrics Experimental Ranks doesn't offer are ignored.
      *
      * @param metric Metric.
      */
     fun selectMetric(metric: BandRankingMetric) {
+        if (metric !in BandRankingMetric.enabled(experimentalFlow.value)) return
         metricFlow.value = metric
     }
 

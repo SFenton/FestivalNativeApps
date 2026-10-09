@@ -44,7 +44,7 @@ Selecting in a modal closes it, then scrolls. Song Detail, Rivalry and Rival Det
 | Compete (`compete`) | "Quick Links" | `leaderboards` "Leaderboards" (trophy), `rivals` "Rivals" (people) | Loaded (`CompetePage.tsx:200-262`) |
 | Rivals, Song tab (`rivals`) | "Quick Links" | `common` "Common Rivals" (≥ 2 instruments loaded); `combo` "{Combo} Rivals"; `<instrumentKey>` "{Instrument} Rivals" per visible instrument with rivals | Loaded, ≥ 2 (`RivalsPage.tsx:305-373`) |
 | Rivals, Leaderboard tab (`rivals`) | "Quick Links" | `<instrumentKey>` "{Instrument} Rivals" per visible instrument with rivals | Same (`LeaderboardRivalsTab.tsx:90-183`) |
-| Rivalry (`rivalry`) | "Quick Links" | One per song in the `?mode` category: `${songId}:${instrument}:${index}` → song title, landmark "{title} ({Instrument})" | Mobile only; loaded; ≥ 1 (`RivalryPage.tsx:147-183`) |
+| Rivalry (`rivalry`) | "Quick Links" | One per song in the `?mode` category: `${songId}:${instrument}:${index}` → song title, landmark "{title} ({Instrument})" | Mobile only; loaded; ≥ 1 (`RivalryPage.tsx:147-183`). **Native: none** ([quick-links](../../patterns/quick-links.md) R8, owner #545) |
 | Rival Detail (`rival-detail`) | "Quick Links" | `rival-category:<key>` per non-empty category: Closest Battles, Almost Passed, Slipping Away, Barely Winning, Pulling Forward, Dominating Them | Mobile only; loaded; ≥ 1 (`RivalDetailPage.tsx:136-168`) |
 | Leaderboards (`leaderboards`) | "Leaderboards Quick Links" | `rank-history` "Rank History Graph" (tracked player); promoted `band:<type>`; `instrument:<key>` per visible instrument; remaining `band:<type>` | Loaded, not all errored, ≥ 2 (`LeaderboardsOverviewPage.tsx:317-367`) |
 | Settings (`settings`) | "Quick Links" | `app-settings`, `diagnostics` (web only, when visible; native apps have no Diagnostics section, #374), `item-shop`, `show-instruments`, `show-metadata`, `version`, `service-info`, `first-run`, `licenses`, `refresh-profile-name` (profile selected), `export`, `reset` | ≥ 2 (`SettingsPage.tsx:398-463`) |
@@ -62,7 +62,7 @@ Selecting in a modal closes it, then scrolls. Song Detail, Rivalry and Rival Det
 
 ## Known web gaps (do not port)
 
-- On mobile, Rivalry quick links are unreachable: `Routes.rivalry()` always adds `?mode=`, and the FAB offers quick links only when `mode` is absent (`App.tsx:1367-1387`).
+- On mobile, Rivalry quick links are unreachable: `Routes.rivalry()` always adds `?mode=`, and the FAB offers quick links only when `mode` is absent (`App.tsx:1367-1387`). The native apps offer none on Rivalry (owner #545), which matches what web users can reach.
 - The Rivals FAB's direct action opens quick links even when none are registered (a no-op).
 - The Compete config stays registered in the error state, when its anchors are not rendered.
 - The Leaderboards title and "Rank History Graph" use inline default strings; the i18n keys are missing.
