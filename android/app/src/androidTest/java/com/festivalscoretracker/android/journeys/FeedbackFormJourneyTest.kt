@@ -1,12 +1,18 @@
 package com.festivalscoretracker.android.journeys
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.filterToOne
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onAncestors
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.nav.FestivalSection
@@ -38,8 +44,8 @@ class FeedbackFormJourneyTest {
         on("/api/features") { """{"appManual":false,"feedback":true}""" }
     }
 
-    private fun openForm(kind: String) {
-        h.launch(DebugLaunch(section = FestivalSection.Settings, stillBackground = true), transport)
+    private fun openForm(kind: String, fontScale: (() -> Float)? = null) {
+        h.launch(DebugLaunch(section = FestivalSection.Settings, stillBackground = true), transport, fontScale = fontScale)
         h.waitForTag("fst.settings.list")
         h.scrollTo("fst.settings.list", "fst.settings.feedback.$kind")
         h.readingOrder("settings-feedback-rows")
@@ -124,6 +130,44 @@ class FeedbackFormJourneyTest {
         val banner = error.indexOfFirst { it.startsWith("Error") }
         val field = error.indexOfFirst { it.contains("[Feature] Themes") }
         assertTrue("reading order $error", banner >= 0 && field > banner)
+        h.tap("fst.settings.feedback.close")
+        h.waitForTag("fst.settings.feedback.discard.dialog")
+        h.tap("fst.settings.feedback.discard.confirm")
+        h.waitGone("fst.settings.feedback.dialog")
+        h.assertAccessible()
+    }
+
+    /**
+     * At 200% text a field scrolled partly under the modal header must not take TalkBack's touch
+     * area from Submit or Close (modal-shell R5): Compose extends a clipped node's touch bounds
+     * past its scroll viewport, and before `FestivalModalBody` clipped them Submit published a
+     * 47 dp node (issue #422). The title field is scrolled so its top sits 16 dp above Submit's
+     * bottom edge, the overlap the CI emulator reached with the keyboard up.
+     */
+    @DeviceCi
+    @Test
+    fun headerActionsKeepFullTouchAreaOverAFieldScrolledUnderAtLargeText() {
+        h.enableAccessibilityChecks()
+        openForm("bug", fontScale = { 2f })
+        type("title", "[Bug] Songs crash")
+        type("description", "Opening Songs crashes.")
+        val field = rule.onNodeWithTag("fst.settings.feedback.field.title", useUnmergedTree = true)
+        val body = field.onAncestors().filterToOne(hasScrollAction())
+        val overlap = with(rule.density) { 16.dp.toPx() }
+        val submitBottom = rule.onNodeWithTag("fst.settings.feedback.submit").fetchSemanticsNode().boundsInRoot.bottom
+        val fieldTop = field.fetchSemanticsNode().positionInRoot.y
+        body.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, fieldTop - (submitBottom - overlap)) }
+        rule.waitForIdle()
+        val viewportTop = body.fetchSemanticsNode().boundsInRoot.top
+        val scrolled = field.fetchSemanticsNode().let { it.positionInRoot.y to it.positionInRoot.y + it.size.height }
+        assertTrue("title field $scrolled should straddle the body top $viewportTop", scrolled.first < submitBottom && scrolled.second > viewportTop)
+        h.assertFullTouchTarget("fst.settings.feedback.submit")
+        h.assertFullTouchTarget("fst.settings.feedback.close")
+        val order = orderWith("feedback-scrolled-under", "Submit")
+        val title = order.indexOfFirst { it.contains("Report an Issue") }
+        val submit = order.indexOfFirst { it.contains("Submit") }
+        val close = order.indexOfFirst { it.contains("Close") }
+        assertTrue("reading order $order", title >= 0 && submit > title && close > title)
         h.tap("fst.settings.feedback.close")
         h.waitForTag("fst.settings.feedback.discard.dialog")
         h.tap("fst.settings.feedback.discard.confirm")

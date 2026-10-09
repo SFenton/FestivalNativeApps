@@ -251,6 +251,26 @@ class JourneyHarness(private val rule: JourneyRule) {
         return out
     }
 
+    /**
+     * Fail unless every visible accessibility node tagged [tag] is at least 48 dp each way.
+     * TalkBack's explore-by-touch uses these bounds, which Compose trims where a later sibling's
+     * touch bounds overlap; [assertAccessible] skips such a finding while the Compose node is
+     * still 48 dp, so a journey asserts the published bounds directly (issue #422).
+     *
+     * @param tag Test tag (exposed as the resource id).
+     */
+    fun assertFullTouchTarget(tag: String) {
+        val min = with(rule.density) { 48.dp.toPx() } - 1
+        var last = emptyList<android.graphics.Rect>()
+        val full = runCatching {
+            rule.waitUntil(5_000) {
+                last = visibleAccessibilityNodes(tag).map { android.graphics.Rect().also(it::getBoundsInScreen) }
+                last.isNotEmpty() && last.all { it.height() >= min && it.width() >= min }
+            }
+        }.isSuccess
+        assertTrue("$tag accessibility bounds $last are under 48 dp (${min + 1} px)", full)
+    }
+
     /** Checks the current window when accessibility checks are on. */
     private var checkNow: () -> Unit = {}
 
