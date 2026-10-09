@@ -182,7 +182,10 @@ public sealed class StaggerArm
     /// <param name="now">Monotonic time.</param>
     public void Arm(int batchStart, TimeSpan now)
     {
-        var open = IsOpen(now);
+        // Only a window still revealing rows takes a new batch in. A load a scroll already rushed has ended even while
+        // its rush runs, so a batch armed then starts at its own first row, not the load's 0 (issue #532).
+        var open = armed && !closed && (closesOnScroll ? IsRunning(now) : Within(now));
+        var rushing = IsRushing(now);
         // What a purely time-based window (no scroll close or rush) would stagger from: kept only to trace R5's suppressions.
         timeOnlyStart = armed && Within(now) ? Math.Min(timeOnlyStart, batchStart) : batchStart;
         // Batches appended back to back form one reveal (FadeInTiming.MergeBatchStart within this arm's window).
@@ -199,8 +202,16 @@ public sealed class StaggerArm
             appendedStart = null;
             anchor = null;
             entranceEnd = now;
-            rushUntil = null;
-            rushLimit = 0;
+            if (appended && rushing)
+            {
+                // The rush keeps starting the load's rows the scroll realizes; the batch itself is never rushed.
+                rushLimit = Math.Min(rushLimit, BatchStart);
+            }
+            else
+            {
+                rushUntil = null;
+                rushLimit = 0;
+            }
             expectedAt = null;
             if (!appended) HasScrolled = false;
             Generation++;

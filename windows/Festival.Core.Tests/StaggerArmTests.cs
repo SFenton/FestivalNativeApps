@@ -199,6 +199,41 @@ public sealed class StaggerArmTests
     }
 
     [Fact]
+    public void BatchAppendedWhileTheRushRuns_StartsAtItsOwnRowAndKeepsTheLoadRush()
+    {
+        // Suggestions (issue #532): the reader's scroll rushes the load, and the batch it generates lands before the
+        // rush's fades are done. The load has ended, so the batch must not merge into it from row 0.
+        var arm = Loaded();
+        Assert.Equal(ArmScroll.Rushed, arm.Scrolled(0, 900, Ms(1300)));
+        var generation = arm.Generation;
+        arm.Arm(10, Ms(1400));
+        Assert.Equal(10, arm.BatchStart);
+        Assert.NotEqual(generation, arm.Generation);
+        // Old rows the scroll realizes while the rush runs still fade at once; the batch is a plain stagger, never rushed.
+        Assert.True(arm.IsRushing(Ms(1450)));
+        Assert.Equal(10, arm.RushLimit);
+        Assert.Equal(TimeSpan.Zero, arm.Delay(2, 4, Ms(1450), 0, 900));
+        Assert.Equal(125, arm.Delay(10, 4, Ms(1450), 0, 900)!.Value.TotalMilliseconds);
+        Assert.False(arm.RushReaches(10));
+        // After the rush, rows already shown never fade again, and the next batch inside the window merges from 10.
+        Assert.Null(arm.Delay(1, 4, Ms(1800), 0, 0));
+        arm.Arm(20, Ms(2000));
+        Assert.Equal(10, arm.BatchStart);
+        Assert.Null(arm.Delay(2, 4, Ms(2100), 0, 0));
+    }
+
+    [Fact]
+    public void LoadArmDuringARush_EndsTheRush()
+    {
+        var arm = Loaded();
+        arm.Scrolled(0, 900, Ms(1300));
+        arm.Arm(0, Ms(1400));
+        Assert.Equal(0, arm.BatchStart);
+        Assert.False(arm.IsRushing(Ms(1400)));
+        Assert.Equal(0, arm.RushLimit);
+    }
+
+    [Fact]
     public void LoadArmOverAnOpenBatch_RushesOnScrollAgain()
     {
         var arm = new StaggerArm();
