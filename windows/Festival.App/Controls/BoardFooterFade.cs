@@ -59,6 +59,10 @@ internal sealed class BoardFooterFade
             Update();
         };
         footer.SizeChanged += (_, _) => Update();
+        // A ListView's scroll viewer exists only once its template is applied, in the layout pass after the rows turn
+        // visible; its first size change follows that pass, so the scroller is found then even if nothing else
+        // re-evaluates (issue #538).
+        list.SizeChanged += (_, _) => Update();
         footer.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) => Update());
         list.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) => Update());
         source.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) => Update());
