@@ -236,29 +236,31 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
     ///   once scrolled into the clear band (`pageContrastFloor`);
     /// - "partially unsupported" Dynamic Type on an element (`dynamic-type-grows`): the same
     ///   text is ≥ 1.35× taller at AX5 than at the default size, measured against
-    ///   `baseline` (this audit is at AX5) or `ax5Heights` (this audit is at the default size).
+    ///   `baseline` (this audit is at AX5) or, for a default-size audit, returned as a
+    ///   pending `Growth` that `resolveGrowth` checks on the test's own AX5 launch (no
+    ///   extra launch: each one costs minutes on the CI runner).
     /// Every accepted issue is attached with its measurement; anything else fails.
     ///
     /// - Parameters:
     ///   - app: The app on the audited page.
     ///   - types: The audit types to run.
-    ///   - baseline: Text heights at the default size (`textHeights`), for an AX5 audit.
-    ///   - ax5Heights: For a default-size audit, relaunches the page at AX5 and returns its
-    ///     text heights; called only after the audit, and only for a Dynamic Type flag.
+    ///   - baseline: Text heights at the default size (`textHeights`), for an AX5 audit;
+    ///     nil for a default-size audit.
+    /// - Returns: Dynamic Type and clipping flags of a default-size audit, still to grow at AX5.
     /// - Throws: An unaccepted audit issue or a missing screenshot.
     @MainActor
+    @discardableResult
     private func audit(
-        _ app: XCUIApplication, for types: XCUIAccessibilityAuditType, baseline: [String: CGFloat] = [:],
-        ax5Heights: (() throws -> [String: CGFloat])? = nil,
+        _ app: XCUIApplication, for types: XCUIAccessibilityAuditType, baseline: [String: CGFloat]? = nil,
         file: StaticString = #filePath, line: UInt = #line
-    ) throws {
+    ) throws -> [Growth] {
         let image = try XCTUnwrap(app.screenshot().image.cgImage)
         let window = app.windows.firstMatch.frame
         let band = try screenTexts(app)
         var evidence: [String] = []
         var open: [String] = []
         var unattributedContrast = 0
-        var smallText: [(key: String, height: CGFloat, summary: String, rule: String)] = []
+        var pending: [Growth] = []
         try app.performAccessibilityAudit(for: types) { issue in
             let element = issue.element
             let summary = "\(issue.compactDescription): '\(element?.label ?? "")' \(element?.frame ?? .zero)"
@@ -292,8 +294,11 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
                     summary += ", drawn '\(drawn ?? "")'"
                 }
                 let rule = issue.auditType == .textClipped ? "text-clipped-whole" : "dynamic-type-grows"
-                guard ax5Heights == nil else {
-                    smallText.append((element.identifier.isEmpty ? element.label : element.identifier, element.frame.height, summary, rule))
+                guard let baseline else {
+                    pending.append(Growth(
+                        key: element.identifier.isEmpty ? element.label : element.identifier,
+                        height: element.frame.height, summary: summary, rule: rule
+                    ))
                     return true
                 }
                 let regular = baseline[element.identifier] ?? baseline[element.label]
@@ -313,21 +318,49 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
             open += floor.map { "unattributed contrast (\(unattributedContrast)): \($0)" }
             if floor.isEmpty { evidence.append("unattributed-contrast-page-floor: \(unattributedContrast) flags, every text ≥ 4.5:1") }
         }
-        if !smallText.isEmpty, let ax5Heights {
-            let large = try ax5Heights()
-            for text in smallText {
-                guard let height = large[text.key], height >= text.height * 1.35 else {
-                    open.append("\(text.summary), AX5 height \(large[text.key].map { "\($0)" } ?? "unknown")")
-                    continue
-                }
-                evidence.append("\(text.rule): \(text.summary) → \(height) pt at AX5")
+        attach(evidence, name: "audit-evidence")
+        XCTAssertEqual(open, [], "open audit issues", file: file, line: line)
+        return pending
+    }
+
+    /// A default-size Dynamic Type or clipping flag, accepted once the same text is ≥ 1.35×
+    /// taller at AX5.
+    private struct Growth {
+        let key: String
+        let height: CGFloat
+        let summary: String
+        let rule: String
+    }
+
+    /// Check a default-size audit's pending flags against the AX5 launch's text heights.
+    ///
+    /// - Parameters:
+    ///   - pending: The flags `audit` returned at the default size.
+    ///   - large: `textHeights` of the same page at AX5, at the top of the page.
+    @MainActor
+    private func resolveGrowth(
+        _ pending: [Growth], at large: [String: CGFloat], file: StaticString = #filePath, line: UInt = #line
+    ) {
+        guard !pending.isEmpty else { return }
+        var evidence: [String] = []
+        var open: [String] = []
+        for text in pending {
+            guard let height = large[text.key], height >= text.height * 1.35 else {
+                open.append("\(text.summary), AX5 height \(large[text.key].map { "\($0)" } ?? "unknown")")
+                continue
             }
+            evidence.append("\(text.rule): \(text.summary) → \(height) pt at AX5")
         }
+        attach(evidence, name: "audit-evidence-ax5-growth")
+        XCTAssertEqual(open, [], "default-size audit issues that do not grow at AX5", file: file, line: line)
+    }
+
+    /// Keep audit evidence lines in the result bundle.
+    private func attach(_ evidence: [String], name: String) {
         let note = XCTAttachment(string: evidence.joined(separator: "\n"))
-        note.name = "audit-evidence"
+        note.name = name
         note.lifetime = .keepAlways
         add(note)
-        XCTAssertEqual(open, [], "open audit issues", file: file, line: line)
     }
 
     /// Text Vision reads inside `frame` of a capture (padded by a few points), lines joined
@@ -394,12 +427,17 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
     /// one button naming its song, instrument and both ranks (no separate instrument image,
     /// no leftover spinner or error); each card reads title → rows → "View All, <title>";
     /// rows and View All are at least 44 pt, inside the window and hittable; the page
-    /// passes the full system audit.
+    /// passes the full system audit. Then the largest accessibility size: rows keep their
+    /// full names, grow with their text (the rank comparison stacks one part per line),
+    /// stay inside the window and 44 pt; the page passes the Dynamic Type, clipping and
+    /// hit-region audits. One launch per size (each costs minutes on the CI runner).
     @MainActor
-    func testFrozenRivalDetailNamesOrdersAndSizesItsRows() throws {
+    func testFrozenRivalDetailNamesOrdersSizesAndGrowsItsRows() throws {
         continueAfterFailure = false
         let app = launch(player: "fixture-riv-frozen")
         waitForRows(app)
+        let baseline = try textHeights(app)
+        let regularHeight = app.buttons[Self.firstRow].firstMatch.frame.height
         let window = app.windows.firstMatch.frame
         let nodes = try readingOrder(app)
 
@@ -457,27 +495,26 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
         XCTAssertTrue(app.buttons[Self.firstRow].firstMatch.isHittable, "the first row takes a tap")
 
         record(app, name: "rival-detail-frozen-a11y-default")
-        try audit(app, for: .all) {
-            let large = self.launch(player: "fixture-riv-frozen", contentSize: Self.ax5)
-            self.waitForRows(large)
-            return try self.textHeights(large)
-        }
+        let pending = try audit(app, for: .all)
+        app.terminate()
+
+        let large = launch(player: "fixture-riv-frozen", contentSize: Self.ax5)
+        waitForRows(large)
+        try growsAtTheLargestTextSize(large, regularHeight: regularHeight, baseline: baseline, pending: pending)
     }
 
-    /// Largest accessibility size: rows keep their full names, grow with their text (the
-    /// rank comparison stacks one part per line), stay inside the window and 44 pt; the
-    /// page passes the Dynamic Type, clipping and hit-region audits.
+    /// The AX5 half of the rows journey, on the page relaunched at AX5.
+    ///
+    /// - Parameters:
+    ///   - app: Rival Detail launched at AX5, its rows shown.
+    ///   - regularHeight: The first row's height at the default size.
+    ///   - baseline: Text heights at the default size.
+    ///   - pending: The default-size audit's flags still to grow.
     @MainActor
-    func testFrozenRivalDetailGrowsAtTheLargestTextSize() throws {
-        continueAfterFailure = false
-        let regular = launch(player: "fixture-riv-frozen")
-        waitForRows(regular)
-        let regularHeight = regular.buttons[Self.firstRow].firstMatch.frame.height
-        let baseline = try textHeights(regular)
-        regular.terminate()
-
-        let app = launch(player: "fixture-riv-frozen", contentSize: Self.ax5)
-        waitForRows(app)
+    private func growsAtTheLargestTextSize(
+        _ app: XCUIApplication, regularHeight: CGFloat, baseline: [String: CGFloat], pending: [Growth]
+    ) throws {
+        resolveGrowth(pending, at: try textHeights(app))
         let window = app.windows.firstMatch.frame
         let row = app.buttons[Self.firstRow].firstMatch
         XCTAssertGreaterThan(
@@ -506,6 +543,7 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
         continueAfterFailure = false
         var retryHeights: [CGFloat] = []
         var baseline: [String: CGFloat] = [:]
+        var pending: [Growth] = []
         for contentSize in [nil, Self.ax5] {
             let app = launch(player: "fixture-riv-503", contentSize: contentSize)
             let title = app.staticTexts["fst.service-status.title"]
@@ -518,6 +556,7 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
             )
             let retry = app.buttons["fst.service-status.retry"]
             XCTAssertTrue(retry.waitForExistence(timeout: 10))
+            let heights = try textHeights(app)
             XCTAssertEqual(retry.label, "Retry Now")
             XCTAssertGreaterThanOrEqual(retry.frame.height, 44 - 0.5, "Retry Now target height")
             XCTAssertGreaterThanOrEqual(retry.frame.width, 44, "Retry Now target width")
@@ -535,13 +574,10 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
 
             record(app, name: "rival-detail-frozen-retry-a11y-\(contentSize == nil ? "default" : "ax5")")
             if contentSize == nil {
-                baseline = try textHeights(app)
-                try audit(app, for: .all) {
-                    let large = self.launch(player: "fixture-riv-503", contentSize: Self.ax5)
-                    XCTAssertTrue(large.staticTexts["fst.service-status.title"].waitForExistence(timeout: 30))
-                    return try self.textHeights(large)
-                }
+                baseline = heights
+                pending = try audit(app, for: .all)
             } else {
+                resolveGrowth(pending, at: heights)
                 try audit(app, for: [.dynamicType, .textClipped, .hitRegion], baseline: baseline)
             }
             app.terminate()

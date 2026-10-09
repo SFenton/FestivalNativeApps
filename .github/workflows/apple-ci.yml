@@ -18,7 +18,7 @@ jobs:
   apple-ci:
     name: apple-ci
     runs-on: xcode-27
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
         with:
@@ -73,13 +73,14 @@ jobs:
       - name: Rival Detail accessibility journeys (iPhone, iPad, iPhone Duo simulators)
         # #444: Rival Detail while the service freezes publishing (#95) on each Apple touch form factor: labels,
         # reading order, 44-pt targets, the largest text size and performAccessibilityAudit. Its selected-player
-        # fixtures need their own mock (port 18944). The same universal test build runs on one named runner
-        # simulator per device type (`ci-device --name`), one at a time; the Duo runs folded (a new Duo boots
-        # folded and `--pose folded` verifies it). List: testing/apple/xcuitest.md#ci-journeys.
+        # fixtures need their own mock (port 18944). The same universal test build runs on one runner simulator
+        # per device type, one at a time: the iPhone reuses the warm `FST CI iPhone` above, the iPad and Duo get
+        # named ones (`ci-device --name`); the Duo runs folded (a new Duo boots folded and `--pose folded`
+        # verifies it). The runner takes ~15 min per device, so each has a 25-min cap.
+        # List and timing: testing/apple/xcuitest.md#ci-journeys.
         env:
           JOURNEYS: >-
-            RivalDetailFrozenAccessibilityJourneyTests/testFrozenRivalDetailNamesOrdersAndSizesItsRows
-            RivalDetailFrozenAccessibilityJourneyTests/testFrozenRivalDetailGrowsAtTheLargestTextSize
+            RivalDetailFrozenAccessibilityJourneyTests/testFrozenRivalDetailNamesOrdersSizesAndGrowsItsRows
             RivalDetailFrozenAccessibilityJourneyTests/testFrozenRivalDetailWithoutSnapshotOffersRetry
         run: |
           python3 tools/mock_service.py --port 18944 > "$RUNNER_TEMP/mock_service_rivals.log" 2>&1 &
@@ -88,13 +89,14 @@ jobs:
           for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock_service_rivals.log" && break; sleep 1; done
           grep -q "fixture service on" "$RUNNER_TEMP/mock_service_rivals.log"
           only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
-          for device in "iPhone 17 Pro|iphone|" "iPad Pro 11-inch (M5)|ipad|" "iPhone Duo|duo|folded"; do
-            IFS='|' read -r type label pose <<< "$device"
+          for device in "iPhone 17 Pro|FST CI iPhone|" "iPad Pro 11-inch (M5)|FST CI rivals ipad|" \
+                        "iPhone Duo|FST CI rivals duo|folded"; do
+            IFS='|' read -r type name pose <<< "$device"
             posed=(); [ -z "$pose" ] || posed=(--pose "$pose")
-            udid=$(python3 tools/ios_sim.py ci-device --type "$type" --name "FST CI rivals $label")
+            udid=$(python3 tools/ios_sim.py ci-device --type "$type" --name "$name")
             echo "::group::Rival Detail accessibility journeys ($type)"
             TEST_RUNNER_FST_FIXTURE_URL=http://127.0.0.1:18944 \
-              python3 tools/ios_sim.py uitest --device "$udid" --app phone --fail-on-skip --timeout 900 "${posed[@]}" "${only[@]}"
+              python3 tools/ios_sim.py uitest --device "$udid" --app phone --fail-on-skip --timeout 1500 "${posed[@]}" "${only[@]}"
             echo "::endgroup::"
             xcrun simctl shutdown "$udid" || true
           done
