@@ -10,6 +10,7 @@ gated by the required ``apple-ci`` job.
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -174,10 +175,52 @@ class AppleCIJourneysTests(unittest.TestCase):
     def test_required_check_needs_every_job(self) -> None:
         required = self.text.split("\n  apple-ci:\n", 1)[1]
         self.assertIn("name: apple-ci\n", required)
-        self.assertIn("needs: [build, songs-filter-journeys]", required)
+        self.assertIn("needs: [changes, build, songs-filter-journeys]", required)
         self.assertIn("if: always()", required)
         job_names = re.findall(r"^    name: (.+)$", self.text, flags=re.MULTILINE)
         self.assertEqual(job_names.count("apple-ci"), 1, "only the gate job is named apple-ci")
+        jobs = re.findall(r"^  ([a-z][\w-]*):$", self.text.split("\njobs:\n", 1)[1], flags=re.MULTILINE)
+        self.assertEqual(sorted(jobs), sorted(["changes", "build", "songs-filter-journeys", "apple-ci"]),
+                         "a new job must join the gate's needs")
+
+    def test_gate_passes_only_when_every_job_passed_or_the_legs_had_nothing_to_test(self) -> None:
+        script = self.gate_script()
+        cases = {
+            ("success", "true", "success", "success"): True,
+            ("success", "false", "success", "skipped"): True,
+            ("success", "true", "success", "skipped"): False,
+            ("success", "true", "success", "failure"): False,
+            ("success", "true", "success", "cancelled"): False,
+            ("success", "false", "success", "cancelled"): False,
+            ("success", "true", "failure", "success"): False,
+            ("failure", "", "success", "skipped"): False,
+        }
+        for (changes, apple, build, journeys), passes in cases.items():
+            env = {"CHANGES": changes, "APPLE": apple, "BUILD": build, "JOURNEYS": journeys, "PATH": "/usr/bin:/bin"}
+            result = subprocess.run(["bash", "-e", "-c", script], env=env, capture_output=True, check=False)
+            self.assertEqual(result.returncode == 0, passes, (changes, apple, build, journeys))
+
+    def test_legs_run_for_apple_changes_and_always_on_master(self) -> None:
+        legs = self.text.split("  songs-filter-journeys:", 1)[1].split("    strategy:", 1)[0]
+        self.assertIn("needs: changes", legs)
+        self.assertIn("if: needs.changes.outputs.apple == 'true'", legs)
+        changes = self.text.split("\n  changes:\n", 1)[1].split("\n  songs-filter-journeys:", 1)[0]
+        self.assertIn('[ "$EVENT" != pull_request ] ||', changes)
+        pattern = re.search(r"PATTERN: '(.+)'", changes).group(1)
+        for path in ("apple/Sources/FestivalUI/Features/Songs/SongsFilterSheet.swift",
+                     "apple/Apps/iOSUITests/SongsFilterAccessibilityJourneyTests.swift",
+                     "contracts/fixtures/songs-demo.json", "tools/ios_sim.py", "tools/mock_service.py",
+                     ".github/workflows/apple-ci.yml"):
+            self.assertRegex(path, pattern)
+        for path in ("windows/App/MainWindow.xaml.cs", "android/app/build.gradle.kts", "PROGRESS.md",
+                     "tools/ios_sim.pyc"):
+            self.assertNotRegex(path, pattern)
+
+    def gate_script(self) -> str:
+        """The gate job's ``run`` script, dedented from its ``run: |`` block."""
+        gate = self.text.split("\n  apple-ci:\n", 1)[1]
+        block = gate.split("        run: |\n", 1)[1]
+        return "\n".join(line[10:] for line in block.splitlines() if line.startswith("          "))
 
     def test_mac_keyboard_tests_run_alone_and_required(self) -> None:
         step = self.text.split("Mac keyboard navigation tests, alone", 1)[1].split("- name:", 1)[0]

@@ -148,12 +148,38 @@ jobs:
           path: apple/.build/out/Products/Debug/codecov/*.json
           if-no-files-found: ignore
           retention-days: 14
+  changes:
+    # Whether the Songs Filter legs run: always on master pushes and manual runs; on a PR only when it changes
+    # what they test (the Apple app, the simulator and fixture tools, the fixtures or this workflow), so an
+    # Android- or Windows-only PR does not hold three more Xcode runners. The build job always runs.
+    name: apple-ci change check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      apple: ${{ steps.diff.outputs.apple }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          PATTERN: '^(apple/|contracts/fixtures/|tools/ios_sim\.py$|tools/mock_service\.py$|\.github/workflows/apple-ci\.yml$)'
+        run: |
+          if [ "$EVENT" != pull_request ] || git diff --name-only "$BASE" HEAD | grep -qE "$PATTERN"; then
+            echo "apple=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "apple=false" >> "$GITHUB_OUTPUT"
+          fi
   songs-filter-journeys:
     # The Songs Filter sheet without a profile (#432, for #77) on each Apple touch form factor: the
     # accessibility journey (performAccessibilityAudit, 44 pt targets, AX5) on the iPhone, the iPad and the
     # folded iPhone Duo, and the iPad hardware-keyboard journey. The plain loopback fixture (8765), one
     # throwaway simulator per leg, run in parallel with the build job: testing/apple/xcuitest.md#ci-journeys.
     name: apple-ci Songs Filter journeys (${{ matrix.leg }})
+    needs: changes
+    if: needs.changes.outputs.apple == 'true'
     runs-on: xcode-27
     # The runner is 2-4x slower than a Mac: the folded Duo's three methods took 19 min on a Mac, plus build and boot.
     timeout-minutes: 120
@@ -234,17 +260,22 @@ jobs:
           retention-days: 7
   apple-ci:
     # The required check (the release machine merges once `apple-ci` is green on the head SHA): green only
-    # when the build/unit job and every journey leg succeeded. A re-run of failed jobs re-runs this one too.
+    # when the change check and build job succeeded and every journey leg succeeded, or the legs were skipped
+    # because the PR changes nothing they test. A re-run of failed jobs re-runs this one too.
     name: apple-ci
-    needs: [build, songs-filter-journeys]
+    needs: [changes, build, songs-filter-journeys]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Every Apple job passed
         env:
+          CHANGES: ${{ needs.changes.result }}
+          APPLE: ${{ needs.changes.outputs.apple }}
           BUILD: ${{ needs.build.result }}
           JOURNEYS: ${{ needs.songs-filter-journeys.result }}
         run: |
-          echo "build: $BUILD, songs-filter-journeys: $JOURNEYS"
-          test "$BUILD" = success && test "$JOURNEYS" = success
+          echo "changes: $CHANGES (apple=$APPLE), build: $BUILD, songs-filter-journeys: $JOURNEYS"
+          [ "$CHANGES" = success ] || exit 1
+          [ "$BUILD" = success ] || exit 1
+          case "$JOURNEYS/$APPLE" in success/true | skipped/false) ;; *) exit 1 ;; esac
