@@ -15,7 +15,8 @@ import Testing
 // since the page is the same SwiftUI on iPhone, iPad, iPhone Duo and Mac: the player's
 // name is read once (by the title), the content starts at its first heading, a pause
 // notice reads before it as plain text, and the notice wraps whole at the largest text
-// size in a narrow column.
+// size in a narrow column. macOS has no Dynamic Type, so the notice's real `.footnote`
+// growth at AX5 is proved on iPhone by `ProfileNoticeTextSizeJourneyTests` (XCUITest).
 
 // MARK: - Fixture
 
