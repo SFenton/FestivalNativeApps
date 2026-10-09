@@ -141,6 +141,11 @@ RUNS: tuple[Run, ...] = (
     Run("shop-filter-keyboard", "a11y-keyboard.json", tabs=0, only=SHOP_FILTER_KEYBOARD),
     Run("shop-filter-keyboard-text-225", "a11y-keyboard.json", sizes="compact", mode="text-225", tabs=0,
         only=SHOP_FILTER_KEYBOARD),
+    # The pinned "your band" row on a song's full Duos/Trios/Quads board (issues #306, #461): Narrator phrases for
+    # Jump / Open band, 40 epx targets, rows -> pin -> pager order, Tab/Enter jump clear of the pin, size switch,
+    # no-player and reduced-motion states.
+    Run("song-band-pinned", "a11y-song-band-pinned.json", tabs=0),
+    Run("song-band-pinned-text-225", "a11y-song-band-pinned.json", sizes="compact", mode="text-225", tabs=0),
     # Board load swap (issues #71, #431): spinner "Busy Loading …, ProgressRing", stale rows leave UIA, selectors ->
     # spinner -> pager order, enabled 40x40 selectors and pager, focus kept on the pager, mid-load Axe scans; then the
     # same swap at 225% text and with Windows' Animation effects off. Every page is medium-only (pager plus spinner).
