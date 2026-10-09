@@ -227,13 +227,16 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
         CompositionTarget.Rendering += OnFrame;
     }
 
-    /// <summary>Whether a row container lies wholly inside the list's visible bounds.</summary>
+    /// <summary>
+    /// Whether a row container lies wholly inside the list's clear area: its visible bounds above the floating footer,
+    /// whose height the list carries as its bottom padding (<see cref="Controls.BoardFooter.Inset"/>; issue #461).
+    /// </summary>
     /// <param name="container">Row container.</param>
-    /// <returns><see langword="true"/> when the row is fully visible.</returns>
+    /// <returns><see langword="true"/> when the row is fully visible and clear of the footer.</returns>
     private bool IsInViewport(FrameworkElement container)
     {
         var top = container.TransformToVisual(Rows).TransformPoint(default).Y;
-        return top >= 0 && top + container.ActualHeight <= Rows.ActualHeight;
+        return top >= 0 && top + container.ActualHeight <= Rows.ActualHeight - Rows.Padding.Bottom;
     }
 }
 #endregion
