@@ -147,19 +147,31 @@ class UiCiTests(unittest.TestCase):
         for path in ("'windows/**'", "'tools/windows/**'", "'.github/workflows/windows-ui.yml'"):
             self.assertIn(path, text)
         build, display = text.index("tools/windows/build.ps1"), text.index("tools/windows/ci_display.ps1")
-        dispatch = text.index("python tools/windows/ui_ci.py --out")
+        dispatch = text.index("python tools/windows/ui_ci.py --shard")
         self.assertLess(display, dispatch)
         self.assertLess(build, dispatch)
         self.assertNotIn("--live", text)  # fixtures only: no service calls from CI
 
     def test_one_registry_and_dispatcher(self):
-        """#415 review: ``RUNS`` + ``windows-ui.yml`` is the only accessibility-journey gate; no second manifest or job
-        (``native.yml`` lacked the hard-failing ``ci_display.ps1`` and let wide/compact clamp silently)."""
+        """Accessibility pages and feature journeys share the one ``windows-ui`` aggregate check."""
         self.assertFalse((ci.JOURNEYS / "ci-ui.json").exists())
-        self.assertFalse((ci.JOURNEYS.parent / "ci_ui.py").exists())
+        self.assertTrue((ci.JOURNEYS.parent / "ci_ui.py").exists())
         native = (_REPO / ".github" / "workflows" / "native.yml").read_text(encoding="utf-8")
         self.assertNotIn("a11y_matrix", native)
         self.assertNotIn("ui_ci.py", native)
+
+    def test_generated_runs_cover_fixture_a11y_pages(self):
+        """Every fixture-backed a11y page runs in CI (in its first declared mode, or normal and large text) unless it
+        is ``live_only`` or visibly skipped."""
+        skips = json.loads((ci.JOURNEYS.parent / "ci_skip.json").read_text(encoding="utf-8")).get("a11y_pages", {})
+        covered = {(run.pages, page) for run in ci.RUNS
+                   for page in (run.only.split(",") if run.only else
+                                [item["name"] for item in json.loads((ci.JOURNEYS / run.pages).read_text(encoding="utf-8"))])}
+        for source in ci.JOURNEYS.glob("a11y-*.json"):
+            for page in json.loads(source.read_text(encoding="utf-8")):
+                name = page["name"]
+                if "live" not in name.lower() and not page.get("live_only") and name not in skips:
+                    self.assertIn((source.name, name), covered)
 
 
 if __name__ == "__main__":
