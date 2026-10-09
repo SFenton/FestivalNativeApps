@@ -292,4 +292,159 @@ func bandBoardRowsFadeAbovePagerWithoutPlayerFooter(board: BottomChromeBandBoard
     #expect(previousBright > 0)
     #expect(Double(lastBright) >= Double(previousBright) * 0.85, "the last row is as readable as the one above it")
 }
+
+// MARK: - Accessibility (issue #473, for #329)
+
+/// One realized accessibility element: identifier, spoken text and frame.
+private struct BoardAccessibilityNode {
+    let identifier: String
+    /// Label, then value, joined (what VoiceOver reads first).
+    let text: String
+    /// Frame in the host's top-left points, if the element has one.
+    let frame: CGRect?
+}
+
+/// Every realized element under `host` that carries an identifier or spoken text, in
+/// accessibility tree order (accessibility children, then AppKit subviews).
+///
+/// - Parameter host: The window's hosting view.
+/// - Returns: The elements, depth first.
+@MainActor
+private func boardAccessibilityNodes(in host: NSView) -> [BoardAccessibilityNode] {
+    var nodes: [BoardAccessibilityNode] = []
+    var seen = Set<ObjectIdentifier>()
+    func read(_ object: NSObject, _ key: String) -> Any? {
+        object.responds(to: NSSelectorFromString(key)) ? object.value(forKey: key) : nil
+    }
+    func walk(_ node: Any, depth: Int) {
+        guard depth < 80, let object = node as? NSObject,
+              seen.insert(ObjectIdentifier(object)).inserted else { return }
+        let identifier = nativeHostedAccessibilityString(object, "accessibilityIdentifier")
+        let text = [
+            nativeHostedAccessibilityString(object, "accessibilityLabel"),
+            nativeHostedAccessibilityString(object, "accessibilityValue"),
+        ].filter { !$0.isEmpty }.joined(separator: ", ")
+        if !identifier.isEmpty || !text.isEmpty {
+            nodes.append(BoardAccessibilityNode(
+                identifier: identifier, text: text, frame: nativeHostedAccessibilityFrame(of: object, in: host)
+            ))
+        }
+        for child in (read(object, "accessibilityChildren") as? [Any]) ?? [] {
+            walk(child, depth: depth + 1)
+        }
+        if let view = object as? NSView {
+            for subview in view.subviews { walk(subview, depth: depth + 1) }
+        }
+    }
+    walk(host, depth: 0)
+    return nodes
+}
+
+extension BottomChromeBandBoard {
+    /// Identifier prefix of the board's pager controls (`<prefix>.page-first` …).
+    var pagerPrefix: String {
+        switch self {
+        case .bandRankings: "fst.band-rankings"
+        case .songBand: "fst.song-band-leaderboard"
+        }
+    }
+
+    /// Text a row at `rank` speaks (its first member's name).
+    func rowText(_ rank: Int) -> String {
+        switch self {
+        case .bandRankings: "Member \(rank)A"
+        case .songBand: "Band \(rank) Member A"
+        }
+    }
+
+    /// Rank of the page-1 row `identifier` names, if it is one.
+    func rank(of identifier: String) -> Int? {
+        (1...LongBandBoardsTransport.total).first { rowId($0) == identifier }
+    }
+}
+
+/// Issue #473 (accessibility for #329's 40 pt board footer fade): the fade is drawing
+/// only. Mid-scroll, every row inside the 40 pt band above the pager stays one named
+/// element (its members, as at rest), and the mask adds nothing VoiceOver or Voice
+/// Control can reach there. Rows read in rank order and before the pager, whose five
+/// controls keep their spoken names and 44 pt targets (HIG Accessibility: iOS, iPadOS
+/// default control size 44×44 pt) wholly below the fade, so the deeper ramp never dims
+/// or covers a control. The same holds with the scroll-edge R7 hard edge (the app's
+/// Increase Contrast). This SwiftUI is the same on iPhone, iPad, iPhone Duo and Mac;
+/// `BoardFooterFadeJourneyTests` checks it at AX5 on iPhone.
+@MainActor
+@Test(.serialized, arguments: BottomChromeBandBoard.allCases, [BottomChromeFadeMode.standard, .moreContrast])
+func bandBoardFooterFadeKeepsRowsAndPagerAccessible(
+    board: BottomChromeBandBoard, mode: BottomChromeFadeMode
+) async throws {
+    let client = try FestivalAPI(baseURL: URL(string: "http://localhost")!, transport: LongBandBoardsTransport())
+    let session = FestivalSession(factory: { client })
+    let (defaults, suite) = mode.storage()
+    defer { UserDefaults.standard.removePersistentDomain(forName: suite) }
+    let size = CGSize(width: 402, height: 700)
+    let host = nativeHostedView(
+        mode.system(
+            try await board.screen(session)
+                .frame(width: size.width, height: size.height)
+                .preferredColorScheme(.dark)
+                .defaultAppStorage(defaults)
+        ),
+        size: size, forceGlassFallback: false
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    _ = try await nativeHostedSettle(host, untilText: [board.loadedText], timeout: .seconds(60))
+    let scroll = try #require(boardScrollView(in: host))
+    let scrollFrame = scroll.convert(scroll.bounds, to: host)
+    let chromeTop = scrollFrame.maxY - scroll.contentInsets.bottom
+    let fadeBand = CGRect(
+        x: 0, y: chromeTop - ScrollEdgeFade.distance, width: size.width, height: ScrollEdgeFade.distance
+    )
+
+    // Several mid-list offsets, so a row edge, a row middle and a gap each cross the band.
+    for offset in stride(from: 300.0, through: 345.0, by: 15.0) {
+        _ = try await scrollBoard(scroll, to: offset, host: host)
+        let nodes = boardAccessibilityNodes(in: host)
+        let rows = nodes.compactMap { node -> (rank: Int, node: BoardAccessibilityNode)? in
+            board.rank(of: node.identifier).map { ($0, node) }
+        }
+
+        // Name: each row in the fade band is still one element reading its own members.
+        let faded = rows.filter { $0.node.frame?.intersects(fadeBand) == true }
+        #expect(!faded.isEmpty, "a row crosses the 40 pt fade band at offset \(offset)")
+        for row in faded {
+            #expect(row.node.text.contains(board.rowText(row.rank)), "row \(row.rank) in the fade reads \(row.node.text)")
+            #expect((row.node.frame?.height ?? 0) >= 44, "row \(row.rank) keeps a 44 pt target in the fade")
+        }
+
+        // Nothing else in the band: the mask is decorative and hidden.
+        let rowFrames = rows.compactMap(\.node.frame)
+        let strays = nodes.filter { node in
+            guard let frame = node.frame, frame.intersects(fadeBand), frame.height < size.height / 2,
+                  board.rank(of: node.identifier) == nil,
+                  !node.identifier.hasPrefix("\(board.pagerPrefix).page") else { return false }
+            return !rowFrames.contains { $0.insetBy(dx: -1, dy: -1).contains(frame) }
+        }
+        #expect(strays.isEmpty, "only rows are reachable in the fade band: \(strays.map { "\($0.identifier) \($0.text)" })")
+
+        // Reading order: rows in rank order, then the pager.
+        let ranks = rows.map(\.rank)
+        #expect(ranks == ranks.sorted(), "rows read in rank order: \(ranks)")
+        let pagerIndex = try #require(nodes.firstIndex { $0.identifier == "\(board.pagerPrefix).page-first" })
+        let lastRowIndex = try #require(nodes.lastIndex { board.rank(of: $0.identifier) != nil })
+        #expect(lastRowIndex < pagerIndex, "every row reads before the pager")
+
+        // Pager: named, 44 pt, wholly below the fade.
+        for (suffix, label) in [
+            ("page-first", "First"), ("page-previous", "Previous"), ("page-info", "Page"),
+            ("page-next", "Next"), ("page-last", "Last"),
+        ] {
+            let control = try #require(nodes.first { $0.identifier == "\(board.pagerPrefix).\(suffix)" })
+            #expect(control.text.localizedCaseInsensitiveContains(label), "\(suffix) reads \(control.text)")
+            let frame = try #require(control.frame)
+            #expect(frame.width >= 44 && frame.height >= 44, "\(suffix) target \(frame)")
+            #expect(frame.minY >= chromeTop - 0.5, "\(suffix) sits below the fade: \(frame) vs \(chromeTop)")
+        }
+    }
+}
 #endif
