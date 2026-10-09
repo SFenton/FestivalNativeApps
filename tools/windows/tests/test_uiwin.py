@@ -117,9 +117,22 @@ class StepTests(unittest.TestCase):
         heading = u.parse_step("assertstate:id=fst.songs.section-header|heading=2@5")
         self.assertEqual((heading["key"], heading["value"], heading["timeout"]), ("heading", "2", 5.0))
         self.assertEqual(u.parse_step("assertstate:id=x|heading=0")["value"], "0")
+        # Issue #416: a landed Quick Links section title is a level-2 heading (0 = not a heading).
+        heading = u.parse_step("assertstate:name=Show Instruments&class=TextBlock|heading=2@3")
+        self.assertEqual((heading["key"], heading["value"], heading["timeout"]), ("heading", "2", 3.0))
+        self.assertEqual(u.parse_step("assertstate:id=x|heading=0")["value"], "0")
+        for bad in ("assertstate:id=x|heading=h2", "assertstate:id=x|heading=10", "assertstate:id=x|heading="):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                u.parse_step(bad)
         # Issue #280: a combo box's current option keeps its case (Narrator reads "Instrument, combo box, Pro Bass").
         current = u.parse_step("assertstate:id=fst.paths.instrument.compact|value=Pro Bass@5")
         self.assertEqual((current["key"], current["value"], current["timeout"]), ("value", "Pro Bass", 5.0))
+        # Issue #434: What's New category headings are UIA heading level 3 (Narrator's H / 3 navigation).
+        heading = u.parse_step("assertstate:id=fst.whats-new.group.0.0|heading=3@5")
+        self.assertEqual((heading["key"], heading["value"], heading["timeout"]), ("heading", "3", 5.0))
+        for bad in ("assertstate:id=x|heading=none", "assertstate:id=x|heading=10", "assertstate:id=x|heading=h2"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
         for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe", "assertstate:id=x|value=",
                     "assertstate:id=x|enabled=yes", "assertstate:id=x|color=red", "assertstate:@1,2|toggle=on",
                     "assertstate:id=x|name=", "assertstate:id=x|selected=on", "assertstate:id=x|scroll=top",

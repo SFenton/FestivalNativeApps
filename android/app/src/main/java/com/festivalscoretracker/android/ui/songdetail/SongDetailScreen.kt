@@ -608,37 +608,45 @@ private fun BandPreview(
                         )
                     }
                 } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        val open = { entry: SongBandLeaderboardEntry -> navigate(BandRoute(entry.bandId.ifEmpty { entry.teamKey }, entry.membersLabel, entry.bandType, entry.teamKey)) }
-                        val columns = BandRowColumns(rankWidth = rememberBandRankWidth(board.entries + listOfNotNull(outside)))
-                        board.entries.forEachIndexed { index, entry ->
-                            BandScoreRow(
-                                entry, song,
-                                selected = board.selectedPlayerEntry?.sameBand(entry) == true,
-                                columns = columns,
-                                tag = "fst.song-detail.band-row.${type.wireId}.$index",
-                            ) { open(entry) }
-                        }
-                        outside?.let { entry ->
-                            // `leaderboard-row` R7 (issue #307): like the solo spotlight row, the band shown apart
-                            // from the preview jumps to its page of the full band board and reveals its row.
-                            val action = SelectedRowAction.preview(entry.rank, BandPaging.PAGE_SIZE)
-                            BandScoreRow(
-                                entry, song, selected = true,
-                                columns = columns,
-                                tag = "fst.song-detail.band-selected.${type.wireId}",
-                                actionLabel = action.label(SelectedRowSubject.Band),
-                            ) {
-                                when (action) {
-                                    is SelectedRowAction.Jump -> navigate(SongBandLeaderboardRoute(song.songId, type.wireId, action.page, navToBand = true))
-                                    else -> open(entry)
+                    // One card for the size's top ten, like the solo instrument cards (owner #543,
+                    // `leaderboard-row` R10): hairlines between rows, then the appended selected band
+                    // and "View full leaderboard" inside it.
+                    GlassCard(Modifier.fillMaxWidth().testTag("fst.song-detail.band-card.${type.wireId}")) {
+                        Column(Modifier.padding(vertical = 4.dp)) {
+                            val open = { entry: SongBandLeaderboardEntry -> navigate(BandRoute(entry.bandId.ifEmpty { entry.teamKey }, entry.membersLabel, entry.bandType, entry.teamKey)) }
+                            val columns = BandRowColumns(rankWidth = rememberBandRankWidth(board.entries + listOfNotNull(outside)))
+                            board.entries.forEachIndexed { index, entry ->
+                                if (index > 0) RowSeparator()
+                                BandScoreRow(
+                                    entry, song,
+                                    selected = board.selectedPlayerEntry?.sameBand(entry) == true,
+                                    columns = columns,
+                                    tag = "fst.song-detail.band-row.${type.wireId}.$index",
+                                ) { open(entry) }
+                            }
+                            outside?.let { entry ->
+                                if (board.entries.isNotEmpty()) RowSeparator()
+                                // `leaderboard-row` R7 (issue #307): like the solo spotlight row, the band shown apart
+                                // from the preview jumps to its page of the full band board and reveals its row.
+                                val action = SelectedRowAction.preview(entry.rank, BandPaging.PAGE_SIZE)
+                                BandScoreRow(
+                                    entry, song, selected = true,
+                                    columns = columns,
+                                    tag = "fst.song-detail.band-selected.${type.wireId}",
+                                    actionLabel = action.label(SelectedRowSubject.Band),
+                                ) {
+                                    when (action) {
+                                        is SelectedRowAction.Jump -> navigate(SongBandLeaderboardRoute(song.songId, type.wireId, action.page, navToBand = true))
+                                        else -> open(entry)
+                                    }
                                 }
                             }
+                            ViewFullLeaderboardButton(
+                                onClick = { navigate(SongBandLeaderboardRoute(song.songId, type.wireId)) },
+                                testTag = "fst.song-detail.band-view-all.${type.wireId}",
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            )
                         }
-                        ViewFullLeaderboardButton(
-                            onClick = { navigate(SongBandLeaderboardRoute(song.songId, type.wireId)) },
-                            testTag = "fst.song-detail.band-view-all.${type.wireId}",
-                        )
                     }
                 }
             }

@@ -443,6 +443,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
             "symbol": "SongsSectionBar"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
+            "symbol": "SongsSectionBarOverlay"
           }
         ],
         "android": [
@@ -889,6 +893,10 @@
             "symbol": "FSTMinTargetSize"
           },
           {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "FSTMenuItemMinHeight"
+          },
+          {
             "path": "windows/Festival.App/Controls/WrapPanel.cs",
             "symbol": "WrapPanel"
           }
@@ -938,6 +946,13 @@
           "regex": "navigationBarHidden\\(|\\.(toolbar|toolbarVisibility)\\(\\s*\\.hidden\\s*,\\s*for:\\s*\\.navigationBar",
           "allow": [],
           "message": "Pages keep the system navigation bar and its title in every pose; don't hide it (page-tools-and-nav-chrome R14, #341)."
+        },
+        {
+          "id": "apple-shell-a11y-order",
+          "glob": "apple/Sources/FestivalUI/App/Shell/*.swift",
+          "regex": "\\.accessibilitySortPriority\\(",
+          "allow": [],
+          "message": "Shell chrome reads in hierarchy order; the order journeys cannot see a sort priority (page-tools-and-nav-chrome R17, #394)."
         }
       ],
       "related": {
@@ -972,7 +987,8 @@
         339,
         341,
         351,
-        363
+        363,
+        394
       ]
     },
     {
@@ -980,7 +996,7 @@
       "title": "Modal shell",
       "status": "current",
       "doc": ".agents/patterns/modal-shell.md",
-      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit; on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368).",
+      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit; on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420).",
       "keywords": [
         "modal",
         "sheet",
@@ -1134,6 +1150,13 @@
           "regex": "usePlatformDefaultWidth\\s*=(?!\\s*false\\b)",
           "allow": [],
           "message": "Centred dialogs take the window width less 16 dp margins, capped at 560 dp, never the platform dialog width (modal-shell R9)."
+        },
+        {
+          "id": "windows-template-scroller",
+          "glob": "windows/Festival.App/**/*.cs",
+          "regex": "\"ContentScrollViewer\"",
+          "allow": [],
+          "message": "ContentDialog's template scroller never scrolls vertically; give a tall body its own ScrollViewer instead of reaching into the template (modal-shell R5, #420)."
         }
       ],
       "related": {
@@ -1169,7 +1192,8 @@
         140,
         360,
         368,
-        400
+        400,
+        420
       ]
     },
     {
@@ -1177,7 +1201,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, on the Duo screen beside the vertical bar when unfolded, #345, #361), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, with the owner-approved #370 variant that a Compete preview's separate rank row jumps to the full board at the player's position (Apple and Android Compete cards; Windows overview instrument cards, as they draw Compete), the owner-approved #364 variant that a song board in a split's trailing pane turns every row and its pinned row into a multi-row card (full name above rank and score, chevron centred) when any name would marquee, and one measured section-wide score-footer stack plan that never truncates the score.",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, on the Duo screen beside the vertical bar when unfolded, #345, #361), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, with the owner-approved #370 variant that a Compete preview's separate rank row jumps to the full board at the player's position (Apple and Android Compete cards; Windows overview instrument cards, as they draw Compete), the owner-approved #364 variant that a song board in a split's trailing pane turns every row and its pinned row into a multi-row card (full name above rank and score, chevron centred) when any name would marquee, and one measured section-wide score-footer stack plan that never truncates the score, keyboard or screen-reader focus that scrolls a row clear of the floating pinned row and pager (WCAG 2.4.11, #409), and the owner-approved #543 variant that native song boards, Full Rankings, Band Rankings and Song Detail band previews draw a page's rows in one card with separators (the web keeps a card per row).",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -1199,7 +1223,9 @@
         "large text",
         "season column",
         "multi-row card",
-        "trailing pane"
+        "trailing pane",
+        "one card",
+        "grouped rows"
       ],
       "web": [
         {
@@ -1378,6 +1404,10 @@
             "symbol": "LeaderboardsPager"
           },
           {
+            "path": "windows/Festival.App/Controls/BoardFooter.cs",
+            "symbol": "BoardFooter"
+          },
+          {
             "path": "windows/Festival.Core/Domain/SelectedRowNavigation.cs",
             "symbol": "SelectedRowAction"
           },
@@ -1509,7 +1539,8 @@
         353,
         364,
         370,
-        381
+        381,
+        409
       ]
     },
     {
@@ -1517,7 +1548,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; graph card lists run the web out/height/in list sequence and chart swaps keep the card's size; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades.",
+      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; graph card lists run the web out/height/in list sequence and chart swaps keep the card's size; the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades.",
       "keywords": [
         "loading",
         "spinner",
@@ -1855,7 +1886,7 @@
       "title": "Empty and error states",
       "status": "current",
       "doc": ".agents/patterns/empty-error-states.md",
-      "summary": "Loading, empty, paused/unavailable and failed outcomes stay distinct: every empty page or region uses the shared centred title/subtitle empty state with no card and no Reset Filters or Retry button (only a prerequisite action such as Choose Profile); syncing, publication-paused and unavailable states use the shared unavailable status with Retry; one native loading indicator; explicit unavailable messages without global-search Retry controls.",
+      "summary": "Loading, empty, paused/unavailable and failed outcomes stay distinct: every empty page or region uses the shared centred title/subtitle empty state with no card and no Reset Filters or Retry button (only a prerequisite action such as Choose Profile); syncing, publication-paused and unavailable states use the shared unavailable status with Retry; one native loading indicator, exposed as a single named busy indicator; explicit unavailable messages without global-search Retry controls.",
       "keywords": [
         "empty",
         "no results",
@@ -2711,8 +2742,8 @@
       ],
       "web": [
         {
-          "path": "pages/settings/SettingsPage.tsx",
-          "symbol": "versionRow"
+          "path": "pages/settings/SettingsVersionList.tsx",
+          "symbol": "SettingsVersionList"
         },
         {
           "path": "pages/settings/SettingsServiceProgress.tsx",

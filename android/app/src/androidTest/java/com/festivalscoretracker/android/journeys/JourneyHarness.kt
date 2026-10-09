@@ -1,31 +1,42 @@
 package com.festivalscoretracker.android.journeys
 
 import android.content.res.Configuration
+import android.content.res.Resources
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.ViewRootForTest
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getAllSemanticsNodes
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ComposeAccessibilityValidator
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.DeviceConfigurationOverride
 import androidx.compose.ui.test.FontScale
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.window.layout.FoldingFeature
@@ -43,6 +54,8 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
 import okhttp3.OkHttpClient
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 
 // region Preferences
@@ -136,11 +149,43 @@ class JourneyHarness(private val rule: JourneyRule) {
      * `ModalBottomSheet` or `Dialog` composes in its own window, whose density comes from the
      * activity's resources, so without this a "200%" sheet still renders at the device scale.
      *
+     * The activity's `Resources` share their implementation with every later activity of the
+     * same configuration in this instrumentation process, so the device's own scale is put back
+     * when the activity is destroyed. Without that, one 200 % journey left every following test
+     * class at 200 % text in a full `connectedDebugAndroidTest` run (issue #528).
+     *
+     * @param scale Font scale.
+     */
+    private fun applyWindowFontScale(scale: Float) {
+        val activity = rule.activity
+        val resources = activity.resources
+        if (resources.configuration.fontScale == scale) return
+        if (activity !in restoresFontScale) {
+            restoresFontScale += activity
+            val original = resources.configuration.fontScale
+            activity.lifecycle.addObserver(
+                LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_DESTROY) {
+                        setFontScale(resources, original)
+                        restoresFontScale -= activity
+                    }
+                },
+            )
+        }
+        setFontScale(resources, scale)
+    }
+
+    /** Activities whose shared resources get the device's font scale back on destroy. */
+    private val restoresFontScale = mutableSetOf<ComponentActivity>()
+
+    /**
+     * Set [scale] on [resources] (shared with the activity's dialogs and sheets).
+     *
+     * @param resources Activity resources.
      * @param scale Font scale.
      */
     @Suppress("DEPRECATION")
-    private fun applyWindowFontScale(scale: Float) {
-        val resources = rule.activity.resources
+    private fun setFontScale(resources: Resources, scale: Float) {
         if (resources.configuration.fontScale == scale) return
         resources.updateConfiguration(Configuration(resources.configuration).apply { fontScale = scale }, resources.displayMetrics)
     }
@@ -165,7 +210,9 @@ class JourneyHarness(private val rule: JourneyRule) {
                             (e.resourceName ?: e.contentDescription ?: e.text)?.toString()
                                 ?: "${e.className?.toString()?.substringAfterLast('.')} ${e.boundsInScreen}"
                         } ?: "?"
-                        val line = "$type | ${result.sourceCheckClass.simpleName} | $element | ${result.getMessage(Locale.US)}"
+                        val check = result.sourceCheckClass.simpleName
+                        val line = "$type | $check | $element | ${result.getMessage(Locale.US)}"
+                        if (check == "TouchTargetSizeCheck" && element.startsWith("fst.") && composedFullSize(view, element)) fullSizeTargets += element
                         if (accessibilityFindings.add(line)) Log.w(ATF_TAG, line)
                     }
                 }
@@ -193,6 +240,7 @@ class JourneyHarness(private val rule: JourneyRule) {
                 .also { if (it) labelledTags += tag }
         }
         if (parts.getOrNull(1) != "TouchTargetSizeCheck") return false
+        if (tag in fullSizeTargets) return true
         val min = with(rule.density) { 48.dp.toPx() } - 1
         val nodes = rule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes()
         if (nodes.isNotEmpty() && nodes.all { it.size.height >= min && it.size.width >= min }) return true
@@ -257,10 +305,45 @@ class JourneyHarness(private val rule: JourneyRule) {
     /** Tags whose missing-label finding proved to be a clipped label (resolved while composed). */
     private val labelledTags = mutableSetOf<String>()
 
+    /**
+     * Findings [readingOrder] proved to be clipping artifacts while their nodes were composed: a
+     * row partly under a pinned header or the viewport edge can scroll out of composition before
+     * [assertAccessible] runs (issue #462).
+     */
+    private val clippedFindings = mutableSetOf<String>()
+
+    /**
+     * Tags whose touch-target finding the composed node disproved when ATF recorded it. A
+     * dialog that is moving (IME, growing content) can report a 47 dp sliver of a 48 dp button;
+     * once the dialog closes, [assertAccessible] could no longer measure the node (issue #432).
+     */
+    private val fullSizeTargets = mutableSetOf<String>()
+
+    /**
+     * Whether every composed node tagged [tag] in [view]'s window lays out at least 48 × 48 dp.
+     * Runs on the UI thread inside the ATF callback, so it reads the semantics owners directly.
+     *
+     * @param view View ATF checked.
+     * @param tag Test tag.
+     * @return True when the composed targets are full size.
+     */
+    private fun composedFullSize(view: android.view.View, tag: String): Boolean {
+        val min = 48f * view.resources.displayMetrics.density - 1
+        fun roots(v: android.view.View): List<ViewRootForTest> = when {
+            v is ViewRootForTest -> listOf(v)
+            v is android.view.ViewGroup -> (0 until v.childCount).flatMap { roots(v.getChildAt(it)) }
+            else -> emptyList()
+        }
+        val nodes = roots(view.rootView).flatMap { it.semanticsOwner.getAllSemanticsNodes(mergingEnabled = false) }
+            .filter { it.config.getOrNull(SemanticsProperties.TestTag) == tag }
+        return nodes.isNotEmpty() && nodes.all { it.size.width >= min && it.size.height >= min }
+    }
+
     /** Fail with every ATF error collected during the journey (warnings only log). */
     fun assertAccessible() {
         val errors = accessibilityFindings.filter { finding ->
             finding.startsWith("ERROR") &&
+                finding !in clippedFindings &&
                 !clippedTouchTarget(finding) &&
                 !scrimSliver(finding) &&
                 !(finding.split(" | ").getOrNull(1) == "SpeakableTextPresentCheck" &&
@@ -433,7 +516,7 @@ class JourneyHarness(private val rule: JourneyRule) {
         rule.waitForIdle()
         checkNow()
         // Resolve clipping artifacts while the flagged nodes are still composed.
-        accessibilityFindings.forEach { clippedTouchTarget(it) }
+        accessibilityFindings.forEach { if (it !in clippedFindings && clippedTouchTarget(it)) clippedFindings += it }
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
         // After an in-place change (font scale, issue #397) the node cache can keep the old bounds and labels.
         if ((fresh || talkBackTree) && android.os.Build.VERSION.SDK_INT >= 34) automation.clearCache()
@@ -497,6 +580,115 @@ class JourneyHarness(private val rule: JourneyRule) {
         }
         return labels
     }
+
+    // region Sheet checks (issues #428, #432)
+
+    /**
+     * The node TalkBack reads for [tag] (test tags are exposed as resource ids).
+     *
+     * @param tag Test tag.
+     * @return The visible platform node, or null.
+     */
+    fun accessibilityNode(tag: String): AccessibilityNodeInfo? {
+        fun find(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+            node ?: return null
+            if (node.viewIdResourceName == tag && node.isVisibleToUser) return node
+            for (i in 0 until node.childCount) find(node.getChild(i))?.let { return it }
+            return null
+        }
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        // Compose sends UiAutomation no invalidation for a semantics click, so cached nodes keep the old state.
+        if (android.os.Build.VERSION.SDK_INT >= 34) automation.clearCache()
+        return find(automation.rootInActiveWindow)
+    }
+
+    /**
+     * Assert a 48 × 48 dp touch target as TalkBack and ATF measure it: the platform node's
+     * bounds, which include the 48 dp touch bounds an M3 icon or text button extends around
+     * its smaller drawing.
+     *
+     * @param screen Log name.
+     * @param tag Test tag.
+     */
+    fun assertTouchTarget(screen: String, tag: String) {
+        val min = with(rule.density) { 48.dp.toPx() } - 1
+        var box = android.graphics.Rect()
+        runCatching {
+            rule.waitUntil(5_000) {
+                box = android.graphics.Rect().also { r -> accessibilityNode(tag)?.getBoundsInScreen(r) }
+                box.width() >= min && box.height() >= min
+            }
+        }
+        assertTrue("$screen: $tag is ${box.width()}x${box.height()} px, at least 48 dp", box.width() >= min && box.height() >= min)
+    }
+
+    /**
+     * Assert what TalkBack gets for a switch row: one checkable stop with the Switch role and
+     * its On/Off state, as Compose and the platform tree expose it.
+     *
+     * @param screen Log name.
+     * @param tag Row test tag.
+     * @param on Expected state.
+     */
+    fun assertSwitchStop(screen: String, tag: String, on: Boolean) {
+        rule.onNodeWithTag(tag)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Switch))
+            .assert(SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick))
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ToggleableState, if (on) ToggleableState.On else ToggleableState.Off))
+        runCatching { rule.waitUntil(10_000) { accessibilityNode(tag)?.isChecked == on } }
+        val node = checkNotNull(accessibilityNode(tag)) { "$screen: $tag in the accessibility tree" }
+        assertTrue("$screen: $tag is checkable", node.isCheckable)
+        assertEquals("$screen: $tag checked", on, node.isChecked)
+        assertEquals("$screen: $tag state", if (on) "On" else "Off", node.stateDescription?.toString())
+        // Compose keeps class android.view.View on a row that merges its texts; TalkBack takes
+        // "Switch" from the row's switch descendant (#428 walk: "On. New. … Switch").
+        fun switchRole(n: AccessibilityNodeInfo): Boolean =
+            n.className?.toString()?.endsWith("Switch") == true || AccessibilityNodeInfoCompat.wrap(n).roleDescription?.toString() == "Switch" ||
+                (0 until n.childCount).any { i -> n.getChild(i)?.let(::switchRole) == true }
+        assertTrue("$screen: $tag exposes the Switch role", switchRole(node))
+    }
+
+    /**
+     * Assert that [text] inside the node tagged [container] is laid out at [scale] and
+     * neither clipped, ellipsized nor outside the container. `hasVisualOverflow` re-lays out
+     * at the parent's max width and flags short text, so each line and the paragraph are
+     * compared with the laid-out box instead (`.agents/testing/android-accessibility.md`).
+     *
+     * @param screen Log name.
+     * @param container Test tag of the row or header holding the text.
+     * @param text Visible text.
+     * @param scale Expected font scale.
+     */
+    fun assertTextUnclipped(screen: String, container: String, text: String, scale: Float) {
+        val row = rule.onNodeWithTag(container, useUnmergedTree = true).fetchSemanticsNode().boundsInWindow
+        val label = rule.onAllNodes(hasText(text, substring = false) and hasAnyAncestor(hasTestTag(container)), useUnmergedTree = true)[0]
+        val box = label.fetchSemanticsNode().boundsInWindow
+        assertTrue("$screen: \"$text\" $box inside $container $row", box.left >= row.left - 1 && box.top >= row.top - 1 && box.right <= row.right + 1 && box.bottom <= row.bottom + 1)
+        val layouts = mutableListOf<TextLayoutResult>()
+        label.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        val layout = layouts.single()
+        assertEquals("$screen: \"$text\" laid out at ${scale}x text", scale, layout.layoutInput.density.fontScale, 0.01f)
+        val lines = 0 until layout.lineCount
+        assertFalse("$screen: \"$text\" is wider than its box", lines.any { layout.getLineRight(it) - layout.getLineLeft(it) > layout.size.width + 1 })
+        assertFalse("$screen: \"$text\" is taller than its box", layout.multiParagraph.height > layout.size.height + 1)
+        assertFalse("$screen: \"$text\" is ellipsized", lines.any(layout::isLineEllipsized))
+    }
+
+    /**
+     * Scroll [tag] into view when it sits inside the scrolling [form] and the form overflows
+     * (large text, compact height); otherwise it is already on screen.
+     *
+     * @param form Test tag of the sheet's scrolling form.
+     * @param tag Test tag.
+     */
+    fun reveal(form: String, tag: String) {
+        val inForm = rule.onAllNodes(hasTestTag(tag) and hasAnyAncestor(hasTestTag(form))).fetchSemanticsNodes().isNotEmpty()
+        val scrolls = rule.onNodeWithTag(form).fetchSemanticsNode().config.contains(SemanticsActions.ScrollBy)
+        if (inForm && scrolls) rule.onNodeWithTag(tag).performScrollTo()
+        rule.waitForIdle()
+    }
+
+    // endregion
 
     companion object {
         /** Logcat tag of the reading-order dump. */

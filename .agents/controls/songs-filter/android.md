@@ -51,12 +51,12 @@ Emulator API 37, debug build, live public service with SFentonX selected (keyles
 | `publication-mismatch-paused` | `shopFromAnotherPublicationPausesFilterAndBadges`, plus the view-model copy test above |
 | `player-unavailable` | `unavailableScoresPauseScoreFilters` |
 | `deselected-paused` (now a reset, issue #359) | `deselectionResetsFiltersAndSortLikeTheWeb`, plus `SongsDataTest.deselectionResetsFiltersLikeTheWeb` and `deselectResetKeepsCatalogueSortsAndOnlyFiresWhenAProfileLeaves` |
-| `anonymous-hidden` | `SongsUiTest.anonymousFilterOffersOnlyGeneralFilters`, `anonymousGeneralFilterSurvivesSelectionResetsOnDeselectAndSpeaksItsState`, plus connected `SongsAccessibilityJourneyTest.anonymousFilterShowsOnlyGeneralAndSpeaksItsState` |
+| `anonymous-hidden` | `SongsUiTest.anonymousFilterOffersOnlyGeneralFilters`, `anonymousGeneralFilterSurvivesSelectionResetsOnDeselectAndSpeaksItsState`, plus connected `SongsAccessibilityJourneyTest.anonymousFilterShowsOnlyGeneralAndSpeaksItsState`, and `@DeviceCi` `SongsFilterAccessibilityJourneyTest` (issue #432) |
 | `reset-draft` | `SongsUiTest.selectedPlayerRowsShowChipsShopAccentsAndFilter` |
 | `player-loading-shop-active` | `SongsViewModelTest.selectedPlayerChipsFiltersAndPauses` |
 | `normal-audit`, `focus-return`, hinge | connected `SongsAccessibilityJourneyTest` (FST_Phone; FST_Book_Fold `--posture half`) |
 | compact height | `SongsFilterCompactHeightUiTest` |
-| `largest-text` | emulator at font 2.0, above |
+| `largest-text` | `@DeviceCi` `SongsFilterAccessibilityJourneyTest.anonymousFilterSheetAtDoubleTextKeepsOrderTargetsAndUnclippedText` (issue #432), plus the emulator check at font 2.0 below |
 
 - Not reachable on Android:
   - `discard-confirm`: live apply, with no Cancel/Apply.
@@ -79,4 +79,6 @@ Emulator API 37, debug build, live public service, launched with `FST_DEBUG_ANON
 
 - **Fixed:** the Filter button showed an applied filter by its gold tint only, so TalkBack said just "Filter songs, Button". It now has a state description (see the rule at the top).
 - Connected `SongsAccessibilityJourneyTest.anonymousFilterShowsOnlyGeneralAndSpeaksItsState` passes on FST_Phone and FST_Book_Fold `--posture half` (ATF clean with every General group open, no player sections, nothing straddles the hinge, state "No filters" ⇄ "Filters on: Double Bass"; reading orders logged as `songs-filter-anonymous` / `songs-filtered-anonymous`).
+- **CI accessibility journey (issue #432):** `SongsFilterAccessibilityJourneyTest` is `@DeviceCi`, so the `android-device` check runs it at device text size and at 200% (`@SystemFontScale(2f)`). Without a profile it asserts the following: the Filter button's label, Button role, 48 dp target and "No filters" ⇄ "Filters on: Double Bass" state. The sheet title, **General** and each group header are headings, and the reading order runs title, Close, General, hint, Year, Duration, Item Shop, Double Bass, Reset, with no Score & FC or Selected Instrument stop. Each header is a Collapsed/Expanded button. Select All and Clear All are 48 dp buttons. Every option is one Switch stop with On/Off state, a 48 dp target and an unclipped label, in sheet order. Toggles, bulk actions, close/reopen and Reset keep the speakable state in step with the rows. ATF is clean in every state.
+  - Measure a text button's target with the next row in view: `performScrollTo` leaves its 40 dp layout flush with the viewport edge, which clips the 48 dp touch bounds it extends.
 - Material 3 (`references/component-catalog.md`, icon buttons): "Toggle buttons should have descriptive labels for both states." The earlier deviations (dark only, centred bottom sheet on expanded widths, red Reset) still apply.

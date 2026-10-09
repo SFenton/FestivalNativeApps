@@ -27,7 +27,9 @@ fixture-only pages (a ``fixture`` wrapper or a ``fixture-…`` player).
 
 A page with ``"scan": true`` is always scanned and fails on any Axe error, with or without ``--scan``: a regression
 check whose point is the scan (e.g. an unlabeled Songs section header, issue #282). Errors from every scan in the
-drive count, including ``scan:`` steps a page runs mid-journey.
+drive count, including ``scan:`` steps a page runs mid-journey. A page that opens a flyout may list
+``"axe_allow": ["framework-popup"]`` (``AXE_ALLOW``): WinUI's windowed ``PopupHost`` finding, which can linger after
+the flyout closes (windows-accessibility.md open item 8), then neither counts nor is listed; every other finding does.
 
 Outputs in ``--out``: ``<page>-<size>[-<mode>].png``, ``results.json`` and ``summary.md`` (page × size:
 Axe errors, tab stops, stops outside the app, repeated stops). Exit code 1 when any page failed to load
@@ -300,17 +302,31 @@ def summarize_focus(focus: list[dict]) -> dict:
             "repeats": sum(1 for e in focus if e.get("repeat")), "order": order}
 
 
-def scan_totals(scans: list[dict]) -> tuple[int, list]:
+#: Known framework Axe findings a page may opt out of with ``"axe_allow": [<name>]`` (never app elements).
+AXE_ALLOW = {"framework-popup": uiwin.framework_popup_finding}
+
+
+def scan_totals(scans: list[dict], allow: tuple[str, ...] | list[str] = ()) -> tuple[int, list]:
     """Axe errors and findings over every scan in one drive.
 
     Args:
         scans: The drive's ``scans`` results, in order.
+        allow: ``AXE_ALLOW`` names whose findings neither count nor are listed (a page's ``axe_allow``).
 
     Returns:
-        Total errors and all findings.
+        Total errors and all remaining findings.
+
+    Raises:
+        KeyError: A name is not in ``AXE_ALLOW``.
     """
-    return (sum(int(s.get("errors") or 0) for s in scans),
-            [finding for s in scans for finding in s.get("findings") or []])
+    checks = [AXE_ALLOW[name] for name in allow]
+    errors, findings = 0, []
+    for scan in scans:
+        found = scan.get("findings") or []
+        kept = [f for f in found if not any(check(f) for check in checks)]
+        errors += max(0, int(scan.get("errors") or 0) - (len(found) - len(kept)))
+        findings += kept
+    return errors, findings
 
 
 def scan_failed(record: dict, scan: bool) -> bool:
@@ -462,7 +478,7 @@ def run_size(page: dict, mode: str, size: str, exe: Path, port: int | None, out:
             record["ok"] = True
             scans = result.get("scans") or []
             if scans:
-                record["axe_errors"], record["axe_findings"] = scan_totals(scans)
+                record["axe_errors"], record["axe_findings"] = scan_totals(scans, page.get("axe_allow", ()))
             if "focus" in result:
                 record["focus"] = summarize_focus(result["focus"])
                 record["focus_raw"] = [e["line"] for e in result["focus"]]

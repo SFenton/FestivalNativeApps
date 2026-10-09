@@ -143,7 +143,9 @@ def parse_selector(text: str) -> dict:
 
     Forms: ``id=<AutomationId>``, ``name=<Name>``, ``class=<ClassName>``, ``raw=<AutomationId>`` (searches the
     raw view, for parts a control marks ``AccessibilityView=Raw`` such as a score row's badge text) or
-    ``<x>,<y>`` (window-relative physical pixels, ``click``/``rightclick``/``hover`` only). An ``id=``/``name=``
+    ``<x>,<y>`` (window-relative physical pixels, ``click``/``rightclick``/``hover`` only; physical pixels depend on the
+    display scale, so the driver refuses a click whose point is off the app's own window, and a scale-independent press
+    uses ``clickat`` effective pixels instead, issue #531). An ``id=``/``name=``
     selector may end with ``&class=<ClassName>`` to also match the class, e.g. ``id=1&class=Button`` for a
     system file picker's Open button, which shares AutomationId ``1`` with the picker's first folder.
 
@@ -256,8 +258,9 @@ def parse_step(step: str) -> dict:
     ``setvalue:<sel>|<text>`` writes text through the UIA Value pattern (no keyboard input,
     so it also works while the console session is locked; an empty text clears the field);
     ``scrollto:<selector>,<percent>`` sets a scroller's vertical position through the UIA
-    Scroll pattern and ``reveal:<selector>`` scrolls the target into view (UIA ScrollItem, else
-    stepping its scroller from the top), with no input, so both work while the console is locked;
+    Scroll pattern (a no-op when the content fits and the scroller can't scroll) and ``reveal:<selector>``
+    scrolls the target into view (UIA ScrollItem, else stepping its scroller from the top), with no input,
+    so both work while the console is locked;
     ``assertname:<sel>|<text>`` waits (default 5 s) until the element's UIA Name is exactly the text (each ``*`` matches
     any run of characters, so ``|*<text>`` waits until it ends with the text, for names that start with a local-time date);
     ``assertaligned:<sel>|<sel>`` fails unless both elements' horizontal centres are within 2 px (a column);
@@ -296,9 +299,10 @@ def parse_step(step: str) -> dict:
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
     (``on``/``off``/``indeterminate``), ``enabled`` (``true``/``false``), ``selected`` (UIA SelectionItem
     ``IsSelected``: ``true``/``false``, e.g. a list's current item), ``scroll`` (UIA Scroll pattern vertical percent,
-    rounded: ``0`` is a list back at its top), ``heading`` (UIA heading level ``1``–``9``, ``0`` for none, e.g. a
-    pinned section title), ``name`` or ``value`` (UIA Value, else the selected item's name: what
-    Narrator reads after a combo box's name, e.g. ``Instrument, combo box, Bass``) equals ``<value>``;
+    rounded: ``0`` is a list back at its top), ``heading`` (UIA heading level ``1``-``9``, ``0`` for none: Narrator's
+    H/Shift+H stops, e.g. a pinned section title or one a Quick Links jump lands on), ``name`` or ``value`` (UIA Value,
+    else the selected item's name: what Narrator reads after a combo box's name, e.g. ``Instrument, combo box, Bass``)
+    equals ``<value>``;
     ``pin:<sel>`` records the element's window-relative rectangle and ``assertpinned:<sel>`` (same selector, later in
     the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls;
     ``assertmarquee:<sel>|moving|<epx>`` fails unless the element is at most ``<epx>`` effective pixels high (one line)
@@ -820,6 +824,25 @@ def frame_stats(csv_text: str) -> dict:
     summary = summarize(times)
     return {"frames": len(times), "fps_mean": round(1000.0 / statistics.fmean(times), 1),
             "frame_ms": summary}
+
+
+def framework_popup_finding(finding: dict) -> bool:
+    """Whether an Axe finding is WinUI's own windowed popup host (windows-accessibility.md open item 8).
+
+    A flyout or tooltip popup's ``InputSiteWindowClass`` is exactly the size of its ``PopupHost`` bridge, so Axe reports
+    ``BoundingRectangleCompletelyObscuresContainer`` with no app element involved.
+
+    Args:
+        finding: One ``findings`` entry from a scan.
+
+    Returns:
+        ``True`` only for that framework finding.
+    """
+    element = finding.get("element") or {}
+    parents = finding.get("parents") or []
+    return (finding.get("rule") == "BoundingRectangleCompletelyObscuresContainer"
+            and element.get("ClassName") == "InputSiteWindowClass"
+            and bool(parents) and "PopupWindowSiteBridge" in parents[0])
 
 # endregion
 
