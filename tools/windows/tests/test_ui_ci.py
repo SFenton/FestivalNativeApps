@@ -53,6 +53,23 @@ class UiCiTests(unittest.TestCase):
         self.assertIn("compact", large.sizes.split(","))
         self.assertGreaterEqual(large.tabs, 1)
 
+    def test_songs_filter_runs_at_default_and_largest_text(self):
+        # Issue #432 (#77): the no-profile Filter flyout's accessibility pages run in CI at default and 225% text.
+        runs = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-songs-filter.json"}
+        self.assertEqual({("normal", True), ("text-225", True)}, runs)
+        pages = json.loads((ci.JOURNEYS / "a11y-songs-filter.json").read_text(encoding="utf-8"))
+        names = {page["name"] for page in pages}
+        self.assertTrue({"songs-filter-anonymous", "songs-filter-anonymous-year", "kb-songs-filter-anonymous"} <= names)
+        for page in pages:
+            with self.subTest(page=page["name"]):
+                self.assertNotIn("profile", page)  # no selected player: the General-only drawer
+                steps = page.get("after_ready", [])
+                self.assertTrue(any(s.startswith(("assertread:", "assertfocus:")) for s in steps))
+        steps = [s for page in pages for s in page.get("after_ready", [])]
+        for target in ("fst.songs.filter|", "fst.songs.filter.reset|", "fst.songs.filter.year.select-all|",
+                       "fst.songs.filter.year.clear-all|"):
+            self.assertIn(f"assertsize:id={target}40x40", steps)
+
     def test_argv(self):
         run = ci.Run("x", "a11y-modals.json", sizes="compact", mode="text-225", tabs=30)
         argv = run.argv(Path("C:/out"), "debug")
