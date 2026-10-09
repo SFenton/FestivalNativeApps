@@ -61,6 +61,11 @@ class UiCiTests(unittest.TestCase):
         self.assertIn("compact", large.sizes.split(","))
         self.assertGreaterEqual(large.tabs, 1)
 
+    def test_back_keeps_place_runs_at_default_and_largest_text(self):
+        """#435: the Back-to-cached-page pages (#82) gate pull requests at 100% and 225% text, with an Axe scan."""
+        back = {(run.mode, run.scan, run.only) for run in ci.RUNS if run.pages == "a11y-back-keeps-place.json"}
+        self.assertEqual({("normal", True, ""), ("text-225", True, "")}, back)
+
     def test_settings_pages_wait_for_feedback_rows_before_scrolling(self):
         """#535: the Feedback rows appear above every later Settings section once ``/api/features`` answers, so a target
         scrolled into view before then can be pushed back off screen (``no on-screen element
