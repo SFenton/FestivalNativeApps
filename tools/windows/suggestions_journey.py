@@ -229,9 +229,12 @@ FADE_PHASES = [
                                      "scrollto:id=fst.suggestions.list,0"],
                      lambda events: fade_trace.check_load_then_scroll(events, CARD_LIST, FADE_WINDOW_MS)),
     # Scrolling to the end of the loaded cards generates the next batch: only its new cards fade, from their first.
+    # A slow host may already have generated a batch at the end of load-scroll, so the phase first lets that batch's
+    # window run out (issue #532): every fade it then judges belongs to a batch armed in this phase.
     # A batch's cards fade only when realized within its arm's window, which a busy host can miss when the batch
     # lands beyond the realization cache, so the phase jumps to the end a few times: each jump realizes its batch.
-    fade_trace.Phase("load-more", ["scrollto:id=fst.suggestions.list,0", f"waitfor:{CARD}@10",
+    fade_trace.Phase("load-more", [f"wait:{FADE_WINDOW_MS / 1000 + 0.5}", "scrollto:id=fst.suggestions.list,0",
+                                   f"waitfor:{CARD}@10",
                                    f"scrollinto:{TENTH_CARD}", f"scrollinto:{RIVAL_CARD}@15", f"waitfor:{RIVAL_CARD}@10",
                                    *["scrollto:id=fst.suggestions.list,100", "wait:0.4"] * 3],
                      lambda events: fade_trace.check_batch(events, CARD_LIST)),
