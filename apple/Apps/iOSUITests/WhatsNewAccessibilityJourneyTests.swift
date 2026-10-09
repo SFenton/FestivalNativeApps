@@ -19,14 +19,18 @@ import XCTest
 /// so this journey is the AX5 evidence; `FestivalUITests/WhatsNewAccessibilityTests` covers
 /// names, order and target size in `apple-ci`.
 ///
-/// Needs `tools/mock_service.py --port 18791` (the page behind the cover). Runs in the iPhone
-/// product and, through `project.yml`, the iPad product.
+/// Needs `tools/mock_service.py` (the page behind the cover; `apple-ci` serves it with
+/// `--large-catalogue` on the default port 8765, and `FST_WHATS_NEW_FIXTURE_URL` points a local
+/// run at another port). `apple-ci` runs the portrait journey on its iPhone simulator and both
+/// journeys on its iPad simulator (`testing/apple/xcuitest.md#ci-journeys`); locally it also runs
+/// in the iPad product through `project.yml`. Waits use `FestivalApp.budget(_:)` for the runner.
 ///
 /// HIG Typography: "Keep text truncation to a minimum as font size increases. … Avoid
 /// truncating text in scrollable regions"; HIG Accessibility: "offer text enlargement of at
 /// least 200%" and a 44×44 pt default control size.
 final class WhatsNewAccessibilityJourneyTests: XCTestCase {
-    private static let fixtureService = "http://127.0.0.1:18791"
+    private static let fixtureService = ProcessInfo.processInfo.environment["FST_WHATS_NEW_FIXTURE_URL"]
+        ?? "http://127.0.0.1:8765"
 
     /// The grouped changelog fixture, read by the app from the host file system.
     private static var notesFile: String {
@@ -106,11 +110,12 @@ final class WhatsNewAccessibilityJourneyTests: XCTestCase {
 
         let standard = launch(contentSize: UIContentSizeCategory.large.rawValue)
         assertReadingOrder(standard, size: "default")
+        let standardRegion = listRegion(standard)
         var baseline: [CGFloat] = []
         for index in Self.readingOrder.indices {
             let note = Self.readingOrder[index]
-            let element = try reveal(index, in: standard)
-            let reading = Self.recognize(element)
+            let (element, frame) = reveal(index, in: standard, region: standardRegion)
+            let reading = Self.recognize(element, label: note.text, frame: frame)
             XCTAssertTrue(Self.showsWhole(note.text, in: reading.text),
                           "'\(note.text)' reads back whole at the default size: '\(reading.text ?? "nil")'")
             let height = try XCTUnwrap(reading.lineHeight, "'\(note.text)' recognized at the default size")
@@ -124,16 +129,15 @@ final class WhatsNewAccessibilityJourneyTests: XCTestCase {
         record(app, name: "whats-new-ax5-\(name)")
         assertReadingOrder(app, size: "AX5")
         let window = app.windows.firstMatch.frame
+        let region = listRegion(app)
         var growth: [String] = []
         for (index, note) in Self.readingOrder.enumerated() {
-            let element = try reveal(index, in: app)
-            let frame = element.frame
-            let region = listRegion(app)
+            let (element, frame) = reveal(index, in: app, region: region)
             XCTAssertGreaterThanOrEqual(frame.minY, region.minY - 0.5, "'\(note.text)' under the navigation bar: \(frame) vs \(region)")
             XCTAssertLessThanOrEqual(frame.maxY, region.maxY + 0.5, "'\(note.text)' under the Dismiss bar: \(frame) vs \(region)")
             XCTAssertGreaterThanOrEqual(frame.minX, window.minX - 0.5, "'\(note.text)' cut off at the leading edge: \(frame)")
             XCTAssertLessThanOrEqual(frame.maxX, window.maxX + 0.5, "'\(note.text)' cut off at the trailing edge: \(frame)")
-            let reading = Self.recognize(element)
+            let reading = Self.recognize(element, label: note.text, frame: frame)
             XCTAssertTrue(Self.showsWhole(note.text, in: reading.text),
                           "'\(note.text)' reads back whole at AX5: '\(reading.text ?? "nil")'")
             let height = try XCTUnwrap(reading.lineHeight, "'\(note.text)' recognized at AX5")
@@ -169,7 +173,7 @@ final class WhatsNewAccessibilityJourneyTests: XCTestCase {
         XCTAssertEqual(issues, [], "What's New audit issues at AX5 (\(name))")
 
         dismiss.tap()
-        XCTAssertTrue(dismiss.waitForNonExistence(timeout: 10), "Dismiss closes the cover at AX5")
+        XCTAssertTrue(dismiss.waitForNonExistence(timeout: FestivalApp.budget(10)), "Dismiss closes the cover at AX5")
     }
 
     /// The cover's texts read in page order, each heading with the header trait.
@@ -210,14 +214,16 @@ final class WhatsNewAccessibilityJourneyTests: XCTestCase {
         ])
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", contentSize]
         app.launch()
-        XCTAssertTrue(app.buttons["fst.whats-new.dismiss"].waitForExistence(timeout: 30), "What's New presented")
-        XCTAssertTrue(app.staticTexts[Self.readingOrder[0].text].waitForExistence(timeout: 15),
+        XCTAssertTrue(app.buttons["fst.whats-new.dismiss"].waitForExistence(timeout: FestivalApp.budget(30)), "What's New presented")
+        XCTAssertTrue(app.staticTexts[Self.readingOrder[0].text].waitForExistence(timeout: FestivalApp.budget(15)),
                       "grouped fixture notes loaded from \(Self.notesFile)")
         return app
     }
 
     /// The scrolling list's visible region: below the navigation bar, above the Dismiss bar
-    /// (its button sits 12 pt below the bar's top hairline).
+    /// (its button sits 12 pt below the bar's top hairline). Both bars stay put while the list
+    /// scrolls (`FestivalModal`'s inline title), so a launch measures it once: every query
+    /// snapshots the whole app, page behind the cover included, which a slow runner pays for.
     @MainActor
     private func listRegion(_ app: XCUIApplication) -> CGRect {
         let bar = app.navigationBars.containing(.button, identifier: "fst.whats-new.close").firstMatch.frame
@@ -232,18 +238,17 @@ final class WhatsNewAccessibilityJourneyTests: XCTestCase {
     /// - Parameters:
     ///   - index: Position in ``readingOrder``.
     ///   - app: The launched app.
-    /// - Returns: The note's element.
-    /// - Throws: A missing element.
+    ///   - region: The launch's ``listRegion(_:)``.
+    /// - Returns: The note's element and its frame once revealed (or after the last drag).
     @MainActor
-    private func reveal(_ index: Int, in app: XCUIApplication) throws -> XCUIElement {
+    private func reveal(_ index: Int, in app: XCUIApplication, region: CGRect) -> (XCUIElement, CGRect) {
         let note = Self.readingOrder[index]
         let occurrence = Self.readingOrder[..<index].filter { $0.text == note.text }.count
         let element = app.staticTexts.matching(NSPredicate(format: "label == %@", note.text)).element(boundBy: occurrence)
-        XCTAssertTrue(element.waitForExistence(timeout: 10), "'\(note.text)' exists")
+        // `assertReadingOrder` already found every note in the list, so resolve it once here.
         let origin = app.windows.firstMatch.coordinate(withNormalizedOffset: .zero)
+        var frame = element.frame
         for _ in 0..<16 {
-            let frame = element.frame
-            let region = listRegion(app)
             if frame.minY >= region.minY - 0.5, frame.maxY <= region.maxY + 0.5 { break }
             let step = region.height * 0.6
             let delta = frame.maxY > region.maxY
@@ -252,9 +257,10 @@ final class WhatsNewAccessibilityJourneyTests: XCTestCase {
             let startY = delta < 0 ? region.maxY - 16 : region.minY + 16
             let start = origin.withOffset(CGVector(dx: region.midX, dy: startY))
             let end = origin.withOffset(CGVector(dx: region.midX, dy: startY + delta))
-            start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.3)
+            start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: FestivalApp.budget(0.3))
+            frame = element.frame
         }
-        return element
+        return (element, frame)
     }
 
     // MARK: - Snapshot helpers
@@ -303,25 +309,30 @@ final class WhatsNewAccessibilityJourneyTests: XCTestCase {
     /// Recognize the element's text (upright, or turned when the capture arrives in the
     /// framebuffer's orientation) and measure its recognized line heights.
     ///
-    /// - Parameter element: A static text on screen.
+    /// - Parameters:
+    ///   - element: A static text on screen.
+    ///   - label: Its label (the expected text).
+    ///   - frame: Its frame, in points, at the capture.
     /// - Returns: The best reading (the one that shows the label whole, else the longest);
     ///   a capture taken while the last drag settled is retried.
     @MainActor
-    private static func recognize(_ element: XCUIElement) -> Reading {
-        var reading = recognizeOnce(element)
-        for _ in 0..<2 where !showsWhole(element.label, in: reading.text) || (reading.lineHeight ?? 0) <= 4 {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
-            reading = recognizeOnce(element)
+    private static func recognize(_ element: XCUIElement, label: String, frame: CGRect) -> Reading {
+        var reading = recognizeOnce(element, label: label, frame: frame)
+        for _ in 0..<2 where !showsWhole(label, in: reading.text) || (reading.lineHeight ?? 0) <= 4 {
+            RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(0.5)))
+            reading = recognizeOnce(element, label: label, frame: frame)
         }
         return reading
     }
 
     @MainActor
-    private static func recognizeOnce(_ element: XCUIElement) -> Reading {
+    private static func recognizeOnce(_ element: XCUIElement, label: String, frame: CGRect) -> Reading {
         guard let image = element.screenshot().image.cgImage else { return Reading(text: nil, lineHeight: nil) }
-        let frame = element.frame
         var best = Reading(text: nil, lineHeight: nil)
-        for orientation in [CGImagePropertyOrientation.up, .right, .left] {
+        // A capture in the framebuffer's orientation (iPad landscape) is turned: try that first.
+        let turned = (image.width > image.height) != (frame.width > frame.height)
+        let orientations: [CGImagePropertyOrientation] = turned ? [.right, .left, .up] : [.up, .right, .left]
+        for orientation in orientations {
             let request = VNRecognizeTextRequest()
             request.recognitionLevel = .accurate
             request.usesLanguageCorrection = false
@@ -333,7 +344,7 @@ final class WhatsNewAccessibilityJourneyTests: XCTestCase {
             let text = lines.compactMap { $0.topCandidates(1).first?.string }.joined(separator: " ")
             let heights = lines.map { $0.boundingBox.height * frame.height }.sorted()
             let reading = Reading(text: text, lineHeight: heights[heights.count / 2])
-            if showsWhole(element.label, in: text) { return reading }
+            if showsWhole(label, in: text) { return reading }
             if (best.text?.count ?? -1) < text.count { best = reading }
         }
         return best
