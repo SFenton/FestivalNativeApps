@@ -36,6 +36,10 @@ import com.festivalscoretracker.android.data.HttpRequest
 import com.festivalscoretracker.android.data.HttpResult
 import com.festivalscoretracker.android.data.HttpTransport
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
+import kotlinx.coroutines.runBlocking
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import com.festivalscoretracker.android.core.settings.SettingsRegistry
+import org.junit.Assert.assertFalse
 import com.festivalscoretracker.android.testing.BandFixtures
 import com.festivalscoretracker.android.testing.EmptyRegionAssertions.assertFillsAndCentres
 import com.festivalscoretracker.android.testing.EmptyRegionAssertions.boundsOf
@@ -77,7 +81,9 @@ class BandsUiTest {
 
     private lateinit var container: AppContainer
 
-    private fun launch(route: String, profile: SelectedPlayer? = null) {
+    private fun launch(route: String, profile: SelectedPlayer? = null, experimentalRanks: Boolean = true) {
+        val store = InMemoryPreferences()
+        runBlocking { store.updateData { it.toMutablePreferences().apply { this[booleanPreferencesKey(SettingsRegistry.EXPERIMENTAL_RANKS)] = experimentalRanks } } }
         val debug = DebugLaunch(route = DebugLaunch.parseRoute(route), profile = profile, stillBackground = true)
         val gated = object : HttpTransport {
             override suspend fun send(request: HttpRequest): HttpResult {
@@ -85,7 +91,7 @@ class BandsUiTest {
                 return transport.send(request)
             }
         }
-        container = AppContainer(rule.activity, OkHttpClient(), debug, transport = gated, settingsStore = InMemoryPreferences())
+        container = AppContainer(rule.activity, OkHttpClient(), debug, transport = gated, settingsStore = store)
         rule.setContent { FestivalApp(container, debug) }
         settle()
     }
@@ -325,6 +331,14 @@ class BandsUiTest {
         click("fst.band.song-row.s-alpha")
         waitForTag("fst.nav.back")
         assertTrue(transport.requests.none { it.url.contains("/api/bands/") })
+    }
+
+    @Test
+    fun bandDetailRankByWaitsForExperimentalRanks() {
+        launch(duoRoute, experimentalRanks = false)
+        waitForTag("fst.band.statistics-section")
+        assertFalse(exists("fst.band.rank-by"))
+        rule.onNodeWithTag("fst.band.stat.rank").assert(hasContentDescription("Total Score Rank", substring = true))
     }
 
     @Test

@@ -42,7 +42,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.ui.design.readingGroup
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.AppRoute
+import com.festivalscoretracker.android.core.rankings.RankingMetric
 import com.festivalscoretracker.android.core.rivals.RivalQuickLinks
+import com.festivalscoretracker.android.core.rivals.RivalRankMetric
 import com.festivalscoretracker.android.core.rivals.RivalRoutes
 import com.festivalscoretracker.android.core.rivals.RivalScope
 import com.festivalscoretracker.android.core.rivals.RivalSettingsScope
@@ -63,6 +65,7 @@ import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.rememberRevealed
+import com.festivalscoretracker.android.ui.leaderboards.RankByAction
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -105,6 +108,16 @@ fun RivalsScreen(viewModel: RivalsHubViewModel?, isRoot: Boolean, visibleCount: 
         fadeInWindow = fadeIn,
         actions = {
             if (viewModel != null) {
+                if (tab == RivalsHubTab.Leaderboard) {
+                    // Web RivalsPage: Rank By on the Leaderboard tab only with Experimental Ranks on.
+                    val rankBy by viewModel.rankBy.collectAsStateWithLifecycle()
+                    RankByAction(
+                        selected = RankingMetric.coerce(rankBy.wireId, experimentalRanks = true),
+                        experimentalRanks = viewModel.rankByOptions.size > 1,
+                        onSelect = { metric -> RivalRankMetric.fromWireId(metric.wireId)?.let(viewModel::selectRankBy) },
+                        tagPrefix = "fst.rivals",
+                    )
+                }
                 IconButton(onClick = { findOpen = true }, modifier = Modifier.testTag("fst.rivals.findRival")) {
                     Icon(Icons.Outlined.PersonSearch, contentDescription = RivalText.FIND_RIVAL)
                 }
