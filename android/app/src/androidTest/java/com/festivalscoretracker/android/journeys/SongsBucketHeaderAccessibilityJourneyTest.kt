@@ -48,10 +48,11 @@ import org.junit.runner.RunWith
  * journeys pin that it changed nothing TalkBack sees: ATF stays clean at rest, pinned and with two
  * headers on screen; each header is one heading stop with its spoken label, read before its own
  * rows and after the previous section's; text at 200% grows unclipped in the same order; and the
- * app's Reduce Transparency keeps rows out from behind the pinned title. The section push (issue
- * #288; test backfill, issue #452): while the next header slides through the edge band and pushes
- * the pinned one out, both ways, with the fade, at 200% text and with the hard cut each R7 setting
- * forces on its own (the app's Reduce Transparency, the app's Reduce Motion, the system's Remove
+ * app's Reduce Transparency, Increase Contrast and Reduce Motion (the scroll-edge R7 hard cut,
+ * #308, #462) keep rows out from behind the pinned title. The section push (issue #288; test
+ * backfill, issue #452): while the next header slides through the edge band and pushes the pinned
+ * one out, both ways, with the fade, at 200% text and with the hard cut each R7 setting forces on
+ * its own (the app's Reduce Transparency, the app's Reduce Motion, the system's Remove
  * animations), both stay opaque headings that TalkBack reads once each, in order, and with the hard
  * cut no row shows behind the pinned title afterwards. Fixture-only
  * ([BucketHeaderFixtures]); `device.py test com.festivalscoretracker.android.journeys.SongsBucketHeaderAccessibilityJourneyTest --avd FST_Phone`.
@@ -71,17 +72,18 @@ class SongsBucketHeaderAccessibilityJourneyTest {
      *
      * @param sort Saved sort mode (`Duration`, `Year`, …).
      * @param fontScale Font scale provider, or `null` for the device's.
-     * @param lessTransparency The app's Reduce Transparency setting.
-     * @param lessMotion The app's Reduce Motion setting.
+     * @param hardEdge The app's hard-edge setting to turn on (Reduce Transparency, Increase
+     *   Contrast or Reduce Motion; scroll-edge R7), or null.
      * @return The app's settings store, to change a setting live.
      */
-    private fun launch(sort: String, fontScale: (() -> Float)? = null, lessTransparency: Boolean = false, lessMotion: Boolean = false): MemoryPreferences {
+    private fun launch(sort: String, fontScale: (() -> Float)? = null, hardEdge: String? = null): MemoryPreferences {
         val preferences = mutablePreferencesOf(stringPreferencesKey(SettingsRegistry.SONG_SORT) to sort)
-        if (lessTransparency) preferences[booleanPreferencesKey(SettingsRegistry.REDUCE_TRANSPARENCY)] = true
-        if (lessMotion) preferences[booleanPreferencesKey(SettingsRegistry.REDUCE_MOTION)] = true
+        if (hardEdge != null) preferences[booleanPreferencesKey(hardEdge)] = true
         val store = MemoryPreferences(preferences)
         h.launch(DebugLaunch(stillBackground = true), BucketHeaderFixtures.transport(), store, fontScale)
         h.waitForTag("fst.songs.row.s-0")
+        // From here readingOrder follows Compose's traversal links: TalkBack's order, not tree order.
+        h.publishTalkBackTree()
         return store
     }
 
@@ -160,10 +162,12 @@ class SongsBucketHeaderAccessibilityJourneyTest {
      *
      * TalkBack reads the list's stops in on-screen order: a real `talkback_walk.py` walk of
      * Duration on FST_Phone (live service, 2026-10-08) read "Under 1 Minute. Heading", its rows,
-     * then "1 to 2 minutes. Heading" and its rows. [JourneyHarness.readingOrder] walks the raw tree,
-     * where a `LazyColumn` places sticky headers after its items, so the stops are ordered by their
-     * shown top here. A row's shown top is clipped to the pinned header's bottom edge, because
-     * rows above that edge are hidden. A row wholly behind the pinned header is skipped.
+     * then "1 to 2 minutes. Heading" and its rows. Both orders are checked: the stops ordered by
+     * their shown top, and the same stops' positions in [JourneyHarness.readingOrder], which
+     * [launch] made TalkBack's linear order ([JourneyHarness.publishTalkBackTree]; the raw tree
+     * places a `LazyColumn`'s sticky headers after its items). A row's shown top is clipped to the
+     * pinned header's bottom edge, because rows above that edge are hidden. A row wholly behind
+     * the pinned header is skipped.
      * Fixture song `s-n` (title "Song n") is in section `n / 10`, and sections follow [tokens].
      *
      * @param screen Reading-order log name.
@@ -184,7 +188,7 @@ class SongsBucketHeaderAccessibilityJourneyTest {
             val spoken = node.config[SemanticsProperties.ContentDescription].joinToString(", ")
             val read = labels.filter { it == spoken || it.startsWith("$spoken, ") }
             assertEquals("$screen: \"$spoken\" is one TalkBack stop in $labels", 1, read.size)
-            stops += Stop(node.boundsInRoot.top, section, spoken)
+            stops += Stop(node.boundsInRoot.top, section, spoken, labels.indexOf(read.single()))
         }
         val pinnedBottom = shown.filter { abs(it.boundsInRoot.top - list.top) <= rule.density.density * 2 }
             .maxOfOrNull { it.boundsInRoot.bottom } ?: list.top
@@ -193,8 +197,9 @@ class SongsBucketHeaderAccessibilityJourneyTest {
             val song = row.config[SemanticsProperties.TestTag].substringAfterLast("s-").toInt()
             val top = maxOf(bounds.top, pinnedBottom)
             if (top >= minOf(bounds.bottom, list.bottom)) return@forEach
-            assertTrue("$screen: song $song (shown ${top}..${minOf(bounds.bottom, list.bottom)} of list ${list.top}..${list.bottom}) is read: $labels", labels.any { ROW_TITLE.find(it)?.groupValues?.get(1)?.toInt() == song })
-            stops += Stop(top, song / BucketHeaderFixtures.SECTION_SIZE, null)
+            val spoken = labels.indexOfFirst { ROW_TITLE.find(it)?.groupValues?.get(1)?.toInt() == song }
+            assertTrue("$screen: song $song is read: $labels", spoken >= 0)
+            stops += Stop(top, song / BucketHeaderFixtures.SECTION_SIZE, null, spoken)
         }
         val order = stops.sortedWith(compareBy<Stop> { it.top }.thenBy { it.heading == null })
         assertTrue("$screen: rows are read: $labels", order.any { it.heading == null })
@@ -203,12 +208,23 @@ class SongsBucketHeaderAccessibilityJourneyTest {
             val headerAt = { section: Int -> order.indexOfFirst { it.heading != null && it.section == section } }
             headerAt(stop.section).takeIf { it >= 0 }?.let { assertTrue("$screen: section ${stop.section}'s header precedes its rows: $order", it < position) }
             headerAt(stop.section + 1).takeIf { it >= 0 }?.let { assertTrue("$screen: the next header follows section ${stop.section}'s rows: $order", it > position) }
+            // The same in TalkBack's linear order.
+            val spokenAt = { section: Int -> order.firstOrNull { it.heading != null && it.section == section }?.spoken }
+            spokenAt(stop.section)?.let { assertTrue("$screen: TalkBack reads section ${stop.section}'s header before its rows: $labels", it < stop.spoken) }
+            spokenAt(stop.section + 1)?.let { assertTrue("$screen: TalkBack reads the next header after section ${stop.section}'s rows: $labels", it > stop.spoken) }
         }
         return order.mapNotNull { it.heading }
     }
 
-    /** One list stop: its shown top, section and, for a header, its spoken label. */
-    private data class Stop(val top: Float, val section: Int, val heading: String?)
+    /**
+     * One list stop.
+     *
+     * @property top Shown top in root px.
+     * @property section Section index.
+     * @property heading Spoken label, for a header.
+     * @property spoken Position in TalkBack's linear order.
+     */
+    private data class Stop(val top: Float, val section: Int, val heading: String?, val spoken: Int)
 
     private val isSongRow = SemanticsMatcher("Songs row") {
         it.config.getOrNull(SemanticsProperties.TestTag).orEmpty().startsWith(ROW_PREFIX) && isLive(it)
@@ -473,14 +489,35 @@ class SongsBucketHeaderAccessibilityJourneyTest {
      * behind it, is still a heading read before its rows, and ATF stays clean.
      */
     @Test
-    fun reduceTransparencyKeepsRowsOutFromBehindThePinnedHeading() {
+    fun reduceTransparencyKeepsRowsOutFromBehindThePinnedHeading() =
+        hardEdgeKeepsRowsOutFromBehindThePinnedHeading("Reduce Transparency", "songs-duration-less-transparency", SettingsRegistry.REDUCE_TRANSPARENCY)
+
+    /** The app's Increase Contrast: the same hard cut as Reduce Transparency (scroll-edge R7, #308). */
+    @Test
+    fun increaseContrastKeepsRowsOutFromBehindThePinnedHeading() =
+        hardEdgeKeepsRowsOutFromBehindThePinnedHeading("Increase Contrast", "songs-duration-more-contrast", SettingsRegistry.INCREASE_CONTRAST)
+
+    /** The app's Reduce Motion: the same hard cut, so no ramp grows while scrolling (scroll-edge R7, #308). */
+    @Test
+    fun reduceMotionKeepsRowsOutFromBehindThePinnedHeading() =
+        hardEdgeKeepsRowsOutFromBehindThePinnedHeading("Reduce Motion", "songs-duration-reduce-motion", SettingsRegistry.REDUCE_MOTION)
+
+    /**
+     * One hard-edge setting: the pinned title stays bare with no row behind it, is still a
+     * heading read before its rows, and ATF stays clean.
+     *
+     * @param what Setting name for failure messages.
+     * @param screen Reading-order log name.
+     * @param setting Settings key turned on.
+     */
+    private fun hardEdgeKeepsRowsOutFromBehindThePinnedHeading(what: String, screen: String, setting: String) {
         h.enableAccessibilityChecks()
-        launch("Duration", lessTransparency = true)
+        launch("Duration", hardEdge = setting)
         h.waitForTag("$HEADER_PREFIX$DURATION.1to2")
         scrollTo(5)
-        assertPinnedHeaderBare("Reduce Transparency pinned")
-        assertHeadersAreHeadings("Reduce Transparency pinned")
-        assertHeadersLeadTheirRows("songs-duration-less-transparency", DURATION_TOKENS)
+        assertPinnedHeaderBare("$what pinned")
+        assertHeadersAreHeadings("$what pinned")
+        assertHeadersLeadTheirRows(screen, DURATION_TOKENS)
         h.assertAccessible()
     }
 
@@ -510,7 +547,7 @@ class SongsBucketHeaderAccessibilityJourneyTest {
     @Test
     fun reduceTransparencyPushKeepsBothHeadingsOpaqueAndInOrder() = withAnimatorScale("1") {
         h.enableAccessibilityChecks()
-        val store = launch("Duration", lessTransparency = true)
+        val store = launch("Duration", hardEdge = SettingsRegistry.REDUCE_TRANSPARENCY)
         assertHardEdgePushIsAccessible(
             "songs-duration-hard",
             release = { store.set(SettingsRegistry.REDUCE_TRANSPARENCY, false) },
@@ -525,7 +562,7 @@ class SongsBucketHeaderAccessibilityJourneyTest {
     @Test
     fun reduceMotionPushKeepsBothHeadingsOpaqueAndInOrder() = withAnimatorScale("1") {
         h.enableAccessibilityChecks()
-        val store = launch("Duration", lessMotion = true)
+        val store = launch("Duration", hardEdge = SettingsRegistry.REDUCE_MOTION)
         assertHardEdgePushIsAccessible(
             "songs-duration-reduce-motion",
             release = { store.set(SettingsRegistry.REDUCE_MOTION, false) },
