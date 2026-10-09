@@ -181,6 +181,25 @@ class UiCiTests(unittest.TestCase):
                        "fst.songs.filter.year.clear-all|"):
             self.assertIn(f"assertsize:id={target}40x40", steps)
 
+    def test_experimental_ranks_runs_at_default_and_largest_text(self):
+        """#541: the Experimental Ranks toggle and the Rank By gate it drives gate pull requests at 100% and 225% text."""
+        runs = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-experimental-ranks.json"}
+        self.assertEqual({("normal", True), ("text-225", True)}, runs)
+        pages = {page["name"]: page for page in json.loads(
+            (ci.JOURNEYS / "a11y-experimental-ranks.json").read_text(encoding="utf-8"))}
+        toggle = pages["xr-settings-toggle"]
+        self.assertNotIn("settings", toggle)  # the default: off
+        steps = toggle["after_ready"]
+        self.assertIn("assertstate:id=fst.settings.experimental-ranks|toggle=off", steps)
+        self.assertIn("assertstate:id=fst.settings.experimental-ranks|enabled=true", steps)
+        self.assertEqual("waitgone:id=fst.rankings.rank-by-menu@10", steps[-1])
+        for name in ("xr-leaderboards-off", "xr-full-rankings-off", "xr-band-rankings-off"):
+            with self.subTest(page=name):
+                self.assertFalse(pages[name].get("settings", {}).get("experimentalRanks", False))
+                self.assertTrue(any(s.startswith("waitgone:") and "rank-by-menu" in s
+                                    for s in pages[name]["after_ready"]))
+        self.assertTrue(pages["xr-leaderboards-on"]["settings"]["experimentalRanks"])
+
     def test_shop_filter_runs_at_default_and_largest_text(self):
         # Issue #428 (#19): the Item Shop Filters flyout's accessibility pages gate pull requests at default and 225% text.
         runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-shop-filter.json"}

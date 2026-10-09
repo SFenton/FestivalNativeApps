@@ -28,6 +28,51 @@ public sealed record ServiceBarProgress(
     string Identity, string? Id, double Sequence, ServiceBarKind Kind, double? Percent,
     string? UnitsKind, double? UnitsCompleted, double? UnitsTotal);
 
+/// <summary>
+/// How the Service Info phase bar draws, published as the raw-view bar's UIA ItemStatus for UI tests (Narrator never
+/// reads the bar; the phase row speaks the progress). An unknown total sweeps like the web's <c>.progressIndeterminate</c>
+/// bar while motion is allowed, and holds a still, empty track under reduced motion or while the window is hidden, as on
+/// Apple and Android (issue #556).
+/// </summary>
+public static class ServiceBarStatus
+{
+    /// <summary>No bar (not updating, or a subphase without one).</summary>
+    public const string Hidden = "hidden";
+
+    /// <summary>Known percent: the determinate fill.</summary>
+    public const string Determinate = "determinate";
+
+    /// <summary>Unknown total with motion allowed: the indeterminate sweep.</summary>
+    public const string Sweeping = "sweeping";
+
+    /// <summary>Unknown total under reduced motion: a still, empty track (never a frozen segment).</summary>
+    public const string Still = "still";
+
+    /// <summary>
+    /// Unknown total while the window is hidden (minimized, covered or locked): the same still track; <c>not-visible</c>
+    /// lets UI tests read it without bringing the window forward (the artwork backdrop's precedent).
+    /// </summary>
+    public const string Held = "held not-visible";
+
+    /// <summary>Whether the bar runs its indeterminate sweep.</summary>
+    /// <param name="hasBar">The bar shows.</param>
+    /// <param name="indeterminate">The total is unknown.</param>
+    /// <param name="motionAllowed">Decorative motion may run (system Animation effects, in-app and launch Reduce Motion).</param>
+    /// <param name="windowVisible">The window can be seen (looping motion holds while it is hidden).</param>
+    /// <returns><see langword="true"/> only for a shown, indeterminate bar with motion allowed in a visible window.</returns>
+    public static bool Sweeps(bool hasBar, bool indeterminate, bool motionAllowed, bool windowVisible = true) =>
+        hasBar && indeterminate && motionAllowed && windowVisible;
+
+    /// <summary>The bar's ItemStatus.</summary>
+    /// <param name="hasBar">The bar shows.</param>
+    /// <param name="indeterminate">The total is unknown.</param>
+    /// <param name="motionAllowed">Decorative motion may run.</param>
+    /// <param name="windowVisible">The window can be seen.</param>
+    /// <returns><see cref="Hidden"/>, <see cref="Determinate"/>, <see cref="Sweeping"/>, <see cref="Still"/> or <see cref="Held"/>.</returns>
+    public static string Resolve(bool hasBar, bool indeterminate, bool motionAllowed, bool windowVisible = true) =>
+        !hasBar ? Hidden : !indeterminate ? Determinate : !motionAllowed ? Still : windowVisible ? Sweeping : Held;
+}
+
 /// <summary>Validated band discovery attempt counts (web <c>ServiceAttemptProgress</c>).</summary>
 /// <param name="AttemptedThisPass">Accounts attempted in this pass.</param>
 /// <param name="RetryableUnavailableThisPass">Attempted accounts that were temporarily unavailable (never more than attempted).</param>
