@@ -260,7 +260,7 @@
       "title": "Section-jump landing",
       "status": "current",
       "doc": ".agents/patterns/section-jump-landing.md",
-      "summary": "Quick Links and Songs section-index jumps land ordinary targets 32 units below chrome, keep the target current through arrival, and land pinned Songs titles at their pin line with the first row clear; a section index fits the height it is given, condensing its labels rather than growing the page.",
+      "summary": "Quick Links and Songs section-index jumps land ordinary targets 32 units below chrome, keep the target current through arrival, and land pinned Songs titles at their pin line with the first row clear; a section index fits the height it is given, condensing its labels rather than growing the page, and its labels follow the text size within that fit.",
       "keywords": [
         "quick links",
         "section jump",
@@ -1081,6 +1081,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
             "symbol": "coveredByModal"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
+            "symbol": "FestivalModalBody"
           }
         ],
         "windows": [
@@ -2181,7 +2185,8 @@
         15,
         286,
         303,
-        313
+        313,
+        545
       ]
     },
     {
@@ -3500,7 +3505,7 @@
       "title": "Experimental ranks",
       "status": "current",
       "doc": ".agents/patterns/experimental-ranks.md",
-      "summary": "The Settings 'Enable Experimental Leaderboard Ranks' switch (off by default, Reset turns it off) is the one gate for experimental ranking metrics: off means Total Score only everywhere (Rank By withdrawn in-page, Mac View > Rank By lists only Total Score); on offers Adjusted, Weighted, FC Rate and Max Score (bands without Max Score). Saved or deep-linked metrics are coerced at read time, never rewritten; notifications use the web's experimental-rank projection (#541).",
+      "summary": "Settings → Enable Experimental Leaderboard Ranks (off by default, reset by Reset) is the one gate for the experimental ranking metrics app-wide like the web: while off, Rank By offers Total Score only and is hidden in-page (the Mac View › Rank By submenu lists only Total Score); saved, routed and selected metrics are coerced to Total Score at read time, never rewritten; turning it off returns open pages to Total Score; on offers Adjusted, Weighted, FC Rate and Max Score (bands without Max Score); Rivals Rank By, profile rank tiles, rank notifications (web projection) and the first-run slide follow it (#541).",
       "keywords": [
         "experimental ranks",
         "experimental leaderboard ranks",
@@ -3514,7 +3519,8 @@
         "total score",
         "coerceRankingMetric",
         "enableExperimentalRanks",
-        "rank notification"
+        "rank notification",
+        "coerce"
       ],
       "web": [
         {
@@ -3572,11 +3578,39 @@
             "path": "apple/Sources/FestivalUI/Features/Settings/SettingsScreen.swift",
             "symbol": "experimentalRanksRow"
           }
-        ]
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/Rankings.kt",
+            "symbol": "RankingMetric"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/bands/BandTypes.kt",
+            "symbol": "BandRankingMetric"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rivals/RivalScope.kt",
+            "symbol": "RivalScopes"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsComponents.kt",
+            "symbol": "RankByAction"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsComponents.kt",
+            "symbol": "BandRankByAction"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/notifications/Notifications.kt",
+            "symbol": "projectExperimentalRanks"
+          }
+        ],
+        "windows": []
       },
       "related": {
         "patterns": [
-          "page-tools-and-nav-chrome"
+          "page-tools-and-nav-chrome",
+          "leaderboard-row"
         ],
         "pages": [
           "settings",
@@ -3587,17 +3621,28 @@
           "rivals",
           "all-rivals",
           "rival-detail",
-          "rivalry"
+          "rivalry",
+          "player-profile"
         ]
       },
       "guards": [
+        {
+          "id": "android-metric-menus",
+          "glob": "android/app/src/main/java/com/festivalscoretracker/android/ui/**/*.kt",
+          "regex": "(RankingMetric|BandRankingMetric|RivalRankMetric)\\.entries",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/firstrun/FirstRunRotatingDemos.kt"
+          ],
+          "debt": [],
+          "message": "Rank By menus and metric lists offer RankingMetric.enabled / BandRankingMetric.enabled (or a view model's gated options), never every metric, so Settings → Experimental Ranks gates them (experimental-ranks R1)."
+        },
         {
           "id": "apple-ungated-metric-list",
           "glob": "apple/Sources/FestivalUI/**/*.swift",
           "regex": "\\b(?:RankingMetric|BandRankingMetric|RivalRankMetric)\\.allCases\\b",
           "allow": [],
           "debt": [],
-          "message": "Rank By choices come from the experimental-ranks gate (RankingMetric.enabled(experimentalRanks:), BandRankingMetric.enabled, RivalRankMetric.enabled); never list allCases in UI (experimental-ranks R2)."
+          "message": "Rank By choices come from the experimental-ranks gate (RankingMetric.enabled(experimentalRanks:), BandRankingMetric.enabled, RivalRankMetric.enabled); never list allCases in UI (experimental-ranks R1)."
         }
       ],
       "supersedes": [],
