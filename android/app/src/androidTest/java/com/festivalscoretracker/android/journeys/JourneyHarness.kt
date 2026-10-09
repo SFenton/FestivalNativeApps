@@ -92,7 +92,9 @@ class JourneyHarness(private val rule: JourneyRule) {
      * @param preferences Settings store.
      * @param fontScale Font scale to render the app at, read in composition so a test can switch
      *   it in place (backed by snapshot state); `null` keeps the device's own. Modals opened
-     *   after a switch (sheets and dialogs are separate windows) render at it too.
+     *   after a switch (sheets and dialogs are separate windows) render at it too. The
+     *   activity's original scale comes back when the activity is destroyed at the end of the
+     *   test, so a journey that ends at 200% does not leak it into the next test's activity.
      */
     fun launch(
         debug: DebugLaunch,
@@ -124,26 +126,26 @@ class JourneyHarness(private val rule: JourneyRule) {
      * away. Call after [launch]; from then on [readingOrder] is TalkBack's linear order and
      * reads a fresh tree. UiAutomation connects first: a forced view sends events, and the
      * platform throws "Accessibility off" for any sent before the app's AccessibilityManager is on.
-     * Dialogs and bottom sheets compose in their own windows, opened later, so [readingOrder]
-     * forces those too (API 29+, where the app's windows can be listed) before each read.
+     * A `Dialog` or `ModalBottomSheet` composes in its own window (API 29+: every window of the
+     * process is covered), and one opened later is published by the next [readingOrder].
      */
     fun publishTalkBackTree() {
         InstrumentationRegistry.getInstrumentation().uiAutomation
         val manager = rule.activity.getSystemService(android.view.accessibility.AccessibilityManager::class.java)
         rule.waitUntil(10_000) { manager.isEnabled }
         rule.waitForIdle()
-        assertTrue("no Compose view to publish", forceTalkBackPublishing() > 0)
+        assertTrue("no Compose view to publish", forceComposeRoots() > 0)
         talkBackTree = true
         rule.waitForIdle()
     }
 
     /**
-     * Force every Compose view in the activity's and the app's other windows (dialogs, sheets)
-     * to publish its TalkBack tree.
+     * Force TalkBack publishing on every Compose root in the activity's window and, on API 29+,
+     * in every other window of the process (modal dialogs and sheets).
      *
-     * @return How many Compose views were found.
+     * @return Number of Compose roots found.
      */
-    private fun forceTalkBackPublishing(): Int {
+    private fun forceComposeRoots(): Int {
         var count = 0
         rule.runOnUiThread {
             fun roots(view: android.view.View): List<ViewRootForTest> = when {
@@ -152,16 +154,20 @@ class JourneyHarness(private val rule: JourneyRule) {
                 else -> emptyList()
             }
             val windows = if (android.os.Build.VERSION.SDK_INT >= 29) {
-                android.view.inspector.WindowInspector.getGlobalWindowViews()
+                (android.view.inspector.WindowInspector.getGlobalWindowViews() + rule.activity.window.decorView).distinct()
             } else {
                 listOf(rule.activity.window.decorView)
             }
-            val found = (windows + rule.activity.window.decorView).distinct().flatMap(::roots)
+            val found = windows.flatMap { roots(it) }
             found.forEach { it.forceAccessibilityForTesting(true) }
             count = found.size
         }
         return count
     }
+
+    /** Traversal links the last [readingOrder] followed (0: it fell back to tree order). */
+    var lastReadingLinks = 0
+        private set
 
     /**
      * Give modal windows [scale]. `DeviceConfigurationOverride` stops at a window boundary: a
@@ -552,8 +558,12 @@ class JourneyHarness(private val rule: JourneyRule) {
      * @return Labels in reading order.
      */
     fun readingOrder(screen: String, fresh: Boolean = false): List<String> {
-        if (talkBackTree) forceTalkBackPublishing()
         rule.waitForIdle()
+        // A modal opened since publishTalkBackTree has its own, unpublished Compose root.
+        if (talkBackTree) {
+            forceComposeRoots()
+            rule.waitForIdle()
+        }
         checkNow()
         // Resolve clipping artifacts while the flagged nodes are still composed.
         accessibilityFindings.forEach { if (it !in clippedFindings && clippedTouchTarget(it)) clippedFindings += it }
@@ -580,6 +590,7 @@ class JourneyHarness(private val rule: JourneyRule) {
             nodes[i].traversalAfter?.let { nodes.indexOf(it) }?.takeIf { it >= 0 }?.let { next.putIfAbsent(it, i) }
         }
         Log.i(READING_ORDER_TAG, "$screen | links ${next.size} of ${nodes.size} nodes")
+        lastReadingLinks = next.size
         val targets = next.values.toSet()
         val order = mutableListOf<Int>()
         val seen = BooleanArray(nodes.size)
