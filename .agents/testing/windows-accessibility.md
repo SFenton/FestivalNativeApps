@@ -104,6 +104,8 @@ Scope: the What's New dialog only. Results per configuration are in [whats-new/w
 
 Fixed: the notes scroller was not a tab stop, so the keyboard could not scroll long notes. It now opens focused and is named after the title. Dismiss and the headings gained automation IDs. Backdrop-click journeys need an unlocked console (`journeys/whats-new-pointer.json`; they aim with epx `clickat:` since issue #531).
 
+Issue #434 (2026-10-08): the `windows-ui` CI job runs `a11y-whats-new.json` (`tools/windows/ui_ci.py` runs `whats-new` at compact/medium and `whats-new-text-225` at compact). The grouped tester and store pages assert heading levels (`assertstate` `heading=2`, `3` or `0` for none), reading order from the version heading through the category headings and bullets to Dismiss, the Raw bullet glyph and a 40×40 Dismiss ([whats-new/windows.md](../controls/whats-new/windows.md#validation-issue-434-2026-10-08-80s-grouped-notes-in-ci)).
+
 ## Notifications validation (issue #229, 2026-10-04)
 
 Scope: the title-bar bell and flyout only. Results per configuration are in [notifications/windows.md](../controls/notifications/windows.md#validation-issue-229-2026-10-04). `a11y_matrix.py --scan --pages journeys/a11y-notifications.json --fixture notifications_fixture.py` gave 0 Axe errors for loaded, empty, not generated and failed at compact, medium and wide. Loaded also gave 0 at maximized and snap-left, and loaded and failed gave 0 at medium under Desert, Night sky, light and dark system theme, text 200% and display 100% and 150%. At text 200% the loaded and scrolled-to-end pages also gave 0 at compact. No run had focus leaving the window. The keyboard pages `kb-notifications-rows` and `kb-notifications-esc` pass at all three sizes, and `notifications_journey.py` drives every reachable state. Scanning after Esc (focus back on the bell, tooltip open) shows only open item 8.
@@ -438,6 +440,30 @@ Fixed: Feedback field hints were a `TextBox.Description` that clipped at compact
 | Text 200% (compact, all 11 pages) | Pass, Axe 0. Probes in the scrolled Feedback body first `scrollinto` the control |
 
 Fixed (test only): the First Run page still asserted the template `CloseButton` ID, but #244 gave that Close `fst.first-run.close`. No app defect was found.
+
+## Song leaderboard accessibility tests (issue #443, 2026-10-08)
+
+Backfills CI tests for the #93 Windows change (rows fade above the floating pinned row and pager; paging keeps the header, pinned row and pager). New `journeys/a11y-song-leaderboard.json` (fixture `--song-leaderboard-paging`, Fixture Player 1 selected) and the song-board pages of `a11y-board-footer-fade.json` are now `windows-ui` runs in `tools/windows/ui_ci.py`. They assert:
+- the pinned row's and pager's Narrator phrases and states: "Your rank, 1st. Open your statistics. …, button", "First page, button, unavailable", "Page 1 of 4, text", then "Page 2 of 4, text", "Previous page, button" and "Your rank, 1st. Jump to your position. …" after a page change;
+- the four pager buttons and the pinned row are at least 40×40 epx, and the pinned row doesn't overlap the pager;
+- the reading order is header → rows → pinned row → First → Previous → page text → Next → Last, and it holds while the next page loads, with the rows gone and the ring named "Loading leaderboard";
+- the keyboard (Tab) order, separately from the reading order, with `key:tab` / `key:shift+tab` and `assertfocus` at each stop (`song-board-paging-keyboard`, added after the design review of #505):
+  - page 1 at rest: header → first row → pinned row → Next → Last (First and Previous are disabled), and back to the header through a row;
+  - while the next page loads: Shift+Tab goes from Next to the pinned row and then the header, with no row or disabled First/Previous in between, and Tab returns to Next. These steps run before the ring's "Loading leaderboard" read, so they can only pass mid-load;
+  - page 2: from Next, Shift+Tab reaches Previous → First → pinned row → a row → header, and Tab walks back through every pager button to Last;
+- a keyboard page change (Enter on Next, focused directly so it stays a separate check) keeps focus on Next during and after the load;
+- the footer-fade layer is out of the control view but fades rows over 40 epx, with a hard edge under More Contrast and Less Transparency.
+
+Every page is Axe-scanned. `song-board-footer` and the footer-fade pages also get the dispatcher's 30-press Tab walk (no stop outside the window, no repeat). `song-board-paging-keyboard` sets `tabs: 0` because the ordered traversal above replaces that walk. The paging page ends by focusing the header: the keyboard tooltip on a pager button ("Next page (Ctrl+Right)") otherwise leaves a `PopupHost` input site that Axe reports as `BoundingRectangleCompletelyObscuresContainer` (open item 8, a framework finding). `tests/test_song_leaderboard_a11y_journey.py` pins the checks, the traversal and the runs.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (`song-leaderboard`, both pages) | Pass, Axe 0. The `song-board-footer` Tab walk makes 10–12 stops (title bar, header, list, pinned row, enabled pager buttons, Back), none outside the window or repeated. The ordered traversal passes at rest, mid-load and on page 2 |
+| Text 225% (compact, both pages) | Pass, Axe 0, traversal included |
+| In-app Reduce Motion (medium, paging) | Pass, Axe 0, traversal included |
+| Footer fade rest, mid, end, More Contrast, Less Transparency (compact, medium; compact at 225%) | Pass, Axe 0 |
+
+No accessibility defect was found.
 
 ## Songs Filter without a profile (issue #432, 2026-10-08)
 
