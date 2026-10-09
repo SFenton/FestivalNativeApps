@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.journeys
 
 import android.app.UiAutomation
 import android.os.ParcelFileDescriptor
+import android.os.SystemClock
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
@@ -53,9 +54,11 @@ private const val UNREAD_FEED = """{"sourceRunId":3,"items":[
 abstract class ShellHitTargetJourney(rotation: Int?) {
     val rule = createAndroidComposeRule<ComponentActivity>()
 
-    /** Rotates before the activity launches (within `device.py test`'s lock hold) and restores after. */
+    private val turn = DisplayRotation(rotation)
+
+    /** Rotates around the activity (within `device.py test`'s lock hold) and restores after. */
     @get:Rule
-    val chain: RuleChain = RuleChain.outerRule(DisplayRotation(rotation)).around(rule)
+    val chain: RuleChain = RuleChain.outerRule(turn).around(rule)
 
     private val h = JourneyHarness(rule)
     private val probe = ShellHitTargets(rule)
@@ -71,6 +74,7 @@ abstract class ShellHitTargetJourney(rotation: Int?) {
      * @param fontScale Text scale applied over the device's own (200 % checks large text).
      */
     private fun launchSongs(fontScale: Float? = null) {
+        turn.awaitApplied()
         textScale = fontScale ?: rule.activity.resources.configuration.fontScale
         h.enableAccessibilityChecks()
         val transport = SongsFixtures.scrollingCatalogueTransport().also { ProfileFixtures.register(it) }
@@ -188,6 +192,13 @@ class ShellHitTargetRotatedDeviceTest : ShellHitTargetJourney(rotation = UiAutom
  * Freezes the display at [rotation] for one test, then restores the device's previous rotation
  * settings (a shared AVD is left as found).
  *
+ * A freeze cannot turn the display while a portrait-only window (the launcher between tests)
+ * is focused, so [before] only issues it and the test calls [awaitApplied] once its activity
+ * is up and before it sets content; the turn may recreate that activity. [after] waits until
+ * the display is back upright before the next class starts. Sleeping a fixed time instead let
+ * a late quarter turn land in the next test class on CI, which then ran in landscape or lost
+ * its activity (issue #432).
+ *
  * @property rotation `UiAutomation.ROTATION_FREEZE_*`, or `null` to leave the display alone.
  */
 private class DisplayRotation(private val rotation: Int?) : ExternalResource() {
@@ -201,18 +212,77 @@ private class DisplayRotation(private val rotation: Int?) : ExternalResource() {
         rotation ?: return
         saved = shell("settings get system accelerometer_rotation") to shell("settings get system user_rotation")
         automation.setRotation(rotation)
-        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
-        Thread.sleep(ROTATION_SETTLE_MS)
+    }
+
+    /**
+     * Waits until the display has turned to [rotation] with the test's activity in front,
+     * re-issuing the freeze if the system dropped it. No-op without a rotation.
+     */
+    fun awaitApplied() {
+        val target = rotation ?: return
+        val current = settle(target, reissue = target)
+        assertTrue("display rotation $current, expected $target (Surface.ROTATION_*)", current == target)
     }
 
     override fun after() {
         val (accelerometer, user) = saved ?: return
-        automation.setRotation(UiAutomation.ROTATION_FREEZE_0)
+        // With auto-rotate off the display returns to the saved user rotation; with it on, the
+        // emulator's upright sensor turns it back to natural portrait.
+        val restore = if (accelerometer == "1") UiAutomation.ROTATION_FREEZE_0 else user.toIntOrNull() ?: UiAutomation.ROTATION_FREEZE_0
+        automation.setRotation(restore)
         shell("settings put system user_rotation $user")
         shell("settings put system accelerometer_rotation $accelerometer")
+        // Only the natural rotation is guaranteed with the launcher in front; otherwise wait
+        // until the display has left the test's rotation.
+        settle(restore.takeIf { it == UiAutomation.ROTATION_FREEZE_0 }, avoid = rotation)
     }
+
+    /**
+     * Polls WindowManager until the display has held one rotation for [ROTATION_SETTLE_MS]
+     * that matches [expected] (any, when `null`) and differs from [avoid].
+     *
+     * @param reissue Freeze re-issued every [ROTATION_REISSUE_MS] while unmet, or `null`.
+     * @return The last rotation seen (the settled one unless [ROTATION_TIMEOUT_MS] ran out).
+     */
+    private fun settle(expected: Int?, reissue: Int? = null, avoid: Int? = null): Int {
+        val deadline = SystemClock.uptimeMillis() + ROTATION_TIMEOUT_MS
+        var stableSince = -1L
+        var issuedAt = SystemClock.uptimeMillis()
+        var last = -2
+        while (SystemClock.uptimeMillis() < deadline) {
+            val now = SystemClock.uptimeMillis()
+            val current = displayRotation()
+            val met = (expected == null || current == expected) && current != avoid && current >= 0
+            if (met && current == last) {
+                if (now - stableSince >= ROTATION_SETTLE_MS) break
+            } else {
+                stableSince = now
+                if (!met && reissue != null && now - issuedAt >= ROTATION_REISSUE_MS) {
+                    automation.setRotation(reissue)
+                    issuedAt = now
+                }
+            }
+            last = current
+            Thread.sleep(ROTATION_POLL_MS)
+        }
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+        return last
+    }
+
+    /**
+     * The default display's rotation as WindowManager applied it (`DisplayRotation.mRotation`).
+     * A non-activity context's `Display.getRotation()` does not follow it on API 37.
+     *
+     * @return `Surface.ROTATION_*`, or -1 when the dump has no rotation.
+     */
+    private fun displayRotation(): Int =
+        ROTATION_LINE.find(shell("dumpsys window displays"))?.groupValues?.get(1)?.toInt() ?: -1
 
     private companion object {
         const val ROTATION_SETTLE_MS = 1_000L
+        const val ROTATION_REISSUE_MS = 2_000L
+        const val ROTATION_POLL_MS = 100L
+        const val ROTATION_TIMEOUT_MS = 15_000L
+        val ROTATION_LINE = Regex("""\bmRotation=(\d)\b""")
     }
 }
