@@ -839,8 +839,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>
     /// Brings the target on screen without real input (works on a locked console): an existing target is scrolled into view
     /// through UIA ScrollItem; otherwise (or if that is not enough) its vertical scroller is stepped through the UIA Scroll
-    /// pattern from the top, a viewport at a time, then paged down from where it stopped (the extent can change as content
-    /// near the end realizes). Virtualized targets need not exist yet: the window's first vertically
+    /// pattern from the top, a viewport at a time. Virtualized targets need not exist yet: the window's first vertically
     /// scrollable Pane or List is used then.
     /// </summary>
     /// <param name="window">App window.</param>
@@ -890,17 +889,6 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         scroll.SetScrollPercent(-1, 100);
         Thread.Sleep(250);
         if (OnScreen(out _)) return;
-        // A percent is relative to an extent that can change as content near the end realizes (the profile's Bands groups
-        // in a 1080p window landed at 78% after 100% was set, issue #533), so page down from wherever the scroller now is
-        // until the target shows or two pages leave it at its end.
-        var atEnd = 0;
-        for (var page = 0; page < 40 && atEnd < 2; page++)
-        {
-            scroll.Scroll(FlaUI.Core.Definitions.ScrollAmount.NoAmount, FlaUI.Core.Definitions.ScrollAmount.LargeIncrement);
-            Thread.Sleep(250);
-            if (OnScreen(out _)) return;
-            atEnd = scroll.VerticalScrollPercent.ValueOrDefault >= 100 ? atEnd + 1 : 0;
-        }
         throw new InvalidOperationException($"reveal could not bring {label} on screen");
     }
 

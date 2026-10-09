@@ -48,12 +48,21 @@ jobs:
       - name: Build the app (Debug)
         shell: pwsh
         run: ./tools/windows/build.ps1
-      - name: Probe 533 bands-empty
+      - name: runner songs-filter
         continue-on-error: true
-        run: python tools/windows/_probe533.py "${{ runner.temp }}/windows-ui/probe"
+        run: python tools/windows/songs_filter_journey.py --shots "${{ runner.temp }}/windows-ui/songs-filter"
+      - name: runner songs
+        continue-on-error: true
+        run: python tools/windows/songs_journey.py --shots "${{ runner.temp }}/windows-ui/songs"
+      - name: runner navigation
+        continue-on-error: true
+        run: python tools/windows/journeys/navigation.py --shots "${{ runner.temp }}/windows-ui/navigation"
       - name: runner profile
         continue-on-error: true
-        run: python tools/windows/journeys/profile.py bands-empty bands-retry bands-section --shots "${{ runner.temp }}/windows-ui/profile"
+        run: python tools/windows/journeys/profile.py --shots "${{ runner.temp }}/windows-ui/profile"
+      - name: a11y quick links jump
+        continue-on-error: true
+        run: python tools/windows/a11y_matrix.py --pages tools/windows/journeys/a11y-quick-links-jump.json --sizes medium --scan --out "${{ runner.temp }}/windows-ui/qlj"
       - name: Upload journey results
         if: always()
         uses: actions/upload-artifact@v4
