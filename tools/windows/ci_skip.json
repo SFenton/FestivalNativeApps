@@ -146,14 +146,6 @@
       "reason": "Axe finds two errors in Quick Links popup.",
       "issue": "SFenton/festival-report-tracker#534"
     },
-    "runner:fade": {
-      "reason": "song-reveal/song-board fade trace checks fail",
-      "issue": "SFenton/festival-report-tracker#532"
-    },
-    "runner:suggestions": {
-      "reason": "Suggestions fade check fails",
-      "issue": "SFenton/festival-report-tracker#532"
-    },
     "runner:feedback": {
       "reason": "Flaky: submit phase fails intermittently on the runner",
       "issue": "SFenton/festival-report-tracker#548"
