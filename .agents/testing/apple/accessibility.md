@@ -76,7 +76,7 @@ TEST_RUNNER_FST_AUDIT_OUT=/tmp/history python3 tools/ios_sim.py uitest --device 
   --only ScoreHistoryAccessibilityJourneyTests   # ≈ 8 min; writes each capture and the recognized lines
 ```
 
-`apple-ci` runs no simulator, so its required check covers this region with the hosted `scoreHistoryRowDrawsWholeNumbersAtAccessibilitySizes` (the row hosted directly and read with Vision, with CPU fallbacks for the VM; see [hosted snapshots](hosted-snapshots.md)); these journeys run on the serialized device lane.
+These journeys are in the iPad UI-test bundle (`--app ipad`) and take minutes per launch pair, outside `apple-ci`'s iPhone-bundle, two-minute [CI journeys](xcuitest.md#ci-journeys) rule, so the required check covers this region with the hosted `scoreHistoryRowDrawsWholeNumbersAtAccessibilitySizes` (the row hosted directly and read with Vision, with CPU fallbacks for the VM; see [hosted snapshots](hosted-snapshots.md)); these journeys run on the serialized device lane.
 
 ### iPad audit waivers
 
