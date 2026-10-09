@@ -1,5 +1,16 @@
 package com.festivalscoretracker.android.ui.common
 
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.runBlocking
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.HingeInfo
 import androidx.compose.material3.adaptive.Posture
@@ -325,5 +336,56 @@ class FestivalModalTest {
     fun wideDialogStaysCentredAcrossAFlatFold() {
         val (hinge, dialog) = wideDialogOverHinge(separating = false)
         assertTrue("centred dialog $dialog spans the flat fold $hinge", dialog.left < hinge.left && dialog.right > hinge.right)
+    }
+
+    /**
+     * Issue #422: a row scrolled partly above the body keeps no touch (TalkBack) bounds over the
+     * header, where Compose would otherwise extend it 24 dp past the scroll edge, while the body's
+     * own content keeps the 48 dp minimum touch target.
+     *
+     * @param inBody Whether the scroll sits in [FestivalModalBody].
+     * @return The row's touch top, the body's top (px) and the content's minimum touch height (dp).
+     */
+    private fun scrolledRowTouchTop(inBody: Boolean): Triple<Float, Float, Float> {
+        var contentTouch = 0f
+        val scroll = ScrollState(0)
+        rule.setContent {
+            FestivalTheme {
+                Column {
+                    Box(Modifier.fillMaxWidth().height(56.dp))
+                    val body: @Composable () -> Unit = {
+                        contentTouch = LocalViewConfiguration.current.minimumTouchTargetSize.height.value
+                        Column(Modifier.fillMaxWidth().height(120.dp).testTag("t.viewport").verticalScroll(scroll)) {
+                            Box(Modifier.fillMaxWidth().height(100.dp).clickable {}.testTag("t.row"))
+                            Box(Modifier.fillMaxWidth().height(400.dp))
+                        }
+                    }
+                    if (inBody) FestivalModalBody { body() } else body()
+                }
+            }
+        }
+        rule.runOnIdle { runBlocking { scroll.scrollTo(with(rule.density) { 60.dp.roundToPx() }) } }
+        rule.waitForIdle()
+        val rowTop = rule.onNodeWithTag("t.row").fetchSemanticsNode().touchBoundsInRoot.top
+        val viewportTop = rule.onNodeWithTag("t.viewport").fetchSemanticsNode().boundsInRoot.top
+        return Triple(rowTop, viewportTop, contentTouch)
+    }
+
+    @Test
+    fun bodyKeepsScrolledRowsTouchBoundsOffTheHeader() {
+        val (rowTop, viewportTop, contentTouch) = scrolledRowTouchTop(inBody = true)
+        assertTrue("row touch top $rowTop reaches above the body top $viewportTop", rowTop >= viewportTop - 0.5f)
+        assertEquals("body content keeps the 48 dp minimum touch target", 48f, contentTouch)
+    }
+
+    /**
+     * Control for [bodyKeepsScrolledRowsTouchBoundsOffTheHeader]: without the body edge Compose
+     * 1.9 reaches into the header. When this fails, Compose clips touch bounds itself and
+     * [FestivalModalBody]'s view-configuration workaround can go.
+     */
+    @Test
+    fun plainScrollLetsScrolledRowsTouchBoundsReachTheHeader() {
+        val (rowTop, viewportTop, _) = scrolledRowTouchTop(inBody = false)
+        assertTrue("row touch top $rowTop should pass the scroll top $viewportTop", rowTop < viewportTop - 1f)
     }
 }
