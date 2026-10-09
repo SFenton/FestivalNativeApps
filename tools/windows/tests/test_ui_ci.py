@@ -48,6 +48,16 @@ class UiCiTests(unittest.TestCase):
         self.assertTrue(all(run.scan for run in landing.values()))
         self.assertIn("compact", landing["text-225"].sizes.split(","))
 
+    def test_song_band_pinned_runs_at_default_and_largest_text(self):
+        # Issue #461 (#306): the full band board's pinned "your band" row runs in CI at default and 225% text.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-song-band-pinned.json"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        pages = json.loads((ci.JOURNEYS / "a11y-song-band-pinned.json").read_text(encoding="utf-8"))
+        names = {page["name"] for page in pages}
+        self.assertTrue({"song-band-pin-jump", "song-band-pin-open", "song-band-pin-no-player"} <= names)
+
     def test_first_run_demos_run_at_default_and_largest_text(self):
         """#420 review: the first-run demo journey gates PRs, not just its JSON guard."""
         demos = {run.mode: run for run in ci.RUNS if run.pages == "a11y-first-run-demos.json"}
@@ -121,6 +131,53 @@ class UiCiTests(unittest.TestCase):
         for target in ("fst.songs.filter|", "fst.songs.filter.reset|", "fst.songs.filter.year.select-all|",
                        "fst.songs.filter.year.clear-all|"):
             self.assertIn(f"assertsize:id={target}40x40", steps)
+
+    def test_songs_section_push_runs_at_default_and_largest_text(self):
+        # Issue #452 (#288): the pushed section title's Narrator names, headings, order and raw copy, in CI at both sizes.
+        runs = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-songs-section-push.json"}
+        self.assertEqual({("normal", True), ("text-225", True)}, runs)
+        pages = json.loads((ci.JOURNEYS / "a11y-songs-section-push.json").read_text(encoding="utf-8"))
+        self.assertEqual({"push-band", "push-band-reverse", "push-band-keyboard"}, {page["name"] for page in pages})
+        for page in pages:
+            with self.subTest(page=page["name"]):
+                steps = page["after_ready"]
+                inset = steps.index("scrollinset:name=M&class=TextBlock|id=fst.songs.list|16")
+                drawn = steps.index("assertname:raw=fst.songs.section-header.incoming|M")
+                self.assertLess(inset, drawn)  # inside the 40 epx push band the copy is drawn...
+                self.assertEqual(steps[drawn + 1], "waitgone:id=fst.songs.section-header.incoming@2")  # ...but raw
+                self.assertIn("assertread:id=fst.songs.section-header|L, text", steps[drawn:])
+                self.assertIn("assertread:name=M&class=TextBlock|M, text", steps[drawn:])
+                self.assertTrue(any(s.startswith("assertorder:id=fst.songs.section-index-button|id=fst.songs.section-header|"
+                                                  "name=M&class=TextBlock") for s in steps))
+        for page in (p for p in pages if p["name"] != "push-band-keyboard"):  # at 120 epx the copy is gone again
+            steps = page["after_ready"]
+            self.assertIn("waitgone:raw=fst.songs.section-header.incoming@3", steps[steps.index(
+                "scrollinset:name=M&class=TextBlock|id=fst.songs.list|120"):])
+
+    def test_songs_section_push_keyboard_keeps_focus_on_real_list_items(self):
+        # Issue #452 review: a keyboard pick reaches M, then focus moves by arrow keys through the 16 epx push band; it
+        # stays on the real row/header (never the raw copy), leaves the band by Up and Tab still re-enters the list.
+        pages = {page["name"]: page for page in json.loads(
+            (ci.JOURNEYS / "a11y-songs-section-push.json").read_text(encoding="utf-8"))}
+        steps = pages["push-band-keyboard"]["after_ready"]
+        self.assertEqual(["focus:id=fst.songs.section-index-button", "key:enter"], steps[:2])
+        self.assertEqual(13, steps.count("key:right"))  # # -> M across the Jump grid, by keys only
+        self.assertLess(steps.index("assertfocus:name=M@3"), steps.index("key:enter", 2))
+        inset = steps.index("scrollinset:name=M&class=TextBlock|id=fst.songs.list|16")
+        in_band = steps[inset:]
+        row, header, out = (in_band.index("assertfocus:id=fst.songs.row.fixture-song-56@3"),
+                            in_band.index("assertfocus:name=M&class=ListViewHeaderItem@3"),
+                            in_band.index("assertfocus:id=fst.songs.row.fixture-song-49@3"))
+        self.assertLess(row, header)
+        self.assertLess(header, out)
+        for focused in (row, header):  # focus on a real item while the copy is drawn and out of the control view
+            self.assertEqual("assertname:raw=fst.songs.section-header.incoming|M",
+                             next(s for s in in_band[focused:] if s.startswith("assertname:raw=")))
+            self.assertIn("waitgone:id=fst.songs.section-header.incoming@2", in_band[focused:out])
+        self.assertEqual("key:up", in_band[out - 2])
+        self.assertEqual("waitgone:raw=fst.songs.section-header.incoming@3", in_band[out + 1])
+        self.assertEqual(["focus:id=fst.songs.section-index-button", "key:tab", "wait:1",
+                          "assertfocus:id=fst.songs.row.fixture-song-56@3"], steps[-4:])
 
     def test_load_swap_runs_every_page(self):
         # Issue #431 (#71) review: every load-swap page (normal, 225% text, Reduce Motion and Animation effects off)
