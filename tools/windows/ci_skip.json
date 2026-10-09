@@ -96,6 +96,10 @@
       "reason": "Two Axe.Windows errors",
       "issue": "SFenton/festival-report-tracker#534"
     },
+    "mm-suggestions-scroll": {
+      "reason": "Axe.Windows errors during the Suggestions scroll (timing-dependent; passed in #493's runs)",
+      "issue": "SFenton/festival-report-tracker#534"
+    },
     "narr-player-history": {
       "reason": "History page/section not on screen or focus differs",
       "issue": "SFenton/festival-report-tracker#537"
