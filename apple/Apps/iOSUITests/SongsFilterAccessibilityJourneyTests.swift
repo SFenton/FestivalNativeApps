@@ -97,7 +97,8 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         _ target: XCUIElement, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line
     ) -> XCUIElement {
         let form = element("form", in: app)
-        let bottom = SongsUITestSupport.sheetVisibleBottom(in: app)
+        // The iPad form sheet ends above the window's bottom.
+        let bottom = min(SongsUITestSupport.sheetVisibleBottom(in: app), form.frame.maxY - 8)
         // A row taller than the space (Item Shop at AX5 on the folded Duo) only has to
         // start below the bar; the last rows, where the Form ends at the window edge (the
         // folded Duo), only have to end inside the Form once dragging no longer moves them.
@@ -173,7 +174,7 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         }
         XCTAssertTrue(
             visible(),
-            "\(target.identifier) \(target.label) not reachable in the sheet: frame \(target.frame), "
+            "\(target) not reachable in the sheet: frame \(target.exists ? "\(target.frame)" : "none"), "
                 + "top \(sheetContentTop(for: target, in: app)), bottom \(bottom)",
             file: file, line: line
         )
@@ -337,6 +338,11 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
     /// Run an audit, attaching each issue's element so a failure names it. Every issue
     /// fails the test unless `proof` defers it to a measurement the caller then asserts.
     ///
+    /// Contrast on text the sheet's edge cuts through (the iPad form sheet ends mid-row)
+    /// judges clipped glyphs, so such an issue is proved instead: the text is revealed whole
+    /// and a second Contrast audit must not report it (the iPad audit's `contrast-rendered`
+    /// rule, scrolled into view first).
+    ///
     /// - Parameters:
     ///   - app: Launched fixture Songs.
     ///   - types: Audit types to run.
@@ -346,19 +352,63 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         _ app: XCUIApplication, for types: XCUIAccessibilityAuditType,
         deferring proof: ((XCUIAccessibilityAuditIssue) -> Bool)? = nil
     ) throws {
+        let pad = UIDevice.current.userInterfaceIdiom == .pad
+        let form = element("form", in: app)
+        let edge = form.exists
+            ? (top: form.frame.minY, bottom: min(form.frame.maxY, app.windows.firstMatch.frame.maxY))
+            : nil
+        var cut: [String] = []
         try app.performAccessibilityAudit(for: types) { issue in
             let deferred = proof?(issue) ?? false
+            let behindSheet = !deferred && Self.isPadPageBehindSheet(issue, pad: pad)
+            var edgeCut = false
+            if !deferred, !behindSheet, issue.auditType == .contrast, let edge,
+               let element = issue.element, !element.label.isEmpty,
+               element.frame.minY < edge.top || element.frame.maxY > edge.bottom {
+                edgeCut = true
+                cut.append(element.label)
+            }
             let attachment = XCTAttachment(
                 string: "\(issue.auditType): \(issue.compactDescription): "
                     + "id=\(issue.element?.identifier ?? "none") label=\(issue.element?.label ?? "none") "
                     + "frame=\(String(describing: issue.element?.frame))"
                     + (deferred ? " (growth measured at AX5)" : "")
+                    + (behindSheet ? " (iPad page behind the sheet: IPadAccessibilityAuditTests filter-sheet)" : "")
+                    + (edgeCut ? " (cut by the sheet's edge: re-audited whole)" : "")
             )
             attachment.name = "songs-filter-audit-issue"
             attachment.lifetime = .keepAlways
             self.add(attachment)
-            return deferred
+            return deferred || behindSheet || edgeCut
         }
+        for label in cut {
+            let text = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", label)).firstMatch
+            reveal(text, in: app)
+            // Everything else was judged whole in the first pass.
+            try app.performAccessibilityAudit(for: .contrast) { issue in
+                guard issue.element?.label == label else { return true }
+                let attachment = XCTAttachment(string: "Contrast, revealed whole: \(label)")
+                attachment.name = "songs-filter-audit-issue"
+                attachment.lifetime = .keepAlways
+                self.add(attachment)
+                return false
+            }
+        }
+    }
+
+    /// On iPad the form sheet leaves the dimmed Songs page visible around it, and the audit
+    /// reports that page's text with no element (Contrast, Element detection).
+    /// `IPadAccessibilityAuditTests` audits this sheet (page `filter-sheet`) and proves those
+    /// issues with rendered evidence (`unattributed-contrast-page-floor`,
+    /// `unattributed-text-behind-sheet`); attributed issues still fail here.
+    ///
+    /// - Parameters:
+    ///   - issue: An audit issue.
+    ///   - pad: Whether the run is on iPad.
+    /// - Returns: True for an element-less Contrast or Element detection issue on iPad.
+    private static func isPadPageBehindSheet(_ issue: XCUIAccessibilityAuditIssue, pad: Bool) -> Bool {
+        pad && issue.element == nil
+            && (issue.auditType == .contrast || issue.auditType == .elementDetection)
     }
 
     /// Run an audit with the sheet at rest at its top, then at its end.
