@@ -54,8 +54,8 @@ import org.junit.runner.RunWith
  *   heading and Rank By is a labelled 48 dp button.
  * - **Player Bands:** the subtitle and group picker are read before the cards, and the cards
  *   in visual row order. Flat, the grid is centred on the content area. Half open, the controls
- *   pane ends at the hinge and the cards start after it. Segments are 48 dp and the current one
- *   is selected.
+ *    pane ends at the hinge and the cards start after it. The All and Duos segments are named
+  *   single-choice options (radio role, All selected, Duos not) and 48 dp in every state.
  *
  * Both pages are then checked at 200% text, where they drop to one column by design
  * (`rememberSingleColumn`): text grows, headings aren't clipped and the order holds. ATF
@@ -167,6 +167,34 @@ class BandFoldAccessibilityJourneyTest {
         if (role != null) assertEquals("$name role", role, target.config.getOrNull(SemanticsProperties.Role))
         val min = with(rule.density) { 48.dp.toPx() } - 1
         assertTrue("$name is ${target.size} px, under 48 dp", target.size.width >= min && target.size.height >= min)
+    }
+
+    /**
+     * Assert the Player Bands segment [tag] is an option of the single-choice picker: its
+     * merged accessible name is [label], it has [Role.RadioButton], its selected state is
+     * [selected] and it is at least 48 dp.
+     *
+     * @param tag Test tag of the segment.
+     * @param label Expected accessible name.
+     * @param selected Whether the segment should be the current choice.
+     * @param config Configuration, for messages.
+     */
+    private fun assertSegment(tag: String, label: String, selected: Boolean, config: String) {
+        val merged = rule.onAllNodesWithTag(tag).fetchSemanticsNodes().first()
+        assertEquals("$config: $label segment name", label, text(merged))
+        assertEquals("$config: $label segment selected state", selected, merged.config.getOrNull(SemanticsProperties.Selected))
+        assertTarget(tag, "$config: $label segment", Role.RadioButton)
+    }
+
+    /**
+     * Assert the selected All and the unselected Duos segments keep their name, radio role,
+     * state and 48 dp target.
+     *
+     * @param config Configuration, for messages.
+     */
+    private fun assertSegments(config: String) {
+        assertSegment(PB_SEGMENT_ALL, "All", selected = true, config)
+        assertSegment(PB_SEGMENT_DUOS, "Duos", selected = false, config)
     }
 
     /**
@@ -348,10 +376,7 @@ class BandFoldAccessibilityJourneyTest {
 
         publish(State.FLAT) { h.exists(card(1)) && !h.exists(PB_CONTROLS) }
         h.awaitAccessibilityTree(present = card(1))
-        val all = node(PB_SEGMENT_ALL)
-        assertEquals("flat: the All segment isn't selected", true, all.config.getOrNull(SemanticsProperties.Selected))
-        assertTarget(PB_SEGMENT_ALL, "flat: All segment")
-        assertTarget(PB_SEGMENT_DUOS, "flat: Duos segment")
+        assertSegments("flat")
         assertTarget(card(0), "flat: first band card", Role.Button)
         val list = bounds(PB_LIST)
         val first = bounds(card(0))
@@ -374,7 +399,7 @@ class BandFoldAccessibilityJourneyTest {
             assertTrue("half open: the controls ${bounds(PB_CONTROLS)} run past the hinge $fold", bounds(PB_CONTROLS).right <= fold + 1f)
             assertTrue("half open: the cards ${bounds(PB_LIST)} start before the hinge $fold", bounds(PB_LIST).left >= fold - 1f)
             assertOffTheHinge(fold, PB_SUBTITLE, PB_PICKER, card(0), card(1))
-            assertTarget(PB_SEGMENT_DUOS, "half open: Duos segment")
+            assertSegments("half open")
             assertPlayerBandsOrder(listOf(0, 1), "half-open")
             publish(State.FLAT) { !h.exists(PB_CONTROLS) }
         }
@@ -385,7 +410,7 @@ class BandFoldAccessibilityJourneyTest {
         rule.onNodeWithTag(PB_LIST).performScrollToNode(hasTestTag(PB_SUBTITLE))
         rule.waitForIdle()
         h.awaitAccessibilityTree(present = card(0))
-        assertTarget(PB_SEGMENT_DUOS, "200%: Duos segment")
+        assertSegments("200%")
         assertTarget(card(0), "200%: first band card", Role.Button)
         val subtitleAt200 = assertNoClippedText(PB_SUBTITLE, "200%")
         assertTrue("200% text did not grow the subtitle ($subtitleAt100 → $subtitleAt200 px)", subtitleAt200 > subtitleAt100)
