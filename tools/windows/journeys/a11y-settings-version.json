@@ -18,7 +18,7 @@
                      "shot:{stem}-large-text.png", "scan:{stem}-axe/large-text"]},
     {"name": "settings-version-stacked", "tab": "settings", "tabs": 0, "sizes": ["compact"], "modes": ["text-225"],
      "ready": ["waitfor:id=fst.settings.show-instrument-icons@30"],
-     "after_ready": ["reveal:id=fst.settings.whats-new", "waitfor:id=fst.settings.app-version@5", "wait:0.5",
+     "after_ready": ["resize:440x800", "wait:1", "reveal:id=fst.settings.whats-new", "waitfor:id=fst.settings.app-version@5", "wait:0.5",
                      "assertname:id=fst.settings.app-version|* · *",
                      "assertbelow:id=fst.settings.app-version|name=App Version&class=TextBlock",
                      "assertapart:name=App Version&class=TextBlock|id=fst.settings.app-version",

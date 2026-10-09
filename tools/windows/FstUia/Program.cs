@@ -1297,14 +1297,33 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         var (condition, label) = Condition(step, key);
         var raw = IsRaw(step, key);
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        var retried = false;
         while (true)
         {
-            var found = InView(raw, () => window.FindFirstDescendant(condition));
-            if (found is not null && (!onScreen || !found.Properties.IsOffscreen.ValueOrDefault)) return found;
+            try
+            {
+                var found = InView(raw, () => window.FindFirstDescendant(condition));
+                if (found is not null && (!onScreen || !found.Properties.IsOffscreen.ValueOrDefault)) return found;
+            }
+            // A busy app (e.g. restoring a page after Back on a slow runner) can time out one UIA call or drop an
+            // element mid-search; search again within the step's timeout, at least once (#552), and still fail if
+            // it persists.
+            catch (Exception error) when (IsTransientUia(error) && (!retried || DateTime.UtcNow <= until))
+            {
+                retried = true;
+                Thread.Sleep(200);
+                continue;
+            }
             if (DateTime.UtcNow > until) throw new InvalidOperationException($"no on-screen element {label}");
             Thread.Sleep(200);
         }
     }
+
+    /// <summary>Whether a UI Automation error is a passing provider state worth searching again for.</summary>
+    /// <param name="error">The error a UIA call threw.</param>
+    /// <returns>True for a UIA call timeout (<c>UIA_E_TIMEOUT</c>, 0x80131505) or an element that went away.</returns>
+    internal static bool IsTransientUia(Exception error) =>
+        error is TimeoutException or FlaUI.Core.Exceptions.ElementNotAvailableException;
 
     /// <summary>
     /// Waits until the step's element is on screen with exactly the step's UIA Name; each <c>*</c> in the text matches

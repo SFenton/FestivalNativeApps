@@ -11,7 +11,8 @@ State               ``/api/service-info`` answer → card
                     at once → "Loading" · Loading with the spinner, state row only, then "Waiting for the Next
                     Update". The hold outlasts the app's 3 s request timeout, so the page lengthens it with the
                     Debug/automation ``FST_DEBUG_SERVICE_INFO_TIMEOUT_MS`` hook (opening Settings, scrolling to
-                    the card, the checks and an Axe scan take ~4 s). Loading only precedes the first read after
+                    the card, the checks and an Axe scan take ~4 s locally, over 18 s on a hosted runner at
+                    225% text). Loading only precedes the first read after
                     Settings opens, so the page starts on Songs and opens Settings itself.
 ``idle``            Idle worker → "Waiting for the Next Update" · Idle, publication row
 ``discovery``       Band discovery, 24.8% of 5,000 accounts, attempts → bar, attempt line, spoken percent/units
@@ -57,8 +58,10 @@ ROUTE = "/api/service-info"
 #: first read sees it kept back; the last repeats.
 MONOTONIC_ATTEMPTS = ((1310, 70), (1200, 60), (1200, 60), (1400, 80))
 #: ``loading`` hold on the first read: long enough to check and scan Loading, and shorter than the page's
-#: ``FST_DEBUG_SERVICE_INFO_TIMEOUT_MS`` so the card shows Loading rather than "Failed to load data".
-LOADING_DELAY_SECONDS = 8.0
+#: ``FST_DEBUG_SERVICE_INFO_TIMEOUT_MS`` so the card shows Loading rather than "Failed to load data". The Axe scan
+#: of the Loading card took 18.2 s at 225% text on a hosted runner (master run 37930649400, issue #552), after an
+#: 8 s hold had already answered, so the hold leaves room for that.
+LOADING_DELAY_SECONDS = 30.0
 STATES = ("loading", "idle", "discovery", "monotonic", "indeterminate", "failed", "stopped", "unpublished",
           "unavailable")
 

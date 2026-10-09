@@ -1,6 +1,6 @@
 [
   {"name": "settings-service-info-loading", "tab": "songs", "tabs": 0, "sizes": ["compact"],
-   "env": {"FST_DEBUG_SERVICE_INFO_TIMEOUT_MS": "15000"},
+   "env": {"FST_DEBUG_SERVICE_INFO_TIMEOUT_MS": "40000"},
    "fixture": ["service_info_fixture.py", "--service-info", "loading"],
    "ready": ["waitfor:id=fst.songs.list@20"],
    "after_ready": ["key:ctrl+comma", "reveal:id=fst.settings.service-info.process@10",
@@ -10,7 +10,7 @@
                    "waitgone:id=fst.settings.service-info.phase", "waitgone:id=fst.settings.service-info.last-published",
                    "shot:{stem}-loading.png", "scan:{stem}-axe/loading",
                    "assertname:id=fst.settings.service-info.process@0|Loading",
-                   "assertname:id=fst.settings.service-info.state@10|Waiting for the Next Update",
+                   "assertname:id=fst.settings.service-info.state@40|Waiting for the Next Update",
                    "reveal:id=fst.settings.service-info.process",
                    "assertname:id=fst.settings.service-info.process|Idle",
                    "waitgone:raw=fst.settings.service-info.spinner"]},
