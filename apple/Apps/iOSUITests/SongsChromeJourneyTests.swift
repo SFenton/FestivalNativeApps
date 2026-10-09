@@ -426,10 +426,12 @@ final class SongsChromeJourneyTests: XCTestCase {
     /// description or trait issue on the section titles. The macOS-hosted counterpart that
     /// `apple-ci` runs, `SongsSectionPushAccessibilityTests`, covers the hidden moving
     /// copies and reading order (macOS does not scale fonts with Dynamic Type). Needs the
-    /// large fixture like the tests above (skips otherwise).
+    /// large fixture like the tests above (skips otherwise); `apple-ci` runs it as a CI
+    /// journey, so its waits and settle holds use `FestivalApp.budget(_:)`.
     @MainActor
     func testSectionPushIsAccessibleAtLargestText() throws {
         continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
         let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"]
             ?? "http://127.0.0.1:8765"
         let app = FestivalApp.makeApp([
@@ -444,7 +446,7 @@ final class SongsChromeJourneyTests: XCTestCase {
         // At this size the page tools fold out of the navigation bar, so wait for the rail.
         let rail = app.descendants(matching: .any)
             .matching(identifier: "fst.songs.section-index").firstMatch
-        guard #available(iOS 26.0, *), rail.waitForExistence(timeout: 20),
+        guard #available(iOS 26.0, *), rail.waitForExistence(timeout: FestivalApp.budget(20)),
               rail.staticTexts.matching(NSPredicate(format: "label == 'P'")).firstMatch.exists
         else {
             throw XCTSkip("Needs iOS 26's section bar and mock_service.py --large-catalogue.")
@@ -460,7 +462,7 @@ final class SongsChromeJourneyTests: XCTestCase {
         let landed = XCTNSPredicateExpectation(
             predicate: NSPredicate { _, _ in sectionBar.exists && sectionBar.label == "M" }, object: nil
         )
-        XCTAssertEqual(XCTWaiter.wait(for: [landed], timeout: 5), .completed, "Did not land on M")
+        XCTAssertEqual(XCTWaiter.wait(for: [landed], timeout: FestivalApp.budget(5)), .completed, "Did not land on M")
         let pinned = sectionBar.frame
         // Subheadline at AX XXXL is about 4× its default line (~18 pt): the title grew.
         XCTAssertGreaterThanOrEqual(pinned.height, 40, "Floating M did not grow: \(pinned)")
@@ -476,7 +478,7 @@ final class SongsChromeJourneyTests: XCTestCase {
             start.press(
                 forDuration: 0.05,
                 thenDragTo: start.withOffset(CGVector(dx: 0, dy: gap > 200 ? -150 : -30)),
-                withVelocity: .slow, thenHoldForDuration: 0.3
+                withVelocity: .slow, thenHoldForDuration: FestivalApp.budget(0.3)
             )
             XCTAssertTrue(sectionBar.exists, "The floating title disappeared")
             pushed = sectionBar.label == "M" && sectionBar.frame.minY < pinned.minY - 2
