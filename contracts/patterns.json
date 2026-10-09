@@ -2353,7 +2353,8 @@
         316,
         317,
         324,
-        342
+        342,
+        542
       ],
       "web": [
         {
@@ -2378,6 +2379,10 @@
           {
             "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
             "symbol": "SongBarTitleToolbarItem"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
+            "symbol": "SongBoardLine"
           },
           {
             "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardHeader.swift",
@@ -2627,7 +2632,8 @@
         315,
         317,
         342,
-        363
+        363,
+        542
       ]
     },
     {
