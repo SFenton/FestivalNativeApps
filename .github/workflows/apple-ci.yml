@@ -155,7 +155,8 @@ jobs:
     # throwaway simulator per leg, run in parallel with the build job: testing/apple/xcuitest.md#ci-journeys.
     name: apple-ci Songs Filter journeys (${{ matrix.leg }})
     runs-on: xcode-27
-    timeout-minutes: 75
+    # The runner is 2-4x slower than a Mac: the folded Duo's three methods took 19 min on a Mac, plus build and boot.
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -220,7 +221,8 @@ jobs:
           python3 tools/ios_sim.py uitest --device "$FST_CI_DEVICE" ${{ matrix.uitest_args }} --fail-on-skip \
             --batch-size 1 --timeout 2400 "${only[@]}"
       - name: Upload journey results
-        if: failure()
+        # Also when the job times out (cancelled), so a slow or hung batch can be diagnosed.
+        if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: apple-ci-songs-filter-${{ matrix.leg }}
