@@ -306,6 +306,13 @@ class JourneyHarness(private val rule: JourneyRule) {
     private val labelledTags = mutableSetOf<String>()
 
     /**
+     * Findings [readingOrder] proved to be clipping artifacts while their nodes were composed: a
+     * row partly under a pinned header or the viewport edge can scroll out of composition before
+     * [assertAccessible] runs (issue #462).
+     */
+    private val clippedFindings = mutableSetOf<String>()
+
+    /**
      * Tags whose touch-target finding the composed node disproved when ATF recorded it. A
      * dialog that is moving (IME, growing content) can report a 47 dp sliver of a 48 dp button;
      * once the dialog closes, [assertAccessible] could no longer measure the node (issue #432).
@@ -336,6 +343,7 @@ class JourneyHarness(private val rule: JourneyRule) {
     fun assertAccessible() {
         val errors = accessibilityFindings.filter { finding ->
             finding.startsWith("ERROR") &&
+                finding !in clippedFindings &&
                 !clippedTouchTarget(finding) &&
                 !scrimSliver(finding) &&
                 !(finding.split(" | ").getOrNull(1) == "SpeakableTextPresentCheck" &&
@@ -508,7 +516,7 @@ class JourneyHarness(private val rule: JourneyRule) {
         rule.waitForIdle()
         checkNow()
         // Resolve clipping artifacts while the flagged nodes are still composed.
-        accessibilityFindings.forEach { clippedTouchTarget(it) }
+        accessibilityFindings.forEach { if (it !in clippedFindings && clippedTouchTarget(it)) clippedFindings += it }
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
         // After an in-place change (font scale, issue #397) the node cache can keep the old bounds and labels.
         if ((fresh || talkBackTree) && android.os.Build.VERSION.SDK_INT >= 34) automation.clearCache()
