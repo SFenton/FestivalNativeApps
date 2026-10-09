@@ -46,6 +46,14 @@ class UiCiTests(unittest.TestCase):
         self.assertTrue(all(run.scan for run in landing.values()))
         self.assertIn("compact", landing["text-225"].sizes.split(","))
 
+    def test_first_run_demos_run_at_default_and_largest_text(self):
+        """#420 review: the first-run demo journey gates PRs, not just its JSON guard."""
+        demos = {run.mode: run for run in ci.RUNS if run.pages == "a11y-first-run-demos.json"}
+        self.assertEqual({"normal", "text-225"}, set(demos))
+        self.assertTrue(all(run.scan and not run.only for run in demos.values()))
+        self.assertIn("compact", demos["text-225"].sizes.split(","))
+        self.assertEqual({"compact", "medium"}, set(demos["normal"].sizes.split(",")))
+
     def test_modals_run_at_default_and_largest_text(self):
         modal = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-modals.json"}
         self.assertEqual({("normal", True), ("text-225", True)}, modal)
@@ -68,6 +76,11 @@ class UiCiTests(unittest.TestCase):
             self.assertIn("assertstate:id=fst.whats-new.group.0.0|heading=3", steps)
             self.assertIn("assertsize:id=fst.whats-new.dismiss|40x40", steps)
             self.assertTrue(any(step.startswith("assertorder:id=fst.whats-new.list|id=fst.whats-new.section.0|") for step in steps))
+
+    def test_back_keeps_place_runs_at_default_and_largest_text(self):
+        """#435: the Back-to-cached-page pages (#82) gate pull requests at 100% and 225% text, with an Axe scan."""
+        back = {(run.mode, run.scan, run.only) for run in ci.RUNS if run.pages == "a11y-back-keeps-place.json"}
+        self.assertEqual({("normal", True, ""), ("text-225", True, "")}, back)
 
     def test_settings_pages_wait_for_feedback_rows_before_scrolling(self):
         """#535: the Feedback rows appear above every later Settings section once ``/api/features`` answers, so a target

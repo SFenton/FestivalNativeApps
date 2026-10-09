@@ -49,7 +49,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Profile flyout | ✅✅✅ | 2 | ✅ | ✅ | ✅ |
 | Notifications flyout | ✅✅✅ (+live, #229) | 1 (list) | ✅ (#229) | ✅ (#229) | ✅ (#229, C+M) |
 | Quick Links menu | ⚠️✅ (issue 8) | 1 (menu) | ✅ (+profile jumps, `a11y-quick-links-jump.json`, #414) | ✅ | ✅ (pane titles wrap, #230; profile menu 225%, #414) |
-| First-run dialog | ✅✅✅ | 4 | ✅ | ✅ | ✅ |
+| First-run dialog | ✅✅✅ (+demo placeholder/catalogue states, `a11y-first-run-demos.json`, `windows-ui` CI, #420) | 4 | ✅ (+Settings replay, #420) | ✅ | ✅ (demo clear of title at 225%; body scrolls so the pips stay reachable, #420) |
 | What's New dialog (launch, Settings replay) | ✅✅✅ (+max/snap, #235) | 2 (notes, Dismiss) | ✅ (`kb-whats-new-*`, #235) | ✅ (#235) | ✅ (200% C+M, #235) |
 
 ## Fixed in this pass

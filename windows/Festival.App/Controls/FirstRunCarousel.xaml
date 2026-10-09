@@ -33,32 +33,38 @@
     </UserControl.Resources>
     <!-- Content of the first-run ContentDialog: FlipView of slides and pips. No visible "Slide X of Y" (the web has none):
          FlipView items expose PositionInSet/SizeOfSet and slide changes are announced (FirstRunCarousel.xaml.cs). -->
-    <StackPanel Spacing="12" Width="440" AutomationProperties.AutomationId="fst.first-run.carousel">
-        <!-- Height: at least 370, grown in code to the tallest slide's text at the current text scale (issue #232). -->
-        <FlipView x:Name="Slides" Height="370" SelectionChanged="OnSlideChanged" Background="Transparent" ItemsSource="{x:Bind Carousel.Slides}"
-                  SelectedIndex="{x:Bind Carousel.Index, Mode=TwoWay}"
-                  AutomationProperties.Name="{x:Bind Carousel.Title}"
-                  AutomationProperties.AutomationId="fst.first-run.slides">
-            <FlipView.ItemTemplate>
-                <DataTemplate x:DataType="domain:FirstRunSlide">
-                    <StackPanel Spacing="12" Padding="4,0" AutomationProperties.AutomationId="{x:Bind Id}">
-                        <!-- Live demo (6 s loop, visible slide only); the static illustration covers any slide without one. -->
-                        <Grid Height="210">
-                            <controls:FirstRunIllustration SlideId="{x:Bind Id}" Visibility="{x:Bind controls:FirstRunCarousel.NoDemo(Id)}" />
-                            <controls:FirstRunDemo SlideId="{x:Bind Id}" />
-                        </Grid>
-                        <TextBlock Text="{x:Bind Title}" Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap"
-                                   AutomationProperties.HeadingLevel="Level2" />
-                        <TextBlock Text="{x:Bind Description}" TextWrapping="Wrap" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                    </StackPanel>
-                </DataTemplate>
-            </FlipView.ItemTemplate>
-        </FlipView>
-        <Grid>
-            <PipsPager x:Name="Pips" HorizontalAlignment="Center" NumberOfPages="{x:Bind Carousel.Slides.Count}"
-                       SelectedPageIndex="{x:Bind Carousel.Index, Mode=TwoWay}"
-                       Visibility="{x:Bind MultipleSlides}"
-                       AutomationProperties.Name="Slides" AutomationProperties.AutomationId="fst.first-run.pips" />
-        </Grid>
-    </StackPanel>
+    <!-- ContentDialog's own ContentScrollViewer never scrolls vertically, so a slide grown by large text in a short window
+         scrolls here and the pips stay reachable (issue #420; FeedbackDialog precedent). The negative margin and the
+         matching padding keep the scroll bar off the slides. -->
+    <ScrollViewer x:Name="Body" Margin="0,0,-16,0" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                  AutomationProperties.AutomationId="fst.first-run.body">
+        <StackPanel Spacing="12" Width="456" Padding="0,0,16,0" AutomationProperties.AutomationId="fst.first-run.carousel">
+            <!-- Height: at least 370, grown in code to the tallest slide's text at the current text scale (issue #232). -->
+            <FlipView x:Name="Slides" Height="370" SelectionChanged="OnSlideChanged" Background="Transparent" ItemsSource="{x:Bind Carousel.Slides}"
+                      SelectedIndex="{x:Bind Carousel.Index, Mode=TwoWay}"
+                      AutomationProperties.Name="{x:Bind Carousel.Title}"
+                      AutomationProperties.AutomationId="fst.first-run.slides">
+                <FlipView.ItemTemplate>
+                    <DataTemplate x:DataType="domain:FirstRunSlide">
+                        <StackPanel Spacing="12" Padding="4,0" AutomationProperties.AutomationId="{x:Bind Id}">
+                            <!-- Live demo (6 s loop, visible slide only); the static illustration covers any slide without one. -->
+                            <Grid Height="210">
+                                <controls:FirstRunIllustration SlideId="{x:Bind Id}" Visibility="{x:Bind controls:FirstRunCarousel.NoDemo(Id)}" />
+                                <controls:FirstRunDemo SlideId="{x:Bind Id}" />
+                            </Grid>
+                            <TextBlock Text="{x:Bind Title}" Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap"
+                                       AutomationProperties.HeadingLevel="Level2" />
+                            <TextBlock Text="{x:Bind Description}" TextWrapping="Wrap" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </FlipView.ItemTemplate>
+            </FlipView>
+            <Grid>
+                <PipsPager x:Name="Pips" HorizontalAlignment="Center" NumberOfPages="{x:Bind Carousel.Slides.Count}"
+                           SelectedPageIndex="{x:Bind Carousel.Index, Mode=TwoWay}"
+                           Visibility="{x:Bind MultipleSlides}" GotFocus="OnPipsGotFocus"
+                           AutomationProperties.Name="Slides" AutomationProperties.AutomationId="fst.first-run.pips" />
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>

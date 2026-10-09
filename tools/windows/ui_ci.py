@@ -7,8 +7,8 @@ A run with a system ``mode`` (e.g. ``text-225``) changes the runner's own deskto
 
 This is the one registry of Windows accessibility journeys that gate pull requests: a journey is in CI only when it has a
 :data:`RUNS` entry (``only`` limits a run to some of a file's pages). ``tests/test_ui_ci.py`` checks the entries and
-that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415) and the Quick Links landings
-(issue #416) run at default and 225% text.
+that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
+(issue #416) and the first-run song demos (issue #420) run at default and 225% text.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
 Usage::
@@ -100,11 +100,21 @@ RUNS: tuple[Run, ...] = (
     # "B, text", stays a Level 2 heading, Jump -> title -> list order, Jump's name and 40x40 target, by pointer and keys.
     Run("section-index-backward", "a11y-section-index.json", only=SECTION_INDEX_BACKWARD),
     Run("section-index-backward-text-225", "a11y-section-index.json", mode="text-225", only=SECTION_INDEX_BACKWARD),
+    # Back from View All or a rival to cached Leaderboards and Rivals (issues #82, #276, #435): the opener and its card
+    # stay put, focus returns to the opener, it reads "<name>, button" after its card and heading, keeps a 40 epx target,
+    # and Tab/Shift+Tab continue from it; by keys (Enter, Alt+Left) and pointer (the title-bar Back).
+    Run("back-keeps-place", "a11y-back-keeps-place.json"),
+    Run("back-keeps-place-text-225", "a11y-back-keeps-place.json", sizes="compact", mode="text-225"),
     # Quick Links landings on Settings and Leaderboards (issues #51, #416): entry name and current section, 40 epx
     # entry and items, keyboard order, the jump announcement, heading landing inset and focus. The wide pane page
     # (scale-100/150 modes) stays in the host matrix.
     Run("quick-links-landing", "a11y-quick-links-landing.json", tabs=0),
     Run("quick-links-landing-text-225", "a11y-quick-links-landing.json", sizes="compact", mode="text-225", tabs=0),
+    # First-run song demos (issues #57, #420): Songs, top-songs and Item Shop demos in placeholder and catalogue states
+    # stay out of the control view, slide name and slide -> pips -> Next -> Back -> Close order, Tab to an on-screen pip,
+    # keyboard Settings replay with Esc focus return, demo frame clear of the title. At 225% the guide body scrolls.
+    Run("first-run-demos", "a11y-first-run-demos.json"),
+    Run("first-run-demos-text-225", "a11y-first-run-demos.json", sizes="compact", mode="text-225"),
 )
 
 
