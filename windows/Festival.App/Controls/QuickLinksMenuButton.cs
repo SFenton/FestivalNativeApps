@@ -35,6 +35,8 @@ public sealed partial class QuickLinksMenuButton : DropDownButton
         Flyout = new MenuFlyout
         {
             Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.BottomEdgeAlignedRight,
+            // In-window (not a windowed PopupHost, which Axe flags; issue #534, windows-accessibility.md open item 8).
+            ShouldConstrainToRootBounds = true,
             // The presenter is the UIA Menu: Narrator reads its name on open (Axe requires one).
             MenuFlyoutPresenterStyle = new Style(typeof(MenuFlyoutPresenter))
             {

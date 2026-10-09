@@ -56,7 +56,7 @@
                         <TextBlock x:Name="InstrumentText" Text="Instrument" />
                     </StackPanel>
                     <DropDownButton.Flyout>
-                        <MenuFlyout x:Name="InstrumentMenu" Placement="BottomEdgeAlignedRight" Opening="OnInstrumentMenuOpening" />
+                        <MenuFlyout x:Name="InstrumentMenu" Placement="BottomEdgeAlignedRight" ShouldConstrainToRootBounds="True" Opening="OnInstrumentMenuOpening" />
                     </DropDownButton.Flyout>
                 </DropDownButton>
                 <DropDownButton MinHeight="{StaticResource FSTMinTargetSize}" AutomationProperties.Name="{x:Bind ViewModel.MetricButtonName, Mode=OneWay}"
@@ -67,7 +67,7 @@
                         <TextBlock Text="{x:Bind ViewModel.MetricLabel, Mode=OneWay}" />
                     </StackPanel>
                     <DropDownButton.Flyout>
-                        <MenuFlyout x:Name="MetricMenu" Placement="BottomEdgeAlignedRight" Opening="OnMetricMenuOpening" />
+                        <MenuFlyout x:Name="MetricMenu" Placement="BottomEdgeAlignedRight" ShouldConstrainToRootBounds="True" Opening="OnMetricMenuOpening" />
                     </DropDownButton.Flyout>
                 </DropDownButton>
             </StackPanel>

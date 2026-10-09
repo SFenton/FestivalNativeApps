@@ -67,7 +67,7 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <!-- Centred: the action buttons beside it are 40 epx tall (FSTMinTargetSize), the box keeps Fluent's 32. -->
-            <AutoSuggestBox x:Name="SearchBox" PlaceholderText="Search songs or artists" QueryIcon="Find" VerticalAlignment="Center"
+            <AutoSuggestBox x:Name="SearchBox" controls:PopupHosting.InWindow="True" PlaceholderText="Search songs or artists" QueryIcon="Find" VerticalAlignment="Center"
                             Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                             QuerySubmitted="OnSearchSubmitted"
                             AutomationProperties.Name="Search songs"
@@ -82,7 +82,7 @@
                     <TextBlock x:Name="SortLabel" Text="{x:Bind ViewModel.SortSummary, Mode=OneWay}" />
                 </StackPanel>
                 <DropDownButton.Flyout>
-                    <Flyout x:Name="SortFlyout" Placement="BottomEdgeAlignedLeft" Opening="OnSortOpening">
+                    <Flyout x:Name="SortFlyout" Placement="BottomEdgeAlignedLeft" ShouldConstrainToRootBounds="True" Opening="OnSortOpening">
                         <controls:SongSortForm Draft="{x:Bind ViewModel.SortDraft}" Title="Sort Songs" IdPrefix="fst.songs.sort" />
                     </Flyout>
                 </DropDownButton.Flyout>
@@ -96,7 +96,7 @@
                     <TextBlock x:Name="FilterLabel" Text="Filter" />
                 </StackPanel>
                 <DropDownButton.Flyout>
-                    <Flyout x:Name="FilterFlyout" Placement="BottomEdgeAlignedLeft" Opening="OnFilterOpening">
+                    <Flyout x:Name="FilterFlyout" Placement="BottomEdgeAlignedLeft" ShouldConstrainToRootBounds="True" Opening="OnFilterOpening">
                         <Flyout.FlyoutPresenterStyle>
                             <Style TargetType="FlyoutPresenter">
                                 <Setter Property="MaxWidth" Value="520" />
