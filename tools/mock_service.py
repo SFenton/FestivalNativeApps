@@ -470,6 +470,39 @@ RIVAL_DISPLAY_NAMES = {
     "fixture-cpp": "C++",
 }
 
+#: Rival the `-frozen` scenario's `/rivals/all` samples describe (#95, #444).
+FROZEN_RIVAL_ID = "frozenrival9"
+FROZEN_RIVAL_NAME = "Rival Nine"
+
+
+def _frozen_rivals_all(account_id: str) -> dict:
+    """Build `GET /api/player/{id}/rivals/all` for the `-frozen` scenario.
+
+    While the service publishes, rival detail reads answer 503 and the app rebuilds
+    the comparison from these precomputed samples (`RivalDetailFallback`). Rival Nine
+    shares Fixture Pulse on Lead and Bass (so the Lead+Bass combo `03` lists one song
+    twice) and Fixture Orbit on Lead, as `RivalDetailAccessibilityTests` hosts it.
+
+    Args:
+        account_id: The selected (viewing) player.
+
+    Returns:
+        A `RivalsAllResponse` wire body (`s` indexes `songs`, `i` is the instrument).
+    """
+    return {
+        "accountId": account_id,
+        "songs": ["fixture-pulse", "fixture-orbit"],
+        "combos": [{"combo": "03", "above": [{
+            "accountId": FROZEN_RIVAL_ID, "displayName": FROZEN_RIVAL_NAME, "direction": "above",
+            "sharedSongCount": 3, "aheadCount": 1, "behindCount": 2, "rivalScore": 1.0,
+            "samples": [
+                {"s": 0, "i": "Solo_Guitar", "ur": 10, "rr": 11, "us": 900, "rs": 890},
+                {"s": 0, "i": "Solo_Bass", "ur": 12, "rr": 10, "us": 800, "rs": 850},
+                {"s": 1, "i": "Solo_Guitar", "ur": 3, "rr": 20, "us": 990, "rs": 700},
+            ],
+        }], "below": []}],
+    }
+
 
 
 def _multi_instrument_history(account_id: str) -> dict:
@@ -516,12 +549,16 @@ def _rivals_scenario(account_id: str) -> str:
 
     Returns:
         `"empty"` (no rivals/shared songs yet), `"unavailable"` (503, matching
-        the live service's scrape-window freeze) or `"demo"` (populated).
+        the live service's scrape-window freeze, including `/rivals/all`),
+        `"frozen"` (only the detail reads answer the freeze's 503; lists and
+        `/rivals/all` answer, #95) or `"demo"` (populated).
     """
     if account_id.endswith("-empty"):
         return "empty"
     if account_id.endswith("-503"):
         return "unavailable"
+    if account_id.endswith("-frozen"):
+        return "frozen"
     return "demo"
 
 
@@ -1952,7 +1989,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 self._json(400, {"status": "invalid_rivals_query"})
                 return
             scenario = _rivals_scenario(account_id)
-            if scenario == "unavailable":
+            if scenario in ("unavailable", "frozen"):
                 self.send_response(503)
                 self.send_header("Retry-After", "30")
                 self.send_header("X-Fst-Public-Read-Freeze-Reason", "scrape")
@@ -1967,6 +2004,9 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 self._json(400, {"status": "invalid_rivals_query"})
                 return
             scenario = _rivals_scenario(account_id)
+            if token == "all" and scenario == "frozen":
+                self._json(200, _frozen_rivals_all(account_id))
+                return
             if scenario == "unavailable":
                 self.send_response(503)
                 self.send_header("Retry-After", "30")
@@ -1985,7 +2025,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 self._json(400, {"status": "invalid_rivals_query"})
                 return
             scenario = _rivals_scenario(account_id)
-            if scenario == "unavailable":
+            if scenario in ("unavailable", "frozen"):
                 self.send_response(503)
                 self.send_header("Retry-After", "30")
                 self.send_header("X-Fst-Public-Read-Freeze-Reason", "scrape")

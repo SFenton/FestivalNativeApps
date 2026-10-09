@@ -107,6 +107,30 @@ class MockServiceTests(unittest.TestCase):
                 urlopen(detail + query)
             self.assertEqual(error.exception.code, 400)
 
+    def test_frozen_rivals_scenario_freezes_detail_but_serves_rivals_all(self):
+        """`-frozen`: detail reads answer the freeze's 503; lists and `/rivals/all` answer (#95, #444)."""
+        player = self.base + "/api/player/fixture-riv-frozen"
+        for detail in ("/rivals/03/frozenrival9?limit=0&sort=closest",
+                       "/leaderboard-rivals/Solo_Guitar/frozenrival9?rankBy=totalscore&sort=closest"):
+            with self.assertRaises(HTTPError) as error:
+                urlopen(player + detail)
+            self.assertEqual(error.exception.code, 503)
+            self.assertEqual(error.exception.headers["X-Fst-Public-Read-Freeze-Reason"], "scrape")
+        with urlopen(player + "/rivals/03") as response:
+            self.assertEqual(json.load(response)["combo"], "03")
+        with urlopen(player + "/rivals/all") as response:
+            body = json.load(response)
+        self.assertEqual(body["accountId"], "fixture-riv-frozen")
+        self.assertEqual(body["songs"], ["fixture-pulse", "fixture-orbit"])
+        rival = body["combos"][0]["above"][0]
+        self.assertEqual((rival["accountId"], rival["displayName"]), ("frozenrival9", "Rival Nine"))
+        self.assertEqual([(s["s"], s["i"]) for s in rival["samples"]],
+                         [(0, "Solo_Guitar"), (0, "Solo_Bass"), (1, "Solo_Guitar")])
+        # `-503` keeps every Rivals read frozen, `/rivals/all` included (no fallback).
+        with self.assertRaises(HTTPError) as error:
+            urlopen(self.base + "/api/player/fixture-riv-503/rivals/all")
+        self.assertEqual(error.exception.code, 503)
+
     def test_service_info_discovery_fixture_reports_attempt_progress(self):
         """The opt-in discovery body carries the web's schema-1 attempt counts."""
         server = FixtureServer(("127.0.0.1", 0), FixtureHandler, service_info_discovery=True)
