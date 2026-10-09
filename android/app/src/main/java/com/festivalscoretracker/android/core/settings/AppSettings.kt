@@ -30,7 +30,8 @@ import com.festivalscoretracker.android.core.songs.SongSortMode
  * @property pathUnavailableWarningDismissed The Paths unavailable-chart warning was dismissed.
  * @property filterInvalidScores Hide scores above the CHOpt maximum plus [leeway].
  * @property leeway Invalid-score leeway percent, −5…+5 in 0.1 steps.
- * @property experimentalRanks Experimental leaderboard ranks (not yet available natively: sanitized to off).
+ * @property experimentalRanks Settings → Enable Experimental Leaderboard Ranks (web `enableExperimentalRanks`, off by default):
+ * gates the Adjusted, Weighted, FC Rate and Max Score metrics app-wide (experimental-ranks pattern).
  * @property hideShop Hide the Item Shop (navigation, sorts and highlights; the highlight preference is kept).
  * @property disableShopHighlighting Stop pulsing Shop highlights.
  * @property visibleMetadata Song-row metadata fields shown (all may be off).
@@ -81,7 +82,6 @@ data class AppSettings(
         songRowVisualOrder = SettingsOrder.normalize(songRowVisualOrder, MetadataField.entries),
         pathColumnOrder = SettingsOrder.normalize(pathColumnOrder, PathColumnKey.entries),
         leeway = ScoreLeeway.clamp(leeway),
-        experimentalRanks = false,
     )
 
     /**

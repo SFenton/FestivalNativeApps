@@ -697,4 +697,59 @@ func fullRankingsUsesTwoColumnsOnlyFullWidthInWideLandscape(placement: WideBoard
     #expect(controller.sections.isEmpty)
     #expect(!controller.isAvailable)
 }
+
+// MARK: - One group card per page (#543)
+
+/// Full Rankings' page rows are one card (owner #543): 48 pt rows in rank order,
+/// abutting, with the selected player's row in place and labels unchanged.
+@MainActor
+@Test func fullRankingsRowsAreOneAccessibleCard() async throws {
+    nativeHostedEnableAccessibility()
+    let transport = HostedRankingsTransport()
+    await transport.setSpotlightRank(instrument: "Solo_Guitar", accountId: "fixture-rank-2", rank: 2)
+    let session = try hostedRankingsSessionWithSelection(
+        transport: transport, accountId: "fixture-rank-2", displayName: "Fixture Rank 2"
+    )
+    let size = CGSize(width: 402, height: 900)
+    let host = nativeHostedView(
+        NavigationStack { FullRankingsScreen(session: session, instrument: .lead, rankBy: "totalscore") }
+            .frame(width: size.width, height: size.height)
+            .preferredColorScheme(.dark)
+            .leaderboardsHostedStorage(),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let ids = (1...3).map { "fst.rankings.row.fixture-rank-\($0)" }
+    let image = try await nativeHostedSettle(host, timeout: .seconds(60)) {
+        boardRowsAbut(ids, in: host)
+    }
+    _ = try nativeHostedPNG(image, filename: "full-rankings-group-card.png", environment: "FST_LEADERBOARDS_RENDER_OUT")
+    try expectBoardRowsInOneCard(ids, in: host)
+    #expect(nativeHostedAccessibility(host).contains("Fixture Rank 1"))
+}
+
+/// Band Rankings' page rows are one card (owner #543).
+@MainActor
+@Test func bandRankingsRowsAreOneAccessibleCard() async throws {
+    nativeHostedEnableAccessibility()
+    let transport = HostedRankingsTransport()
+    let session = hostedRankingsSession(transport: transport)
+    let size = CGSize(width: 402, height: 900)
+    let host = nativeHostedView(
+        NavigationStack { BandRankingsScreen(session: session, bandType: "Band_Duets") }
+            .frame(width: size.width, height: size.height)
+            .preferredColorScheme(.dark)
+            .leaderboardsHostedStorage(),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let ids = (1...2).map { "fst.band-rankings.row.team-\($0)" }
+    let image = try await nativeHostedSettle(host, timeout: .seconds(60)) {
+        boardRowsAbut(ids, in: host)
+    }
+    _ = try nativeHostedPNG(image, filename: "band-rankings-group-card.png", environment: "FST_LEADERBOARDS_RENDER_OUT")
+    try expectBoardRowsInOneCard(ids, in: host)
+}
 #endif

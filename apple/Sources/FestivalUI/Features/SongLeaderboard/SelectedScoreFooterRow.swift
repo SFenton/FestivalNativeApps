@@ -31,10 +31,11 @@ struct SelectedScoreFooterRow: View {
 
 // MARK: - Row card
 
-/// One song-board row as its own card: the ``SongLeaderboardEntryRow`` columns, the
-/// in-card disclosure chevron, the 48-unit minimum and the row surface (the selected
-/// player's purple). The one card for the Solo board's rows, both boards' pinned
-/// footers and the section's width probe (``SongLeaderboardNameFit``).
+/// One song-board row: the ``SongLeaderboardEntryRow`` columns, the in-card disclosure
+/// chevron, the 48-unit minimum and the row surface (the selected player's purple). The
+/// one row for the Solo board, where it is a segment of the page's group card
+/// (``FestivalGroupSegment``, owner #543), both boards' pinned footers, which stay
+/// floating cards of their own, and the section's width probe (``SongLeaderboardNameFit``).
 ///
 /// The chevron is centred on the whole card, so it stays centred when a crowded
 /// trailing-pane board stacks its rows into multi-row cards (#364; HIG Lists and
@@ -50,6 +51,9 @@ struct SongLeaderboardRowCard: View {
     /// surface.
     var probeNames: [RankingRowName]? = nil
 
+    /// The row's horizontal padding, also the group card's hairline inset.
+    static let horizontalPadding: CGFloat = 14
+
     var body: some View {
         let card = HStack(spacing: 8) {
             SongLeaderboardEntryRow(
@@ -61,7 +65,7 @@ struct SongLeaderboardRowCard: View {
                 .foregroundStyle(FestivalText.deemphasized)
                 .accessibilityHidden(true)
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, Self.horizontalPadding)
         .frame(minHeight: LeaderboardRowMetrics.minHeight)
         if probeNames == nil {
             card.modifier(RankingRowSurface(isSelected: isPlayer))

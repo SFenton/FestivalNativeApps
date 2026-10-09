@@ -555,9 +555,11 @@ struct SongBandLeaderboardContent: View {
             }
             .frame(maxWidth: .infinity, minHeight: gateMinHeight)
         case let .loaded(payload):
-            // The same band card as the Song Detail previews (web `PlayerBandCard` on
-            // both pages, issue #90), each row its own material card.
-            LazyVStack(spacing: Self.rowGap) {
+            // The same band row as the Song Detail previews (web `PlayerBandCard` on
+            // both pages, issue #90), the page's rows segments of one group card per
+            // column like the previews' card (leaderboard-row R10, owner #543).
+            let entries = payload.leaderboard.entries
+            LazyVStack(spacing: 0) {
                 if payload.leaderboard.entries.isEmpty {
                     // Web `songBandLeaderboard.emptyTitle` / `emptySubtitle`.
                     FestivalEmptyState(
@@ -569,8 +571,8 @@ struct SongBandLeaderboardContent: View {
                     )
                 }
                 // Row-major pairs in wide landscape (wide-columns R2, #353).
-                ForEach(WideColumns.indexedRows(payload.leaderboard.entries, columns: columns)) { row in
-                    WideColumnsRow(columns: columns, count: row.items.count) {
+                ForEach(WideColumns.indexedRows(entries, columns: columns)) { row in
+                    WideColumnsRow(columns: columns, count: row.items.count, matchesHeights: true) {
                         ForEach(row.indexed, id: \.item.id) { index, entry in
                             // The selected player's band, or the band this page was
                             // opened for, gets the purple highlight (web `isSelected`).
@@ -582,6 +584,11 @@ struct SongBandLeaderboardContent: View {
                             // still fades (R5).
                             .festivalFadeIn(staggerIndex: index)
                             .frame(maxWidth: .infinity)
+                            // The preview card's hairline inset (the row's padding).
+                            .festivalGroupSegment(
+                                .position(index: index, count: entries.count, columns: columns),
+                                separatorInset: 12
+                            )
                         }
                     }
                 }
