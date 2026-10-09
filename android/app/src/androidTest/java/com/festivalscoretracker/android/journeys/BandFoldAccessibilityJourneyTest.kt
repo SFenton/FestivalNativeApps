@@ -20,6 +20,8 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.mutablePreferencesOf
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.window.layout.FoldingFeature.Orientation
@@ -30,6 +32,7 @@ import androidx.window.testing.layout.WindowLayoutInfoPublisherRule
 import com.festivalscoretracker.android.core.bands.BandLayout
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
+import com.festivalscoretracker.android.core.settings.SettingsRegistry
 import com.festivalscoretracker.android.testing.BandFixtures
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
@@ -51,7 +54,8 @@ import org.junit.runner.RunWith
  *   Summary, Band Statistics) before the trailing pane (Band Rank History, Five Best Songs), so
  *   two side-by-side panes never interleave. Flat, the panes are equal and meet at the content
  *   midpoint. Half open, each pane keeps to its side of the hinge. Every section header is a
- *   heading and Rank By is a labelled 48 dp button.
+ *   heading and Rank By is a labelled 48 dp button (launched with Settings → Experimental Ranks
+ *   on, which shows Rank By, #541; `BandsUiTest` covers it hidden while off).
  * - **Player Bands:** the subtitle and group picker are read before the cards, and the cards
  *   in visual row order. Flat, the grid is centred on the content area. Half open, the controls
  *    pane ends at the hinge and the cards start after it. The All and Duos segments are named
@@ -280,7 +284,9 @@ class BandFoldAccessibilityJourneyTest {
         var scale by mutableFloatStateOf(1f)
         val route = DebugLaunch.parseRoute("band:${BandFixtures.DUO_ID}:Band_Duets:${BandFixtures.DUO_KEY}")
         h.enableAccessibilityChecks()
-        h.launch(DebugLaunch(route = route, stillBackground = true), transport, fontScale = { scale })
+        // Experimental Ranks on so Rank By shows and stays covered (#541 hides it while off; #564).
+        val preferences = MemoryPreferences(mutablePreferencesOf(booleanPreferencesKey(SettingsRegistry.EXPERIMENTAL_RANKS) to true))
+        h.launch(DebugLaunch(route = route, stillBackground = true), transport, preferences, fontScale = { scale })
         h.waitForTag(MEMBERS)
         h.publishTalkBackTree()
         val wide = expanded()
