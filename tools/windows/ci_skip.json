@@ -68,14 +68,6 @@
       "reason": "Footer fade state or column focus-clear differs",
       "issue": "SFenton/festival-report-tracker#538"
     },
-    "hit-player-history": {
-      "reason": "History page/section not on screen or focus differs",
-      "issue": "SFenton/festival-report-tracker#537"
-    },
-    "hit-song-detail": {
-      "reason": "History page/section not on screen or focus differs",
-      "issue": "SFenton/festival-report-tracker#537"
-    },
     "hit-titlebar-box": {
       "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
       "issue": "SFenton/festival-report-tracker#536"
@@ -88,17 +80,13 @@
       "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
       "issue": "SFenton/festival-report-tracker#536"
     },
-    "kb-detail-compact-previews": {
-      "reason": "History page/section not on screen or focus differs",
-      "issue": "SFenton/festival-report-tracker#537"
-    },
     "kb-songs-order": {
       "reason": "Two Axe.Windows errors",
       "issue": "SFenton/festival-report-tracker#534"
     },
-    "narr-player-history": {
-      "reason": "History page/section not on screen or focus differs",
-      "issue": "SFenton/festival-report-tracker#537"
+    "mm-suggestions-scroll": {
+      "reason": "Axe.Windows errors during the Suggestions scroll (timing-dependent; passed in #493's runs)",
+      "issue": "SFenton/festival-report-tracker#534"
     },
     "narr-titlebar-box": {
       "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
@@ -111,10 +99,6 @@
     "narr-titlebar-swap": {
       "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
       "issue": "SFenton/festival-report-tracker#536"
-    },
-    "press-player-history": {
-      "reason": "History page/section not on screen or focus differs",
-      "issue": "SFenton/festival-report-tracker#537"
     },
     "press-quick-links-leaderboards": {
       "reason": "Two Axe.Windows errors (popup/flyout or board), timing-dependent",
@@ -132,10 +116,6 @@
       "reason": "Two Axe.Windows errors (popup/flyout or board), timing-dependent",
       "issue": "SFenton/festival-report-tracker#534"
     },
-    "press-song-detail": {
-      "reason": "History page/section not on screen or focus differs",
-      "issue": "SFenton/festival-report-tracker#537"
-    },
     "press-songs": {
       "reason": "Two Axe.Windows errors",
       "issue": "SFenton/festival-report-tracker#534"
@@ -152,10 +132,6 @@
       "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
       "issue": "SFenton/festival-report-tracker#536"
     },
-    "qla-settings-menu": {
-      "reason": "Fails at 225% text (focus/reachability)",
-      "issue": "SFenton/festival-report-tracker#539"
-    },
     "qlj-profile-menu": {
       "reason": "Flaky at 225% text: Quick Links current section read before the jump settles",
       "issue": "SFenton/festival-report-tracker#548"
@@ -163,10 +139,6 @@
     "search-suggestions": {
       "reason": "Two Axe.Windows errors (popup/flyout or board), timing-dependent",
       "issue": "SFenton/festival-report-tracker#534"
-    },
-    "settings-service-info-unavailable": {
-      "reason": "Fails at 225% text (focus/reachability)",
-      "issue": "SFenton/festival-report-tracker#539"
     }
   },
   "tasks": {
@@ -178,14 +150,6 @@
       "reason": "Leaderboard rows aren't named '\u2026 5 gold stars' and gold-6 has no status, even with star_rating_fixture.",
       "issue": "SFenton/festival-report-tracker#529"
     },
-    "journey:whats-new-pointer": {
-      "reason": "Injected pointer dismissal assertions fail.",
-      "issue": "SFenton/festival-report-tracker#531"
-    },
-    "runner:settings": {
-      "reason": "Visual-order drag assertion fails.",
-      "issue": "SFenton/festival-report-tracker#531"
-    },
     "matrix:a11y:5": {
       "reason": "Axe finds two errors in leaderboards rank-by popup.",
       "issue": "SFenton/festival-report-tracker#534"
@@ -193,22 +157,6 @@
     "matrix:a11y:12": {
       "reason": "Axe finds two errors in Quick Links popup.",
       "issue": "SFenton/festival-report-tracker#534"
-    },
-    "runner:navigation": {
-      "reason": "Band rankings list / compact back states not reached on the runner (virtualized repeaters; fix in flight)",
-      "issue": "SFenton/festival-report-tracker#533"
-    },
-    "runner:songs": {
-      "reason": "Shop-empty filter state fails (fix in flight)",
-      "issue": "SFenton/festival-report-tracker#533"
-    },
-    "runner:songs-filter": {
-      "reason": "Intensity Clear All / Clear Filters not on screen (fix in flight)",
-      "issue": "SFenton/festival-report-tracker#533"
-    },
-    "runner:profile": {
-      "reason": "Empty player-bands trios can't be revealed (virtualized repeater; fix in flight)",
-      "issue": "SFenton/festival-report-tracker#533"
     },
     "runner:fade": {
       "reason": "song-reveal/song-board fade trace checks fail",

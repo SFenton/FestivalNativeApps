@@ -475,6 +475,7 @@ struct HingeEagerGridLayout: Layout {
 struct HingeRow<Content: View>: View {
     private let spacing: CGFloat
     private let fillsHeight: Bool
+    private let matchesHeights: Bool
     private let content: Content
     @Environment(\.deviceLayout) private var layout
     @State private var span: HorizontalSpan?
@@ -485,11 +486,17 @@ struct HingeRow<Content: View>: View {
     ///   - spacing: Gap between cells (and the narrowest clearance over the hinge).
     ///   - fillsHeight: Give every cell the row's proposed height (side-by-side panes)
     ///     instead of its own (default false: cards, top-aligned).
+    ///   - matchesHeights: Size the row to its tallest cell and offer every cell that
+    ///     height (segments of a board's group card, #543).
     ///   - content: The cells, an even count (pad a short row with clear cells); one cell
     ///     alone fills the row.
-    init(spacing: CGFloat, fillsHeight: Bool = false, @ViewBuilder content: () -> Content) {
+    init(
+        spacing: CGFloat, fillsHeight: Bool = false, matchesHeights: Bool = false,
+        @ViewBuilder content: () -> Content
+    ) {
         self.spacing = spacing
         self.fillsHeight = fillsHeight
+        self.matchesHeights = matchesHeights
         self.content = content()
     }
 
@@ -497,7 +504,9 @@ struct HingeRow<Content: View>: View {
         let band = HingeColumns.band(
             span: span, fold: layout.splitHinge, gutter: spacing, minimumSide: HingeColumns.minimumSide
         )
-        HingeRowLayout(spacing: spacing, band: band, fillsHeight: fillsHeight) { content }
+        HingeRowLayout(spacing: spacing, band: band, fillsHeight: fillsHeight, matchesHeights: matchesHeights) {
+            content
+        }
             .measuresHorizontalSpan($span, fold: layout.splitHinge)
     }
 }
@@ -511,6 +520,9 @@ struct HingeRowLayout: Layout {
     var band: HingeBand?
     /// Every cell takes the row's proposed height (side-by-side panes).
     var fillsHeight = false
+    /// The row is as tall as its tallest cell and every cell is offered that height
+    /// (one group card per column, #543).
+    var matchesHeights = false
 
     /// What a cell is offered.
     ///
@@ -553,7 +565,9 @@ struct HingeRowLayout: Layout {
         for (subview, cell) in zip(subviews, cells(width: bounds.width, count: subviews.count)) {
             subview.place(
                 at: CGPoint(x: bounds.minX + cell.x, y: bounds.minY), anchor: .topLeading,
-                proposal: cellProposal(width: cell.width, rowHeight: bounds.height)
+                proposal: matchesHeights && !fillsHeight
+                    ? ProposedViewSize(width: cell.width, height: bounds.height)
+                    : cellProposal(width: cell.width, rowHeight: bounds.height)
             )
         }
     }

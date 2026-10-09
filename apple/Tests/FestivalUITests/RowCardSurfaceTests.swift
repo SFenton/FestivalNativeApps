@@ -167,6 +167,19 @@ private struct CardRimProbe: View {
     }
 }
 
+/// One group-card segment's rim alone (``FestivalSegmentRim``) over black, card-sized.
+private struct SegmentRimProbe: View {
+    let segment: FestivalGroupSegment
+
+    var body: some View {
+        ZStack {
+            Color.black
+            FestivalSegmentRim(segment: segment, radius: 12, style: Color.white)
+                .frame(width: 280, height: 64)
+        }
+    }
+}
+
 /// A Song-row-sized card holding one button, for the accessibility tree.
 private struct CardButtonProbe: View {
     var body: some View {
@@ -313,6 +326,24 @@ private func cardAccessibilityElements(_ host: NSView) -> [NSObject] {
         let inside = try lineBrightness(image, y: 48, xs: 80...240)
         #expect(top > 0.03, "rim \(top)")
         #expect(inside < 0.01, "inside \(inside)")
+    }
+
+    @Test("A group segment's rim draws under a stroke mask: sides always, ends only where the card ends (issues #543, #553)")
+    func segmentRimDrawsOnlyItsShareOfTheBorder() throws {
+        let size = CGSize(width: 320, height: 96)
+        let first = try nativeHostedImage(nativeHostedView(
+            SegmentRimProbe(segment: FestivalGroupSegment(isFirst: true, isLast: false)),
+            size: size, forceGlassFallback: false
+        ))
+        let middle = try nativeHostedImage(nativeHostedView(
+            SegmentRimProbe(segment: FestivalGroupSegment(isFirst: false, isLast: false)),
+            size: size, forceGlassFallback: false
+        ))
+        #expect(try lineBrightness(first, y: 16.5, xs: 80...240) > 0.5, "first segment's top edge")
+        #expect(try lineBrightness(first, y: 79.5, xs: 80...240) < 0.01, "first segment's open bottom")
+        #expect(try lineBrightness(middle, y: 16.5, xs: 80...240) < 0.01, "middle segment's open top")
+        #expect(try lineBrightness(middle, y: 48, xs: 20...20.5) > 0.5, "middle segment's side")
+        #expect(try lineBrightness(middle, y: 48, xs: 80...240) < 0.01, "middle segment's inside")
     }
 
     @Test("The rim adds no accessibility element and keeps the button's role (issue #553)")

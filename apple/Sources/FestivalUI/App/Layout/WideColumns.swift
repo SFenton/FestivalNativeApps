@@ -228,6 +228,7 @@ struct WideColumnsRowItems<Item: Identifiable>: Identifiable {
 struct WideColumnsRow<Content: View>: View {
     private let columns: Int
     private let count: Int
+    private let matchesHeights: Bool
     private let content: Content
 
     /// Create a row.
@@ -235,16 +236,19 @@ struct WideColumnsRow<Content: View>: View {
     /// - Parameters:
     ///   - columns: Columns across the page.
     ///   - count: Cells `content` draws (a short last row pads the rest).
+    ///   - matchesHeights: Offer every cell the pair's height, for rows that are
+    ///     segments of one group card per column (``FestivalGroupSegment``, #543).
     ///   - content: The cells.
-    init(columns: Int, count: Int, @ViewBuilder content: () -> Content) {
+    init(columns: Int, count: Int, matchesHeights: Bool = false, @ViewBuilder content: () -> Content) {
         self.columns = columns
         self.count = count
+        self.matchesHeights = matchesHeights
         self.content = content()
     }
 
     var body: some View {
         if columns > 1 {
-            HingeRow(spacing: WideColumns.spacing) {
+            HingeRow(spacing: WideColumns.spacing, matchesHeights: matchesHeights) {
                 content
                 ForEach(count..<max(count, columns), id: \.self) { _ in
                     Color.clear.frame(maxWidth: .infinity, maxHeight: 0)

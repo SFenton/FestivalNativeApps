@@ -587,16 +587,6 @@
       "waitfor:id=fst.paths@5",
       "key:escape",
       "waitgone:id=fst.paths@5",
-      "scrollinto:id=fst.history.sort.open",
-      "wait:0.5",
-      "tapat:id=fst.history.sort.open|0,-18.5",
-      "waitfor:id=fst.history.sort.mode.date@5",
-      "key:escape",
-      "waitgone:id=fst.history.sort.mode.date@5",
-      "tapat:id=fst.history.sort.open|0,18.5",
-      "waitfor:id=fst.history.sort.mode.date@5",
-      "key:escape",
-      "waitgone:id=fst.history.sort.mode.date@5",
       "scrollto:id=fst.song-detail,100",
       "waitfor:id=fst.song-detail.pinned-paths@10",
       "wait:0.5",
@@ -623,7 +613,8 @@
       "snap-left"
     ],
     "ready": [
-      "waitfor:id=fst.history.subtitle@20"
+      "waitfor:id=fst.history.title@20",
+      "waitfor:id=fst.history.sort.open@20"
     ],
     "after_ready": [
       "tapat:id=fst.history.sort.open|0,-18.5",
