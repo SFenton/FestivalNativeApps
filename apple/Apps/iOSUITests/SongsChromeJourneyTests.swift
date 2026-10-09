@@ -304,7 +304,30 @@ final class SongsChromeJourneyTests: XCTestCase {
         large.terminate()
         let app = try launchScrollAwayFixture(largeText: false)
         let growth = largeRail / railLetterHeight(app)
-        try assertScrollAwayAccessibility(in: app, label: "default", railGrowth: growth)
+        let walk = try assertScrollAwayAccessibility(
+            in: app, label: "default", railGrowth: growth, predictsClipping: true
+        )
+        guard walk.clipPredictionsAtTop + walk.clipPredictionsScrolled > 0 else { return }
+        // Unattributed "Text clipped" at the default size predicts clipping at larger
+        // sizes: disprove it where it pointed, at AX5 (the drawer journey's precedent).
+        app.terminate()
+        let check = try launchScrollAwayFixture(largeText: true)
+        if walk.clipPredictionsAtTop > 0 {
+            let clipped = try ax5Clipping(check)
+            XCTAssertTrue(
+                clipped.isEmpty,
+                "\(walk.clipPredictionsAtTop) predicted clippings at the top still clip at AX5: \(clipped)"
+            )
+        }
+        if walk.clipPredictionsScrolled > 0 {
+            XCTAssertTrue(scrollAway(check), "Section bar never appeared at AX5")
+            waitForListToSettle(check)
+            let clipped = try ax5Clipping(check)
+            XCTAssertTrue(
+                clipped.isEmpty,
+                "\(walk.clipPredictionsScrolled) predicted clippings scrolled still clip at AX5: \(clipped)"
+            )
+        }
     }
 
     /// Issue #5 accessibility (#388) at AX5: the section bar's heading and the A–Z rail's
@@ -332,7 +355,7 @@ final class SongsChromeJourneyTests: XCTestCase {
         )
         let barHeight = try assertScrollAwayAccessibility(
             in: app, label: "ax5", railGrowth: largeRail / defaultRail
-        )
+        ).barHeight
         XCTAssertGreaterThanOrEqual(
             barHeight, defaultHeight * 1.35,
             "Section bar heading did not scale: \(barHeight) pt at AX5, \(defaultHeight) pt default"
@@ -376,14 +399,18 @@ final class SongsChromeJourneyTests: XCTestCase {
     ///   - app: Songs at the top of the large fixture.
     ///   - label: Names the audit activities.
     ///   - railGrowth: How much taller the A–Z rail's letters are at AX5 than at the
-    ///     default size, measured in this test (``auditScrollAway(_:_:railGrowth:)``).
-    /// - Returns: The section bar heading's height while scrolled away.
+    ///     default size, measured in this test
+    ///     (``auditScrollAway(_:_:railGrowth:predictsClipping:)``).
+    ///   - predictsClipping: Count unattributed "Text clipped" issues as predictions for
+    ///     the caller to disprove at AX5 instead of accepting only one.
+    /// - Returns: The section bar heading's height while scrolled away, and the
+    ///   unattributed clipping predictions at the top (both visits) and scrolled away.
     /// - Throws: A failed audit.
     @MainActor
     @discardableResult
     private func assertScrollAwayAccessibility(
-        in app: XCUIApplication, label: String, railGrowth: CGFloat
-    ) throws -> CGFloat {
+        in app: XCUIApplication, label: String, railGrowth: CGFloat, predictsClipping: Bool = false
+    ) throws -> (barHeight: CGFloat, clipPredictionsAtTop: Int, clipPredictionsScrolled: Int) {
         let bar = app.staticTexts["fst.songs.section-bar"]
         let firstTitle = app.staticTexts["fst.songs.section.0"]
         let firstRow = app.buttons["fst.songs.row.fixture-song-1"]
@@ -398,7 +425,9 @@ final class SongsChromeJourneyTests: XCTestCase {
             .matching(identifier: "fst.songs.section-index").firstMatch.frame
         let topSearch = SongsUITestSupport.songsSearchEntry(in: app).frame
         XCTAssertGreaterThanOrEqual(rail.minY + 8, topSearch.maxY, "Rail \(rail) overlaps search \(topSearch)")
-        try auditScrollAway(app, "\(label) top", railGrowth: railGrowth)
+        var atTop = try auditScrollAway(
+            app, "\(label) top", railGrowth: railGrowth, predictsClipping: predictsClipping
+        )
 
         // Scrolled away: one bar heading naming a section, below the navigation bar.
         XCTAssertTrue(scrollAway(app), "Section bar never appeared")
@@ -420,7 +449,9 @@ final class SongsChromeJourneyTests: XCTestCase {
             XCTAssertFalse(row.label.isEmpty, "\(row.identifier) unnamed")
             XCTAssertGreaterThanOrEqual(row.frame.height, 44, "\(row.identifier) is \(row.frame.height) pt")
         }
-        try auditScrollAway(app, "\(label) scrolled", railGrowth: railGrowth)
+        let scrolled = try auditScrollAway(
+            app, "\(label) scrolled", railGrowth: railGrowth, predictsClipping: predictsClipping
+        )
 
         // The reported path back to the top: the bar leaves, the page stays usable.
         for _ in 0..<12 where bar.exists || !firstRow.isHittable { app.swipeDown() }
@@ -438,8 +469,10 @@ final class SongsChromeJourneyTests: XCTestCase {
             app.buttons["fst.songs.sort"].isHittable || app.buttons["fst.songs.tools"].isHittable,
             "Sort did not remain available"
         )
-        try auditScrollAway(app, "\(label) back at top", railGrowth: railGrowth)
-        return barHeight
+        atTop += try auditScrollAway(
+            app, "\(label) back at top", railGrowth: railGrowth, predictsClipping: predictsClipping
+        )
+        return (barHeight, atTop, scrolled)
     }
 
     /// Scroll the Songs list away from the top until the floating section bar shows.
@@ -502,15 +535,24 @@ final class SongsChromeJourneyTests: XCTestCase {
     /// condense as they grow, is accepted only with this run's proof that they are
     /// ≥ 1.35× taller at AX5 (the iPad audit's `dynamic-type-grows` evidence). Otherwise
     /// only the system search placeholder's contrast and the Songs list's one
-    /// unattributed "Text clipped" open finding are accepted.
+    /// unattributed "Text clipped" open finding are accepted; with `predictsClipping`
+    /// every unattributed "Text clipped" is returned for the caller to disprove at AX5
+    /// instead. An audit the slow CI runner reports as not completed in time is run once
+    /// more.
     ///
     /// - Parameters:
     ///   - app: Songs in the state to audit.
     ///   - name: Names the activity listing accepted issues.
     ///   - railGrowth: The rail letters' measured AX5 / default height.
+    ///   - predictsClipping: Return unattributed "Text clipped" issues as predictions.
+    /// - Returns: The number of unattributed "Text clipped" predictions (0 unless
+    ///   `predictsClipping`).
     /// - Throws: Any other audit issue.
     @MainActor
-    private func auditScrollAway(_ app: XCUIApplication, _ name: String, railGrowth: CGFloat) throws {
+    @discardableResult
+    private func auditScrollAway(
+        _ app: XCUIApplication, _ name: String, railGrowth: CGFloat, predictsClipping: Bool = false
+    ) throws -> Int {
         XCTContext.runActivity(named: "Rail letters grow \(railGrowth)× at AX5") { _ in }
         // The audit cycles text sizes, which re-lays out the list, so the reported frames
         // match the page after it, not before: read the page when the first issue comes.
@@ -519,7 +561,13 @@ final class SongsChromeJourneyTests: XCTestCase {
         var failures: [String] = []
         var unattributedClipped = 0
         var unattributedContrast: [String] = []
-        try app.performAccessibilityAudit(for: .all) { issue in
+        try performAuditRetryingTimeout(app, .all, name: name, reset: {
+            page = nil
+            accepted = []
+            failures = []
+            unattributedClipped = 0
+            unattributedContrast = []
+        }) { issue in
             let element = issue.element.map {
                 "\($0.elementType.rawValue) '\($0.identifier)' '\($0.label)' \($0.frame)"
             } ?? "no element"
@@ -557,9 +605,10 @@ final class SongsChromeJourneyTests: XCTestCase {
                 }
             } else if issue.auditType == .contrast, issue.element == nil {
                 unattributedContrast.append(description)
-            } else if issue.auditType == .textClipped, issue.element == nil, unattributedClipped == 0 {
+            } else if issue.auditType == .textClipped, issue.element == nil,
+                      predictsClipping || unattributedClipped == 0 {
                 unattributedClipped += 1
-                accepted.append(description)
+                accepted.append(predictsClipping ? "clipping prediction, checked at AX5: \(description)" : description)
             } else {
                 failures.append(description)
             }
@@ -583,6 +632,55 @@ final class SongsChromeJourneyTests: XCTestCase {
             add(shot)
         }
         XCTAssertTrue(failures.isEmpty, "Audit \(name): \(failures.joined(separator: "; "))")
+        return predictsClipping ? unattributedClipped : 0
+    }
+
+    /// Clipping-only audit at AX5, the evidence that disproves default-size predictions.
+    ///
+    /// - Parameter app: Songs launched at AX5 in the state the predictions came from.
+    /// - Returns: Each clipping issue, except a search field's single-line placeholder
+    ///   (`system-search-placeholder-clipped`); empty when the page audits clean.
+    /// - Throws: An audit that cannot complete.
+    @MainActor
+    private func ax5Clipping(_ app: XCUIApplication) throws -> [String] {
+        var clipped: [String] = []
+        try performAuditRetryingTimeout(app, .textClipped, name: "ax5 clipping", reset: { clipped = [] }) { issue in
+            if issue.element?.elementType != .searchField {
+                clipped.append(issue.element.map { "\($0.elementType.rawValue) '\($0.label)'" } ?? "no element")
+            }
+            return true
+        }
+        XCTContext.runActivity(named: "AX5 clipping: \(clipped)") { _ in }
+        return clipped
+    }
+
+    /// Run an accessibility audit, once more when it does not complete in time: the CI
+    /// runner's virtual machine sometimes exceeds XCTest's audit deadline on this long
+    /// list (`com.apple.xcode.xctest.accessibilityAudit` -56, #388).
+    ///
+    /// - Parameters:
+    ///   - app: The app to audit.
+    ///   - types: The audit types.
+    ///   - name: Names the retry activity.
+    ///   - reset: Clears what the handler collected before the retry.
+    ///   - handler: The issue handler.
+    /// - Throws: The second timeout or any other audit error.
+    @MainActor
+    private func performAuditRetryingTimeout(
+        _ app: XCUIApplication,
+        _ types: XCUIAccessibilityAuditType,
+        name: String,
+        reset: () -> Void,
+        _ handler: @escaping (XCUIAccessibilityAuditIssue) throws -> Bool
+    ) throws {
+        do {
+            try app.performAccessibilityAudit(for: types, handler)
+        } catch let error as NSError
+            where error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == -56 {
+            XCTContext.runActivity(named: "Audit \(name) did not complete in time; retrying once") { _ in }
+            reset()
+            try app.performAccessibilityAudit(for: types, handler)
+        }
     }
 
     /// The static texts between the top ramp and the bottom chrome that do not render
