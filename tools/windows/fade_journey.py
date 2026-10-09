@@ -57,7 +57,8 @@ SONG_DETAIL_PARTS = ("FullHeader", "IntensitySection", "HistorySection", "Leader
 PLAYER_ROW = "id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17"
 
 
-def board_rush(open_steps: list[str], list_id: str, owner: str, pinned: str) -> list[fade_trace.Phase]:
+def board_rush(open_steps: list[str], list_id: str, owner: str, pinned: str,
+               ready: str | None = None) -> list[fade_trace.Phase]:
     """The phase of a board scenario: open the board, then scroll to its end inside the entrance.
 
     The board opens inside the drive (not at launch), so the scroll follows its load even when the drive first waits
@@ -68,11 +69,15 @@ def board_rush(open_steps: list[str], list_id: str, owner: str, pinned: str) -> 
         list_id: The board list's AutomationId.
         owner: The trace name of the board's list (``RowsRepeater`` or ``Rows``).
         pinned: The trace name of its pinned "your score" row.
+        ready: A row selector to wait for before scrolling: a slow host shows the list before its rows are laid out,
+            when UI Automation cannot scroll it yet (issue #532).
 
     Returns:
         One phase: the pinned row is enrolled in the board's entrance and the scroll rushes every pending fade.
     """
-    return [fade_trace.Phase("load-scroll", [*open_steps, f"waitfor:id={list_id}@30", f"scrollto:id={list_id},100"],
+    wait_rows = [f"waitfor:{ready}@30"] if ready else []
+    return [fade_trace.Phase("load-scroll", [*open_steps, f"waitfor:id={list_id}@30", *wait_rows,
+                                             f"scrollto:id={list_id},100"],
                              lambda events: fade_trace.check_entrance_rush(events, owner, [pinned], FADE_WINDOW_MS))]
 
 
@@ -104,7 +109,7 @@ SCENARIOS = {
     ]),
     "song-board": Scenario("/songs/fixture-pulse", DEEP, board_rush(
         from_song_detail("fst.song-detail.view-all.Solo_Guitar"), "fst.song-leaderboard.list", "RowsRepeater",
-        "SpotlightPanel")),
+        "SpotlightPanel", ready="id=fst.song-leaderboard.row.fixture-player-1")),
     "band-board": Scenario("/songs/fixture-pulse", TOP, board_rush(
         from_song_detail("fst.song-detail.band-view-all.Band_Duets"), "fst.song-band-leaderboard.list", "Rows",
         "SpotlightPanel")),

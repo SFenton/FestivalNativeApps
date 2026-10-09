@@ -323,6 +323,62 @@ public class SettingsServiceInfoTests
         Assert.Null(vm.SpokenPhaseTitle);
     }
 
+    [Theory]
+    [InlineData(false, false, false, true, ServiceBarStatus.Hidden, false)]
+    [InlineData(false, true, true, true, ServiceBarStatus.Hidden, false)]
+    [InlineData(true, false, true, true, ServiceBarStatus.Determinate, false)]
+    [InlineData(true, false, false, false, ServiceBarStatus.Determinate, false)]
+    [InlineData(true, true, true, true, ServiceBarStatus.Sweeping, true)]
+    [InlineData(true, true, false, true, ServiceBarStatus.Still, false)]
+    [InlineData(true, true, false, false, ServiceBarStatus.Still, false)]
+    [InlineData(true, true, true, false, ServiceBarStatus.Held, false)]
+    public void BarStatus_SweepsOnlyUnknownTotalsWithMotion(bool hasBar, bool indeterminate, bool motion, bool visible, string status, bool sweeps)
+    {
+        Assert.Equal(status, ServiceBarStatus.Resolve(hasBar, indeterminate, motion, visible));
+        Assert.Equal(sweeps, ServiceBarStatus.Sweeps(hasBar, indeterminate, motion, visible));
+    }
+
+    [Fact]
+    public void Apply_UnknownTotalSweepsAndSwitchesWithPollsAndMotion()
+    {
+        var vm = new SettingsServiceInfoViewModel(new FakeService().Client(), new FakeTimeProvider(), () => TimeZoneInfo.Utc);
+        var changed = new List<string?>();
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        Assert.True(vm.MotionAllowed);
+        Assert.Equal((false, ServiceBarStatus.Hidden), (vm.SweepsBar, vm.BarStatus));
+
+        vm.Apply(new ServiceInfoSnapshot(Info(Updating(sub: Sub(1, 10, 10, final: false))), null));
+        Assert.Equal((true, ServiceBarStatus.Sweeping, 0.0), (vm.SweepsBar, vm.BarStatus, vm.BarPercent));
+        Assert.Contains(nameof(vm.SweepsBar), changed);
+        Assert.Contains(nameof(vm.BarStatus), changed);
+
+        // A later poll with an exact percent stops the sweep and shows the fill; the next unknown total sweeps again.
+        vm.Apply(new ServiceInfoSnapshot(Info(Updating(sub: Sub(250, 1000, 25, sequence: 2), at: "2026-09-28T15:00:05Z")), null));
+        Assert.Equal((false, ServiceBarStatus.Determinate, 25.0), (vm.SweepsBar, vm.BarStatus, vm.BarPercent));
+        vm.Apply(new ServiceInfoSnapshot(Info(Updating("scrape.solo", subphaseId: null, at: "2026-09-28T15:00:10Z")), null));
+        Assert.Equal((true, ServiceBarStatus.Sweeping, 0.0), (vm.SweepsBar, vm.BarStatus, vm.BarPercent));
+
+        // Reduce Motion holds a still, empty track; restoring motion resumes the sweep.
+        changed.Clear();
+        vm.MotionAllowed = false;
+        Assert.Equal((false, ServiceBarStatus.Still, 0.0), (vm.SweepsBar, vm.BarStatus, vm.BarPercent));
+        Assert.Contains(nameof(vm.SweepsBar), changed);
+        Assert.Equal(vm.PhaseTitle + ". Total not yet known", vm.PhaseAccessibleName);
+        vm.MotionAllowed = true;
+        Assert.True(vm.SweepsBar);
+
+        // A hidden window holds it too, and showing the window resumes it.
+        changed.Clear();
+        vm.Background = true;
+        Assert.Equal((false, ServiceBarStatus.Held), (vm.SweepsBar, vm.BarStatus));
+        Assert.Contains(nameof(vm.BarStatus), changed);
+        vm.Background = false;
+        Assert.Equal((true, ServiceBarStatus.Sweeping), (vm.SweepsBar, vm.BarStatus));
+
+        vm.ApplyFailure();
+        Assert.Equal((false, ServiceBarStatus.Hidden), (vm.SweepsBar, vm.BarStatus));
+    }
+
     [Fact]
     public void Apply_DiscoveryPrintsTheAttemptLineAndSpeaksIt()
     {

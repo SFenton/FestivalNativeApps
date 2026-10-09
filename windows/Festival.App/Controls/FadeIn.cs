@@ -393,17 +393,46 @@ public static class FadeIn
     #endregion
 
     #region Entrances
+    private static readonly DependencyProperty HeldAnchorProperty = DependencyProperty.RegisterAttached(
+        "HeldAnchor", typeof(object), typeof(FadeIn), new PropertyMetadata(null));
+
+    /// <summary>A page scroller's position when its content was laid out, before its entrance began.</summary>
+    /// <param name="X">Horizontal offset (epx).</param>
+    /// <param name="Y">Vertical offset (epx).</param>
+    private sealed record HeldAnchor(double X, double Y);
+
+    /// <summary>
+    /// Holds a page entrance's start position while its content is already laid out (and scrollable) but still hidden,
+    /// such as Song Details behind its spinner's fade-out: a scroll in that moment then rushes the entrance as soon as
+    /// <see cref="BeginEntrance"/> starts it, rather than going unseen and leaving the content to stagger in after the
+    /// reader has scrolled (R5, issue #532).
+    /// </summary>
+    /// <param name="scroller">The page's scroller.</param>
+    public static void HoldEntrance(ScrollViewer scroller) =>
+        scroller.SetValue(HeldAnchorProperty, new HeldAnchor(scroller.HorizontalOffset, scroller.VerticalOffset));
+
     /// <summary>
     /// Starts a page's own first-load entrance (Song Detail's sections and cards, Player Profile's title and Overview):
     /// a load arm owned by the page's scroller, whose first movement rushes every <see cref="Enter"/> fade of the page
     /// that hasn't started (a drag, wheel, Quick Links jump or programmatic scroll; web <c>useStaggerRush</c>, issue #323).
+    /// After <see cref="HoldEntrance"/>, movement is measured from the held position, so a scroll that came first rushes
+    /// the entrance at once and its elements enter together.
     /// </summary>
     /// <param name="scroller">The page's scroller.</param>
     public static void BeginEntrance(ScrollViewer scroller)
     {
         TrackerOf(scroller).Hook();
         Restagger(scroller);
-        SettleNow(scroller);
+        if (scroller.GetValue(HeldAnchorProperty) is not HeldAnchor held)
+        {
+            SettleNow(scroller);
+            return;
+        }
+        scroller.ClearValue(HeldAnchorProperty);
+        var arm = ArmOf(scroller);
+        arm.Settle(held.X, held.Y);
+        var now = Now;
+        OnScrolled(scroller, arm, arm.Scrolled(scroller.HorizontalOffset, scroller.VerticalOffset, now), now);
     }
 
     /// <summary>

@@ -4,6 +4,11 @@ import android.content.Intent
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -38,6 +43,7 @@ import kotlinx.coroutines.CompletableDeferred
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -202,9 +208,10 @@ class ShopOffersStatesUiTest {
         assertFalse(exists("fst.shop.view-toggle"))
         val order = listOf("s-alpha", "s-x", "s-beta").map { bounds("fst.shop.song.$it").top }
         assertEquals(order.sorted(), order)
-        // New and Leaving Tomorrow are visible text, not color alone.
-        rule.onNodeWithTag("fst.shop.badge.new.s-beta", useUnmergedTree = true).assertExists()
-        rule.onNodeWithTag("fst.shop.badge.leaving.s-alpha", useUnmergedTree = true).assertExists()
+        // Leaving Tomorrow is visible text, not color alone; New is the gold outline plus the row's spoken state (issue #562).
+        assertFalse(exists("fst.shop.badge.new.s-beta", unmerged = true))
+        rule.onNodeWithTag("fst.shop.song.s-beta").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "New"))
+        rule.onNodeWithTag("fst.shop.badge.leaving.s-alpha", useUnmergedTree = true).assertExists().assertIsDisplayed()
         assertFalse(exists("fst.shop.badge.new.s-x", unmerged = true) || exists("fst.shop.badge.leaving.s-x", unmerged = true))
         rule.onNode(hasContentDescription("Open Beta Song in the Fortnite Item Shop"), useUnmergedTree = true).assertExists()
         val target = bounds("fst.shop.external.s-beta")
@@ -265,6 +272,7 @@ class ShopOffersStatesUiTest {
         waitForTag("fst.shop.song.s-beta")
         assertFalse(exists("fst.shop.badge.new.s-beta", unmerged = true))
         assertFalse(exists("fst.shop.badge.leaving.s-alpha", unmerged = true))
+        assertNull(rule.onNodeWithTag("fst.shop.song.s-beta").fetchSemanticsNode().config.getOrNull(SemanticsProperties.StateDescription))
         rule.onNodeWithTag("fst.shop.external.s-beta").assertExists()
     }
 

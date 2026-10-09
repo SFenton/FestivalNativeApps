@@ -153,6 +153,13 @@ class LoadSwapJourneyTests(unittest.TestCase):
                 self.assertIn("waitgone:id=fst.rankings.row.fixture-player-1@3", steps)
                 self.assertIn("assertfocus:id=fst.full-rankings.page-next", steps)
 
+    def test_rank_by_pages_seed_experimental_ranks(self):
+        # Issue #541: Rank By shows only with Settings > Experimental Ranks on, so every page that reads it seeds it.
+        for page in _PAGES:
+            if any("rank-by" in st for st in _steps(page)):
+                with self.subTest(page=page["name"]):
+                    self.assertTrue(page.get("settings", {}).get("experimentalRanks"))
+
     def test_fixture_pages_stay_off_live_runs(self):
         self.assertTrue(all(p.get("fixture") for p in _PAGES))
         self.assertEqual(m.live_pages(_PAGES), [])

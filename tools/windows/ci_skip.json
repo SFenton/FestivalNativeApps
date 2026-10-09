@@ -4,10 +4,6 @@
       "reason": "Two Axe.Windows errors",
       "issue": "SFenton/festival-report-tracker#534"
     },
-    "cols-full-rankings-focus-clear": {
-      "reason": "Footer fade state or column focus-clear differs",
-      "issue": "SFenton/festival-report-tracker#538"
-    },
     "cols-player-bands-focus-clear": {
       "reason": "Two Axe.Windows errors",
       "issue": "SFenton/festival-report-tracker#534"
@@ -59,14 +55,6 @@
     "footer-fade-no-player-full-rankings-system-hard": {
       "reason": "Two Axe.Windows errors (popup/flyout or board), timing-dependent",
       "issue": "SFenton/festival-report-tracker#534"
-    },
-    "footer-fade-no-player-song-band-leaderboard-mid": {
-      "reason": "Footer fade state or column focus-clear differs",
-      "issue": "SFenton/festival-report-tracker#538"
-    },
-    "footer-fade-song-band-leaderboard-mid": {
-      "reason": "Footer fade state or column focus-clear differs",
-      "issue": "SFenton/festival-report-tracker#538"
     },
     "hit-titlebar-box": {
       "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
@@ -157,14 +145,6 @@
     "matrix:a11y:12": {
       "reason": "Axe finds two errors in Quick Links popup.",
       "issue": "SFenton/festival-report-tracker#534"
-    },
-    "runner:fade": {
-      "reason": "song-reveal/song-board fade trace checks fail",
-      "issue": "SFenton/festival-report-tracker#532"
-    },
-    "runner:suggestions": {
-      "reason": "Suggestions fade check fails",
-      "issue": "SFenton/festival-report-tracker#532"
     },
     "runner:feedback": {
       "reason": "Flaky: submit phase fails intermittently on the runner",
