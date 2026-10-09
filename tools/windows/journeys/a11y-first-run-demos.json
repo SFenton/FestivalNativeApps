@@ -67,7 +67,8 @@
       "waitfor:id=fst.settings.show-instrument-icons@30"
     ],
     "after_ready": [
-      "scrollinto:id=fst.settings.feedback.feature@20", "scrollinto:id=fst.settings.licenses",
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.licenses",
       "wait:0.5",
       "scrollinto:id=fst.settings.first-run.statistics",
       "focus:id=fst.settings.first-run.statistics",
@@ -107,7 +108,8 @@
       "waitfor:id=fst.settings.show-instrument-icons@30"
     ],
     "after_ready": [
-      "scrollinto:id=fst.settings.feedback.feature@20", "scrollinto:id=fst.settings.licenses",
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.licenses",
       "wait:0.5",
       "scrollinto:id=fst.settings.first-run.statistics",
       "focus:id=fst.settings.first-run.statistics",
@@ -150,7 +152,8 @@
       "waitfor:id=fst.settings.show-instrument-icons@30"
     ],
     "after_ready": [
-      "scrollinto:id=fst.settings.feedback.feature@20", "scrollinto:id=fst.settings.licenses",
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.licenses",
       "wait:0.5",
       "scrollinto:id=fst.settings.first-run.shop",
       "invoke:id=fst.settings.first-run.shop",
@@ -171,7 +174,8 @@
       "waitfor:id=fst.settings.show-instrument-icons@30"
     ],
     "after_ready": [
-      "scrollinto:id=fst.settings.feedback.feature@20", "scrollinto:id=fst.settings.licenses",
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.licenses",
       "wait:0.5",
       "scrollinto:id=fst.settings.first-run.shop",
       "invoke:id=fst.settings.first-run.shop",
