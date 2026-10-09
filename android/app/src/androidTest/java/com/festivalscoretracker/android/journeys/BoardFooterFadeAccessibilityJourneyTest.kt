@@ -14,12 +14,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PixelMap
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -48,8 +54,9 @@ import kotlin.math.ceil
  * Leaderboard, band song leaderboard, Full Rankings, Band Rankings: `RankingsBoardLayout`
  * `fadeAboveFooter`) fades its rows over a linear [ScrollEdgeFade.BOTTOM_DP] (40 dp) ramp ending at
  * the footer's top. On each board, at the device text size and at 200 %:
- * - a row the ramp dims is still a visible, labelled TalkBack stop (the ramp is drawing only) and
- *   is read before the pager;
+ * - a row the ramp dims is still a visible TalkBack stop (the ramp is drawing only), labelled
+ *   wherever the list shows its content (a sliver peeking above the footer is clipped by the
+ *   list, not the ramp), and is read before the pager;
  * - no row node reaches under the footer and the list's accessibility bounds end at its top, so
  *   covered rows leave touch and TalkBack (#104); beside a pager-only footer (Band Rankings) a
  *   row peeking less than 48 dp above the cut once reached 24 dp under it (#473);
@@ -203,7 +210,9 @@ class BoardFooterFadeAccessibilityJourneyTest {
 
     /**
      * Opens [board] at rest (page 1, rows running on under the footer, so the ramp is its full
-     * 40 dp) and checks the fade region in the tree TalkBack reads.
+     * 40 dp) and checks the fade region in the tree TalkBack reads; then scrolls so a row peeks
+     * only [SLIVER_DP] above the footer (where a Pixel 6 rests on Song Leaderboard, #473) and
+     * checks again, so every device covers that geometry.
      *
      * @param screen Name for the reading-order log and failure messages.
      * @param board The board.
@@ -229,6 +238,30 @@ class BoardFooterFadeAccessibilityJourneyTest {
             return
         }
 
+        checkFade(screen, board, fresh = scale != null)
+        peekSliver(board)
+        checkFade("$screen-sliver", board, fresh = true, sliver = true)
+        // Scroll back so the hide-on-scroll floating toolbar (always shown under TalkBack) slides
+        // fully in again before ATF's findings are judged.
+        rule.onNodeWithTag("${board.prefix}.list").performSemanticsAction(SemanticsActions.ScrollBy) {
+            it(0f, -rule.activity.resources.displayMetrics.heightPixels.toFloat())
+        }
+        rule.waitForIdle()
+        h.assertAccessible()
+    }
+
+    /**
+     * Checks the fade region of the open [board] in the tree TalkBack reads.
+     *
+     * @param screen Name for the reading-order log and failure messages.
+     * @param board The board.
+     * @param fresh Drop UiAutomation's node cache before reading the order (after a change in place).
+     * @param sliver Require a row peeking less than half its height above the footer.
+     */
+    private fun checkFade(screen: String, board: Board, fresh: Boolean, sliver: Boolean = false) {
+        val bar = "${board.prefix}.bottom-bar"
+        rule.waitForIdle()
+        if (android.os.Build.VERSION.SDK_INT >= 34) InstrumentationRegistry.getInstrumentation().uiAutomation.clearCache()
         val footer = screenBox(visible { it == bar }.first())
         val ramp = ScrollEdgeFade.BOTTOM_DP * rule.activity.resources.displayMetrics.density
         assertEquals("$screen: board footer ramp (web board useScrollMask)", 40f, ScrollEdgeFade.BOTTOM_DP, 0f)
@@ -242,21 +275,69 @@ class BoardFooterFadeAccessibilityJourneyTest {
             assertTrue("$screen: ${row.viewIdResourceName} ${screenBox(row)} reaches under the footer $footer", screenBox(row).bottom <= footer.top + 1)
         }
 
-        // Rows the 40 dp ramp dims are drawing-only changes: still visible, labelled TalkBack stops.
+        // Rows the 40 dp ramp dims are drawing-only changes: still visible TalkBack stops, and
+        // labelled wherever the list shows their content. A row peeking only a sliver above the
+        // footer is clipped by the list itself, not the ramp: its text children leave the tree
+        // until TalkBack scrolls it in, as at any list edge (JourneyHarness treats ATF's matching
+        // finding as a clipping artifact), so it must be a stop that composes a label. Rows tile,
+        // so a sliver under 40 dp leaves a fully shown row ending inside the ramp, and one of
+        // 40 dp or more shows at least the ramp's height: `shown` is never empty.
         val dimmed = rows.filter { screenBox(it).let { b -> b.bottom > footer.top - ramp && b.top < footer.top } }
         assertTrue("$screen: no row in the ${ScrollEdgeFade.BOTTOM_DP} dp ramp above $footer: ${rows.map(::screenBox)}", dimmed.isNotEmpty())
-        val stops = dimmed.map { row -> stop(row).also { assertTrue("$screen: dimmed ${row.viewIdResourceName} is not a TalkBack stop", it != null) }!! }
-        stops.forEach { assertTrue("$screen: dimmed row ${it.viewIdResourceName} is unlabelled", spoken(it).isNotEmpty()) }
+        dimmed.forEach { row -> assertTrue("$screen: dimmed ${row.viewIdResourceName} is not a TalkBack stop", stop(row) != null) }
+        val (shown, slivers) = dimmed.partition { row ->
+            val (height, full) = shownHeight(row.viewIdResourceName, bar)
+            height >= minOf(full / 2f, ramp) - 1
+        }
+        assertTrue("$screen: no dimmed row shows its content: ${dimmed.map(::screenBox)}", shown.isNotEmpty())
+        if (sliver) assertTrue("$screen: no row peeks a sliver above $footer: ${dimmed.map(::screenBox)}", slivers.isNotEmpty())
+        slivers.forEach { row ->
+            val label = hasAnyAncestor(hasTestTag(row.viewIdResourceName)) and SemanticsMatcher.keyIsDefined(SemanticsProperties.Text)
+            assertTrue("$screen: sliver ${row.viewIdResourceName} composes no label", rule.onAllNodes(label, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        }
+        val stops = shown.map { stop(it)!! }
+        stops.forEach { assertTrue("$screen: dimmed row ${it.viewIdResourceName} ${screenBox(it)} is unlabelled", spoken(it).isNotEmpty()) }
 
-        // Reading order: the row nearest the footer, dimmed or not, is read before the pager.
-        val order = h.readingOrder(screen, fresh = scale != null)
+        // Reading order: the shown dimmed row nearest the footer is read before the pager.
+        val order = h.readingOrder(screen, fresh = fresh)
         val nearest = spoken(stops.maxBy { screenBox(it).bottom })
         val row = order.indexOf(nearest)
         val pager = order.indexOfFirst { it.startsWith("Page 1 of ") }
         assertTrue("$screen: dimmed row \"$nearest\" not read in $order", row >= 0)
         assertTrue("$screen: page label not read in $order", pager >= 0)
         assertTrue("$screen: dimmed row read after the pager in $order", row < pager)
-        h.assertAccessible()
+    }
+
+    /** The row tagged [tag]'s height shown above the footer [bar], and its full height, in px (Compose layout). */
+    private fun shownHeight(tag: String, bar: String): Pair<Float, Float> {
+        val row = rule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().first()
+        val cut = rule.onAllNodesWithTag(bar, useUnmergedTree = true).fetchSemanticsNodes().first().positionInRoot.y
+        val top = row.positionInRoot.y
+        return (minOf(top + row.size.height, cut) - top) to row.size.height.toFloat()
+    }
+
+    /**
+     * Scrolls [board]'s list so a row's top sits [SLIVER_DP] above the footer. The controls item
+     * scrolls fully off first, so the list's top edge cuts only a row (tall enough for ATF's
+     * clipping allowance), never a control menu.
+     */
+    private fun peekSliver(board: Board) {
+        val bar = "${board.prefix}.bottom-bar"
+        val sliver = SLIVER_DP * rule.density.density
+        val rows = hasTagPrefix(board.rows) and !hasAnyAncestor(hasTestTag(bar))
+        rule.onNodeWithTag("${board.prefix}.list").performScrollToIndex(1)
+        repeat(4) {
+            rule.waitForIdle()
+            val cut = rule.onAllNodesWithTag(bar, useUnmergedTree = true).fetchSemanticsNodes().first().positionInRoot.y
+            val want = cut - sliver
+            val spans = rule.onAllNodes(rows, useUnmergedTree = true).fetchSemanticsNodes()
+                .map { it.positionInRoot.y to it.positionInRoot.y + it.size.height }.sortedBy { it.first }
+            if (spans.any { abs(it.first - want) < 1f }) return
+            // The next row starts at or below the wanted top (just after the last composed row if none is).
+            val next = spans.firstOrNull { it.first > want }?.first ?: spans.last().second
+            rule.onNodeWithTag("${board.prefix}.list").performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, next - want) }
+        }
+        rule.waitForIdle()
     }
 
     // endregion
@@ -391,5 +472,8 @@ class BoardFooterFadeAccessibilityJourneyTest {
     private companion object {
         const val FRAME = "board-fade-frame"
         const val HIGH_CONTRAST_TEXT = "high_text_contrast_enabled"
+
+        /** How far a row peeks above the footer in the sliver pass, in dp. */
+        const val SLIVER_DP = 8f
     }
 }
