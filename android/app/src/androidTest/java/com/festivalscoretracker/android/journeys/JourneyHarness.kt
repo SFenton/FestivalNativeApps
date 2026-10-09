@@ -114,24 +114,43 @@ class JourneyHarness(private val rule: JourneyRule) {
      * away. Call after [launch]; from then on [readingOrder] is TalkBack's linear order and
      * reads a fresh tree. UiAutomation connects first: a forced view sends events, and the
      * platform throws "Accessibility off" for any sent before the app's AccessibilityManager is on.
+     * Dialogs and bottom sheets compose in their own windows, opened later, so [readingOrder]
+     * forces those too (API 29+, where the app's windows can be listed) before each read.
      */
     fun publishTalkBackTree() {
         InstrumentationRegistry.getInstrumentation().uiAutomation
         val manager = rule.activity.getSystemService(android.view.accessibility.AccessibilityManager::class.java)
         rule.waitUntil(10_000) { manager.isEnabled }
         rule.waitForIdle()
+        assertTrue("no Compose view to publish", forceTalkBackPublishing() > 0)
+        talkBackTree = true
+        rule.waitForIdle()
+    }
+
+    /**
+     * Force every Compose view in the activity's and the app's other windows (dialogs, sheets)
+     * to publish its TalkBack tree.
+     *
+     * @return How many Compose views were found.
+     */
+    private fun forceTalkBackPublishing(): Int {
+        var count = 0
         rule.runOnUiThread {
             fun roots(view: android.view.View): List<ViewRootForTest> = when {
                 view is ViewRootForTest -> listOf(view)
                 view is android.view.ViewGroup -> (0 until view.childCount).flatMap { roots(view.getChildAt(it)) }
                 else -> emptyList()
             }
-            val found = roots(rule.activity.window.decorView)
-            assertTrue("no Compose view to publish", found.isNotEmpty())
+            val windows = if (android.os.Build.VERSION.SDK_INT >= 29) {
+                android.view.inspector.WindowInspector.getGlobalWindowViews()
+            } else {
+                listOf(rule.activity.window.decorView)
+            }
+            val found = (windows + rule.activity.window.decorView).distinct().flatMap(::roots)
             found.forEach { it.forceAccessibilityForTesting(true) }
+            count = found.size
         }
-        talkBackTree = true
-        rule.waitForIdle()
+        return count
     }
 
     /**
@@ -485,6 +504,7 @@ class JourneyHarness(private val rule: JourneyRule) {
      * @return Labels in reading order.
      */
     fun readingOrder(screen: String, fresh: Boolean = false): List<String> {
+        if (talkBackTree) forceTalkBackPublishing()
         rule.waitForIdle()
         checkNow()
         // Resolve clipping artifacts while the flagged nodes are still composed.

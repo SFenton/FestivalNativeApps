@@ -46,6 +46,7 @@ class FeedbackFormJourneyTest {
 
     private fun openForm(kind: String, fontScale: (() -> Float)? = null) {
         h.launch(DebugLaunch(section = FestivalSection.Settings, stillBackground = true), transport, fontScale = fontScale)
+        h.publishTalkBackTree()
         h.waitForTag("fst.settings.list")
         h.scrollTo("fst.settings.list", "fst.settings.feedback.$kind")
         h.readingOrder("settings-feedback-rows")
@@ -142,7 +143,8 @@ class FeedbackFormJourneyTest {
      * area from Submit or Close (modal-shell R5): Compose extends a clipped node's touch bounds
      * past its scroll viewport, and before `FestivalModalBody` clipped them Submit published a
      * 47 dp node (issue #422). The title field is scrolled so its top sits 16 dp above Submit's
-     * bottom edge, the overlap the CI emulator reached with the keyboard up.
+     * bottom edge, the overlap the CI emulator reached with the keyboard up. TalkBack's published
+     * order (`publishTalkBackTree`) still reads the title, Submit, then Close before the field.
      */
     @DeviceCi
     @Test
@@ -167,7 +169,9 @@ class FeedbackFormJourneyTest {
         val title = order.indexOfFirst { it.contains("Report an Issue") }
         val submit = order.indexOfFirst { it.contains("Submit") }
         val close = order.indexOfFirst { it.contains("Close") }
-        assertTrue("reading order $order", title >= 0 && submit > title && close > title)
+        val titleField = order.indexOfFirst { it.contains("[Bug] Songs crash") }
+        assertTrue("reading order $order", title >= 0 && submit > title && close > submit)
+        assertTrue("reading order $order", titleField < 0 || titleField > close)
         h.tap("fst.settings.feedback.close")
         h.waitForTag("fst.settings.feedback.discard.dialog")
         h.tap("fst.settings.feedback.discard.confirm")
