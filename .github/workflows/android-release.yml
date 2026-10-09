@@ -1,6 +1,10 @@
 name: android-release
-# DISABLED SCAFFOLD. Runs only on manual dispatch and only when the repository variable
-# FST_RELEASE_ANDROID_ENABLED is 'true'. See .agents/workflow/release-machine.md.
+# Builds the upload-key-signed App Bundle for an android/vYYMM.DD.NN tag (dispatched by version-bump.yml when the
+# repository variable FST_RELEASE_ANDROID_ENABLED is 'true'), always attaches it as an artifact, and publishes it to
+# a Google Play track when FST_PLAY_PUBLISH_ENABLED is 'true'. Google requires the app's first bundle to be uploaded
+# by hand in Play Console (download this run's artifact); later bundles go through the Play Developer API
+# (tools/release/play_release.py). Credentials live only in the store-release environment (store_secrets.py).
+# Runbook: .agents/workflow/release-android.md.
 on:
   workflow_dispatch:
     inputs:
@@ -8,6 +12,11 @@ on:
         description: "android/vYYMM.DD.NN tag created by version-bump.yml (empty = newest)"
         required: false
         default: ""
+      track:
+        description: "Play track to publish to (when publishing is enabled)"
+        type: choice
+        options: [internal, alpha, beta]
+        default: internal
 permissions:
   contents: read
 concurrency:
@@ -17,7 +26,11 @@ jobs:
   android-release:
     if: vars.FST_RELEASE_ANDROID_ENABLED == 'true' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
+    # The store-release environment only admits master; the tag itself is checked out below.
+    environment: store-release
     timeout-minutes: 60
+    env:
+      FST_PLAY_PACKAGE: com.festivalscoretracker.android
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,16 +53,74 @@ jobs:
             echo "FST_VERSION_NAME=$(jq -r .version <<<"$info")"
             echo "FST_VERSION_CODE=$(jq -r .android_version_code <<<"$info")"
           } >> "$GITHUB_ENV"
-      # TODO(orchestrator): Play Console publishing.
-      #   1. Add the Gradle Play Publisher plugin (com.github.triplet.play) to android/app.
-      #   2. Create a Play service account with release permission; store its JSON as the secret
-      #      PLAY_SERVICE_ACCOUNT_JSON and the upload keystore as ANDROID_KEYSTORE_BASE64 + passwords.
-      #   3. Build a signed AAB with the tag's version (`-PfstVersionName=$FST_VERSION_NAME
-      #      -PfstVersionCode=$FST_VERSION_CODE`, see android/app/build.gradle.kts), then
-      #      `bash android/gradlew -p android publishReleaseBundle --track internal` with
-      #      $RUNNER_TEMP/notes/store-notes.txt as the release notes, and promote via the orchestrator
-      #      once nothing is in review.
-      - name: Not implemented
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Upload key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
         run: |
-          echo "android-release is a scaffold; implement the TODO steps above first." >&2
-          exit 1
+          set -euo pipefail
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEY_ALIAS" ]; then
+            echo "::error::store-release has no Android upload key: run tools/release/store_secrets.py android-upload-key"
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload.p12"
+          {
+            echo "FST_UPLOAD_STORE_FILE=$RUNNER_TEMP/upload.p12"
+            echo "FST_UPLOAD_KEY_ALIAS=$KEY_ALIAS"
+          } >> "$GITHUB_ENV"
+      - name: Build the signed App Bundle
+        env:
+          FST_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+          FST_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+        run: |
+          bash android/gradlew -p android :app:bundleRelease --no-daemon --stacktrace \
+            "-PfstVersionName=$FST_VERSION_NAME" "-PfstVersionCode=$FST_VERSION_CODE"
+      - name: Check the bundle is signed with the upload key
+        env:
+          FST_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          aab=android/app/build/outputs/bundle/release/app-release.aab
+          signer="$(keytool -printcert -jarfile "$aab" | awk '/SHA256:/{print $2; exit}')"
+          expected="$(keytool -list -v -keystore "$FST_UPLOAD_STORE_FILE" -alias "$FST_UPLOAD_KEY_ALIAS" \
+            -storepass:env FST_UPLOAD_STORE_PASSWORD | awk '/SHA256:/{print $2; exit}')"
+          if [ -z "$signer" ] || [ "$signer" != "$expected" ]; then
+            echo "::error::app-release.aab is not signed with the upload key"
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/out"
+          cp "$aab" "$RUNNER_TEMP/out/FestivalScoreTracker-$FST_VERSION_NAME.aab"
+          cp "$RUNNER_TEMP/notes/store-notes.txt" "$RUNNER_TEMP/out/release-notes.txt"
+          echo "Upload certificate SHA-256: $expected" >> "$GITHUB_STEP_SUMMARY"
+      - name: Attach the bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-${{ env.FST_VERSION_NAME }}
+          path: ${{ runner.temp }}/out
+          retention-days: 30
+      - name: Publish to Google Play
+        if: vars.FST_PLAY_PUBLISH_ENABLED == 'true'
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          TRACK: ${{ inputs.track || 'internal' }}
+        run: |
+          set -euo pipefail
+          python3 tools/release/play_release.py upload --package "$FST_PLAY_PACKAGE" --track "$TRACK" \
+            --aab "$RUNNER_TEMP/out/FestivalScoreTracker-$FST_VERSION_NAME.aab" \
+            --version-name "$FST_VERSION_NAME" --notes-file "$RUNNER_TEMP/out/release-notes.txt" \
+            | tee "$RUNNER_TEMP/play.json"
+          echo "Google Play ($TRACK): $(cat "$RUNNER_TEMP/play.json")" >> "$GITHUB_STEP_SUMMARY"
+      - name: Not published
+        if: vars.FST_PLAY_PUBLISH_ENABLED != 'true'
+        run: |
+          echo "Built $FST_VERSION_TAG (versionCode $FST_VERSION_CODE). Publishing is off (FST_PLAY_PUBLISH_ENABLED);" \
+            "download the android-release-$FST_VERSION_NAME artifact to upload it in Play Console." >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove the upload key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload.p12"
