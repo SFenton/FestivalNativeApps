@@ -92,7 +92,7 @@
                             </Grid.RowDefinitions>
                             <TextBlock Text="Filter Item Shop" Style="{StaticResource FSTSectionHeaderStyle}" Margin="16,16,16,8"
                                        AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.shop.filter.title" />
-                            <ScrollViewer Grid.Row="1" Padding="16,0,16,0">
+                            <ScrollViewer Grid.Row="1" Padding="16,0,16,0" AutomationProperties.AutomationId="fst.shop.filter.scroll">
                                 <StackPanel Spacing="4" Padding="0,0,0,12">
                                     <TextBlock Text="Choose which Item Shop songs to show. Turn a switch off to hide those songs."
                                                Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" FontSize="12" />
