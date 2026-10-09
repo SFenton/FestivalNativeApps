@@ -33,6 +33,7 @@ import com.festivalscoretracker.android.core.settings.SettingsRegistry
 import com.festivalscoretracker.android.testing.BucketHeaderFixtures
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -49,8 +50,10 @@ import org.junit.runner.RunWith
  * rows and after the previous section's; text at 200% grows unclipped in the same order; and the
  * app's Reduce Transparency keeps rows out from behind the pinned title. The section push (issue
  * #288; test backfill, issue #452): while the next header slides through the edge band and pushes
- * the pinned one out, both ways, with the fade, the hard cut and at 200% text, both stay opaque
- * headings that TalkBack reads once each, in order. Fixture-only
+ * the pinned one out, both ways, with the fade, at 200% text and with the hard cut each R7 setting
+ * forces on its own (the app's Reduce Transparency, the app's Reduce Motion, the system's Remove
+ * animations), both stay opaque headings that TalkBack reads once each, in order, and with the hard
+ * cut no row shows behind the pinned title afterwards. Fixture-only
  * ([BucketHeaderFixtures]); `device.py test com.festivalscoretracker.android.journeys.SongsBucketHeaderAccessibilityJourneyTest --avd FST_Phone`.
  */
 @RunWith(AndroidJUnit4::class)
@@ -69,12 +72,22 @@ class SongsBucketHeaderAccessibilityJourneyTest {
      * @param sort Saved sort mode (`Duration`, `Year`, …).
      * @param fontScale Font scale provider, or `null` for the device's.
      * @param lessTransparency The app's Reduce Transparency setting.
+     * @param lessMotion The app's Reduce Motion setting.
+     * @return The app's settings store, to change a setting live.
      */
-    private fun launch(sort: String, fontScale: (() -> Float)? = null, lessTransparency: Boolean = false) {
+    private fun launch(sort: String, fontScale: (() -> Float)? = null, lessTransparency: Boolean = false, lessMotion: Boolean = false): MemoryPreferences {
         val preferences = mutablePreferencesOf(stringPreferencesKey(SettingsRegistry.SONG_SORT) to sort)
         if (lessTransparency) preferences[booleanPreferencesKey(SettingsRegistry.REDUCE_TRANSPARENCY)] = true
-        h.launch(DebugLaunch(stillBackground = true), BucketHeaderFixtures.transport(), MemoryPreferences(preferences), fontScale)
+        if (lessMotion) preferences[booleanPreferencesKey(SettingsRegistry.REDUCE_MOTION)] = true
+        val store = MemoryPreferences(preferences)
+        h.launch(DebugLaunch(stillBackground = true), BucketHeaderFixtures.transport(), store, fontScale)
         h.waitForTag("fst.songs.row.s-0")
+        return store
+    }
+
+    /** Sets the app's boolean setting [key] in [store], live. */
+    private fun MemoryPreferences.set(key: String, on: Boolean) {
+        runBlocking { updateData { it.toMutablePreferences().apply { this[booleanPreferencesKey(key)] = on } } }
     }
 
     private val isBucketHeader = SemanticsMatcher("Songs bucket header") {
@@ -93,6 +106,16 @@ class SongsBucketHeaderAccessibilityJourneyTest {
             java.io.FileInputStream(fd.fileDescriptor).bufferedReader().readText().trim()
         }
 
+    /** Runs [body] with the system animator duration scale at [scale], then restores the saved one. */
+    private fun withAnimatorScale(scale: String, body: () -> Unit) {
+        val saved = shell("settings get global animator_duration_scale")
+        shell("settings put global animator_duration_scale $scale")
+        try {
+            body()
+        } finally {
+            shell(if (saved == "null") "settings delete global animator_duration_scale" else "settings put global animator_duration_scale $saved")
+        }
+    }
     private fun headers(): List<SemanticsNode> = rule.onAllNodes(isBucketHeader, useUnmergedTree = true).fetchSemanticsNodes()
 
     private fun listBounds(): Rect = rule.onNodeWithTag(LIST).fetchSemanticsNode().boundsInRoot
@@ -342,6 +365,59 @@ class SongsBucketHeaderAccessibilityJourneyTest {
         assertTrue("$what: the pinned header end $inside differs from the background $outside", diff <= TOLERANCE)
     }
 
+    /**
+     * The Duration push with the edge forced to a hard cut (Reduce Transparency, Reduce Motion or
+     * system Remove animations; `rememberScrollEdgeHardEdge`): the push guarantees of
+     * [assertPushIsAccessible], then, with the first header pinned again over scrolled rows, no row
+     * shows behind it ([assertPinnedHeaderBare]) and the edge under it is the hard cut
+     * ([assertEdgeIsHard]).
+     *
+     * @param screen Reading-order log prefix and failure label.
+     * @param release Turns the setting that forces the hard cut off, live.
+     * @param restore Turns it back on, live.
+     */
+    private fun assertHardEdgePushIsAccessible(screen: String, release: () -> Unit, restore: () -> Unit) {
+        h.waitForTag("$HEADER_PREFIX$DURATION.1to2")
+        assertPushIsAccessible(screen, "$HEADER_PREFIX$DURATION.1to2", "$HEADER_PREFIX$DURATION.2to3", DURATION_TOKENS)
+        assertTrue("$screen: the first header pins again", pinnedHeader().config[SemanticsProperties.TestTag].endsWith("1to2"))
+        assertPinnedHeaderBare("$screen after the push")
+        assertEdgeIsHard(screen, release, restore)
+    }
+
+    /** Luminance of every pixel in the [EDGE_BAND_DP] band of rows right under the pinned header. */
+    private fun edgeBand(): FloatArray {
+        val header = pinnedHeader().boundsInRoot
+        val list = listBounds()
+        val pixels = rule.onRoot().captureToImage().toPixelMap()
+        val top = header.bottom.roundToInt()
+        val bottom = minOf(pixels.height, (header.bottom + EDGE_BAND_DP * rule.density.density).roundToInt())
+        val left = list.left.toInt().coerceAtLeast(0)
+        val right = list.right.toInt().coerceAtMost(pixels.width)
+        return FloatArray((bottom - top) * (right - left)) { i -> pixels[left + i % (right - left), top + i / (right - left)].luminance() }
+    }
+
+    /** The largest luminance change of one pixel between two captures of the band. */
+    private fun largestChange(a: FloatArray, b: FloatArray): Float = a.indices.maxOfOrNull { abs(a[it] - b[it]) } ?: 0f
+
+    /**
+     * The rows right under the pinned header are drawn at full opacity because the setting forces
+     * the hard cut: with the first header pinned over scrolled rows, turning the setting off brings
+     * back the 40 dp ramp (those rows dim) and turning it on again restores the same pixels. Proves
+     * the push above ran with the hard edge (scroll-edge R7), not the fade.
+     */
+    private fun assertEdgeIsHard(screen: String, release: () -> Unit, restore: () -> Unit) {
+        scrollTo(5)
+        rule.waitForIdle()
+        val hard = edgeBand()
+        release()
+        runCatching { rule.waitUntil(5_000) { largestChange(hard, edgeBand()) > EDGE_CHANGE } }
+        val fade = edgeBand()
+        assertTrue("$screen: releasing the setting brings the ramp back under the pinned header (largest pixel change ${largestChange(hard, fade)})", largestChange(hard, fade) > EDGE_CHANGE)
+        restore()
+        runCatching { rule.waitUntil(5_000) { largestChange(hard, edgeBand()) < EDGE_SAME } }
+        assertTrue("$screen: restoring the setting brings the hard cut back (largest pixel change ${largestChange(hard, edgeBand())})", largestChange(hard, edgeBand()) < EDGE_SAME)
+    }
+
     // endregion
 
     // region Journeys
@@ -414,17 +490,11 @@ class SongsBucketHeaderAccessibilityJourneyTest {
      * opaque headings read in order.
      */
     @Test
-    fun durationPushKeepsBothHeadingsOpaqueAndInOrder() {
-        val saved = shell("settings get global animator_duration_scale")
-        shell("settings put global animator_duration_scale 1")
-        try {
-            h.enableAccessibilityChecks()
-            launch("Duration")
-            h.waitForTag("$HEADER_PREFIX$DURATION.1to2")
-            assertPushIsAccessible("songs-duration-fade", "$HEADER_PREFIX$DURATION.1to2", "$HEADER_PREFIX$DURATION.2to3", DURATION_TOKENS)
-        } finally {
-            shell(if (saved == "null") "settings delete global animator_duration_scale" else "settings put global animator_duration_scale $saved")
-        }
+    fun durationPushKeepsBothHeadingsOpaqueAndInOrder() = withAnimatorScale("1") {
+        h.enableAccessibilityChecks()
+        launch("Duration")
+        h.waitForTag("$HEADER_PREFIX$DURATION.1to2")
+        assertPushIsAccessible("songs-duration-fade", "$HEADER_PREFIX$DURATION.1to2", "$HEADER_PREFIX$DURATION.2to3", DURATION_TOKENS)
     }
 
     /** The section push at 200% text: taller headers push each other the same way, unclipped and in order. */
@@ -438,13 +508,45 @@ class SongsBucketHeaderAccessibilityJourneyTest {
 
     /** The section push under the app's Reduce Transparency (hard cut, no ramp): the same guarantees. */
     @Test
-    fun reduceTransparencyPushKeepsBothHeadingsOpaqueAndInOrder() {
+    fun reduceTransparencyPushKeepsBothHeadingsOpaqueAndInOrder() = withAnimatorScale("1") {
         h.enableAccessibilityChecks()
-        launch("Duration", lessTransparency = true)
-        h.waitForTag("$HEADER_PREFIX$DURATION.1to2")
-        assertPushIsAccessible("songs-duration-hard", "$HEADER_PREFIX$DURATION.1to2", "$HEADER_PREFIX$DURATION.2to3", DURATION_TOKENS)
+        val store = launch("Duration", lessTransparency = true)
+        assertHardEdgePushIsAccessible(
+            "songs-duration-hard",
+            release = { store.set(SettingsRegistry.REDUCE_TRANSPARENCY, false) },
+            restore = { store.set(SettingsRegistry.REDUCE_TRANSPARENCY, true) },
+        )
     }
 
+    /**
+     * The section push under the app's Reduce Motion with system animations on: Reduce Motion
+     * alone makes the edge a hard cut (scroll-edge R7), and the push keeps the same guarantees.
+     */
+    @Test
+    fun reduceMotionPushKeepsBothHeadingsOpaqueAndInOrder() = withAnimatorScale("1") {
+        h.enableAccessibilityChecks()
+        val store = launch("Duration", lessMotion = true)
+        assertHardEdgePushIsAccessible(
+            "songs-duration-reduce-motion",
+            release = { store.set(SettingsRegistry.REDUCE_MOTION, false) },
+            restore = { store.set(SettingsRegistry.REDUCE_MOTION, true) },
+        )
+    }
+
+    /**
+     * The section push with the system's Remove animations (animator scale 0) and no app setting:
+     * the system preference alone makes the hard cut (scroll-edge R7), with the same guarantees.
+     */
+    @Test
+    fun removeAnimationsPushKeepsBothHeadingsOpaqueAndInOrder() = withAnimatorScale("0") {
+        h.enableAccessibilityChecks()
+        launch("Duration")
+        assertHardEdgePushIsAccessible(
+            "songs-duration-remove-animations",
+            release = { shell("settings put global animator_duration_scale 1") },
+            restore = { shell("settings put global animator_duration_scale 0") },
+        )
+    }
     // endregion
 
     private companion object {
@@ -473,5 +575,14 @@ class SongsBucketHeaderAccessibilityJourneyTest {
 
         /** How far a title row may dim from [INK] and still count as fully opaque. */
         const val INK_TOLERANCE = 0.15f
+
+        /** Height of the band under the pinned header that the fade's ramp covers (`ScrollEdgeFade.TOP_DP`). */
+        const val EDGE_BAND_DP = 40f
+
+        /** Largest pixel luminance change in the band that shows the ramp came back (rows near the cut dim). */
+        const val EDGE_CHANGE = 0.2f
+
+        /** Largest pixel luminance change in the band still counted as the same pixels. */
+        const val EDGE_SAME = 0.02f
     }
 }
