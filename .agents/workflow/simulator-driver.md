@@ -177,7 +177,7 @@ Journey tests that need the loopback mock service start/assert it themselves
 
 Selectors are `Class/testMethod`: `uitest` adds the target itself, and a
 target-prefixed selector runs nothing (which `--fail-on-skip` reports). On a CI
-runner, `ci-device --type "<type>" --name "<name>"` creates the simulator for
+runner, `ci-device --type "<type>"` creates (or reuses) that type's simulator for
 `--device "$UDID"`, and `--pose folded` checks an iPhone Duo UDID by screenshot,
 so a CI Duo runs folded journeys without Device Hub
 ([CI journeys](../testing/apple/xcuitest.md#ci-journeys)).

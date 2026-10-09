@@ -176,6 +176,15 @@ class CiDeviceTests(unittest.TestCase):
         self.assertEqual(existing_ci_device(devices, "ios-27-1"), "B")
         self.assertIsNone(existing_ci_device(devices, "ios-26-5"))
 
+    def test_each_device_type_has_its_own_name(self):
+        self.assertEqual(ios_sim.ci_device_name(), ios_sim.CI_DEVICE_NAME)
+        ipad = ios_sim.ci_device_name(ios_sim.CI_IPAD_DEVICE_TYPE)
+        self.assertNotEqual(ipad, ios_sim.CI_DEVICE_NAME)
+        devices = {"ios-27-1": [{"name": ios_sim.CI_DEVICE_NAME, "udid": "PHONE"}]}
+        self.assertIsNone(existing_ci_device(devices, "ios-27-1", ipad))
+        devices["ios-27-1"].append({"name": ipad, "udid": "PAD"})
+        self.assertEqual(existing_ci_device(devices, "ios-27-1", ipad), "PAD")
+
     def test_refuses_outside_ci(self):
         import argparse
         import os
@@ -184,38 +193,6 @@ class CiDeviceTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": ""}), mock.patch.object(ios_sim, "_run") as run:
             self.assertEqual(ios_sim.cmd_ci_device(argparse.Namespace(type=ios_sim.CI_DEVICE_TYPE)), 2)
         run.assert_not_called()
-
-    def test_named_devices_of_each_type_are_created_and_reused_separately(self):
-        """A step with several device types names each, so an iPad never reuses the iPhone."""
-        import argparse
-        import json
-        import os
-        from types import SimpleNamespace
-        from unittest import mock
-
-        runtimes = [{"platform": "iOS", "version": "27.1", "identifier": "ios-27-1", "isAvailable": True,
-                     "supportedDeviceTypes": [{"name": "iPhone 17 Pro", "identifier": "dt.iphone"},
-                                              {"name": "iPad Pro 11-inch (M5)", "identifier": "dt.ipad"}]}]
-        existing = {"ios-27-1": [{"name": "FST CI rivals iphone", "udid": "PHONE"}]}
-
-        def fake_run(command, **_):
-            if command[:4] == ["xcrun", "simctl", "list", "runtimes"]:
-                return SimpleNamespace(stdout=json.dumps({"runtimes": runtimes}))
-            if command[:4] == ["xcrun", "simctl", "list", "devices"]:
-                return SimpleNamespace(stdout=json.dumps({"devices": existing}))
-            self.assertEqual(command, ["xcrun", "simctl", "create", "FST CI rivals ipad", "dt.ipad", "ios-27-1"])
-            return SimpleNamespace(stdout="PAD\n")
-
-        def udid_for(device_type, name):
-            with mock.patch("sys.stdout", new_callable=__import__("io").StringIO) as out:
-                code = ios_sim.cmd_ci_device(argparse.Namespace(type=device_type, name=name))
-            self.assertEqual(code, 0)
-            return out.getvalue().strip()
-
-        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}), \
-                mock.patch.object(ios_sim, "_run", side_effect=fake_run):
-            self.assertEqual(udid_for("iPhone 17 Pro", "FST CI rivals iphone"), "PHONE")
-            self.assertEqual(udid_for("iPad Pro 11-inch (M5)", "FST CI rivals ipad"), "PAD")
 
 
 class FailOnSkipTests(unittest.TestCase):

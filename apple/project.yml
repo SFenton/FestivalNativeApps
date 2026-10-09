@@ -123,6 +123,8 @@ targets:
       # rendered-contrast helpers its audit handler measures with).
       - path: Apps/iOSUITests/RivalDetailFrozenAccessibilityJourneyTests.swift
       - path: Apps/iOSUITests/SongsUITestSupport.swift
+      # Issue #434 What's New at AX5, portrait and landscape, run on iPad too.
+      - path: Apps/iOSUITests/WhatsNewAccessibilityJourneyTests.swift
     dependencies:
       - target: FestivalMobile
     settings:

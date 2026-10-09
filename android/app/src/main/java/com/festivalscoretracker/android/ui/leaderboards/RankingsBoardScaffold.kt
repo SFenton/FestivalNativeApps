@@ -32,6 +32,8 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.isContainer
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.dp
@@ -205,13 +207,25 @@ internal fun RankingsBoardLayout(
 @Composable
 internal fun AnchoredFooter(idPrefix: String, footer: @Composable ColumnScope.() -> Unit, pager: @Composable () -> Unit, modifier: Modifier = Modifier) {
     Column(
-        modifier.fillMaxWidth().testTag("$idPrefix.bottom-bar"),
+        modifier.fillMaxWidth().coversRowsForAccessibility().testTag("$idPrefix.bottom-bar"),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Column(Modifier.fillMaxWidth().gapBelowIfShown(FOOTER_PAGER_GAP_DP.dp), content = footer)
         pager()
     }
 }
+
+/**
+ * Makes the footer's full width cover the rows beneath it for accessibility, not only its
+ * controls. Compose widens a clip by up to half the 48 dp minimum touch target for a row peeking
+ * less than 48 dp above it, so beside a narrow pager (no "your rank" row) a hidden row's TalkBack
+ * bounds reached 24 dp under the footer (#473). Only a node that counts as important for
+ * accessibility removes that space from the rows below it; `isContainer` is Compose's
+ * label-free, focus-free marker for that (b/347038246; Compose fixes the clip itself behind
+ * `isClippedTouchBoundsOcclusionFixEnabled`, b/565962277, after 1.9).
+ */
+@Suppress("DEPRECATION")
+private fun Modifier.coversRowsForAccessibility(): Modifier = semantics { isContainer = true }
 
 /**
  * Adds [gap] below content that has height, and nothing below empty content, so a board
