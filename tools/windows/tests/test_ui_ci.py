@@ -57,12 +57,16 @@ class UiCiTests(unittest.TestCase):
         """#535: the Feedback rows appear above every later Settings section once ``/api/features`` answers, so a target
         scrolled into view before then can be pushed back off screen (``no on-screen element
         id=fst.settings.whats-new`` at 225% text). A CI page that scrolls to Settings content brings those rows in first
-        (scrolling back to page chrome such as the Quick Links entry is not a Settings target)."""
-        wait = "scrollinto:id=fst.settings.feedback.feature"
+        (scrolling back to page chrome such as the Quick Links entry is not a Settings target). Any Feedback row is the
+        wait (Feedback pages scroll straight to ``feedback.bug``); a page whose fixture turns features off has none."""
+        wait = "scrollinto:id=fst.settings.feedback."
         checked = 0
         for run in ci.RUNS:
             for page in json.loads((ci.JOURNEYS / run.pages).read_text(encoding="utf-8")):
                 if page.get("tab") != "settings" and page.get("route") != "/settings":
+                    continue
+                fixture = page.get("fixture") or []
+                if "--features" in fixture and fixture[fixture.index("--features") + 1:][:1] == ["off"]:
                     continue
                 steps = [*page.get("setup", ()), *page.get("ready", ()), *page.get("after_ready", ())]
                 scrolls = [step for step in steps if step.startswith("scrollinto:id=fst.settings.")]
@@ -70,7 +74,7 @@ class UiCiTests(unittest.TestCase):
                     continue
                 checked += 1
                 with self.subTest(run=run.name, page=page["name"]):
-                    self.assertTrue(scrolls[0].startswith(wait + "@"), scrolls[0])
+                    self.assertTrue(scrolls[0].startswith(wait) and "@" in scrolls[0], scrolls[0])
                     self.assertGreaterEqual(u.parse_step(scrolls[0])["timeout"], 20)
         self.assertGreater(checked, 0)
 
