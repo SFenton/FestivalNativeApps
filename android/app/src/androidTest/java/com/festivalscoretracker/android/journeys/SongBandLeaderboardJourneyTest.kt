@@ -12,7 +12,6 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
@@ -278,7 +277,7 @@ class SongBandLeaderboardJourneyTest {
         // Scrolled: rows under the pinned band leave sight and TalkBack. The page's rows are one
         // card item after the controls (owner #543, `leaderboard-row` R10), like the solo board's.
         if (!h.exists("$prefix.controls-pane")) {
-            rule.onNode(hasTestTag("$prefix.list")).performScrollToIndex(1)
+            rule.onNode(hasTestTag("$prefix.list")).performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, with(rule.density) { MID_SCROLL.toPx() }) }
             rule.waitForIdle()
         }
         assertRowsClearOfFooter(screen)
@@ -311,5 +310,8 @@ class SongBandLeaderboardJourneyTest {
     private companion object {
         /** Frames (about 167 ms) the Reduce Motion reveal may take after the page shows: a few layout passes, no animation. */
         const val REVEAL_FRAMES = 10
+
+        /** How far the board scrolls so rows pass under the pinned band (about the header and two rows). */
+        val MID_SCROLL = 240.dp
     }
 }

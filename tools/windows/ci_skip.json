@@ -56,14 +56,6 @@
       "reason": "Two Axe.Windows errors (popup/flyout or board), timing-dependent",
       "issue": "SFenton/festival-report-tracker#534"
     },
-    "hit-player-history": {
-      "reason": "History page/section not on screen or focus differs",
-      "issue": "SFenton/festival-report-tracker#537"
-    },
-    "hit-song-detail": {
-      "reason": "History page/section not on screen or focus differs",
-      "issue": "SFenton/festival-report-tracker#537"
-    },
     "hit-titlebar-box": {
       "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
       "issue": "SFenton/festival-report-tracker#536"
@@ -76,17 +68,9 @@
       "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
       "issue": "SFenton/festival-report-tracker#536"
     },
-    "kb-detail-compact-previews": {
-      "reason": "History page/section not on screen or focus differs",
-      "issue": "SFenton/festival-report-tracker#537"
-    },
     "kb-songs-order": {
       "reason": "Two Axe.Windows errors",
       "issue": "SFenton/festival-report-tracker#534"
-    },
-    "narr-player-history": {
-      "reason": "History page/section not on screen or focus differs",
-      "issue": "SFenton/festival-report-tracker#537"
     },
     "narr-titlebar-box": {
       "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
@@ -99,10 +83,6 @@
     "narr-titlebar-swap": {
       "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
       "issue": "SFenton/festival-report-tracker#536"
-    },
-    "press-player-history": {
-      "reason": "History page/section not on screen or focus differs",
-      "issue": "SFenton/festival-report-tracker#537"
     },
     "press-quick-links-leaderboards": {
       "reason": "Two Axe.Windows errors (popup/flyout or board), timing-dependent",
@@ -119,10 +99,6 @@
     "press-quick-links-statistics": {
       "reason": "Two Axe.Windows errors (popup/flyout or board), timing-dependent",
       "issue": "SFenton/festival-report-tracker#534"
-    },
-    "press-song-detail": {
-      "reason": "History page/section not on screen or focus differs",
-      "issue": "SFenton/festival-report-tracker#537"
     },
     "press-songs": {
       "reason": "Two Axe.Windows errors",
@@ -205,14 +181,6 @@
     "runner:suggestions": {
       "reason": "Suggestions fade check fails",
       "issue": "SFenton/festival-report-tracker#532"
-    },
-    "journey:search": {
-      "reason": "Global search loading state not seen; should run through search_journey.py (fix in flight)",
-      "issue": "SFenton/festival-report-tracker#530"
-    },
-    "journey:songs-section-index": {
-      "reason": "section-index-far-moves-wide lands one section early on the runner (flaky: passed in run 37871893326)",
-      "issue": "SFenton/festival-report-tracker#530"
     },
     "runner:feedback": {
       "reason": "Flaky: submit phase fails intermittently on the runner",
