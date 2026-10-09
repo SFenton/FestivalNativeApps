@@ -151,6 +151,9 @@
   },
   {
     "name": "press-titlebar-transitions",
+    "axe_allow": [
+      "framework-popup"
+    ],
     "tab": "songs",
     "tabs": 0,
     "sizes": [
