@@ -165,6 +165,27 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         return new JsonObject { ["foreground"] = foreground, ["covered_by"] = covered };
     }
 
+    /// <summary>
+    /// Raises the target above overlapping windows before a motion assertion. The app pauses looping motion (marquees,
+    /// shimmers) while its window is covered (<c>OcclusionTracker</c>), so on a shared desktop another lane's window
+    /// would otherwise turn a moving check into a false "did not scroll" failure. Waits briefly after raising so the
+    /// app's occlusion poll resumes motion; throws (via <see cref="EnsureForeground"/>) when it stays covered.
+    /// </summary>
+    /// <param name="window">Target.</param>
+    private void UncoverForMotion(Window window)
+    {
+        if (postKeys) return; // a locked console cannot activate windows; nothing covers it there either
+        var hwnd = window.Properties.NativeWindowHandle.Value;
+        var above = Native.WindowsAbove(hwnd, window.Properties.ProcessId.Value);
+        if (above.Count == 0) return;
+        Log("motion check: window covered by " + string.Join(", ", above.Select(b => $"\"{b.Title}\"")) + "; raising it");
+        EnsureForeground(window);
+        Thread.Sleep(MotionResumeDelay);
+    }
+
+    /// <summary>Time for the app's occlusion poll to notice it is uncovered and resume motion.</summary>
+    private static readonly TimeSpan MotionResumeDelay = TimeSpan.FromMilliseconds(800);
+
     /// <summary>Minimizes visible, overlapping top-level windows of other processes with the target's name.</summary>
     /// <param name="hwnd">Target window.</param>
     /// <param name="pid">Target process.</param>
@@ -780,12 +801,15 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 Pin(window, step, verb == "pin");
                 break;
             case "assertmarquee":
+                UncoverForMotion(window);
                 AssertMarquee(window, step);
                 break;
             case "assertmarqueesync":
+                UncoverForMotion(window);
                 AssertMarqueeSync(window, step);
                 break;
             case "assertmotion":
+                UncoverForMotion(window);
                 AssertMotion(window, step);
                 break;
             case "listen":
