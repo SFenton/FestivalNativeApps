@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 
 /// iPhone chrome around the Songs list (operator batch 3, 2026-09-28): the A–Z rail is
@@ -816,6 +817,90 @@ final class SongsChromeJourneyTests: XCTestCase {
             app.buttons["fst.songs.sort"].isHittable || app.buttons["fst.songs.tools"].isHittable,
             "Sort did not return to the tab-bar accessory"
         )
+    }
+
+    /// Issue #390 (accessibility backfill for #8): at the largest text size (AX5), once
+    /// the list scrolls, the floating section bar names the current section as one
+    /// element: its spoken label, grown to AX5 and as large as the in-list title it
+    /// stands for (not truncated or clipped), below the navigation bar, beside the A–Z
+    /// rail and above the tab bar, and first in the list region's layout order.
+    /// VoiceOver order itself is the macOS hosted tree's (`SongsSectionBarAccessibilityTests`)
+    /// and the operator walkthrough's: XCUITest lists descendants depth first.
+    ///
+    /// Needs a catalogue with sections, like the tests above (`mock_service.py
+    /// --large-catalogue`); skips otherwise.
+    @MainActor
+    func testSectionBarHeadingAtLargestText() throws {
+        continueAfterFailure = false
+        guard #available(iOS 26.0, *) else { throw XCTSkip("The section bar is iOS 26+.") }
+        XCUIDevice.shared.orientation = .portrait
+        let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"]
+            ?? "http://127.0.0.1:8765"
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": base,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+        ])
+        let ax5 = UIContentSizeCategory.accessibilityExtraExtraExtraLarge
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", ax5.rawValue]
+        app.launch()
+        let list = app.descendants(matching: .any)["fst.songs.list"]
+        XCTAssertTrue(list.waitForExistence(timeout: 15))
+        let rail = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.section-index").firstMatch
+        let firstTitle = app.staticTexts["fst.songs.section.0"]
+        guard firstTitle.waitForExistence(timeout: 5), rail.exists else {
+            throw XCTSkip("Catalogue lacks sections; use mock_service.py --large-catalogue.")
+        }
+        let titleLabel = firstTitle.label
+        let titleFrame = firstTitle.frame
+        let sectionBar = app.staticTexts["fst.songs.section-bar"]
+        XCTAssertFalse(sectionBar.exists, "At the top the bar names nothing")
+
+        // Drag a little at a time: the first section is several AX5 rows tall, so the bar
+        // still names it when it first shows.
+        for _ in 0..<6 where !sectionBar.exists {
+            let start = list.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.7))
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -250)))
+        }
+        XCTAssertTrue(sectionBar.waitForExistence(timeout: 5), "Scrolled, the bar shows no title")
+        XCTAssertEqual(app.staticTexts.matching(identifier: "fst.songs.section-bar").count, 1)
+        XCTAssertEqual(sectionBar.label, titleLabel, "The bar does not name the current section")
+
+        // Text scaling: grown to AX5, and the same size as its in-list title.
+        let bar = sectionBar.frame
+        let line = UIFont.preferredFont(
+            forTextStyle: .subheadline,
+            compatibleWith: UITraitCollection(preferredContentSizeCategory: ax5)
+        ).lineHeight
+        XCTAssertGreaterThanOrEqual(bar.height, line - 2, "Bar title \(bar) not at AX5 (\(line) pt line)")
+        XCTAssertEqual(bar.height, titleFrame.height, accuracy: 1, "Bar title clipped: \(bar) vs \(titleFrame)")
+        XCTAssertEqual(bar.width, titleFrame.width, accuracy: 1, "Bar title truncated: \(bar) vs \(titleFrame)")
+
+        // Clear of the surrounding chrome.
+        let navigation = app.navigationBars.firstMatch.frame
+        let tabBar = app.tabBars.firstMatch.frame
+        let window = app.windows.firstMatch.frame
+        XCTAssertGreaterThanOrEqual(bar.minY, navigation.maxY - 1, "Under the navigation bar: \(bar) \(navigation)")
+        XCTAssertLessThanOrEqual(bar.maxY, tabBar.minY, "Under the tab bar: \(bar) \(tabBar)")
+        XCTAssertTrue(window.contains(bar), "Off screen: \(bar)")
+        XCTAssertFalse(bar.intersects(rail.frame), "Under the A–Z rail: \(bar) \(rail.frame)")
+
+        // Reading order from the layout, top to bottom then leading to trailing (XCUITest
+        // lists descendants depth first, not in VoiceOver's order; as `DuoDrawerJourneyTests`):
+        // no later section title is above the bar, and the bar is leading of the rail.
+        let titles = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'fst.songs.section.'"))
+            .allElementsBoundByIndex.filter { $0.identifier != "fst.songs.section.0" && window.intersects($0.frame) }
+        for title in titles {
+            XCTAssertGreaterThanOrEqual(title.frame.minY, bar.maxY, "\(title.label) is above the bar: \(title.frame) \(bar)")
+        }
+        XCTAssertLessThanOrEqual(bar.maxX, rail.frame.minX, "The bar is not leading of the rail: \(bar) \(rail.frame)")
+
+        // The system audit, for the bar only (other regions have their own journeys).
+        try app.performAccessibilityAudit(
+            for: [.dynamicType, .textClipped, .sufficientElementDescription]
+        ) { issue in
+            issue.element?.identifier != "fst.songs.section-bar"
+        }
     }
 
     /// Issue #383: on iOS 26 and 27, slow drags a little way down from the top and back

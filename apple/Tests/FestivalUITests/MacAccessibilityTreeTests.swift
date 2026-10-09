@@ -38,12 +38,13 @@ struct MacAXNode: CustomStringConvertible {
 /// subviews), recording role, names, identifier and selection for each element.
 ///
 /// - Parameters:
-///   - root: The hosting view.
-///   - navigationOrder: Walk `accessibilityChildrenInNavigationOrder` where an element
-///     provides it: the order VoiceOver moves through. Raw `accessibilityChildren` keeps
-///     view order inside a `.contain` container, so an overlay (the Songs section bar)
-///     lists after the List it is read before (#388).
-/// - Returns: The nodes in walk order.
+///   - root: The hosted view to walk.
+///   - navigationOrder: Visit children in `accessibilityChildrenInNavigationOrder`, the
+///     order VoiceOver reads (SwiftUI applies `accessibilitySortPriority` there), rather
+///     than `accessibilityChildren` order. Raw children keep view order inside a `.contain`
+///     container, so an overlay (the Songs section bar) lists after the List it is read
+///     before (#388).
+/// - Returns: The visited nodes, depth first.
 @MainActor
 func macAccessibilityTree(_ root: NSView, navigationOrder: Bool = false) -> [MacAXNode] {
     var nodes: [MacAXNode] = []
