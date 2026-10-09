@@ -275,9 +275,10 @@ class SongBandLeaderboardJourneyTest {
         assertTrue("pager after the pinned band in $order", pinned < pager)
         assertFalse("the pinned band is announced as a row in $order", order.any { it.contains("Your band") })
 
-        // Scrolled: rows under the pinned band leave sight and TalkBack.
+        // Scrolled: rows under the pinned band leave sight and TalkBack. The page's rows are one
+        // card item after the controls (owner #543, `leaderboard-row` R10), like the solo board's.
         if (!h.exists("$prefix.controls-pane")) {
-            rule.onNode(hasTestTag("$prefix.list")).performScrollToIndex(3)
+            rule.onNode(hasTestTag("$prefix.list")).performScrollToIndex(1)
             rule.waitForIdle()
         }
         assertRowsClearOfFooter(screen)
