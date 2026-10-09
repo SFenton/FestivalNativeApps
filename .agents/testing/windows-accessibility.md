@@ -440,12 +440,12 @@ Accessibility tests for #288's Windows section push. `journeys/a11y-songs-sectio
 - at 120 epx the copy is gone again;
 - Jump keeps its name and 40×40 epx target.
 
-The push follows the scroll with no animation of its own, so Reduce Motion has nothing to stop, and the copy is hit-test-invisible and never focusable, so the keyboard order is unchanged. No app defect was found; the copy gained only its raw-view test ID. Check: with the copy's `AccessibilityView="Raw"` removed, `push-band` fails (`waitgone:id=fst.songs.section-header.incoming`). Fixed (test only): an Axe `BoundingRectangleSizeReasonable` on a row title clipped to zero height at the viewport bottom (item 3) appeared at one exact medium-size position, so the pages reach the band from a Jump pick of M rather than L.
+The push follows the scroll with no animation of its own, so Reduce Motion has nothing to stop. Keyboard (`push-band-keyboard`, design review of #510): the Jump grid is driven by keys to M, focus is put on the first M row in the band, and arrow keys move it onto the focusable M group header (still in the band, copy drawn, focus rectangle visible over the transparent title) and out to the last L row, then back; `assertfocus:` proves focus is always on the real row or header, never the copy, and Tab from Jump re-enters the list on the remembered row. Harness finding: a UIA Scroll-pattern set (`scrollinset:`, `scrollto:`) while a grouped `ListView` item has focus can move focus to an offscreen group header and drop the list's Tab entry, at any inset and with or without the push; a mouse-wheel or keyboard scroll keeps both, so it isn't a user-facing defect. Keyboard pages therefore scroll with focus outside the list, then `focus:` a visible item. No app defect was found; the copy gained only its raw-view test ID. Check: with the copy's `AccessibilityView="Raw"` removed, `push-band` fails (`waitgone:id=fst.songs.section-header.incoming`). Fixed (test only): an Axe `BoundingRectangleSizeReasonable` on a row title clipped to zero height at the viewport bottom (item 3) appeared at one exact medium-size position, so the pages reach the band from a Jump pick of M rather than L.
 
 | Configuration | Result |
 | --- | --- |
-| Compact, medium (2 pages, `--scan`) | Pass, Axe 0 |
-| Text 225% (compact, 2 pages) | Pass, Axe 0 |
+| Compact, medium (3 pages, `--scan`) | Pass, Axe 0 |
+| Text 225% (compact, 3 pages) | Pass, Axe 0 |
 
 ## Feedback Form validation (issue #236, 2026-10-05)
 

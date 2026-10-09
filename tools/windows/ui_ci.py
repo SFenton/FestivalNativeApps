@@ -97,7 +97,8 @@ RUNS: tuple[Run, ...] = (
     Run("section-index-backward-text-225", "a11y-section-index.json", mode="text-225", only=SECTION_INDEX_BACKWARD),
     # Songs section push (issues #288, #452): mid-push, scrolling down into the boundary and back up, the bar still reads
     # the outgoing section as a Level 2 heading, the incoming in-list title (transparent under the drawn copy) stays the
-    # Level 2 heading in order Jump -> bar -> title, and the copy is drawn but never a second Narrator stop.
+    # Level 2 heading in order Jump -> bar -> title, and the copy is drawn but never a second Narrator stop; by keys,
+    # focus moves row -> group header -> previous row through the band and never lands on the copy.
     Run("songs-section-push", "a11y-songs-section-push.json", tabs=0),
     Run("songs-section-push-text-225", "a11y-songs-section-push.json", sizes="compact", mode="text-225", tabs=0),
     # Quick Links landings on Settings and Leaderboards (issues #51, #416): entry name and current section, 40 epx
