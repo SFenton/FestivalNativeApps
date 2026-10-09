@@ -101,5 +101,13 @@ class UiCiTests(unittest.TestCase):
                     self.assertIn((source.name, name), covered)
 
 
+    def test_pr_tier_is_normal_mode_at_compact_and_full_is_everything(self):
+        pr = ci.tier_runs(list(ci.RUNS), "pr")
+        self.assertTrue(pr)
+        self.assertTrue(all(run.mode == "normal" and run.sizes == "compact" for run in pr))
+        self.assertEqual({run.name for run in pr}, {run.name for run in ci.RUNS if run.mode == "normal"})
+        self.assertEqual(ci.tier_runs(list(ci.RUNS), "full"), list(ci.RUNS))
+
+
 if __name__ == "__main__":
     unittest.main()
