@@ -172,9 +172,17 @@ class CiDeviceTests(unittest.TestCase):
         self.assertEqual(pick_ci_runtime(runtimes), ("ios-26-5", "dt"))
 
     def test_reuses_the_device_it_created(self):
-        devices = {"ios-27-1": [{"name": "Other", "udid": "A"}, {"name": ios_sim.CI_DEVICE_NAME, "udid": "B"}]}
+        devices = {"ios-27-1": [{"name": "Other", "udid": "A"}, {"name": ios_sim.ci_device_name(), "udid": "B"}]}
         self.assertEqual(existing_ci_device(devices, "ios-27-1"), "B")
         self.assertIsNone(existing_ci_device(devices, "ios-26-5"))
+
+    def test_each_device_type_gets_its_own_device(self):
+        # The iPad and Duo steps run after the iPhone's on the same runner and runtime.
+        devices = {"ios-27-1": [{"name": ios_sim.ci_device_name(), "udid": "PHONE"},
+                                {"name": ios_sim.ci_device_name("iPhone Duo"), "udid": "DUO"}]}
+        self.assertEqual(existing_ci_device(devices, "ios-27-1", ios_sim.ci_device_name("iPhone Duo")), "DUO")
+        self.assertIsNone(existing_ci_device(devices, "ios-27-1", ios_sim.ci_device_name("iPad Pro 11-inch (M5)")))
+        self.assertNotEqual(ios_sim.ci_device_name("iPad Pro 11-inch (M5)"), ios_sim.ci_device_name())
 
     def test_refuses_outside_ci(self):
         import argparse
