@@ -6,11 +6,11 @@ Source: the web has no freeze UX; its client throws a generic `API <status>` err
 
 ## Issue vocabulary
 
-Every screen converts a thrown read error into one issue; screens never interpret HTTP codes themselves.
+Every screen converts a thrown read error into one issue; screens never interpret HTTP codes themselves. A score-update freeze 503 for a URL whose body the client already verified in the same observed publication is **not** an issue: the client returns that body and the section stays filled, like the web during a scrape ([empty-error-states](../../patterns/empty-error-states.md) R9, #554).
 
 | Issue | Wire trigger | Heading | Behavior |
 |---|---|---|---|
-| `scrapeInProgress(retryAfter)` | 503 with a score-update `X-FST-Public-Read-Freeze-Reason` | "Scores are updating" | Auto-retry countdown + "Retry Now" |
+| `scrapeInProgress(retryAfter)` | 503 with a score-update `X-FST-Public-Read-Freeze-Reason`, when the client holds no same-publication body for that URL | "Scores are updating" | Auto-retry countdown + "Retry Now" |
 | `unavailable(retryAfter)` | 503 without one, or a non-lifecycle freeze reason | screen title ("… unavailable") | Manual Retry; message names `Retry-After` seconds when sent |
 | `syncing` | 202 on an endpoint without a syncing envelope | "Still syncing" | Manual Retry |
 | `notFound` | 404 not normalized to an empty result | screen title | Manual Retry |
