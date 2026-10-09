@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.rivals
 
 import com.festivalscoretracker.android.testing.RivalsFixtures
 import com.festivalscoretracker.android.core.model.Instrument
+import com.festivalscoretracker.android.core.rivals.RivalRankMetric
 import com.festivalscoretracker.android.core.rivals.RivalScope
 import com.festivalscoretracker.android.core.rivals.RivalScopes
 import com.festivalscoretracker.android.core.rivals.RivalSettingsScope
@@ -86,6 +87,29 @@ class RivalsViewModelTest {
         hub.refresh()
         advanceUntilIdle()
         assertEquals(2, transport.sent("/api/player/$player/leaderboard-rivals/Solo_Guitar").size)
+    }
+
+    @Test
+    fun leaderboardRankByFollowsExperimentalRanks() = runTest(main.dispatcher) {
+        val transport = RivalsFixtures.transport()
+        val off = RivalsHubViewModel(player, leadBass, repository(transport), ServiceRetryBackoff())
+        assertEquals(listOf(RivalRankMetric.TotalScore), off.rankByOptions)
+        off.select(RivalsHubTab.Leaderboard)
+        off.selectRankBy(RivalRankMetric.Adjusted)
+        advanceUntilIdle()
+        assertEquals(RivalRankMetric.TotalScore, off.rankBy.value)
+        assertTrue(transport.requests.none { it.url.contains("rankBy=adjusted") })
+
+        val on = RivalsHubViewModel(player, leadBass, repository(transport), ServiceRetryBackoff(), experimentalRanks = true)
+        assertEquals(RivalRankMetric.entries.toList(), on.rankByOptions)
+        on.select(RivalsHubTab.Leaderboard)
+        advanceUntilIdle()
+        on.selectRankBy(RivalRankMetric.Adjusted)
+        advanceUntilIdle()
+        assertEquals(RivalRankMetric.Adjusted, on.rankBy.value)
+        assertTrue(transport.requests.any { it.url.contains("/leaderboard-rivals/Solo_Guitar") && it.url.contains("rankBy=adjusted") })
+        // Rows open the matching leaderboard scope.
+        assertEquals(RivalScope.Leaderboard(Instrument.Lead, RivalRankMetric.Adjusted), on.leaderboardContent.value.sections[0].rowScope)
     }
 
     @Test

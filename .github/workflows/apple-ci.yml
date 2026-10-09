@@ -1,11 +1,31 @@
 name: apple-ci
 # Apple unit tests, compile check and the iPhone simulator journeys (JOURNEYS below) on a GitHub-hosted
 # Xcode 27 runner (no mesh machine runs CI or release work). The job name is the required check name: keep it `apple-ci`.
+# Path-filtered: Android-, Windows- and docs-only changes don't spend the scarce macOS runners (the release machine
+# requires apple-ci only for apple/ and contracts/ changes).
 on:
   pull_request:
     branches: [master]
+    paths:
+      - 'apple/**'
+      - 'contracts/**'
+      - 'tools/*.py'
+      - 'tools/*.sh'
+      - 'tools/*.swift'
+      - 'tools/release/**'
+      - 'tools/visual/**'
+      - '.github/workflows/apple-ci.yml'
   push:
     branches: [master]
+    paths:
+      - 'apple/**'
+      - 'contracts/**'
+      - 'tools/*.py'
+      - 'tools/*.sh'
+      - 'tools/*.swift'
+      - 'tools/release/**'
+      - 'tools/visual/**'
+      - '.github/workflows/apple-ci.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -72,6 +92,8 @@ jobs:
             NavButtonHitRegionJourneyTests/testChooseProfileReadsAloneInProductionChrome
             NavButtonHitRegionJourneyTests/testAccountButtonsStaySeparateAndLabelledAtLargestTextSize
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
+            SongBarCaptionIconJourneyTests/testSongLeaderboardCaptionIconScalesWithText
+            SongBarCaptionIconJourneyTests/testPlayerHistoryCaptionIconAtLargestText
         run: |
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service.log" 2>&1 &
           mock=$!

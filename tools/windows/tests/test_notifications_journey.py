@@ -133,6 +133,16 @@ class NotificationsJourneyPhaseTests(unittest.TestCase):
                        "Older notifications", "?reads=0", "feed=slow", "key:esc"):
             self.assertIn(marker, steps)
 
+    def test_experimental_ranks_setting_per_scenario(self):
+        """#541: the FC Rate rank row (and its Rank by: FC Rate landing) needs Experimental Ranks on; one scenario keeps
+        the default (off) and checks that row is hidden and uncounted."""
+        self.assertLessEqual(j.EXPERIMENTAL_RANKS_OFF, set(j.SCENARIOS))
+        self.assertEqual(j.settings_for("tap-navigate-rankings"), {"version": 1, "experimentalRanks": True})
+        self.assertEqual(j.settings_for("experimental-ranks-off"), {"version": 1, "experimentalRanks": False})
+        steps = j.SCENARIOS["experimental-ranks-off"][2]
+        self.assertIn("waitgone:id=fst.notifications.row.fixture-notif-fcrate", steps)
+        self.assertIn("assertstate:id=fst.shell.notifications|name=Notifications, 4 unread@15", steps)
+
     def test_media_rows_check_paint_and_bold_for_every_row(self):
         steps = j.SCENARIOS["media-rows"][2]
         for row in j.MEDIA_ROWS:

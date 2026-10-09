@@ -374,17 +374,6 @@ public static class ServiceInfoText
             : $"{Grouped(completed)} {unit} completed";
     }
 
-    /// <summary>Windows text size at and above which the process state stacks under its label.</summary>
-    public const double StackedStateTextScale = LargeText.Scale;
-
-    /// <summary>
-    /// Whether the "Leaderboard Service State" row stacks its process state under the label (Apple's accessibility-size
-    /// rule; the shell uses the same 150% threshold) instead of squeezing the label beside it.
-    /// </summary>
-    /// <param name="textScale">Windows text size factor (1–2.25).</param>
-    /// <returns><see langword="true"/> at 150% text and above.</returns>
-    public static bool StacksStateRow(double textScale) => textScale >= StackedStateTextScale;
-
     /// <summary>Phase whose row adds the lookup-attempt line (web <c>discoveryAttemptText</c>).</summary>
     public const string RegisteredBandDiscoveryPhaseId = "post.registered_player_band_discovery";
 

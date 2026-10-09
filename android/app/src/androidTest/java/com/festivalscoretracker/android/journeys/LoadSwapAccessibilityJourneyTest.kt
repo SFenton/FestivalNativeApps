@@ -234,6 +234,9 @@ class LoadSwapAccessibilityJourneyTest {
         assertTrue("pager count changed: $order", order[pager].startsWith("Page 1 of 2"))
     }
 
+    /** Preferences with Experimental Ranks on, so Rank By offers more than Total Score (#541). */
+    private fun experimentalRanks() = MemoryPreferences(mutablePreferencesOf(booleanPreferencesKey(SettingsRegistry.EXPERIMENTAL_RANKS) to true))
+
     /** The top-bar picker [tag]'s spoken name. */
     private fun spoken(tag: String): String? = visibleNodes(tag).first { it.viewIdResourceName == tag }.contentDescription?.toString()
 
@@ -247,7 +250,7 @@ class LoadSwapAccessibilityJourneyTest {
         shell("settings put global animator_duration_scale 1")
         var scale by mutableFloatStateOf(1f)
         h.enableAccessibilityChecks()
-        h.launch(DebugLaunch(route = DebugLaunch.parseRoute("fullRankings:Solo_Guitar"), profile = player, stillBackground = true), transport, fontScale = { scale })
+        h.launch(DebugLaunch(route = DebugLaunch.parseRoute("fullRankings:Solo_Guitar"), profile = player, stillBackground = true), transport, experimentalRanks(), fontScale = { scale })
         h.waitForTag("$board.spotlight-footer")
         assertBoardSettled("full-rankings", rank = 1)
         val populationAt1 = populationHeight()
@@ -281,7 +284,7 @@ class LoadSwapAccessibilityJourneyTest {
     /** The in-app Reduce Motion setting: the same spinner contract with no fades (load-transition R6). */
     @Test
     fun fullRankingsReloadUnderReduceMotion() {
-        val preferences = MemoryPreferences(mutablePreferencesOf(booleanPreferencesKey(SettingsRegistry.REDUCE_MOTION) to true))
+        val preferences = MemoryPreferences(mutablePreferencesOf(booleanPreferencesKey(SettingsRegistry.REDUCE_MOTION) to true, booleanPreferencesKey(SettingsRegistry.EXPERIMENTAL_RANKS) to true))
         h.enableAccessibilityChecks()
         h.launch(DebugLaunch(route = DebugLaunch.parseRoute("fullRankings:Solo_Guitar"), profile = player, stillBackground = true), transport, preferences)
         h.waitForTag("$board.spotlight-footer")
@@ -304,7 +307,7 @@ class LoadSwapAccessibilityJourneyTest {
         shell("settings put global animator_duration_scale 1")
         var scale by mutableFloatStateOf(1f)
         h.enableAccessibilityChecks()
-        h.launch(DebugLaunch(route = DebugLaunch.parseRoute("bandRankings:Band_Duets"), profile = player, stillBackground = true), transport, fontScale = { scale })
+        h.launch(DebugLaunch(route = DebugLaunch.parseRoute("bandRankings:Band_Duets"), profile = player, stillBackground = true), transport, experimentalRanks(), fontScale = { scale })
         h.waitForTag("$bands.population")
         assertBandsSettled("band-rankings")
         val populationAt1 = populationHeight(bands)
@@ -324,7 +327,7 @@ class LoadSwapAccessibilityJourneyTest {
         assertTrue("2.0× text did not apply", populationHeight(bands) > populationAt1 * 1.5f)
         val fcRate = hold { it.contains("/api/rankings/bands/Band_Trios?") && it.contains("rankBy=fcrate") }
         h.tap("$bands.rank-by-menu")
-        h.tap("$bands.rank-by-menu.2")
+        h.tap("$bands.rank-by-menu.3")
         assertBandSpinner("band-rankings-rank-by-loading-2x")
         assertEquals("Rank By, FC Rate", spoken("$bands.rank-by-menu"))
         fcRate.complete(Unit)
@@ -336,7 +339,7 @@ class LoadSwapAccessibilityJourneyTest {
     @Test
     fun leaderboardsRankByReloadHidesTheLoadingCards() {
         h.enableAccessibilityChecks()
-        h.launch(DebugLaunch(route = DebugLaunch.parseRoute("leaderboards"), profile = player, stillBackground = true), transport)
+        h.launch(DebugLaunch(route = DebugLaunch.parseRoute("leaderboards"), profile = player, stillBackground = true), transport, experimentalRanks())
         h.waitForTag("fst.leaderboards.rank-history")
         h.waitGone("fst.leaderboards.loading")
         h.awaitAccessibilityTree(present = "fst.leaderboards.rank-history", absent = "fst.leaderboards.loading")
