@@ -94,8 +94,33 @@ public enum Changelog {
     /// Longest bullet kept, in characters.
     static let maxItemLength = 600
 
-    /// Entries bundled with the app (empty when the resource is missing or invalid).
-    public static let entries: [ChangelogEntry] = load(bundle: .main)
+    /// Entries bundled with the app (empty when the resource is missing or invalid), or in Debug
+    /// the `FST_DEBUG_WHATS_NEW_FILE` test document (see ``resolveEntries(bundle:environment:)``).
+    public static let entries: [ChangelogEntry] = resolveEntries(
+        bundle: .main, environment: ProcessInfo.processInfo.environment
+    )
+
+    /// Debug-only override naming a `versioning.py whats-new` document to show instead of the
+    /// bundled one (same hook as Windows), so UI tests reach grouped and tester notes.
+    static let debugFileKey = "FST_DEBUG_WHATS_NEW_FILE"
+
+    /// The app's changelog: the bundled document, or in Debug the file `FST_DEBUG_WHATS_NEW_FILE`
+    /// names. The show-once hash then follows the loaded document; an unreadable or invalid file
+    /// gives no entries (never presented). Release builds ignore the variable.
+    ///
+    /// - Parameters:
+    ///   - bundle: Bundle holding the resource (`.main` in the app).
+    ///   - environment: Process environment.
+    /// - Returns: Decoded entries.
+    static func resolveEntries(bundle: Bundle, environment: [String: String]) -> [ChangelogEntry] {
+        #if DEBUG
+        if let path = environment[debugFileKey], !path.isEmpty {
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return [] }
+            return (try? decode(data)) ?? []
+        }
+        #endif
+        return load(bundle: bundle)
+    }
 
     /// Content hash of the bundled entries; drives "show once per changelog".
     public static var currentHash: String { hash(entries) }
