@@ -30,6 +30,7 @@ import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
 import kotlin.math.abs
 import okhttp3.OkHttpClient
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -141,6 +142,23 @@ class SongsBucketHeaderDrawUiTest {
         rule.onNodeWithTag("fst.songs.list").performScrollToIndex(5)
         settle()
         assertHeadersBare("Duration pinned", min = 1)
+    }
+
+    /**
+     * Scroll-edge R5 (#462): only the pinned header is read first in the list's traversal group;
+     * an in-flow header keeps 0, so TalkBack reads it between the sections it divides.
+     */
+    @Test
+    fun onlyThePinnedHeaderIsReadBeforeTheRowsBeneathIt() {
+        fun traversal(tag: String) = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode()
+            .config.getOrNull(SemanticsProperties.TraversalIndex) ?: 0f
+        launch(largeTransport(), prefs(stringPreferencesKey(SettingsRegistry.SONG_SORT) to "Duration"))
+        rule.waitUntil(20_000) { settle(100); rule.onAllNodesWithTag("fst.songs.section.duration.1to2", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        // Row 5 of the first section at the top: rows 1–5 are scrolled under the pinned header.
+        rule.onNodeWithTag("fst.songs.list").performScrollToIndex(5)
+        settle()
+        assertEquals(PINNED_HEADER_TRAVERSAL_INDEX, traversal("fst.songs.section.duration.1to2"))
+        assertEquals(0f, traversal("fst.songs.section.duration.2to3"))
     }
 
     @Test
