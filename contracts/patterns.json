@@ -3494,6 +3494,116 @@
         218,
         379
       ]
+    },
+    {
+      "id": "experimental-ranks",
+      "title": "Experimental ranks",
+      "status": "current",
+      "doc": ".agents/patterns/experimental-ranks.md",
+      "summary": "The Settings 'Enable Experimental Leaderboard Ranks' switch (off by default, Reset turns it off) is the one gate for experimental ranking metrics: off means Total Score only everywhere (Rank By withdrawn in-page, Mac View > Rank By lists only Total Score); on offers Adjusted, Weighted, FC Rate and Max Score (bands without Max Score). Saved or deep-linked metrics are coerced at read time, never rewritten; notifications use the web's experimental-rank projection (#541).",
+      "keywords": [
+        "experimental ranks",
+        "experimental leaderboard ranks",
+        "rank by",
+        "rankBy",
+        "ranking metric",
+        "adjusted",
+        "weighted",
+        "fc rate",
+        "max score",
+        "total score",
+        "coerceRankingMetric",
+        "enableExperimentalRanks",
+        "rank notification"
+      ],
+      "web": [
+        {
+          "path": "contexts/SettingsContext.tsx",
+          "symbol": "enableExperimentalRanks"
+        },
+        {
+          "path": "pages/leaderboards/helpers/rankingHelpers.ts",
+          "symbol": "getEnabledRankingMetrics"
+        },
+        {
+          "path": "pages/leaderboards/helpers/rankingHelpers.ts",
+          "symbol": "coerceRankingMetric"
+        },
+        {
+          "path": "pages/leaderboards/helpers/bandRankingHelpers.ts",
+          "symbol": "coerceBandRankingMetric"
+        },
+        {
+          "path": "pages/leaderboards/modals/RankByModal.tsx",
+          "symbol": "RankByModal"
+        },
+        {
+          "path": "components/notifications/notificationSurface.ts",
+          "symbol": "projectExperimentalRankNotification"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalCore/Rankings.swift",
+            "symbol": "ExperimentalRanks"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/Rivals.swift",
+            "symbol": "RivalRankMetric"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/PlayerNotification.swift",
+            "symbol": "NotificationExperimentalRanks"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Leaderboards/RankingsSupport.swift",
+            "symbol": "RankByMenu"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Leaderboards/RankingsSupport.swift",
+            "symbol": "BandRankByMenu"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Mac/MacPageMenus.swift",
+            "symbol": "bandOptions"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/SettingsScreen.swift",
+            "symbol": "experimentalRanksRow"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "page-tools-and-nav-chrome"
+        ],
+        "pages": [
+          "settings",
+          "leaderboards",
+          "full-rankings",
+          "band-rankings",
+          "band-detail",
+          "rivals",
+          "all-rivals",
+          "rival-detail",
+          "rivalry"
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-ungated-metric-list",
+          "glob": "apple/Sources/FestivalUI/**/*.swift",
+          "regex": "\\b(?:RankingMetric|BandRankingMetric|RivalRankMetric)\\.allCases\\b",
+          "allow": [],
+          "debt": [],
+          "message": "Rank By choices come from the experimental-ranks gate (RankingMetric.enabled(experimentalRanks:), BandRankingMetric.enabled, RivalRankMetric.enabled); never list allCases in UI (experimental-ranks R2)."
+        }
+      ],
+      "supersedes": [],
+      "issues": [
+        541
+      ]
     }
   ]
 }

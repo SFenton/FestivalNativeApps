@@ -29,6 +29,7 @@ struct NotificationsSheet: View {
     @State private var fadeSettled = false
     /// Pinned header and scroll readings for the rows' fade under the headers (#301).
     @State private var pinnedFade = PinnedHeaderEdgeFadeState()
+    @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
     private var center: NotificationsCenter { session.notificationsCenter }
 
     var body: some View {
@@ -36,6 +37,7 @@ struct NotificationsSheet: View {
             content
         }
         .task { await center.refresh(session: session) }
+        .onChange(of: experimentalRanks, initial: true) { _, enabled in center.setExperimentalRanks(enabled) }
         .onDisappear {
             center.markSeen(center.notifications.map(\.id))
         }
