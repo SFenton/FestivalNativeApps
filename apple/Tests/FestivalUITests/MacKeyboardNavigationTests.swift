@@ -135,7 +135,7 @@ private func rankingRow(_ accountId: String, rank: Int) throws -> AccountRanking
 @Test func macRankByAccountOptions() {
     let on = MacRankByCommands.accountOptions(experimentalRanks: true)
     #expect(on.map(\.id) == ["totalscore", "adjusted", "weighted", "fcrate", "maxscore"])
-    #expect(on.first?.label == RankingMetric.adjusted.label)
+    #expect(on.first?.label == RankingMetric.totalscore.label)
     let off = MacRankByCommands.accountOptions(experimentalRanks: false)
     #expect(off.map(\.id) == ["totalscore"])
     #expect(off.map(\.label) == ["Total Score"])
