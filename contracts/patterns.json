@@ -577,7 +577,8 @@
         312,
         321,
         343,
-        348
+        348,
+        557
       ]
     },
     {
@@ -855,6 +856,14 @@
           {
             "path": "apple/Sources/FestivalUI/App/Shell/SidebarMenu.swift",
             "symbol": "SidebarMenu"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/InstrumentPageTitle.swift",
+            "symbol": "InstrumentPageTitle"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/InstrumentPageTitle.swift",
+            "symbol": "InstrumentPageTitleToolbarItem"
           }
         ],
         "android": [
@@ -992,7 +1001,8 @@
         341,
         351,
         363,
-        394
+        394,
+        557
       ]
     },
     {
