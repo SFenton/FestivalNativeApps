@@ -156,6 +156,10 @@
       "reason": "Fails at 225% text (focus/reachability)",
       "issue": "SFenton/festival-report-tracker#539"
     },
+    "qlj-profile-menu": {
+      "reason": "Flaky at 225% text: Quick Links current section read before the jump settles",
+      "issue": "SFenton/festival-report-tracker#548"
+    },
     "search-suggestions": {
       "reason": "Two Axe.Windows errors (popup/flyout or board), timing-dependent",
       "issue": "SFenton/festival-report-tracker#534"
@@ -221,6 +225,10 @@
     "journey:songs-section-index": {
       "reason": "section-index-far-moves-wide lands one section early on the runner (flaky: passed in run 37871893326)",
       "issue": "SFenton/festival-report-tracker#530"
+    },
+    "runner:feedback": {
+      "reason": "Flaky: submit phase fails intermittently on the runner",
+      "issue": "SFenton/festival-report-tracker#548"
     }
   }
 }
