@@ -28,6 +28,25 @@ public class BandsPagerTests
         pager.Page = 4;
         Assert.False(pager.LastCommand.CanExecute(null));
     }
+
+    [Fact]
+    public async Task Pager_StaysEnabledWhileAPageLoads()
+    {
+        var pending = new TaskCompletionSource();
+        var pager = new BandsPagerViewModel(_ => pending.Task) { PageCount = 3 };
+        var move = pager.NextCommand.ExecuteAsync(null);
+        // A disabled focused Next button handed keyboard focus to Previous mid-swap (issue #431, as #197 on the rankings
+        // pager), so only page bounds may disable the arrows.
+        Assert.True(pager.NextCommand.IsRunning);
+        Assert.True(pager.NextCommand.CanExecute(null));
+        Assert.True(pager.LastCommand.CanExecute(null));
+        Assert.False(pager.PreviousCommand.CanExecute(null));
+        pending.SetResult();
+        await move;
+        pager.Page = 3;
+        Assert.False(pager.NextCommand.CanExecute(null));
+        Assert.True(pager.FirstCommand.CanExecute(null));
+    }
 }
 
 public class PlayerBandsViewModelTests
