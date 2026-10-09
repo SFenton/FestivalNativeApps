@@ -4,21 +4,29 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.ui.theme.FestivalAccessibility
@@ -162,6 +170,66 @@ class BoardFooterFadeDrawUiTest {
         board(fade = false)
         rule.onNodeWithTag("row.14").assertIsDisplayed()
     }
+
+    /**
+     * A pager-only board (Band Rankings, or a solo board with no selected player): 104 dp
+     * clickable rows above a narrow 48 dp pager, so row 6 peeks 24 dp above the cut. Returns the
+     * cut in root px, and counts row 6's clicks in [clicks].
+     */
+    private fun pagerOnlyBoard(clicks: IntArray): Float {
+        rule.setContent {
+            Box(Modifier.size(400.dp, 800.dp)) {
+                RankingsBoardLayout(
+                    hinge = null,
+                    measure = Modifier,
+                    padding = PaddingValues(),
+                    listState = rememberLazyListState(),
+                    idPrefix = "fst.t",
+                    controls = {},
+                    footer = {},
+                    pager = { Box(Modifier.width(120.dp).height(48.dp).testTag("pager")) },
+                    fadeAboveFooter = true,
+                ) {
+                    items(30) { i ->
+                        Box(Modifier.fillMaxWidth().height(104.dp).clickable { if (i == 6) clicks[0]++ }.semantics { contentDescription = "Row $i" }.testTag("row.$i"))
+                    }
+                }
+            }
+        }
+        rule.waitForIdle()
+        return rule.onNodeWithTag("fst.t.bottom-bar").fetchSemanticsNode().boundsInRoot.top
+    }
+
+    /**
+     * Compose widens a clip by up to half the 48 dp minimum touch target for a row peeking less
+     * than 48 dp above it, so beside a narrow pager a hidden row's TalkBack bounds (and touch)
+     * reached 24 dp under the footer (#473). The footer's full width now covers that space.
+     */
+    @Test
+    fun rowsPeekingAboveAPagerOnlyFooterStayAboveItForTalkBack() {
+        val cut = pagerOnlyBoard(IntArray(1))
+        val id = rule.onNodeWithTag("row.6").fetchSemanticsNode().id
+        val view = composeView(rule.activity.window.decorView)
+        val info = rule.runOnUiThread { view.accessibilityNodeProvider!!.createAccessibilityNodeInfo(id)!! }
+        val bounds = android.graphics.Rect().also(info::getBoundsInScreen)
+        val origin = IntArray(2).also(view::getLocationOnScreen)
+        assertTrue("row 6 peeks above the cut", bounds.top - origin[1] < cut)
+        assertTrue("row 6 reaches under the footer (${bounds.bottom - origin[1]} > $cut)", bounds.bottom - origin[1] <= cut + 1f)
+    }
+
+    /** The same widened touch area: a tap beside the pager never reaches the row hidden behind it (#473). */
+    @Test
+    fun tapsBesideAPagerOnlyFooterNeverReachHiddenRows() {
+        val clicks = IntArray(1)
+        val cut = pagerOnlyBoard(clicks)
+        rule.onRoot().performTouchInput { click(Offset(40.dp.toPx(), cut + 8.dp.toPx())) }
+        rule.waitForIdle()
+        assertEquals("a tap beside the pager reached a hidden row", 0, clicks[0])
+    }
+
+    private fun composeView(view: android.view.View): android.view.View =
+        if (view is androidx.compose.ui.platform.ViewRootForTest) view
+        else (0 until (view as android.view.ViewGroup).childCount).firstNotNullOf { runCatching { composeView(view.getChildAt(it)) }.getOrNull() }
 
     /**
      * A board of 30 rows above a 48 dp pager and, when [withScore], a 56 dp pinned score row,
