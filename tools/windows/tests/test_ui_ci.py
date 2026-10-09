@@ -56,12 +56,41 @@ class UiCiTests(unittest.TestCase):
         names = {page["name"] for page in pages}
         self.assertTrue({"song-band-pin-jump", "song-band-pin-open", "song-band-pin-no-player"} <= names)
 
+    def test_first_run_demos_run_at_default_and_largest_text(self):
+        """#420 review: the first-run demo journey gates PRs, not just its JSON guard."""
+        demos = {run.mode: run for run in ci.RUNS if run.pages == "a11y-first-run-demos.json"}
+        self.assertEqual({"normal", "text-225"}, set(demos))
+        self.assertTrue(all(run.scan and not run.only for run in demos.values()))
+        self.assertIn("compact", demos["text-225"].sizes.split(","))
+        self.assertEqual({"compact", "medium"}, set(demos["normal"].sizes.split(",")))
+
     def test_modals_run_at_default_and_largest_text(self):
         modal = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-modals.json"}
         self.assertEqual({("normal", True), ("text-225", True)}, modal)
         large = next(run for run in ci.RUNS if run.pages == "a11y-modals.json" and run.mode == "text-225")
         self.assertIn("compact", large.sizes.split(","))
         self.assertGreaterEqual(large.tabs, 1)
+
+    def test_settings_pages_wait_for_feedback_rows_before_scrolling(self):
+        """#535: the Feedback rows appear above every later Settings section once ``/api/features`` answers, so a target
+        scrolled into view before then can be pushed back off screen (``no on-screen element
+        id=fst.settings.whats-new`` at 225% text). A CI page that scrolls to Settings content brings those rows in first
+        (scrolling back to page chrome such as the Quick Links entry is not a Settings target)."""
+        wait = "scrollinto:id=fst.settings.feedback.feature"
+        checked = 0
+        for run in ci.RUNS:
+            for page in json.loads((ci.JOURNEYS / run.pages).read_text(encoding="utf-8")):
+                if page.get("tab") != "settings" and page.get("route") != "/settings":
+                    continue
+                steps = [*page.get("setup", ()), *page.get("ready", ()), *page.get("after_ready", ())]
+                scrolls = [step for step in steps if step.startswith("scrollinto:id=fst.settings.")]
+                if not scrolls:
+                    continue
+                checked += 1
+                with self.subTest(run=run.name, page=page["name"]):
+                    self.assertTrue(scrolls[0].startswith(wait + "@"), scrolls[0])
+                    self.assertGreaterEqual(u.parse_step(scrolls[0])["timeout"], 20)
+        self.assertGreater(checked, 0)
 
     def test_songs_filter_runs_at_default_and_largest_text(self):
         # Issue #432 (#77): the no-profile Filter flyout's accessibility pages run in CI at default and 225% text.
