@@ -218,14 +218,6 @@
       "reason": "Suggestions fade check fails",
       "issue": "SFenton/festival-report-tracker#532"
     },
-    "journey:search": {
-      "reason": "Global search loading state not seen; should run through search_journey.py (fix in flight)",
-      "issue": "SFenton/festival-report-tracker#530"
-    },
-    "journey:songs-section-index": {
-      "reason": "section-index-far-moves-wide lands one section early on the runner (flaky: passed in run 37871893326)",
-      "issue": "SFenton/festival-report-tracker#530"
-    },
     "runner:feedback": {
       "reason": "Flaky: submit phase fails intermittently on the runner",
       "issue": "SFenton/festival-report-tracker#548"
