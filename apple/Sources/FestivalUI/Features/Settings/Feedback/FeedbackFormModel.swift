@@ -30,7 +30,7 @@ final class FeedbackFormModel {
     }
 
     /// How a delivered report ended.
-    enum Outcome: Equatable {
+    enum Outcome: Equatable, Sendable {
         /// Filed on GitHub; `skipped` attachments could not be fitted into the issue.
         case filed(issueNumber: Int?, skipped: Int)
         /// Accepted, but the app could not follow it to the end (no ID, a lost status

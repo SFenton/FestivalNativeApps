@@ -57,6 +57,11 @@ struct SettingsScreen: View {
     @State private var showingPrivacyPolicy = false
     /// Open Report an Issue / Request a Feature form, if any (issue #78).
     @State private var feedbackForm: FeedbackKind?
+    /// A filed form's "Report Sent" alert, shown over Settings only after its sheet has
+    /// gone (issue #565, pattern `modal-shell` R7).
+    @State private var feedbackSent = FeedbackSentPresentation()
+    /// Takes VoiceOver back to the form's row after that alert (issue #565).
+    @State private var feedbackFocusReturn: AccessibilityFocusRequest?
     /// The service accepts in-app feedback (`GET /api/features` → `feedback`). The rows stay
     /// hidden until it says so; a failed read is retried on the next Settings visit.
     @State private var feedbackEnabled = false
@@ -166,10 +171,20 @@ struct SettingsScreen: View {
         .sheet(isPresented: $showingPrivacyPolicy) {
             PrivacyPolicySheet()
         }
-        .sheet(item: $feedbackForm, onDismiss: FeedbackFormModel.purgeStagedMedia) { kind in
+        .sheet(item: $feedbackForm, onDismiss: feedbackFormDismissed) { kind in
             // Applies its own `.festivalSheet`, widening while its photo library is open.
-            FeedbackFormSheet(kind: kind, session: session)
+            FeedbackFormSheet(kind: kind, session: session) { feedbackSent.formFinished($0) }
         }
+        .alert(
+            feedbackSent.shown?.title ?? "", isPresented: feedbackSentShowing,
+            presenting: feedbackSent.shown
+        ) { _ in
+            Button("Done", role: .cancel) {}
+                .accessibilityIdentifier("fst.settings.feedback.done")
+        } message: { notice in
+            Text(notice.message)
+        }
+        .accessibilityFocusMove(feedbackFocusReturn)
         .whatsNewPresentation(isPresented: $showingWhatsNew) {
             WhatsNewChannelSheet(version: WhatsNewGate.appVersion()) {
                 ChangelogSeenStore().markSeen(version: WhatsNewGate.appVersion())
@@ -537,19 +552,24 @@ struct SettingsScreen: View {
     /// The Report an Issue and Request a Feature rows (issue #78).
     @ViewBuilder private var feedbackRows: some View {
         feedbackRow(
-            .bug, detail: "Tell us about something that isn't working.",
-            action: "Report", identifier: "fst.settings.feedback.bug"
+            .bug, detail: "Tell us about something that isn't working.", action: "Report"
         )
         feedbackRow(
             .feature, detail: "Suggest something new for Festival Score Tracker.",
-            action: "Request", identifier: "fst.settings.feedback.feature"
+            action: "Request"
         )
     }
 
+    /// A feedback row's accessibility identifier.
+    ///
+    /// - Parameter kind: The form the row opens.
+    /// - Returns: `fst.settings.feedback.bug` or `fst.settings.feedback.feature`.
+    private static func feedbackRowIdentifier(_ kind: FeedbackKind) -> String {
+        "fst.settings.feedback.\(kind.rawValue)"
+    }
+
     /// A row that opens the bug or feature form, styled like What's New's "Show" row.
-    private func feedbackRow(
-        _ kind: FeedbackKind, detail: String, action: String, identifier: String
-    ) -> some View {
+    private func feedbackRow(_ kind: FeedbackKind, detail: String, action: String) -> some View {
         Button { feedbackForm = kind } label: {
             HStack {
                 SettingLabel(kind.formTitle, detail: detail)
@@ -561,8 +581,30 @@ struct SettingsScreen: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityIdentifier(identifier)
+        .accessibilityIdentifier(Self.feedbackRowIdentifier(kind))
         .accessibilityHint("Opens a form that files it on GitHub")
+    }
+
+    /// The form's sheet has gone by any route: delete its staged media, then show the
+    /// "Report Sent" alert it handed over, if it was filed (issue #565).
+    private func feedbackFormDismissed() {
+        FeedbackFormModel.purgeStagedMedia()
+        feedbackSent.formDismissed()
+    }
+
+    /// The sent alert is up; Done (or Escape) dismisses it and returns VoiceOver to the
+    /// row that opened the form.
+    private var feedbackSentShowing: Binding<Bool> {
+        Binding(
+            get: { feedbackSent.shown != nil },
+            set: { showing in
+                guard !showing, let kind = feedbackSent.acknowledge() else { return }
+                feedbackFocusReturn = AccessibilityFocusRequest(
+                    target: .identifier(Self.feedbackRowIdentifier(kind)), screenChanged: false,
+                    token: (feedbackFocusReturn?.token ?? 0) + 1
+                )
+            }
+        )
     }
 
     /// Where system accessibility options live on this platform.
