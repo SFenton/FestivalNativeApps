@@ -734,6 +734,16 @@ public actor FestivalAPI {
             }
         }
 
+        if let retained = Self.scrapeFreezeFallback(
+            response, cached: cached, publicationId: publication.publicationId
+        ), current?.publicationId == publication.publicationId {
+            try Task.checkCancellation()
+            return PublicPayload(
+                data: retained, publicationId: publication.publicationId,
+                observedPublicationId: publication.publicationId, isStale: false
+            )
+        }
+
         let status = try Self.mapStatus(response, acceptsSyncing: endpoint.acceptsSyncing)
         switch endpoint {
         case .player where response.data.count > PlayerProfileResponse.wireByteLimit:
@@ -800,6 +810,36 @@ public actor FestivalAPI {
             observedPublicationId: publication.publicationId,
             isStale: false, httpStatus: response.status
         )
+    }
+
+    /// Same-publication bytes to serve instead of a scrape-freeze 503 (issue #554).
+    ///
+    /// While scores are updating the service answers only from its stored published
+    /// responses, keyed per selected-profile headers the apps never send, so a miss is
+    /// a 503. A response this process already verified for the same, still-current
+    /// publication is exactly what that store would return, so it is served as
+    /// verified data (like the web keeping a query's data through a failed refetch).
+    /// A bare 503 (outage), a non-lifecycle freeze reason, another publication or an
+    /// endpoint kept out of the snapshot cache (account-scoped reads) still fails.
+    ///
+    /// - Parameters:
+    ///   - response: Service reply to this attempt.
+    ///   - cached: Verified entry looked up for this resource, if any.
+    ///   - publicationId: Publication the attempt was made against.
+    /// - Returns: The retained bytes, or nil when the reply must be mapped normally.
+    static func scrapeFreezeFallback(
+        _ response: HTTPResult, cached: SessionResponseCache.Entry?, publicationId: Int
+    ) -> Data? {
+        guard response.status == 503,
+              let reason = response.header(ServiceFreezeReason.header),
+              ServiceFreezeReason.isScoreUpdate(reason),
+              let cached, cached.publicationId == publicationId else {
+            return nil
+        }
+        if let raw = response.header("X-FST-Publication-Id"), Int(raw) != publicationId {
+            return nil
+        }
+        return cached.data
     }
 
     /// Build a pinned request without allowing URLSession to serve stale browser-style cache.
