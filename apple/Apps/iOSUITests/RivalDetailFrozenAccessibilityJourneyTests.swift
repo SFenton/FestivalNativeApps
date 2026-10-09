@@ -107,13 +107,43 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
         }
     }
 
-    /// Wait until the rebuilt comparison shows its first row.
+    /// Wait until the rebuilt comparison shows its first row and has settled: the cards
+    /// stagger in (`load-transition`), and on the CI runner a row that already exists can
+    /// still be fading in, not yet hittable, with its card's frames still moving.
     @MainActor
-    private func waitForRows(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
+    private func waitForRows(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) throws {
+        let first = app.buttons[Self.firstRow].firstMatch
         XCTAssertTrue(
-            app.buttons[Self.firstRow].firstMatch.waitForExistence(timeout: FestivalApp.budget(30)),
+            first.waitForExistence(timeout: FestivalApp.budget(30)),
             "the frozen detail was not rebuilt from /rivals/all", file: file, line: line
         )
+        XCTAssertTrue(
+            waitUntilHittable(first, timeout: FestivalApp.budget(10)), "the first row never took a tap", file: file, line: line
+        )
+        // Settled once two snapshots in a row agree on every row and View All frame.
+        var previous = ""
+        for _ in 0..<10 {
+            let nodes = try readingOrder(app)
+            let signature = (rows(nodes) + viewAlls(nodes)).map { "\($0.label)\($0.frame)" }.joined()
+            if signature == previous { return }
+            previous = signature
+            Thread.sleep(forTimeInterval: FestivalApp.budget(0.25))
+        }
+        XCTFail("the rows never settled", file: file, line: line)
+    }
+
+    /// Wait until `element` exists and takes a tap (`SongDetailJourneyTests`' `waitHittable`).
+    ///
+    /// - Parameters:
+    ///   - element: The element to wait for.
+    ///   - timeout: The wait's budget.
+    /// - Returns: Whether it became hittable in time.
+    @MainActor
+    private func waitUntilHittable(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
+        let hittable = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == true AND isHittable == true"), object: element
+        )
+        return XCTWaiter().wait(for: [hittable], timeout: timeout) == .completed
     }
 
     /// Attach a named screenshot that the result bundle keeps.
@@ -435,7 +465,7 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
     func testFrozenRivalDetailNamesOrdersSizesAndGrowsItsRows() throws {
         continueAfterFailure = false
         let app = launch(player: "fixture-riv-frozen")
-        waitForRows(app)
+        try waitForRows(app)
         let baseline = try textHeights(app)
         let regularHeight = app.buttons[Self.firstRow].firstMatch.frame.height
         let window = app.windows.firstMatch.frame
@@ -499,7 +529,7 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
         app.terminate()
 
         let large = launch(player: "fixture-riv-frozen", contentSize: Self.ax5)
-        waitForRows(large)
+        try waitForRows(large)
         try growsAtTheLargestTextSize(large, regularHeight: regularHeight, baseline: baseline, pending: pending)
     }
 
@@ -561,6 +591,8 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(retry.frame.height, 44 - 0.5, "Retry Now target height")
             XCTAssertGreaterThanOrEqual(retry.frame.width, 44, "Retry Now target width")
             // At AX5 the state is taller than the screen: Retry Now must scroll clear of the bars.
+            // At the default size it only has to finish fading in.
+            if contentSize == nil { _ = waitUntilHittable(retry, timeout: FestivalApp.budget(5)) }
             for _ in 0..<4 where !retry.isHittable { app.swipeUp() }
             XCTAssertTrue(retry.isHittable, "Retry Now takes a tap")
 
