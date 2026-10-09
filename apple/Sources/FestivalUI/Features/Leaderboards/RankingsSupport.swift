@@ -668,14 +668,19 @@ struct BandRankingRow: View {
     /// Draw the row as its own material card; see ``AccountRankingRow/cardSurface``.
     var cardSurface: Bool = false
 
-    /// The band a row opens.
+    /// The band a row opens, titled by its members so Band Detail's large title is
+    /// right before its board loads (#555).
     ///
     /// - Parameters:
     ///   - entry: A band rankings row.
     ///   - bandType: The board's band size.
     /// - Returns: The band route.
     static func route(_ entry: BandRankingEntry, bandType: BandType) -> AppRoute {
-        .band(bandId: entry.bandId, name: nil, bandType: bandType.rawValue, teamKey: entry.teamKey)
+        let names = entry.teamMembers.map { $0.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? "Unknown User" }
+        return .band(
+            bandId: entry.bandId, name: names.isEmpty ? nil : BandPageFormatting.title(memberNames: names),
+            bandType: bandType.rawValue, teamKey: entry.teamKey
+        )
     }
 
     /// Mac arrow-key rows for a band board.

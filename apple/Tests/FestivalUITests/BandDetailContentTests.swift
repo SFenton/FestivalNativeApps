@@ -156,3 +156,22 @@ private func song(year: Int? = 2019) throws -> Song {
     #expect(shrunk.map(\.rankedAccountCount) == [nil, 80])
     #expect(RankHistoryCharts.accessibilityValue(shrunk[0], kind: .band(.fcrate)) == "Rank 9")
 }
+
+// MARK: - Route title
+
+@MainActor
+@Test func bandRankingsRowOpensBandDetailTitledByItsMembers() throws {
+    func entry(_ members: String) throws -> BandRankingEntry {
+        try decode(BandRankingEntry.self, """
+        {"bandId":"b1","teamKey":"a:b","teamMembers":\(members),"songsPlayed":3,"totalChartedSongs":9,
+         "coverage":0.3,"rawSkillRating":0.1,"adjustedSkillRating":0.1,"adjustedSkillRank":1,
+         "weightedRating":0.1,"weightedRank":1,"fcRate":0.5,"fcRateRank":1,"totalScore":10,
+         "totalScoreRank":1,"avgAccuracy":990000,"fullComboCount":1,"avgStars":5,"bestRank":1,"avgRank":2}
+        """)
+    }
+    let named = try entry(#"[{"accountId":"a","displayName":"Ana"},{"accountId":"b","displayName":""}]"#)
+    #expect(BandRankingRow.route(named, bandType: .duets)
+        == .band(bandId: "b1", name: "Ana + Unknown User", bandType: "Band_Duets", teamKey: "a:b"))
+    #expect(BandRankingRow.route(try entry("[]"), bandType: .duets)
+        == .band(bandId: "b1", name: nil, bandType: "Band_Duets", teamKey: "a:b"))
+}
