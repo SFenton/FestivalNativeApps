@@ -437,6 +437,20 @@ class FestivalApiTest {
     }
 
     @Test
+    fun anUnverifiedBodyIsNeverKept() = runTest {
+        var frozen = false
+        val transport = FakeTransport.standard().apply {
+            // A 200 without the publication header is not proof of this publication.
+            onRaw("/api/x") { if (frozen) freeze503("scrape") else HttpResult(200, "unstamped".toByteArray(), emptyMap()) }
+        }
+        val api = api(transport)
+        val x = ServiceEndpoint.Feature(listOf("x"))
+        assertEquals("unstamped", String(api.readPinnedResponse(x).body))
+        frozen = true
+        failsWith<FestivalApiException.PublicReadFrozen> { api.readPinnedResponse(x) }
+    }
+
+    @Test
     fun keptBodiesStayWithinTheirByteBudget() = runTest {
         var frozen = false
         val transport = FakeTransport.standard().apply {
