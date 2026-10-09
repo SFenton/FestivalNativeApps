@@ -18,7 +18,8 @@ jobs:
   apple-ci:
     name: apple-ci
     runs-on: xcode-27
-    timeout-minutes: 75
+    # 120: the scroll-edge journeys (#462) add about 15 simulator launches across the iPhone and iPad steps.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,7 +59,8 @@ jobs:
         # Evidence only an iOS run gives (real Dynamic Type sizes, performAccessibilityAudit, the production nav bar
         # and tab-bar accessory reading order, page-tools-and-nav-chrome R17). One throwaway runner
         # simulator, the large-catalogue loopback fixture, `ios_sim.py uitest`; a skipped journey fails the step.
-        # Add a journey here only if it runs against this fixture: testing/apple/xcuitest.md#ci-journeys.
+        # Add a journey here only if it runs against these fixtures: testing/apple/xcuitest.md#ci-journeys. The
+        # scroll-edge journeys (#462) read a second, `--large-rankings` fixture on port 8766 (multi-page boards).
         env:
           JOURNEYS: >-
             SongsChromeJourneyTests/testSectionBarHeadingAtLargestText
@@ -68,13 +70,26 @@ jobs:
             NavButtonHitRegionJourneyTests/testChooseProfileReadsAloneInProductionChrome
             NavButtonHitRegionJourneyTests/testAccountButtonsStaySeparateAndLabelledAtLargestTextSize
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
+            ScrollEdgeFadeAccessibilityJourneyTests/testNotificationsSheetHeaderAndPinnedTitlesAreAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testNotificationsSheetAtLargestTextWithHardEdge
+            ScrollEdgeFadeAccessibilityJourneyTests/testSongLeaderboardFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testFullRankingsFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testBandRankingsFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testSongBandLeaderboardFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testPlayerBandsFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testBoardFadesInDuoWindows
+            ScrollEdgeFadeAccessibilityJourneyTests/testNotificationsSheetInDuoWindows
         run: |
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service.log" 2>&1 &
           mock=$!
-          trap 'kill "$mock" 2>/dev/null || true' EXIT
+          python3 tools/mock_service.py --large-rankings --port 8766 > "$RUNNER_TEMP/mock_service_rankings.log" 2>&1 &
+          rankings=$!
+          trap 'kill "$mock" "$rankings" 2>/dev/null || true' EXIT
           device=$(python3 tools/ios_sim.py ci-device)
-          for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock_service.log" && break; sleep 1; done
-          grep -q "fixture service on" "$RUNNER_TEMP/mock_service.log"
+          for log in mock_service mock_service_rankings; do
+            for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/$log.log" && break; sleep 1; done
+            grep -q "fixture service on" "$RUNNER_TEMP/$log.log"
+          done
           only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
           python3 tools/ios_sim.py uitest --device "$device" --fail-on-skip --timeout 900 "${only[@]}"
       - name: iPad simulator journeys (serialized, loopback fixture)
@@ -86,14 +101,24 @@ jobs:
           JOURNEYS: >-
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Landscape
+            ScrollEdgeFadeAccessibilityJourneyTests/testNotificationsSheetAtLargestTextWithHardEdge
+            ScrollEdgeFadeAccessibilityJourneyTests/testSongLeaderboardFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testFullRankingsFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testBandRankingsFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testSongBandLeaderboardFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testPlayerBandsFadeKeepsRowsAndPagerAccessible
         run: |
           python3 tools/ios_sim.py shutdown --device "$(python3 tools/ios_sim.py ci-device)"
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service_ipad.log" 2>&1 &
           mock=$!
-          trap 'kill "$mock" 2>/dev/null || true' EXIT
+          python3 tools/mock_service.py --large-rankings --port 8766 > "$RUNNER_TEMP/mock_service_rankings_ipad.log" 2>&1 &
+          rankings=$!
+          trap 'kill "$mock" "$rankings" 2>/dev/null || true' EXIT
           device=$(python3 tools/ios_sim.py ci-device --type "iPad Pro 11-inch (M5)")
-          for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock_service_ipad.log" && break; sleep 1; done
-          grep -q "fixture service on" "$RUNNER_TEMP/mock_service_ipad.log"
+          for log in mock_service_ipad mock_service_rankings_ipad; do
+            for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/$log.log" && break; sleep 1; done
+            grep -q "fixture service on" "$RUNNER_TEMP/$log.log"
+          done
           only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
           python3 tools/ios_sim.py uitest --device "$device" --app phone --batch-size 1 --fail-on-skip --timeout 900 "${only[@]}"
       - name: Upload simulator journey results
@@ -105,6 +130,8 @@ jobs:
             apple/DerivedData/lane-driver/Results
             ${{ runner.temp }}/mock_service.log
             ${{ runner.temp }}/mock_service_ipad.log
+            ${{ runner.temp }}/mock_service_rankings.log
+            ${{ runner.temp }}/mock_service_rankings_ipad.log
           if-no-files-found: ignore
           retention-days: 7
       - name: Upload hosted render captures
