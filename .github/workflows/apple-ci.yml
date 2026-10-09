@@ -18,7 +18,7 @@ jobs:
   apple-ci:
     name: apple-ci
     runs-on: xcode-27
-    timeout-minutes: 90
+    timeout-minutes: 105
     steps:
       - uses: actions/checkout@v4
         with:
@@ -62,11 +62,13 @@ jobs:
         env:
           JOURNEYS: >-
             SongsChromeJourneyTests/testSectionBarHeadingAtLargestText
+            FirstRunJourneyTests/testSongDemoSlideAccessibleAtLargestText
             SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrder
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrderOnPushedPage
             NavButtonHitRegionJourneyTests/testChooseProfileReadsAloneInProductionChrome
             NavButtonHitRegionJourneyTests/testAccountButtonsStaySeparateAndLabelledAtLargestTextSize
+            WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
         run: |
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service.log" 2>&1 &
           mock=$!
@@ -81,7 +83,7 @@ jobs:
         # glyphs grow, the heading reads first, and in the iPad trailing pane focus moves to its heading
         # (testing/apple/accessibility.md#score-history-at-ax5). iPad UI-test bundle (`--app ipad`) on the iPhone and
         # on a throwaway iPad; the plain fixture (Songs' `fixture-pulse` row is far below the fold in the large
-        # catalogue) on an OS-assigned port. A skipped journey fails the step.
+        # catalogue) on an OS-assigned port. Runs before the iPad step so the iPad boots once. A skipped journey fails the step.
         env:
           HISTORY_JOURNEYS: >-
             ScoreHistoryAccessibilityJourneyTests/testScoreHistoryPageAtAX5
@@ -104,6 +106,25 @@ jobs:
           ipad=$(python3 tools/ios_sim.py ci-device --type "iPad Pro 11-inch (M5)")
           only=(); for journey in $HISTORY_IPAD_JOURNEYS; do only+=(--only "$journey"); done
           python3 tools/ios_sim.py uitest --app ipad --device "$ipad" --fail-on-skip --timeout 1500 "${only[@]}"
+      - name: iPad simulator journeys (serialized, loopback fixture)
+        # The same evidence on iPad, portrait and landscape (the iPhone runs portrait only). Reuses the iPhone
+        # step's UI-test build (`--app phone`; every iOS target is device family 1,2) on a second throwaway
+        # simulator, after shutting the iPhone down so one simulator runs at a time. One selector per batch: each What's
+        # New form takes ~70 s on a Mac and several times that here, under the 900 s batch limit. testing/apple/xcuitest.md#ci-journeys.
+        env:
+          JOURNEYS: >-
+            WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
+            WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Landscape
+        run: |
+          python3 tools/ios_sim.py shutdown --device "$(python3 tools/ios_sim.py ci-device)"
+          python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service_ipad.log" 2>&1 &
+          mock=$!
+          trap 'kill "$mock" 2>/dev/null || true' EXIT
+          device=$(python3 tools/ios_sim.py ci-device --type "iPad Pro 11-inch (M5)")
+          for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock_service_ipad.log" && break; sleep 1; done
+          grep -q "fixture service on" "$RUNNER_TEMP/mock_service_ipad.log"
+          only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
+          python3 tools/ios_sim.py uitest --device "$device" --app phone --batch-size 1 --fail-on-skip --timeout 900 "${only[@]}"
       - name: Upload simulator journey results
         if: failure()
         uses: actions/upload-artifact@v4
@@ -114,6 +135,7 @@ jobs:
             apple/DerivedData/lane-driver-ipad/Results
             ${{ runner.temp }}/mock_service.log
             ${{ runner.temp }}/mock_service_history.log
+            ${{ runner.temp }}/mock_service_ipad.log
           if-no-files-found: ignore
           retention-days: 7
       - name: Upload hosted render captures
