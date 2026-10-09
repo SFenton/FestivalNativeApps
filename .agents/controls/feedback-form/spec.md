@@ -24,6 +24,7 @@ The service transcodes oversized media, labels the issue with the plain platform
 - **Attach Media:** system pickers only (a photo/video picker and a file picker where the platform has both). Images and videos only; at most 4 files and less than 90 MB in total; rejected picks show one combined notice. Attachments render as thumbnails above the button, each with a labelled remove action; activating a thumbnail opens it in the system viewer. No in-app player. Apps that copy picked media keep private copies and delete them when the form closes; Apple also strips location metadata from its copies because the issue is public. **Apple (#373):** media dropped on the form attaches with the same limits; on iPad/Duo at regular width the photo library opens inline beside the form; the Files picker always stays presented (no public inline form) ([modal-shell](../../patterns/modal-shell.md) R11).
 - **Dismissal:** closing a form with any input beyond the prefix asks *Discard?* first. Closing while the request is being filed does not ask: the service already accepted it.
 - **Submit:** disabled while invalid; shows *Sending your report/request…* while uploading, then *Filing your report/request on GitHub…* while polling every 2 s for at most 5 minutes.
+- **Sent (#565):** once the report is filed (or received), the form closes by itself and the success message appears only after it has gone, over Settings, with a single **Done** that just dismisses the message. No step after a successful filing shows the form's Cancel/Close or Submit, and presentations stay serialized ([modal-shell](../../patterns/modal-shell.md) R7). Apple shows a system alert over Settings, then returns VoiceOver focus to the row that opened the form. Failures stay on the form.
 - **Outcome copy is fixed client text, never server text:**
   - submitted: *Thanks! Your report was filed as issue #N.* plus *K attachment(s) couldn't be attached.* when the service skipped some;
   - unknown outcome (no ID, poll error, expired job or timeout): *Thanks! Your report was received and will be filed on GitHub shortly.*, so people don't send duplicates;
@@ -43,5 +44,5 @@ The service transcodes oversized media, labels the issue with the plain platform
 | discard-confirm | Discard / Keep Editing; Discard cancels an upload in flight |
 | sending | Progress row; inputs and Submit disabled |
 | filing | Accepted; the progress row says it is being filed on GitHub; closing needs no confirmation |
-| sent | Success text with the issue number (or the "received" text) and a single Done action |
+| sent | The form closes itself; the success text with the issue number (or the "received" text) then shows over Settings with a single Done action, and no form control (Cancel/Close, Submit) remains (#565) |
 | error | Form kept with a fixed error message; Submit enabled again |
