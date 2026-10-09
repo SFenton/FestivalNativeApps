@@ -696,6 +696,13 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "scrollto":
                 var scroller = Find(window, step);
                 if (!scroller.Patterns.Scroll.IsSupported) throw new InvalidOperationException("scrollto target has no Scroll pattern");
+                // Content that fits (e.g. short What's New notes in a tall window) is already at every position, and UIA
+                // rejects SetScrollPercent on a non-scrollable axis with UIA_E_INVALIDOPERATION.
+                if (!scroller.Patterns.Scroll.Pattern.VerticallyScrollable.ValueOrDefault)
+                {
+                    Log($"scrollto: {arg} is not vertically scrollable (content fits); nothing to scroll");
+                    break;
+                }
                 scroller.Patterns.Scroll.Pattern.SetScrollPercent(-1, (double)step["percent"]!);
                 break;
             case "reveal":
@@ -1088,8 +1095,8 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>
     /// Waits until the selected element's toggle state (<c>on</c>/<c>off</c>/<c>indeterminate</c>), enabled flag
     /// (<c>true</c>/<c>false</c>), SelectionItem <c>IsSelected</c> (<c>true</c>/<c>false</c>), rounded vertical scroll
-    /// percent (<c>scroll</c>), UIA heading level (<c>heading</c>: <c>1</c>–<c>9</c>, <c>0</c> for none) or name equals
-    /// the step's value.
+    /// percent (<c>scroll</c>), control type, Invoke support, keyboard focusability, value, UIA heading level
+    /// (<c>heading</c>: <c>1</c>–<c>9</c>, <c>0</c> for none) or name equals the step's value.
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector, <c>key</c>, <c>value</c> and an optional timeout (default 5 s).</param>
