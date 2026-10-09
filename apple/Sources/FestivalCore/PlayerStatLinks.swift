@@ -161,6 +161,11 @@ public enum PlayerStatLink: Hashable, Sendable {
     case songDetail(songId: String, instrument: Instrument)
     /// Open an instrument's full rankings (the web's per-metric rank tiles).
     case fullRankings(Instrument, rankBy: String)
+    /// Open a band size's rankings at a metric and 1-based page (Band Detail's rank
+    /// tiles, web `navigateToBandLeaderboard`).
+    case bandRankings(BandType, rankBy: BandRankingMetric, page: Int)
+    /// Open Song Detail without an instrument (Band Detail's Best Song Rank tile).
+    case bandSongDetail(songId: String)
 
     /// Whether the link is meaningless without the viewed player selected: a Songs
     /// filter reads the *selected* player's scores. Song Detail and rankings open even
@@ -184,9 +189,38 @@ public enum PlayerStatLink: Hashable, Sendable {
 /// | Gold / 5…1 Stars | Songs stars filter, Stars sort | ``SongsFilterPreset/stars(_:starKey:)`` |
 /// | Percentile / Songs Played percentile | Songs Percentile sort (+ Has Scores) | ``SongsFilterPreset/percentile(_:scoredOnly:)`` |
 /// | Percentile table row | Songs percentile bucket filter | ``SongsFilterPreset/percentileBucket(_:percentile:)`` |
+/// | Band rank tiles | Band rankings at the metric and the band's page | ``PlayerStatLinks/bandRank(_:metric:bandType:)`` |
+/// | Band Best Song Rank | Song Detail | ``PlayerStatLinks/bandBestSong(bestRank:songId:)`` |
 public enum PlayerStatLinks {
     /// The web's un-experimental ranking metric (`DEFAULT_METRICS`).
     public static let defaultRankBy = "totalscore"
+    /// Rows per Band Rankings page (web `PAGE_SIZE`), shared with `BandRankingsScreen`.
+    public static let bandRankingsPageSize = 25
+
+    /// A band rank tile's link: the band rankings at that metric, on the page holding
+    /// the band (web `rankClick` + `getLeaderboardPageForRank`); none when unranked.
+    ///
+    /// - Parameters:
+    ///   - rank: The band's 1-based rank for the metric; 0 or less is unranked.
+    ///   - metric: The tile's metric.
+    ///   - bandType: The band's size.
+    /// - Returns: The rankings link, or nil.
+    public static func bandRank(_ rank: Int, metric: BandRankingMetric, bandType: BandType) -> PlayerStatLink? {
+        guard rank > 0 else { return nil }
+        return .bandRankings(bandType, rankBy: metric, page: LeaderboardPaging.page(forRank: rank, pageSize: bandRankingsPageSize))
+    }
+
+    /// A band's Best Song Rank tile link: its best song's detail, when it has a ranked
+    /// best song (web `bestSongId && ranking.bestRank > 0`).
+    ///
+    /// - Parameters:
+    ///   - bestRank: The band's best song rank; 0 or less is unranked.
+    ///   - songId: The first Five Best Songs entry's song, if loaded.
+    /// - Returns: The Song Detail link, or nil.
+    public static func bandBestSong(bestRank: Int, songId: String?) -> PlayerStatLink? {
+        guard bestRank > 0, let songId, !songId.isEmpty else { return nil }
+        return .bandSongDetail(songId: songId)
+    }
 
     /// Overview "Songs Played": always a link, like the web.
     ///
