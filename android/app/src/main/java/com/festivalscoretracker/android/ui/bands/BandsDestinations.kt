@@ -26,6 +26,10 @@ import com.festivalscoretracker.android.presentation.bands.PlayerBandsViewModel
 import com.festivalscoretracker.android.presentation.bands.SongBandLeaderboardViewModel
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.core.bands.BandPaging
+import com.festivalscoretracker.android.core.settings.AppSettings
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 
 // region Destinations
 
@@ -34,8 +38,9 @@ import com.festivalscoretracker.android.core.bands.BandPaging
  * band leaderboard. The single registration point in `FestivalApp`'s `NavHost`.
  *
  * @param container Process dependencies.
+ * @param settings App settings (Experimental Ranks gates Band Detail's Rank By).
  */
-fun NavGraphBuilder.bandsDestinations(container: AppContainer) {
+fun NavGraphBuilder.bandsDestinations(container: AppContainer, settings: Flow<AppSettings?>) {
     val api = container.api
     composable<BandsRoute> { BandNotFoundScreen() }
     composable<PlayerBandsRoute> { entry ->
@@ -61,6 +66,7 @@ fun NavGraphBuilder.bandsDestinations(container: AppContainer) {
                 api::bandSongExtremes,
                 { api.catalog() },
                 container.backoff,
+                settings.filterNotNull().map { it.experimentalRanks },
             )
         }
         BandDetailScreen(detail, route.name, api::artworkUrl, shell.navigate)

@@ -128,15 +128,18 @@ class UiCiTests(unittest.TestCase):
         """#535: the Feedback rows appear above every later Settings section once ``/api/features`` answers, so a target
         scrolled into view before then can be pushed back off screen (``no on-screen element
         id=fst.settings.whats-new`` at 225% text). A CI page that scrolls to Settings content brings those rows in first
-        (scrolling back to page chrome such as the Quick Links entry is not a Settings target)."""
+        (scrolling back to page chrome such as the Quick Links entry is not a Settings target). ``reveal`` scrolls too:
+        #539's ``settings-service-info-unavailable`` revealed the Service Info state row and lost it the same way. A page
+        that opens Settings from another tab (Ctrl+comma) is exposed just the same."""
         wait = "scrollinto:id=fst.settings.feedback.feature"
         checked = 0
         for run in ci.RUNS:
             for page in json.loads((ci.JOURNEYS / run.pages).read_text(encoding="utf-8")):
-                if page.get("tab") != "settings" and page.get("route") != "/settings":
-                    continue
                 steps = [*page.get("setup", ()), *page.get("ready", ()), *page.get("after_ready", ())]
-                scrolls = [step for step in steps if step.startswith("scrollinto:id=fst.settings.")]
+                if page.get("tab") != "settings" and page.get("route") != "/settings" and "key:ctrl+comma" not in steps:
+                    continue
+                scrolls = [step for step in steps
+                           if step.startswith(("scrollinto:id=fst.settings.", "reveal:id=fst.settings."))]
                 if not scrolls:
                     continue
                 fixture = list(page.get("fixture", ()))
@@ -167,6 +170,25 @@ class UiCiTests(unittest.TestCase):
         for target in ("fst.songs.filter|", "fst.songs.filter.reset|", "fst.songs.filter.year.select-all|",
                        "fst.songs.filter.year.clear-all|"):
             self.assertIn(f"assertsize:id={target}40x40", steps)
+
+    def test_experimental_ranks_runs_at_default_and_largest_text(self):
+        """#541: the Experimental Ranks toggle and the Rank By gate it drives gate pull requests at 100% and 225% text."""
+        runs = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-experimental-ranks.json"}
+        self.assertEqual({("normal", True), ("text-225", True)}, runs)
+        pages = {page["name"]: page for page in json.loads(
+            (ci.JOURNEYS / "a11y-experimental-ranks.json").read_text(encoding="utf-8"))}
+        toggle = pages["xr-settings-toggle"]
+        self.assertNotIn("settings", toggle)  # the default: off
+        steps = toggle["after_ready"]
+        self.assertIn("assertstate:id=fst.settings.experimental-ranks|toggle=off", steps)
+        self.assertIn("assertstate:id=fst.settings.experimental-ranks|enabled=true", steps)
+        self.assertEqual("waitgone:id=fst.rankings.rank-by-menu@10", steps[-1])
+        for name in ("xr-leaderboards-off", "xr-full-rankings-off", "xr-band-rankings-off"):
+            with self.subTest(page=name):
+                self.assertFalse(pages[name].get("settings", {}).get("experimentalRanks", False))
+                self.assertTrue(any(s.startswith("waitgone:") and "rank-by-menu" in s
+                                    for s in pages[name]["after_ready"]))
+        self.assertTrue(pages["xr-leaderboards-on"]["settings"]["experimentalRanks"])
 
     def test_shop_filter_runs_at_default_and_largest_text(self):
         # Issue #428 (#19): the Item Shop Filters flyout's accessibility pages gate pull requests at default and 225% text.

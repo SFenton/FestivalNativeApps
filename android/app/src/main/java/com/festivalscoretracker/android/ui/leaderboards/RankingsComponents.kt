@@ -801,22 +801,49 @@ internal fun <T> ChoiceMenuItems(
 }
 
 /**
- * Top-bar Rank By action: a sort icon that opens the metric menu.
+ * Top-bar Rank By action: a sort icon that opens the metric menu. The one Settings →
+ * Experimental Ranks gate for account and band boards: nothing renders while the setting
+ * is off (web `{experimentalRanksEnabled && <RankBy…>}`), and the menu offers only
+ * [RankingMetric.enabled] (experimental-ranks R1). Leaderboard Rivals reuses it.
  *
  * @param selected Current metric.
+ * @param experimentalRanks `AppSettings.experimentalRanks`.
+ * @param tagPrefix Test-tag prefix: `<prefix>.rank-by-menu` and `<prefix>.rank-by.<wire id>`.
  * @param onSelect Selection callback.
- * @param options Metrics offered.
  */
 @Composable
-fun RankByAction(selected: RankingMetric, onSelect: (RankingMetric) -> Unit, options: List<RankingMetric> = RankingMetric.entries) {
+fun RankByAction(selected: RankingMetric, experimentalRanks: Boolean, onSelect: (RankingMetric) -> Unit, tagPrefix: String = "fst.rankings") {
+    if (!experimentalRanks) return
     TopBarChoiceAction(
         label = "Rank By",
-        options = options,
+        options = RankingMetric.enabled(experimentalRanks),
         selected = selected,
         optionLabel = RankingMetric::label,
         onSelect = onSelect,
-        tag = "fst.rankings.rank-by-menu",
-        itemTag = { _, metric -> "fst.rankings.rank-by.${metric.wireId}" },
+        tag = "$tagPrefix.rank-by-menu",
+        itemTag = { _, metric -> "$tagPrefix.rank-by.${metric.wireId}" },
+        icon = { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null) },
+    )
+}
+
+/**
+ * Band boards' Rank By action: [RankByAction]'s gate with the band metric list
+ * ([BandRankingMetric.enabled], web `BAND_RANKING_METRICS`).
+ *
+ * @param selected Current band metric.
+ * @param experimentalRanks `AppSettings.experimentalRanks`.
+ * @param onSelect Selection callback.
+ */
+@Composable
+fun BandRankByAction(selected: BandRankingMetric, experimentalRanks: Boolean, onSelect: (BandRankingMetric) -> Unit) {
+    if (!experimentalRanks) return
+    TopBarChoiceAction(
+        label = "Rank By",
+        options = BandRankingMetric.enabled(experimentalRanks),
+        selected = selected,
+        optionLabel = BandRankingMetric::label,
+        onSelect = onSelect,
+        tag = "fst.band-rankings.rank-by-menu",
         icon = { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null) },
     )
 }
