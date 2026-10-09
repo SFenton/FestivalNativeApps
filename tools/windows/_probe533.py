@@ -8,35 +8,33 @@ import journey_exe  # noqa: E402
 
 PS = r'''
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
-$root = [System.Windows.Automation.AutomationElement]::RootElement
-$win = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, PIDX)))
-"window rect=$($win.Current.BoundingRectangle)"
-foreach ($k in 'fst.player.bands','fst.player.bands.empty.duos','fst.player.bands.empty.trios','fst.player.bands.empty.quads') {
-  $all = $win.FindAll([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, $k)))
-  "$k : count=$($all.Count)"
-  foreach ($t in $all) {
-  "  offscreen=$($t.Current.IsOffscreen) rect=$($t.Current.BoundingRectangle)"
-  $w = [System.Windows.Automation.TreeWalker]::ControlViewWalker
-  $p = $w.GetParent($t)
-  while ($p) {
-    $sp = $null
-    if ($p.TryGetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern, [ref]$sp)) {
-      $c = $sp.Current
-      "     pane '$($p.Current.AutomationId)' vScrollable=$($c.VerticallyScrollable) vView=$($c.VerticalViewSize) vPct=$($c.VerticalScrollPercent) rect=$($p.Current.BoundingRectangle)"
-    }
-    $p = $w.GetParent($p)
+$A = [System.Windows.Automation.AutomationElement]
+$root = $A::RootElement
+$win = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, (New-Object System.Windows.Automation.PropertyCondition($A::ProcessIdProperty, PIDX)))
+function Find($id) { $win.FindFirst([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.PropertyCondition($A::AutomationIdProperty, $id))) }
+$sv = Find 'fst.player.available'
+$sp = $sv.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern)
+function Report($label) {
+  $c = $sp.Current
+  $line = "$label -> pct=$([math]::Round($c.VerticalScrollPercent,2)) view=$([math]::Round($c.VerticalViewSize,3))"
+  foreach ($k in 'fst.player.bands','fst.player.bands.empty.duos','fst.player.bands.empty.trios','fst.player.bands.empty.quads') {
+    $e = Find $k; if ($e) { $r = $e.Current.BoundingRectangle; $line += " | $($k.Split('.')[-1])=$([int]$r.Y),$([int]$r.Height)" } else { $line += " | $($k.Split('.')[-1])=missing" }
   }
-  }
+  $line
 }
-$panes = $win.FindAll([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.OrCondition((New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Pane)), (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::List)))))
-"first vertically scrollable panes:"
-foreach ($p in $panes) { $sp = $null; if ($p.TryGetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern, [ref]$sp) -and $sp.Current.VerticallyScrollable) { "  '$($p.Current.AutomationId)' name='$($p.Current.Name)' rect=$($p.Current.BoundingRectangle)" } }
+Report 'start'
+foreach ($p in 86,88,90,92,94,96,98,100) {
+  $sp.SetScrollPercent(-1, $p); Start-Sleep -Milliseconds 300; Report "set $p (300ms)"; Start-Sleep -Milliseconds 1200; Report "set $p (1.5s)"
+}
+$sp.SetScrollPercent(-1, 85); Start-Sleep -Milliseconds 800; Report 'reset 85'
+for ($i = 0; $i -lt 8; $i++) { $sp.ScrollVertical([System.Windows.Automation.ScrollAmount]::SmallIncrement); Start-Sleep -Milliseconds 400; Report "small $i" }
+for ($i = 0; $i -lt 4; $i++) { $sp.ScrollVertical([System.Windows.Automation.ScrollAmount]::LargeIncrement); Start-Sleep -Milliseconds 600; Report "large $i" }
 '''
 
 
 def uiwin(*args):
     r = subprocess.run([sys.executable, str(REPO / "tools" / "windows" / "uiwin.py"), *args], capture_output=True, text=True, encoding="utf-8")
-    print(f"$ uiwin {' '.join(args)[:200]}\n{r.stdout}\n{r.stderr}", flush=True)
+    print(f"$ uiwin {' '.join(args)[:200]}\n{r.stdout[-600:]}\n{r.stderr[-600:]}", flush=True)
     return r
 
 
@@ -56,12 +54,10 @@ def main():
     r = uiwin("launch", str(journey_exe.DEBUG_EXE), "--arg=--base-url", "--arg=http://127.0.0.1:18533/", "--arg=--settings-path",
               f"--arg={settings}", "--preset", "portrait-tablet", "--arg=--route", "--arg=/player/fixture-player-2", "--arg=--anonymous")
     pid = next(int(l.split(":")[1].strip().rstrip(",")) for l in r.stdout.splitlines() if '"pid"' in l)
-    for i, steps in enumerate(["waitfor:id=fst.player.overview@15; reveal:id=fst.player.bands@10",
-                               "reveal:id=fst.player.bands.empty.duos@15",
-                               "reveal:id=fst.player.bands.empty.trios@5",
-                               "reveal:id=fst.player.bands.empty.quads@5"]):
-        uiwin("drive", "--pid", str(pid), "--steps", f"{steps}; shot:{out / f'probe-{i}.png'}")
-        probe(pid, steps)
+    uiwin("drive", "--pid", str(pid), "--steps", "waitfor:id=fst.player.overview@15; reveal:id=fst.player.bands@10; reveal:id=fst.player.bands.empty.duos@15")
+    time.sleep(2)
+    probe(pid, "steps")
+    uiwin("drive", "--pid", str(pid), "--steps", f"shot:{out / 'probe-end.png'}")
     uiwin("close", "--pid", str(pid))
     mock.terminate()
 

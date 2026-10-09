@@ -51,18 +51,9 @@ jobs:
       - name: Probe 533 bands-empty
         continue-on-error: true
         run: python tools/windows/_probe533.py "${{ runner.temp }}/windows-ui/probe"
-      - name: runner songs-filter
-        continue-on-error: true
-        run: python tools/windows/songs_filter_journey.py --shots "${{ runner.temp }}/windows-ui/songs-filter"
-      - name: runner songs
-        continue-on-error: true
-        run: python tools/windows/songs_journey.py --shots "${{ runner.temp }}/windows-ui/songs"
-      - name: runner navigation
-        continue-on-error: true
-        run: python tools/windows/journeys/navigation.py --shots "${{ runner.temp }}/windows-ui/navigation"
       - name: runner profile
         continue-on-error: true
-        run: python tools/windows/journeys/profile.py --shots "${{ runner.temp }}/windows-ui/profile"
+        run: python tools/windows/journeys/profile.py bands-empty bands-retry bands-section --shots "${{ runner.temp }}/windows-ui/profile"
       - name: Upload journey results
         if: always()
         uses: actions/upload-artifact@v4
