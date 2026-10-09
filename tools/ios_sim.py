@@ -502,6 +502,44 @@ def classify_pose(outer_dark: bool, inner_dark: bool) -> str:
     return "unknown"
 
 
+def screenshot_panel(udid: str, display: str, path: Path, attempts: int = 3,
+                     timeout: float = 120.0, pause: float = 10.0) -> bool:
+    """Screenshot one Duo panel as BMP, retrying. Call under the simulator lock.
+
+    The first screenshot after a fresh boot can fail or stall, above all on the
+    slow CI runner just after it installed a new runtime (apple-ci run
+    37913520235), so each failed attempt is logged with its reason and retried.
+
+    Args:
+        udid: A booted iPhone Duo simulator.
+        display: ``simctl io --display`` name (a ``DUO_PANELS`` value).
+        path: Where to write the BMP.
+        attempts: Screenshots to try.
+        timeout: Seconds one attempt may take.
+        pause: Seconds between attempts.
+
+    Returns:
+        Whether a screenshot was written.
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            result = _run(["xcrun", "simctl", "io", udid, "screenshot", "--type=bmp",
+                           f"--display={display}", str(path)], check=False, capture_output=True,
+                          timeout=timeout)
+        except subprocess.TimeoutExpired:
+            reason = f"timed out after {timeout:.0f}s"
+        else:
+            if not result.returncode and path.exists():
+                return True
+            stderr = result.stderr.decode(errors="replace") if isinstance(result.stderr, bytes) else result.stderr
+            reason = (stderr or "").strip()[-300:] or f"exit {result.returncode}"
+        print(f"duo pose: {display} screenshot failed ({reason}), attempt {attempt}/{attempts}",
+              file=sys.stderr)
+        if attempt < attempts:
+            time.sleep(pause)
+    return False
+
+
 def detect_pose(udid: str) -> str:
     """Screenshot both Duo panels and report the pose. Call under the simulator lock.
 
@@ -515,15 +553,36 @@ def detect_pose(udid: str) -> str:
     with tempfile.TemporaryDirectory() as folder:
         for panel, display in DUO_PANELS.items():
             path = Path(folder) / f"{panel}.bmp"
-            try:
-                result = _run(["xcrun", "simctl", "io", udid, "screenshot", "--type=bmp",
-                               f"--display={display}", str(path)], check=False, capture_output=True, timeout=30)
-            except subprocess.TimeoutExpired:
-                return "unknown"
-            if result.returncode or not path.exists():
+            if not screenshot_panel(udid, display, path):
                 return "unknown"
             dark[panel] = bmp_is_dark(path.read_bytes())
     return classify_pose(dark["outer"], dark["inner"])
+
+
+def settled_pose(udid: str, attempts: int = 4, pause: float = 15.0) -> str:
+    """Detect the Duo pose, re-checking while it reads ``unknown``. Call under the simulator lock.
+
+    Just after a fresh boot (above all on the CI runner) neither panel, or a
+    stale frame on both, may be lit yet, so an ``unknown`` result is re-detected
+    a few times before it counts. A definite pose returns at once.
+
+    Args:
+        udid: A booted iPhone Duo simulator.
+        attempts: Detections to try.
+        pause: Seconds between detections.
+
+    Returns:
+        ``"folded"``, ``"unfolded"`` or ``"unknown"`` after every attempt.
+    """
+    actual = "unknown"
+    for attempt in range(1, attempts + 1):
+        actual = detect_pose(udid)
+        if actual != "unknown":
+            break
+        print(f"duo pose: unknown, attempt {attempt}/{attempts}", file=sys.stderr)
+        if attempt < attempts:
+            time.sleep(pause)
+    return actual
 
 
 def require_pose(udid: str, pose: str | None, set_pose: bool = False) -> str | None:
@@ -542,7 +601,7 @@ def require_pose(udid: str, pose: str | None, set_pose: bool = False) -> str | N
     if pose is None:
         return None
     expected = POSE_EXPECTED_CLASS[pose]
-    actual = detect_pose(udid)
+    actual = settled_pose(udid)
     print(f"duo pose: {actual}", file=sys.stderr)
     if actual == expected and not (set_pose and pose != "folded"):
         return None

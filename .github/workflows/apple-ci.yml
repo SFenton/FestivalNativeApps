@@ -1,5 +1,5 @@
 name: apple-ci
-# Apple unit tests, compile check and the iPhone simulator journeys (JOURNEYS below) on a GitHub-hosted
+# Apple unit tests, compile check and the iOS simulator journeys (each step's JOURNEYS) on a GitHub-hosted
 # Xcode 27 runner (no mesh machine runs CI or release work). The job name is the required check name: keep it `apple-ci`.
 on:
   pull_request:
@@ -18,7 +18,7 @@ jobs:
   apple-ci:
     name: apple-ci
     runs-on: xcode-27
-    timeout-minutes: 75
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
         with:
@@ -84,7 +84,9 @@ jobs:
         # The same evidence on iPad, portrait and landscape (the iPhone runs portrait only). Reuses the iPhone
         # step's UI-test build (`--app phone`; every iOS target is device family 1,2) on a second throwaway
         # simulator, after shutting the iPhone down so one simulator runs at a time. One selector per batch: each What's
-        # New form takes ~70 s on a Mac and several times that here, under the 900 s batch limit. testing/apple/xcuitest.md#ci-journeys.
+        # New form takes ~70 s on a Mac and several times that here. The first (portrait) batch also pays the new
+        # simulator's cold install and first launch (~500 s, and past 900 s on a slow runner), so each batch gets
+        # 1500 s, the Rival Detail step's per-device cap. testing/apple/xcuitest.md#ci-journeys.
         env:
           JOURNEYS: >-
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
@@ -98,7 +100,42 @@ jobs:
           for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock_service_ipad.log" && break; sleep 1; done
           grep -q "fixture service on" "$RUNNER_TEMP/mock_service_ipad.log"
           only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
-          python3 tools/ios_sim.py uitest --device "$device" --app phone --batch-size 1 --fail-on-skip --timeout 900 "${only[@]}"
+          python3 tools/ios_sim.py uitest --device "$device" --app phone --batch-size 1 --fail-on-skip --timeout 1500 "${only[@]}"
+      - name: Rival Detail accessibility journeys (iPad, iPhone, iPhone Duo simulators)
+        # #444: Rival Detail while the service freezes publishing (#95) on each Apple touch form factor: labels,
+        # reading order, 44-pt targets, the largest text size and performAccessibilityAudit. Its selected-player
+        # fixtures need their own mock (port 18944). The same universal test build runs on one runner simulator
+        # per device type (`ci-device --type`, named per type), one at a time: the iPad first (still booted from
+        # the step above), then the iPhone, then the Duo, folded (a new Duo boots folded and `--pose folded`
+        # verifies it). The image ships only the iOS 27.0 simulator runtime, which has no iPhone Duo device type,
+        # so when `ci-device` finds no runtime for a device the step downloads the selected Xcode's (27.1) once.
+        # Each device has a 25-min cap. List and timing: testing/apple/xcuitest.md#ci-journeys.
+        env:
+          JOURNEYS: >-
+            RivalDetailFrozenAccessibilityJourneyTests/testFrozenRivalDetailNamesOrdersSizesAndGrowsItsRows
+            RivalDetailFrozenAccessibilityJourneyTests/testFrozenRivalDetailWithoutSnapshotOffersRetry
+        run: |
+          python3 tools/mock_service.py --port 18944 > "$RUNNER_TEMP/mock_service_rivals.log" 2>&1 &
+          mock=$!
+          trap 'kill "$mock" 2>/dev/null || true' EXIT
+          for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock_service_rivals.log" && break; sleep 1; done
+          grep -q "fixture service on" "$RUNNER_TEMP/mock_service_rivals.log"
+          only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
+          for device in "iPad Pro 11-inch (M5)|" "iPhone 17 Pro|" "iPhone Duo|folded"; do
+            IFS='|' read -r type pose <<< "$device"
+            posed=(); [ -z "$pose" ] || posed=(--pose "$pose")
+            if ! udid=$(python3 tools/ios_sim.py ci-device --type "$type"); then
+              echo "::group::Download the iOS simulator runtime for $type"
+              xcodebuild -downloadPlatform iOS
+              echo "::endgroup::"
+              udid=$(python3 tools/ios_sim.py ci-device --type "$type")
+            fi
+            echo "::group::Rival Detail accessibility journeys ($type)"
+            TEST_RUNNER_FST_FIXTURE_URL=http://127.0.0.1:18944 \
+              python3 tools/ios_sim.py uitest --device "$udid" --app phone --fail-on-skip --timeout 1500 "${posed[@]}" "${only[@]}"
+            echo "::endgroup::"
+            python3 tools/ios_sim.py shutdown --device "$udid"
+          done
       - name: Upload simulator journey results
         if: failure()
         uses: actions/upload-artifact@v4
@@ -108,6 +145,7 @@ jobs:
             apple/DerivedData/lane-driver/Results
             ${{ runner.temp }}/mock_service.log
             ${{ runner.temp }}/mock_service_ipad.log
+            ${{ runner.temp }}/mock_service_rivals.log
           if-no-files-found: ignore
           retention-days: 7
       - name: Upload hosted render captures

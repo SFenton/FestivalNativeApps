@@ -2,8 +2,8 @@
 
 A selector that matches nothing makes ``xcodebuild`` run no test, so a renamed journey would silently leave CI.
 The account-button reading-order journeys (``page-tools-and-nav-chrome`` R17, #394), the Songs section-title AX5
-journey (#91, #441) and the What's New AX5 journeys (#434: iPhone portrait, iPad portrait and landscape) must
-stay listed.
+journey (#91, #441), the What's New AX5 journeys (#434: iPhone portrait, iPad portrait and landscape) and the
+Rival Detail frozen-state journeys (#444: iPhone, iPad and folded iPhone Duo) must stay listed.
 """
 
 import re
@@ -64,7 +64,9 @@ class AppleCIJourneysTests(unittest.TestCase):
         self.assertEqual(ci_journey_blocks(sample + sample.replace("A/a", "C/c")), [["A/a", "B/b"], ["C/c", "B/b"]])
 
     def test_every_selector_names_an_existing_test_method(self) -> None:
-        self.assertEqual(len(self.blocks), 2, "one JOURNEYS block per simulator step (iPhone, iPad)")
+        self.assertEqual(
+            len(self.blocks), 3, "one JOURNEYS block per simulator step (iPhone, iPad, Rival Detail devices)"
+        )
         for block in self.blocks:
             self.assertTrue(block)
             self.assertEqual(len(block), len(set(block)), "duplicate journeys")
@@ -87,7 +89,7 @@ class AppleCIJourneysTests(unittest.TestCase):
             self.assertIn(f"NavButtonHitRegionJourneyTests/{method}", self.journeys)
 
     def test_whats_new_ax5_journeys_run_on_iphone_and_ipad(self) -> None:
-        iphone, ipad = self.blocks
+        iphone, ipad = self.blocks[:2]
         journey = "WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5"
         # iPhone is portrait-only, so its landscape journey skips and would fail --fail-on-skip.
         self.assertIn(f"{journey}Portrait", iphone)
@@ -100,6 +102,27 @@ class AppleCIJourneysTests(unittest.TestCase):
         import ios_sim
 
         self.assertIn(f'ci-device --type "{ios_sim.CI_IPAD_DEVICE_TYPE}"', self.workflow)
+
+    def test_ipad_whats_new_batches_outlast_a_cold_simulator(self) -> None:
+        # The first iPad batch runs on a just-created simulator: >900 s on slow runners (runs 37924278904, 37942308616).
+        step = self.workflow.split("name: iPad simulator journeys", 1)[1].split("\n      - name:", 1)[0]
+        timeout = re.search(r"--batch-size 1 --fail-on-skip --timeout (\d+)", step)
+        self.assertIsNotNone(timeout, "iPad step runs one selector per batch with a timeout")
+        self.assertGreaterEqual(int(timeout.group(1)), 1500)
+
+    def test_rival_detail_frozen_journeys_run_on_every_touch_form_factor(self) -> None:
+        # #444: the only device evidence for Rival Detail's frozen-service state (#95) on iPhone, iPad and Duo.
+        sys.path.insert(0, str(ROOT / "tools"))
+        import ios_sim
+
+        rivals = self.blocks[2]
+        for method in (
+            "testFrozenRivalDetailNamesOrdersSizesAndGrowsItsRows",
+            "testFrozenRivalDetailWithoutSnapshotOffersRetry",
+        ):
+            self.assertIn(f"RivalDetailFrozenAccessibilityJourneyTests/{method}", rivals)
+        for device in (f'"{ios_sim.CI_IPAD_DEVICE_TYPE}|"', f'"{ios_sim.CI_DEVICE_TYPE}|"', '"iPhone Duo|folded"'):
+            self.assertIn(device, self.workflow)
 
     def test_section_title_ax5_journey_runs_in_ci(self) -> None:
         # #91/#441: the only iOS Dynamic Type and audit evidence for Songs' grouped-sort section titles.

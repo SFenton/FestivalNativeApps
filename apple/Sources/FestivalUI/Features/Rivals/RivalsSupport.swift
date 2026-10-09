@@ -187,10 +187,15 @@ struct RivalSongRowContent: View {
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            "\(song.title ?? song.songId), you rank \(song.userRank), "
-            + "\(rivalName) ranks \(song.rivalRank)"
-        )
+        .accessibilityLabel(accessibilityName)
+    }
+
+    /// The row's spoken name. It includes the instrument, like the web icon's alt text,
+    /// because a combo scope lists one song once per instrument (#444).
+    private var accessibilityName: String {
+        let title = song.title ?? song.songId
+        let instrumentPart = instrument.map { ", \($0.label)" } ?? ""
+        return "\(title)\(instrumentPart), you rank \(song.userRank), \(rivalName) ranks \(song.rivalRank)"
     }
 
     @ViewBuilder private var deltaBadge: some View {
