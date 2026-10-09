@@ -60,4 +60,33 @@ enum FestivalApp {
         app.launch()
         return app
     }
+
+    // MARK: - Virtual machine budgets
+
+    /// Whether the journeys run in a virtual machine (`kern.hv_vmm_present`), such as the
+    /// `apple-ci` runner; read once per process. Simulator processes share the host's kernel.
+    static let inVirtualMachine: Bool = {
+        var value: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        return sysctlbyname("kern.hv_vmm_present", &value, &size, nil, 0) == 0 && value == 1
+    }()
+
+    /// Factor applied to wait and settle budgets in a virtual machine, as the hosted tests'
+    /// `nativeHostedVirtualMachineTimeoutScale`.
+    static let virtualMachineTimeoutScale: TimeInterval = 4
+
+    /// A wait or settle budget for this host.
+    ///
+    /// The `apple-ci` runner (~3 cores, paravirtual GPU) runs sheet and bar animations several
+    /// times slower than a Mac: a Notifications sheet took over 5 s to leave the hierarchy
+    /// there (#394). A budget is an upper bound, so scaling it costs nothing when the UI is
+    /// ready; scale settle pauses too, since a tap during an animation can be ignored.
+    ///
+    /// - Parameters:
+    ///   - seconds: The budget on a physical Mac.
+    ///   - inVirtualMachine: Whether the run is in a VM.
+    /// - Returns: `seconds`, scaled by ``virtualMachineTimeoutScale`` in a VM.
+    static func budget(_ seconds: TimeInterval, inVirtualMachine: Bool = inVirtualMachine) -> TimeInterval {
+        inVirtualMachine ? seconds * virtualMachineTimeoutScale : seconds
+    }
 }
