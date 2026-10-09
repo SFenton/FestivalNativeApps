@@ -17,7 +17,8 @@ permissions:
   contents: read
 concurrency:
   group: android-fold-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Only a PR's superseded runs are cancelled: master runs finish, so its checks reflect every merge.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   android-fold:
     runs-on: ubuntu-latest
