@@ -214,6 +214,8 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
                 }
                 // Content stays transparent (not collapsed, so layout and card realization proceed) until the spinner fades.
                 foreach (var section in Sections()) ElementCompositionPreview.GetElementVisual(section).Opacity = 0;
+                // It can already scroll, so a scroll during the spinner's fade rushes the entrance it precedes.
+                FadeIn.HoldEntrance(Scroller);
                 FadeOutSpinner();
                 break;
         }

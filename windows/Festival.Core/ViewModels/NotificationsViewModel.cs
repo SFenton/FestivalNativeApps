@@ -35,6 +35,7 @@ public sealed partial class NotificationsViewModel : ObservableObject
     private string? loadedAccount;
     private string? requestedAccount;
     private CancellationTokenSource? load;
+    private bool appliedExperimentalRanks;
 
     /// <summary>Creates the model and loads the feed for a restored player.</summary>
     /// <param name="session">Shared session.</param>
@@ -189,7 +190,9 @@ public sealed partial class NotificationsViewModel : ObservableObject
     /// <summary>Rebuilds sections and the unread count.</summary>
     private void Apply()
     {
-        var items = envelope?.Items ?? [];
+        appliedExperimentalRanks = session.Settings.ExperimentalRanks;
+        var items = (envelope?.Items ?? [])
+            .Select(i => NotificationRouting.ProjectExperimentalRanks(i, appliedExperimentalRanks)).OfType<ImprovementNotification>();
         var seen = loadedAccount is { } account ? seenStore.Seen(account) : new HashSet<string>();
         var rows = items.OrderByDescending(i => i.DetectedAt)
             .Select(i => new NotificationRowViewModel(
@@ -220,13 +223,19 @@ public sealed partial class NotificationsViewModel : ObservableObject
         return when.ToLocalTime().ToString("MMM d", CultureInfo.GetCultureInfo("en-US"));
     }
 
-    /// <summary>Reloads when the selected player changes; re-titles rows when the catalogue arrives.</summary>
+    /// <summary>
+    /// Reloads when the selected player changes; re-projects rows when Experimental Ranks changes (web
+    /// <c>projectExperimentalRankNotification</c>) or the catalogue arrives (titles).
+    /// </summary>
     /// <param name="sender">Session.</param>
     /// <param name="e">Changed property.</param>
     private void OnSessionChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(FestivalSession.Settings) && session.SelectedPlayer?.AccountId != requestedAccount)
             _ = RefreshAsync();
+        else if (e.PropertyName == nameof(FestivalSession.Settings) && envelope is not null
+            && session.Settings.ExperimentalRanks != appliedExperimentalRanks)
+            Apply();
         else if (e.PropertyName == nameof(FestivalSession.Catalog) && envelope is not null)
             Apply();
     }

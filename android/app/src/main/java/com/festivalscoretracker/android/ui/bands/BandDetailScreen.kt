@@ -163,6 +163,7 @@ private fun BandDetailContent(
     twoPane: Boolean,
 ) {
     val metric by viewModel.metric.collectAsStateWithLifecycle()
+    val experimentalRanks by viewModel.experimentalRanks.collectAsStateWithLifecycle()
     val history by viewModel.history.collectAsStateWithLifecycle()
     val songs by viewModel.songs.collectAsStateWithLifecycle()
     val songsState = (songs as? LoadState.Loaded)?.value
@@ -179,16 +180,19 @@ private fun BandDetailContent(
             StatGrid(summary, onNavigate)
         }
         Column(mark("statistics")) {
-            if (isLargeText()) {
+            if (!experimentalRanks) {
+                // Experimental Ranks off: Total Score only, so no Rank By (experimental-ranks R1).
+                SectionHeader("Band Statistics", Modifier.testTag("fst.band.statistics-section"))
+            } else if (isLargeText()) {
                 // Large text: the heading and the Rank By button stack instead of squeezing the heading onto two lines.
                 SectionHeader("Band Statistics", Modifier.testTag("fst.band.statistics-section"))
-                RankByMenu(metric, viewModel::selectMetric)
+                RankByMenu(metric, BandRankingMetric.enabled(experimentalRanks), viewModel::selectMetric)
                 Spacer(Modifier.height(8.dp))
             } else {
                 // The 48 dp Rank By button is as tall as the heading row; the top inset keeps it off the tiles above.
                 Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     SectionHeader("Band Statistics", Modifier.weight(1f).testTag("fst.band.statistics-section"))
-                    RankByMenu(metric, viewModel::selectMetric)
+                    RankByMenu(metric, BandRankingMetric.enabled(experimentalRanks), viewModel::selectMetric)
                 }
             }
             StatGrid(statistics, onNavigate)
@@ -337,7 +341,7 @@ private fun StatGrid(stats: List<BandStat>, onNavigate: (AppRoute) -> Unit) {
 }
 
 @Composable
-private fun RankByMenu(metric: BandRankingMetric, onSelect: (BandRankingMetric) -> Unit) {
+private fun RankByMenu(metric: BandRankingMetric, options: List<BandRankingMetric>, onSelect: (BandRankingMetric) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         OutlinedButton(
@@ -352,7 +356,7 @@ private fun RankByMenu(metric: BandRankingMetric, onSelect: (BandRankingMetric) 
         }
         // Same single-choice menu as the rankings' Rank By (TopBarChoiceAction): check + state on the current metric.
         DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = BrandTokens.cardBackground) {
-            BandRankingMetric.entries.forEach { option ->
+            options.forEach { option ->
                 val isSelected = option == metric
                 DropdownMenuItem(
                     text = { Text(option.label, color = BrandTokens.textPrimary) },
