@@ -241,17 +241,28 @@ struct RankHistoryPlaceholder: View {
     }
 }
 
-/// The web's combined Rank History chart: Total Score bars (leading value axis, each bar
-/// coloured by its rank's place in the field) and the global-rank line (trailing, reversed
+/// The web's combined Rank History chart: value bars (leading value axis, each bar
+/// coloured by its rank's place in the field) and the rank line (trailing, reversed
 /// rank axis, bright blue with dots), one legend, a latest summary, and a swipeable window
 /// of history (swipe a page at a time) with the web's four pagination buttons.
 ///
 /// Ported from `pages/leaderboards/components/RankHistoryChart.tsx` + `GraphCard.tsx`
 /// (`useChartPagination`). Swift Charts has one y scale, so ranks are projected into the
 /// value range (`RankHistoryChartScale`); the trailing axis labels those positions as ranks.
+///
+/// One chart for every rank history (pattern `chart-date-axis`): the Player profile plots
+/// an instrument's Total Score (``init(points:instrument:motion:initialChartWidth:)``) and
+/// Band Detail its Rank By metric (web `BandRankHistoryChart`,
+/// ``init(points:valueKind:title:identifierPrefix:motion:initialChartWidth:)``).
 struct RankHistoryCharts: View {
-    let points: [PlayerRankHistorySnapshot]
-    let instrument: Instrument
+    /// Plotted snapshots, oldest first.
+    let points: [Point]
+    /// What the bars measure and how their values read.
+    let valueKind: RankHistoryValueKind
+    /// The chart's accessibility title, e.g. "Lead rank history".
+    let title: String
+    /// Identifier prefix for the chart and pager, e.g. `fst.player.rank-history.lead`.
+    let identifierPrefix: String
     let motion: ChartMotion
 
     /// Web `Colors.accentBlueBright` (#4C7DFF), the rank line and its dots.
@@ -282,6 +293,8 @@ struct RankHistoryCharts: View {
         let rank: Int
         let value: Double
         let rankedAccountCount: Int?
+        /// False when the snapshot had no value (drawn as 0, left out of the summary).
+        var hasValue = true
     }
 
     /// Chart width: seeded from the card's measured width, then kept exact by the
@@ -290,7 +303,29 @@ struct RankHistoryCharts: View {
     /// Snapshot date of the oldest visible bar; nil shows the newest page.
     @State private var startID: String?
 
-    /// Create the chart.
+    /// Create a chart of any rank history.
+    ///
+    /// - Parameters:
+    ///   - points: Ranked snapshots, oldest first, indexed from 0.
+    ///   - valueKind: What the bars measure.
+    ///   - title: Accessibility title, e.g. "Band rank history".
+    ///   - identifierPrefix: Identifier prefix for the chart and its pager buttons.
+    ///   - motion: Reduce Motion state.
+    ///   - initialChartWidth: Expected plot width (``chartWidth(forCardWidth:)``), so the
+    ///     first frame already pages correctly; 0 shows every point until measured.
+    init(
+        points: [Point], valueKind: RankHistoryValueKind, title: String, identifierPrefix: String,
+        motion: ChartMotion, initialChartWidth: CGFloat = 0
+    ) {
+        self.points = points
+        self.valueKind = valueKind
+        self.title = title
+        self.identifierPrefix = identifierPrefix
+        self.motion = motion
+        _chartWidth = State(initialValue: initialChartWidth)
+    }
+
+    /// Create a player instrument's Total Score rank-history chart.
     ///
     /// - Parameters:
     ///   - points: Ranked snapshots, oldest first.
@@ -302,22 +337,54 @@ struct RankHistoryCharts: View {
         points: [PlayerRankHistorySnapshot], instrument: Instrument, motion: ChartMotion,
         initialChartWidth: CGFloat = 0
     ) {
-        self.points = points
-        self.instrument = instrument
-        self.motion = motion
-        _chartWidth = State(initialValue: initialChartWidth)
+        self.init(
+            points: Self.points(points), valueKind: .playerTotalScore,
+            title: "\(instrument.label) rank history",
+            identifierPrefix: "fst.player.rank-history.\(instrument.rawValue)",
+            motion: motion, initialChartWidth: initialChartWidth
+        )
     }
 
-    private var chartPoints: [Point] {
-        points.enumerated().map { index, snapshot in
-            let point = snapshot
-            return Point(
+    /// A player's snapshots as plotted points (Total Score bars, Total Score rank line).
+    ///
+    /// - Parameter snapshots: Ranked snapshots, oldest first.
+    /// - Returns: One point per snapshot.
+    nonisolated static func points(_ snapshots: [PlayerRankHistorySnapshot]) -> [Point] {
+        snapshots.enumerated().map { index, point in
+            Point(
                 id: point.snapshotDate, index: index, label: RankHistoryChartFormat.axisDate(point.snapshotDate),
                 rank: point.totalScoreRank, value: Double(point.totalScore ?? 0),
-                rankedAccountCount: point.rankedAccountCount
+                rankedAccountCount: point.rankedAccountCount, hasValue: point.totalScore != nil
             )
         }
     }
+
+    /// A band's snapshots as plotted points for a Rank By metric (web
+    /// `toRankHistoryChartPoint`): the metric's value and rank, coloured against the
+    /// ranked-team count.
+    ///
+    /// - Parameters:
+    ///   - snapshots: Snapshots ranked for the metric, oldest first.
+    ///   - metric: Rank By metric.
+    ///   - totalRankedTeams: The current board's team count, used when a snapshot has
+    ///     none and its rank fits within it (never "#3 of 2" for an older, larger board).
+    /// - Returns: One point per snapshot.
+    nonisolated static func points(
+        _ snapshots: [BandRankHistoryEntry], metric: BandRankingMetric, totalRankedTeams: Int?
+    ) -> [Point] {
+        snapshots.enumerated().map { index, point in
+            let value = point.chartValue(for: metric)
+            let rank = point.rank(for: metric)
+            let fallback = totalRankedTeams.flatMap { $0 >= rank ? $0 : nil }
+            return Point(
+                id: point.snapshotDate, index: index, label: RankHistoryChartFormat.axisDate(point.snapshotDate),
+                rank: rank, value: value ?? 0,
+                rankedAccountCount: point.totalRankedTeams ?? fallback, hasValue: value != nil
+            )
+        }
+    }
+
+    private var chartPoints: [Point] { points }
 
     private var scale: RankHistoryChartScale {
         RankHistoryChartScale(values: chartPoints.map(\.value), ranks: chartPoints.map(\.rank))
@@ -342,7 +409,7 @@ struct RankHistoryCharts: View {
                 latestSummary(latest)
             }
             HStack(spacing: 2) {
-                axisTitle("Total Score", degrees: -90)
+                axisTitle(valueKind.title, degrees: -90)
                 chart(data, range: range)
                     .onGeometryChange(for: CGFloat.self, of: { $0.size.width.rounded() }) { width in
                         guard width != chartWidth else { return }
@@ -375,7 +442,7 @@ struct RankHistoryCharts: View {
         let base = Chart(data) { point in
             BarMark(
                 x: .value("Date", point.index),
-                y: .value("Total Score", point.value),
+                y: .value(valueKind.title, point.value),
                 width: .fixed(barWidth)
             )
             .foregroundStyle(Self.barColor(point).opacity(0.8))
@@ -405,7 +472,7 @@ struct RankHistoryCharts: View {
                 AxisGridLine().foregroundStyle(BrandTokens.glassBorder)
                 AxisValueLabel {
                     if let score = value.as(Double.self) {
-                        Text(RankHistoryChartFormat.compactScore(score))
+                        Text(valueKind.tick(score))
                             .foregroundStyle(FestivalText.primary)
                     }
                 }
@@ -429,9 +496,9 @@ struct RankHistoryCharts: View {
         // display in portrait, adjustable action or not (Lane A11Y3/A11Y4). The value
         // reads every visible snapshot; swiping up/down pages, as the pager buttons do.
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(instrument.label) rank history chart")
-        .accessibilityValue(Self.accessibilityValue(page: visible))
-        .accessibilityChartDescriptor(RankHistoryDescriptor(points: points, instrument: instrument))
+        .accessibilityLabel("\(title) chart")
+        .accessibilityValue(Self.accessibilityValue(page: visible, kind: valueKind))
+        .accessibilityChartDescriptor(RankHistoryDescriptor(points: points, valueKind: valueKind, title: title))
         .accessibilityAdjustableAction { direction in
             switch direction {
             case .increment: move(to: paging.forwardPage(from: start))
@@ -439,9 +506,9 @@ struct RankHistoryCharts: View {
             @unknown default: break
             }
         }
-        .accessibilityIdentifier("fst.player.rank-history.\(instrument.rawValue).chart")
+        .accessibilityIdentifier("\(identifierPrefix).chart")
         .chartAxisElements(ChartAxisLabels(
-            leading: "Total Score scale, 0 to \(RankHistoryChartFormat.compactScore(scale.valueTop))",
+            leading: "\(valueKind.title) scale, 0 to \(valueKind.tick(scale.valueTop))",
             trailing: "Rank scale, " + ChartAxisLabels.span(
                 scale.rankTicks.first.map { "#\($0.formatted())" }, scale.rankTicks.last.map { "#\($0.formatted())" }
             ),
@@ -490,7 +557,7 @@ struct RankHistoryCharts: View {
 
     // MARK: Legend
 
-    /// Web legend: gradient swatch "Total Score", line-and-dot "Rank".
+    /// Web legend: gradient swatch for the value ("Total Score"), line-and-dot "Rank".
     private var legend: some View {
         HStack(spacing: 20) {
             HStack(spacing: 6) {
@@ -503,7 +570,7 @@ struct RankHistoryCharts: View {
                         startPoint: .leading, endPoint: .trailing
                     ))
                     .frame(width: 16, height: 12)
-                Text("Total Score")
+                Text(valueKind.title)
             }
             HStack(spacing: 6) {
                 ZStack(alignment: .trailing) {
@@ -518,7 +585,7 @@ struct RankHistoryCharts: View {
         .foregroundStyle(FestivalText.primary)
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Legend: bars show Total Score, the line shows Rank")
+        .accessibilityLabel("Legend: bars show \(valueKind.title), the line shows Rank")
         // Static text, not a control: inside the swipe-to-page chart the audit
         // otherwise judged it an 18 pt-tall interactive element ("Hit area is too small").
         .accessibilityAddTraits(.isStaticText)
@@ -570,25 +637,30 @@ struct RankHistoryCharts: View {
         .foregroundStyle(enabled ? FestivalText.primary : FestivalText.disabled)
         .disabled(!enabled)
         .accessibilityLabel(label)
-        .accessibilityIdentifier("fst.player.rank-history.\(instrument.rawValue).\(id)")
+        .accessibilityIdentifier("\(identifierPrefix).\(id)")
     }
 
-    /// One snapshot's rank (of N) and Total Score, as the chart element reads it.
+    /// One snapshot's rank (of N) and value, as the chart element reads it.
     ///
-    /// - Parameter point: One plotted snapshot.
+    /// - Parameters:
+    ///   - point: One plotted snapshot.
+    ///   - kind: What the bars measure.
     /// - Returns: For example "Rank 4 of 506, total score 89,400,000".
-    static func accessibilityValue(_ point: Point) -> String {
+    nonisolated static func accessibilityValue(_ point: Point, kind: RankHistoryValueKind = .playerTotalScore) -> String {
         let field = point.rankedAccountCount.map { " of \($0.formatted())" } ?? ""
-        return "Rank \(point.rank.formatted())\(field), total score \(Int(point.value).formatted())"
+        let value = point.hasValue ? ", \(kind.inlineName) \(kind.text(point.value))" : ""
+        return "Rank \(point.rank.formatted())\(field)\(value)"
     }
 
-    /// The chart element's value: each visible snapshot's date, rank and Total Score,
+    /// The chart element's value: each visible snapshot's date, rank and value,
     /// oldest first.
     ///
-    /// - Parameter page: The snapshots in the plot now.
+    /// - Parameters:
+    ///   - page: The snapshots in the plot now.
+    ///   - kind: What the bars measure.
     /// - Returns: "9/26/26: Rank 12, total score 1,000; 9/27/26: Rank 4 of 506, …".
-    static func accessibilityValue(page: [Point]) -> String {
-        page.map { "\($0.label): \(accessibilityValue($0))" }.joined(separator: "; ")
+    nonisolated static func accessibilityValue(page: [Point], kind: RankHistoryValueKind = .playerTotalScore) -> String {
+        page.map { "\($0.label): \(accessibilityValue($0, kind: kind))" }.joined(separator: "; ")
     }
 
     /// Show the window whose oldest visible snapshot is `index`.
@@ -602,19 +674,19 @@ struct RankHistoryCharts: View {
 
     // MARK: Summary
 
-    /// Latest rank "of N", plus Total Score when present, as one readable line.
+    /// Latest rank "of N", plus its value when present, as one readable line.
     ///
     /// - Parameter latest: Most recent ranked snapshot.
     /// - Returns: A combined, VoiceOver-friendly summary row.
-    private func latestSummary(_ latest: PlayerRankHistorySnapshot) -> some View {
+    private func latestSummary(_ latest: Point) -> some View {
         let field = latest.rankedAccountCount.map { " of \($0.formatted())" } ?? ""
         return VStack(alignment: .leading, spacing: 2) {
-            Text("#\(latest.totalScoreRank.formatted())\(field)")
+            Text("#\(latest.rank.formatted())\(field)")
                 .font(.title3.bold())
                 .monospacedDigit()
                 .foregroundStyle(BrandTokens.textPrimary)
-            if let totalScore = latest.totalScore {
-                Text("Total Score \(RankingFormatting.wholeNumber(Double(totalScore)))")
+            if latest.hasValue {
+                Text("\(valueKind.title) \(valueKind.text(latest.value))")
                     .font(.footnote)
                     .foregroundStyle(FestivalText.primary)
             }
@@ -624,8 +696,8 @@ struct RankHistoryCharts: View {
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "Latest global rank \(latest.totalScoreRank.formatted())\(field)"
-                + (latest.totalScore.map { ", total score \($0.formatted())" } ?? "")
+            "Latest \(valueKind.rankName) \(latest.rank.formatted())\(field)"
+                + (latest.hasValue ? ", \(valueKind.inlineName) \(valueKind.text(latest.value))" : "")
         )
     }
 }
@@ -675,47 +747,77 @@ struct PercentileBandsChart: View {
 
 // MARK: - Audio Graph descriptors
 
-/// VoiceOver Audio Graph for the combined chart: Total Score bars and the rank line as
-/// two series over the same date categories.
+/// VoiceOver Audio Graph for the combined chart: value bars and the rank line as two
+/// series over the same date categories.
 struct RankHistoryDescriptor: AXChartDescriptorRepresentable {
-    let points: [PlayerRankHistorySnapshot]
-    let instrument: Instrument
+    let points: [RankHistoryCharts.Point]
+    let valueKind: RankHistoryValueKind
+    let title: String
+
+    /// A player instrument's Total Score descriptor.
+    ///
+    /// - Parameters:
+    ///   - points: Ranked snapshots, oldest first.
+    ///   - instrument: Chart instrument.
+    init(points: [PlayerRankHistorySnapshot], instrument: Instrument) {
+        self.init(
+            points: RankHistoryCharts.points(points), valueKind: .playerTotalScore,
+            title: "\(instrument.label) rank history"
+        )
+    }
+
+    /// Any chart's descriptor.
+    ///
+    /// - Parameters:
+    ///   - points: Plotted snapshots, oldest first.
+    ///   - valueKind: What the bars measure.
+    ///   - title: Chart title, e.g. "Band rank history".
+    init(points: [RankHistoryCharts.Point], valueKind: RankHistoryValueKind, title: String) {
+        self.points = points
+        self.valueKind = valueKind
+        self.title = title
+    }
+
+    /// The value series name in sentence case: "Total score", "FC rate", ….
+    private var valueName: String { valueKind.sentenceName }
 
     func makeChartDescriptor() -> AXChartDescriptor {
-        let ranks = points.map { Double($0.totalScoreRank) }
-        let scores = points.map { Double($0.totalScore ?? 0) }
+        let ranks = points.map { Double($0.rank) }
+        let top = points.map(\.value).max() ?? 0
+        let kind = valueKind
         let xAxis = AXCategoricalDataAxisDescriptor(
-            title: "Date", categoryOrder: points.map(\.snapshotDate)
+            title: "Date", categoryOrder: points.map(\.id)
         )
         let yAxis = AXNumericDataAxisDescriptor(
-            title: "Total score", range: 0...(max(scores.max() ?? 1, 1)), gridlinePositions: []
-        ) { Int($0).formatted() }
+            title: valueName, range: 0...(top > 0 ? top : 1), gridlinePositions: []
+        ) { kind.text($0) }
         let rankAxis = AXNumericDataAxisDescriptor(
-            title: "Global rank", range: (ranks.min() ?? 0)...(max(ranks.max() ?? 1, (ranks.min() ?? 0) + 1)),
+            title: kind.rankName.prefix(1).uppercased() + kind.rankName.dropFirst(),
+            range: (ranks.min() ?? 0)...(max(ranks.max() ?? 1, (ranks.min() ?? 0) + 1)),
             gridlinePositions: []
         ) { "Rank \(Int($0).formatted())" }
-        let scoreSeries = AXDataSeriesDescriptor(
-            name: "Total score", isContinuous: false,
-            dataPoints: points.map { AXDataPoint(x: $0.snapshotDate, y: Double($0.totalScore ?? 0)) }
+        let valueSeries = AXDataSeriesDescriptor(
+            name: valueName, isContinuous: false,
+            dataPoints: points.map { AXDataPoint(x: $0.id, y: $0.value) }
         )
         let rankSeries = AXDataSeriesDescriptor(
-            name: "Total Score rank", isContinuous: true,
-            dataPoints: points.map { AXDataPoint(x: $0.snapshotDate, y: Double($0.totalScoreRank)) }
+            name: kind.rankSeriesName, isContinuous: true,
+            dataPoints: points.map { AXDataPoint(x: $0.id, y: Double($0.rank)) }
         )
         return AXChartDescriptor(
-            title: "\(instrument.label) rank history",
+            title: title,
             summary: rankSummary(points),
-            xAxis: xAxis, yAxis: yAxis, additionalAxes: [rankAxis], series: [scoreSeries, rankSeries]
+            xAxis: xAxis, yAxis: yAxis, additionalAxes: [rankAxis], series: [valueSeries, rankSeries]
         )
     }
 
     /// First-to-latest movement, where a lower rank number is better.
-    private func rankSummary(_ points: [PlayerRankHistorySnapshot]) -> String {
+    private func rankSummary(_ points: [RankHistoryCharts.Point]) -> String {
         guard let first = points.first, let last = points.last else { return "No snapshots" }
-        let delta = first.totalScoreRank - last.totalScoreRank
+        let delta = first.rank - last.rank
         let trend = delta > 0 ? "up \(delta.formatted()) places"
             : delta < 0 ? "down \((-delta).formatted()) places" : "unchanged"
-        return "\(points.count) daily snapshots. Latest rank \(last.totalScoreRank.formatted()), \(trend)."
+        return "\(points.count) daily snapshots. Latest rank \(last.rank.formatted()), \(trend)."
     }
 }
 

@@ -37,6 +37,8 @@ struct PlayerStatGrid: View {
     let tiles: [StatTile]
     /// Accessibility identifier scope: `overview` or an instrument's raw value.
     let scope: String
+    /// Accessibility identifier prefix: the Player profile's, or Band Detail's `fst.band.stat`.
+    var identifierPrefix = PlayerStatTileView.playerIdentifierPrefix
     let onSelect: (PlayerStatLink) -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.deviceLayout) private var layout
@@ -58,7 +60,7 @@ struct PlayerStatGrid: View {
             )
         ) {
             ForEach(tiles) { tile in
-                PlayerStatTileView(tile: tile, scope: scope, onSelect: onSelect)
+                PlayerStatTileView(tile: tile, scope: scope, identifierPrefix: identifierPrefix, onSelect: onSelect)
             }
         }
         .measuresHorizontalSpan($span)
@@ -152,15 +154,19 @@ struct StatTileGridLayout: Layout {
 /// One tile: a button with a trailing chevron when it links somewhere, otherwise a
 /// single static accessibility element.
 struct PlayerStatTileView: View {
+    /// The Player profile's tile identifier prefix.
+    static let playerIdentifierPrefix = "fst.player.stat"
+
     let tile: StatTile
     let scope: String
+    var identifierPrefix = playerIdentifierPrefix
     let onSelect: (PlayerStatLink) -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Side padding that clears the chevron at every text size: a fixed 22 pt let the
     /// AX5 chevron (footnote, ≈ 2.5×) sit on "2 (66.6%)" (iPad audit capture, Lane A11Y3).
     @ScaledMetric(relativeTo: .footnote) private var chevronInset: CGFloat = 22
 
-    private var identifier: String { "fst.player.stat.\(scope).\(tile.id)" }
+    private var identifier: String { "\(identifierPrefix).\(scope).\(tile.id)" }
 
     var body: some View {
         if let link = tile.link {
@@ -260,6 +266,8 @@ struct PlayerStatTileView: View {
         case .songs: "Shows these songs in Songs"
         case .songDetail: "Opens the song"
         case .fullRankings: "Opens the full rankings"
+        case .bandRankings: "Opens the band rankings"
+        case .bandSongDetail: "Opens the song"
         }
     }
 }

@@ -161,6 +161,56 @@ private func settle(_ host: NSHostingView<some View>, iterations: Int = 20) asyn
     #expect(image.width > 0 && image.height > 0)
 }
 
+/// #555 accessibility: the rebuilt page reads its subtitle, then Members, Band Summary,
+/// Band Statistics, Band Rank History, Five Best and Five Worst Songs in web order; member
+/// cards and song rows are single labelled elements at least 44 pt tall; the chart reads
+/// as one titled element.
+@MainActor
+@Test(arguments: [DynamicTypeSize.large, .accessibility3])
+func bandDetailReadsSectionsInWebOrderWithLabelledTargets(typeSize: DynamicTypeSize) async throws {
+    let (session, _, _) = try await bandsFixtureSession()
+    let size = CGSize(width: 402, height: typeSize.isAccessibilitySize ? 5200 : 2000)
+    let host = nativeHostedView(
+        NavigationStack {
+            BandDetailScreen(
+                session: session, bandId: "fixture-band-1", name: "Band 1 Member A + Band 1 Member B",
+                bandType: "Band_Duets", teamKey: "fixture-team-1"
+            )
+        }
+        .dynamicTypeSize(typeSize)
+        .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(host, untilText: ["Five Worst Songs", "Fixture Pulse"])
+    let suffix = typeSize.isAccessibilitySize ? "-ax3" : ""
+    _ = try nativeHostedPNG(image, filename: "band-detail-a11y\(suffix).png", environment: "FST_BANDS_RENDER_OUT")
+
+    let tree = nativeHostedAccessibility(host)
+    let order = [
+        "fst.band.subtitle", "fst.band.members-section", "fst.band.summary-section",
+        "fst.band.statistics-section", "fst.band.history-section", "fst.band.best-songs",
+        "fst.band.worst-songs",
+    ]
+    let positions = order.map { tree.identifiers.firstIndex(of: $0) }
+    #expect(positions.allSatisfy { $0 != nil }, "missing sections: \(tree.identifiers)")
+    #expect(positions.compactMap { $0 } == positions.compactMap { $0 }.sorted(), "reading order: \(tree.identifiers)")
+    #expect(tree.contains("Duos • 29 appearances"))
+    #expect(tree.contains("View Band 1 Member A, Lead"))
+    #expect(tree.contains("Band rank history"))
+
+    for identifier in [
+        "fst.band.member.fixture-band-1-a", "fst.band.member.fixture-band-1-b",
+        "fst.band.song-row.fixture-pulse", "fst.band.song-row.fixture-ghost-song",
+    ] {
+        let frame = try #require(nativeHostedAccessibilityFrame(identifier, in: host), "\(identifier) unreachable")
+        #expect(frame.height >= 44, "\(identifier) is \(frame.height) pt tall")
+    }
+    let pulse = try #require(nativeHostedAccessibilityElement("fst.band.song-row.fixture-pulse", in: host))
+    #expect(nativeHostedAccessibilityString(pulse, "accessibilityLabel").hasPrefix("Fixture Pulse, Top 10%, rank 1 of 10"))
+}
+
 // MARK: - PlayerBandsScreen
 
 @MainActor
