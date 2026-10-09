@@ -623,6 +623,10 @@
             "symbol": "FestivalGlassSection"
           },
           {
+            "path": "apple/Sources/FestivalUI/Design/GlassSection.swift",
+            "symbol": "FestivalGroupSegment"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Design/GlassSurface.swift",
             "symbol": "FestivalGlassModifier"
           }
@@ -1081,6 +1085,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
             "symbol": "coveredByModal"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
+            "symbol": "FestivalModalBody"
           }
         ],
         "windows": [
@@ -1298,6 +1306,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Compete/CompeteScreen.swift",
             "symbol": "CompetePreviewSpotlight"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/GlassSection.swift",
+            "symbol": "FestivalGroupSegment"
           }
         ],
         "android": [
@@ -2181,7 +2193,8 @@
         15,
         286,
         303,
-        313
+        313,
+        545
       ]
     },
     {
@@ -2811,6 +2824,14 @@
           ],
           "debt": [],
           "message": "Settings title/value rows decide inline vs stacked in one place: use SettingsValueRow (detail/value slots) instead of another text-size AnyLayout switch (settings-value-row R1, R4)."
+        },
+        {
+          "id": "windows-text-scale-stack",
+          "glob": "windows/Festival.App/Pages/SettingsPage.xaml.cs",
+          "regex": "TextScaleFactor",
+          "allow": [],
+          "debt": [],
+          "message": "Settings title/value rows stack by measured fit in SettingValueGrid, never by Windows text size in code-behind (settings-value-row R1, R4; #539)."
         }
       ]
     },
@@ -3493,6 +3514,96 @@
         125,
         218,
         379
+      ]
+    },
+    {
+      "id": "experimental-ranks",
+      "title": "Experimental ranks",
+      "status": "current",
+      "doc": ".agents/patterns/experimental-ranks.md",
+      "summary": "Settings → Enable Experimental Leaderboard Ranks (off by default, reset by Reset) gates the experimental ranking metrics app-wide like the web: Rank By offers Total Score only (and is hidden) while off; saved, routed and selected metrics are coerced to Total Score; turning it off returns open pages to Total Score; Rivals Rank By, profile rank tiles, rank notifications and the first-run slide follow it.",
+      "keywords": [
+        "experimental ranks",
+        "rank by",
+        "ranking metric",
+        "adjusted",
+        "weighted",
+        "fc rate",
+        "max score",
+        "coerce",
+        "enableExperimentalRanks"
+      ],
+      "web": [
+        {
+          "path": "pages/leaderboards/helpers/rankingHelpers.ts",
+          "symbol": "getEnabledRankingMetrics"
+        },
+        {
+          "path": "pages/leaderboards/helpers/rankingHelpers.ts",
+          "symbol": "coerceRankingMetric"
+        },
+        {
+          "path": "pages/leaderboards/helpers/bandRankingHelpers.ts",
+          "symbol": "coerceBandRankingMetric"
+        },
+        {
+          "path": "components/notifications/notificationSurface.ts",
+          "symbol": "projectExperimentalRankNotification"
+        }
+      ],
+      "canonical": {
+        "apple": [],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/Rankings.kt",
+            "symbol": "RankingMetric"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/bands/BandTypes.kt",
+            "symbol": "BandRankingMetric"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rivals/RivalScope.kt",
+            "symbol": "RivalScopes"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsComponents.kt",
+            "symbol": "RankByAction"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsComponents.kt",
+            "symbol": "BandRankByAction"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/notifications/Notifications.kt",
+            "symbol": "projectExperimentalRanks"
+          }
+        ],
+        "windows": []
+      },
+      "related": {
+        "patterns": [
+          "page-tools-and-nav-chrome",
+          "leaderboard-row"
+        ],
+        "pages": [
+          "settings",
+          "leaderboards",
+          "rivals",
+          "player-profile"
+        ]
+      },
+      "guards": [
+        {
+          "id": "android-metric-menus",
+          "glob": "android/app/src/main/java/com/festivalscoretracker/android/ui/**/*.kt",
+          "regex": "(RankingMetric|BandRankingMetric|RivalRankMetric)\\.entries",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/firstrun/FirstRunRotatingDemos.kt"
+          ],
+          "debt": [],
+          "message": "Rank By menus and metric lists offer RankingMetric.enabled / BandRankingMetric.enabled (or a view model's gated options), never every metric, so Settings → Experimental Ranks gates them (experimental-ranks R1)."
+        }
       ]
     }
   ]

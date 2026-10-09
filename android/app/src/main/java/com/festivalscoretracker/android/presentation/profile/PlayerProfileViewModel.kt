@@ -28,6 +28,7 @@ import com.festivalscoretracker.android.core.profile.ProfileSections
 import com.festivalscoretracker.android.core.profile.RankHistoryChartModel
 import com.festivalscoretracker.android.core.profile.SongsPreset
 import com.festivalscoretracker.android.core.profile.StatTints
+import com.festivalscoretracker.android.core.rankings.RankingMetric
 import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.core.settings.AppSettings
@@ -207,7 +208,8 @@ sealed interface RankLoad {
     /**
      * Rank shown.
      *
-     * @property tiles The Total Score Rank tile.
+     * @property tiles One tile per metric in [RankingMetric] order: Total Score Rank first,
+     *   then the experimental metrics ([tiles] hides those while Experimental Ranks is off).
      */
     data class Available(val tiles: List<PlayerStatTile>) : RankLoad
 
@@ -224,6 +226,44 @@ sealed interface RankLoad {
 
         /** The rank tile's label (web `player.totalScoreRank`). */
         const val TILE_LABEL = "Total Score Rank"
+
+        /**
+         * A metric's rank tile id: [TILE_ID] for Total Score, `global-rank-<wire id>` otherwise.
+         *
+         * @param metric Rank By.
+         * @return Stable tile id.
+         */
+        fun tileId(metric: RankingMetric): String = if (metric == RankingMetric.TotalScore) TILE_ID else "$TILE_ID-${metric.wireId}"
+
+        /**
+         * A metric's rank tile label (web `METRIC_I18N_KEY`).
+         *
+         * @param metric Rank By.
+         * @return Label.
+         */
+        fun tileLabel(metric: RankingMetric): String = when (metric) {
+            RankingMetric.TotalScore -> TILE_LABEL
+            RankingMetric.Adjusted -> "Adjusted Percentile Rank"
+            RankingMetric.Weighted -> "Weighted Percentile Rank"
+            RankingMetric.FcRate -> "FC Rate Rank"
+            RankingMetric.MaxScore -> "Max Score % Rank"
+        }
+
+        /**
+         * The rank tiles to show (web `InstrumentStatsSection` per-metric rank cards):
+         * Total Score Rank, plus the experimental metrics when Experimental Ranks is on
+         * (experimental-ranks R4). Before a rank is available only the Total Score tile shows.
+         *
+         * @param load State, or null before the read starts.
+         * @param experimentalRanks `AppSettings.experimentalRanks`.
+         * @return Tiles.
+         */
+        fun tiles(load: RankLoad?, experimentalRanks: Boolean): List<PlayerStatTile> = when (load) {
+            is Available -> load.tiles.filter { tile ->
+                experimentalRanks || RankingMetric.entries.none { it.isExperimental && tileId(it) == tile.id }
+            }
+            else -> listOf(tile(load))
+        }
 
         /**
          * The rank tile for any state, so the grid keeps its shape: a same-width
@@ -292,6 +332,7 @@ sealed interface RankHistoryLoad {
  * @property instruments One section per Settings-visible chart.
  * @property actionError Why the last Select failed.
  * @property topSongs Top/bottom five per Settings-visible chart.
+ * @property experimentalRanks Settings → Experimental Ranks (shows the experimental rank tiles).
  */
 data class PlayerProfileUiState(
     val accountId: String = "",
@@ -303,6 +344,7 @@ data class PlayerProfileUiState(
     val instruments: List<PlayerInstrumentSection> = emptyList(),
     val actionError: String? = null,
     val topSongs: List<PlayerTopSongs> = emptyList(),
+    val experimentalRanks: Boolean = false,
 ) {
     /**
      * Whether a tile action can run now: selected pages always can; a viewed page can
@@ -637,18 +679,18 @@ class PlayerProfileViewModel(
                 if (ranking == null) {
                     RankLoad.Unranked
                 } else {
-                    // Web per-metric rank card (Total Score; experimental metrics stay off):
-                    // opens the full rankings on the page holding this rank.
-                    val rank = ranking.totalScoreRank
+                    // Web per-metric rank cards: each opens that metric's full rankings on
+                    // the page holding this rank; RankLoad.tiles gates the experimental ones.
                     RankLoad.Available(
-                        listOf(
+                        RankingMetric.entries.map { metric ->
+                            val rank = ranking.rank(metric)
                             PlayerStatTile(
-                                RankLoad.TILE_ID,
-                                RankLoad.TILE_LABEL,
+                                RankLoad.tileId(metric),
+                                RankLoad.tileLabel(metric),
                                 if (rank > 0) ProfileFormatting.rank(rank) else "—",
-                                action = PlayerTileAction.OpenRankings(instrument, rank = rank).takeIf { rank > 0 },
-                            ),
-                        ),
+                                action = PlayerTileAction.OpenRankings(instrument, metric, rank).takeIf { rank > 0 },
+                            )
+                        },
                     )
                 }
             } catch (cancelled: CancellationException) {
@@ -713,7 +755,7 @@ class PlayerProfileViewModel(
         val leeway = current?.leeway?.takeIf { current.filterInvalidScores }
         val (overview, instruments) = if (profile != null) sections(SectionsKey(profile, visible, songs, leeway)) else emptyList<PlayerStatTile>() to emptyList()
         val topSongs = if (profile != null) topSongs(profile, visible, songs) else emptyList()
-        return PlayerProfileUiState(account, name, isSelected, phase, identity, overview, instruments, error, topSongs)
+        return PlayerProfileUiState(account, name, isSelected, phase, identity, overview, instruments, error, topSongs, current?.experimentalRanks == true)
     }
 
     private fun resetSections(key: String) {
