@@ -184,7 +184,6 @@ internal fun RankingsBoardLayout(
                     Modifier
                         .align(Alignment.BottomCenter)
                         .onSizeChanged { anchoredHeight = it.height }
-                        .then(if (fadeAboveFooter) Modifier.occludesRowsBeneath() else Modifier)
                         .padding(start = 16.dp, end = 16.dp, bottom = bottom + 12.dp),
                 )
             }
@@ -208,13 +207,25 @@ internal fun RankingsBoardLayout(
 @Composable
 internal fun AnchoredFooter(idPrefix: String, footer: @Composable ColumnScope.() -> Unit, pager: @Composable () -> Unit, modifier: Modifier = Modifier) {
     Column(
-        modifier.fillMaxWidth().testTag("$idPrefix.bottom-bar"),
+        modifier.fillMaxWidth().coversRowsForAccessibility().testTag("$idPrefix.bottom-bar"),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Column(Modifier.fillMaxWidth().gapBelowIfShown(FOOTER_PAGER_GAP_DP.dp), content = footer)
         pager()
     }
 }
+
+/**
+ * Makes the footer's full width cover the rows beneath it for accessibility, not only its
+ * controls. Compose widens a clip by up to half the 48 dp minimum touch target for a row peeking
+ * less than 48 dp above it, so beside a narrow pager (no "your rank" row) a hidden row's TalkBack
+ * bounds reached 24 dp under the footer (#473). Only a node that counts as important for
+ * accessibility removes that space from the rows below it; `isContainer` is Compose's
+ * label-free, focus-free marker for that (b/347038246; Compose fixes the clip itself behind
+ * `isClippedTouchBoundsOcclusionFixEnabled`, b/565962277, after 1.9).
+ */
+@Suppress("DEPRECATION")
+private fun Modifier.coversRowsForAccessibility(): Modifier = semantics { isContainer = true }
 
 /**
  * Adds [gap] below content that has height, and nothing below empty content, so a board
@@ -294,19 +305,5 @@ private fun Modifier.clipAboveFooter(footerHeight: () -> Int): Modifier = this
         val visible = (placeable.height - footerHeight()).coerceIn(0, placeable.height)
         layout(placeable.width, visible) { placeable.place(0, 0) }
     }
-
-/**
- * Makes the whole footer band, pager sides and bottom inset included, cover the rows beneath it
- * for accessibility (scroll-edge R7). Compose widens a clickable row's accessibility bounds by
- * half the minimum touch target (24 dp) past [clipAboveFooter]'s cut, so a row hidden just under
- * a narrow pager stayed focusable by TalkBack (issue #462). An important container drawn above
- * the list removes its area from the rows beneath, as Material 3's `Surface` does; it has no
- * text or action, so TalkBack never focuses it.
- */
-private fun Modifier.occludesRowsBeneath(): Modifier = semantics {
-    // Material 3's Surface uses the same key; isTraversalGroup does not occlude yet (b/347038246).
-    @Suppress("DEPRECATION")
-    isContainer = true
-}
 
 // endregion
