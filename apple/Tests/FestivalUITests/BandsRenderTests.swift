@@ -772,4 +772,36 @@ private func songDetailBandFrames(
     #expect(AppRoute.playerBands(accountId: "a", displayName: nil, group: .duos)
         != .playerBands(accountId: "a", displayName: nil))
 }
+
+/// The full band board's page rows are one card, like the Song Detail band preview
+/// (owner #543): 48 pt rows in rank order, abutting, labels and identifiers unchanged.
+@MainActor
+@Test func songBandLeaderboardRowsAreOneAccessibleCard() async throws {
+    nativeHostedEnableAccessibility()
+    let (session, _, _) = try await bandsFixtureSession()
+    let song = try await fixtureSong(session, songId: "fixture-pulse")
+    let size = CGSize(width: 402, height: 900)
+    let host = nativeHostedView(
+        NavigationStack {
+            SongBandLeaderboardScreen(session: session, song: song, bandType: "Band_Duets")
+        }
+        .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let prefix = "fst.song-band-leaderboard.row."
+    func firstRows() -> [String] {
+        var seen = Set<String>()
+        return Array(nativeHostedAccessibility(host).identifiers.filter {
+            $0.hasPrefix(prefix) && seen.insert($0).inserted
+        }.prefix(3))
+    }
+    let image = try await nativeHostedSettle(host, timeout: .seconds(60)) {
+        let rows = firstRows()
+        return rows.count == 3 && boardRowsAbut(rows, in: host)
+    }
+    _ = try nativeHostedPNG(image, filename: "song-band-leaderboard-group-card.png", environment: "FST_BANDS_RENDER_OUT")
+    try expectBoardRowsInOneCard(firstRows(), in: host)
+}
 #endif
