@@ -401,7 +401,7 @@ struct SongBandLeaderboardContent: View {
                 }
             }
         }
-        .reportsBottomChromeTop(in: Self.pageSpace) { bottomChromeTop = $0 }
+        .boardBottomChrome(in: Self.pageSpace) { bottomChromeTop = $0 }
     }
 
     /// Padding that rests the last card one gap above the footer (or the pager without

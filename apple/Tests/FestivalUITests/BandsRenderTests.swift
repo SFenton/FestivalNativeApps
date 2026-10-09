@@ -20,7 +20,7 @@ import FestivalDesign
 // `_song_band_leaderboard_entry` helpers and `.agents/testing/fixtures.md`.
 
 @MainActor
-private func bandsFixtureSession(
+func bandsFixtureSession(
     selected accountId: String? = nil
 ) async throws -> (session: FestivalSession, storage: UserDefaults?, suite: String?) {
     let baseURL = try await RivalsMockService.shared.baseURL()

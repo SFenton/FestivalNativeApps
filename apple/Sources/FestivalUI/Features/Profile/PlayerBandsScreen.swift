@@ -131,7 +131,7 @@ struct PlayerBandsScreen: View {
                             ) { destination in
                                 page = destination
                             }
-                            .reportsBottomChromeTop(in: Self.pageSpace) { bottomChromeTop = $0 }
+                            .boardBottomChrome(in: Self.pageSpace) { bottomChromeTop = $0 }
                         }
                     }
                 }

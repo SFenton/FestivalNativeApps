@@ -34,7 +34,7 @@ import FestivalDesign
 /// Keyless fixture transport for a 60-account Lead Full Rankings board (25 a page) with
 /// the selected player at rank 45, on page 2, plus their single-account spotlight read.
 /// Rejects the privileged key, selected-profile headers, writes and any other route.
-private actor LongRankingsTransport: HTTPTransport {
+actor LongRankingsTransport: HTTPTransport {
     private let generation = 31
     static let selectedAccount = "fixture-reveal-player"
     static let selectedRank = 45

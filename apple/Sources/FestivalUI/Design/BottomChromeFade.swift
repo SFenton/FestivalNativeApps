@@ -20,6 +20,26 @@ extension View {
         }
     }
 
+    /// Marks a board's pinned bottom chrome (pager, optionally with the selected
+    /// player's or band's footer) and reports its top edge for
+    /// ``bottomChromeFade(chromeTop:distance:in:)``.
+    ///
+    /// The chrome also reads after the board's rows: as a bottom safe-area inset at the
+    /// root of a navigation destination, macOS listed it before the scroll view, so
+    /// VoiceOver reached the pager before any row (#473). Visual order puts the rows
+    /// first (scroll-edge R10); HIG VoiceOver: "Specify how elements are grouped,
+    /// ordered or linked", and VoiceOver reads top to bottom in US English.
+    ///
+    /// - Parameters:
+    ///   - space: Named coordinate space shared with the faded rows.
+    ///   - changed: Receives the chrome's top in `space`, or nil while it draws
+    ///     nothing.
+    /// - Returns: The chrome, measured and ordered after the rows.
+    func boardBottomChrome(in space: String, _ changed: @escaping (CGFloat?) -> Void) -> some View {
+        reportsBottomChromeTop(in: space, changed)
+            .accessibilitySortPriority(-1)
+    }
+
     /// Fades a board's scrolling rows out above its pinned bottom chrome, the one
     /// bottom edge every paginated leaderboard shares (issue #305).
     ///

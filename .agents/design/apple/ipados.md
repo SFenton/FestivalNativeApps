@@ -112,11 +112,12 @@ HIG keyboards.md: "Support Full Keyboard Access when possible"; "iPadOS navigate
 |---|---|
 | ⌘ shortcuts and the menu bar | Pass: `testMenuBarShortcuts`, `testCommandDigitSelectsDestination`, `testExactTilesDropUnchosenDetail` (⌘1 in a compact window) |
 | Tab / arrows without FKA (fixture, landscape) | Tab focuses the **Filter Songs** field (the first focus group); further Tab, ↓ and Return stay in the field; the sidebar and list never took keyboard focus. The simulator also shows the software keyboard, i.e. it reports no hardware keyboard (`~/FestivalShowcase/native-ipad/2/keyboard-no-fka-tab-arrows.png`) |
+| Hardware-keyboard focus in XCUITest (2026-10-09, #473) | `ios_sim.py uitest --a11y full-keyboard-access` writes `FullKeyboardAccessUsesSimulatedKeyboardForAutomation` and `FullKeyboardAccessEnabled` (restored afterwards): UIKit's focus system then reports `hasFocus` (on the navigation bar's Back button on Player Bands), so a journey can require focus stops and check none rests on a row under the pager (`BoardFooterFadeJourneyTests/testBoardKeyboardFocusClearsFooter`, in `apple-ci`; it fails without the setting). The preferences do not start the FKA agent; the private `_AXSFullKeyboardAccessSetEnabled` does (ring drawn on Back), but XCUITest's `typeKey` never reaches its event tap, so Tab and ↓ never moved FKA focus. FKA traversal (rows → pager arrow → Space) is not automatable on the simulator |
 | Full Keyboard Access | The iPad simulator lists it (Settings › Accessibility › Keyboards & Typing › Full Keyboard Access, `FKAEnabledSwitch`), but tapping the switch through XCUITest left it off (value 0, no focus rings), probably because no hardware keyboard is attached; Simulator › I/O › Keyboard is a host app preference, left alone. Driver: `appLaunch:`/`appTap:`/`appTree:` |
 
 ## Open
 
-- Full Keyboard Access and sidebar/list arrow-key focus need a check with a hardware keyboard (a real iPad, or the simulator with its hardware keyboard connected by the operator).
+- Full Keyboard Access traversal (including a board's last visible row → pager arrow → Space, #473) and sidebar/list arrow-key focus need a check with a hardware keyboard (a real iPad, or the simulator with its hardware keyboard connected by the operator).
 - Debug: `FST_DEBUG_LIST_DETAIL=1` overlays the window width, sidebar extent and split sections (root shell).
 - Never fix row counts or hardcode device sizes: chips wrap (5 + 4 where the web tablet shows 9 in one row) as the detail width changes.
 - A Form in a centered sheet may need scrolling to expose Reset above a pinned footer.

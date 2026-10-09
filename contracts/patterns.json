@@ -63,6 +63,10 @@
           {
             "path": "apple/Sources/FestivalUI/Design/BottomChromeFade.swift",
             "symbol": "bottomChromeFade"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/BottomChromeFade.swift",
+            "symbol": "boardBottomChrome"
           }
         ],
         "android": [
@@ -129,6 +133,16 @@
             "apple/Sources/FestivalUI/Design/ModalTopEdgeFade.swift"
           ],
           "message": "System scroll-edge effects are configured only by TopEdgeScrim and the modal shell (scroll-edge R1, R6)."
+        },
+        {
+          "id": "apple-board-chrome",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\.reportsBottomChromeTop\\(",
+          "allow": [
+            "apple/Sources/FestivalUI/Design/BottomChromeFade.swift",
+            "apple/Sources/FestivalUI/Features/Search/BottomSearchField.swift"
+          ],
+          "message": "A board's pinned footer and pager go through boardBottomChrome, so they read after the rows (scroll-edge R10)."
         },
         {
           "id": "android-dstin",
