@@ -53,8 +53,10 @@ import org.junit.runner.RunWith
  * backfill, issue #452): while the next header slides through the edge band and pushes the pinned
  * one out, both ways, with the fade, at 200% text and with the hard cut each R7 setting forces on
  * its own (the app's Reduce Transparency, the app's Reduce Motion, the system's Remove
- * animations), both stay opaque headings that TalkBack reads once each, in order, and with the hard
- * cut no row shows behind the pinned title afterwards. Fixture-only
+ * animations and, since #157, the system's High contrast text; test backfill, issue #503), both
+ * stay opaque headings that TalkBack reads once each, in order, and with the hard cut no row shows
+ * behind the pinned title afterwards. High contrast text also keeps 200% Year headers unclipped
+ * headings in order. Fixture-only
  * ([BucketHeaderFixtures]); `device.py test com.festivalscoretracker.android.journeys.SongsBucketHeaderAccessibilityJourneyTest --avd FST_Phone`.
  */
 @RunWith(AndroidJUnit4::class)
@@ -109,13 +111,28 @@ class SongsBucketHeaderAccessibilityJourneyTest {
         }
 
     /** Runs [body] with the system animator duration scale at [scale], then restores the saved one. */
-    private fun withAnimatorScale(scale: String, body: () -> Unit) {
-        val saved = shell("settings get global animator_duration_scale")
-        shell("settings put global animator_duration_scale $scale")
+    private fun withAnimatorScale(scale: String, body: () -> Unit) = withSystemSetting("global", "animator_duration_scale", scale, body)
+
+    /**
+     * Runs [body] with the system's High contrast text ([HIGH_CONTRAST_TEXT]) [on] or off, then
+     * restores the saved value.
+     */
+    private fun withHighContrastText(on: Boolean, body: () -> Unit) = withSystemSetting("secure", HIGH_CONTRAST_TEXT, if (on) "1" else "0", body)
+
+    /** Sets the system's High contrast text, live. */
+    private fun setHighContrastText(on: Boolean) = shell("settings put secure $HIGH_CONTRAST_TEXT ${if (on) 1 else 0}")
+
+    /**
+     * Runs [body] with the system setting [key] in [namespace] at [value], then restores the
+     * saved one (deleting it when it was unset).
+     */
+    private fun withSystemSetting(namespace: String, key: String, value: String, body: () -> Unit) {
+        val saved = shell("settings get $namespace $key")
+        shell("settings put $namespace $key $value")
         try {
             body()
         } finally {
-            shell(if (saved == "null") "settings delete global animator_duration_scale" else "settings put global animator_duration_scale $saved")
+            shell(if (saved == "null") "settings delete $namespace $key" else "settings put $namespace $key $saved")
         }
     }
     private fun headers(): List<SemanticsNode> = rule.onAllNodes(isBucketHeader, useUnmergedTree = true).fetchSemanticsNodes()
@@ -584,10 +601,54 @@ class SongsBucketHeaderAccessibilityJourneyTest {
             restore = { shell("settings put global animator_duration_scale 0") },
         )
     }
+
+    /**
+     * The section push with the system's High contrast text and no app setting, animations on
+     * (issue #157; test backfill, issue #503): the system preference alone makes the hard cut
+     * (scroll-edge R7), followed live when it is switched off and on again, with the same push
+     * guarantees: two opaque headings read once each, in order, before their rows, and ATF clean.
+     */
+    @Test
+    fun highContrastTextPushKeepsBothHeadingsOpaqueAndInOrder() = withAnimatorScale("1") {
+        withHighContrastText(true) {
+            h.enableAccessibilityChecks()
+            launch("Duration")
+            assertHardEdgePushIsAccessible(
+                "songs-duration-high-contrast-text",
+                release = { setHighContrastText(false) },
+                restore = { setHighContrastText(true) },
+            )
+        }
+    }
+
+    /**
+     * Year at 200% text with the system's High contrast text (issue #157; test backfill, issue
+     * #503): the outlined headers grow, stay unclipped, non-interactive headings read before their
+     * rows, the pinned title stays bare with no row behind it, and ATF stays clean.
+     */
+    @Test
+    fun highContrastTextKeepsYearHeadingsUnclippedAndInOrderAtDoubleText() = withAnimatorScale("1") {
+        withHighContrastText(true) {
+            h.enableAccessibilityChecks()
+            launch("Year", fontScale = { 2f })
+            h.waitForTag("$HEADER_PREFIX$YEAR.1970")
+            assertHeadersAreHeadings("Year 200% High contrast text at rest")
+            assertHeadersLeadTheirRows("songs-year-200-high-contrast-text-rest", YEAR_TOKENS)
+            scrollTo(BucketHeaderFixtures.SECTION_SIZE + 4)
+            assertTrue("a Year header pins", pinnedHeader().config[SemanticsProperties.TestTag].endsWith("1980"))
+            assertPinnedHeaderBare("Year 200% High contrast text pinned")
+            assertHeadersAreHeadings("Year 200% High contrast text pinned")
+            assertHeadersLeadTheirRows("songs-year-200-high-contrast-text-pinned", YEAR_TOKENS)
+            h.assertAccessible()
+        }
+    }
     // endregion
 
     private companion object {
         const val LIST = "fst.songs.list"
+
+        /** The system's High contrast text setting (`Settings.Secure`), a scroll-edge R7 trigger since #157. */
+        const val HIGH_CONTRAST_TEXT = "high_text_contrast_enabled"
 
         /** The Songs list's bottom content padding in dp (`SongsScreen`, over a zero shell inset). */
         const val LIST_BOTTOM_PADDING_DP = 16f
