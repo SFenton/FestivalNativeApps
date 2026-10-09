@@ -34,8 +34,9 @@ class UiCiTests(unittest.TestCase):
                 sizes = run.sizes.split(",")
                 for size in sizes:
                     u.preset_op(size)
-                # The runner's 1920x1080 desktop holds compact and medium, not wide (1440x900 plus the taskbar).
-                self.assertNotIn("wide", sizes)
+                # The runner's 1920x1080 desktop (ci_display.ps1) holds compact, medium and wide (1440x900 plus the
+                # taskbar); generated runs add wide only for pages that run at no smaller size.
+                self.assertLessEqual(set(sizes), {"compact", "medium", "wide"})
                 self.assertTrue(m.mode_pages(pages, run.mode), "no page runs in this mode")
                 self.assertTrue(any(m.page_sizes(page, sizes, run.mode) for page in m.mode_pages(pages, run.mode)),
                                 "no page runs at this run's sizes")
@@ -99,9 +100,15 @@ class UiCiTests(unittest.TestCase):
                 scrolls = [step for step in steps if step.startswith("scrollinto:id=fst.settings.")]
                 if not scrolls:
                     continue
+                fixture = list(page.get("fixture", ()))
+                if "--features" in fixture and fixture[fixture.index("--features") + 1:][:1] == ["off"]:
+                    continue  # the Feedback rows never appear, so nothing can push a target off screen
                 checked += 1
+                # Scrolling to a Feedback row first is itself the wait.
+                first = "scrollinto:id=fst.settings.feedback." if scrolls[0].startswith(
+                    "scrollinto:id=fst.settings.feedback.") else wait + "@"
                 with self.subTest(run=run.name, page=page["name"]):
-                    self.assertTrue(scrolls[0].startswith(wait + "@"), scrolls[0])
+                    self.assertTrue(scrolls[0].startswith(first), scrolls[0])
                     self.assertGreaterEqual(u.parse_step(scrolls[0])["timeout"], 20)
         self.assertGreater(checked, 0)
 
@@ -163,7 +170,8 @@ class UiCiTests(unittest.TestCase):
         for path in ("'windows/**'", "'tools/windows/**'", "'.github/workflows/windows-ui.yml'"):
             self.assertIn(path, text)
         build, display = text.index("tools/windows/build.ps1"), text.index("tools/windows/ci_display.ps1")
-        dispatch = text.index("python tools/windows/ui_ci.py --shard")
+        dispatch = text.index("python tools/windows/ui_ci.py --tier")
+        self.assertIn("schedule:", text)  # the nightly full matrix
         self.assertLess(display, dispatch)
         self.assertLess(build, dispatch)
         self.assertNotIn("--live", text)  # fixtures only: no service calls from CI
@@ -188,6 +196,15 @@ class UiCiTests(unittest.TestCase):
                 name = page["name"]
                 if "live" not in name.lower() and not page.get("live_only") and name not in skips:
                     self.assertIn((source.name, name), covered)
+
+
+    def test_pr_tier_is_normal_mode_at_compact_and_full_is_everything(self):
+        pr = ci.tier_runs(list(ci.RUNS), "pr")
+        self.assertTrue(pr)
+        self.assertTrue(all(run.mode == "normal" and "," not in run.sizes for run in pr))
+        self.assertLessEqual({run.name for run in pr}, {run.name for run in ci.RUNS if run.mode == "normal"})
+        self.assertTrue(all(ci.run_pages(run) for run in pr))
+        self.assertEqual(ci.tier_runs(list(ci.RUNS), "full"), list(ci.RUNS))
 
 
 if __name__ == "__main__":
