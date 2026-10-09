@@ -75,6 +75,38 @@ public class ModalMarkupTests
             callers);
     }
 
+    /// <summary>
+    /// Modal-shell R5 (#420): ContentDialog's template ContentScrollViewer never scrolls vertically, so each body that
+    /// can outgrow the window at large text or in a short window owns its ScrollViewer under the fixed title and commands.
+    /// </summary>
+    /// <param name="file">Source that builds the dialog body.</param>
+    [Theory]
+    [InlineData("Controls/FeedbackDialog.cs")]
+    [InlineData("Controls/FirstRunCarousel.xaml")]
+    [InlineData("Controls/PrivacyPolicyDialog.cs")]
+    [InlineData("Controls/SongPathsView.xaml")]
+    [InlineData("MainWindow.WhatsNew.cs")]
+    public void TallModalBodies_OwnTheirScroller(string file)
+    {
+        var text = Sources(Path.GetExtension(file)).Single(source => source.Path == file).Text;
+        Assert.Matches(@"<ScrollViewer\b|new\s+ScrollViewer\b", text);
+    }
+
+    [Fact]
+    public void FirstRunBody_ScrollsVerticallyOnly()
+    {
+        var text = Sources(".xaml").Single(source => source.Path == "Controls/FirstRunCarousel.xaml").Text;
+        Assert.Matches(@"<ScrollViewer\s+x:Name=""Body""[^>]*VerticalScrollBarVisibility=""Auto""", text);
+        Assert.Matches(@"<ScrollViewer\s+x:Name=""Body""[^>]*HorizontalScrollBarVisibility=""Disabled""", text);
+        Assert.Contains(@"AutomationProperties.AutomationId=""fst.first-run.body""", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TemplateContentScroller_IsNeverReachedInto() =>
+        Assert.Empty(Sources(".cs").Concat(Sources(".xaml"))
+            .Where(file => file.Text.Contains("\"ContentScrollViewer\"", StringComparison.Ordinal))
+            .Select(file => file.Path));
+
     [Fact]
     public void FestivalDialog_ClosesWithTheStandardCommand()
     {
