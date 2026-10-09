@@ -10,6 +10,8 @@ import androidx.compose.ui.platform.ViewRootForTest
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getAllSemanticsNodes
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ComposeAccessibilityValidator
 import androidx.compose.ui.test.ComposeTimeoutException
@@ -173,7 +175,9 @@ class JourneyHarness(private val rule: JourneyRule) {
                             (e.resourceName ?: e.contentDescription ?: e.text)?.toString()
                                 ?: "${e.className?.toString()?.substringAfterLast('.')} ${e.boundsInScreen}"
                         } ?: "?"
-                        val line = "$type | ${result.sourceCheckClass.simpleName} | $element | ${result.getMessage(Locale.US)}"
+                        val check = result.sourceCheckClass.simpleName
+                        val line = "$type | $check | $element | ${result.getMessage(Locale.US)}"
+                        if (check == "TouchTargetSizeCheck" && element.startsWith("fst.") && composedFullSize(view, element)) fullSizeTargets += element
                         if (accessibilityFindings.add(line)) Log.w(ATF_TAG, line)
                     }
                 }
@@ -201,6 +205,7 @@ class JourneyHarness(private val rule: JourneyRule) {
                 .also { if (it) labelledTags += tag }
         }
         if (parts.getOrNull(1) != "TouchTargetSizeCheck") return false
+        if (tag in fullSizeTargets) return true
         val min = with(rule.density) { 48.dp.toPx() } - 1
         val nodes = rule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes()
         if (nodes.isNotEmpty() && nodes.all { it.size.height >= min && it.size.width >= min }) return true
@@ -264,6 +269,33 @@ class JourneyHarness(private val rule: JourneyRule) {
 
     /** Tags whose missing-label finding proved to be a clipped label (resolved while composed). */
     private val labelledTags = mutableSetOf<String>()
+
+    /**
+     * Tags whose touch-target finding the composed node disproved when ATF recorded it. A
+     * dialog that is moving (IME, growing content) can report a 47 dp sliver of a 48 dp button;
+     * once the dialog closes, [assertAccessible] could no longer measure the node (issue #432).
+     */
+    private val fullSizeTargets = mutableSetOf<String>()
+
+    /**
+     * Whether every composed node tagged [tag] in [view]'s window lays out at least 48 × 48 dp.
+     * Runs on the UI thread inside the ATF callback, so it reads the semantics owners directly.
+     *
+     * @param view View ATF checked.
+     * @param tag Test tag.
+     * @return True when the composed targets are full size.
+     */
+    private fun composedFullSize(view: android.view.View, tag: String): Boolean {
+        val min = 48f * view.resources.displayMetrics.density - 1
+        fun roots(v: android.view.View): List<ViewRootForTest> = when {
+            v is ViewRootForTest -> listOf(v)
+            v is android.view.ViewGroup -> (0 until v.childCount).flatMap { roots(v.getChildAt(it)) }
+            else -> emptyList()
+        }
+        val nodes = roots(view.rootView).flatMap { it.semanticsOwner.getAllSemanticsNodes(mergingEnabled = false) }
+            .filter { it.config.getOrNull(SemanticsProperties.TestTag) == tag }
+        return nodes.isNotEmpty() && nodes.all { it.size.width >= min && it.size.height >= min }
+    }
 
     /** Fail with every ATF error collected during the journey (warnings only log). */
     fun assertAccessible() {
