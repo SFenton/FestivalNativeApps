@@ -60,6 +60,24 @@ data class SuggestionFilterSettings(
     /** True once any toggle is off (gold filter button). */
     val isActive: Boolean get() = instrumentOff.isNotEmpty() || globalTypeOff.isNotEmpty() || perInstrumentTypeOff.isNotEmpty()
 
+    /**
+     * What the Filter button's gold tint shows, for TalkBack (issue #418; the Songs and Item Shop
+     * rule, #181/#145): "No filters" exactly when [isActive] is false, otherwise "Filters on: "
+     * plus the sheet sections with a switch off, in sheet order (Instruments, General,
+     * Instrument-Specific). A General switch cascades to every instrument's row, so
+     * Instrument-Specific counts only rows whose type is still on globally.
+     */
+    val stateDescription: String
+        get() {
+            if (!isActive) return "No filters"
+            val groups = listOfNotNull(
+                "Instruments".takeIf { instrumentOff.isNotEmpty() },
+                "General".takeIf { globalTypeOff.isNotEmpty() },
+                "Instrument-Specific".takeIf { perInstrumentTypeOff.any { it.substringAfter('|') !in globalTypeOff } },
+            )
+            return "Filters on: " + groups.joinToString(", ")
+        }
+
     /** True when every type is off, so nothing generated could ever show. */
     val allTypesOff: Boolean get() = SuggestionCategoryType.entries.none(::isGlobalEnabled)
 
