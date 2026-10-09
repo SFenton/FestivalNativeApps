@@ -378,7 +378,8 @@ def _rush_problems(own: list[FadeEvent], first: int) -> list[str]:
 
     An entrance element scheduled before the rush whose fade was due after it (its ``at`` + ``delay`` past the rush's
     ``at``) must have a ``fade-early`` line from this rush, and the rush must have started at least as many fades as
-    were still due; a fade scheduled after it must start at once (:func:`_delayed_after`).
+    were still due (each row once, by its latest ``fade-play``: the app keeps one pending fade per realized row); a
+    fade scheduled after it must start at once (:func:`_delayed_after`).
 
     Args:
         own: The owner's events, in log order.
@@ -399,22 +400,23 @@ def _rush_problems(own: list[FadeEvent], first: int) -> list[str]:
         early.add(event.values.get("target"))
     if rushed_at is not None:
         start = int(rush.values.get("start", 0)) or None
-        due_targets, due_rows = [], 0
+        # A row played again (its container re-realized) replaces its earlier fade, so each index counts once, by its
+        # latest play: master run 37937505898 replayed rows 14-15 and counted 17 due for 15 pending rows (#552).
+        due_targets, due_rows = [], {}
         for event in own[:first]:
             if event.kind == "arm" and event.values.get("start") == 0:
-                due_targets, due_rows = [], 0
+                due_targets, due_rows = [], {}
                 continue
             at = _at(event)
-            if at is None or at + int(event.values.get("delay", 0)) <= rushed_at + CLOCK_SLOP_MS:
-                continue
-            if event.kind == "enter":
+            pending = at is not None and at + int(event.values.get("delay", 0)) > rushed_at + CLOCK_SLOP_MS
+            if event.kind == "enter" and pending:
                 due_targets.append(str(event.values.get("target")))
             elif event.kind == "play" and (start is None or int(event.values["index"]) < start):
-                due_rows += 1
+                due_rows[int(event.values["index"])] = pending
         missed = [target for target in due_targets if target not in early]
         if missed:
             failures.append(f"still-pending entrance fades kept their delay through the rush: {missed}")
-        due = len(due_targets) + due_rows
+        due = len(due_targets) + sum(due_rows.values())
         if int(rush.values.get("rushed", 0)) < due:
             failures.append(f"the rush started {rush.values.get('rushed', 0)} fade(s) but {due} were still pending")
     late = _delayed_after(own, first, int(rush.values.get("start", 0)) or None)
