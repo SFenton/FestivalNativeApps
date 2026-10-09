@@ -42,3 +42,4 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [wide-columns](wide-columns.md) | When rows and cards show two columns: wide landscape only (iPad, unfolded Duo, wide Mac), row-major under full-width headings, meeting at the Duo hinge; the page audit |
 | [split-panes](split-panes.md) | List/detail split boundary: no drawn divider (a hairline only under Increase Contrast at a midpoint), one backdrop across the band |
 | [catalogue-sort](catalogue-sort.md) | Sorting catalogue songs (Songs, Item Shop): the shared Sort sheet/flyout, direction section, comparator, Reset, trigger state, persistence and missing-data pause |
+| [experimental-ranks](experimental-ranks.md) | Settings → Experimental Ranks: which ranking metrics Rank By offers, fallback of saved/routed metrics to Total Score, and the profile tiles, Rivals, notifications and first-run slide it gates |
