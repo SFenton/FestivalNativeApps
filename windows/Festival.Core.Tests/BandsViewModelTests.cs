@@ -291,14 +291,18 @@ public class BandDetailViewModelTests
         Assert.Equal("Fixture Rank One + Unknown User's highest-ranked band songs, sorted by percentile.", vm.BestDescription);
         Assert.StartsWith("Fixture Rank One + Unknown User's lowest", vm.WorstDescription);
 
-        vm.MetricIndex = 2;
+        vm.MetricIndex = 3;
         Assert.Equal(BandRankingMetric.FcRate, vm.Metric);
         Assert.Equal("FC Rate Rank", vm.Statistics[0].Label);
         Assert.Equal("#2", vm.Statistics[0].Value);
         Assert.Equal(["85.0%", "90.0%"], vm.HistoryRows.Select(r => r.Value).Reverse());
         vm.MetricIndex = 12;
-        Assert.Equal(2, vm.MetricIndex);
+        Assert.Equal(3, vm.MetricIndex);
         Assert.Equal(4, vm.Metrics.Count);
+        // The picker lists Total Score first, like web getEnabledBandRankingMetrics.
+        Assert.Equal(["Total Score", "Adjusted Skill", "Weighted", "FC Rate"], vm.MetricLabels);
+        vm.MetricIndex = 0;
+        Assert.Equal(BandRankingMetric.TotalScore, vm.Metric);
     }
 
     [Fact]

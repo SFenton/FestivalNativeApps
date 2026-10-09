@@ -17,6 +17,13 @@ public sealed class ExperimentalRanksTests
         Assert.Equal(RankingMetricInfo.All, RankingMetricInfo.Enabled(true));
         Assert.Equal([BandRankingMetric.TotalScore], BandRankingMetricInfo.Enabled(false));
         Assert.Equal(BandRankingMetricInfo.All, BandRankingMetricInfo.Enabled(true));
+        // Web getEnabledBandRankingMetrics order: Total Score first, then the experimental metrics.
+        Assert.Equal(
+            [BandRankingMetric.TotalScore, BandRankingMetric.Adjusted, BandRankingMetric.Weighted, BandRankingMetric.FcRate],
+            BandRankingMetricInfo.Enabled(true));
+        Assert.Equal(
+            [RankingMetric.TotalScore, RankingMetric.Adjusted, RankingMetric.Weighted, RankingMetric.FcRate, RankingMetric.MaxScore],
+            RankingMetricInfo.Enabled(true));
         Assert.False(RankingMetric.TotalScore.IsExperimental());
         Assert.All(RankingMetricInfo.All.Where(m => m != RankingMetric.TotalScore), m => Assert.True(m.IsExperimental()));
 

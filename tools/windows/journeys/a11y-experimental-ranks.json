@@ -34,5 +34,14 @@
    "after_ready": ["waitgone:id=fst.rankings.rank-by-menu@5", "waitfor:id=fst.full-rankings.instrument-menu"]},
   {"name": "xr-band-rankings-off", "route": "/leaderboards/bands/Band_Duets", "tabs": 0,
    "ready": ["waitfor:id=fst.band-rankings.list@20"],
-   "after_ready": ["waitgone:id=fst.band-rankings.rank-by-menu@5", "waitfor:id=fst.band-rankings.band-type-menu"]}
+   "after_ready": ["waitgone:id=fst.band-rankings.rank-by-menu@5", "waitfor:id=fst.band-rankings.band-type-menu"]},
+  {"name": "xr-band-detail-on", "route": "/bands/fixture-band-1?bandType=Band_Duets&teamKey=fixture-team-1",
+   "settings": {"experimentalRanks": true}, "tabs": 0, "ready": ["waitfor:id=fst.band.title@20"],
+   "after_ready": ["scrollinto:id=fst.band.rank-by@10", "assertread:id=fst.band.rank-by|Rank By, combo box, collapsed",
+                   "expand:id=fst.band.rank-by", "waitfor:name=Total Score&class=ComboBoxItem@5",
+                   "assertstate:name=Total Score&class=ComboBoxItem|selected=true",
+                   "assertbelow:name=Adjusted Skill&class=ComboBoxItem|name=Total Score&class=ComboBoxItem",
+                   "assertbelow:name=Weighted&class=ComboBoxItem|name=Adjusted Skill&class=ComboBoxItem",
+                   "assertbelow:name=FC Rate&class=ComboBoxItem|name=Weighted&class=ComboBoxItem",
+                   "collapse:id=fst.band.rank-by", "waitgone:name=FC Rate&class=ComboBoxItem@5", "wait:1"]}
 ]

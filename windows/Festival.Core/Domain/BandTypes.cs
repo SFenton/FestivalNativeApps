@@ -80,8 +80,12 @@ public enum BandRankingMetric
 /// <summary>Service identifiers and labels for <see cref="BandRankingMetric"/>.</summary>
 public static class BandRankingMetricInfo
 {
-    /// <summary>All metrics in the web picker's order.</summary>
-    public static IReadOnlyList<BandRankingMetric> All { get; } = Enum.GetValues<BandRankingMetric>();
+    /// <summary>
+    /// All metrics in the web picker's order (<c>getEnabledBandRankingMetrics</c>: Total Score first, then the
+    /// experimental ones), independent of the enum's declaration order.
+    /// </summary>
+    public static IReadOnlyList<BandRankingMetric> All { get; } =
+        [BandRankingMetric.TotalScore, BandRankingMetric.Adjusted, BandRankingMetric.Weighted, BandRankingMetric.FcRate];
 
     /// <summary>The band Rank By options Settings allows (web <c>getEnabledBandRankingMetrics</c>).</summary>
     /// <param name="experimentalRanks">Settings' Experimental Ranks toggle.</param>

@@ -192,14 +192,10 @@
                                        AutomationProperties.HeadingLevel="Level2" />
                             <!-- Visible Fluent header: the selected metric alone doesn't say what the box controls. -->
                             <ComboBox x:Name="RankBy" Grid.Column="1" VerticalAlignment="Bottom" MinWidth="160" Header="Rank By"
+                                      ItemsSource="{x:Bind ViewModel.MetricLabels, Mode=OneWay}"
                                       Visibility="{x:Bind ViewModel.ShowRankBy, Mode=OneWay}"
                                       SelectionChanged="OnRankByChanged" AutomationProperties.Name="Rank By"
-                                      AutomationProperties.AutomationId="fst.band.rank-by">
-                                <x:String>Adjusted Skill</x:String>
-                                <x:String>Weighted</x:String>
-                                <x:String>FC Rate</x:String>
-                                <x:String>Total Score</x:String>
-                            </ComboBox>
+                                      AutomationProperties.AutomationId="fst.band.rank-by" />
                         </Grid>
                         <!-- Local: Tab visits every link card (Rank and Best Song Rank), arrows move between cards. -->
                         <ItemsRepeater controls:TextScaleLayout.ScaleWithText="True" ItemsSource="{x:Bind ViewModel.Statistics, Mode=OneWay}" ItemTemplate="{StaticResource StatTemplates}"
