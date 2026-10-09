@@ -89,7 +89,7 @@ TEST_RUNNER_FST_AUDIT_OUT=/tmp/history python3 tools/ios_sim.py uitest --device 
   --only ScoreHistoryAccessibilityJourneyTests   # ≈ 8 min; writes each capture and the recognized lines
 ```
 
-These journeys are in the iPad UI-test bundle (`--app ipad`) and take minutes per launch pair, outside `apple-ci`'s iPhone-bundle, two-minute [CI journeys](xcuitest.md#ci-journeys) rule, so the required check covers this region with the hosted `scoreHistoryRowDrawsWholeNumbersAtAccessibilitySizes` (the row hosted directly and read with Vision, with CPU fallbacks for the VM; see [hosted snapshots](hosted-snapshots.md)); these journeys run on the serialized device lane.
+`apple-ci` runs them in the required check (step "Score History journeys", [CI journeys](xcuitest.md#ci-journeys)): `testScoreHistoryPageAtAX5` on the runner's iPhone, then both journeys on a throwaway iPad (`ci-device --type "iPad Pro 11-inch (M5)"`), all with `--fail-on-skip` against the plain fixture (in the large catalogue `fixture-pulse` is below the fold of Songs). They are the only evidence of real iOS/iPadOS Dynamic Type, glyph growth and the pane's focus path. The hosted `scoreHistoryRowDrawsWholeNumbersAtAccessibilitySizes` (the row hosted directly and read with Vision, see [hosted snapshots](hosted-snapshots.md)) is the fast macOS check and never stands in for them. On the VM the journeys' waits are `FestivalApp.budget`-scaled and `IPadAuditPageEvidence.recognizedLines` falls back to the accurate, then the fast recognizer pinned to the CPU, as the hosted recognizer does. Measured on a Mac: 77 s for the iPhone pair, about 5 min for both iPad journeys including boot.
 
 ### iPad audit waivers
 

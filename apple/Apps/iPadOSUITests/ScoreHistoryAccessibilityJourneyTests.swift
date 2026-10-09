@@ -102,7 +102,7 @@ final class ScoreHistoryAccessibilityJourneyTests: XCTestCase {
         app.launch()
         defer { app.terminate() }
         if isPad, !Audit.runningOnDuo { WindowResize.fill(app) }
-        XCTAssertTrue(Audit.anyElement(app, "fst.songs.list").waitForExistence(timeout: 25), "\(name): Songs")
+        XCTAssertTrue(Audit.anyElement(app, "fst.songs.list").waitForExistence(timeout: FestivalApp.budget(25)), "\(name): Songs")
         guard Audit.openSong(app, "fixture-pulse") else {
             XCTFail("\(name): Song Detail did not open")
             return Measure()
@@ -129,8 +129,8 @@ final class ScoreHistoryAccessibilityJourneyTests: XCTestCase {
             heading = "fst.history.header"
         }
         let firstRow = Audit.anyElement(app, "fst.history.row.0")
-        XCTAssertTrue(firstRow.waitForExistence(timeout: 15), "\(name): no score rows")
-        Thread.sleep(forTimeInterval: 2.5) // staggered row fade-in
+        XCTAssertTrue(firstRow.waitForExistence(timeout: FestivalApp.budget(15)), "\(name): no score rows")
+        Thread.sleep(forTimeInterval: FestivalApp.budget(2.5)) // staggered row fade-in
 
         if split {
             // VoiceOver focus moves to the pane's heading (`AccessibilityFocusMove`).
@@ -210,7 +210,7 @@ final class ScoreHistoryAccessibilityJourneyTests: XCTestCase {
             if viewAll.exists, viewAll.isHittable,
                window.insetBy(dx: 0, dy: 100).contains(CGPoint(x: viewAll.frame.midX, y: viewAll.frame.midY)) {
                 viewAll.tap()
-                return Audit.anyElement(app, "fst.history.row.0").waitForExistence(timeout: 15)
+                return Audit.anyElement(app, "fst.history.row.0").waitForExistence(timeout: FestivalApp.budget(15))
             }
             // The trailing margin: a drag that starts on the chart selects a bar.
             Audit.slowDrag(app, x: window.maxX - 12, fromY: window.minY + window.height * 0.75,
@@ -242,7 +242,7 @@ final class ScoreHistoryAccessibilityJourneyTests: XCTestCase {
     /// The app's last traced VoiceOver focus move once it satisfies `predicate`.
     @MainActor
     private func waitForFocus(_ app: XCUIApplication, timeout: TimeInterval = 6, _ predicate: (String) -> Bool) -> String {
-        let deadline = Date.now.addingTimeInterval(timeout)
+        let deadline = Date.now.addingTimeInterval(FestivalApp.budget(timeout))
         var last = ""
         repeat {
             let node = Audit.anyElement(app, "fst.nav.a11y-focus")
