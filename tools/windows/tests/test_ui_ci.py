@@ -46,6 +46,16 @@ class UiCiTests(unittest.TestCase):
         self.assertTrue(all(run.scan for run in landing.values()))
         self.assertIn("compact", landing["text-225"].sizes.split(","))
 
+    def test_song_band_pinned_runs_at_default_and_largest_text(self):
+        # Issue #461 (#306): the full band board's pinned "your band" row runs in CI at default and 225% text.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-song-band-pinned.json"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        pages = json.loads((ci.JOURNEYS / "a11y-song-band-pinned.json").read_text(encoding="utf-8"))
+        names = {page["name"] for page in pages}
+        self.assertTrue({"song-band-pin-jump", "song-band-pin-open", "song-band-pin-no-player"} <= names)
+
     def test_modals_run_at_default_and_largest_text(self):
         modal = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-modals.json"}
         self.assertEqual({("normal", True), ("text-225", True)}, modal)
