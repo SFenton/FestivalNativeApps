@@ -472,6 +472,18 @@ final class SongsScrollChrome {
         return RowFade(edge: sectionBarBottom, active: true, depthLimit: rowFadeLimit)
     }
 
+    /// The row mask's edge inputs without its depth limit, which the mask reads only for
+    /// a row near the edge (``PinnedHeaderEdgeFade/RowMaskDepth``). ``rowFadeLimit`` moves
+    /// every frame while a section title passes the bar; observed by every row it
+    /// re-rendered every visible row's mask each of those frames (issue #553).
+    ///
+    /// - Parameter enabled: The List has sections and the OS shows the section bar.
+    /// - Returns: ``rowFade(enabled:)`` with the depth limit left unread (nil).
+    func rowEdge(enabled: Bool) -> RowFade {
+        guard enabled, listScrolled else { return .inactive }
+        return RowFade(edge: sectionBarBottom, active: true, depthLimit: nil)
+    }
+
     /// Record one in-list title's fade limit, or that it no longer limits the fade.
     ///
     /// - Parameters:

@@ -2145,8 +2145,8 @@ struct SongsInlineSectionTitle: View {
 /// (issue #383, ``SwiftUI/View/pinnedHeaderEdgeFadeRowMask(edge:active:depthLimit:rowLimit:)``).
 /// Observes ``SongsScrollChrome`` here, so a scroll re-renders only this modifier, never
 /// the List (issue #8). At the top it observes only the scroll-away state
-/// (``SongsScrollChrome/rowFade(enabled:)``), so the expanding large title re-renders no
-/// row.
+/// (``SongsScrollChrome/rowEdge(enabled:)``), so the expanding large title re-renders no
+/// row; once scrolled, only rows near the bar read the moving depth limit (issue #553).
 private struct SectionBarRowFade: ViewModifier {
     let chrome: SongsScrollChrome
     /// False for a row with no section bar above it (no sections, or before iOS 26).
@@ -2154,9 +2154,11 @@ private struct SectionBarRowFade: ViewModifier {
 
     func body(content: Content) -> some View {
         if enabled {
-            let fade = chrome.rowFade(enabled: true)
+            let edge = chrome.rowEdge(enabled: true)
+            let chrome = chrome
             content.pinnedHeaderEdgeFadeRowMask(
-                edge: fade.edge, active: fade.active, depthLimit: fade.depthLimit,
+                edge: edge.edge, active: edge.active,
+                depthLimit: PinnedHeaderEdgeFade.RowMaskDepth { chrome.rowFadeLimit },
                 rowLimit: chrome.rowMaskLimit
             )
         } else {
