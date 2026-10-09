@@ -1,6 +1,7 @@
 [
   {
     "name": "paths-warning",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "ready": [
       "waitfor:id=fst.song-detail.paths@20",
@@ -16,6 +17,7 @@
   },
   {
     "name": "paths-image",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -35,6 +37,7 @@
   },
   {
     "name": "paths-text",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true,
@@ -54,6 +57,7 @@
   },
   {
     "name": "paths-zoomed",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -74,6 +78,7 @@
   },
   {
     "name": "paths-scrolled",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "skip_sizes": {
       "scale-150": [
@@ -105,6 +110,7 @@
   },
   {
     "name": "paths-zoom-restore",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -135,6 +141,7 @@
   },
   {
     "name": "paths-column-reorder",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true,
@@ -160,6 +167,7 @@
   },
   {
     "name": "paths-image-loading",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -185,6 +193,7 @@
   },
   {
     "name": "paths-text-loading",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true,
@@ -211,6 +220,7 @@
   },
   {
     "name": "paths-missing",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -237,6 +247,7 @@
   },
   {
     "name": "paths-offline",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -264,6 +275,7 @@
   },
   {
     "name": "paths-instrument-switch",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -304,6 +316,7 @@
   },
   {
     "name": "paths-difficulty-switch",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -331,6 +344,7 @@
   },
   {
     "name": "paths-image-loading-wide",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -353,6 +367,7 @@
   },
   {
     "name": "paths-text-loading-wide",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true,
@@ -376,6 +391,7 @@
   },
   {
     "name": "paths-missing-wide",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -399,6 +415,7 @@
   },
   {
     "name": "paths-offline-wide",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -423,6 +440,7 @@
   },
   {
     "name": "paths-instrument-switch-wide",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -450,6 +468,7 @@
   },
   {
     "name": "paths-difficulty-switch-wide",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -474,6 +493,7 @@
   },
   {
     "name": "paths-swap-announced",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -504,6 +524,7 @@
   },
   {
     "name": "paths-display-toggle",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -542,6 +563,7 @@
   },
   {
     "name": "paths-rapid-switch",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -575,6 +597,7 @@
   },
   {
     "name": "paths-swap-announced-wide",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -602,6 +625,7 @@
   },
   {
     "name": "paths-display-toggle-wide",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -635,6 +659,7 @@
   },
   {
     "name": "paths-rapid-switch-wide",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -663,6 +688,7 @@
   },
   {
     "name": "paths-keyboard-switch",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -695,6 +721,7 @@
   },
   {
     "name": "paths-keyboard-switch-wide",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -723,6 +750,7 @@
   },
   {
     "name": "paths-focus-order",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -765,6 +793,7 @@
   },
   {
     "name": "paths-focus-order-text",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true,
@@ -805,6 +834,7 @@
   },
   {
     "name": "paths-focus-order-wide",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -847,6 +877,7 @@
   },
   {
     "name": "paths-focus-order-text-wide",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true,
@@ -887,6 +918,7 @@
   },
   {
     "name": "paths-instrument-keyboard",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -935,6 +967,7 @@
   },
   {
     "name": "paths-instrument-hidden",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": false,
@@ -975,6 +1008,7 @@
   },
   {
     "name": "paths-instrument-hidden-wide",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": false,
@@ -1007,6 +1041,7 @@
   },
   {
     "name": "paths-selectors-one-line",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true
@@ -1043,6 +1078,7 @@
   },
   {
     "name": "paths-selectors-reflow",
+    "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
       "pathUnavailableWarningDismissed": true

@@ -62,6 +62,8 @@ jobs:
         # Add a journey here only if it runs against one of these fixtures: testing/apple/xcuitest.md#ci-journeys.
         env:
           JOURNEYS: >-
+            SongsChromeJourneyTests/testScrollAwaySectionBarAccessibility
+            SongsChromeJourneyTests/testScrollAwaySectionBarAccessibilityAtAX5
             SongsChromeJourneyTests/testSectionBarHeadingAtLargestText
             FirstRunJourneyTests/testSongDemoSlideAccessibleAtLargestText
             SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5

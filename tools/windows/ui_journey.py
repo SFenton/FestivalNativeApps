@@ -52,6 +52,25 @@ EXE = journey_exe.DEBUG_EXE
 # region Fixture service
 
 
+def journey_fixture(fixture: tuple[str, ...], override: Path | None = None) -> tuple[Path | None, tuple[str, ...]]:
+    """The fixture script and flags for a journey's ``fixture`` list (same convention as ``a11y_matrix`` pages).
+
+    A list starting with a ``.py`` name under ``tools/windows`` names its own wrapper (``["rankings_fixture.py",
+    "--rankings-delay", "3"]``); otherwise its flags go to ``--fixture`` or :data:`FIXTURE`, and an empty list to the
+    plain mock service. Naming the wrapper in the journey lets any runner (CI included) serve it correctly.
+
+    Args:
+        fixture: The journey's ``fixture`` list.
+        override: ``--fixture`` from the command line, used when the journey names no wrapper.
+
+    Returns:
+        Script (``None``: plain mock service) and the flags for it.
+    """
+    if fixture and fixture[0].endswith(".py"):
+        return REPO_ROOT / "tools" / "windows" / fixture[0], tuple(fixture[1:])
+    return override or (FIXTURE if fixture else None), tuple(fixture)
+
+
 def start_mock(log: Path, service_args: tuple[str, ...] = (), fixture: Path | None = None) -> tuple[subprocess.Popen, int]:
     """Start the fixture service on a free loopback port, logging to a file.
 
@@ -78,13 +97,13 @@ def start_mock(log: Path, service_args: tuple[str, ...] = (), fixture: Path | No
     command = ([sys.executable, "-u", str(fixture), "--port", "0", *service_args] if fixture is not None
                else [sys.executable, "-u", "-c", bootstrap, str(MOCK.parent), *service_args])
     proc = subprocess.Popen(command, stdout=handle, stderr=subprocess.STDOUT)
-    for _ in range(200):
+    for _ in range(600):
         match = re.search(r"127\.0\.0\.1:(\d+)", log.read_text(encoding="utf-8", errors="replace"))
         if match:
             return proc, int(match.group(1))
         time.sleep(0.1)
     proc.kill()
-    raise RuntimeError(f"fixture service did not start; see {log}")
+    raise RuntimeError(f"fixture service did not start within 60 s; see {log}")
 
 # endregion
 
@@ -200,7 +219,8 @@ def main(argv: list[str] | None = None) -> int:
             extra = tuple(journey.get("fixture", ()))
             if extra not in services:
                 log = "fixture-service.log" if not services else f"fixture-service-{len(services)}.log"
-                services[extra] = start_mock(args.shots / log, base + extra, args.fixture or (FIXTURE if extra else None))
+                script, flags = journey_fixture(extra, args.fixture)
+                services[extra] = start_mock(args.shots / log, base + flags, script)
             port = services[extra][1]
             ok, detail = run_journey(journey, port, args.shots.resolve())
             attempts = 1
