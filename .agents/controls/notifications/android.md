@@ -23,6 +23,7 @@
 ## Behavior
 
 - Tapping a row marks it seen; a row with a destination also closes the sheet and pushes Song Detail (`SongDetailRoute`) or, for rank events, `FullRankingsRoute(instrument, rankBy)` (Leaderboards hub without an instrument). Live coalesced rank events carry no instrument, so routing falls back to the row's `instrument` (issue #136). Closing the sheet marks every loaded row seen.
+- Settings → Experimental Ranks ([experimental-ranks](../../patterns/experimental-ranks.md) R4, #541): while it is off, `NotificationRouting.projectExperimentalRanks` (web `projectExperimentalRankNotification`) hides rows whose rank events are all experimental and reduces a mixed coalesced row to its other events; the view model re-projects when the setting changes, and Mark All Read marks only the shown rows.
 - No-player state offers Select Player Profile (opens the profile sheet). Never sends selected-profile headers (the gate rejects them; the UI journey asserts it).
 - Debug: `FST_DEBUG_SHEET=notifications` opens the sheet at launch.
 
