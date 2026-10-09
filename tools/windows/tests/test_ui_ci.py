@@ -4,8 +4,10 @@ Run: ``python -m unittest discover -s tools/windows/tests`` from the repo root.
 """
 
 import json
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from tools.windows import a11y_matrix as m
 from tools.windows import ui_ci as ci
@@ -37,6 +39,8 @@ class UiCiTests(unittest.TestCase):
                 # The runner's 1920x1080 desktop holds compact and medium, not wide (1440x900 plus the taskbar).
                 self.assertNotIn("wide", sizes)
                 self.assertTrue(m.mode_pages(pages, run.mode), "no page runs in this mode")
+                self.assertTrue(any(m.page_sizes(page, sizes, run.mode) for page in m.mode_pages(pages, run.mode)),
+                                "no page runs at this run's sizes")
                 for page in pages:
                     self.assertLessEqual(set(page.get("axe_allow", ())), set(m.AXE_ALLOW), page["name"])
 
@@ -46,12 +50,25 @@ class UiCiTests(unittest.TestCase):
         self.assertTrue(all(run.scan for run in landing.values()))
         self.assertIn("compact", landing["text-225"].sizes.split(","))
 
+    def test_first_run_demos_run_at_default_and_largest_text(self):
+        """#420 review: the first-run demo journey gates PRs, not just its JSON guard."""
+        demos = {run.mode: run for run in ci.RUNS if run.pages == "a11y-first-run-demos.json"}
+        self.assertEqual({"normal", "text-225"}, set(demos))
+        self.assertTrue(all(run.scan and not run.only for run in demos.values()))
+        self.assertIn("compact", demos["text-225"].sizes.split(","))
+        self.assertEqual({"compact", "medium"}, set(demos["normal"].sizes.split(",")))
+
     def test_modals_run_at_default_and_largest_text(self):
         modal = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-modals.json"}
         self.assertEqual({("normal", True), ("text-225", True)}, modal)
         large = next(run for run in ci.RUNS if run.pages == "a11y-modals.json" and run.mode == "text-225")
         self.assertIn("compact", large.sizes.split(","))
         self.assertGreaterEqual(large.tabs, 1)
+
+    def test_back_keeps_place_runs_at_default_and_largest_text(self):
+        """#435: the Back-to-cached-page pages (#82) gate pull requests at 100% and 225% text, with an Axe scan."""
+        back = {(run.mode, run.scan, run.only) for run in ci.RUNS if run.pages == "a11y-back-keeps-place.json"}
+        self.assertEqual({("normal", True, ""), ("text-225", True, "")}, back)
 
     def test_settings_pages_wait_for_feedback_rows_before_scrolling(self):
         """#535: the Feedback rows appear above every later Settings section once ``/api/features`` answers, so a target
@@ -95,6 +112,18 @@ class UiCiTests(unittest.TestCase):
         for target in ("fst.songs.filter|", "fst.songs.filter.reset|", "fst.songs.filter.year.select-all|",
                        "fst.songs.filter.year.clear-all|"):
             self.assertIn(f"assertsize:id={target}40x40", steps)
+
+    def test_load_swap_runs_every_page(self):
+        # Issue #431 (#71) review: every load-swap page (normal, 225% text, Reduce Motion and Animation effects off)
+        # runs in windows-ui, Axe-scanned, at a size the page supports.
+        runs = [run for run in ci.RUNS if run.pages == "a11y-load-swap.json"]
+        self.assertEqual({"normal", "text-225", "no-animations"}, {run.mode for run in runs})
+        self.assertTrue(all(run.scan and not run.only for run in runs))
+        pages = json.loads((ci.JOURNEYS / "a11y-load-swap.json").read_text(encoding="utf-8"))
+        covered = {page["name"] for run in runs for page in m.mode_pages(pages, run.mode)
+                   if m.page_sizes(page, run.sizes.split(","), run.mode)}
+        self.assertEqual({page["name"] for page in pages}, covered)
+        self.assertIn("load-swap-full-rankings-motion-system", covered)
 
     def test_argv(self):
         run = ci.Run("x", "a11y-modals.json", sizes="compact", mode="text-225", tabs=30)
@@ -150,6 +179,23 @@ class UiCiTests(unittest.TestCase):
                 name = page["name"]
                 if "live" not in name.lower() and not page.get("live_only") and name not in skips:
                     self.assertIn((source.name, name), covered)
+
+    def test_generated_runs_follow_page_sizes(self):
+        """A page limited to medium (the Shop row pages) still runs at 225% text: in its own medium run, not in an
+        empty compact one, while pages without ``sizes`` keep compact."""
+        pages = [{"name": "free"}, {"name": "medium-only", "sizes": ["medium", "wide"]},
+                 {"name": "wide-only", "sizes": ["wide"]}]
+        with tempfile.TemporaryDirectory() as tmp:
+            journeys = Path(tmp) / "journeys"
+            journeys.mkdir()
+            (journeys / "a11y-probe.json").write_text(json.dumps(pages), encoding="utf-8")
+            with mock.patch.object(ci, "JOURNEYS", journeys):
+                runs = {run.name: run for run in ci.generated_runs(())}
+        self.assertEqual((runs["a11y-probe-text-225"].sizes, runs["a11y-probe-text-225"].only), ("compact", "free,wide-only"))
+        self.assertEqual((runs["a11y-probe-text-225-medium"].sizes, runs["a11y-probe-text-225-medium"].only),
+                         ("medium", "medium-only"))
+        self.assertEqual((runs["a11y-probe-normal"].sizes, runs["a11y-probe-normal"].only),
+                         ("compact,medium", "free,medium-only,wide-only"))
 
 
 if __name__ == "__main__":

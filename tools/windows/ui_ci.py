@@ -7,8 +7,9 @@ A run with a system ``mode`` (e.g. ``text-225``) changes the runner's own deskto
 
 This is the one registry of Windows accessibility journeys that gate pull requests: a journey is in CI only when it has a
 :data:`RUNS` entry (``only`` limits a run to some of a file's pages). ``tests/test_ui_ci.py`` checks the entries and
-that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415) and the Quick Links landings
-(issue #416) run at default and 225% text.
+that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
+(issue #416), the board load swap (issue #431, also with Animation effects off) and the first-run song demos
+(issue #420) run at default and 225% text.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
 Usage::
@@ -81,6 +82,14 @@ class Run:
 #: host checks).
 SECTION_INDEX_BACKWARD = "index-backward-after-scroll,index-backward-after-scroll-keyboard"
 
+#: The ``a11y-board-footer-fade.json`` song-leaderboard pages (issue #93's footer fade; the file's other boards and its
+#: system-mode pages stay host checks).
+SONG_BOARD_FOOTER_FADE = ("footer-fade-song-leaderboard-rest,footer-fade-song-leaderboard-mid,footer-fade-song-leaderboard-end,"
+                          "footer-fade-song-leaderboard-more-contrast,footer-fade-song-leaderboard-less-transparency")
+
+#: Window presets CI runs a11y pages at (see :data:`RUNS`).
+CI_SIZES = ("compact", "medium")
+
 #: Journeys the ``windows-ui`` job runs, in order. ``wide`` (1440 epx) is left to the host matrix: the runner's
 #: desktop is 1920x1080 at 100% scale, so compact (500x800) and medium (900x700) fit with room for the taskbar.
 RUNS: tuple[Run, ...] = (
@@ -96,11 +105,40 @@ RUNS: tuple[Run, ...] = (
     # "B, text", stays a Level 2 heading, Jump -> title -> list order, Jump's name and 40x40 target, by pointer and keys.
     Run("section-index-backward", "a11y-section-index.json", only=SECTION_INDEX_BACKWARD),
     Run("section-index-backward-text-225", "a11y-section-index.json", mode="text-225", only=SECTION_INDEX_BACKWARD),
+    # Song leaderboard footer and paging (issues #93, #443): pinned row and pager names, states and 40x40 targets,
+    # header -> rows -> pinned row -> pager order, the fade layer kept out of the control view, the Tab/Shift+Tab order
+    # at rest, mid-load and on page 2, and a keyboard page change that keeps the header, pinned row and pager in order
+    # with focus on Next; also with in-app Reduce Motion.
+    Run("song-leaderboard", "a11y-song-leaderboard.json"),
+    Run("song-leaderboard-text-225", "a11y-song-leaderboard.json", sizes="compact", mode="text-225"),
+    Run("song-leaderboard-reduced-motion", "a11y-song-leaderboard.json", sizes="medium", mode="app-reduced",
+        only="song-board-paging-keyboard"),
+    # The rows fade 40 epx above the footer at rest, mid-scroll and end, and cut hard under More Contrast and
+    # Less Transparency (issue #93).
+    Run("song-leaderboard-footer-fade", "a11y-board-footer-fade.json", only=SONG_BOARD_FOOTER_FADE),
+    Run("song-leaderboard-footer-fade-text-225", "a11y-board-footer-fade.json", sizes="compact", mode="text-225",
+        only=SONG_BOARD_FOOTER_FADE),
+    # Back from View All or a rival to cached Leaderboards and Rivals (issues #82, #276, #435): the opener and its card
+    # stay put, focus returns to the opener, it reads "<name>, button" after its card and heading, keeps a 40 epx target,
+    # and Tab/Shift+Tab continue from it; by keys (Enter, Alt+Left) and pointer (the title-bar Back).
+    Run("back-keeps-place", "a11y-back-keeps-place.json"),
+    Run("back-keeps-place-text-225", "a11y-back-keeps-place.json", sizes="compact", mode="text-225"),
     # Quick Links landings on Settings and Leaderboards (issues #51, #416): entry name and current section, 40 epx
     # entry and items, keyboard order, the jump announcement, heading landing inset and focus. The wide pane page
     # (scale-100/150 modes) stays in the host matrix.
     Run("quick-links-landing", "a11y-quick-links-landing.json", tabs=0),
     Run("quick-links-landing-text-225", "a11y-quick-links-landing.json", sizes="compact", mode="text-225", tabs=0),
+    # Board load swap (issues #71, #431): spinner "Busy Loading …, ProgressRing", stale rows leave UIA, selectors ->
+    # spinner -> pager order, enabled 40x40 selectors and pager, focus kept on the pager, mid-load Axe scans; then the
+    # same swap at 225% text and with Windows' Animation effects off. Every page is medium-only (pager plus spinner).
+    Run("load-swap", "a11y-load-swap.json", sizes="medium", tabs=0),
+    Run("load-swap-text-225", "a11y-load-swap.json", sizes="medium", mode="text-225", tabs=0),
+    Run("load-swap-no-animations", "a11y-load-swap.json", sizes="medium", mode="no-animations", tabs=0),
+    # First-run song demos (issues #57, #420): Songs, top-songs and Item Shop demos in placeholder and catalogue states
+    # stay out of the control view, slide name and slide -> pips -> Next -> Back -> Close order, Tab to an on-screen pip,
+    # keyboard Settings replay with Esc focus return, demo frame clear of the title. At 225% the guide body scrolls.
+    Run("first-run-demos", "a11y-first-run-demos.json"),
+    Run("first-run-demos-text-225", "a11y-first-run-demos.json", sizes="compact", mode="text-225"),
 )
 
 
@@ -110,6 +148,8 @@ def generated_runs(explicit: tuple[Run, ...]) -> tuple[Run, ...]:
     A page without ``modes`` runs at ``normal`` and ``text-225``; a page that declares ``modes`` (any of them shows its
     state, e.g. ``["hc-desert", "no-transparency"]`` for a hard edge that only exists under a contrast theme or with
     transparency off) runs once, in its first listed mode. ``live_only`` pages (they need the live service) and ``ci_skip.json`` ``a11y_pages`` are left out.
+    A generated run uses compact at text sizes and compact and medium otherwise; a page whose ``sizes`` allow none of
+    those (e.g. medium-only Shop rows at 225% text) gets its own run at the first CI size it allows.
     """
     skip_file = JOURNEYS.parent / "ci_skip.json"
     skipped = json.loads(skip_file.read_text(encoding="utf-8")).get("a11y_pages", {}) if skip_file.exists() else {}
@@ -133,9 +173,16 @@ def generated_runs(explicit: tuple[Run, ...]) -> tuple[Run, ...]:
             chosen = a11y_matrix.mode_pages(candidates, mode)
             if not chosen:
                 continue
-            only = ",".join(page["name"] for page in chosen)
-            sizes = "compact" if mode.startswith("text-") else "compact,medium"
-            generated.append(Run(f"{source.stem}-{mode}", source.name, sizes=sizes, mode=mode, only=only))
+            default = ("compact",) if mode.startswith("text-") else CI_SIZES
+            groups: dict[tuple[str, ...], list[dict]] = {}
+            for page in chosen:
+                fits = default if a11y_matrix.page_sizes(page, list(default), mode) else \
+                    tuple(a11y_matrix.page_sizes(page, list(CI_SIZES), mode)[:1]) or default
+                groups.setdefault(fits, []).append(page)
+            for sizes, group in groups.items():
+                suffix = "" if sizes == default else "-" + "-".join(sizes)
+                generated.append(Run(f"{source.stem}-{mode}{suffix}", source.name, sizes=",".join(sizes), mode=mode,
+                                     only=",".join(page["name"] for page in group)))
     return (*explicit, *generated)
 
 
