@@ -1,12 +1,14 @@
 [
   {
     "name": "search-closed",
+    "fixture": ["profile_fixture.py"],
     "tab": "songs",
     "ready": ["waitfor:id=fst.songs.row.fixture-pulse@20"],
     "after_ready": ["waitfor:id=fst.global-search.open@5", "waitgone:id=fst.global-search.field"]
   },
   {
     "name": "search-suggestions",
+    "fixture": ["profile_fixture.py"],
     "tab": "songs",
     "tabs": 0,
     "sizes": ["medium", "wide", "maximized"],
@@ -17,12 +19,14 @@
   },
   {
     "name": "search-open-hint",
+    "fixture": ["profile_fixture.py"],
     "route": "/search",
     "ready": ["waitfor:id=fst.global-search.field@20"],
     "after_ready": ["waitfor:id=fst.global-search.hint@5", "waitgone:id=fst.global-search.result.song"]
   },
   {
     "name": "search-loading",
+    "fixture": ["profile_fixture.py"],
     "route": "/search",
     "tabs": 0,
     "ready": ["waitfor:id=fst.global-search.field@20"],
@@ -32,12 +36,14 @@
   },
   {
     "name": "search-results-all",
+    "fixture": ["profile_fixture.py"],
     "route": "/search?q=fixture",
     "ready": ["waitfor:id=fst.global-search.result.player@20"],
     "after_ready": ["waitfor:id=fst.global-search.result.song@5"]
   },
   {
     "name": "search-results-songs",
+    "fixture": ["profile_fixture.py"],
     "route": "/search?q=fixture",
     "ready": ["waitfor:id=fst.global-search.result.player@20"],
     "after_ready": ["select:id=fst.global-search.scope.songs", "waitfor:id=fst.global-search.result.song@5",
@@ -45,6 +51,7 @@
   },
   {
     "name": "search-results-players",
+    "fixture": ["profile_fixture.py"],
     "route": "/search?q=fixture",
     "ready": ["waitfor:id=fst.global-search.result.player@20"],
     "after_ready": ["select:id=fst.global-search.scope.players", "waitfor:id=fst.global-search.result.player@5",
@@ -52,24 +59,28 @@
   },
   {
     "name": "search-empty",
+    "fixture": ["profile_fixture.py"],
     "route": "/search?q=zzzz",
     "ready": ["waitfor:id=fst.global-search.empty.title@20"],
     "after_ready": ["waitfor:id=fst.global-search.empty.subtitle@5", "waitgone:id=fst.global-search.result.song"]
   },
   {
     "name": "search-error",
+    "fixture": ["profile_fixture.py"],
     "route": "/search?q=busy",
     "ready": ["waitfor:id=fst.service-status.title@20"],
     "after_ready": ["waitgone:id=fst.global-search.result.player"]
   },
   {
     "name": "search-results-bands",
+    "fixture": ["profile_fixture.py"],
     "route": "/search?q=fixture&scope=bands",
     "ready": ["waitfor:id=fst.global-search.result.band@20"],
     "after_ready": ["waitgone:id=fst.global-search.result.song@5", "waitgone:id=fst.global-search.result.player@5"]
   },
   {
     "name": "search-navigated",
+    "fixture": ["profile_fixture.py"],
     "route": "/search?q=fixture",
     "tabs": 0,
     "ready": ["waitfor:id=fst.global-search.result.song@20"],
