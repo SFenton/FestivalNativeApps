@@ -1,7 +1,6 @@
 {
   "a11y_pages": {},
   "tasks": {
-    "journey:search": {"reason": "Search fixture state assertions fail.", "issue": "SFenton/festival-report-tracker#530"},
     "journey:whats-new-pointer": {"reason": "Injected pointer dismissal assertions fail.", "issue": "SFenton/festival-report-tracker#531"},
     "runner:settings": {"reason": "Visual-order drag assertion fails.", "issue": "SFenton/festival-report-tracker#531"},
     "runner:fade": {"reason": "Load-transition rush assertions fail.", "issue": "SFenton/festival-report-tracker#532"},
