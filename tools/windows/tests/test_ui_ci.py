@@ -132,6 +132,23 @@ class UiCiTests(unittest.TestCase):
                        "fst.songs.filter.year.clear-all|"):
             self.assertIn(f"assertsize:id={target}40x40", steps)
 
+    def test_profile_title_runs_at_default_and_largest_text(self):
+        # Issue #446 (#97): the avatar-free profile title row runs in CI at default and 225% text, fixture pages only.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-profile-title.json"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        pages = json.loads((ci.JOURNEYS / "a11y-profile-title.json").read_text(encoding="utf-8"))
+        fixture = {page["name"] for page in pages} - {page["name"] for page in m.live_pages(pages)}
+        for run in runs.values():
+            with self.subTest(run=run.name):
+                only = set(run.only.split(","))
+                self.assertFalse({name for name in only if name.startswith("pt-live")}, "CI makes no service calls")
+                self.assertTrue({"pt-switch", "pt-anonymous", "pt-selected", "pt-notice"} <= only)
+                self.assertLessEqual(fixture, only)
+        large = [page["name"] for page in m.mode_pages(pages, "text-225") if page["name"] in runs["text-225"].only]
+        self.assertIn("pt-actions-wrap", large)
+
     def test_load_swap_runs_every_page(self):
         # Issue #431 (#71) review: every load-swap page (normal, 225% text, Reduce Motion and Animation effects off)
         # runs in windows-ui, Axe-scanned, at a size the page supports.

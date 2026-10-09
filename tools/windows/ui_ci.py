@@ -8,8 +8,8 @@ A run with a system ``mode`` (e.g. ``text-225``) changes the runner's own deskto
 This is the one registry of Windows accessibility journeys that gate pull requests: a journey is in CI only when it has a
 :data:`RUNS` entry (``only`` limits a run to some of a file's pages). ``tests/test_ui_ci.py`` checks the entries and
 that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
-(issue #416), the board load swap (issue #431, also with Animation effects off) and the first-run song demos
-(issue #420) run at default and 225% text.
+(issue #416), the board load swap (issue #431, also with Animation effects off), the first-run song demos (issue #420)
+and the profile title row (issue #446) run at default and 225% text.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
 Usage::
@@ -81,6 +81,10 @@ class Run:
 #: host checks).
 SECTION_INDEX_BACKWARD = "index-backward-after-scroll,index-backward-after-scroll-keyboard"
 
+#: The ``a11y-profile-title.json`` fixture pages (issues #97, #285, #446); its ``pt-live-*`` pages need the public service.
+PROFILE_TITLE_FIXTURE = ("pt-switch,pt-anonymous,pt-selected,pt-notice,pt-actions-row,pt-actions-wrap,"
+                         "pt-keyboard-switch,pt-keyboard-selected")
+
 #: The ``a11y-board-footer-fade.json`` song-leaderboard pages (issue #93's footer fade; the file's other boards and its
 #: system-mode pages stay host checks).
 SONG_BOARD_FOOTER_FADE = ("footer-fade-song-leaderboard-rest,footer-fade-song-leaderboard-mid,footer-fade-song-leaderboard-end,"
@@ -145,6 +149,12 @@ RUNS: tuple[Run, ...] = (
     # keyboard Settings replay with Esc focus return, demo frame clear of the title. At 225% the guide body scrolls.
     Run("first-run-demos", "a11y-first-run-demos.json"),
     Run("first-run-demos-text-225", "a11y-first-run-demos.json", sizes="compact", mode="text-225"),
+    # Player profile title row without the avatar card (issues #97, #446): the name is a non-focusable Level 1 heading
+    # with no PersonPicture, then Select/Switch/Deselect or the paused notice, then Overview; 40 epx actions, keyboard
+    # order and focus return, and Quick Links wrapping under the action at 225% text (#285).
+    Run("profile-title", "a11y-profile-title.json", tabs=0, only=PROFILE_TITLE_FIXTURE),
+    Run("profile-title-text-225", "a11y-profile-title.json", sizes="compact", mode="text-225", tabs=0,
+        only=PROFILE_TITLE_FIXTURE),
 )
 
 
