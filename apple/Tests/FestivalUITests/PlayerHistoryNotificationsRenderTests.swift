@@ -494,13 +494,25 @@ func scoreHistoryDrawnNumbers(_ label: String) -> [String] {
             let label = try #require(tree.first { $0.identifier == id && $0.isElement }, "\(name): \(id)").spokenName
             let frame = try #require(nativeHostedAccessibilityFrame(id, in: host), "\(name): \(id) frame")
             #expect(frame.height >= 44 && frame.minX >= 0 && frame.maxX <= width, "\(name): \(id) \(frame)")
-            let lines = nativeHostedRecognizedLines(try nativeHostedImage(host, in: frame))
+            let recognized = nativeHostedRecognizedText(try nativeHostedImage(host, in: frame))
+            let lines = recognized.lines
             let numbers = scoreHistoryDrawnNumbers(label)
             #expect(numbers.count == 2, "\(name): score and accuracy in \(label)")
+            if lines.isEmpty, nativeHostedIsVirtualMachine, case let probe = try nativeHostedTextRecognitionProbe(),
+               !probe.available {
+                // Vision reads nothing in this VM (not even the probe's large text), so the drawn
+                // text cannot be judged here; the label and frame checks above still hold, and a
+                // real Mac (or the iOS/iPadOS journeys) judges it strictly.
+                withKnownIssue("Vision reads no text on this host: \(probe.attempts); row: \(recognized.attempts)") {
+                    Issue.record("\(name): \(id) drawn text not recognized")
+                }
+                if index == 0 { heights.append(frame.height) }
+                continue
+            }
             for digits in numbers {
                 #expect(
                     lines.contains { nativeHostedDigits($0).contains(digits) },
-                    "\(name): \(id) draws \(digits) whole on one line: \(lines)"
+                    "\(name): \(id) draws \(digits) whole on one line: \(lines) (\(recognized.attempts))"
                 )
             }
             #expect(!lines.contains { $0.contains("\u{2026}") }, "\(name): \(id) is truncated: \(lines)")
