@@ -66,6 +66,8 @@ class SongsBucketHeaderAccessibilityJourneyTest {
         if (hardEdge != null) preferences[booleanPreferencesKey(hardEdge)] = true
         h.launch(DebugLaunch(stillBackground = true), BucketHeaderFixtures.transport(), MemoryPreferences(preferences), fontScale)
         h.waitForTag("fst.songs.row.s-0")
+        // From here readingOrder follows Compose's traversal links: TalkBack's order, not tree order.
+        h.publishTalkBackTree()
     }
 
     private val isBucketHeader = SemanticsMatcher("Songs bucket header") {
@@ -106,10 +108,12 @@ class SongsBucketHeaderAccessibilityJourneyTest {
      *
      * TalkBack reads the list's stops in on-screen order: a real `talkback_walk.py` walk of
      * Duration on FST_Phone (live service, 2026-10-08) read "Under 1 Minute. Heading", its rows,
-     * then "1 to 2 minutes. Heading" and its rows. [JourneyHarness.readingOrder] walks the raw tree,
-     * where a `LazyColumn` places sticky headers after its items, so the stops are ordered by their
-     * shown top here. A row's shown top is clipped to the pinned header's bottom edge, because
-     * rows above that edge are hidden. A row wholly behind the pinned header is skipped.
+     * then "1 to 2 minutes. Heading" and its rows. Both orders are checked: the stops ordered by
+     * their shown top, and the same stops' positions in [JourneyHarness.readingOrder], which
+     * [launch] made TalkBack's linear order ([JourneyHarness.publishTalkBackTree]; the raw tree
+     * places a `LazyColumn`'s sticky headers after its items). A row's shown top is clipped to the
+     * pinned header's bottom edge, because rows above that edge are hidden. A row wholly behind
+     * the pinned header is skipped.
      * Fixture song `s-n` (title "Song n") is in section `n / 10`, and sections follow [tokens].
      *
      * @param screen Reading-order log name.
@@ -130,7 +134,7 @@ class SongsBucketHeaderAccessibilityJourneyTest {
             val spoken = node.config[SemanticsProperties.ContentDescription].joinToString(", ")
             val read = labels.filter { it == spoken || it.startsWith("$spoken, ") }
             assertEquals("$screen: \"$spoken\" is one TalkBack stop in $labels", 1, read.size)
-            stops += Stop(node.boundsInRoot.top, section, spoken)
+            stops += Stop(node.boundsInRoot.top, section, spoken, labels.indexOf(read.single()))
         }
         val pinnedBottom = shown.filter { abs(it.boundsInRoot.top - list.top) <= rule.density.density * 2 }
             .maxOfOrNull { it.boundsInRoot.bottom } ?: list.top
@@ -139,8 +143,9 @@ class SongsBucketHeaderAccessibilityJourneyTest {
             val song = row.config[SemanticsProperties.TestTag].substringAfterLast("s-").toInt()
             val top = maxOf(bounds.top, pinnedBottom)
             if (top >= minOf(bounds.bottom, list.bottom)) return@forEach
-            assertTrue("$screen: song $song is read: $labels", labels.any { ROW_TITLE.find(it)?.groupValues?.get(1)?.toInt() == song })
-            stops += Stop(top, song / BucketHeaderFixtures.SECTION_SIZE, null)
+            val spoken = labels.indexOfFirst { ROW_TITLE.find(it)?.groupValues?.get(1)?.toInt() == song }
+            assertTrue("$screen: song $song is read: $labels", spoken >= 0)
+            stops += Stop(top, song / BucketHeaderFixtures.SECTION_SIZE, null, spoken)
         }
         val order = stops.sortedWith(compareBy<Stop> { it.top }.thenBy { it.heading == null })
         assertTrue("$screen: rows are read: $labels", order.any { it.heading == null })
@@ -149,12 +154,23 @@ class SongsBucketHeaderAccessibilityJourneyTest {
             val headerAt = { section: Int -> order.indexOfFirst { it.heading != null && it.section == section } }
             headerAt(stop.section).takeIf { it >= 0 }?.let { assertTrue("$screen: section ${stop.section}'s header precedes its rows: $order", it < position) }
             headerAt(stop.section + 1).takeIf { it >= 0 }?.let { assertTrue("$screen: the next header follows section ${stop.section}'s rows: $order", it > position) }
+            // The same in TalkBack's linear order.
+            val spokenAt = { section: Int -> order.firstOrNull { it.heading != null && it.section == section }?.spoken }
+            spokenAt(stop.section)?.let { assertTrue("$screen: TalkBack reads section ${stop.section}'s header before its rows: $labels", it < stop.spoken) }
+            spokenAt(stop.section + 1)?.let { assertTrue("$screen: TalkBack reads the next header after section ${stop.section}'s rows: $labels", it > stop.spoken) }
         }
         return order.mapNotNull { it.heading }
     }
 
-    /** One list stop: its shown top, section and, for a header, its spoken label. */
-    private data class Stop(val top: Float, val section: Int, val heading: String?)
+    /**
+     * One list stop.
+     *
+     * @property top Shown top in root px.
+     * @property section Section index.
+     * @property heading Spoken label, for a header.
+     * @property spoken Position in TalkBack's linear order.
+     */
+    private data class Stop(val top: Float, val section: Int, val heading: String?, val spoken: Int)
 
     private val isSongRow = SemanticsMatcher("Songs row") {
         it.config.getOrNull(SemanticsProperties.TestTag).orEmpty().startsWith("fst.songs.row.s-")

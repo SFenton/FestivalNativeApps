@@ -292,10 +292,18 @@ class JourneyHarness(private val rule: JourneyRule) {
     /** Tags whose missing-label finding proved to be a clipped label (resolved while composed). */
     private val labelledTags = mutableSetOf<String>()
 
+    /**
+     * Findings [readingOrder] proved to be clipping artifacts while their nodes were composed: a
+     * row partly under a pinned header or the viewport edge can scroll out of composition before
+     * [assertAccessible] runs (issue #462).
+     */
+    private val clippedFindings = mutableSetOf<String>()
+
     /** Fail with every ATF error collected during the journey (warnings only log). */
     fun assertAccessible() {
         val errors = accessibilityFindings.filter { finding ->
             finding.startsWith("ERROR") &&
+                finding !in clippedFindings &&
                 !clippedTouchTarget(finding) &&
                 !scrimSliver(finding) &&
                 !(finding.split(" | ").getOrNull(1) == "SpeakableTextPresentCheck" &&
@@ -468,7 +476,7 @@ class JourneyHarness(private val rule: JourneyRule) {
         rule.waitForIdle()
         checkNow()
         // Resolve clipping artifacts while the flagged nodes are still composed.
-        accessibilityFindings.forEach { clippedTouchTarget(it) }
+        accessibilityFindings.forEach { if (it !in clippedFindings && clippedTouchTarget(it)) clippedFindings += it }
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
         // After an in-place change (font scale, issue #397) the node cache can keep the old bounds and labels.
         if ((fresh || talkBackTree) && android.os.Build.VERSION.SDK_INT >= 34) automation.clearCache()

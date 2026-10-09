@@ -138,6 +138,8 @@ class BoardFooterFadeAccessibilityJourneyTest {
         h.waitForTag("${board.prefix}.pager")
         rule.waitUntil(15_000) { rule.onAllNodes(isRow(board), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
         h.awaitAccessibilityTree("${board.prefix}.page-info")
+        // From here readingOrder follows Compose's traversal links: TalkBack's order, not tree order.
+        h.publishTalkBackTree()
     }
 
     /**
@@ -198,7 +200,10 @@ class BoardFooterFadeAccessibilityJourneyTest {
         return top
     }
 
-    /** TalkBack reads the shown rows before the pager, and the pager's page label once. */
+    /**
+     * TalkBack reads the shown rows before the pager, and the pager's page label once. [launch]
+     * published the TalkBack tree, so this is TalkBack's linear order, not raw tree order.
+     */
     private fun assertRowsReadBeforeThePager(screen: String, board: Board) {
         val order = h.readingOrder(screen, fresh = true)
         val lastRow = order.indexOfLast { it.contains(board.rowLabel) }
