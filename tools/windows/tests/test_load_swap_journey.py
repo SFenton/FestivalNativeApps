@@ -90,10 +90,14 @@ class LoadSwapJourneyTests(unittest.TestCase):
                 ready = _BY_NAME[name]["ready"]
                 self.assertIn(f"assertread:name={spinner}|{spinner}, ProgressRing", ready)
                 # WinUI's ProgressRing briefly exposes its AnimatedVisualPlayer as a non-control Image while it starts
-                # (Axe IsControlElementTrueRequired; windows-accessibility.md open issue 10), so the scan settles first
-                # and the fixture holds the read long enough (6 s) for the spinner to still be up.
+                # (Axe IsControlElementTrueRequired; windows-accessibility.md open issue 10), and while the ring fades
+                # in it reports IsOffscreen, so Narrator's order skips it (windows-ui CI, #431 review). Both the order
+                # snapshot and the scan settle first, and the fixture holds the read long enough (6 s) for the
+                # spinner to still be up.
                 scan = ready.index("scan:{stem}-loading")
-                self.assertEqual(ready[scan - 1], "wait:1")
+                order = next(i for i, st in enumerate(ready) if st.startswith("assertorder:"))
+                self.assertEqual(ready[order - 1], "wait:1")
+                self.assertLess(order, scan)
                 self.assertEqual(_BY_NAME[name]["fixture"][-1], "6")
         reload = _BY_NAME["load-swap-song-leaderboard"]["after_ready"]
         self.assertIn("assertread:name=Busy Loading leaderboard|Busy Loading leaderboard, ProgressRing", reload)
