@@ -1,0 +1,17 @@
+{
+  "a11y_pages": {},
+  "tasks": {
+    "journey:search": {"reason": "Search fixture state assertions fail.", "issue": "SFenton/festival-report-tracker#530"},
+    "journey:whats-new-pointer": {"reason": "Injected pointer dismissal assertions fail.", "issue": "SFenton/festival-report-tracker#531"},
+    "runner:settings": {"reason": "Visual-order drag assertion fails.", "issue": "SFenton/festival-report-tracker#531"},
+    "runner:fade": {"reason": "Load-transition rush assertions fail.", "issue": "SFenton/festival-report-tracker#532"},
+    "runner:selected-reveal": {"reason": "Selected-row reveal rush assertion fails.", "issue": "SFenton/festival-report-tracker#532"},
+    "runner:suggestions": {"reason": "Suggestions fade assertion fails.", "issue": "SFenton/festival-report-tracker#532"},
+    "runner:navigation": {"reason": "Band fixture state is not realized.", "issue": "SFenton/festival-report-tracker#533"},
+    "runner:songs": {"reason": "Songs filter fixture state is not realized.", "issue": "SFenton/festival-report-tracker#533"},
+    "runner:songs-filter": {"reason": "Shop-empty filter state is not realized.", "issue": "SFenton/festival-report-tracker#533"},
+    "runner:profile": {"reason": "Empty player-bands state cannot be revealed.", "issue": "SFenton/festival-report-tracker#533"},
+    "matrix:a11y:5": {"reason": "Axe finds two errors in leaderboards rank-by popup.", "issue": "SFenton/festival-report-tracker#534"},
+    "matrix:a11y:12": {"reason": "Axe finds two errors in Quick Links popup.", "issue": "SFenton/festival-report-tracker#534"}
+  }
+}
