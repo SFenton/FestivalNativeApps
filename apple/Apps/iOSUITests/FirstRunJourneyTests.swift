@@ -352,6 +352,7 @@ final class FirstRunJourneyTests: XCTestCase {
         SongsUITestSupport.record(relaunched, name: "first-run-resumes-unseen")
         relaunched.buttons["fst.first-run.close"].tap()
     }
+
     // MARK: - Song demos (issue #26, accessibility backfill #401)
 
     /// Issue #26: the Songs list demo shows real catalogue songs (redacted placeholders while
@@ -379,13 +380,13 @@ final class FirstRunJourneyTests: XCTestCase {
         let title = "Song List"
         let description = "Browse and search the entire Festival library. Tap a song to see leaderboards and more details."
         let slide = slide(app, titled: title)
-        XCTAssertTrue(slide.waitForExistence(timeout: 20), "Song List slide")
+        XCTAssertTrue(slide.waitForExistence(timeout: FestivalApp.budget(20)), "Song List slide")
         // The catalogue answers within a moment on the loopback fixture; then the demo's rows
         // are real songs.
         let songRow = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier BEGINSWITH 'fst.songs.row.'")).firstMatch
-        _ = songRow.waitForExistence(timeout: 5)
-        sleep(2)
+        _ = songRow.waitForExistence(timeout: FestivalApp.budget(5))
+        Thread.sleep(forTimeInterval: FestivalApp.budget(2))
         XCTAssertEqual(slide.label, "\(title). \(description)", "The slide reads its title and description only")
         SongsUITestSupport.record(app, name: "first-run-song-demo-ax5")
 
