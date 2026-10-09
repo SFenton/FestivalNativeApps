@@ -752,7 +752,8 @@
         272,
         312,
         319,
-        381
+        381,
+        461
       ]
     },
     {
@@ -1280,6 +1281,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Compete/CompeteScreen.swift",
             "symbol": "CompetePreviewSpotlight"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Leaderboards/RankingsSupport.swift",
+            "symbol": "boardBottomChrome"
           }
         ],
         "android": [
@@ -1522,7 +1527,8 @@
         364,
         370,
         381,
-        409
+        409,
+        461
       ]
     },
     {

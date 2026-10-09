@@ -269,8 +269,9 @@ struct FullRankingsScreen: View {
         .wideColumnsCount($columns)
         // The shared Song Leaderboard pager and the player's footer, pinned outside the
         // reload gate so both stay put while only the rows fade (issue #294; a bottom
-        // safe-area inset for the same tab-bar reason as `SoloLeaderboardScreen`).
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        // safe-area inset for the same tab-bar reason as `SoloLeaderboardScreen`), read
+        // after the rows (#461).
+        .boardBottomChrome {
             bottomChrome
         }
         // `/duo` J2 (operator, 2026-10-02): a narrow board (folded Duo, a split column,

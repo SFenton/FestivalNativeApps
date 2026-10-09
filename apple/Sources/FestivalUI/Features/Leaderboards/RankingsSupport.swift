@@ -960,6 +960,28 @@ extension View {
     }
 }
 
+// MARK: - Board bottom chrome
+
+extension View {
+    /// Pin a board's bottom chrome (the selected row and the pager) under its rows as a
+    /// bottom safe-area inset, read after the rows ([leaderboard-row] R5).
+    ///
+    /// SwiftUI orders an inset's content before the view it insets, so VoiceOver would
+    /// read the pinned row and pager before the board's header and rows (#461). The board
+    /// takes a higher sort priority inside a container at the default priority (the
+    /// `FestivalReloadGate` precedent), so reading order follows the web DOM — header,
+    /// rows, pinned row, pager — without lifting the board above the page's own controls.
+    ///
+    /// - Parameter chrome: The pinned bottom chrome.
+    /// - Returns: The board with its chrome inset beneath it.
+    func boardBottomChrome<Chrome: View>(@ViewBuilder _ chrome: () -> Chrome) -> some View {
+        accessibilitySortPriority(1)
+            .safeAreaInset(edge: .bottom, spacing: 0, content: chrome)
+            .accessibilityElement(children: .contain)
+            .accessibilitySortPriority(0)
+    }
+}
+
 // MARK: - Floating pager
 
 /// Floating bottom bar for Band Rankings: a material pager

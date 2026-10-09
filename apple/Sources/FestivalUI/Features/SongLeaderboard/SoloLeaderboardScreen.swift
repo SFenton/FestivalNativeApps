@@ -261,8 +261,9 @@ struct SoloLeaderboardScreen: View {
         // its LoadGate, issue #93). A bottom safe-area inset, not a VStack sibling: the
         // tab bar minimizes on scroll down, and a sibling made the List's own frame grow
         // and shrink at the end of the page, which read as a bounce. As an inset the
-        // List keeps its frame and only its content inset changes.
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        // List keeps its frame and only its content inset changes. Read after the
+        // header and rows (#461).
+        .boardBottomChrome {
             bottomChrome
         }
         // One set of columns for the page's rows and the pinned footer (web
