@@ -8,7 +8,7 @@
 |---|---|---|
 | Band row | `GET /api/rankings/bands/{bandType}?teamKey=&rankBy=adjusted&page=1&pageSize=1` → `selectedBandEntry` | `null` → 404 → "Band not found" page. Never `/api/bands/{bandId}` or the bare `/api/rankings/bands/{bandType}/{teamKey}` ([service-safety](../../platforms/service-safety.md)) |
 | Rank history | `…/{bandType}/{teamKey}/history?days=30` | Starts only after the band row loads; `historyStatus`/`historyMessage` → note under the heading |
-| Best/worst | `…/{bandType}/{teamKey}/songs?limit=5` + catalogue (best effort) | 503 until the projection is published → inline status + Retry; unknown songs show `Unknown Song`, not tappable |
+| Best/worst | `…/{bandType}/{teamKey}/songs?limit=5` + catalogue (best effort) | 503 until the projection is published → inline status + Retry; unknown songs show `Unknown Song`, not tappable. During a scrape the live service 503s these headerless reads (#554): a band already read this publication keeps its last published row, history and songs (`FestivalApi` body cache, [android.md](../../platforms/android.md#service-access)); a first visit shows the scrape status (auto retry), never "No band songs yet" |
 
 `BandRoute(bandId, name?, bandType?, teamKey?)` must carry the type and key from the originating row. A bare `bandId`, unknown type or unsafe key (`BandText.isValidTeamKey`: 1–4 `:`-joined safe IDs, ≤600 chars) shows **Band Not Available** and sends nothing. Debug: `FST_DEBUG_ROUTE=band:<bandId>:<bandType>:<teamKey>` (the key may contain `:`).
 

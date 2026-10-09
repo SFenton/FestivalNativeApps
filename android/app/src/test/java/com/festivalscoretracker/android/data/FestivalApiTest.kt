@@ -40,6 +40,16 @@ class FestivalApiTest {
         }
     }
 
+    private inline fun <reified T : Throwable> failsWith(block: () -> Unit) {
+        try {
+            block()
+        } catch (error: Throwable) {
+            if (error !is T) throw error
+            return
+        }
+        fail("expected ${T::class.simpleName}")
+    }
+
     // region Gate
 
     @Test
@@ -367,6 +377,89 @@ class FestivalApiTest {
         assertFails<FestivalApiException.PublicReadFrozen> { api(frozen).catalog() }
         val forced = ForcedFreezeTransport(FakeTransport.standard())
         assertFails<FestivalApiException.PublicReadFrozen> { api(forced).catalog() }
+    }
+
+    /** A 503 for `/api/<path>` with the given freeze reason and publication header (either may be absent). */
+    private fun freeze503(reason: String?, publicationId: String? = "7") = HttpResult(
+        503,
+        ByteArray(0),
+        listOfNotNull("Retry-After" to "30", reason?.let { ServiceFreezeReason.HEADER to it }, publicationId?.let { "X-FST-Publication-Id" to it }).toMap(),
+    )
+
+    @Test
+    fun scoreUpdateFreezeServesTheBodyAlreadyReadThisPublication() = runTest {
+        var frozen: HttpResult? = null
+        val transport = FakeTransport.standard().apply {
+            // Like live band /songs and /history: publication-stamped, no ETag.
+            onRaw("/api/x") { frozen ?: HttpResult(200, "published".toByteArray(), mapOf("X-FST-Publication-Id" to "7")) }
+            onRaw("/api/never") { freeze503("scrape") }
+        }
+        val api = api(transport)
+        val x = ServiceEndpoint.Feature(listOf("x"))
+        assertEquals("published", String(api.readPinnedResponse(x).body))
+        assertNull("an ETag-less body is kept without a conditional request", transport.sent("/api/x").single().headers["If-None-Match"])
+        for (reason in listOf("scrape", "post-process", "publish", "publication-commit", "publication-commit-deferred")) {
+            frozen = freeze503(reason)
+            val read = api.readPinnedResponse(x)
+            assertEquals(reason, "published", String(read.body))
+            assertEquals(200, read.status)
+            assertEquals(7, read.responsePublicationId)
+            assertEquals(7, read.observedPublicationId)
+        }
+        frozen = freeze503("scrape", publicationId = null)
+        assertEquals("a headerless freeze is still this publication", "published", String(api.readPinnedResponse(x).body))
+        // Never read this publication: the freeze stays a freeze.
+        failsWith<FestivalApiException.PublicReadFrozen> { api.readPinnedResponse(ServiceEndpoint.Feature(listOf("never"))) }
+        // A generic outage, a non-score freeze or a different publication still fail.
+        frozen = freeze503(reason = null)
+        failsWith<FestivalApiException.Unavailable> { api.readPinnedResponse(x) }
+        frozen = freeze503("max-score-maintenance:v1:x")
+        failsWith<FestivalApiException.PublicReadFrozen> { api.readPinnedResponse(x) }
+        frozen = freeze503("scrape", publicationId = "8")
+        failsWith<FestivalApiException.PublicReadFrozen> { api.readPinnedResponse(x) }
+        frozen = HttpResult(500, ByteArray(0), mapOf(ServiceFreezeReason.HEADER to "scrape"))
+        failsWith<FestivalApiException.HttpStatus> { api.readPinnedResponse(x) }
+    }
+
+    @Test
+    fun aNewerPublicationDropsTheKeptBodies() = runTest {
+        var frozen = false
+        val transport = FakeTransport.standard().apply {
+            onRaw("/api/x") { if (frozen) freeze503("scrape", publicationId = null) else HttpResult(200, "p7".toByteArray(), mapOf("X-FST-Publication-Id" to "7")) }
+        }
+        val api = api(transport)
+        val x = ServiceEndpoint.Feature(listOf("x"))
+        api.readPinnedResponse(x)
+        transport.on("/api/publication") { Fixtures.publication(8) }
+        api.publication(force = true)
+        frozen = true
+        failsWith<FestivalApiException.PublicReadFrozen> { api.readPinnedResponse(x) }
+    }
+
+    @Test
+    fun keptBodiesStayWithinTheirByteBudget() = runTest {
+        var frozen = false
+        val transport = FakeTransport.standard().apply {
+            listOf("a" to 4, "b" to 4, "c" to 4, "big" to 11).forEach { (path, size) ->
+                onRaw("/api/$path") { if (frozen) freeze503("scrape") else HttpResult(200, ByteArray(size) { 1 }, mapOf("X-FST-Publication-Id" to "7")) }
+            }
+        }
+        val api = FestivalApi("https://fixture.test", transport, retainedBytes = 10)
+        fun endpoint(path: String) = ServiceEndpoint.Feature(listOf(path))
+        api.readPinnedResponse(endpoint("a"))
+        api.readPinnedResponse(endpoint("b"))
+        api.readPinnedResponse(endpoint("big"))
+        frozen = true
+        api.readPinnedResponse(endpoint("a"))
+        frozen = false
+        api.readPinnedResponse(endpoint("c"))
+        frozen = true
+        // `big` never fitted; `c` evicted the least recently used `b`, not the just-served `a`.
+        assertEquals(4, api.readPinnedResponse(endpoint("a")).body.size)
+        assertEquals(4, api.readPinnedResponse(endpoint("c")).body.size)
+        failsWith<FestivalApiException.PublicReadFrozen> { api.readPinnedResponse(endpoint("b")) }
+        failsWith<FestivalApiException.PublicReadFrozen> { api.readPinnedResponse(endpoint("big")) }
+        assertEquals(32L * 1024 * 1024, FestivalApi.RETAINED_BYTES)
     }
 
     // endregion
