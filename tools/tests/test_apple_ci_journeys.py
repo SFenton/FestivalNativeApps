@@ -1,10 +1,13 @@
-"""``apple-ci``'s iPhone simulator journeys: every ``JOURNEYS`` selector names a real XCUITest method.
+"""``apple-ci``'s iPhone and iPad simulator journeys: every ``JOURNEYS`` selector names a real XCUITest method.
 
 A selector that matches nothing makes ``xcodebuild`` run no test, so a renamed journey would silently leave CI.
-The account-button reading-order journeys (``page-tools-and-nav-chrome`` R17, #394) must stay listed.
+The account-button reading-order journeys (``page-tools-and-nav-chrome`` R17, #394), the Songs section-title AX5
+journey (#91, #441) and the What's New AX5 journeys (#434: iPhone portrait, iPad portrait and landscape) must
+stay listed.
 """
 
 import re
+import sys
 import unittest
 from pathlib import Path
 
@@ -13,8 +16,32 @@ WORKFLOW = ROOT / ".github" / "workflows" / "apple-ci.yml"
 UITESTS = ROOT / "apple" / "Apps" / "iOSUITests"
 
 
+def ci_journey_blocks(text: str) -> list[list[str]]:
+    """Read every ``JOURNEYS: >-`` folded block from ``apple-ci.yml`` (one per simulator step).
+
+    Args:
+        text: The workflow source.
+
+    Returns:
+        Each block's selectors, in step order.
+    """
+    lines = text.splitlines()
+    blocks = []
+    for start, header in enumerate(lines):
+        if header.strip() != "JOURNEYS: >-":
+            continue
+        indent = len(header) - len(header.lstrip())
+        selectors = []
+        for line in lines[start + 1:]:
+            if not line.strip() or len(line) - len(line.lstrip()) <= indent:
+                break
+            selectors.extend(line.split())
+        blocks.append(selectors)
+    return blocks
+
+
 def ci_journeys(text: str) -> list[str]:
-    """Read the ``JOURNEYS: >-`` folded block from ``apple-ci.yml``.
+    """Read the first (iPhone) ``JOURNEYS: >-`` folded block from ``apple-ci.yml``.
 
     Args:
         text: The workflow source.
@@ -22,29 +49,26 @@ def ci_journeys(text: str) -> list[str]:
     Returns:
         The selectors, in order.
     """
-    lines = text.splitlines()
-    start = next(i for i, line in enumerate(lines) if line.strip() == "JOURNEYS: >-")
-    indent = len(lines[start]) - len(lines[start].lstrip())
-    selectors = []
-    for line in lines[start + 1:]:
-        if not line.strip() or len(line) - len(line.lstrip()) <= indent:
-            break
-        selectors.extend(line.split())
-    return selectors
+    return ci_journey_blocks(text)[0]
 
 
 class AppleCIJourneysTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.journeys = ci_journeys(WORKFLOW.read_text(encoding="utf-8"))
+        self.workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.journeys = ci_journeys(self.workflow)
+        self.blocks = ci_journey_blocks(self.workflow)
 
     def test_reads_the_folded_block(self) -> None:
         sample = "      env:\n        JOURNEYS: >-\n          A/a\n          B/b\n      run: x\n"
         self.assertEqual(ci_journeys(sample), ["A/a", "B/b"])
+        self.assertEqual(ci_journey_blocks(sample + sample.replace("A/a", "C/c")), [["A/a", "B/b"], ["C/c", "B/b"]])
 
     def test_every_selector_names_an_existing_test_method(self) -> None:
-        self.assertTrue(self.journeys)
-        self.assertEqual(len(self.journeys), len(set(self.journeys)), "duplicate journeys")
-        for selector in self.journeys:
+        self.assertEqual(len(self.blocks), 2, "one JOURNEYS block per simulator step (iPhone, iPad)")
+        for block in self.blocks:
+            self.assertTrue(block)
+            self.assertEqual(len(block), len(set(block)), "duplicate journeys")
+        for selector in (selector for block in self.blocks for selector in block):
             cls, _, method = selector.partition("/")
             source = UITESTS / f"{cls}.swift"
             self.assertTrue(source.exists(), f"{selector}: {cls}.swift not in apple/Apps/iOSUITests")
@@ -61,6 +85,25 @@ class AppleCIJourneysTests(unittest.TestCase):
             "testAccountButtonsStaySeparateAndLabelledAtLargestTextSize",
         ):
             self.assertIn(f"NavButtonHitRegionJourneyTests/{method}", self.journeys)
+
+    def test_whats_new_ax5_journeys_run_on_iphone_and_ipad(self) -> None:
+        iphone, ipad = self.blocks
+        journey = "WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5"
+        # iPhone is portrait-only, so its landscape journey skips and would fail --fail-on-skip.
+        self.assertIn(f"{journey}Portrait", iphone)
+        self.assertNotIn(f"{journey}Landscape", iphone)
+        self.assertIn(f"{journey}Portrait", ipad)
+        self.assertIn(f"{journey}Landscape", ipad)
+
+    def test_ipad_step_uses_the_ipad_device_type(self) -> None:
+        sys.path.insert(0, str(ROOT / "tools"))
+        import ios_sim
+
+        self.assertIn(f'ci-device --type "{ios_sim.CI_IPAD_DEVICE_TYPE}"', self.workflow)
+
+    def test_section_title_ax5_journey_runs_in_ci(self) -> None:
+        # #91/#441: the only iOS Dynamic Type and audit evidence for Songs' grouped-sort section titles.
+        self.assertIn("SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5", self.journeys)
 
 
 if __name__ == "__main__":

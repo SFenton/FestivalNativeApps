@@ -49,7 +49,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Profile flyout | ✅✅✅ | 2 | ✅ | ✅ | ✅ |
 | Notifications flyout | ✅✅✅ (+live, #229) | 1 (list) | ✅ (#229) | ✅ (#229) | ✅ (#229, C+M) |
 | Quick Links menu | ⚠️✅ (issue 8) | 1 (menu) | ✅ (+profile jumps, `a11y-quick-links-jump.json`, #414) | ✅ | ✅ (pane titles wrap, #230; profile menu 225%, #414) |
-| First-run dialog | ✅✅✅ | 4 | ✅ | ✅ | ✅ |
+| First-run dialog | ✅✅✅ (+demo placeholder/catalogue states, `a11y-first-run-demos.json`, `windows-ui` CI, #420) | 4 | ✅ (+Settings replay, #420) | ✅ | ✅ (demo clear of title at 225%; body scrolls so the pips stay reachable, #420) |
 | What's New dialog (launch, Settings replay) | ✅✅✅ (+max/snap, #235) | 2 (notes, Dismiss) | ✅ (`kb-whats-new-*`, #235) | ✅ (#235) | ✅ (200% C+M, #235) |
 
 ## Fixed in this pass
@@ -102,7 +102,9 @@ Scope: the Shop Offers control only. Results per configuration are in [shop-offe
 
 Scope: the What's New dialog only. Results per configuration are in [whats-new/windows.md](../controls/whats-new/windows.md#validation-issue-235-2026-10-04). `a11y_matrix.py --scan --tabs 6 --pages journeys/a11y-whats-new.json` gave 0 Axe errors for the launch dialog and the Settings replay. That held at compact, medium, wide, maximized and snap-left, and at medium under Desert, Night sky, light and dark system theme, text 200% and display 100% and 150%. Text 200% also gave 0 at compact. Every run had 2 Tab stops (notes, Dismiss), no focus leaving the window and no repeated stops. The keyboard pages `kb-whats-new-dismiss` and `kb-whats-new-replay` pass at all three sizes. `ui_journey.py journeys/whats-new.json` drives every reachable state.
 
-Fixed: the notes scroller was not a tab stop, so the keyboard could not scroll long notes. It now opens focused and is named after the title. Dismiss and the headings gained automation IDs. Backdrop-click journeys need an unlocked console (`journeys/whats-new-pointer.json`).
+Fixed: the notes scroller was not a tab stop, so the keyboard could not scroll long notes. It now opens focused and is named after the title. Dismiss and the headings gained automation IDs. Backdrop-click journeys need an unlocked console (`journeys/whats-new-pointer.json`; they aim with epx `clickat:` since issue #531).
+
+Issue #434 (2026-10-08): the `windows-ui` CI job runs `a11y-whats-new.json` (`tools/windows/ui_ci.py` runs `whats-new` at compact/medium and `whats-new-text-225` at compact). The grouped tester and store pages assert heading levels (`assertstate` `heading=2`, `3` or `0` for none), reading order from the version heading through the category headings and bullets to Dismiss, the Raw bullet glyph and a 40×40 Dismiss ([whats-new/windows.md](../controls/whats-new/windows.md#validation-issue-434-2026-10-08-80s-grouped-notes-in-ci)).
 
 ## Notifications validation (issue #229, 2026-10-04)
 
@@ -339,6 +341,24 @@ Fixed:
 - Pills had no automation IDs and Narrator could reach their inner text separately; each pill is now one raw element with `fst.songs.metadata.<field>.<songId>` and its spoken name.
 - Pills had a fixed 22-epx height and clipped at 200% text; they now grow with the text.
 - Wide windows never put the pills inline (the 1100-epx threshold sat on the split-view breakpoint), and a resize out of split view kept a stale list width; placement is now measured per page and re-decided on list resize, text-scale and contrast changes.
+## Load transition validation (issue #431, 2026-10)
+
+Evidence: `a11y_matrix.py --pages tools/windows/journeys/a11y-load-swap.json --scan` at medium. Normal mode runs the six board surfaces #71 changed: Full Rankings, Band Rankings, song leaderboard, song band leaderboard, Player Bands and the Leaderboards overview's Rank By reload. `--mode text-225` runs Full Rankings and the song band leaderboard. Normal mode with in-app Reduce Motion and `--mode no-animations` run the Full Rankings swap. All of them run against `rankings_fixture.py` with a held page read.
+
+Asserted:
+- The spinner's Narrator phrase ("Busy Loading rankings, ProgressRing", "… leaderboard", "… band scores", "… bands", "… leaderboards").
+- Stale rows leave UIA while it shows (R2).
+- Reading order runs selectors → spinner → pager on a reload; on the first load the pager is hidden (R4), so it ends on the spinner.
+- The selectors and pager stay enabled at 40×40 epx with focus on the pressed pager button (R4).
+- The new rows' phrases after the swap.
+- At 225% text, the spinner stays apart from the pager.
+- With reduced motion, the swap still lands with the same focus (R6).
+
+All ten pages pass with 0 Axe errors. The six normal-mode surface pages also scan mid-load. CI (#431 review): `tools/windows/ui_ci.py` runs the file in `windows-ui` as `load-swap` (normal), `load-swap-text-225` and `load-swap-no-animations`, all `--scan` at medium (every page is medium-only). Every page ends focused on a row so the final scan never meets a pager tooltip (open issue 8); `tests/test_ui_ci.py` fails if a page drops out of those runs.
+
+Fixed:
+- Song band leaderboard and Player Bands: pressing **Next page** moved keyboard focus to **Previous page** while the page loaded. `BandsPagerViewModel`'s async commands didn't allow concurrent runs. A running `AsyncRelayCommand` reports `CanExecute` false, so the focused button disabled itself and `LeaderboardsPager` handed focus to the first enabled button. The commands now set `AllowConcurrentExecutions` (as `RankingsPagerViewModel` has since #197), and the view models still reject out-of-range pages. Unit test: `BandsPagerTests.Pager_StaysEnabledWhileAPageLoads`.
+
 ## Open issues
 
 1. Title bar at ≥150% text: dropping the caption keeps search usable, but the title-bar layout is owned by shell/infra.
@@ -348,8 +368,9 @@ Fixed:
 5. Narrator has no scripted driver, and lane consoles are locked, so live Narrator can't run there. Announcements are asserted with `listen:announcements`, and reading order and phrases with the Narrator model (`narrate:`/`assertread:`/`assertorder:`, [windows.md](windows.md) "Narrator model"; issue #271 `journeys/a11y-narration.json`). Narrator's own speech (verbosity, scan mode, pronunciation) still needs an operator to run the script (items 20–21 cover #271) in an unlocked session.
 6. The system modes run on a lane host where other lanes' windows share the desktop. If a Tab walk leaves the window (focus theft), re-run it: Search compact did this once and passed on the re-run.
 7. (Resolved 2026-09-29, no repro.) The same viewport-edge clipping (item 3) hits Leaderboards at the 1440×900 `wide` preset after the 2026-09-28 header change: 4 `NameText` findings on rank-3 rows at the bottom edge; 1440×880 and 1440×920 scan clean. Issue #219: the Songs Filter flyout at medium with 150% display scale, after `scrollinto` Percentile, leaves the Karaoke score expander as a sliver at the ScrollViewer's top edge; its header `TextBlock` reports a zero-height rectangle (2 findings). Issue #236: Settings scrolled to the feedback rows at medium with 150% display scale leaves the CHOpt Path View description at the top edge (same zero-height `TextBlock`, 2 findings while the `filing`, `sent` and `error` dialogs are open); the dialog itself scans clean. Issue #260 (live service): Global Search for "the" under Desert and Night sky, at compact and medium, leaves the ninth song row's title exactly on the window's bottom edge (2 findings). The contrast border shifts the rows a few pixels; normal, light, dark, text 200% and display 100%/150% scan clean. Every other size, mode and scroll position scans clean.
-8. Flyout menus (Quick Links at compact and medium, the Rank By menu at medium): Axe `BoundingRectangleCompletelyObscuresContainer` on WinUI's windowed popup internals (an `InputSiteWindowClass` exactly the size of its `PopupHost` bridge, no app element involved); other sizes scan clean (issue #207). Issue #208 saw the same finding on Full Rankings while the Instrument/Rank By menu or the pager button tooltip (after Last → Previous) was open; issue #219 on the Songs Filter's instrument selector popup. Issue #223 saw it in the wide Paths dialog when keyboard focus on an Instrument Selector button opens its tooltip. Issue #226 saw it on player pages opened from the profile flyout (View Profile, a result at text 200%): the flyout's popup host lingers after it closes. Issue #229 saw it after Esc returned keyboard focus to the Notifications bell, which opens its tooltip. Issue #234 saw it whenever the title-bar search box's suggestion popup is open (every mode). Issue #261 saw it on Song Detail after an Instrument Selector pick in Score History: focus follows the pick and opens the button's tooltip (0 errors before the pick). A gated journey that opens a flyout may drop exactly this finding with the page key `"axe_allow": ["framework-popup"]` (`a11y_matrix.AXE_ALLOW`, predicate `uiwin.framework_popup_finding`; first used by the `windows-ui` Quick Links landing runs, #416); every other finding still fails.
+8. Flyout menus (Quick Links at compact and medium, the Rank By menu at medium): Axe `BoundingRectangleCompletelyObscuresContainer` on WinUI's windowed popup internals (an `InputSiteWindowClass` exactly the size of its `PopupHost` bridge, no app element involved); other sizes scan clean (issue #207). Issue #208 saw the same finding on Full Rankings while the Instrument/Rank By menu or the pager button tooltip (after Last → Previous) was open; issue #219 on the Songs Filter's instrument selector popup. Issue #223 saw it in the wide Paths dialog when keyboard focus on an Instrument Selector button opens its tooltip. Issue #226 saw it on player pages opened from the profile flyout (View Profile, a result at text 200%): the flyout's popup host lingers after it closes. Issue #229 saw it after Esc returned keyboard focus to the Notifications bell, which opens its tooltip. Issue #234 saw it whenever the title-bar search box's suggestion popup is open (every mode). Issue #261 saw it on Song Detail after an Instrument Selector pick in Score History: focus follows the pick and opens the button's tooltip (0 errors before the pick). Issue #431 saw it on Player Bands after **Next page** kept focus, which opens the pager button's tooltip. The load-swap journeys end focused on a row before the final scan. A gated journey that opens a flyout may drop exactly this finding with the page key `"axe_allow": ["framework-popup"]` (`a11y_matrix.AXE_ALLOW`, predicate `uiwin.framework_popup_finding`; first used by the `windows-ui` Quick Links landing runs, #416); every other finding still fails.
 9. (Resolved 2026-09-29.) Red Reset buttons use ButtonFace/ButtonText under contrast themes (`FSTDanger*`).
+10. WinUI's `ProgressRing` template part `LottiePlayer` (an `AnimatedVisualPlayer`) reports Axe `IsControlElementTrueRequired` for about the first second after the ring appears, then settles into an ordinary image (issue #431, seen on Band Rankings and the song band leaderboard mid-load). This is framework start-up with no app element involved, and Narrator still reads the ring by name. Mid-load scans `wait:1` after the spinner appears, and their fixtures hold the read for 10 s so the scan still lands mid-load. The hold starts when the app launches: 6 s ran out before the first-load `assertorder` on the faster `windows-ui` runner (#431 review), and in `SpinnerOut` (opacity 0) the ring reports `IsOffscreen`, so Narrator's order skips it. A first-load hold must outlast launch, driver start-up and every wait before the last mid-load check; give the reload's new-row `waitfor` more than the hold.
 
 ## Global Search validation (issue #234, 2026-10-04)
 
@@ -419,6 +440,30 @@ Fixed: Feedback field hints were a `TextBox.Description` that clipped at compact
 | Text 200% (compact, all 11 pages) | Pass, Axe 0. Probes in the scrolled Feedback body first `scrollinto` the control |
 
 Fixed (test only): the First Run page still asserted the template `CloseButton` ID, but #244 gave that Close `fst.first-run.close`. No app defect was found.
+
+## Song leaderboard accessibility tests (issue #443, 2026-10-08)
+
+Backfills CI tests for the #93 Windows change (rows fade above the floating pinned row and pager; paging keeps the header, pinned row and pager). New `journeys/a11y-song-leaderboard.json` (fixture `--song-leaderboard-paging`, Fixture Player 1 selected) and the song-board pages of `a11y-board-footer-fade.json` are now `windows-ui` runs in `tools/windows/ui_ci.py`. They assert:
+- the pinned row's and pager's Narrator phrases and states: "Your rank, 1st. Open your statistics. …, button", "First page, button, unavailable", "Page 1 of 4, text", then "Page 2 of 4, text", "Previous page, button" and "Your rank, 1st. Jump to your position. …" after a page change;
+- the four pager buttons and the pinned row are at least 40×40 epx, and the pinned row doesn't overlap the pager;
+- the reading order is header → rows → pinned row → First → Previous → page text → Next → Last, and it holds while the next page loads, with the rows gone and the ring named "Loading leaderboard";
+- the keyboard (Tab) order, separately from the reading order, with `key:tab` / `key:shift+tab` and `assertfocus` at each stop (`song-board-paging-keyboard`, added after the design review of #505):
+  - page 1 at rest: header → first row → pinned row → Next → Last (First and Previous are disabled), and back to the header through a row;
+  - while the next page loads: Shift+Tab goes from Next to the pinned row and then the header, with no row or disabled First/Previous in between, and Tab returns to Next. These steps run before the ring's "Loading leaderboard" read, so they can only pass mid-load;
+  - page 2: from Next, Shift+Tab reaches Previous → First → pinned row → a row → header, and Tab walks back through every pager button to Last;
+- a keyboard page change (Enter on Next, focused directly so it stays a separate check) keeps focus on Next during and after the load;
+- the footer-fade layer is out of the control view but fades rows over 40 epx, with a hard edge under More Contrast and Less Transparency.
+
+Every page is Axe-scanned. `song-board-footer` and the footer-fade pages also get the dispatcher's 30-press Tab walk (no stop outside the window, no repeat). `song-board-paging-keyboard` sets `tabs: 0` because the ordered traversal above replaces that walk. The paging page ends by focusing the header: the keyboard tooltip on a pager button ("Next page (Ctrl+Right)") otherwise leaves a `PopupHost` input site that Axe reports as `BoundingRectangleCompletelyObscuresContainer` (open item 8, a framework finding). `tests/test_song_leaderboard_a11y_journey.py` pins the checks, the traversal and the runs.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (`song-leaderboard`, both pages) | Pass, Axe 0. The `song-board-footer` Tab walk makes 10–12 stops (title bar, header, list, pinned row, enabled pager buttons, Back), none outside the window or repeated. The ordered traversal passes at rest, mid-load and on page 2 |
+| Text 225% (compact, both pages) | Pass, Axe 0, traversal included |
+| In-app Reduce Motion (medium, paging) | Pass, Axe 0, traversal included |
+| Footer fade rest, mid, end, More Contrast, Less Transparency (compact, medium; compact at 225%) | Pass, Axe 0 |
+
+No accessibility defect was found.
 
 ## Songs Filter without a profile (issue #432, 2026-10-08)
 
