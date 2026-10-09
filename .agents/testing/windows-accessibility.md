@@ -445,16 +445,20 @@ Backfills CI tests for the #93 Windows change (rows fade above the floating pinn
 - the pinned row's and pager's Narrator phrases and states: "Your rank, 1st. Open your statistics. …, button", "First page, button, unavailable", "Page 1 of 4, text", then "Page 2 of 4, text", "Previous page, button" and "Your rank, 1st. Jump to your position. …" after a page change;
 - the four pager buttons and the pinned row are at least 40×40 epx, and the pinned row doesn't overlap the pager;
 - the reading order is header → rows → pinned row → First → Previous → page text → Next → Last, and it holds while the next page loads, with the rows gone and the ring named "Loading leaderboard";
-- a keyboard page change (Enter on Next) keeps focus on Next during and after the load;
+- the keyboard (Tab) order, separately from the reading order, with `key:tab` / `key:shift+tab` and `assertfocus` at each stop (`song-board-paging-keyboard`, added after the design review of #505):
+  - page 1 at rest: header → first row → pinned row → Next → Last (First and Previous are disabled), and back to the header through a row;
+  - while the next page loads: Shift+Tab goes from Next to the pinned row and then the header, with no row or disabled First/Previous in between, and Tab returns to Next. These steps run before the ring's "Loading leaderboard" read, so they can only pass mid-load;
+  - page 2: from Next, Shift+Tab reaches Previous → First → pinned row → a row → header, and Tab walks back through every pager button to Last;
+- a keyboard page change (Enter on Next, focused directly so it stays a separate check) keeps focus on Next during and after the load;
 - the footer-fade layer is out of the control view but fades rows over 40 epx, with a hard edge under More Contrast and Less Transparency.
 
-Each run is Axe-scanned with a 30-press Tab walk. The paging page ends by focusing the header: the keyboard tooltip on Next ("Next page (Ctrl+Right)") otherwise leaves a `PopupHost` input site that Axe reports as `BoundingRectangleCompletelyObscuresContainer` (open item 8, a framework finding). `tests/test_song_leaderboard_a11y_journey.py` pins the checks and the runs.
+Every page is Axe-scanned. `song-board-footer` and the footer-fade pages also get the dispatcher's 30-press Tab walk (no stop outside the window, no repeat). `song-board-paging-keyboard` sets `tabs: 0` because the ordered traversal above replaces that walk. The paging page ends by focusing the header: the keyboard tooltip on a pager button ("Next page (Ctrl+Right)") otherwise leaves a `PopupHost` input site that Axe reports as `BoundingRectangleCompletelyObscuresContainer` (open item 8, a framework finding). `tests/test_song_leaderboard_a11y_journey.py` pins the checks, the traversal and the runs.
 
 | Configuration | Result |
 | --- | --- |
-| Compact, medium (`song-leaderboard`, both pages) | Pass, Axe 0. At rest the Tab walk makes 10 stops (title bar, header, list, pinned row, enabled pager buttons, Back), none outside the window or repeated |
-| Text 225% (compact, both pages) | Pass, Axe 0 |
-| In-app Reduce Motion (medium, paging) | Pass, Axe 0 |
+| Compact, medium (`song-leaderboard`, both pages) | Pass, Axe 0. The `song-board-footer` Tab walk makes 10–12 stops (title bar, header, list, pinned row, enabled pager buttons, Back), none outside the window or repeated. The ordered traversal passes at rest, mid-load and on page 2 |
+| Text 225% (compact, both pages) | Pass, Axe 0, traversal included |
+| In-app Reduce Motion (medium, paging) | Pass, Axe 0, traversal included |
 | Footer fade rest, mid, end, More Contrast, Less Transparency (compact, medium; compact at 225%) | Pass, Axe 0 |
 
 No accessibility defect was found.

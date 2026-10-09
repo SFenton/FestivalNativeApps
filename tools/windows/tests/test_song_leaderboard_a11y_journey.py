@@ -79,8 +79,8 @@ class SongLeaderboardJourneyTests(unittest.TestCase):
         self.assertEqual([s for s in drive if s.startswith(("invoke:", "click"))], [])
         sequence = [f"focus:{PAGER[2]}", "key:enter",
                     "waitgone:id=fst.song-leaderboard.row.fixture-player-2@5",
-                    "assertread:class=Microsoft.UI.Xaml.Controls.ProgressRing|~Loading leaderboard@2",
                     f"assertfocus:{PAGER[2]}",
+                    "assertread:class=Microsoft.UI.Xaml.Controls.ProgressRing|~Loading leaderboard@2",
                     "waitfor:id=fst.song-leaderboard.row.fixture-player-26@15",
                     "assertread:id=fst.song-leaderboard.page-info|Page 2 of 4, text@5",
                     "assertread:id=fst.song-leaderboard.page-previous|Previous page, button"]
@@ -95,6 +95,32 @@ class SongLeaderboardJourneyTests(unittest.TestCase):
         self.assertTrue(any(s.startswith(f"assertread:{PINNED}|~^Your rank, 1st\\. Jump to your position") for s in loaded))
         # The keyboard-focus tooltip's popup bridge is a framework Axe finding; the scan runs with it closed.
         self.assertEqual(drive[-2:], [f"focus:{BOARD}.song", "waitgone:class=ToolTip@5"])
+
+    def test_tab_order_at_rest_while_loading_and_after_a_page_change(self):
+        """#443 review: Tab/Shift+Tab, not only the reading order, walk header -> rows -> pinned row -> enabled pager
+        buttons on page 1; while the next page loads (rows gone, First/Previous disabled) Next -> pinned row -> header
+        and back; on page 2 First and Previous rejoin. The Enter activation stays a separate ``focus:`` retention check."""
+        drive = steps(load()["song-board-paging-keyboard"])
+        song, row1, nxt = f"{BOARD}.song", f"{BOARD}.row.fixture-player-1", PAGER[2]
+        rest = [f"focus:{song}", f"assertfocus:{song}", "key:tab", f"assertfocus:{row1}", "key:tab",
+                f"assertfocus:{PINNED}", "key:tab", f"assertfocus:{nxt}", "key:tab", f"assertfocus:{PAGER[3]}",
+                "key:shift+tab", f"assertfocus:{nxt}", "key:shift+tab", f"assertfocus:{PINNED}",
+                "key:shift+tab", "key:shift+tab", f"assertfocus:{song}"]
+        activate = [f"focus:{nxt}", "key:enter", f"assertfocus:{nxt}"]
+        loading = ["key:shift+tab", f"assertfocus:{PINNED}", "key:shift+tab", f"assertfocus:{song}",
+                   "key:tab", f"assertfocus:{PINNED}", "key:tab", f"assertfocus:{nxt}"]
+        loaded = [f"assertfocus:{nxt}", "key:shift+tab", f"assertfocus:{PAGER[1]}", "key:shift+tab",
+                  f"assertfocus:{PAGER[0]}", "key:shift+tab", f"assertfocus:{PINNED}", "key:shift+tab", "key:shift+tab",
+                  f"assertfocus:{song}", "key:tab", "key:tab", f"assertfocus:{PINNED}", "key:tab",
+                  f"assertfocus:{PAGER[0]}", "key:tab", f"assertfocus:{PAGER[1]}", "key:tab", f"assertfocus:{nxt}",
+                  "key:tab", f"assertfocus:{PAGER[3]}", f"focus:{song}"]
+        walk = [s.split("@")[0] for s in drive if s.startswith(("focus:", "key:", "assertfocus:"))]
+        self.assertEqual(walk, rest + activate + loading + loaded)
+        # The loading walk runs between the rows leaving and the ring's "Loading leaderboard" read, so it can only
+        # pass while page 2 is still loading (with rows back, Shift+Tab from the pinned row would land on a row).
+        gone = drive.index("waitgone:id=fst.song-leaderboard.row.fixture-player-2@5")
+        ring = drive.index("assertread:class=Microsoft.UI.Xaml.Controls.ProgressRing|~Loading leaderboard@2")
+        self.assertEqual([s.split("@")[0] for s in drive[gone + 1:ring]], activate[2:] + loading)
 
     def test_windows_ui_runs_both_pages_at_225_percent_text_and_paging_with_reduce_motion(self):
         runs = covered(JOURNEY.name)

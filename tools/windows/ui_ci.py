@@ -102,8 +102,9 @@ RUNS: tuple[Run, ...] = (
     Run("section-index-backward", "a11y-section-index.json", only=SECTION_INDEX_BACKWARD),
     Run("section-index-backward-text-225", "a11y-section-index.json", mode="text-225", only=SECTION_INDEX_BACKWARD),
     # Song leaderboard footer and paging (issues #93, #443): pinned row and pager names, states and 40x40 targets,
-    # header -> rows -> pinned row -> pager order, the fade layer kept out of the control view, and a keyboard page
-    # change that keeps the header, pinned row and pager in order with focus on Next; also with in-app Reduce Motion.
+    # header -> rows -> pinned row -> pager order, the fade layer kept out of the control view, the Tab/Shift+Tab order
+    # at rest, mid-load and on page 2, and a keyboard page change that keeps the header, pinned row and pager in order
+    # with focus on Next; also with in-app Reduce Motion.
     Run("song-leaderboard", "a11y-song-leaderboard.json"),
     Run("song-leaderboard-text-225", "a11y-song-leaderboard.json", sizes="compact", mode="text-225"),
     Run("song-leaderboard-reduced-motion", "a11y-song-leaderboard.json", sizes="medium", mode="app-reduced",
