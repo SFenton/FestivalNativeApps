@@ -13,6 +13,7 @@
 - Use `FST_FIXTURE_SCENARIO=art-white` for worst-case contrast over artwork.
 - A single passing run of a flaky audit is not certification; a source-identical rerun must pass too.
 - Never write `.accessibilityHidden(someBool)`: `.accessibilityHidden(false)` on an ancestor **un-hides** every descendant marked hidden (measured in macOS hosting: the fade-in wrapper exposed each Leaderboards card's decorative instrument icon, read "Lead, image" before the "Lead" heading). Use `.accessibilityHidden(while:)` (`Common/FadeInOnLoad.swift`), which applies `accessibilityHidden(true, isEnabled:)` on iOS 18 / macOS 15 and later and hides nothing before.
+- XCUITest cannot prove a SwiftUI view is hidden: on iOS 26.5 its snapshot (queries, `debugDescription`, `snapshot().dictionaryRepresentation`) also lists views marked `.accessibilityHidden(true)`, with the same attributes as exposed ones and no element flag. Measured in #452: the Songs bar's moving title copy and each row's artwork tile both appear. Assert "hidden from VoiceOver" in a macOS-hosted test, which reads the real `NSAccessibility` tree (`SongsSectionPushAccessibilityTests`, `MacAccessibilityTreeTests`). On iOS, leave it to the operator VoiceOver walkthrough, or draw the decoration in a `Canvas` where the audit itself flags it (Song Detail cover, below).
 
 ## Open findings (not waived)
 
