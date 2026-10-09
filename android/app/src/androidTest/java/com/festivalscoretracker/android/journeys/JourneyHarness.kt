@@ -92,7 +92,9 @@ class JourneyHarness(private val rule: JourneyRule) {
      * @param preferences Settings store.
      * @param fontScale Font scale to render the app at, read in composition so a test can switch
      *   it in place (backed by snapshot state); `null` keeps the device's own. Modals opened
-     *   after a switch (sheets and dialogs are separate windows) render at it too.
+     *   after a switch (sheets and dialogs are separate windows) render at it too. The
+     *   activity's original scale comes back when the activity is destroyed at the end of the
+     *   test, so a journey that ends at 200% does not leak it into the next test's activity.
      */
     fun launch(
         debug: DebugLaunch,
@@ -124,25 +126,48 @@ class JourneyHarness(private val rule: JourneyRule) {
      * away. Call after [launch]; from then on [readingOrder] is TalkBack's linear order and
      * reads a fresh tree. UiAutomation connects first: a forced view sends events, and the
      * platform throws "Accessibility off" for any sent before the app's AccessibilityManager is on.
+     * A `Dialog` or `ModalBottomSheet` composes in its own window (API 29+: every window of the
+     * process is covered), and one opened later is published by the next [readingOrder].
      */
     fun publishTalkBackTree() {
         InstrumentationRegistry.getInstrumentation().uiAutomation
         val manager = rule.activity.getSystemService(android.view.accessibility.AccessibilityManager::class.java)
         rule.waitUntil(10_000) { manager.isEnabled }
         rule.waitForIdle()
+        assertTrue("no Compose view to publish", forceComposeRoots() > 0)
+        talkBackTree = true
+        rule.waitForIdle()
+    }
+
+    /**
+     * Force TalkBack publishing on every Compose root in the activity's window and, on API 29+,
+     * in every other window of the process (modal dialogs and sheets).
+     *
+     * @return Number of Compose roots found.
+     */
+    private fun forceComposeRoots(): Int {
+        var count = 0
         rule.runOnUiThread {
             fun roots(view: android.view.View): List<ViewRootForTest> = when {
                 view is ViewRootForTest -> listOf(view)
                 view is android.view.ViewGroup -> (0 until view.childCount).flatMap { roots(view.getChildAt(it)) }
                 else -> emptyList()
             }
-            val found = roots(rule.activity.window.decorView)
-            assertTrue("no Compose view to publish", found.isNotEmpty())
+            val windows = if (android.os.Build.VERSION.SDK_INT >= 29) {
+                (android.view.inspector.WindowInspector.getGlobalWindowViews() + rule.activity.window.decorView).distinct()
+            } else {
+                listOf(rule.activity.window.decorView)
+            }
+            val found = windows.flatMap { roots(it) }
             found.forEach { it.forceAccessibilityForTesting(true) }
+            count = found.size
         }
-        talkBackTree = true
-        rule.waitForIdle()
+        return count
     }
+
+    /** Traversal links the last [readingOrder] followed (0: it fell back to tree order). */
+    var lastReadingLinks = 0
+        private set
 
     /**
      * Give modal windows [scale]. `DeviceConfigurationOverride` stops at a window boundary: a
@@ -299,11 +324,38 @@ class JourneyHarness(private val rule: JourneyRule) {
         return out
     }
 
+    /**
+     * Fail unless every visible accessibility node tagged [tag] is at least 48 dp each way.
+     * TalkBack's explore-by-touch uses these bounds, which Compose trims where a later sibling's
+     * touch bounds overlap; [assertAccessible] skips such a finding while the Compose node is
+     * still 48 dp, so a journey asserts the published bounds directly (issue #422).
+     *
+     * @param tag Test tag (exposed as the resource id).
+     */
+    fun assertFullTouchTarget(tag: String) {
+        val min = with(rule.density) { 48.dp.toPx() } - 1
+        var last = emptyList<android.graphics.Rect>()
+        val full = runCatching {
+            rule.waitUntil(5_000) {
+                last = visibleAccessibilityNodes(tag).map { android.graphics.Rect().also(it::getBoundsInScreen) }
+                last.isNotEmpty() && last.all { it.height() >= min && it.width() >= min }
+            }
+        }.isSuccess
+        assertTrue("$tag accessibility bounds $last are under 48 dp (${min + 1} px)", full)
+    }
+
     /** Checks the current window when accessibility checks are on. */
     private var checkNow: () -> Unit = {}
 
     /** Tags whose missing-label finding proved to be a clipped label (resolved while composed). */
     private val labelledTags = mutableSetOf<String>()
+
+    /**
+     * Findings [readingOrder] proved to be clipping artifacts while their nodes were composed: a
+     * row partly under a pinned header or the viewport edge can scroll out of composition before
+     * [assertAccessible] runs (issue #462).
+     */
+    private val clippedFindings = mutableSetOf<String>()
 
     /**
      * Tags whose touch-target finding the composed node disproved when ATF recorded it. A
@@ -336,6 +388,7 @@ class JourneyHarness(private val rule: JourneyRule) {
     fun assertAccessible() {
         val errors = accessibilityFindings.filter { finding ->
             finding.startsWith("ERROR") &&
+                finding !in clippedFindings &&
                 !clippedTouchTarget(finding) &&
                 !scrimSliver(finding) &&
                 !(finding.split(" | ").getOrNull(1) == "SpeakableTextPresentCheck" &&
@@ -506,9 +559,14 @@ class JourneyHarness(private val rule: JourneyRule) {
      */
     fun readingOrder(screen: String, fresh: Boolean = false): List<String> {
         rule.waitForIdle()
+        // A modal opened since publishTalkBackTree has its own, unpublished Compose root.
+        if (talkBackTree) {
+            forceComposeRoots()
+            rule.waitForIdle()
+        }
         checkNow()
         // Resolve clipping artifacts while the flagged nodes are still composed.
-        accessibilityFindings.forEach { clippedTouchTarget(it) }
+        accessibilityFindings.forEach { if (it !in clippedFindings && clippedTouchTarget(it)) clippedFindings += it }
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
         // After an in-place change (font scale, issue #397) the node cache can keep the old bounds and labels.
         if ((fresh || talkBackTree) && android.os.Build.VERSION.SDK_INT >= 34) automation.clearCache()
@@ -532,6 +590,7 @@ class JourneyHarness(private val rule: JourneyRule) {
             nodes[i].traversalAfter?.let { nodes.indexOf(it) }?.takeIf { it >= 0 }?.let { next.putIfAbsent(it, i) }
         }
         Log.i(READING_ORDER_TAG, "$screen | links ${next.size} of ${nodes.size} nodes")
+        lastReadingLinks = next.size
         val targets = next.values.toSet()
         val order = mutableListOf<Int>()
         val seen = BooleanArray(nodes.size)

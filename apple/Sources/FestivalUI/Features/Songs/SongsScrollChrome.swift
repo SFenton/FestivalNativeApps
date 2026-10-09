@@ -73,6 +73,32 @@ final class SongsScrollChrome {
         listTopInset.value = inset
     }
 
+    /// The List's top content inset the last time it rested at its top: where the
+    /// expanded large title and Filter field end. The A–Z rail starts below it at
+    /// accessibility sizes (issue #388). Held while the List is away from its top, so the
+    /// rail stays put as the header collapses.
+    private(set) var expandedTopInset: CGFloat = 0
+
+    /// Record the List's top content inset for ``expandedTopInset`` when the List rests
+    /// at its top.
+    ///
+    /// Samples away from the top, or pulled past it, are ignored. A grow-only maximum
+    /// kept the transient header of the #5 inset swap (about 250 pt taller at AX5) and
+    /// pushed the rail to the bottom of the screen.
+    ///
+    /// - Parameters:
+    ///   - inset: `ScrollGeometry.contentInsets.top`.
+    ///   - offsetY: `ScrollGeometry.contentOffset.y`.
+    /// - Returns: True when ``expandedTopInset`` changed.
+    @discardableResult
+    func noteExpandedTopInset(_ inset: CGFloat, offsetY: CGFloat) -> Bool {
+        guard inset.isFinite, offsetY.isFinite,
+              abs(offsetY + inset) < Self.barBottomTolerance,
+              inset != expandedTopInset else { return false }
+        expandedTopInset = inset
+        return true
+    }
+
     // MARK: Landing line
 
     /// Padding above an in-list section title, and above the section bar's title.

@@ -79,6 +79,10 @@ This pass re-checked the #93 behaviours (no bar title before scrolling, a floati
 
 Design review (`winui-design`, `winui-code-review` on the change): errors appear inline where the content would be and keep the user's context, and the Retry action takes focus. Theme brushes and the 4 px grid; no issues found. The custom pager and the one-Button rows stay as deliberate deviations (#197).
 
+## Accessibility tests (issue #443)
+
+The #93 footer and paging behaviours are gated in CI. The `windows-ui` job runs `tools/windows/journeys/a11y-song-leaderboard.json` (`ui_ci.py` runs `song-leaderboard`, `-text-225` and `-reduced-motion`) and the song-board pages of `a11y-board-footer-fade.json` (`song-leaderboard-footer-fade`, `-text-225`). They check the pinned row's and pager's Narrator phrases and states, 40×40 epx targets, the header → rows → pinned row → pager order, and that the fade layer stays out of the control view. They also check that a keyboard page change keeps the header, pinned row and pager in order with focus on Next. The Tab order is checked separately from the reading order, with `key:tab`/`key:shift+tab` and `assertfocus` at each stop. On page 1 it is header → row → pinned row → Next → Last. While the next page loads it is Next ↔ pinned row ↔ header, with no row and no disabled First/Previous. On page 2 First and Previous rejoin. These checks run at 100% and 225% text and with Reduce Motion, plus the fade states and the R7 hard edge. Any change to the footer, the pager or the load swap must keep these pages passing (`tools/windows/tests/test_song_leaderboard_a11y_journey.py` pins them). No accessibility defect was found.
+
 ## IDs
 
 `fst.song-leaderboard.title`, `.artist`, `.instrument`, `.total` (only when shown), `.list`, `.row.<accountId>`, `.spotlight-footer` (jumps or opens Statistics, R7; `.spotlight-jump` was removed in #307), `.page-first|page-previous|page-info|page-next|page-last`.

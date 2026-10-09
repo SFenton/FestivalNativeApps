@@ -105,5 +105,33 @@ public static class RankingMetricInfo
     /// <param name="serviceId">Candidate value.</param>
     /// <returns>Known metric or Total Score.</returns>
     public static RankingMetric Coerce(string? serviceId) => TryParse(serviceId, out var metric) ? metric : Default;
+
+    #region Experimental Ranks gate
+    /// <summary>Whether Settings' Experimental Ranks must be on to offer the metric (web <c>EXPERIMENTAL_METRICS</c>).</summary>
+    /// <param name="metric">Metric.</param>
+    /// <returns><see langword="true"/> for every metric except Total Score.</returns>
+    public static bool IsExperimental(this RankingMetric metric) => metric != Default;
+
+    /// <summary>The Rank By options Settings allows (web <c>getEnabledRankingMetrics</c>).</summary>
+    /// <param name="experimentalRanks">Settings' Experimental Ranks toggle.</param>
+    /// <returns><see cref="All"/> when on; only Total Score when off.</returns>
+    public static IReadOnlyList<RankingMetric> Enabled(bool experimentalRanks) => experimentalRanks ? All : [Default];
+
+    /// <summary>Falls back to Total Score for an experimental metric while the toggle is off.</summary>
+    /// <param name="metric">Requested metric.</param>
+    /// <param name="experimentalRanks">Settings' Experimental Ranks toggle.</param>
+    /// <returns>The metric, or Total Score when Settings hides it.</returns>
+    public static RankingMetric Gate(this RankingMetric metric, bool experimentalRanks) =>
+        experimentalRanks || !metric.IsExperimental() ? metric : Default;
+
+    /// <summary>
+    /// Parses a route or saved value and applies the toggle, exactly like the web's
+    /// <c>coerceRankingMetric(value, enableExperimentalRanks)</c>.
+    /// </summary>
+    /// <param name="serviceId">Candidate value.</param>
+    /// <param name="experimentalRanks">Settings' Experimental Ranks toggle.</param>
+    /// <returns>A known, allowed metric (Total Score otherwise).</returns>
+    public static RankingMetric Coerce(string? serviceId, bool experimentalRanks) => Coerce(serviceId).Gate(experimentalRanks);
+    #endregion
 }
 #endregion

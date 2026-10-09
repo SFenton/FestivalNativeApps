@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.core.notifications
 
 import com.festivalscoretracker.android.core.model.FestivalApiException
 import com.festivalscoretracker.android.core.model.Instrument
+import com.festivalscoretracker.android.core.rankings.RankingMetric
 import java.text.NumberFormat
 import java.time.Instant
 import java.util.Locale
@@ -320,6 +321,38 @@ object NotificationRouting {
     fun events(item: ImprovementNotification): List<NotificationEventPayload> =
         item.payload?.coalescedEvents?.filter { !it.eventKind.isNullOrEmpty() }?.takeIf { it.isNotEmpty() }
             ?: listOf(NotificationEventPayload(item.eventKind, item.instrument, item.metric))
+
+    /**
+     * Hide experimental rank changes while Settings → Experimental Ranks is off (web
+     * `projectExperimentalRankNotification`, experimental-ranks R4). A row with no rank
+     * events is kept as is; a row whose rank events are all experimental is dropped; a
+     * mixed coalesced row keeps only its other events, led by the first of them.
+     *
+     * @param item Notification.
+     * @param experimentalRanks `AppSettings.experimentalRanks`.
+     * @return The row to show, or null to hide it.
+     */
+    fun projectExperimentalRanks(item: ImprovementNotification, experimentalRanks: Boolean): ImprovementNotification? {
+        if (experimentalRanks) return item
+        val events = events(item)
+        if (events.none { rankingMetric(it.eventKind, it.metric) != null }) return item
+        val visible = events.filter { event ->
+            val metric = rankingMetric(event.eventKind, event.metric) ?: return@filter true
+            RankingMetric.fromWireId(metric)?.isExperimental != true
+        }
+        if (visible.isEmpty()) return null
+        if (visible.size == events.size) return item
+        val primary = visible.first()
+        return item.copy(
+            eventKind = primary.eventKind ?: item.eventKind,
+            metric = primary.metric,
+            oldNumeric = primary.oldNumeric,
+            newNumeric = primary.newNumeric,
+            oldRank = primary.oldRank?.toInt(),
+            newRank = primary.newRank?.toInt(),
+            payload = (item.payload ?: NotificationPayload()).copy(coalescedEvents = visible),
+        )
+    }
 }
 
 // endregion

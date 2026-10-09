@@ -80,6 +80,20 @@ Matrix pages `whats-new-tester-grouped`, `whats-new-store-grouped` and `kb-whats
 
 The grouping and channel code from #80 was already right; #274 adds the test path and coverage, plus the empty-replay fix above.
 
+## Validation (issue #434, 2026-10-08): #80's grouped notes in CI
+
+Until #434 the `windows-ui` CI job ran only `a11y-modals.json`, whose `modal-whats-new` page sees the placeholder (one ungrouped bullet), so #80's tester block and category headings were checked on hosts only. `tools/windows/ui_ci.py` now runs `journeys/a11y-whats-new.json` at default text (compact, medium) and at `text-225` (compact), with `--scan --tabs 30` (pages keep their own `tabs`). The grouped pages also gained:
+
+| Check | Steps |
+|---|---|
+| Role and level | `assertstate` `heading=2` on every version heading, `heading=3` on category headings including "Other", `heading=0` (none) on a bullet; `assertread` "Songs, text" (the phrase model omits the level, so `heading=` is the check) |
+| Reading order | list → version heading → "Songs" → its two bullets → Dismiss (tester); list → version → "Songs" → its bullet → Dismiss (store); "Other" → its bullet → Dismiss after scrolling |
+| Bullet glyph | `waitgone:name=•` — the glyph is Raw, so Narrator reads only the note |
+| Target size | Dismiss at least 40×40 epx |
+| Ungrouped entry | its version heading is level 2 and it has no category heading |
+
+`assertstate` gained the `heading` key for this (FstUia reads UIA HeadingLevel). No accessibility defect was found.
+
 ## Open
 
 - Live screenshots: `showcase\win-pwa\live\`, `showcase\win-shell2\live\`.

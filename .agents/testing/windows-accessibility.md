@@ -92,6 +92,7 @@ Scope: the shared row-column fitter (issue #37) on every board, checked against 
 - **Keyboard order (issue #409, PR #456 review):** `assertorder` checks only Narrator's reading order, and `tabs: 0` skips the matrix tab walk. So the same pages now also drive the keyboard and `assertfocus` each hop: Up/Down between rows (one Tab stop, the Fluent list model), then Tab to the pinned row and pager, and Shift+Tab back.
   - Shift+Tab re-enters a repeater on its last realized row, which depends on scroll, so assert the hops on either side of it rather than that row.
   - **Failed, fixed:** arrowing down the song board, Band Rankings, the song band board or Player Bands scrolled the focused row or card only to the viewport's bottom edge, under the floating pinned row and pager (WCAG 2.4.11; `assertapart` failed at compact and medium). Only Full Rankings had a guard. `BoardFooter.Inset` now applies it to every board, and a `*-focus-clear` page asserts it on each of its five consumers (each fails at compact and medium with the guard removed).
+  - **Pinned band row (issue #461, for #306):** `journeys/a11y-song-band-pinned.json` (CI runs `song-band-pinned` and `song-band-pinned-text-225`) covers the song band board's pinned "your band" row: the Jump and Open band Narrator phrases, the 40 epx pin and pager targets, rows → pin → pager reading and Tab order, Tab/Shift+Tab/Enter, the jumped-to "Your band." row clear of the pin, the size switch (Trios empty hides it), no player and Reduce Motion. **Failed, fixed:** at 225% text the centred jump left the row partly under the pin, because `BoardFooter.Inset` skipped aligned requests. It now grows them as well (Solo and Full Rankings jumps share it). `selected_reveal_journey.py --only solo` fails intermittently on master too (1 in 6; a repeater row logs two `play` lines before the rush, which `check_reveal` counts twice). The request the reveal makes comes after the rush, so this change doesn't cause it.
   - A focus-clear page must prove its target starts below the fold (`waitgone:<card>@2` before the arrows: the driver resolves only on-screen elements) and check every pager button the target can sit under. The pager is centred, so on Player Bands' two-column grid a left-column card sits under Previous, not Next (`cols-player-bands-focus-clear-grid` passed against Next alone with the guard removed).
 
 ## Item Shop validation (issue #224, 2026-10-04)
@@ -103,6 +104,8 @@ Scope: the Shop Offers control only. Results per configuration are in [shop-offe
 Scope: the What's New dialog only. Results per configuration are in [whats-new/windows.md](../controls/whats-new/windows.md#validation-issue-235-2026-10-04). `a11y_matrix.py --scan --tabs 6 --pages journeys/a11y-whats-new.json` gave 0 Axe errors for the launch dialog and the Settings replay. That held at compact, medium, wide, maximized and snap-left, and at medium under Desert, Night sky, light and dark system theme, text 200% and display 100% and 150%. Text 200% also gave 0 at compact. Every run had 2 Tab stops (notes, Dismiss), no focus leaving the window and no repeated stops. The keyboard pages `kb-whats-new-dismiss` and `kb-whats-new-replay` pass at all three sizes. `ui_journey.py journeys/whats-new.json` drives every reachable state.
 
 Fixed: the notes scroller was not a tab stop, so the keyboard could not scroll long notes. It now opens focused and is named after the title. Dismiss and the headings gained automation IDs. Backdrop-click journeys need an unlocked console (`journeys/whats-new-pointer.json`; they aim with epx `clickat:` since issue #531).
+
+Issue #434 (2026-10-08): the `windows-ui` CI job runs `a11y-whats-new.json` (`tools/windows/ui_ci.py` runs `whats-new` at compact/medium and `whats-new-text-225` at compact). The grouped tester and store pages assert heading levels (`assertstate` `heading=2`, `3` or `0` for none), reading order from the version heading through the category headings and bullets to Dismiss, the Raw bullet glyph and a 40×40 Dismiss ([whats-new/windows.md](../controls/whats-new/windows.md#validation-issue-434-2026-10-08-80s-grouped-notes-in-ci)).
 
 ## Notifications validation (issue #229, 2026-10-04)
 
@@ -439,6 +442,30 @@ Fixed: Feedback field hints were a `TextBox.Description` that clipped at compact
 
 Fixed (test only): the First Run page still asserted the template `CloseButton` ID, but #244 gave that Close `fst.first-run.close`. No app defect was found.
 
+## Song leaderboard accessibility tests (issue #443, 2026-10-08)
+
+Backfills CI tests for the #93 Windows change (rows fade above the floating pinned row and pager; paging keeps the header, pinned row and pager). New `journeys/a11y-song-leaderboard.json` (fixture `--song-leaderboard-paging`, Fixture Player 1 selected) and the song-board pages of `a11y-board-footer-fade.json` are now `windows-ui` runs in `tools/windows/ui_ci.py`. They assert:
+- the pinned row's and pager's Narrator phrases and states: "Your rank, 1st. Open your statistics. …, button", "First page, button, unavailable", "Page 1 of 4, text", then "Page 2 of 4, text", "Previous page, button" and "Your rank, 1st. Jump to your position. …" after a page change;
+- the four pager buttons and the pinned row are at least 40×40 epx, and the pinned row doesn't overlap the pager;
+- the reading order is header → rows → pinned row → First → Previous → page text → Next → Last, and it holds while the next page loads, with the rows gone and the ring named "Loading leaderboard";
+- the keyboard (Tab) order, separately from the reading order, with `key:tab` / `key:shift+tab` and `assertfocus` at each stop (`song-board-paging-keyboard`, added after the design review of #505):
+  - page 1 at rest: header → first row → pinned row → Next → Last (First and Previous are disabled), and back to the header through a row;
+  - while the next page loads: Shift+Tab goes from Next to the pinned row and then the header, with no row or disabled First/Previous in between, and Tab returns to Next. These steps run before the ring's "Loading leaderboard" read, so they can only pass mid-load;
+  - page 2: from Next, Shift+Tab reaches Previous → First → pinned row → a row → header, and Tab walks back through every pager button to Last;
+- a keyboard page change (Enter on Next, focused directly so it stays a separate check) keeps focus on Next during and after the load;
+- the footer-fade layer is out of the control view but fades rows over 40 epx, with a hard edge under More Contrast and Less Transparency.
+
+Every page is Axe-scanned. `song-board-footer` and the footer-fade pages also get the dispatcher's 30-press Tab walk (no stop outside the window, no repeat). `song-board-paging-keyboard` sets `tabs: 0` because the ordered traversal above replaces that walk. The paging page ends by focusing the header: the keyboard tooltip on a pager button ("Next page (Ctrl+Right)") otherwise leaves a `PopupHost` input site that Axe reports as `BoundingRectangleCompletelyObscuresContainer` (open item 8, a framework finding). `tests/test_song_leaderboard_a11y_journey.py` pins the checks, the traversal and the runs.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (`song-leaderboard`, both pages) | Pass, Axe 0. The `song-board-footer` Tab walk makes 10–12 stops (title bar, header, list, pinned row, enabled pager buttons, Back), none outside the window or repeated. The ordered traversal passes at rest, mid-load and on page 2 |
+| Text 225% (compact, both pages) | Pass, Axe 0, traversal included |
+| In-app Reduce Motion (medium, paging) | Pass, Axe 0, traversal included |
+| Footer fade rest, mid, end, More Contrast, Less Transparency (compact, medium; compact at 225%) | Pass, Axe 0 |
+
+No accessibility defect was found.
+
 ## Songs Filter without a profile (issue #432, 2026-10-08)
 
 Accessibility tests for #77. The no-profile Filter pages moved into `journeys/a11y-songs-filter.json` (`songs-filter-anonymous`, `songs-filter-anonymous-year`, `kb-songs-filter-anonymous`), which `tools/windows/ui_ci.py` runs in `windows-ui` at default text (compact, medium) and 225% text (compact); `tests/test_ui_ci.py` keeps both runs. They assert Narrator phrases, reading order, 40×40 epx targets, the toggle and expand states, the applied "Filters applied" status and the keyboard walk ([songs-filter windows](../controls/songs-filter/windows.md#accessibility-tests-issue-432-no-profile)).
@@ -448,6 +475,22 @@ Fixed: the flyout **Reset** footer and the Year/Duration **Select All / Clear Al
 | Configuration | Result |
 | --- | --- |
 | Compact, medium (3 pages, `--scan --tabs 30`) | Pass, Axe 0 |
+| Text 225% (compact, 3 pages) | Pass, Axe 0 |
+
+## Songs section push (issue #452, 2026-10-08)
+
+Accessibility tests for #288's Windows section push. `journeys/a11y-songs-section-push.json` (`push-band`, `push-band-reverse`) runs on the large fixture catalogue; `tools/windows/ui_ci.py` runs it in `windows-ui` at default text (compact, medium) and 225% text (compact), both with `--scan`, and `tests/test_ui_ci.py` keeps both runs and the key steps. A Jump pick of M then `scrollinset:` puts the M title 16 epx below the list top (`push-band` scrolls down to it from 120 epx, `push-band-reverse` up from the pinned title), inside the 40 epx push band, where `IncomingHeader` draws a copy over it. The pages assert:
+- the copy is drawn (`assertname:raw=fst.songs.section-header.incoming|M`) but isn't in the control view, so Narrator and scan mode never meet the title twice;
+- the pinned bar still reads "L, text" as a level-2 heading, and the transparent in-list title reads "M, text" as a level-2 heading;
+- Narrator's order is Jump → bar → M title;
+- at 120 epx the copy is gone again;
+- Jump keeps its name and 40×40 epx target.
+
+The push follows the scroll with no animation of its own, so Reduce Motion has nothing to stop. Keyboard (`push-band-keyboard`, design review of #510): the Jump grid is driven by keys to M, focus is put on the first M row in the band, and arrow keys move it onto the focusable M group header (still in the band, copy drawn, focus rectangle visible over the transparent title) and out to the last L row, then back; `assertfocus:` proves focus is always on the real row or header, never the copy, and Tab from Jump re-enters the list on the remembered row. Harness finding: a UIA Scroll-pattern set (`scrollinset:`, `scrollto:`) while a grouped `ListView` item has focus can move focus to an offscreen group header and drop the list's Tab entry, at any inset and with or without the push; a mouse-wheel or keyboard scroll keeps both, so it isn't a user-facing defect. Keyboard pages therefore scroll with focus outside the list, then `focus:` a visible item. No app defect was found; the copy gained only its raw-view test ID. Check: with the copy's `AccessibilityView="Raw"` removed, `push-band` fails (`waitgone:id=fst.songs.section-header.incoming`). Fixed (test only): an Axe `BoundingRectangleSizeReasonable` on a row title clipped to zero height at the viewport bottom (item 3) appeared at one exact medium-size position, so the pages reach the band from a Jump pick of M rather than L.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (3 pages, `--scan`) | Pass, Axe 0 |
 | Text 225% (compact, 3 pages) | Pass, Axe 0 |
 
 ## Feedback Form validation (issue #236, 2026-10-05)
