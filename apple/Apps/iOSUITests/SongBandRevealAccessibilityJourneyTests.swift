@@ -9,7 +9,7 @@ import XCTest
 /// button that speaks the highlight ("Your band, Rank 29, …"), hittable and at least
 /// 44×44 pt, the page reading song header, rows, pinned row, then pager, and a clean
 /// `performAccessibilityAudit`; at AX5 the row grows rather than clipping, and the band's
-/// own row follows the cards instead of covering them (leaderboard-row R10).
+/// own row follows the cards instead of covering them (leaderboard-row R11).
 ///
 /// Needs `python3 tools/mock_service.py --port 18934` from this revision (apple-ci starts
 /// it). Fails, rather than skips, without it, so CI cannot pass by skipping.
@@ -60,7 +60,7 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
     /// grows past 1.35× its default height to fit its larger, stacked text rather than
     /// clipping it (accessibility.md: real growth at AX5; leaderboard-row R2). The band's
     /// own row, which at AX5 would cover the whole board, follows the cards instead of
-    /// pinning (R10), so the revealed row is in view above the pager.
+    /// pinning (R11), so the revealed row is in view above the pager.
     ///
     /// Text-size audits run at both sizes. At the default size the auditor reports the
     /// rows' rank, score and accuracy texts as "partially unsupported"; each is accepted
@@ -195,7 +195,7 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
     ///   - app: Running app on the revealed board.
     ///   - minimumSide: Minimum hit-target side, in points.
     ///   - footerPinned: The band's own row is pinned above the pager (true), or follows
-    ///     the cards because it would cover the board (R10, AX5).
+    ///     the cards because it would cover the board (R11, AX5).
     /// - Returns: The row's label and frame, and the top of the pinned chrome.
     /// - Throws: A failed requirement.
     @MainActor
@@ -233,7 +233,7 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
             XCTAssertLessThanOrEqual(footer.frame.maxY, pager.minY + 1, "The pinned band row is not above the pager")
             chromeTop = footer.frame.minY
         } else {
-            // R10: the band's row comes after the cards, so it never covers the revealed one.
+            // R11: the band's row comes after the cards, so it never covers the revealed one.
             if footer.exists {
                 XCTAssertGreaterThanOrEqual(
                     footer.frame.minY, row.frame.maxY, "The band's own row covers the board at this size"

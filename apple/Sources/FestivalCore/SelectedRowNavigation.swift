@@ -117,7 +117,7 @@ public struct SongBandRowFocus: Hashable, Sendable {
 // MARK: - Pinned placement
 
 /// Whether a board pins the selected profile's row above its pager (leaderboard-row R7)
-/// or lets it scroll at the end of the page's rows (R10, #386).
+/// or lets it scroll at the end of the page's rows (R11, #386).
 ///
 /// At accessibility text sizes the pinned row grows with its text: on iPhone a band's
 /// row at the largest size measured 545 pt of a 690 pt board, so the other rows had no

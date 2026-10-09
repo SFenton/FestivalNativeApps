@@ -63,7 +63,7 @@ import Testing
     #expect(!anonymous.matches(try entry(bandId: "", teamKey: "")))
 }
 
-// MARK: - Pinned placement (R10, issue #386)
+// MARK: - Pinned placement (R11, issue #386)
 
 /// The selected row stays pinned at every standard text size, however tall it is.
 @Test func selectedRowStaysPinnedAtStandardSizes() {

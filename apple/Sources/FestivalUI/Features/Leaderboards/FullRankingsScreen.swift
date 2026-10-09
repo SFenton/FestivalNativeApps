@@ -39,7 +39,7 @@ struct FullRankingsScreen: View {
     @State private var titleHidden = false
     /// Top edge of the pinned footer and pager in ``pageSpace``; nil without chrome.
     @State private var bottomChromeTop: CGFloat?
-    /// The player's footer row height and the board's, for ``SelectedRowPinning`` (R10).
+    /// The player's footer row height and the board's, for ``SelectedRowPinning`` (R11).
     @State private var selectedRowHeight: CGFloat = 0
     @State private var boardHeight: CGFloat = 0
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -227,7 +227,7 @@ struct FullRankingsScreen: View {
                             }
                         }
                         // Too tall to pin at this text size: the player's footer
-                        // follows the rows (leaderboard-row R10, #386).
+                        // follows the rows (leaderboard-row R11, #386).
                         if !pinsFooter, Self.showsFooter(spotlightPlacement(entries: payload.rankings.entries)) {
                             spotlightFooter(entries: payload.rankings.entries, horizontalPadding: 0)
                         }
@@ -393,7 +393,7 @@ struct FullRankingsScreen: View {
 
     /// Whether the player's footer is pinned above the pager; at accessibility text sizes
     /// a footer that would cover more than a third of the board follows the rows
-    /// instead (leaderboard-row R10, #386).
+    /// instead (leaderboard-row R11, #386).
     private var pinsFooter: Bool {
         SelectedRowPinning.pins(
             isAccessibilitySize: dynamicTypeSize.isAccessibilitySize,

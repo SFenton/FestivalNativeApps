@@ -177,6 +177,15 @@ class CiDeviceTests(unittest.TestCase):
         self.assertEqual(existing_ci_device(devices, "ios-27-1"), "B")
         self.assertIsNone(existing_ci_device(devices, "ios-26-5"))
 
+    def test_each_device_type_has_its_own_name(self):
+        self.assertEqual(ios_sim.ci_device_name(), ios_sim.CI_DEVICE_NAME)
+        ipad = ios_sim.ci_device_name(ios_sim.CI_IPAD_DEVICE_TYPE)
+        self.assertNotEqual(ipad, ios_sim.CI_DEVICE_NAME)
+        devices = {"ios-27-1": [{"name": ios_sim.CI_DEVICE_NAME, "udid": "PHONE"}]}
+        self.assertIsNone(existing_ci_device(devices, "ios-27-1", ipad))
+        devices["ios-27-1"].append({"name": ipad, "udid": "PAD"})
+        self.assertEqual(existing_ci_device(devices, "ios-27-1", ipad), "PAD")
+
     def test_refuses_outside_ci(self):
         import argparse
         import os

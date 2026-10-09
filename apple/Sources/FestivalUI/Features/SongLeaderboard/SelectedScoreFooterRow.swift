@@ -95,7 +95,7 @@ struct PinnedFooterBacking: ViewModifier {
 
 extension View {
     /// Report the selected row's height wherever the board draws it (pinned above the
-    /// pager or after the rows), for ``SelectedRowPinning`` (leaderboard-row R10, #386).
+    /// pager or after the rows), for ``SelectedRowPinning`` (leaderboard-row R11, #386).
     ///
     /// - Parameter height: Receives the row's height.
     /// - Returns: The row, measured.
