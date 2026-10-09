@@ -155,6 +155,72 @@ private func hostBlendsMaterials() throws -> Bool {
     return max(centre.red, centre.green, centre.blue) >= 0.2
 }
 
+/// The card rim alone (``CardRim``) over black, card-sized.
+private struct CardRimProbe: View {
+    var body: some View {
+        ZStack {
+            Color.black
+            CardRim(shape: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .frame(width: 280, height: 64)
+        }
+        .environment(\._accessibilityReduceTransparency, false)
+    }
+}
+
+/// A Song-row-sized card holding one button, for the accessibility tree.
+private struct CardButtonProbe: View {
+    var body: some View {
+        ZStack {
+            Color.black
+            Button {} label: {
+                Text("Play")
+                    .frame(width: 280, height: 64)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .festivalRowCard(cornerRadius: 12)
+        }
+        .environment(\._accessibilityReduceTransparency, false)
+    }
+}
+
+/// Mean brightest channel along a horizontal line of a capture.
+///
+/// - Parameters:
+///   - image: Capture of a 320 pt wide host.
+///   - y: Line, in points from the top.
+///   - xs: Horizontal range, in points.
+/// - Returns: The mean of each sampled pixel's brightest channel (0–1).
+/// - Throws: An empty sample.
+@MainActor
+private func lineBrightness(_ image: CGImage, y: Double, xs: ClosedRange<Double>) throws -> Double {
+    let scale = Double(image.width) / 320
+    let bitmap = NSBitmapImageRep(cgImage: image)
+    let row = Int(y * scale)
+    var total = 0.0, count = 0.0
+    for x in stride(from: Int(xs.lowerBound * scale), through: Int(xs.upperBound * scale), by: 2) {
+        guard let color = bitmap.colorAt(x: x, y: row)?.usingColorSpace(.sRGB) else { continue }
+        total += Double(max(color.redComponent, color.greenComponent, color.blueComponent))
+        count += 1
+    }
+    let samples = try #require(count > 0 ? count : nil)
+    return total / samples
+}
+
+/// Every realized accessibility element under `host`, in tree order.
+///
+/// - Parameter host: The hosting view.
+/// - Returns: Elements that are not AppKit views.
+@MainActor
+private func cardAccessibilityElements(_ host: NSView) -> [NSObject] {
+    var found: [NSObject] = []
+    _ = nativeHostedAccessibilityElement(in: host) { object in
+        if !(object is NSView) { found.append(object) }
+        return false
+    }
+    return found
+}
+
 // MARK: - Tests
 
 /// The material card (`festivalRowCard`, `festivalCard`, `festivalCardCapsule`,
@@ -234,6 +300,43 @@ private func hostBlendsMaterials() throws -> Bool {
         if blends {
             #expect(max(centre.red, centre.green, centre.blue) >= 0.2, "\(centre); \(context)")
         }
+    }
+
+    @Test("The rim draws only the card's border, from a gradient view (issue #553)")
+    func rimDrawsOnlyTheBorder() throws {
+        // Drawn as a gradient view masked by a solid stroke, so the render server draws
+        // it rather than the CPU shading the whole card: the edge must still show and
+        // the card's inside must stay untouched.
+        let host = nativeHostedView(CardRimProbe(), size: CGSize(width: 320, height: 96), forceGlassFallback: false)
+        let image = try nativeHostedImage(host)
+        let top = try lineBrightness(image, y: 16.5, xs: 80...240)
+        let inside = try lineBrightness(image, y: 48, xs: 80...240)
+        #expect(top > 0.03, "rim \(top)")
+        #expect(inside < 0.01, "inside \(inside)")
+    }
+
+    @Test("The rim adds no accessibility element and keeps the button's role (issue #553)")
+    func rimIsInvisibleToAccessibility() throws {
+        let material = nativeHostedView(
+            CardButtonProbe().defaultAppStorage(rowCardDefaults(nil)),
+            size: CGSize(width: 320, height: 96), forceGlassFallback: false
+        )
+        let window = nativeHostedWindow(material, size: CGSize(width: 320, height: 96))
+        defer { window.orderOut(nil) }
+        // The opaque card draws no rim: the material card must expose the same tree.
+        let opaque = nativeHostedView(
+            CardButtonProbe().defaultAppStorage(rowCardDefaults("fst.accessibility.lessTransparency")),
+            size: CGSize(width: 320, height: 96), forceGlassFallback: false
+        )
+        let opaqueWindow = nativeHostedWindow(opaque, size: CGSize(width: 320, height: 96))
+        defer { opaqueWindow.orderOut(nil) }
+        let button = try #require(nativeHostedAccessibilityElement(in: material) {
+            nativeHostedAccessibilityString($0, "accessibilityLabel") == "Play"
+        })
+        #expect(nativeHostedAccessibilityString(button, "accessibilityRole") == NSAccessibility.Role.button.rawValue)
+        let frame = try #require(nativeHostedAccessibilityFrame(of: button, in: material))
+        #expect(frame.width >= 44 && frame.height >= 44, "\(frame)")
+        #expect(cardAccessibilityElements(material).count == cardAccessibilityElements(opaque).count)
     }
 
     @Test("Leaderboard rows draw the material card, not per-row Liquid Glass (issue #295)")

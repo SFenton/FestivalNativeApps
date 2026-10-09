@@ -713,6 +713,14 @@
           "message": "An opaque cardBackground plate is FestivalCardModifier's accessibility fallback, not a feature surface; draw cards, rows and custom floating controls with festivalCard / festivalCardCapsule (surface-materials R1, #319)."
         },
         {
+          "id": "apple-gradient-card-rim",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "strokeBorder\\(\\s*RowCardStyle\\.rim",
+          "allow": [],
+          "debt": [],
+          "message": "A gradient-stroked shape is shaded on the CPU each draw; draw the card rim with CardRim (a gradient view under a solid stroke mask) (surface-materials R9, #553)."
+        },
+        {
           "id": "windows-pager-only-plate",
           "glob": "windows/Festival.App/**/*.xaml",
           "regex": "FSTPager(?:Button|Badge)Brush",

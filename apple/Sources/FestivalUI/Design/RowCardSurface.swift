@@ -64,7 +64,7 @@ struct FestivalCardModifier<S: InsettableShape>: ViewModifier {
             content
                 .background(RowCardStyle.tint(increasedContrast: contrast == .increased), in: shape)
                 .background(.ultraThinMaterial, in: shape)
-                .overlay(shape.strokeBorder(RowCardStyle.rim, lineWidth: 1))
+                .overlay { CardRim(shape: shape) }
         } else {
             content
                 .background(BrandTokens.surfaceFrosted, in: shape)
@@ -108,6 +108,28 @@ enum RowCardStyle {
     /// - Returns: The platform's fitted tint.
     static func tint(increasedContrast: Bool) -> Color {
         increasedContrast ? contrastTint : baseTint
+    }
+}
+
+// MARK: - Rim
+
+/// The material card's 1 pt ``RowCardStyle/rim``: the gradient drawn as a view and cut
+/// to the card's border by a solid stroke mask.
+///
+/// A shape stroked with a gradient style (`strokeBorder(LinearGradient)`) is rasterized
+/// on the CPU over the card's whole bounding box each time a card is drawn: during fast
+/// flicks that axial shading took about 10% of the main thread on Songs and about a
+/// third of Song Details' commit time (issue #553). A gradient view masked by a solid
+/// stroke draws the same pixels on the render server. The rim is decoration: it never
+/// takes touches or reaches accessibility.
+struct CardRim<S: InsettableShape>: View {
+    let shape: S
+
+    var body: some View {
+        RowCardStyle.rim
+            .mask(shape.strokeBorder(Color.black, lineWidth: 1))
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 
