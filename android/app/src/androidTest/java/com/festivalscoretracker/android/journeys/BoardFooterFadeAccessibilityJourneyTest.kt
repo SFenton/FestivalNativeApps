@@ -225,6 +225,8 @@ class BoardFooterFadeAccessibilityJourneyTest {
             board.transport(),
             fontScale = scale?.let { s -> { s } },
         )
+        // Reading order follows TalkBack's traversal links and a fresh tree, not raw tree order.
+        h.publishTalkBackTree()
         val bar = "${board.prefix}.bottom-bar"
         h.waitForTag(bar)
         h.waitForTag("${board.prefix}.pager")
