@@ -559,6 +559,32 @@ def detect_pose(udid: str) -> str:
     return classify_pose(dark["outer"], dark["inner"])
 
 
+def settled_pose(udid: str, attempts: int = 4, pause: float = 15.0) -> str:
+    """Detect the Duo pose, re-checking while it reads ``unknown``. Call under the simulator lock.
+
+    Just after a fresh boot (above all on the CI runner) neither panel, or a
+    stale frame on both, may be lit yet, so an ``unknown`` result is re-detected
+    a few times before it counts. A definite pose returns at once.
+
+    Args:
+        udid: A booted iPhone Duo simulator.
+        attempts: Detections to try.
+        pause: Seconds between detections.
+
+    Returns:
+        ``"folded"``, ``"unfolded"`` or ``"unknown"`` after every attempt.
+    """
+    actual = "unknown"
+    for attempt in range(1, attempts + 1):
+        actual = detect_pose(udid)
+        if actual != "unknown":
+            break
+        print(f"duo pose: unknown, attempt {attempt}/{attempts}", file=sys.stderr)
+        if attempt < attempts:
+            time.sleep(pause)
+    return actual
+
+
 def require_pose(udid: str, pose: str | None, set_pose: bool = False) -> str | None:
     """Verify (and optionally set) the Duo pose before a capture. Call under the simulator lock.
 
@@ -575,7 +601,7 @@ def require_pose(udid: str, pose: str | None, set_pose: bool = False) -> str | N
     if pose is None:
         return None
     expected = POSE_EXPECTED_CLASS[pose]
-    actual = detect_pose(udid)
+    actual = settled_pose(udid)
     print(f"duo pose: {actual}", file=sys.stderr)
     if actual == expected and not (set_pose and pose != "folded"):
         return None

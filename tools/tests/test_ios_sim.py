@@ -349,6 +349,26 @@ class DuoPoseTests(unittest.TestCase):
                     mock.patch.object(ios_sim.time, "sleep"), mock.patch("sys.stderr"):
                 self.assertFalse(ios_sim.screenshot_panel("UDID", "primary", path))
 
+    def test_require_pose_redetects_an_unknown_pose_after_boot(self):
+        """A just-booted Duo may light neither panel yet; unknown is re-checked, a definite pose is not."""
+        from unittest import mock
+
+        with mock.patch.object(ios_sim, "detect_pose", side_effect=["unknown", "unknown", "folded"]) as detect, \
+                mock.patch.object(ios_sim.time, "sleep") as sleep, mock.patch("sys.stderr"):
+            self.assertIsNone(ios_sim.require_pose("UDID", "folded"))
+        self.assertEqual(detect.call_count, 3)
+        self.assertEqual(sleep.call_count, 2)
+
+        with mock.patch.object(ios_sim, "detect_pose", return_value="unfolded") as detect, \
+                mock.patch.object(ios_sim.time, "sleep"), mock.patch("sys.stderr"):
+            self.assertIn("not folded", ios_sim.require_pose("UDID", "folded"))
+        self.assertEqual(detect.call_count, 1)
+
+        with mock.patch.object(ios_sim, "detect_pose", return_value="unknown") as detect, \
+                mock.patch.object(ios_sim.time, "sleep"), mock.patch("sys.stderr"):
+            self.assertIn("unknown, not folded", ios_sim.require_pose("UDID", "folded"))
+        self.assertEqual(detect.call_count, 4)
+
 
 def _control(title=None, role="AXButton", kind="control", **extra):
     """Build one Device Hub ``dump`` entry."""
