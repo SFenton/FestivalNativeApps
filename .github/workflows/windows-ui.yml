@@ -26,7 +26,8 @@ permissions:
   contents: read
 concurrency:
   group: windows-ui-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Only a PR's superseded runs are cancelled: master runs finish, so its checks reflect every merge.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   windows-ui-a11y:
     name: windows-ui-a11y (${{ matrix.shard }})
