@@ -37,6 +37,8 @@ class UiCiTests(unittest.TestCase):
                 # The runner's 1920x1080 desktop holds compact and medium, not wide (1440x900 plus the taskbar).
                 self.assertNotIn("wide", sizes)
                 self.assertTrue(m.mode_pages(pages, run.mode), "no page runs in this mode")
+                self.assertTrue(any(m.page_sizes(page, sizes, run.mode) for page in m.mode_pages(pages, run.mode)),
+                                "no page runs at this run's sizes")
                 for page in pages:
                     self.assertLessEqual(set(page.get("axe_allow", ())), set(m.AXE_ALLOW), page["name"])
 
@@ -46,6 +48,14 @@ class UiCiTests(unittest.TestCase):
         self.assertTrue(all(run.scan for run in landing.values()))
         self.assertIn("compact", landing["text-225"].sizes.split(","))
 
+    def test_first_run_demos_run_at_default_and_largest_text(self):
+        """#420 review: the first-run demo journey gates PRs, not just its JSON guard."""
+        demos = {run.mode: run for run in ci.RUNS if run.pages == "a11y-first-run-demos.json"}
+        self.assertEqual({"normal", "text-225"}, set(demos))
+        self.assertTrue(all(run.scan and not run.only for run in demos.values()))
+        self.assertIn("compact", demos["text-225"].sizes.split(","))
+        self.assertEqual({"compact", "medium"}, set(demos["normal"].sizes.split(",")))
+
     def test_modals_run_at_default_and_largest_text(self):
         modal = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-modals.json"}
         self.assertEqual({("normal", True), ("text-225", True)}, modal)
@@ -54,13 +64,19 @@ class UiCiTests(unittest.TestCase):
         self.assertGreaterEqual(large.tabs, 1)
 
     def test_modal_motion_runs_at_default_largest_text_and_motion_off(self):
-        """#436: the #83 work-behind-dialogs journey gates PRs with motion on, at 225% text and with motion off."""
+        """#436: the #83 work-behind-dialogs journey gates PRs with motion on, at 225% text and with motion off.
+
+        The hosted runner starts with Animation effects off, so the motion runs force them on explicitly.
+        """
         runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-modal-motion.json"}
-        self.assertEqual({"normal", "text-225", "no-animations"}, set(runs))
+        self.assertEqual({"animations-on", "text-225+animations-on", "no-animations"}, set(runs))
         self.assertTrue(all(run.scan and not run.only for run in runs.values()))
+        self.assertEqual({"animations": True}, m.mode_spec("animations-on")["system"])
+        self.assertEqual({"text_scale": 225, "animations": True}, m.mode_spec("text-225+animations-on")["system"])
         pages = json.loads((ci.JOURNEYS / "a11y-modal-motion.json").read_text(encoding="utf-8"))
         names = {mode: {page["name"] for page in m.mode_pages(pages, mode)} for mode in runs}
-        for mode in ("normal", "text-225"):
+        for mode in ("animations-on", "text-225+animations-on"):
+            self.assertNotIn("mm-first-run-backdrop-static", names[mode])
             self.assertLessEqual({"mm-first-run-backdrop", "mm-whats-new-backdrop", "mm-first-run-shop-pulses"}, names[mode])
         self.assertLessEqual({"mm-first-run-backdrop-static", "mm-first-run-shop-pulses-static"}, names["no-animations"])
         shop = next(page for page in pages if page["name"] == "mm-first-run-shop-pulses")
@@ -69,6 +85,32 @@ class UiCiTests(unittest.TestCase):
                       "assertorder:id=fst.first-run.slides|id=PrimaryButton|id=SecondaryButton|id=fst.first-run.close",
                       "assertsize:id=fst.first-run.close|40x40", "key:enter"):
             self.assertIn(check, steps)
+
+    def test_back_keeps_place_runs_at_default_and_largest_text(self):
+        """#435: the Back-to-cached-page pages (#82) gate pull requests at 100% and 225% text, with an Axe scan."""
+        back = {(run.mode, run.scan, run.only) for run in ci.RUNS if run.pages == "a11y-back-keeps-place.json"}
+        self.assertEqual({("normal", True, ""), ("text-225", True, "")}, back)
+
+    def test_settings_pages_wait_for_feedback_rows_before_scrolling(self):
+        """#535: the Feedback rows appear above every later Settings section once ``/api/features`` answers, so a target
+        scrolled into view before then can be pushed back off screen (``no on-screen element
+        id=fst.settings.whats-new`` at 225% text). A CI page that scrolls to Settings content brings those rows in first
+        (scrolling back to page chrome such as the Quick Links entry is not a Settings target)."""
+        wait = "scrollinto:id=fst.settings.feedback.feature"
+        checked = 0
+        for run in ci.RUNS:
+            for page in json.loads((ci.JOURNEYS / run.pages).read_text(encoding="utf-8")):
+                if page.get("tab") != "settings" and page.get("route") != "/settings":
+                    continue
+                steps = [*page.get("setup", ()), *page.get("ready", ()), *page.get("after_ready", ())]
+                scrolls = [step for step in steps if step.startswith("scrollinto:id=fst.settings.")]
+                if not scrolls:
+                    continue
+                checked += 1
+                with self.subTest(run=run.name, page=page["name"]):
+                    self.assertTrue(scrolls[0].startswith(wait + "@"), scrolls[0])
+                    self.assertGreaterEqual(u.parse_step(scrolls[0])["timeout"], 20)
+        self.assertGreater(checked, 0)
 
     def test_songs_filter_runs_at_default_and_largest_text(self):
         # Issue #432 (#77): the no-profile Filter flyout's accessibility pages run in CI at default and 225% text.
@@ -86,6 +128,18 @@ class UiCiTests(unittest.TestCase):
         for target in ("fst.songs.filter|", "fst.songs.filter.reset|", "fst.songs.filter.year.select-all|",
                        "fst.songs.filter.year.clear-all|"):
             self.assertIn(f"assertsize:id={target}40x40", steps)
+
+    def test_load_swap_runs_every_page(self):
+        # Issue #431 (#71) review: every load-swap page (normal, 225% text, Reduce Motion and Animation effects off)
+        # runs in windows-ui, Axe-scanned, at a size the page supports.
+        runs = [run for run in ci.RUNS if run.pages == "a11y-load-swap.json"]
+        self.assertEqual({"normal", "text-225", "no-animations"}, {run.mode for run in runs})
+        self.assertTrue(all(run.scan and not run.only for run in runs))
+        pages = json.loads((ci.JOURNEYS / "a11y-load-swap.json").read_text(encoding="utf-8"))
+        covered = {page["name"] for run in runs for page in m.mode_pages(pages, run.mode)
+                   if m.page_sizes(page, run.sizes.split(","), run.mode)}
+        self.assertEqual({page["name"] for page in pages}, covered)
+        self.assertIn("load-swap-full-rankings-motion-system", covered)
 
     def test_argv(self):
         run = ci.Run("x", "a11y-modals.json", sizes="compact", mode="text-225", tabs=30)
