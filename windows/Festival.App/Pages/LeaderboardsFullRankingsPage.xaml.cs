@@ -61,6 +61,7 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
             "Loading rankings");
         Bindings.Update();
         if (created) await ViewModel.LoadAsync();
+        else if (ViewModel.SyncExperimentalRanks() is { } reload) await reload; // Settings' Experimental Ranks changed.
         else ViewModel.RefreshSelection(); // The selection may have changed on a pushed profile.
     }
 
