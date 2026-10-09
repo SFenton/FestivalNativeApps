@@ -111,7 +111,7 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
     @MainActor
     private func waitForRows(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertTrue(
-            app.buttons[Self.firstRow].firstMatch.waitForExistence(timeout: 30),
+            app.buttons[Self.firstRow].firstMatch.waitForExistence(timeout: FestivalApp.budget(30)),
             "the frozen detail was not rebuilt from /rivals/all", file: file, line: line
         )
     }
@@ -547,15 +547,15 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
         for contentSize in [nil, Self.ax5] {
             let app = launch(player: "fixture-riv-503", contentSize: contentSize)
             let title = app.staticTexts["fst.service-status.title"]
-            XCTAssertTrue(title.waitForExistence(timeout: 30), "the retry state shows")
+            XCTAssertTrue(title.waitForExistence(timeout: FestivalApp.budget(30)), "the retry state shows")
             XCTAssertEqual(title.label, "Scores are updating")
             let countdown = app.staticTexts["fst.service-status.countdown"]
-            XCTAssertTrue(countdown.waitForExistence(timeout: 10), "the freeze counts down")
+            XCTAssertTrue(countdown.waitForExistence(timeout: FestivalApp.budget(10)), "the freeze counts down")
             XCTAssertTrue(
                 countdown.label.hasPrefix("Trying again automatically in "), "countdown reads as a sentence: \(countdown.label)"
             )
             let retry = app.buttons["fst.service-status.retry"]
-            XCTAssertTrue(retry.waitForExistence(timeout: 10))
+            XCTAssertTrue(retry.waitForExistence(timeout: FestivalApp.budget(10)))
             let heights = try textHeights(app)
             XCTAssertEqual(retry.label, "Retry Now")
             XCTAssertGreaterThanOrEqual(retry.frame.height, 44 - 0.5, "Retry Now target height")
