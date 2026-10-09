@@ -472,6 +472,7 @@
   {
     "name": "press-leaderboards",
     "route": "/leaderboards",
+    "settings": {"experimentalRanks": true},
     "tabs": 0,
     "sizes": [
       "compact",
@@ -497,6 +498,7 @@
   {
     "name": "press-full-rankings",
     "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "settings": {"experimentalRanks": true},
     "tabs": 0,
     "sizes": [
       "compact",
@@ -530,6 +532,7 @@
   {
     "name": "press-band-rankings",
     "route": "/leaderboards/bands/Band_Duets",
+    "settings": {"experimentalRanks": true},
     "tabs": 0,
     "sizes": [
       "compact",

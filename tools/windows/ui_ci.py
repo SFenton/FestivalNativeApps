@@ -110,6 +110,11 @@ RUNS: tuple[Run, ...] = (
     # keyboard Settings replay with Esc focus return, demo frame clear of the title. At 225% the guide body scrolls.
     Run("first-run-demos", "a11y-first-run-demos.json"),
     Run("first-run-demos-text-225", "a11y-first-run-demos.json", sizes="compact", mode="text-225"),
+    # Settings' Experimental Ranks toggle (issue #541): enabled, off by default, named and Space-toggled; turning it on
+    # shows "Rank by: Total Score, button" (40 epx) on Leaderboards and off hides it again; with it off a saved or
+    # deep-linked experimental metric leaves no Rank By on Leaderboards, Full Rankings or Band Rankings.
+    Run("experimental-ranks", "a11y-experimental-ranks.json", tabs=0),
+    Run("experimental-ranks-text-225", "a11y-experimental-ranks.json", sizes="compact", mode="text-225", tabs=0),
 )
 
 

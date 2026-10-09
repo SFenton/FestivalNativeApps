@@ -28,6 +28,7 @@
   {
     "name": "band-rankings-menus-keyboard",
     "route": "/leaderboards/bands/Band_Duets",
+    "settings": {"experimentalRanks": true},
     "preset": "medium",
     "steps": [
       "waitfor:id=fst.band-rankings.row.fixture-team-1@20",
