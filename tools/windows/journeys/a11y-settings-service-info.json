@@ -116,12 +116,12 @@
                    "key:shift+tab", "assertfocus:id=fst.settings.whats-new@3"]},
   {"name": "settings-service-info-live", "tab": "settings", "tabs": 0,
    "ready": ["waitfor:id=fst.settings.show-instrument-icons@30"],
-   "after_ready": ["scrollinto:id=fst.settings.feedback.feature@20", "reveal:id=fst.settings.service-info.state", "waitfor:id=fst.settings.service-info.process@10",
+   "after_ready": ["scrollinto:id=fst.settings.feedback.feature@20", "reveal:id=fst.settings.service-info.state", "reveal:id=fst.settings.service-info.process@10",
                    "reveal:id=fst.settings.first-run.songs", "wait:1",
                    "shot:{stem}-card.png", "scan:{stem}-axe/live"]},
   {"name": "settings-service-info-live-film", "tab": "settings", "tabs": 0, "sizes": ["medium"], "modes": ["normal"],
    "ready": ["waitfor:id=fst.settings.show-instrument-icons@30"],
-   "after_ready": ["scrollinto:id=fst.settings.feedback.feature@20", "reveal:id=fst.settings.service-info.state", "waitfor:id=fst.settings.service-info.process@10",
+   "after_ready": ["scrollinto:id=fst.settings.feedback.feature@20", "reveal:id=fst.settings.service-info.state", "reveal:id=fst.settings.service-info.process@10",
                    "reveal:id=fst.settings.first-run.songs", "wait:1",
                    "film:{stem}-film", "wait:16", "filmstop:{stem}-film"]}
 ]
