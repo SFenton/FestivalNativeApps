@@ -27,12 +27,14 @@ import com.festivalscoretracker.android.core.settings.SettingsRegistry
 import com.festivalscoretracker.android.testing.BandFixtures
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
+import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * The full song band leaderboard (Duos/Trios/Quads) on a device, for the selected player's
@@ -43,8 +45,9 @@ import org.junit.runner.RunWith
  * band leave the accessibility tree (scroll-edge); after the jump the band's own row reads
  * "Your band" and sits clear of the footer; every pager button is a labelled 48 dp button.
  * The same journey runs at 200 % text (the header, pinned band and page label grow without
- * clipping and the pager stays on screen) and with Reduce Transparency, whose hard edge
- * (scroll-edge R7) must still cut rows at the footer. ATF runs throughout and nothing
+ * clipping and the pager stays on screen), with Reduce Transparency and with Reduce Motion,
+ * whose hard edge (scroll-edge R7) must still cut rows at the footer; under Reduce Motion the
+ * jump also reveals the band's row at once (load-transition R6). ATF runs throughout and nothing
  * straddles a hinge. `@DeviceCi`: the `android-device` job runs it on a plain phone
  * (`device.py test com.festivalscoretracker.android.journeys.SongBandLeaderboardJourneyTest --avd …`).
  */
@@ -59,9 +62,12 @@ class SongBandLeaderboardJourneyTest {
     private val footer = "$prefix.spotlight-footer"
     private val selectedRank = 40
     private val selectedRow = "$prefix.row.band-$selectedRank:$selectedRank"
+    private val selectedPageFirstRow = "$prefix.row.band-26:26"
+    private val held = CopyOnWriteArrayList<Pair<(String) -> Boolean, CompletableDeferred<Unit>>>()
     private val transport: FakeTransport = BandFixtures.install(
         FakeTransport.standard().apply {
             on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null") }
+            beforeRespond = { request -> held.firstOrNull { (matches, _) -> matches(request.url) }?.second?.await() }
         },
     ).apply {
         // 60 Duos bands, the selected player's at #40 on page 2, so the pinned band starts as a jump.
@@ -155,6 +161,40 @@ class SongBandLeaderboardJourneyTest {
         }
     }
 
+    /** The selected band's page-2 read: held until [assertInstantReveal] releases it on a paused clock. */
+    private fun isSelectedPage(url: String) = "/bands/Band_Duets" in url && Regex("[?&]offset=25(&|$)").containsMatchIn(url)
+
+    /**
+     * Reduce Motion (load-transition R6, `leaderboard-row` R7): the pinned band's jump reveals its
+     * row without animation. With page 2's read held and the frame clock paused, the row must sit
+     * clear of the footer within [REVEAL_FRAMES] frames of its page showing, then not move for a
+     * second. The animated reveal waits for the row's staggered entrance (about 1.9 s) and then
+     * scrolls, so it fails both checks.
+     */
+    private fun assertInstantReveal(screen: String) {
+        val page = CompletableDeferred<Unit>().also { held += ::isSelectedPage to it }
+        h.tap(footer)
+        rule.waitUntil(10_000) { transport.requests.any { isSelectedPage(it.url) } }
+        rule.mainClock.autoAdvance = false
+        try {
+            page.complete(Unit)
+            val deadline = System.currentTimeMillis() + 15_000
+            while (!h.exists(selectedPageFirstRow)) {
+                assertTrue("$screen: page 2 never showed", System.currentTimeMillis() < deadline)
+                rule.mainClock.advanceTimeByFrame()
+                Thread.sleep(16)
+            }
+            repeat(REVEAL_FRAMES) { rule.mainClock.advanceTimeByFrame() }
+            assertTrue("$screen: the band's row isn't composed $REVEAL_FRAMES frames after its page showed", h.exists(selectedRow))
+            val row = bounds(selectedRow)
+            assertTrue("$screen: row $row not revealed clear of the footer ${bounds(footer)} within $REVEAL_FRAMES frames", row.bottom <= bounds("$prefix.bottom-bar").top + 1)
+            rule.mainClock.advanceTimeBy(1_000)
+            assertEquals("$screen: the reveal kept animating", row, bounds(selectedRow))
+        } finally {
+            rule.mainClock.autoAdvance = true
+        }
+    }
+
     // endregion
 
     // region Journeys
@@ -175,14 +215,27 @@ class SongBandLeaderboardJourneyTest {
     )
 
     /**
+     * Reduce Motion: the hard edge (scroll-edge R7) still hides rows under the pinned band, the
+     * pinned band keeps its action, state and TalkBack place, and its jump reveals the band's row
+     * at once (load-transition R6).
+     */
+    @Test
+    fun reduceMotionCutsRowsAtThePinnedBandAndRevealsItsRowAtOnce() = journey(
+        "song-band-leaderboard-reduce-motion",
+        preferences = MemoryPreferences(mutablePreferencesOf(booleanPreferencesKey(SettingsRegistry.REDUCE_MOTION) to true)),
+        instantReveal = true,
+    )
+
+    /**
      * The board journey: text scale, targets, reading order and the footer cut on page 1, then
      * the pinned band's jump to its own row on page 2.
      *
      * @param screen Name for the reading-order log and failure messages.
      * @param scale Font scale to render at, or null for the device's own.
      * @param preferences Settings store (accessibility modes).
+     * @param instantReveal Also require the jump's reveal to land without animation (Reduce Motion).
      */
-    private fun journey(screen: String, scale: Float? = null, preferences: MemoryPreferences = MemoryPreferences()) {
+    private fun journey(screen: String, scale: Float? = null, preferences: MemoryPreferences = MemoryPreferences(), instantReveal: Boolean = false) {
         h.enableAccessibilityChecks()
         val debug = DebugLaunch(
             route = DebugLaunch.parseRoute("songBandLeaderboard:s-alpha:Band_Duets"),
@@ -232,7 +285,7 @@ class SongBandLeaderboardJourneyTest {
 
         // Jump: page 2 shows the band's own row, revealed clear of the footer; the pinned band now opens it.
         val footerBefore = bounds(footer)
-        h.tap(footer)
+        if (instantReveal) assertInstantReveal(screen) else h.tap(footer)
         h.waitForTag(selectedRow)
         h.awaitAccessibilityTree(selectedRow)
         rule.waitUntil(15_000) {
@@ -253,4 +306,9 @@ class SongBandLeaderboardJourneyTest {
     }
 
     // endregion
+
+    private companion object {
+        /** Frames (about 167 ms) the Reduce Motion reveal may take after the page shows: a few layout passes, no animation. */
+        const val REVEAL_FRAMES = 10
+    }
 }
