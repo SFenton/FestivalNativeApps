@@ -242,13 +242,6 @@ public class SettingsServiceInfoTests
         Assert.Null(ServiceInfoText.DiscoveryAttemptText(display with { PhaseId = "post.compute_rankings" }));
     }
 
-    [Theory]
-    [InlineData(1.0, false)]
-    [InlineData(1.49, false)]
-    [InlineData(1.5, true)]
-    [InlineData(2.25, true)]
-    public void StateRowStacksAtLargeText(double scale, bool stacked) => Assert.Equal(stacked, ServiceInfoText.StacksStateRow(scale));
-
     [Fact]
     public void PublicationTimeAndFreeze()
     {

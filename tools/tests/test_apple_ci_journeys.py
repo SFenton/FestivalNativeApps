@@ -3,8 +3,8 @@
 A selector that matches nothing makes ``xcodebuild`` run no test, so a renamed journey would silently leave CI.
 The account-button reading-order journeys (``page-tools-and-nav-chrome`` R17, #394), the Songs section-title AX5
 journey (#91, #441), the What's New AX5 journeys (#434: iPhone portrait, iPad portrait and landscape) and the
-scroll-edge fade journeys (#462: sheet header and every R9 board on iPhone and iPad, Duo windows on iPhone) must
-stay listed.
+scroll-edge fade journeys (#462: sheet header and every R9 board on iPhone and iPad, Duo windows on iPhone) and the
+pinned caption-icon journeys (``song-header`` R4, #542) must stay listed.
 """
 
 import re
@@ -123,6 +123,13 @@ class AppleCIJourneysTests(unittest.TestCase):
             self.assertIn(f"{cls}/{duo}", iphone)
             self.assertNotIn(f"{cls}/{duo}", ipad)
         self.assertIn("mock_service.py --large-rankings --port 8766", self.workflow)
+
+    def test_pinned_caption_icon_journeys_run_in_ci(self) -> None:
+        for method in (
+            "testSongLeaderboardCaptionIconScalesWithText",
+            "testPlayerHistoryCaptionIconAtLargestText",
+        ):
+            self.assertIn(f"SongBarCaptionIconJourneyTests/{method}", self.journeys)
 
 
 if __name__ == "__main__":

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -62,11 +63,25 @@ def fixture_entries(source: Path) -> list[dict]:
     return [entry for entry in entries if "live" not in str(entry.get("name", "")).lower()]
 
 
-def all_tasks() -> list[Task]:
-    """Return all fixture-only JSON and dedicated-runner tasks in stable order."""
+def runner_journeys() -> set[str]:
+    """Journey files a dedicated runner drives itself (``JOURNEYS = … / "journeys" / "search.json"``).
+
+    Such a file depends on its runner's fixture hooks (delayed queries, isolated settings, request logs), so the
+    generic ``ui_journey.py`` cannot serve it; it runs once, as the runner's task, never as a ``journey:`` task too.
+    """
+    owned = set()
+    for _, (script, *_args) in DEDICATED_RUNNERS:
+        source = (WINDOWS_TOOLS / script).read_text(encoding="utf-8")
+        owned.update(re.findall(r"""["']journeys["']\s*/\s*["']([\w.-]+\.json)["']""", source))
+    return owned
+
+
+def candidate_tasks() -> list[Task]:
+    """Return every fixture-only JSON and dedicated-runner task, before ``ci_skip.json``, in stable order."""
     tasks = []
+    owned = runner_journeys()
     for source in sorted(JOURNEYS.glob("*.json")):
-        if source.name.startswith("a11y"):
+        if source.name.startswith("a11y") or source.name in owned:
             continue
         entries = fixture_entries(source)
         if not entries:
@@ -83,8 +98,18 @@ def all_tasks() -> list[Task]:
         else:
             tasks.append(Task(f"{kind}:{source.stem}", kind, source, entries=names))
     tasks.extend(Task(f"runner:{name}", "runner", command=command) for name, command in DEDICATED_RUNNERS)
-    skips = json.loads(SKIP_FILE.read_text(encoding="utf-8")).get("tasks", {})
-    return [task for task in tasks if task.name not in skips]
+    return tasks
+
+
+def skipped_tasks() -> dict[str, dict]:
+    """The ``ci_skip.json`` deny list: task name to its reason and tracker issue."""
+    return json.loads(SKIP_FILE.read_text(encoding="utf-8")).get("tasks", {})
+
+
+def all_tasks() -> list[Task]:
+    """Return the fixture-only tasks CI runs: :func:`candidate_tasks` minus ``ci_skip.json``."""
+    skips = skipped_tasks()
+    return [task for task in candidate_tasks() if task.name not in skips]
 
 
 def task_weight(task: Task) -> int:
