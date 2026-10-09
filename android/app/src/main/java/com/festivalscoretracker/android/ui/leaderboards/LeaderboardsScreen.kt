@@ -98,6 +98,7 @@ import com.festivalscoretracker.android.ui.common.shellPosture
 @Composable
 fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
     val metric by viewModel.metric.collectAsStateWithLifecycle()
+    val experimentalRanks by viewModel.experimentalRanks.collectAsStateWithLifecycle()
     val instruments by viewModel.instruments.collectAsStateWithLifecycle()
     val selected by viewModel.selectedAccountId.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
@@ -126,7 +127,7 @@ fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
             modifier = Modifier.semantics { testTagsAsResourceId = true },
             actions = {
                 QuickLinksAction(quickLinks, windowWidthDp)
-                RankByAction(metric, viewModel::selectMetric)
+                RankByAction(metric, experimentalRanks, viewModel::selectMetric)
             },
         ) { padding ->
             PullToRefreshBox(isRefreshing = refreshing, onRefresh = viewModel::refresh, modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {

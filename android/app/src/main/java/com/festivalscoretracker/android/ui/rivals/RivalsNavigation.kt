@@ -38,8 +38,8 @@ fun NavGraphBuilder.rivalsDestinations(container: AppContainer, settings: AppSet
         if (player == null) {
             RivalsNoPlayerScreen("Rivals")
         } else {
-            val scope = RivalScopes.fromToken(route.scope)
-            val viewModel: AllRivalsViewModel = viewModel(key = "all-rivals:${player.accountId}:${route.scope}:${settings.visibleInstruments}") {
+            val scope = RivalScopes.fromToken(route.scope)?.let { RivalScopes.gated(it, settings.experimentalRanks) }
+            val viewModel: AllRivalsViewModel = viewModel(key = "all-rivals:${player.accountId}:${scope?.routeToken}:${settings.visibleInstruments}") {
                 AllRivalsViewModel(player.accountId, scope, settings.visibleInstruments, container.rivals, container.backoff)
             }
             AllRivalsScreen(viewModel)
@@ -65,8 +65,8 @@ fun NavGraphBuilder.rivalsDestinations(container: AppContainer, settings: AppSet
 private fun RivalsHub(container: AppContainer, settings: AppSettings, isRoot: Boolean) {
     val player = settings.selectedPlayer
     val hub = player?.let {
-        viewModel(key = "rivals-hub:${it.accountId}:${settings.visibleInstruments}") {
-            RivalsHubViewModel(it.accountId, settings.visibleInstruments, container.rivals, container.backoff)
+        viewModel(key = "rivals-hub:${it.accountId}:${settings.visibleInstruments}:${settings.experimentalRanks}") {
+            RivalsHubViewModel(it.accountId, settings.visibleInstruments, container.rivals, container.backoff, settings.experimentalRanks)
         }
     }
     val search = viewModel<ProfileSearchViewModel>(key = "find-rival") { ProfileSearchViewModel { query -> container.api.searchPlayers(query) } }
@@ -83,12 +83,13 @@ private fun detailViewModel(
     allowLiveFallback: Boolean,
 ): RivalDetailViewModel? {
     val player = settings.selectedPlayer ?: return null
-    return viewModel(key = "rival:${player.accountId}:$rivalId:$scopeToken:$allowLiveFallback:${settings.visibleInstruments}") {
+    val scope = RivalScopes.fromToken(scopeToken)?.let { RivalScopes.gated(it, settings.experimentalRanks) }
+    return viewModel(key = "rival:${player.accountId}:$rivalId:${scope?.routeToken ?: scopeToken}:$allowLiveFallback:${settings.visibleInstruments}") {
         RivalDetailViewModel(
             accountId = player.accountId,
             rivalId = rivalId,
             routeName = name,
-            scope = RivalScopes.fromToken(scopeToken),
+            scope = scope,
             allowLiveFallback = allowLiveFallback,
             visible = settings.visibleInstruments,
             repository = container.rivals,
