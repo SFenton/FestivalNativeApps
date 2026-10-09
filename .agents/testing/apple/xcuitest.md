@@ -20,6 +20,17 @@ see `cmd_uitest`'s docstring in `tools/ios_sim.py` for the full contract.
 sequence instead of a written `XCTestCase`, useful for ad hoc exploration
 before writing a real journey.
 
+## CI journeys
+
+`apple-ci` runs a short list of iPhone journeys on a simulator (step "iPhone simulator journeys", `JOURNEYS` in [`apple-ci.yml`](../../../.github/workflows/apple-ci.yml)). Use it for evidence the macOS-hosted suite cannot give: real Dynamic Type sizes (macOS has no Dynamic Type, [accessibility](accessibility.md)) and `performAccessibilityAudit`.
+
+- The step starts `tools/mock_service.py --large-catalogue` on the default port 8765, creates one throwaway runner simulator with `ios_sim.py ci-device` (an iPhone 17 Pro on the runner's newest iOS runtime) and runs `ios_sim.py uitest --device <UDID> --fail-on-skip`.
+- `--fail-on-skip` fails a batch in which any test skipped or none ran: a journey that cannot find its fixture skips, and an all-skipped batch would otherwise pass.
+- Add a journey only if it passes alone against that fixture, launches with no other flags or a selected player, and takes about two minutes or less; a journey needing another fixture mode needs its own mock and step. Run it first with `ios_sim.py uitest --fail-on-skip` locally (point it at your own mock with `TEST_RUNNER_<VAR>` when another lane holds 8765).
+- `ci-device` refuses to run outside GitHub Actions: on a shared Mac, use a `DEVICES` alias and never create or change simulators.
+- A failed run uploads the `.xcresult` bundles and the mock's log as the `apple-ci-journeys` artifact.
+- **Rival Detail accessibility journeys** (#444, its own step and `JOURNEYS` list): `RivalDetailFrozenAccessibilityJourneyTests` needs selected-player fixtures (`fixture-riv-frozen`, `fixture-riv-503`), so the step starts its own mock on port 18944 (`TEST_RUNNER_FST_FIXTURE_URL`). It runs the same universal test build (`uitest --app phone`) on an iPhone 17 Pro, an iPad Pro 11-inch (M5) and an iPhone Duo, one at a time, each from `ci-device --type "<type>" --name "FST CI rivals <device>"`, and shuts each down after its run. A step with several device types names each device: `ci-device` reuses a device by name whatever its type. The Duo runs folded: a new Duo boots folded and `--pose folded` checks it by screenshot, with no Device Hub. Add a journey to this step when it is the only test of an iPad or iPhone Duo size class.
+
 ### Shared launch helper (`FestivalApp.swift`, added 2026-09-28)
 
 Every journey launches through `FestivalApp.makeApp(_:)` (build, don't launch)

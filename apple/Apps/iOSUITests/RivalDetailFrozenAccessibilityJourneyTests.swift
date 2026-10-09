@@ -19,9 +19,10 @@ import XCTest
 /// The same class runs on each device class, so its assertions hold at every width:
 /// compact (iPhone, the folded iPhone Duo) and regular (iPad full screen).
 /// `apple-ci` runs it on an iPhone 17 Pro, an iPad Pro 11-inch and an iPhone Duo
-/// (folded) simulator ([iOS journeys in CI](../../../.agents/testing/apple/accessibility.md#ios-journeys-in-ci)).
+/// (folded) simulator ([CI journeys](../../../.agents/testing/apple/xcuitest.md#ci-journeys)).
 /// Locally: `python3 tools/mock_service.py` (port 8765, or `TEST_RUNNER_FST_FIXTURE_URL`), then
-/// `python3 tools/ios_sim.py uitest --device iphone|ipad|duo --only RivalDetailFrozenAccessibilityJourneyTests`.
+/// `python3 tools/ios_sim.py uitest --device iphone|ipad|duo --app phone --fail-on-skip --only RivalDetailFrozenAccessibilityJourneyTests`
+/// (`--pose folded` on the Duo).
 final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
     // MARK: - Fixture
 

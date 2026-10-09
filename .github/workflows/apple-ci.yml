@@ -54,38 +54,59 @@ jobs:
         # strictly. Reuses the coverage build and leaves its profile alone. Filter: testing/apple/hosted-snapshots.md.
         working-directory: apple
         run: swift test --skip-build --filter 'selectedRowRevealFadesTheRowItReaches|staggeredListRowsFadeInRatherThanPop|serviceInfoIndeterminateBar'
-      - name: Rival Detail accessibility journeys (iPhone, iPad, iPhone Duo simulators)
-        # #444: Rival Detail while the service freezes publishing (#95), on each Apple touch form factor: labels,
-        # reading order, 44-pt targets, the largest text size and performAccessibilityAudit. One universal test
-        # build runs on a fresh runner simulator per device (`ci-device`), one at a time; the Duo journeys run
-        # folded (a new Duo boots folded; `--pose folded` verifies it). The loopback fixture uses its own port;
-        # `--require-run` fails a skipped or empty run. List: testing/apple/accessibility.md#ios-journeys-in-ci.
+      - name: iPhone simulator journeys (serialized, loopback fixture)
+        # Evidence only an iOS run gives (real Dynamic Type sizes, performAccessibilityAudit). One throwaway runner
+        # simulator, the large-catalogue loopback fixture, `ios_sim.py uitest`; a skipped journey fails the step.
+        # Add a journey here only if it runs against this fixture: testing/apple/xcuitest.md#ci-journeys.
         env:
-          FST_CI_RIVAL_A11Y_JOURNEYS: >-
+          JOURNEYS: >-
+            SongsChromeJourneyTests/testSectionBarHeadingAtLargestText
+        run: |
+          python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service.log" 2>&1 &
+          mock=$!
+          trap 'kill "$mock" 2>/dev/null || true' EXIT
+          device=$(python3 tools/ios_sim.py ci-device)
+          for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock_service.log" && break; sleep 1; done
+          grep -q "fixture service on" "$RUNNER_TEMP/mock_service.log"
+          only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
+          python3 tools/ios_sim.py uitest --device "$device" --fail-on-skip --timeout 900 "${only[@]}"
+      - name: Rival Detail accessibility journeys (iPhone, iPad, iPhone Duo simulators)
+        # #444: Rival Detail while the service freezes publishing (#95) on each Apple touch form factor: labels,
+        # reading order, 44-pt targets, the largest text size and performAccessibilityAudit. Its selected-player
+        # fixtures need their own mock (port 18944). The same universal test build runs on one named runner
+        # simulator per device type (`ci-device --name`), one at a time; the Duo runs folded (a new Duo boots
+        # folded and `--pose folded` verifies it). List: testing/apple/xcuitest.md#ci-journeys.
+        env:
+          JOURNEYS: >-
             RivalDetailFrozenAccessibilityJourneyTests/testFrozenRivalDetailNamesOrdersAndSizesItsRows
             RivalDetailFrozenAccessibilityJourneyTests/testFrozenRivalDetailGrowsAtTheLargestTextSize
             RivalDetailFrozenAccessibilityJourneyTests/testFrozenRivalDetailWithoutSnapshotOffersRetry
         run: |
           python3 tools/mock_service.py --port 18944 > "$RUNNER_TEMP/mock_service_rivals.log" 2>&1 &
-          for _ in $(seq 60); do grep -q "Local test fixture service" "$RUNNER_TEMP/mock_service_rivals.log" && break; sleep 1; done
-          grep -q "Local test fixture service" "$RUNNER_TEMP/mock_service_rivals.log" || { cat "$RUNNER_TEMP/mock_service_rivals.log"; exit 1; }
-          ONLY=(); for journey in $FST_CI_RIVAL_A11Y_JOURNEYS; do ONLY+=(--only "$journey"); done
+          mock=$!
+          trap 'kill "$mock" 2>/dev/null || true' EXIT
+          for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock_service_rivals.log" && break; sleep 1; done
+          grep -q "fixture service on" "$RUNNER_TEMP/mock_service_rivals.log"
+          only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
           for device in "iPhone 17 Pro|iphone|" "iPad Pro 11-inch (M5)|ipad|" "iPhone Duo|duo|folded"; do
             IFS='|' read -r type label pose <<< "$device"
-            POSE=(); [ -z "$pose" ] || POSE=(--pose "$pose")
-            UDID=$(python3 tools/ios_sim.py ci-device --device-type "$type" --name "FST CI rivals $label")
+            posed=(); [ -z "$pose" ] || posed=(--pose "$pose")
+            udid=$(python3 tools/ios_sim.py ci-device --type "$type" --name "FST CI rivals $label")
             echo "::group::Rival Detail accessibility journeys ($type)"
-            TEST_RUNNER_FST_FIXTURE_URL=http://127.0.0.1:18944 FST_UITEST_KEEP_RESULTS=1 FST_UITEST_NO_DIAGNOSTICS=1 \
-              python3 tools/ios_sim.py uitest --device "$UDID" --app phone --require-run --timeout 900 "${POSE[@]}" "${ONLY[@]}"
+            TEST_RUNNER_FST_FIXTURE_URL=http://127.0.0.1:18944 \
+              python3 tools/ios_sim.py uitest --device "$udid" --app phone --fail-on-skip --timeout 900 "${posed[@]}" "${only[@]}"
             echo "::endgroup::"
-            xcrun simctl shutdown "$UDID" || true
+            xcrun simctl shutdown "$udid" || true
           done
-      - name: Upload Rival Detail journey results
+      - name: Upload simulator journey results
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: apple-ci-rival-journeys
-          path: apple/DerivedData/*/Results/*.xcresult
+          name: apple-ci-journeys
+          path: |
+            apple/DerivedData/lane-driver/Results
+            ${{ runner.temp }}/mock_service.log
+            ${{ runner.temp }}/mock_service_rivals.log
           if-no-files-found: ignore
           retention-days: 7
       - name: Upload hosted render captures
