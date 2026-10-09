@@ -1277,6 +1277,10 @@
             "symbol": "SelectedScoreFooterRow"
           },
           {
+            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SelectedScoreFooterRow.swift",
+            "symbol": "pinnedFooterControl"
+          },
+          {
             "path": "apple/Sources/FestivalCore/SelectedRowNavigation.swift",
             "symbol": "SelectedRowAction"
           },
@@ -1446,6 +1450,14 @@
           "allow": [],
           "debt": [],
           "message": "Board pagination stays in the content under the board as RankingsPagerView, never as toolbar or rail items (leaderboard-row R5, #345)."
+        },
+        {
+          "id": "apple-pinned-footer-control",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "accessibilityIdentifier\\(\"fst\\.[a-z-]+\\.spotlight-footer\"\\)",
+          "allow": [],
+          "debt": [],
+          "message": "Pinned selected-row footers use pinnedFooterControl(identifier:) for the row button style (Mac focus ring, Return, hover), not their own button style (leaderboard-row R7, #461)."
         },
         {
           "id": "apple-name-owner",

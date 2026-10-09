@@ -538,10 +538,7 @@ struct FullRankingsScreen: View {
                 .accessibilityIdentifier("fst.full-rankings.spotlight-jump")
             }
         }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 16)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("fst.full-rankings.spotlight-footer")
+        .pinnedFooterControl(identifier: "fst.full-rankings.spotlight-footer")
     }
 
     /// Read the selected player's own row on this instrument's board.

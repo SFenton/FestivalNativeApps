@@ -474,10 +474,7 @@ struct SoloLeaderboardScreen: View {
                     .accessibilityIdentifier("fst.song-leaderboard.spotlight-jump")
                 }
             }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 16)
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("fst.song-leaderboard.spotlight-footer")
+            .pinnedFooterControl(identifier: "fst.song-leaderboard.spotlight-footer")
         }
     }
 

@@ -29,6 +29,28 @@ struct SelectedScoreFooterRow: View {
     }
 }
 
+// MARK: - Pinned footer control
+
+extension View {
+    /// The pinned selected-row footer's control on every board (pattern `leaderboard-row`
+    /// R5): apply to the ``SelectedRowAction`` Jump button or Open link around the row.
+    ///
+    /// The whole-row button style (``festivalRowButtonStyle(cornerRadius:)``) gives the
+    /// footer what every list row has on the Mac: the keyboard focus ring in the card's
+    /// shape, Return as well as Space, and the hover tint (issue #461); iPhone and iPad
+    /// keep the plain style. Then the page margins and one container identifier.
+    ///
+    /// - Parameter identifier: The footer container's identifier
+    ///   (`fst.<board>.spotlight-footer`).
+    /// - Returns: The styled footer.
+    func pinnedFooterControl(identifier: String) -> some View {
+        festivalRowButtonStyle()
+            .padding(.horizontal, 16)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier(identifier)
+    }
+}
+
 // MARK: - Row card
 
 /// One song-board row as its own card: the ``SongLeaderboardEntryRow`` columns, the

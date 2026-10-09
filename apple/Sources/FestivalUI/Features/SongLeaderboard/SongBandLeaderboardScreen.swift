@@ -466,10 +466,7 @@ struct SongBandLeaderboardContent: View {
                 .accessibilityIdentifier("fst.song-band-leaderboard.spotlight-jump")
             }
         }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 16)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("fst.song-band-leaderboard.spotlight-footer")
+        .pinnedFooterControl(identifier: "fst.song-band-leaderboard.spotlight-footer")
     }
 
     // MARK: Song header

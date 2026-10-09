@@ -14,8 +14,17 @@ import FestivalDesign
 /// action follows the Solo footer, #307). These hosted checks pin what that row exposes
 /// on every Apple platform (the same SwiftUI runs on iPhone, iPad, iPhone Duo and Mac):
 /// one named button or link per action, reading order between the rows and the pager,
-/// a full-size target, the accessibility-size layout and the opaque backing under the
+/// a full-size target, the accessibility-size layout, activation of both actions (Jump
+/// shows the band's page, Open band pushes Band Detail) and the opaque backing under the
 /// system's and the app's transparency and contrast settings.
+///
+/// Activation goes through the control's AXPress action, which VoiceOver, Voice Control
+/// and Switch Control send. A hosted test cannot give a SwiftUI button keyboard focus:
+/// SwiftUI reads the Mac's Keyboard navigation setting outside the process (forcing
+/// `NSApplication.isFullKeyboardAccessEnabled` on changed nothing, #461), and agents must
+/// not change that system setting. The footer's Tab focus ring and Return come from the
+/// shared row style through `pinnedFooterControl`, which `tools/pattern_guard.py`
+/// (`leaderboard-row/apple-pinned-footer-control`) keeps on every board.
 ///
 /// HIG Accessibility: "Provide alternative text labels for all important interface
 /// elements"; iOS/iPadOS default control size 44×44 pt; "If the default does not meet
@@ -37,6 +46,11 @@ struct SongBandFooterAccessibilityTests {
     static let openLabel = "Your band's rank, 29th. Open band."
     static let size = CGSize(width: 402, height: 900)
 
+    /// Routes the board pushed (Open band's Band Detail).
+    @MainActor final class RouteRecorder {
+        var routes: [AppRoute] = []
+    }
+
     /// One hosted band board over the keyless fixture service.
     struct Hosted {
         let host: NSHostingView<NativeHostedRoot<AnyView>>
@@ -56,9 +70,12 @@ struct SongBandFooterAccessibilityTests {
     /// - Parameters:
     ///   - page: The page to open: 1 jumps to the band's page, 2 holds its row.
     ///   - typeSize: Dynamic Type size for the whole page.
+    ///   - recorder: Records each route the stack pushes.
     /// - Returns: The settled host, its window and storage.
     /// - Throws: An unavailable fixture service, catalogue song or capture.
-    static func hostBoard(page: Int, typeSize: DynamicTypeSize = .large) async throws -> Hosted {
+    static func hostBoard(
+        page: Int, typeSize: DynamicTypeSize = .large, recorder: RouteRecorder = RouteRecorder()
+    ) async throws -> Hosted {
         let client = try FestivalAPI(
             baseURL: try await RivalsMockService.shared.baseURL(), transport: URLSessionHTTPTransport()
         )
@@ -73,6 +90,9 @@ struct SongBandFooterAccessibilityTests {
             AnyView(
                 NavigationStack {
                     SongBandLeaderboardScreen(session: session, song: song, bandType: "Band_Duets", initialPage: page)
+                        .navigationDestination(for: AppRoute.self) { route in
+                            Text("Destination").onAppear { recorder.routes.append(route) }
+                        }
                 }
                 .frame(width: size.width, height: size.height)
                 .defaultAppStorage(storage)
@@ -183,6 +203,59 @@ struct SongBandFooterAccessibilityTests {
             #expect(control.height >= 44 - 0.5, "\(id) keeps a 44 pt target: \(control)")
         }
         #expect(macAccessibilityFindings(nodes) == [])
+    }
+
+    // MARK: - Activation
+
+    /// Press a control the way VoiceOver (VO-Space), Voice Control and Switch Control do:
+    /// its AXPress action.
+    ///
+    /// - Parameters:
+    ///   - identifier: The control's identifier.
+    ///   - host: The board's hosting view.
+    /// - Throws: A missing control or one without a press action.
+    static func press(_ identifier: String, in host: NSView) throws {
+        let control = try #require(nativeHostedAccessibilityElement(identifier, in: host), "\(identifier) to press")
+        let press = NSSelectorFromString("accessibilityPerformPress")
+        try #require(control.responds(to: press), "\(identifier) offers a press action")
+        _ = control.perform(press)
+    }
+
+    /// Activating Jump off the band's page shows page 2 with the band's own row, where the
+    /// same footer becomes the Open band link with its label (issue #307's jump-or-open
+    /// rule).
+    @Test func jumpActivationShowsTheBandsPageAndTurnsTheFooterIntoOpen() async throws {
+        let hosted = try await Self.hostBoard(page: 1)
+        defer { hosted.close() }
+        let host = hosted.host
+        let bandRowID = Self.rowPrefix + "fixture-band-fixture-player-1:29"
+        #expect(!macAccessibilityTree(host).contains { $0.identifier == bandRowID }, "page 1 holds ranks 1–25")
+        try Self.press(Self.jumpID, in: host)
+        try await nativeHostedSettle(host, timeout: .seconds(30)) {
+            nativeHostedAccessibilityFrame(Self.openID, in: host) != nil
+        }
+        let nodes = macAccessibilityTree(host)
+        let bandRow = try Self.element(bandRowID, in: nodes)
+        #expect(bandRow.spokenName.hasPrefix("Your band, Rank 29"), "the jump shows the band's own row: \(bandRow)")
+        #expect(try Self.element(Self.openID, in: nodes).spokenName == Self.openLabel)
+        #expect(!nodes.contains { $0.identifier == Self.jumpID && $0.isElement }, "one action at a time")
+    }
+
+    /// Activating Open band on the band's page pushes that band's Band Detail.
+    @Test func openActivationPushesBandDetail() async throws {
+        let recorder = RouteRecorder()
+        let hosted = try await Self.hostBoard(page: 2, recorder: recorder)
+        defer { hosted.close() }
+        try Self.press(Self.openID, in: hosted.host)
+        try await nativeHostedSettle(hosted.host, timeout: .seconds(30)) { !recorder.routes.isEmpty }
+        let route = try #require(recorder.routes.first, "Open band pushed nothing")
+        guard case let .band(_, name, bandType, teamKey) = route else {
+            Issue.record("Open band pushed \(route), not Band Detail")
+            return
+        }
+        #expect(bandType == "Band_Duets")
+        #expect(teamKey?.isEmpty == false, "the band's team key travels with the route")
+        #expect(name?.contains("Fixture Player 1") == true, "the selected player's band: \(name ?? "nil")")
     }
 
     // MARK: - Transparency and contrast
