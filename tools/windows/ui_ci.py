@@ -102,6 +102,11 @@ RUNS: tuple[Run, ...] = (
     # focus moves row -> group header -> previous row through the band and never lands on the copy.
     Run("songs-section-push", "a11y-songs-section-push.json", tabs=0),
     Run("songs-section-push-text-225", "a11y-songs-section-push.json", sizes="compact", mode="text-225", tabs=0),
+    # Back from View All or a rival to cached Leaderboards and Rivals (issues #82, #276, #435): the opener and its card
+    # stay put, focus returns to the opener, it reads "<name>, button" after its card and heading, keeps a 40 epx target,
+    # and Tab/Shift+Tab continue from it; by keys (Enter, Alt+Left) and pointer (the title-bar Back).
+    Run("back-keeps-place", "a11y-back-keeps-place.json"),
+    Run("back-keeps-place-text-225", "a11y-back-keeps-place.json", sizes="compact", mode="text-225"),
     # Quick Links landings on Settings and Leaderboards (issues #51, #416): entry name and current section, 40 epx
     # entry and items, keyboard order, the jump announcement, heading landing inset and focus. The wide pane page
     # (scale-100/150 modes) stays in the host matrix.
