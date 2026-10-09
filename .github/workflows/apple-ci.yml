@@ -2,11 +2,31 @@ name: apple-ci
 # Apple unit tests, compile check and the simulator journeys (JOURNEYS and journeys below) on GitHub-hosted
 # Xcode 27 runners (no mesh machine runs CI or release work). The required check is the `apple-ci` job at the
 # end: it passes only when the build job and every Songs Filter journey leg pass, so keep its name `apple-ci`.
+# Path-filtered: Android-, Windows- and docs-only changes don't spend the scarce macOS runners (the release machine
+# requires apple-ci only for apple/ and contracts/ changes).
 on:
   pull_request:
     branches: [master]
+    paths:
+      - 'apple/**'
+      - 'contracts/**'
+      - 'tools/*.py'
+      - 'tools/*.sh'
+      - 'tools/*.swift'
+      - 'tools/release/**'
+      - 'tools/visual/**'
+      - '.github/workflows/apple-ci.yml'
   push:
     branches: [master]
+    paths:
+      - 'apple/**'
+      - 'contracts/**'
+      - 'tools/*.py'
+      - 'tools/*.sh'
+      - 'tools/*.swift'
+      - 'tools/release/**'
+      - 'tools/visual/**'
+      - '.github/workflows/apple-ci.yml'
   workflow_dispatch:
 permissions:
   contents: read

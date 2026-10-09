@@ -524,29 +524,23 @@
                     <!-- Test IDs sit on the TextBlocks: a Border, Grid or unnamed StackPanel has no UIA element (issue #275). -->
                     <Border x:Name="ServiceInfoCard" Style="{StaticResource FSTCardStyle}" Padding="16,8">
                         <StackPanel Spacing="4">
-                            <!-- At 150%+ Windows text size the process state moves under the label (code-behind) instead of squeezing it. -->
-                            <Grid x:Name="ServiceStateGrid" ColumnSpacing="12" MinHeight="56" Padding="0,8">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <StackPanel VerticalAlignment="Center" Spacing="4">
+                            <!-- settings-value-row R1 (issue #539): the process state sits trailing while the title and state fit
+                                 beside each other at their natural widths, else it moves under the state text (measured, not by
+                                 text size). The state text is supporting text: it wraps under the title and doesn't count. -->
+                            <controls:SettingValueGrid MinHeight="40" Margin="0,8">
+                                <StackPanel Spacing="4">
                                     <TextBlock Text="Leaderboard Service State" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="{x:Bind ViewModel.ServiceInfo.StateDescription, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}"
                                                AutomationProperties.LiveSetting="Polite" AutomationProperties.AutomationId="fst.settings.service-info.state" />
                                 </StackPanel>
-                                <StackPanel x:Name="ServiceProcessPanel" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
                                     <TextBlock Text="{x:Bind ViewModel.ServiceInfo.ProcessStateText, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}"
                                                VerticalAlignment="Center" AutomationProperties.AutomationId="fst.settings.service-info.process" />
                                     <ProgressRing Width="16" Height="16" IsActive="{x:Bind ViewModel.ServiceInfo.ShowsSpinner, Mode=OneWay}"
                                                   Visibility="{x:Bind ViewModel.ServiceInfo.ShowsSpinner, Mode=OneWay}"
                                                   AutomationProperties.AccessibilityView="Raw" AutomationProperties.AutomationId="fst.settings.service-info.spinner" />
                                 </StackPanel>
-                            </Grid>
+                            </controls:SettingValueGrid>
                             <StackPanel Spacing="4" Padding="0,4,0,8" Visibility="{x:Bind ViewModel.ServiceInfo.HasPhase, Mode=OneWay}"
                                         AutomationProperties.Name="{x:Bind ViewModel.ServiceInfo.PhaseAccessibleName, Mode=OneWay}"
                                         AutomationProperties.AutomationId="fst.settings.service-info.phase">

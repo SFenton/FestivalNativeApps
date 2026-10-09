@@ -2,9 +2,10 @@ namespace Festival.Core.Domain;
 
 #region Setting value layout
 /// <summary>
-/// Placement rule for a Settings label/value row (Version card): the value sits right of the label when both fit
-/// at their natural widths, otherwise it stacks under the label so neither is clipped (Android <c>SettingsValueRow</c>;
-/// Fluent "reposition side details below main" at narrow widths and large text).
+/// Placement rule for a Settings label/value row (pattern <c>settings-value-row</c> R1: the Version card and the Service
+/// Info "Leaderboard Service State" row): the value sits right of the label's title when both fit at their natural
+/// widths, otherwise it stacks under the label so neither is clipped (Android/Apple <c>SettingsValueRow</c>; Fluent
+/// "reposition side details below main" at narrow widths and large text). Decided by measured fit, never by text size.
 /// </summary>
 public static class SettingValueLayout
 {

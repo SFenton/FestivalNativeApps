@@ -24,6 +24,7 @@ import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.MainDispatcherRule
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -42,8 +43,10 @@ class BandsViewModelTest {
     private val api = FestivalApi("https://fixture.test", transport)
     private val backoff = ServiceRetryBackoff()
 
+    private val experimentalRanks = MutableStateFlow(true)
+
     private fun detailViewModel(type: String? = "Band_Duets", key: String? = BandFixtures.DUO_KEY) =
-        BandDetailViewModel(type, key, api::bandProfile, api::bandRankHistory, api::bandSongExtremes, { api.catalog() }, backoff)
+        BandDetailViewModel(type, key, api::bandProfile, api::bandRankHistory, api::bandSongExtremes, { api.catalog() }, backoff, experimentalRanks)
 
     // region Paging helper
 
@@ -172,6 +175,24 @@ class BandsViewModelTest {
         advanceUntilIdle()
         assertTrue(viewModel.history.value is LoadState.Loaded)
         assertTrue(viewModel.songs.value is LoadState.Loaded)
+    }
+
+    @Test
+    fun detailRankByFollowsExperimentalRanks() = runTest(main.dispatcher) {
+        experimentalRanks.value = false
+        val viewModel = detailViewModel()
+        advanceUntilIdle()
+        assertFalse(viewModel.experimentalRanks.value)
+        viewModel.selectMetric(BandRankingMetric.Weighted)
+        assertEquals(BandRankingMetric.TotalScore, viewModel.metric.value)
+        experimentalRanks.value = true
+        advanceUntilIdle()
+        viewModel.selectMetric(BandRankingMetric.Weighted)
+        assertEquals(BandRankingMetric.Weighted, viewModel.metric.value)
+        // Turning the setting off takes the page back to Total Score.
+        experimentalRanks.value = false
+        advanceUntilIdle()
+        assertEquals(BandRankingMetric.TotalScore, viewModel.metric.value)
     }
 
     @Test
