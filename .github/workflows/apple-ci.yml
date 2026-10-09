@@ -63,6 +63,8 @@ jobs:
         # scroll-edge journeys (#462) read a second, `--large-rankings` fixture on port 8766 (multi-page boards).
         env:
           JOURNEYS: >-
+            SongsChromeJourneyTests/testScrollAwaySectionBarAccessibility
+            SongsChromeJourneyTests/testScrollAwaySectionBarAccessibilityAtAX5
             SongsChromeJourneyTests/testSectionBarHeadingAtLargestText
             FirstRunJourneyTests/testSongDemoSlideAccessibleAtLargestText
             SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5
@@ -92,7 +94,7 @@ jobs:
             grep -q "fixture service on" "$RUNNER_TEMP/$log.log"
           done
           only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
-          python3 tools/ios_sim.py uitest --device "$device" --fail-on-skip --timeout 900 "${only[@]}"
+          python3 tools/ios_sim.py uitest --device "$device" --fail-on-skip --timeout 1800 "${only[@]}"
       - name: iPad simulator journeys (serialized, loopback fixture)
         # The same evidence on iPad, portrait and landscape (the iPhone runs portrait only). Reuses the iPhone
         # step's UI-test build (`--app phone`; every iOS target is device family 1,2) on a second throwaway
