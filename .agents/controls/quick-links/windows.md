@@ -112,6 +112,8 @@ Defect found and fixed (#416 design review): the menu items' hit-testable pills 
 
 CI (#416 retry, 2026-10-08): the `windows-ui` job runs the menu pages through `tools/windows/ui_ci.py` (`quick-links-landing` at compact and medium, `quick-links-landing-text-225` at compact) with `--scan`. The menu pages list `"axe_allow": ["framework-popup"]`, so only that framework finding is dropped; on Leaderboards it lingered after Esc on this host (2 errors per size before the allowance). Local runs: 4/4 at default text and 2/2 at text 225%, Axe 0 with the allowance. The wide pane page needs a 1440 epx window, which the runner's 1920×1080 desktop can't fit with its taskbar; it stays a host-matrix run.
 
+Defect found and fixed (#431, 2026-10-09): `qla-settings-menu` at compact and 225% text failed intermittently in CI and failed on this host. Focus stayed on the menu button, which the jump had scrolled off screen, instead of the first Show Instruments toggle. Those toggles sit in a virtualizing `ItemsRepeater`. At 225% text the section starts far below the viewport, so its toggles aren't realized when the landing moves focus, and `FindFirstFocusableElement` found nothing. `QuickLinksBinder.Land` now retries after each layout pass (at most `QuickLinks.MaxFocusRetries`, 30) until the section's first focusable control exists, and a later jump cancels the retry. Rule: a jump's focus move must not depend on the target's controls being realized before the scroll.
+
 ## Validation (issue #246, 2026-10-05)
 
 #46 asked that Quick Links list sections in on-page order on Settings and on a player profile, from every entry point, and that jumps land and stay marked. Order journeys in `journeys/quick-links.json`:

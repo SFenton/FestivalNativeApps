@@ -66,7 +66,7 @@ Row heights across every leaderboard surface ([leaderboard-row](../../patterns/l
 
 | Configuration | Result |
 |---|---|
-| FST_Phone portrait, font 1.0 | Overview cards, spotlight, Full Rankings, Band Rankings, song board (rows and the pinned #97 footer) and Song Detail previews are all exactly 48.0 dp. Band song-board rows are multi-member cards (101 dp), as on the web. |
+| FST_Phone portrait, font 1.0 | Overview cards, spotlight, Full Rankings, Band Rankings, song board (rows and the pinned #97 footer) and Song Detail previews are all exactly 48.0 dp. Band song-board rows are multi-member rows (101 dp), as on the web, grouped in one card since #543. |
 | FST_Phone landscape (light system theme) / font 2.0 | Landscape 1.0: every row 48.0 dp. Landscape 2.0: rows stack (81–96 dp); the content viewport is short because of shell chrome (out of scope). |
 | FST_Phone portrait, font 2.0 | Rows stack and grow to fit, nothing clipped. **Failed, fixed:** the overview skeleton stayed 48 dp per row (248 dp for five rows) while the stacked rows were about 643 dp. Skeleton rows now mirror the stacked lines (`RankingsSkeletonRows`). |
 | FST_Phone, Rank By Adjusted / Weighted | **Failed, fixed:** one-line percentile rows ("Top N%" plus the Bayesian line) were 52 dp with 6 dp padding, and 48.4 dp with 4 dp at 420 dpi (10.5 px rounded to 11 px per side). With 3 dp padding they are 48.0 dp on Full Rankings and the overview, spotlight included. At font 2.0 they stack to four lines (171.8 dp), the same for every row. |

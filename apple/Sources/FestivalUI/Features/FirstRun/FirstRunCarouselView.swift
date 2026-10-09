@@ -278,13 +278,17 @@ private struct FirstRunSlideView: View {
     let page: FirstRunPageKey
     let slide: FirstRunSlide
     @Environment(\.deviceLayout) private var layout
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         Group {
-            if layout.heightClass == .compact {
-                // Compact height (iPhone Duo outer display in landscape, a ~200 pt page):
-                // the full layout ran under the dots and Next, hiding the title and text.
-                // A shorter demo in a scroll view keeps every line reachable.
+            if layout.heightClass == .compact || dynamicTypeSize.isAccessibilitySize {
+                // Compact height (iPhone Duo outer display in landscape, a ~200 pt page) and
+                // accessibility text sizes (issue #401: at AX5 the Song List description cut
+                // off after "Tap a song to see"): the full layout ran under the dots and Next,
+                // hiding the title and text. A shorter demo in a scroll view keeps every line
+                // reachable (HIG Typography: "Keep text truncation to a minimum as font size
+                // increases").
                 ScrollView { content(compact: true) }
                     .scrollBounceBehavior(.basedOnSize)
             } else {
@@ -293,11 +297,14 @@ private struct FirstRunSlideView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(slide.title). \(description)")
+        // Combining the scroll path's ScrollView loses the text role (AXUnknown on the Mac).
+        .accessibilityAddTraits(.isStaticText)
     }
 
     /// The demo, title and description.
     ///
-    /// - Parameter compact: Compact height: a fixed 120 pt demo and tighter spacing.
+    /// - Parameter compact: Compact height or an accessibility text size: a fixed 120 pt
+    ///   demo and tighter spacing, inside a scroll view.
     /// - Returns: The slide's content.
     private func content(compact: Bool) -> some View {
         VStack(spacing: compact ? 12 : 20) {

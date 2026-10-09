@@ -57,7 +57,7 @@ object SongHeaderEdgeFade {
      *   (the header then sits at rest and draws itself).
      */
     fun edge(items: List<EdgeFadeItem>, viewportStart: Int, spacing: Int, fullDepth: Float): EdgeFade? {
-        val pinned = items.firstOrNull { it.isHeader && it.offset <= viewportStart } ?: return null
+        val pinned = pinned(items, viewportStart) ?: return null
         val top = pinned.size.toFloat()
         val scrolled = scrolledUnder(items, pinned, viewportStart, spacing)
         if (scrolled <= 0f) return null
@@ -65,6 +65,18 @@ object SongHeaderEdgeFade {
         val room = incoming?.let { (it.offset - viewportStart) - top } ?: Float.POSITIVE_INFINITY
         return EdgeFade(top, ScrollEdgeFade.depth(minOf(scrolled, room), fullDepth))
     }
+
+    /**
+     * The header pinned at the viewport start: the first header whose offset is at or before
+     * [viewportStart] (negative while the next header pushes it away), or a header resting
+     * exactly there. TalkBack reads it before the rows beneath it (scroll-edge R5).
+     *
+     * @param items Visible items (the pinned header included).
+     * @param viewportStart Viewport start offset.
+     * @return The pinned header, or null when no header sits at the list's top edge.
+     */
+    fun pinned(items: List<EdgeFadeItem>, viewportStart: Int): EdgeFadeItem? =
+        items.firstOrNull { it.isHeader && it.offset <= viewportStart }
 
     /**
      * How far the pinned header's section has scrolled under it: 0 when its first row still sits

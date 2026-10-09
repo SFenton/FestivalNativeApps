@@ -60,6 +60,38 @@ private let sampleDocument = #"""
     }
 }
 
+/// Debug `FST_DEBUG_WHATS_NEW_FILE` replaces the bundled document (the grouped fixture UI tests
+/// load); a missing or invalid file gives no entries rather than the bundled ones.
+@Test func debugFileReplacesTheBundledDocument() throws {
+    let repo = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent()
+    let fixture = repo.appendingPathComponent("tools/windows/fixtures/whats-new-grouped.json").path
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("changelog-debug-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try Data(sampleDocument.utf8).write(to: directory.appendingPathComponent("WhatsNew.json"))
+    let bundle = try #require(Bundle(path: directory.path))
+    let invalid = directory.appendingPathComponent("invalid.json")
+    try Data("not json".utf8).write(to: invalid)
+
+    #expect(Changelog.resolveEntries(bundle: bundle, environment: [:]).count == 3)
+    #expect(Changelog.resolveEntries(bundle: bundle, environment: [Changelog.debugFileKey: ""]).count == 3)
+    #if DEBUG
+    let grouped = Changelog.resolveEntries(bundle: bundle, environment: [Changelog.debugFileKey: fixture])
+    #expect(grouped.map(\.version) == ["2610.09.01", "2610.08.01", "2610.07.01"])
+    #expect(grouped[0].sections.map(\.title) == ["Songs", "Item Shop", "Settings", "Other"])
+    #expect(grouped[0].testerHeading == "Changes since release 2610.08.01")
+    #expect(grouped[0].testerSections.map(\.title)
+            == ["Songs", "Song Details", "Rivals", "Navigation", "General", "Other"])
+    #expect(Changelog.resolveEntries(bundle: bundle, environment: [Changelog.debugFileKey: invalid.path]).isEmpty)
+    #expect(Changelog.resolveEntries(bundle: bundle, environment: [Changelog.debugFileKey: "/nonexistent.json"]).isEmpty)
+    #else
+    #expect(Changelog.resolveEntries(bundle: bundle, environment: [Changelog.debugFileKey: fixture]).count == 3)
+    #endif
+}
+
 // MARK: - Hash
 
 @Test func changelogHashChangesWithContent() {

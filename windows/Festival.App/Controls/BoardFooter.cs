@@ -37,10 +37,12 @@ public static class BoardFooter
 
     /// <summary>
     /// The footer floats over the bottom of the scroller's viewport, so a focus scroll that only reaches the viewport's
-    /// bottom edge leaves the row under the pinned row and pager. Each unaligned bring-into-view request from the rows
-    /// grows downwards by the footer's height before the scroller handles it (WCAG 2.4.11, focus not obscured; issue
-    /// #409). Explicit alignments, such as the centred jump to the selected row, are left alone. A list control's own
-    /// scroller sits inside it, so its items panel takes the handler.
+    /// bottom edge leaves the row under the pinned row and pager. Each bring-into-view request from the rows grows
+    /// downwards by the footer's height before the scroller handles it (WCAG 2.4.11, focus not obscured; issue #409).
+    /// That also holds for explicit alignments: the centred jump to the selected row (ratio 0.5) then centres the row in
+    /// the clear area above the footer instead of the whole viewport, which at large text left the row's lower part
+    /// under the footer (issue #461); a top alignment (ratio 0) is unchanged. A list control's own scroller sits inside
+    /// it, so its items panel takes the handler.
     /// </summary>
     /// <param name="footer">Footer.</param>
     /// <param name="content">Rows: content inside a <see cref="ScrollViewer"/>, or a list view.</param>
@@ -48,7 +50,6 @@ public static class BoardFooter
     {
         void Grow(UIElement sender, BringIntoViewRequestedEventArgs args)
         {
-            if (!double.IsNaN(args.VerticalAlignmentRatio)) return;
             var target = args.TargetRect;
             args.TargetRect = new Windows.Foundation.Rect(target.X, target.Y, target.Width,
                 LeaderboardPaging.RevealAboveFooter(target.Height, Height(footer)));

@@ -5,7 +5,12 @@ using CommunityToolkit.Mvvm.Input;
 namespace Festival.Core.ViewModels;
 
 #region Pager
-/// <summary>First/Previous/page-info/Next/Last paging state for band lists (25 rows per page).</summary>
+/// <summary>
+/// First/Previous/page-info/Next/Last paging state for band lists (25 rows per page). Like
+/// <see cref="RankingsPagerViewModel"/>, the commands stay enabled while a page loads (only the page bounds disable them):
+/// a running async command reports CanExecute false, which disabled the focused Next button mid-swap and made the pager
+/// hand keyboard focus to Previous (issue #431). Both band boards drop superseded loads, so a second press is safe.
+/// </summary>
 public sealed partial class BandsPagerViewModel : ObservableObject, IBoardPager
 {
     private readonly Func<int, Task> goTo;
@@ -43,22 +48,22 @@ public sealed partial class BandsPagerViewModel : ObservableObject, IBoardPager
 
     /// <summary>Goes to page one.</summary>
     /// <returns>Load task.</returns>
-    [RelayCommand(CanExecute = nameof(CanGoBack))]
+    [RelayCommand(CanExecute = nameof(CanGoBack), AllowConcurrentExecutions = true)]
     private Task FirstAsync() => goTo(1);
 
     /// <summary>Goes back one page.</summary>
     /// <returns>Load task.</returns>
-    [RelayCommand(CanExecute = nameof(CanGoBack))]
+    [RelayCommand(CanExecute = nameof(CanGoBack), AllowConcurrentExecutions = true)]
     private Task PreviousAsync() => goTo(Page - 1);
 
     /// <summary>Goes forward one page.</summary>
     /// <returns>Load task.</returns>
-    [RelayCommand(CanExecute = nameof(CanGoForward))]
+    [RelayCommand(CanExecute = nameof(CanGoForward), AllowConcurrentExecutions = true)]
     private Task NextAsync() => goTo(Page + 1);
 
     /// <summary>Goes to the last page.</summary>
     /// <returns>Load task.</returns>
-    [RelayCommand(CanExecute = nameof(CanGoForward))]
+    [RelayCommand(CanExecute = nameof(CanGoForward), AllowConcurrentExecutions = true)]
     private Task LastAsync() => goTo(PageCount);
 
     /// <inheritdoc />

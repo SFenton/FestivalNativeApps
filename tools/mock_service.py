@@ -8,6 +8,7 @@ import hashlib
 import json
 import math
 import re
+import socketserver
 import struct
 import threading
 import time
@@ -634,6 +635,18 @@ class FixtureServer(ThreadingHTTPServer):
     # reads (Leaderboards/Rivals cards) overflowed it on Windows and saw resets.
     request_queue_size = 128
     daemon_threads = True
+
+    def server_bind(self) -> None:
+        """Bind without ``HTTPServer``'s reverse DNS lookup of the loopback host.
+
+        ``HTTPServer.server_bind`` calls ``socket.getfqdn``, which stalls on hosted macOS
+        runners before the ready line prints (#441 ``apple-ci``); a loopback fixture needs
+        no host name.
+        """
+        socketserver.TCPServer.server_bind(self)
+        host, port = self.server_address[:2]
+        self.server_name = str(host)
+        self.server_port = port
 
     def __init__(
         self, address: tuple[str, int], handler: type[BaseHTTPRequestHandler],

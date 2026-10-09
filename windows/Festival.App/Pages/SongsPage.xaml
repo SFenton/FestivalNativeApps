@@ -434,10 +434,12 @@
             <controls:EdgeFadeLayer x:Name="ListFadeHost" Grid.Row="1" AutomationProperties.AutomationId="fst.songs.edge-fade" />
             <!-- Issue #288: the next section's title, drawn here from the edge fade's full depth (40 epx) up to the bar, where it pushes
                  StickyHeader out (the in-list heading turns transparent meanwhile but stays the UIA heading, so this copy
-                 is Raw). Positions follow the scroll on the compositor; nothing animates on its own. -->
+                 is Raw). Positions follow the scroll on the compositor; nothing animates on its own. The raw-view ID lets
+                 a11y-songs-section-push.json prove the copy is drawn yet never a second Narrator stop (issue #452). -->
             <Canvas x:Name="PushLayer" Grid.RowSpan="2" IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw">
                 <TextBlock x:Name="IncomingHeader" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0" Visibility="Collapsed"
-                           AutomationProperties.AccessibilityView="Raw" />
+                           AutomationProperties.AccessibilityView="Raw"
+                           AutomationProperties.AutomationId="fst.songs.section-header.incoming" />
             </Canvas>
 
             <ProgressRing Grid.RowSpan="2" x:Name="LoadingRing" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="48" Height="48"

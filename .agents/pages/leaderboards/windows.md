@@ -50,7 +50,7 @@ Checked 2026-10 with the winui-design and winui-code-review skills, `leaderboard
 
 ## Back navigation
 
-Back from a cached page keeps its scroll position: `Services/CachedPageScroll` pauses focus-follow scrolling while the page leaves (#82) and returns focus to the View All that was opened, without scrolling (#276). Pattern: [back-keeps-place](../../patterns/back-keeps-place.md); findings in [Compete Windows notes](../compete/windows.md).
+Back from a cached page keeps its scroll position: `Services/CachedPageScroll` pauses focus-follow scrolling while the page leaves (#82) and returns focus to the View All that was opened, without scrolling (#276). Accessibility test: `tools/windows/journeys/a11y-back-keeps-place.json` (Narrator phrase, role, 40 epx target, reading order and Tab from the returned focus, at 100% and 225% text in the `windows-ui` CI job; #435). Pattern: [back-keeps-place](../../patterns/back-keeps-place.md); findings in [Compete Windows notes](../compete/windows.md).
 
 ## Open
 

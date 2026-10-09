@@ -19,11 +19,11 @@ public sealed partial class PlayerProfileView : UserControl
     {
         InitializeComponent();
         var host = new QuickLinksHost(Root, Scroller, quickLinks, QuickLinksMenu, Pane);
-        // Instrument sections live in a virtualizing repeater: realize the target for a jump.
+        // Every instrument section is realized (non-virtualizing stack, #533); resolve the target's element for a jump.
         host.Binder.Resolve = id => ViewModel?.Instruments.FindIndex(i => i.QuickLinkId == id) is >= 0 and var index
             ? InstrumentsRepeater.GetOrCreateElement(index) as FrameworkElement
             : null;
-        // Bands sits below that repeater: land the last instrument card first so Bands measures exactly.
+        // Bands sits below that repeater: land the last instrument card first, then aim at Bands from its settled position.
         host.Binder.LeadIn = id => id == PlayerProfileViewModel.BandsQuickLinkId && ViewModel?.Instruments.Count is > 0 and var count
             ? InstrumentsRepeater.GetOrCreateElement(count - 1) as FrameworkElement
             : null;
@@ -191,12 +191,30 @@ public sealed partial class PlayerProfileView : UserControl
         if (sender is FrameworkElement { Tag: AppRoute route }) MainWindow.Instance?.Navigate(route);
     }
 
-    /// <summary>Starts a section's rank and history reads when it is realized.</summary>
+    /// <summary>
+    /// Starts a section's rank and history reads once it comes within a viewport of the visible area. The sections no
+    /// longer virtualize (#533), so realization alone would read every played chart at once.
+    /// </summary>
     /// <param name="sender">Repeater.</param>
     /// <param name="args">Prepared element.</param>
     private void OnInstrumentPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
     {
-        if (sender.ItemsSourceView?.GetAt(args.Index) is PlayerInstrumentViewModel section) _ = section.EnsureLoadedAsync();
+        if (args.Element is not FrameworkElement element) return;
+        element.EffectiveViewportChanged -= OnInstrumentViewportChanged;
+        element.EffectiveViewportChanged += OnInstrumentViewportChanged;
+    }
+
+    /// <summary>Loads a section when its effective viewport is within one viewport height of it.</summary>
+    /// <param name="sender">Section element.</param>
+    /// <param name="args">Viewport, in the section's coordinates.</param>
+    private void OnInstrumentViewportChanged(FrameworkElement sender, EffectiveViewportChangedEventArgs args)
+    {
+        var viewport = args.EffectiveViewport;
+        if (viewport.IsEmpty || !LazySectionReach.IsNear(viewport.Y, viewport.Height, sender.ActualHeight)) return;
+        // The x:Bind template root has no DataContext: resolve the section from the element's current index.
+        var index = InstrumentsRepeater.GetElementIndex(sender);
+        if (index >= 0 && InstrumentsRepeater.ItemsSourceView?.GetAt(index) is PlayerInstrumentViewModel section)
+            _ = section.EnsureLoadedAsync();
     }
     #endregion
 

@@ -1936,6 +1936,118 @@ final class SongsJourneyTests: XCTestCase {
         SongsUITestSupport.record(app, name: "songs-shop-quick-links-jumped")
     }
 
+    /// Item Shop section titles stay readable, unclipped headings at the largest text size
+    /// (#91, tests #441): each title grows with Dynamic Type, is named as shown, sits above
+    /// its own song with no opaque band, keeps 4.5:1 rendered contrast and passes the audit.
+    /// The macOS hosted check for every grouped sort is `SongsSectionTitleAccessibilityTests`.
+    /// `apple-ci` runs this journey on an iPhone simulator (`JOURNEYS` in `apple-ci.yml`).
+    ///
+    /// - Throws: A missing or clipped title, rows read out of order or an audit finding.
+    @MainActor
+    func testSongsShopSortSectionTitlesAreAccessibleAtAX5() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = SongsUITestSupport.fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = SongsUITestSupport.fixtureURL
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        let size = UIContentSizeCategory.accessibilityExtraExtraExtraLarge
+        app.launchArguments += [
+            "-fst.settings.hideShop", "NO",
+            "-fst.songs.sortMode", "shop",
+            "-fst.songs.sortAscending", "YES",
+            "-UIPreferredContentSizeCategoryName", size.rawValue,
+        ]
+        app.launch()
+        let leaving = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.shop-section.leaving-tomorrow").firstMatch
+        let orbit = app.buttons["fst.songs.row.fixture-orbit"]
+        XCTAssertTrue(leaving.waitForExistence(timeout: FestivalApp.budget(15)))
+        XCTAssertTrue(orbit.waitForExistence(timeout: FestivalApp.budget(10)))
+        XCTAssertEqual(leaving.label, "Leaving Tomorrow")
+        XCTAssertNotEqual(leaving.elementType, .button, "A section title is a heading, not a control")
+        let line = UIFont.preferredFont(
+            forTextStyle: .subheadline, compatibleWith: UITraitCollection(preferredContentSizeCategory: size)
+        ).lineHeight
+        XCTAssertGreaterThanOrEqual(
+            leaving.frame.height, line - 1,
+            "Title \(leaving.frame) did not grow to the AX5 \(line)pt line"
+        )
+        XCTAssertLessThanOrEqual(leaving.frame.maxY, orbit.frame.minY + 1, "Title must read above its song")
+        XCTAssertLessThan(
+            orbit.frame.minY - leaving.frame.maxY, 12,
+            "Title \(leaving.frame) drifted away from its song \(orbit.frame)"
+        )
+        try SongsUITestSupport.assertHeaderContrast(leaving, in: app, leadingTextWidth: 260)
+        SongsUITestSupport.record(app, name: "songs-shop-section-titles-ax5")
+
+        let inShop = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.shop-section.in-shop").firstMatch
+        let pulse = app.buttons["fst.songs.row.fixture-pulse"]
+        let list = app.collectionViews["fst.songs.list"]
+        for _ in 0..<6 where !(inShop.exists && pulse.exists && pulse.isHittable) {
+            list.swipeUp(velocity: .slow)
+        }
+        XCTAssertTrue(inShop.exists && pulse.exists)
+        XCTAssertEqual(inShop.label, "In Shop")
+        XCTAssertGreaterThanOrEqual(inShop.frame.minY, orbit.frame.maxY - 1, "In Shop must read after Leaving Tomorrow's song")
+        XCTAssertLessThanOrEqual(inShop.frame.maxY, pulse.frame.minY + 1, "In Shop must read above its song")
+        try auditSectionTitlePage(app)
+    }
+
+    /// Run the full accessibility audit on Songs' grouped Item Shop list (#441).
+    ///
+    /// Only text the shared scroll-edge pattern dims by design is accepted: rows under the
+    /// pinned title's 40 pt row fade (`scroll-edge` R2/R5) and text behind the bottom chrome,
+    /// both covered by their own journeys. A section title above the bottom chrome is never
+    /// accepted, and every such title must measure at least 4.5:1 rendered before an unattributed
+    /// issue is; any other flagged text must measure at least 4.5:1 rendered. A larger catalogue's
+    /// next title (Not in Shop) may sit behind the tab bar, where it is chrome-band text like any
+    /// row there. Every issue is attached.
+    ///
+    /// - Parameter app: Running app on the Shop sort with both section titles on screen.
+    /// - Throws: An audit failure outside the fade bands.
+    @MainActor
+    private func auditSectionTitlePage(_ app: XCUIApplication) throws {
+        let window = app.windows.firstMatch.frame
+        let chromeTop = app.tabBars.firstMatch.exists ? app.tabBars.firstMatch.frame.minY : window.maxY
+        let titles = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.shop-section.")
+        ).allElementsBoundByIndex.filter { window.intersects($0.frame) && $0.frame.maxY <= chromeTop }
+        XCTAssertTrue(
+            titles.contains { $0.identifier == "fst.songs.shop-section.in-shop" },
+            "In Shop must be audited above the bottom chrome"
+        )
+        let pinned = try XCTUnwrap(titles.min { $0.frame.minY < $1.frame.minY }, "No section title on screen")
+        let fadeEnd = pinned.frame.maxY + 40
+        let rows = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row.")
+        ).allElementsBoundByIndex.map(\.frame).filter(window.intersects)
+        let rowInFade = rows.contains { $0.minY < fadeEnd || $0.maxY > chromeTop }
+        // The audit may not attribute a contrast issue; no title it could mean may read below 4.5:1.
+        for title in titles {
+            try SongsUITestSupport.assertHeaderContrast(title, in: app, leadingTextWidth: 260)
+        }
+        try app.performAccessibilityAudit(for: .all) { issue in
+            let element = issue.element
+            let attachment = XCTAttachment(
+                string: "\(issue.auditType): \(issue.detailedDescription); "
+                    + "element=\(element?.identifier ?? "unidentified"), label=\(element?.label ?? "unidentified"), "
+                    + "frame=\(String(describing: element?.frame)), fadeEnd=\(fadeEnd), chromeTop=\(chromeTop), "
+                    + "rowInFade=\(rowInFade)"
+            )
+            attachment.name = "songs-section-titles-audit-issue"
+            attachment.lifetime = .keepAlways
+            self.add(attachment)
+            guard issue.auditType == .contrast else { return false }
+            guard let element, !element.frame.isEmpty else { return rowInFade }
+            if element.frame.maxY > chromeTop { return true }
+            if element.identifier.hasPrefix("fst.songs.shop-section.") { return false }
+            if element.frame.minY < fadeEnd { return true }
+            try SongsUITestSupport.assertHeaderContrast(element, in: app)
+            return true
+        }
+    }
+
     /// Depth-first search of one accessibility snapshot.
     ///
     /// - Parameters:

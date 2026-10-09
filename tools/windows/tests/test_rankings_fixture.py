@@ -51,6 +51,24 @@ class RankingsFixtureTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 f.take_rankings_delay(bad)
 
+    def test_bands_delay_applies_to_band_board_reads_only(self):
+        for path in ("/api/rankings/bands/Band_Duets", "/api/leaderboard/fixture-pulse/bands/Band_Duets",
+                     "/api/player/fixture-player-1/bands"):
+            self.assertTrue(f.is_band_board_read(path), path)
+        for path in ("/api/rankings/bands/", "/api/rankings/bands/Band_Duets/fixture-band-1/history",
+                     "/api/leaderboard/fixture-pulse/bands/all", "/api/leaderboard/fixture-pulse/Solo_Guitar",
+                     "/api/player/fixture-player-1", "/api/player//bands", "/api/rankings/Solo_Guitar", "/api/songs"):
+            self.assertFalse(f.is_band_board_read(path), path)
+
+    def test_take_bands_delay_leaves_the_rankings_delay(self):
+        argv = ["--port", "0", "--rankings-delay", "3", "--bands-delay=2"]
+        delay, rest = f.take_rankings_delay(argv)
+        self.assertEqual(f.take_delay(rest, "--bands-delay"), (2.0, ["--port", "0"]))
+        self.assertEqual(delay, 3.0)
+        self.assertEqual(f.take_delay(["--port", "0"], "--bands-delay"), (None, ["--port", "0"]))
+        with self.assertRaisesRegex(SystemExit, "--bands-delay"):
+            f.take_delay(["--bands-delay", "-2"], "--bands-delay")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -344,10 +344,17 @@ JOURNEYS = [
         preset="portrait-tablet",
         steps=[["waitfor:id=fst.player.overview@15", "reveal:id=fst.player.bands@10",
                 "reveal:id=fst.player.bands.empty.duos@15", "reveal:id=fst.player.bands.empty.trios@5",
-                "reveal:id=fst.player.bands.empty.quads@5"]],
+                "reveal:id=fst.player.bands.empty.quads@5"],
+               # #533: the page end stays reachable (virtualized sections used to pull 100% back to ~76%), and
+               # Narrator reads the groups heading-first, in size order.
+               ["scrollto:id=fst.player.available,100", "waitfor:id=fst.player.bands.empty.quads@5",
+                "assertorder:id=fst.player.bands|id=fst.player.bands.header.duos|id=fst.player.bands.empty.duos"
+                "|id=fst.player.bands.header.trios|id=fst.player.bands.empty.trios"
+                "|id=fst.player.bands.header.quads|id=fst.player.bands.empty.quads"]],
         expect=[["Fixture Player 2's Bands", "No Bands Yet", "Band lineups will appear here",
-                 "fst.player.bands.header.duos", "fst.player.bands.header.trios", "fst.player.bands.header.quads"]],
-        forbid=[["fst.player.bands.view-all.", "fst.player-bands.row.", "fst.player.bands.retry"]],
+                 "fst.player.bands.header.duos", "fst.player.bands.header.trios", "fst.player.bands.header.quads"],
+                ["No Bands Yet", "fst.player.bands.empty.quads"]],
+        forbid=[["fst.player.bands.view-all.", "fst.player-bands.row.", "fst.player.bands.retry"], []],
     ),
     # Every group read answers 500 once (rivals_fixture.py --player-bands fail-once): the section shows Retry while
     # the rest of the profile stays, and Retry loads the groups.

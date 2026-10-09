@@ -1,0 +1,190 @@
+[
+  {
+    "name": "frd-songs-placeholder",
+    "tab": "songs",
+    "first_run": "force",
+    "fixture": [
+      "--songs-unavailable"
+    ],
+    "scan": true,
+    "tabs": 8,
+    "ready": [
+      "waitfor:id=fst.first-run.dialog@20",
+      "assertstatus:id=fst.first-run.demo.songs-song-list|~^placeholder( |$)@20"
+    ],
+    "after_ready": [
+      "wait:1",
+      "waitgone:id=fst.first-run.demo.songs-song-list@1",
+      "assertread:name=Song List&class=FlipViewItem|Song List, list item, selected",
+      "assertapart:raw=fst.first-run.demo.songs-song-list|name=Song List&class=TextBlock",
+      "focus:name=Song List&class=FlipViewItem",
+      "key:tab",
+      "assertfocus:name=Page 1&class=Button@3",
+      "assertorder:name=Page 1&class=Button|id=PrimaryButton",
+      "scrollinto:id=fst.first-run.pips",
+      "assertorder:name=Song List&class=FlipViewItem|id=fst.first-run.pips|id=PrimaryButton|id=SecondaryButton|id=fst.first-run.close"
+    ],
+    "teardown": [
+      "focus:name=Song List&class=FlipViewItem",
+      "assertfocus:name=Song List&class=FlipViewItem@3",
+      "key:enter",
+      "assertstatus:id=fst.first-run.demo.songs-sort|~^placeholder( |$)@5",
+      "waitgone:id=fst.first-run.demo.songs-sort@1",
+      "assertread:name=Sort Songs&class=FlipViewItem|Sort Songs, list item, selected@5",
+      "assertstate:id=SecondaryButton|enabled=true",
+      "key:esc",
+      "waitgone:id=fst.first-run.dialog@5"
+    ]
+  },
+  {
+    "name": "frd-songs-catalogue",
+    "tab": "songs",
+    "first_run": "force",
+    "scan": true,
+    "tabs": 8,
+    "ready": [
+      "waitfor:id=fst.first-run.dialog@20",
+      "assertstatus:id=fst.first-run.demo.songs-song-list|~^catalogue( |$)@30"
+    ],
+    "after_ready": [
+      "wait:1",
+      "waitgone:id=fst.first-run.demo.songs-song-list@1",
+      "assertread:name=Song List&class=FlipViewItem|Song List, list item, selected",
+      "assertapart:raw=fst.first-run.demo.songs-song-list|name=Song List&class=TextBlock",
+      "scrollinto:id=fst.first-run.pips",
+      "assertorder:name=Song List&class=FlipViewItem|id=fst.first-run.pips|id=PrimaryButton|id=SecondaryButton|id=fst.first-run.close"
+    ]
+  },
+  {
+    "name": "frd-top-songs-placeholder",
+    "tab": "settings",
+    "fixture": [
+      "--songs-unavailable"
+    ],
+    "scan": true,
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@30"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.licenses",
+      "wait:0.5",
+      "scrollinto:id=fst.settings.first-run.statistics",
+      "focus:id=fst.settings.first-run.statistics",
+      "key:enter",
+      "waitfor:id=fst.first-run.dialog@20",
+      "assertfocus:name=Select Player Profile&class=FlipViewItem@5",
+      "key:enter",
+      "wait:0.6",
+      "key:enter",
+      "wait:0.6",
+      "key:enter",
+      "wait:0.6",
+      "key:enter",
+      "wait:0.6",
+      "key:enter",
+      "wait:1",
+      "assertstate:id=PrimaryButton|name=Done",
+      "assertstatus:id=fst.first-run.demo.statistics-top-songs|~^placeholder( |$)@10",
+      "waitgone:id=fst.first-run.demo.statistics-top-songs@1",
+      "assertread:name=Highest and Lowest Rank Breakdown&class=FlipViewItem|Highest and Lowest Rank Breakdown, list item, selected",
+      "assertapart:raw=fst.first-run.demo.statistics-top-songs|name=Highest and Lowest Rank Breakdown&class=TextBlock",
+      "scrollinto:id=fst.first-run.pips",
+      "assertorder:name=Highest and Lowest Rank Breakdown&class=FlipViewItem|id=fst.first-run.pips|id=PrimaryButton|id=SecondaryButton|id=fst.first-run.close"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.first-run.dialog@5",
+      "assertfocus:id=fst.settings.first-run.statistics@3"
+    ]
+  },
+  {
+    "name": "frd-top-songs-catalogue",
+    "tab": "settings",
+    "scan": true,
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@30"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.licenses",
+      "wait:0.5",
+      "scrollinto:id=fst.settings.first-run.statistics",
+      "focus:id=fst.settings.first-run.statistics",
+      "key:enter",
+      "waitfor:id=fst.first-run.dialog@20",
+      "assertfocus:name=Select Player Profile&class=FlipViewItem@5",
+      "key:enter",
+      "wait:0.6",
+      "key:enter",
+      "wait:0.6",
+      "key:enter",
+      "wait:0.6",
+      "key:enter",
+      "wait:0.6",
+      "key:enter",
+      "wait:1",
+      "assertstate:id=PrimaryButton|name=Done",
+      "assertstatus:id=fst.first-run.demo.statistics-top-songs|~^catalogue( |$)@30",
+      "waitgone:id=fst.first-run.demo.statistics-top-songs@1",
+      "assertread:name=Highest and Lowest Rank Breakdown&class=FlipViewItem|Highest and Lowest Rank Breakdown, list item, selected",
+      "assertapart:raw=fst.first-run.demo.statistics-top-songs|name=Highest and Lowest Rank Breakdown&class=TextBlock",
+      "scrollinto:id=fst.first-run.pips",
+      "assertorder:name=Highest and Lowest Rank Breakdown&class=FlipViewItem|id=fst.first-run.pips|id=PrimaryButton|id=SecondaryButton|id=fst.first-run.close"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.first-run.dialog@5",
+      "assertfocus:id=fst.settings.first-run.statistics@3"
+    ]
+  },
+  {
+    "name": "frd-shop-placeholder",
+    "tab": "settings",
+    "fixture": [
+      "--songs-unavailable"
+    ],
+    "scan": true,
+    "tabs": 8,
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@30"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.licenses",
+      "wait:0.5",
+      "scrollinto:id=fst.settings.first-run.shop",
+      "invoke:id=fst.settings.first-run.shop",
+      "waitfor:id=fst.first-run.dialog@20",
+      "assertstatus:id=fst.first-run.demo.shop-overview|~^placeholder( |$)@10",
+      "waitgone:id=fst.first-run.demo.shop-overview@1",
+      "assertread:name=Item Shop&class=FlipViewItem|Item Shop, list item, selected",
+      "scrollinto:id=fst.first-run.pips",
+      "assertorder:name=Item Shop&class=FlipViewItem|id=fst.first-run.pips|id=PrimaryButton|id=SecondaryButton|id=fst.first-run.close"
+    ]
+  },
+  {
+    "name": "frd-shop-catalogue",
+    "tab": "settings",
+    "scan": true,
+    "tabs": 8,
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@30"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.licenses",
+      "wait:0.5",
+      "scrollinto:id=fst.settings.first-run.shop",
+      "invoke:id=fst.settings.first-run.shop",
+      "waitfor:id=fst.first-run.dialog@20",
+      "assertstatus:id=fst.first-run.demo.shop-overview|~^catalogue( |$)@30",
+      "waitgone:id=fst.first-run.demo.shop-overview@1",
+      "assertread:name=Item Shop&class=FlipViewItem|Item Shop, list item, selected",
+      "scrollinto:id=fst.first-run.pips",
+      "assertorder:name=Item Shop&class=FlipViewItem|id=fst.first-run.pips|id=PrimaryButton|id=SecondaryButton|id=fst.first-run.close"
+    ]
+  }
+]

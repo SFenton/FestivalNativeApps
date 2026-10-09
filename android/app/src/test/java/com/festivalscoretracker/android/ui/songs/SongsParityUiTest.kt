@@ -258,6 +258,17 @@ class SongsParityUiTest {
         rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.band-empty.Band_Quad"))
         rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.band-row.Band_Duets.9"))
         assertFalse(exists("fst.song-detail.band-row.Band_Duets.10"))
+        // Owner #543 (`leaderboard-row` R10): the size's rows share one card with hairlines, like
+        // the solo instrument cards, and "View full leaderboard" ends that card.
+        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.band-view-all.Band_Duets"))
+        fun box(tag: String) = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val card = box("fst.song-detail.band-card.Band_Duets")
+        listOf("fst.song-detail.band-row.Band_Duets.8", "fst.song-detail.band-row.Band_Duets.9", "fst.song-detail.band-view-all.Band_Duets").forEach {
+            val row = box(it)
+            assertTrue("$it $row inside $card", row.height > 0f && row.top >= card.top && row.bottom <= card.bottom && row.left >= card.left && row.right <= card.right)
+        }
+        val gap = box("fst.song-detail.band-row.Band_Duets.9").top - box("fst.song-detail.band-row.Band_Duets.8").bottom
+        assertTrue("rows separated by a hairline only ($gap px)", gap in 0f..(1.5f * rule.density.density))
         assertTrue(transport.sent("/api/leaderboard/s-alpha/bands/Band_Duets").all { "top=10&offset=0" in it.url && "accountId" !in it.url })
         rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.band-view-all.Band_Duets"))
         click("fst.song-detail.band-view-all.Band_Duets")

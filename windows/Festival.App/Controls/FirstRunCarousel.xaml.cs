@@ -63,8 +63,9 @@ public sealed partial class FirstRunCarousel : UserControl
 
     /// <summary>
     /// Grows the FlipView (a fixed-height control: it cannot size to its items) to the tallest slide's title and
-    /// description at the current text scale, so text scaling up to 200% never clips copy (issue #232). Sized once for
-    /// the whole set so the dialog does not jump while paging; the ContentDialog's own scroller covers short windows.
+    /// description at the current text scale, so text scaling never clips copy (issue #232). Sized once for the whole set
+    /// so the dialog does not jump while paging; <c>Body</c> scrolls when the window is shorter than the dialog (issue #420:
+    /// ContentDialog's own scroller never scrolls vertically).
     /// </summary>
     private void FitSlidesHeight()
     {
@@ -118,6 +119,14 @@ public sealed partial class FirstRunCarousel : UserControl
     /// <param name="sender">FlipView.</param>
     /// <param name="e">Unused.</param>
     private void OnSlideChanged(object sender, SelectionChangedEventArgs e) => UpdateActiveDemo();
+
+    /// <summary>
+    /// Scrolls the pips into view when a pip takes focus (issue #420): the pager's own inner scroller doesn't pass the
+    /// focus bring-into-view on to <c>Body</c>, so at large text in a short window Tab landed on a pip below the fold.
+    /// </summary>
+    /// <param name="sender">Pips.</param>
+    /// <param name="e">Unused.</param>
+    private void OnPipsGotFocus(object sender, RoutedEventArgs e) => Pips.StartBringIntoView();
 
     /// <summary>Marks each realized slide's demo active when its slide is selected.</summary>
     private void UpdateActiveDemo()

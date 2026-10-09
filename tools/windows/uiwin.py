@@ -143,7 +143,9 @@ def parse_selector(text: str) -> dict:
 
     Forms: ``id=<AutomationId>``, ``name=<Name>``, ``class=<ClassName>``, ``raw=<AutomationId>`` (searches the
     raw view, for parts a control marks ``AccessibilityView=Raw`` such as a score row's badge text) or
-    ``<x>,<y>`` (window-relative physical pixels, ``click``/``rightclick``/``hover`` only). An ``id=``/``name=``
+    ``<x>,<y>`` (window-relative physical pixels, ``click``/``rightclick``/``hover`` only; physical pixels depend on the
+    display scale, so the driver refuses a click whose point is off the app's own window, and a scale-independent press
+    uses ``clickat`` effective pixels instead, issue #531). An ``id=``/``name=``
     selector may end with ``&class=<ClassName>`` to also match the class, e.g. ``id=1&class=Button`` for a
     system file picker's Open button, which shares AutomationId ``1`` with the picker's first folder.
 
@@ -256,8 +258,9 @@ def parse_step(step: str) -> dict:
     ``setvalue:<sel>|<text>`` writes text through the UIA Value pattern (no keyboard input,
     so it also works while the console session is locked; an empty text clears the field);
     ``scrollto:<selector>,<percent>`` sets a scroller's vertical position through the UIA
-    Scroll pattern and ``reveal:<selector>`` scrolls the target into view (UIA ScrollItem, else
-    stepping its scroller from the top), with no input, so both work while the console is locked;
+    Scroll pattern (a no-op when the content fits and the scroller can't scroll) and ``reveal:<selector>``
+    scrolls the target into view (UIA ScrollItem, else stepping its scroller from the top), with no input,
+    so both work while the console is locked;
     ``assertname:<sel>|<text>`` waits (default 5 s) until the element's UIA Name is exactly the text (each ``*`` matches
     any run of characters, so ``|*<text>`` waits until it ends with the text, for names that start with a local-time date);
     ``assertaligned:<sel>|<sel>`` fails unless both elements' horizontal centres are within 2 px (a column);
