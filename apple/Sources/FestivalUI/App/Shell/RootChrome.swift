@@ -547,38 +547,64 @@ struct VerticalBarActionItem: ToolbarContent {
 /// What VoiceOver reads for a page tool that names its current choice (Sort order,
 /// active filters, Quick Links section, chosen instrument).
 ///
-/// The iPhone Duo system vertical bar bridges a SwiftUI toolbar item's label and identifier
-/// but drops `.accessibilityValue`, on a `Button` or its `Label` alike
-/// (measured on the folded Duo, #432: Sort and Filter Songs read only their names). So
-/// there the state joins the label, as the bell's unread count does
-/// (``NotificationBadge``); VoiceOver still reads "Filter Songs, No filters". Horizontal
-/// bars (iPad, measured), the iPhone tab-bar accessory and the Mac keep a separate value.
+/// A SwiftUI toolbar item in an iOS system navigation bar is bridged with its label and
+/// identifier but not its `.accessibilityValue`, on a `Button` or its `Label` alike:
+/// measured on the folded iPhone Duo's vertical bar (iOS 27.1) and the iPad's horizontal
+/// bar (iOS 27.0, apple-ci), where Sort and Filter Songs read only their names (#432).
+/// So in a system bar the state joins the label, as the bell's unread count does
+/// (``NotificationBadge``); VoiceOver still reads "Filter Songs, No filters". The rule
+/// follows the bar, not an OS version (iPad on iOS 26.5 kept the value), so every iOS
+/// navigation-bar tool reads the same way. The iPhone tab-bar accessory (a SwiftUI view,
+/// ``EnvironmentValues/pageToolsInAccessory``) and the Mac toolbar keep a separate value.
 /// HIG Accessibility: "Describe the element's current state (selected, disabled, value)".
 enum BarItemSpokenState {
+    /// Where the tool is drawn.
+    enum Placement: Sendable, Equatable {
+        /// An iOS system navigation bar (iPad, the iPhone Duo vertical bar, the Duo inner
+        /// display, iOS before 26.1): drops the value.
+        case systemBar
+        /// The iPhone tab-bar accessory, a SwiftUI view: keeps the value.
+        case accessory
+        /// The Mac toolbar: keeps the value.
+        case mac
+    }
+
     /// The label and value to publish.
     ///
     /// - Parameters:
     ///   - label: The tool's name ("Filter Songs").
     ///   - value: Its current state ("No filters"); empty when it has none.
-    ///   - chrome: Current section chrome.
-    /// - Returns: `label` and `value` unchanged, or in the vertical bar the label
+    ///   - placement: Where the tool is drawn.
+    /// - Returns: `label` and `value` unchanged, or in a system bar the label
     ///   "label, value" and an empty value.
-    static func resolve(
-        label: String, value: String, chrome: DeviceLayout.SectionChrome
-    ) -> (label: String, value: String) {
-        guard chrome.isVerticalBar, !value.isEmpty else { return (label, value) }
+    static func resolve(label: String, value: String, placement: Placement) -> (label: String, value: String) {
+        guard placement == .systemBar, !value.isEmpty else { return (label, value) }
         return ("\(label), \(value)", "")
+    }
+
+    /// The placement on this platform.
+    ///
+    /// - Parameter inAccessory: The tool is rendered in the iPhone tab-bar accessory.
+    /// - Returns: ``Placement/mac`` on macOS, else the accessory or a system bar.
+    static func placement(inAccessory: Bool) -> Placement {
+        #if os(macOS)
+        .mac
+        #else
+        inAccessory ? .accessory : .systemBar
+        #endif
     }
 }
 
-/// Applies ``BarItemSpokenState`` for the current section chrome.
+/// Applies ``BarItemSpokenState`` where the tool is drawn.
 private struct BarItemAccessibility: ViewModifier {
     let label: String
     let value: String
-    @Environment(\.deviceLayout) private var layout
+    @Environment(\.pageToolsInAccessory) private var inAccessory
 
     func body(content: Content) -> some View {
-        let spoken = BarItemSpokenState.resolve(label: label, value: value, chrome: layout.sectionChrome)
+        let spoken = BarItemSpokenState.resolve(
+            label: label, value: value, placement: BarItemSpokenState.placement(inAccessory: inAccessory)
+        )
         content
             .accessibilityLabel(spoken.label)
             .accessibilityValue(spoken.value)
@@ -589,7 +615,7 @@ private struct BarItemAccessibility: ViewModifier {
 
 extension View {
     /// Names a toolbar page tool and its current state, so VoiceOver reads both in every
-    /// bar, the iPhone Duo vertical bar included (``BarItemSpokenState``).
+    /// bar, the iOS system navigation bars included (``BarItemSpokenState``).
     ///
     /// Use instead of `.accessibilityLabel` + `.accessibilityValue` on any page tool
     /// that can sit in a system toolbar.

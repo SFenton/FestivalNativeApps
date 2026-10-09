@@ -225,8 +225,9 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         openSheet(app, file: file, line: line)
     }
 
-    /// What VoiceOver reads for a toolbar tool: its label, then its value. The iPhone Duo
-    /// vertical bar drops values, so there the state is in the label (`BarItemSpokenState`).
+    /// What VoiceOver reads for a toolbar tool: its label, then its value. iOS system
+    /// navigation bars (the iPhone Duo vertical bar, the iPad on iOS 27) drop values, so
+    /// there the state is in the label (`BarItemSpokenState`).
     private static func spoken(_ element: XCUIElement) -> String {
         let value = element.value as? String ?? ""
         return value.isEmpty ? element.label : "\(element.label), \(value)"

@@ -53,7 +53,9 @@ final class SongsFilterKeyboardJourneyTests: XCTestCase {
     func testCommandPeriodClosesFilter() throws {
         let app = launchSongs()
         let filter = app.buttons["fst.songs.filter"]
-        let before = filter.value as? String ?? ""
+        // The iPad bar reads the state in the label or the value (`BarItemSpokenState`).
+        let spoken = { "\(filter.label)|\(filter.value as? String ?? "")" }
+        let before = spoken()
         for round in 1...2 {
             let close = openFilter(app)
             XCTAssertTrue(close.exists, "Close is offered beside the keyboard command")
@@ -61,7 +63,7 @@ final class SongsFilterKeyboardJourneyTests: XCTestCase {
             let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: close)
             XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 5), .completed, "⌘. closes Filter (round \(round))")
             XCTAssertTrue(filter.waitForExistence(timeout: 5), "Songs is back after ⌘. (round \(round))")
-            XCTAssertEqual(filter.value as? String ?? "", before, "⌘. leaves the filter unchanged")
+            XCTAssertEqual(spoken(), before, "⌘. leaves the filter unchanged")
         }
     }
 }

@@ -60,35 +60,45 @@ struct RootChromeRailPriorityTests {
 
 // MARK: - Bar item spoken state (#432)
 
-/// The iPhone Duo vertical bar drops a toolbar item's accessibility value, so a page
-/// tool's state joins its label there; every other bar keeps label and value apart.
-/// The folded-Duo journey `SongsFilterAccessibilityJourneyTests` checks the rendered rail.
+/// An iOS system navigation bar drops a toolbar item's accessibility value (the folded
+/// iPhone Duo's vertical bar, the iPad on iOS 27), so a page tool's state joins its label
+/// there; the iPhone tab-bar accessory and the Mac keep label and value apart. The
+/// rendered `SongsFilterAccessibilityJourneyTests` (iPhone, iPad, folded Duo) checks the bars.
 @Suite("Bar item spoken state")
 struct BarItemSpokenStateTests {
-    @Test("Horizontal bars, the tab-bar accessory and the Mac sidebar keep a separate value")
-    func horizontalChromeKeepsValue() {
-        for chrome in [DeviceLayout.SectionChrome.tabBar, .sidebar] {
-            let spoken = BarItemSpokenState.resolve(label: "Filter Songs", value: "No filters", chrome: chrome)
+    @Test("The tab-bar accessory and the Mac keep a separate value")
+    func accessoryAndMacKeepValue() {
+        for placement in [BarItemSpokenState.Placement.accessory, .mac] {
+            let spoken = BarItemSpokenState.resolve(label: "Filter Songs", value: "No filters", placement: placement)
             #expect(spoken.label == "Filter Songs")
             #expect(spoken.value == "No filters")
         }
     }
 
-    @Test("The vertical bar reads the state in the label, on either edge")
-    func verticalBarJoinsValueToLabel() {
-        for edge in [HorizontalEdge.leading, .trailing] {
-            let spoken = BarItemSpokenState.resolve(
-                label: "Filter Songs", value: "Year filter, Duration filter", chrome: .verticalBar(edge)
-            )
-            #expect(spoken.label == "Filter Songs, Year filter, Duration filter")
-            #expect(spoken.value.isEmpty)
-        }
+    @Test("A system navigation bar reads the state in the label")
+    func systemBarJoinsValueToLabel() {
+        let spoken = BarItemSpokenState.resolve(
+            label: "Filter Songs", value: "Year filter, Duration filter", placement: .systemBar
+        )
+        #expect(spoken.label == "Filter Songs, Year filter, Duration filter")
+        #expect(spoken.value.isEmpty)
     }
 
-    @Test("A tool with no state keeps its bare name in the vertical bar")
+    @Test("A tool with no state keeps its bare name in a system bar")
     func emptyValueKeepsLabel() {
-        let spoken = BarItemSpokenState.resolve(label: "Quick Links", value: "", chrome: .verticalBar(.trailing))
+        let spoken = BarItemSpokenState.resolve(label: "Quick Links", value: "", placement: .systemBar)
         #expect(spoken.label == "Quick Links")
         #expect(spoken.value.isEmpty)
+    }
+
+    @Test("Placement follows the accessory on iOS; the Mac is always the Mac")
+    func placementPerPlatform() {
+        #if os(macOS)
+        #expect(BarItemSpokenState.placement(inAccessory: false) == .mac)
+        #expect(BarItemSpokenState.placement(inAccessory: true) == .mac)
+        #else
+        #expect(BarItemSpokenState.placement(inAccessory: false) == .systemBar)
+        #expect(BarItemSpokenState.placement(inAccessory: true) == .accessory)
+        #endif
     }
 }
