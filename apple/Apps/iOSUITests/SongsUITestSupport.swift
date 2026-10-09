@@ -12,8 +12,8 @@ import XCTest
 enum SongsUITestSupport {
     /// Loopback `tools/mock_service.py` origin for the default fixture.
     ///
-    /// `tools/apple_ui_ci.py` serves the fixture on a free port and passes it as
-    /// `TEST_RUNNER_FST_FIXTURE_URL`; a manual run uses `mock_service.py`'s default port.
+    /// `apple-ci` and a manual run use `mock_service.py`'s default port; a lane whose port
+    /// 8765 is taken serves its own mock and passes it as `TEST_RUNNER_FST_FIXTURE_URL`.
     static var fixtureURL: String {
         ProcessInfo.processInfo.environment["FST_FIXTURE_URL"] ?? "http://127.0.0.1:8765"
     }

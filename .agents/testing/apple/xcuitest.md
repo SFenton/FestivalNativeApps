@@ -20,11 +20,15 @@ see `cmd_uitest`'s docstring in `tools/ios_sim.py` for the full contract.
 sequence instead of a written `XCTestCase`, useful for ad hoc exploration
 before writing a real journey.
 
-### Journeys in apple-ci
+## CI journeys
 
-- **A journey gates pull requests only through `tools/apple_ui_ci.py` `RUNS`** (#441). The macOS hosted tests cannot show iOS Dynamic Type, iOS rendering or `performAccessibilityAudit`, so an iPhone accessibility journey that pins such behavior needs a `Run` entry; `apple-ci` calls `python3 tools/apple_ui_ci.py --create-simulator` after the hosted tests. `tools/tests/test_apple_ui_ci.py` (`contracts` job) checks every entry names a real journey method.
-- **Each run serves its own fixture.** The tool starts `tools/mock_service.py --port 0` (plus the run's `fixture_args`) and passes the origin as `TEST_RUNNER_<fixture_env>` (default `FST_FIXTURE_URL`). A registered journey reads that variable (`SongsUITestSupport.fixtureURL`, which falls back to `mock_service.py`'s default 8765 for a manual run), never a fixed port: another lane's service may already hold it.
-- **CI makes its own simulator; a shared Mac never does.** `--create-simulator` creates an iPhone 17 Pro on the newest iOS runtime that supports it and deletes it afterwards. Locally, leave it out and pass an existing `ios_sim.py` alias (`--device iphone27` matches the runner's iOS 27 runtime); the run goes through `ios_sim.py uitest` and its simulator lock. Failed result bundles upload as the `apple-ci-journeys` artifact.
+`apple-ci` runs a short list of iPhone journeys on a simulator (step "iPhone simulator journeys", `JOURNEYS` in [`apple-ci.yml`](../../../.github/workflows/apple-ci.yml)). Use it for evidence the macOS-hosted suite cannot give: real Dynamic Type sizes (macOS has no Dynamic Type, [accessibility](accessibility.md)) and `performAccessibilityAudit`.
+
+- The step starts `tools/mock_service.py --large-catalogue` on the default port 8765, creates one throwaway runner simulator with `ios_sim.py ci-device` (an iPhone 17 Pro on the runner's newest iOS runtime) and runs `ios_sim.py uitest --device <UDID> --fail-on-skip`.
+- `--fail-on-skip` fails a batch in which any test skipped or none ran: a journey that cannot find its fixture skips, and an all-skipped batch would otherwise pass.
+- Add a journey only if it passes alone against that fixture, launches with no other flags or a selected player, and takes about two minutes or less; a journey needing another fixture mode needs its own mock and step. Run it first with `ios_sim.py uitest --fail-on-skip` locally (point it at your own mock with `TEST_RUNNER_<VAR>` when another lane holds 8765).
+- `ci-device` refuses to run outside GitHub Actions: on a shared Mac, use a `DEVICES` alias and never create or change simulators.
+- A failed run uploads the `.xcresult` bundles and the mock's log as the `apple-ci-journeys` artifact.
 - **An audit handler accepts only what a rule dims by design, on every OS version.** No `systemVersion` exemptions in a registered journey: the runner's runtime is not the Mac's. Accept contrast issues only for text under a scroll-edge fade band ([scroll-edge](../../patterns/scroll-edge.md) R2/R5) or behind bottom chrome, never on the element the journey tests (measure its rendered contrast before accepting an unattributed issue), and measure any other flagged text's rendered contrast (`SongsUITestSupport.assertHeaderContrast`). Precedents: `SongDetailJourneyTests` `auditSoloPage`, `SongsJourneyTests` `auditSectionTitlePage`.
 
 ### Shared launch helper (`FestivalApp.swift`, added 2026-09-28)

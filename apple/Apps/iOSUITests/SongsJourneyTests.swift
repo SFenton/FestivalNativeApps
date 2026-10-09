@@ -1940,7 +1940,7 @@ final class SongsJourneyTests: XCTestCase {
     /// (#91, tests #441): each title grows with Dynamic Type, is named as shown, sits above
     /// its own song with no opaque band, keeps 4.5:1 rendered contrast and passes the audit.
     /// The macOS hosted check for every grouped sort is `SongsSectionTitleAccessibilityTests`.
-    /// `apple-ci` runs this journey on an iPhone simulator (`tools/apple_ui_ci.py` `RUNS`).
+    /// `apple-ci` runs this journey on an iPhone simulator (`JOURNEYS` in `apple-ci.yml`).
     ///
     /// - Throws: A missing or clipped title, rows read out of order or an audit finding.
     @MainActor
@@ -1998,21 +1998,27 @@ final class SongsJourneyTests: XCTestCase {
     ///
     /// Only text the shared scroll-edge pattern dims by design is accepted: rows under the
     /// pinned title's 40 pt row fade (`scroll-edge` R2/R5) and text behind the bottom chrome,
-    /// both covered by their own journeys. A section title is never accepted, and every title on
-    /// screen must measure at least 4.5:1 rendered before an unattributed issue is; any other
-    /// flagged text must measure at least 4.5:1 rendered. Every issue is attached.
+    /// both covered by their own journeys. A section title above the bottom chrome is never
+    /// accepted, and every such title must measure at least 4.5:1 rendered before an unattributed
+    /// issue is; any other flagged text must measure at least 4.5:1 rendered. A larger catalogue's
+    /// next title (Not in Shop) may sit behind the tab bar, where it is chrome-band text like any
+    /// row there. Every issue is attached.
     ///
     /// - Parameter app: Running app on the Shop sort with both section titles on screen.
     /// - Throws: An audit failure outside the fade bands.
     @MainActor
     private func auditSectionTitlePage(_ app: XCUIApplication) throws {
         let window = app.windows.firstMatch.frame
+        let chromeTop = app.tabBars.firstMatch.exists ? app.tabBars.firstMatch.frame.minY : window.maxY
         let titles = app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.shop-section.")
-        ).allElementsBoundByIndex.filter { window.intersects($0.frame) }
+        ).allElementsBoundByIndex.filter { window.intersects($0.frame) && $0.frame.maxY <= chromeTop }
+        XCTAssertTrue(
+            titles.contains { $0.identifier == "fst.songs.shop-section.in-shop" },
+            "In Shop must be audited above the bottom chrome"
+        )
         let pinned = try XCTUnwrap(titles.min { $0.frame.minY < $1.frame.minY }, "No section title on screen")
         let fadeEnd = pinned.frame.maxY + 40
-        let chromeTop = app.tabBars.firstMatch.exists ? app.tabBars.firstMatch.frame.minY : window.maxY
         let rows = app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row.")
         ).allElementsBoundByIndex.map(\.frame).filter(window.intersects)
@@ -2032,10 +2038,11 @@ final class SongsJourneyTests: XCTestCase {
             attachment.name = "songs-section-titles-audit-issue"
             attachment.lifetime = .keepAlways
             self.add(attachment)
-            guard issue.auditType == .contrast,
-                  element?.identifier.hasPrefix("fst.songs.shop-section.") != true else { return false }
+            guard issue.auditType == .contrast else { return false }
             guard let element, !element.frame.isEmpty else { return rowInFade }
-            if element.frame.minY < fadeEnd || element.frame.maxY > chromeTop { return true }
+            if element.frame.maxY > chromeTop { return true }
+            if element.identifier.hasPrefix("fst.songs.shop-section.") { return false }
+            if element.frame.minY < fadeEnd { return true }
             try SongsUITestSupport.assertHeaderContrast(element, in: app)
             return true
         }
