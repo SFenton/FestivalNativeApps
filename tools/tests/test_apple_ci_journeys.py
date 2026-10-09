@@ -2,10 +2,10 @@
 
 A selector that matches nothing makes ``xcodebuild`` run no test, so a renamed journey would silently leave CI.
 The ``JOURNEYS`` blocks (iPhone UI-test bundle, on the iPhone and the iPad) must keep the account-button
-reading-order journeys (``page-tools-and-nav-chrome`` R17, #394), the Songs section-title AX5 journey (#91, #441) and
-the What's New AX5 journeys (#434: iPhone portrait, iPad portrait and landscape); ``HISTORY_JOURNEYS``/
-``HISTORY_IPAD_JOURNEYS`` (iPad bundle, on the iPhone and the iPad) must keep the Score History AX5 journeys (#385,
-the region #302 changed).
+reading-order journeys (``page-tools-and-nav-chrome`` R17, #394), the Songs section-title AX5 journey (#91, #441), the
+What's New AX5 journeys (#434: iPhone portrait, iPad portrait and landscape) and the pinned caption-icon journeys
+(``song-header`` R4, #542); ``HISTORY_JOURNEYS``/``HISTORY_IPAD_JOURNEYS`` (iPad bundle, on the iPhone and the iPad)
+must keep the Score History AX5 journeys (#385, the region #302 changed).
 """
 
 import re
@@ -125,6 +125,13 @@ class AppleCIJourneysTests(unittest.TestCase):
     def test_section_title_ax5_journey_runs_in_ci(self) -> None:
         # #91/#441: the only iOS Dynamic Type and audit evidence for Songs' grouped-sort section titles.
         self.assertIn("SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5", self.journeys)
+
+    def test_pinned_caption_icon_journeys_run_in_ci(self) -> None:
+        for method in (
+            "testSongLeaderboardCaptionIconScalesWithText",
+            "testPlayerHistoryCaptionIconAtLargestText",
+        ):
+            self.assertIn(f"SongBarCaptionIconJourneyTests/{method}", self.journeys)
 
 
 if __name__ == "__main__":

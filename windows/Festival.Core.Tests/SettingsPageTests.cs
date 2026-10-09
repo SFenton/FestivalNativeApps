@@ -37,6 +37,14 @@ public class SettingsPageTests
         vm.Leeway = -9;
         Assert.Equal(-5, vm.Leeway);
         Assert.False(vm.ExperimentalRanks);
+        var changed = new List<string?>();
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        vm.ExperimentalRanks = true;
+        Assert.True(vm.ExperimentalRanks);
+        Assert.True(store.Current.ExperimentalRanks);
+        Assert.Contains(string.Empty, changed);
+        vm.ExperimentalRanks = false;
+        Assert.False(store.Current.ExperimentalRanks);
         Assert.False(vm.ShowInstrumentIcons);
         Assert.True(vm.EnableVisualOrder && vm.FilterInvalidScores);
     }
@@ -138,7 +146,7 @@ public class SettingsPageTests
     [Fact]
     public void Version_AndReplayAndReset()
     {
-        var (vm, store, _) = Create(new AppSettings { SelectedPlayer = Player, SongSort = SongSortMode.Artist, HideShop = true, Leeway = 3 });
+        var (vm, store, _) = Create(new AppSettings { SelectedPlayer = Player, SongSort = SongSortMode.Artist, HideShop = true, Leeway = 3, ExperimentalRanks = true });
         Assert.Equal(("0.1.0", "Loading"), (vm.AppVersion, vm.ServiceVersion));
         Assert.Equal("Unknown", new SettingsViewModel(new FakeService().Session(), "").AppVersion);
 
@@ -154,6 +162,8 @@ public class SettingsPageTests
         Assert.Equal(Player, store.Current.SelectedPlayer);
         Assert.Equal(SongSortMode.Artist, store.Current.SongSort);
         Assert.False(store.Current.HideShop);
+        Assert.False(store.Current.ExperimentalRanks);
+        Assert.False(vm.ExperimentalRanks);
         Assert.Equal(1, store.Current.Leeway);
     }
 

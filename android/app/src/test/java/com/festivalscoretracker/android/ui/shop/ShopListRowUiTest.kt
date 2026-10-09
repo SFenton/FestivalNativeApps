@@ -5,6 +5,9 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -131,6 +134,24 @@ class ShopListRowUiTest {
         val link = rule.onNodeWithTag("fst.shop.external.s-alpha").fetchSemanticsNode().config
         assertEquals(listOf("Open Alpha Tune in the Fortnite Item Shop"), link.getOrNull(SemanticsProperties.ContentDescription))
         assertFalse("the link is not merged into the row", spoken.any { "Fortnite Item Shop" in it })
+    }
+
+    @Test
+    fun newRowShowsNoVisibleBadgeButTalkBackStillHearsNew() {
+        launch()
+        waitForTag("fst.shop.song.s-beta")
+        // Issue #562 (web `SongRow`): a New row is marked by its gold outline only.
+        assertTrue(rule.onAllNodesWithTag("fst.shop.badge.new.s-beta", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        assertTrue(rule.onAllNodes(hasText("New") and hasAnyAncestor(hasTestTag("fst.shop.song.s-beta")), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        val row = rule.onNodeWithTag("fst.shop.song.s-beta").fetchSemanticsNode().config
+        assertEquals(listOf("Beta Song", "Band Two · 2019"), row.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text })
+        // TalkBack reads the texts, then the state: "Beta Song, Band Two · 2019, New".
+        assertEquals("New", row.getOrNull(SemanticsProperties.StateDescription))
+        assertNull(row.getOrNull(SemanticsProperties.ContentDescription))
+        // Leaving Tomorrow keeps its visible label and needs no extra state.
+        val leaving = rule.onNodeWithTag("fst.shop.badge.leaving.s-alpha", useUnmergedTree = true).fetchSemanticsNode()
+        assertTrue(leaving.size.width > 0 && leaving.size.height > 0)
+        assertNull(rule.onNodeWithTag("fst.shop.song.s-alpha").fetchSemanticsNode().config.getOrNull(SemanticsProperties.StateDescription))
     }
 
     @Test
