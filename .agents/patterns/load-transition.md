@@ -151,7 +151,7 @@ Windows R4 failed reload focus. Agent decision (#283, 2026-10-07; owner may over
 Windows accessibility tests (#431, for the #71 swap): `tools/windows/journeys/a11y-load-swap.json` (`a11y_matrix.py`; structure test `tools/windows/tests/test_load_swap_journey.py`). It covers Full Rankings, Band Rankings, the song leaderboard, the song band leaderboard, Player Bands and the Leaderboards overview's Rank By reload. On each surface it checks five things:
 - Narrator reads the spinner by name and role ("Busy Loading rankings, ProgressRing").
 - The stale rows leave UI Automation while the spinner shows (R2).
-- The order runs header and selectors → spinner → pager, with the selectors and pager enabled at 40×40 epx (R4).
+- The order runs header and selectors → spinner → pager, with the selectors and pager enabled at 40×40 epx (R4). On the first load the pager is hidden (R4: no page count yet), so the order ends on the spinner.
 - Keyboard focus stays on the pager button pressed.
 - The new rows read correctly, with Axe clean at first load and after the swap.
 Further pages cover 225% text and the swap under Reduce Motion or system animations off (R6). The `windows-ui` CI job runs every page (`tools/windows/ui_ci.py` runs `load-swap`, `load-swap-text-225` and `load-swap-no-animations`, Axe-scanned at medium). Rule found: a pager's async commands must allow concurrent runs. A running command reports CanExecute false, which disables the focused button, and `LeaderboardsPager` then hands focus elsewhere. The band pager (`BandsPagerViewModel`) did this until #431, as the rankings pager did until #197.

@@ -90,15 +90,21 @@ class LoadSwapJourneyTests(unittest.TestCase):
                 ready = _BY_NAME[name]["ready"]
                 self.assertIn(f"assertread:name={spinner}|{spinner}, ProgressRing", ready)
                 # WinUI's ProgressRing briefly exposes its AnimatedVisualPlayer as a non-control Image while it starts
-                # (Axe IsControlElementTrueRequired; windows-accessibility.md open issue 10), and while the ring fades
-                # in it reports IsOffscreen, so Narrator's order skips it (windows-ui CI, #431 review). Both the order
-                # snapshot and the scan settle first, and the fixture holds the read long enough (6 s) for the
-                # spinner to still be up.
+                # (Axe IsControlElementTrueRequired; windows-accessibility.md open issue 10), so the scan settles first
+                # and the fixture holds the read long enough for the spinner to still be up. The hold starts at launch:
+                # 6 s ran out before the order check on the windows-ui runner (#431 review), so it is 10 s, and the
+                # reload's new-row wait allows for it.
                 scan = ready.index("scan:{stem}-loading")
-                order = next(i for i, st in enumerate(ready) if st.startswith("assertorder:"))
-                self.assertEqual(ready[order - 1], "wait:1")
-                self.assertLess(order, scan)
-                self.assertEqual(_BY_NAME[name]["fixture"][-1], "6")
+                self.assertEqual(ready[scan - 1], "wait:1")
+                self.assertEqual(_BY_NAME[name]["fixture"][-1], "10")
+                # R4: the pager hides for the first load (no page count yet), so the first-load order ends on the
+                # spinner; the reload checks cover selectors -> spinner -> pager.
+                first = next(st for st in ready if st.startswith("assertorder:"))
+                self.assertTrue(first.endswith(f"|name={spinner}"), first)
+                self.assertIn(f"waitgone:id={_BOARDS[name][1]}.page-first", ready)
+                after = _BY_NAME[name]["after_ready"]
+                landed = next(st for st in after[after.index(f"waitgone:name={spinner}@5") - 1::-1] if st.startswith("waitfor:id="))
+                self.assertGreater(float(landed.rsplit("@", 1)[1]), 10, landed)
         reload = _BY_NAME["load-swap-song-leaderboard"]["after_ready"]
         self.assertIn("assertread:name=Busy Loading leaderboard|Busy Loading leaderboard, ProgressRing", reload)
         self.assertIn("assertread:id=fst.song-leaderboard.song|Fixture Pulse, button, Opens Song Details", reload)
