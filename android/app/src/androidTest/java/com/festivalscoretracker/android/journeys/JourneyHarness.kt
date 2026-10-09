@@ -1,6 +1,7 @@
 package com.festivalscoretracker.android.journeys
 
 import android.content.res.Configuration
+import android.content.res.Resources
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
@@ -26,6 +27,8 @@ import androidx.compose.ui.unit.dp
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.window.layout.FoldingFeature
@@ -136,11 +139,43 @@ class JourneyHarness(private val rule: JourneyRule) {
      * `ModalBottomSheet` or `Dialog` composes in its own window, whose density comes from the
      * activity's resources, so without this a "200%" sheet still renders at the device scale.
      *
+     * The activity's `Resources` share their implementation with every later activity of the
+     * same configuration in this instrumentation process, so the device's own scale is put back
+     * when the activity is destroyed. Without that, one 200 % journey left every following test
+     * class at 200 % text in a full `connectedDebugAndroidTest` run (issue #528).
+     *
+     * @param scale Font scale.
+     */
+    private fun applyWindowFontScale(scale: Float) {
+        val activity = rule.activity
+        val resources = activity.resources
+        if (resources.configuration.fontScale == scale) return
+        if (activity !in restoresFontScale) {
+            restoresFontScale += activity
+            val original = resources.configuration.fontScale
+            activity.lifecycle.addObserver(
+                LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_DESTROY) {
+                        setFontScale(resources, original)
+                        restoresFontScale -= activity
+                    }
+                },
+            )
+        }
+        setFontScale(resources, scale)
+    }
+
+    /** Activities whose shared resources get the device's font scale back on destroy. */
+    private val restoresFontScale = mutableSetOf<ComponentActivity>()
+
+    /**
+     * Set [scale] on [resources] (shared with the activity's dialogs and sheets).
+     *
+     * @param resources Activity resources.
      * @param scale Font scale.
      */
     @Suppress("DEPRECATION")
-    private fun applyWindowFontScale(scale: Float) {
-        val resources = rule.activity.resources
+    private fun setFontScale(resources: Resources, scale: Float) {
         if (resources.configuration.fontScale == scale) return
         resources.updateConfiguration(Configuration(resources.configuration).apply { fontScale = scale }, resources.displayMetrics)
     }
