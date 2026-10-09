@@ -502,6 +502,18 @@ def classify_pose(outer_dark: bool, inner_dark: bool) -> str:
     return "unknown"
 
 
+def pose_screenshot_policy() -> tuple[float, int]:
+    """How long one Duo panel screenshot may take, and how many tries it gets.
+
+    A GitHub Actions runner is a slow VM: its first ``simctl io screenshot`` after boot
+    took over 30 s (#432), which read as an ``unknown`` pose and stopped the run.
+
+    Returns:
+        ``(timeout seconds, attempts)``: ``(30, 1)`` on a Mac, ``(180, 3)`` on a CI runner.
+    """
+    return (180.0, 3) if os.environ.get("GITHUB_ACTIONS") == "true" else (30.0, 1)
+
+
 def detect_pose(udid: str) -> str:
     """Screenshot both Duo panels and report the pose. Call under the simulator lock.
 
@@ -509,18 +521,25 @@ def detect_pose(udid: str) -> str:
         udid: A booted iPhone Duo simulator.
 
     Returns:
-        ``"folded"``, ``"unfolded"`` or ``"unknown"`` (also for non-Duo devices).
+        ``"folded"``, ``"unfolded"`` or ``"unknown"`` (also for non-Duo devices, or when a
+        panel screenshot fails every attempt; see ``pose_screenshot_policy``).
     """
+    timeout, attempts = pose_screenshot_policy()
     dark = {}
     with tempfile.TemporaryDirectory() as folder:
         for panel, display in DUO_PANELS.items():
             path = Path(folder) / f"{panel}.bmp"
-            try:
-                result = _run(["xcrun", "simctl", "io", udid, "screenshot", "--type=bmp",
-                               f"--display={display}", str(path)], check=False, capture_output=True, timeout=30)
-            except subprocess.TimeoutExpired:
-                return "unknown"
-            if result.returncode or not path.exists():
+            for _ in range(attempts):
+                path.unlink(missing_ok=True)
+                try:
+                    result = _run(["xcrun", "simctl", "io", udid, "screenshot", "--type=bmp",
+                                   f"--display={display}", str(path)], check=False, capture_output=True,
+                                  timeout=timeout)
+                except subprocess.TimeoutExpired:
+                    continue
+                if not result.returncode and path.exists():
+                    break
+            else:
                 return "unknown"
             dark[panel] = bmp_is_dark(path.read_bytes())
     return classify_pose(dark["outer"], dark["inner"])

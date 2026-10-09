@@ -315,6 +315,39 @@ class DuoPoseTests(unittest.TestCase):
         self.assertEqual(classify_pose(outer_dark=True, inner_dark=True), "unknown")
         self.assertEqual(classify_pose(outer_dark=False, inner_dark=False), "unknown")
 
+    def test_pose_screenshots_get_longer_and_retried_on_ci(self):
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": ""}):
+            self.assertEqual(ios_sim.pose_screenshot_policy(), (30.0, 1))
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+            self.assertEqual(ios_sim.pose_screenshot_policy(), (180.0, 3))
+
+    def test_detect_pose_retries_a_slow_first_screenshot(self):
+        # #432: a runner's first screenshot after boot timed out, and the folded Duo read as unknown.
+        import os
+        import subprocess
+        from unittest import mock
+
+        calls = []
+
+        def fake_run(argv, **kwargs):
+            calls.append(argv)
+            if len(calls) == 1:
+                raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+            lit = "--display=primary" in argv
+            Path(argv[-1]).write_bytes(_bmp([(200, 200, 200)] if lit else [(0, 0, 0)]))
+            return subprocess.CompletedProcess(argv, 0)
+
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}), \
+                mock.patch.object(ios_sim, "_run", side_effect=fake_run):
+            self.assertEqual(ios_sim.detect_pose("UDID"), "folded")
+        self.assertEqual(len(calls), 3)
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": ""}), \
+                mock.patch.object(ios_sim, "_run", side_effect=subprocess.TimeoutExpired("x", 30)):
+            self.assertEqual(ios_sim.detect_pose("UDID"), "unknown")
+
 
 def _control(title=None, role="AXButton", kind="control", **extra):
     """Build one Device Hub ``dump`` entry."""
