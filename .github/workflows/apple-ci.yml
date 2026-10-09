@@ -56,7 +56,8 @@ jobs:
         run: swift test --skip-build --filter 'selectedRowRevealFadesTheRowItReaches|staggeredListRowsFadeInRatherThanPop|serviceInfoIndeterminateBar'
       - name: iPhone simulator journeys (serialized, loopback fixture)
         # Evidence only an iOS run gives (real Dynamic Type sizes, the device accessibility tree, hit testing,
-        # performAccessibilityAudit). One throwaway runner simulator, the large-catalogue loopback fixture,
+        # performAccessibilityAudit, the production nav bar and tab-bar accessory reading order,
+        # page-tools-and-nav-chrome R17). One throwaway runner simulator, the large-catalogue loopback fixture,
         # `ios_sim.py uitest`; a skipped journey fails the step. JOURNEYS run as is; A11Y_MODE_JOURNEYS run again
         # with Increase Contrast and with Reduce Transparency (#391).
         # Add a journey here only if it runs against this fixture: testing/apple/xcuitest.md#ci-journeys.
@@ -64,6 +65,10 @@ jobs:
           JOURNEYS: >-
             SongsChromeJourneyTests/testSectionBarHeadingAtLargestText
             SongsChromeJourneyTests/testSectionBarFadeAtLargestTextKeepsRowsNamedAndPassesTheAudit
+            NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrder
+            NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrderOnPushedPage
+            NavButtonHitRegionJourneyTests/testChooseProfileReadsAloneInProductionChrome
+            NavButtonHitRegionJourneyTests/testAccountButtonsStaySeparateAndLabelledAtLargestTextSize
           A11Y_MODE_JOURNEYS: >-
             SongsChromeJourneyTests/testSectionBarFadeAtLargestTextKeepsRowsNamedAndPassesTheAudit
           # xcodebuild's failure diagnostics took about seven minutes per failure on the runner.
