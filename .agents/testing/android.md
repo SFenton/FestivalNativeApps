@@ -88,6 +88,7 @@
 - Robolectric does not wrap text at real glyph widths on this Windows host even with `@GraphicsMode(NATIVE)` and `fontScale = 2f` (a 55-character, 16 sp line measured one line in 1089 px). Assert centring/no overflow in Robolectric and prove 200% wrapping with emulator captures.
 - `SemanticsNodeInteraction.captureToImage()` times out under Robolectric here. For pixel assertions draw the activity's content view into a software `Bitmap` (`view.draw(Canvas(bitmap))`) and crop with the node's `boundsInRoot` (`ScoreAccuracyUiTest`).
 - `clearAndSetSemantics` removes a `Text`'s own text from the semantics tree: assert its `contentDescription`, size or pixels, not `onNodeWithText`.
+- Device journeys that scroll a lazy list in small steps (issue #452, `SongsBucketHeaderAccessibilityJourneyTest` push journeys): match only live items (`layoutInfo.isPlaced && !layoutInfo.isDeactivated`), because reused items stay in semantics with stale bounds; a pinned header pushed off the top reports `boundsInRoot` clipped at the list edge, so place pixel checks by its bottom edge; call `publishTalkBackTree()` and wait for UiAutomation to catch up after each `ScrollBy`; rows wholly inside the list's bottom content padding are not exposed to TalkBack (it scrolls to reach them) and are not a defect.
 
 ## Coverage
 
