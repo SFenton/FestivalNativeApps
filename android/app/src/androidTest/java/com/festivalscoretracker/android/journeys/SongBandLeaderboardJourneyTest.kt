@@ -274,9 +274,9 @@ class SongBandLeaderboardJourneyTest {
         assertTrue("pager after the pinned band in $order", pinned < pager)
         assertFalse("the pinned band is announced as a row in $order", order.any { it.contains("Your band") })
 
-        // Scrolled: rows under the pinned band leave sight and TalkBack.
+        // Scrolled: rows under the pinned band leave sight and TalkBack. The page's rows are one
+        // card item after the controls (owner #543, `leaderboard-row` R10), like the solo board's.
         if (!h.exists("$prefix.controls-pane")) {
-            // The page's bands are one lazy item (one card, #543), so scroll by distance, not index.
             rule.onNode(hasTestTag("$prefix.list")).performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, with(rule.density) { MID_SCROLL.toPx() }) }
             rule.waitForIdle()
         }
