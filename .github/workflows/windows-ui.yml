@@ -26,14 +26,14 @@ concurrency:
   cancel-in-progress: true
 jobs:
   windows-ui-a11y:
-    name: windows-ui-a11y (${{ matrix.shard }}/4)
+    name: windows-ui-a11y (${{ matrix.shard }}/6)
     runs-on: windows-latest
     # The modal journey (11 pages x 3 runs) takes about 11 minutes here.
-    timeout-minutes: 45
+    timeout-minutes: 55
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6]
     env:
       PYTHONUTF8: '1'
       FST_CI: '1'
@@ -58,7 +58,7 @@ jobs:
         shell: pwsh
         run: ./tools/windows/build.ps1
       - name: Accessibility journeys
-        run: python tools/windows/ui_ci.py --shard ${{ matrix.shard }} --shards 4 --out "${{ runner.temp }}/windows-ui"
+        run: python tools/windows/ui_ci.py --shard ${{ matrix.shard }} --shards 6 --out "${{ runner.temp }}/windows-ui"
       - name: Upload journey results
         if: always()
         uses: actions/upload-artifact@v4
