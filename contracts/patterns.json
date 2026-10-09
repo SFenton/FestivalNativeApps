@@ -946,6 +946,13 @@
           "regex": "navigationBarHidden\\(|\\.(toolbar|toolbarVisibility)\\(\\s*\\.hidden\\s*,\\s*for:\\s*\\.navigationBar",
           "allow": [],
           "message": "Pages keep the system navigation bar and its title in every pose; don't hide it (page-tools-and-nav-chrome R14, #341)."
+        },
+        {
+          "id": "apple-shell-a11y-order",
+          "glob": "apple/Sources/FestivalUI/App/Shell/*.swift",
+          "regex": "\\.accessibilitySortPriority\\(",
+          "allow": [],
+          "message": "Shell chrome reads in hierarchy order; the order journeys cannot see a sort priority (page-tools-and-nav-chrome R17, #394)."
         }
       ],
       "related": {
@@ -980,7 +987,8 @@
         339,
         341,
         351,
-        363
+        363,
+        394
       ]
     },
     {
@@ -988,7 +996,7 @@
       "title": "Modal shell",
       "status": "current",
       "doc": ".agents/patterns/modal-shell.md",
-      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit; on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368).",
+      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit; on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420).",
       "keywords": [
         "modal",
         "sheet",
@@ -1146,6 +1154,13 @@
           "regex": "usePlatformDefaultWidth\\s*=(?!\\s*false\\b)",
           "allow": [],
           "message": "Centred dialogs take the window width less 16 dp margins, capped at 560 dp, never the platform dialog width (modal-shell R9)."
+        },
+        {
+          "id": "windows-template-scroller",
+          "glob": "windows/Festival.App/**/*.cs",
+          "regex": "\"ContentScrollViewer\"",
+          "allow": [],
+          "message": "ContentDialog's template scroller never scrolls vertically; give a tall body its own ScrollViewer instead of reaching into the template (modal-shell R5, #420)."
         }
       ],
       "related": {
@@ -1181,7 +1196,8 @@
         140,
         360,
         368,
-        400
+        400,
+        420
       ]
     },
     {
