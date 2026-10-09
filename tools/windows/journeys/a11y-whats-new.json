@@ -1,7 +1,8 @@
 [
   {"name": "whats-new-presented", "tab": "songs", "env": {"FST_DEBUG_WHATS_NEW": "force"},
    "ready": ["waitfor:id=fst.whats-new.dialog@30"],
-   "after_ready": ["waitfor:id=fst.whats-new.section.0@5", "assertstate:id=fst.whats-new.section.0|heading=2", "wait:1"],
+   "after_ready": ["waitfor:id=fst.whats-new.section.0@5", "assertstate:id=fst.whats-new.section.0|heading=2",
+                   "scrollto:id=fst.whats-new.list,0", "wait:1"],
    "teardown": ["key:esc", "wait:0.5"], "tabs": 4},
   {"name": "whats-new-replay", "tab": "settings",
    "ready": ["waitfor:id=fst.settings.show-instrument-icons@30"],

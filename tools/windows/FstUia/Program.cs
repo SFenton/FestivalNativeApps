@@ -696,6 +696,13 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "scrollto":
                 var scroller = Find(window, step);
                 if (!scroller.Patterns.Scroll.IsSupported) throw new InvalidOperationException("scrollto target has no Scroll pattern");
+                // Content that fits (e.g. short What's New notes in a tall window) is already at every position, and UIA
+                // rejects SetScrollPercent on a non-scrollable axis with UIA_E_INVALIDOPERATION.
+                if (!scroller.Patterns.Scroll.Pattern.VerticallyScrollable.ValueOrDefault)
+                {
+                    Log($"scrollto: {arg} is not vertically scrollable (content fits); nothing to scroll");
+                    break;
+                }
                 scroller.Patterns.Scroll.Pattern.SetScrollPercent(-1, (double)step["percent"]!);
                 break;
             case "reveal":

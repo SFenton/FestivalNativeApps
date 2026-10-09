@@ -256,8 +256,9 @@ def parse_step(step: str) -> dict:
     ``setvalue:<sel>|<text>`` writes text through the UIA Value pattern (no keyboard input,
     so it also works while the console session is locked; an empty text clears the field);
     ``scrollto:<selector>,<percent>`` sets a scroller's vertical position through the UIA
-    Scroll pattern and ``reveal:<selector>`` scrolls the target into view (UIA ScrollItem, else
-    stepping its scroller from the top), with no input, so both work while the console is locked;
+    Scroll pattern (a no-op when the content fits and the scroller can't scroll) and ``reveal:<selector>``
+    scrolls the target into view (UIA ScrollItem, else stepping its scroller from the top), with no input,
+    so both work while the console is locked;
     ``assertname:<sel>|<text>`` waits (default 5 s) until the element's UIA Name is exactly the text (each ``*`` matches
     any run of characters, so ``|*<text>`` waits until it ends with the text, for names that start with a local-time date);
     ``assertaligned:<sel>|<sel>`` fails unless both elements' horizontal centres are within 2 px (a column);
