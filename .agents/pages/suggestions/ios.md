@@ -35,6 +35,7 @@ Source: `FortniteFestivalWeb/src/pages/suggestions/SuggestionsPage.tsx`, `.../su
 ## Scroll cost (issue #28)
 
 - Rows rebuilt by the `LazyVStack` draw already decoded covers in their first frame (`FestivalSession.cachedArtwork(raw:maxPixels:)` read in `ArtworkTile.init`), so they skip the spinner and the second layout pass when the async lookup returns.
+- The cover is decorative: `ArtworkTile` hides itself in every state, so the combined row button reads title, artist · year, stars and instrument only (`PowerSavingAccessibilityTests`, #403).
 - A static `MarqueeText` draws its sizing `Text` directly (two texts per marquee instead of three); the overlay track exists only while it scrolls.
 - What remains per incoming card is SwiftUI building its five rows and the glass card at once (~20 ms on the Debug simulator with XCUITest accessibility on). XCUITest swipes also add 55–75 ms accessibility snapshots, so judge hitches on a device with Instruments, not from a `drive` trace.
 
