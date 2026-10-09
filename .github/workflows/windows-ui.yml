@@ -19,21 +19,26 @@ on:
       - 'tools/mock_service.py'
       - '.github/workflows/windows-ui.yml'
   workflow_dispatch:
+  # Nightly full matrix on master (medium window, 225% text, declared modes); PRs run the bounded gate.
+  schedule:
+    - cron: '30 9 * * *'
 permissions:
   contents: read
 concurrency:
   group: windows-ui-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Only a PR's superseded runs are cancelled: master runs finish, so its checks reflect every merge.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   windows-ui-a11y:
-    name: windows-ui-a11y (${{ matrix.shard }}/6)
+    name: windows-ui-a11y (${{ matrix.shard }})
     runs-on: windows-latest
     # The modal journey (11 pages x 3 runs) takes about 11 minutes here.
     timeout-minutes: 55
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6]
+        # PRs: the bounded gate in 2 shards; master pushes and the nightly run: the full matrix in 6.
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && '[1, 2]' || '[1, 2, 3, 4, 5, 6]') }}
     env:
       PYTHONUTF8: '1'
       FST_CI: '1'
@@ -58,7 +63,7 @@ jobs:
         shell: pwsh
         run: ./tools/windows/build.ps1
       - name: Accessibility journeys
-        run: python tools/windows/ui_ci.py --shard ${{ matrix.shard }} --shards 6 --out "${{ runner.temp }}/windows-ui"
+        run: python tools/windows/ui_ci.py --tier ${{ github.event_name == 'pull_request' && 'pr' || 'full' }} --shard ${{ matrix.shard }} --shards ${{ github.event_name == 'pull_request' && 2 || 6 }} --out "${{ runner.temp }}/windows-ui"
       - name: Upload journey results
         if: always()
         uses: actions/upload-artifact@v4
