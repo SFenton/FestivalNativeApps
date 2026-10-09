@@ -184,7 +184,10 @@ struct FullRankingsScreen: View {
             case let .loaded(payload):
                 ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: Self.rowGap) {
+                    // Rows abut as segments of the page's group card (owner #543); the
+                    // items above them keep the row gap below themselves.
+                    let entries = payload.rankings.entries
+                    LazyVStack(spacing: 0) {
                         // The title and count fade in at once, like the web page header;
                         // the rows stagger beneath them.
                         InstrumentPageTitle(
@@ -192,6 +195,7 @@ struct FullRankingsScreen: View {
                             identifier: "fst.full-rankings.title"
                         )
                             .padding(.top, 8)
+                            .padding(.bottom, Self.rowGap)
                             .festivalFadeInOnAppear()
                             .onGeometryChange(for: Bool.self) { proxy in
                                 SongDetailPinnedTitlePolicy.isHeroHidden(
@@ -205,6 +209,7 @@ struct FullRankingsScreen: View {
                                 text: RankingsCountText.rankedPlayers(board.totalAccounts),
                                 id: "fst.full-rankings.ranked-count"
                             )
+                            .padding(.bottom, Self.rowGap)
                             .festivalFadeInOnAppear()
                         }
                         if payload.rankings.entries.isEmpty {
@@ -212,11 +217,13 @@ struct FullRankingsScreen: View {
                                 "No ranked players yet", placement: .inline,
                                 accessibilityIdentifier: "fst.full-rankings.empty"
                             )
+                            .padding(.bottom, Self.rowGap)
                             .festivalFadeInOnAppear()
                         }
-                        // Row-major pairs in wide landscape (wide-columns R2, #353).
-                        ForEach(WideColumns.indexedRows(payload.rankings.entries, columns: columns)) { row in
-                            WideColumnsRow(columns: columns, count: row.items.count) {
+                        // Row-major pairs in wide landscape (wide-columns R2, #353), one
+                        // group card per column (leaderboard-row R10).
+                        ForEach(WideColumns.indexedRows(entries, columns: columns)) { row in
+                            WideColumnsRow(columns: columns, count: row.items.count, matchesHeights: true) {
                                 ForEach(row.indexed, id: \.item.id) { index, entry in
                                     AccountRankingRow(
                                         entry: entry, metric: rankBy,
@@ -227,6 +234,10 @@ struct FullRankingsScreen: View {
                                     // Web `PaginatedLeaderboard` row stagger; the page
                                     // scope decides whether it still fades (R5).
                                     .festivalFadeIn(staggerIndex: index)
+                                    .festivalGroupSegment(
+                                        .position(index: index, count: entries.count, columns: columns),
+                                        separatorInset: RankingRowLayout.horizontalPadding
+                                    )
                                 }
                             }
                         }

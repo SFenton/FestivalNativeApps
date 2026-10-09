@@ -22,10 +22,11 @@ enum RankLoadState<Value> {
 /// One account-rankings row, shared by the overview cards and the full board.
 ///
 /// A compact single-line row (rank, name, `728 / 729`, accent-coloured value),
-/// matching the web client's `RankingEntry` inside `RankingCard.tsx`. On the full
-/// boards each row carries its own material card; in the Leaderboards overview and
-/// Compete previews the rows are entries of one group card, like the Rivals cards
-/// (``EnvironmentValues/festivalGroupedRow``, issue #381; no card in a card).
+/// matching the web client's `RankingEntry` inside `RankingCard.tsx`. In the
+/// Leaderboards overview and Compete previews the rows are entries of one group card,
+/// like the Rivals cards (``EnvironmentValues/festivalGroupedRow``, issue #381; no card
+/// in a card); on the full boards each row is a segment of the page's group card
+/// (``FestivalGroupSegment``, owner #543), and only the pinned footer keeps a card.
 ///
 /// Navigates to the viewed player's profile, matching the web client's row link
 /// to `/player/:accountId` (or Statistics for the signed-in player, which native
@@ -39,9 +40,10 @@ struct AccountRankingRow: View {
     /// the web client's `isPlayer` accent treatment
     /// (`RankingCard.tsx`'s `playerEntryRow` style: a tinted fill plus border).
     var isSelected: Bool = false
-    /// Draw the row as its own material card (Full Rankings). Ignored inside a flush
-    /// ``FestivalGlassSection`` (Leaderboards overview, Compete), whose card is the
-    /// surface: no card in a card.
+    /// Draw the row as its own material card when ungrouped (Full Rankings' pinned
+    /// footer). Ignored inside a flush ``FestivalGlassSection`` (Leaderboards overview,
+    /// Compete) or a board's group card segment (#543), whose card is the surface: no
+    /// card in a card.
     var cardSurface: Bool = false
     /// Wrap the row in its profile link. Off for a board's pinned footer, whose caller
     /// wraps the row in the selected-row action instead (``SelectedRowAction``, #318).
@@ -523,8 +525,9 @@ struct RankingRowWidthProbe: View {
 /// (issue #295). HIG Materials: "Don't use Liquid Glass in the content layer. Use
 /// standard materials for content-layer elements".
 ///
-/// Inside a flush ``FestivalGlassSection`` (``EnvironmentValues/festivalGroupedRow``,
-/// issue #381) the group card is the surface: the row draws no card, and the selected
+/// Inside a flush ``FestivalGlassSection`` or a board's group card segment
+/// (``EnvironmentValues/festivalGroupedRow``, issues #381, #543) the group card is the
+/// surface: the row draws no card, and the selected
 /// player's row is a flat, full-width purple band between the group's hairlines
 /// (surface-materials R6: no card in a card).
 struct RankingRowSurface: ViewModifier {

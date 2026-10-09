@@ -82,26 +82,36 @@ struct BandRankingsScreen: View {
                 }
             case let .loaded(payload):
                 ScrollView {
-                    LazyVStack(spacing: 6) {
+                    // Rows abut as segments of the page's group card (owner #543); the
+                    // items above them keep the 6 pt row gap below themselves.
+                    let entries = payload.rankings.entries
+                    LazyVStack(spacing: 0) {
                         if let board {
                             RankingsCountHeader(
                                 text: RankingsCountText.rankedBands(board.totalTeams),
                                 id: "fst.band-rankings.ranked-count"
                             )
+                            .padding(.bottom, 6)
                         }
-                        if payload.rankings.entries.isEmpty {
+                        if entries.isEmpty {
                             FestivalEmptyState(
                                 "No ranked \(bandType.label.lowercased()) yet", placement: .inline,
                                 accessibilityIdentifier: "fst.band-rankings.empty"
                             )
+                            .padding(.bottom, 6)
                         }
-                        // Row-major pairs in wide landscape (wide-columns R2, #353).
-                        ForEach(WideColumns.indexedRows(payload.rankings.entries, columns: columns)) { row in
-                            WideColumnsRow(columns: columns, count: row.items.count) {
-                                ForEach(row.items) { entry in
+                        // Row-major pairs in wide landscape (wide-columns R2, #353), one
+                        // group card per column (leaderboard-row R10).
+                        ForEach(WideColumns.indexedRows(entries, columns: columns)) { row in
+                            WideColumnsRow(columns: columns, count: row.items.count, matchesHeights: true) {
+                                ForEach(row.indexed, id: \.item.id) { index, entry in
                                     BandRankingRow(entry: entry, metric: rankBy, bandType: bandType, cardSurface: true)
                                         .frame(maxWidth: .infinity)
                                         .macKeyboardRow(entry.teamKey)
+                                        .festivalGroupSegment(
+                                            .position(index: index, count: entries.count, columns: columns),
+                                            separatorInset: RankingRowLayout.horizontalPadding
+                                        )
                                 }
                             }
                         }
