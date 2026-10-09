@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.rivals.RivalCombo
+import com.festivalscoretracker.android.core.rivals.LeaderboardRivalsListResponse
 import com.festivalscoretracker.android.core.rivals.RivalCommonRivals
 import com.festivalscoretracker.android.core.rivals.RivalEntry
 import com.festivalscoretracker.android.core.rivals.RivalRankMetric
@@ -18,11 +19,14 @@ import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.data.rivals.RivalsRepository
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.RetryingLoader
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 
 // region Hub state
@@ -82,12 +86,16 @@ data class RivalsHubContent(
  * @param visible Settings-visible charts.
  * @param repository Rivals reads.
  * @param backoff Shared retry backoff.
+ * @param experimentalRanks Settings → Experimental Ranks: offers the Leaderboard Rivals Rank By
+ *   (web `RivalsPage`); while off the tab ranks by Total Score only (experimental-ranks R1).
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class RivalsHubViewModel(
     private val accountId: String,
     visible: Set<Instrument>,
     private val repository: RivalsRepository,
     private val backoff: ServiceRetryBackoff,
+    experimentalRanks: Boolean = false,
 ) : ViewModel() {
     private val charts = Instrument.entries.filter { it in visible }
     private val comboToken = RivalCombo.deriveToken(charts)
@@ -99,35 +107,31 @@ class RivalsHubViewModel(
     private val comboLoader = comboToken?.let { token ->
         RetryingLoader(viewModelScope, "rivals:$accountId:$token", backoff) { refresh -> repository.list(accountId, token, refresh) }
     }
-    private val leaderboardLoaders = charts.associateWith { chart ->
-        RetryingLoader(viewModelScope, "lbrivals:$accountId:${chart.wireId}", backoff) { refresh ->
-            repository.leaderboardList(accountId, chart, RivalRankMetric.TotalScore, refresh)
-        }
-    }
+    private val metricFlow = MutableStateFlow(RivalRankMetric.TotalScore)
+    private val leaderboardLoaderSets = mutableMapOf<RivalRankMetric, Map<Instrument, RetryingLoader<LeaderboardRivalsListResponse>>>()
 
     /** Selected tab. */
     val tab: StateFlow<RivalsHubTab> = tabFlow.asStateFlow()
+
+    /** Leaderboard Rivals Rank By (web `?rankBy=`, not persisted). */
+    val rankBy: StateFlow<RivalRankMetric> = metricFlow.asStateFlow()
+
+    /** Rank By choices: every metric with Experimental Ranks on, else Total Score only. */
+    val rankByOptions: List<RivalRankMetric> =
+        if (experimentalRanks) RivalRankMetric.entries.toList() else listOf(RivalRankMetric.TotalScore)
 
     /** Song Rivals content. */
     val songContent: StateFlow<RivalsHubContent> = combineStates(songLoaders.values.map { it.state } + listOfNotNull(comboLoader?.state)) { states ->
         buildSongContent(states.take(charts.size), comboLoader?.let { states.last() })
     }
 
-    /** Leaderboard Rivals content. */
-    val leaderboardContent: StateFlow<RivalsHubContent> = combineStates(leaderboardLoaders.values.map { it.state }) { states ->
-        assemble(
-            charts.zip(states).map { (chart, state) ->
-                RivalsHubSection(
-                    id = "leaderboard.${chart.wireId}",
-                    title = RivalText.rivalsTitle(chart.label),
-                    instrument = chart,
-                    seeAll = RivalScope.Leaderboard(chart),
-                    rowScope = RivalScope.Leaderboard(chart),
-                    state = state.map { rivalEntries(it.above, it.below, PREVIEW_COUNT) },
-                )
-            },
-        )
-    }
+    /** Leaderboard Rivals content for the selected [rankBy]. */
+    val leaderboardContent: StateFlow<RivalsHubContent> = metricFlow
+        .flatMapLatest { metric ->
+            val states = leaderboardLoaders(metric).values.map { it.state }
+            if (states.isEmpty()) flowOf(buildLeaderboardContent(metric, emptyList())) else combine(states) { buildLeaderboardContent(metric, it.toList()) }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, buildLeaderboardContent(RivalRankMetric.TotalScore, charts.map { LoadState.Loading }))
 
     init {
         songLoaders.values.forEach { it.ensureStarted() }
@@ -141,7 +145,19 @@ class RivalsHubViewModel(
      */
     fun select(tab: RivalsHubTab) {
         tabFlow.value = tab
-        if (tab == RivalsHubTab.Leaderboard) leaderboardLoaders.values.forEach { it.ensureStarted() }
+        if (tab == RivalsHubTab.Leaderboard) leaderboardLoaders().values.forEach { it.ensureStarted() }
+    }
+
+    /**
+     * Change the Leaderboard Rivals Rank By; a metric not in [rankByOptions] is ignored
+     * (experimental-ranks R2). Each metric's lists load once and are kept.
+     *
+     * @param metric New metric.
+     */
+    fun selectRankBy(metric: RivalRankMetric) {
+        if (metric !in rankByOptions || metric == metricFlow.value) return
+        metricFlow.value = metric
+        if (tabFlow.value == RivalsHubTab.Leaderboard) leaderboardLoaders(metric).values.forEach { it.ensureStarted() }
     }
 
     /** Retry every failed read on the current tab. */
@@ -158,7 +174,7 @@ class RivalsHubViewModel(
         when {
             sectionId == COMMON_ID -> songLoaders.values.filter { it.state.value is LoadState.Failed }.forEach { it.retry() }
             sectionId == COMBO_ID -> comboLoader?.retry()
-            sectionId.startsWith("leaderboard.") -> leaderboardLoaders[Instrument.fromWireId(sectionId.removePrefix("leaderboard."))]?.retry()
+            sectionId.startsWith("leaderboard.") -> leaderboardLoaders()[Instrument.fromWireId(sectionId.removePrefix("leaderboard."))]?.retry()
             else -> songLoaders[Instrument.fromWireId(sectionId)]?.retry()
         }
     }
@@ -169,7 +185,30 @@ class RivalsHubViewModel(
     }
 
     private fun activeLoaders(): List<RetryingLoader<*>> =
-        if (tabFlow.value == RivalsHubTab.Song) songLoaders.values + listOfNotNull(comboLoader) else leaderboardLoaders.values.toList()
+        if (tabFlow.value == RivalsHubTab.Song) songLoaders.values + listOfNotNull(comboLoader) else leaderboardLoaders().values.toList()
+
+    private fun leaderboardLoaders(metric: RivalRankMetric = metricFlow.value): Map<Instrument, RetryingLoader<LeaderboardRivalsListResponse>> =
+        leaderboardLoaderSets.getOrPut(metric) {
+            charts.associateWith { chart ->
+                RetryingLoader(viewModelScope, "lbrivals:$accountId:${chart.wireId}:${metric.wireId}", backoff) { refresh ->
+                    repository.leaderboardList(accountId, chart, metric, refresh)
+                }
+            }
+        }
+
+    private fun buildLeaderboardContent(metric: RivalRankMetric, states: List<LoadState<LeaderboardRivalsListResponse>>): RivalsHubContent =
+        assemble(
+            charts.zip(states).map { (chart, state) ->
+                RivalsHubSection(
+                    id = "leaderboard.${chart.wireId}",
+                    title = RivalText.rivalsTitle(chart.label),
+                    instrument = chart,
+                    seeAll = RivalScope.Leaderboard(chart, metric),
+                    rowScope = RivalScope.Leaderboard(chart, metric),
+                    state = state.map { rivalEntries(it.above, it.below, PREVIEW_COUNT) },
+                )
+            },
+        )
 
     private fun buildSongContent(states: List<LoadState<RivalsListResponse>>, combo: LoadState<RivalsListResponse>?): RivalsHubContent {
         val perChart = charts.zip(states)
