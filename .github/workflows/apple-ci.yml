@@ -65,6 +65,7 @@ jobs:
             FirstRunJourneyTests/testSongDemoSlideAccessibleAtLargestText
             SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5
             BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestText
+            BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestTextDuoFolded
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrder
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrderOnPushedPage
             NavButtonHitRegionJourneyTests/testChooseProfileReadsAloneInProductionChrome
@@ -83,11 +84,14 @@ jobs:
         # The same evidence on iPad, portrait and landscape (the iPhone runs portrait only). Reuses the iPhone
         # step's UI-test build (`--app phone`; every iOS target is device family 1,2) on a second throwaway
         # simulator, after shutting the iPhone down so one simulator runs at a time. One selector per batch: each What's
-        # New form takes ~70 s on a Mac and several times that here, under the 900 s batch limit. testing/apple/xcuitest.md#ci-journeys.
+        # New or board-footer form takes ~70-80 s on a Mac and several times that here, under the 900 s batch limit.
+        # testing/apple/xcuitest.md#ci-journeys.
         env:
           JOURNEYS: >-
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Landscape
+            BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestText
+            BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestTextLandscape
         run: |
           python3 tools/ios_sim.py shutdown --device "$(python3 tools/ios_sim.py ci-device)"
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service_ipad.log" 2>&1 &

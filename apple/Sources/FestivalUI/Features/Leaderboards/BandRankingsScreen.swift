@@ -125,7 +125,7 @@ struct BandRankingsScreen: View {
             } menu: { showsTitle in
                 bandTypeMenu(showsTitle: showsTitle)
             }
-            .reportsBottomChromeTop(in: Self.pageSpace) { bottomChromeTop = $0 }
+            .boardBottomChrome(in: Self.pageSpace) { bottomChromeTop = $0 }
         }
         .coordinateSpace(.named(Self.pageSpace))
         .festivalBackground(.carousel, session: session)
