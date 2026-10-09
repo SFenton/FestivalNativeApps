@@ -87,6 +87,8 @@ FOLDER_SCOPE: dict[str, frozenset[str]] = {
 
 LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 HEADING = re.compile(r"^#{1,6}\s+(.*)$")
+H1 = re.compile(r"^#\s+")
+WHAT_HEADER = re.compile(r"^> \*\*What:\*\*")
 FENCE = re.compile(r"^\s*(```|~~~)")
 BEGIN = "<!-- BEGIN GENERATED: check_docs.py --fix -->"
 END = "<!-- END GENERATED -->"
@@ -189,6 +191,28 @@ def headings(text: str) -> list[str]:
     return found
 
 
+def document_header_counts(text: str) -> tuple[int, int]:
+    """Count top-level and What headers outside fenced code blocks.
+
+    Args:
+        text: Markdown source with any skill frontmatter already removed.
+
+    Returns:
+        Counts of H1 headings and `> **What:**` metadata lines.
+    """
+    h1_count = 0
+    what_count = 0
+    fenced = False
+    for line in text.splitlines():
+        if FENCE.match(line):
+            fenced = not fenced
+            continue
+        if not fenced:
+            h1_count += bool(H1.match(line))
+            what_count += bool(WHAT_HEADER.match(line))
+    return h1_count, what_count
+
+
 def families_in(line: str) -> set[str]:
     """Detect platform families named in one heading.
 
@@ -247,6 +271,11 @@ def check_headers(report: Report) -> None:
             report.error(path, "first line must be a `# Title` heading")
         elif len(lines) < 2 or not lines[1].startswith("> "):
             report.error(path, "second non-empty line must be a `> ` what/when-to-read header")
+        h1_count, what_count = document_header_counts(text)
+        if h1_count > 1:
+            report.error(path, f"has {h1_count} `# ` headings outside code fences; expected one")
+        if what_count > 1:
+            report.error(path, f"has {what_count} `> **What:**` lines outside code fences; expected one")
         if len(lines) > MAX_LINES:
             report.warn(path, f"{len(lines)} non-empty lines; consider splitting (budget {MAX_LINES})")
 

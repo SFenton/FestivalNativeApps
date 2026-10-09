@@ -103,6 +103,18 @@ class CheckDocsTests(unittest.TestCase):
         self.assertTrue(any("what/when" in e for e in errors))
         self.assertTrue(any("broken link" in e for e in errors))
 
+    def test_duplicate_h1_and_what_headers_fail_outside_fences(self) -> None:
+        """Concatenated documents fail while literal examples remain valid."""
+        _write(
+            check_docs.AGENTS / "pages/songs/spec.md",
+            "# T\n\n> **What:** x. **Read when:** y.\n\n# Duplicate\n\n"
+            "> **What:** duplicate. **Read when:** never.\n\n"
+            "```markdown\n# Example\n> **What:** example.\n```\n",
+        )
+        errors = "\n".join(check_docs.run().errors)
+        self.assertIn("2 `# ` headings outside code fences", errors)
+        self.assertIn("2 `> **What:**` lines outside code fences", errors)
+
     def test_unrouted_file_and_missing_readme_fail(self) -> None:
         """Every folder needs a README that links its children."""
         _write(check_docs.AGENTS / "orphan.md", "# T\n\n> x\n")
