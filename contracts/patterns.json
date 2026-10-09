@@ -623,6 +623,10 @@
             "symbol": "FestivalGlassSection"
           },
           {
+            "path": "apple/Sources/FestivalUI/Design/GlassSection.swift",
+            "symbol": "FestivalGroupSegment"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Design/GlassSurface.swift",
             "symbol": "FestivalGlassModifier"
           }
@@ -1302,6 +1306,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Compete/CompeteScreen.swift",
             "symbol": "CompetePreviewSpotlight"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/GlassSection.swift",
+            "symbol": "FestivalGroupSegment"
           }
         ],
         "android": [

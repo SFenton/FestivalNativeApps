@@ -207,6 +207,100 @@ struct FestivalLeadingHairline: ViewModifier {
     }
 }
 
+// MARK: - Group card segments
+
+/// Where one row of a full board sits in the board's group card (owner-approved
+/// variant, issue #543; leaderboard-row R10, surface-materials R8).
+///
+/// A full board (song, song band, Full Rankings and Band Rankings) shows each page's
+/// rows in one ``FestivalGlassSection`` card, like the previews and Rivals. Its rows
+/// stay separate lazy list rows (virtualization, row identities for the selected-row
+/// reveal, row-major wide-columns pairs), so each row draws its own **segment** of the
+/// card instead: the first row carries the card's top corners, the last its bottom
+/// corners, and every row below the first a hairline above it. In wide-columns pairs
+/// each column is one card.
+struct FestivalGroupSegment: Equatable, Sendable {
+    /// The row is in the card's first row (its top corners and rim).
+    var isFirst: Bool
+    /// The row is in the card's last row (its bottom corners).
+    var isLast: Bool
+    /// The row shares a wide-columns pair and stretches to the pair's height, so the
+    /// column's card has no gap below a shorter cell.
+    var fillsPair = false
+
+    /// The segment of the item at `index` in a board of `count` items laid out row-major
+    /// in `columns` columns, one card per column.
+    ///
+    /// - Parameters:
+    ///   - index: The item's position on the page.
+    ///   - count: Items on the page.
+    ///   - columns: Columns across the page (1 outside wide landscape).
+    /// - Returns: The item's segment.
+    static func position(index: Int, count: Int, columns: Int) -> FestivalGroupSegment {
+        let columns = max(1, columns)
+        return FestivalGroupSegment(
+            isFirst: index < columns, isLast: index + columns >= count, fillsPair: columns > 1
+        )
+    }
+
+    /// The segment's corner radii: the group card's on its open card ends only.
+    ///
+    /// - Parameter radius: The group card's corner radius.
+    /// - Returns: Top corners for the first row, bottom corners for the last.
+    func cornerRadii(_ radius: CGFloat) -> RectangleCornerRadii {
+        RectangleCornerRadii(
+            topLeading: isFirst ? radius : 0, bottomLeading: isLast ? radius : 0,
+            bottomTrailing: isLast ? radius : 0, topTrailing: isFirst ? radius : 0
+        )
+    }
+}
+
+extension View {
+    /// Draw this row as one segment of a full board's group card
+    /// (``FestivalGroupSegment``, issue #543): the shared material card clipped to the
+    /// segment, a hairline above every row but the first, and
+    /// ``EnvironmentValues/festivalGroupedRow`` set so the row draws no card of its own
+    /// and a selected row fills the full width.
+    ///
+    /// Apply it outside the row's fade-in, so the card stays whole while rows stagger.
+    ///
+    /// - Parameters:
+    ///   - segment: Where the row sits in the card.
+    ///   - separatorInset: Leading hairline inset, the row's own horizontal padding.
+    /// - Returns: The row on its card segment.
+    func festivalGroupSegment(_ segment: FestivalGroupSegment, separatorInset: CGFloat) -> some View {
+        modifier(FestivalGroupSegmentModifier(segment: segment, separatorInset: separatorInset))
+    }
+}
+
+/// Implementation of ``SwiftUI/View/festivalGroupSegment(_:separatorInset:)``.
+struct FestivalGroupSegmentModifier: ViewModifier {
+    let segment: FestivalGroupSegment
+    let separatorInset: CGFloat
+
+    func body(content: Content) -> some View {
+        let radius = FestivalGlassSection<EmptyView, EmptyView>.cornerRadius
+        let shape = UnevenRoundedRectangle(cornerRadii: segment.cornerRadii(radius), style: .continuous)
+        content
+            .environment(\.festivalGroupedRow, true)
+            .padding(.top, segment.isFirst ? 0 : FestivalLeadingHairline.height)
+            .frame(maxWidth: .infinity, maxHeight: segment.fillsPair ? .infinity : nil, alignment: .top)
+            .overlay(alignment: .top) {
+                if !segment.isFirst {
+                    Rectangle()
+                        .fill(BrandTokens.glassBorder)
+                        .frame(height: FestivalLeadingHairline.height)
+                        .padding(.leading, separatorInset)
+                        .accessibilityHidden(true)
+                }
+            }
+            .clipShape(shape)
+            .modifier(FestivalCardModifier(
+                shape: shape, comparisonRole: .card, segment: segment, segmentRadius: radius
+            ))
+    }
+}
+
 // MARK: - Row style
 
 /// How a ``FestivalGlassSection`` lays out its rows.
