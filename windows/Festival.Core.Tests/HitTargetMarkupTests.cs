@@ -74,7 +74,31 @@ public class HitTargetMarkupTests
         if (iconOnly) Assert.Equal(Resource, Attr(button, "MinWidth"));
     }
 
-[Fact]
+    [Theory]
+    [InlineData("Pages/SongsPage.xaml", 1)]
+    [InlineData("Pages/ShopPage.xaml", 1)]
+    [InlineData("Pages/SuggestionsPage.xaml", 1)]
+    [InlineData("Controls/SongSortForm.xaml", 1)]
+    public void FlyoutResetFooters_UseMinTarget(string file, int count)
+    {
+        // Issue #432 (#77): the sort/filter flyouts' red Reset footer was WinUI's 32 epx button height.
+        var resets = Load(file).Descendants()
+            .Where(e => e.Name.LocalName == "Button" && Attr(e, "Content") == "Reset").ToList();
+        Assert.Equal(count, resets.Count);
+        Assert.All(resets, b => Assert.Equal(Resource, Attr(b, "MinHeight")));
+    }
+
+    [Fact]
+    public void SongsFilterSelectAllClearAll_UseMinTarget()
+    {
+        // Issue #432 (#77): the Year/Duration and instrument bucket Select All / Clear All links were 31 epx tall.
+        var links = Load(Path.Combine("Pages", "SongsPage.xaml")).Descendants()
+            .Where(e => e.Name.LocalName == "HyperlinkButton" && Attr(e, "Content") is "Select All" or "Clear All").ToList();
+        Assert.Equal(4, links.Count);
+        Assert.All(links, b => Assert.Equal(Resource, Attr(b, "MinHeight")));
+    }
+
+    [Fact]
     public void EveryDropDownButton_UsesMinTarget()
     {
         // Issue #271: #72 listed its buttons one by one and missed the Full/Band Rankings pickers (31 epx tall). Every
@@ -122,6 +146,34 @@ public class HitTargetMarkupTests
             .ToList();
         Assert.NotEmpty(hosts);
         Assert.All(hosts, host => Assert.Contains(Attr(host, "MinHeight"), new[] { null, Resource }));
+    }
+
+    [Theory]
+    [InlineData("MenuFlyoutItem", "DefaultMenuFlyoutItemStyle")]
+    [InlineData("ToggleMenuFlyoutItem", "DefaultToggleMenuFlyoutItemStyle")]
+    [InlineData("RadioMenuFlyoutItem", "DefaultRadioMenuFlyoutItemStyle")]
+    public void MenuItems_UseMinTarget(string type, string basedOn)
+    {
+        // Issue #416: keyboard-opened menu items (Quick Links, Rank By, the rankings pickers, Player History Sort) were
+        // 27 epx tall. One implicit style per item type (implicit styles match the exact type) keeps every menu's
+        // hit-testable pill at 40: the template insets it by MenuFlyoutItemMargin's 2 epx top and bottom.
+        var styles = Load(Path.Combine("Themes", "Styles.xaml"));
+        var height = styles.Descendants()
+            .Single(e => e.Name.LocalName == "Double" && Attr(e, "Key") == "FSTMenuItemMinHeight").Value;
+        var target = styles.Descendants()
+            .Single(e => e.Name.LocalName == "Double" && Attr(e, "Key") == "FSTMinTargetSize").Value;
+        Assert.Equal(double.Parse(target, CultureInfo.InvariantCulture) + 4, double.Parse(height, CultureInfo.InvariantCulture));
+        var style = styles.Descendants()
+            .Single(e => e.Name.LocalName == "Style" && Attr(e, "TargetType") == type && Attr(e, "Key") is null);
+        Assert.Equal($"{{StaticResource {basedOn}}}", Attr(style, "BasedOn"));
+        var setter = style.Elements().Single(e => Attr(e, "Property") == "MinHeight");
+        Assert.Equal("{StaticResource FSTMenuItemMinHeight}", Attr(setter, "Value"));
+        // No item opts out with its own height or style.
+        var items = Directory.EnumerateFiles(AppRoot, "*.xaml", SearchOption.AllDirectories)
+            .Where(path => Path.GetRelativePath(AppRoot, path).Split(Path.DirectorySeparatorChar)[0] is not ("bin" or "obj"))
+            .SelectMany(path => XDocument.Load(path).Descendants().Where(e => e.Name.LocalName == type));
+        Assert.All(items, item => Assert.True(Attr(item, "MinHeight") is null && Attr(item, "Height") is null && Attr(item, "Style") is null,
+            $"{type} {Attr(item, "AutomationProperties.AutomationId")} overrides its size"));
     }
 
     [Fact]
