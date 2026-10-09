@@ -1,36 +1,21 @@
 package com.festivalscoretracker.android.journeys
 
-import android.os.Build
-import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
-import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
-import androidx.compose.ui.test.hasAnyAncestor
-import androidx.compose.ui.test.hasTestTag
-import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performSemanticsAction
-import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.ui.unit.dp
-import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.SongsFixtures
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -75,82 +60,11 @@ class ShopFilterAccessibilityJourneyTest {
 
     // region Helpers
 
-    private val minPx get() = with(rule.density) { 48.dp.toPx() } - 1
+    private fun reveal(tag: String) = h.reveal("fst.shop.filter.form", tag)
 
-    private fun bounds(tag: String): Rect = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().boundsInWindow
+    private fun assertTarget(screen: String, tag: String) = h.assertTouchTarget(screen, tag)
 
-    /**
-     * Scroll [tag] into view when it sits in the sheet's form and the form overflows (large
-     * text, compact height); otherwise it is already on screen.
-     *
-     * @param tag Test tag.
-     */
-    private fun reveal(tag: String) {
-        val inForm = rule.onAllNodes(hasTestTag(tag) and hasAnyAncestor(hasTestTag("fst.shop.filter.form"))).fetchSemanticsNodes().isNotEmpty()
-        val scrolls = rule.onNodeWithTag("fst.shop.filter.form").fetchSemanticsNode().config.contains(SemanticsActions.ScrollBy)
-        if (inForm && scrolls) rule.onNodeWithTag(tag).performScrollTo()
-        rule.waitForIdle()
-    }
-
-    /**
-     * The node TalkBack reads for [tag] (test tags are exposed as resource ids).
-     *
-     * @param tag Test tag.
-     * @return The visible platform node, or null.
-     */
-    private fun accessibilityNode(tag: String): AccessibilityNodeInfo? {
-        fun find(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
-            node ?: return null
-            if (node.viewIdResourceName == tag && node.isVisibleToUser) return node
-            for (i in 0 until node.childCount) find(node.getChild(i))?.let { return it }
-            return null
-        }
-        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
-        // Compose sends UiAutomation no invalidation for a semantics click, so cached nodes keep the old state.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) automation.clearCache()
-        return find(automation.rootInActiveWindow)
-    }
-
-    /**
-     * Assert a 48 × 48 dp touch target as TalkBack and ATF measure it: the platform node's
-     * bounds, which include the 48 dp touch bounds an M3 icon button extends around its 40 dp
-     * drawing.
-     *
-     * @param screen Log name.
-     * @param tag Test tag.
-     */
-    private fun assertTarget(screen: String, tag: String) {
-        var box = android.graphics.Rect()
-        runCatching {
-            rule.waitUntil(5_000) {
-                box = android.graphics.Rect().also { r -> accessibilityNode(tag)?.getBoundsInScreen(r) }
-                box.width() >= minPx && box.height() >= minPx
-            }
-        }
-        assertTrue("$screen: $tag is ${box.width()}x${box.height()} px, at least 48 dp", box.width() >= minPx && box.height() >= minPx)
-    }
-
-    /**
-     * Assert what TalkBack gets for one switch row: a checkable Switch with its state.
-     *
-     * @param screen Log name.
-     * @param switch Expected row.
-     * @param on Expected state.
-     */
-    private fun assertSwitchState(screen: String, switch: SwitchExpectation, on: Boolean) {
-        rule.onNodeWithTag(switch.tag).assert(SemanticsMatcher.expectValue(SemanticsProperties.ToggleableState, if (on) ToggleableState.On else ToggleableState.Off))
-        runCatching { rule.waitUntil(10_000) { accessibilityNode(switch.tag)?.isChecked == on } }
-        val node = checkNotNull(accessibilityNode(switch.tag)) { "$screen: ${switch.tag} in the accessibility tree" }
-        assertTrue("$screen: ${switch.tag} is checkable", node.isCheckable)
-        assertEquals("$screen: ${switch.tag} checked", on, node.isChecked)
-        assertEquals("$screen: ${switch.tag} state", if (on) "On" else "Off", node.stateDescription?.toString())
-        // Compose keeps class android.view.View on a row that merges its texts; TalkBack takes
-        // "Switch" from the row's switch descendant (#428 walk: "On. New. … Switch").
-        fun switchRole(n: AccessibilityNodeInfo): Boolean =
-            n.className?.toString()?.endsWith("Switch") == true || AccessibilityNodeInfoCompat.wrap(n).roleDescription?.toString() == "Switch" ||
-                (0 until n.childCount).any { i -> n.getChild(i)?.let(::switchRole) == true }
-        assertTrue("$screen: ${switch.tag} exposes the Switch role", switchRole(node))
-    }
+    private fun assertSwitchState(screen: String, switch: SwitchExpectation, on: Boolean) = h.assertSwitchStop(screen, switch.tag, on)
 
     /**
      * Switch rows in [order], by label.
@@ -202,27 +116,9 @@ class ShopFilterAccessibilityJourneyTest {
 
         switches.forEach { s ->
             reveal(s.tag)
-            rule.onNodeWithTag(s.tag)
-                .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Switch))
-                .assert(SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick))
             assertSwitchState(screen, s, on = true)
             assertTarget(screen, s.tag)
-            val row = bounds(s.tag)
-            listOf(s.label, s.description).forEach { text ->
-                val label = rule.onAllNodes(hasText(text) and hasAnyAncestor(hasTestTag(s.tag)), useUnmergedTree = true)[0]
-                val box = label.fetchSemanticsNode().boundsInWindow
-                assertTrue("$screen: \"$text\" $box inside row $row", box.left >= row.left - 1 && box.top >= row.top - 1 && box.right <= row.right + 1 && box.bottom <= row.bottom + 1)
-                val layouts = mutableListOf<TextLayoutResult>()
-                label.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
-                val layout = layouts.single()
-                assertEquals("$screen: \"$text\" laid out at ${scale}x text", scale, layout.layoutInput.density.fontScale, 0.01f)
-                // hasVisualOverflow re-lays out at the parent's max width, so it flags short text;
-                // compare each line and the paragraph with the laid-out box instead (android-accessibility.md).
-                val lines = 0 until layout.lineCount
-                assertFalse("$screen: \"$text\" is wider than its box", lines.any { layout.getLineRight(it) - layout.getLineLeft(it) > layout.size.width + 1 })
-                assertFalse("$screen: \"$text\" is taller than its box", layout.multiParagraph.height > layout.size.height + 1)
-                assertFalse("$screen: \"$text\" is ellipsized", lines.any(layout::isLineEllipsized))
-            }
+            listOf(s.label, s.description).forEach { text -> h.assertTextUnclipped(screen, s.tag, text, scale) }
         }
         reveal("fst.shop.filter.reset")
         listOf("fst.shop.filter.done", "fst.shop.filter.reset").forEach { assertTarget(screen, it) }
