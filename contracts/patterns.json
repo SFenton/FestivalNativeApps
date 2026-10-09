@@ -1081,6 +1081,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
             "symbol": "coveredByModal"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
+            "symbol": "FestivalModalBody"
           }
         ],
         "windows": [
