@@ -319,9 +319,8 @@ final class SongsChromeJourneyTests: XCTestCase {
         continueAfterFailure = false
         let regular = try launchScrollAwayFixture(largeText: false)
         let defaultRail = railLetterHeight(regular)
-        regular.swipeUp()
         let defaultBar = regular.staticTexts["fst.songs.section-bar"]
-        XCTAssertTrue(defaultBar.waitForExistence(timeout: FestivalApp.budget(5)))
+        XCTAssertTrue(scrollAway(regular), "Section bar never appeared")
         let defaultHeight = defaultBar.frame.height
         regular.terminate()
 
@@ -402,8 +401,7 @@ final class SongsChromeJourneyTests: XCTestCase {
         try auditScrollAway(app, "\(label) top", railGrowth: railGrowth)
 
         // Scrolled away: one bar heading naming a section, below the navigation bar.
-        app.swipeUp()
-        XCTAssertTrue(bar.waitForExistence(timeout: FestivalApp.budget(5)), "Section bar never appeared")
+        XCTAssertTrue(scrollAway(app), "Section bar never appeared")
         waitForListToSettle(app)
         let letters = Set("#ABCDEFGHIJKLMNOPQRSTUVWXYZ".map(String.init))
         XCTAssertTrue(letters.contains(bar.label), "Section bar reads '\(bar.label)'")
@@ -442,6 +440,26 @@ final class SongsChromeJourneyTests: XCTestCase {
         )
         try auditScrollAway(app, "\(label) back at top", railGrowth: railGrowth)
         return barHeight
+    }
+
+    /// Scroll the Songs list away from the top until the floating section bar shows.
+    ///
+    /// A deliberate drag rather than one flick, retried a few times: on the slower CI
+    /// virtual machine a synthesized flick was sometimes dropped and the list never
+    /// moved (#388).
+    ///
+    /// - Parameter app: Songs at the top of the large fixture.
+    /// - Returns: Whether the section bar appeared.
+    @MainActor
+    private func scrollAway(_ app: XCUIApplication) -> Bool {
+        let bar = app.staticTexts["fst.songs.section-bar"]
+        let list = app.descendants(matching: .any)["fst.songs.list"]
+        for _ in 0..<4 {
+            let start = list.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.7))
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -300)))
+            if bar.waitForExistence(timeout: FestivalApp.budget(3)) { return true }
+        }
+        return bar.exists
     }
 
     /// Wait for a fling to come to rest, so the audit and its rendered-contrast crops see
