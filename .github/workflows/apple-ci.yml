@@ -1,6 +1,6 @@
 name: apple-ci
-# Apple unit tests and compile check on a GitHub-hosted Xcode 27 runner (no mesh machine runs CI or
-# release work). The job name is the required check name: keep it `apple-ci`.
+# Apple unit tests, compile check and the iPhone simulator journeys (JOURNEYS below) on a GitHub-hosted
+# Xcode 27 runner (no mesh machine runs CI or release work). The job name is the required check name: keep it `apple-ci`.
 on:
   pull_request:
     branches: [master]
@@ -62,6 +62,7 @@ jobs:
         env:
           JOURNEYS: >-
             SongsChromeJourneyTests/testSectionBarHeadingAtLargestText
+            SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrder
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrderOnPushedPage
             NavButtonHitRegionJourneyTests/testChooseProfileReadsAloneInProductionChrome
