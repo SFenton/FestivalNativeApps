@@ -8,8 +8,9 @@ A run with a system ``mode`` (e.g. ``text-225``) changes the runner's own deskto
 This is the one registry of Windows accessibility journeys that gate pull requests: a journey is in CI only when it has a
 :data:`RUNS` entry (``only`` limits a run to some of a file's pages). ``tests/test_ui_ci.py`` checks the entries and
 that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
-(issue #416), the board load swap (issue #431, also with Animation effects off), the first-run song demos
-(issue #420) and the Songs section push (issue #452) run at default and 225% text.
+(issue #416), the Item Shop Filters flyout and its keyboard journey (issue #428), the board load swap (issue #431, also
+with Animation effects off), the first-run song demos (issue #420) and the Songs section push (issue #452) run at default
+and 225% text.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
 Usage::
@@ -82,6 +83,9 @@ class Run:
 #: host checks).
 SECTION_INDEX_BACKWARD = "index-backward-after-scroll,index-backward-after-scroll-keyboard"
 
+#: The ``a11y-keyboard.json`` page for the Item Shop Filters flyout (#19, #428); the file's other pages stay host checks.
+SHOP_FILTER_KEYBOARD = "kb-shop-filter"
+
 #: The ``a11y-board-footer-fade.json`` song-leaderboard pages (issue #93's footer fade; the file's other boards and its
 #: system-mode pages stay host checks).
 SONG_BOARD_FOOTER_FADE = ("footer-fade-song-leaderboard-rest,footer-fade-song-leaderboard-mid,footer-fade-song-leaderboard-end,"
@@ -136,6 +140,15 @@ RUNS: tuple[Run, ...] = (
     # (scale-100/150 modes) stays in the host matrix.
     Run("quick-links-landing", "a11y-quick-links-landing.json", tabs=0),
     Run("quick-links-landing-text-225", "a11y-quick-links-landing.json", sizes="compact", mode="text-225", tabs=0),
+    # The Item Shop Filters flyout (issues #19, #428): heading, New / Available / Leaving Tomorrow switch phrases and
+    # state, Filters applied, the song count and empty state, title -> switches -> Reset order, 40 epx Reset, text scaling.
+    Run("shop-filter", "a11y-shop-filter.json"),
+    Run("shop-filter-text-225", "a11y-shop-filter.json", sizes="compact", mode="text-225"),
+    # Its keyboard journey (#428 review): Enter opens on New, Space toggles, Tab/Shift+Tab walk the switches to Reset,
+    # Enter resets, Esc closes with focus back on Filters and "Filters applied", at default and 225% text.
+    Run("shop-filter-keyboard", "a11y-keyboard.json", tabs=0, only=SHOP_FILTER_KEYBOARD),
+    Run("shop-filter-keyboard-text-225", "a11y-keyboard.json", sizes="compact", mode="text-225", tabs=0,
+        only=SHOP_FILTER_KEYBOARD),
     # The pinned "your band" row on a song's full Duos/Trios/Quads board (issues #306, #461): Narrator phrases for
     # Jump / Open band, 40 epx targets, rows -> pin -> pager order, Tab/Enter jump clear of the pin, size switch,
     # no-player and reduced-motion states.
