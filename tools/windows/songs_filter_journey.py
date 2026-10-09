@@ -211,9 +211,12 @@ SCENARIOS: dict[str, Scenario] = {
         settings={"songShopFilter": {"available": False, "unavailable": True}}, shop="error"),
     "shop-empty": Scenario(
         ("shop-validated-empty", "shop-sort-badges-suppressed"),
-        # A validated empty feed: nothing is Available, so "Available only" is a real No Results (never a pause).
-        [f"waitfor:{NO_RESULTS}@20", f"waitgone:name={SHOP_LOADS}", "{shot:filter-shop-empty}",
-         "invoke:name=Clear Filters", f"waitfor:{PULSE}@10", f"waitfor:{ORBIT}", "{status:}"],
+        # A validated empty feed: nothing is Available, so "Available only" is a real No Results (never a pause). The
+        # shared empty state has no Clear Filters button (empty-error-states R8, #377): the flyout's Reset is the way back.
+        [f"waitfor:{NO_RESULTS}@20", f"waitgone:name={SHOP_LOADS}", "waitgone:name=Clear Filters",
+         "{status:Filters applied}", "{shot:filter-shop-empty}", "expand:id=fst.songs.filter",
+         "waitfor:id=fst.songs.filter.reset@5", "invoke:id=fst.songs.filter.reset", f"waitfor:{PULSE}@10",
+         f"waitfor:{ORBIT}", "collapse:id=fst.songs.filter", "{status:}"],
         settings={"songShopFilter": {"available": True, "unavailable": False}}, shop="empty"),
     "player-unavailable": Scenario(
         ("player-unavailable",),
