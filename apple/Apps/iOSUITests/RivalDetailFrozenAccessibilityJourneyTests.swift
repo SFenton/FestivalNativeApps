@@ -109,16 +109,13 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
 
     /// Wait until the rebuilt comparison shows its first row and has settled: the cards
     /// stagger in (`load-transition`), and on the CI runner a row that already exists can
-    /// still be fading in, not yet hittable, with its card's frames still moving.
+    /// still be fading in, with its card's frames still moving.
     @MainActor
     private func waitForRows(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) throws {
         let first = app.buttons[Self.firstRow].firstMatch
         XCTAssertTrue(
             first.waitForExistence(timeout: FestivalApp.budget(30)),
             "the frozen detail was not rebuilt from /rivals/all", file: file, line: line
-        )
-        XCTAssertTrue(
-            waitUntilHittable(first, timeout: FestivalApp.budget(10)), "the first row never took a tap", file: file, line: line
         )
         // Settled once two snapshots in a row agree on every row and View All frame.
         var previous = ""
@@ -130,6 +127,35 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
             Thread.sleep(forTimeInterval: FestivalApp.budget(0.25))
         }
         XCTFail("the rows never settled", file: file, line: line)
+    }
+
+    /// Tap the first row at its centre and wait for Song Detail: proof that the row takes a
+    /// tap. XCUI's `isHittable` stays false for this settled, unobscured row on the CI iPad
+    /// runtime (apple-ci run 37896597940), so the journey taps like a user instead.
+    ///
+    /// - Parameters:
+    ///   - app: Rival Detail, its rows shown.
+    ///   - top: The row's resting top before the audit; the audit evidence drags the page
+    ///     (`pageContrastFloor`), so the journey scrolls back there first.
+    ///   - message: The assertion's message.
+    @MainActor
+    private func firstRowOpensItsSong(
+        _ app: XCUIApplication, restingAt top: CGFloat, _ message: String,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        let row = app.buttons[Self.firstRow].firstMatch
+        for _ in 0..<8 where row.frame.minY < top - 0.5 { app.swipeDown() }
+        XCTAssertEqual(row.frame.minY, top, accuracy: 1, "\(message): back where it rested", file: file, line: line)
+        let window = app.windows.firstMatch.frame
+        XCTAssertTrue(
+            window.contains(CGPoint(x: row.frame.midX, y: row.frame.midY)), "\(message): centre on screen",
+            file: file, line: line
+        )
+        row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        let songDetail = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier IN %@", ["fst.song-detail.hero-title", "fst.song-detail.loading"])
+        ).firstMatch
+        XCTAssertTrue(songDetail.waitForExistence(timeout: FestivalApp.budget(20)), message, file: file, line: line)
     }
 
     /// Wait until `element` exists and takes a tap (`SongDetailJourneyTests`' `waitHittable`).
@@ -456,18 +482,19 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
     /// Default text size: the rebuilt comparison reads like a normal one. Every song row is
     /// one button naming its song, instrument and both ranks (no separate instrument image,
     /// no leftover spinner or error); each card reads title → rows → "View All, <title>";
-    /// rows and View All are at least 44 pt, inside the window and hittable; the page
-    /// passes the full system audit. Then the largest accessibility size: rows keep their
-    /// full names, grow with their text (the rank comparison stacks one part per line),
-    /// stay inside the window and 44 pt; the page passes the Dynamic Type, clipping and
-    /// hit-region audits. One launch per size (each costs minutes on the CI runner).
+    /// rows and View All are at least 44 pt and inside the window; the page passes the full
+    /// system audit, and a tap on the first row opens its song. Then the largest accessibility
+    /// size: rows keep their full names, grow with their text (the rank comparison stacks one
+    /// part per line), stay inside the window and 44 pt; the page passes the Dynamic Type,
+    /// clipping and hit-region audits, and the first row still opens its song. One launch per size (each costs minutes on the CI runner).
     @MainActor
     func testFrozenRivalDetailNamesOrdersSizesAndGrowsItsRows() throws {
         continueAfterFailure = false
         let app = launch(player: "fixture-riv-frozen")
         try waitForRows(app)
         let baseline = try textHeights(app)
-        let regularHeight = app.buttons[Self.firstRow].firstMatch.frame.height
+        let regularFrame = app.buttons[Self.firstRow].firstMatch.frame
+        let regularHeight = regularFrame.height
         let window = app.windows.firstMatch.frame
         let nodes = try readingOrder(app)
 
@@ -522,10 +549,10 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(target.frame.minX, window.minX - 0.5, "\(target.label) inside the window")
             XCTAssertLessThanOrEqual(target.frame.maxX, window.maxX + 0.5, "\(target.label) inside the window")
         }
-        XCTAssertTrue(app.buttons[Self.firstRow].firstMatch.isHittable, "the first row takes a tap")
 
         record(app, name: "rival-detail-frozen-a11y-default")
         let pending = try audit(app, for: .all)
+        firstRowOpensItsSong(app, restingAt: regularFrame.minY, "the first row takes a tap")
         app.terminate()
 
         let large = launch(player: "fixture-riv-frozen", contentSize: Self.ax5)
@@ -547,12 +574,12 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
         resolveGrowth(pending, at: try textHeights(app))
         let window = app.windows.firstMatch.frame
         let row = app.buttons[Self.firstRow].firstMatch
+        let restingTop = row.frame.minY
         XCTAssertGreaterThan(
             row.frame.height, regularHeight * 1.35, "the row grows with its text: \(regularHeight) → \(row.frame.height)"
         )
         XCTAssertGreaterThanOrEqual(row.frame.minX, window.minX - 0.5)
         XCTAssertLessThanOrEqual(row.frame.maxX, window.maxX + 0.5)
-        XCTAssertTrue(row.isHittable, "the AX5 row takes a tap")
         let found = rows(try readingOrder(app))
         XCTAssertTrue(Set(found.map(\.label)).isSubset(of: Self.rowNames), "AX5 rows keep their names: \(found.map(\.label))")
         for target in found {
@@ -561,6 +588,7 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
 
         record(app, name: "rival-detail-frozen-a11y-ax5")
         try audit(app, for: [.dynamicType, .textClipped, .hitRegion], baseline: baseline)
+        firstRowOpensItsSong(app, restingAt: restingTop, "the AX5 row takes a tap")
     }
 
     // MARK: - No snapshot: auto-retry state
