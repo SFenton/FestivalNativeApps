@@ -109,10 +109,10 @@ BOARDS_READY = "waitfor:id=fst.leaderboards.card.Solo_Guitar@20"
 FIXTURE_PLAYER = _profile("fixture-player-1:Demo Player")
 #: Any element named like a Compete-style "Leaderboards Overview" button (issues #66, #266: the web has none).
 NO_OVERVIEW = r'(?i)"[^"\n]*leaderboards? overview[^"\n]*" id='
-#: Expanded pane (window >= 1008 epx) with a page under Band Rankings' 1100 epx split width
-#: (``LeaderboardsBandRankingsPage.SplitWidth``), so the ``band`` state is the pushed band page on every display: the
-#: ``wide`` preset splits on a 100% 1920x1080 desktop (issue #533) but not where the display clamps the window.
-BELOW_SPLIT = "1200x800"
+#: A page under Band Rankings' 1100 epx split width (``LeaderboardsBandRankingsPage.SplitWidth``), so the ``band`` state
+#: is the pushed band page on every display: the ``wide`` preset splits on a 100% 1920x1080 desktop (issue #533) but not
+#: where the display clamps the window.
+BELOW_SPLIT = "medium"
 
 JOURNEYS = [
     Journey(
