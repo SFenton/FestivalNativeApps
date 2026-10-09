@@ -132,6 +132,35 @@ class UiCiTests(unittest.TestCase):
                        "fst.songs.filter.year.clear-all|"):
             self.assertIn(f"assertsize:id={target}40x40", steps)
 
+    def test_shop_filter_runs_at_default_and_largest_text(self):
+        # Issue #428 (#19): the Item Shop Filters flyout's accessibility pages gate pull requests at default and 225% text.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-shop-filter.json"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        pages = json.loads((ci.JOURNEYS / "a11y-shop-filter.json").read_text(encoding="utf-8"))
+        self.assertIn("shop-filter-read", {p["name"] for p in m.mode_pages(pages, "normal")})
+        self.assertIn("shop-filter-text", {p["name"] for p in m.mode_pages(pages, "text-225")})
+        steps = [s for page in pages for s in (*page.get("ready", []), *page.get("after_ready", []))]
+        self.assertIn("assertsize:id=fst.shop.filter.reset|0x40", steps)  # Reset's 40 epx height (32 epx before #428)
+
+    def test_shop_filter_keyboard_runs_at_default_and_largest_text(self):
+        """#428 review: the flyout's keyboard journey (Enter, Space, Tab/Shift+Tab, Esc focus return) gates PRs too."""
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-keyboard.json" and "kb-shop-filter" in
+                run.only.split(",")}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        pages = json.loads((ci.JOURNEYS / "a11y-keyboard.json").read_text(encoding="utf-8"))
+        page = next(p for p in pages if p["name"] == "kb-shop-filter")
+        for mode, run in runs.items():
+            with self.subTest(mode=mode):
+                self.assertIn(page, m.mode_pages(pages, mode))
+                self.assertTrue(m.page_sizes(page, run.sizes.split(","), mode))
+        steps = page["after_ready"]
+        for key in ("key:enter", "key:space", "key:tab", "key:shift+tab", "key:esc"):
+            self.assertIn(key, steps)
+        self.assertIn("assertfocus:id=fst.shop.filter@3", steps[steps.index("key:esc"):])  # Esc returns focus
+
     def test_songs_section_push_runs_at_default_and_largest_text(self):
         # Issue #452 (#288): the pushed section title's Narrator names, headings, order and raw copy, in CI at both sizes.
         runs = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-songs-section-push.json"}
