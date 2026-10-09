@@ -23,8 +23,9 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import json
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -167,6 +168,87 @@ RUNS: tuple[Run, ...] = (
 )
 
 
+def generated_runs(explicit: tuple[Run, ...]) -> tuple[Run, ...]:
+    """Add fixture runs for every uncovered ``a11y-*.json`` page, in the modes the page runs in.
+
+    A page without ``modes`` runs at ``normal`` and ``text-225``; a page that declares ``modes`` (any of them shows its
+    state, e.g. ``["hc-desert", "no-transparency"]`` for a hard edge that only exists under a contrast theme or with
+    transparency off) runs once, in its first listed mode. ``live_only`` pages (they need the live service) and ``ci_skip.json`` ``a11y_pages`` are left out.
+    """
+    skip_file = JOURNEYS.parent / "ci_skip.json"
+    skipped = json.loads(skip_file.read_text(encoding="utf-8")).get("a11y_pages", {}) if skip_file.exists() else {}
+    covered: dict[str, set[str] | None] = {}
+    for run in explicit:
+        covered[run.pages] = None if not run.only else set(run.only.split(","))
+    generated = []
+    for source in sorted(JOURNEYS.glob("a11y-*.json")):
+        if covered.get(source.name) is None and source.name in covered:
+            continue
+        pages = [page for page in json.loads(source.read_text(encoding="utf-8"))
+                 if "live" not in page["name"].lower() and not page.get("live_only")
+                 and page["name"] not in skipped and page["name"] not in covered.get(source.name, set())]
+        if not pages:
+            continue
+        by_mode: dict[str, list[dict]] = {"normal": [], "text-225": []}
+        for page in pages:
+            for mode in (page["modes"][:1] if page.get("modes") else ("normal", "text-225")):
+                by_mode.setdefault(mode, []).append(page)
+        for mode, candidates in by_mode.items():
+            chosen = a11y_matrix.mode_pages(candidates, mode)
+            if not chosen:
+                continue
+            only = ",".join(page["name"] for page in chosen)
+            sizes = ["compact"] if mode.startswith("text-") else ["compact", "medium"]
+            for page in chosen:  # a page that only runs at other sizes (e.g. wide) adds its first one
+                if not a11y_matrix.page_sizes(page, sizes, mode) and page.get("sizes"):
+                    sizes.append(page["sizes"][0])
+            generated.append(Run(f"{source.stem}-{mode}", source.name, sizes=",".join(dict.fromkeys(sizes)),
+                                 mode=mode, only=only))
+    return (*explicit, *generated)
+
+
+RUNS = generated_runs(RUNS)
+
+
+def tier_runs(runs: list[Run], tier: str) -> list[Run]:
+    """The runs for a CI tier.
+
+    ``pr`` is the pull-request gate: every page at ``normal`` mode in one window (the run's first size any page runs at,
+    usually compact) (about a third of the full
+    matrix, so Windows PRs don't monopolize the shared hosted runners). ``full`` (pushes to master and the nightly
+    schedule) adds the medium window, 225% text and each page's declared modes; a regression it finds on master is
+    filed as a Priority fix by the release machine.
+
+    Args:
+        runs: Candidate runs.
+        tier: ``pr`` or ``full``.
+
+    Returns:
+        The runs to execute.
+    """
+    if tier == "full":
+        return list(runs)
+    out = []
+    for run in runs:
+        if run.mode != "normal":
+            continue
+        pages = run_pages(run)
+        size = next((s for s in run.sizes.split(",") if any(a11y_matrix.page_sizes(p, [s], run.mode) for p in pages)),
+                    None)
+        if size:
+            out.append(replace(run, sizes=size))
+    return out
+
+
+def run_pages(run: Run) -> list[dict]:
+    """The page definitions one run executes (its ``only`` subset of its page file, filtered to its mode)."""
+    pages = json.loads((JOURNEYS / run.pages).read_text(encoding="utf-8"))
+    if run.only:
+        wanted = set(run.only.split(","))
+        pages = [page for page in pages if page["name"] in wanted]
+    return a11y_matrix.mode_pages(pages, run.mode)
+
+
 def select(runs: tuple[Run, ...], only: str | None) -> list[Run]:
     """Runs named by ``--only`` (all when empty).
 
@@ -205,11 +287,25 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--only", help="comma-separated run names")
     parser.add_argument("--exe", help="app under test (a11y_matrix --exe; default: the Debug build)")
     parser.add_argument("--list", action="store_true", help="print the runs and exit")
+    parser.add_argument("--tier", choices=("pr", "full"), default="full",
+                        help="pr: normal mode at compact only (the pull-request gate); full: every run (master, nightly)")
+    parser.add_argument("--shard", type=int, default=1)
+    parser.add_argument("--shards", type=int, default=1)
     args = parser.parse_args(argv)
     try:
         runs = select(RUNS, args.only)
     except ValueError as error:
         parser.error(str(error))
+    runs = tier_runs(runs, args.tier)
+    if not 1 <= args.shard <= args.shards:
+        parser.error("--shard must be within --shards")
+    buckets = [[] for _ in range(args.shards)]
+    weights = [0] * args.shards
+    for run in sorted(runs, key=lambda item: (-len(item.only.split(",")) * len(item.sizes.split(",")), item.name)):
+        index = min(range(args.shards), key=lambda candidate: (weights[candidate], candidate))
+        buckets[index].append(run)
+        weights[index] += len(run.only.split(",")) * len(run.sizes.split(","))
+    runs = buckets[args.shard - 1]
     if args.list:
         for run in runs:
             only = f" only={run.only}" if run.only else ""
