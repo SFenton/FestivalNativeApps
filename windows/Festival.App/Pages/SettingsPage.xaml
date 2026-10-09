@@ -361,7 +361,13 @@
                     <TextBlock Text="Show Instruments" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
                     <TextBlock Text="Choose which instruments to display throughout the app." Style="{StaticResource SectionSubtitleStyle}" />
                     <Border x:Name="InstrumentsCard" Style="{StaticResource FSTCardStyle}" Padding="16,8">
+                        <!-- Non-virtualizing stack (#546): a virtualizing StackLayout realizes nothing while off screen, so the
+                             page extent above later sections is an estimate (What's New moved after scrolling to it) and a
+                             Quick Links jump landed before its first toggle existed to take focus. -->
                         <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Instruments}">
+                            <ItemsRepeater.Layout>
+                                <controls:LeaderboardsCardGridLayout MinColumnWidth="0" MaxColumns="1" Spacing="0" />
+                            </ItemsRepeater.Layout>
                             <ItemsRepeater.ItemTemplate>
                                 <DataTemplate x:DataType="vm:InstrumentToggle">
                                     <Grid ColumnSpacing="12" MinHeight="48">
@@ -393,6 +399,9 @@
                     <TextBlock Text="{x:Bind ViewModel.MetadataDescription, Mode=OneWay}" Style="{StaticResource SectionSubtitleStyle}" />
                     <Border x:Name="MetadataCard" Style="{StaticResource FSTCardStyle}" Padding="16,8">
                         <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Metadata}">
+                            <ItemsRepeater.Layout>
+                                <controls:LeaderboardsCardGridLayout MinColumnWidth="0" MaxColumns="1" Spacing="0" />
+                            </ItemsRepeater.Layout>
                             <ItemsRepeater.ItemTemplate>
                                 <DataTemplate x:DataType="vm:MetadataToggle">
                                     <Grid ColumnSpacing="12" MinHeight="48">
@@ -578,6 +587,9 @@
                             </ResourceDictionary>
                         </Border.Resources>
                         <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.FirstRunPages}">
+                            <ItemsRepeater.Layout>
+                                <controls:LeaderboardsCardGridLayout MinColumnWidth="0" MaxColumns="1" Spacing="0" />
+                            </ItemsRepeater.Layout>
                             <ItemsRepeater.ItemTemplate>
                                 <DataTemplate x:DataType="vm:FirstRunReplayItem">
                                     <Grid ColumnSpacing="12" MinHeight="52">

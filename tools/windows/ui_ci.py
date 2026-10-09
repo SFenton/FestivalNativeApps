@@ -8,8 +8,9 @@ A run with a system ``mode`` (e.g. ``text-225``) changes the runner's own deskto
 This is the one registry of Windows accessibility journeys that gate pull requests: a journey is in CI only when it has a
 :data:`RUNS` entry (``only`` limits a run to some of a file's pages). ``tests/test_ui_ci.py`` checks the entries and
 that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
-(issue #416), the board load swap (issue #431, also with Animation effects off) and the first-run song demos
-(issue #420) run at default and 225% text.
+(issue #416), the Item Shop Filters flyout and its keyboard journey (issue #428), the board load swap (issue #431, also
+with Animation effects off), the first-run song demos (issue #420) and the Songs section push (issue #452) run at default
+and 225% text.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
 Usage::
@@ -24,7 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -82,13 +83,13 @@ class Run:
 #: host checks).
 SECTION_INDEX_BACKWARD = "index-backward-after-scroll,index-backward-after-scroll-keyboard"
 
+#: The ``a11y-keyboard.json`` page for the Item Shop Filters flyout (#19, #428); the file's other pages stay host checks.
+SHOP_FILTER_KEYBOARD = "kb-shop-filter"
+
 #: The ``a11y-board-footer-fade.json`` song-leaderboard pages (issue #93's footer fade; the file's other boards and its
 #: system-mode pages stay host checks).
 SONG_BOARD_FOOTER_FADE = ("footer-fade-song-leaderboard-rest,footer-fade-song-leaderboard-mid,footer-fade-song-leaderboard-end,"
                           "footer-fade-song-leaderboard-more-contrast,footer-fade-song-leaderboard-less-transparency")
-
-#: Window presets CI runs a11y pages at (see :data:`RUNS`).
-CI_SIZES = ("compact", "medium")
 
 #: Journeys the ``windows-ui`` job runs, in order. ``wide`` (1440 epx) is left to the host matrix: the runner's
 #: desktop is 1920x1080 at 100% scale, so compact (500x800) and medium (900x700) fit with room for the taskbar.
@@ -97,6 +98,11 @@ RUNS: tuple[Run, ...] = (
     Run("modals", "a11y-modals.json"),
     # The same pages at Windows' largest text size: text on screen, commands reachable by Tab and hit-testable.
     Run("modals-text-225", "a11y-modals.json", sizes="compact", mode="text-225"),
+    # What's New (issues #80, #274, #434): placeholder and grouped tester/store notes; level-2 version and level-3
+    # category headings, reading order, the Raw bullet glyph, 40x40 Dismiss, keyboard scrolling and Esc.
+    Run("whats-new", "a11y-whats-new.json"),
+    # The grouped notes at Windows' largest text size: headings wrap and the keyboard still reaches "Other" and Dismiss.
+    Run("whats-new-text-225", "a11y-whats-new.json", sizes="compact", mode="text-225"),
     # The Songs Filter without a profile (issues #77, #432): General-only sections, Narrator phrases and order, 40 epx
     # Reset / Select All / Clear All, live Double Bass and Year narrowing, Filters applied, keyboard and Esc.
     Run("songs-filter", "a11y-songs-filter.json"),
@@ -105,6 +111,12 @@ RUNS: tuple[Run, ...] = (
     # "B, text", stays a Level 2 heading, Jump -> title -> list order, Jump's name and 40x40 target, by pointer and keys.
     Run("section-index-backward", "a11y-section-index.json", only=SECTION_INDEX_BACKWARD),
     Run("section-index-backward-text-225", "a11y-section-index.json", mode="text-225", only=SECTION_INDEX_BACKWARD),
+    # Songs section push (issues #288, #452): mid-push, scrolling down into the boundary and back up, the bar still reads
+    # the outgoing section as a Level 2 heading, the incoming in-list title (transparent under the drawn copy) stays the
+    # Level 2 heading in order Jump -> bar -> title, and the copy is drawn but never a second Narrator stop; by keys,
+    # focus moves row -> group header -> previous row through the band and never lands on the copy.
+    Run("songs-section-push", "a11y-songs-section-push.json", tabs=0),
+    Run("songs-section-push-text-225", "a11y-songs-section-push.json", sizes="compact", mode="text-225", tabs=0),
     # Song leaderboard footer and paging (issues #93, #443): pinned row and pager names, states and 40x40 targets,
     # header -> rows -> pinned row -> pager order, the fade layer kept out of the control view, the Tab/Shift+Tab order
     # at rest, mid-load and on page 2, and a keyboard page change that keeps the header, pinned row and pager in order
@@ -128,6 +140,20 @@ RUNS: tuple[Run, ...] = (
     # (scale-100/150 modes) stays in the host matrix.
     Run("quick-links-landing", "a11y-quick-links-landing.json", tabs=0),
     Run("quick-links-landing-text-225", "a11y-quick-links-landing.json", sizes="compact", mode="text-225", tabs=0),
+    # The Item Shop Filters flyout (issues #19, #428): heading, New / Available / Leaving Tomorrow switch phrases and
+    # state, Filters applied, the song count and empty state, title -> switches -> Reset order, 40 epx Reset, text scaling.
+    Run("shop-filter", "a11y-shop-filter.json"),
+    Run("shop-filter-text-225", "a11y-shop-filter.json", sizes="compact", mode="text-225"),
+    # Its keyboard journey (#428 review): Enter opens on New, Space toggles, Tab/Shift+Tab walk the switches to Reset,
+    # Enter resets, Esc closes with focus back on Filters and "Filters applied", at default and 225% text.
+    Run("shop-filter-keyboard", "a11y-keyboard.json", tabs=0, only=SHOP_FILTER_KEYBOARD),
+    Run("shop-filter-keyboard-text-225", "a11y-keyboard.json", sizes="compact", mode="text-225", tabs=0,
+        only=SHOP_FILTER_KEYBOARD),
+    # The pinned "your band" row on a song's full Duos/Trios/Quads board (issues #306, #461): Narrator phrases for
+    # Jump / Open band, 40 epx targets, rows -> pin -> pager order, Tab/Enter jump clear of the pin, size switch,
+    # no-player and reduced-motion states.
+    Run("song-band-pinned", "a11y-song-band-pinned.json", tabs=0),
+    Run("song-band-pinned-text-225", "a11y-song-band-pinned.json", sizes="compact", mode="text-225", tabs=0),
     # Board load swap (issues #71, #431): spinner "Busy Loading …, ProgressRing", stale rows leave UIA, selectors ->
     # spinner -> pager order, enabled 40x40 selectors and pager, focus kept on the pager, mid-load Axe scans; then the
     # same swap at 225% text and with Windows' Animation effects off. Every page is medium-only (pager plus spinner).
@@ -148,8 +174,6 @@ def generated_runs(explicit: tuple[Run, ...]) -> tuple[Run, ...]:
     A page without ``modes`` runs at ``normal`` and ``text-225``; a page that declares ``modes`` (any of them shows its
     state, e.g. ``["hc-desert", "no-transparency"]`` for a hard edge that only exists under a contrast theme or with
     transparency off) runs once, in its first listed mode. ``live_only`` pages (they need the live service) and ``ci_skip.json`` ``a11y_pages`` are left out.
-    A generated run uses compact at text sizes and compact and medium otherwise; a page whose ``sizes`` allow none of
-    those (e.g. medium-only Shop rows at 225% text) gets its own run at the first CI size it allows.
     """
     skip_file = JOURNEYS.parent / "ci_skip.json"
     skipped = json.loads(skip_file.read_text(encoding="utf-8")).get("a11y_pages", {}) if skip_file.exists() else {}
@@ -173,20 +197,56 @@ def generated_runs(explicit: tuple[Run, ...]) -> tuple[Run, ...]:
             chosen = a11y_matrix.mode_pages(candidates, mode)
             if not chosen:
                 continue
-            default = ("compact",) if mode.startswith("text-") else CI_SIZES
-            groups: dict[tuple[str, ...], list[dict]] = {}
-            for page in chosen:
-                fits = default if a11y_matrix.page_sizes(page, list(default), mode) else \
-                    tuple(a11y_matrix.page_sizes(page, list(CI_SIZES), mode)[:1]) or default
-                groups.setdefault(fits, []).append(page)
-            for sizes, group in groups.items():
-                suffix = "" if sizes == default else "-" + "-".join(sizes)
-                generated.append(Run(f"{source.stem}-{mode}{suffix}", source.name, sizes=",".join(sizes), mode=mode,
-                                     only=",".join(page["name"] for page in group)))
+            only = ",".join(page["name"] for page in chosen)
+            sizes = ["compact"] if mode.startswith("text-") else ["compact", "medium"]
+            for page in chosen:  # a page that only runs at other sizes (e.g. wide) adds its first one
+                if not a11y_matrix.page_sizes(page, sizes, mode) and page.get("sizes"):
+                    sizes.append(page["sizes"][0])
+            generated.append(Run(f"{source.stem}-{mode}", source.name, sizes=",".join(dict.fromkeys(sizes)),
+                                 mode=mode, only=only))
     return (*explicit, *generated)
 
 
 RUNS = generated_runs(RUNS)
+
+
+def tier_runs(runs: list[Run], tier: str) -> list[Run]:
+    """The runs for a CI tier.
+
+    ``pr`` is the pull-request gate: every page at ``normal`` mode in one window (the run's first size any page runs at,
+    usually compact) (about a third of the full
+    matrix, so Windows PRs don't monopolize the shared hosted runners). ``full`` (pushes to master and the nightly
+    schedule) adds the medium window, 225% text and each page's declared modes; a regression it finds on master is
+    filed as a Priority fix by the release machine.
+
+    Args:
+        runs: Candidate runs.
+        tier: ``pr`` or ``full``.
+
+    Returns:
+        The runs to execute.
+    """
+    if tier == "full":
+        return list(runs)
+    out = []
+    for run in runs:
+        if run.mode != "normal":
+            continue
+        pages = run_pages(run)
+        size = next((s for s in run.sizes.split(",") if any(a11y_matrix.page_sizes(p, [s], run.mode) for p in pages)),
+                    None)
+        if size:
+            out.append(replace(run, sizes=size))
+    return out
+
+
+def run_pages(run: Run) -> list[dict]:
+    """The page definitions one run executes (its ``only`` subset of its page file, filtered to its mode)."""
+    pages = json.loads((JOURNEYS / run.pages).read_text(encoding="utf-8"))
+    if run.only:
+        wanted = set(run.only.split(","))
+        pages = [page for page in pages if page["name"] in wanted]
+    return a11y_matrix.mode_pages(pages, run.mode)
 
 
 def select(runs: tuple[Run, ...], only: str | None) -> list[Run]:
@@ -227,6 +287,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--only", help="comma-separated run names")
     parser.add_argument("--exe", help="app under test (a11y_matrix --exe; default: the Debug build)")
     parser.add_argument("--list", action="store_true", help="print the runs and exit")
+    parser.add_argument("--tier", choices=("pr", "full"), default="full",
+                        help="pr: normal mode at compact only (the pull-request gate); full: every run (master, nightly)")
     parser.add_argument("--shard", type=int, default=1)
     parser.add_argument("--shards", type=int, default=1)
     args = parser.parse_args(argv)
@@ -234,6 +296,7 @@ def main(argv: list[str] | None = None) -> int:
         runs = select(RUNS, args.only)
     except ValueError as error:
         parser.error(str(error))
+    runs = tier_runs(runs, args.tier)
     if not 1 <= args.shard <= args.shards:
         parser.error("--shard must be within --shards")
     buckets = [[] for _ in range(args.shards)]
