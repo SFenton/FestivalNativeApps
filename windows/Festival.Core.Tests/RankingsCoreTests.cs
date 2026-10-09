@@ -245,7 +245,7 @@ public sealed class RankingsModelTests
         var entry = board.Entries[0];
         Assert.Equal(3, board.PageCount);
         Assert.Equal("Member A, Unknown User", entry.MembersLabel);
-        Assert.Equal([2, 3, 4, 2], BandRankingMetricInfo.All.Select(entry.Rank));
+        Assert.Equal([2, 2, 3, 4], BandRankingMetricInfo.All.Select(entry.Rank));
         Assert.Equal(0.04, entry.RatingValue(BandRankingMetric.Adjusted));
         Assert.Equal(0.05, entry.RatingValue(BandRankingMetric.Weighted));
         Assert.Equal(0.7, (entry with { RawWeightedRating = 0.7 }).RatingValue(BandRankingMetric.Weighted));

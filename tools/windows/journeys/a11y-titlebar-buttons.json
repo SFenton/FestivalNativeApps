@@ -1,5 +1,5 @@
 [
-  {"name": "tb-player", "fixture": ["notifications_fixture.py"], "tab": "songs", "profile": "fixture-player-1:Fixture Player 1", "tabs": 0,
+  {"name": "tb-player", "fixture": ["notifications_fixture.py"], "settings": {"experimentalRanks": true}, "tab": "songs", "profile": "fixture-player-1:Fixture Player 1", "tabs": 0,
    "sizes": ["compact", "medium", "wide", "maximized", "snap-left"],
    "ready": ["waitfor:id=fst.songs.row.fixture-pulse@30", "waitfor:id=fst.shell.notifications@10",
              "waitfor:id=fst.shell.profile@5"],

@@ -711,6 +711,118 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     )
 }
 
+// MARK: - Quick Links only where Rivals pages have sections (#545)
+
+/// Host a Rivals page as a pushed page of an iPhone tab, registering its tools in
+/// `registry` the way `FestivalTabStack` does.
+///
+/// - Parameters:
+///   - page: The page.
+///   - registry: The tab-bar accessory's registry.
+///   - storage: The fixture session's settings.
+///   - height: Host height.
+/// - Returns: The host and its window (close it when done).
+@MainActor
+private func hostRivalsPageWithTools<Page: View>(
+    _ page: Page, registry: PageToolsRegistry, storage: UserDefaults, height: CGFloat
+) -> (NSHostingView<NativeHostedRoot<AnyView>>, NSWindow) {
+    let size = CGSize(width: 402, height: height)
+    let host = nativeHostedView(AnyView(
+        NavigationStack { page.pageToolsScope() }
+            .environment(\.pageToolsRegistry, registry)
+            .defaultAppStorage(storage)
+            .preferredColorScheme(.dark)
+    ), size: size)
+    return (host, nativeHostedWindow(host, size: size))
+}
+
+/// Rivalry is one list of songs, so it offers no Quick Links (owner, #545; pattern
+/// `quick-links` R3). VoiceOver reads the songs in drawn order, each named with both
+/// ranks, with no "Quick Links" rotor; the iPhone tab-bar accessory reads View Profile,
+/// then Notifications, as named full 44 pt buttons (HIG Buttons: "the hit region is at
+/// least 44x44 pt"), with no Quick Links entry point.
+@MainActor
+@Test func rivalryOffersViewProfileButNoQuickLinks() async throws {
+    nativeHostedEnableAccessibility()
+    let (session, storage, suite) = try await rivalsFixtureSession(accountId: "fixture-riv")
+    defer { storage.removePersistentDomain(forName: suite) }
+    let registry = PageToolsRegistry()
+    let (host, window) = hostRivalsPageWithTools(
+        RivalryScreen(
+            session: session, rivalId: routableRivalId, mode: "closest_battles",
+            name: "Fixture Rival Golf", scope: .song(instruments: ["Solo_Guitar"])
+        ),
+        registry: registry, storage: storage, height: 900
+    )
+    defer { window.orderOut(nil) }
+    let titles = ["Fixture Drift", "Fixture Pulse", "Fixture Orbit", "Fixture Echo"]
+    _ = try await nativeHostedSettle(host, untilText: titles)
+
+    let nodes = macAccessibilityTree(host)
+    macAccessibilityDump(nodes, name: "rivalry-no-quick-links")
+    var rowTitles: [String] = []
+    for node in nodes where node.isElement {
+        guard let title = titles.first(where: { node.spokenName.hasPrefix("\($0), you rank") }),
+              rowTitles.last != title else { continue }
+        rowTitles.append(title)
+    }
+    #expect(rowTitles == titles, "song rows read in drawn order, named with both ranks: \(nodes)")
+    #expect(hostedRotorEntries(named: "Quick Links", in: host).isEmpty, "no Quick Links rotor")
+    #expect(nativeHostedAccessibilityElement("fst.quick-links.open", in: host) == nil)
+    #expect(registry.frontItems.map(\.order) == [PageToolOrder.primary], "View Profile is the only page tool")
+
+    let barSize = CGSize(width: 348, height: 48)
+    let bar = nativeHostedView(AnyView(
+        PageToolsAccessoryBar(registry: registry)
+            .environment(\.pageToolsRegistry, registry)
+            .environment(\.festivalSession, session)
+            .buttonStyle(.borderless)
+            .preferredColorScheme(.dark)
+    ), size: barSize)
+    let barWindow = nativeHostedWindow(bar, size: barSize)
+    defer { barWindow.orderOut(nil) }
+    let expected = ["fst.rivalry.view-profile", "fst.shell.notifications"]
+    try await nativeHostedSettle(bar, until: {
+        expected.allSatisfy { nativeHostedAccessibilityElement($0, in: bar) != nil }
+    })
+    let barNodes = macAccessibilityTree(bar)
+    let controls = barNodes.filter { $0.isElement && $0.role != "AXGroup" }
+    #expect(controls.map(\.identifier) == expected, "\(controls)")
+    #expect(controls.first?.spokenName == "View Profile")
+    #expect(controls.allSatisfy { $0.role == "AXButton" }, "\(controls)")
+    #expect(macAccessibilityFindings(barNodes).isEmpty, "\(macAccessibilityFindings(barNodes))")
+    let profile = try #require(nativeHostedAccessibilityFrame("fst.rivalry.view-profile", in: bar))
+    #expect(profile.width >= PageToolsAccessoryFit.slot - 0.5 && profile.height >= PageToolsAccessoryFit.slot - 0.5,
+            "\(profile)")
+}
+
+/// Rival Detail keeps Quick Links: its entries are the category cards, not songs
+/// (#545 leaves sectioned Rivals pages alone). View Profile comes first, Quick Links
+/// last, and the rotor reads the categories in page order.
+@MainActor
+@Test func rivalDetailKeepsCategoryQuickLinks() async throws {
+    nativeHostedEnableAccessibility()
+    let (session, storage, suite) = try await rivalsFixtureSession(accountId: "fixture-riv")
+    defer { storage.removePersistentDomain(forName: suite) }
+    let registry = PageToolsRegistry()
+    let (host, window) = hostRivalsPageWithTools(
+        RivalDetailScreen(
+            session: session, rivalId: routableRivalId, name: "Fixture Rival Golf",
+            scope: .song(instruments: ["Solo_Guitar"])
+        ),
+        registry: registry, storage: storage, height: 1800
+    )
+    defer { window.orderOut(nil) }
+    let categories = ["Closest Battles", "Almost Passed", "Barely Winning", "Pulling Forward"]
+    var rotor: [String] = []
+    try await nativeHostedSettle(host, timeout: .seconds(60)) {
+        rotor = hostedRotorEntries(named: "Quick Links", in: host)
+        return rotor == categories && registry.frontItems.count == 2
+    }
+    #expect(rotor == categories)
+    #expect(registry.frontItems.map(\.order) == [PageToolOrder.primary, PageToolOrder.quickLinks])
+}
+
 /// Songs used by `rival-detail-demo.json`, mirrored here (rather than decoding the
 /// fixture again) purely to assert the ordering claim above independently of the view.
 private let rivalDetailDemoSongs: [RivalSongComparison] = [

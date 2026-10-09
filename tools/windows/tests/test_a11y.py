@@ -361,7 +361,7 @@ class MatrixTests(unittest.TestCase):
         for name, downs, row, board, footers in (
                 ("cols-song-board-focus-clear", 11, song + "row.fixture-player-12", "fst.song-leaderboard",
                  ("spotlight-footer", "page-next")),
-                ("cols-full-rankings-focus-clear", 11, "fst.rankings.row.fixture-rank-12", "fst.full-rankings",
+                ("cols-full-rankings-focus-clear", 14, "fst.rankings.row.fixture-rank-15", "fst.full-rankings",
                  ("spotlight-footer", "page-next")),
                 ("cols-band-rankings-focus-clear", 11, "fst.band-rankings.row.fixture-team-12", "fst.band-rankings",
                  ("page-next",)),

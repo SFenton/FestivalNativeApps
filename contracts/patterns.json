@@ -2185,7 +2185,8 @@
           "songs-section-index"
         ],
         "pages": [
-          "songs"
+          "songs",
+          "rivalry"
         ]
       },
       "supersedes": [],
@@ -3583,7 +3584,24 @@
             "symbol": "projectExperimentalRanks"
           }
         ],
-        "windows": []
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/RankingMetrics.cs",
+            "symbol": "RankingMetricInfo"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/BandTypes.cs",
+            "symbol": "BandRankingMetricInfo"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/FestivalSession.Rivals.cs",
+            "symbol": "ResolveRivalScope"
+          },
+          {
+            "path": "windows/Festival.Core/Data/NotificationModels.cs",
+            "symbol": "ProjectExperimentalRanks"
+          }
+        ]
       },
       "related": {
         "patterns": [
@@ -3607,6 +3625,20 @@
           ],
           "debt": [],
           "message": "Rank By menus and metric lists offer RankingMetric.enabled / BandRankingMetric.enabled (or a view model's gated options), never every metric, so Settings → Experimental Ranks gates them (experimental-ranks R1)."
+        },
+        {
+          "id": "windows-metric-menus",
+          "glob": "windows/**/*.cs",
+          "regex": "(RankingMetricInfo|BandRankingMetricInfo)\\.All\\b",
+          "allow": [
+            "windows/Festival.Core.Tests/**",
+            "windows/Festival.Core/Domain/RankingMetrics.cs",
+            "windows/Festival.Core/Domain/BandTypes.cs",
+            "windows/Festival.Core/ViewModels/BandsDetailViewModel.cs",
+            "windows/Festival.Core/ViewModels/RivalsViewModels.cs"
+          ],
+          "debt": [],
+          "message": "Rank By menus offer RankingMetricInfo.Enabled / BandRankingMetricInfo.Enabled (a view model's gated MetricOptions), never every metric, so Settings → Experimental Ranks gates them (experimental-ranks R1). Band Detail and the Rivals hub list every metric only behind ShowRankBy / ShowMetricPicker."
         }
       ]
     }
