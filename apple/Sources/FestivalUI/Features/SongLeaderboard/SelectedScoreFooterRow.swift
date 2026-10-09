@@ -76,14 +76,41 @@ struct SongLeaderboardRowCard: View {
 /// The opaque backing of a board's pinned selected row (song boards and Full
 /// Rankings, issue #318). The footer floats over artwork with no band behind it
 /// (issue #93): with Reduce Transparency or Increase Contrast its translucent purple
-/// gets an opaque backing, as the pager's plates already have.
+/// gets an opaque backing, as the pager's plates already have. The system settings and
+/// the app's own toggles both count, as for every other surface (surface-materials
+/// R4 through ``FestivalGlassSurface/resolve(reduceTransparency:systemContrast:lessTransparency:moreContrast:glassAvailable:)``;
+/// issue #461: the app's toggles had left the row translucent over artwork beside an
+/// opaque pager).
 struct PinnedFooterBacking: ViewModifier {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
+    @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
+    @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
+
+    /// Whether the pinned row needs its opaque backing.
+    ///
+    /// - Parameters:
+    ///   - reduceTransparency: System Reduce Transparency.
+    ///   - systemContrast: System Increase Contrast (`colorSchemeContrast`).
+    ///   - lessTransparency: The app's Reduce Transparency toggle.
+    ///   - moreContrast: The app's Increase Contrast toggle.
+    /// - Returns: True whenever the shared surfaces turn opaque.
+    static func isOpaque(
+        reduceTransparency: Bool, systemContrast: ColorSchemeContrast,
+        lessTransparency: Bool, moreContrast: Bool
+    ) -> Bool {
+        FestivalGlassSurface.resolve(
+            reduceTransparency: reduceTransparency, systemContrast: systemContrast,
+            lessTransparency: lessTransparency, moreContrast: moreContrast, glassAvailable: true
+        ) == .opaque
+    }
 
     func body(content: Content) -> some View {
         content.background {
-            if reduceTransparency || contrast == .increased {
+            if Self.isOpaque(
+                reduceTransparency: reduceTransparency, systemContrast: contrast,
+                lessTransparency: lessTransparency, moreContrast: moreContrast
+            ) {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(BrandTokens.appBackground)
             }
