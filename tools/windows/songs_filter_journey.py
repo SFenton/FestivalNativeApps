@@ -86,7 +86,9 @@ def bucket(section: str, key: str | None = None) -> list[str]:
     Returns:
         Steps (flyout open, Lead selected).
     """
-    steps = [f"scrollinto:id=fst.songs.filter.{section}@5", f"expand:id=fst.songs.filter.{section}",
+    # The Expander animates its content open; scrolling to a bucket action before it settles can leave the action off
+    # screen once the animation finishes (CI, #533).
+    steps = [f"scrollinto:id=fst.songs.filter.{section}@5", f"expand:id=fst.songs.filter.{section}", "wait:0.5",
              f"scrollinto:id=fst.songs.filter.{section}.clear-all@5", f"invoke:id=fst.songs.filter.{section}.clear-all",
              f"waitfor:{NO_RESULTS}@10", f"waitgone:{PULSE}@5", f"{{shot:filter-{section}}}"]
     if key is not None:
