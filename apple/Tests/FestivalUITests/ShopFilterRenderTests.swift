@@ -59,7 +59,7 @@ private func renderFilteredShop(
     for _ in 0..<30 {
         try await Task.sleep(for: .milliseconds(100))
         let image = try nativeHostedImage(host)
-        let accents = nativeHostedStatusPixels(image)
+        let accents = shopStatusPixels(image)
         last = (accents.gold, accents.red, nativeHostedControlPixels(image).bright)
         _ = try nativeHostedPNG(
             image, filename: "shop-filter-\(name).png", environment: "FST_SHOP_RENDER_OUT"
