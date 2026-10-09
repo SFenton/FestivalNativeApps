@@ -2,6 +2,8 @@ package com.festivalscoretracker.android.journeys
 
 import android.content.res.Configuration
 import android.content.res.Resources
+import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
@@ -447,10 +449,18 @@ class JourneyHarness(private val rule: JourneyRule) {
      * semantics by a few throttled content-change events, so a [readingOrder] straight after a
      * page switch can still list the previous page.
      *
+     * Each poll waits for Compose to idle, then clears UiAutomation's node cache (API 34+) so it
+     * reads the window's live tree: only the root is fetched fresh, and children come from a cache
+     * that only accessibility events invalidate. On a slow, freshly booted emulator a missed or late
+     * event left that cache stale for the whole wait, so every half-open fold journey timed out at
+     * its first call (#568). Polls are spaced so the tree walk does not starve the UI thread, and a
+     * timeout fails with what the tree and Compose showed.
+     *
      * @param present Test tag (exposed as the node's resource id) that must be in the tree.
      * @param absent Test tag that must have left the tree, or `null`.
+     * @param timeoutMs Timeout.
      */
-    fun awaitAccessibilityTree(present: String, absent: String? = null) {
+    fun awaitAccessibilityTree(present: String, absent: String? = null, timeoutMs: Long = 15_000) {
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
         fun ids(node: AccessibilityNodeInfo?, into: MutableSet<String> = mutableSetOf()): Set<String> {
             node ?: return into
@@ -458,9 +468,22 @@ class JourneyHarness(private val rule: JourneyRule) {
             for (i in 0 until node.childCount) ids(node.getChild(i), into)
             return into
         }
-        rule.waitUntil(15_000) {
-            val seen = ids(automation.rootInActiveWindow)
-            present in seen && (absent == null || absent !in seen)
+        val deadline = SystemClock.uptimeMillis() + timeoutMs
+        while (true) {
+            rule.waitForIdle()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) automation.clearCache()
+            val root = automation.rootInActiveWindow
+            val seen = ids(root)
+            if (present in seen && (absent == null || absent !in seen)) return
+            if (SystemClock.uptimeMillis() > deadline) {
+                throw AssertionError(
+                    "Accessibility tree of ${root?.packageName ?: "no active window"} never showed $present" +
+                        "${absent?.let { " without $it" }.orEmpty()} in $timeoutMs ms " +
+                        "(composed: ${exists(present)}${absent?.let { ", $it composed: ${exists(it)}" }.orEmpty()}; " +
+                        "${seen.size} ids): ${readingOrder("await-tree-timeout", fresh = true)}",
+                )
+            }
+            SystemClock.sleep(TREE_POLL_MILLIS)
         }
     }
 
@@ -750,6 +773,9 @@ class JourneyHarness(private val rule: JourneyRule) {
 
         /** Instrumentation argument that makes [requireHingeWhenAsked] demand a separating hinge. */
         const val REQUIRE_HINGE_ARG = "fstRequireHinge"
+
+        /** Pause between [awaitAccessibilityTree] polls, so walking the tree leaves the UI thread room to publish. */
+        private const val TREE_POLL_MILLIS = 100L
     }
 }
 
