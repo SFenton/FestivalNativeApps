@@ -252,7 +252,15 @@ class MatrixTests(unittest.TestCase):
                     with self.subTest(file=name, page=page["name"], step=step):
                         u.parse_step(step)
 
-    def test_first_run_later_states(self):
+    def test_songs_keyboard_order_ends_off_the_jump_tooltip(self):
+        import json
+        pages = {p["name"]: p for p in json.loads((m.PAGES.parent / "a11y-keyboard.json").read_text(encoding="utf-8"))}
+        steps = pages["kb-songs-order"]["after_ready"]
+        # Shift+Tab back to Jump opens its keyboard tooltip, a windowed WinUI popup that Axe flags and that lingers
+        # after it closes (windows-accessibility.md open item 8, #534): after that assertion focus returns to a row.
+        self.assertEqual(steps[-4:], ["key:shift+tab", "assertfocus:id=fst.songs.section-index-button",
+                                      "focus:id=fst.songs.row.fixture-pulse", "assertfocus:id=fst.songs.row.fixture-pulse"])
+        self.assertNotIn("axe_allow", pages["kb-songs-order"])
         import json
         pages = {p["name"]: p for p in json.loads(m.PAGES.read_text(encoding="utf-8"))}
         self.assertIn("assertstate:id=SecondaryButton|enabled=true", pages["first-run-back"]["after_ready"])
@@ -377,6 +385,10 @@ class MatrixTests(unittest.TestCase):
             for footer in footers:
                 self.assertIn(f"assertapart:id={row}|id={board}.{footer}", steps, name)
             self.assertEqual(focus_path(steps)[-1], ("tab", f"{board}.{footers[0]}"), name)
+            if footers[0].startswith("page-"):
+                # A focused pager button opens its keyboard tooltip, a windowed WinUI popup Axe flags (open item 8,
+                # #534): the page then returns focus to the row before the final scan, as the load-swap pages do.
+                self.assertEqual(steps[-2:], [f"focus:id={row}", f"assertfocus:id={row}@3"], name)
         for name in ("cols-full-rankings-focus-clear", "cols-player-bands-focus-clear", "cols-player-bands-focus-clear-grid"):
             steps = pages[name]["after_ready"]
             target = next(s for s in steps if s.startswith("assertapart:")).split("|")[0][len("assertapart:"):]

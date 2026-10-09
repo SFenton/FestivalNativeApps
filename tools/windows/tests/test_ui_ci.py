@@ -48,6 +48,16 @@ class UiCiTests(unittest.TestCase):
         self.assertTrue(all(run.scan for run in landing.values()))
         self.assertIn("compact", landing["text-225"].sizes.split(","))
 
+    def test_header_flyouts_gate_without_popup_allowance(self):
+        """#534: the Rank By, Quick Links, profile and Notifications flyouts scan clean at 100% and 225% text."""
+        popups = {run.mode: run for run in ci.RUNS if run.pages == "a11y.json"}
+        self.assertEqual({"normal", "text-225"}, set(popups))
+        self.assertTrue(all(run.scan and run.only == ci.POPUP_PAGES for run in popups.values()))
+        pages = {page["name"]: page for page in json.loads((ci.JOURNEYS / "a11y.json").read_text(encoding="utf-8"))}
+        for name in ci.POPUP_PAGES.split(","):
+            with self.subTest(page=name):
+                self.assertNotIn("axe_allow", pages[name])
+
     def test_first_run_demos_run_at_default_and_largest_text(self):
         """#420 review: the first-run demo journey gates PRs, not just its JSON guard."""
         demos = {run.mode: run for run in ci.RUNS if run.pages == "a11y-first-run-demos.json"}

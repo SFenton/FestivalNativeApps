@@ -8,8 +8,8 @@ A run with a system ``mode`` (e.g. ``text-225``) changes the runner's own deskto
 This is the one registry of Windows accessibility journeys that gate pull requests: a journey is in CI only when it has a
 :data:`RUNS` entry (``only`` limits a run to some of a file's pages). ``tests/test_ui_ci.py`` checks the entries and
 that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
-(issue #416), the board load swap (issue #431, also with Animation effects off) and the first-run song demos
-(issue #420) run at default and 225% text.
+(issue #416), the board load swap (issue #431, also with Animation effects off), the first-run song demos
+(issue #420) and the header flyouts (issue #534) run at default and 225% text.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
 Usage::
@@ -87,6 +87,10 @@ SECTION_INDEX_BACKWARD = "index-backward-after-scroll,index-backward-after-scrol
 SONG_BOARD_FOOTER_FADE = ("footer-fade-song-leaderboard-rest,footer-fade-song-leaderboard-mid,footer-fade-song-leaderboard-end,"
                           "footer-fade-song-leaderboard-more-contrast,footer-fade-song-leaderboard-less-transparency")
 
+#: The canonical ``a11y.json`` header-flyout pages (issue #534: every app flyout is constrained to the window, so none
+#: may open a windowed ``PopupHost``; the file's other pages stay host matrix checks).
+POPUP_PAGES = "leaderboards-rank-by-menu,rank-by-menu,quick-links-menu,profile-flyout,notifications-flyout"
+
 #: Journeys the ``windows-ui`` job runs, in order. ``wide`` (1440 epx) is left to the host matrix: the runner's
 #: desktop is 1920x1080 at 100% scale, so compact (500x800) and medium (900x700) fit with room for the taskbar.
 RUNS: tuple[Run, ...] = (
@@ -125,6 +129,10 @@ RUNS: tuple[Run, ...] = (
     # (scale-100/150 modes) stays in the host matrix.
     Run("quick-links-landing", "a11y-quick-links-landing.json", tabs=0),
     Run("quick-links-landing-text-225", "a11y-quick-links-landing.json", sizes="compact", mode="text-225", tabs=0),
+    # Header flyouts open in the app window (issue #534): Leaderboards and Full Rankings Rank By, Quick Links, the
+    # profile flyout and Notifications scan with no windowed PopupHost finding (windows-accessibility.md open item 8).
+    Run("popups", "a11y.json", only=POPUP_PAGES),
+    Run("popups-text-225", "a11y.json", sizes="compact", mode="text-225", only=POPUP_PAGES),
     # Board load swap (issues #71, #431): spinner "Busy Loading …, ProgressRing", stale rows leave UIA, selectors ->
     # spinner -> pager order, enabled 40x40 selectors and pager, focus kept on the pager, mid-load Axe scans; then the
     # same swap at 225% text and with Windows' Animation effects off. Every page is medium-only (pager plus spinner).

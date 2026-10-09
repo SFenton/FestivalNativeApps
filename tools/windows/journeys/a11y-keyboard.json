@@ -44,7 +44,9 @@
       "key:down",
       "assertfocus:id=fst.songs.row.fixture-pulse",
       "key:shift+tab",
-      "assertfocus:id=fst.songs.section-index-button"
+      "assertfocus:id=fst.songs.section-index-button",
+      "focus:id=fst.songs.row.fixture-pulse",
+      "assertfocus:id=fst.songs.row.fixture-pulse"
     ]
   },
   {
