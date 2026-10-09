@@ -175,6 +175,21 @@ Journey tests that need the loopback mock service start/assert it themselves
 `FestivalMobileUITests.swift`); `uitest` does not manage
 `tools/mock_service.py` for you — start it separately first.
 
+A green `xcodebuild` run can still be all skips (a missing fixture, an older
+runtime). `--require-run` fails such a batch (exit 6) when any test skipped or
+none ran; CI always passes it. On a CI runner, `ci-device` creates the
+simulator (`UDID=$(python3 tools/ios_sim.py ci-device --device-type "iPad Pro
+11-inch (M5)")`, then `--device "$UDID"`; the default type is iPhone 17 Pro); it
+refuses to run without `CI=true`
+([iOS journeys in CI](../testing/apple/accessibility.md#ios-journeys-in-ci)).
+`--pose folded` checks an iPhone Duo UDID by screenshot too, so a CI Duo runs
+folded journeys without Device Hub.
+`FST_UITEST_NO_DIAGNOSTICS=1` skips `xcodebuild`'s failure diagnostics
+(`-collect-test-diagnostics never`), which took about seven minutes per failure
+on the runner; the result bundle keeps its screenshots and recording. Selectors
+are `Class/testMethod`: `uitest` adds the target itself, and a target-prefixed
+selector runs nothing (which `--require-run` reports).
+
 ## Limitations
 
 - One step failure stops the whole script (steps are not retried or skippable).
