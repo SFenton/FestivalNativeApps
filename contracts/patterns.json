@@ -899,6 +899,10 @@
           {
             "path": "windows/Festival.App/Controls/WrapPanel.cs",
             "symbol": "WrapPanel"
+          },
+          {
+            "path": "windows/Festival.App/Controls/PopupHosting.cs",
+            "symbol": "PopupHosting"
           }
         ]
       },
@@ -988,7 +992,8 @@
         341,
         351,
         363,
-        394
+        394,
+        534
       ]
     },
     {
