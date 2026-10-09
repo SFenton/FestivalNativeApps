@@ -74,8 +74,10 @@
 
                 <!-- Per-instrument sections -->
                 <ItemsRepeater x:Name="InstrumentsRepeater" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="480" TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Instruments, Mode=OneWay}" ElementPrepared="OnInstrumentPrepared">
+                    <!-- Non-virtualizing stack (#533): sections differ widely in height, so a virtualizing StackLayout
+                         re-estimated the page near its end and pulled the scroll back. Reads stay lazy (OnInstrumentPrepared). -->
                     <ItemsRepeater.Layout>
-                        <StackLayout Spacing="20" />
+                        <controls:LeaderboardsCardGridLayout MinColumnWidth="0" MaxColumns="1" Spacing="20" />
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:PlayerInstrumentViewModel">
@@ -209,7 +211,7 @@
                                        ItemsSource="{x:Bind ViewModel.Bands.Groups, Mode=OneWay}"
                                        Visibility="{x:Bind ViewModel.Bands.ShowGroups, Mode=OneWay, FallbackValue=Collapsed}">
                             <ItemsRepeater.Layout>
-                                <StackLayout Spacing="16" />
+                                <controls:LeaderboardsCardGridLayout MinColumnWidth="0" MaxColumns="1" Spacing="16" />
                             </ItemsRepeater.Layout>
                             <ItemsRepeater.ItemTemplate>
                                 <DataTemplate x:DataType="vm:PlayerProfileBandGroup">
