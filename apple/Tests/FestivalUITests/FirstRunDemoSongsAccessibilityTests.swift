@@ -212,12 +212,16 @@ struct FirstRunDemoSongsAccessibilityTests {
         let nodes = macAccessibilityTree(host)
         macAccessibilityDump(nodes, name: "first-run-carousel-songs-large")
         try Self.assertSlideAndOrder(nodes, slide: slides[0])
+        #expect(!nodes.contains { $0.role == "AXScrollArea" }, "standard sizes lay the slide out without scrolling")
 
         try Self.assertTargets(in: host)
     }
 
     /// At the largest accessibility text size the slide keeps its whole name, still reads
-    /// before the actions, and Next and Skip stay on screen with full-size targets.
+    /// before the actions, and Next and Skip stay on screen with full-size targets. The slide
+    /// scrolls (compact demo in a `ScrollView`) instead of cutting its description off under
+    /// the dots, as it did before #401 ("Tap a song to see" on iPhone; HIG Typography: "Keep
+    /// text truncation to a minimum as font size increases").
     @Test func carouselKeepsSlideTextAndActionsReachableAtAccessibilitySizes() async throws {
         let session = try await Self.liveSession()
         let (storage, name) = try Self.storage()
@@ -229,6 +233,7 @@ struct FirstRunDemoSongsAccessibilityTests {
         let nodes = macAccessibilityTree(host)
         macAccessibilityDump(nodes, name: "first-run-carousel-songs-ax5")
         try Self.assertSlideAndOrder(nodes, slide: slides[0])
+        #expect(nodes.contains { $0.role == "AXScrollArea" }, "the slide scrolls at accessibility sizes")
 
         try Self.assertTargets(in: host)
     }
@@ -263,6 +268,7 @@ struct FirstRunDemoSongsAccessibilityTests {
         let slideIndex = try #require(order.firstIndex { $0.spokenName.hasPrefix("\(slide.title). ") }, "slide element in\n\(dump)")
         let element = order[slideIndex]
         #expect(element.spokenName == "\(slide.title). \(FirstRunCopy.mac(slide.description))", "\(element)")
+        #expect(element.role == "AXStaticText", "the slide reads as text: \(element)")
         #expect(Self.leaks(nodes).isEmpty, "the demo's songs are not read: \(Self.leaks(nodes))")
         #expect(macAccessibilityFindings(nodes) == [], "\(dump)")
 

@@ -352,4 +352,83 @@ final class FirstRunJourneyTests: XCTestCase {
         SongsUITestSupport.record(relaunched, name: "first-run-resumes-unseen")
         relaunched.buttons["fst.first-run.close"].tap()
     }
+    // MARK: - Song demos (issue #26, accessibility backfill #401)
+
+    /// Issue #26: the Songs list demo shows real catalogue songs (redacted placeholders while
+    /// they load), as a decorative picture. At the largest accessibility text size (AX5) the
+    /// slide is still one element named by its title and description only: no placeholder,
+    /// song title or song row from the demo is reachable, the slide reads above the page dots,
+    /// Next and Skip, both actions keep 44 pt targets on screen, and the system audit finds no
+    /// clipped text, small hit regions or unnamed elements in the guide. HIG VoiceOver:
+    /// "Exclude purely decorative images that convey no useful or actionable information".
+    /// Hosted counterpart: `FirstRunDemoSongsAccessibilityTests` (every song demo, both states).
+    @MainActor
+    func testSongDemoSlideAccessibleAtLargestText() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": ProcessInfo.processInfo.environment["FST_FIRST_RUN_FIXTURE_URL"]
+                ?? "http://127.0.0.1:8765",
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_FIRST_RUN": "force",
+        ])
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        app.launch()
+        let title = "Song List"
+        let description = "Browse and search the entire Festival library. Tap a song to see leaderboards and more details."
+        let slide = slide(app, titled: title)
+        XCTAssertTrue(slide.waitForExistence(timeout: 20), "Song List slide")
+        // The catalogue answers within a moment on the loopback fixture; then the demo's rows
+        // are real songs.
+        let songRow = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'fst.songs.row.'")).firstMatch
+        _ = songRow.waitForExistence(timeout: 5)
+        sleep(2)
+        XCTAssertEqual(slide.label, "\(title). \(description)", "The slide reads its title and description only")
+        SongsUITestSupport.record(app, name: "first-run-song-demo-ax5")
+
+        // Nothing the guide exposes is a demo song or a placeholder.
+        let window = app.windows.firstMatch.frame
+        var reachable: [XCUIElementSnapshot] = []
+        func collect(_ node: XCUIElementSnapshot) {
+            reachable.append(node)
+            node.children.forEach(collect)
+        }
+        collect(try app.snapshot())
+        let sheetTop = slide.frame.minY
+        let leaks = reachable.filter { node in
+            node.label.localizedCaseInsensitiveContains("placeholder")
+                || (node.identifier.hasPrefix("fst.songs.row.") && node.frame.minY >= sheetTop - 1
+                    && window.intersects(node.frame))
+        }.map { "\($0.elementType.rawValue) '\($0.label)' #\($0.identifier) \($0.frame)" }
+        XCTAssertEqual(leaks, [], "Demo songs or placeholders reachable:\n\(app.debugDescription)")
+
+        // Reading order follows the layout: slide, page dots, Next, Skip.
+        let dots = app.descendants(matching: .any).matching(identifier: "fst.first-run.dots").firstMatch
+        let next = app.buttons["fst.first-run.next"]
+        let skip = app.buttons["fst.first-run.skip"]
+        XCTAssertTrue(dots.exists && next.exists && skip.exists)
+        XCTAssertEqual(dots.label, "Page")
+        XCTAssertEqual(dots.value as? String, "1 of 6")
+        XCTAssertLessThanOrEqual(slide.frame.minY, dots.frame.minY, "slide \(slide.frame) above dots \(dots.frame)")
+        XCTAssertLessThan(dots.frame.minY, next.frame.minY, "dots above Next")
+        XCTAssertLessThan(next.frame.minY, skip.frame.minY, "Next above Skip")
+
+        // Targets: 44 pt and on screen at AX5 (the sheet draws about 0.96× scaled).
+        for control in [next, skip] {
+            XCTAssertGreaterThanOrEqual(control.frame.height, 44 * 0.96, "\(control.identifier) \(control.frame)")
+            XCTAssertTrue(window.contains(control.frame), "\(control.identifier) on screen: \(control.frame)")
+            XCTAssertTrue(control.isHittable, control.identifier)
+        }
+
+        var issues: [String] = []
+        try app.performAccessibilityAudit(for: [.textClipped, .hitRegion, .sufficientElementDescription, .elementDetection]) { issue in
+            let element = issue.element
+            issues.append("\(issue.compactDescription): #\(element?.identifier ?? "") '\(element?.label ?? "")' \(element?.frame ?? .zero)")
+            return true
+        }
+        XCTAssertEqual(issues, [], "Open audit issues")
+    }
 }
