@@ -41,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.pointer.pointerInput
@@ -52,6 +53,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.paneTitle
@@ -60,6 +63,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -195,6 +199,44 @@ fun FestivalModalHeader(
 
 // endregion
 
+// region Body
+
+/**
+ * The modal body below [FestivalModalHeader] (modal-shell R5): no body node's touch or
+ * TalkBack bounds reach above its top edge, so a row or field scrolled under the header never
+ * takes part of Submit, Reset or Close.
+ *
+ * Compose 1.9 lets a node clipped by its scroll viewport keep touch bounds up to half the
+ * minimum touch target (24 dp) past that edge, and TalkBack gives an overlap to the node later
+ * in the tree, the body: a feedback field scrolled under the header cut Submit's TalkBack
+ * target to 47 dp at 200% text (issue #422; fixed in Compose after BOM 2025.10.01). This
+ * column is a clipping layer whose own view configuration has no minimum touch target, so
+ * those bounds stop exactly at its edge (a layer clip extends by the clipping node's
+ * `minimumTouchTargetSize`); [content] gets the original [ViewConfiguration] back, so body
+ * controls keep their 48 dp touch targets. The header keeps its place in the tree, so reading
+ * order is unchanged. The sheet and dialog surfaces already clip the sides and bottom, so only the
+ * top edge is new to drawing.
+ *
+ * @param modifier Column modifier.
+ * @param content Body below the header.
+ */
+@Composable
+fun FestivalModalBody(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    val configuration = LocalViewConfiguration.current
+    val exactEdge = remember(configuration) {
+        object : ViewConfiguration by configuration {
+            override val minimumTouchTargetSize: DpSize get() = DpSize.Zero
+        }
+    }
+    CompositionLocalProvider(LocalViewConfiguration provides exactEdge) {
+        Column(modifier.fillMaxWidth().clipToBounds()) {
+            CompositionLocalProvider(LocalViewConfiguration provides configuration) { content() }
+        }
+    }
+}
+
+// endregion
+
 // region Sheet
 
 /**
@@ -249,7 +291,7 @@ fun FestivalModalSheet(
             dragHandle = { BottomSheetDefaults.DragHandle(Modifier.minimumInteractiveComponentSize()) },
         ) {
             FestivalModalHeader(title, closeTag, close, titleTag = titleTag, actions = headerActions)
-            CompositionLocalProvider(LocalFadeInWindow provides fadeIn) { content() }
+            FestivalModalBody { CompositionLocalProvider(LocalFadeInWindow provides fadeIn) { content() } }
         }
     }
 }
@@ -316,7 +358,7 @@ fun FestivalModalDialog(
         ) {
             Column(Modifier.padding(top = 12.dp)) {
                 FestivalModalHeader(title, closeTag, onDismissRequest, titleTag = titleTag, titleStyle = titleStyle)
-                CompositionLocalProvider(LocalFadeInWindow provides fadeIn) { content() }
+                FestivalModalBody { CompositionLocalProvider(LocalFadeInWindow provides fadeIn) { content() } }
             }
         }
     }
