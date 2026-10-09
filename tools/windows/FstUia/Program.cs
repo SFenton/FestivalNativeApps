@@ -837,7 +837,28 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         Thread.Sleep(150);
     }
 
-    private void Click(Window window, JsonObject step, MouseButton button) => Mouse.Click(ScreenPoint(window, step), button);
+    /// <summary>
+    /// Real mouse click at a step's selector. A window-relative <c>x,y</c> point (physical pixels, so DPI-dependent) must
+    /// land on the app's own window: on a 100% display a point chosen at 300% falls below the window onto the taskbar or
+    /// another lane's window (issue #531), so the click is refused instead. Prefer <c>clickat</c> (effective pixels).
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a selector.</param>
+    /// <param name="button">Mouse button.</param>
+    /// <exception cref="InvalidOperationException">An <c>x,y</c> point outside the app window or covered by another process.</exception>
+    private void Click(Window window, JsonObject step, MouseButton button)
+    {
+        var point = ScreenPoint(window, step);
+        if ((string)step["selector"]!["kind"]! == "xy")
+        {
+            var bounds = Native.VisibleBounds(window.Properties.NativeWindowHandle.Value);
+            if (!bounds.Contains(point))
+                throw new InvalidOperationException($"{(string)step["arg"]!}: the point {point} is outside the app window {bounds}; no input sent");
+            if (Native.ProcessAt(point) is var owner && owner != window.Properties.ProcessId.ValueOrDefault)
+                throw new InvalidOperationException($"{(string)step["arg"]!}: the point {point} is covered by process {owner}; no input sent");
+        }
+        Mouse.Click(point, button);
+    }
 
     /// <summary>
     /// Brings the target on screen without real input (works on a locked console): an existing target is scrolled into view
@@ -1612,7 +1633,10 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>
     /// Real left-button mouse drag from the first element's left edge (16 epx in, vertically centred: a reorder row's grip)
     /// to the second element's centre plus <c>dy</c> epx, moved in small steps so a <c>ListView</c> starts its drag and
-    /// shows the insertion point (issue #372). Needs an unlocked console, and the app's own window must be the topmost
+    /// shows the insertion point (issue #372). Every move is a real <c>SendInput</c> event (<see cref="Native.MouseAt"/>):
+    /// FlaUI's <c>SetCursorPos</c> moves never started the WinUI drag on hosted CI runners (issue #531). The press first
+    /// crosses the drag threshold in 3 epx moves and pauses so the drag starts, then travels, settles with small moves
+    /// at the target and holds before releasing. Needs an unlocked console, and the app's own window must be the topmost
     /// window at both points. Results in <c>drags</c>; the following steps assert what moved.
     /// </summary>
     /// <param name="window">App window.</param>
@@ -1635,19 +1659,34 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 throw new InvalidOperationException($"{arg}: the point {point} is covered by process {owner}; no input sent");
         response["drags"] ??= new JsonArray();
         response["drags"]!.AsArray().Add(new JsonObject { ["arg"] = arg, ["from"] = $"{start.X},{start.Y}", ["to"] = $"{end.X},{end.Y}" });
-        Mouse.MoveTo(start);
+        Native.MouseAt(start);
         Thread.Sleep(150);
-        Mouse.Down(MouseButton.Left);
-        Thread.Sleep(200);
-        const int steps = 24;
+        Native.MouseAt(start, 0x0002);
+        Thread.Sleep(250);
+        // Cross the system drag threshold in small moves, then let ListView start its drag before travelling.
+        var direction = Math.Sign(end.Y - start.Y);
+        for (var i = 1; i <= 4; i++)
+        {
+            Native.MouseAt(new Point(start.X, start.Y + (int)Math.Round(direction * 3 * i * scale)));
+            Thread.Sleep(40);
+        }
+        Thread.Sleep(350);
+        var from = new Point(start.X, start.Y + (int)Math.Round(direction * 12 * scale));
+        const int steps = 30;
         for (var i = 1; i <= steps; i++)
         {
-            Mouse.MoveTo(new Point(start.X + (end.X - start.X) * i / steps, start.Y + (end.Y - start.Y) * i / steps));
-            Thread.Sleep(25);
+            Native.MouseAt(new Point(from.X + (end.X - from.X) * i / steps, from.Y + (end.Y - from.Y) * i / steps));
+            Thread.Sleep(30);
         }
-        Thread.Sleep(400);
-        Mouse.Up(MouseButton.Left);
-        Thread.Sleep(400);
+        // Small moves at the target keep the drag loop's insertion point fresh before the drop.
+        foreach (var jiggle in new[] { 2, -2, 1, -1, 0 })
+        {
+            Native.MouseAt(new Point(end.X, end.Y + (int)Math.Round(jiggle * scale)));
+            Thread.Sleep(60);
+        }
+        Thread.Sleep(500);
+        Native.MouseAt(end, 0x0004);
+        Thread.Sleep(500);
     }
 
     #endregion
@@ -2170,6 +2209,35 @@ internal static class Native
 
     [StructLayout(LayoutKind.Sequential)]
     private struct MOUSEINPUT { public int dx, dy; public uint mouseData, dwFlags, time; public IntPtr dwExtraInfo; }
+
+    [DllImport("user32.dll")] private static extern int GetSystemMetrics(int index);
+
+    /// <summary>
+    /// Injects one absolute mouse event at a physical screen point (<c>SendInput</c> with
+    /// <c>MOUSEEVENTF_MOVE | ABSOLUTE | VIRTUALDESK</c> plus <paramref name="buttons"/>). Unlike <c>SetCursorPos</c>
+    /// (FlaUI's <c>Mouse.MoveTo</c>), this is real mouse input, so WinUI sees pointer moves and an OLE drag loop sees the
+    /// cursor move (issue #531).
+    /// </summary>
+    /// <param name="point">Physical screen point.</param>
+    /// <param name="buttons"><c>0</c> (move only), <c>0x0002</c> (left down) or <c>0x0004</c> (left up).</param>
+    /// <exception cref="InvalidOperationException"><c>SendInput</c> was blocked.</exception>
+    public static void MouseAt(System.Drawing.Point point, uint buttons = 0)
+    {
+        int left = GetSystemMetrics(76), top = GetSystemMetrics(77);
+        int width = Math.Max(2, GetSystemMetrics(78)), height = Math.Max(2, GetSystemMetrics(79));
+        var input = new INPUT
+        {
+            type = 0,
+            mi = new MOUSEINPUT
+            {
+                dx = (int)Math.Round((point.X - left) * 65535.0 / (width - 1)),
+                dy = (int)Math.Round((point.Y - top) * 65535.0 / (height - 1)),
+                dwFlags = 0x0001 | 0x8000 | 0x4000 | buttons,
+            },
+        };
+        if (SendInput(1, [input], Marshal.SizeOf<INPUT>()) != 1)
+            throw new InvalidOperationException($"SendInput blocked at {point.X},{point.Y} (error {Marshal.GetLastWin32Error()})");
+    }
 
     #endregion
 
