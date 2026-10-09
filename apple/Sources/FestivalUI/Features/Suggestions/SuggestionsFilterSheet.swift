@@ -114,7 +114,7 @@ struct SuggestionsFilterSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .accessibilityIdentifier("fst.suggestions.filter.form")
+            .festivalFormIdentifier("fst.suggestions.filter.form")
         }
         .festivalSheet(.large)
         .onChange(of: draft) { _, updated in onChange(updated) }

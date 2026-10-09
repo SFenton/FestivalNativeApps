@@ -39,7 +39,7 @@
 
 Diagnostics (numeric only, never IDs or payloads): `/__fixture__/last-score-query`, `/__fixture__/last-full-score-query` (only `top=25`), `/__fixture__/publication-join-reads`.
 
-Online-only (2026-09-27): the one-shot offline listeners support older journeys; do not add new offline tests. Reuse of a pre-existing 8765 is allowed only if its startup hashes and flags match the frozen inputs; never kill a stale service you did not start.
+Online-only (2026-09-27): the one-shot offline listeners support older journeys; do not add new offline tests. Reuse of a pre-existing 8765 is allowed only if its startup hashes and flags match the frozen inputs; never kill a stale service you did not start. `SongsFilterAccessibilityJourneyTests` reads `TEST_RUNNER_FST_SONGS_FILTER_FIXTURE_PORT=<port>` to use a fresh default listener (`tools/mock_service.py --port <port>`) when 8765 is stale.
 
 ## Bands/Player/Statistics additions (Lane U4)
 

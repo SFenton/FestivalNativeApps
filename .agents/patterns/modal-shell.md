@@ -67,6 +67,7 @@ Chose **B**: the repo's accessibility rule is the strongest applicable requireme
 | Full-window presentation (R12, Apple Paths) | `apple/Sources/FestivalUI/Design/FestivalModal.swift` `festivalModalPresentation`, `PullDownToDismiss`, `MacWindowSizedSheet` | — (sheet) | — (dialog) |
 | Separating-hinge side (R8) | — (Duo layouts: [design/apple/duo.md](../design/apple/duo.md)) | `android/app/src/main/java/com/festivalscoretracker/android/core/nav/HingeSide.kt` `HingeSide` | — (no hinge posture) |
 | Feedback media beside the form (R11) | `apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackPhotoLibraryPlacement.swift` `FeedbackPhotoLibraryPlacement`; panes `apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackFormPanes.swift` `FeedbackFormPanes` (through `HingeRow`); sizing `apple/Sources/FestivalUI/Design/SheetStyle.swift` `FestivalSheetSizing` | — (Apple-only issue) | — (Apple-only issue) |
+| Sheet `Form` identifier (rows keep theirs on the Mac) | `apple/Sources/FestivalUI/Design/SheetStyle.swift` `festivalFormIdentifier` (Songs, Item Shop and Suggestions Filter; #432) | — | — |
 | Covered page holds its motion (R10) | — (backdrop only: #28) | `android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt` `CoversBackdrop`, `coveredByModal` | — (backdrop only: #83) |
 
 ## Known debt

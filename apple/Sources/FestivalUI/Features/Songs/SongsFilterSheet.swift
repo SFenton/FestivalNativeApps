@@ -239,7 +239,7 @@ struct SongsFilterSheet: View {
             }
           }
         }
-        .accessibilityIdentifier("fst.songs.filter.form")
+        .festivalFormIdentifier("fst.songs.filter.form")
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .onChange(of: choiceKey) { _, _ in commit() }
@@ -349,7 +349,7 @@ struct SongsFilterSheet: View {
     } header: {
       if expanded.wrappedValue {
         bulkActions(
-          id: id, enabled: true,
+          id: id, title: title, enabled: true,
           all: { draftGeneral[keyPath: excluded] = [] },
           none: { draftGeneral[keyPath: excluded] = Set(keys) }
         )
@@ -440,7 +440,7 @@ struct SongsFilterSheet: View {
       // (operator batch 7), shown while the accordion is open.
       if expanded.wrappedValue {
         bulkActions(
-          id: kind.rawValue, enabled: canEnableScores,
+          id: kind.rawValue, title: title, enabled: canEnableScores,
           all: { draftPlayerFilter = draftPlayerFilter.settingExcluded(kind, []) },
           none: { draftPlayerFilter = draftPlayerFilter.settingExcluded(kind, Set(keys)) }
         )
@@ -478,22 +478,55 @@ struct SongsFilterSheet: View {
   }
 
   /// The web's `BulkActions` row (Select All / Clear All).
+  ///
+  /// The section header is read before its accordion and every open accordion has the
+  /// same pair, so each button's spoken name adds its group ("Select All, Year"; #432)
+  /// while the visible text stays the web's. Voice Control also answers to the
+  /// visible text.
+  ///
+  /// - Parameters:
+  ///   - id: Accessibility identifier suffix.
+  ///   - title: The accordion's title, spoken after the action.
+  ///   - enabled: Whether the actions can change the filter.
+  ///   - all: Include every option.
+  ///   - none: Exclude every option.
+  /// - Returns: The header's trailing action row.
   private func bulkActions(
-    id: String, enabled: Bool, all: @escaping () -> Void, none: @escaping () -> Void
+    id: String, title: String, enabled: Bool,
+    all: @escaping () -> Void, none: @escaping () -> Void
   ) -> some View {
     HStack(spacing: 16) {
       Spacer()
-      Button("Select All", action: all)
+      Button(action: all) { bulkActionText("Select All") }
         .foregroundStyle(FestivalText.primary)
+        .accessibilityLabel("Select All, \(title)")
+        .accessibilityInputLabels(["Select All \(title)", "Select All"])
         .accessibilityIdentifier("fst.songs.filter.\(id).select-all")
-      Button("Clear All", action: none)
+      Button(action: none) { bulkActionText("Clear All") }
         .foregroundStyle(FestivalSheetActionColor.destructive)
+        .accessibilityLabel("Clear All, \(title)")
+        .accessibilityInputLabels(["Clear All \(title)", "Clear All"])
         .accessibilityIdentifier("fst.songs.filter.\(id).clear-all")
     }
     .font(.subheadline.weight(.semibold))
     .textCase(nil)
     .buttonStyle(.borderless)
     .disabled(!enabled)
+  }
+
+  /// A bulk action's visible text. On iPhone and iPad it fills a 44x44 pt target like the
+  /// section header's View All (HIG Accessibility: 44x44 pt default control size on
+  /// iOS/iPadOS; the bare header text measured 60x18 pt, #432). The Mac keeps the system
+  /// borderless metrics.
+  ///
+  /// - Parameter text: The web's button text.
+  /// - Returns: The button label.
+  private func bulkActionText(_ text: String) -> some View {
+    Text(text)
+    #if os(iOS)
+      .frame(minWidth: 44, minHeight: 44)
+      .contentShape(Rectangle())
+    #endif
   }
 
   /// Apply the current choices immediately. Choices the list cannot use yet (a Shop
