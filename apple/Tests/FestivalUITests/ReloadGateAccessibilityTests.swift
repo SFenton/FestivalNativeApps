@@ -36,6 +36,8 @@ struct ReloadGateA11yText: View {
         case title2
         /// Body (rows and selectors).
         case body
+        /// Subheadline, semibold (the Notifications section titles, issue #462).
+        case subheadline
     }
 
     let text: String
@@ -49,6 +51,7 @@ struct ReloadGateA11yText: View {
     ]
     private static let title2Points: [CGFloat] = [19, 20, 21, 22, 24, 26, 28, 34, 39, 44, 50, 56]
     private static let bodyPoints: [CGFloat] = [14, 15, 16, 17, 19, 21, 23, 28, 33, 40, 47, 53]
+    private static let subheadlinePoints: [CGFloat] = [12, 13, 14, 15, 17, 19, 21, 25, 30, 36, 42, 49]
 
     /// The iOS point size of `style` at `size`.
     ///
@@ -58,12 +61,25 @@ struct ReloadGateA11yText: View {
     /// - Returns: Its point size from the HIG table.
     static func points(_ style: Style, _ size: DynamicTypeSize) -> CGFloat {
         let index = sizes.firstIndex(of: size) ?? 3
-        return (style == .title2 ? title2Points : bodyPoints)[index]
+        switch style {
+        case .title2: return title2Points[index]
+        case .body: return bodyPoints[index]
+        case .subheadline: return subheadlinePoints[index]
+        }
+    }
+
+    /// The weight the app draws `style` in.
+    private static func weight(_ style: Style) -> Font.Weight {
+        switch style {
+        case .title2: .bold
+        case .body: .regular
+        case .subheadline: .semibold
+        }
     }
 
     var body: some View {
         Text(text)
-            .font(.system(size: Self.points(style, dynamicTypeSize), weight: style == .title2 ? .bold : .regular))
+            .font(.system(size: Self.points(style, dynamicTypeSize), weight: Self.weight(style)))
     }
 }
 
