@@ -673,9 +673,11 @@ public class NotificationsTests
             };
         }
 
-        public (FestivalSession Session, NotificationsViewModel Model) Create(bool player = true)
+        public (FestivalSession Session, NotificationsViewModel Model) Create(bool player = true, bool experimentalRanks = true)
         {
-            var settings = player ? new AppSettings { SelectedPlayer = new SelectedPlayer(Account, "Tester") } : null;
+            var settings = player
+                ? new AppSettings { SelectedPlayer = new SelectedPlayer(Account, "Tester"), ExperimentalRanks = experimentalRanks }
+                : null;
             var session = Service.Session(Time, settings);
             return (session, new NotificationsViewModel(session, new NotificationSeenStore(Seen)));
         }
@@ -827,6 +829,57 @@ public class NotificationsTests
         Assert.Equal("x", row.Id);
         Assert.Equal("M.", row.Message);
         Assert.Null(row.Destination);
+    }
+    #endregion
+
+    #region Experimental Ranks
+    [Fact]
+    public void ProjectExperimentalRanks_DropsOrNarrowsExperimentalRankEventsWhileOff()
+    {
+        var weighted = Item("player_weighted_rank_improved", song: null, oldRank: 9, newRank: 4);
+        Assert.Same(weighted, NotificationRouting.ProjectExperimentalRanks(weighted, true));
+        Assert.Null(NotificationRouting.ProjectExperimentalRanks(weighted, false));
+        Assert.Null(NotificationRouting.ProjectExperimentalRanks(Item("player_rank_improved", metric: "composite_rank_fc_rate"), false));
+        var total = Item("player_total_score_rank_improved", song: null);
+        Assert.Same(total, NotificationRouting.ProjectExperimentalRanks(total, false));
+        var score = Item("player_score_pb");
+        Assert.Same(score, NotificationRouting.ProjectExperimentalRanks(score, false));
+
+        var mixed = Item("player_max_score_rank_improved", song: null, oldRank: 30, newRank: 20, payload: new NotificationPayload
+        {
+            CoalescedEvents =
+            [
+                new() { EventKind = "player_max_score_rank_improved", Instrument = "Solo_Guitar", OldRank = 30, NewRank = 20 },
+                new() { EventKind = "player_total_score_rank_improved", Instrument = "Solo_Guitar", OldRank = 12.4, NewRank = 7, NewNumeric = 900 },
+                new() { EventKind = "player_fc_count_improved", Instrument = "Solo_Guitar", NewNumeric = 3 },
+            ],
+        });
+        Assert.Equal(new NotificationDestination.Rankings("maxscore"), NotificationRouting.Destination(mixed));
+        var narrowed = NotificationRouting.ProjectExperimentalRanks(mixed, false)!;
+        Assert.Equal("player_total_score_rank_improved", narrowed.EventKind);
+        Assert.Equal((12, 7, 900d), (narrowed.OldRank, narrowed.NewRank, narrowed.NewNumeric));
+        Assert.Equal(["player_total_score_rank_improved", "player_fc_count_improved"], narrowed.Payload!.CoalescedEvents!.Select(e => e.EventKind));
+        Assert.Equal(new NotificationDestination.Rankings("totalscore"), NotificationRouting.Destination(narrowed));
+        Assert.DoesNotContain("Max Score", NotificationText.Format(narrowed, null).Title);
+    }
+
+    [Fact]
+    public async Task ViewModel_ExperimentalRankRowsFollowTheToggle()
+    {
+        var h = new Harness();
+        var (session, vm) = h.Create(experimentalRanks: false);
+        await vm.RefreshAsync();
+        // g2 is a weighted rank row: hidden while Experimental Ranks is off (web projectExperimentalRankNotification).
+        Assert.Equal(["g1", "g3"], vm.NewItems.Select(r => r.Id));
+        Assert.Equal(2, vm.UnreadCount);
+        var requests = h.Requests;
+
+        session.UpdateSettings(s => s with { ExperimentalRanks = true });
+        Assert.Equal(["g1", "g2", "g3"], vm.NewItems.Select(r => r.Id));
+        Assert.Equal(new NotificationDestination.Rankings("weighted"), vm.NewItems[1].Destination);
+        session.UpdateSettings(s => s with { ExperimentalRanks = false });
+        Assert.Equal(["g1", "g3"], vm.NewItems.Select(r => r.Id));
+        Assert.Equal(requests, h.Requests);
     }
     #endregion
 }

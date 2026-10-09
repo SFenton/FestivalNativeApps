@@ -324,6 +324,7 @@
   {
     "name": "leaderboards-rank-by-menu",
     "route": "/leaderboards",
+    "settings": {"experimentalRanks": true},
     "sizes": [
       "compact",
       "medium"
@@ -805,6 +806,7 @@
   {
     "name": "rank-by-menu",
     "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "settings": {"experimentalRanks": true},
     "sizes": [
       "medium"
     ],
