@@ -1,58 +1,71 @@
-"""Checks the iPhone simulator journeys ``apple-ci`` runs (``JOURNEYS`` in ``.github/workflows/apple-ci.yml``).
+"""``apple-ci``'s iPhone simulator journeys: every ``JOURNEYS`` selector names a real XCUITest method.
 
-A misspelt selector would make ``ios_sim.py uitest --fail-on-skip`` fail only on the runner, and a dropped one would
-silently stop gating pull requests; see ``.agents/testing/apple/xcuitest.md#ci-journeys``.
+A selector that matches nothing makes ``xcodebuild`` run no test, so a renamed journey would silently leave CI.
+The account-button reading-order journeys (``page-tools-and-nav-chrome`` R17, #394) and the Songs section-title AX5
+journey (#91, #441) must stay listed.
 """
-
-from __future__ import annotations
 
 import re
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-UI_TESTS = ROOT / "apple" / "Apps" / "iOSUITests"
 WORKFLOW = ROOT / ".github" / "workflows" / "apple-ci.yml"
+UITESTS = ROOT / "apple" / "Apps" / "iOSUITests"
 
 
-def ci_journeys(workflow: str) -> list[str]:
-    """Selectors in the workflow's ``JOURNEYS: >-`` block.
+def ci_journeys(text: str) -> list[str]:
+    """Read the ``JOURNEYS: >-`` folded block from ``apple-ci.yml``.
 
     Args:
-        workflow: ``apple-ci.yml`` text.
+        text: The workflow source.
 
     Returns:
-        ``Class/testMethod`` selectors in order.
+        The selectors, in order.
     """
-    block = re.search(r"JOURNEYS: >-\n((?:[ ]{12}\S+\n)+)", workflow)
-    return block.group(1).split() if block else []
+    lines = text.splitlines()
+    start = next(i for i, line in enumerate(lines) if line.strip() == "JOURNEYS: >-")
+    indent = len(lines[start]) - len(lines[start].lstrip())
+    selectors = []
+    for line in lines[start + 1:]:
+        if not line.strip() or len(line) - len(line.lstrip()) <= indent:
+            break
+        selectors.extend(line.split())
+    return selectors
 
 
-class AppleCiJourneysTests(unittest.TestCase):
-    """``apple-ci``'s journey list names real journeys and keeps the accessibility evidence it promises."""
-
+class AppleCIJourneysTests(unittest.TestCase):
     def setUp(self) -> None:
         self.journeys = ci_journeys(WORKFLOW.read_text(encoding="utf-8"))
-        self.sources = {path.stem: path.read_text(encoding="utf-8") for path in UI_TESTS.glob("*.swift")}
 
-    def test_every_journey_names_a_test_method(self) -> None:
-        self.assertTrue(self.journeys, "apple-ci.yml has no JOURNEYS block")
+    def test_reads_the_folded_block(self) -> None:
+        sample = "      env:\n        JOURNEYS: >-\n          A/a\n          B/b\n      run: x\n"
+        self.assertEqual(ci_journeys(sample), ["A/a", "B/b"])
+
+    def test_every_selector_names_an_existing_test_method(self) -> None:
+        self.assertTrue(self.journeys)
+        self.assertEqual(len(self.journeys), len(set(self.journeys)), "duplicate journeys")
         for selector in self.journeys:
-            with self.subTest(selector=selector):
-                cls, _, method = selector.partition("/")
-                self.assertTrue(method.startswith("test"), selector)
-                source = next((text for text in self.sources.values()
-                               if re.search(rf"\bclass {re.escape(cls)}\b", text)), None)
-                self.assertIsNotNone(source, f"no XCTestCase {cls} in apple/Apps/iOSUITests")
-                self.assertRegex(source, rf"func {re.escape(method)}\(\)")
+            cls, _, method = selector.partition("/")
+            source = UITESTS / f"{cls}.swift"
+            self.assertTrue(source.exists(), f"{selector}: {cls}.swift not in apple/Apps/iOSUITests")
+            text = source.read_text(encoding="utf-8")
+            self.assertRegex(text, rf"\bclass {re.escape(cls)}\b", selector)
+            if method:
+                self.assertRegex(text, rf"\bfunc {re.escape(method)}\(\)", selector)
 
-    def test_section_title_ax5_journey_gates_pull_requests(self) -> None:
+    def test_account_button_reading_order_journeys_run_in_ci(self) -> None:
+        for method in (
+            "testAccountButtonsReadInProductionChromeOrder",
+            "testAccountButtonsReadInProductionChromeOrderOnPushedPage",
+            "testChooseProfileReadsAloneInProductionChrome",
+            "testAccountButtonsStaySeparateAndLabelledAtLargestTextSize",
+        ):
+            self.assertIn(f"NavButtonHitRegionJourneyTests/{method}", self.journeys)
+
+    def test_section_title_ax5_journey_runs_in_ci(self) -> None:
         # #91/#441: the only iOS Dynamic Type and audit evidence for Songs' grouped-sort section titles.
         self.assertIn("SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5", self.journeys)
-
-    def test_parser_reads_only_the_folded_block(self) -> None:
-        text = "        env:\n          JOURNEYS: >-\n            A/testOne\n            B/testTwo\n        run: |\n"
-        self.assertEqual(ci_journeys(text), ["A/testOne", "B/testTwo"])
 
 
 if __name__ == "__main__":

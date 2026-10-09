@@ -1961,8 +1961,8 @@ final class SongsJourneyTests: XCTestCase {
         let leaving = app.descendants(matching: .any)
             .matching(identifier: "fst.songs.shop-section.leaving-tomorrow").firstMatch
         let orbit = app.buttons["fst.songs.row.fixture-orbit"]
-        XCTAssertTrue(leaving.waitForExistence(timeout: 15))
-        XCTAssertTrue(orbit.waitForExistence(timeout: 10))
+        XCTAssertTrue(leaving.waitForExistence(timeout: FestivalApp.budget(15)))
+        XCTAssertTrue(orbit.waitForExistence(timeout: FestivalApp.budget(10)))
         XCTAssertEqual(leaving.label, "Leaving Tomorrow")
         XCTAssertNotEqual(leaving.elementType, .button, "A section title is a heading, not a control")
         let line = UIFont.preferredFont(
