@@ -1988,23 +1988,25 @@ def _run_uitest_batch(
 #: Device type `ci-device` creates: the iPhone the local ``iphone`` alias names.
 CI_DEVICE_TYPE = "iPhone 17 Pro"
 
-#: Prefix of the throwaway simulators `ci-device` creates (one per device type, reused on a second call).
-CI_DEVICE_PREFIX = "FST CI"
+#: Name of the throwaway simulator `ci-device` creates (and reuses on a second call).
+CI_DEVICE_NAME = "FST CI iPhone"
+
+#: Device type `apple-ci`'s iPad journeys run on: the iPad the local ``ipad`` alias names.
+CI_IPAD_DEVICE_TYPE = "iPad Pro 11-inch (M5)"
 
 
 def ci_device_name(device_type: str = CI_DEVICE_TYPE) -> str:
     """Name the throwaway simulator ``ci-device`` creates for ``device_type``.
 
-    Each device type gets its own name, so a later ``--type`` (the iPad or iPhone Duo
-    journeys) never reuses the iPhone created earlier in the same job.
+    Each device type gets its own name, so asking for the iPad never reuses the iPhone.
 
     Args:
         device_type: Device type name, e.g. ``"iPad Pro 11-inch (M5)"``.
 
     Returns:
-        ``"FST CI <device type>"``.
+        ``CI_DEVICE_NAME`` for the default iPhone, else ``"FST CI <device type>"``.
     """
-    return f"{CI_DEVICE_PREFIX} {device_type}"
+    return CI_DEVICE_NAME if device_type == CI_DEVICE_TYPE else f"FST CI {device_type}"
 
 
 def _version_key(version: str) -> tuple[int, ...]:
@@ -2041,18 +2043,17 @@ def pick_ci_runtime(runtimes: list[dict], device_type: str = CI_DEVICE_TYPE) -> 
     return best[1], best[2]
 
 
-def existing_ci_device(devices: dict, runtime: str, name: str | None = None) -> str | None:
+def existing_ci_device(devices: dict, runtime: str, name: str = CI_DEVICE_NAME) -> str | None:
     """Find a simulator ``ci-device`` already created on this runner.
 
     Args:
         devices: ``xcrun simctl list devices -j``'s ``devices`` map (runtime → devices).
         runtime: Runtime identifier the device must run.
-        name: Device name to match (default: the iPhone's, ``ci_device_name()``).
+        name: Device name to match.
 
     Returns:
         Its UDID, or ``None``.
     """
-    name = name or ci_device_name()
     for device in devices.get(runtime, []):
         if device.get("name") == name and device.get("isAvailable", True):
             return device.get("udid")
@@ -2060,12 +2061,12 @@ def existing_ci_device(devices: dict, runtime: str, name: str | None = None) -> 
 
 
 def cmd_ci_device(args: argparse.Namespace) -> int:
-    """Create (or reuse) the CI runner's simulator of one device type and print its UDID.
+    """Create (or reuse) the CI runner's iPhone or iPad simulator and print its UDID.
 
     ``apple-ci`` runs its simulator journeys on a fresh GitHub-hosted runner with no
-    ``DEVICES``; this makes one ``--type`` device (default ``iPhone 17 Pro``; also the
-    iPad and the iPhone Duo, which boots folded) on the newest iOS runtime that supports
-    it, for ``uitest --device <UDID>``. It refuses to run outside GitHub Actions: on a shared
+    ``DEVICES``; this makes one ``iPhone 17 Pro`` (or ``--type``, e.g. the iPad journeys'
+    ``CI_IPAD_DEVICE_TYPE``) on the newest available iOS runtime, named per type by
+    ``ci_device_name``, for ``uitest --device <UDID>``. It refuses to run outside GitHub Actions: on a shared
     Mac, simulators are the operator's and are never created or changed by a lane.
 
     Args:
@@ -2296,9 +2297,10 @@ def main(argv: list[str] | None = None) -> int:
     uitest.set_defaults(func=cmd_uitest)
 
     ci_device = sub.add_parser(
-        "ci-device", help="CI runner only: create (or reuse) a simulator of --type and print its UDID"
+        "ci-device", help="CI runner only: create (or reuse) an iPhone or iPad simulator and print its UDID"
     )
-    ci_device.add_argument("--type", default=CI_DEVICE_TYPE, help=f"device type name (default {CI_DEVICE_TYPE})")
+    ci_device.add_argument("--type", default=CI_DEVICE_TYPE,
+                           help=f"device type name (default {CI_DEVICE_TYPE}; apple-ci's iPad: {CI_IPAD_DEVICE_TYPE})")
     ci_device.set_defaults(func=cmd_ci_device)
 
     pose = sub.add_parser("pose", help="print, set (Device Hub UI scripting) or calibrate the iPhone Duo pose")

@@ -50,6 +50,9 @@ public sealed class QuickLinksBinder
     /// <summary>Re-aims left for <see cref="landing"/>.</summary>
     private int corrections;
 
+    /// <summary>Counts jumps, so a pending focus move from an earlier jump is dropped.</summary>
+    private int jumpSerial;
+
     /// <summary>Repeaters whose realization changes mark <see cref="anchors"/> stale.</summary>
     private readonly HashSet<ItemsRepeater> watched = [];
 
@@ -156,6 +159,7 @@ public sealed class QuickLinksBinder
     /// <param name="id">Section.</param>
     private void Jump(string id)
     {
+        jumpSerial++;
         if (anchors.Count == 0 || stale) Collect();
         landing = null;
         landingId = id;
@@ -263,13 +267,42 @@ public sealed class QuickLinksBinder
     private void Land(FrameworkElement target, string id)
     {
         var title = model.Items.FirstOrDefault(i => i.Section.Id == id)?.Section.AccessibleTitle;
+        var serial = jumpSerial;
         target.DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
         {
-            // A focusable anchor (a Settings list/detail chevron row, #371) takes focus itself.
-            var first = target is Control { IsTabStop: true, IsEnabled: true } control ? (DependencyObject)control : FocusManager.FindFirstFocusableElement(target);
-            if (first is UIElement focusable) focusable.Focus(FocusState.Programmatic);
+            if (!FocusFirst(target, serial)) FocusWhenRealized(target, serial);
             if (title is { Length: > 0 }) ScreenReader.Announce(target, new Announcement($"{title} section", AnnouncementKind.Completed));
         });
+    }
+
+    /// <summary>Moves keyboard focus to a landed section's first focusable element.</summary>
+    /// <param name="target">Section element.</param>
+    /// <param name="serial">Jump the focus belongs to (a later jump cancels it).</param>
+    /// <returns><see langword="true"/> when done (focused, or superseded by a later jump or unload).</returns>
+    private bool FocusFirst(FrameworkElement target, int serial)
+    {
+        if (serial != jumpSerial || !target.IsLoaded) return true;
+        // A focusable anchor (a Settings list/detail chevron row, #371) takes focus itself.
+        var first = target is Control { IsTabStop: true, IsEnabled: true } control ? (DependencyObject)control : FocusManager.FindFirstFocusableElement(target);
+        return first is UIElement focusable && focusable.Focus(FocusState.Programmatic);
+    }
+
+    /// <summary>
+    /// Retries <see cref="FocusFirst"/> after layout passes when the section's controls are not realized yet: a
+    /// virtualizing <c>ItemsRepeater</c> (Settings' Show Instruments toggles) far below the viewport realizes them only
+    /// once the jump has scrolled there, and until then focus would stay on the menu button the jump scrolled away.
+    /// </summary>
+    /// <param name="target">Section element.</param>
+    /// <param name="serial">Jump the focus belongs to.</param>
+    private void FocusWhenRealized(FrameworkElement target, int serial)
+    {
+        var left = QuickLinks.MaxFocusRetries;
+        EventHandler<object>? retry = null;
+        retry = (_, _) =>
+        {
+            if (--left < 0 || FocusFirst(target, serial)) target.LayoutUpdated -= retry;
+        };
+        target.LayoutUpdated += retry;
     }
 
     /// <summary>Finds anchors in the content tree.</summary>

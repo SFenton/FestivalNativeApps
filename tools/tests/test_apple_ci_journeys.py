@@ -1,14 +1,16 @@
 """``apple-ci``'s simulator journeys: every selector names a real XCUITest method its leg compiles.
 
 A selector that matches nothing makes ``xcodebuild`` run no test, so a renamed journey would silently leave CI.
-The account-button reading-order journeys (``page-tools-and-nav-chrome`` R17, #394) must stay listed, and the
-Songs Filter journeys (#432) must run on the iPhone, the iPad and the folded iPhone Duo, gated by the required
-``apple-ci`` job.
+The account-button reading-order journeys (``page-tools-and-nav-chrome`` R17, #394), the Songs section-title AX5
+journey (#91, #441) and the What's New AX5 journeys (#434: iPhone portrait, iPad portrait and landscape) must
+stay listed, and the Songs Filter journeys (#432) must run on the iPhone, the iPad and the folded iPhone Duo,
+gated by the required ``apple-ci`` job.
 """
 
 from __future__ import annotations
 
 import re
+import sys
 import unittest
 from pathlib import Path
 
@@ -49,8 +51,20 @@ def folded_blocks(text: str, key: str) -> list[list[str]]:
     return blocks
 
 
+def ci_journey_blocks(text: str) -> list[list[str]]:
+    """Read every ``JOURNEYS: >-`` folded block from ``apple-ci.yml`` (the build job's iPhone and iPad steps).
+
+    Args:
+        text: The workflow source.
+
+    Returns:
+        Each block's selectors, in step order.
+    """
+    return folded_blocks(text, "JOURNEYS")
+
+
 def ci_journeys(text: str) -> list[str]:
-    """Read the build job's ``JOURNEYS: >-`` folded block from ``apple-ci.yml``.
+    """Read the build job's first (iPhone) ``JOURNEYS: >-`` folded block from ``apple-ci.yml``.
 
     Args:
         text: The workflow source.
@@ -109,6 +123,7 @@ class AppleCIJourneysTests(unittest.TestCase):
     def setUp(self) -> None:
         self.text = WORKFLOW.read_text(encoding="utf-8")
         self.journeys = ci_journeys(self.text)
+        self.blocks = ci_journey_blocks(self.text)
         self.legs = matrix_legs(self.text)
 
     def assert_selectors_exist(self, selectors: list[str], roots: list[Path]) -> None:
@@ -126,6 +141,7 @@ class AppleCIJourneysTests(unittest.TestCase):
     def test_reads_the_folded_block(self) -> None:
         sample = "      env:\n        JOURNEYS: >-\n          A/a\n          B/b\n      run: x\n"
         self.assertEqual(ci_journeys(sample), ["A/a", "B/b"])
+        self.assertEqual(ci_journey_blocks(sample + sample.replace("A/a", "C/c")), [["A/a", "B/b"], ["C/c", "B/b"]])
 
     def test_reads_matrix_legs(self) -> None:
         sample = (
@@ -135,7 +151,9 @@ class AppleCIJourneysTests(unittest.TestCase):
         self.assertEqual(matrix_legs(sample), {"one": ["A/a"], "two": ["B/b", "C/c"]})
 
     def test_every_selector_names_an_existing_test_method(self) -> None:
-        self.assert_selectors_exist(self.journeys, [UITESTS])
+        self.assertEqual(len(self.blocks), 2, "one JOURNEYS block per build-job simulator step (iPhone, iPad)")
+        for block in self.blocks:
+            self.assert_selectors_exist(block, [UITESTS])
 
     def test_every_leg_selector_names_a_test_its_target_compiles(self) -> None:
         for leg, selectors in self.legs.items():
@@ -175,6 +193,26 @@ class AppleCIJourneysTests(unittest.TestCase):
             "testAccountButtonsStaySeparateAndLabelledAtLargestTextSize",
         ):
             self.assertIn(f"NavButtonHitRegionJourneyTests/{method}", self.journeys)
+
+    def test_whats_new_ax5_journeys_run_on_iphone_and_ipad(self) -> None:
+        iphone, ipad = self.blocks
+        journey = "WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5"
+        # iPhone is portrait-only, so its landscape journey skips and would fail --fail-on-skip.
+        self.assertIn(f"{journey}Portrait", iphone)
+        self.assertNotIn(f"{journey}Landscape", iphone)
+        self.assertIn(f"{journey}Portrait", ipad)
+        self.assertIn(f"{journey}Landscape", ipad)
+
+    def test_ipad_step_uses_the_ipad_device_type(self) -> None:
+        sys.path.insert(0, str(ROOT / "tools"))
+        import ios_sim
+
+        self.assertIn(f'ci-device --type "{ios_sim.CI_IPAD_DEVICE_TYPE}"', self.text)
+        self.assertRegex(self.text, rf"leg: ipad\n\s+device_type: {re.escape(ios_sim.CI_IPAD_DEVICE_TYPE)}\n")
+
+    def test_section_title_ax5_journey_runs_in_ci(self) -> None:
+        # #91/#441: the only iOS Dynamic Type and audit evidence for Songs' grouped-sort section titles.
+        self.assertIn("SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5", self.journeys)
 
 
 if __name__ == "__main__":
