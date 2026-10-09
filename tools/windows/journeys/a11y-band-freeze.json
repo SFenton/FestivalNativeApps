@@ -1,0 +1,51 @@
+[
+  {
+    "name": "band-freeze-revisit",
+    "route": "/bands/fixture-band-1?bandType=Band_Duets&teamKey=fixture-team-1",
+    "fixture": ["band_freeze_fixture.py"],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.band.title@20",
+      "scrollinto:id=fst.band.song-row.fixture-ghost-song@15",
+      "scrollinto:id=fst.band.song-row.fixture-pulse@5",
+      "invoke:id=fst.band.song-row.fixture-pulse",
+      "waitfor:id=fst.song-detail.title@15",
+      "key:alt+left",
+      "scrollinto:id=fst.band.song-row.fixture-ghost-song@15",
+      "scrollinto:id=fst.band.history-row.2024-01-03@10",
+      "scrollinto:id=fst.band.song-row.fixture-ghost-song@10",
+      "scrollinto:id=fst.band.song-row.fixture-pulse@5"
+    ],
+    "after_ready": [
+      "waitgone:id=fst.band.error@2",
+      "waitgone:id=fst.service-status.inline@2",
+      "waitgone:name=Scores are updating@1",
+      "waitgone:id=fst.band.best-empty@1",
+      "waitgone:id=fst.band.worst-empty@1",
+      "assertread:id=fst.band.song-row.fixture-pulse|~^Fixture Pulse, Top 10%, rank #1 of 10, button$",
+      "assertsize:id=fst.band.song-row.fixture-pulse|0x40",
+      "assertname:id=fst.band.song-row.fixture-ghost-song|*, rank #8 of 10",
+      "assertorder:id=fst.band.history-row.2024-01-03|name=Five Best Songs|id=fst.band.song-row.fixture-pulse|name=Five Worst Songs|id=fst.band.song-row.fixture-ghost-song",
+      "focus:id=fst.band.song-row.fixture-pulse",
+      "assertfocus:id=fst.band.song-row.fixture-pulse"
+    ]
+  },
+  {
+    "name": "band-freeze-cold-songs",
+    "route": "/bands/fixture-band-2?bandType=Band_Duets&teamKey=fixture-team-2",
+    "fixture": ["band_freeze_fixture.py"],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.band.title@20",
+      "scrollinto:id=fst.service-status.inline.retry@15"
+    ],
+    "after_ready": [
+      "assertstate:id=fst.service-status.inline.title|name=Scores are updating",
+      "assertstate:id=fst.service-status.inline.retry|name=Retry Now",
+      "assertsize:id=fst.service-status.inline.retry|0x40",
+      "waitgone:id=fst.band.best-empty@1",
+      "waitgone:id=fst.band.worst-empty@1",
+      "assertorder:name=Five Best Songs|id=fst.service-status.inline.title|id=fst.service-status.inline.retry"
+    ]
+  }
+]

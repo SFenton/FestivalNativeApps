@@ -170,6 +170,11 @@ RUNS: tuple[Run, ...] = (
     # deep-linked experimental metric leaves no Rank By on Leaderboards, Full Rankings or Band Rankings.
     Run("experimental-ranks", "a11y-experimental-ranks.json", tabs=0),
     Run("experimental-ranks-text-225", "a11y-experimental-ranks.json", sizes="compact", mode="text-225", tabs=0),
+    # Band Detail during a scrape freeze (issue #554, empty-error-states R9): after a verified read, the revisit's
+    # stamped 503s keep history, Best and Worst rows with no inline status (history -> Five Best -> row -> Five Worst
+    # -> row order, Narrator row names, 40 epx target); a cold frozen /songs shows "Scores are updating" + Retry Now.
+    Run("band-freeze", "a11y-band-freeze.json", tabs=0),
+    Run("band-freeze-text-225", "a11y-band-freeze.json", sizes="compact", mode="text-225", tabs=0),
 )
 
 
