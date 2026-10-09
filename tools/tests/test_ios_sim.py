@@ -524,6 +524,22 @@ class A11yCommandsTests(unittest.TestCase):
         self.assertIn("EnhancedTextLegibilityEnabled", enable[0])
         self.assertEqual(restore[0][4:7], ["defaults", "delete", "com.apple.Accessibility"])
 
+    def test_full_keyboard_access_notifies_after_enabling_and_restoring(self):
+        enable, restore = a11y_commands("UDID", ["full-keyboard-access"])
+        self.assertIn("FullKeyboardAccessUsesSimulatedKeyboardForAutomation", enable[0])
+        self.assertIn("FullKeyboardAccessEnabled", enable[1])
+        self.assertEqual(enable[2][4:], ["notifyutil", "-p", "com.apple.accessibility.fullkeyboardaccess.status"])
+        self.assertEqual([cmd[4:6] for cmd in restore[:2]], [["defaults", "delete"]] * 2)
+        self.assertIn("FullKeyboardAccessEnabled", restore[0])
+        self.assertIn("FullKeyboardAccessUsesSimulatedKeyboardForAutomation", restore[1])
+        self.assertEqual(restore[2], enable[2])
+
+    def test_settings_restore_independently(self):
+        enable, restore = a11y_commands("UDID", ["bold-text", "full-keyboard-access"])
+        self.assertEqual(len(enable), 4)
+        self.assertIn("notifyutil", restore[2])
+        self.assertIn("EnhancedTextLegibilityEnabled", restore[3])
+
     def test_unknown_setting_is_rejected(self):
         with self.assertRaises(ValueError):
             a11y_commands("UDID", ["grayscale"])

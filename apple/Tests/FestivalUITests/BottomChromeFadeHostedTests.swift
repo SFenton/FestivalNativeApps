@@ -537,9 +537,12 @@ private final class BoardKeyPushRecorder {
 /// pager, never under it (WCAG 2.4.11 Focus Not Obscured, the Windows #409 rule); End
 /// reaches the last row of the page above the pager, and Return opens it. The pager keeps
 /// its page-1 button states and stays below the fade throughout. Tab from the board to
-/// the pager's buttons is Full Keyboard Access, a system setting a test must not turn on
-/// (macos.md open gaps): the arrows' button role and enabled state, asserted here, are
-/// what it reaches.
+/// the pager's buttons is Full Keyboard Access ("Keyboard navigation"), a global system
+/// setting a test must not turn on (macos.md open gaps). Forcing it in-process does not
+/// help: with `isFullKeyboardAccessEnabled` and `AppleKeyboardUIMode` reading on, a hosted
+/// window's key-view loop (`selectNextKeyView`) reaches a text field but never a SwiftUI
+/// button (issue #473 probes), so that walk is an operator check. The arrows' button role
+/// and enabled state, asserted here, are what it reaches.
 @MainActor
 @Test func bandBoardKeyboardHighlightStaysAbovePager() async throws {
     let board = BottomChromeBandBoard.bandRankings

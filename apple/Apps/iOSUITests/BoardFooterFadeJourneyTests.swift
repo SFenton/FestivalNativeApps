@@ -17,8 +17,6 @@ import XCTest
 final class BoardFooterFadeJourneyTests: XCTestCase {
     /// Identifier prefix of Player Bands' rows.
     private static let rowPrefix = "fst.player-bands.row."
-    /// Identifier prefix of the pager's controls.
-    private static let pagerPrefix = "fst.player-bands.page-"
     /// The pager's arrows, in reading order around the page badge, with the word each
     /// name carries and whether it moves toward the first page.
     private static let pagerArrows = [
@@ -59,14 +57,27 @@ final class BoardFooterFadeJourneyTests: XCTestCase {
         try assertBoardFooterFade(.portrait, duoWindow: "folded")
     }
 
+    /// iPad with a hardware keyboard (CI: `--a11y full-keyboard-access`): the focus
+    /// system's stops are on screen and never on a row under the pager.
+    @MainActor
+    func testBoardKeyboardFocusClearsFooter() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .pad, "The hardware-keyboard journey runs on iPad")
+        continueAfterFailure = false
+        let (app, window) = try launchBoard(duoWindow: nil)
+        let rows = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", Self.rowPrefix))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: FestivalApp.budget(10)), "No band rows")
+        let pagerTop = assertPager(page: 1, in: app, window: window)
+        assertKeyboardFocusClearsFooter(rows, pagerTop: pagerTop, in: app, window: window)
+    }
+
     // MARK: - Assertions
 
     /// At AX5 the board's rows grow and the 40 pt fade above the pager stays drawing
     /// only: rows in it are still enabled, named buttons and reachable; the pager's
     /// arrows keep their names, enabled states, reading order and 44 pt targets on
     /// screen; at the end of the page the last row rests whole above the pager; the
-    /// pager pages and its states follow. On iPad, hardware-keyboard focus never lands
-    /// on a row under the footer. The system audit (Dynamic Type, clipped text,
+    /// pager pages and its states follow. The system audit (Dynamic Type, clipped text,
     /// descriptions, hit regions) covers the board's rows and pager.
     ///
     /// - Parameters:
@@ -78,27 +89,8 @@ final class BoardFooterFadeJourneyTests: XCTestCase {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = orientation
         defer { XCUIDevice.shared.orientation = .portrait }
-        let base = ProcessInfo.processInfo.environment["FST_BOARD_FADE_FIXTURE_URL"] ?? "http://127.0.0.1:8765"
-        var environment = [
-            "FST_API_BASE_URL": base,
-            "FST_UI_TEST_CLEAR_PROFILE": "1",
-            "FST_DEBUG_ROUTE": "playerBands:fixture-player-1",
-        ]
-        if let duoWindow {
-            environment["FST_DEBUG_DUO_WINDOW_REMOTE"] = "1"
-            environment["FST_DEBUG_DUO_WINDOW"] = duoWindow
-        }
-        let app = FestivalApp.makeApp(environment)
-        let ax5 = UIContentSizeCategory.accessibilityExtraExtraExtraLarge
-        app.launchArguments += ["-UIPreferredContentSizeCategoryName", ax5.rawValue]
-        app.launch()
-
+        let (app, window) = try launchBoard(duoWindow: duoWindow)
         let pageInfo = app.descendants(matching: .any)[Self.pageInfo]
-        guard pageInfo.waitForExistence(timeout: FestivalApp.budget(20)) else {
-            throw XCTSkip("Player Bands never loaded; run tools/mock_service.py on \(base).")
-        }
-        if let duoWindow { waitForDuoWindow(duoWindow, in: app) }
-        let window = app.windows.firstMatch.frame
         let rows = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier BEGINSWITH %@", Self.rowPrefix))
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: FestivalApp.budget(10)), "No band rows")
@@ -109,7 +101,7 @@ final class BoardFooterFadeJourneyTests: XCTestCase {
 
         // Rows grew to AX5: at least one body line per card.
         let bodyLine = UIFont.preferredFont(
-            forTextStyle: .body, compatibleWith: UITraitCollection(preferredContentSizeCategory: ax5)
+            forTextStyle: .body, compatibleWith: UITraitCollection(preferredContentSizeCategory: .accessibilityExtraExtraExtraLarge)
         ).lineHeight
         XCTAssertGreaterThanOrEqual(rows.firstMatch.frame.height, bodyLine, "Row not at AX5: \(rows.firstMatch.frame)")
 
@@ -136,10 +128,6 @@ final class BoardFooterFadeJourneyTests: XCTestCase {
             }
         }
         XCTAssertTrue(crossed, "No row crossed the 40 pt fade above the pager")
-
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            assertKeyboardFocusClearsFooter(rows, pagerTop: pagerTop, in: app)
-        }
 
         // The system audit at AX5, for the board's rows and pager only (the shell has its own).
         try app.performAccessibilityAudit(
@@ -279,46 +267,87 @@ final class BoardFooterFadeJourneyTests: XCTestCase {
         XCTAssertTrue((next.isEnabled ? next : previous).isHittable, "Pager lost at the end of the page")
     }
 
-    /// iPad hardware keyboard: Tab (between focus groups) and ↓ (within one) never put
-    /// focus on a row under the footer; a focused pager arrow activates with Space.
+    /// iPad hardware-keyboard focus (CI: `ios_sim.py uitest --a11y full-keyboard-access`):
+    /// Tab and ↓ move the UIKit focus system's stops, and every stop is on screen and
+    /// never on a row under the pager (WCAG 2.4.11 Focus Not Obscured, scroll-edge R10).
+    /// A run with no focus stop fails rather than passing on nothing.
     ///
-    /// Without Full Keyboard Access, iPadOS focuses only text fields, text views,
-    /// sidebars and collections (HIG keyboards.md), so the board's buttons take no
-    /// focus and nothing is asserted beyond that; FKA is a system setting XCUITest
-    /// cannot turn on (`.agents/design/apple/ipados.md`, keyboard-only). Any focus the
-    /// keys do give must sit clear of the pager and its fade, or on the pager itself.
+    /// Full Keyboard Access traversal itself (rows → pager arrow → Space) cannot be
+    /// driven here: the simulator's FKA agent starts only through a private setter, and
+    /// XCUITest's synthesized keys never reach its event tap, so its focus ring stays on
+    /// its first stop (design/apple/ipados.md#keyboard-only-and-full-keyboard-access).
+    /// That walk is an operator check; this journey guards the focus system's stops.
     ///
     /// - Parameters:
     ///   - rows: The rows.
     ///   - pagerTop: Top of the pager's controls.
     ///   - app: The running app.
+    ///   - window: The app window's frame.
     @MainActor
-    private func assertKeyboardFocusClearsFooter(_ rows: XCUIElementQuery, pagerTop: CGFloat, in app: XCUIApplication) {
+    private func assertKeyboardFocusClearsFooter(
+        _ rows: XCUIElementQuery, pagerTop: CGFloat, in app: XCUIApplication, window: CGRect
+    ) {
         let focused = app.descendants(matching: .any).matching(NSPredicate(format: "hasFocus == true"))
-        let keys = Array(repeating: XCUIKeyboardKey.tab, count: 6) + Array(repeating: XCUIKeyboardKey.downArrow, count: 4)
         var stops: [String] = []
-        for key in keys {
+        /// Record the focused element, checked: a focused row must sit on screen and
+        /// wholly above the pager.
+        func record() {
+            guard let element = focused.allElementsBoundByIndex.last else { return stops.append("-") }
+            let identifier = element.identifier
+            stops.append(identifier.isEmpty ? element.label : identifier)
+            guard identifier.hasPrefix(Self.rowPrefix) else { return }
+            let frame = element.frame
+            XCTAssertLessThanOrEqual(frame.maxY, pagerTop + 0.5, "Focus on \(identifier) under the pager: \(frame)")
+            XCTAssertTrue(window.contains(frame.insetBy(dx: 0.5, dy: 0.5)), "Focus on \(identifier) off screen: \(frame)")
+        }
+        defer {
+            XCTContext.runActivity(named: "Keyboard focus stops: \(stops.joined(separator: ", "))") { _ in }
+        }
+
+        record()
+        for key in Array(repeating: XCUIKeyboardKey.tab, count: 6) + Array(repeating: .downArrow, count: 6) {
             app.typeKey(key.rawValue, modifierFlags: [])
-            for element in focused.allElementsBoundByIndex {
-                let identifier = element.identifier
-                stops.append(identifier)
-                if identifier.hasPrefix(Self.pagerPrefix) { continue }
-                if identifier.hasPrefix(Self.rowPrefix) {
-                    XCTAssertLessThanOrEqual(element.frame.maxY, pagerTop + 0.5,
-                                             "Keyboard focus on \(identifier) under the pager: \(element.frame)")
-                }
-            }
+            record()
         }
-        if let arrow = focused.allElementsBoundByIndex.first(where: { $0.identifier == "fst.player-bands.page-next" }) {
-            app.typeKey(" ", modifierFlags: [])
-            XCTAssertTrue(waitForPage(2, in: app), "Space on a focused \(arrow.identifier) did not page")
-            app.buttons["fst.player-bands.page-first"].tap()
-            XCTAssertTrue(waitForPage(1, in: app))
-        }
-        XCTContext.runActivity(named: "Keyboard focus stops: \(stops.isEmpty ? "none (no Full Keyboard Access)" : stops.joined(separator: ", "))") { _ in }
+        XCTAssertTrue(
+            stops.contains { $0 != "-" },
+            "No hardware-keyboard focus stop (stops: \(stops)); run with --a11y full-keyboard-access"
+        )
+        XCTAssertLessThanOrEqual(rows.allElementsBoundByIndex.filter(\.hasFocus).count, 1, "More than one row focused")
     }
 
     // MARK: - Helpers
+
+    /// Launch Player Bands at AX5 against the fixture, with no selected player.
+    ///
+    /// - Parameter duoWindow: `DebugDuoWindow` to simulate, or nil for the device itself.
+    /// - Returns: The app and its window's frame.
+    /// - Throws: A skip when the board never loads.
+    @MainActor
+    private func launchBoard(duoWindow: String?) throws -> (XCUIApplication, CGRect) {
+        let base = ProcessInfo.processInfo.environment["FST_BOARD_FADE_FIXTURE_URL"] ?? "http://127.0.0.1:8765"
+        var environment = [
+            "FST_API_BASE_URL": base,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_ROUTE": "playerBands:fixture-player-1",
+        ]
+        if let duoWindow {
+            environment["FST_DEBUG_DUO_WINDOW_REMOTE"] = "1"
+            environment["FST_DEBUG_DUO_WINDOW"] = duoWindow
+        }
+        let app = FestivalApp.makeApp(environment)
+        let ax5 = UIContentSizeCategory.accessibilityExtraExtraExtraLarge
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", ax5.rawValue]
+        app.launch()
+
+        let pageInfo = app.descendants(matching: .any)[Self.pageInfo]
+        guard pageInfo.waitForExistence(timeout: FestivalApp.budget(20)) else {
+            throw XCTSkip("Player Bands never loaded; run tools/mock_service.py on \(base).")
+        }
+        if let duoWindow { waitForDuoWindow(duoWindow, in: app) }
+        let window = app.windows.firstMatch.frame
+        return (app, window)
+    }
 
     /// Wait for the badge to read `page` of the total.
     ///
