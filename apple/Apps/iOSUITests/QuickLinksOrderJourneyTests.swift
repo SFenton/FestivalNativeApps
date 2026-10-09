@@ -367,22 +367,26 @@ final class QuickLinksOrderJourneyTests: XCTestCase {
         )
     }
 
-    /// Rivalry: one entry per song in the category, in list order.
+    /// Rivalry is one list of songs: it offers no Quick Links, only View Profile, a
+    /// full-size hittable button in the tab-bar accessory (owner, #545; `quick-links` R3).
     @MainActor
-    func testRivalryMenuListsSongsInPageOrder() throws {
+    func testRivalryOffersNoQuickLinks() throws {
         continueAfterFailure = false
         let app = fixtureApp([
             "FST_DEBUG_PROFILE": "fixture-riv:Fixture Riv",
             "FST_DEBUG_ROUTE": "rivalry:f1c749eb07c32578cfa3e59ec38c03a8:closest_battles:song:Solo_Guitar",
         ])
         app.launch()
-        XCTAssertTrue(app.buttons["fst.rivalry.view-profile"].waitForExistence(timeout: 15))
-        // Ids end in the row's list position, so a reversed menu cannot pass.
-        assertMenuOrder(
-            app,
-            ["fixture-drift", "fixture-pulse", "fixture-orbit", "fixture-echo"].enumerated()
-                .map { "\($0.element):Solo_Guitar:\($0.offset)" },
-            name: "quick-links-order-rivalry"
-        )
+        let profile = app.buttons["fst.rivalry.view-profile"]
+        XCTAssertTrue(profile.waitForExistence(timeout: 15))
+        let lastRow = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label BEGINSWITH %@", "Fixture Echo")).firstMatch
+        XCTAssertTrue(lastRow.waitForExistence(timeout: 20), "The songs did not load")
+        SongsUITestSupport.record(app, name: "rivalry-no-quick-links")
+        XCTAssertFalse(app.buttons["fst.quick-links.open"].exists, "Rivalry offers Quick Links")
+        XCTAssertTrue(profile.isHittable)
+        XCTAssertEqual(profile.label, "View Profile")
+        XCTAssertGreaterThanOrEqual(profile.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(profile.frame.height, 44)
     }
 }

@@ -1,17 +1,5 @@
 {
   "a11y_pages": {
-    "cols-full-rankings-focus-clear": {
-      "reason": "Footer fade state or column focus-clear differs",
-      "issue": "SFenton/festival-report-tracker#538"
-    },
-    "footer-fade-no-player-song-band-leaderboard-mid": {
-      "reason": "Footer fade state or column focus-clear differs",
-      "issue": "SFenton/festival-report-tracker#538"
-    },
-    "footer-fade-song-band-leaderboard-mid": {
-      "reason": "Footer fade state or column focus-clear differs",
-      "issue": "SFenton/festival-report-tracker#538"
-    },
     "hit-titlebar-box": {
       "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
       "issue": "SFenton/festival-report-tracker#536"
