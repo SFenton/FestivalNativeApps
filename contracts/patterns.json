@@ -436,6 +436,10 @@
           "symbol": "buildPlayerBandsItems"
         },
         {
+          "path": "pages/player/components/TopSongsSection.tsx",
+          "symbol": "buildTopSongsItems"
+        },
+        {
           "path": "components/search/SearchModal.tsx",
           "symbol": "renderResults"
         }

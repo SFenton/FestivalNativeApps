@@ -40,6 +40,18 @@ object ProfileFixtures {
     )
 
     /**
+     * Seven ranked Lead scores, so Lead shows both Top Five and Bottom Five Songs (issue #595),
+     * plus [defaultRows]' Bass row (a single list). The four extra song IDs are not in the
+     * catalogue, so their rows show the ID prefix as the web does.
+     */
+    val topAndBottomRows = defaultRows.take(3) + listOf(
+        score("s-delta", "01", rank = 40, total = 200),
+        score("s-epsilon", "01", rank = 60, total = 200),
+        score("s-zeta", "01", rank = 90, total = 200),
+        score("s-eta", "01", rank = 120, total = 200),
+    ) + defaultRows.drop(3)
+
+    /**
      * A 202 syncing body.
      *
      * @param account Account ID.
