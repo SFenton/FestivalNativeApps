@@ -120,7 +120,16 @@ class AppleCIJourneysTests(unittest.TestCase):
         self.assertEqual(self.history["HISTORY_JOURNEYS"], [page], "the iPhone run: the page only (the split skips)")
         self.assertEqual(self.history["HISTORY_IPAD_JOURNEYS"], [page, split])
         self.assertEqual(self.workflow.count("uitest --app ipad"), 2)
-        self.assertEqual(self.workflow.count("--fail-on-skip"), 4)
+        # iPhone journeys, two Score History runs, the iPad journeys and the iPad keyboard batch (#473).
+        self.assertEqual(self.workflow.count("--fail-on-skip"), 5)
+
+    def test_board_footer_fade_keyboard_journey_runs_in_ci(self) -> None:
+        # #473: the iPad hardware-keyboard form needs its own invocation, because --a11y applies to a whole run.
+        self.assertIn(
+            "--a11y full-keyboard-access --fail-on-skip \\\n"
+            "            --timeout 900 --only BoardFooterFadeJourneyTests/testBoardKeyboardFocusClearsFooter",
+            self.workflow,
+        )
 
     def test_section_title_ax5_journey_runs_in_ci(self) -> None:
         # #91/#441: the only iOS Dynamic Type and audit evidence for Songs' grouped-sort section titles.
