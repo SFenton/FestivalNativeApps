@@ -97,8 +97,7 @@
             <SolidColorBrush x:Key="FSTShopNewBrush" Color="#FFFFD700" />
             <SolidColorBrush x:Key="FSTShopLeavingBrush" Color="#FFC62828" />
             <SolidColorBrush x:Key="FSTShopBadgeTextBrush" Color="#FFFFFFFF" />
-            <!-- Shop: the New badge's dark pill (gold text) and the tile caption over art + its dark scrim. -->
-            <SolidColorBrush x:Key="FSTShopNewBadgeSurfaceBrush" Color="#E6121826" />
+            <!-- Shop: the tile caption over art + its dark scrim. -->
             <SolidColorBrush x:Key="FSTShopTileTextBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="FSTShopTileCaptionBrush" Color="Transparent" />
             <!-- Song Detail's Item Shop button surface under its breathing status fill (web shopButton). -->
@@ -248,7 +247,6 @@
             <SolidColorBrush x:Key="FSTShopNewBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTShopLeavingBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTShopBadgeTextBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
-            <SolidColorBrush x:Key="FSTShopNewBadgeSurfaceBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <!-- Tile captions sit on a Window plate in WindowText, so contrast never depends on the art or scrim. -->
             <SolidColorBrush x:Key="FSTShopTileTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTShopTileCaptionBrush" Color="{ThemeResource SystemColorWindowColor}" />
@@ -322,6 +320,12 @@
     <!-- MenuFlyout presenters are UIA Menus and need a name (Axe); the invoking button already names the choice. -->
     <Style TargetType="MenuFlyoutPresenter">
         <Setter Property="AutomationProperties.Name" Value="Options" />
+    </Style>
+
+    <!-- Every Expander is an accordion with the sequenced motion (load-transition owner-approved accordion variant, issue
+         #561): the section grows, then its content fades in; closing fades the content out, then collapses. -->
+    <Style TargetType="Expander">
+        <Setter Property="controls:Accordion.Sequenced" Value="True" />
     </Style>
 
     <!-- Menu items are targets too (page-tools-and-nav-chrome R10, issue #416): WinUI's keyboard/mouse padding

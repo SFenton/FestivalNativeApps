@@ -202,20 +202,27 @@ struct NearViewport<Placeholder: View, Content: View>: View {
         self.content = content
     }
 
+    /// Only the placeholder watches its position: once latched, the built content no
+    /// longer re-reads its window frame on every scroll frame (issue #553).
     var body: some View {
-        Group {
-            if isNear {
-                content()
-            } else {
-                placeholder
-            }
+        if isNear {
+            content()
+        } else {
+            placeholder
+                .onGeometryChange(for: Bool.self, of: { proxy in
+                    Self.isNear(proxy.frame(in: .global))
+                }) { near in
+                    if near, !isNear { isNear = true }
+                }
         }
-        .onGeometryChange(for: Bool.self, of: { proxy in
-            let frame = proxy.frame(in: .global)
-            return frame.minY < Self.reach && frame.maxY > -Self.reach
-        }) { near in
-            if near, !isNear { isNear = true }
-        }
+    }
+
+    /// Whether a region at `frame` (global) is within ``reach`` of the viewport.
+    ///
+    /// - Parameter frame: The placeholder's frame in window coordinates.
+    /// - Returns: True when its content should be built.
+    static func isNear(_ frame: CGRect) -> Bool {
+        frame.minY < reach && frame.maxY > -reach
     }
 }
 

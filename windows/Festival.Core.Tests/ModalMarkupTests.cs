@@ -140,6 +140,20 @@ public class ModalMarkupTests
     }
 
     [Fact]
+    public void FeedbackContentButtons_KeepTheMinimumTouchTarget()
+    {
+        // Issue #433: Discard and Keep Editing in the feedback form's discard bar were 32 epx default buttons.
+        var feedback = Sources(".cs").Single(source => source.Path == "Controls/FeedbackDialog.cs").Text;
+        Assert.Matches(@"new Button \{ Content = ""Discard"",[^}]*MinHeight = DialogChrome\.TargetSize", feedback);
+        Assert.Matches(@"new Button \{ Content = ""Keep Editing"",[^}]*MinHeight = DialogChrome\.TargetSize", feedback);
+        Assert.Matches(@"attach = new Button\s*\{(?s:.*?)MinHeight = DialogChrome\.TargetSize,", feedback);
+        Assert.DoesNotMatch(@"MinHeight = (?:3\d|[12]?\d)\b", feedback);
+        var chrome = Sources(".cs").Single(source => source.Path == "Controls/DialogChrome.cs").Text;
+        Assert.Contains("internal static double TargetSize =>", chrome, StringComparison.Ordinal);
+        Assert.Contains("var size = TargetSize;", chrome, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CommandLabels_DropTheContrastBackplate()
     {
         // Issue #239: under Desert/Night sky the default button's label sat on a Window-coloured box inside its Highlight fill.

@@ -24,5 +24,6 @@
                    "key:tab", "key:shift+tab", "assertfocus:id=fst.settings.path-default-view.text@3",
                    "key:up", "assertfocus:id=fst.settings.path-default-view.image@3",
                    "assertstate:id=fst.settings.path-default-view.image|selected=true@3",
-                   "key:shift+tab", "assertfocus:id=fst.settings.enable-visual-order@3"]}
+                   "key:shift+tab", "assertfocus:id=fst.settings.enable-visual-order@3",
+                   "scrollinset:id=fst.settings.path-default-view|id=fst.settings|8"]}
 ]

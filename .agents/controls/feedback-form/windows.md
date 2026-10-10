@@ -66,3 +66,14 @@ Tests:
 | Narrator / UIA | Fields are `Edit` with Name = header and HelpText = helper; tiles are buttons named "Image, <file>, <size>" with a "Remove <file>" button. Sending/filing/sent/skipped notices and validation changes are announced through `ScreenReader.Announce`; the error InfoBar reads its message on open (Message set before IsOpen). The console was locked, so spoken output was checked through UIA names and announcements, not live Narrator |
 
 Design review (`winui-design`, `winui-code-review`): Fluent `ContentDialog` with an accent primary button, headed `TextBox`es with `Description`, and `InfoBar` for error and confirmation ("Feedback: inline status / async progress → InfoBar"). Brushes are `{ThemeResource}` by semantic name ("Hard-coded color literals → {ThemeResource} brushes by semantic name"). Deliberate deviations: discard confirmation is an inline InfoBar, because a `ContentDialog` can't open a second one. Strings are C# constants, because the repo has no `.resw` localisation yet.
+
+## Accessibility tests (issue #433)
+
+`tools/windows/journeys/a11y-feedback.json` asserts, beyond the Axe scan, what #78 added. CI runs it at `normal` and `text-225` (`ui_ci.generated_runs`).
+
+- **Settings rows:** "Report an Issue, button, Tell us about something that isn't working right." and "Request a Feature, button, …" (HelpText is the subtitle), bug row before feature row, at least 40×40 epx, Tab/Shift+Tab between them, Enter opens the form.
+- **Fields:** each edit reads "<header>, edit, <helper>" (the title adds its "[Bug] " value). Keyboard order is title → description → repro → expected → Attach Media → Cancel while Submit is disabled, and Attach Media → Submit → Cancel once it is enabled. "Media" is a level-3 heading.
+- **States:** the validation reason, the unavailable Submit, progress, sent ("Done, button") and error phrases, each in reading order with the title.
+- **Attachments:** tile and "Remove <file>" phrases, Shift+Tab through remove → tile → remove, and focus back on Attach Media after a remove.
+- **Discard bar:** heading, message, Discard, Keep Editing in order; Tab between the buttons; Enter on Keep Editing closes the bar and focuses the title.
+- **Rule:** every button the form builds in code (Attach Media, Discard, Keep Editing) uses `DialogChrome.TargetSize` (`FSTMinTargetSize`, 40 epx), the same as the dialog's Submit/Cancel. Discard and Keep Editing were 31.7 epx tall until #433. `ModalMarkupTests.FeedbackContentButtons_KeepTheMinimumTouchTarget` guards this.
