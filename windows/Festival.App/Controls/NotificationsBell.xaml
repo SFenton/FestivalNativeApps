@@ -86,7 +86,7 @@
                        AutomationProperties.AccessibilityView="Raw" />
         </Grid>
         <Button.Flyout>
-            <Flyout x:Name="Panel" Placement="BottomEdgeAlignedRight" Opening="OnOpening" Opened="OnOpened" Closed="OnClosed">
+            <Flyout x:Name="Panel" Placement="BottomEdgeAlignedRight" ShouldConstrainToRootBounds="True" Opening="OnOpening" Opened="OnOpened" Closed="OnClosed">
                 <Grid x:Name="PanelRoot" Width="380" MaxHeight="560" RowSpacing="8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />

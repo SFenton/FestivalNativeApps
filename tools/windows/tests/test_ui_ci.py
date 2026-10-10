@@ -51,6 +51,16 @@ class UiCiTests(unittest.TestCase):
         self.assertTrue(all(run.scan for run in landing.values()))
         self.assertIn("compact", landing["text-225"].sizes.split(","))
 
+    def test_header_flyouts_gate_without_popup_allowance(self):
+        """#534: the Rank By, Quick Links, profile and Notifications flyouts scan clean at 100% and 225% text."""
+        popups = {run.mode: run for run in ci.RUNS if run.pages == "a11y.json"}
+        self.assertEqual({"normal", "text-225"}, set(popups))
+        self.assertTrue(all(run.scan and run.only == ci.POPUP_PAGES for run in popups.values()))
+        pages = {page["name"]: page for page in json.loads((ci.JOURNEYS / "a11y.json").read_text(encoding="utf-8"))}
+        for name in ci.POPUP_PAGES.split(","):
+            with self.subTest(page=name):
+                self.assertNotIn("axe_allow", pages[name])
+
     def test_song_band_pinned_runs_at_default_and_largest_text(self):
         # Issue #461 (#306): the full band board's pinned "your band" row runs in CI at default and 225% text.
         runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-song-band-pinned.json"}
