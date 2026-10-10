@@ -195,6 +195,34 @@ public class SongDetailSongsLaneTests
     }
 
     [Fact]
+    public async Task RowEleven_ShowsTheEffectiveScoreAndFollowsFilterInvalidScores()
+    {
+        // s2 Lead: the raw 1,200 (#30) is invalid at +1%; its valid 900 ranks #25 there.
+        var fallback = ""","ml":2.0,"vs":[{"sc":900,"acc":950,"fc":false,"st":4,"ml":-5,"rt":[{"l":-5,"r":25}]}]""";
+        var service = new FakeService();
+        SongsWire.Install(service, player: true, profiles: new()
+        {
+            [PlayerWire.Id] = (HttpStatusCode.OK, PlayerWire.Profile(PlayerWire.Id, "Fixture One", PlayerWire.Score("s2", "01", 1200, 990, true, 6, 30, 100, 30, fallback))),
+        });
+        var session = service.Session(settings: new AppSettings { SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "Fixture One"), FilterInvalidScores = true });
+        var vm = new SongDetailViewModel(session, new AppRoute.SongDetail("s2"));
+        await vm.LoadAsync();
+        var lead = vm.Leaderboards.Single(b => b.Instrument == Instrument.Lead);
+        var mine = lead.Rows[10];
+        Assert.True(mine.IsSelectedPlayer);
+        Assert.Equal("#25", mine.Rank);
+        Assert.Contains("900", mine.Score, StringComparison.Ordinal);
+
+        // Off: the raw score returns in place; back on, the fallback returns.
+        session.UpdateSettings(s => s with { FilterInvalidScores = false });
+        Assert.Equal("#30", lead.Rows[10].Rank);
+        Assert.Contains("1,200", lead.Rows[10].Score, StringComparison.Ordinal);
+        session.UpdateSettings(s => s with { FilterInvalidScores = true });
+        Assert.Equal("#25", lead.Rows[10].Rank);
+        vm.Detach();
+    }
+
+    [Fact]
     public async Task RowEleven_FollowsScoresThatArriveAfterLoad()
     {
         var service = new FakeService();

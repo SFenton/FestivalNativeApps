@@ -183,4 +183,156 @@ public class SongInvalidScoresTests
         Assert.Null(SongScoreSource.ForSongs(session, session.Catalog!.Songs).Reason!("s1", Instrument.Lead));
         Assert.Null(SongScoreSource.ForSongs(session, null).Reason!("s1", Instrument.Lead));
     }
+
+    [Fact]
+    public void PopulationTiers_DecodeLenientlyAndPickTheLeewayTotal()
+    {
+        static Song Decode(string tiers) => System.Text.Json.JsonSerializer.Deserialize(
+            $$"""{"songId":"x","title":"X","artist":"Y","populationTiers":{{tiers}}}""", FestivalJsonContext.Default.Song)!;
+        var song = Decode("""
+            {"Solo_Guitar":{"bc":10,"t":[{"l":0.5,"t":12},{"l":1.0,"t":15}]},"Solo_Bass":null,"Solo_Drums":{"t":[1,2]},
+             "Solo_Vocals":{"bc":1,"t":[{"l":2.0,"t":3},{"l":1.0,"t":4}]},"Solo_PeripheralGuitar":{"bc":-1,"t":[]},
+             "Solo_PeripheralBass":{"bc":2,"t":[{"l":"x","t":3}]},"Solo_PeripheralVocals":[1],
+             "Solo_PeripheralCymbals":{"bc":4,"t":[],"extra":{"a":[1]}}}
+            """);
+        Assert.Equal(10, song.FilteredPopulation(Instrument.Lead, 0.1));
+        Assert.Equal(12, song.FilteredPopulation(Instrument.Lead, 0.7));
+        Assert.Equal(15, song.FilteredPopulation(Instrument.Lead, 2.0));
+        Assert.Equal(4, song.FilteredPopulation(Instrument.ProCymbals, 0));
+        // Malformed curves (missing base, unsorted, negative, non-numeric, not an object) and absent charts: no curve.
+        foreach (var chart in new[] { Instrument.Bass, Instrument.Drums, Instrument.Vocals, Instrument.ProLead, Instrument.ProBass, Instrument.Karaoke, Instrument.ProDrums })
+            Assert.Null(song.FilteredPopulation(chart, 1));
+        Assert.Null(Decode("[1]").PopulationTiers);
+        Assert.Null(Decode("null").PopulationTiers);
+        Assert.Null(new Song().FilteredPopulation(Instrument.Lead, 1));
+        // Round trip keeps the well-formed curves.
+        var again = System.Text.Json.JsonSerializer.Deserialize(System.Text.Json.JsonSerializer.Serialize(song, FestivalJsonContext.Default.Song), FestivalJsonContext.Default.Song)!;
+        Assert.Equal([12, 4], new[] { again.FilteredPopulation(Instrument.Lead, 0.7)!.Value, again.FilteredPopulation(Instrument.ProCymbals, 0)!.Value });
+        Assert.Null(System.Text.Json.JsonSerializer.Deserialize(System.Text.Json.JsonSerializer.Serialize(new Song(), FestivalJsonContext.Default.Song), FestivalJsonContext.Default.Song)!.PopulationTiers);
+    }
+
+    [Fact]
+    public void Resolve_FallbackUsesTheFilteredPopulationAndLegacyFieldsLikeTheWeb()
+    {
+        var tiered = Chart with { PopulationTiers = new Dictionary<string, PopulationTiers> { ["Solo_Guitar"] = new(40, [new(0.5, 44), new(1.5, 48)]) } };
+        InvalidScoreResolution At(PlayerScore score, double leeway) =>
+            InvalidScorePolicy.Resolve(score, SongScoreSource.ToDetail(score), tiered, Instrument.Lead, leeway, false);
+        var invalid = Score(2000, minLeeway: 3, variants: [new PlayerValidScoreVariant { Score = 900, MinLeeway = -5 }]);
+        Assert.Equal(44, At(invalid, 1).Detail!.TotalEntries);
+        Assert.Equal(40, At(invalid, 0.2).Detail!.TotalEntries);
+        Assert.Equal(48, At(invalid, 2).Detail!.TotalEntries);
+        // A valid raw score keeps its own population (web uses the raw te).
+        Assert.Equal(50, At(Score(900), 1).Detail!.TotalEntries);
+
+        var legacy = Score(2000, validScore: 990) with { ValidRank = 9, ValidStars = 4, ValidTotalEntries = 45 };
+        var substituted = At(legacy, 1).Detail!;
+        Assert.Equal((990L, 9, 4, 45), (substituted.Score, substituted.Rank!.Value, substituted.Stars!.Value, substituted.TotalEntries!.Value));
+        Assert.True(legacy.IsValid);
+        Assert.False((legacy with { ValidStars = 7 }).IsValid);
+        Assert.False((legacy with { ValidRank = -1 }).IsValid);
+        Assert.False((legacy with { ValidTotalEntries = -1 }).IsValid);
+
+        var wire = System.Text.Json.JsonSerializer.Deserialize(
+            PlayerWire.Score("s1", extra: ""","validScore":5,"validRank":2,"validStars":3,"validTotalEntries":4"""), PlayerJsonContext.Default.PlayerScore)!;
+        Assert.Equal((2, 3, 4), (wire.ValidRank!.Value, wire.ValidStars!.Value, wire.ValidTotalEntries!.Value));
+    }
+
+    [Fact]
+    public void Warning_ExplainsEachCaseLikeTheWebIcon()
+    {
+        var lead = Instrument.Lead;
+        const string Footer = "To see the absolute highest score you've achieved, toggle off 'Filter Invalid Scores' in App Settings.";
+        const string Footers = "To see the absolute highest scores you've achieved, toggle off 'Filter Invalid Scores' in App Settings.";
+        const string ChipsHint = "You can also temporarily filter to 'Over CHOpt Threshold' in the Filter modal when viewing scores for a specific instrument.";
+
+        var one = InvalidScoreWarning.Of("Song", new Dictionary<Instrument, InvalidScoreReason> { [lead] = InvalidScoreReason.Fallback }, null)!;
+        Assert.False(one.IsWarning);
+        Assert.Equal($"Song has an invalid, filtered-out score on Lead. The Lead chip reflects the next valid score.\n\n{Footer} {ChipsHint}", one.Message);
+        Assert.Equal(("Filtered Score", "Invalid score indicator", "OK", "Settings"),
+            (InvalidScoreWarning.Title, InvalidScoreWarning.Label, InvalidScoreWarning.OkCommand, InvalidScoreWarning.SettingsCommand));
+        Assert.Equal("fst.songs.invalid-score.s1", InvalidScoreWarning.AutomationId("s1"));
+
+        var mixed = new Dictionary<Instrument, InvalidScoreReason>
+        {
+            [Instrument.Drums] = InvalidScoreReason.NoFallback, [lead] = InvalidScoreReason.Fallback,
+            [Instrument.Bass] = InvalidScoreReason.Fallback, [Instrument.Vocals] = InvalidScoreReason.OverThreshold,
+        };
+        var chips = InvalidScoreWarning.Of("Song", mixed, null)!;
+        Assert.Equal([lead, Instrument.Bass, Instrument.Drums, Instrument.Vocals], chips.Reasons.Select(r => r.Key));
+        Assert.False(chips.IsWarning);
+        Assert.Equal(
+            "Song has an invalid, filtered-out score on Lead, Bass, Drums, and Tap Vocals. The chips for these instruments reflect the next valid score. " +
+            "Because there is no valid other score for Drums, the Drums icon chip is red here. The Tap Vocals score shown exceeds the CHOpt maximum." +
+            $"\n\n{Footers} {ChipsHint}", chips.Message);
+
+        var filtered = InvalidScoreWarning.Of("Song", mixed, lead)!;
+        Assert.Equal([lead], filtered.Reasons.Select(r => r.Key));
+        Assert.Equal("Song has an invalid, filtered-out score on Lead. We are showing the next valid score here." +
+            $"\n\n{Footer} You can also temporarily filter to 'Lead Over CHOpt Threshold' in the Filter modal.", filtered.Message);
+
+        var over = InvalidScoreWarning.Of("Song", mixed, Instrument.Vocals)!;
+        Assert.True(over.IsWarning);
+        Assert.Equal("Song has a score on Tap Vocals that exceeds the CHOpt maximum. This is the highest unfiltered invalid score.", over.Message);
+        var twoOver = InvalidScoreWarning.Of("Song", new Dictionary<Instrument, InvalidScoreReason>
+            { [lead] = InvalidScoreReason.OverThreshold, [Instrument.Bass] = InvalidScoreReason.OverThreshold }, null)!;
+        Assert.True(twoOver.IsWarning);
+        Assert.StartsWith("Song has a score on Lead and Bass that exceeds", twoOver.Message, StringComparison.Ordinal);
+
+        Assert.Null(InvalidScoreWarning.Of("Song", mixed, Instrument.ProBass));
+        Assert.Null(InvalidScoreWarning.Of("Song", new Dictionary<Instrument, InvalidScoreReason>(), null));
+        Assert.True(one.SameAs(InvalidScoreWarning.Of("Song", new Dictionary<Instrument, InvalidScoreReason> { [lead] = InvalidScoreReason.Fallback }, null)));
+        Assert.False(one.SameAs(filtered));
+        Assert.False(one.SameAs(null));
+    }
+
+    [Fact]
+    public async Task Songs_RowsCarryTheWarningAndUpdateInPlace()
+    {
+        var fallback = ""","ml":2.0,"vs":[{"sc":850,"acc":960,"fc":false,"st":5,"ml":-5,"rt":[{"l":-5,"r":7}]}]""";
+        var profile = PlayerWire.Profile(PlayerWire.Id, "Fixture One",
+            PlayerWire.Score("s1", "01", 1000, 990, true, 6, 1, 100, 1.0, fallback),
+            PlayerWire.Score("s2", "01", 900, 950, false, 5, 30, 100, 30, ""","ml":3.0"""),
+            PlayerWire.Score("s3", "01", 700, 1000, true, 6, 4, 200, 2));
+        var service = new FakeService();
+        SongsWire.Install(service, player: true, profiles: new() { [PlayerWire.Id] = (HttpStatusCode.OK, profile) });
+        var session = service.Session(settings: new AppSettings
+        {
+            SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "Fixture One"), FilterInvalidScores = true,
+        });
+        var vm = new SongsViewModel(session);
+        await vm.AppearCommand.ExecuteAsync(null);
+        SongRowItem Row(string id) => vm.Sections.SelectMany(s => s.Rows).Single(r => r.Song.SongId == id);
+
+        // Chips: the fallback chip counts as scored, the dropped one as no score; both rows warn in red.
+        var s1 = Row("s1");
+        Assert.Equal(InvalidScoreReason.Fallback, Assert.Single(s1.Warning!.Reasons).Value);
+        Assert.False(s1.Warning.IsWarning);
+        Assert.Contains("The Lead chip reflects the next valid score.", s1.Warning.Message, StringComparison.Ordinal);
+        Assert.EndsWith(", Filtered score", s1.Announcement, StringComparison.Ordinal);
+        Assert.Equal(SongInstrumentStatus.Scored, s1.Chips.Single(c => c.Instrument == Instrument.Lead).Status);
+        Assert.Equal(SongInstrumentStatus.NoScore, Row("s2").Chips.Single(c => c.Instrument == Instrument.Lead).Status);
+        Assert.Equal(InvalidScoreReason.NoFallback, Assert.Single(Row("s2").Warning!.Reasons).Value);
+        Assert.Null(Row("s3").Warning);
+
+        // Lead filter: metadata shows the effective score; the warning speaks about the shown score.
+        session.UpdateSettings(s => s with { SongFilter = new SongFilter(Instrument.Lead) });
+        Assert.Contains(Row("s1").Metadata, m => m.Announcement.Contains("850", StringComparison.Ordinal));
+        Assert.Contains("We are showing the next valid score here.", Row("s1").Warning!.Message, StringComparison.Ordinal);
+
+        // Over CHOpt Threshold on Lead: the raw invalid scores show, with the gold warning.
+        session.UpdateSettings(s => s with { PlayerScoreFilter = SongPlayerScoreFilter.None.With(SongScoreFilterKind.OverThreshold, Instrument.Lead, true) });
+        Assert.True(Row("s1").Warning!.IsWarning);
+        Assert.EndsWith(", Score over the CHOpt maximum", Row("s1").Announcement, StringComparison.Ordinal);
+
+        // Leeway raised past both minimums: the raw scores are valid, no warning.
+        session.UpdateSettings(s => s with { PlayerScoreFilter = SongPlayerScoreFilter.None, Leeway = 5 });
+        Assert.Null(Row("s1").Warning);
+        Assert.Contains(Row("s1").Metadata, m => m.Announcement.Contains("1,000", StringComparison.Ordinal));
+
+        // Filter Invalid Scores off: raw scores, no warning, no reload.
+        session.UpdateSettings(s => s with { Leeway = 1, FilterInvalidScores = false });
+        Assert.Null(Row("s1").Warning);
+        Assert.Null(Row("s2").Warning);
+        Assert.Single(service.Handler.To("/api/songs"));
+    }
 }
