@@ -51,6 +51,7 @@ import org.junit.runner.RunWith
  *   contract.
  *
  * `device.py test com.festivalscoretracker.android.journeys.PathsSwapAccessibilityJourneyTest --avd …`
+ * Reading orders are TalkBack's published traversal order ([JourneyHarness.publishTalkBackTree]).
  */
 @RunWith(AndroidJUnit4::class)
 @DeviceCi
@@ -72,7 +73,8 @@ class PathsSwapAccessibilityJourneyTest {
             }
         }
         ProfileFixtures.register(this)
-        beforeRespond = { request -> holds.firstOrNull { (matches, _) -> matches(request.url) }?.second?.await() }
+        // A released gate stays in [holds]: a second switch to the same difficulty waits on its own new gate.
+        beforeRespond = { request -> holds.firstOrNull { (matches, gate) -> !gate.isCompleted && matches(request.url) }?.second?.await() }
     }
 
     // region Helpers
@@ -156,6 +158,7 @@ class PathsSwapAccessibilityJourneyTest {
         controls.forEach(::assertTarget)
 
         val order = h.readingOrder(screen, fresh = true)
+        assertTrue("$screen: no TalkBack traversal links followed", h.lastReadingLinks > 0)
         assertEquals("$screen: the spinner is not one stop in $order", 1, order.count { it.contains(label) })
         val heading = order.indexOf("Paths")
         val spinner = order.indexOfFirst { it.contains(label) }
@@ -178,6 +181,7 @@ class PathsSwapAccessibilityJourneyTest {
         h.awaitAccessibilityTree(present = "fst.paths.row.$minRows")
         val loaded = "Lead ${difficulty.replaceFirstChar(Char::uppercase)} path loaded, 3 activations"
         val order = h.readingOrder(screen, fresh = true)
+        assertTrue("$screen: no TalkBack traversal links followed", h.lastReadingLinks > 0)
         assertTrue("$screen: a spinner stop is left in $order", order.none { it.startsWith("Loading ") || it.startsWith("In progress") })
         val close = order.indexOf("Close")
         val status = order.indexOf(loaded)
@@ -195,6 +199,7 @@ class PathsSwapAccessibilityJourneyTest {
     private fun open(reduceMotion: Boolean, fontScale: () -> Float) {
         h.enableAccessibilityChecks()
         h.launch(DebugLaunch(songQuery = "s-alpha", stillBackground = true), transport, preferences(reduceMotion), fontScale = fontScale)
+        h.publishTalkBackTree()
         h.waitForTag("fst.song-detail.list")
         h.tap("fst.song-detail.paths.open")
         assertRowsRevealed("paths-swap-first-load", "expert")
