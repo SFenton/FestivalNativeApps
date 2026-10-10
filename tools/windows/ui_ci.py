@@ -9,8 +9,9 @@ This is the one registry of Windows accessibility journeys that gate pull reques
 :data:`RUNS` entry (``only`` limits a run to some of a file's pages). ``tests/test_ui_ci.py`` checks the entries and
 that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
 (issue #416), the Item Shop Filters flyout and its keyboard journey (issue #428), the board load swap (issue #431, also
-with Animation effects off), the first-run song demos (issue #420) and the Songs section push (issue #452) run at default
-and 225% text, and that the generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
+with Animation effects off), the first-run song demos (issue #420), the header flyouts (issue #534) and the Songs section
+push (issue #452) run at default and 225% text, and that the generated work-behind-dialogs runs (issues #83, #436) gate
+PRs and cover motion off.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
 Usage::
@@ -91,6 +92,10 @@ SHOP_FILTER_KEYBOARD = "kb-shop-filter"
 SONG_BOARD_FOOTER_FADE = ("footer-fade-song-leaderboard-rest,footer-fade-song-leaderboard-mid,footer-fade-song-leaderboard-end,"
                           "footer-fade-song-leaderboard-more-contrast,footer-fade-song-leaderboard-less-transparency")
 
+#: The canonical ``a11y.json`` header-flyout pages (issue #534: every app flyout is constrained to the window, so none
+#: may open a windowed ``PopupHost``; the file's other pages stay host matrix checks).
+POPUP_PAGES = "leaderboards-rank-by-menu,rank-by-menu,quick-links-menu,profile-flyout,notifications-flyout"
+
 #: Journeys the ``windows-ui`` job runs, in order. ``wide`` (1440 epx) is left to the host matrix: the runner's
 #: desktop is 1920x1080 at 100% scale, so compact (500x800) and medium (900x700) fit with room for the taskbar.
 RUNS: tuple[Run, ...] = (
@@ -107,6 +112,15 @@ RUNS: tuple[Run, ...] = (
     # Reset / Select All / Clear All, live Double Bass and Year narrowing, Filters applied, keyboard and Esc.
     Run("songs-filter", "a11y-songs-filter.json"),
     Run("songs-filter-text-225", "a11y-songs-filter.json", sizes="compact", mode="text-225"),
+    # Accordions (issue #561): Songs Filter Expanders, the Suggestions Instrument-Specific panel and the Settings options
+    # a switch reveals (leeway slider, Song Row Visual Order) open (grow, then fade in) and close (fade out, then
+    # collapse) with Narrator's expanded/collapsed or on/off phrase, revealed content read and removed from the order when
+    # closed, and rapid re-toggles settling open; again with the app's Reduce Motion (instant) and at Windows' largest
+    # text size.
+    Run("accordion", "a11y-accordion.json"),
+    Run("accordion-reduced", "a11y-accordion.json", sizes="medium", mode="app-reduced"),
+    Run("accordion-text-225", "a11y-accordion.json", sizes="compact", mode="text-225",
+        only="accordion-songs-filter,accordion-settings-switches"),
     # Songs Jump backward pick after a scroll (issues #48, #415): the pinned title names the picked section, reads
     # "B, text", stays a Level 2 heading, Jump -> title -> list order, Jump's name and 40x40 target, by pointer and keys.
     Run("section-index-backward", "a11y-section-index.json", only=SECTION_INDEX_BACKWARD),
@@ -140,6 +154,10 @@ RUNS: tuple[Run, ...] = (
     # (scale-100/150 modes) stays in the host matrix.
     Run("quick-links-landing", "a11y-quick-links-landing.json", tabs=0),
     Run("quick-links-landing-text-225", "a11y-quick-links-landing.json", sizes="compact", mode="text-225", tabs=0),
+    # Header flyouts open in the app window (issue #534): Leaderboards and Full Rankings Rank By, Quick Links, the
+    # profile flyout and Notifications scan with no windowed PopupHost finding (windows-accessibility.md open item 8).
+    Run("popups", "a11y.json", only=POPUP_PAGES),
+    Run("popups-text-225", "a11y.json", sizes="compact", mode="text-225", only=POPUP_PAGES),
     # The Item Shop Filters flyout (issues #19, #428): heading, New / Available / Leaving Tomorrow switch phrases and
     # state, Filters applied, the song count and empty state, title -> switches -> Reset order, 40 epx Reset, text scaling.
     Run("shop-filter", "a11y-shop-filter.json"),

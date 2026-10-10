@@ -10,6 +10,11 @@ One command launches the app on a page, lets it settle, then measures:
   (``FST_DEBUG_SONGS_SCROLL_STRESS=1``) with ``MainThreadStallMonitor``
   (``FST_DEBUG_STALL_LOG``); only units of main-thread work between the pass's start
   and end marks are counted, so launch work is excluded.
+- **Frames** (``--fling``, iOS/iPadOS): the in-app fast-flick pass
+  (``FST_DEBUG_FLING_STRESS=1``, ``ScrollFlingStress``) on the page's largest vertical
+  scroll view, any tab or route; ``frames`` reports dropped frames, the hitch-time ratio
+  and how many frames' main-thread work missed the 120 Hz (8.3 ms) and 60 Hz budgets.
+  iPhone: ``ipad --device iphone27``.
 - **Instruments** (``--trace TEMPLATE``, Mac only: xctrace cannot attach to
   simulator apps on this host): ``xcrun xctrace record --attach <pid>`` for
   the measuring window (e.g. ``'Time Profiler'``, ``'Animation Hitches'``,
@@ -36,6 +41,7 @@ Examples::
     python3 tools/apple_perf.py mac --configuration Release --probe --stress
     python3 tools/apple_perf.py mac --trace 'Time Profiler' --top 25
     python3 tools/apple_perf.py ipad --tab songs --stress
+    python3 tools/apple_perf.py ipad --device iphone27 --probe --fling --tab leaderboards
 """
 
 from __future__ import annotations
@@ -170,8 +176,27 @@ def summarize_stalls(report: dict, threshold_ms: float = STALL_THRESHOLD_MS,
         # Main-thread CPU seconds inside the pass: robust to host load, unlike stalls.
         "main_cpu_s": main_cpu,
         "rows_built": counters.get("songs.row"),
+        # The fling pass's per-frame tally (``ScrollFlingStress``), when it ran.
+        "frames": fling_frames(report),
         "stalls": stalls,
     }
+
+
+def fling_frames(report: dict) -> dict | None:
+    """The fling pass's frame tally from a stall report's ``fling.*`` peaks.
+
+    Args:
+        report: ``MainThreadStallReport`` JSON.
+
+    Returns:
+        ``frames``, ``late`` (dropped frames), ``hitchMsPerS`` (Apple's hitch-time
+        ratio), ``over8ms`` / ``over16ms`` (frames whose main-thread work missed the
+        120 / 60 Hz budget), ``meanWorkMs``, ``worstWorkMs`` and ``worstIntervalMs``;
+        None without a fling pass.
+    """
+    peaks = report.get("peaks") or {}
+    frames = {key.removeprefix("fling."): value for key, value in peaks.items() if key.startswith("fling.")}
+    return frames or None
 
 
 def parse_launch_pid(text: str) -> int | None:
@@ -400,6 +425,24 @@ def sample_cpu(pid: int, duration: float, interval: float) -> dict:
     return summary
 
 
+def wait_for_mark(log: Path, mark: str, timeout: float) -> None:
+    """Poll a stall log until a counter's first mark appears (or the timeout passes).
+
+    Args:
+        log: ``FST_DEBUG_STALL_LOG`` path.
+        mark: Counter name.
+        timeout: Seconds before giving up.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            if mark in (json.loads(log.read_text()).get("counters") or {}):
+                return
+        except (OSError, json.JSONDecodeError):
+            pass
+        time.sleep(0.2)
+
+
 def wait_for_stress(log: Path, timeout: float) -> dict:
     """Poll a stall log until the stress pass's end mark appears.
 
@@ -523,7 +566,18 @@ def _measure(args: argparse.Namespace, pid: int, stall_log: Path | None, device:
         # enough for the pass; it starts ~3 s after the list loads).
         if args.trace:
             tracer = start_trace(pid, args.trace, args.duration, out, device)
+        sampler = None
+        if getattr(args, "sample", 0):
+            # macOS `sample` reads the simulator app (a host process), where xctrace can't.
+            wait_for_mark(stall_log, STRESS_START, args.stress_timeout)
+            sample_out = Path(args.out_dir).expanduser() / f"{args.label or args.target}-sample.txt"
+            sampler = subprocess.Popen(["sample", str(pid), str(args.sample), "1", "-mayDie",
+                                        "-file", str(sample_out)],
+                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            result["sample"] = str(sample_out)
         report = wait_for_stress(stall_log, args.stress_timeout)
+        if sampler is not None:
+            sampler.wait()
         result["stress"] = summarize_stalls(report)
         result["stress"]["max_awake_ms"] = report.get("maxAwakeMs")
     else:
@@ -559,6 +613,10 @@ def cmd_mac(args: argparse.Namespace) -> int:
     mac_app.cmd_quit(argparse.Namespace(timeout=5.0))
     extra: list[str] = []
     stall_log = None
+    if args.fling:
+        print("--fling drives a UIScrollView: iOS/iPadOS only (use `ipad --device iphone27`).",
+              file=sys.stderr)
+        return 2
     if args.stress:
         stall_log = Path(args.out_dir).expanduser() / f"{args.label or 'mac'}-stalls.json"
         stall_log.parent.mkdir(parents=True, exist_ok=True)
@@ -613,11 +671,16 @@ def cmd_ipad(args: argparse.Namespace) -> int:
         launch_env["SIMCTL_CHILD_FST_DEBUG_ROUTE"] = args.route
     if args.profile:
         launch_env["SIMCTL_CHILD_FST_DEBUG_PROFILE"] = mac_app.resolve_profile(args.profile)
+    if args.fling:
+        args.stress = True
     if args.stress:
         stall_log = Path(args.out_dir).expanduser() / f"{args.label or 'ipad'}-stalls.json"
         stall_log.parent.mkdir(parents=True, exist_ok=True)
         stall_log.unlink(missing_ok=True)
-        launch_env["SIMCTL_CHILD_FST_DEBUG_SONGS_SCROLL_STRESS"] = "1"
+        if args.fling:
+            launch_env["SIMCTL_CHILD_FST_DEBUG_FLING_STRESS"] = "1"
+        else:
+            launch_env["SIMCTL_CHILD_FST_DEBUG_SONGS_SCROLL_STRESS"] = "1"
         launch_env["SIMCTL_CHILD_FST_DEBUG_STALL_LOG"] = str(stall_log)
     # After the stress defaults, so `--env` can override them.
     for pair in args.env or []:
@@ -657,6 +720,12 @@ def _add_measure_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--duration", type=float, default=20.0, help="Seconds of CPU sampling / tracing")
     parser.add_argument("--interval", type=float, default=2.0, help="CPU window length")
     parser.add_argument("--stress", action="store_true", help="Run the Songs scroll stress pass and count stalls")
+    parser.add_argument("--fling", action="store_true",
+                        help="iOS: fast-flick the page's main scroll view (ScrollFlingStress) and "
+                             "tally each frame's main-thread work against the 120/60 Hz budgets")
+    parser.add_argument("--sample", type=int, default=0, metavar="SECONDS",
+                        help="With --stress/--fling: run macOS `sample` on the app for SECONDS "
+                             "from the pass's start mark (call trees; works on simulator apps)")
     parser.add_argument("--stress-timeout", type=float, default=150.0)
     parser.add_argument("--trace", help="xctrace template, e.g. 'Time Profiler', 'Animation Hitches', 'SwiftUI'")
     parser.add_argument("--top", type=int, default=0, help="With 'Time Profiler': print the N heaviest symbols")

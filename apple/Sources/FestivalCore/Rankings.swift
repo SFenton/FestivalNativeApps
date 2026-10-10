@@ -55,6 +55,104 @@ public enum BandRankingMetric: String, CaseIterable, Codable, Sendable, Identifi
     }
 }
 
+// MARK: - Experimental ranks gate
+
+/// The Settings "Enable Experimental Leaderboard Ranks" switch and the one gate every
+/// ranking surface applies (pattern `experimental-ranks`; web
+/// `pages/leaderboards/helpers/rankingHelpers.ts` `getEnabledRankingMetrics` /
+/// `coerceRankingMetric`, `bandRankingHelpers.ts` `coerceBandRankingMetric`).
+///
+/// Off by default: only Total Score (`DEFAULT_METRICS`) is offered, and a saved or
+/// deep-linked experimental metric (Adjusted, Weighted, FC Rate, Max Score) reads as
+/// Total Score. On: every metric is offered (bands never offer Max Score).
+public enum ExperimentalRanks {
+    /// `@AppStorage` key of the Settings switch (web `settings.enableExperimentalRanks`).
+    public static let storageKey = "fst.settings.experimentalRanks"
+    /// The switch's default and Reset value (web `defaultAppSettings`).
+    public static let defaultValue = false
+}
+
+extension RankingMetric {
+    /// Whether this metric is one of the web's `EXPERIMENTAL_METRICS`.
+    public var isExperimental: Bool { self != .totalscore }
+
+    /// Every metric in the web's menu order, Total Score first (web `RANKING_METRICS`);
+    /// never the enum's declaration order (pattern `experimental-ranks` R1).
+    public static let menuOrder: [RankingMetric] = [.totalscore, .adjusted, .weighted, .fcrate, .maxscore]
+
+    /// The metrics a Rank By control offers, in menu order.
+    ///
+    /// - Parameter experimentalRanks: The Settings switch.
+    /// - Returns: Total Score alone while off; every metric while on.
+    public static func enabled(experimentalRanks: Bool) -> [RankingMetric] {
+        experimentalRanks ? menuOrder : [.totalscore]
+    }
+
+    /// The metric in effect for a stored or deep-linked raw value.
+    ///
+    /// - Parameters:
+    ///   - raw: Raw metric (`adjusted`, `totalscore`…), or nil.
+    ///   - experimentalRanks: The Settings switch.
+    /// - Returns: The metric, or Total Score when unknown or experimental while off.
+    public static func coerced(_ raw: String?, experimentalRanks: Bool) -> RankingMetric {
+        (raw.flatMap(RankingMetric.init(rawValue:)) ?? .totalscore).coerced(experimentalRanks: experimentalRanks)
+    }
+
+    /// This metric, or Total Score when it is experimental and the switch is off.
+    ///
+    /// - Parameter experimentalRanks: The Settings switch.
+    /// - Returns: The metric in effect.
+    public func coerced(experimentalRanks: Bool) -> RankingMetric {
+        experimentalRanks || !isExperimental ? self : .totalscore
+    }
+}
+
+extension BandRankingMetric {
+    /// Whether this metric is one of the web's `BAND_EXPERIMENTAL_METRICS`.
+    public var isExperimental: Bool { self != .totalscore }
+
+    /// Every band metric in the web's menu order, Total Score first (web
+    /// `BAND_RANKING_METRICS`); never the enum's declaration order (pattern
+    /// `experimental-ranks` R1).
+    public static let menuOrder: [BandRankingMetric] = [.totalscore, .adjusted, .weighted, .fcrate]
+
+    /// The band metrics a Rank By control offers, in menu order (never Max Score).
+    ///
+    /// - Parameter experimentalRanks: The Settings switch.
+    /// - Returns: Total Score alone while off; every band metric while on.
+    public static func enabled(experimentalRanks: Bool) -> [BandRankingMetric] {
+        experimentalRanks ? menuOrder : [.totalscore]
+    }
+
+    /// The band metric in effect for a stored or deep-linked raw value (Max Score and
+    /// unknown values read as Total Score, web `coerceBandRankingMetric`).
+    ///
+    /// - Parameters:
+    ///   - raw: Raw metric, or nil.
+    ///   - experimentalRanks: The Settings switch.
+    /// - Returns: The band metric in effect.
+    public static func coerced(_ raw: String?, experimentalRanks: Bool) -> BandRankingMetric {
+        (raw.flatMap(BandRankingMetric.init(rawValue:)) ?? .totalscore).coerced(experimentalRanks: experimentalRanks)
+    }
+
+    /// This band metric, or Total Score when it is experimental and the switch is off.
+    ///
+    /// - Parameter experimentalRanks: The Settings switch.
+    /// - Returns: The band metric in effect.
+    public func coerced(experimentalRanks: Bool) -> BandRankingMetric {
+        experimentalRanks || !isExperimental ? self : .totalscore
+    }
+
+    /// The Band Detail page's metric before the person picks one (web `BandPage`
+    /// `bandRankingMetric`): Adjusted with the switch on, Total Score while off.
+    ///
+    /// - Parameter experimentalRanks: The Settings switch.
+    /// - Returns: The default band metric.
+    public static func bandDetailDefault(experimentalRanks: Bool) -> BandRankingMetric {
+        experimentalRanks ? .adjusted : .totalscore
+    }
+}
+
 // MARK: - Band type
 
 /// The three ranked band sizes (`FortniteFestivalWeb/src/utils/bandTypes.ts`).

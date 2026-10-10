@@ -1,4 +1,5 @@
 import SwiftUI
+import FestivalCore
 #if os(macOS)
 import AppKit
 #endif
@@ -109,6 +110,8 @@ public struct MacCommands: Commands {
     @FocusedValue(\.macPageCommands) private var pageCommands
     @FocusedValue(\.macSongCommands) private var songCommands
     @FocusedValue(\.macRankBy) private var rankBy
+    /// Settings › Experimental Ranks: View › Rank By lists Total Score alone while off.
+    @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
     @FocusedValue(\.macInstrument) private var instrument
     @FocusedValue(\.macQuickLinksPage) private var pageQuickLinks
     @FocusedValue(\.macQuickLinksList) private var listQuickLinks
@@ -227,7 +230,7 @@ public struct MacCommands: Commands {
     /// its items (HIG Menus: "Make sure a submenu remains available even when its
     /// items are unavailable").
     @ViewBuilder private var rankByMenu: some View {
-        let options = rankBy?.options ?? MacRankByCommands.accountOptions
+        let options = rankBy?.options ?? MacRankByCommands.accountOptions(experimentalRanks: experimentalRanks)
         Menu("Rank By") {
             ForEach(options) { option in
                 Toggle(option.label, isOn: Binding(

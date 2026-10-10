@@ -137,7 +137,10 @@ class FeedbackState:
                 raise ValueError(f"unknown {key} mode: {mode}")
         with self._lock:
             self.modes.update(wanted)
-            for key, event in (("post", self.post_released), ("status", self.status_released)):
+            # Holds first: one request that releases the POST and holds status reads (the filing phase) must not let
+            # the app's first status read through as filed.
+            events = (("post", self.post_released), ("status", self.status_released))
+            for key, event in sorted(events, key=lambda pair: self.modes[pair[0]] != "hold"):
                 if self.modes[key] == "hold":
                     event.clear()
                 else:

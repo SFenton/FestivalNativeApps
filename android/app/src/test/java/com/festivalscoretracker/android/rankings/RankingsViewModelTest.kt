@@ -350,6 +350,8 @@ class RankingsViewModelTest {
     fun fullRankingsSwitchersResetToFirstPage() = runTest(main.dispatcher) {
         settings.value = AppSettings(selectedPlayer = selectedPlayer, experimentalRanks = true)
         val viewModel = full(page = 2)
+        // No page count (so no pager) before the first board answers (#575).
+        assertNull(viewModel.pageCount.value)
         advanceUntilIdle()
         assertEquals(1, fake.count("own:Solo_Guitar"))
         viewModel.selectInstrument(Instrument.Lead)
@@ -415,6 +417,8 @@ class RankingsViewModelTest {
         rankBy.value = RankingMetric.MaxScore
         val viewModel = BandRankingsViewModel(BandType.Trios, rankBy, MutableStateFlow(true), fake.reads, ServiceRetryBackoff())
         assertTrue(viewModel.board.value is LoadState.Loading)
+        // No page count (so no pager) before the first board answers (#575).
+        assertNull(viewModel.pageCount.value)
         advanceUntilIdle()
         assertEquals(BandRankingMetric.TotalScore, viewModel.metric.value)
         assertEquals(listOf("bands:Band_Trios:totalscore:1:25"), fake.calls)
