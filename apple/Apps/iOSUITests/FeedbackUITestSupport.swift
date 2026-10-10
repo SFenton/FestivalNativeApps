@@ -68,10 +68,15 @@ enum FeedbackJourney {
                       "Cancel did not close the form")
     }
 
-    /// Swipe up on the app's window until the element is hittable. Never `app.swipeUp()`:
-    /// in Split View the app element spans the screen, and its centre is the divider.
+    /// Swipe up on the app's window until the element is hittable, then settle it in the
+    /// window's middle band with short, slow drags. Never `app.swipeUp()`: in Split View
+    /// the app element spans the screen, and its centre is the divider.
     ///
-    /// - Returns: Whether it became hittable within 15 swipes.
+    /// The band keeps the row above a compact window's tab bar and below the status bar,
+    /// where a tap scrolls the page to the top instead (a short landscape Duo window let
+    /// one swipe carry the row there).
+    ///
+    /// - Returns: Whether it became hittable within the attempts.
     static func scrollTo(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
         _ = element.waitForExistence(timeout: FestivalApp.budget(15))
         let page = app.windows.firstMatch
@@ -80,12 +85,30 @@ enum FeedbackJourney {
             page.swipeUp()
             attempts += 1
         }
-        // A compact window's tab bar covers the bottom of the page: bring the row above it.
-        while element.exists && element.frame.maxY > page.frame.maxY - 140 && attempts < 15 {
-            page.swipeUp()
+        while element.exists && attempts < 24 {
+            let row = element.frame, window = page.frame
+            let low = window.maxY - 140, high = window.minY + 120
+            if row.maxY > low {
+                drag(page, by: -min(200, row.maxY - low + 40))
+            } else if row.minY < high {
+                drag(page, by: min(200, high - row.minY + 40))
+            } else {
+                break
+            }
             attempts += 1
         }
         return element.exists && element.isHittable
+    }
+
+    /// Scroll the page by a short, slow drag that leaves no momentum.
+    ///
+    /// - Parameters:
+    ///   - page: The app's window.
+    ///   - dy: Points to move the content (negative scrolls down the page).
+    private static func drag(_ page: XCUIElement, by dy: CGFloat) {
+        let start = page.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: dy)),
+                    withVelocity: .slow, thenHoldForDuration: 0.2)
     }
 
     /// Poll a condition for up to `timeout` seconds (default: a VM-scaled 10 s).
