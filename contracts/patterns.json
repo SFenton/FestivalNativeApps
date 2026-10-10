@@ -409,7 +409,7 @@
       "title": "Section headers",
       "status": "current",
       "doc": ".agents/patterns/section-headers.md",
-      "summary": "Section titles are white Title Case level-two headings above material cards; pinned Songs titles remain opaque and push one-for-one without overlap.",
+      "summary": "Section titles are white Title Case level-two headings above material cards; pinned Songs titles remain opaque and push one-for-one without overlap, and the list end lets the last push finish.",
       "keywords": [
         "section header",
         "section title",
@@ -479,6 +479,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsScreen.kt",
             "symbol": "SongsScreen"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/PinnedHeaderEdgeFade.kt",
+            "symbol": "rememberPinnedHeaderEndSpace"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FoldLane.kt",
@@ -596,7 +600,8 @@
         321,
         343,
         348,
-        557
+        557,
+        560
       ]
     },
     {
@@ -2952,6 +2957,86 @@
           ],
           "debt": [],
           "message": "Windows has one View all CTA style, FSTViewAllButtonStyle in Themes/Styles.xaml; extend it instead of adding another (view-all-cta R3)."
+        }
+      ]
+    },
+    {
+      "id": "stat-tile-grid",
+      "title": "Stat tile grid",
+      "status": "current",
+      "doc": ".agents/patterns/stat-tile-grid.md",
+      "summary": "Profile and Band stat tile grids: a tile whose value or label would wrap in one slot spans two (owner-approved variant #591, Android), tiles keep web order with the row's last tile widening instead of holes, every tile takes the grid's tallest height, and text that doesn't fit two slots wraps rather than truncating. One grid component per platform.",
+      "keywords": [
+        "stat tile",
+        "stat grid",
+        "StatBox",
+        "span",
+        "two slots",
+        "full combos",
+        "tile height",
+        "wrap",
+        "large text",
+        "band statistics",
+        "profile statistics"
+      ],
+      "web": [
+        {
+          "path": "components/player/StatBox.tsx",
+          "symbol": "StatBox"
+        },
+        {
+          "path": "pages/player/sections/OverallSummarySection.tsx",
+          "symbol": "buildOverallSummaryItems"
+        },
+        {
+          "path": "pages/band/BandPage.tsx",
+          "symbol": "BandPage"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Profile/PlayerStatGrid.swift",
+            "symbol": "StatTileGridLayout"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/StatTileGrid.kt",
+            "symbol": "StatTileGrid"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/profile/StatTileSpans.kt",
+            "symbol": "StatTileSpans"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/PlayerStatTileView.cs",
+            "symbol": "PlayerStatTileView"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "surface-materials",
+          "wide-columns",
+          "hinge-columns"
+        ],
+        "pages": [
+          "player-profile",
+          "band-detail",
+          "statistics"
+        ]
+      },
+      "guards": [
+        {
+          "id": "android-row-chunking",
+          "glob": "android/app/src/main/java/com/festivalscoretracker/android/ui/profile/**/*.kt",
+          "regex": "\\.chunked\\(|IntrinsicSize\\.Min",
+          "allow": [],
+          "debt": [],
+          "message": "Stat tile grids place and size tiles in one place: use StatTileGrid (spans, web order, one height) instead of chunked rows with intrinsic heights (stat-tile-grid R1-R5)."
         }
       ]
     },
