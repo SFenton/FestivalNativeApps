@@ -61,6 +61,7 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
             "Loading rankings");
         Bindings.Update();
         if (created) await ViewModel.LoadAsync();
+        else if (ViewModel.SyncExperimentalRanks() is { } reload) await reload; // Settings' Experimental Ranks changed.
         else ViewModel.RefreshSelection(); // The selection may have changed on a pushed profile.
     }
 
@@ -143,20 +144,6 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
             row.UpdateLayout();
             row.StartBringIntoView(new Microsoft.UI.Xaml.BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });
         });
-    }
-
-    /// <summary>
-    /// Keeps a focused row (Tab, arrows, Narrator) clear of the floating footer that overlays the bottom of the rows: the
-    /// target grows downwards by the rows' footer inset before the scroller handles the request (WCAG 2.4.11).
-    /// </summary>
-    /// <param name="sender">Rows.</param>
-    /// <param name="args">Request; explicit alignments (the centred jump) are left alone.</param>
-    private void OnRowsBringIntoViewRequested(UIElement sender, BringIntoViewRequestedEventArgs args)
-    {
-        if (!double.IsNaN(args.VerticalAlignmentRatio)) return;
-        var target = args.TargetRect;
-        args.TargetRect = new Windows.Foundation.Rect(target.X, target.Y, target.Width,
-            LeaderboardPaging.RevealAboveFooter(target.Height, RowsRepeater.Margin.Bottom));
     }
 
     /// <summary>

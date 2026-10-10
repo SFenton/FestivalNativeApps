@@ -18,11 +18,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.ErrorOutline
@@ -413,7 +413,9 @@ private fun MaxScoreDual(pill: SongMaxScorePill, songId: String) {
 
 /**
  * The row's Item Shop indicator: a circle breathing in the status color (green in
- * Shop, gold New, red Leaving Tomorrow) with a clock, sparkle or bag glyph.
+ * Shop, gold New, red Leaving Tomorrow) with a clock for Leaving Tomorrow, else the
+ * Shop bag. New gets no glyph of its own (issue #562): web rows mark New only by the
+ * gold outline, and the row announcement says "Item Shop: New".
  */
 @Composable
 internal fun ShopBadge(pulse: ShopPulse, songId: String, breathe: () -> Float) {
@@ -425,17 +427,22 @@ internal fun ShopBadge(pulse: ShopPulse, songId: String, breathe: () -> Float) {
             .testTag("fst.songs.shop-badge.$songId"),
     ) {
         Icon(
-            when (pulse) {
-                ShopPulse.LeavingTomorrow -> Icons.Filled.Schedule
-                ShopPulse.New -> Icons.Filled.AutoAwesome
-                ShopPulse.InShop -> Icons.Filled.ShoppingBag
-            },
+            shopBadgeIcon(pulse),
             contentDescription = null,
             tint = BrandTokens.textPrimary,
             modifier = Modifier.size(18.dp),
         )
     }
 }
+
+/**
+ * [ShopBadge] glyph: the clock for Leaving Tomorrow, else the Shop bag (New included).
+ *
+ * @param pulse Row Shop status.
+ * @return Icon.
+ */
+internal fun shopBadgeIcon(pulse: ShopPulse): ImageVector =
+    if (pulse == ShopPulse.LeavingTomorrow) Icons.Filled.Schedule else Icons.Filled.ShoppingBag
 
 @Composable
 private fun ScoreState(text: String, songId: String) {

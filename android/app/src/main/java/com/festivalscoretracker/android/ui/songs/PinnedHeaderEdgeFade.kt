@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -70,6 +71,12 @@ internal class PinnedHeaderEdgeState(
     val cutKeys: Set<Any> by derivedStateOf {
         val fade = edge ?: return@derivedStateOf emptySet()
         SongHeaderEdgeFade.cutRows(visible(), listState.layoutInfo.viewportStartOffset, fade.top).mapTo(HashSet()) { it.key }
+    }
+
+    /** Key of the header pinned at the list's top edge, or null ([SongHeaderEdgeFade.pinned]). */
+    val pinnedKey: Any? by derivedStateOf {
+        if (firstHeaderKey == null) null
+        else SongHeaderEdgeFade.pinned(visible(), listState.layoutInfo.viewportStartOffset)?.key
     }
 
     /**
@@ -153,6 +160,27 @@ internal fun rememberHiddenUnderPinnedHeader(state: PinnedHeaderEdgeState, key: 
 }
 
 /**
+ * Has TalkBack read a sticky header before the rows beneath it while it is pinned (scroll-edge
+ * R5). Compose orders a list's items by their on-screen bounds; a row partly hidden under the
+ * pinned header ([pinnedHeaderEdgeFade] is drawing only) starts at the same top edge and further
+ * left, so without this TalkBack read that row before the title naming its section (issue #462).
+ * A pinned header gets a [traversalIndex] below its siblings in the list's traversal group; an
+ * in-flow header keeps 0, so it is still read between the sections it divides.
+ *
+ * @param key The header's list key.
+ * @param state The list's edge state.
+ * @return Semantics modifier for the header's outermost node.
+ */
+@Composable
+internal fun rememberPinnedHeaderReadOrder(key: Any, state: PinnedHeaderEdgeState): Modifier {
+    val pinned by remember(key, state) { derivedStateOf { state.pinnedKey == key } }
+    return if (pinned) Modifier.semantics { traversalIndex = PINNED_HEADER_TRAVERSAL_INDEX } else Modifier
+}
+
+/** Traversal index of the pinned header among its list's items (which keep 0). */
+internal const val PINNED_HEADER_TRAVERSAL_INDEX = -1f
+
+/**
  * Hides rows under the pinned section header and fades them in over the linear ramp just below
  * it ([SongHeaderEdgeFade]), so the header needs no backing (issue #91). On an offscreen layer it
  * clears everything above the header's resting bottom edge, masks the ramp
@@ -160,9 +188,9 @@ internal fun rememberHiddenUnderPinnedHeader(state: PinnedHeaderEdgeState, key: 
  * whole ([SongHeaderEdgeFade.headersOverEdge]), so their text stays fully opaque, the next header
  * pushes the pinned one out without fading (issue #288) and no row ever shows behind a header.
  * With a hard edge ([PinnedHeaderEdgeState.depth] 0) rows end at the header's bottom edge.
- * Drawing only: hit testing and TalkBack order are unchanged, except that rows wholly in the cut
- * leave TalkBack through [rememberHiddenUnderPinnedHeader]. Without an edge it draws nothing and
- * skips the offscreen layer.
+ * Drawing only: hit testing is unchanged; rows wholly in the cut leave TalkBack through
+ * [rememberHiddenUnderPinnedHeader] and [rememberPinnedHeaderReadOrder] keeps the pinned header
+ * first in TalkBack order. Without an edge it draws nothing and skips the offscreen layer.
  *
  * @param state The list's edge state.
  * @param headerStart Headers' start inset in px (the list's start content padding).

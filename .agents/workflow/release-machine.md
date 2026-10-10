@@ -7,7 +7,7 @@
 | Piece | Where | Role |
 |---|---|---|
 | Orchestrator | tracker repo, Linux host | Triages issues, merges PRs, decides when to submit; dispatches `store-release` and reads its result. It never holds store credentials or calls a store itself |
-| `apple-ci` | [`apple-ci.yml`](../../.github/workflows/apple-ci.yml) | Required check on PRs and `master`, hosted `xcode-27` runner: xcodegen, release-tool tests, iOS compile, `swift test`, informational coverage + inventory |
+| `apple-ci` | [`apple-ci.yml`](../../.github/workflows/apple-ci.yml) | Required check on PRs and `master`, hosted `xcode-27` runner: xcodegen, release-tool tests, iOS compile, `swift test`, the iPhone and iPad simulator journeys ([CI journeys](../testing/apple/xcuitest.md#ci-journeys)), informational coverage + inventory |
 | `version-bump` | [`version-bump.yml`](../../.github/workflows/version-bump.yml) | The only automatic entry point: on every `master` push, tags each platform whose app changed with its next `<platform>/v<YYMM.DD.NN>` and dispatches that platform's build ([versions](#versions-notes-and-whats-new)) |
 | `ios-release-build` | [`ios-release-build.yml`](../../.github/workflows/ios-release-build.yml) | `workflow_dispatch` only (`version_tag`, `rebuild_reason`, `dry_run`; master ref): hosted `xcode-27` runner, `store-release` environment; checks out the tag, archives + uploads a build, then the `testflight-notes` job sets its TestFlight "What to Test" |
 | Versions | `tools/release/versioning.py` | `bump`, `describe`, `latest-tag`, `whats-new`, `testflight-notes`: the tag ledger, release-note trailers and generated notes |
@@ -17,9 +17,10 @@
 | Store client | `tools/release/fst_store.py` | `fst_release.py windows status\|submit\|record-build` dispatches here (Microsoft Store submission API) |
 | `store-release` | [`store-release.yml`](../../.github/workflows/store-release.yml) | `workflow_dispatch` only (`platform`, `command` status/submit, `build`, `notes_b64`, `request_id`, `dry_run`), hosted `ubuntu-latest`, `store-release` environment (master only). Runs `tools/release/actions_job.py`, which enforces policy and uploads `store-release-result` (`result.json`) |
 | Secrets tool | `tools/release/store_secrets.py` | `status`, `asc`, `ios-p12`, `msstore`: validates and uploads credentials to the `store-release` environment through `gh secret set` stdin |
-| Android/macOS | `android-release.yml`, `macos-release.yml` | Disabled scaffolds (below) |
+| Android | `android-release.yml` | Signed App Bundle per `android/v…` tag; Google Play internal testing ([release-android.md](release-android.md)) |
+| macOS | `macos-release.yml` | Disabled scaffold (below) |
 
-`native.yml` (hosted Windows/Android unit tests) and `contracts.yml` are unchanged; the required checks are `apple-ci` and `contracts`.
+`native.yml` (hosted Windows/Android unit tests and the `android-device` accessibility journeys), `windows-ui.yml` (Windows accessibility journeys) and `contracts.yml` are unchanged by the release machine; the required checks are `apple-ci` and `contracts`.
 
 ## Rule: stores are touched only from Actions
 
@@ -30,7 +31,7 @@ Builds, signing, TestFlight uploads and store submissions run only in GitHub-hos
 
 ## Pipelines
 
-1. PR → `apple-ci` on hosted `xcode-27` (installs xcodegen with Homebrew). Compile and unit tests never boot a simulator. Swift coverage gates and `verify_product.py --strict` do not pass yet ([coverage](../testing/apple/coverage.md)), so those steps are informational.
+1. PR → `apple-ci` on hosted `xcode-27` (installs xcodegen with Homebrew). Compile and unit tests never boot a simulator; only the iPhone and iPad journey steps do, each on its own throwaway runner simulator, one at a time ([CI journeys](../testing/apple/xcuitest.md#ci-journeys)). Swift coverage gates and `verify_product.py --strict` do not pass yet ([coverage](../testing/apple/coverage.md)), so those steps are informational.
 2. Merge to `master` → `version-bump` tags `ios/v<YYMM.DD.NN>` when iOS app files changed and dispatches `ios-release-build` (merges touching no app code build nothing). It writes the ASC key from secrets to `$RUNNER_TEMP`, imports `IOS_DIST_P12_BASE64` into a throwaway keychain (or, without it, sets `FST_ALLOW_CLOUD_SIGNING=1` so Xcode uses cloud-managed distribution signing with an **Admin** key), archives and uploads, then deletes the keychain and key. The `testflight-notes` job then waits (≤45 min) for the build in ASC and sets its TestFlight notes. Exit code 4 (`{"blocked":"missing_signing"}`) becomes a neutral "skipped" job summary, not a failure. Only the archive/upload job holds the `ios-release-build` concurrency group (one build at a time; a newer queued tag replaces an older queued one). The notes job is outside it, because a wedged `store-release` deployment on that job once held every later build for 30 h (2026-10-06/07). If a run sits "waiting" on `store-release` with no protection rule pending, cancel it: its build is already uploaded. `workflow_dispatch` has a `dry_run` input.
 3. The orchestrator dispatches `store-release` with `status`, reads `result.json`, picks the latest `VALID` build newer than `released_sha` (gate-checked), then dispatches `submit` with that build and base64 notes. In Actions, `FST_RELEASE_SHA_FROM_ARTIFACTS=1` maps build numbers to commits through `fst-ios-build_<build>` marker artifacts (uploaded by `ios-release-build`, 90 days) and the MSIX artifact names.
 
@@ -153,7 +154,7 @@ Set the repository variable `FST_RELEASE_<ANDROID|MACOS>_ENABLED=true` only afte
 
 | Platform | Plan |
 |---|---|
-| Android | Gradle Play Publisher with a Play service account secret and upload keystore; internal track first |
+| Android | Internal testing implemented ([release-android.md](release-android.md)); closed testing, production and the release machine's review/promotion step next |
 | Windows | Implemented (MSIX build + Store submission API); see [Windows](#windows-microsoft-store) |
 | macOS | Copy `ios_appstore_build.sh` for `FestivalDesktop`; the client already supports `fst_release.py macos …` (ASC `MAC_OS`, bundle id `com.sfenton.festivalscoretracker.mac`) |
 

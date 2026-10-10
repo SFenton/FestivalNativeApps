@@ -1,0 +1,122 @@
+name: windows-ui
+# Windows accessibility journeys (tools/windows/ui_ci.py RUNS) through a11y_matrix.py on the hosted runner's
+# interactive desktop. The app runs the Debug build against loopback fixtures (no service calls); a run with a
+# system mode (text-225) changes only this runner's desktop and restores it.
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'windows/**'
+      - 'tools/windows/**'
+      - 'tools/android/hostlock.py'
+      - 'tools/mock_service.py'
+      - '.github/workflows/windows-ui.yml'
+  pull_request:
+    paths:
+      - 'windows/**'
+      - 'tools/windows/**'
+      - 'tools/android/hostlock.py'
+      - 'tools/mock_service.py'
+      - '.github/workflows/windows-ui.yml'
+  workflow_dispatch:
+  # Nightly full matrix on master (medium window, 225% text, declared modes); PRs run the bounded gate.
+  schedule:
+    - cron: '30 9 * * *'
+permissions:
+  contents: read
+concurrency:
+  group: windows-ui-${{ github.event.pull_request.number || github.ref }}
+  # Only a PR's superseded runs are cancelled: master runs finish, so its checks reflect every merge.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  windows-ui-a11y:
+    name: windows-ui-a11y (${{ matrix.shard }})
+    runs-on: windows-latest
+    # The modal journey (11 pages x 3 runs) takes about 11 minutes here.
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        # PRs: the bounded gate in 2 shards; master pushes and the nightly run: the full matrix in 6.
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && '[1, 2]' || '[1, 2, 3, 4, 5, 6]') }}
+    env:
+      PYTHONUTF8: '1'
+      FST_CI: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-dotnet@v4
+        with:
+          # 9: the app; 8: the FstUia UI Automation driver (tools/windows/FstUia).
+          dotnet-version: |
+            8.0.x
+            9.0.x
+      - name: Desktop at 1920x1080
+        shell: pwsh
+        run: ./tools/windows/ci_display.ps1 -Width 1920 -Height 1080
+      - name: Animation and transparency effects on
+        shell: pwsh
+        run: ./tools/windows/ci_effects.ps1
+      - name: Build the app (Debug)
+        shell: pwsh
+        run: ./tools/windows/build.ps1
+      - name: Accessibility journeys
+        run: python tools/windows/ui_ci.py --tier ${{ github.event_name == 'pull_request' && 'pr' || 'full' }} --shard ${{ matrix.shard }} --shards ${{ github.event_name == 'pull_request' && 2 || 6 }} --out "${{ runner.temp }}/windows-ui"
+      - name: Upload journey results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-ui-results
+          path: ${{ runner.temp }}/windows-ui
+          if-no-files-found: ignore
+  windows-ui-journeys:
+    name: windows-ui-journeys (${{ matrix.shard }}/4)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      PYTHONUTF8: '1'
+      FST_CI: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+      - name: Desktop at 1920x1080
+        shell: pwsh
+        run: ./tools/windows/ci_display.ps1 -Width 1920 -Height 1080
+      - name: Animation and transparency effects on
+        shell: pwsh
+        run: ./tools/windows/ci_effects.ps1
+      - name: Build the app (Debug)
+        shell: pwsh
+        run: ./tools/windows/build.ps1
+      - name: Feature journeys
+        shell: pwsh
+        run: python tools/windows/ci_ui.py --shard ${{ matrix.shard }} --shards 4 --retries 2 --out "$env:RUNNER_TEMP\windows-ui-journeys\${{ matrix.shard }}"
+      - name: Upload journey diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-ui-journeys-${{ matrix.shard }}
+          path: ${{ runner.temp }}/windows-ui-journeys/${{ matrix.shard }}
+          if-no-files-found: ignore
+  windows-ui:
+    needs: [windows-ui-a11y, windows-ui-journeys]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - if: needs.windows-ui-a11y.result != 'success' || needs.windows-ui-journeys.result != 'success'
+        run: exit 1
+      - run: echo "Windows accessibility and feature journeys passed."

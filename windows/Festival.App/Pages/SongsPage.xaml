@@ -140,9 +140,9 @@
                                                     </Expander.Header>
                                                     <StackPanel>
                                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4" Margin="0,0,-8,0">
-                                                            <HyperlinkButton Content="Select All" Command="{x:Bind SelectAllCommand}"
+                                                            <HyperlinkButton Content="Select All" Command="{x:Bind SelectAllCommand}" MinHeight="{StaticResource FSTMinTargetSize}"
                                                                              AutomationProperties.Name="{x:Bind SelectAllName}" AutomationProperties.AutomationId="{x:Bind SelectAllId}" />
-                                                            <HyperlinkButton Content="Clear All" Command="{x:Bind ClearAllCommand}"
+                                                            <HyperlinkButton Content="Clear All" Command="{x:Bind ClearAllCommand}" MinHeight="{StaticResource FSTMinTargetSize}"
                                                                              AutomationProperties.Name="{x:Bind ClearAllName}" AutomationProperties.AutomationId="{x:Bind ClearAllId}" />
                                                         </StackPanel>
                                                         <ItemsControl ItemsSource="{x:Bind Rows}" ItemTemplate="{StaticResource FilterToggleTemplate}" IsTabStop="False" />
@@ -253,9 +253,9 @@
                                                                 <StackPanel>
                                                                     <!-- Web BulkActions as trailing text actions (7.17). -->
                                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4" Margin="0,0,-8,0">
-                                                                        <HyperlinkButton Content="Select All" Command="{x:Bind SelectAllCommand}"
+                                                                        <HyperlinkButton Content="Select All" Command="{x:Bind SelectAllCommand}" MinHeight="{StaticResource FSTMinTargetSize}"
                                                                                          AutomationProperties.Name="{x:Bind SelectAllName}" AutomationProperties.AutomationId="{x:Bind SelectAllId}" />
-                                                                        <HyperlinkButton Content="Clear All" Command="{x:Bind ClearAllCommand}"
+                                                                        <HyperlinkButton Content="Clear All" Command="{x:Bind ClearAllCommand}" MinHeight="{StaticResource FSTMinTargetSize}"
                                                                                          AutomationProperties.Name="{x:Bind ClearAllName}" AutomationProperties.AutomationId="{x:Bind ClearAllId}" />
                                                                     </StackPanel>
                                                                     <ItemsControl ItemsSource="{x:Bind Rows}" ItemTemplate="{StaticResource FilterToggleTemplate}" IsTabStop="False" />
@@ -271,7 +271,7 @@
                             </ScrollViewer>
                             <!-- Changes apply live; Reset clears every filter. Light dismiss / Esc closes. -->
                             <Grid Grid.Row="2" Padding="16,12,16,16" BorderThickness="0,1,0,0" BorderBrush="{ThemeResource FSTCardStrokeBrush}">
-                            <Button Content="Reset" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.FilterDraft.ResetCommand}"
+                            <Button Content="Reset" HorizontalAlignment="Stretch" MinHeight="{StaticResource FSTMinTargetSize}" Command="{x:Bind ViewModel.FilterDraft.ResetCommand}"
                                     AutomationProperties.Name="Reset Song Filters" AutomationProperties.AutomationId="fst.songs.filter.reset">
                                     <Button.Resources>
                                         <!-- Web Modal reset: a full-width red (btnDanger #C62828) button (operator batch 7.10). -->
@@ -434,10 +434,12 @@
             <controls:EdgeFadeLayer x:Name="ListFadeHost" Grid.Row="1" AutomationProperties.AutomationId="fst.songs.edge-fade" />
             <!-- Issue #288: the next section's title, drawn here from the edge fade's full depth (40 epx) up to the bar, where it pushes
                  StickyHeader out (the in-list heading turns transparent meanwhile but stays the UIA heading, so this copy
-                 is Raw). Positions follow the scroll on the compositor; nothing animates on its own. -->
+                 is Raw). Positions follow the scroll on the compositor; nothing animates on its own. The raw-view ID lets
+                 a11y-songs-section-push.json prove the copy is drawn yet never a second Narrator stop (issue #452). -->
             <Canvas x:Name="PushLayer" Grid.RowSpan="2" IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw">
                 <TextBlock x:Name="IncomingHeader" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0" Visibility="Collapsed"
-                           AutomationProperties.AccessibilityView="Raw" />
+                           AutomationProperties.AccessibilityView="Raw"
+                           AutomationProperties.AutomationId="fst.songs.section-header.incoming" />
             </Canvas>
 
             <ProgressRing Grid.RowSpan="2" x:Name="LoadingRing" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="48" Height="48"

@@ -1,0 +1,416 @@
+[
+  {
+    "name": "modal-settings-reset",
+    "tab": "settings",
+    "tabs": 4,
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@20",
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.reset",
+      "focus:id=fst.settings.reset",
+      "key:enter",
+      "waitfor:id=fst.settings.reset.dialog@10",
+      "assertname:id=CloseButton|Cancel",
+      "assertname:id=PrimaryButton|Reset",
+      "waitgone:id=SecondaryButton@2"
+    ],
+    "after_ready": [
+      "waitfor:name=Reset Settings@5",
+      "assertread:id=CloseButton|Cancel, button",
+      "assertread:id=PrimaryButton|Reset, button",
+      "assertorder:name=Reset Settings|id=PrimaryButton|id=CloseButton",
+      "assertsize:id=CloseButton|40x40",
+      "assertat:id=CloseButton|-18.5,0",
+      "assertat:id=CloseButton|18.5,0",
+      "assertat:id=CloseButton|0,-18.5",
+      "assertat:id=CloseButton|0,18.5",
+      "focus:id=PrimaryButton",
+      "key:tab",
+      "assertfocus:id=CloseButton@3",
+      "wait:0.5"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.settings.reset.dialog@5",
+      "assertfocus:id=fst.settings.reset@3"
+    ]
+  },
+  {
+    "name": "modal-privacy-policy",
+    "tab": "settings",
+    "tabs": 4,
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@20",
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.privacy-policy",
+      "focus:id=fst.settings.privacy-policy",
+      "key:enter",
+      "waitfor:id=fst.privacy-policy.dialog@10",
+      "assertname:id=fst.privacy-policy.close|Close",
+      "waitgone:id=PrimaryButton@2",
+      "waitgone:id=SecondaryButton@2"
+    ],
+    "after_ready": [
+      "waitfor:name=Privacy Policy@5",
+      "waitfor:id=fst.privacy-policy.content@5",
+      "assertread:id=fst.privacy-policy.close|Close, button",
+      "assertorder:name=Privacy Policy|id=fst.privacy-policy.content|id=fst.privacy-policy.close",
+      "assertsize:id=fst.privacy-policy.close|40x40",
+      "assertat:id=fst.privacy-policy.close|-18.5,0",
+      "assertat:id=fst.privacy-policy.close|18.5,0",
+      "assertat:id=fst.privacy-policy.close|0,-18.5",
+      "assertat:id=fst.privacy-policy.close|0,18.5",
+      "focus:id=fst.privacy-policy.close",
+      "key:shift+tab",
+      "key:tab",
+      "assertfocus:id=fst.privacy-policy.close@3",
+      "wait:0.5"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.privacy-policy.dialog@5",
+      "assertfocus:id=fst.settings.privacy-policy@3"
+    ]
+  },
+  {
+    "name": "modal-feedback-bug",
+    "tab": "settings",
+    "tabs": 8,
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@20",
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.feedback.bug",
+      "focus:id=fst.settings.feedback.bug",
+      "key:enter",
+      "waitfor:id=fst.settings.feedback.bug.dialog@10",
+      "assertname:id=fst.settings.feedback.cancel|Cancel",
+      "waitgone:id=SecondaryButton@2"
+    ],
+    "after_ready": [
+      "waitfor:name=Report an Issue@5",
+      "waitfor:id=fst.settings.feedback.title@5",
+      "assertread:id=fst.settings.feedback.cancel|Cancel, button",
+      "assertread:id=PrimaryButton|Submit, button, unavailable",
+      "assertorder:name=Report an Issue|id=fst.settings.feedback.title|id=PrimaryButton|id=fst.settings.feedback.cancel",
+      "assertsize:id=fst.settings.feedback.cancel|40x40",
+      "assertat:id=fst.settings.feedback.cancel|-18.5,0",
+      "assertat:id=fst.settings.feedback.cancel|18.5,0",
+      "assertat:id=fst.settings.feedback.cancel|0,-18.5",
+      "assertat:id=fst.settings.feedback.cancel|0,18.5",
+      "scrollinto:id=fst.settings.feedback.attach",
+      "focus:id=fst.settings.feedback.attach",
+      "key:tab",
+      "assertfocus:id=fst.settings.feedback.cancel@3",
+      "wait:0.5"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.settings.feedback.bug.dialog@5",
+      "assertfocus:id=fst.settings.feedback.bug@3"
+    ]
+  },
+  {
+    "name": "modal-feedback-feature",
+    "tab": "settings",
+    "tabs": 8,
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@20",
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.feedback.feature",
+      "focus:id=fst.settings.feedback.feature",
+      "key:enter",
+      "waitfor:id=fst.settings.feedback.feature.dialog@10",
+      "assertname:id=fst.settings.feedback.cancel|Cancel",
+      "waitgone:id=SecondaryButton@2"
+    ],
+    "after_ready": [
+      "waitfor:name=Request a Feature@5",
+      "waitfor:id=fst.settings.feedback.title@5",
+      "assertread:id=fst.settings.feedback.cancel|Cancel, button",
+      "assertread:id=PrimaryButton|Submit, button, unavailable",
+      "assertorder:name=Request a Feature|id=fst.settings.feedback.title|id=PrimaryButton|id=fst.settings.feedback.cancel",
+      "assertsize:id=fst.settings.feedback.cancel|40x40",
+      "assertat:id=fst.settings.feedback.cancel|-18.5,0",
+      "assertat:id=fst.settings.feedback.cancel|18.5,0",
+      "assertat:id=fst.settings.feedback.cancel|0,-18.5",
+      "assertat:id=fst.settings.feedback.cancel|0,18.5",
+      "scrollinto:id=fst.settings.feedback.attach",
+      "focus:id=fst.settings.feedback.attach",
+      "key:tab",
+      "assertfocus:id=fst.settings.feedback.cancel@3",
+      "wait:0.5"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.settings.feedback.feature.dialog@5",
+      "assertfocus:id=fst.settings.feedback.feature@3"
+    ]
+  },
+  {
+    "name": "modal-whats-new",
+    "tab": "settings",
+    "tabs": 4,
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@20",
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.whats-new",
+      "pin:id=fst.settings.whats-new",
+      "wait:1",
+      "assertpinned:id=fst.settings.whats-new",
+      "focus:id=fst.settings.whats-new",
+      "key:enter",
+      "waitfor:id=fst.whats-new.dialog@10",
+      "assertname:id=fst.whats-new.dismiss|Dismiss",
+      "waitgone:id=PrimaryButton@2",
+      "waitgone:id=SecondaryButton@2"
+    ],
+    "after_ready": [
+      "waitfor:id=fst.whats-new.section.0@5",
+      "assertread:id=fst.whats-new.dismiss|Dismiss, button",
+      "assertorder:id=fst.whats-new.list|id=fst.whats-new.section.0|id=fst.whats-new.dismiss",
+      "assertsize:id=fst.whats-new.dismiss|40x40",
+      "assertat:id=fst.whats-new.dismiss|-18.5,0",
+      "assertat:id=fst.whats-new.dismiss|18.5,0",
+      "assertat:id=fst.whats-new.dismiss|0,-18.5",
+      "assertat:id=fst.whats-new.dismiss|0,18.5",
+      "focus:id=fst.whats-new.list",
+      "key:tab",
+      "assertfocus:id=fst.whats-new.dismiss@3",
+      "waitfor:id=fst.whats-new.section.0@5",
+      "wait:0.5"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.whats-new.dialog@5",
+      "assertfocus:id=fst.settings.whats-new@3"
+    ]
+  },
+  {
+    "name": "modal-licenses",
+    "route": "/settings/licenses",
+    "tabs": 4,
+    "ready": [
+      "waitfor:id=fst.licenses.row.communitytoolkit.mvvm@20",
+      "focus:id=fst.licenses.row.communitytoolkit.mvvm",
+      "key:enter",
+      "waitfor:id=fst.licenses.detail@10",
+      "assertname:id=fst.licenses.detail.close|Close",
+      "waitgone:id=PrimaryButton@2",
+      "waitgone:id=SecondaryButton@2"
+    ],
+    "after_ready": [
+      "waitfor:name=CommunityToolkit.Mvvm · MIT@5",
+      "waitfor:id=fst.licenses.detail.text@5",
+      "assertread:id=fst.licenses.detail.close|Close, button",
+      "assertread:id=fst.licenses.detail.link|Project page for CommunityToolkit.Mvvm, link",
+      "assertorder:name=CommunityToolkit.Mvvm · MIT|id=fst.licenses.detail.link|id=fst.licenses.detail.text|id=fst.licenses.detail.close",
+      "assertsize:id=fst.licenses.detail.close|40x40",
+      "assertat:id=fst.licenses.detail.close|-18.5,0",
+      "assertat:id=fst.licenses.detail.close|18.5,0",
+      "assertat:id=fst.licenses.detail.close|0,-18.5",
+      "assertat:id=fst.licenses.detail.close|0,18.5",
+      "focus:id=fst.licenses.detail.link",
+      "key:tab",
+      "assertfocus:id=fst.licenses.detail.close@3",
+      "wait:0.5"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.licenses.detail@5",
+      "assertfocus:id=fst.licenses.row.communitytoolkit.mvvm@3"
+    ]
+  },
+  {
+    "name": "modal-first-run",
+    "tab": "songs",
+    "first_run": "force",
+    "tabs": 6,
+    "ready": [
+      "waitfor:id=fst.first-run.dialog@20",
+      "assertname:id=fst.first-run.close|Close",
+      "assertname:id=PrimaryButton|Next",
+      "assertname:id=SecondaryButton|Back",
+      "assertstate:id=SecondaryButton|enabled=false"
+    ],
+    "after_ready": [
+      "waitfor:name=Songs@5",
+      "waitfor:id=fst.first-run.slides@5",
+      "assertread:id=fst.first-run.close|Close, button",
+      "assertread:id=PrimaryButton|Next, button",
+      "assertread:id=SecondaryButton|Back, button, unavailable",
+      "assertorder:name=Songs|id=fst.first-run.slides|id=PrimaryButton|id=SecondaryButton|id=fst.first-run.close",
+      "assertsize:id=fst.first-run.close|40x40",
+      "assertat:id=fst.first-run.close|-18.5,0",
+      "assertat:id=fst.first-run.close|18.5,0",
+      "assertat:id=fst.first-run.close|0,-18.5",
+      "assertat:id=fst.first-run.close|0,18.5",
+      "focus:id=PrimaryButton",
+      "key:tab",
+      "assertfocus:id=fst.first-run.close@3",
+      "wait:1"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.first-run.dialog@5"
+    ]
+  },
+  {
+    "name": "modal-paths-warning",
+    "route": "/songs/fixture-pulse",
+    "tabs": 4,
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "focus:id=fst.song-detail.paths",
+      "key:enter",
+      "waitfor:id=fst.paths.warning@10",
+      "assertname:id=PrimaryButton|OK",
+      "assertname:id=SecondaryButton|Don't Show Again",
+      "waitgone:id=CloseButton@2"
+    ],
+    "after_ready": [
+      "waitfor:name=Some Instruments Unavailable@5",
+      "assertread:id=PrimaryButton|OK, button",
+      "assertread:id=SecondaryButton|Don't Show Again, button",
+      "assertorder:name=Some Instruments Unavailable|id=PrimaryButton|id=SecondaryButton",
+      "assertsize:id=PrimaryButton|40x40",
+      "assertat:id=PrimaryButton|-18.5,0",
+      "assertat:id=PrimaryButton|18.5,0",
+      "assertat:id=PrimaryButton|0,-18.5",
+      "assertat:id=PrimaryButton|0,18.5",
+      "assertsize:id=SecondaryButton|40x40",
+      "assertat:id=SecondaryButton|-18.5,0",
+      "assertat:id=SecondaryButton|18.5,0",
+      "assertat:id=SecondaryButton|0,-18.5",
+      "assertat:id=SecondaryButton|0,18.5",
+      "focus:id=PrimaryButton",
+      "key:tab",
+      "assertfocus:id=SecondaryButton@3",
+      "wait:0.5"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitfor:id=fst.paths@10",
+      "key:esc",
+      "waitgone:id=fst.paths@5",
+      "assertfocus:id=fst.song-detail.paths@3"
+    ]
+  },
+  {
+    "name": "modal-paths",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": true
+    },
+    "tabs": 8,
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "focus:id=fst.song-detail.paths",
+      "key:enter",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.image@15",
+      "assertname:id=CloseButton|Close",
+      "waitgone:id=PrimaryButton@2",
+      "waitgone:id=SecondaryButton@2"
+    ],
+    "after_ready": [
+      "waitfor:name=Paths · Fixture Pulse@5",
+      "waitfor:id=fst.paths.image@5",
+      "assertread:id=CloseButton|Close, button",
+      "assertorder:name=Paths · Fixture Pulse|id=fst.paths.zoom-in|id=fst.paths.image|id=CloseButton",
+      "assertsize:id=CloseButton|40x40",
+      "assertat:id=CloseButton|-18.5,0",
+      "assertat:id=CloseButton|18.5,0",
+      "assertat:id=CloseButton|0,-18.5",
+      "assertat:id=CloseButton|0,18.5",
+      "focus:id=fst.paths.image-scroller",
+      "key:tab",
+      "assertfocus:id=CloseButton@3",
+      "wait:1"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.paths@5",
+      "assertfocus:id=fst.song-detail.paths@3"
+    ]
+  },
+  {
+    "name": "modal-profile-switch",
+    "route": "/player/fixture-player-2",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "fixture": [
+      "profile_fixture.py"
+    ],
+    "tabs": 4,
+    "ready": [
+      "assertname:id=fst.player.select@20|Switch to This Profile",
+      "focus:id=fst.player.select",
+      "key:enter",
+      "waitfor:id=fst.profile.confirm@10",
+      "assertname:id=PrimaryButton|Switch Profile",
+      "assertname:id=CloseButton|Cancel",
+      "assertfocus:id=CloseButton@3"
+    ],
+    "after_ready": [
+      "waitfor:name=Switch Selected Profile?@5",
+      "assertread:id=CloseButton|Cancel, button",
+      "assertread:id=PrimaryButton|Switch Profile, button",
+      "assertorder:name=Switch Selected Profile?|id=PrimaryButton|id=CloseButton",
+      "assertsize:id=CloseButton|40x40",
+      "assertat:id=CloseButton|-18.5,0",
+      "assertat:id=CloseButton|18.5,0",
+      "assertat:id=CloseButton|0,-18.5",
+      "assertat:id=CloseButton|0,18.5",
+      "focus:id=PrimaryButton",
+      "key:tab",
+      "assertfocus:id=CloseButton@3",
+      "wait:0.5"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.profile.confirm@5",
+      "assertfocus:id=fst.player.select@3",
+      "assertname:id=fst.shell.profile@5|Profile: Fixture Player 1"
+    ]
+  },
+  {
+    "name": "modal-profile-deselect",
+    "tab": "songs",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "fixture": [
+      "profile_fixture.py"
+    ],
+    "tabs": 4,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20",
+      "focus:id=fst.shell.profile",
+      "key:shift+f10",
+      "waitfor:id=fst.profile.deselect@5",
+      "focus:id=fst.profile.deselect",
+      "key:enter",
+      "waitfor:id=fst.profile.confirm@10",
+      "assertname:id=PrimaryButton|Deselect Profile",
+      "assertname:id=CloseButton|Cancel",
+      "assertfocus:id=CloseButton@3"
+    ],
+    "after_ready": [
+      "waitfor:name=Deselect Profile?@5",
+      "assertread:id=CloseButton|Cancel, button",
+      "assertread:id=PrimaryButton|Deselect Profile, button",
+      "assertorder:name=Deselect Profile?|id=PrimaryButton|id=CloseButton",
+      "assertsize:id=CloseButton|40x40",
+      "assertat:id=CloseButton|-18.5,0",
+      "assertat:id=CloseButton|18.5,0",
+      "assertat:id=CloseButton|0,-18.5",
+      "assertat:id=CloseButton|0,18.5",
+      "focus:id=PrimaryButton",
+      "key:tab",
+      "assertfocus:id=CloseButton@3",
+      "wait:0.5"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.profile.confirm@5",
+      "assertname:id=fst.shell.profile@5|Profile: Fixture Player 1"
+    ]
+  }
+]

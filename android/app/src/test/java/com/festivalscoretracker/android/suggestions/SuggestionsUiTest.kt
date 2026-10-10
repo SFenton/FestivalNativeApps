@@ -4,6 +4,7 @@ import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -158,11 +159,12 @@ class SuggestionsUiTest {
         assertEquals(0, rule.onAllNodesWithTag("fst.suggestions.filter.cancel").fetchSemanticsNodes().size)
         rule.onNodeWithTag("fst.suggestions.filter.instrument.Solo_Guitar").assertIsOn().performSemanticsAction(SemanticsActions.OnClick); settle()
         rule.onNodeWithTag("fst.suggestions.filter.instrument.Solo_Guitar").assertIsOff()
-        // Applied live: the toolbar badge flips while the sheet is still open; Done just closes.
-        rule.onNodeWithContentDescription("Filter Suggestions, filters on").assertExists()
+        // Applied live: the toolbar state flips while the sheet is still open; Done just closes.
+        filterButtonSays("Filters on: Instruments")
         rule.onNodeWithTag("fst.suggestions.filter.done").performSemanticsAction(SemanticsActions.OnClick); settle()
         settle()
-        rule.onNodeWithContentDescription("Filter Suggestions, filters on").assertIsDisplayed()
+        filterButtonSays("Filters on: Instruments")
+        rule.onNodeWithTag("fst.suggestions.filter-button").assertIsDisplayed()
         assertTrue(rule.onAllNodes(hasTestTagPrefix("fst.suggestions.row.")).fetchSemanticsNodes().none {
             it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)!!.endsWith("|Solo_Guitar")
         })
@@ -183,6 +185,7 @@ class SuggestionsUiTest {
         rule.onNodeWithTag("fst.suggestions.filter.done").performSemanticsAction(SemanticsActions.OnClick); settle()
         settle()
         assertEquals(0, rule.onAllNodesWithTag("fst.suggestions.filter.form").fetchSemanticsNodes().size)
+        filterButtonSays("Filters on: Instruments, General, Instrument-Specific")
         rule.onNodeWithTag("fst.suggestions.filter-button").performClick()
         waitForTag("fst.suggestions.filter.form")
         rule.onNodeWithTag("fst.suggestions.filter.form").performScrollToNode(hasTestTag("fst.suggestions.filter.type.stale"))
@@ -198,6 +201,14 @@ class SuggestionsUiTest {
         rule.onNodeWithTag("fst.suggestions.filter.done").performSemanticsAction(SemanticsActions.OnClick); settle()
         settle()
         rule.onNodeWithContentDescription("Filter Suggestions").assertIsDisplayed()
+        filterButtonSays("No filters")
+    }
+
+    /** The Filter button speaks [state] (issue #418: the gold tint is never the only signal). */
+    private fun filterButtonSays(state: String) {
+        rule.onNodeWithTag("fst.suggestions.filter-button")
+            .assert(androidx.compose.ui.test.SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.StateDescription, state))
+            .assert(androidx.compose.ui.test.hasContentDescription("Filter Suggestions"))
     }
 
     @Test

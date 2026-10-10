@@ -91,6 +91,12 @@ public static class QuickLinks
     public const int MaxJumpCorrections = 4;
 
     /// <summary>
+    /// Layout passes a jump waits for its section's first focusable control to be realized (a virtualizing list far
+    /// below the viewport) before it stops trying to move keyboard focus there.
+    /// </summary>
+    public const int MaxFocusRetries = 30;
+
+    /// <summary>
     /// <c>BringIntoViewOptions.VerticalOffset</c> for a jump to a repeater-realized section with
     /// <c>VerticalAlignmentRatio = 0</c>. WinUI scrolls so the target's top rests this far below the viewport top, so it
     /// is the positive landing gap: a negative value (the #51 port) parked the section 32 epx under the title bar until

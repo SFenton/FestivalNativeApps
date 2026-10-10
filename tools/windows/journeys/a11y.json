@@ -324,6 +324,7 @@
   {
     "name": "leaderboards-rank-by-menu",
     "route": "/leaderboards",
+    "settings": {"experimentalRanks": true},
     "sizes": [
       "compact",
       "medium"
@@ -678,6 +679,71 @@
     "tabs": 12
   },
   {
+    "name": "first-run-rotation",
+    "tab": "songs",
+    "first_run": "force",
+    "fixture": ["--large-catalogue"],
+    "skip_modes": ["no-animations", "app-reduced", "text-200", "text-225"],
+    "ready": [
+      "waitfor:id=fst.first-run.dialog@30"
+    ],
+    "after_ready": [
+      "listen:announcements",
+      "assertfocus:name=Song List&class=FlipViewItem@5",
+      "assertstatus:id=fst.first-run.demo.songs-song-list|~^catalogue rotation=running swaps=[1-9]\\d* swap=fade$@15",
+      "assertfocus:name=Song List&class=FlipViewItem",
+      "assertannouncedcount:0|~.",
+      "waitgone:class=Image@2",
+      "assertread:name=Song List&class=FlipViewItem|Song List, list item, selected",
+      "assertorder:id=fst.first-run.slides|name=Song List&class=FlipViewItem|id=fst.first-run.pips|id=PrimaryButton|id=SecondaryButton|id=fst.first-run.close",
+      "assertread:id=PrimaryButton|Next, button",
+      "assertread:id=SecondaryButton|Back, button, unavailable"
+    ],
+    "tabs": 12
+  },
+  {
+    "name": "first-run-rotation-reduced",
+    "tab": "songs",
+    "first_run": "force",
+    "fixture": ["--large-catalogue"],
+    "settings": {"reduceMotion": true},
+    "skip_modes": ["text-200", "text-225"],
+    "ready": [
+      "waitfor:id=fst.first-run.dialog@30"
+    ],
+    "after_ready": [
+      "listen:announcements",
+      "assertfocus:name=Song List&class=FlipViewItem@5",
+      "assertstatus:id=fst.first-run.demo.songs-song-list|~^catalogue rotation=running swaps=[1-9]\\d* swap=instant$@15",
+      "assertfocus:name=Song List&class=FlipViewItem",
+      "assertannouncedcount:0|~.",
+      "waitgone:class=Image@2",
+      "assertread:name=Song List&class=FlipViewItem|Song List, list item, selected",
+      "assertorder:id=fst.first-run.slides|name=Song List&class=FlipViewItem|id=fst.first-run.pips|id=PrimaryButton|id=SecondaryButton|id=fst.first-run.close"
+    ],
+    "tabs": 12
+  },
+  {
+    "name": "first-run-rotation-text",
+    "tab": "songs",
+    "first_run": "force",
+    "fixture": ["--large-catalogue"],
+    "modes": ["text-200", "text-225"],
+    "ready": [
+      "waitfor:id=fst.first-run.dialog@30"
+    ],
+    "after_ready": [
+      "listen:announcements",
+      "assertfocus:name=Song List&class=FlipViewItem@5",
+      "assertstatus:id=fst.first-run.demo.songs-song-list|~^catalogue rotation=running swaps=[1-9]\\d* swap=fade$@15",
+      "assertfocus:name=Song List&class=FlipViewItem",
+      "assertannouncedcount:0|~.",
+      "waitgone:class=Image@2",
+      "assertread:name=Song List&class=FlipViewItem|Song List, list item, selected"
+    ],
+    "tabs": 12
+  },
+  {
     "name": "songs-filter",
     "tab": "songs",
     "profile": "fixture-player-1:Demo Player",
@@ -698,27 +764,6 @@
       "wait:0.5"
     ],
     "tabs": 20
-  },
-  {
-    "name": "songs-filter-anonymous",
-    "tab": "songs",
-    "ready": [
-      "waitfor:id=fst.songs.row.fixture-pulse@20"
-    ],
-    "after_ready": [
-      "invoke:id=fst.songs.filter",
-      "waitfor:id=fst.songs.filter.reset@5",
-      "waitgone:id=fst.songs.filter.score.global",
-      "scrollinto:id=fst.songs.filter.double-bass@5",
-      "expand:id=fst.songs.filter.double-bass",
-      "scrollinto:id=fst.songs.filter.double-bass.unsupported@5",
-      "wait:0.5"
-    ],
-    "teardown": [
-      "key:esc",
-      "wait:0.5"
-    ],
-    "tabs": 10
   },
   {
     "name": "notifications-flyout",
@@ -761,6 +806,7 @@
   {
     "name": "rank-by-menu",
     "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "settings": {"experimentalRanks": true},
     "sizes": [
       "medium"
     ],

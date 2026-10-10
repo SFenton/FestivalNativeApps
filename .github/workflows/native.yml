@@ -1,5 +1,6 @@
 name: native
-# Windows and Android unit tests (the Apple builds run on the Mac through tools/lane_integrate.sh).
+# Windows and Android unit tests (Android device tests: android-device.yml and android-fold.yml)
+# (the Apple builds run on the Mac through tools/lane_integrate.sh).
 on:
   push:
     branches: [master]
@@ -20,7 +21,8 @@ permissions:
   contents: read
 concurrency:
   group: native-${{ github.ref }}
-  cancel-in-progress: true
+  # Only a PR's superseded runs are cancelled: master runs finish, so its checks reflect every merge.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   windows:
     runs-on: windows-latest

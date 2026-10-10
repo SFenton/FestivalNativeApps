@@ -8,8 +8,8 @@
 |---|---|
 | Domain | `core/feedback/Feedback.kt`: `FeedbackKind`, `FeedbackLimits`, `FeedbackCopy`, `FeedbackDraft` (validation, `withAttachments` limits and notice), `FeedbackSubmission` (wire parts, clipped diagnostics), `FeedbackJob`/`FeedbackJobState` (message, `isValidId`), `FeedbackException` (code/status → fixed copy, `Retry-After`) |
 | Wire | `data/feedback/FestivalApiFeedback.kt`: `feedbackEnabled()` (`/api/features`), `submitFeedback()` (multipart via `MultipartFormBody.kt`, streams each `content://` URI after a size preflight), `feedbackStatus(id)`; `FeedbackWire` parsers |
-| State | `presentation/feedback/FeedbackViewModel.kt`: phases Editing → Submitting → `Filing(job)` → `Sent(job)`; 2 s poll, 5 min deadline; `available` + `loadAvailability()` |
-| UI | `ui/settings/FeedbackDialog.kt`: Material 3 **full-screen dialog** below 600 dp of available width (a 640 dp `shapes.extraLarge` card on wider windows), with the shared `FestivalModalHeader` (title, Submit, Close), `OutlinedTextField`s with `supportingText` helper lines, and `BackHandler` → discard `FestivalAlertDialog`. On a separating hinge the dialog keeps to one side (`festivalSheetHingeSide`, read from the activity window before the `Dialog` opens: inside the new dialog window the root width is still 0, so the hinge was ignored; issue #146, `FeedbackDialogHingeTest`) and decides compact vs centred from that side's width |
+| State | `presentation/feedback/FeedbackViewModel.kt`: phases Editing → Submitting → `Filing(job)`; a filed or received form closes and its result moves to `sent` (`FeedbackSent`: title, message), cleared by `dismissSent()` (#565); 2 s poll, 5 min deadline; `available` + `loadAvailability()` |
+| UI | `ui/settings/FeedbackDialog.kt`: Material 3 **full-screen dialog** below 600 dp of available width (a 640 dp `shapes.extraLarge` card on wider windows), with the shared `FestivalModalHeader` (title, Submit, Close), `OutlinedTextField`s with `supportingText` helper lines, and `BackHandler` → discard `FestivalAlertDialog`. The result is a single-Done `FestivalAlertDialog` (no `dismissLabel`) that `FeedbackDialogHost` shows only once the form is gone. On a separating hinge the dialog keeps to one side (`festivalSheetHingeSide`, read from the activity window before the `Dialog` opens: inside the new dialog window the root width is still 0, so the hinge was ignored; issue #146, `FeedbackDialogHingeTest`) and decides compact vs centred from that side's width |
 | Rows | `ui/settings/SettingsScreen.kt`: App Settings rows get an action only when `available` is true; a `LaunchedEffect` loads it on each visit |
 
 ## Pickers and opening
@@ -21,6 +21,7 @@
 
 - **Submit is disabled while invalid** (spec): `canSubmit` requires `draft.problem == null`. A neutral line (`fst.settings.feedback.validation`, info icon plus `textSecondary` bodyMedium, no live region) sits above the fields and names the first problem, for example "Add a title after the prefix.". The red `.error` banner is reserved for send and filing failures. Before #143, Submit stayed enabled and a tap showed the problem as an error.
 - **Progress** uses the app's `FestivalLoading` (24 dp, white arc) beside the status text, per [design/android.md](../../design/android.md) (one loading indicator, never the theme's blue primary). It is not a `LinearProgressIndicator`. The indicator's semantics are cleared, so TalkBack makes a single polite live-region stop: "Sending your report…" / "Filing your report on GitHub…". With animator scale 0 the arc is static and the text still changes.
+- **Result (owner, #565):** a filed or received form closes by itself, then a basic `AlertDialog` ("Report Sent" / "Request Sent", the outcome text, one Done) opens over Settings. The web keeps its modal open with the success text; the owner asked native forms to close first ("Modal closes automatically and we get the alert"), and an alert rather than a Snackbar keeps the owner's alert and matches Apple. Failures stay in the form.
 - **Material 3 deviations, deliberate:**
   - The header is the repo's `FestivalModalHeader`: title leading, then actions, then Close trailing. This matches Apple and Windows. M3's full-screen dialog instead puts Close leading and the action trailing.
   - Colours come from the dark-only brand palette rather than dynamic colour, so the form stays dark when the system is in light mode.
@@ -28,7 +29,7 @@
 - **Accessibility (TalkBack order on FST_Phone):**
   - Editing: title (heading), Submit, Close, then the validation reason or error banner, then each field (value, label, helper), the Attachments heading, the helper and Attach Media.
   - Discard confirmation: title, message, Keep Editing, Discard.
-  - Sent: title, Close, then the result.
+  - Sent (#565): the form has closed; the result alert reads "Report Sent", the outcome text, then Done. No Close, Submit or Cancel. Back or Done dismisses it and the form does not come back.
   - Every target is at least 48 dp: Submit is 69×48 dp, Close is 48×48 dp, and the attachment remove target is 48 dp around a 24 dp glyph.
 - **Hinge:** on a separating hinge the dialog keeps to the start-side display area (left pane in book posture, lower pane in tabletop). The material-3 skill's layout guidance says: "Never place interactive content or critical information across the hinge area".
 - ATF's missing-label finding on a text field scrolled to a sliver (the label child is clipped) is a harness artifact. `JourneyHarness` drops it once the field is seen composed with a label.
@@ -52,7 +53,7 @@ The app is dark-only, so system dark mode on or off renders the same. On the liv
 
 ## Test IDs
 
-`fst.settings.feedback.bug|feature` (rows), `.dialog`, `.title`, `.close`, `.submit`, `.field.title|description|repro|expected`, `.attach`, `.attach.media`, `.attach.files`, `.attachments`, `.attachment`, `.attachment.remove`, `.attachments.notice`, `.progress`, `.validation`, `.error`, `.sent`, `.done`, `.discard.dialog|confirm|cancel`.
+`fst.settings.feedback.bug|feature` (rows), `.dialog`, `.title`, `.close`, `.submit`, `.field.title|description|repro|expected`, `.attach`, `.attach.media`, `.attach.files`, `.attachments`, `.attachment`, `.attachment.remove`, `.attachments.notice`, `.progress`, `.validation`, `.error`, `.sent` (the result alert), `.sent.message`, `.done` (its single action), `.discard.dialog|confirm|cancel`.
 
 ## Tests
 
@@ -63,10 +64,11 @@ The app is dark-only, so system dark mode on or off renders the same. On the liv
   - `editing-dirty` and `discard-confirm`, both while editing and while sending.
   - `sending`: fields, Attach and Submit disabled.
   - `filing`: the job is polled from processing to submitted.
-  - `sent`: both "filed as issue #N" and "received" when the status can't be read.
+  - `sent`: both "filed as issue #N" and "received" when the status can't be read; each checks the form, Close, Submit and progress are gone and the alert has one Done (`assertResultAlertOnly`). `backClosesTheResultAlert` checks one covering modal and that Back closes the alert without reopening the form.
   - `error`: a 503, and a failed filing that keeps the input.
   - `attachments`: an `ActivityResultRegistry` override plus a fake `ContentProvider` give image and video tiles, the type and over-limit notices, Remove, and Attach disabled at 4.
   - `settings/FeedbackExpandedUiTest.kt` (1280 dp) checks the centred 640 dp card.
   - `FakeTransport.standard()` does not serve `/api/features`, so add it per test.
-- `androidTest/journeys/FeedbackFormJourneyTest.kt` (device, ATF on every interaction, TalkBack order per state): invalid → dirty → sending → discard while sending → filing → sent, and a feature request with a 503 error. Run `device.py test com.festivalscoretracker.android.journeys.FeedbackFormJourneyTest --avd FST_Phone`, and also `--avd FST_Book_Fold --posture half`.
+- `androidTest/journeys/FeedbackFormJourneyTest.kt` (device, ATF on every interaction, TalkBack order per state): invalid → dirty → sending → discard while sending → filing → sent (the form closes, then the result alert reads title → message → Done with a 48 dp Done and no Close/Submit/Cancel), and a feature request with a 503 error. Run `device.py test com.festivalscoretracker.android.journeys.FeedbackFormJourneyTest --avd FST_Phone`, and also `--avd FST_Book_Fold --posture half`.
+- Open at 200 % text (found in issue #528, not yet fixed): once a field has been scrolled up under the header, ATF measures Submit at 47 dp. The drawn button stays 53 dp. Compose subtracts the scrolled field's semantics bounds, which reach up behind the header, from the earlier header nodes. `zIndex(1f)` on `FestivalModalHeader` restores the bounds but makes TalkBack read the header after the form, so a fix must keep the header first in traversal (for example a traversal index). Add a 200 % pass to this journey with that fix.
 - Coverage (2026-10-04, `fst_android.py build --tests --coverage`): logic 98.0%, UI 96.4% overall. `FeedbackDialog.kt` rose from 62.2% to 93.2%; only the real `ACTION_VIEW` launch and the system pickers' own UI stay device-only.

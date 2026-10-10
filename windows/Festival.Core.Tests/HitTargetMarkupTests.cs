@@ -74,7 +74,31 @@ public class HitTargetMarkupTests
         if (iconOnly) Assert.Equal(Resource, Attr(button, "MinWidth"));
     }
 
-[Fact]
+    [Theory]
+    [InlineData("Pages/SongsPage.xaml", 1)]
+    [InlineData("Pages/ShopPage.xaml", 1)]
+    [InlineData("Pages/SuggestionsPage.xaml", 1)]
+    [InlineData("Controls/SongSortForm.xaml", 1)]
+    public void FlyoutResetFooters_UseMinTarget(string file, int count)
+    {
+        // Issue #432 (#77): the sort/filter flyouts' red Reset footer was WinUI's 32 epx button height.
+        var resets = Load(file).Descendants()
+            .Where(e => e.Name.LocalName == "Button" && Attr(e, "Content") == "Reset").ToList();
+        Assert.Equal(count, resets.Count);
+        Assert.All(resets, b => Assert.Equal(Resource, Attr(b, "MinHeight")));
+    }
+
+    [Fact]
+    public void SongsFilterSelectAllClearAll_UseMinTarget()
+    {
+        // Issue #432 (#77): the Year/Duration and instrument bucket Select All / Clear All links were 31 epx tall.
+        var links = Load(Path.Combine("Pages", "SongsPage.xaml")).Descendants()
+            .Where(e => e.Name.LocalName == "HyperlinkButton" && Attr(e, "Content") is "Select All" or "Clear All").ToList();
+        Assert.Equal(4, links.Count);
+        Assert.All(links, b => Assert.Equal(Resource, Attr(b, "MinHeight")));
+    }
+
+    [Fact]
     public void EveryDropDownButton_UsesMinTarget()
     {
         // Issue #271: #72 listed its buttons one by one and missed the Full/Band Rankings pickers (31 epx tall). Every
@@ -87,6 +111,24 @@ public class HitTargetMarkupTests
             .ToList();
         Assert.True(buttons.Count >= 10, $"found only {buttons.Count} DropDownButtons");
         Assert.All(buttons, b => Assert.True(b.MinHeight == Resource, $"{b.File} {b.Id}: MinHeight {b.MinHeight ?? "unset"}"));
+    }
+
+    [Fact]
+    public void EveryFlyoutResetButton_UsesMinTarget()
+    {
+        // Issue #428: the red Reset of the Songs, Suggestions and Item Shop filter flyouts and the shared Sort form kept
+        // WinUI's 32 epx button height. Every danger-red button (lightweight ButtonBackground styling) is such a Reset.
+        var resets = Directory.EnumerateFiles(AppRoot, "*.xaml", SearchOption.AllDirectories)
+            .Where(path => Path.GetRelativePath(AppRoot, path).Split(Path.DirectorySeparatorChar)[0] is not ("bin" or "obj"))
+            .SelectMany(path => XDocument.Load(path).Descendants()
+                .Where(e => e.Name.LocalName == "Button"
+                            && e.Descendants().Any(r => Attr(r, "Key") == "ButtonBackground" && Attr(r, "ResourceKey") == "FSTDangerBackgroundBrush"))
+                .Select(e => (File: Path.GetFileName(path), MinHeight: Attr(e, "MinHeight"))))
+            .ToList();
+        Assert.Equal(
+            ["ShopPage.xaml", "SongSortForm.xaml", "SongsPage.xaml", "SuggestionsPage.xaml"],
+            resets.Select(r => r.File).Order(StringComparer.Ordinal).ToList());
+        Assert.All(resets, r => Assert.True(r.MinHeight == Resource, $"{r.File}: MinHeight {r.MinHeight ?? "unset"}"));
     }
 
     [Fact]
@@ -111,6 +153,39 @@ public class HitTargetMarkupTests
     }
 
     [Fact]
+    public void TitleBar_PassthroughSpansTitleBarHeight()
+    {
+        // Issue #536: centred, the box's and RightHeader's passthrough rects were only the controls' 32 and 40 epx, and
+        // TitleBar truncates them to whole pixels, so at 100% scale the bottom pixel row of the box, Search, the bell and
+        // Profile dragged the window.
+        var doc = Load("MainWindow.xaml");
+        var titleBar = doc.Descendants().Single(e => e.Name.LocalName == "TitleBar" && Attr(e, "Name") == "AppTitleBar");
+        var resources = titleBar.Elements().Single(e => e.Name.LocalName == "TitleBar.Resources").Elements().ToList();
+        foreach (var key in new[] { "TitleBarContentVerticalAlignment", "TitleBarRightHeaderVerticalAlignment" })
+        {
+            var alignment = resources.Single(e => e.Name.LocalName == "VerticalAlignment" && Attr(e, "Key") == key);
+            Assert.Equal("Stretch", alignment.Value.Trim());
+        }
+        // The box: its host is one passthrough rect (the box's width, the title-bar height), collapsed with the box.
+        var host = doc.Descendants().Single(e => e.Name.LocalName == "TitleBar.Content").Elements().Single();
+        Assert.Equal("GlobalSearchBoxHost", Attr(host, "Name"));
+        Assert.Equal("False", Attr(host, "TitleBar.IsDragRegion"));
+        Assert.Equal("Center", Attr(host, "HorizontalAlignment"));
+        var box = host.Elements().Single();
+        Assert.Equal("GlobalSearchBox", Attr(box, "Name"));
+        Assert.Equal("Center", Attr(box, "VerticalAlignment"));
+        var search = File.ReadAllText(Path.Combine(AppRoot, "MainWindow.Search.cs"));
+        Assert.Contains("GlobalSearchBoxHost.Visibility = GlobalSearchBox.Visibility = compact", search, StringComparison.Ordinal);
+        // The buttons:
+        var panel = doc.Descendants().Single(e => e.Name.LocalName == "TitleBar.RightHeader").Elements().Single();
+        Assert.Contains(Attr(panel, "VerticalAlignment"), new[] { null, "Stretch" });
+        // The buttons stay their 40 epx and centred inside the taller passthrough strip.
+        Assert.All(panel.Elements(), child => Assert.Contains(Attr(child, "VerticalAlignment"), new[] { null, "Center" }));
+        Assert.All(new[] { "fst.global-search.open", "fst.shell.profile" }, id =>
+            Assert.Contains(ById(doc, id), b => Attr(b, "MinHeight") == Resource && Attr(b, "Height") is null));
+    }
+
+    [Fact]
     public void QuickLinks_KeepsMinTarget()
     {
         var source = File.ReadAllText(Path.Combine(AppRoot, "Controls", "QuickLinksMenuButton.cs"));
@@ -122,6 +197,34 @@ public class HitTargetMarkupTests
             .ToList();
         Assert.NotEmpty(hosts);
         Assert.All(hosts, host => Assert.Contains(Attr(host, "MinHeight"), new[] { null, Resource }));
+    }
+
+    [Theory]
+    [InlineData("MenuFlyoutItem", "DefaultMenuFlyoutItemStyle")]
+    [InlineData("ToggleMenuFlyoutItem", "DefaultToggleMenuFlyoutItemStyle")]
+    [InlineData("RadioMenuFlyoutItem", "DefaultRadioMenuFlyoutItemStyle")]
+    public void MenuItems_UseMinTarget(string type, string basedOn)
+    {
+        // Issue #416: keyboard-opened menu items (Quick Links, Rank By, the rankings pickers, Player History Sort) were
+        // 27 epx tall. One implicit style per item type (implicit styles match the exact type) keeps every menu's
+        // hit-testable pill at 40: the template insets it by MenuFlyoutItemMargin's 2 epx top and bottom.
+        var styles = Load(Path.Combine("Themes", "Styles.xaml"));
+        var height = styles.Descendants()
+            .Single(e => e.Name.LocalName == "Double" && Attr(e, "Key") == "FSTMenuItemMinHeight").Value;
+        var target = styles.Descendants()
+            .Single(e => e.Name.LocalName == "Double" && Attr(e, "Key") == "FSTMinTargetSize").Value;
+        Assert.Equal(double.Parse(target, CultureInfo.InvariantCulture) + 4, double.Parse(height, CultureInfo.InvariantCulture));
+        var style = styles.Descendants()
+            .Single(e => e.Name.LocalName == "Style" && Attr(e, "TargetType") == type && Attr(e, "Key") is null);
+        Assert.Equal($"{{StaticResource {basedOn}}}", Attr(style, "BasedOn"));
+        var setter = style.Elements().Single(e => Attr(e, "Property") == "MinHeight");
+        Assert.Equal("{StaticResource FSTMenuItemMinHeight}", Attr(setter, "Value"));
+        // No item opts out with its own height or style.
+        var items = Directory.EnumerateFiles(AppRoot, "*.xaml", SearchOption.AllDirectories)
+            .Where(path => Path.GetRelativePath(AppRoot, path).Split(Path.DirectorySeparatorChar)[0] is not ("bin" or "obj"))
+            .SelectMany(path => XDocument.Load(path).Descendants().Where(e => e.Name.LocalName == type));
+        Assert.All(items, item => Assert.True(Attr(item, "MinHeight") is null && Attr(item, "Height") is null && Attr(item, "Style") is null,
+            $"{type} {Attr(item, "AutomationProperties.AutomationId")} overrides its size"));
     }
 
     [Fact]

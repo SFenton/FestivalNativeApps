@@ -65,9 +65,11 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
     val bandType by viewModel.bandType.collectAsStateWithLifecycle()
     val storedMetric by viewModel.metric.collectAsStateWithLifecycle()
     val metric = storedMetric ?: BandRankingMetric.DEFAULT
+    val experimentalRanks by viewModel.experimentalRanks.collectAsStateWithLifecycle()
     val page by viewModel.page.collectAsStateWithLifecycle()
     val board by viewModel.board.collectAsStateWithLifecycle()
     val current by viewModel.displayed.collectAsStateWithLifecycle()
+    val pageCount by viewModel.pageCount.collectAsStateWithLifecycle()
     val navigate = LocalShellActions.current.navigate
     val listState = rememberLazyListState()
     // Band size, Rank By and page reloads fade the rows out, show the spinner and stagger
@@ -85,15 +87,7 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
         modifier = Modifier.semantics { testTagsAsResourceId = true },
         actions = {
             TopBarChoiceAction("Band Size", BandType.entries, bandType, BandType::label, viewModel::selectBandType, "fst.band-rankings.band-type-menu", icon = { BandGlyph() }, leading = { BandGlyph() })
-            TopBarChoiceAction(
-                "Rank By",
-                BandRankingMetric.entries,
-                metric,
-                BandRankingMetric::label,
-                viewModel::selectMetric,
-                "fst.band-rankings.rank-by-menu",
-                icon = { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null) },
-            )
+            BandRankByAction(metric, experimentalRanks, viewModel::selectMetric)
         },
     ) { padding ->
         val failed = board as? LoadState.Failed
@@ -116,7 +110,7 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
                 }
             },
             footer = {},
-            pager = { RankingsPager(page, current?.rankings?.pageCount ?: 1, "fst.band-rankings", viewModel::goTo) },
+            pager = { RankingsPager(page, pageCount, "fst.band-rankings", viewModel::goTo) },
             // Rows fade out above the floating pager and leave touch/TalkBack beneath it (issue #116).
             fadeAboveFooter = true,
         ) {

@@ -101,6 +101,8 @@ class SongDetailPreviewRowsJourneyTest {
         h.waitForTag("fst.song-detail.list")
         h.scrollTo("fst.song-detail.list", "fst.song-detail.view-all.Solo_Guitar")
         h.waitForTag(row(Fixtures.ACCOUNT_B))
+        // A lazy-list item can be composed before it is in the platform accessibility viewport.
+        h.scrollTo("fst.song-detail.list", row(Fixtures.ACCOUNT_B))
         h.awaitAccessibilityTree(row(Fixtures.ACCOUNT_B))
         rule.waitUntil(10_000) { node("fst.song-detail.your-rank.Solo_Guitar") != null }
 

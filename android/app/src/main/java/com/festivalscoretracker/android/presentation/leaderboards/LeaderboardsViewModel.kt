@@ -61,8 +61,9 @@ data class RankingsReads(
  * carries every metric's rank).
  *
  * @param reads Rankings reads.
- * @param settings App settings (visible instruments, selected player).
- * @param rankBy Persisted metric.
+ * @param settings App settings (visible instruments, selected player, Experimental Ranks).
+ * @param rankBy Persisted metric; gated on Experimental Ranks at read time so the saved choice
+ *   survives turning the setting off and on (experimental-ranks R2).
  * @param persistRankBy Persist a new metric.
  * @param backoff Shared retry backoff.
  */
@@ -77,6 +78,7 @@ class LeaderboardsViewModel(
     private val metricFlow = MutableStateFlow(RankingMetric.DEFAULT)
     private val instrumentsFlow = MutableStateFlow<List<Instrument>>(emptyList())
     private val selectedFlow = MutableStateFlow<String?>(null)
+    private val experimentalFlow = MutableStateFlow(false)
     private val readyFlow = MutableStateFlow(false)
     private val refreshingFlow = MutableStateFlow(false)
     private val cards = mutableMapOf<Instrument, RetryingLoader<RankingsPayload>>()
@@ -98,6 +100,9 @@ class LeaderboardsViewModel(
     /** Selected player's account ID, or null. */
     val selectedAccountId: StateFlow<String?> = selectedFlow.asStateFlow()
 
+    /** Settings → Experimental Ranks: Rank By is shown only when on (experimental-ranks R1). */
+    val experimentalRanks: StateFlow<Boolean> = experimentalFlow.asStateFlow()
+
     /** False until settings and the metric have been read once. */
     val ready: StateFlow<Boolean> = readyFlow.asStateFlow()
 
@@ -110,14 +115,20 @@ class LeaderboardsViewModel(
     init {
         viewModelScope.launch {
             combine(rankBy, settings.filterNotNull()) { metric, current ->
-                Inputs(metric, Instrument.entries.filter { it in current.visibleInstruments }, current.selectedPlayer?.accountId)
+                Inputs(
+                    RankingMetric.coerce(metric, current.experimentalRanks),
+                    Instrument.entries.filter { it in current.visibleInstruments },
+                    current.selectedPlayer?.accountId,
+                    current.experimentalRanks,
+                )
             }.distinctUntilChanged().collect(::apply)
         }
     }
 
-    private data class Inputs(val metric: RankingMetric, val instruments: List<Instrument>, val selected: String?)
+    private data class Inputs(val metric: RankingMetric, val instruments: List<Instrument>, val selected: String?, val experimental: Boolean)
 
     private fun apply(inputs: Inputs) {
+        experimentalFlow.value = inputs.experimental
         metricFlow.value = inputs.metric
         instrumentsFlow.value = inputs.instruments
         if (historyInstrumentFlow.value !in inputs.instruments) historyInstrumentFlow.value = inputs.instruments.firstOrNull()
@@ -209,7 +220,7 @@ class LeaderboardsViewModel(
      * @param metric New metric.
      */
     fun selectMetric(metric: RankingMetric) {
-        if (metric == metricFlow.value) return
+        if (metric == metricFlow.value || metric !in RankingMetric.enabled(experimentalFlow.value)) return
         viewModelScope.launch { persistRankBy(metric) }
     }
 

@@ -36,6 +36,10 @@ import com.festivalscoretracker.android.data.HttpRequest
 import com.festivalscoretracker.android.data.HttpResult
 import com.festivalscoretracker.android.data.HttpTransport
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
+import kotlinx.coroutines.runBlocking
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import com.festivalscoretracker.android.core.settings.SettingsRegistry
+import org.junit.Assert.assertFalse
 import com.festivalscoretracker.android.testing.BandFixtures
 import com.festivalscoretracker.android.testing.EmptyRegionAssertions.assertFillsAndCentres
 import com.festivalscoretracker.android.testing.EmptyRegionAssertions.boundsOf
@@ -77,7 +81,9 @@ class BandsUiTest {
 
     private lateinit var container: AppContainer
 
-    private fun launch(route: String, profile: SelectedPlayer? = null) {
+    private fun launch(route: String, profile: SelectedPlayer? = null, experimentalRanks: Boolean = true) {
+        val store = InMemoryPreferences()
+        runBlocking { store.updateData { it.toMutablePreferences().apply { this[booleanPreferencesKey(SettingsRegistry.EXPERIMENTAL_RANKS)] = experimentalRanks } } }
         val debug = DebugLaunch(route = DebugLaunch.parseRoute(route), profile = profile, stillBackground = true)
         val gated = object : HttpTransport {
             override suspend fun send(request: HttpRequest): HttpResult {
@@ -85,7 +91,7 @@ class BandsUiTest {
                 return transport.send(request)
             }
         }
-        container = AppContainer(rule.activity, OkHttpClient(), debug, transport = gated, settingsStore = InMemoryPreferences())
+        container = AppContainer(rule.activity, OkHttpClient(), debug, transport = gated, settingsStore = store)
         rule.setContent { FestivalApp(container, debug) }
         settle()
     }
@@ -325,6 +331,14 @@ class BandsUiTest {
         click("fst.band.song-row.s-alpha")
         waitForTag("fst.nav.back")
         assertTrue(transport.requests.none { it.url.contains("/api/bands/") })
+    }
+
+    @Test
+    fun bandDetailRankByWaitsForExperimentalRanks() {
+        launch(duoRoute, experimentalRanks = false)
+        waitForTag("fst.band.statistics-section")
+        assertFalse(exists("fst.band.rank-by"))
+        rule.onNodeWithTag("fst.band.stat.rank").assert(hasContentDescription("Total Score Rank", substring = true))
     }
 
     @Test
@@ -603,6 +617,37 @@ class BandsUiTest {
         waitForTag("fst.song-band-leaderboard.row.band-47:47")
         rule.waitUntil(10_000) { settle(100); inView("fst.song-band-leaderboard.row.band-47:47") }
         assertEquals("Open band", clickLabel("fst.song-band-leaderboard.spotlight-footer"))
+    }
+
+    @Test
+    fun songBandLeaderboardGroupsThePageInOneCard() {
+        // Owner #543 (`leaderboard-row` R10): the page's bands share one card with hairlines
+        // between them, like the solo board, not a card per band; the selected band keeps its
+        // fill inside that card and the pinned band stays a separate floating row.
+        selectedDuoAt(2)
+        launch("songBandLeaderboard:s-alpha:Band_Duets", player)
+        waitForTag("fst.song-band-leaderboard.row.band-2:2")
+        waitForTag("fst.song-band-leaderboard.spotlight-footer")
+        settle()
+        assertEquals(1, rule.onAllNodesWithTag("fst.song-band-leaderboard.rows", useUnmergedTree = true).fetchSemanticsNodes().size)
+        val card = bounds("fst.song-band-leaderboard.rows")
+        val first = bounds("fst.song-band-leaderboard.row.band-1:1")
+        val second = bounds("fst.song-band-leaderboard.row.band-2:2")
+        val dp = rule.density.density
+        listOf(first, second).forEach { row ->
+            assertTrue("row $row inside the card $card", row.left >= card.left && row.right <= card.right && row.top >= card.top && row.bottom <= card.bottom)
+            assertTrue("row ${row.height / dp} dp tall (>= 48 dp)", row.height >= 48 * dp - 1)
+        }
+        // Only the 1 dp hairline separates neighbours (a card per row left an 8 dp gap).
+        assertTrue("gap ${(second.top - first.bottom) / dp} dp", second.top - first.bottom in 0f..(1.5f * dp))
+        // The selected band in the card is still one "Your band" button that opens the Band page.
+        rule.onNodeWithTag("fst.song-band-leaderboard.row.band-2:2")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+        assertTrue(rule.onNodeWithTag("fst.song-band-leaderboard.row.band-2:2").fetchSemanticsNode().config[SemanticsProperties.ContentDescription].joinToString().startsWith("Your band, Rank 2, "))
+        assertEquals("Open band", clickLabel("fst.song-band-leaderboard.row.band-2:2"))
+        // The pinned band floats outside the card, above the pager.
+        val footer = bounds("fst.song-band-leaderboard.spotlight-footer")
+        assertTrue("footer $footer below the list", footer.top >= bounds("fst.song-band-leaderboard.bottom-bar").top)
     }
 
     // endregion

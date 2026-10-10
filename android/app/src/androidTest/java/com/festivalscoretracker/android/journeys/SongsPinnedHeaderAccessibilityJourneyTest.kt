@@ -69,7 +69,7 @@ class SongsPinnedHeaderAccessibilityJourneyTest {
         h.enableAccessibilityChecks()
         h.launch(DebugLaunch(stillBackground = true), BucketHeaderFixtures.transport(), preferences, fontScale?.let { scale -> { scale } })
         h.waitForTag("fst.songs.section.year.1970")
-        h.publishTraversalOrder()
+        h.publishTalkBackTree()
     }
 
     private fun bounds(tag: String): Rect = rule.onAllNodesWithTag(tag, useUnmergedTree = true)[0].fetchSemanticsNode().boundsInRoot

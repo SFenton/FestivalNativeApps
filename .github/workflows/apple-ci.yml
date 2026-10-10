@@ -1,11 +1,31 @@
 name: apple-ci
-# Apple unit tests and compile check on a GitHub-hosted Xcode 27 runner (no mesh machine runs CI or
-# release work). The job name is the required check name: keep it `apple-ci`.
+# Apple unit tests, compile check and the iPhone simulator journeys (JOURNEYS below) on a GitHub-hosted
+# Xcode 27 runner (no mesh machine runs CI or release work). The job name is the required check name: keep it `apple-ci`.
+# Path-filtered: Android-, Windows- and docs-only changes don't spend the scarce macOS runners (the release machine
+# requires apple-ci only for apple/ and contracts/ changes).
 on:
   pull_request:
     branches: [master]
+    paths:
+      - 'apple/**'
+      - 'contracts/**'
+      - 'tools/*.py'
+      - 'tools/*.sh'
+      - 'tools/*.swift'
+      - 'tools/release/**'
+      - 'tools/visual/**'
+      - '.github/workflows/apple-ci.yml'
   push:
     branches: [master]
+    paths:
+      - 'apple/**'
+      - 'contracts/**'
+      - 'tools/*.py'
+      - 'tools/*.sh'
+      - 'tools/*.swift'
+      - 'tools/release/**'
+      - 'tools/visual/**'
+      - '.github/workflows/apple-ci.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -18,7 +38,7 @@ jobs:
   apple-ci:
     name: apple-ci
     runs-on: xcode-27
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,7 +73,67 @@ jobs:
         # there they end at their 10 s evidence deadline as intermittent known issues; alone they are judged
         # strictly. Reuses the coverage build and leaves its profile alone. Filter: testing/apple/hosted-snapshots.md.
         working-directory: apple
-        run: swift test --skip-build --filter 'selectedRowRevealFadesTheRowItReaches|staggeredListRowsFadeInRatherThanPop'
+        run: swift test --skip-build --filter 'selectedRowRevealFadesTheRowItReaches|staggeredListRowsFadeInRatherThanPop|serviceInfoIndeterminateBar'
+      - name: iPhone simulator journeys (serialized, loopback fixture)
+        # Evidence only an iOS run gives (real Dynamic Type sizes, performAccessibilityAudit, the production nav bar
+        # and tab-bar accessory reading order, page-tools-and-nav-chrome R17). One throwaway runner
+        # simulator, the large-catalogue loopback fixture, `ios_sim.py uitest`; a skipped journey fails the step.
+        # Add a journey here only if it runs against this fixture: testing/apple/xcuitest.md#ci-journeys.
+        env:
+          JOURNEYS: >-
+            SongsChromeJourneyTests/testScrollAwaySectionBarAccessibility
+            SongsChromeJourneyTests/testScrollAwaySectionBarAccessibilityAtAX5
+            SongsChromeJourneyTests/testSectionBarHeadingAtLargestText
+            SongsChromeJourneyTests/testFilterFieldReadyAfterBackFromSongDetail
+            FirstRunJourneyTests/testSongDemoSlideAccessibleAtLargestText
+            SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5
+            NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrder
+            NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrderOnPushedPage
+            NavButtonHitRegionJourneyTests/testChooseProfileReadsAloneInProductionChrome
+            NavButtonHitRegionJourneyTests/testAccountButtonsStaySeparateAndLabelledAtLargestTextSize
+            WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
+            SongBarCaptionIconJourneyTests/testSongLeaderboardCaptionIconScalesWithText
+            SongBarCaptionIconJourneyTests/testPlayerHistoryCaptionIconAtLargestText
+        run: |
+          python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service.log" 2>&1 &
+          mock=$!
+          trap 'kill "$mock" 2>/dev/null || true' EXIT
+          device=$(python3 tools/ios_sim.py ci-device)
+          for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock_service.log" && break; sleep 1; done
+          grep -q "fixture service on" "$RUNNER_TEMP/mock_service.log"
+          only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
+          python3 tools/ios_sim.py uitest --device "$device" --fail-on-skip --timeout 1800 "${only[@]}"
+      - name: iPad simulator journeys (serialized, loopback fixture)
+        # The same evidence on iPad, portrait and landscape (the iPhone runs portrait only). Reuses the iPhone
+        # step's UI-test build (`--app phone`; every iOS target is device family 1,2) on a second throwaway
+        # simulator, after shutting the iPhone down so one simulator runs at a time. One selector per batch: each What's
+        # New form takes ~70 s on a Mac and several times that here. The first batch also pays the iPad's cold first test
+        # launch (~8 min on the runner; 748-988 s in total), so the batch limit is 1500 s. testing/apple/xcuitest.md#ci-journeys.
+        env:
+          JOURNEYS: >-
+            WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
+            WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Landscape
+        run: |
+          python3 tools/ios_sim.py shutdown --device "$(python3 tools/ios_sim.py ci-device)"
+          python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service_ipad.log" 2>&1 &
+          mock=$!
+          trap 'kill "$mock" 2>/dev/null || true' EXIT
+          device=$(python3 tools/ios_sim.py ci-device --type "iPad Pro 11-inch (M5)")
+          for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock_service_ipad.log" && break; sleep 1; done
+          grep -q "fixture service on" "$RUNNER_TEMP/mock_service_ipad.log"
+          only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
+          python3 tools/ios_sim.py uitest --device "$device" --app phone --batch-size 1 --fail-on-skip --timeout 1500 "${only[@]}"
+      - name: Upload simulator journey results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple-ci-journeys
+          path: |
+            apple/DerivedData/lane-driver/Results
+            ${{ runner.temp }}/mock_service.log
+            ${{ runner.temp }}/mock_service_ipad.log
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload hosted render captures
         if: failure()
         uses: actions/upload-artifact@v4

@@ -440,7 +440,7 @@ private fun SongList(
                     if (first > 0) items(state.rows.subList(0, first), key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
                     state.headers.forEachIndexed { ordinal, header ->
                         val end = state.headers.getOrNull(ordinal + 1)?.firstIndex ?: state.rows.size
-                        stickyHeader(key = headerKey(header), contentType = "header") { BucketHeader(header, headerEdge.layers) }
+                        stickyHeader(key = headerKey(header), contentType = "header") { BucketHeader(header, headerEdge) }
                         items(state.rows.subList(header.firstIndex, end), key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
                     }
                 }
@@ -582,17 +582,20 @@ private fun rememberSectionPosition(listState: LazyListState, sections: List<Son
 
 /**
  * One bucket header: transparent like the rest of the list (issue #91). It records its own
- * drawing into a [GraphicsLayer] registered under its key in [layers], so the list can redraw it
- * above the cut that hides rows scrolling under it ([rememberPinnedHeaderRecorder], [pinnedHeaderEdgeFade]).
+ * drawing into a [GraphicsLayer] registered under its key in the edge's layers, so the list can
+ * redraw it above the cut that hides rows scrolling under it ([rememberPinnedHeaderRecorder],
+ * [pinnedHeaderEdgeFade]), and while pinned TalkBack reads it before the rows beneath it
+ * ([rememberPinnedHeaderReadOrder]).
  *
  * @param header Header.
- * @param layers Recorded header drawings by list key.
+ * @param edge The list's pinned-header edge.
  */
 @Composable
-private fun BucketHeader(header: SongListHeader, layers: MutableMap<Any, GraphicsLayer>) {
+private fun BucketHeader(header: SongListHeader, edge: PinnedHeaderEdgeState) {
     SectionHeader(
         header.label,
-        rememberPinnedHeaderRecorder(headerKey(header), layers)
+        rememberPinnedHeaderRecorder(headerKey(header), edge.layers)
+            .then(rememberPinnedHeaderReadOrder(headerKey(header), edge))
             .padding(horizontal = 4.dp)
             .testTag(header.testTag)
             .semantics { contentDescription = header.spoken },

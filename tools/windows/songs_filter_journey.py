@@ -27,6 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import journey_exe  # noqa: E402  (sibling module)
+from uiwin import framework_popup_finding  # noqa: E402  (sibling tool; windows-accessibility.md open item 8)
 
 ROOT = Path(__file__).resolve().parents[2]
 UIWIN = ROOT / "tools" / "windows" / "uiwin.py"
@@ -85,7 +86,9 @@ def bucket(section: str, key: str | None = None) -> list[str]:
     Returns:
         Steps (flyout open, Lead selected).
     """
-    steps = [f"scrollinto:id=fst.songs.filter.{section}@5", f"expand:id=fst.songs.filter.{section}",
+    # The Expander animates its content open; scrolling to a bucket action before it settles can leave the action off
+    # screen once the animation finishes (CI, #533).
+    steps = [f"scrollinto:id=fst.songs.filter.{section}@5", f"expand:id=fst.songs.filter.{section}", "wait:0.5",
              f"scrollinto:id=fst.songs.filter.{section}.clear-all@5", f"invoke:id=fst.songs.filter.{section}.clear-all",
              f"waitfor:{NO_RESULTS}@10", f"waitgone:{PULSE}@5", f"{{shot:filter-{section}}}"]
     if key is not None:
@@ -210,9 +213,12 @@ SCENARIOS: dict[str, Scenario] = {
         settings={"songShopFilter": {"available": False, "unavailable": True}}, shop="error"),
     "shop-empty": Scenario(
         ("shop-validated-empty", "shop-sort-badges-suppressed"),
-        # A validated empty feed: nothing is Available, so "Available only" is a real No Results (never a pause).
-        [f"waitfor:{NO_RESULTS}@20", f"waitgone:name={SHOP_LOADS}", "{shot:filter-shop-empty}",
-         "invoke:name=Clear Filters", f"waitfor:{PULSE}@10", f"waitfor:{ORBIT}", "{status:}"],
+        # A validated empty feed: nothing is Available, so "Available only" is a real No Results (never a pause). The
+        # shared empty state has no Clear Filters button (empty-error-states R8, #377): the flyout's Reset is the way back.
+        [f"waitfor:{NO_RESULTS}@20", f"waitgone:name={SHOP_LOADS}", "waitgone:name=Clear Filters",
+         "{status:Filters applied}", "{shot:filter-shop-empty}", "expand:id=fst.songs.filter",
+         "waitfor:id=fst.songs.filter.reset@5", "invoke:id=fst.songs.filter.reset", f"waitfor:{PULSE}@10",
+         f"waitfor:{ORBIT}", "collapse:id=fst.songs.filter", "{status:}"],
         settings={"songShopFilter": {"available": True, "unavailable": False}}, shop="empty"),
     "player-unavailable": Scenario(
         ("player-unavailable",),
@@ -360,25 +366,6 @@ def check_tree(tree: str, kind: str, expected: str) -> str | None:
     automation_id, _, state = expected.partition("=")
     actual = toggle_of(tree, automation_id)
     return None if actual == state else f"{automation_id} toggle {actual!r}, expected {state!r}"
-
-
-def framework_popup_finding(finding: dict) -> bool:
-    """Whether an Axe finding is WinUI's own windowed popup host (windows-accessibility.md open item 8).
-
-    A flyout or tooltip popup's ``InputSiteWindowClass`` is exactly the size of its ``PopupHost`` bridge, so Axe reports
-    ``BoundingRectangleCompletelyObscuresContainer`` with no app element involved.
-
-    Args:
-        finding: One ``findings`` entry from a uiwin scan.
-
-    Returns:
-        ``True`` only for that framework finding.
-    """
-    element = finding.get("element") or {}
-    parents = finding.get("parents") or []
-    return (finding.get("rule") == "BoundingRectangleCompletelyObscuresContainer"
-            and element.get("ClassName") == "InputSiteWindowClass"
-            and bool(parents) and "PopupWindowSiteBridge" in parents[0])
 
 
 def scan_errors(stdout: str) -> list[str]:

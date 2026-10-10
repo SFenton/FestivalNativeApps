@@ -175,7 +175,10 @@ public sealed partial class MainWindow
         QueueFirstRun();
     }
 
-    /// <summary>In-app Increase Contrast: white de-emphasised text and a stronger card stroke (additive to Windows contrast themes).</summary>
+    /// <summary>
+    /// In-app Increase Contrast: white de-emphasised text and a stronger card stroke (additive to Windows contrast themes).
+    /// <see cref="ApplyTransparency"/> also makes cards opaque under it.
+    /// </summary>
     private void ApplyContrast()
     {
         var more = session.Settings.MoreContrast;

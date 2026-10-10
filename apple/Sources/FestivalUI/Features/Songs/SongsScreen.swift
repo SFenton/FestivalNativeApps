@@ -65,6 +65,7 @@ struct SongsScreen: View, Equatable {
     @State private var bottomFilterTop: CGFloat?
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var deviceLayout
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Song to scroll back to after an iPhone Duo fold/unfold rebuilt this list (`/duo` D6).
     /// The anchor this instance already scrolled to.
     @AppStorage("fst.songs.sortMode") private var sortMode = SongSortMode.title
@@ -513,7 +514,8 @@ struct SongsScreen: View, Equatable {
         // rather than searches globally"). Global search is the Search tab. Not on
         // iPhone Duo, which shows its own field at the bottom (issue #333).
         .modifier(SongsSystemFilterField(
-            text: $searchText, enabled: filterPlacement == .system
+            text: $searchText, enabled: filterPlacement == .system,
+            listNudger: scrollChrome.listNudger
         ))
         // Sort, Filter and Quick Links, then the account group: in the iPhone tab-bar
         // accessory on iOS 26.1+, the navigation bar elsewhere (issue #92); Sort and
@@ -1054,11 +1056,19 @@ struct SongsScreen: View, Equatable {
     ///   - effectiveMode: Sort mode actually in effect (paused sorts fall back to Title).
     /// - Returns: A scrollable List, with a trailing jump scrubber when applicable.
     /// Width to keep clear of the trailing `SongSectionIndexScrubber`: its own
-    /// 22pt-wide capsule, the same Duo vertical-bar margin it insets by
-    /// (`.agents/design/apple/duo.md`'s B4), and a small visual gap so a row's
+    /// capsule (22 pt, wider at larger text sizes), the same Duo vertical-bar margin it
+    /// insets by (`.agents/design/apple/duo.md`'s B4), and a small visual gap so a row's
     /// trailing content doesn't sit flush against the capsule's edge.
     private var scrubberTrailingReserve: CGFloat {
-        22 + max(2, deviceLayout.cutoutInsets.trailing) + 6
+        SongSectionIndexScrubber.width(for: dynamicTypeSize)
+            + max(2, deviceLayout.cutoutInsets.trailing) + 6
+    }
+
+    /// The A–Z scrubber region's top: below the collapsed inline bar, fixed so the
+    /// scrubber does not move as the large title and Filter field collapse
+    /// (``ScrubberTopReserve`` lowers it at accessibility sizes).
+    private var scrubberTopReserve: CGFloat {
+        deviceLayout.overlayInsets.top + 52
     }
 
     /// Extra trailing safe area while the rail shows: the rows already keep their
@@ -1170,24 +1180,22 @@ struct SongsScreen: View, Equatable {
                 // replaced the bar's own (`fst.songs.section-bar`) for UI tests.
                 .accessibilityIdentifier("fst.songs.list")
                 .environment(\.defaultMinListRowHeight, 0)
-                .overlay(alignment: .top) {
-                    // Once scrolled, the current section's title floats just below the
-                    // navigation bar and the rows fade out at its bottom edge. An
-                    // overlay, not a safeAreaBar: a top bar hid the iOS 26 large title.
-                    if Self.usesSectionBar, let groups {
-                        SongsSectionBar(
-                            chrome: scrollChrome,
-                            sections: groups.map {
-                                SongsSectionBar.Entry(
-                                    key: Self.headerKey($0.id), label: $0.label,
-                                    spokenLabel: $0.spokenLabel ?? $0.label
-                                )
-                            }
-                        )
-                    }
-                }
+                .modifier(SongsSectionBarOverlay(
+                    chrome: scrollChrome,
+                    sections: Self.usesSectionBar ? groups.map { groups in
+                        groups.map {
+                            SongsSectionBar.Entry(
+                                key: Self.headerKey($0.id), label: $0.label,
+                                spokenLabel: $0.spokenLabel ?? $0.label
+                            )
+                        }
+                    } : nil
+                ))
                 .modifier(ScrolledAwayTracker(
-                    topInsetChanged: scrollChrome.setListTopInset
+                    topInsetChanged: { [scrollChrome] inset, offsetY in
+                        scrollChrome.setListTopInset(inset)
+                        scrollChrome.noteExpandedTopInset(inset, offsetY: offsetY)
+                    }
                 ) { scrolled in
                     scrollChrome.setScrolled(scrolled)
                 })
@@ -1225,7 +1233,9 @@ struct SongsScreen: View, Equatable {
                     // jumps when the large title and filter field collapse nor overlaps
                     // the floating Filter/Sort buttons.
                     .frame(maxHeight: .infinity)
-                    .padding(.top, deviceLayout.overlayInsets.top + 52)
+                    .modifier(ScrubberTopReserve(
+                        chrome: scrollChrome, collapsed: scrubberTopReserve
+                    ))
                     .padding(.bottom, 8)
                     .ignoresSafeArea(.container, edges: .top)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -1808,8 +1818,8 @@ private extension SongShopSectionKind {
 /// before). ``ScrollAwayGate`` keeps the chrome this report moves from feeding back
 /// into it (issue #5).
 private struct ScrolledAwayTracker: ViewModifier {
-    /// Receives the List's top content inset on every scroll geometry change.
-    let topInsetChanged: (CGFloat) -> Void
+    /// Receives the List's top content inset and offset on every scroll geometry change.
+    let topInsetChanged: (CGFloat, CGFloat) -> Void
     let changed: (Bool) -> Void
     @State private var gate = ScrollAwayGate()
     /// The last value sent to `changed`; nil until the first decision is reported.
@@ -1834,7 +1844,7 @@ private struct ScrolledAwayTracker: ViewModifier {
                 // Debug trace (issue #383): a List that briefly counts its top inset
                 // twice raises this peak above the expanded large title's inset.
                 MainThreadStallMonitor.peak("songs.topInset", Double(sample.topInset))
-                topInsetChanged(sample.topInset)
+                topInsetChanged(sample.topInset, sample.offsetY)
                 gate.update(
                     offsetY: sample.offsetY, topInset: sample.topInset,
                     containerWidth: sample.width
@@ -1847,6 +1857,37 @@ private struct ScrolledAwayTracker: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+/// Starts the A–Z scrubber's region below the collapsed inline bar or, at accessibility
+/// sizes, 8 pt below the expanded header (issue #388): the large title and Filter field
+/// then reach below the collapsed top (the field ended at y 312 at AX5, under the rail).
+///
+/// Reads ``SongsScrollChrome/expandedTopInset`` itself, so the inset re-renders only
+/// this modifier, never the List (issue #8).
+struct ScrubberTopReserve: ViewModifier {
+    let chrome: SongsScrollChrome
+    /// The top below the collapsed inline bar.
+    let collapsed: CGFloat
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    func body(content: Content) -> some View {
+        content.padding(.top, Self.top(
+            collapsed: collapsed, expandedInset: chrome.expandedTopInset,
+            accessibility: dynamicTypeSize.isAccessibilitySize
+        ))
+    }
+
+    /// The scrubber region's top.
+    ///
+    /// - Parameters:
+    ///   - collapsed: The top below the collapsed inline bar.
+    ///   - expandedInset: ``SongsScrollChrome/expandedTopInset``.
+    ///   - accessibility: Whether an accessibility text size is in effect.
+    /// - Returns: `collapsed`, or 8 pt below the expanded header at accessibility sizes.
+    static func top(collapsed: CGFloat, expandedInset: CGFloat, accessibility: Bool) -> CGFloat {
+        accessibility ? max(collapsed, expandedInset + 8) : collapsed
     }
 }
 
@@ -1869,13 +1910,35 @@ private struct QuickLinksJumpHeaderSync: ViewModifier {
     }
 }
 
+/// Floats ``SongsSectionBar`` over the top of the Songs List (iOS 26, macOS 26): the
+/// composition the hosted accessibility tests (`SongsSectionBarAccessibilityTests`) read.
+///
+/// Once scrolled, the current section's title floats just below the navigation bar and
+/// the rows fade out at its bottom edge. An overlay, not a safeAreaBar: a top bar hid the
+/// iOS 26 large title.
+struct SongsSectionBarOverlay: ViewModifier {
+    let chrome: SongsScrollChrome
+    /// Section titles in list order; `nil` when the List has no section bar.
+    let sections: [SongsSectionBar.Entry]?
+
+    func body(content: Content) -> some View {
+        // One structure whether or not there is a bar: a branch around `content` would give
+        // the List a new identity, and rebuild it, whenever grouping turns on or off.
+        content.overlay(alignment: .top) {
+            if let sections {
+                SongsSectionBar(chrome: chrome, sections: sections)
+            }
+        }
+    }
+}
+
 /// iOS 26: the current Songs section title, floating just below the navigation bar once
 /// the List has scrolled. With ``SectionBarRowFade`` rows fade out just below its bottom
 /// edge (issue #10), with no backing behind the title (operator batch 7).
 ///
 /// Observes ``SongsScrollChrome`` itself, so a passed title or a scroll-away change
 /// re-renders only this bar, never the List (issue #8).
-private struct SongsSectionBar: View {
+struct SongsSectionBar: View {
     /// One section title in list order.
     struct Entry: Equatable {
         let key: String
@@ -2001,7 +2064,7 @@ private struct SongsSectionBarLabel: View {
 /// changes (issue #8). It also reports its top to a settling jump and how far the row
 /// fade may reach near it (``SongsScrollChrome/fadeLimit(titleTop:barHeight:)``), and
 /// hosts the locator that finds the List's scroll view for ``ListScrollNudger``.
-private struct SongsInlineSectionTitle: View {
+struct SongsInlineSectionTitle: View {
     let key: String
     let label: String
     let spokenLabel: String

@@ -1,15 +1,16 @@
 [
   {
     "name": "section-index-far-moves-compact",
+    "fixture": ["--large-catalogue"],
     "route": "/songs",
-    "preset": "compact",
+    "preset": "500x640",
     "extra": {
       "FST_DEBUG_ANONYMOUS": "1"
     },
     "steps": [
       "waitfor:id=fst.songs.row.fixture-song-1@30",
       "assertname:id=fst.songs.section-header|#",
-      "scrollto:id=fst.songs.list,74",
+      "scrollto:id=fst.songs.list,72",
       "assertname:id=fst.songs.section-header|R",
       "scrollto:id=fst.songs.list,30",
       "assertname:id=fst.songs.section-header|G",
@@ -63,15 +64,16 @@
   },
   {
     "name": "section-index-far-moves-medium",
+    "fixture": ["--large-catalogue"],
     "route": "/songs",
-    "preset": "medium",
+    "preset": "900x640",
     "extra": {
       "FST_DEBUG_ANONYMOUS": "1"
     },
     "steps": [
       "waitfor:id=fst.songs.row.fixture-song-1@30",
       "assertname:id=fst.songs.section-header|#",
-      "scrollto:id=fst.songs.list,74",
+      "scrollto:id=fst.songs.list,72",
       "assertname:id=fst.songs.section-header|R",
       "scrollto:id=fst.songs.list,30",
       "assertname:id=fst.songs.section-header|G",
@@ -125,15 +127,16 @@
   },
   {
     "name": "section-index-far-moves-wide",
+    "fixture": ["--large-catalogue"],
     "route": "/songs",
-    "preset": "wide",
+    "preset": "1440x640",
     "extra": {
       "FST_DEBUG_ANONYMOUS": "1"
     },
     "steps": [
       "waitfor:id=fst.songs.row.fixture-song-1@30",
       "assertname:id=fst.songs.section-header|#",
-      "scrollto:id=fst.songs.list,74",
+      "scrollto:id=fst.songs.list,72",
       "assertname:id=fst.songs.section-header|R",
       "scrollto:id=fst.songs.list,30",
       "assertname:id=fst.songs.section-header|G",

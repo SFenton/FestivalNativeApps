@@ -328,6 +328,7 @@ private fun FestivalShell(
                 val art = item.songId?.let { id -> runCatching { container.api.catalog().catalog.songs.firstOrNull { it.songId == id }?.albumArt }.getOrNull() }
                 container.api.artworkUrl(art ?: item.payload?.albumArt)
             },
+            experimentalRanks = shellViewModel.settings.map { it?.experimentalRanks == true },
         )
     }
 
@@ -640,6 +641,7 @@ private fun FestivalShell(
             ChromeColors {
                 ModalDrawerSheet(
                     drawerState = drawerState,
+                    modifier = Modifier.testTag("fst.nav.modal-drawer"),
                     drawerShape = rememberConcentricDrawerShape(),
                     drawerContainerColor = BrandTokens.cardBackground,
                 ) { if (!permanent) drawer(false) }
@@ -801,7 +803,7 @@ private fun FestivalNavHost(
             val route = entry.toRoute<PlayerHistoryRoute>()
             PlayerHistoryScreen(playerHistoryViewModel(container, shellViewModel, route))
         }
-        bandsDestinations(container)
+        bandsDestinations(container, shellViewModel.settings)
         rivalsDestinations(container, settings)
         competeDestinations(container, settings)
         composable<ShopRoute> { ShopRouteScreen(container, shellViewModel) }

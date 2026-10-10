@@ -83,6 +83,7 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
     val instrument by viewModel.instrument.collectAsStateWithLifecycle()
     val metric by viewModel.metric.collectAsStateWithLifecycle()
+    val experimentalRanks by viewModel.experimentalRanks.collectAsStateWithLifecycle()
     val page by viewModel.page.collectAsStateWithLifecycle()
     val board by viewModel.board.collectAsStateWithLifecycle()
     val selected by viewModel.selectedAccountId.collectAsStateWithLifecycle()
@@ -91,7 +92,7 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
     val navigate = LocalShellActions.current.navigate
     val listState = rememberLazyListState()
     val current by viewModel.displayed.collectAsStateWithLifecycle()
-    val totalPages = current?.rankings?.pageCount ?: 1
+    val totalPages by viewModel.pageCount.collectAsStateWithLifecycle()
     // Reloads (chart, Rank By, page) fade the rows out, show the spinner and stagger the new
     // page in, like the web's PaginatedLeaderboard (issue #71).
     val swap = rememberLoadSwap(board, board !is LoadState.Loading, key = Triple(instrument, metric, page))
@@ -147,7 +148,7 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
         titleIcon = { size -> InstrumentIcon(instrument, size = size, decorative = true, modifier = Modifier.testTag("fst.full-rankings.title-icon.${instrument.wireId}")) },
         actions = {
             InstrumentAction(instrument, Instrument.entries.filter { it in visible || it == instrument }, viewModel::selectInstrument, "fst.full-rankings.instrument-menu")
-            RankByAction(metric, viewModel::selectMetric)
+            RankByAction(metric, experimentalRanks, viewModel::selectMetric)
         },
     ) { padding ->
         val failed = board as? LoadState.Failed

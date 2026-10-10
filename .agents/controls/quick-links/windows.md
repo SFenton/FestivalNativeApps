@@ -93,6 +93,27 @@ Fixed in #251:
 
 Design (`winui-design` skill, Fluent layout and scrolling): no markup, brush or control changes. The jump stays an instant `ChangeView`/`StartBringIntoView` (operator batch 7.15), and the 32-epx offset is the web's default scroll margin.
 
+## Landing accessibility (issue #416, 2026-10-08)
+
+`tools/windows/journeys/a11y-quick-links-landing.json` (`a11y_matrix.py`; guard `tools/windows/tests/test_quick_links_landing_a11y.py`) pins what #51 changed on Settings and Leaderboards, keyboard only. Pages are fixture-only (`"fixture": []`): they focus fixture rows.
+
+- `qla-settings-menu` (compact, medium, snap-left): Enter opens the menu on App Settings; Down walks the page order to Show Instruments, then Accessibility. Each jump announces "… section", lands the level-2 heading 40 epx below the scroller top (`LandingOffset` + the header style's 8 epx), reads it before the section's first control, focuses that control (the Lead toggle, Reduce Motion) and keeps "current section …" on the button one second after the jump settles. Esc returns focus to the ≥ 40×40 epx button. Every menu item the keyboard walks (App Settings through Accessibility) is measured at ≥ 40×40 epx while the menu is open.
+- `qla-leaderboards-menu` (compact, medium): the same for Drums (card group at 32 epx, its heading before its View All button, focus on its first row), with Lead, Bass and Drums measured at ≥ 40×40 epx.
+- `qla-leaderboards-pane` (wide at display 100% or 150%): the Lead, Bass and Drums rows are each ≥ 40×40 epx; Enter on the focused Drums row does the same and moves the UIA selection from Lead to Drums.
+- `assertstate:…|heading=2` (new driver key) proves the landed title is a heading; the Narrator model's phrase omits heading levels.
+
+| Configuration | Result |
+|---|---|
+| Menus: compact, medium, snap-left (300% host) | Pass, Axe 0 before the menu opens |
+| Menus: text 225%, compact and medium | Pass, Axe 0: headings, focus and current section unchanged; the title still lands fully below the title bar |
+| Pane: wide at display 150% and 100% (`--scan`) | Pass, Axe 0 |
+
+Defect found and fixed (#416 design review): the menu items' hit-testable pills were 27 epx tall (WinUI's keyboard/mouse `MenuFlyoutItemThemePaddingNarrow`). Every app menu item now has `MinHeight` `FSTMenuItemMinHeight` (44: 40 plus the template's 2 + 2 epx `MenuFlyoutItemMargin`), a 40 epx pill ([page-tools-and-nav-chrome](../../patterns/page-tools-and-nav-chrome.md) R10). A final `--scan` after a menu opened reports only open item 8 (WinUI `PopupHost`).
+
+CI (#416 retry, 2026-10-08): the `windows-ui` job runs the menu pages through `tools/windows/ui_ci.py` (`quick-links-landing` at compact and medium, `quick-links-landing-text-225` at compact) with `--scan`. The menu pages list `"axe_allow": ["framework-popup"]`, so only that framework finding is dropped; on Leaderboards it lingered after Esc on this host (2 errors per size before the allowance). Local runs: 4/4 at default text and 2/2 at text 225%, Axe 0 with the allowance. The wide pane page needs a 1440 epx window, which the runner's 1920×1080 desktop can't fit with its taskbar; it stays a host-matrix run.
+
+Defect found and fixed (#431, 2026-10-09): `qla-settings-menu` at compact and 225% text failed intermittently in CI and failed on this host. Focus stayed on the menu button, which the jump had scrolled off screen, instead of the first Show Instruments toggle. Those toggles sit in a virtualizing `ItemsRepeater`. At 225% text the section starts far below the viewport, so its toggles aren't realized when the landing moves focus, and `FindFirstFocusableElement` found nothing. `QuickLinksBinder.Land` now retries after each layout pass (at most `QuickLinks.MaxFocusRetries`, 30) until the section's first focusable control exists, and a later jump cancels the retry. Rule: a jump's focus move must not depend on the target's controls being realized before the scroll.
+
 ## Validation (issue #246, 2026-10-05)
 
 #46 asked that Quick Links list sections in on-page order on Settings and on a player profile, from every entry point, and that jumps land and stay marked. Order journeys in `journeys/quick-links.json`:

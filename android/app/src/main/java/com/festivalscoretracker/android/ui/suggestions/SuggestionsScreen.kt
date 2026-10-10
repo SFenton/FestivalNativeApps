@@ -39,8 +39,8 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
@@ -135,13 +135,15 @@ internal fun SuggestionsScreenContent(
         actions = {
             if (state.phase != SuggestionsPhase.NoPlayer) {
                 val active = state.filter.isActive
+                // The spoken state carries what the gold tint shows (issue #418; Songs #181, Item Shop #145).
+                val filterState = state.filter.stateDescription
                 IconButton(
                     onClick = { showFilter = true },
                     modifier = Modifier
                         .testTag("fst.suggestions.filter-button")
-                        .semantics { contentDescription = if (active) "Filter Suggestions, filters on" else "Filter Suggestions" },
+                        .semantics { stateDescription = filterState },
                 ) {
-                    Icon(Icons.Outlined.FilterList, contentDescription = null, tint = if (active) BrandTokens.gold else BrandTokens.textPrimary)
+                    Icon(Icons.Outlined.FilterList, contentDescription = "Filter Suggestions", tint = if (active) BrandTokens.gold else BrandTokens.textPrimary)
                 }
             }
         },

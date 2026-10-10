@@ -386,4 +386,76 @@ class NotificationsTest {
     }
 
     // endregion
+
+    // region Experimental Ranks (#541)
+
+    @Test
+    fun experimentalRankChangesNeedTheSetting() {
+        val pb = item("pb", "player_score_pb", newNumeric = 10.0)
+        assertEquals(pb, NotificationRouting.projectExperimentalRanks(pb, experimentalRanks = false))
+        val total = item("total", "player_total_score_rank_improved", song = null, oldRank = 5, newRank = 2)
+        assertEquals(total, NotificationRouting.projectExperimentalRanks(total, experimentalRanks = false))
+        val adjusted = item("adj", "player_skill_rank_improved", song = null, oldRank = 10, newRank = 3)
+        assertNull(NotificationRouting.projectExperimentalRanks(adjusted, experimentalRanks = false))
+        assertEquals(adjusted, NotificationRouting.projectExperimentalRanks(adjusted, experimentalRanks = true))
+        // Metric-only rows resolve their metric too.
+        assertNull(NotificationRouting.projectExperimentalRanks(item("fc", "rank_improved", song = null, metric = "fc_rate_rank"), experimentalRanks = false))
+
+        val mixed = item(
+            "mixed", "player_weighted_rank_improved", song = null, oldRank = 9, newRank = 4,
+            payload = NotificationPayload(
+                coalescedEvents = listOf(
+                    NotificationEventPayload("player_weighted_rank_improved", "Solo_Guitar", oldRank = 9.0, newRank = 4.0),
+                    NotificationEventPayload("player_total_score_rank_improved", "Solo_Guitar", oldRank = 20.0, newRank = 12.0),
+                    NotificationEventPayload("player_max_score_rank_improved", "Solo_Guitar", oldRank = 7.0, newRank = 6.0),
+                ),
+            ),
+        )
+        val projected = NotificationRouting.projectExperimentalRanks(mixed, experimentalRanks = false)!!
+        assertEquals("player_total_score_rank_improved", projected.eventKind)
+        assertEquals(20, projected.oldRank)
+        assertEquals(12, projected.newRank)
+        assertEquals(listOf("player_total_score_rank_improved"), projected.payload!!.coalescedEvents!!.map { it.eventKind })
+        assertEquals(mixed, NotificationRouting.projectExperimentalRanks(mixed, experimentalRanks = true))
+    }
+
+    @Test
+    fun viewModelHidesExperimentalRankChangesUntilTheSettingTurnsOn() = runTest {
+        val vmScope = CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
+        val experimental = MutableStateFlow(false)
+        val feed = listOf(
+            item("pb", "player_score_pb", newNumeric = 10.0),
+            item("adj", "player_skill_rank_improved", song = null, oldRank = 10, newRank = 3, at = "2026-09-28T10:00:00Z"),
+        )
+        val store = NotificationSeenStore(MemoryBlobStore())
+        val vm = NotificationsViewModel(
+            MutableStateFlow(SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player")),
+            load = { NotificationsEnvelope(sourceRunId = 1, items = feed) },
+            seenStore = store,
+            clock = { now },
+            scope = vmScope,
+            experimentalRanks = experimental,
+        )
+        advanceUntilIdle()
+        assertEquals(listOf("pb"), (vm.state.value as NotificationsState.Loaded).newRows.map { it.id })
+        assertEquals(1, vm.unreadCount.value)
+        // Mark All Read only marks what the sheet shows.
+        vm.markAllSeen()
+        advanceUntilIdle()
+        assertEquals(listOf("pb"), store.seen(Fixtures.ACCOUNT_A).toList())
+
+        experimental.value = true
+        advanceUntilIdle()
+        val loaded = vm.state.value as NotificationsState.Loaded
+        assertEquals(listOf("adj"), loaded.newRows.map { it.id })
+        assertEquals(1, vm.unreadCount.value)
+
+        experimental.value = false
+        advanceUntilIdle()
+        assertEquals(0, vm.unreadCount.value)
+        assertTrue((vm.state.value as NotificationsState.Loaded).newRows.isEmpty())
+        vmScope.cancel()
+    }
+
+    // endregion
 }
