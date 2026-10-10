@@ -681,10 +681,7 @@
             "path": "windows/Festival.App/Controls/LeaderboardsPager.xaml.cs",
             "symbol": "LeaderboardsPager"
           },
-          {
-            "path": "windows/Festival.App/Controls/ViewAllCard.cs",
-            "symbol": "ViewAllCard"
-          },
+
           {
             "path": "windows/Festival.App/Controls/GroupedRows.cs",
             "symbol": "GroupedRows"
@@ -752,12 +749,12 @@
           "message": "The board pager draws on the rows' FSTCardSurfaceBrush / FSTCardStrokeBrush, never a pager-only plate (surface-materials R1, #319)."
         },
         {
-          "id": "windows-profile-purple-view-all",
-          "glob": "windows/Festival.App/Controls/PlayerProfileView.xaml",
-          "regex": "FSTViewAllButtonStyle",
+          "id": "windows-profile-band-group-card",
+          "glob": "windows/Festival.App/**/*",
+          "regex": "\\bViewAllCard\\b",
           "allow": [],
           "debt": [],
-          "message": "The profile's View All Bands (N) is the frosted ViewAllCard (web BandViewAllCard), not the purple leaderboard CTA (surface-materials R7, #312)."
+          "message": "Each profile Bands group is one FSTRowsCardStyle card of BandCardView rows ending in the shared purple FSTViewAllButtonStyle CTA (owner-approved variant #596, surface-materials R7); do not bring back a frosted View All tile."
         }
       ],
       "related": {
@@ -2897,7 +2894,8 @@
           "rival-detail",
           "compete",
           "leaderboards",
-          "player-history"
+          "player-history",
+          "player-profile"
         ]
       },
       "guards": [
