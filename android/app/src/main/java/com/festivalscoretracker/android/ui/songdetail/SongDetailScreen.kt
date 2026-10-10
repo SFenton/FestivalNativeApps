@@ -242,7 +242,6 @@ fun SongDetailScreen(
             title = if (headerGone && song != null) song.title else "",
             isRoot = false,
             scrolled = headerGone,
-            marqueeTitle = true,
             actions = {
                 if (song != null && contentShown && extras.pathInstruments.isNotEmpty()) {
                     IconButton(onClick = { onOpenPaths(song) }, modifier = Modifier.testTag("fst.song-detail.paths.open")) {

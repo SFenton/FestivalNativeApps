@@ -188,9 +188,10 @@ private let competeDuoPortrait = DeviceLayout.resolve(LayoutSignals(
 
 /// On the Duo dual-source layout the page also loads behind its one spinner, with no
 /// pane header or card behind it, then the panes fade in on the page's reading-order
-/// stagger rather than all at once (load-transition R1, R5; #354 review). The 669 pt
-/// inner display shows both leaderboard cards side by side, so the entrances run strictly
-/// Leaderboards header (stagger 0), Lead card (1), Bass card (2), Rivals header (3),
+/// stagger rather than all at once (load-transition R1, R5; #354 review). With Lead and
+/// Bass visible the leaderboards are the Lead + Bass combo, Lead and Bass (#602); the
+/// 669 pt inner display shows the first two side by side, so the entrances run strictly
+/// Leaderboards header (stagger 0), combo card (1), Lead card (2), Rivals header (3),
 /// rivals card (4), 125 ms apart. The Rivals pane reads the regions' width on its first
 /// build; deriving the columns after layout started the Rivals header at stagger 2,
 /// together with the Bass card, which this journey rejects.
@@ -207,7 +208,7 @@ private let competeDuoPortrait = DeviceLayout.resolve(LayoutSignals(
     host.layoutSubtreeIfNeeded()
     let pending = nativeHostedAccessibility(host)
     #expect(pending.identifiers.contains("fst.compete.loading"))
-    for text in ["Leaderboards", "Rivals", "Lead", "Bass"] {
+    for text in ["Leaderboards", "Rivals", "Lead + Bass", "Lead", "Bass"] {
         #expect(!pending.texts.contains(text), "Duo Compete shows the \(text) header before the page loaded")
     }
     for text in ["Fixture Player 1", "Fixture Rival Golf"] {
@@ -216,16 +217,16 @@ private let competeDuoPortrait = DeviceLayout.resolve(LayoutSignals(
 
     // Each element's first poll (and when) after the spinner left, in reading order.
     enum Element: String, CaseIterable {
-        case leaderboardsHeader, leadCard, bassCard, rivalsHeader, rivalCard
+        case leaderboardsHeader, comboCard, leadCard, rivalsHeader, rivalCard
     }
     func visibleElements(_ tree: NativeHostedAccessibility) -> Set<Element> {
         var shown = Set<Element>()
         if tree.texts.contains("Leaderboards") { shown.insert(.leaderboardsHeader) }
         // The section's container identifier isn't surfaced inside the carousel's
-        // nested scroll views on macOS; its instrument header is. Only the leaderboard
-        // cards title themselves "Lead"/"Bass" (rivals cards say "Lead Rivals").
+        // nested scroll views on macOS; its header is. Only the leaderboard cards title
+        // themselves "Lead + Bass"/"Lead" (rivals cards say "Lead Rivals").
+        if tree.texts.contains("Lead + Bass") { shown.insert(.comboCard) }
         if tree.texts.contains("Lead") { shown.insert(.leadCard) }
-        if tree.texts.contains("Bass") { shown.insert(.bassCard) }
         if tree.texts.contains("Rivals") { shown.insert(.rivalsHeader) }
         if tree.contains("Fixture Rival Golf") { shown.insert(.rivalCard) }
         return shown
@@ -263,10 +264,10 @@ private let competeDuoPortrait = DeviceLayout.resolve(LayoutSignals(
         // A shared slot can still straddle two polls by a frame; one stagger step
         // (125 ms) can't fit inside one poll, so the Rivals header must trail the last
         // leaderboard card by most of a step.
-        if let bass = firstSeen[.bassCard]?.at, let rivals = firstSeen[.rivalsHeader]?.at {
+        if let lead = firstSeen[.leadCard]?.at, let rivals = firstSeen[.rivalsHeader]?.at {
             #expect(
-                rivals - bass >= .milliseconds(60),
-                "the Rivals header waits one stagger step after the Bass card (\(rivals - bass); polls \(polls))"
+                rivals - lead >= .milliseconds(60),
+                "the Rivals header waits one stagger step after the Lead card (\(rivals - lead); polls \(polls))"
             )
         }
     }
@@ -410,7 +411,7 @@ private actor ViewerRankedTransport: HTTPTransport {
               var body = try JSONSerialization.jsonObject(with: result.data) as? [String: Any] else { return result }
         body["accountId"] = "fixture-riv"
         body["displayName"] = "Fixture Viewer"
-        for key in ["adjustedSkillRank", "weightedRank", "fcRateRank", "totalScoreRank", "maxScorePercentRank"] {
+        for key in ["rank", "adjustedSkillRank", "weightedRank", "fcRateRank", "totalScoreRank", "maxScorePercentRank"] {
             body[key] = Self.rank
         }
         body["totalRankedAccounts"] = 60

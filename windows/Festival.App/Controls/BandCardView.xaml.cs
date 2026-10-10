@@ -6,13 +6,14 @@ namespace Festival.App.Controls;
 #region Band card
 /// <summary>
 /// Renders a <see cref="PlayerBandCardViewModel"/>; invoking it opens Band Detail, or raises
-/// <see cref="RouteRequested"/> when a host (global search) owns the navigation.
+/// <see cref="RouteRequested"/> when a host (global search) owns the navigation. Standalone on Player Bands and Search;
+/// a separated row of its group card on the profile (<see cref="PlayerBandCardViewModel.IsGroupedRow"/>).
 /// </summary>
-public sealed partial class BandCardView : UserControl
+public sealed partial class BandCardView : UserControl, ISeparatedRow
 {
     /// <summary>Bound card.</summary>
     public static readonly DependencyProperty CardProperty = DependencyProperty.Register(
-        nameof(Card), typeof(PlayerBandCardViewModel), typeof(BandCardView), new PropertyMetadata(null, (d, _) => ((BandCardView)d).Bindings.Update()));
+        nameof(Card), typeof(PlayerBandCardViewModel), typeof(BandCardView), new PropertyMetadata(null, (d, _) => ((BandCardView)d).OnCardChanged()));
 
     /// <summary>Creates the card.</summary>
     public BandCardView() => InitializeComponent();
@@ -22,6 +23,23 @@ public sealed partial class BandCardView : UserControl
     {
         get => (PlayerBandCardViewModel?)GetValue(CardProperty);
         set => SetValue(CardProperty, value);
+    }
+
+    /// <inheritdoc />
+    public bool ShowSeparator { set => RowSeparator.Visibility = value ? Visibility.Visible : Visibility.Collapsed; }
+
+    /// <summary>
+    /// Re-binds and switches between the standalone card (own surface, 8 epx corners) and a row of a group card: no
+    /// surface, the control corner radius (4 epx, concentric inside the card's 8 epx corner and 4 epx padding) and
+    /// 12 epx side padding so the content keeps the standalone 16 epx inset from the card edge (issue #596).
+    /// </summary>
+    private void OnCardChanged()
+    {
+        var grouped = Card?.IsGroupedRow == true;
+        Surface.Visibility = grouped ? Visibility.Collapsed : Visibility.Visible;
+        CardButton.CornerRadius = grouped ? (CornerRadius)Application.Current.Resources["ControlCornerRadius"] : new CornerRadius(8);
+        CardButton.Padding = grouped ? new Thickness(12) : new Thickness(16, 12, 16, 12);
+        Bindings.Update();
     }
 
     /// <summary>
