@@ -22,6 +22,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -171,14 +173,24 @@ private fun PhaseRow(title: String, rows: ServiceInfoRows) {
 }
 
 /**
- * Web-style capsule bar: purple fill on a muted track, as thick as the web's 0.65rem track
- * (iOS draws 10 pt). An unknown total shows Material's indeterminate sweep (the web's looping
- * shimmer), or the still empty track under reduced motion.
+ * Web-style capsule bar (`.progressTrack` / `.progressFill`): one muted capsule track with the
+ * rounded purple fill drawn inside it, as thick as the web's 0.65rem track (iOS draws a 10 pt
+ * capsule). An unknown total shows Material's indeterminate sweep (the web's looping shimmer)
+ * inside the same track, or the still empty track under reduced motion.
+ *
+ * The track is the bar's own clipped background and the indicator's track is transparent:
+ * with `StrokeCap.Round`, M3's `LinearProgressIndicator` widens its track gap by the stroke
+ * width even at `gapSize = 0.dp`, so its own track drew as a second pill (issue #598).
  */
 @Composable
 private fun ProgressBar(percent: Double?) {
     val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
-    val modifier = Modifier.fillMaxWidth().height(SERVICE_PROGRESS_BAR_HEIGHT).testTag("fst.settings.service-info.bar")
+    val modifier = Modifier
+        .fillMaxWidth()
+        .height(SERVICE_PROGRESS_BAR_HEIGHT)
+        .clip(CircleShape)
+        .background(BrandTokens.surfaceMuted)
+        .testTag("fst.settings.service-info.bar")
     when {
         percent != null -> {
             val shown by animateFloatAsState((percent / 100).toFloat(), if (reduceMotion) tween(0) else tween(180), label = "service-progress")
@@ -186,17 +198,17 @@ private fun ProgressBar(percent: Double?) {
                 progress = { shown },
                 modifier = modifier,
                 color = BrandTokens.accentPurple,
-                trackColor = BrandTokens.surfaceMuted,
+                trackColor = Color.Transparent,
                 strokeCap = StrokeCap.Round,
                 gapSize = 0.dp,
                 drawStopIndicator = {},
             )
         }
-        reduceMotion -> Box(modifier.background(BrandTokens.surfaceMuted, CircleShape))
+        reduceMotion -> Box(modifier)
         else -> LinearProgressIndicator(
             modifier = modifier,
             color = BrandTokens.accentPurple,
-            trackColor = BrandTokens.surfaceMuted,
+            trackColor = Color.Transparent,
             strokeCap = StrokeCap.Round,
             gapSize = 0.dp,
         )

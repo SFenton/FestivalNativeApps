@@ -37,6 +37,8 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [view-all-cta](view-all-cta.md) | The full-width purple "View all" button below a card's rows: look, placement, copy and accessible name |
 | [back-keeps-place](back-keeps-place.md) | Back to a cached page: no reload, no movement or replayed fade-in, focus back on the opener |
 | [songs-profile-panel](songs-profile-panel.md) | Wide Songs rows with a selected player or band: song left, that profile's one-line score cards right |
+| [invalid-scores](invalid-scores.md) | Filter Invalid Scores: effective (raw, valid fallback or none) player scores on Songs and Song Details, the row's invalid-score indicator and Filtered Score alert, Over CHOpt Threshold |
+| [stat-tile-grid](stat-tile-grid.md) | Profile and Band stat tile grids: a tile whose text would wrap in one slot spans two, one height for every tile, web order, wrap never truncate |
 | [settings-value-row](settings-value-row.md) | Read-only Settings title/value rows (Version, Service Info state): inline when it fits, otherwise the value stacks under the title |
 | [rival-rows](rival-rows.md) | Rivals rows: hub rival rows and song comparison rows, the shared red/green status pill and the song rows' album art |
 | [hinge-columns](hinge-columns.md) | Foldable book pose: grid and two-up row gutters on the fold, full-width titles kept on their side, flat layout when unfolded |
@@ -44,4 +46,5 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [split-panes](split-panes.md) | List/detail split boundary: no drawn divider (a hairline only under Increase Contrast at a midpoint), one backdrop across the band |
 | [catalogue-sort](catalogue-sort.md) | Sorting catalogue songs (Songs, Item Shop): the shared Sort sheet/flyout, direction section, comparator, Reset, trigger state, persistence and missing-data pause |
 | [experimental-ranks](experimental-ranks.md) | Settings → Experimental Ranks as the one gate: which ranking metrics Rank By offers, fallback of saved/routed metrics to Total Score, and the profile tiles, Rivals, notifications, Mac menu and first-run slide it gates |
+| [band-member-lines](band-member-lines.md) | Band card members: one line each, names leading on one shared edge, value and icons trailing, card-wide stack when any member can't fit |
 | [shop-offer-status](shop-offer-status.md) | Item Shop New / Leaving Tomorrow on Songs rows, Shop rows and cards: gold outline only for New, a visible indicator only for Leaving, both spoken |

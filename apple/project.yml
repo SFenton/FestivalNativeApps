@@ -124,6 +124,9 @@ targets:
       - path: Apps/iOSUITests/FeedbackSentJourneyTests.swift
       # Issue #434 What's New at AX5, portrait and landscape, run on iPad too.
       - path: Apps/iOSUITests/WhatsNewAccessibilityJourneyTests.swift
+      - path: Apps/iOSUITests/RecognizedText.swift
+      # Issue #473 board footer fade at AX5, run on iPad too.
+      - path: Apps/iOSUITests/BoardFooterFadeJourneyTests.swift
     dependencies:
       - target: FestivalMobile
     settings:

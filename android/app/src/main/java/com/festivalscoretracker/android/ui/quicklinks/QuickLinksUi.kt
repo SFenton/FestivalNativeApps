@@ -530,7 +530,6 @@ fun QuickLinksAction(controller: QuickLinksController, windowWidthDp: Int) {
             title = controller.title,
             closeTag = "fst.quick-links.close",
             onDismissRequest = { open = false },
-            skipPartiallyExpanded = controller.sections.size <= 8,
             modifier = Modifier.testTag("fst.quick-links.sheet"),
         ) {
             SectionList(controller, Modifier.fillMaxWidth().testTag("fst.quick-links.list"), PaddingValues(start = 12.dp, end = 12.dp, bottom = 24.dp)) { id ->

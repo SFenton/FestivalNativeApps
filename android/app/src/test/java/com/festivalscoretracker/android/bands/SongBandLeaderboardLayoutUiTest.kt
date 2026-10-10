@@ -31,10 +31,11 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.festivalscoretracker.android.core.bands.BandFormatting
 import com.festivalscoretracker.android.core.bands.BandLayout
 import com.festivalscoretracker.android.core.bands.BandMember
 import com.festivalscoretracker.android.core.bands.SongBandLeaderboardEntry
-import com.festivalscoretracker.android.ui.bands.BandMemberScoreLine
+import com.festivalscoretracker.android.ui.bands.BandMemberRows
 import com.festivalscoretracker.android.ui.bands.BandScoreFooter
 import com.festivalscoretracker.android.ui.bands.SongBandLeaderboardLayout
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
@@ -138,7 +139,7 @@ class SongBandLeaderboardLayoutUiTest {
 
     @Test
     fun memberScoreMovesUnderTheNameAt200Percent() {
-        show(2f, 200) { BandMemberScoreLine(entry.members.first(), keyboard = false) }
+        show(2f, 200) { memberRows(entry.members) }
         val name = rule.onNodeWithText("T3MP3ST_11", useUnmergedTree = true)
         val layouts = mutableListOf<TextLayoutResult>()
         name.fetchSemanticsNode().config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
@@ -149,10 +150,39 @@ class SongBandLeaderboardLayoutUiTest {
 
     @Test
     fun memberScoreStaysBesideTheNameAtDefaultText() {
-        show(1f, 260) { BandMemberScoreLine(entry.members.first(), keyboard = false) }
+        show(1f, 260) { memberRows(entry.members) }
         val name = rule.onNodeWithText("T3MP3ST_11", useUnmergedTree = true).getUnclippedBoundsInRoot()
         val score = rule.onNodeWithText("156,912", useUnmergedTree = true).getUnclippedBoundsInRoot()
         assertTrue("score $score name $name", score.left >= name.right)
+    }
+
+    /** Issue #589: names lead (one edge for every member), score and icons trail. */
+    private val uneven = listOf(
+        BandMember("a".repeat(32), "T3MP3ST_11", listOf("Solo_Guitar", "Solo_Bass", "Solo_Drums", "Solo_Vocals"), score = 156_912),
+        BandMember("b".repeat(32), "Rekayy", listOf("Solo_Bass"), score = 98_000),
+    )
+
+    private fun assertNamesShareOneEdge() {
+        val a = rule.onNodeWithText("T3MP3ST_11", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        val b = rule.onNodeWithText("Rekayy", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        assertEquals("$a vs $b", a.left.value, b.left.value, 0.5f)
+    }
+
+    @Test
+    fun memberNamesShareOneEdgeAtDefaultText() {
+        show(1f, 360) { memberRows(uneven) }
+        assertNamesShareOneEdge()
+    }
+
+    @Test
+    fun memberNamesShareOneEdgeAt200Percent() {
+        show(2f, 360) { memberRows(uneven) }
+        assertNamesShareOneEdge()
+    }
+
+    @Composable
+    private fun memberRows(members: List<BandMember>) {
+        BandMemberRows(members, iconSize = 18.dp, lineGap = 4.dp, value = { member -> member.score?.let(BandFormatting::count) })
     }
 
     @Test
