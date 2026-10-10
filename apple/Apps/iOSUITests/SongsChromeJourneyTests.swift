@@ -487,7 +487,7 @@ final class SongsChromeJourneyTests: XCTestCase {
         let tabTop = app.tabBars.firstMatch.exists
             ? app.tabBars.firstMatch.frame.minY : app.windows.firstMatch.frame.maxY
         let rowUnderTabBar = rowSnapshots().contains { $0.frame.maxY > tabTop }
-        try app.performAccessibilityAudit(for: .all) { issue in
+        try performAuditRetryingTimeout(app, .all, name: "largest text fade", reset: {}) { issue in
             let attachment = XCTAttachment(
                 string: "\(issue.auditType): \(issue.detailedDescription); "
                     + "element=\(issue.element?.identifier ?? "unidentified"), "
@@ -903,10 +903,14 @@ final class SongsChromeJourneyTests: XCTestCase {
         reset: () -> Void,
         _ handler: @escaping (XCUIAccessibilityAuditIssue) throws -> Bool
     ) throws {
+        // A busy host also reports the deadline as an `XCTFuture` timeout (code 1000).
+        func timedOut(_ error: NSError) -> Bool {
+            (error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == -56)
+                || (error.domain == "com.apple.dt.XCTest.XCTFuture" && error.code == 1000)
+        }
         do {
             try app.performAccessibilityAudit(for: types, handler)
-        } catch let error as NSError
-            where error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == -56 {
+        } catch let error as NSError where timedOut(error) {
             XCTContext.runActivity(named: "Audit \(name) did not complete in time; retrying once") { _ in }
             reset()
             try app.performAccessibilityAudit(for: types, handler)
@@ -927,7 +931,13 @@ final class SongsChromeJourneyTests: XCTestCase {
     ) throws -> [String] {
         var weak: [String] = []
         var measured = 0
-        for text in app.staticTexts.allElementsBoundByIndex {
+        // One snapshot: elements bound by index re-resolve one at a time, and the list
+        // can still be re-laying out after the audit's text-size cycle, so a later index
+        // was sometimes gone ("No matches found for Element at index 51", CI #391).
+        func texts(_ node: XCUIElementSnapshot) -> [XCUIElementSnapshot] {
+            (node.elementType == .staticText ? [node] : []) + node.children.flatMap(texts)
+        }
+        for text in texts(try app.snapshot()) {
             let frame = text.frame
             guard !frame.isEmpty, page.window.contains(frame),
                   frame.minY >= page.rampEnd, frame.maxY <= page.chromeTop else { continue }
