@@ -179,9 +179,11 @@ struct PlayerBandsScreen: View {
 /// One player-band card: member names with their instrument icons and appearance
 /// count, matching the web client's `PlayerBandCard` (`frostedCard`).
 ///
-/// Player Bands and the profile's inline bands section (issue #312) both draw it on
-/// the shared row card with an in-card chevron, like Song Detail's band previews
-/// (``SongBandPreviewRow``) and the leaderboard rows beside the pager (issue #319).
+/// Player Bands draws it on the shared row card with an in-card chevron, like the
+/// leaderboard rows beside the pager (issue #319). The profile's inline bands section
+/// (issue #312) puts each group's rows in one flush ``FestivalGlassSection``, where
+/// ``EnvironmentValues/festivalGroupedRow`` drops the row's own card (owner #596), like
+/// Song Detail's band previews (``SongBandPreviewRow``).
 /// Global search (issue #320) shows the same card with an `open` action, because a
 /// result closes Search before the band page pushes on the section stack.
 struct PlayerBandRow: View {
