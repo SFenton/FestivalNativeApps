@@ -514,7 +514,8 @@ struct SongsScreen: View, Equatable {
         // rather than searches globally"). Global search is the Search tab. Not on
         // iPhone Duo, which shows its own field at the bottom (issue #333).
         .modifier(SongsSystemFilterField(
-            text: $searchText, enabled: filterPlacement == .system
+            text: $searchText, enabled: filterPlacement == .system,
+            listNudger: scrollChrome.listNudger
         ))
         // Sort, Filter and Quick Links, then the account group: in the iPhone tab-bar
         // accessory on iOS 26.1+, the navigation bar elsewhere (issue #92); Sort and
