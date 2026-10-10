@@ -194,8 +194,6 @@ fun SongsScreen(
             isRoot = true,
             fadeInWindow = fadeIn,
             scrolled = scrolled,
-            // Sort, Filter and Quick Links stay reachable while the list scrolls (issue #52).
-            pinActions = true,
             // TalkBack swipes reach Quick Links, Sort and Filter before the ~700 rows,
             // not after them (issue #160, as Suggestions #112).
             actionsReadFirst = true,

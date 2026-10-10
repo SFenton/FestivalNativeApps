@@ -206,7 +206,7 @@ class SettingsUiTest {
         assertTrue(transport.sent("/api/service-info").all { request -> request.headers.keys.none { it.lowercase().startsWith("x-fst-selected") || it.lowercase() == "x-api-key" } })
         rule.onNodeWithTag("fst.settings.list").performScrollToNode(hasTestTag("fst.settings.service-version"))
         rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithText("9.9.9").fetchSemanticsNodes().isNotEmpty() }
-        // The list scrolled, so the floating toolbar slid away (hide-on-scroll); activate it semantically.
+        // The toolbar stays on screen while the list scrolls (R7, #577); activate it semantically.
         rule.onNodeWithTag("fst.quick-links.open").performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.quick-links.item.reset")
         rule.onNodeWithTag("fst.quick-links.item.reset").performSemanticsAction(SemanticsActions.OnClick)
