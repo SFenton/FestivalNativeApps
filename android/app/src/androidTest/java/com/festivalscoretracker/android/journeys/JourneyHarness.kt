@@ -601,7 +601,28 @@ class JourneyHarness(private val rule: JourneyRule) {
      *   such as a font-scale switch, which the cache can trail.
      * @return Labels in reading order.
      */
-    fun readingOrder(screen: String, fresh: Boolean = false): List<String> {
+    fun readingOrder(screen: String, fresh: Boolean = false): List<String> = readingStops(screen, fresh).map { it.label }
+
+    /**
+     * One stop of [readingStops].
+     *
+     * @property id The node's test tag (its resource id), or null.
+     * @property label What TalkBack speaks (`<unlabelled>` when nothing).
+     * @property isHeading Whether TalkBack announces it as a heading.
+     * @property isClickable Whether it is a button.
+     * @property bounds Its visible bounds on screen in px.
+     */
+    data class ReadingStop(val id: String?, val label: String, val isHeading: Boolean, val isClickable: Boolean, val bounds: android.graphics.Rect)
+
+    /**
+     * [readingOrder] with each stop's test tag, heading/button role and visible bounds, for
+     * journeys that assert which tagged nodes TalkBack visits and in what order.
+     *
+     * @param screen Name for the log.
+     * @param fresh As in [readingOrder].
+     * @return Stops in reading order.
+     */
+    fun readingStops(screen: String, fresh: Boolean = false): List<ReadingStop> {
         rule.waitForIdle()
         // A modal opened since publishTalkBackTree has its own, unpublished Compose root.
         if (talkBackTree) {
@@ -654,7 +675,7 @@ class JourneyHarness(private val rule: JourneyRule) {
                 ownLabel(child).takeIf { it.isNotEmpty() }?.let(::add) ?: descendantsLabel(child).takeIf { it.isNotEmpty() }?.let(::add)
             }
         }.joinToString(", ")
-        val labels = mutableListOf<String>()
+        val stops = mutableListOf<ReadingStop>()
         order.forEach { i ->
             val node = nodes[i]
             val own = ownLabel(node)
@@ -670,10 +691,10 @@ class JourneyHarness(private val rule: JourneyRule) {
                 node.className?.toString()?.substringAfterLast('.')?.takeIf { it != "View" && it != "ViewGroup" }?.let(::add)
             }.joinToString(" ")
             val bounds = android.graphics.Rect().also(node::getBoundsInScreen)
-            labels += label.ifEmpty { "<unlabelled>" }
-            Log.i(READING_ORDER_TAG, "$screen | ${labels.size} | $role | ${labels.last()} | ${bounds.width()}x${bounds.height()}")
+            stops += ReadingStop(node.viewIdResourceName, label.ifEmpty { "<unlabelled>" }, node.isHeading, node.isClickable, bounds)
+            Log.i(READING_ORDER_TAG, "$screen | ${stops.size} | $role | ${stops.last().label} | ${bounds.width()}x${bounds.height()}")
         }
-        return labels
+        return stops
     }
 
     // region Sheet checks (issues #428, #432)
