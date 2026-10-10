@@ -36,6 +36,7 @@ Checked 2026-10-11 with the winui-design and winui-code-review skills. The owner
 - **No tooltip on the icon-only faces.** The open list names every option and Narrator reads the value; a WinUI `ToolTip` is a windowed popup that also shows on keyboard focus and over the open list.
 - **Display glyphs.** Segoe Fluent `Photo` (E91B) and `Document` (E8A5) stand in for the web's `IoImage` / `IoReaderOutline` at the web's 20 px; the labelled face and the options show the glyph too, like the web desktop row ("icons for all or none").
 - **Wide layout unchanged** (icon Instrument Selector and Image/Text `RadioButtons`, ≥ 900 epx).
+- **Validated 2026-10-11** (fixture and live): `paths-selectors-icon-only` (compact, 200%) and the a11y page of the same name (compact, 200% and 225%, Axe 0, 6 Tab stops) pass; `paths-selectors-one-line`, `paths-focus-order[-text]`, `paths-instrument-{switch,keyboard,hidden}` and `paths-display-toggle` pass at compact, medium and snap-left (100%) and the focus/keyboard journeys at compact 200%; the whole `a11y-paths-swap.json` CI set passes. Live Everlong (anonymous, public service): the compact window is icon-only already at 100% text (its "Pro Drums + Cymbals" option is too wide for a labelled line), and the medium window stays labelled.
 
 ## States and reachability
 
