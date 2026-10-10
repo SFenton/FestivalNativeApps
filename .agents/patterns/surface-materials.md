@@ -2,9 +2,7 @@
 
 > **What:** shared policy for translucent content cards, rows and floating controls over artwork. **Read when:** adding or changing a card, row, capsule, sheet fallback or custom glass effect.
 
-Status: **current**, 2026-10-10. Provenance: #291, #312 (R7), #319, #358 (R2 Duo variant), #381 (R8), #382 (R7 Apple in-card CTA), #543 (R8 board page cards), #599 (R10).
-Status: **current**, 2026-10-08. Provenance: #291, #312 (R7), #319, #358 (R2 Duo variant), #381 (R8), #382 (R7 Apple in-card CTA), #543 (R8 board page cards), #588 (R8 Android Score History card).
-Status: **current**, 2026-10-08. Provenance: #291, #312 (R7), #319, #358 (R2 Duo variant), #381 (R8), #382 (R7 Apple in-card CTA), #543 (R8 board page cards), #596 (R7 profile Bands group cards).
+Status: **current**, 2026-10-10. Provenance: #291, #312 (R7), #319, #358 (R2 Duo variant), #381 (R8), #382 (R7 Apple in-card CTA), #543 (R8 board page cards), #588 (R8 Android Score History card), #596 (R7 profile Bands group cards), #599 (R10).
 
 ## Intent
 
