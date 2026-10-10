@@ -185,6 +185,32 @@ class CiDeviceTests(unittest.TestCase):
         devices["ios-27-1"].append({"name": ipad, "udid": "PAD"})
         self.assertEqual(existing_ci_device(devices, "ios-27-1", ipad), "PAD")
 
+    def test_creates_the_ipad_beside_the_iphone(self):
+        import argparse
+        import contextlib
+        import io
+        import json
+        import os
+        import subprocess
+        from unittest import mock
+
+        runtimes = {"runtimes": [{"platform": "iOS", "version": "27.1", "identifier": "ios-27-1",
+                                  "supportedDeviceTypes": [{"name": ios_sim.CI_IPAD_DEVICE_TYPE, "identifier": "dt.ipad"}]}]}
+        devices = {"devices": {"ios-27-1": [{"name": ios_sim.CI_DEVICE_NAME, "udid": "PHONE"}]}}
+        replies = [json.dumps(runtimes), json.dumps(devices), "IPAD\n"]
+        calls = []
+
+        def run(cmd, **_):
+            calls.append(cmd)
+            return subprocess.CompletedProcess(cmd, 0, stdout=replies[len(calls) - 1])
+
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}), mock.patch.object(ios_sim, "_run", run), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            self.assertEqual(ios_sim.cmd_ci_device(argparse.Namespace(type=ios_sim.CI_IPAD_DEVICE_TYPE)), 0)
+        self.assertEqual(out.getvalue().strip(), "IPAD")
+        self.assertEqual(calls[-1][-4:], ["create", ios_sim.ci_device_name(ios_sim.CI_IPAD_DEVICE_TYPE), "dt.ipad", "ios-27-1"])
+
     def test_refuses_outside_ci(self):
         import argparse
         import os

@@ -37,6 +37,7 @@ public sealed partial class InstrumentSelector : UserControl
     private bool keyboardLead;
     private bool isCompact;
     private bool syncing;
+    private AccordionMover? details;
     private string idPrefix = "fst.instrument-selector";
 
     /// <summary>Creates the selector.</summary>
@@ -268,24 +269,12 @@ public sealed partial class InstrumentSelector : UserControl
         AutomationProperties.SetItemStatus(button, InstrumentSelectorState.ItemStatus(muted && !disabled));
     }
 
-    /// <summary>Shows or hides the detail content, fading it in over 167 ms when motion is allowed.</summary>
+    /// <summary>Opens or closes the detail content with the app's accordion motion (instant before load or without motion).</summary>
     /// <param name="show">Whether the details should be visible.</param>
     private void ShowDetails(bool show)
     {
-        var visible = DetailsPresenter.Visibility == Visibility.Visible;
-        if (show == visible) return;
-        if (show)
-        {
-            DetailsPresenter.Visibility = Visibility.Visible;
-            DetailsPresenter.OpacityTransition = Motion.Allowed ? new ScalarTransition { Duration = TimeSpan.FromMilliseconds(167) } : null;
-            DetailsPresenter.Opacity = 1;
-        }
-        else
-        {
-            DetailsPresenter.OpacityTransition = null;
-            DetailsPresenter.Opacity = 0;
-            DetailsPresenter.Visibility = Visibility.Collapsed;
-        }
+        details ??= new AccordionMover(this, DetailsClip, DetailsClip, DetailsPresenter, DetailsPresenter);
+        details.Set(show, animate: IsLoaded);
     }
 
     /// <summary>Names the row group from this control's automation name (default "Instrument").</summary>

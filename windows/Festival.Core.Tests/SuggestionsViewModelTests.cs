@@ -298,6 +298,34 @@ public sealed class SuggestionsViewModelTests
     }
 
     [Fact]
+    public async Task DeselectedInstrumentKeepsItsSwitchesWhileThePanelCloses()
+    {
+        var harness = new Harness();
+        var model = harness.Model();
+        await model.LoadAsync();
+        var draft = model.FilterDraft;
+        draft.Begin();
+        draft.SelectedInstrument = Instrument.Karaoke;
+        var karaoke = draft.InstrumentTypeToggles.ToList();
+        Assert.NotEmpty(karaoke);
+
+        // Deselecting keeps the last switches (the accordion fades them out; web CollapseOnExit), still synced to the draft.
+        draft.SelectedInstrument = null;
+        Assert.Equal(karaoke, draft.InstrumentTypeToggles);
+        var nearFc = draft.InstrumentTypeToggles.First(t => t.Label == "Near FC");
+        draft.TypeToggles.First(t => t.Label == "Near FC").IsOn = false;
+        Assert.False(nearFc.IsOn);
+
+        // A new selection rebuilds for that chart; reopening the filter starts with none.
+        var other = draft.Instruments.First(i => i != Instrument.Karaoke);
+        draft.SelectedInstrument = other;
+        Assert.Contains(other.ServiceId(), draft.InstrumentTypeToggles[0].AutomationId);
+        draft.Begin();
+        Assert.Null(draft.SelectedInstrument);
+        Assert.Empty(draft.InstrumentTypeToggles);
+    }
+
+    [Fact]
     public async Task FilterFollowsSettingsVisibleInstruments()
     {
         var harness = new Harness();

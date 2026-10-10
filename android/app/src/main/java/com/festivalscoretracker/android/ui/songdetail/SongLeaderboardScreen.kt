@@ -221,13 +221,16 @@ fun SongLeaderboardScreen(
     }
 
     // The song header (art, title, artist, instrument) scrolls with the rows; the top bar
-    // takes the title once it has scrolled away (operator 7.8, like Song Detail).
+    // takes the title once it has scrolled away (operator 7.8, like Song Detail), over the
+    // board's instrument led by its icon (`song-header` R4, issue #580).
     val headerGone by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
     FestivalScreen(
         title = if (headerGone) title else "",
         isRoot = false,
         scrolled = headerGone,
         marqueeTitle = true,
+        subtitle = viewModel.instrument.label,
+        subtitleIcon = { size -> InstrumentIcon(viewModel.instrument, size = size, decorative = true) },
         modifier = Modifier.semantics { testTagsAsResourceId = true },
         fadeInWindow = fadeIn,
     ) { padding ->

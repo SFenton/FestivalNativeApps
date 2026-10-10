@@ -135,10 +135,12 @@ struct RivalryScreen: View {
 
     @ViewBuilder
     private func songRow(_ song: RivalSongComparison, rivalName: String) -> some View {
+        let match = songsById[song.songId]
         let row = RivalSongRowContent(
-            song: song, playerName: session.selectedPlayer?.displayName ?? "You", rivalName: rivalName
+            song: song, albumArt: match?.albumArt, session: session,
+            playerName: session.selectedPlayer?.displayName ?? "You", rivalName: rivalName
         )
-        if let match = songsById[song.songId] {
+        if let match {
             NavigationLink(value: AppRoute.songDetail(match)) { row }
         } else {
             row
