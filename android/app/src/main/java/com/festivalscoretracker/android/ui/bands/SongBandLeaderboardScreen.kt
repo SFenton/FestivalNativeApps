@@ -215,7 +215,6 @@ fun SongBandLeaderboardScreen(
         title = if (headerGone) song?.title.orEmpty() else "",
         isRoot = false,
         scrolled = headerGone,
-        marqueeTitle = true,
         subtitle = type.label,
         modifier = Modifier.testTag("fst.song-band-leaderboard.screen"),
         fadeInWindow = fadeIn,
