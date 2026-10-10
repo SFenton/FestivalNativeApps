@@ -293,10 +293,12 @@ JOURNEYS = [
     Journey(
         name="bands-scope",
         launch=["--tab", "songs", *ANONYMOUS],
+        # Issue #600: the Bands scope searches bands (no gate) and drops the player rows.
         steps=[["invoke:id=fst.shell.profile", "waitfor:id=fst.profile.scope.bands@5",
-                "select:id=fst.profile.scope.bands", "wait:1"]],
-        expect=[["Find Band", "Choosing a band as your profile isn"]],
-        forbid=[["fst.profile.retry"]],
+                "select:id=fst.profile.scope.bands", "setvalue:id=fst.profile.search|Fixture",
+                "waitfor:id=fst.profile.result.band@10"]],
+        expect=[["Search players or bands", "fst.profile.result.band"]],
+        forbid=[["fst.profile.retry", "fst.profile.result.fixture-player-1", "Choosing a band as your profile isn"]],
     ),
     # Inline Bands section (issue #312, .agents/pages/player-profile/windows.md): fixture-player-1 has 18 duos,
     # 8 trios and 4 quads, so Duos and Trios show six rows and View All, Quads shows all four and no View All.

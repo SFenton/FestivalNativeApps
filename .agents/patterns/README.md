@@ -38,6 +38,7 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [back-keeps-place](back-keeps-place.md) | Back to a cached page: no reload, no movement or replayed fade-in, focus back on the opener |
 | [songs-profile-panel](songs-profile-panel.md) | Wide Songs rows with a selected player or band: song left, that profile's one-line score cards right |
 | [invalid-scores](invalid-scores.md) | Filter Invalid Scores: effective (raw, valid fallback or none) player scores on Songs and Song Details, the row's invalid-score indicator and Filtered Score alert, Over CHOpt Threshold |
+| [stat-tile-grid](stat-tile-grid.md) | Profile and Band stat tile grids: a tile whose text would wrap in one slot spans two, one height for every tile, web order, wrap never truncate |
 | [settings-value-row](settings-value-row.md) | Read-only Settings title/value rows (Version, Service Info state): inline when it fits, otherwise the value stacks under the title |
 | [rival-rows](rival-rows.md) | Rivals rows: hub rival rows and song comparison rows, the shared red/green status pill and the song rows' album art |
 | [hinge-columns](hinge-columns.md) | Foldable book pose: grid and two-up row gutters on the fold, full-width titles kept on their side, flat layout when unfolded |

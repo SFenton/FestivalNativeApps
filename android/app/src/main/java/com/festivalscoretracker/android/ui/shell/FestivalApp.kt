@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.absolutePadding
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.displayCutout
@@ -12,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fitInside
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
@@ -122,12 +122,14 @@ import com.festivalscoretracker.android.core.search.SearchDestination
 import com.festivalscoretracker.android.core.search.ShellShortcut
 import com.festivalscoretracker.android.core.settings.AppSettings
 import com.festivalscoretracker.android.core.shell.DrawerTarget
+import com.festivalscoretracker.android.core.shell.FloatingToolbarPlacement
 import com.festivalscoretracker.android.core.shell.ListDetailLayout
 import com.festivalscoretracker.android.core.shell.ListDetailPolicy
 import com.festivalscoretracker.android.core.shell.ListHead
 import com.festivalscoretracker.android.core.shell.ProfileChipAction
 import com.festivalscoretracker.android.core.shell.ProfileChipPolicy
 import com.festivalscoretracker.android.core.shell.ProfileRoutePolicy
+import com.festivalscoretracker.android.core.shell.PxSpan
 import com.festivalscoretracker.android.data.bands.searchBands
 import com.festivalscoretracker.android.data.notifications.playerNotifications
 import com.festivalscoretracker.android.data.serviceinfo.serviceInfo
@@ -423,11 +425,14 @@ private fun FestivalShell(
     val safeEnd = WindowInsets.safeDrawing.asPaddingValues().calculateEndPadding(LocalLayoutDirection.current)
     // Bars sit below the content (they pad the gesture area themselves); rails and the
     // drawer leave the content edge-to-edge, so it clears the system navigation itself.
-    // Compact windows float screen actions over the bottom bar (M3 Expressive floating
-    // toolbar, web bottom dock); wider windows keep them in the top app bar. Global search
-    // stays in the top app bar and page filters inline above the content (issue #309).
+    // Every window size floats screen actions in one M3 Expressive floating toolbar (web
+    // bottom dock): over the bottom bar on compact windows, above the system navigation beside
+    // a rail or drawer (owner, #576, replacing #309's top-app-bar tools on wider windows).
+    // Global search stays in the top app bar and page filters inline above the content (#309).
     val floatingToolbar = remember { FloatingToolbarHost() }
-    val usesFloatingToolbar = !AdaptiveLayoutPolicy.isRegularWidth(widthDp)
+    // Beside a rail or drawer the content reaches the window bottom: the toolbar rises above the
+    // system navigation bar, and the band every page reserves for it grows by the same amount.
+    val toolbarLift = if (layout == NavigationLayout.BottomBar) 0.dp else navBars.calculateBottomPadding()
     // M3 "exit always": the toolbar slides away while content scrolls toward its end and back
     // when it scrolls back; never hidden under TalkBack or on pages that pin it (Songs and
     // Suggestions keep Sort/Filter/Quick Links reachable while scrolled, issue #52); shown
@@ -435,16 +440,12 @@ private fun FestivalShell(
     val toolbarScroll = remember { FloatingToolbarScrollState() }
     val touchExploration = rememberScreenReaderOn()
     val toolbarPinned = floatingToolbar.pinned
-    toolbarScroll.hiddenOffsetPx = with(density) { (FLOATING_TOOLBAR_HEIGHT_DP + FLOATING_TOOLBAR_MARGIN_DP).dp.toPx() }
+    toolbarScroll.hiddenOffsetPx = with(density) { ((FLOATING_TOOLBAR_HEIGHT_DP + FLOATING_TOOLBAR_MARGIN_DP).dp + toolbarLift).toPx() }
     toolbarScroll.enabled = !touchExploration && !toolbarPinned
     LaunchedEffect(stack.lastOrNull()?.id, touchExploration, toolbarPinned) { toolbarScroll.reset() }
     val bottomPadding = PaddingValues(
         end = safeEnd,
-        bottom = when {
-            usesFloatingToolbar -> (FLOATING_TOOLBAR_HEIGHT_DP + 2 * FLOATING_TOOLBAR_MARGIN_DP).dp
-            layout == NavigationLayout.BottomBar -> 0.dp
-            else -> navBars.calculateBottomPadding()
-        },
+        bottom = (FLOATING_TOOLBAR_HEIGHT_DP + 2 * FLOATING_TOOLBAR_MARGIN_DP).dp + toolbarLift,
     )
     // Only the phone top bar shows a hamburger; the rail header owns it on medium widths.
     val openDrawer: (() -> Unit)? = if (layout == NavigationLayout.BottomBar) ({ scope.launch { drawerState.open() } }) else null
@@ -475,7 +476,7 @@ private fun FestivalShell(
         search = SearchChrome(presentation = presentation, open = openSearch, report = { requester = it }),
         // Web: the bell only exists while a profile is selected (operator 2026-09-28).
         notifications = if (settings.selectedPlayer != null) ({ NotificationsBell(notificationsViewModel) { showNotifications = true } }) else null,
-        floatingToolbar = if (usesFloatingToolbar) floatingToolbar else null,
+        floatingToolbar = floatingToolbar,
     )
     val openDestination: (SearchDestination) -> Unit = { destination ->
         when (destination) {
@@ -571,7 +572,7 @@ private fun FestivalShell(
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .then(if (usesFloatingToolbar) Modifier.nestedScroll(toolbarScroll.connection) else Modifier)
+                        .nestedScroll(toolbarScroll.connection)
                         .onGloballyPositioned {
                             contentLeftPx = it.positionInWindow().x.toInt()
                             contentWidthPx = it.size.width
@@ -590,23 +591,37 @@ private fun FestivalShell(
                             leadingInsetDp = leadingCutoutDp,
                         ),
                     )
-                    if (usesFloatingToolbar) {
-                        // Clipped to the content area: hidden on scroll it slides behind the bottom
-                        // bar's edge instead of ghosting through the translucent bar (issue #102).
-                        // The clip layer has no input or semantics, so touches and TalkBack pass through.
-                        Box(Modifier.matchParentSize().clipToBounds()) {
-                            // End-aligned (M3 Expressive floating toolbars may sit at the edge), where
-                            // the web's mobile FAB dock sits; one shared toolbar per screen. The start
-                            // margin bounds a toolbar that fills the width. It holds page tools only:
-                            // text fields stay inline above the content (issue #309).
-                            FloatingToolbar(
-                                floatingToolbar,
-                                Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .padding(start = FLOATING_TOOLBAR_MARGIN_DP.dp, end = FLOATING_TOOLBAR_MARGIN_DP.dp, bottom = FLOATING_TOOLBAR_MARGIN_DP.dp),
-                                scroll = toolbarScroll,
-                            )
-                        }
+                    // Clipped to the content area: hidden on scroll it slides behind the bottom
+                    // bar's edge instead of ghosting through the translucent bar (issue #102).
+                    // The clip layer has no input or semantics, so touches and TalkBack pass through.
+                    Box(Modifier.matchParentSize().clipToBounds()) {
+                        // End-aligned (M3 Expressive floating toolbars may sit at the edge), where
+                        // the web's mobile FAB dock sits; one shared toolbar per screen. It stays
+                        // inside the owning page's pane, off the side system bars and cutout and on
+                        // one side of a separating hinge; the start bound also limits a toolbar that
+                        // fills the width. It holds page tools only: text fields stay inline above
+                        // the content (issue #309).
+                        val margin = with(density) { FLOATING_TOOLBAR_MARGIN_DP.dp.roundToPx() }
+                        val safe = WindowInsets.safeDrawing
+                        val insets = FloatingToolbarPlacement.insets(
+                            content = PxSpan(contentLeftPx, contentLeftPx + contentWidthPx),
+                            pane = floatingToolbar.pane,
+                            safe = PxSpan(safe.getLeft(density, LayoutDirection.Ltr), windowSize.width - safe.getRight(density, LayoutDirection.Ltr)),
+                            hinge = verticalHinge?.let { PxSpan(it.bounds.left.toInt(), it.bounds.right.toInt()) },
+                            rtl = direction == LayoutDirection.Rtl,
+                            marginPx = margin,
+                        )
+                        FloatingToolbar(
+                            floatingToolbar,
+                            Modifier
+                                .align(Alignment.BottomEnd)
+                                .absolutePadding(
+                                    left = with(density) { insets.left.toDp() },
+                                    right = with(density) { insets.right.toDp() },
+                                    bottom = FLOATING_TOOLBAR_MARGIN_DP.dp + toolbarLift,
+                                ),
+                            scroll = toolbarScroll,
+                        )
                     }
                 }
             }
