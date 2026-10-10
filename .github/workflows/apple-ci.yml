@@ -1,6 +1,6 @@
 name: apple-ci
-# Apple unit tests, compile check and the iPhone simulator journeys (JOURNEYS below) on a GitHub-hosted
-# Xcode 27 runner (no mesh machine runs CI or release work). The job name is the required check name: keep it `apple-ci`.
+# Apple unit tests, compile check and the simulator journeys (JOURNEYS, and the Score History journeys on an
+# iPhone and an iPad) on a GitHub-hosted Xcode 27 runner (no mesh machine runs CI or release work). The job name is the required check name: keep it `apple-ci`.
 # Path-filtered: Android-, Windows- and docs-only changes don't spend the scarce macOS runners (the release machine
 # requires apple-ci only for apple/ and contracts/ changes).
 # Release train: pull requests and master run the build and unit tests; the iPhone/iPad simulator journeys run only
@@ -40,7 +40,7 @@ jobs:
   apple-ci:
     name: apple-ci
     runs-on: xcode-27
-    timeout-minutes: 90
+    timeout-minutes: 135
     steps:
       - uses: actions/checkout@v4
         with:
@@ -91,12 +91,15 @@ jobs:
             SongsChromeJourneyTests/testSectionPushIsAccessibleAtLargestText
             SongsChromeJourneyTests/testFilterFieldReadyAfterBackFromSongDetail
             FirstRunJourneyTests/testSongDemoSlideAccessibleAtLargestText
+            FirstRunJourneyTests/testSongDemoRotationKeepsSlideAccessibleAtLargestText
             SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrder
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrderOnPushedPage
             NavButtonHitRegionJourneyTests/testChooseProfileReadsAloneInProductionChrome
             NavButtonHitRegionJourneyTests/testAccountButtonsStaySeparateAndLabelledAtLargestTextSize
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
+            RivalsJourneyTests/testAllRivalsTitleLeadsTheListAndPinsAfterScroll
+            RivalsJourneyTests/testAllRivalsDuoVerticalBarKeepsSystemTitle
             SongBarCaptionIconJourneyTests/testSongLeaderboardCaptionIconScalesWithText
             SongBarCaptionIconJourneyTests/testPlayerHistoryCaptionIconAtLargestText
             SuggestionsAccessibilityJourneyTests/testCachedArtRowIsAccessibleAtDefaultSizeAndAX5
@@ -110,6 +113,35 @@ jobs:
           grep -q "fixture service on" "$RUNNER_TEMP/mock_service.log"
           only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
           python3 tools/ios_sim.py uitest --device "$device" --fail-on-skip --timeout 1800 "${only[@]}"
+      - name: Score History journeys, iPhone and iPad (serialized, plain loopback fixture)
+        if: github.event_name == 'workflow_dispatch'  # full CI: release branches (release machine)
+        # #385, the region #302 changed: on device at AX5 the rows draw score and accuracy whole on one line, the
+        # glyphs grow, the heading reads first, and in the iPad trailing pane focus moves to its heading
+        # (testing/apple/accessibility.md#score-history-at-ax5). iPad UI-test bundle (`--app ipad`) on the iPhone and
+        # on a throwaway iPad; the plain fixture (Songs' `fixture-pulse` row is far below the fold in the large
+        # catalogue) on an OS-assigned port. Runs before the iPad step so the iPad boots once. A skipped journey fails the step.
+        env:
+          HISTORY_JOURNEYS: >-
+            ScoreHistoryAccessibilityJourneyTests/testScoreHistoryPageAtAX5
+          HISTORY_IPAD_JOURNEYS: >-
+            ScoreHistoryAccessibilityJourneyTests/testScoreHistoryPageAtAX5
+            ScoreHistoryAccessibilityJourneyTests/testScoreHistorySplitPaneAtAX5
+        run: |
+          log="$RUNNER_TEMP/mock_service_history.log"
+          python3 tools/mock_service.py --port 0 > "$log" 2>&1 &
+          mock=$!
+          trap 'kill "$mock" 2>/dev/null || true' EXIT
+          for _ in $(seq 60); do grep -q "fixture service on" "$log" && break; sleep 1; done
+          port=$(sed -n 's/.*fixture service on 127\.0\.0\.1:\([0-9]*\).*/\1/p' "$log" | head -n 1)
+          test -n "$port"
+          export TEST_RUNNER_FST_FIXTURE_URL="http://127.0.0.1:$port"
+          iphone=$(python3 tools/ios_sim.py ci-device)
+          only=(); for journey in $HISTORY_JOURNEYS; do only+=(--only "$journey"); done
+          python3 tools/ios_sim.py uitest --app ipad --device "$iphone" --fail-on-skip --timeout 900 "${only[@]}"
+          python3 tools/ios_sim.py shutdown --device "$iphone"
+          ipad=$(python3 tools/ios_sim.py ci-device --type "iPad Pro 11-inch (M5)")
+          only=(); for journey in $HISTORY_IPAD_JOURNEYS; do only+=(--only "$journey"); done
+          python3 tools/ios_sim.py uitest --app ipad --device "$ipad" --fail-on-skip --timeout 1500 "${only[@]}"
       - name: iPad simulator journeys (serialized, loopback fixture)
         if: github.event_name == 'workflow_dispatch'  # full CI: release branches (release machine)
         # The same evidence on iPad, portrait and landscape (the iPhone runs portrait only). Reuses the iPhone
@@ -138,7 +170,9 @@ jobs:
           name: apple-ci-journeys
           path: |
             apple/DerivedData/lane-driver/Results
+            apple/DerivedData/lane-driver-ipad/Results
             ${{ runner.temp }}/mock_service.log
+            ${{ runner.temp }}/mock_service_history.log
             ${{ runner.temp }}/mock_service_ipad.log
           if-no-files-found: ignore
           retention-days: 7

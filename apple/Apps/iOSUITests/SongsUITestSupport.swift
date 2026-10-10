@@ -28,6 +28,29 @@ enum SongsUITestSupport {
             "FST_UI_TEST_RESET_SONG_CARDS": "1",
         ])
     }
+
+    /// Whether a snapshot node is a Songs row (`fst.songs.row.<song id>`), for
+    /// ``FestivalApp/snapshotNodes(in:where:)``.
+    ///
+    /// - Parameter node: A snapshot node.
+    /// - Returns: `true` for a Songs row button.
+    static func isSongsRow(_ node: XCUIElementSnapshot) -> Bool {
+        node.elementType == .button && node.identifier.hasPrefix("fst.songs.row.")
+    }
+
+    /// The first Songs rows of one snapshot, each bound to its identifier rather than its
+    /// index, so tapping or measuring it later reaches that row even after the lazy list
+    /// recycles cells (#572).
+    ///
+    /// - Parameters:
+    ///   - app: Songs.
+    ///   - limit: How many rows to return, in list order.
+    /// - Returns: Up to `limit` rows; empty when the snapshot fails.
+    @MainActor
+    static func songsRows(in app: XCUIApplication, limit: Int) -> [XCUIElement] {
+        let nodes = (try? FestivalApp.snapshotNodes(in: app, where: isSongsRow)) ?? []
+        return nodes.prefix(limit).map { app.buttons[$0.identifier] }
+    }
     /// Choose the source's icons-off variant for tests of numeric score metadata.
     ///
     /// - Parameter app: Launched fixture app before selecting an account.

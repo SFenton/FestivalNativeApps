@@ -618,7 +618,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     @MainActor
     static func openSong(_ app: XCUIApplication, _ songId: String) -> Bool {
         let row = app.buttons["fst.songs.row.\(songId)"]
-        guard row.waitForExistence(timeout: 15) else { return false }
+        guard row.waitForExistence(timeout: FestivalApp.budget(15)) else { return false }
         // At AX5 the row can sit below the fold: bring it on screen with slow drags.
         let window = app.windows.firstMatch.frame
         for _ in 0..<8 where !(row.isHittable && window.insetBy(dx: 0, dy: 60).contains(
@@ -628,7 +628,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
                      toY: window.minY + window.height * 0.35)
         }
         row.tap()
-        return anyElement(app, "fst.song-detail.intensity").waitForExistence(timeout: 20)
+        return anyElement(app, "fst.song-detail.intensity").waitForExistence(timeout: FestivalApp.budget(20))
     }
 
     /// The trailing pane's frame while a split is open, else nil: `fst.split.trailing`,
@@ -649,7 +649,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     /// its frame read mid-spring (791 pt instead of 605) failed the midpoint check.
     @MainActor
     static func waitForTrailingPane(_ app: XCUIApplication, timeout: TimeInterval = 10) -> Bool {
-        let deadline = Date.now.addingTimeInterval(timeout)
+        let deadline = Date.now.addingTimeInterval(FestivalApp.budget(timeout))
         var last: CGRect?
         repeat {
             let frame = trailingPane(app)
@@ -722,7 +722,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             for id in ids where anyElement(app, id).exists { return anyElement(app, id) }
             return anyElement(app, ids.first ?? "")
         }
-        _ = row().waitForExistence(timeout: 15)
+        _ = row().waitForExistence(timeout: FestivalApp.budget(15))
         let window = app.windows.firstMatch.frame
         for attempt in 0..<12 {
             let element = row()
