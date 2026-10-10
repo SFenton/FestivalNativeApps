@@ -178,6 +178,23 @@ public extension View {
     ) -> some View {
         modifier(FestivalSheetModifier(size: size, sizing: sizing))
     }
+
+    /// Identify a sheet's `Form` without hiding its rows' own identifiers.
+    ///
+    /// A macOS `Form` has no accessibility element of its own, so an identifier set on
+    /// it lands on every row, replacing theirs (Songs Filter's year checkboxes all read
+    /// `fst.songs.filter.form`; #432). On the Mac the Form becomes a containing group
+    /// that carries the identifier; iOS already exposes the Form as its own element.
+    ///
+    /// - Parameter identifier: The Form's accessibility identifier.
+    /// - Returns: The Form with its identifier on a containing element.
+    func festivalFormIdentifier(_ identifier: String) -> some View {
+        #if os(macOS)
+        accessibilityElement(children: .contain).accessibilityIdentifier(identifier)
+        #else
+        accessibilityIdentifier(identifier)
+        #endif
+    }
 }
 
 // MARK: - Sheet actions

@@ -1,6 +1,7 @@
 name: apple-ci
-# Apple unit tests, compile check and the iPhone simulator journeys (JOURNEYS below) on a GitHub-hosted
-# Xcode 27 runner (no mesh machine runs CI or release work). The job name is the required check name: keep it `apple-ci`.
+# Apple unit tests, compile check and the simulator journeys (JOURNEYS and journeys below) on GitHub-hosted
+# Xcode 27 runners (no mesh machine runs CI or release work). The required check is the `apple-ci` job at the
+# end: it passes only when the build job and every Songs Filter journey leg pass, so keep its name `apple-ci`.
 # Path-filtered: Android-, Windows- and docs-only changes don't spend the scarce macOS runners (the release machine
 # requires apple-ci only for apple/ and contracts/ changes).
 on:
@@ -35,8 +36,8 @@ concurrency:
 env:
   DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
 jobs:
-  apple-ci:
-    name: apple-ci
+  build:
+    name: apple-ci build, unit tests and iPhone/iPad journeys
     runs-on: xcode-27
     timeout-minutes: 90
     steps:
@@ -74,6 +75,17 @@ jobs:
         # strictly. Reuses the coverage build and leaves its profile alone. Filter: testing/apple/hosted-snapshots.md.
         working-directory: apple
         run: swift test --skip-build --filter 'selectedRowRevealFadesTheRowItReaches|staggeredListRowsFadeInRatherThanPop|serviceInfoIndeterminateBar'
+      - name: Mac keyboard navigation tests, alone
+        # Tab / Shift-Tab and Space through the Songs Filter sheet (#432). They need macOS Keyboard navigation (the
+        # Mac's Full Keyboard Access, `AppleKeyboardUIMode` 2), which the parallel run leaves off so they skip
+        # there, and they swizzle NSApplication's key window, so they run alone. FST_REQUIRE_KEYBOARD_NAVIGATION
+        # turns a skip into a failure. testing/apple/accessibility.md#keyboard.
+        working-directory: apple
+        env:
+          FST_REQUIRE_KEYBOARD_NAVIGATION: "1"
+        run: |
+          defaults write -g AppleKeyboardUIMode -int 2
+          swift test --skip-build --filter SongsFilterKeyboardTests
       - name: iPhone simulator journeys (serialized, loopback fixture)
         # Evidence only an iOS run gives (real Dynamic Type sizes, performAccessibilityAudit, the production nav bar
         # and tab-bar accessory reading order, page-tools-and-nav-chrome R17). One throwaway runner
@@ -163,3 +175,136 @@ jobs:
           path: apple/.build/out/Products/Debug/codecov/*.json
           if-no-files-found: ignore
           retention-days: 14
+  changes:
+    # Whether the Songs Filter legs run: always on master pushes and manual runs; on a PR only when it changes
+    # what they test (the Apple app, the simulator and fixture tools, the fixtures or this workflow), so an
+    # Android- or Windows-only PR does not hold three more Xcode runners. The build job always runs.
+    name: apple-ci change check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      apple: ${{ steps.diff.outputs.apple }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          PATTERN: '^(apple/|contracts/fixtures/|tools/ios_sim\.py$|tools/mock_service\.py$|\.github/workflows/apple-ci\.yml$)'
+        run: |
+          if [ "$EVENT" != pull_request ] || git diff --name-only "$BASE" HEAD | grep -qE "$PATTERN"; then
+            echo "apple=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "apple=false" >> "$GITHUB_OUTPUT"
+          fi
+  songs-filter-journeys:
+    # The Songs Filter sheet without a profile (#432, for #77) on each Apple touch form factor: the
+    # accessibility journey (performAccessibilityAudit, 44 pt targets, AX5) on the iPhone, the iPad and the
+    # folded iPhone Duo, and the iPad hardware-keyboard journey. The plain loopback fixture (8765), one
+    # throwaway simulator per leg, run in parallel with the build job: testing/apple/xcuitest.md#ci-journeys.
+    name: apple-ci Songs Filter journeys (${{ matrix.leg }})
+    needs: changes
+    if: needs.changes.outputs.apple == 'true'
+    runs-on: xcode-27
+    # The runner is 2-4x slower than a Mac: the folded Duo's three methods took 19 min on a Mac, plus build and boot.
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - leg: iphone
+            device_type: iPhone 17 Pro
+            uitest_args: ""
+            journeys: >-
+              SongsFilterAccessibilityJourneyTests/testNoProfileGeneralFiltersPassAccessibilityAudit
+              SongsFilterAccessibilityJourneyTests/testDynamicTypeAuditWithShopHidden
+              SongsFilterAccessibilityJourneyTests/testGeneralFiltersAtLargestText
+          - leg: ipad
+            device_type: iPad Pro 11-inch (M5)
+            uitest_args: --app ipad
+            journeys: >-
+              SongsFilterAccessibilityJourneyTests/testNoProfileGeneralFiltersPassAccessibilityAudit
+              SongsFilterAccessibilityJourneyTests/testDynamicTypeAuditWithShopHidden
+              SongsFilterAccessibilityJourneyTests/testGeneralFiltersAtLargestText
+              SongsFilterKeyboardJourneyTests/testCommandPeriodClosesFilter
+          - leg: duo-folded
+            device_type: iPhone Duo
+            uitest_args: --pose folded
+            journeys: >-
+              SongsFilterAccessibilityJourneyTests/testNoProfileGeneralFiltersPassAccessibilityAudit
+              SongsFilterAccessibilityJourneyTests/testDynamicTypeAuditWithShopHidden
+              SongsFilterAccessibilityJourneyTests/testGeneralFiltersAtLargestText
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+      - name: Toolchain
+        run: |
+          test -L /Applications/Xcode.app
+          sudo ln -sfn /Applications/Xcode_27.1.app /Applications/Xcode.app
+          sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+      - name: Generate the Xcode project
+        working-directory: apple
+        run: xcodegen generate -q
+      - name: Runner simulator
+        # The iPhone Duo device type needs the iOS 27.1 runtime; download Xcode's iOS platform when the image
+        # has no runtime for the leg's device type.
+        run: |
+          if ! device=$(python3 tools/ios_sim.py ci-device --type "${{ matrix.device_type }}"); then
+            xcodebuild -downloadPlatform iOS
+            device=$(python3 tools/ios_sim.py ci-device --type "${{ matrix.device_type }}")
+          fi
+          echo "FST_CI_DEVICE=$device" >> "$GITHUB_ENV"
+      - name: Songs Filter journeys (serialized, loopback fixture)
+        # One test method per batch with a long batch timeout: the AX5 journey alone runs for many minutes on
+        # the runner, and no other lane shares its simulator. A skipped journey fails the step. A batch whose
+        # test failed runs once more (`--retries 1`): the runner's simulator can time out an XCUITest query;
+        # a real failure fails both attempts, and the failed attempt's result bundle is uploaded either way.
+        env:
+          JOURNEYS: ${{ matrix.journeys }}
+        run: |
+          python3 tools/mock_service.py > "$RUNNER_TEMP/mock_service.log" 2>&1 &
+          mock=$!
+          trap 'kill "$mock" 2>/dev/null || true' EXIT
+          for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock_service.log" && break; sleep 1; done
+          grep -q "fixture service on" "$RUNNER_TEMP/mock_service.log"
+          only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
+          python3 tools/ios_sim.py uitest --device "$FST_CI_DEVICE" ${{ matrix.uitest_args }} --fail-on-skip \
+            --batch-size 1 --timeout 2400 --retries 1 "${only[@]}"
+      - name: Upload journey results
+        # Also when the job times out (cancelled), so a slow or hung batch can be diagnosed.
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple-ci-songs-filter-${{ matrix.leg }}
+          path: |
+            apple/DerivedData/lane-driver/Results
+            apple/DerivedData/lane-driver-ipad/Results
+            ${{ runner.temp }}/mock_service.log
+          if-no-files-found: ignore
+          retention-days: 7
+  apple-ci:
+    # The required check (the release machine merges once `apple-ci` is green on the head SHA): green only
+    # when the change check and build job succeeded and every journey leg succeeded, or the legs were skipped
+    # because the PR changes nothing they test. A re-run of failed jobs re-runs this one too.
+    name: apple-ci
+    needs: [changes, build, songs-filter-journeys]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every Apple job passed
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          APPLE: ${{ needs.changes.outputs.apple }}
+          BUILD: ${{ needs.build.result }}
+          JOURNEYS: ${{ needs.songs-filter-journeys.result }}
+        run: |
+          echo "changes: $CHANGES (apple=$APPLE), build: $BUILD, songs-filter-journeys: $JOURNEYS"
+          [ "$CHANGES" = success ] || exit 1
+          [ "$BUILD" = success ] || exit 1
+          case "$JOURNEYS/$APPLE" in success/true | skipped/false) ;; *) exit 1 ;; esac

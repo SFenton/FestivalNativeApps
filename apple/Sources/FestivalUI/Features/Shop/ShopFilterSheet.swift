@@ -50,7 +50,7 @@ struct ShopFilterSheet: View {
           .accessibilityIdentifier("fst.shop.filter.reset")
         }
       }
-      .accessibilityIdentifier("fst.shop.filter.form")
+      .festivalFormIdentifier("fst.shop.filter.form")
       .onChange(of: draft) { _, updated in onApply(updated) }
     }
     .festivalSheet(.compact)

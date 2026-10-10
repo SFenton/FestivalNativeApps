@@ -502,6 +502,18 @@ def classify_pose(outer_dark: bool, inner_dark: bool) -> str:
     return "unknown"
 
 
+def pose_screenshot_policy() -> tuple[float, int]:
+    """How long one Duo panel screenshot may take, and how many tries it gets.
+
+    A GitHub Actions runner is a slow VM: its first ``simctl io screenshot`` after boot
+    took over 30 s (#432), which read as an ``unknown`` pose and stopped the run.
+
+    Returns:
+        ``(timeout seconds, attempts)``: ``(30, 1)`` on a Mac, ``(180, 3)`` on a CI runner.
+    """
+    return (180.0, 3) if os.environ.get("GITHUB_ACTIONS") == "true" else (30.0, 1)
+
+
 def detect_pose(udid: str) -> str:
     """Screenshot both Duo panels and report the pose. Call under the simulator lock.
 
@@ -509,18 +521,25 @@ def detect_pose(udid: str) -> str:
         udid: A booted iPhone Duo simulator.
 
     Returns:
-        ``"folded"``, ``"unfolded"`` or ``"unknown"`` (also for non-Duo devices).
+        ``"folded"``, ``"unfolded"`` or ``"unknown"`` (also for non-Duo devices, or when a
+        panel screenshot fails every attempt; see ``pose_screenshot_policy``).
     """
+    timeout, attempts = pose_screenshot_policy()
     dark = {}
     with tempfile.TemporaryDirectory() as folder:
         for panel, display in DUO_PANELS.items():
             path = Path(folder) / f"{panel}.bmp"
-            try:
-                result = _run(["xcrun", "simctl", "io", udid, "screenshot", "--type=bmp",
-                               f"--display={display}", str(path)], check=False, capture_output=True, timeout=30)
-            except subprocess.TimeoutExpired:
-                return "unknown"
-            if result.returncode or not path.exists():
+            for _ in range(attempts):
+                path.unlink(missing_ok=True)
+                try:
+                    result = _run(["xcrun", "simctl", "io", udid, "screenshot", "--type=bmp",
+                                   f"--display={display}", str(path)], check=False, capture_output=True,
+                                  timeout=timeout)
+                except subprocess.TimeoutExpired:
+                    continue
+                if not result.returncode and path.exists():
+                    break
+            else:
                 return "unknown"
             dark[panel] = bmp_is_dark(path.read_bytes())
     return classify_pose(dark["outer"], dark["inner"])
@@ -1785,11 +1804,26 @@ def cmd_uitest(args: argparse.Namespace) -> int:
     failed_batches: list[tuple[list[str], int]] = []
     for batch_index, batch in enumerate(batches, start=1):
         label = f"batch {batch_index}/{len(batches)}"
-        returncode, elapsed, log_path, result_bundle = _run_uitest_batch(
-            udid=udid, derived=derived, selectors=batch, timeout=args.timeout,
-            a11y=getattr(args, "a11y", None), pose=getattr(args, "pose", None),
-            set_pose=getattr(args, "set_pose", False), rotate=getattr(args, "rotate", None),
-        )
+        retries = max(0, getattr(args, "retries", 0) or 0)
+        attempt = 0
+        while True:
+            returncode, elapsed, log_path, result_bundle = _run_uitest_batch(
+                udid=udid, derived=derived, selectors=batch, timeout=args.timeout,
+                a11y=getattr(args, "a11y", None), pose=getattr(args, "pose", None),
+                set_pose=getattr(args, "set_pose", False), rotate=getattr(args, "rotate", None),
+            )
+            if not should_retry_batch(returncode, attempt, retries):
+                break
+            attempt += 1
+            # Keep the failed attempt's log and result bundle: a retry that passes is still a
+            # flaky journey worth diagnosing from the CI artifact.
+            log_text = log_path.read_text(encoding="utf-8", errors="replace")
+            print(f"uitest {label} attempt {attempt} FAILED after {elapsed:.1f}s; retrying "
+                  f"({attempt}/{retries}); last lines of {log_path}:", file=sys.stderr)
+            print("\n".join(log_text.splitlines()[-30:]), file=sys.stderr)
+            print(f"result bundle (kept): {result_bundle}", file=sys.stderr)
+        if attempt and not returncode:
+            label = f"{label} (passed on retry {attempt}: FLAKY)"
         if returncode == EXIT_POSE_MISMATCH:
             print(f"uitest {label}: iPhone Duo pose not reached; stopping", file=sys.stderr)
             return returncode
@@ -1892,6 +1926,30 @@ def skip_problem(summary: dict | None) -> str | None:
     if not passed:
         return "no test ran"
     return None
+
+
+#: ``xcodebuild test-without-building``'s exit code when a test failed (not a timeout, 124,
+#: nor a build, launch or setup error).
+EXIT_TEST_FAILED = 65
+
+
+def should_retry_batch(returncode: int, attempt: int, retries: int) -> bool:
+    """Decide whether ``uitest --retries`` runs a failed batch again.
+
+    Only a test failure is retried: the CI runner's simulator is 2-4x slower than a Mac and
+    an XCUITest query can time out there ("Timed out while evaluating UI query"). A timed-out
+    batch (124), a setup error or a pose mismatch would only fail again, and a deterministic
+    test failure fails every attempt, so it still fails the run.
+
+    Args:
+        returncode: The attempt's exit code.
+        attempt: Zero-based attempt just run.
+        retries: Extra attempts allowed (``--retries``).
+
+    Returns:
+        True when another attempt should run.
+    """
+    return returncode == EXIT_TEST_FAILED and attempt < retries
 
 
 def _run_uitest_batch(
@@ -2294,6 +2352,10 @@ def main(argv: list[str] | None = None) -> int:
     uitest.add_argument("--fail-on-skip", action="store_true",
                         help="fail a batch in which any test skipped or none ran (CI: a journey that "
                              "cannot find its fixture skips, and an all-skipped batch otherwise passes)")
+    uitest.add_argument("--retries", type=int, default=0,
+                        help="CI: run a batch whose test failed (exit 65) up to N more times, keeping each "
+                             "failed attempt's result bundle; timeouts and setup errors are not retried "
+                             "(default 0)")
     uitest.set_defaults(func=cmd_uitest)
 
     ci_device = sub.add_parser(

@@ -731,8 +731,9 @@ struct SongsScreen: View, Equatable {
         #if os(macOS)
         .help("Sort Songs")
         #endif
-        .accessibilityValue(
-            "\(sortMode.label), \(sortAscending ? "ascending" : "descending")"
+        .festivalBarItemAccessibility(
+            label: "Sort",
+            value: "\(sortMode.label), \(sortAscending ? "ascending" : "descending")"
                 + (sortPausedMessage == nil ? "" : ", paused; showing Title order")
         )
         .accessibilityIdentifier("fst.songs.sort")
@@ -779,11 +780,10 @@ struct SongsScreen: View, Equatable {
         } label: {
             Label("Filter", systemImage: "line.3.horizontal.decrease")
         }
-        .accessibilityLabel("Filter Songs")
         #if os(macOS)
         .help("Filter Songs")
         #endif
-        .accessibilityValue(filterAccessibilityValue)
+        .festivalBarItemAccessibility(label: "Filter Songs", value: filterAccessibilityValue)
         .accessibilityIdentifier("fst.songs.filter")
         .tint(generalFilterActive || appliedPlayerScoreFilter?.isActive == true
             ? BrandTokens.gold : BrandTokens.accentBlue)

@@ -838,6 +838,10 @@
             "symbol": "VerticalBarActionItem"
           },
           {
+            "path": "apple/Sources/FestivalUI/App/Shell/RootChrome.swift",
+            "symbol": "BarItemSpokenState"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/Search/BottomSearchField.swift",
             "symbol": "BottomSearchFieldPlacement"
           },
@@ -1087,6 +1091,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackFormPanes.swift",
             "symbol": "FeedbackFormPanes"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/SheetStyle.swift",
+            "symbol": "festivalFormIdentifier"
           }
         ],
         "android": [

@@ -583,8 +583,7 @@ struct FullRankingsScreen: View {
             }
         }
         .accessibilityIdentifier("fst.full-rankings.instrument-menu")
-        .accessibilityLabel("Instrument")
-        .accessibilityValue(instrument.label)
+        .festivalBarItemAccessibility(label: "Instrument", value: instrument.label)
     }
 
     /// The visible charts as a picker, shared by the rail item and the pill.
