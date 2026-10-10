@@ -28,6 +28,8 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.toSize
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.model.SelectedPlayer
@@ -60,6 +62,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /** Whole-shell Bands journeys on Robolectric against synthetic band fixtures. */
 @RunWith(AndroidJUnit4::class)
@@ -225,10 +228,10 @@ class BandsUiTest {
         click("fst.player-bands.group.duos")
         waitForTag("fst.player-bands.empty")
         settle()
-        // The grid ends at its own bottom less the shell's bottom padding (the compact floating
-        // toolbar's room) and its 24 dp; the empty pager row adds one 12 dp item gap after the state.
-        val compact = exists("fst.nav.bar")
-        val shellBottom = if (compact) (FLOATING_TOOLBAR_HEIGHT_DP + 2 * FLOATING_TOOLBAR_MARGIN_DP).toFloat() else 0f
+        // The grid ends at its own bottom less the shell's bottom padding (the floating toolbar's
+        // room at every window size, #576) and its 24 dp; the empty pager row adds one 12 dp item
+        // gap after the state.
+        val shellBottom = (FLOATING_TOOLBAR_HEIGHT_DP + 2 * FLOATING_TOOLBAR_MARGIN_DP).toFloat()
         rule.assertFillsAndCentres(
             "fst.player-bands.empty",
             above = rule.boundsOf("fst.player-bands.group-picker"),
@@ -332,6 +335,33 @@ class BandsUiTest {
         click("fst.band.song-row.s-alpha")
         waitForTag("fst.nav.back")
         assertTrue(transport.requests.none { it.url.contains("/api/bands/") })
+    }
+
+    @Test
+    @Config(qualifiers = "w300dp-h800dp-xxhdpi")
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun bandStatTilesShareTheGridHeightAndSpanWholeSlots() {
+        // Pattern `stat-tile-grid` (#591): one height for every stat card; a card is one or
+        // two whole slots wide, and only the last row may leave slots empty.
+        launch(duoRoute)
+        waitForTag("fst.band.statistics-section")
+        settle(1_000)
+        val ids = listOf("rank", "songs-played", "full-combos", "total-score", "fc-rate", "avg-accuracy", "avg-stars", "best-rank", "avg-rank")
+        // Unclipped bounds: tiles below the viewport still have their laid-out size.
+        val tiles = ids.map { id ->
+            val node = rule.onNodeWithTag("fst.band.stat.$id").fetchSemanticsNode()
+            androidx.compose.ui.geometry.Rect(node.positionInRoot, node.size.toSize())
+        }
+        assertEquals("$tiles", 1, tiles.map { it.height }.distinct().size)
+        val left = tiles.minOf { it.left }
+        val right = tiles.maxOf { it.right }
+        val slot = tiles.minOf { it.width }
+        val gap = with(rule.density) { 8.dp.toPx() }
+        tiles.forEach { assertTrue("$it slot $slot", kotlin.math.abs(it.width - slot) < 2f || kotlin.math.abs(it.width - (slot * 2 + gap)) < 2f) }
+        val rows = tiles.groupBy { it.top }.toSortedMap()
+        rows.values.toList().dropLast(1).forEach { row -> assertEquals("$row", right - left, row.maxOf { it.right } - row.minOf { it.left }, 2f) }
+        // Web order is reading order.
+        assertEquals(tiles, tiles.sortedWith(compareBy({ it.top }, { it.left })))
     }
 
     @Test

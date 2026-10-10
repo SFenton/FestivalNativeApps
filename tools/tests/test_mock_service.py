@@ -339,6 +339,30 @@ class MockServiceTests(unittest.TestCase):
         self.assertEqual(body["count"], 13)
         self.assertTrue(any(row["isFullCombo"] and row["accuracy"] == 1000000 for row in body["history"]))
 
+    def test_combo_rankings_follow_the_live_wire_shape(self):
+        """Combo boards and the own-row read answer within-group combos only (issue #602)."""
+        with urlopen(self.base + "/api/rankings/combo?combo=03&rankBy=totalscore&page=1&pageSize=5") as response:
+            board = json.load(response)
+        self.assertEqual(board["comboId"], "03")
+        self.assertEqual(board["totalAccounts"], 3)
+        self.assertEqual([row["rank"] for row in board["entries"]], [1, 2, 3])
+        self.assertEqual(set(board["entries"][0]), {
+            "rank", "accountId", "displayName", "adjustedRating", "weightedRating", "fcRate",
+            "totalScore", "maxScorePercent", "songsPlayed", "totalChartedSongs",
+            "fullComboCount", "computedAt",
+        })
+        with urlopen(self.base + "/api/rankings/combo/fixture-rank-3?combo=03&rankBy=totalscore") as response:
+            own = json.load(response)
+        self.assertEqual((own["rank"], own["comboId"], own["totalAccounts"]), (3, "03", 3))
+        for bad, code in (
+            ("/api/rankings/combo?combo=01", 400),
+            ("/api/rankings/combo?combo=11", 400),
+            ("/api/rankings/combo/fixture-nobody?combo=03", 404),
+        ):
+            with self.subTest(route=bad), self.assertRaises(HTTPError) as failure:
+                urlopen(self.base + bad)
+            self.assertEqual(failure.exception.code, code)
+
     def test_player_rank_history_is_a_bounded_pure_read(self):
         """Demo players get the committed 7-day series; others are unranked, not 404."""
         route = "/api/rankings/Solo_Guitar/fixture-player-1/history?days=30"

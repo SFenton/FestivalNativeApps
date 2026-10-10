@@ -434,6 +434,21 @@ public class RivalsCoreTests
     }
 
     [Fact]
+    public void QuickLinkGlyph_IsDistinctPerCategory()
+    {
+        // #605, quick-links R9: one shared category list; every key known, in page order, with its own glyph.
+        Assert.Equal(["closest_battles", "almost_passed", "slipping_away", "barely_winning", "pulling_forward", "dominating_them"],
+            RivalCategorization.Keys);
+        Assert.All(RivalCategorization.Keys, key => Assert.True(RivalCategorization.IsKnown(key)));
+        var glyphs = RivalCategorization.Keys.Select(RivalCategorization.QuickLinkGlyph).ToList();
+        Assert.Equal(["\uE8AB", "\uEAFC", "\uEB9E", "\uE7C1", "\uEB9D", "\uE734"], glyphs);
+        Assert.Equal(glyphs.Count, glyphs.Distinct().Count());
+        Assert.DoesNotContain(RivalCategorization.FallbackQuickLinkGlyph, glyphs);
+        // An unknown key still gets an icon, so the group stays uniform; it is the Rivals people glyph.
+        Assert.Equal(Festival.Core.ViewModels.RivalsHubViewModel.CommonGlyph, RivalCategorization.QuickLinkGlyph("mystery"));
+    }
+
+    [Fact]
     public void HeadToHead_SortsAndSummarizes()
     {
         List<RivalSongComparison> songs = [Song("b", -3, "Bravo"), Song("a", 10, "alpha"), Song("c", 1, null)];
