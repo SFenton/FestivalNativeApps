@@ -4,6 +4,8 @@
 
 Status: **current**, 2026-10-07. Provenance: #30, #60, #61, #70, #71, #149, #169, #177, #260, #261, #270, #304, #316, #323, #325, #561.
 
+Owner-approved variant (#561): in-place expand/collapse (accordions, switch reveals, selector panels) is not a load; it opens, then fades its content in, and fades out, then closes, under [accordion](accordion.md). These rules still govern every load and reload.
+
 ## Intent
 
 Loading must communicate a deliberate state change rather than a hard cut: first loads gate incomplete content, reloads replace stale content through a spinner, and row entrances run once per reveal rather than while the reader scrolls.

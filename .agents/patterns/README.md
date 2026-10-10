@@ -28,6 +28,7 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [modal-shell](modal-shell.md) | Shared sheet and dialog container: header, Close, detents, top fade, dismissal |
 | [leaderboard-row](leaderboard-row.md) | Leaderboard and score rows: height, columns, name marquee, pinned player row and pager |
 | [load-transition](load-transition.md) | Fade out, spinner, fade in on page or modal load and reload; graph card list swaps; staggered row fade-in |
+| [accordion](accordion.md) | In-place expand/collapse (disclosure groups, switch reveals, selector panels): open then fade in, fade out then close; Reduce Motion and VoiceOver state |
 | [empty-error-states](empty-error-states.md) | Empty, no-results, unavailable and error states: layout, copy and retry |
 | [quick-links](quick-links.md) | The Quick Links menu: order, icons, activation line and placement |
 | [section-headers](section-headers.md) | Section titles: style, outside-card placement and pinned/sticky behavior |
