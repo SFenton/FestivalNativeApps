@@ -15,9 +15,33 @@
     "ready": ["waitfor:id=fst.settings.show-instrument-icons@20"],
     "after_ready": [
       "scrollinto:id=fst.settings.feedback.feature@20",
-      "scrollinto:id=fst.settings.feedback.bug@20", "invoke:id=fst.settings.feedback.bug",
+      "scrollinto:id=fst.settings.feedback.bug@20",
+      "assertread:id=fst.settings.feedback.bug|Report an Issue, button, Tell us about something that isn't working right.",
+      "assertread:id=fst.settings.feedback.feature|Request a Feature, button, Suggest something new for Festival Score Tracker.",
+      "assertorder:id=fst.settings.feedback.bug|id=fst.settings.feedback.feature",
+      "assertsize:id=fst.settings.feedback.bug|40x40",
+      "assertsize:id=fst.settings.feedback.feature|40x40",
+      "focus:id=fst.settings.feedback.bug", "key:tab", "assertfocus:id=fst.settings.feedback.feature@3",
+      "key:shift+tab", "assertfocus:id=fst.settings.feedback.bug@3", "key:enter",
       "waitfor:id=fst.settings.feedback.title@10", "assertname:id=fst.settings.feedback.validation|Add a title after the prefix.",
-      "assertstate:id=PrimaryButton|enabled=false@5"
+      "assertstate:id=PrimaryButton|enabled=false@5",
+      "assertread:id=fst.settings.feedback.title|Title, edit, [Bug] , A short summary of the problem, after [Bug].",
+      "assertread:id=fst.settings.feedback.validation|Add a title after the prefix., text",
+      "assertread:id=PrimaryButton|Submit, button, unavailable",
+      "assertorder:id=fst.settings.feedback.title|id=fst.settings.feedback.validation|id=PrimaryButton|id=fst.settings.feedback.cancel",
+      "focus:id=fst.settings.feedback.title",
+      "key:tab", "assertfocus:id=fst.settings.feedback.description@3",
+      "assertread:id=fst.settings.feedback.description|Description, edit, What went wrong? Include the page, song, instrument or player involved.",
+      "key:tab", "assertfocus:id=fst.settings.feedback.repro@3",
+      "assertread:id=fst.settings.feedback.repro|Steps to Reproduce, edit, List the steps that make the problem happen, one per line.",
+      "key:tab", "assertfocus:id=fst.settings.feedback.expected@3",
+      "assertread:id=fst.settings.feedback.expected|Expected Behavior, edit, What did you expect to happen instead?",
+      "key:tab", "assertfocus:id=fst.settings.feedback.attach@3",
+      "assertread:id=fst.settings.feedback.attach|Attach Media, button",
+      "assertstate:name=Media|heading=3",
+      "assertorder:name=Media|id=fst.settings.feedback.attach",
+      "assertsize:id=fst.settings.feedback.attach|40x40",
+      "key:tab", "assertfocus:id=fst.settings.feedback.cancel@3"
     ]
   },
   {
@@ -30,7 +54,9 @@
       "scrollinto:id=fst.settings.feedback.feature@20",
       "scrollinto:id=fst.settings.feedback.bug@20", "invoke:id=fst.settings.feedback.bug",
       "waitfor:id=fst.settings.feedback.title@10", "setvalue:id=fst.settings.feedback.title|[Bug] Songs list freezes",
-      "assertname:id=fst.settings.feedback.validation|Add a description."
+      "assertname:id=fst.settings.feedback.validation|Add a description.",
+      "assertread:id=fst.settings.feedback.validation|Add a description., text",
+      "assertread:id=PrimaryButton|Submit, button, unavailable"
     ]
   },
   {
@@ -44,7 +70,11 @@
       "scrollinto:id=fst.settings.feedback.bug@20", "invoke:id=fst.settings.feedback.bug",
       "waitfor:id=fst.settings.feedback.title@10", "setvalue:id=fst.settings.feedback.title|[Bug] Songs list freezes",
       "setvalue:id=fst.settings.feedback.description|Scrolling stops after the A-Z jump.",
-      "waitgone:id=fst.settings.feedback.validation@5", "assertstate:id=PrimaryButton|enabled=true@5"
+      "waitgone:id=fst.settings.feedback.validation@5", "assertstate:id=PrimaryButton|enabled=true@5",
+      "assertread:id=PrimaryButton|Submit, button",
+      "scrollinto:id=fst.settings.feedback.attach@5", "focus:id=fst.settings.feedback.attach",
+      "key:tab", "assertfocus:id=PrimaryButton@3",
+      "key:tab", "assertfocus:id=fst.settings.feedback.cancel@3"
     ]
   },
   {
@@ -62,6 +92,21 @@
       "waitfor:id=1148&class=Edit@45",
       "setvalue:id=1148&class=Edit|\"{repo}\\windows\\Festival.App\\Assets\\Store\\Square150x150Logo.scale-100.png\" \"{repo}\\windows\\Festival.App\\Assets\\Store\\Square44x44Logo.scale-200.png\"",
       "invoke:id=1&class=Button", "waitgone:id=1148&class=Edit@10", "waitfor:id=fst.settings.feedback.attachment@10",
+      "assertstate:id=PrimaryButton|enabled=true@5",
+      "assertfocus:id=fst.settings.feedback.attach@5",
+      "assertread:id=fst.settings.feedback.attachment|~^Image, Square150x150Logo\\.scale-100\\.png, [0-9.]+ [KM]?B, button, Opens in the default app\\.$",
+      "assertread:name=Remove Square150x150Logo.scale-100.png|Remove Square150x150Logo.scale-100.png, button",
+      "assertread:name=Remove Square44x44Logo.scale-200.png|Remove Square44x44Logo.scale-200.png, button",
+      "assertorder:id=fst.settings.feedback.attachment|name=Remove Square150x150Logo.scale-100.png|name=Remove Square44x44Logo.scale-200.png|id=fst.settings.feedback.attach",
+      "assertsize:id=fst.settings.feedback.attachment|40x40",
+      "assertsize:name=Remove Square150x150Logo.scale-100.png|40x40",
+      "assertsize:name=Remove Square44x44Logo.scale-200.png|40x40",
+      "key:shift+tab", "assertfocus:name=Remove Square44x44Logo.scale-200.png@3",
+      "key:shift+tab", "assertfocus:id=fst.settings.feedback.attachment@3",
+      "key:shift+tab", "assertfocus:name=Remove Square150x150Logo.scale-100.png@3",
+      "key:tab", "key:tab", "key:enter",
+      "waitgone:name=Remove Square44x44Logo.scale-200.png@5",
+      "assertfocus:id=fst.settings.feedback.attach@3",
       "assertstate:id=PrimaryButton|enabled=true@5"
     ]
   },
@@ -76,7 +121,16 @@
       "scrollinto:id=fst.settings.feedback.bug@20", "invoke:id=fst.settings.feedback.bug",
       "waitfor:id=fst.settings.feedback.title@10", "setvalue:id=fst.settings.feedback.title|[Bug] Songs list freezes",
       "invoke:id=fst.settings.feedback.cancel", "waitfor:id=fst.settings.feedback.keep-editing@5", "wait:1",
-      "assertfocus:id=fst.settings.feedback.keep-editing"
+      "assertfocus:id=fst.settings.feedback.keep-editing",
+      "assertread:id=fst.settings.feedback.keep-editing|Keep Editing, button",
+      "assertread:id=fst.settings.feedback.discard|Discard, button",
+      "assertorder:name=Discard this report?|id=fst.settings.feedback.discard|id=fst.settings.feedback.keep-editing",
+      "assertsize:id=fst.settings.feedback.discard|40x40",
+      "assertsize:id=fst.settings.feedback.keep-editing|40x40",
+      "key:shift+tab", "assertfocus:id=fst.settings.feedback.discard@3",
+      "key:tab", "assertfocus:id=fst.settings.feedback.keep-editing@3",
+      "key:enter", "waitgone:id=fst.settings.feedback.discard-confirm@5",
+      "assertfocus:id=fst.settings.feedback.title@3"
     ]
   },
   {
@@ -91,7 +145,9 @@
       "waitfor:id=fst.settings.feedback.title@10", "setvalue:id=fst.settings.feedback.title|[Bug] Songs list freezes",
       "setvalue:id=fst.settings.feedback.description|Scrolling stops after the A-Z jump.",
       "invoke:id=PrimaryButton", "waitfor:id=fst.settings.feedback.progress@10",
-      "assertname:id=fst.settings.feedback.progress|Sending your report…", "assertstate:id=PrimaryButton|enabled=false@5"
+      "assertname:id=fst.settings.feedback.progress|Sending your report…", "assertstate:id=PrimaryButton|enabled=false@5",
+      "assertread:id=fst.settings.feedback.progress|Sending your report…, text",
+      "assertorder:id=fst.settings.feedback.progress|id=fst.settings.feedback.title"
     ]
   },
   {
@@ -104,7 +160,8 @@
       "scrollinto:id=fst.settings.feedback.feature@20", "invoke:id=fst.settings.feedback.feature",
       "waitfor:id=fst.settings.feedback.title@10", "setvalue:id=fst.settings.feedback.title|[Feature] Compare two players",
       "setvalue:id=fst.settings.feedback.description|Side by side scores.",
-      "invoke:id=PrimaryButton", "assertname:id=fst.settings.feedback.progress@15|Filing your request on GitHub…"
+      "invoke:id=PrimaryButton", "assertname:id=fst.settings.feedback.progress@15|Filing your request on GitHub…",
+      "assertread:id=fst.settings.feedback.progress|Filing your request on GitHub…, text"
     ]
   },
   {
@@ -118,7 +175,11 @@
       "waitfor:id=fst.settings.feedback.title@10", "setvalue:id=fst.settings.feedback.title|[Feature] Compare two players",
       "setvalue:id=fst.settings.feedback.description|Side by side scores.",
       "invoke:id=PrimaryButton", "waitfor:id=fst.settings.feedback.sent@20",
-      "assertname:id=fst.settings.feedback.sent|Thanks! Your request was filed as issue #1."
+      "assertname:id=fst.settings.feedback.sent|Thanks! Your request was filed as issue #1.",
+      "assertread:id=fst.settings.feedback.sent|Thanks! Your request was filed as issue #1., text",
+      "assertread:id=fst.settings.feedback.cancel|Done, button",
+      "assertorder:id=fst.settings.feedback.sent|id=fst.settings.feedback.cancel",
+      "assertsize:id=fst.settings.feedback.cancel|40x40"
     ]
   },
   {
@@ -131,7 +192,10 @@
       "scrollinto:id=fst.settings.feedback.feature@20", "invoke:id=fst.settings.feedback.feature",
       "waitfor:id=fst.settings.feedback.title@10", "setvalue:id=fst.settings.feedback.title|[Feature] fixture-unavailable compare",
       "setvalue:id=fst.settings.feedback.description|Side by side scores.",
-      "invoke:id=PrimaryButton", "waitfor:id=fst.settings.feedback.error@15", "assertstate:id=PrimaryButton|enabled=true@5"
+      "invoke:id=PrimaryButton", "waitfor:id=fst.settings.feedback.error@15", "assertstate:id=PrimaryButton|enabled=true@5",
+      "assertread:id=PrimaryButton|Submit, button",
+      "waitfor:name=Not sent@5",
+      "assertorder:name=Not sent|id=fst.settings.feedback.title"
     ]
   }
 ]
