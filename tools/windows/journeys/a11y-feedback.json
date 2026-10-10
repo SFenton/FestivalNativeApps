@@ -59,7 +59,7 @@
       "waitfor:id=fst.settings.feedback.title@10", "setvalue:id=fst.settings.feedback.title|[Bug] Songs list freezes",
       "setvalue:id=fst.settings.feedback.description|Scrolling stops after the A-Z jump.",
       "scrollinto:id=fst.settings.feedback.attach@5", "invoke:id=fst.settings.feedback.attach",
-      "waitfor:id=1148&class=Edit@15",
+      "waitfor:id=1148&class=Edit@45",
       "setvalue:id=1148&class=Edit|\"{repo}\\windows\\Festival.App\\Assets\\Store\\Square150x150Logo.scale-100.png\" \"{repo}\\windows\\Festival.App\\Assets\\Store\\Square44x44Logo.scale-200.png\"",
       "invoke:id=1&class=Button", "waitgone:id=1148&class=Edit@10", "waitfor:id=fst.settings.feedback.attachment@10",
       "assertstate:id=PrimaryButton|enabled=true@5"

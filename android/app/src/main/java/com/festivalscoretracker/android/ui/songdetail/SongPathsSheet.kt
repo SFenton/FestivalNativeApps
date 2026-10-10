@@ -1,16 +1,11 @@
 package com.festivalscoretracker.android.ui.songdetail
 
 import android.graphics.BitmapFactory
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.Ease
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.RowScope
@@ -112,6 +107,7 @@ import com.festivalscoretracker.android.presentation.songs.PathSwapPhase
 import com.festivalscoretracker.android.presentation.songs.PathSwapTiming
 import com.festivalscoretracker.android.presentation.songs.SongPathsState
 import com.festivalscoretracker.android.presentation.songs.SongPathsViewModel
+import com.festivalscoretracker.android.ui.common.AccordionReveal
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.rememberRevealed
@@ -248,8 +244,8 @@ internal fun usesPathGrid(widthDp: Float, fontScale: Float): Boolean =
 
 /**
  * Web mobile controls: a row of three frosted buttons (instrument icon, difficulty,
- * view icon) with chevrons; tapping one opens its panel above the row, tapping it
- * (or the current choice) again closes it.
+ * view icon) with chevrons; tapping one opens its panel above the row (the shared
+ * [AccordionReveal], issue #561), tapping it (or the current choice) again closes it.
  */
 @Composable
 private fun PathControls(
@@ -263,7 +259,7 @@ private fun PathControls(
 ) {
     fun toggle(target: PathPanel) = onPanel(if (panel == target) null else target)
     Column(Modifier.fillMaxWidth().padding(top = 8.dp).testTag("fst.paths.selectors")) {
-        AnimatedVisibility(visible = panel == PathPanel.Instrument, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+        AccordionReveal(panel == PathPanel.Instrument) {
             InstrumentSelector(
                 instruments = viewModel.instruments,
                 selected = instrument,
@@ -274,12 +270,12 @@ private fun PathControls(
                 modifier = Modifier.padding(bottom = 12.dp),
             )
         }
-        AnimatedVisibility(visible = panel == PathPanel.Difficulty, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+        AccordionReveal(panel == PathPanel.Difficulty) {
             OptionGrid(PathDifficulty.entries, difficulty, { it.label }, "fst.paths.difficulty") { choice ->
                 if (choice == difficulty) onPanel(null) else viewModel.selectDifficulty(choice)
             }
         }
-        AnimatedVisibility(visible = panel == PathPanel.Display, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+        AccordionReveal(panel == PathPanel.Display) {
             OptionGrid(PathDisplayMode.entries, display, { it.label }, "fst.paths.display") { choice ->
                 if (choice == display) onPanel(null) else viewModel.selectDisplay(choice)
             }

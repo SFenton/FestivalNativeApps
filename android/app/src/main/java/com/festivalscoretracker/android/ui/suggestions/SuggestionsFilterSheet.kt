@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.ui.suggestions
 
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -38,6 +39,8 @@ import com.festivalscoretracker.android.core.suggestions.SuggestionFilterSetting
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.common.AccordionReveal
+import com.festivalscoretracker.android.ui.common.AccordionRevealOf
 import com.festivalscoretracker.android.ui.common.FestivalModalSheet
 
 // region Filter sheet
@@ -105,21 +108,28 @@ fun SuggestionsFilterSheet(
                         selected = if (instrument == pickedInstrument) null else instrument.wireId
                     }
                 }
-                if (pickedInstrument != null) {
-                    items(SuggestionCategoryType.entries, key = { "per.${pickedInstrument.wireId}.${it.key}" }) { type ->
-                        SwitchRow(
-                            title = type.label,
-                            checked = draft.isTypeEnabled(type, pickedInstrument),
-                            tag = "fst.suggestions.filter.type.${pickedInstrument.wireId}.${type.key}",
-                        ) { update(draft.withPerInstrumentType(type, pickedInstrument, it, instruments)) }
+                // One accordion (issue #561): the switches expand, then fade in; the last
+                // instrument stays while they fade out and collapse. The hint closes as they open.
+                item(key = "per-instrument") {
+                    AccordionRevealOf(pickedInstrument, Modifier.testTag("fst.suggestions.filter.instrument-types")) { instrument ->
+                        Column {
+                            SuggestionCategoryType.entries.forEach { type ->
+                                SwitchRow(
+                                    title = type.label,
+                                    checked = draft.isTypeEnabled(type, instrument),
+                                    tag = "fst.suggestions.filter.type.${instrument.wireId}.${type.key}",
+                                ) { update(draft.withPerInstrumentType(type, instrument, it, instruments)) }
+                            }
+                        }
                     }
-                } else {
-                    item {
+                }
+                item(key = "per-instrument-hint") {
+                    AccordionReveal(pickedInstrument == null) {
                         Text(
                             "Choose an instrument to fine-tune its suggestion types.",
                             style = MaterialTheme.typography.bodySmall,
                             color = BrandTokens.textSecondary,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                         )
                     }
                 }

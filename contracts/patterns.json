@@ -782,7 +782,8 @@
         "drawer",
         "hamburger",
         "page title",
-        "navigation title"
+        "navigation title",
+        "search drawer"
       ],
       "web": [
         {
@@ -859,6 +860,14 @@
           {
             "path": "apple/Sources/FestivalUI/App/Shell/SidebarMenu.swift",
             "symbol": "SidebarMenu"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/Chrome/SearchDrawerTransitionFill.swift",
+            "symbol": "SearchDrawerTransitionFill"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongsBottomFilterField.swift",
+            "symbol": "SongsSystemFilterField"
           }
         ],
         "android": [
@@ -911,6 +920,10 @@
           {
             "path": "windows/Festival.App/Controls/WrapPanel.cs",
             "symbol": "WrapPanel"
+          },
+          {
+            "path": "windows/Festival.App/Controls/PopupHosting.cs",
+            "symbol": "PopupHosting"
           }
         ]
       },
@@ -965,6 +978,16 @@
           "regex": "\\.accessibilitySortPriority\\(",
           "allow": [],
           "message": "Shell chrome reads in hierarchy order; the order journeys cannot see a sort priority (page-tools-and-nav-chrome R17, #394)."
+        },
+        {
+          "id": "apple-search-drawer-fill",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\.navigationBarDrawer\\(",
+          "allow": [
+            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
+            "apple/Sources/FestivalUI/Features/Profile/ProfileSelectionSheet.swift"
+          ],
+          "message": "A pushing page's search drawer goes through SongsSystemFilterField so SearchDrawerTransitionFill draws its capsule during push and pop (page-tools-and-nav-chrome R19); the Profile sheet never pushes."
         }
       ],
       "related": {
@@ -1000,7 +1023,9 @@
         341,
         351,
         363,
-        394
+        394,
+        534,
+        544
       ]
     },
     {
@@ -1577,7 +1602,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; graph card lists run the web out/height/in list sequence and chart swaps keep the card's size; the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades.",
+      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; graph card lists run the web out/height/in list sequence and chart swaps keep the card's size; the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades; accordion-style reveals (owner-approved #561 variant) grow the height then fade the content in, and fade it out then collapse.",
       "keywords": [
         "loading",
         "spinner",
@@ -1587,7 +1612,10 @@
         "stagger",
         "transition",
         "reduce motion",
-        "graph card"
+        "graph card",
+        "accordion",
+        "expand",
+        "collapse"
       ],
       "web": [
         {
@@ -1621,6 +1649,14 @@
         {
           "path": "hooks/ui/useStaggerRush.ts",
           "symbol": "useStaggerRush"
+        },
+        {
+          "path": "components/common/Accordion.tsx",
+          "symbol": "Accordion"
+        },
+        {
+          "path": "components/page/CollapseOnExit.tsx",
+          "symbol": "CollapseOnExit"
         }
       ],
       "canonical": {
@@ -1714,6 +1750,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/SelectedRowRevealEffect.kt",
             "symbol": "awaitSelectedRowEntrance"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/AccordionReveal.kt",
+            "symbol": "AccordionReveal"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/shell/AccordionMotion.kt",
+            "symbol": "AccordionMotion"
           }
         ],
         "windows": [
@@ -1879,6 +1923,16 @@
           ],
           "debt": [],
           "message": "Graph card lists must remain in the shared load-transition inventory (load-transition R7)."
+        },
+        {
+          "id": "android-accordion",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "expandVertically\\s*\\(|shrinkVertically\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/AccordionReveal.kt"
+          ],
+          "debt": [],
+          "message": "Accordion-style reveals go through the shared AccordionReveal / AccordionRevealOf (height, then fade in; fade out, then collapse; instant under reduced motion), never a local expand/shrink transition (load-transition R10, #561)."
         }
       ],
       "related": {
@@ -1907,7 +1961,8 @@
         304,
         316,
         323,
-        380
+        380,
+        561
       ]
     },
     {

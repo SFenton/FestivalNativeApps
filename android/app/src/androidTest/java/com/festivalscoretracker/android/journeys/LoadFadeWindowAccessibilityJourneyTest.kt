@@ -1,9 +1,7 @@
 package com.festivalscoretracker.android.journeys
 
-import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
-import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -128,12 +126,12 @@ class LoadFadeWindowAccessibilityJourneyTest {
         h.scrollTo(GRID, "$BASS_HISTORY.loading")
         h.scrollTo(GRID, "fst.player.instrument.Solo_Bass")
         settle()
-        awaitTree(present = "$BASS_HISTORY.loading")
+        h.awaitAccessibilityTree(present = "$BASS_HISTORY.loading")
         val loading = h.readingOrder("fade-window-profile-history-loading")
         assertTrue("Rank History loading state is unlabelled: $loading", loading.any { it.startsWith("Loading rank history") })
 
         assertShownInPlace(BASS_HISTORY) { history.complete(Unit) }
-        awaitTree(present = BASS_HISTORY, absent = "$BASS_HISTORY.loading")
+        h.awaitAccessibilityTree(present = BASS_HISTORY, absent = "$BASS_HISTORY.loading")
         val loaded = h.readingOrder("fade-window-profile-history-loaded")
         val bass = loaded.indexOf("Bass")
         assertTrue("Bass heading is not read: $loaded", bass >= 0)
@@ -148,14 +146,14 @@ class LoadFadeWindowAccessibilityJourneyTest {
         // Further down, the bands preview starts loading when scrolled to.
         h.scrollTo(GRID, "fst.player.bands.loading")
         settle()
-        awaitTree(present = "fst.player.bands.loading")
+        h.awaitAccessibilityTree(present = "fst.player.bands.loading")
         val bandsLoading = h.readingOrder("fade-window-profile-bands-loading")
         assertTrue("Bands loading state is unlabelled: $bandsLoading", bandsLoading.any { it.startsWith("Loading bands") })
 
         assertShownInPlace("fst.player.bands") { bands.complete(Unit) }
         h.scrollTo(GRID, "fst.player.bands.header.duos")
         settle()
-        awaitTree(present = "fst.player.bands.header.duos", absent = "fst.player.bands.loading")
+        h.awaitAccessibilityTree(present = "fst.player.bands.header.duos", absent = "fst.player.bands.loading")
         val bandsLoaded = h.readingOrder("fade-window-profile-bands-loaded")
         assertTrue("Bands loading state still read: $bandsLoaded", bandsLoaded.none { it.startsWith("Loading bands") })
         val duos = bandsLoaded.indexOf("Duos")
@@ -197,7 +195,7 @@ class LoadFadeWindowAccessibilityJourneyTest {
         swipe(LIST)
         h.scrollTo(LIST, DRUMS_CARD)
         settle()
-        awaitTree(present = "fst.rankings.skeleton")
+        h.awaitAccessibilityTree(present = "fst.rankings.skeleton")
         val loading = h.readingOrder("fade-window-leaderboards-loading")
         val header = loading.indexOf("Drums")
         assertTrue("Drums card header is not read: $loading", header >= 0)
@@ -205,7 +203,7 @@ class LoadFadeWindowAccessibilityJourneyTest {
 
         // Names marquee while animations run, so compare the rank column, which fades with its row.
         assertShownInPlace(DRUMS_CARD, until = "$DRUMS_CARD.view-all", leading = RANK_COLUMN) { drums.complete(Unit) }
-        awaitTree(present = DRUMS_CARD, absent = "fst.rankings.skeleton")
+        h.awaitAccessibilityTree(present = DRUMS_CARD, absent = "fst.rankings.skeleton")
         val loaded = h.readingOrder("fade-window-leaderboards-loaded")
         val loadedHeader = loaded.indexOf("Drums")
         assertTrue("Drums card header is not read: $loaded", loadedHeader >= 0)
@@ -312,38 +310,6 @@ class LoadFadeWindowAccessibilityJourneyTest {
 
     /** Where the last [difference] found changed pixels. */
     private var lastDifference = ""
-
-    /**
-     * Wait until the window's accessibility tree shows [present] and not [absent], like
-     * [JourneyHarness.awaitAccessibilityTree], but clearing UiAutomation's node cache on each poll
-     * (API 34+): on a split fold it can keep the pre-scroll tree. Fails with what TalkBack reads.
-     *
-     * @param present Test tag that must be in the tree.
-     * @param absent Test tag that must have left the tree, or `null`.
-     */
-    private fun awaitTree(present: String, absent: String? = null) {
-        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
-        fun ids(node: AccessibilityNodeInfo?, into: MutableSet<String> = mutableSetOf()): Set<String> {
-            node ?: return into
-            node.viewIdResourceName?.let(into::add)
-            for (i in 0 until node.childCount) ids(node.getChild(i), into)
-            return into
-        }
-        val deadline = SystemClock.uptimeMillis() + 15_000
-        while (true) {
-            rule.waitForIdle()
-            if (Build.VERSION.SDK_INT >= 34) automation.clearCache()
-            val seen = ids(automation.rootInActiveWindow)
-            if (present in seen && (absent == null || absent !in seen)) return
-            if (SystemClock.uptimeMillis() > deadline) {
-                throw AssertionError(
-                    "Accessibility tree never showed $present${absent?.let { " without $it" }.orEmpty()} " +
-                        "(composed: ${h.exists(present)}${absent?.let { ", $it composed: ${h.exists(it)}" }.orEmpty()}): ${h.readingOrder("fade-window-timeout")}",
-                )
-            }
-            SystemClock.sleep(100)
-        }
-    }
 
     /** The text [label] is exposed as a heading. */
     private fun assertHeading(label: String) {
