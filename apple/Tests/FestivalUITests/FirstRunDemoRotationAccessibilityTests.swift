@@ -183,6 +183,33 @@ struct FirstRunDemoRotationAccessibilityTests {
         interval + FirstRunDemoTiming.fade * 2 + .milliseconds(600)
     }
 
+    /// The longest a sampling loop waits, in wall-clock time, for its first swap.
+    static let swapDeadline: Duration = .seconds(20)
+
+    /// Expect that the sampled demo swapped. A swap is timer-driven animation, so on a host
+    /// whose shared main actor was starved (`apple-ci` ran 2 samples in 20 s) its absence
+    /// proves nothing and is an intermittent known issue (``NativeHostedEvidenceDeadline``,
+    /// as in `CompeteRenderTests` and `SelectedRowRevealHostedTests`); on a responsive host
+    /// it fails. The decorative-exposure checks stay strict either way.
+    ///
+    /// - Parameters:
+    ///   - swapped: Whether any sample differed from the first picture.
+    ///   - deadline: The sampling loop's deadline, with its recorded poll lag.
+    ///   - message: What did not swap.
+    static func expectSwapped(
+        _ swapped: Bool, deadline: NativeHostedEvidenceDeadline, _ message: String,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) {
+        guard !swapped else { return }
+        if let starved = deadline.starved {
+            withKnownIssue("Starved host (\(starved)): its demo timers can't show a swap", isIntermittent: true) {
+                Issue.record("\(message)", sourceLocation: sourceLocation)
+            }
+        } else {
+            Issue.record("\(message)", sourceLocation: sourceLocation)
+        }
+    }
+
     // MARK: - Demos stay decorative while they rotate
 
     /// Each rotating demo, visible with motion allowed, is sampled every 150 ms through at least
@@ -199,21 +226,22 @@ struct FirstRunDemoRotationAccessibilityTests {
         let first = try await nativeHostedSettle(host, animationGrace: .milliseconds(600))
 
         let clock = ContinuousClock()
+        var deadline = NativeHostedEvidenceDeadline(limit: Self.swapDeadline)
+        try await deadline.awaitResponsiveMainActor()
         let minimum = clock.now + Self.pastOneSwap(rotating.interval)
-        let deadline = clock.now + .seconds(20)
         var samples = 0
         var swapped = false
         var exposed: [String] = []
         var leaked: [String] = []
-        while clock.now < minimum || (!swapped && clock.now < deadline) {
-            try await Task.sleep(for: .milliseconds(150))
+        while clock.now < minimum || (!swapped && !deadline.isExpired) {
+            try await deadline.sleep(for: .milliseconds(150))
             let image = try nativeHostedImage(host)
             swapped = swapped || nativeHostedSignature(image) != nativeHostedSignature(first)
             exposed += Self.reachable(host).map(\.node.description)
             leaked += Self.leaks(macAccessibilityTree(host))
             samples += 1
         }
-        #expect(swapped, "\(rotating.id) never swapped in \(samples) samples")
+        Self.expectSwapped(swapped, deadline: deadline, "\(rotating.id) never swapped in \(samples) samples")
         #expect(exposed.isEmpty, "\(rotating.id) exposed \(Set(exposed).sorted())")
         #expect(leaked.isEmpty, "\(rotating.id) leaked \(Set(leaked).sorted())")
     }
@@ -321,20 +349,21 @@ struct FirstRunDemoRotationAccessibilityTests {
         #expect(framed.allSatisfy { baseline.frames[$0].map { !$0.isEmpty } == true }, "\(baseline.frames)")
 
         let clock = ContinuousClock()
+        var deadline = NativeHostedEvidenceDeadline(limit: Self.swapDeadline)
+        try await deadline.awaitResponsiveMainActor()
         let minimum = clock.now + Self.pastOneSwap(FirstRunDemoTiming.swapInterval)
-        let deadline = clock.now + .seconds(20)
         var swapped = false
         var changes: [String] = []
         var leaked: [String] = []
-        while clock.now < minimum || (!swapped && clock.now < deadline) {
-            try await Task.sleep(for: .milliseconds(150))
+        while clock.now < minimum || (!swapped && !deadline.isExpired) {
+            try await deadline.sleep(for: .milliseconds(150))
             let image = try nativeHostedImage(host)
             swapped = swapped || nativeHostedSignature(image) != nativeHostedSignature(first)
             let reading = try CarouselReading(host: host, slide: slides[0])
             if reading != baseline { changes.append(reading.description) }
             leaked += Self.leaks(macAccessibilityTree(host))
         }
-        #expect(swapped, "the Top Songs demo never swapped (\(typeSize))")
+        Self.expectSwapped(swapped, deadline: deadline, "the Top Songs demo never swapped (\(typeSize))")
         #expect(changes.isEmpty, "a swap changed what VoiceOver reads (\(typeSize)): \(baseline) → \(changes.first ?? "")")
         #expect(leaked.isEmpty, "demo text reached VoiceOver (\(typeSize)): \(Set(leaked).sorted())")
         try FirstRunDemoSongsAccessibilityTests.assertTargets(in: host)
