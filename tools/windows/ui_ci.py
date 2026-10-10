@@ -187,6 +187,10 @@ RUNS: tuple[Run, ...] = (
     # touch (0 epx), each stays one 40+ epx Button stop in visual order, rows -> pinned row -> pager, Up/Down and Tab.
     Run("grouped-boards", "a11y-grouped-boards.json", tabs=0),
     Run("grouped-boards-text-225", "a11y-grouped-boards.json", sizes="compact", mode="text-225", tabs=0),
+    # Song Detail Score History as one card (issue #588): selector -> heading -> subtitle -> chart, then the best scores
+    # as in-card rows that touch (0 epx) in score order, ending on a 40+ epx View All Scores named for the chart.
+    Run("score-history-card", "a11y-score-history-card.json", tabs=0),
+    Run("score-history-card-text-225", "a11y-score-history-card.json", sizes="compact", mode="text-225", tabs=0),
     # Settings' Experimental Ranks toggle (issue #541): enabled, off by default, named and Space-toggled; turning it on
     # shows "Rank by: Total Score, button" (40 epx) on Leaderboards and off hides it again; with it off a saved or
     # deep-linked experimental metric leaves no Rank By on Leaderboards, Full Rankings or Band Rankings.
