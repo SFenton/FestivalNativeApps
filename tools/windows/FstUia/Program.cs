@@ -667,7 +667,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 Click(window, step, MouseButton.Right);
                 break;
             case "hover":
-                Mouse.MoveTo(ScreenPoint(window, step));
+                Hover(ScreenPoint(window, step));
                 break;
             case "invoke":
                 var target = Find(window, step);
@@ -958,6 +958,24 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         target.Patterns.Value.Pattern.SetValue(text);
     }
 
+    /// <summary>
+    /// Moves the pointer onto a point. On an unlocked console the move is real <c>SendInput</c> input
+    /// (<see cref="Native.MouseAt"/>), approached from 2 px away, so WinUI raises <c>PointerEntered</c>/<c>PointerMoved</c>
+    /// and shows pointer-over visuals and hover tooltips (issue #571); FlaUI's <c>SetCursorPos</c> move never did (#531).
+    /// A locked console takes no real input, so it falls back to moving the cursor only.
+    /// </summary>
+    /// <param name="point">Physical screen point.</param>
+    private static void Hover(Point point)
+    {
+        if (PostedInput.IsSessionLocked())
+        {
+            Mouse.MoveTo(point);
+            return;
+        }
+        Native.MouseAt(new Point(point.X - 2, point.Y - 2));
+        Thread.Sleep(40);
+        Native.MouseAt(point);
+    }
     /// <summary>Screen point of a step's selector: window-relative coordinates or the element's clickable point.</summary>
     private Point ScreenPoint(Window window, JsonObject step)
     {
