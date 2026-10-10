@@ -260,7 +260,7 @@
       "title": "Section-jump landing",
       "status": "current",
       "doc": ".agents/patterns/section-jump-landing.md",
-      "summary": "Quick Links and Songs section-index jumps land ordinary targets 32 units below chrome, keep the target current through arrival, and land pinned Songs titles at their pin line with the first row clear; a section index fits the height it is given, condensing its labels rather than growing the page, and its labels follow the text size within that fit.",
+      "summary": "Quick Links and Songs section-index jumps land ordinary targets 32 units below chrome, keep the target current through arrival, and land pinned Songs titles at their pin line with the first row clear and never leave a large title resting part-way collapsed; a section index fits the height it is given, condensing its labels rather than growing the page, and its labels follow the text size within that fit.",
       "keywords": [
         "quick links",
         "section jump",
@@ -300,6 +300,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Songs/SongSectionIndexScrubber.swift",
             "symbol": "SongSectionIndexScrubber"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/LargeTitleRest.swift",
+            "symbol": "LargeTitleRest"
           }
         ],
         "android": [
@@ -387,7 +391,8 @@
         286,
         298,
         336,
-        393
+        393,
+        560
       ]
     },
     {
