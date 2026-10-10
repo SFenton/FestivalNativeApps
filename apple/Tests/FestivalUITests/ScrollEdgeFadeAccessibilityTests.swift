@@ -240,17 +240,20 @@ func notificationsPinnedTitleIsAHeadingReadBeforeItsRows(mode: BottomChromeFadeM
 /// Presents the Notifications sheet the way `MacRootView` does (`.sheet` with
 /// `macSheetFrame(width: 560, height: 680)` and `festivalSheet(.large)`), in `mode`, so
 /// `FestivalModal`'s real header (its title bar and Close item) frames the list.
+/// `height` is 680 unless the host's screen is too short for it (see
+/// `macNotificationsSheetHeight(visibleHeight:)`).
 private struct MacNotificationsSheetPresenter: View {
     let session: FestivalSession
     let mode: BottomChromeFadeMode
     let defaults: UserDefaults
+    let height: CGFloat
 
     var body: some View {
         BrandTokens.appBackground
             .sheet(isPresented: .constant(true)) {
                 mode.system(
                     NotificationsSheet(session: session)
-                        .macSheetFrame(width: 560, height: 680)
+                        .macSheetFrame(width: 560, height: height)
                         .festivalSheet(.large)
                         .preferredColorScheme(.dark)
                         .defaultAppStorage(defaults)
@@ -286,15 +289,23 @@ private struct PresentedNotificationsSheet {
 ///   - session: A session with a selected player and loaded notifications.
 ///   - mode: The transparency and contrast mode.
 ///   - defaults: The mode's settings suite.
+///   - tallerThanScreen: Ask for a sheet taller than the screen, so AppKit shrinks it.
 /// - Returns: The parent window, the sheet window and its content view.
-/// - Throws: A sheet that never attaches.
+/// - Throws: A sheet that never attaches, or one AppKit shrank when it should fit.
 @MainActor
 private func presentMacNotificationsSheet(
-    _ session: FestivalSession, mode: BottomChromeFadeMode, defaults: UserDefaults
+    _ session: FestivalSession, mode: BottomChromeFadeMode, defaults: UserDefaults,
+    tallerThanScreen: Bool = false
 ) async throws -> PresentedNotificationsSheet {
-    let size = CGSize(width: 900, height: 820)
+    let visibleHeight = NSScreen.main?.visibleFrame.height ?? 0
+    var (parentHeight, sheetHeight) = try #require(
+        macNotificationsSheetHeight(visibleHeight: visibleHeight),
+        "the screen (\(visibleHeight) pt visible) is too short for the Notifications sheet"
+    )
+    if tallerThanScreen { sheetHeight = visibleHeight + 120 }
+    let size = CGSize(width: 900, height: parentHeight)
     let host = nativeHostedView(
-        MacNotificationsSheetPresenter(session: session, mode: mode, defaults: defaults),
+        MacNotificationsSheetPresenter(session: session, mode: mode, defaults: defaults, height: sheetHeight),
         size: size, forceGlassFallback: false
     )
     let parent = NSWindow(
@@ -315,7 +326,25 @@ private func presentMacNotificationsSheet(
     let sheet = try #require(parent.attachedSheet, "the Notifications sheet attaches to its window")
     sheet.alphaValue = 0
     sheet.ignoresMouseEvents = true
-    return PresentedNotificationsSheet(parent: parent, sheet: sheet, view: try #require(sheet.contentView))
+    let view = try #require(sheet.contentView)
+    view.layoutSubtreeIfNeeded()
+    try #require(tallerThanScreen || view.bounds.height >= sheetHeight,
+                 "AppKit clamped the sheet to \(view.bounds.height) pt, under its \(sheetHeight) pt list, on a \(visibleHeight) pt screen")
+    return PresentedNotificationsSheet(parent: parent, sheet: sheet, view: view)
+}
+
+/// The parent window's content height and the sheet's `macSheetFrame` height for a
+/// screen with `visibleHeight` points: the app's 820 and 680 when they fit, else smaller,
+/// so AppKit never clamps the sheet window and pushes its header and bottom bar outside
+/// the content view. Hosted CI runners have short virtual displays (about 768 pt).
+///
+/// - Parameter visibleHeight: The main screen's visible height, below the menu bar.
+/// - Returns: Both heights in points; `nil` when the list would be under 420 pt.
+func macNotificationsSheetHeight(visibleHeight: CGFloat) -> (parent: CGFloat, sheet: CGFloat)? {
+    // The parent's title bar, plus room around the sheet and for its bottom bar.
+    let parent = min(820, visibleHeight - 48)
+    let sheet = min(680, parent - 110)
+    return sheet >= 420 ? (parent, sheet) : nil
 }
 
 /// Lay out and capture `view` until every text in `texts` is in its accessibility tree
@@ -360,6 +389,52 @@ private func scrollSheet(_ scroll: NSScrollView, to offset: CGFloat, view: NSVie
     clip.scroll(to: NSPoint(x: 0, y: offset - scroll.contentInsets.top))
     scroll.reflectScrolledClipView(clip)
     return try await settleSheet(view, untilText: texts)
+}
+
+/// Issue #462: on a screen shorter than the sheet's ideal height (a small display, or a
+/// "Larger Text" display scaling), AppKit shrinks the sheet window to the screen and
+/// `macSheetFrame`'s `400` floor lets the content shrink with
+/// it. The header's title and the bottom bar's Close button stay inside the sheet, are
+/// read first and last, and Close stays enabled; before the floor, a minimum equal to the
+/// ideal height overflowed both edges and pushed them outside the window.
+@MainActor
+@Test
+func notificationsSheetKeepsItsTitleAndCloseOnAShortScreen() async throws {
+    let (session, accountId) = await scrollingNotificationsSession(newCount: 8, olderCount: 24)
+    defer { forgetScrollingAccount(accountId) }
+    let mode = BottomChromeFadeMode.standard
+    let (defaults, suite) = mode.storage()
+    defer { UserDefaults.standard.removePersistentDomain(forName: suite) }
+    let presented = try await presentMacNotificationsSheet(session, mode: mode, defaults: defaults, tallerThanScreen: true)
+    defer { presented.close() }
+    let view = presented.view
+    let size = presented.size
+    _ = try await settleSheet(view, untilText: ["New", "Close"])
+    let visibleHeight = NSScreen.main?.visibleFrame.height ?? 0
+    #expect(size.height <= visibleHeight + 1, "AppKit fits the sheet to the screen: \(size), \(visibleHeight) pt visible")
+    #expect(size.height >= MacSheetMetrics.shortestHeight, "the list keeps its floor: \(size)")
+
+    let scroll = try #require(listScrollView(in: view))
+    let top = pinTop(of: scroll, in: view)
+    let scrollFrame = scroll.convert(scroll.bounds, to: view)
+    let listBottom = view.isFlipped ? scrollFrame.maxY : size.height - scrollFrame.minY
+    let title = try #require(nativeHostedAccessibilityElement(in: view) { element in
+        nativeHostedAccessibilityString(element, "accessibilityRole") == "AXStaticText"
+            && ["accessibilityLabel", "accessibilityValue"].contains {
+                nativeHostedAccessibilityString(element, $0) == "Notifications"
+            }
+    })
+    let titleFrame = try #require(nativeHostedAccessibilityFrame(of: title, in: view))
+    #expect(titleFrame.minY >= 0 && titleFrame.maxY <= top + 1, "the title is in the header band: \(titleFrame), list top \(top)")
+    let close = try #require(nativeHostedAccessibilityElement("fst.notifications.close", in: view))
+    #expect(isAccessibilityEnabled(close), "Close is enabled")
+    let closeFrame = try #require(nativeHostedAccessibilityFrame(of: close, in: view))
+    #expect(closeFrame.minY >= listBottom - 1 && closeFrame.maxY <= size.height,
+            "Close is in the bottom bar: \(closeFrame), list bottom \(listBottom), sheet \(size)")
+
+    let elements = readableElements(macAccessibilityTree(view, navigationOrder: true))
+    #expect(elements.first?.spokenName == "Notifications", "the title is read first: \(elements.prefix(2).map(\.description))")
+    #expect(elements.last?.identifier == "fst.notifications.close", "Close is read last: \(elements.suffix(2).map(\.description))")
 }
 
 /// Issues #462 and #308: the real Mac sheet header around the Notifications list, in
