@@ -172,9 +172,9 @@
                     </ItemsRepeater.ItemTemplate>
                 </ItemsRepeater>
 
-                <!-- Bands (web PlayerBandsSection, issue #312): "{name}'s Bands" with a View All link, then Duos/Trios/Quads groups of
-                     up to six band cards (BandCardView, as on Player Bands), a No Bands Yet card when empty and View All Bands (N)
-                     when the group has more. Read per group after the profile shows; never holds the page spinner. -->
+                <!-- Bands (web PlayerBandsSection, issue #312): "{name}'s Bands" with a View All link, then Duos/Trios/Quads groups,
+                     each one card of up to six band rows ending in the purple View All Bands (N) when the group has more (#596), or
+                     No Bands Yet when empty. Read per group after the profile shows; never holds the page spinner. -->
                 <controls:AccessibleGroup Margin="0,8,0,0" controls:QuickLinkAnchor.Id="bands"
                                           AutomationProperties.Name="{x:Bind ViewModel.Bands.Title, Mode=OneWay}"
                                           AutomationProperties.AutomationId="fst.player.bands-section">
@@ -211,38 +211,45 @@
                                        ItemsSource="{x:Bind ViewModel.Bands.Groups, Mode=OneWay}"
                                        Visibility="{x:Bind ViewModel.Bands.ShowGroups, Mode=OneWay, FallbackValue=Collapsed}">
                             <ItemsRepeater.Layout>
-                                <controls:LeaderboardsCardGridLayout MinColumnWidth="0" MaxColumns="1" Spacing="16" />
+                                <!-- Side by side like the Leaderboards Duos/Trios/Quads cards (issue #596), never virtualizing (#533). -->
+                                <controls:LeaderboardsCardGridLayout MinColumnWidth="360" ScaleWithText="True" MaxColumns="3" Spacing="16" />
                             </ItemsRepeater.Layout>
                             <ItemsRepeater.ItemTemplate>
                                 <DataTemplate x:DataType="vm:PlayerProfileBandGroup">
-                                    <!-- Named group: band cards repeat across groups, so each group is its own UIA parent. -->
+                                    <!-- Named group: band rows repeat across groups, so each group is its own UIA parent. -->
                                     <controls:AccessibleGroup AutomationProperties.Name="{x:Bind Title}">
                                         <StackPanel Spacing="8">
                                             <controls:CardHeader Title="{x:Bind Title}" HeadingLevel="Level3" MinHeight="44"
                                                                  TitleAutomationId="{x:Bind HeaderAutomationId}" />
-                                            <!-- Rows size to their tallest card (Trios and Quads cards list more members). -->
-                                            <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Cards}" Visibility="{x:Bind HasCards}"
-                                                           controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="120">
-                                                <ItemsRepeater.Layout>
-                                                    <controls:LeaderboardsCardGridLayout MinColumnWidth="320" MaxColumns="3" Spacing="12" />
-                                                </ItemsRepeater.Layout>
-                                                <ItemsRepeater.ItemTemplate>
-                                                    <DataTemplate x:DataType="vm:PlayerBandCardViewModel">
-                                                        <controls:BandCardView Card="{x:Bind}" />
-                                                    </DataTemplate>
-                                                </ItemsRepeater.ItemTemplate>
-                                            </ItemsRepeater>
+                                            <!--
+                                                One card per group (owner, issue #596; view-all-cta owner-approved variant): the band rows
+                                                with hairlines between them (RowSeparators), no band-size pill (the header names it), then
+                                                the shared purple View All Bands (N) when the group has more, as the Rivals hub cards.
+                                            -->
+                                            <Border Style="{StaticResource FSTRowsCardStyle}" Visibility="{x:Bind HasCards}">
+                                                <StackPanel>
+                                                    <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Cards}" controls:RowSeparators.Enabled="True"
+                                                                   controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="120">
+                                                        <ItemsRepeater.Layout>
+                                                            <controls:LeaderboardsCardGridLayout MinColumnWidth="0" MaxColumns="1" Spacing="0" />
+                                                        </ItemsRepeater.Layout>
+                                                        <ItemsRepeater.ItemTemplate>
+                                                            <DataTemplate x:DataType="vm:PlayerBandCardViewModel">
+                                                                <controls:BandCardView Card="{x:Bind}" />
+                                                            </DataTemplate>
+                                                        </ItemsRepeater.ItemTemplate>
+                                                    </ItemsRepeater>
+                                                    <Button Content="{x:Bind ViewAllText}" Tag="{x:Bind ViewAllRoute}" Click="OnBandsViewAllClick"
+                                                            Style="{StaticResource FSTViewAllButtonStyle}" Visibility="{x:Bind HasMore}"
+                                                            AutomationProperties.Name="{x:Bind ViewAllName}"
+                                                            AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
+                                                </StackPanel>
+                                            </Border>
                                             <!-- Empty group (web InstrumentEmptyState "No bands yet"). -->
                                             <controls:EmptyStateView IsCompact="True" Visibility="{x:Bind IsEmpty}"
                                                                      Title="{x:Bind vm:PlayerProfileBandGroup.EmptyTitle}"
                                                                      Subtitle="{x:Bind vm:PlayerProfileBandGroup.EmptySubtitle}"
                                                                      TitleAutomationId="{x:Bind EmptyAutomationId}" />
-                                            <!-- Frosted View All Bands (N) card (surface-materials R7), not the purple
-                                                 leaderboard CTA. -->
-                                            <controls:ViewAllCard Label="{x:Bind ViewAllText}" Tag="{x:Bind ViewAllRoute}" Click="OnBandsViewAllClick"
-                                                                  Visibility="{x:Bind HasMore}"
-                                                                  AutomationProperties.Name="{x:Bind ViewAllName}"
-                                                                  AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                         </StackPanel>
                                     </controls:AccessibleGroup>
                                 </DataTemplate>

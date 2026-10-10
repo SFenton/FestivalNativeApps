@@ -18,7 +18,6 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.dp
 import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -256,13 +255,7 @@ class SongsAccessibilityJourneyTest {
         h.waitForTag(if (sheet) "fst.quick-links.sheet" else "fst.quick-links.menu")
         val bass = "fst.quick-links.item.instrument-Solo_Bass"
         if (sheet) {
-            // A long sheet opens partially expanded; its drag handle's Expand action (TalkBack's path) raises it.
-            rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.Expand), useUnmergedTree = true)
-                .fetchSemanticsNodes().firstOrNull()?.let {
-                    rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.Expand), useUnmergedTree = true)[0]
-                        .performSemanticsAction(SemanticsActions.Expand)
-                }
-            rule.waitForIdle()
+            // The long sheet opens fully expanded (modal-shell R13, #586); its lower rows are reached by scrolling the list.
             h.scrollTo("fst.quick-links.list", bass)
         } else {
             rule.onNodeWithTag(bass).performScrollTo()
@@ -286,7 +279,7 @@ class SongsAccessibilityJourneyTest {
         h.assertTouchTarget("$config entry", "fst.quick-links.open")
 
         val order = h.readingOrder("song-detail-quick-links-jumped-$config", fresh = true)
-        // The entry sits in the top bar or, on phones, the floating toolbar read after the page.
+        // The entry sits in the shell's floating toolbar (#576), read after the page.
         assertTrue("$config: the entry does not name Bass: $order", order.any { it.startsWith("Quick Links, current section Bass") })
         val bassHeading = order.indexOfFirst { it == "Bass" || it.startsWith("Bass,") }
         assertTrue("$config: the landed Bass heading is not read: $order", bassHeading >= 0)
@@ -301,8 +294,9 @@ class SongsAccessibilityJourneyTest {
         ?.config?.getOrNull(SemanticsProperties.ContentDescription)?.joinToString(" ")
 
     /**
-     * Issue #169: switching Score History from Lead (two scores) to Bass (one) keeps the card's
+     * Issue #169: switching Score History from Lead (two scores) to Bass (one) keeps the graph's
      * size on the device, selects Bass, drops to one best-score row and stays accessible.
+     * Issue #588: the selector, chart and best scores are one card, read in that order.
      */
     @Test
     fun songDetailScoreHistorySwitchKeepsTheCardAndSelectsTheNewChart() {
@@ -310,18 +304,54 @@ class SongsAccessibilityJourneyTest {
         h.launch(DebugLaunch(profile = player, songQuery = "s-alpha", stillBackground = true), transport)
         h.scrollTo("fst.song-detail.list", "fst.song-detail.history.card")
         h.waitForTag("fst.song-detail.history.top.1")
-        fun card() = rule.onNodeWithTag("fst.song-detail.history.card").fetchSemanticsNode().size
-        val before = card()
-        h.readingOrder("song-detail-history-lead")
+        fun graph() = rule.onNodeWithTag("fst.song-detail.history.graph").fetchSemanticsNode().size
+        fun inCard(tag: String) = rule.onAllNodes(hasTestTag(tag) and hasAnyAncestor(hasTestTag("fst.song-detail.history.card"))).fetchSemanticsNodes().size == 1
+        listOf("fst.song-detail.history.chart", "fst.song-detail.history.top.0", "fst.song-detail.history.top.1").forEach {
+            assertTrue("$it inside the Score History card", inCard(it))
+        }
+        val before = graph()
+        val stops = h.readingStops("song-detail-history-lead").mapNotNull { it.id }
+        val order = listOf("fst.song-detail.history.chart", "fst.song-detail.history.top.0", "fst.song-detail.history.top.1").map { stops.indexOf(it) }
+        assertTrue("chart, then the best scores: $order", order.all { it >= 0 } && order == order.sorted())
         val compact = h.exists("fst.song-detail.history.instrument.compact")
         h.tap(if (compact) "fst.song-detail.history.instrument.next" else "fst.song-detail.history.instrument.Solo_Bass")
         rule.waitUntil(5_000) { !h.exists("fst.song-detail.history.top.1") }
         rule.waitForIdle()
-        assertEquals("Score History card size after the switch", before, card())
+        assertEquals("Score History graph size after the switch", before, graph())
         val bass = if (compact) "fst.song-detail.history.instrument.preview" else "fst.song-detail.history.instrument.Solo_Bass"
         rule.onNodeWithTag(bass).assertIsSelected().assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Bass")))
         h.waitForTag("fst.song-detail.history.top.0")
         h.readingOrder("song-detail-history-bass")
+        h.assertAccessible()
+    }
+
+    /**
+     * Issue #588 review (`view-all-cta` R4): with more than five Lead scores, View All Scores ends
+     * the Score History card after the five best-score rows, TalkBack reads it after them as one
+     * button named label first ("View All Scores, Lead Score History"), at least 48 dp tall; ATF
+     * over the card.
+     */
+    @Test
+    fun songDetailScoreHistoryViewAllScoresReadsLabelFirstAfterTheRows() {
+        transport.on("/api/player/${Fixtures.ACCOUNT_A}/history") { ProfileFixtures.longHistory() }
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(profile = player, songQuery = "s-alpha", stillBackground = true), transport)
+        h.scrollTo("fst.song-detail.list", "fst.song-detail.history.view-all")
+        h.waitForTag("fst.song-detail.history.top.4")
+        val cta = "fst.song-detail.history.view-all"
+        assertEquals(1, rule.onAllNodes(hasTestTag(cta) and hasAnyAncestor(hasTestTag("fst.song-detail.history.card"))).fetchSemanticsNodes().size)
+        assertTrue("five best scores only", !h.exists("fst.song-detail.history.top.5"))
+        rule.onNodeWithTag(cta).assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("View All Scores, Lead Score History")))
+        val min = with(rule.density) { 48.dp.toPx() } - 1
+        assertTrue(rule.onNodeWithTag(cta).fetchSemanticsNode().size.height >= min)
+        val stops = h.readingStops("song-detail-history-view-all")
+        val button = stops.indexOfFirst { it.id == cta }
+        assertTrue("View All Scores is a stop: ${stops.map { it.id to it.label }}", button >= 0)
+        assertEquals("View All Scores, Lead Score History", stops[button].label)
+        assertTrue(stops[button].isClickable)
+        val rows = (0 until 5).map { i -> stops.indexOfFirst { it.id == "fst.song-detail.history.top.$i" } }.filter { it >= 0 }
+        assertTrue("the last best score is read: $rows", stops.any { it.id == "fst.song-detail.history.top.4" })
+        assertTrue("rows in order, then View All Scores: $rows / $button", rows == rows.sorted() && rows.all { it < button })
         h.assertAccessible()
     }
 

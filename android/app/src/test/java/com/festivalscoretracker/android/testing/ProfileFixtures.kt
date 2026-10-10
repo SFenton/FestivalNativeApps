@@ -40,6 +40,18 @@ object ProfileFixtures {
     )
 
     /**
+     * Seven ranked Lead scores, so Lead shows both Top Five and Bottom Five Songs (issue #595),
+     * plus [defaultRows]' Bass row (a single list). The four extra song IDs are not in the
+     * catalogue, so their rows show the ID prefix as the web does.
+     */
+    val topAndBottomRows = defaultRows.take(3) + listOf(
+        score("s-delta", "01", rank = 40, total = 200),
+        score("s-epsilon", "01", rank = 60, total = 200),
+        score("s-zeta", "01", rank = 90, total = 200),
+        score("s-eta", "01", rank = 120, total = 200),
+    ) + defaultRows.drop(3)
+
+    /**
      * A 202 syncing body.
      *
      * @param account Account ID.
@@ -84,6 +96,21 @@ object ProfileFixtures {
           {"songId":"s-alpha","instrument":"Solo_Guitar","oldScore":700000,"newScore":850000,"oldRank":9,"newRank":4,"accuracy":991200,"isFullCombo":true,"stars":5,"season":40,"scoreAchievedAt":"2024-01-05T00:00:00Z","changedAt":"2024-01-05T00:00:00Z"},
           {"songId":"s-alpha","instrument":"Solo_Guitar","newScore":700000,"newRank":9,"accuracy":954500,"isFullCombo":false,"stars":4,"season":39,"changedAt":"2024-01-01T00:00:00Z"},
           {"songId":"s-alpha","instrument":"Solo_Bass","newScore":1,"newRank":1,"changedAt":"2024-01-02T00:00:00Z"}]}"""
+
+    /**
+     * A score-history body with more than five Lead scores for `s-alpha`, so Song Detail's Score
+     * History card ends with View All Scores.
+     *
+     * @param account Account ID.
+     * @param lead Lead rows (dated January 1st onward).
+     * @return JSON with [lead] Lead rows and one Bass row.
+     */
+    fun longHistory(account: String = Fixtures.ACCOUNT_A, lead: Int = 7): String {
+        val rows = (1..lead).map { day ->
+            """{"songId":"s-alpha","instrument":"Solo_Guitar","newScore":${700000 + day * 1000},"newRank":9,"accuracy":${950000 + day * 1000},"isFullCombo":false,"stars":5,"season":40,"changedAt":"2024-01-%02dT00:00:00Z"}""".format(day)
+        } + """{"songId":"s-alpha","instrument":"Solo_Bass","newScore":1,"newRank":1,"changedAt":"2024-01-02T00:00:00Z"}"""
+        return """{"accountId":"$account","count":${rows.size},"history":[${rows.joinToString(",")}]}"""
+    }
 
     /**
      * Register every profile route for [account] on a transport.

@@ -131,6 +131,10 @@ public static class GlobalSearchResults
     public const int SuggestedBands = 3;
     /// <summary>Shared automation ID of every band result card on the Search page.</summary>
     public const string BandResultId = "fst.global-search.result.band";
+    /// <summary>Shared automation ID of every band result card in the profile flyout (issue #600).</summary>
+    public const string ProfileBandResultId = "fst.profile.result.band";
+    /// <summary>Profile flyout field placeholder and name in every scope (web <c>search.placeholders.playersBands</c>).</summary>
+    public const string ProfilePlaceholder = "Search players or bands";
 
     /// <summary>Field placeholder naming every scope (web <c>search.placeholders.songsPlayersBands</c>).</summary>
     public const string Placeholder = "Search songs, players, or bands";
@@ -150,6 +154,8 @@ public static class GlobalSearchResults
     public const string NoResults = "No results found.";
     /// <summary>Players-only picker empty text (an empty envelope may be a server timeout, so Retry is offered).</summary>
     public const string NoPlayers = "No players found.";
+    /// <summary>Profile flyout Bands-scope empty text (web <c>search.noResults.bands</c>; Retry is offered).</summary>
+    public const string NoBands = "No bands found.";
     /// <summary>All-scope empty-state title (issue #99: centred title and subtitle, like the web <c>EmptyState</c>).</summary>
     public const string EmptyAllTitle = "No results found";
     /// <summary>All-scope empty-state subtitle.</summary>
@@ -339,6 +345,21 @@ public static class GlobalSearchResults
         0 => NoPlayers,
         { } p => Count(p, "player", "players"),
     };
+
+    /// <summary>
+    /// Polite announcement for the profile flyout (issue #600), which searches players and bands but no songs:
+    /// "3 players, 2 bands", "No results found." or which search failed.
+    /// </summary>
+    /// <param name="players">Player count, or <see langword="null"/> when the account search failed.</param>
+    /// <param name="bands">Band count, or <see langword="null"/> when the band search failed.</param>
+    /// <returns>Announcement text.</returns>
+    public static string ProfilesAnnouncement(int? players, int? bands)
+    {
+        if (players == 0 && bands == 0) return NoResults;
+        var playerText = players is { } p ? Count(p, "player", "players") : "player search failed";
+        var bandText = bands is { } b ? Count(b, "band", "bands") : "band search failed";
+        return $"{playerText}, {bandText}";
+    }
 
     /// <summary>Formats a count with its noun.</summary>
     /// <param name="count">Count.</param>

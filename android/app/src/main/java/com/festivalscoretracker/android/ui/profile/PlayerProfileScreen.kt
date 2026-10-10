@@ -297,13 +297,8 @@ private fun LoadedProfile(
                         LaunchedEffect(state.accountId) { viewModel.ensureBands() }
                         ProfileBandsHeading(state, bands, onRetry = viewModel::retryBands, onNavigate = shell.navigate)
                     }
-                    is ProfileRow.BandGroupHeader -> ProfileBandGroupHeader(row.group)
-                    is ProfileRow.BandCard -> Box(Modifier.festivalFadeIn(bandsRevealed, fadeInStagger(row.index))) {
-                        ProfileBandCard(row.entry, onNavigate = shell.navigate)
-                    }
-                    is ProfileRow.BandsEmpty -> Box(Modifier.festivalFadeIn(bandsRevealed)) { ProfileBandsEmpty(row.group) }
-                    is ProfileRow.BandsViewAll -> Box(Modifier.festivalFadeIn(bandsRevealed)) {
-                        ProfileBandsViewAll(state, row.group, row.total, onNavigate = shell.navigate)
+                    is ProfileRow.BandGroup -> Box(Modifier.festivalFadeIn(bandsRevealed, fadeInStagger(ProfileSections.BAND_GROUPS.indexOf(row.group).coerceAtLeast(0)))) {
+                        ProfileBandGroupSection(state, row, onNavigate = shell.navigate)
                     }
                 }
                 }

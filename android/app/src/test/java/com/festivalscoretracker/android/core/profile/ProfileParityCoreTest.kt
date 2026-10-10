@@ -276,23 +276,23 @@ class ProfileParityCoreTest {
             ProfileBandGroup(PlayerBandGroup.Quads, page(1, "q1")),
         )
         val rows = ProfileSections.rows(listOf(Instrument.Lead), bands = groups)
-        val bandKeys = rows.dropWhile { it != ProfileRow.Bands }.map { it.key }
-        assertEquals(
-            listOf(
-                "bands",
-                "bands:duos", "bands:duos:0:d1", "bands:duos:1:d2", "bands:duos:view-all",
-                "bands:trios", "bands:trios:empty",
-                "bands:quads", "bands:quads:0:q1",
-            ),
-            bandKeys,
-        )
-        // Cards fill grid columns like the web's `span: false`; headers, empty states and View all span the row.
-        assertEquals(
-            listOf(true, true, false, false, true, true, true, true, false),
-            rows.dropWhile { it != ProfileRow.Bands }.map { it.fullWidth },
-        )
-        assertEquals(ProfileRow.BandsViewAll(PlayerBandGroup.Duos, 8), rows.single { it is ProfileRow.BandsViewAll })
-        assertEquals(0, (rows.last() as ProfileRow.BandCard).index)
+        val bandRows = rows.dropWhile { it != ProfileRow.Bands }
+        // Owner #596: one row (one card) per group, in web order.
+        assertEquals(listOf("bands", "bands:duos", "bands:trios", "bands:quads"), bandRows.map { it.key })
+        // The heading spans the row; each group card takes one column, like the Top Songs cards.
+        assertEquals(listOf(true, false, false, false), bandRows.map { it.fullWidth })
+        val (duos, trios, quads) = bandRows.drop(1).map { it as ProfileRow.BandGroup }
+        assertEquals(listOf("d1", "d2"), duos.entries.map { it.bandId })
+        assertEquals(8, duos.total)
+        // Every card with rows ends with View All (`view-all-cta` R1), even when its rows are the whole group.
+        assertTrue(duos.showsViewAll)
+        assertTrue(quads.showsViewAll)
+        assertEquals(1, quads.total)
+        // "No Bands Yet" has no View All.
+        assertTrue(trios.entries.isEmpty())
+        assertFalse(trios.showsViewAll)
+        // A total below the rows shown never reads fewer bands than the card lists.
+        assertEquals(2, ProfileSections.bandRow(ProfileBandGroup(PlayerBandGroup.Duos, page(0, "d1", "d2"))).total)
         assertEquals(rows.size, rows.map { it.key }.toSet().size)
         assertEquals(listOf(PlayerBandGroup.Duos, PlayerBandGroup.Trios, PlayerBandGroup.Quads), ProfileSections.BAND_GROUPS)
         // Still loading or failed: only the heading row.

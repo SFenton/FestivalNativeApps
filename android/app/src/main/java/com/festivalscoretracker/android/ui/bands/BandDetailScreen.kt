@@ -55,7 +55,6 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -85,7 +84,8 @@ import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.isLargeText
-import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
+import com.festivalscoretracker.android.ui.common.StatTileGrid
+import com.festivalscoretracker.android.ui.common.StatTileText
 import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.common.rememberSingleColumn
 import com.festivalscoretracker.android.ui.design.GlassCard
@@ -332,38 +332,34 @@ private fun MembersSection(members: List<BandMember>, onNavigate: (AppRoute) -> 
 private fun StatGrid(stats: List<BandStat>, onNavigate: (AppRoute) -> Unit) {
     val fontScale = LocalDensity.current.fontScale
     val largeText = isLargeText()
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val columns = BandLayout.statColumns(maxWidth.value, fontScale, largeText)
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            stats.chunked(columns).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    row.forEach { stat ->
-                        GlassCard(
-                            Modifier
-                                .weight(1f)
-                                .heightIn(min = 72.dp)
-                                .testTag("fst.band.stat.${stat.id}")
-                                .semantics(mergeDescendants = true) { contentDescription = "${stat.label}, ${stat.value}" },
-                            onClick = stat.route?.let { { onNavigate(it) } },
-                        ) {
-                            Column(Modifier.padding(12.dp).clearAndSetSemantics { }) {
-                                Text(stat.label, style = MaterialTheme.typography.labelMedium, color = BrandTokens.textSecondary, maxLines = oneLineUnlessLarge(), overflow = TextOverflow.Ellipsis)
-                                Text(
-                                    stat.value,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (stat.route != null) BrandTokens.accentBlue else BrandTokens.textPrimary,
-                                    maxLines = oneLineUnlessLarge(),
-                                )
-                            }
-                        }
-                    }
-                    repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
-                }
+    val labelStyle = MaterialTheme.typography.labelMedium
+    val valueStyle = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+    // Shared stat-tile grid (pattern `stat-tile-grid`, #591): a card whose label or value
+    // would wrap in one slot spans two, every card takes the grid's height, and text that
+    // doesn't fit two slots wraps instead of ending in an ellipsis.
+    StatTileGrid(
+        stats,
+        columns = { BandLayout.statColumns(it, fontScale, largeText) },
+        texts = { stat -> listOf(StatTileText(stat.label, labelStyle), StatTileText(stat.value, valueStyle)) },
+        inset = BAND_STAT_INSET,
+    ) { stat, _, tileModifier ->
+        GlassCard(
+            tileModifier
+                .heightIn(min = 72.dp)
+                .testTag("fst.band.stat.${stat.id}")
+                .semantics(mergeDescendants = true) { contentDescription = "${stat.label}, ${stat.value}" },
+            onClick = stat.route?.let { { onNavigate(it) } },
+        ) {
+            Column(Modifier.padding(horizontal = BAND_STAT_INSET / 2, vertical = 12.dp).clearAndSetSemantics { }) {
+                Text(stat.label, style = labelStyle, color = BrandTokens.textSecondary)
+                Text(stat.value, style = valueStyle, color = if (stat.route != null) BrandTokens.accentBlue else BrandTokens.textPrimary)
             }
         }
     }
 }
+
+/** A Band Detail stat card's horizontal padding (both sides). */
+private val BAND_STAT_INSET = 24.dp
 
 @Composable
 private fun RankByMenu(metric: BandRankingMetric, options: List<BandRankingMetric>, onSelect: (BandRankingMetric) -> Unit) {
