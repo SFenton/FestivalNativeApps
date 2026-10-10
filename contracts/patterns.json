@@ -577,7 +577,8 @@
         312,
         321,
         343,
-        348
+        348,
+        557
       ]
     },
     {
@@ -768,7 +769,8 @@
         272,
         312,
         319,
-        381
+        381,
+        461
       ]
     },
     {
@@ -870,6 +872,14 @@
             "symbol": "SidebarMenu"
           },
           {
+            "path": "apple/Sources/FestivalUI/Common/InstrumentPageTitle.swift",
+            "symbol": "InstrumentPageTitle"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/InstrumentPageTitle.swift",
+            "symbol": "InstrumentPageTitleToolbarItem"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Common/Chrome/SearchDrawerTransitionFill.swift",
             "symbol": "SearchDrawerTransitionFill"
           },
@@ -924,6 +934,10 @@
           {
             "path": "windows/Festival.App/Themes/Styles.xaml",
             "symbol": "FSTMenuItemMinHeight"
+          },
+          {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "RadioButtonsRowSpacing"
           },
           {
             "path": "windows/Festival.App/Controls/WrapPanel.cs",
@@ -1011,7 +1025,8 @@
           "songs",
           "shop",
           "leaderboards",
-          "suggestions"
+          "suggestions",
+          "band-detail"
         ]
       },
       "supersedes": [],
@@ -1033,7 +1048,8 @@
         363,
         394,
         534,
-        544
+        544,
+        557
       ]
     },
     {
@@ -1326,6 +1342,10 @@
             "symbol": "SelectedScoreFooterRow"
           },
           {
+            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SelectedScoreFooterRow.swift",
+            "symbol": "pinnedFooterControl"
+          },
+          {
             "path": "apple/Sources/FestivalCore/SelectedRowNavigation.swift",
             "symbol": "SelectedRowAction"
           },
@@ -1348,6 +1368,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Compete/CompeteScreen.swift",
             "symbol": "CompetePreviewSpotlight"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Leaderboards/RankingsSupport.swift",
+            "symbol": "boardBottomChrome"
           },
           {
             "path": "apple/Sources/FestivalUI/Design/GlassSection.swift",
@@ -1505,6 +1529,14 @@
           "message": "Board pagination stays in the content under the board as RankingsPagerView, never as toolbar or rail items (leaderboard-row R5, #345)."
         },
         {
+          "id": "apple-pinned-footer-control",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "accessibilityIdentifier\\(\"fst\\.[a-z-]+\\.spotlight-footer\"\\)",
+          "allow": [],
+          "debt": [],
+          "message": "Pinned selected-row footers use pinnedFooterControl(identifier:) for the row button style (Mac focus ring, Return, hover), not their own button style (leaderboard-row R7, #461)."
+        },
+        {
           "id": "apple-name-owner",
           "glob": "apple/Sources/**/*.swift",
           "regex": "struct\\s+LeaderboardNameText\\b",
@@ -1602,7 +1634,8 @@
         364,
         370,
         381,
-        409
+        409,
+        461
       ]
     },
     {
@@ -1610,7 +1643,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; graph card lists run the web out/height/in list sequence and chart swaps keep the card's size; the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades; accordion-style reveals (owner-approved #561 variant) grow the height then fade the content in, and fade it out then collapse.",
+      "summary": "Initial loads use one gate, and page tools acting on the gated content appear with it; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; a board pager appears only once a loaded page count above one is known (never a placeholder 1 / 1, #575) and keeps the last count while reloading; graph card lists run the web out/height/in list sequence and chart swaps keep the card's size; the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades; accordion-style reveals (owner-approved #561 variant) grow the height then fade the content in, and fade it out then collapse.",
       "keywords": [
         "loading",
         "spinner",
@@ -1623,7 +1656,9 @@
         "graph card",
         "accordion",
         "expand",
-        "collapse"
+        "collapse",
+        "expander",
+        "disclosure"
       ],
       "web": [
         {
@@ -1816,6 +1851,18 @@
           {
             "path": "windows/Festival.App/Pages/SongDetailPage.xaml.cs",
             "symbol": "PauseScrollAnchoring"
+          },
+          {
+            "path": "windows/Festival.App/Controls/Accordion.cs",
+            "symbol": "Accordion"
+          },
+          {
+            "path": "windows/Festival.App/Controls/Accordion.cs",
+            "symbol": "AccordionMover"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/MotionPolicy.cs",
+            "symbol": "AccordionMotion"
           }
         ]
       },
@@ -1945,6 +1992,17 @@
           ],
           "debt": [],
           "message": "Accordion-style reveals go through the shared AccordionReveal / AccordionRevealOf (height, then fade in; fade out, then collapse; instant under reduced motion), never a local expand/shrink transition (load-transition R10, #561)."
+        },
+        {
+          "id": "windows-accordion",
+          "glob": "windows/Festival.App/**/*.cs",
+          "regex": "new\\s+AccordionMover\\s*\\(",
+          "allow": [
+            "windows/Festival.App/Controls/Accordion.cs",
+            "windows/Festival.App/Controls/InstrumentSelector.xaml.cs"
+          ],
+          "debt": [],
+          "message": "Every Expander gets the shared accordion motion from the implicit Expander style (Accordion.Sequenced); a custom disclosure panel that drives its own AccordionMover must be listed so its grow-then-fade timing stays shared (load-transition R10, #561)."
         }
       ],
       "related": {
@@ -1982,7 +2040,7 @@
       "title": "Empty and error states",
       "status": "current",
       "doc": ".agents/patterns/empty-error-states.md",
-      "summary": "Loading, empty, paused/unavailable and failed outcomes stay distinct: every empty page or region uses the shared centred title/subtitle empty state with no card and no Reset Filters or Retry button (only a prerequisite action such as Choose Profile); syncing, publication-paused and unavailable states use the shared unavailable status with Retry; one native loading indicator, exposed as a single named busy indicator; explicit unavailable messages without global-search Retry controls.",
+      "summary": "Loading, empty, paused/unavailable and failed outcomes stay distinct: every empty page or region uses the shared centred title/subtitle empty state with no card and no Reset Filters or Retry button (only a prerequisite action such as Choose Profile); syncing, publication-paused and unavailable states use the shared unavailable status with Retry; one native loading indicator, exposed as a single named busy indicator; explicit unavailable messages without global-search Retry controls; a score-update scrape freeze 503 for a URL the shared pinned-read client already verified in the same, still-current publication returns that kept body instead of the service status (R9, #554); cold reads, outages, non-score freezes and other publications still fail with Retry, and kept bodies are in-memory and byte-bounded.",
       "keywords": [
         "empty",
         "no results",
@@ -1998,7 +2056,12 @@
         "centred",
         "filtered empty",
         "paused",
-        "syncing"
+        "syncing",
+        "scrape freeze",
+        "scores are updating",
+        "best and worst songs",
+        "kept body",
+        "last published"
       ],
       "web": [
         {
@@ -2041,6 +2104,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ServiceStatus.kt",
             "symbol": "ServiceStatusView"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/data/FestivalApi.kt",
+            "symbol": "readPinnedResponse"
           }
         ],
         "windows": [
@@ -2132,7 +2199,9 @@
           "player-bands",
           "player-history",
           "statistics",
-          "bands"
+          "bands",
+          "band-detail",
+          "player-profile"
         ]
       },
       "supersedes": [],
@@ -2146,7 +2215,8 @@
         312,
         320,
         348,
-        377
+        377,
+        554
       ]
     },
     {
@@ -2381,7 +2451,8 @@
         "pages": [
           "player-profile",
           "leaderboards",
-          "song-detail"
+          "song-detail",
+          "band-detail"
         ]
       },
       "supersedes": [],
@@ -2425,7 +2496,8 @@
         317,
         324,
         342,
-        542
+        542,
+        580
       ],
       "web": [
         {
@@ -2633,6 +2705,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
             "symbol": "marqueeTitle"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
+            "symbol": "PinnedTitleSubtitle"
           }
         ],
         "windows": [
@@ -2704,7 +2780,8 @@
         317,
         342,
         363,
-        542
+        542,
+        580
       ]
     },
     {
@@ -3787,6 +3864,100 @@
       "issues": [
         541
       ]
+    },
+    {
+      "id": "rival-rows",
+      "title": "Rival rows",
+      "status": "current",
+      "doc": ".agents/patterns/rival-rows.md",
+      "summary": "Rows inside Rivals cards: the hub's rival rows and the song comparison rows on Rival Detail, Rivalry and the Duo category cards. One row component per kind on every surface, one shared red/green status capsule with text (readable red text), album art leading every song row through the shared ArtworkTile (art vertically centred alone, above the instrument icon when both, owner #558), one spoken element per row that names who leads, and pills that stack and wrap at accessibility sizes. Apple song rows show '#rank Name' pills for both sides, the leader green and the trailer red (agent decision #558, owner may override).",
+      "keywords": [
+        "rival",
+        "rivals",
+        "rival row",
+        "rival song row",
+        "rivalry",
+        "ahead",
+        "behind",
+        "pill",
+        "status pill",
+        "album art"
+      ],
+      "web": [
+        {
+          "path": "pages/rivals/components/RivalRow.tsx",
+          "symbol": "RivalRow"
+        },
+        {
+          "path": "pages/rivals/components/RivalSongRow.tsx",
+          "symbol": "RivalSongRow"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Rivals/RivalsSupport.swift",
+            "symbol": "RivalStatusPill"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Rivals/RivalsSupport.swift",
+            "symbol": "RivalRowContent"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Rivals/RivalsSupport.swift",
+            "symbol": "RivalSongRowContent"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Rivals/RivalsSupport.swift",
+            "symbol": "RivalSongStanding"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Rivals/RivalsSupport.swift",
+            "symbol": "RivalStatusText"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
+            "symbol": "RivalPill"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
+            "symbol": "RivalRow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
+            "symbol": "RivalSongRow"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/RivalsResources.xaml",
+            "symbol": "FSTRivalPillStyle"
+          },
+          {
+            "path": "windows/Festival.App/Controls/RivalRowView.xaml",
+            "symbol": "RivalRowView"
+          },
+          {
+            "path": "windows/Festival.App/Controls/RivalSongRowView.xaml",
+            "symbol": "RivalSongRowView"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "surface-materials",
+          "view-all-cta"
+        ],
+        "pages": [
+          "rivals",
+          "all-rivals",
+          "rival-detail",
+          "rivalry"
+        ]
+      },
+      "guards": []
     }
   ]
 }

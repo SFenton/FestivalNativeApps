@@ -29,7 +29,7 @@ Cover what the change touches:
 | Target size | Interactive elements meet the platform minimum (Apple 44 pt, Android 48 dp, Windows 40 epx touch / keyboard reachable) |
 | Text scaling | At the largest size (Apple AX5, Android 200% font, Windows 225% text) text grows, isn't clipped, and actions stay reachable |
 | Motion, transparency, contrast | Reduce Motion / Reduce Transparency paths when the change animates or uses materials; rendered contrast for text over artwork |
-| Keyboard (macOS, iPad, Windows) | New actions are reachable and operable by keyboard |
+| Keyboard (macOS, iPad, Windows) | New actions are reachable and operable by keyboard. Apple: CI cannot give a SwiftUI button Tab focus (hosted macOS tests ignore a forced Full Keyboard Access flag; FKA does not turn on in the iPad simulator, #461), so a hosted test activates the control through AXPress and the control uses the shared focusable style (`festivalRowButtonStyle()`, `pinnedFooterControl`), held by a pattern guard; list arrow keys are hosted `NSWindow.sendEvent` tests (`MacKeyboardNavigationTests`) |
 
 Where to write them:
 

@@ -122,7 +122,8 @@ struct PlayerBandsScreen: View {
                         )
                         // Pinned below the rows (as the Solo leaderboard does): inside the
                         // reload gate's ZStack a sibling pager floated over mid-list rows.
-                        .safeAreaInset(edge: .bottom, spacing: 0) {
+                        // Read after the cards (#461).
+                        .boardBottomChrome {
                             RankingsPagerView(
                                 page: page,
                                 totalPages: payload.list.pageCount(pageSize: 25),

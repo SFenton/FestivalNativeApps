@@ -288,8 +288,9 @@ struct FullRankingsScreen: View {
         .wideColumnsCount($columns)
         // The shared Song Leaderboard pager and the player's footer, pinned outside the
         // reload gate so both stay put while only the rows fade (issue #294; a bottom
-        // safe-area inset for the same tab-bar reason as `SoloLeaderboardScreen`).
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        // safe-area inset for the same tab-bar reason as `SoloLeaderboardScreen`), read
+        // after the rows (#461).
+        .boardBottomChrome {
             bottomChrome
         }
         // `/duo` J2 (operator, 2026-10-02): a narrow board (folded Duo, a split column,
@@ -312,7 +313,7 @@ struct FullRankingsScreen: View {
             #if os(iOS)
             // The iPhone Duo vertical bar minimizes its top bar on scroll, so a custom
             // title would leave when due; the system title stays there (R14).
-            if !layout.sectionChrome.isVerticalBar {
+            if InstrumentPageTitleToolbarItem.pinsTitle(in: layout.sectionChrome) {
                 InstrumentPageTitleToolbarItem(
                     instrument: instrument, title: Self.title(for: instrument), isShown: showsPinnedTitle,
                     identifier: "fst.full-rankings.pinned-title"
@@ -559,10 +560,7 @@ struct FullRankingsScreen: View {
                 .accessibilityIdentifier("fst.full-rankings.spotlight-jump")
             }
         }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 16)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("fst.full-rankings.spotlight-footer")
+        .pinnedFooterControl(identifier: "fst.full-rankings.spotlight-footer")
     }
 
     /// Read the selected player's own row on this instrument's board.

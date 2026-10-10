@@ -80,6 +80,7 @@ import com.festivalscoretracker.android.core.bands.BandRankingMetric
 import com.festivalscoretracker.android.core.rankings.RankingFormatting
 import com.festivalscoretracker.android.core.rankings.RankingMetric
 import com.festivalscoretracker.android.core.rankings.RankingNavigation
+import com.festivalscoretracker.android.core.rankings.RankingPaging
 import com.festivalscoretracker.android.core.rankings.asRankingMetric
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
@@ -634,14 +635,19 @@ fun SpotlightUnrankedRow(message: String, tag: String) {
  * chrome. Both are [GlassCard]s, the rows' own surface (issue #319). The page text is a polite live region ("Page 2 of 34,760"); First/Last
  * collapse on very narrow windows. Every target is at least 48 dp.
  *
+ * It draws nothing until the board's page count is known and nothing for a single page
+ * (web `hasPagination = !!data && totalPages > 1`; load-transition R4, issue #575), so no
+ * board ever shows or announces a placeholder "1 / 1" while its first page loads.
+ *
  * @param page Current one-based page.
- * @param totalPages Page count.
+ * @param totalPages The last loaded board's page count, or null before any board has loaded.
  * @param idPrefix Test-tag prefix (`fst.full-rankings`, …).
  * @param onChange Page change.
  * @param modifier Modifier.
  */
 @Composable
-fun RankingsPager(page: Int, totalPages: Int, idPrefix: String, onChange: (Int) -> Unit, modifier: Modifier = Modifier) {
+fun RankingsPager(page: Int, totalPages: Int?, idPrefix: String, onChange: (Int) -> Unit, modifier: Modifier = Modifier) {
+    if (totalPages == null || !RankingPaging.showsPager(totalPages)) return
     val grouping = remember { NumberFormat.getIntegerInstance() }
     // Five 48 dp buttons and the label need ~370 dp: First/Last drop below 400 dp windows.
     val showEnds = LocalConfiguration.current.screenWidthDp >= 400
