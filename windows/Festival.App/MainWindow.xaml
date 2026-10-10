@@ -21,8 +21,19 @@
                   IsBackButtonVisible="True" IsPaneToggleButtonVisible="True"
                   BackRequested="OnBackRequested" PaneToggleRequested="OnPaneToggleRequested"
                   AutomationProperties.AutomationId="fst.shell.title-bar">
+            <!-- Issue #536: the template centres Content and RightHeader, so their passthrough rects were only as tall as the
+                 32-epx box and 40-epx buttons, and TitleBar's whole-pixel truncation left their bottom pixel row in the drag
+                 region at 100% scale (a press there dragged the window). Both now stretch to the title-bar row; the controls
+                 stay centred inside passthrough strips that span the full title-bar height. -->
+            <TitleBar.Resources>
+                <VerticalAlignment x:Key="TitleBarContentVerticalAlignment">Stretch</VerticalAlignment>
+                <VerticalAlignment x:Key="TitleBarRightHeaderVerticalAlignment">Stretch</VerticalAlignment>
+            </TitleBar.Resources>
             <!-- Global search (fst.global-search.*, MainWindow.Search.cs): centred box at >= 720 epx, button below. -->
             <TitleBar.Content>
+                <!-- IsDragRegion=False makes the host (the box's width, the full title-bar height) one passthrough rect;
+                     otherwise TitleBar finds the AutoSuggestBox itself and passes through only its 32 epx. -->
+                <Grid x:Name="GlobalSearchBoxHost" HorizontalAlignment="Center" TitleBar.IsDragRegion="False">
                 <AutoSuggestBox x:Name="GlobalSearchBox" controls:PopupHosting.InWindow="True" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="240" MaxWidth="580"
                                 QueryIcon="Find" PlaceholderText="Search songs, players, or bands" UpdateTextOnSelect="False"
                                 ToolTipService.ToolTip="Search songs, players and bands (Ctrl+E)"
@@ -50,9 +61,10 @@
                         </DataTemplate>
                     </AutoSuggestBox.ItemTemplate>
                 </AutoSuggestBox>
+                </Grid>
             </TitleBar.Content>
             <TitleBar.RightHeader>
-                <StackPanel x:Name="TitleBarRightHeader" Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel x:Name="TitleBarRightHeader" Orientation="Horizontal" VerticalAlignment="Stretch">
                 <Button x:Name="GlobalSearchButton" Visibility="Collapsed" Padding="8" Background="Transparent" BorderThickness="0"
                         MinWidth="{StaticResource FSTMinTargetSize}" MinHeight="{StaticResource FSTMinTargetSize}"
                         VerticalAlignment="Center" ToolTipService.ToolTip="Search songs, players and bands (Ctrl+E)"

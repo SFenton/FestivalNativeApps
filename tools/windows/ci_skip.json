@@ -1,41 +1,5 @@
 {
   "a11y_pages": {
-    "hit-titlebar-box": {
-      "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
-      "issue": "SFenton/festival-report-tracker#536"
-    },
-    "hit-titlebar-button": {
-      "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
-      "issue": "SFenton/festival-report-tracker#536"
-    },
-    "hit-titlebar-transitions": {
-      "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
-      "issue": "SFenton/festival-report-tracker#536"
-    },
-    "narr-titlebar-box": {
-      "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
-      "issue": "SFenton/festival-report-tracker#536"
-    },
-    "narr-titlebar-button": {
-      "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
-      "issue": "SFenton/festival-report-tracker#536"
-    },
-    "narr-titlebar-swap": {
-      "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
-      "issue": "SFenton/festival-report-tracker#536"
-    },
-    "press-titlebar-box": {
-      "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
-      "issue": "SFenton/festival-report-tracker#536"
-    },
-    "press-titlebar-button": {
-      "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
-      "issue": "SFenton/festival-report-tracker#536"
-    },
-    "press-titlebar-transitions": {
-      "reason": "Title-bar search/profile page fails (stale name after #320, focus, or title-bar hit test)",
-      "issue": "SFenton/festival-report-tracker#536"
-    },
     "qlj-profile-menu": {
       "reason": "Flaky at 225% text: Quick Links current section read before the jump settles",
       "issue": "SFenton/festival-report-tracker#548"

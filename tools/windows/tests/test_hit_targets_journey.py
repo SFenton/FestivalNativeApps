@@ -31,7 +31,7 @@ _LIVE_PRESSED = {"fst.global-search.open"}
 # The distinct result each press must assert next (first steps after the press), so a press that lands on the
 # window or the title-bar drag region instead of the control fails.
 _OUTCOMES = {
-    "fst.global-search.open": ("waitfor:id=fst.global-search.field@", "assertfocus:name=Search songs and players@"),
+    "fst.global-search.open": ("waitfor:id=fst.global-search.field@", "assertfocus:name=Search songs, players and bands@"),
     "fst.shell.profile": ("waitfor:id=fst.profile.search@", "waitfor:id=fst.player.name@"),
     "fst.shell.notifications": ("waitfor:id=fst.notifications.sheet@",),
     "fst.songs.sort": ("waitfor:id=fst.songs.sort.mode@",),
