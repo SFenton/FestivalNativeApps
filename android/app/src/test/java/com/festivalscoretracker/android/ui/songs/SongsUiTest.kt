@@ -41,6 +41,8 @@ import com.festivalscoretracker.android.testing.ProfileFixtures
 import com.festivalscoretracker.android.testing.SongsFixtures
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -249,6 +251,42 @@ class SongsUiTest {
         click("fst.paths.close")
         settle()
 
+    }
+
+    @Test
+    fun songDetailPageToolsWaitForTheLoadGate() {
+        // Issue #585: Paths showed in the toolbar while the page still showed its spinner.
+        var hold = CompletableDeferred<Unit>()
+        val transport = transport().apply { beforeRespond = { request -> if ("/api/leaderboard/" in request.url) hold.await() } }
+        val prefs = InMemoryPreferences(mutablePreferencesOf(stringPreferencesKey(SettingsRegistry.VISIBLE_INSTRUMENTS) to "Solo_Guitar,Solo_Drums"))
+        val debug = DebugLaunch(songQuery = "s-alpha", stillBackground = true)
+        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = prefs)
+        rule.setContent { FestivalApp(container, debug) }
+        waitForTag("fst.load-gate.spinner")
+        settle(1_000)
+        rule.onNodeWithTag("fst.load-gate.spinner").assertExists()
+        assertEquals(0, rule.onAllNodesWithTag("fst.song-detail.paths.open").fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag("fst.quick-links.open").fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag("fst.song-detail.shop", useUnmergedTree = true).fetchSemanticsNodes().size)
+
+        // Paths appears with the revealed page, Quick Links and the Item Shop action.
+        hold.complete(Unit)
+        waitForTag("fst.song-detail.paths.open")
+        rule.onNodeWithTag("fst.song-detail.paths.open").assertContentDescriptionEquals("View Paths")
+        rule.onNodeWithTag("fst.quick-links.open").assertExists()
+        waitForTag("fst.song-detail.shop", unmerged = true)
+
+        // A reload (a newly visible chart's preview) keeps the shown page and its tools up.
+        hold = CompletableDeferred()
+        val before = transport.requests.size
+        runBlocking { container.settings.update { it.copy(visibleInstruments = it.visibleInstruments + Instrument.Vocals) } }
+        rule.waitUntil(5_000) { settle(100); transport.requests.drop(before).any { "/api/leaderboard/s-alpha/Solo_Vocals" in it.url } }
+        settle()
+        assertEquals(0, rule.onAllNodesWithTag("fst.load-gate.spinner").fetchSemanticsNodes().size)
+        rule.onNodeWithTag("fst.song-detail.paths.open").assertExists()
+        rule.onNodeWithTag("fst.quick-links.open").assertExists()
+        hold.complete(Unit)
+        settle()
     }
 
     @Test
