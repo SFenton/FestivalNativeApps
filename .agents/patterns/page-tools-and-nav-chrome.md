@@ -62,6 +62,10 @@ Navigation preserves location; page tools act on the current content. The web is
 | Search drawer during push/pop (R19) | `apple/Sources/FestivalUI/Features/Songs/SongsBottomFilterField.swift` `SongsSystemFilterField`; `apple/Sources/FestivalUI/Common/Chrome/SearchDrawerTransitionFill.swift` `SearchDrawerTransitionFill` | — | — |
 | Page bar title marquee (R21, #597) | — (system navigation title, R14) | `android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt` `FestivalBarTitle` | — |
 
+### Agent decision: Android combo Full Rankings title (#602)
+
+Agent decision (#602, 2026-10-10; owner may override with `/choose`). R18 keeps a plain title on lists spanning several charts, but the combo Full Rankings board is the exception the web draws: `FullRankingsPage` `renderPageTitle` shows the combo's instrument icons in a row as its title. Options: **A.** a plain "Lead + Bass + Drums + Tap Vocals Leaderboards" title (R18's multi-chart rule, least churn); **B. (chosen)** the combo's charts as one decorative icon row in `FestivalScreen(titleIcon = …)` before the bar title, each icon the title line's size, like a single chart's icon (#294); **C.** the icon row as a content heading above the rows (Apple's `InstrumentPageTitle(instruments:)` layout), which would add a second title to Android's one-bar-title rule. **Chose B:** web behavior beats an undocumented native copy and matches Apple's combo board, while staying in native chrome (one M3 small top app bar title; Material 3 top app bar: "Use when: Every screen needs a title and optional actions", should). The row is decorative, so TalkBack reads the title once, and since #597 an overflowing title marquees beside it (R21). Test tag `fst.full-rankings.title-icon.<comboHex>`; tests `CompeteUiTest.competeHasNoOverviewButtonAndEachBoardOpensItsFullRankings`, `journeys/CompeteComboBoardAccessibilityJourneyTest`.
+
 ## Known debt
 
 | Debt | Breaks | Plan |
