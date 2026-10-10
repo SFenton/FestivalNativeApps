@@ -65,6 +65,41 @@ enum ShopRowPolicy {
     }
 }
 
+/// The Item Shop's only visible status glyph: the red Leaving Tomorrow clock circle
+/// (web `SongRow` `leavingCircleMobile`, `IoTimerOutline`). Callers add its label and ID.
+struct ShopLeavingIndicator: View {
+    var body: some View {
+        Image(systemName: "clock")
+            .font(.subheadline)
+            .foregroundStyle(FestivalText.primary)
+            .frame(minWidth: 30, minHeight: 30)
+            .background(BrandTokens.statusRed, in: Circle())
+    }
+}
+
+/// Invisible carrier of the Item Shop "New" state on Songs rows, Shop list rows and
+/// Shop grid cards.
+///
+/// The web marks a New song only with the gold outline (`shopHighlightGold`; no chip in
+/// `SongRow` or `ShopCard`), so no visible New chip or symbol is drawn (operator
+/// 2026-09-28 for Songs; issue #562 for the Shop). This 1 pt clear element keeps the
+/// state for VoiceOver, combined into its row, and the stable test identifier.
+/// HIG Color: "Avoid relying solely on color … also convey it another way, like text
+/// labels".
+struct ShopNewStatusMarker: View {
+    /// Spoken state, e.g. "New" or "Item Shop: New".
+    let label: String
+    /// Registered accessibility identifier.
+    let identifier: String
+
+    var body: some View {
+        Color.clear
+            .frame(width: 1, height: 1)
+            .accessibilityLabel(label)
+            .accessibilityIdentifier(identifier)
+    }
+}
+
 // MARK: - Song row
 
 /// The one Song row shared by Songs, the Item Shop list and first-run demos: art,
@@ -354,55 +389,34 @@ struct SongRowView: View {
     }
 
     @ViewBuilder private var shopBadge: some View {
-        if shopHighlight == .new {
-            // No visible "New" chip (operator, 2026-09-28): the row's gold outline marks
-            // it. VoiceOver still hears "Item Shop: New" through the combined row.
-            Color.clear
-                .frame(width: 1, height: 1)
-                .accessibilityLabel("Item Shop: \(ShopHighlight.new.label)")
+        switch shopHighlight {
+        case .new:
+            ShopNewStatusMarker(
+                label: "Item Shop: \(ShopHighlight.new.label)",
+                identifier: "fst.songs.shop-badge.\(song.songId)"
+            )
+        case .leavingTomorrow:
+            ShopLeavingIndicator()
+                .accessibilityLabel("Item Shop: \(ShopHighlight.leavingTomorrow.label)")
                 .accessibilityIdentifier("fst.songs.shop-badge.\(song.songId)")
-        } else if let shopHighlight {
-            Image(systemName: shopHighlight == .leavingTomorrow
-                ? "clock" : "sparkles")
-                .font(.subheadline)
-                .foregroundStyle(
-                    shopHighlight == .leavingTomorrow
-                        ? FestivalText.primary : BrandTokens.gold
-                )
-                .frame(minWidth: 30, minHeight: 30)
-                .background(
-                    shopHighlight == .leavingTomorrow
-                        ? BrandTokens.statusRed : BrandTokens.appBackground,
-                    in: Circle()
-                )
-                .accessibilityLabel("Item Shop: \(shopHighlight.label)")
-                .accessibilityIdentifier("fst.songs.shop-badge.\(song.songId)")
+        case nil:
+            EmptyView()
         }
     }
 
-    /// Item Shop trailing content: the visible New / Leaving Tomorrow badge, the slot
-    /// the Shop overlays its official bag link on, then the Detail chevron (PWA gap #17).
+    /// Item Shop trailing content: the Leaving Tomorrow clock, the slot the Shop
+    /// overlays its official bag link on, then the Detail chevron (PWA gap #17). New
+    /// draws nothing here (web `SongRow` adds an indicator only for Leaving Tomorrow;
+    /// issue #562): its invisible marker sits on the leading edge, outside the layout.
     ///
     /// - Parameter offer: Shop decoration for this row.
-    /// - Returns: Badge, bag reserve and chevron in web order.
+    /// - Returns: Leaving clock, bag reserve and chevron in web order.
     private func shopOfferTrailing(_ offer: SongRowShopOffer) -> some View {
         HStack(spacing: ShopRowMetrics.spacing) {
-            if let highlight = offer.highlight {
-                let leaving = highlight == .leavingTomorrow
-                Image(systemName: leaving ? "clock" : "sparkles")
-                    .font(.subheadline)
-                    .foregroundStyle(leaving ? FestivalText.primary : BrandTokens.gold)
-                    .frame(minWidth: 30, minHeight: 30)
-                    .background(
-                        leaving ? BrandTokens.statusRed : BrandTokens.appBackground,
-                        in: Circle()
-                    )
-                    .accessibilityLabel(highlight.label)
-                    .accessibilityIdentifier(
-                        leaving
-                            ? "fst.shop.badge.leaving.\(song.songId)"
-                            : "fst.shop.badge.new.\(song.songId)"
-                    )
+            if offer.highlight == .leavingTomorrow {
+                ShopLeavingIndicator()
+                    .accessibilityLabel(ShopHighlight.leavingTomorrow.label)
+                    .accessibilityIdentifier("fst.shop.badge.leaving.\(song.songId)")
             }
             if offer.reservesBag {
                 Color.clear
@@ -415,6 +429,14 @@ struct SongRowView: View {
                     .foregroundStyle(FestivalText.deemphasized)
                     .frame(width: ShopRowMetrics.chevronWidth)
                     .accessibilityHidden(true)
+            }
+        }
+        .overlay(alignment: .leading) {
+            if offer.highlight == .new {
+                ShopNewStatusMarker(
+                    label: ShopHighlight.new.label,
+                    identifier: "fst.shop.badge.new.\(song.songId)"
+                )
             }
         }
     }

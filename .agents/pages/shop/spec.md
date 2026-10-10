@@ -19,7 +19,7 @@ Source: `FortniteFestivalWeb/src/pages/shop/ShopPage.tsx:41-190`, `src/pages/sho
 
 | State / dependency | Web behavior |
 |---|---|
-| Populated | Title-sorted offers (web today; natives: the saved Sort, see below), New / Leaving Tomorrow badges, original cover art |
+| Populated | Title-sorted offers (web today; natives: the saved Sort, see below), gold New / red Leaving Tomorrow outlines (only Leaving Tomorrow adds a visible indicator, [shop-offer-status](../../patterns/shop-offer-status.md), #562), original cover art |
 | Narrow / wide | Compact external-link rows vs full-bleed artwork grid; wide list/grid preference |
 | Empty vs error | Genuine empty message (shared centred empty state, no card: [empty-error-states](../../patterns/empty-error-states.md) R8) vs fetch failure (never interchangeable) |
 | Hide / highlight | Hide Shop removes nav and effective highlights, retaining the saved preference |

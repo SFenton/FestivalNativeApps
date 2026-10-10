@@ -149,6 +149,33 @@ func shopFixtureBytes() throws -> (offers: Data, catalogue: Data) {
     )
 }
 
+/// Whether a sample is the gold of a New offer's border: the list row's goldStroke
+/// pulse held at 0.7 over the card, or the grid card's full gold stroke. A New offer has
+/// no gold glyph since issue #562, so its border is the only gold on a Shop page.
+func shopNewGold(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat) -> Bool {
+    r > 0.6 && g > 0.5 && b < 0.35 && g < r
+}
+
+/// Whether a sample is the red of a Leaving Tomorrow offer's border, clock or pill.
+func shopLeavingRed(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat) -> Bool {
+    r > 0.5 && g < 0.3 && b < 0.35
+}
+
+/// Sampled New-gold and Leaving-red pixels of a Shop capture.
+///
+/// - Parameter image: Native AppKit capture.
+/// - Returns: Gold (New border) and red (Leaving Tomorrow) sample counts.
+@MainActor
+func shopStatusPixels(_ image: CGImage) -> (gold: Int, red: Int) {
+    var gold = 0
+    var red = 0
+    nativeHostedForEachSample(image) { r, g, b in
+        if shopNewGold(r, g, b) { gold += 1 }
+        if shopLeavingRed(r, g, b) { red += 1 }
+    }
+    return (gold, red)
+}
+
 /// Host real List, grid and accessibility-size rows with both official offer states.
 @MainActor
 @Test func shopScreenPaintsValidatedPopulatedLayouts() async throws {
@@ -187,10 +214,10 @@ func shopFixtureBytes() throws -> (offers: Data, catalogue: Data) {
         #expect(window?.isVisible != true)
         var painted: CGImage?
         var lastImage: CGImage?
-        var lastAccents = (gold: 0, green: 0, red: 0)
+        var lastAccents = (gold: 0, red: 0)
         for _ in 0..<30 {
             let image = try nativeHostedImage(host)
-            let accents = nativeHostedStatusPixels(image)
+            let accents = shopStatusPixels(image)
             lastImage = image
             lastAccents = accents
             if accents.red > 10 && (typeSize.isAccessibilitySize || accents.gold > 10) {

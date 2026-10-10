@@ -3862,6 +3862,124 @@
       ]
     },
     {
+      "id": "shop-offer-status",
+      "title": "Item Shop offer status",
+      "status": "current",
+      "doc": ".agents/patterns/shop-offer-status.md",
+      "summary": "New and Leaving Tomorrow on Songs rows, Item Shop list rows, Item Shop grid cards and first-run demo rows: New is the gold outline alone with no chip, pill or sparkles glyph (operator 2026-09-28 for Songs; #562 for the Shop), only Leaving Tomorrow gets a visible indicator (red clock circle or pill, before the bag and chevron), and both states stay in the row or card's accessible name. Highlighting off or a hidden Shop shows no state.",
+      "keywords": [
+        "item shop",
+        "new",
+        "leaving tomorrow",
+        "shop badge",
+        "shop highlight",
+        "sparkles",
+        "gold outline",
+        "shop pill"
+      ],
+      "web": [
+        {
+          "path": "pages/songs/components/SongRow.tsx",
+          "symbol": "leavingCircleMobile"
+        },
+        {
+          "path": "pages/songs/components/SongRow.tsx",
+          "symbol": "shopHighlightGold"
+        },
+        {
+          "path": "pages/shop/ShopPage.tsx",
+          "symbol": "shopHighlightGold"
+        },
+        {
+          "path": "pages/shop/components/ShopCard.tsx",
+          "symbol": "leavingTomorrowPill"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongRowView.swift",
+            "symbol": "ShopNewStatusMarker"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongRowView.swift",
+            "symbol": "ShopLeavingIndicator"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Shop/ShopScreen.swift",
+            "symbol": "offerBadge"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/ShopCatalog.swift",
+            "symbol": "ShopPresentationPolicy"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/shop/ShopScreen.kt",
+            "symbol": "ShopBadgeLabel"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/shop/ShopScreen.kt",
+            "symbol": "ShopListRow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongRow.kt",
+            "symbol": "shopBadgeIcon"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.Core/ViewModels/ShopViewModel.cs",
+            "symbol": "ShowsPill"
+          },
+          {
+            "path": "windows/Festival.App/Pages/ShopPage.xaml.cs",
+            "symbol": "ApplyBadge"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "catalogue-sort"
+        ],
+        "pages": [
+          "songs",
+          "shop"
+        ],
+        "controls": [
+          "shop-offers",
+          "first-run"
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-shop-new-glyph",
+          "glob": "apple/Sources/FestivalUI/Features/Shop/**/*.swift",
+          "regex": "\"sparkles\"",
+          "allow": [],
+          "debt": [],
+          "message": "Item Shop New is the gold outline alone; no sparkles glyph or New pill (shop-offer-status R1, #562). Use ShopNewStatusMarker for the spoken state."
+        },
+        {
+          "id": "apple-songrow-new-glyph",
+          "glob": "apple/Sources/FestivalUI/Features/Songs/**/*.swift",
+          "regex": "\"sparkles\"",
+          "allow": [],
+          "debt": [],
+          "message": "Songs/Shop rows draw no New glyph (shop-offer-status R1); only ShopLeavingIndicator is visible (R2)."
+        },
+        {
+          "id": "android-new-glyph",
+          "glob": "android/app/src/main/java/com/festivalscoretracker/android/ui/shop/**/*.kt",
+          "regex": "AutoAwesome|ShopBadgeLabel\\(ShopHighlight\\.New",
+          "allow": [],
+          "debt": [],
+          "message": "Android Item Shop New has no visible badge or sparkle (shop-offer-status R1, #562); TalkBack hears it through stateDescription (R3)."
+        }
+      ]
+    },
+    {
       "id": "rival-rows",
       "title": "Rival rows",
       "status": "current",

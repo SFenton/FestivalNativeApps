@@ -724,7 +724,7 @@ struct ShopScreen: View {
                 }
             }
             .festivalRowButtonStyle()
-            .accessibilityLabel("\(offer.title), \(offer.artist), Open Official Item Shop")
+            .accessibilityLabel(cardAccessibilityLabel(offer))
             .accessibilityIdentifier("fst.shop.external.\(offer.songId)")
             .contextMenu {
                 // A NavigationLink inside a context menu does not push; the root's
@@ -758,36 +758,48 @@ struct ShopScreen: View {
         }
     }
 
-    /// The grid card's labelled New / Leaving Tomorrow pill (list rows use the shared
-    /// Song row's badge).
+    /// The grid card's labelled Leaving Tomorrow pill (list rows use the shared Song
+    /// row's clock). New has no visible pill, like the web `ShopCard` whose gold outline
+    /// alone marks it (issue #562); an invisible marker keeps its test identifier.
     ///
     /// - Parameter offer: Upstream New or Leaving Tomorrow state.
-    /// - Returns: Optional visible and accessible Shop badge.
+    /// - Returns: Optional visible Leaving pill or the invisible New marker.
     @ViewBuilder
     private func offerBadge(_ offer: ShopSong) -> some View {
-        if let highlight = ShopPresentationPolicy.highlight(
+        switch ShopPresentationPolicy.highlight(
             for: offer, hidden: hideShop, highlightingDisabled: disableHighlights
         ) {
-            let leaving = highlight == .leavingTomorrow
-            let title = highlight.label
+        case .leavingTomorrow:
             HStack(spacing: 4) {
-                Image(systemName: leaving ? "clock" : "sparkles")
-                Text(title)
+                Image(systemName: "clock")
+                Text(ShopHighlight.leavingTomorrow.label)
             }
             .font(.caption.bold())
-            .foregroundStyle(leaving ? FestivalText.primary : BrandTokens.gold)
+            .foregroundStyle(FestivalText.primary)
             .padding(6)
-            .background(
-                leaving ? BrandTokens.statusRed : BrandTokens.appBackground,
-                in: Capsule()
+            .background(BrandTokens.statusRed, in: Capsule())
+            .accessibilityLabel(ShopHighlight.leavingTomorrow.label)
+            .accessibilityIdentifier("fst.shop.badge.leaving.\(offer.songId)")
+        case .new:
+            ShopNewStatusMarker(
+                label: ShopHighlight.new.label,
+                identifier: "fst.shop.badge.new.\(offer.songId)"
             )
-            .accessibilityLabel(title)
-            .accessibilityIdentifier(
-                leaving
-                    ? "fst.shop.badge.leaving.\(offer.songId)"
-                    : "fst.shop.badge.new.\(offer.songId)"
-            )
+        case nil:
+            EmptyView()
         }
+    }
+
+    /// The grid card's spoken name: title, artist, Shop state (so New and Leaving
+    /// Tomorrow are never colour alone) and what the card opens.
+    ///
+    /// - Parameter offer: Current Shop offer.
+    /// - Returns: For example "Song, Artist, New, Open Official Item Shop".
+    private func cardAccessibilityLabel(_ offer: ShopSong) -> String {
+        let state = ShopPresentationPolicy.highlight(
+            for: offer, hidden: hideShop, highlightingDisabled: disableHighlights
+        ).map { "\($0.label), " } ?? ""
+        return "\(offer.title), \(offer.artist), \(state)Open Official Item Shop"
     }
 }
 
