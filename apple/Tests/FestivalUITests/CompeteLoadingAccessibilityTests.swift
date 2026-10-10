@@ -19,6 +19,8 @@ import Testing
 // and its 44 pt View Full Leaderboard button, then the Rivals heading); when every
 // leaderboard fails, the spinner gives way to a heading and a named 44 pt Retry. Reduce
 // Motion (system or in-app) and the largest accessibility text size change none of it.
+// macOS keeps the font size, so the AX5 cases pin the tree only; the iPhone XCUITest
+// `CompeteAccessibilityJourneyTests` proves real AX5 glyph growth, whole text and reach.
 // The generic gate sequence is pinned by `ReloadGateAccessibilityTests`.
 
 // MARK: - Fixture
