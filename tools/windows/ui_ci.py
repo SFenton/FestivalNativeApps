@@ -190,6 +190,11 @@ RUNS: tuple[Run, ...] = (
     # touch (0 epx), each stays one 40+ epx Button stop in visual order, rows -> pinned row -> pager, Up/Down and Tab.
     Run("grouped-boards", "a11y-grouped-boards.json", tabs=0),
     Run("grouped-boards-text-225", "a11y-grouped-boards.json", sizes="compact", mode="text-225", tabs=0),
+    # Combo boards (issue #602): the OG band combo card is a level-2 heading group before Lead, its View All Rankings is
+    # a 40+ epx Button named with the board label, Enter opens combo Full Rankings (no instrument picker, combo title,
+    # pinned combo rank) and Back restores focus; rows stay 40+ epx stops with Down between them.
+    Run("combo-boards", "a11y-combo-boards.json", tabs=0),
+    Run("combo-boards-text-225", "a11y-combo-boards.json", sizes="compact", mode="text-225", tabs=0),
     # Settings' Experimental Ranks toggle (issue #541): enabled, off by default, named and Space-toggled; turning it on
     # shows "Rank by: Total Score, button" (40 epx) on Leaderboards and off hides it again; with it off a saved or
     # deep-linked experimental metric leaves no Rank By on Leaderboards, Full Rankings or Band Rankings.

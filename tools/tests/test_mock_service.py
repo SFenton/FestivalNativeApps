@@ -213,6 +213,24 @@ class MockServiceTests(unittest.TestCase):
             urlopen(self.base + "/api/rankings/bands/Band_Duets/fixture-team-unavailable/song-rows")
         self.assertEqual(error.exception.code, 503)
 
+    def test_combo_rankings_serve_board_and_player_and_reject_cross_group(self):
+        """Combo boards (#602) page the roster, rank one player and 404 cross-group or unranked reads."""
+        with urlopen(self.base + "/api/rankings/combo?combo=0F&rankBy=totalscore&page=1&pageSize=10") as response:
+            board = json.load(response)
+        self.assertEqual((board["comboId"], board["totalAccounts"]), ("0f", 3))
+        self.assertEqual([e["rank"] for e in board["entries"]], [1, 2, 3])
+        with urlopen(self.base + "/api/rankings/combo/fixture-player-2?combo=30&rankBy=fcrate") as response:
+            player = json.load(response)
+        self.assertEqual((player["comboId"], player["rank"], player["rankBy"]), ("30", 2, "fcrate"))
+        for path in ("/api/rankings/combo?combo=11", "/api/rankings/combo?combo=01",
+                     "/api/rankings/combo/fixture-player-404?combo=0f"):
+            with self.assertRaises(HTTPError) as error:
+                urlopen(self.base + path)
+            self.assertEqual(error.exception.code, 404)
+        with self.assertRaises(HTTPError) as error:
+            urlopen(self.base + "/api/rankings/combo/fixture-rank-fail?combo=0f")
+        self.assertEqual(error.exception.code, 500)
+
     def test_large_rankings_mode_pages_deep_and_keeps_default_small(self):
         """`--large-rankings` pads rows for pagers; the default roster stays three accounts."""
         with urlopen(self.base + "/api/rankings/Solo_Guitar?page=1&pageSize=25") as response:

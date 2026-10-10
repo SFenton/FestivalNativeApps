@@ -539,6 +539,7 @@
       "waitfor:id=fst.quick-links.item.instrument:Solo_Drums@5",
       "key:down",
       "key:down",
+      "key:down",
       "assertfocus:id=fst.quick-links.item.instrument:Solo_Drums@3",
       "key:enter",
       "wait:1.5",

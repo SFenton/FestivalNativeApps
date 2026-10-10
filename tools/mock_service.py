@@ -126,6 +126,8 @@ PLAYER = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)$")
 PLAYER_HISTORY = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/history$")
 PLAYER_NOTIFICATIONS = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/notifications$")
 PLAYER_BANDS = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/bands$")
+COMBO_RANKINGS = re.compile(r"^/api/rankings/combo$")
+PLAYER_COMBO_RANKING = re.compile(r"^/api/rankings/combo/(fixture-[a-z0-9-]+)$")
 RANKINGS = re.compile(r"^/api/rankings/([A-Za-z_]+)$")
 PLAYER_RANK_HISTORY = re.compile(r"^/api/rankings/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/history$")
 PLAYER_INSTRUMENT_RANKING = re.compile(r"^/api/rankings/([A-Za-z_]+)/(fixture-[a-z0-9-]+)$")
@@ -215,6 +217,43 @@ def _ranking_entry(rank: int, account_id: str, display_name: str) -> dict:
         "avgAccuracy": max(500_000, 990_000 - rank * 1_000), "fullComboCount": max(0, 20 - rank),
         "avgStars": 4.9, "bestRank": 1, "avgRank": float(rank),
     }
+
+
+def _combo_ranking_entry(rank: int, account_id: str, display_name: str) -> dict:
+    """One deterministic `/api/rankings/combo` row (web `ComboRankingEntry`).
+
+    Args:
+        rank: 1-based rank for the requested metric; seeds the numeric spread.
+        account_id: Fixture player id.
+        display_name: Row's display name.
+
+    Returns:
+        A JSON-ready combo row.
+    """
+    return {
+        "rank": rank, "accountId": account_id, "displayName": display_name,
+        "adjustedRating": max(0.001, 0.05 - rank * 0.01), "weightedRating": max(0.001, 0.06 - rank * 0.01),
+        "fcRate": max(0.1, 0.6 - rank * 0.1), "totalScore": max(1_000, 360_000_000 - rank * 4_000_000),
+        "maxScorePercent": max(0.5, 0.99 - rank * 0.02), "songsPlayed": 160 - rank,
+        "totalChartedSongs": 200, "fullComboCount": max(0, 80 - rank),
+        "computedAt": "2026-10-10T20:37:03Z",
+    }
+
+
+def _within_group_combo(combo: str | None) -> bool:
+    """Whether a combo id is a service-supported within-group combo (OG band `0x0f` or Pro Strings `0x30`).
+
+    Args:
+        combo: Hex combo id from the query.
+
+    Returns:
+        True for two or more instruments of one group.
+    """
+    try:
+        mask = int(combo or "", 16)
+    except ValueError:
+        return False
+    return bin(mask).count("1") >= 2 and (mask & ~0x0F == 0 or mask & ~0x30 == 0)
 
 
 def _band_ranking_entry(rank: int) -> dict:
@@ -1419,6 +1458,58 @@ class FixtureHandler(BaseHTTPRequestHandler):
             self._json(200, {
                 "bandType": band_type, "teamKey": team_key, "limit": limit,
                 "best": best[:limit], "worst": worst[:limit],
+            })
+        elif COMBO_RANKINGS.fullmatch(path) or PLAYER_COMBO_RANKING.fullmatch(path):
+            # Pure-read `GET /api/rankings/combo[/{accountId}]?combo=&rankBy=` (issue #602). Cross-group
+            # and malformed combos 404 like the service; the fixture roster ranks the same three players.
+            combo = query.get("combo", [None])[0]
+            if not _within_group_combo(combo):
+                self._json(404, {"error": "Cross-group combos are not supported."})
+                return
+            combo = format(int(combo, 16), "02x")
+            rank_by = query.get("rankBy", ["totalscore"])[0]
+            roster = [
+                ("fixture-player-1", "Fixture Player 1"),
+                ("fixture-player-2", "Fixture Player 2"),
+                ("fixture-rank-3", "Fixture Rank 3"),
+            ]
+            if self.fixture.large_rankings:
+                roster += [
+                    (f"fixture-rank-{n}", f"Fixture Rank {n}")
+                    for n in range(len(roster) + 1, LARGE_RANKINGS_ACCOUNTS + 1)
+                ]
+            total = len(roster)
+            if match := PLAYER_COMBO_RANKING.fullmatch(path):
+                account_id = match.group(1)
+                if account_id == "fixture-rank-fail":
+                    self._json(500, {"status": "internal_error"})
+                    return
+                ranks = {account: rank for rank, (account, _) in enumerate(roster, start=1)}
+                if account_id not in ranks:
+                    self._json(404, {"status": "account_not_ranked"})
+                    return
+                rank = ranks[account_id]
+                self._json(200, {
+                    "comboId": combo, "rankBy": rank_by,
+                    **_combo_ranking_entry(rank, account_id, roster[rank - 1][1]), "totalAccounts": total,
+                })
+                return
+            try:
+                page = int(query.get("page", ["1"])[0])
+                page_size = int(query.get("pageSize", ["10"])[0])
+            except ValueError:
+                self._json(400, {"status": "invalid_pagination"})
+                return
+            if page < 1 or not 1 <= page_size <= 200:
+                self._json(400, {"status": "invalid_pagination"})
+                return
+            start = (page - 1) * page_size
+            self._json(200, {
+                "comboId": combo, "rankBy": rank_by, "page": page, "pageSize": page_size, "totalAccounts": total,
+                "entries": [
+                    _combo_ranking_entry(rank, account_id, display_name)
+                    for rank, (account_id, display_name) in enumerate(roster[start:start + page_size], start=start + 1)
+                ],
             })
         elif match := PLAYER_INSTRUMENT_RANKING.fullmatch(path):
             instrument, account_id = match.group(1), match.group(2)

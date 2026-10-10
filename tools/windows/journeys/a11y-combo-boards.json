@@ -1,0 +1,34 @@
+[
+  {"name": "a11y-combo-board-card", "route": "/leaderboards", "profile": "fixture-player-1:Fixture Player 1", "scan": true, "tabs": 0,
+   "note": "Issue #602: the Leaderboards overview leads each OG band / Pro Strings family with its web combo board. The combo card is a heading group named by its label, its icon row is decorative, and its View All Rankings is the shared 40+ epx Button read with the board label, before the first row.",
+   "ready": ["waitfor:id=fst.leaderboards.card.0f@20", "waitfor:id=fst.leaderboards.card.0f.view-all@20", "wait:1"],
+   "after_ready": [
+     "assertstate:id=fst.leaderboards.card.0f|heading=2",
+     "assertread:id=fst.leaderboards.card.0f.view-all|View All Rankings (3), Lead + Bass + Drums + Tap Vocals, button",
+     "assertstate:id=fst.leaderboards.card.0f.view-all|type=button",
+     "assertsize:id=fst.leaderboards.card.0f.view-all|0x40",
+     "assertorder:name=Lead + Bass + Drums + Tap Vocals&class=AccessibleGroup|id=fst.leaderboards.card.0f.view-all",
+     "focus:id=fst.leaderboards.card.0f.view-all",
+     "assertfocus:id=fst.leaderboards.card.0f.view-all@3",
+     "key:enter",
+     "waitfor:id=fst.full-rankings.list@20",
+     "assertname:id=fst.full-rankings.title@5|Lead + Bass + Drums + Tap Vocals Rankings",
+     "waitgone:id=fst.full-rankings.instrument-menu@5",
+     "key:alt+left",
+     "waitfor:id=fst.leaderboards.card.0f.view-all@15",
+     "assertfocus:id=fst.leaderboards.card.0f.view-all@3"
+   ]},
+  {"name": "a11y-combo-full-rankings", "route": "/leaderboards/all?combo=0f", "profile": "fixture-player-2:Fixture Player 2", "scan": true, "tabs": 0,
+   "note": "Issue #602: combo Full Rankings has no instrument picker (web), keeps its rows as 40+ epx Button stops and pins the selected player's combo rank.",
+   "ready": ["waitfor:id=fst.rankings.row.fixture-player-2@20", "waitfor:id=fst.full-rankings.spotlight-footer@15", "wait:1"],
+   "after_ready": [
+     "assertname:id=fst.full-rankings.title@5|Lead + Bass + Drums + Tap Vocals Rankings",
+     "waitgone:id=fst.full-rankings.instrument-menu@5",
+     "assertsize:id=fst.rankings.row.fixture-player-2|0x40",
+     "assertname:id=fst.full-rankings.spotlight-footer@5|Your rank, 2nd. Open your statistics. *",
+     "assertorder:id=fst.rankings.row.fixture-player-1|id=fst.rankings.row.fixture-player-2|id=fst.rankings.row.fixture-rank-3|id=fst.full-rankings.spotlight-footer",
+     "focus:id=fst.rankings.row.fixture-player-1",
+     "key:down",
+     "assertfocus:id=fst.rankings.row.fixture-player-2@3"
+   ]}
+]
