@@ -29,7 +29,9 @@ struct SongPathsSheet: View {
     @State private var zoom: CGFloat = 1
     @State private var pinchOrigin: CGFloat = 1
     @State private var warningPresented = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    /// Settings' in-app Reduce Motion, honored like the system setting (load-transition R6).
+    @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
     @Environment(\.festivalModalCoverage) private var coverage
     @Environment(\.dismiss) private var dismiss
 
@@ -523,7 +525,9 @@ struct SongPathsSheet: View {
             if display == .image { resetZoom() }
             return
         }
-        let timing = PathSwitchTransition.timing(for: display, reduceMotion: reduceMotion)
+        let timing = Self.switchTiming(
+            for: display, systemReduceMotion: systemReduceMotion, appReduceMotion: appReduceMotion
+        )
         let session = session
         let song = song
         do {
@@ -537,13 +541,27 @@ struct SongPathsSheet: View {
         }
     }
 
+    /// Fade and spinner times for a switch: system **or** in-app Reduce Motion swaps
+    /// without fades and keeps only the minimum spinner hold (load-transition R6, #430).
+    ///
+    /// - Parameters:
+    ///   - display: The form loading.
+    ///   - systemReduceMotion: The system Reduce Motion setting.
+    ///   - appReduceMotion: Settings' in-app Reduce Motion.
+    /// - Returns: The switch timing.
+    nonisolated static func switchTiming(
+        for display: PathDisplayMode, systemReduceMotion: Bool, appReduceMotion: Bool
+    ) -> PathSwitchTransition.Timing {
+        PathSwitchTransition.timing(for: display, reduceMotion: systemReduceMotion || appReduceMotion)
+    }
+
     /// Whether VoiceOver hears this form's loading and loaded announcements: only after a
     /// switch, and in Side by Side only the table's, so one switch is announced once.
     ///
     /// - Parameter display: Image or text.
     /// - Returns: True when the form announces.
     private func announces(_ display: PathDisplayMode) -> Bool {
-        announcesSwitches && (shownMode != .sideBySide || display == .text)
+        Self.announcesSwitch(of: display, in: shownMode, afterSwitch: announcesSwitches)
     }
 
     /// Perform one visible step of a switch.
@@ -565,9 +583,9 @@ struct SongPathsSheet: View {
             if display == .image { resetZoom() }
             withAnimation(fade) { _ = spinnerHidden.remove(display) }
             if announces(display) {
-                AccessibilityNotification.Announcement(
-                    "Loading \(Self.chartName(requested)) \(display.label.lowercased()) path"
-                ).post()
+                AccessibilityNotification.Announcement(Self.loadingAnnouncement(
+                    instrument: requested.instrument, difficulty: requested.difficulty, display: display
+                )).post()
             }
         case .hideSpinner:
             withAnimation(fade) { _ = spinnerHidden.insert(display) }
@@ -613,11 +631,6 @@ struct SongPathsSheet: View {
         }
     }
 
-    /// "Lead Expert" for announcements.
-    private static func chartName(_ requested: RequestKey) -> String {
-        "\(requested.instrument.label) \(requested.difficulty.label)"
-    }
-
     /// What VoiceOver hears once the new content fades in; failures announce themselves.
     ///
     /// - Parameters:
@@ -627,12 +640,60 @@ struct SongPathsSheet: View {
     private static func loadedAnnouncement(_ content: LoadState, for requested: RequestKey) -> String? {
         switch content {
         case .image:
-            "\(chartName(requested)) path image"
+            loadedAnnouncement(instrument: requested.instrument, difficulty: requested.difficulty, activations: nil)
         case let .text(payload):
-            "\(chartName(requested)) path, \(payload.rows.count) \(payload.rows.count == 1 ? "activation" : "activations")"
+            loadedAnnouncement(
+                instrument: requested.instrument, difficulty: requested.difficulty, activations: payload.rows.count
+            )
         case .failed:
             nil
         }
+    }
+
+    // MARK: - VoiceOver announcements
+
+    /// Whether a form's switch is announced: only after the user (or a new publication)
+    /// switched something, never on the first load, and in Side by Side only by the
+    /// table, so one switch is announced once (issue #70).
+    ///
+    /// - Parameters:
+    ///   - display: The form loading.
+    ///   - mode: The view mode on screen.
+    ///   - afterSwitch: Something has switched since the sheet opened.
+    /// - Returns: True when the form announces its loading and loaded states.
+    nonisolated static func announcesSwitch(
+        of display: PathDisplayMode, in mode: PathViewMode, afterSwitch: Bool
+    ) -> Bool {
+        afterSwitch && (mode != .sideBySide || display == .text)
+    }
+
+    /// What VoiceOver hears when a switch shows the spinner, e.g. "Loading Lead Hard image path".
+    ///
+    /// - Parameters:
+    ///   - instrument: The chart's instrument.
+    ///   - difficulty: The chart's difficulty.
+    ///   - display: The form loading.
+    /// - Returns: The announcement.
+    nonisolated static func loadingAnnouncement(
+        instrument: Instrument, difficulty: PathDifficulty, display: PathDisplayMode
+    ) -> String {
+        "Loading \(instrument.label) \(difficulty.label) \(display.label.lowercased()) path"
+    }
+
+    /// What VoiceOver hears when the new chart fades in: "Lead Hard path image", or
+    /// "Lead Hard path, 2 activations" for the table.
+    ///
+    /// - Parameters:
+    ///   - instrument: The chart's instrument.
+    ///   - difficulty: The chart's difficulty.
+    ///   - activations: The table's activation count, or nil for the image.
+    /// - Returns: The announcement.
+    nonisolated static func loadedAnnouncement(
+        instrument: Instrument, difficulty: PathDifficulty, activations: Int?
+    ) -> String {
+        let chart = "\(instrument.label) \(difficulty.label)"
+        guard let activations else { return "\(chart) path image" }
+        return "\(chart) path, \(activations) \(activations == 1 ? "activation" : "activations")"
     }
 }
 
