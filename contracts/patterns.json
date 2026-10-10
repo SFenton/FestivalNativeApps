@@ -2950,6 +2950,86 @@
       ]
     },
     {
+      "id": "stat-tile-grid",
+      "title": "Stat tile grid",
+      "status": "current",
+      "doc": ".agents/patterns/stat-tile-grid.md",
+      "summary": "Profile and Band stat tile grids: a tile whose value or label would wrap in one slot spans two (owner-approved variant #591, Android), tiles keep web order with the row's last tile widening instead of holes, every tile takes the grid's tallest height, and text that doesn't fit two slots wraps rather than truncating. One grid component per platform.",
+      "keywords": [
+        "stat tile",
+        "stat grid",
+        "StatBox",
+        "span",
+        "two slots",
+        "full combos",
+        "tile height",
+        "wrap",
+        "large text",
+        "band statistics",
+        "profile statistics"
+      ],
+      "web": [
+        {
+          "path": "components/player/StatBox.tsx",
+          "symbol": "StatBox"
+        },
+        {
+          "path": "pages/player/sections/OverallSummarySection.tsx",
+          "symbol": "buildOverallSummaryItems"
+        },
+        {
+          "path": "pages/band/BandPage.tsx",
+          "symbol": "BandPage"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Profile/PlayerStatGrid.swift",
+            "symbol": "StatTileGridLayout"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/StatTileGrid.kt",
+            "symbol": "StatTileGrid"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/profile/StatTileSpans.kt",
+            "symbol": "StatTileSpans"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/PlayerStatTileView.cs",
+            "symbol": "PlayerStatTileView"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "surface-materials",
+          "wide-columns",
+          "hinge-columns"
+        ],
+        "pages": [
+          "player-profile",
+          "band-detail",
+          "statistics"
+        ]
+      },
+      "guards": [
+        {
+          "id": "android-row-chunking",
+          "glob": "android/app/src/main/java/com/festivalscoretracker/android/ui/profile/**/*.kt",
+          "regex": "\\.chunked\\(|IntrinsicSize\\.Min",
+          "allow": [],
+          "debt": [],
+          "message": "Stat tile grids place and size tiles in one place: use StatTileGrid (spans, web order, one height) instead of chunked rows with intrinsic heights (stat-tile-grid R1-R5)."
+        }
+      ]
+    },
+    {
       "id": "settings-value-row",
       "title": "Settings value row",
       "status": "current",
