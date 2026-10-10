@@ -50,12 +50,22 @@ import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 
 // region Instrument selector
 
+/** The web selector's two looks (`InstrumentSelector` `styles`). */
+enum class InstrumentSelectorLook {
+    /** Filters and Paths (web `filterStyles`): a green disc scales in behind the selected chart. */
+    Filter,
+
+    /** Every `GraphCard` chart (web `selectorStyles`): unselected charts dimmed, the selection on a solid green disc. */
+    Graph,
+}
+
 /**
  * Port of the web's shared **Instrument Selector** (`components/common/InstrumentSelector.tsx`,
  * operator batch 6, item 6.36): a centred row of 64 dp circle buttons whose selected
  * chart fills with a green circle (scale-in, 300 ms), or — when the row can't fit every
  * button — compact ‹ chart › arrow cycling. Used by the Songs Filter, Paths, the Song
- * Detail score history and (other lanes) Suggestions/Profile.
+ * Detail score history and the Leaderboards rank history (the last two in the `GraphCard`
+ * [InstrumentSelectorLook.Graph] look).
  *
  * Modes: optional selection (tap the selected chart again to clear) or [required];
  * [hidden] charts are not rendered, [disabled] ones render greyed (28%) and can't be
@@ -80,6 +90,8 @@ import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
  * @param compact true = always arrows, false = always the full row, null = auto by width.
  * @param deferSelection Compact arrows preview until committed.
  * @param keyboard Keys artwork for Lead/Pro Lead (song signature).
+ * @param look [InstrumentSelectorLook.Filter] (filters, Paths) or [InstrumentSelectorLook.Graph]
+ *   (every `GraphCard` chart: Score History, Leaderboards Rank History).
  * @param previousLabel Compact previous-arrow label.
  * @param nextLabel Compact next-arrow label.
  * @param tag Test tag root (`$tag.<wireId>`, `$tag.compact`, `$tag.previous`, `$tag.next`, `$tag.preview`).
@@ -99,6 +111,7 @@ fun InstrumentSelector(
     compact: Boolean? = null,
     deferSelection: Boolean = false,
     keyboard: Boolean = false,
+    look: InstrumentSelectorLook = InstrumentSelectorLook.Filter,
     previousLabel: String = "Previous instrument",
     nextLabel: String = "Next instrument",
     tag: String = "fst.instrument-selector",
@@ -137,6 +150,7 @@ fun InstrumentSelector(
                         isMuted = effective == null && preview in muted,
                         required = required,
                         keyboard = keyboard,
+                        look = look,
                         tag = "$tag.preview",
                         announcesChanges = true,
                         onClick = { apply(InstrumentSelection.compactPress(effective, preview, required)) },
@@ -161,6 +175,7 @@ fun InstrumentSelector(
                             isMuted = !isSelected && chart in muted,
                             required = required,
                             keyboard = keyboard,
+                            look = look,
                             tag = "$tag.${chart.wireId}",
                             onClick = { onSelect(InstrumentSelection.press(effective, chart, required)) },
                         )
@@ -175,8 +190,11 @@ fun InstrumentSelector(
 }
 
 /**
- * One 64 dp circle: green fill scaling in when selected (drawn, so the scale never
- * relayouts), the 48 dp chart icon, greyscale for disabled/muted.
+ * One 64 dp circle with the 48 dp chart icon, greyscale for disabled/muted. In the
+ * [InstrumentSelectorLook.Filter] look the selected chart's green disc scales in (drawn, so
+ * the scale never relayouts); in the [InstrumentSelectorLook.Graph] look (web `GraphCard`
+ * `selectorStyles`) unselected charts are dimmed to 50% and the selected one sits on a solid
+ * green disc, both easing over 150 ms (web `transition: all 0.15s ease`).
  *
  * Semantics follow the Material 3 Compose patterns for single choice: a [required]
  * selector is a radio group (`selectable` + [Role.RadioButton]); an optional one, where
@@ -194,19 +212,30 @@ private fun SelectorButton(
     isMuted: Boolean,
     required: Boolean,
     keyboard: Boolean,
+    look: InstrumentSelectorLook,
     tag: String,
     onClick: () -> Unit,
     announcesChanges: Boolean = false,
 ) {
     val still = LocalFestivalAccessibility.current.reduceMotion
-    val fill by animateFloatAsState(if (isSelected) 1f else 0f, if (still) tween(0) else tween(SELECTOR_ANIMATION_MS), label = "selectorFill")
+    val graph = look == InstrumentSelectorLook.Graph
+    val duration = if (graph) GRAPH_ANIMATION_MS else SELECTOR_ANIMATION_MS
+    val fill by animateFloatAsState(if (isSelected) 1f else 0f, if (still) tween(0) else tween(duration), label = "selectorFill")
     val side: Dp = InstrumentSelection.BUTTON_DP.dp
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(side)
             .clip(CircleShape)
-            .drawBehind { if (fill > 0f) drawCircle(BrandTokens.statusGreen, radius = size.minDimension / 2 * fill) }
+            .drawBehind {
+                if (fill > 0f) {
+                    if (graph) {
+                        drawCircle(BrandTokens.statusGreen, alpha = fill)
+                    } else {
+                        drawCircle(BrandTokens.statusGreen, radius = size.minDimension / 2 * fill)
+                    }
+                }
+            }
             .selectable(selected = isSelected, enabled = !isDisabled, role = if (required) Role.RadioButton else Role.Checkbox, onClick = onClick)
             .semantics {
                 contentDescription = instrument.label
@@ -225,13 +254,26 @@ private fun SelectorButton(
             colorFilter = if (isDisabled || isMuted) GREYSCALE else null,
             modifier = Modifier
                 .size(ICON_SIZE)
-                .graphicsLayer { alpha = if (isDisabled) DISABLED_ALPHA else if (isMuted) MUTED_ALPHA else 1f },
+                .graphicsLayer {
+                    alpha = when {
+                        isDisabled -> DISABLED_ALPHA
+                        isMuted -> MUTED_ALPHA
+                        graph -> GRAPH_UNSELECTED_ALPHA + (1f - GRAPH_UNSELECTED_ALPHA) * fill
+                        else -> 1f
+                    }
+                },
         )
     }
 }
 
 /** Web `TRANSITION_MS`. */
 private const val SELECTOR_ANIMATION_MS = 300
+
+/** Web `GraphCard` selector `FAST_TRANSITION` (`all 0.15s ease`). */
+private const val GRAPH_ANIMATION_MS = 150
+
+/** Web `GraphCard` unselected chart opacity (`Opacity.disabled`). */
+internal const val GRAPH_UNSELECTED_ALPHA = 0.5f
 
 /** Web `Size.iconInstrument` (`InstrumentSize.md`). */
 private val ICON_SIZE = 48.dp

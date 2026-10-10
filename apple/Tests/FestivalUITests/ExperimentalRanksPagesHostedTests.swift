@@ -84,12 +84,14 @@ private func rankByFixture(player: Bool) async throws -> (FestivalSession, RankB
 ///   - session: Its session.
 ///   - storage: The settings store the page and its tools read.
 ///   - registry: The accessory's registry the page's tools register in.
+///   - height: Window height (tall enough for the content a test reads).
 /// - Returns: The retained host and window.
 @MainActor
 private func hostRankByPage(
-    _ page: some View, session: FestivalSession, storage: UserDefaults, registry: PageToolsRegistry?
+    _ page: some View, session: FestivalSession, storage: UserDefaults, registry: PageToolsRegistry?,
+    height: CGFloat = 900
 ) -> (NSHostingView<NativeHostedRoot<AnyView>>, NSWindow) {
-    let size = CGSize(width: 402, height: 900)
+    let size = CGSize(width: 402, height: height)
     let host = nativeHostedView(AnyView(
         VStack(spacing: 0) {
             NavigationStack { page.pageToolsScope() }
@@ -165,13 +167,18 @@ private func shows(_ identifier: String, in host: NSView) -> Bool {
     nativeHostedAccessibilityElement(identifier, in: host) != nil
 }
 
-/// The Band Detail Summary's Rating value (the text read after "Rating").
+/// Band Detail's Statistics rank tiles, in reading order (the Adjusted, Weighted and FC
+/// Rate tiles show only with the switch on, #555).
 @MainActor
-private func bandRating(in host: NSView) -> String? {
-    let nodes = macAccessibilityTree(host).filter { $0.isElement && !$0.spokenName.isEmpty }
-    guard let index = nodes.firstIndex(where: { $0.spokenName == "Rating" }), index + 1 < nodes.count else { return nil }
-    return nodes[index + 1].spokenName
+private func bandRankTiles(in host: NSView) -> [String] {
+    let prefix = "\(BandDetailScreen.statIdentifierPrefix).statistics."
+    return nativeHostedAccessibility(host).identifiers
+        .filter { $0.hasPrefix(prefix) && $0.hasSuffix("-rank") }
+        .map { String($0.dropFirst(prefix.count)) }
 }
+
+private let bandRankTilesOff = ["total-score-rank", "best-song-rank", "avg-rank"]
+private let bandRankTilesOn = ["adjusted-rank", "weighted-rank", "fc-rate-rank"] + bandRankTilesOff
 
 // MARK: - Tests
 
@@ -300,9 +307,9 @@ private func bandRating(in host: NSView) -> String? {
         #expect(!after.isEmpty && after.allSatisfy { $0.rankBy == "totalscore" }, "\(Array(after))")
     }
     /// Band Detail opens on Adjusted only with experimental ranks (web `BandPage`): while
-    /// off it has no Rank By and its Summary rates the band by Total Score; on, Rank By
-    /// offers the band metrics in web order with Adjusted picked and the Summary follows;
-    /// off again, Rank By goes and the Summary is the Total Score one again.
+    /// off it has no Rank By and Band Statistics shows only the Total Score rank tiles; on,
+    /// Rank By offers the band metrics in web order with Adjusted picked and the Adjusted,
+    /// Weighted and FC Rate rank tiles appear; off again, Rank By and those tiles go.
     @Test func bandDetailFollowsTheSwitch() async throws {
         let (session, _, storage) = try await rankByFixture(player: false)
         let registry = PageToolsRegistry()
@@ -311,19 +318,18 @@ private func bandRating(in host: NSView) -> String? {
                 session: session, bandId: "fixture-band-1", name: "Band 1 Member A + Band 1 Member B",
                 bandType: "Band_Duets", teamKey: "fixture-team-1"
             ),
-            session: session, storage: storage, registry: registry
+            session: session, storage: storage, registry: registry, height: 2400
         )
         defer { window.orderOut(nil) }
 
-        try await waitFor(host, "the Summary") { bandRating(in: host) != nil }
-        try await nativeHostedSettle(host, untilText: ["Rating"], excluding: ["Loading"])
-        let totalScore = try #require(bandRating(in: host))
-        #expect(!totalScore.hasPrefix("Top "), "a Total Score rating, not a percentile: \(totalScore)")
+        try await waitFor(host, "the Statistics tiles") { bandRankTiles(in: host) == bandRankTilesOff }
+        #expect(bandRankTiles(in: host) == bandRankTilesOff, "Total Score rank tiles only while off")
         #expect(!shows(bandRankByID, in: host), "no Rank By while off")
 
         storage.set(true, forKey: ExperimentalRanks.storageKey)
         try await waitFor(host, "Rank By") { shows(bandRankByID, in: host) }
-        try await waitFor(host, "the Adjusted Summary") { bandRating(in: host)?.hasPrefix("Top ") == true }
+        try await waitFor(host, "the experimental rank tiles") { bandRankTiles(in: host) == bandRankTilesOn }
+        #expect(bandRankTiles(in: host) == bandRankTilesOn)
         let choices = try await openRankBy(bandRankByID, registry: registry, host: host)
         #expect(choices.map(\.id) == bandChoiceIDs, "web order, no Max Score for bands")
         #expect(choices.first { $0.isSelected }?.id == "fst.band-rankings.rank-by.adjusted")
@@ -331,7 +337,8 @@ private func bandRating(in host: NSView) -> String? {
 
         storage.set(false, forKey: ExperimentalRanks.storageKey)
         try await waitFor(host, "Rank By withdrawn") { !shows(bandRankByID, in: host) }
-        try await waitFor(host, "the Total Score Summary") { bandRating(in: host) == totalScore }
+        try await waitFor(host, "the Total Score tiles") { bandRankTiles(in: host) == bandRankTilesOff }
+        #expect(bandRankTiles(in: host) == bandRankTilesOff)
     }
 
     /// Rivals' Leaderboard tab: no Rank By and Total Score boards while off, even when

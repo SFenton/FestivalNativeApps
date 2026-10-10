@@ -1,6 +1,12 @@
+import QuartzCore
 import SwiftUI
 import FestivalCore
 import FestivalDesign
+#if os(iOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 // MARK: - Model
 
@@ -243,24 +249,28 @@ struct SettingsServiceInfoSection: View {
 // MARK: - Bar
 
 /// Web-style capsule progress bar (purple fill on a muted track, 0.65 rem tall). An unknown
-/// total shows the web's sliding 38 % segment (1.25 s ease-in-out); it holds still under
-/// system or in-app Reduce Motion and in UI-test runs (`FST_DEBUG_STILL_BACKGROUND`), where
-/// a perpetual animation would keep XCUITest from idling.
+/// total shows the web's sliding 38 % segment (`ServiceProgressSweep`, 1.25 s ease-in-out);
+/// it holds a still, empty track under system or in-app Reduce Motion, in an inactive scene
+/// or hidden window, and in UI-test runs (`FST_DEBUG_STILL_BACKGROUND`), where a perpetual
+/// animation would keep XCUITest from idling.
 struct ServiceProgressBar: View {
     /// 0–100, or nil for an unknown total.
     let percent: Double?
     /// System or in-app Reduce Motion.
     let reduceMotion: Bool
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.festivalWindowVisible) private var windowVisible
 
     /// Whether an unknown total sweeps the indeterminate segment.
     ///
     /// - Parameters:
     ///   - percent: 0–100, or nil for an unknown total.
     ///   - reduceMotion: System or in-app Reduce Motion.
+    ///   - sceneActive: Active scene in a visible window (`AnimationActivity.sceneActive`).
     ///   - still: The UI-test still-animation override.
-    /// - Returns: True only for an unknown total with motion allowed.
-    static func sweeps(percent: Double?, reduceMotion: Bool, still: Bool) -> Bool {
-        percent == nil && !reduceMotion && !still
+    /// - Returns: True only for an unknown total with motion allowed in an active scene.
+    static func sweeps(percent: Double?, reduceMotion: Bool, sceneActive: Bool, still: Bool) -> Bool {
+        percent == nil && !reduceMotion && sceneActive && !still
     }
 
     var body: some View {
@@ -272,9 +282,11 @@ struct ServiceProgressBar: View {
                         .fill(BrandTokens.accentPurple)
                         .frame(width: max(8, proxy.size.width * percent / 100))
                 } else if Self.sweeps(
-                    percent: percent, reduceMotion: reduceMotion, still: DebugAnimationOverride.stillBackground
+                    percent: percent, reduceMotion: reduceMotion,
+                    sceneActive: AnimationActivity.sceneActive(scenePhase, windowVisible: windowVisible),
+                    still: DebugAnimationOverride.stillBackground
                 ) {
-                    IndeterminateSegment(width: proxy.size.width)
+                    ServiceProgressSweep(color: BrandTokens.accentPurple)
                 }
             }
             .clipShape(Capsule())
@@ -285,21 +297,185 @@ struct ServiceProgressBar: View {
     }
 }
 
-/// The web's `settings-progress-indeterminate` keyframes: a 38 %-wide segment sweeping
-/// across the track.
-private struct IndeterminateSegment: View {
-    let width: CGFloat
-    @State private var leading = false
+// MARK: - Indeterminate sweep
 
-    var body: some View {
-        Capsule()
-            .fill(BrandTokens.accentPurple)
-            .frame(width: width * 0.38)
-            .offset(x: leading ? width : -width * 0.38)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 1.25).repeatForever(autoreverses: false)) {
-                    leading = true
-                }
-            }
+/// The web's `settings-progress-indeterminate` segment, played by Core Animation on the
+/// render server (Apple architecture: continuous decoration never runs in SwiftUI).
+///
+/// It was a one-shot `repeatForever` state animation started in `onAppear`, which SwiftUI
+/// dropped when the lazily hosted Settings card was realized or re-hosted on iPhone; setting
+/// the same state again restarted nothing, so the segment stayed parked off the track and
+/// the bar never moved (issue #556). Like `ShopPulseView` and `MarqueeTrackView`, the host
+/// view re-adds its animation whenever it enters a window or its width changes, phased on
+/// the shared wall clock (`ShopPulseClock.elapsed`), and the segment's model position is
+/// off the track, so a dropped animation leaves an empty track, never a frozen segment.
+struct ServiceProgressSweep {
+    /// Segment fill (`BrandTokens.accentPurple`, web `--settings-progress-fill`).
+    let color: Color
+
+    /// Segment width as a fraction of the track (web `width: 38%`).
+    static let segmentFraction: CGFloat = 0.38
+    /// One sweep (web `animation: settings-progress-indeterminate 1.25s`).
+    static let period: Double = 1.25
+    /// Web keyframes' `translateX` at 0 %, 50 % and 100 %, in segment widths.
+    static let keyframes: [CGFloat] = [-1.1, 1.65, 3.0]
+    /// Keyframe times (web `0%`, `50%`, `100%`).
+    static let keyTimes: [Double] = [0, 0.5, 1]
+
+    /// The sweep animation for a track: the web's keyframes in points, CSS `ease-in-out`
+    /// on each half (CSS applies the timing function per keyframe interval; Core
+    /// Animation's `easeInEaseOut` is the same `cubic-bezier(0.42, 0, 0.58, 1)`), repeating,
+    /// with its cycle aligned to the wall clock so re-adding it resumes mid-sweep.
+    ///
+    /// - Parameters:
+    ///   - trackWidth: Track width in points.
+    ///   - mediaTime: `CACurrentMediaTime()` now.
+    ///   - date: Wall-clock now.
+    /// - Returns: A `transform.translation.x` animation for the segment layer.
+    static func animation(trackWidth: CGFloat, mediaTime: CFTimeInterval, date: Date) -> CAKeyframeAnimation {
+        let segment = trackWidth * segmentFraction
+        let animation = CAKeyframeAnimation(keyPath: "transform.translation.x")
+        animation.values = keyframes.map { NSNumber(value: Double($0 * segment)) }
+        animation.keyTimes = keyTimes.map { NSNumber(value: $0) }
+        animation.timingFunctions = Array(
+            repeating: CAMediaTimingFunction(name: .easeInEaseOut), count: keyframes.count - 1
+        )
+        animation.calculationMode = .linear
+        animation.duration = period
+        animation.repeatCount = .infinity
+        animation.isRemovedOnCompletion = false
+        animation.beginTime = mediaTime - ShopPulseClock.elapsed(period: period, at: date)
+        return animation
+    }
+
+    /// Resting translation of the segment: the first keyframe, fully left of the track.
+    ///
+    /// - Parameter trackWidth: Track width in points.
+    /// - Returns: The model-layer x translation.
+    static func restingOffset(trackWidth: CGFloat) -> CGFloat {
+        keyframes[0] * trackWidth * segmentFraction
+    }
+}
+
+#if os(iOS)
+extension ServiceProgressSweep: UIViewRepresentable {
+    func makeUIView(context: Context) -> ServiceProgressSweepView { ServiceProgressSweepView() }
+
+    func updateUIView(_ view: ServiceProgressSweepView, context: Context) {
+        view.apply(color: color.resolve(in: context.environment).cgColor)
+    }
+}
+#elseif os(macOS)
+extension ServiceProgressSweep: NSViewRepresentable {
+    func makeNSView(context: Context) -> ServiceProgressSweepView { ServiceProgressSweepView() }
+
+    func updateNSView(_ view: ServiceProgressSweepView, context: Context) {
+        view.apply(color: color.resolve(in: context.environment).cgColor)
+    }
+}
+#endif
+
+/// Capsule-clipped host of the sweeping segment layer; never a hit-test or accessibility
+/// target.
+final class ServiceProgressSweepView: PlatformLayerHostView {
+    /// Animation key of the running sweep.
+    static let animationKey = "sweep"
+    /// The sweeping segment (exposed to hosted tests).
+    let segmentLayer = CALayer()
+    /// Track width the running animation was planned for.
+    private var plannedWidth: CGFloat?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        #if os(iOS)
+        isUserInteractionEnabled = false
+        isAccessibilityElement = false
+        clipsToBounds = true
+        layer.cornerCurve = .continuous
+        layer.addSublayer(segmentLayer)
+        #elseif os(macOS)
+        wantsLayer = true
+        setAccessibilityElement(false)
+        layer?.masksToBounds = true
+        layer?.addSublayer(segmentLayer)
+        #endif
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
+
+    #if os(iOS)
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        refresh()
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        // Animations are dropped while detached (lazy realization, tab switches).
+        plannedWidth = nil
+        refresh()
+    }
+    #elseif os(macOS)
+    override func layout() {
+        super.layout()
+        refresh()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        plannedWidth = nil
+        refresh()
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    #endif
+
+    /// Apply the resolved segment colour.
+    ///
+    /// - Parameter color: Segment fill.
+    func apply(color: CGColor) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        segmentLayer.backgroundColor = color
+        CATransaction.commit()
+        refresh()
+    }
+
+    /// Lay out the capsule clip and segment, and (re)start the sweep when the view is in a
+    /// window and its width changed or the animation was dropped.
+    private func refresh() {
+        let size = bounds.size
+        let width = size.width
+        let segment = width * ServiceProgressSweep.segmentFraction
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        #if os(iOS)
+        layer.cornerRadius = size.height / 2
+        #elseif os(macOS)
+        layer?.cornerRadius = size.height / 2
+        #endif
+        segmentLayer.cornerRadius = size.height / 2
+        segmentLayer.bounds = CGRect(x: 0, y: 0, width: segment, height: size.height)
+        segmentLayer.anchorPoint = .zero
+        segmentLayer.position = .zero
+        segmentLayer.setAffineTransform(CGAffineTransform(
+            translationX: ServiceProgressSweep.restingOffset(trackWidth: width), y: 0
+        ))
+        CATransaction.commit()
+        let running = window != nil && width > 0
+        let dropped = segmentLayer.animation(forKey: Self.animationKey) == nil
+        guard running else {
+            plannedWidth = nil
+            segmentLayer.removeAnimation(forKey: Self.animationKey)
+            return
+        }
+        guard plannedWidth != width || dropped else { return }
+        plannedWidth = width
+        segmentLayer.removeAnimation(forKey: Self.animationKey)
+        segmentLayer.add(
+            ServiceProgressSweep.animation(trackWidth: width, mediaTime: CACurrentMediaTime(), date: Date()),
+            forKey: Self.animationKey
+        )
     }
 }
