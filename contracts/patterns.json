@@ -2384,7 +2384,8 @@
         ],
         "pages": [
           "songs",
-          "rivalry"
+          "rivalry",
+          "rival-detail"
         ]
       },
       "supersedes": [],
@@ -2397,7 +2398,8 @@
         286,
         303,
         313,
-        545
+        545,
+        605
       ]
     },
     {

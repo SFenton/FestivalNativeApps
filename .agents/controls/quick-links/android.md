@@ -44,7 +44,7 @@ FestivalScreen(title, isRoot, actions = { QuickLinksAction(quickLinks, windowWid
 | Leaderboards | Done: `rank-history` (selected player), `instrument:<wire>`, `band:<wire>` |
 | Band Detail (one pane) | Done: `members`, `summary`, `statistics`, `rank-history`, `songs` (`rememberScrollQuickLinks`; no Quick Links in two panes) |
 | Rivals | Done: the loaded hub cards (`common`, combo, `<wire>` / `leaderboard.<wire>`) |
-| Rival Detail | Done: `rival-category:<key>` per loaded category |
+| Rival Detail | Done: `rival-category:<key>` per loaded category, each with its own decorative icon from `RivalQuickLinks.categoryIcon` ([quick-links](../../patterns/quick-links.md) R9, #605): Closest Battles `CompareArrows`, Almost Passed `TrendingUp`, Slipping Away `TrendingDown`, Barely Winning `SportsScore`, Pulling Forward `FastForward`, Dominating Them `MilitaryTech` (Compose icons have no crown); an unknown key gets `People` |
 | Rivalry | **None** ([quick-links](../../patterns/quick-links.md) R8, owner #545): one link per song only repeated the list, so `RivalryScreen` has no entry point and `RivalQuickLinks` has no per-song builder. Do not restore it |
 
 ## Validation (issue #137)
