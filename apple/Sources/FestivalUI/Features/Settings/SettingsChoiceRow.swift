@@ -79,7 +79,7 @@ struct SettingsChoiceRow<Value: Hashable & Identifiable>: View {
 
     /// The inline accordion (iPhone, iPad).
     private var disclosure: some View {
-        FestivalDisclosureGroup(state: $accordion) {
+        FestivalDisclosureGroup(state: $accordion, announcesState: false) {
             VStack(spacing: 0) {
                 ForEach(options) { option in
                     optionRow(option)
@@ -153,15 +153,14 @@ extension EnvironmentValues {
 enum SettingsChoiceAccessibility {
     /// The current choice followed by the disclosure state, e.g. "Image, Collapsed".
     ///
-    /// SwiftUI has no public modifier for an element's expanded status, and `DisclosureGroup`
-    /// leaves UIKit's `accessibilityExpandedStatus` unsupported (probed on iOS 26.5), so the
-    /// state is spoken as part of the value.
+    /// The state is the one the person asked for, spoken at once
+    /// (``FestivalAccordionAccessibility``, pattern `accordion` R4).
     ///
     /// - Parameters:
     ///   - selected: Visible name of the current choice.
     ///   - isExpanded: Whether the options are shown.
     /// - Returns: The accessibility value.
     static func value(selected: String, isExpanded: Bool) -> String {
-        "\(selected), \(isExpanded ? "Expanded" : "Collapsed")"
+        "\(selected), \(FestivalAccordionAccessibility.value(isExpanded: isExpanded))"
     }
 }

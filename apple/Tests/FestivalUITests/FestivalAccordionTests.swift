@@ -145,6 +145,107 @@ import FestivalDesign
     }
 }
 
+/// Content that is laid out but transparent takes no clicks (R4): a click on the row's spot
+/// while it is waiting to fade in does nothing, and the same click lands once it shows.
+@MainActor
+@Test func transparentAccordionContentIsNotHittable() async throws {
+    let size = CGSize(width: 320, height: 160)
+    let presses = AccordionPressCounter()
+    var opening = FestivalAccordionState<Bool>(nil)
+    opening.request(true)
+    opening.apply(.open)
+    var target: CGPoint?
+    for (state, hittable) in [(FestivalAccordionState<Bool>(expanded: true), true), (opening, false)] {
+        let host = nativeHostedView(
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Accordion Header").frame(height: 40)
+                FestivalAccordionContent(state) {
+                    // A filter switch, like the accordions' rows (AppKit-backed on macOS).
+                    Toggle("Accordion Row", isOn: Binding(get: { false }, set: { _ in presses.count += 1 }))
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                        .frame(height: 44)
+                        .accessibilityIdentifier("fst.test.accordion.press")
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(16)
+            .frame(width: size.width, height: size.height)
+            .background(BrandTokens.cardBackground)
+            .preferredColorScheme(.dark),
+            size: size
+        )
+        let window = nativeHostedWindow(host, size: size)
+        // Still 10,000 pt off screen; AppKit delivers clicks only to an ordered-in window.
+        window.orderFrontRegardless()
+        defer { window.orderOut(nil) }
+        try await nativeHostedSettle(host, untilText: ["Accordion Header"])
+        if hittable {
+            // The opaque row's own frame; the transparent one is laid out in the same place.
+            let frame = try #require(nativeHostedAccessibilityFrame("fst.test.accordion.press", in: host))
+            target = CGPoint(x: frame.midX, y: frame.midY)
+        } else {
+            #expect(nativeHostedAccessibilityElement("fst.test.accordion.press", in: host) == nil)
+        }
+        let before = presses.count
+        nativeHostedClick(try #require(target), in: host, window: window)
+        try await nativeHostedSettle(host)
+        #expect(presses.count - before == (hittable ? 1 : 0), "hittable: \(hittable)")
+    }
+}
+
+/// Closing a disclosure group speaks Collapsed at once (R4), while its rows are still laid
+/// out and fading; the group collapses only after the fade.
+@MainActor
+@Test func closingDisclosureAnnouncesCollapsedBeforeTheFadeEnds() async throws {
+    let model = AccordionHarnessModel()
+    model.isOn = true
+    let size = CGSize(width: 360, height: 220)
+    let host = nativeHostedView(DisclosureHarness(model: model), size: size)
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    try await nativeHostedSettle(host, untilText: ["Disclosure Row"])
+    func header() -> NSObject? {
+        nativeHostedAccessibilityElement(in: host) {
+            nativeHostedAccessibilityString($0, "accessibilityLabel") == "Disclosure Header"
+        }
+    }
+    func spoken(_ element: NSObject) -> String {
+        // macOS: the label's value is the disclosure triangle's value description.
+        let description = nativeHostedAccessibilityString(element, "accessibilityValueDescription")
+        return description.isEmpty ? nativeHostedAccessibilityString(element, "accessibilityValue") : description
+    }
+    let expanded = try #require(header())
+    #expect(spoken(expanded) == "Expanded")
+    #expect(model.phases.last == .settled(true))
+
+    // The same request the disclosure's binding makes on a tap (hosted AppKit ignores
+    // synthetic presses on SwiftUI's disclosure triangle).
+    model.isOn = false
+    let clock = ContinuousClock()
+    let pressed = clock.now
+    var collapsedWhileOpen = false
+    while clock.now - pressed < .seconds(2) {
+        try await Task.sleep(for: .milliseconds(5))
+        host.layoutSubtreeIfNeeded()
+        if let element = header(), spoken(element) == "Collapsed" {
+            // Still laid out: the fade-out has not finished.
+            collapsedWhileOpen = model.phases.last?.isOpen == true
+            break
+        }
+    }
+    #expect(collapsedWhileOpen, "Collapsed only after the fade; phases: \(model.phases)")
+    try await nativeHostedSettle(host) { model.phases.last == .settled(false) }
+    #expect(model.phases.last == .settled(false))
+    #expect(header().map(spoken) == "Collapsed")
+}
+
+@Test func accordionHeaderSpeaksTheRequestedState() {
+    #expect(FestivalAccordionAccessibility.value(isExpanded: true) == "Expanded")
+    #expect(FestivalAccordionAccessibility.value(isExpanded: false) == "Collapsed")
+    #expect(SettingsChoiceAccessibility.value(selected: "Text", isExpanded: true) == "Text, Expanded")
+}
+
 /// The system disclosure group keeps its header readable and shows its rows when expanded.
 @MainActor
 @Test func festivalDisclosureGroupKeepsSystemDisclosureAndRows() async throws {
@@ -196,6 +297,55 @@ import FestivalDesign
         .init(isOpen: true, showsContent: false),
         .settled(false),
     ])
+}
+
+@MainActor
+private final class AccordionPressCounter {
+    var count = 0
+}
+
+/// Click (mouse down and up) at a point of a hosted view.
+///
+/// - Parameters:
+///   - point: Host top-left points.
+///   - host: The hosting view.
+///   - window: Its window.
+@MainActor
+private func nativeHostedClick(_ point: CGPoint, in host: NSView, window: NSWindow) {
+    let location = host.convert(host.isFlipped ? point : CGPoint(x: point.x, y: host.bounds.height - point.y), to: nil)
+    for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+        if let event = NSEvent.mouseEvent(
+            with: type, location: location, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1
+        ) {
+            window.sendEvent(event)
+        }
+    }
+}
+
+private struct DisclosureHarness: View {
+    let model: AccordionHarnessModel
+    @State private var accordion = FestivalAccordionState<Bool>(expanded: true)
+    @State private var sequence: Task<Void, Never>?
+
+    var body: some View {
+        Form {
+            FestivalDisclosureGroup(state: $accordion) {
+                Text("Disclosure Row")
+            } label: {
+                Text("Disclosure Header")
+            }
+        }
+        .formStyle(.grouped)
+        .preferredColorScheme(.dark)
+        .onAppear { model.phases.append(accordion.phase) }
+        .onChange(of: accordion.phase) { _, phase in model.phases.append(phase) }
+        .onChange(of: model.isOn) { _, isOn in
+            FestivalAccordionState.move(
+                $accordion, to: isOn ? true : nil, reduceMotion: false, sequence: $sequence
+            )
+        }
+    }
 }
 
 @MainActor @Observable

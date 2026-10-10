@@ -265,9 +265,10 @@ extension View {
 
 // MARK: - Content
 
-/// The content an accordion reveals: laid out while its container is open, transparent
-/// (and hidden from VoiceOver) until it fades in. Works in a `Form`/`List` (each row of
-/// the content becomes a list row), a ``FestivalGlassSection`` and stacks.
+/// The content an accordion reveals: laid out while its container is open, transparent,
+/// hidden from VoiceOver and closed to touches and clicks until it fades in, and again
+/// from the moment it starts fading out (pattern `accordion` R4). Works in a `Form`/`List`
+/// (each row of the content becomes a list row), a ``FestivalGlassSection`` and stacks.
 struct FestivalAccordionContent<Value: Equatable, Content: View>: View {
     private let state: FestivalAccordionState<Value>
     private let content: (Value) -> Content
@@ -286,6 +287,7 @@ struct FestivalAccordionContent<Value: Equatable, Content: View>: View {
         if let shown = state.shown {
             content(shown)
                 .opacity(state.showsContent ? 1 : 0)
+                .allowsHitTesting(state.showsContent)
                 .accessibilityHidden(while: !state.showsContent)
         }
     }
@@ -308,11 +310,18 @@ extension FestivalAccordionContent where Value == Bool {
 ///
 /// HIG Disclosure controls: iOS and iPadOS "provide disclosure controls through SwiftUI
 /// `DisclosureGroup`", so this keeps the system control, its chevron and its expanded or
-/// collapsed accessibility state, and only sequences the change: the group expands with
-/// its rows transparent, then they fade in; closing fades them out, then the group
-/// collapses. A tap mid-sequence reverses from where the motion is.
+/// collapsed look, and only sequences the change: the group expands with its rows
+/// transparent, then they fade in; closing fades them out, then the group collapses. A tap
+/// mid-sequence reverses from where the motion is.
+///
+/// The system group's own state has to follow the layout (setting it false removes the
+/// rows), so the header also speaks the requested state at once (R4): its accessibility
+/// value is "Expanded" or "Collapsed" from the tap, not from the animation. iOS
+/// `DisclosureGroup` exposes no expanded status of its own; on macOS the value becomes the
+/// disclosure triangle's value description, which VoiceOver reads instead of its raw 0/1.
 struct FestivalDisclosureGroup<Label: View, Content: View>: View {
     private let external: Binding<FestivalAccordionState<Bool>>?
+    private let announcesState: Bool
     private let content: () -> Content
     private let label: () -> Label
     @State private var local: FestivalAccordionState<Bool>
@@ -325,13 +334,17 @@ struct FestivalDisclosureGroup<Label: View, Content: View>: View {
     ///
     /// - Parameters:
     ///   - state: The screen's accordion state.
+    ///   - announcesState: Give the header the "Expanded"/"Collapsed" accessibility value.
+    ///     Pass false only when the label already speaks `state.isExpanded` in its own
+    ///     value (``SettingsChoiceRow``: "Image, Collapsed").
     ///   - content: Rows shown while open.
     ///   - label: The always-visible header.
     init(
-        state: Binding<FestivalAccordionState<Bool>>, @ViewBuilder content: @escaping () -> Content,
-        @ViewBuilder label: @escaping () -> Label
+        state: Binding<FestivalAccordionState<Bool>>, announcesState: Bool = true,
+        @ViewBuilder content: @escaping () -> Content, @ViewBuilder label: @escaping () -> Label
     ) {
         external = state
+        self.announcesState = announcesState
         self.content = content
         self.label = label
         _local = State(initialValue: state.wrappedValue)
@@ -348,6 +361,7 @@ struct FestivalDisclosureGroup<Label: View, Content: View>: View {
         @ViewBuilder label: @escaping () -> Label
     ) {
         external = nil
+        announcesState = true
         self.content = content
         self.label = label
         _local = State(initialValue: FestivalAccordionState(expanded: initiallyExpanded))
@@ -371,11 +385,34 @@ struct FestivalDisclosureGroup<Label: View, Content: View>: View {
         ) {
             FestivalAccordionContent(state.wrappedValue) { content() }
         } label: {
-            label()
+            if announcesState {
+                label().accessibilityValue(
+                    FestivalAccordionAccessibility.value(isExpanded: state.wrappedValue.isExpanded)
+                )
+            } else {
+                label()
+            }
         }
         .onDisappear {
             sequence?.cancel()
             state.wrappedValue = FestivalAccordionState(expanded: state.wrappedValue.isExpanded)
         }
+    }
+}
+
+// MARK: - Accessibility
+
+/// The disclosure state an accordion header speaks (pattern `accordion` R4).
+enum FestivalAccordionAccessibility {
+    /// "Expanded" or "Collapsed" for the state the person asked for.
+    ///
+    /// SwiftUI has no public modifier for an element's expanded status, and iOS
+    /// `DisclosureGroup` leaves UIKit's `accessibilityExpandedStatus` unsupported (probed on
+    /// iOS 26.5), so headers speak it as their value.
+    ///
+    /// - Parameter isExpanded: The requested state (``FestivalAccordionState/isExpanded``).
+    /// - Returns: The accessibility value.
+    static func value(isExpanded: Bool) -> String {
+        isExpanded ? "Expanded" : "Collapsed"
     }
 }

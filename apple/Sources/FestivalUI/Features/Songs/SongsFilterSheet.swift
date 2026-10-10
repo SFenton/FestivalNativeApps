@@ -144,7 +144,7 @@ struct SongsFilterSheet: View {
                 .foregroundStyle(FestivalText.primary)
               }
               .accessibilityValue(
-                scoreSectionsExpanded ? "Expanded" : "Collapsed"
+                FestivalAccordionAccessibility.value(isExpanded: scoreSectionsExpanded)
               )
               .accessibilityIdentifier("fst.songs.filter.score-sections")
             }
