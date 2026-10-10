@@ -266,5 +266,137 @@
       "invoke:id=PART_BackButton",
       "waitfor:id=fst.song-detail.title@15"
     ]
+  },
+  {
+    "name": "bp-a11y-section",
+    "route": "/songs/fixture-pulse",
+    "profile": "fixture-player-1:Demo Player",
+    "fixture": ["song_band_preview_fixture.py", "--bands", "demo"],
+    "scan": true,
+    "tabs": 0,
+    "note": "Issue #426 (for #64): a Duos section reads header (Level 3 heading) -> rows -> appended selected band -> View Full, each row and View Full one named 40+ epx Button with Invoke, apart from its neighbours; the empty Trios section reads its heading then the empty sentence.",
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.band-view-all.Band_Duets@20",
+      "wait:1"
+    ],
+    "after_ready": [
+      "assertstate:id=fst.song-detail.band-header.Band_Duets|heading=3",
+      "assertread:id=fst.song-detail.band-header.Band_Duets|Duos, text",
+      "assertread:id=fst.song-detail.band-row.Band_Duets.0|Rank 1. Band 1 Member A, Lead. Band 1 Member B, Bass. Team score 94,500 points, full combo, 96.5% accuracy, 5 stars, button",
+      "assertread:id=fst.song-detail.band-row.Band_Duets.1|Rank 2. Band 2 Member A, Lead. Band 2 Member B, Bass. Team score 94,000 points, 96.5% accuracy, 5 stars, button",
+      "assertread:id=fst.song-detail.band-selected.Band_Duets|Your band, Rank 29. Fixture Player 1, Lead. Band 29 Member B, Bass. Team score 80,500 points, 96.5% accuracy, 5 stars. Jump to your band's position, button",
+      "assertread:id=fst.song-detail.band-view-all.Band_Duets|View Full Leaderboard, Duos, button",
+      "assertorder:id=fst.song-detail.band-header.Band_Duets|id=fst.song-detail.band-row.Band_Duets.0|id=fst.song-detail.band-row.Band_Duets.1",
+      "assertorder:id=fst.song-detail.band-row.Band_Duets.1|id=fst.song-detail.band-selected.Band_Duets|id=fst.song-detail.band-view-all.Band_Duets",
+      "assertstate:id=fst.song-detail.band-row.Band_Duets.0|invoke=true",
+      "assertstate:id=fst.song-detail.band-row.Band_Duets.0|focusable=true",
+      "assertstate:id=fst.song-detail.band-selected.Band_Duets|invoke=true",
+      "assertstate:id=fst.song-detail.band-selected.Band_Duets|focusable=true",
+      "assertstate:id=fst.song-detail.band-view-all.Band_Duets|focusable=true",
+      "assertsize:id=fst.song-detail.band-row.Band_Duets.0|40x40",
+      "assertsize:id=fst.song-detail.band-row.Band_Duets.1|40x40",
+      "assertsize:id=fst.song-detail.band-selected.Band_Duets|40x40",
+      "assertsize:id=fst.song-detail.band-view-all.Band_Duets|40x40",
+      "assertapart:id=fst.song-detail.band-row.Band_Duets.0|id=fst.song-detail.band-row.Band_Duets.1",
+      "assertapart:id=fst.song-detail.band-row.Band_Duets.1|id=fst.song-detail.band-selected.Band_Duets",
+      "assertapart:id=fst.song-detail.band-selected.Band_Duets|id=fst.song-detail.band-view-all.Band_Duets",
+      "scrollinto:id=fst.song-detail.band-empty.Band_Trios@10",
+      "wait:1",
+      "assertstate:id=fst.song-detail.band-header.Band_Trios|heading=3",
+      "assertread:id=fst.song-detail.band-empty.Band_Trios|When Trios scores are submitted for this song, they will show up here on the next leaderboard update., text",
+      "assertorder:id=fst.song-detail.band-header.Band_Trios|id=fst.song-detail.band-empty.Band_Trios"
+    ]
+  },
+  {
+    "name": "bp-a11y-in-place",
+    "route": "/songs/fixture-pulse",
+    "profile": "fixture-player-1:Demo Player",
+    "fixture": ["song_band_preview_fixture.py", "--bands", "full"],
+    "tabs": 0,
+    "note": "Issue #426 (for #64): the selected band ranked in the top ten stays in place as one 40+ epx Button that names Open band, read between its neighbours; nothing is appended after Trios' ten rows.",
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.band-row.Band_Trios.3@20",
+      "wait:1"
+    ],
+    "after_ready": [
+      "assertread:id=fst.song-detail.band-row.Band_Trios.2|~^Your band, Rank 3\\. .+\\. Open band, button$",
+      "assertorder:id=fst.song-detail.band-row.Band_Trios.1|id=fst.song-detail.band-row.Band_Trios.2|id=fst.song-detail.band-row.Band_Trios.3",
+      "assertstate:id=fst.song-detail.band-row.Band_Trios.2|invoke=true",
+      "assertsize:id=fst.song-detail.band-row.Band_Trios.2|40x40",
+      "assertapart:id=fst.song-detail.band-row.Band_Trios.2|id=fst.song-detail.band-row.Band_Trios.3",
+      "waitgone:id=fst.song-detail.band-selected.Band_Trios@2"
+    ]
+  },
+  {
+    "name": "bp-a11y-loading",
+    "route": "/songs/fixture-pulse",
+    "fixture": ["song_band_preview_fixture.py", "--bands", "slow"],
+    "tabs": 0,
+    "note": "Issue #426 (for #64): while the band read is in flight each section reads its heading then a busy, unfocusable ProgressRing, and no rows or View Full are left behind.",
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.band-loading.Band_Duets@10",
+      "wait:0.5"
+    ],
+    "after_ready": [
+      "assertread:id=fst.song-detail.band-loading.Band_Duets|Busy Loading band scores, ProgressRing",
+      "assertstate:id=fst.song-detail.band-loading.Band_Duets|focusable=false",
+      "assertorder:id=fst.song-detail.band-header.Band_Duets|id=fst.song-detail.band-loading.Band_Duets",
+      "waitgone:id=fst.song-detail.band-view-all.Band_Duets@1"
+    ],
+    "teardown": [
+      "scrollinto:id=fst.song-detail.band-row.Band_Duets.0@30",
+      "waitgone:id=fst.song-detail.band-loading.Band_Duets@5"
+    ]
+  },
+  {
+    "name": "bp-a11y-error",
+    "route": "/songs/fixture-pulse",
+    "fixture": ["song_band_preview_fixture.py", "--bands", "error"],
+    "scan": true,
+    "tabs": 0,
+    "note": "Issue #426 (for #64): a failed read reads heading -> status title -> message -> Retry; Retry is a focusable 40+ epx Button, and Enter on it brings the rows back.",
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.band-retry.Band_Duets@20",
+      "wait:1"
+    ],
+    "after_ready": [
+      "assertread:id=fst.song-detail.band-retry.Band_Duets|Retry, button",
+      "assertstate:id=fst.song-detail.band-retry.Band_Duets|focusable=true",
+      "assertsize:id=fst.song-detail.band-retry.Band_Duets|40x40",
+      "assertorder:id=fst.song-detail.band-header.Band_Duets|name=Duos scores unavailable&class=TextBlock|id=fst.song-detail.band-retry.Band_Duets",
+      "focus:id=fst.song-detail.band-retry.Band_Duets",
+      "assertfocus:id=fst.song-detail.band-retry.Band_Duets@3",
+      "key:enter",
+      "waitfor:id=fst.song-detail.band-row.Band_Duets.0@15",
+      "waitgone:id=fst.song-detail.band-retry.Band_Duets@5"
+    ]
+  },
+  {
+    "name": "bp-a11y-reduce-motion",
+    "route": "/songs/fixture-pulse",
+    "profile": "fixture-player-1:Demo Player",
+    "fixture": ["song_band_preview_fixture.py", "--bands", "demo"],
+    "settings": {"reduceMotion": true},
+    "tabs": 0,
+    "note": "Issue #426 (for #64) under in-app Reduce Motion: rows show in place without the staggered fade and hold still; Enter on the appended selected band still jumps to its row on the full band board.",
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.band-selected.Band_Duets@20"
+    ],
+    "after_ready": [
+      "assertmotion:id=fst.song-detail.band-row.Band_Duets.0|still",
+      "assertread:id=fst.song-detail.band-selected.Band_Duets|~^Your band, Rank 29\\. .+\\. Jump to your band's position, button$",
+      "focus:id=fst.song-detail.band-selected.Band_Duets",
+      "assertfocus:id=fst.song-detail.band-selected.Band_Duets@3",
+      "key:enter",
+      "waitfor:id=fst.song-band-leaderboard.row.fixture-band-fixture-player-1:29@15",
+      "assertname:id=fst.song-band-leaderboard.row.fixture-band-fixture-player-1:29|Your band. *",
+      "key:alt+left",
+      "waitfor:id=fst.song-detail.title@15"
+    ]
   }
 ]
