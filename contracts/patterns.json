@@ -676,12 +676,12 @@
         {
           "id": "apple-glass-effect",
           "glob": "apple/Sources/**/*.swift",
-          "regex": "\\.glassEffect\\s*\\(",
+          "regex": "\\.glassEffect\\s*\\(|UIGlassEffect\\s*\\(",
           "allow": [
             "apple/Sources/FestivalUI/Design/GlassSurface.swift"
           ],
           "debt": [],
-          "message": "Liquid Glass implementation belongs only to GlassSurface (surface-materials R2)."
+          "message": "Liquid Glass implementation (SwiftUI glassEffect or UIKit UIGlassEffect, including the #559 drawer search field backing) belongs only to GlassSurface (surface-materials R2)."
         },
         {
           "id": "apple-glass-consumers",
@@ -979,7 +979,7 @@
             "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
             "apple/Sources/FestivalUI/Features/Profile/ProfileSelectionSheet.swift"
           ],
-          "message": "A pushing page's search drawer goes through SongsSystemFilterField so SearchDrawerTransitionFill draws its capsule during push and pop (page-tools-and-nav-chrome R19); the Profile sheet never pushes."
+          "message": "A pushing page's search drawer goes through SongsSystemFilterField so SearchDrawerTransitionFill gives it the glass backing at every scroll position (#559) and draws its capsule during push and pop (page-tools-and-nav-chrome R19); the Profile sheet never pushes and keeps the system look."
         }
       ],
       "related": {
