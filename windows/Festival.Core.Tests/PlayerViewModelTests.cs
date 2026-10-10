@@ -150,6 +150,12 @@ public class PlayerProfileViewModelTests
         Assert.Equal("fst.player.bands.header.duos", duos.HeaderAutomationId);
         Assert.Equal("fst.player.bands.view-all.duos", duos.ViewAllAutomationId);
         Assert.IsType<AppRoute.Band>(duos.Cards[0].Route);
+        // Owner #596: rows of the group's one card leave the band size to the group header, on screen and in their name.
+        Assert.All(duos.Cards, c => Assert.True(c.IsGroupedRow));
+        Assert.All(duos.Cards, c => Assert.False(c.ShowsBandType));
+        Assert.All(duos.Cards, c => Assert.DoesNotContain("Duos", c.Announcement, StringComparison.Ordinal));
+        Assert.StartsWith("View band: ", duos.Cards[0].Announcement, StringComparison.Ordinal);
+        Assert.EndsWith(". " + duos.Cards[0].AppearancesText, duos.Cards[0].Announcement, StringComparison.Ordinal);
 
         var trios = bands.Groups[1];
         Assert.Equal(2, trios.Cards.Count);

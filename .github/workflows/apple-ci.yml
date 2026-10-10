@@ -92,18 +92,28 @@ jobs:
             SongsChromeJourneyTests/testFilterFieldReadyAfterBackFromSongDetail
             FirstRunJourneyTests/testSongDemoSlideAccessibleAtLargestText
             FirstRunJourneyTests/testSongDemoRotationKeepsSlideAccessibleAtLargestText
+            RivalsViewAllAccessibilityJourneyTests/testViewAllRivalsIsReadableAtAX5
             SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5
+            BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestText
+            BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestTextDuoFolded
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrder
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrderOnPushedPage
             NavButtonHitRegionJourneyTests/testChooseProfileReadsAloneInProductionChrome
             NavButtonHitRegionJourneyTests/testAccountButtonsStaySeparateAndLabelledAtLargestTextSize
+            NavButtonHitRegionJourneyTests/testProfileStaysTheLastBarButtonOnSongDetail
+            NavButtonHitRegionJourneyTests/testProfileStaysTheLastBarButtonOnPushedPagesWithActions
+            NavButtonHitRegionJourneyTests/testChooseProfileStaysLastOnSongDetailAtLargestTextSize
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
             CompeteAccessibilityJourneyTests/testCompeteIsReadableAtAX5
             RivalsJourneyTests/testAllRivalsTitleLeadsTheListAndPinsAfterScroll
             RivalsJourneyTests/testAllRivalsDuoVerticalBarKeepsSystemTitle
             SongBarCaptionIconJourneyTests/testSongLeaderboardCaptionIconScalesWithText
             SongBarCaptionIconJourneyTests/testPlayerHistoryCaptionIconAtLargestText
+            SuggestionsAccessibilityJourneyTests/testCachedArtRowIsAccessibleAtDefaultSizeAndAX5
             RivalsJourneyTests/testRivalDetailSongCardsAreAccessibleAtAX5
+            FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert
+            FeedbackSentJourneyTests/testFiledRequestClosesFormThenShowsSentAlert
+            FeedbackSentJourneyTests/testRefusedOrFailedReportKeepsForm
         run: |
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service.log" 2>&1 &
           mock=$!
@@ -147,12 +157,18 @@ jobs:
         # The same evidence on iPad, portrait and landscape (the iPhone runs portrait only). Reuses the iPhone
         # step's UI-test build (`--app phone`; every iOS target is device family 1,2) on a second throwaway
         # simulator, after shutting the iPhone down so one simulator runs at a time. One selector per batch: each What's
-        # New form takes ~70 s on a Mac and several times that here. The first batch also pays the iPad's cold first test
-        # launch (~8 min on the runner; 748-988 s in total), so the batch limit is 1500 s. testing/apple/xcuitest.md#ci-journeys.
+        # New or board-footer form takes ~70-80 s on a Mac and several times that here. The first batch also pays the
+        # iPad's cold first test launch (~8 min on the runner; 748-988 s in total), so the batch limit is 1500 s.
+        # testing/apple/xcuitest.md#ci-journeys.
         env:
           JOURNEYS: >-
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Landscape
+            BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestText
+            BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestTextLandscape
+            FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert
+            FeedbackSentJourneyTests/testFiledRequestClosesFormThenShowsSentAlert
+            FeedbackSentJourneyTests/testRefusedOrFailedReportKeepsForm
         run: |
           python3 tools/ios_sim.py shutdown --device "$(python3 tools/ios_sim.py ci-device)"
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service_ipad.log" 2>&1 &
@@ -163,6 +179,9 @@ jobs:
           grep -q "fixture service on" "$RUNNER_TEMP/mock_service_ipad.log"
           only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
           python3 tools/ios_sim.py uitest --device "$device" --app phone --batch-size 1 --fail-on-skip --timeout 1500 "${only[@]}"
+          # Hardware-keyboard focus on the board (the journey fails when no focus stop exists).
+          python3 tools/ios_sim.py uitest --device "$device" --app phone --a11y full-keyboard-access --fail-on-skip \
+            --timeout 900 --only BoardFooterFadeJourneyTests/testBoardKeyboardFocusClearsFooter
       - name: Upload simulator journey results
         if: failure() && github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4

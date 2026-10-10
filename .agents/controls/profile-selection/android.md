@@ -23,7 +23,7 @@ Emulator API 37, debug build, live public service (keyless; no selected-profile 
 | Configuration | Result |
 |---|---|
 | FST_Phone portrait, font 1.0 and 2.0; system light and dark | OK: anonymous hint, debounced results, Bands explanation, viewed page, Select, selected summary, Deselect confirm. At 2.0 the title, scopes, field and rows grow without clipping. |
-| FST_Phone landscape, font 1.0 and 2.0 | OK. At 2.0 the sheet opens partially expanded (title and "Find a Profile" visible); the rest is in its scroll container and the 48 dp drag handle expands it. |
+| FST_Phone landscape, font 1.0 and 2.0 | OK. The sheet opens fully expanded (`modal-shell` R13, #586; it used to open at half height below "Find a Profile"); the rest is in its scroll container. |
 | FST_Tablet portrait ⇄ landscape, font 1.0 and 2.0 | OK; results and the typed query survive rotation and font-scale changes. |
 | FST_Resizable phone / foldable / tablet / desktop | OK; centred sheet (640 dp max) at medium and expanded widths. |
 | FST_Book_Fold folded / unfolded | OK. Right after a fold switch the emulator is briefly busy (uiautomator can't dump); allow ~10 s before checking. |

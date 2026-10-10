@@ -343,6 +343,18 @@
         <Setter Property="MinHeight" Value="{StaticResource FSTMenuItemMinHeight}" />
     </Style>
 
+    <!-- Radio choices are targets too (page-tools-and-nav-chrome R10, issue #430): WinUI's template draws each RadioButton
+         32 epx tall (a fixed 32 epx circle row, no MinHeight) with an 8 epx RadioButtonsRowSpacing between them, so the
+         Paths Difficulty/Display, Sort By/Direction and Settings Path Default View choices were 32 epx targets. Each
+         RadioButton is at least FSTMinTargetSize tall (6 epx under the label, matching the template's 6 epx above it)
+         and the target absorbs the old row gap, so a one-line list keeps its 40 epx row pitch. Implicit styles match
+         the exact type; RadioButtons' generated items pick this one up. -->
+    <x:Double x:Key="RadioButtonsRowSpacing">0</x:Double>
+    <Style TargetType="RadioButton" BasedOn="{StaticResource DefaultRadioButtonStyle}">
+        <Setter Property="MinHeight" Value="{StaticResource FSTMinTargetSize}" />
+        <Setter Property="Padding" Value="8,6,0,6" />
+    </Style>
+
     <!-- Every ProgressRing/ProgressBar is white (neutral) rather than accent-coloured, with no caption beside it. -->
     <Style TargetType="ProgressRing">
         <Setter Property="Foreground" Value="{ThemeResource FSTLoadingBrush}" />
@@ -387,7 +399,8 @@
     </Style>
 
     <!-- Full-width accent "View all" call to action below a card's rows (web ViewFullLeaderboardCta / Rivals viewAllButton):
-         Song Detail's View Full Leaderboard, Leaderboards' View All Rankings and Rivals' View All Rivals. Consumers set no
+         Song Detail's View Full Leaderboard, Leaderboards' View All Rankings, Rivals' View All Rivals and the profile Bands
+         groups' View All Bands (N) (owner #596). Consumers set no
          layout overrides, so every one has the same gap, height and fill (issue #268). Contrast themes draw the accent
          button as HighlightText on Highlight; without HighContrastAdjustment None WinUI paints a Window backplate box
          behind the label (same as ServiceStatusView's Retry; issues #264, #268). -->
@@ -398,23 +411,6 @@
         <Setter Property="MinHeight" Value="{StaticResource FSTMinTargetSize}" />
         <Setter Property="Margin" Value="0,4,0,0" />
         <Setter Property="FontWeight" Value="SemiBold" />
-    </Style>
-
-    <!-- Frosted "View all" card (surface-materials R7; web PlayerBandsSection BandViewAllCard, frostedCard at
-         Layout.entryRowHeight 48 px): the canonical card surface and stroke, full width, 48 epx minimum height; the
-         control centres its label and chevron and swaps in the card hover/press fills. Profile Bands' View All Bands (N)
-         (issue #312). Consumers set no layout or colour overrides (ViewAllCardTests). -->
-    <x:Double x:Key="FSTViewAllCardMinHeight">48</x:Double>
-    <Style TargetType="controls:ViewAllCard">
-        <Setter Property="Background" Value="{ThemeResource FSTCardSurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{ThemeResource FSTCardStrokeBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
-        <Setter Property="HorizontalAlignment" Value="Stretch" />
-        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-        <Setter Property="VerticalContentAlignment" Value="Center" />
-        <Setter Property="MinHeight" Value="{StaticResource FSTViewAllCardMinHeight}" />
-        <Setter Property="Padding" Value="16,8" />
     </Style>
 
     <!-- Instrument / band header above a card (web InstrumentHeader MD): 36 epx icon, bold title, optional subtitle. -->

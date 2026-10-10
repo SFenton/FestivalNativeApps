@@ -68,13 +68,44 @@ public sealed class SongRowItem
             return string.Join(", ", parts.Where(p => p.Length > 0));
         }
     }
+
+    /// <summary>Whether <paramref name="other"/> shows exactly what this row shows (same song, accent, chips, metadata and state).</summary>
+    /// <param name="other">Row from another rebuild.</param>
+    /// <returns><see langword="true"/> when the two rows render identically.</returns>
+    public bool SameContent(SongRowItem other) =>
+        ReferenceEquals(this, other) ||
+        (Equals(Song, other.Song) && Highlight == other.Highlight && InShop == other.InShop && Chart == other.Chart &&
+         ChartRaw == other.ChartRaw && ScoreState == other.ScoreState && Chips.SequenceEqual(other.Chips) &&
+         Metadata.SequenceEqual(other.Metadata));
 }
 
 /// <summary>A grouped list section of row items.</summary>
 /// <param name="Label">Header ("" hides the header).</param>
 /// <param name="Rows">Rows.</param>
 /// <param name="AutomationId">Heading automation ID (Item Shop buckets), or empty.</param>
-public sealed record SongRowSection(string Label, IReadOnlyList<SongRowItem> Rows, string AutomationId = "");
+public sealed record SongRowSection(string Label, IReadOnlyList<SongRowItem> Rows, string AutomationId = "")
+{
+    /// <summary>
+    /// Whether two section lists render identically. Songs keeps its current list when a rebuild changes nothing, so a
+    /// returning page keeps its item objects and its scroll place (back-keeps-place R2/R3, issue #560).
+    /// </summary>
+    /// <param name="current">Shown sections.</param>
+    /// <param name="next">Freshly projected sections.</param>
+    /// <returns><see langword="true"/> when every label, heading ID and row matches in order.</returns>
+    public static bool SameContent(IReadOnlyList<SongRowSection> current, IReadOnlyList<SongRowSection> next)
+    {
+        if (ReferenceEquals(current, next)) return true;
+        if (current.Count != next.Count) return false;
+        for (var i = 0; i < current.Count; i++)
+        {
+            var (a, b) = (current[i], next[i]);
+            if (a.Label != b.Label || a.AutomationId != b.AutomationId || a.Rows.Count != b.Rows.Count) return false;
+            for (var r = 0; r < a.Rows.Count; r++)
+                if (!a.Rows[r].SameContent(b.Rows[r])) return false;
+        }
+        return true;
+    }
+}
 
 /// <summary>A notice above the Songs list: a saved choice that can't apply right now, or the player-score state.</summary>
 /// <param name="AutomationId">Cross-platform test ID (<c>fst.songs.sort-paused</c>, <c>fst.songs.filter-paused</c>, …).</param>

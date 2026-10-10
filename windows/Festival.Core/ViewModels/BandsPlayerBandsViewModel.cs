@@ -115,13 +115,13 @@ public sealed partial class PlayerBandsViewModel : ObservableObject
     /// <summary>Whether the status view is shown.</summary>
     public bool ShowError => State == LoadState.Failed && LoadSwap.ContentVisible;
 
-    /// <summary>Changing the group returns to page one.</summary>
+    /// <summary>Changing the group returns to page one and hides the pager until the new group's page count loads (#575).</summary>
     /// <param name="value">New group.</param>
     partial void OnGroupChanged(PlayerBandGroup value)
     {
         // The route's initial group is applied before the page's first load.
         if (!ready) return;
-        Pager.Page = 1;
+        Pager.Reset();
         _ = LoadAsync();
     }
 
