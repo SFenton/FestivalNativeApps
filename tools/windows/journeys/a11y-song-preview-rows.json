@@ -1,0 +1,72 @@
+[
+  {
+    "name": "preview-rows-anonymous",
+    "route": "/songs/fixture-pulse",
+    "fixture": ["--song-leaderboard", "anonymous"],
+    "tabs": 0,
+    "note": "Issues #63, #425: a Song Details top-ten row without an account reads as text (no Invoke, not focusable) in its place between the rows with accounts, which stay 40+ epx Button stops that open the profile by Enter; Down skips the text row.",
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-4@20",
+      "wait:1"
+    ],
+    "after_ready": [
+      "assertread:id=fst.song-detail.preview-row.Solo_Guitar.rank-3|Rank 3, Unknown player, 99,700 points, text",
+      "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.rank-3|type=text",
+      "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.rank-3|invoke=false",
+      "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.rank-3|focusable=false",
+      "assertread:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2|~^Rank 2, Fixture Player 2, 99,800 points, 98% accuracy, full combo(, season 9)?, button$",
+      "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2|invoke=true",
+      "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-4|type=button",
+      "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-4|invoke=true",
+      "assertsize:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2|40x40",
+      "assertsize:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-4|40x40",
+      "assertorder:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2|id=fst.song-detail.preview-row.Solo_Guitar.rank-3|id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-4",
+      "focus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2",
+      "assertfocus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2@3",
+      "key:down",
+      "assertfocus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-4@3",
+      "key:enter",
+      "waitfor:id=fst.player.name@15",
+      "waitgone:id=fst.song-detail.title@5",
+      "key:alt+left",
+      "waitfor:id=fst.song-detail.title@15",
+      "waitgone:id=fst.player.name@5"
+    ]
+  },
+  {
+    "name": "preview-rows-row-eleven",
+    "route": "/songs/fixture-pulse",
+    "profile": "fixture-player-17:Fixture Player 17",
+    "fixture": ["fade_fixture.py"],
+    "tabs": 0,
+    "note": "Issues #63, #425: the selected player's row eleven (outside the top ten) is one 40+ epx Button stop after row ten and before View Full Leaderboard, named with its destination; Down from row ten reaches it and Enter opens the full board at the player's row.",
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.view-all.Solo_Guitar@20",
+      "wait:1"
+    ],
+    "after_ready": [
+      "assertread:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17|~^Rank 17, Fixture Player 17, .+, you\\. Jump to your position, button$",
+      "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17|type=button",
+      "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17|invoke=true",
+      "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17|focusable=true",
+      "assertread:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-10|~^Rank 10, Fixture Player 10, .+, button$",
+      "assertsize:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17|40x40",
+      "assertsize:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-10|40x40",
+      "assertorder:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-10|id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17|id=fst.song-detail.view-all.Solo_Guitar",
+      "focus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-10",
+      "assertfocus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-10@3",
+      "key:down",
+      "assertfocus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17@3",
+      "key:tab",
+      "assertfocus:id=fst.song-detail.view-all.Solo_Guitar@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17@3",
+      "key:enter",
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-17@15",
+      "key:alt+left",
+      "waitfor:id=fst.song-detail.title@15"
+    ]
+  }
+]
