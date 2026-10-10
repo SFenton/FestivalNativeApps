@@ -23,9 +23,16 @@ import UIKit
 /// at regular width on iPad and the iPhone Duo inner display Photo Library opens in a pane
 /// beside the form rather than over it (issue #373, ``FeedbackPhotoLibraryPlacement``).
 /// HIG (Entering data): "As much as possible, support drag and drop and paste."
+///
+/// Once the report is filed (or received) the form closes itself and hands its notice to
+/// the presenter, which shows "Report Sent" over Settings after the sheet has gone, so no
+/// Cancel or Submit is left behind the alert (issue #565, ``FeedbackSentPresentation``).
+/// HIG (Sheets): a sheet presents "a scoped, context-related task people complete before
+/// returning to the parent view".
 struct FeedbackFormSheet: View {
     private let kind: FeedbackKind
     private let session: FestivalSession
+    private let onSent: (FeedbackSentNotice) -> Void
     @State private var model: FeedbackFormModel
     @State private var confirmingDiscard = false
     @State private var showingPhotos = false
@@ -48,9 +55,15 @@ struct FeedbackFormSheet: View {
     /// - Parameters:
     ///   - kind: Bug report or feature request.
     ///   - session: Service session used only when Submit is pressed.
-    init(kind: FeedbackKind, session: FestivalSession) {
+    ///   - onSent: Called with the success notice just before the form closes itself;
+    ///     the presenter shows it once the sheet has been dismissed.
+    init(
+        kind: FeedbackKind, session: FestivalSession,
+        onSent: @escaping (FeedbackSentNotice) -> Void
+    ) {
         self.kind = kind
         self.session = session
+        self.onSent = onSent
         _model = State(initialValue: FeedbackFormModel(kind: kind))
     }
 
@@ -111,11 +124,12 @@ struct FeedbackFormSheet: View {
         ) { result in
             Task { await model.importFiles(result) }
         }
-        .alert(successTitle, isPresented: finishedBinding, presenting: outcome) { _ in
-            Button("Done", role: .cancel, action: close)
-                .accessibilityIdentifier("fst.settings.feedback.done")
-        } message: { outcome in
-            Text(successMessage(outcome))
+        .onChange(of: outcome) { _, outcome in
+            // Sent: nothing on the form means anything any more, so it closes itself and
+            // Settings shows the alert after the sheet has gone (issue #565).
+            guard let outcome else { return }
+            onSent(FeedbackSentNotice(kind: kind, outcome: outcome))
+            close()
         }
         .alert("Couldn't Send", isPresented: failedBinding) {
             Button("OK", role: .cancel) { model.acknowledgeFailure() }
@@ -481,26 +495,6 @@ struct FeedbackFormSheet: View {
         kind == .bug ? "Discard this report?" : "Discard this request?"
     }
 
-    private var successTitle: String {
-        kind == .bug ? "Report Sent" : "Request Sent"
-    }
-
-    private func successMessage(_ outcome: FeedbackFormModel.Outcome) -> String {
-        switch outcome {
-        case let .filed(number, skipped):
-            var text = number.map { "Thank you! It was filed as issue #\($0)." }
-                ?? "Thank you! It has been filed."
-            if skipped > 0 {
-                text += skipped == 1
-                    ? " 1 attachment couldn't be included."
-                    : " \(skipped) attachments couldn't be included."
-            }
-            return text
-        case .received:
-            return "Thank you! It was received and will be filed shortly."
-        }
-    }
-
     private var progress: Double {
         if case let .submitting(fraction) = model.phase { return fraction }
         return 0
@@ -509,10 +503,6 @@ struct FeedbackFormSheet: View {
     private var outcome: FeedbackFormModel.Outcome? {
         if case let .finished(outcome) = model.phase { return outcome }
         return nil
-    }
-
-    private var finishedBinding: Binding<Bool> {
-        Binding(get: { outcome != nil }, set: { _ in })
     }
 
     private var failureMessage: String {

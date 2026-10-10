@@ -19,6 +19,7 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.text.TextLayoutResult
@@ -43,7 +44,9 @@ import org.junit.runner.RunWith
  * otherwise stacked under the description, never a squeezed title), the phase row's progress
  * semantics (determinate range or indeterminate, exposed as `android.widget.ProgressBar`) and
  * TalkBack's reading order (heading → hint → state → phase → last publication), with the
- * Accessibility Test Framework on every interaction. Run with `device.py test
+ * Accessibility Test Framework on every interaction. The capsule bar (#598) stays decoration:
+ * the phase is the sole progress bar and TalkBack stop over its region, with no ATF error there.
+ * Run with `device.py test
  * com.festivalscoretracker.android.journeys.ServiceInfoJourneyTest --avd <AVD>`; reading orders
  * go to logcat `FST_A11Y`.
  */
@@ -107,6 +110,7 @@ class ServiceInfoJourneyTest {
             h.waitForTag("fst.settings.service-info.last-published")
             assertStateRowFits("fs $s", s)
             progress(rule.onNodeWithTag("fst.settings.service-info.phase"))
+            assertCapsuleIsDecorative("fs $s")
             assertReadingOrder("fs $s", phaseTitle)
         }
         assertTrue(transport.sent("/api/service-info").isNotEmpty())
@@ -182,6 +186,46 @@ class ServiceInfoJourneyTest {
     // endregion
 
     // region Accessibility
+
+    /**
+     * The capsule bar (issue #598: a muted track with the purple fill drawn inside it) is
+     * decoration of the phase row. With the row on screen, the window's accessibility tree has
+     * the phase as the only `android.widget.ProgressBar` over that region and the only TalkBack
+     * stop inside it (no separate or unlabelled stop for the track or fill), the bar is merged
+     * away (no merged-tree or accessibility node of its own), and ATF, run on the window right here, reports no error for
+     * the phase row or the bar.
+     *
+     * @param config Configuration name for messages.
+     */
+    private fun assertCapsuleIsDecorative(config: String) {
+        val phaseTag = "fst.settings.service-info.phase"
+        val barTag = "fst.settings.service-info.bar"
+        rule.onNodeWithTag(phaseTag).performScrollTo()
+        refreshAccessibilityTree()
+        assertTrue("$config: the capsule bar is merged away from TalkBack's tree", rule.onAllNodesWithTag(barTag).fetchSemanticsNodes().isEmpty())
+        val stops = h.readingStops("settings-service-info $config at phase")
+        val phase = stops.filter { it.id == phaseTag }
+        assertEquals("$config: the phase row is one TalkBack stop ($stops)", 1, phase.size)
+        val area = phase.single().bounds
+        val inside = stops.filter { it !== phase.single() && android.graphics.Rect.intersects(area, it.bounds) }
+        assertTrue("$config: nothing else is announced over the phase row and its bar ($inside)", inside.isEmpty())
+        val progressBars = mutableListOf<AccessibilityNodeInfo>()
+        val barNodes = mutableListOf<AccessibilityNodeInfo>()
+        fun walk(n: AccessibilityNodeInfo?) {
+            n ?: return
+            val r = android.graphics.Rect().also(n::getBoundsInScreen)
+            if (n.viewIdResourceName == barTag) barNodes += n
+            if (n.isVisibleToUser && n.className?.toString() == "android.widget.ProgressBar" && android.graphics.Rect.intersects(area, r)) progressBars += n
+            for (i in 0 until n.childCount) walk(n.getChild(i))
+        }
+        walk(InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow)
+        assertTrue("$config: the capsule bar has no accessibility node of its own", barNodes.isEmpty())
+        assertEquals("$config: the phase row is the sole progress bar over its region", listOf(phaseTag), progressBars.map { it.viewIdResourceName })
+        val region = h.accessibilityFindings.filter { finding ->
+            finding.startsWith("ERROR") && (finding.contains(phaseTag) || finding.contains(barTag))
+        }
+        assertTrue("$config: ATF errors in the phase row:\n${region.joinToString("\n")}", region.isEmpty())
+    }
 
     /**
      * TalkBack meets the card's items in web order. A tall card at 2.0 may not fit the window,

@@ -56,7 +56,8 @@ struct SongsFilterSheet: View {
   ///   - selectedPlayer: Whether a player identity is selected; without one only the
   ///     General section is shown (web `hasSelectedProfile`).
   ///   - scoreAvailable: Whether validated scores match the current Songs catalogue.
-  ///   - invalidScoreFilteringEnabled: Whether unsupported score substitution blocks raw filters.
+  ///   - invalidScoreFilteringEnabled: Settings › Filter Invalid Scores is on: score checks
+  ///     use effective scores and the web's Over CHOpt Threshold checks are offered.
   ///   - availableSeasons: Season filter keys (``SongSeasonBucket/keys(in:)``).
   ///   - onApply: Commit all current choices together; called on every change and may
   ///     throw (shown in the sheet).
@@ -114,7 +115,7 @@ struct SongsFilterSheet: View {
   }
 
   private var canEnableScores: Bool {
-    selectedPlayer && scoreAvailable && !invalidScoreFilteringEnabled
+    selectedPlayer && scoreAvailable
   }
 
   var body: some View {
@@ -152,13 +153,7 @@ struct SongsFilterSheet: View {
               )
               .font(.footnote)
               .foregroundStyle(FestivalText.primary)
-              if invalidScoreFilteringEnabled {
-                Text(
-                  "Score filters are paused while Filter Invalid Scores "
-                    + "is enabled in Settings."
-                )
-                .foregroundStyle(FestivalText.primary)
-              } else if !scoreAvailable {
+              if !scoreAvailable {
                 Text(
                   "Score filters need published player scores from "
                     + "the current Songs catalogue."
@@ -174,6 +169,12 @@ struct SongsFilterSheet: View {
                     "fst.songs.filter.score.global.\(kind.rawValue)"
                   )
               }
+              // Web FilterModal: offered only while Filter Invalid Scores is on.
+              if invalidScoreFilteringEnabled {
+                Toggle("Over CHOpt Threshold", isOn: overThresholdBinding())
+                  .disabled(!canEnableScores)
+                  .accessibilityIdentifier("fst.songs.filter.score.global.overThreshold")
+              }
             }
             Section("Individual charts") {
               ForEach(Instrument.allCases.filter(visibleInstruments.contains)) {
@@ -187,6 +188,16 @@ struct SongsFilterSheet: View {
                     .disabled(!canEnableScores)
                     .accessibilityIdentifier(
                       "fst.songs.filter.score.chart.\(chart.rawValue).\(kind.rawValue)"
+                    )
+                  }
+                  if invalidScoreFilteringEnabled {
+                    Toggle(
+                      "\(chart.label) Over CHOpt Threshold",
+                      isOn: overThresholdBinding(chart: chart)
+                    )
+                    .disabled(!canEnableScores)
+                    .accessibilityIdentifier(
+                      "fst.songs.filter.score.chart.\(chart.rawValue).overThreshold"
                     )
                   }
                 } label: {
@@ -513,6 +524,28 @@ struct SongsFilterSheet: View {
   ///   - kind: One of four independent source score and FC checks.
   ///   - chart: Optional individual chart; nil updates all visible charts.
   /// - Returns: Native two-way toggle binding (committed through `commit()`).
+  /// One chart's, or every visible chart's, Over CHOpt Threshold check.
+  ///
+  /// - Parameter chart: The chart, or nil for the global toggle.
+  /// - Returns: A binding over the draft filter.
+  private func overThresholdBinding(chart: Instrument? = nil) -> Binding<Bool> {
+    Binding(
+      get: {
+        if let chart { return draftPlayerFilter.containsOverThreshold(chart) }
+        return draftPlayerFilter.allVisibleOverThreshold(visibleInstruments: visibleInstruments)
+      },
+      set: { enabled in
+        if let chart {
+          draftPlayerFilter = draftPlayerFilter.settingOverThreshold(chart, enabled: enabled)
+        } else {
+          draftPlayerFilter = draftPlayerFilter.settingAllOverThreshold(
+            visibleInstruments: visibleInstruments, enabled: enabled
+          )
+        }
+      }
+    )
+  }
+
   private func scoreBinding(
     _ kind: SongScoreFilterKind, chart: Instrument? = nil
   ) -> Binding<Bool> {

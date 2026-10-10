@@ -82,6 +82,10 @@ public struct MacRootView: View {
         .environment(\.songRowsAllowSingleLine, true)
         .environment(\.refreshCommandRegistry, model.refreshRegistry)
         .environment(\.openProfile, OpenProfileAction { navigation.profilePresented = true })
+        .environment(\.openAppSettings, OpenAppSettingsAction {
+            UserDefaults.standard.set(SettingsPane.paths.rawValue, forKey: SettingsPane.storageKey)
+            openSettings()
+        })
         // The model reads its visible rows live, so the captured flag never goes stale.
         .environment(\.profileButtonAction, ProfileButtonHandler(statisticsVisible: true) {
             navigation.pressProfileButton(hasPlayer: session.selectedPlayer != nil)
