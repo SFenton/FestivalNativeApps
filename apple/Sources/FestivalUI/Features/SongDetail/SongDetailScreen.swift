@@ -96,6 +96,12 @@ struct SongDetailScreen: View {
         hideShop ? nil : session.shopOffersById[song.songId]
     }
 
+    /// Item Shop, Paths and Quick Links wait for the first-load gate and appear with the
+    /// content (load-transition R1, issue #585).
+    private var tools: SongDetailPageTools {
+        .resolve(contentShown: ready, hasShopOffer: shopOffer != nil, hasPathCharts: !pathInstruments.isEmpty)
+    }
+
     /// Breathing status colour for the Shop action (green / gold / red), or nil.
     private var shopTone: ShopStatusTone? {
         ShopStatusTone.tone(
@@ -167,22 +173,23 @@ struct SongDetailScreen: View {
                     .accessibilityIdentifier("fst.song-detail.loading")
             }
         }
-        .quickLinks(quickLinks, title: "Quick Links", sections: quickLinkSections)
+        .quickLinks(quickLinks, title: "Quick Links", sections: tools.quickLinks ? quickLinkSections : [])
         .detailFadeTestSafe()
         .festivalBackground(.song(song.albumArt), session: session)
         .festivalNavigationTitle(song.title)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: heroTitleHidden)
         .toolbar { detailToolbar }
         .songBarTitleKeepsBarVisible()
-        // iPhone tab-bar accessory (issue #92): Item Shop, then Paths, then Quick Links.
+        // iPhone tab-bar accessory (issue #92): Item Shop, then Paths, then Quick Links,
+        // all once the page has loaded (#585).
         .festivalPageTool(
             token: [shopOffer?.shopUrl.absoluteString ?? "", shopTone.map { "\($0)" } ?? ""],
-            order: PageToolOrder.primary, isEnabled: shopOffer != nil
+            order: PageToolOrder.primary, isEnabled: tools.shop
         ) {
             if let offer = shopOffer { shopAction(offer, fillsSlot: true) }
         }
         .festivalPageTool(
-            token: "paths", order: PageToolOrder.secondary, isEnabled: !pathInstruments.isEmpty
+            token: "paths", order: PageToolOrder.secondary, isEnabled: tools.paths
         ) {
             pathsButton
         }
@@ -191,7 +198,7 @@ struct SongDetailScreen: View {
         #if DEBUG
         // `tools/mac_app.py command song:paths` (the Song menu needs a key window).
         .onReceive(NotificationCenter.default.publisher(for: MacDebugHooks.openPathsName)) { _ in
-            if !pathInstruments.isEmpty { pathsPresented = true }
+            if tools.paths { pathsPresented = true }
         }
         #endif
         #endif
@@ -227,11 +234,14 @@ struct SongDetailScreen: View {
         }
     }
 
-    /// The toolbar's Paths and Item Shop tools for the Song menu (macOS, iPadOS).
+    /// The toolbar's Paths and Item Shop tools for the Song menu (macOS, iPadOS): listed
+    /// but disabled until the page has loaded (#585).
     private var macSongCommands: MacSongCommands {
         let presented: Binding<Bool> = $pathsPresented
-        var commands = MacSongCommands(songId: song.songId, paths: nil, shopURL: shopOffer?.shopUrl)
-        if !pathInstruments.isEmpty {
+        var commands = MacSongCommands(
+            songId: song.songId, paths: nil, shopURL: tools.shop ? shopOffer?.shopUrl : nil
+        )
+        if tools.paths {
             commands.paths = { presented.wrappedValue = true }
         }
         return commands
@@ -254,13 +264,13 @@ struct SongDetailScreen: View {
             identifier: "fst.song-detail.pinned-title"
         )
         #endif
-        if pageTools == nil, let offer = shopOffer {
+        if pageTools == nil, tools.shop, let offer = shopOffer {
             ToolbarItem(placement: .festivalPageAction) {
                 shopAction(offer)
             }
             .songDetailPagePriority()
         }
-        if pageTools == nil, !pathInstruments.isEmpty {
+        if pageTools == nil, tools.paths {
             ToolbarItem(placement: .festivalPageAction) {
                 pathsButton
             }
