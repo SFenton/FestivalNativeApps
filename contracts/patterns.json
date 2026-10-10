@@ -597,7 +597,9 @@
         "transparency",
         "view all",
         "grouped list",
-        "group card"
+        "group card",
+        "uncarded section",
+        "reset row"
       ],
       "web": [
         {
@@ -611,6 +613,10 @@
         {
           "path": "pages/player/components/PlayerBandsSection.tsx",
           "symbol": "BandViewAllCard"
+        },
+        {
+          "path": "pages/settings/SettingsPage.tsx",
+          "symbol": "resetRow"
         }
       ],
       "canonical": {
