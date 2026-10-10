@@ -77,7 +77,9 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         let baseline = try assertRevealedRow(in: standard, minimumSide: 44, footerPinned: true)
         let standardText = rowTextHeights(in: standard)
         var flagged: Set<String> = []
-        try standard.performAccessibilityAudit(for: [.dynamicType, .textClipped]) { issue in
+        try SongsUITestSupport.performAuditRetryingTimeout(
+            standard, [.dynamicType, .textClipped], name: "default-text", reset: { flagged = [] }
+        ) { issue in
             let detail = self.attach(issue, name: "default-text")
             if issue.auditType == .dynamicType, let frame = issue.element?.frame,
                Self.isSystemBadge(frame, in: self.systemBadgeFrame(in: standard)) {
@@ -278,7 +280,7 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
     ) throws {
         SongsUITestSupport.record(app, name: "song-band-reveal-\(name)")
         let badge = systemBadgeFrame(in: app)
-        try app.performAccessibilityAudit(for: types.subtracting(.contrast)) { issue in
+        try SongsUITestSupport.performAuditRetryingTimeout(app, types.subtracting(.contrast), name: name) { issue in
             let detail = self.attach(issue, name: name)
             if issue.auditType == .dynamicType, let frame = issue.element?.frame, Self.isSystemBadge(frame, in: badge) {
                 return true
@@ -292,7 +294,7 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         let content = CGRect(
             x: window.minX, y: barBottom + 8, width: window.width, height: chromeTop - 36 - barBottom - 8
         )
-        try app.performAccessibilityAudit(for: .contrast) { issue in
+        try SongsUITestSupport.performAuditRetryingTimeout(app, .contrast, name: "\(name) contrast") { issue in
             let detail = self.attach(issue, name: name)
             guard let element = issue.element, element.exists, !element.frame.isEmpty else {
                 try self.assertRenderedContrastFloor(in: app, content: content)
