@@ -35,6 +35,8 @@ Breakpoint is **window** width (the title bar spans the window), measured in `Si
 
 Measured: at 720–1007 epx the box (`Width` = 36% of the window, clamped 240–580; 320 minimum from 1008) fits beside the title, bell, avatar and caption buttons; `TitleBar` hides the title itself when crowded. A 683-epx half (1366 × 768 laptop) and `compact` get the button. The breakpoint is `MainWindow.CompactSearchWidth`.
 
+Crossing the breakpoint (issue #571): the entry point that collapses closes its tooltip (`Controls/CollapsedToolTip`; a "Search songs, players and bands (Ctrl+E)" tooltip opened by the pointer or keyboard otherwise stayed on screen after widening, and its `PopupHost` failed Axe at wide), and if it had keyboard focus the replacement takes focus programmatically, so focus doesn't fall to the profile button and open its tooltip. Rule: [platforms/windows.md](../../platforms/windows.md#gotchas). Tests: `journeys/a11y-search.json` `search-swap-widen` (compact keyboard tooltip open → wide: tooltip gone, focus in the box, Axe 0) and `search-swap-narrow` (box focused → compact: focus on the button, no tooltip, Axe 0), run by `windows-ui` at normal and 225% text.
+
 ## Surfaces
 
 ### Title-bar box (medium and wide)

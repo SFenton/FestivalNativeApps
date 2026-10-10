@@ -1,5 +1,30 @@
 [
   {
+    "name": "search-swap-widen",
+    "tab": "songs",
+    "tabs": 0,
+    "sizes": ["wide"],
+    "setup": ["resize:compact", "wait:1.5", "waitfor:id=fst.songs.row.fixture-pulse@30",
+      "waitfor:id=fst.global-search.open@20", "focus:id=fst.shell.profile",
+              "key:shift+tab", "assertfocus:id=fst.global-search.open@3",
+              "waitfor:name=Search songs, players and bands (Ctrl+E)@5", "resize:wide", "wait:1.5"],
+    "ready": ["waitfor:id=fst.shell.profile@30", "waitfor:id=fst.nav.leaderboards@10"],
+    "after_ready": ["waitgone:name=Search songs, players and bands (Ctrl+E)@3",
+                    "assertfocus:name=Search songs, players and bands@3"]
+  },
+  {
+    "name": "search-swap-narrow",
+    "tab": "songs",
+    "tabs": 0,
+    "sizes": ["compact"],
+    "setup": ["resize:wide", "wait:1.5", "waitfor:id=fst.songs.row.fixture-pulse@30",
+      "waitfor:id=fst.global-search.open@20", "key:ctrl+e",
+              "assertfocus:name=Search songs, players and bands@3", "resize:compact", "wait:1.5"],
+    "ready": ["waitfor:id=fst.shell.profile@30", "waitfor:id=fst.global-search.open@10"],
+    "after_ready": ["assertfocus:id=fst.global-search.open@3",
+                    "waitgone:name=Search songs, players and bands (Ctrl+E)@3"]
+  },
+  {
     "name": "search-closed",
     "fixture": ["profile_fixture.py"],
     "tab": "songs",
