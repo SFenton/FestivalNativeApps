@@ -92,6 +92,12 @@ public class PlayerBandsViewModelTests
         Assert.Equal(new AppRoute.Band("b1", "Band_Duets", "acc:mate1"), card.Route);
         Assert.Equal("fst.player-bands.row.b1", card.AutomationId);
         Assert.Equal("View band: Player One, Lead; Unknown User, Drums. Duos, 1 appearance", card.Announcement);
+        // Player Bands mixes sizes on All, so its standalone cards keep the band-size pill (#596 is profile-only).
+        Assert.False(card.IsGroupedRow);
+        Assert.True(card.ShowsBandType);
+        var grouped = new PlayerBandCardViewModel(card.Entry) { IsGroupedRow = true };
+        Assert.False(grouped.ShowsBandType);
+        Assert.Equal("View band: Player One, Lead; Unknown User, Drums. 1 appearance", grouped.Announcement);
         var lead = card.Members[0];
         Assert.Equal("Lead", lead.InstrumentsText);
         Assert.Equal("instrument_guitar.png", lead.Icons.Single().File);
