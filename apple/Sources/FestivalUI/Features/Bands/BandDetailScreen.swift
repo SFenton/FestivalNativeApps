@@ -34,7 +34,10 @@ struct BandDetailScreen: View {
     @State private var totalRankedTeams: Int?
     @State private var historyState: RankLoadState<BandRankHistoryResponse> = .loading
     @State private var songsState: RankLoadState<BandSongExtremesResponse> = .loading
-    @State private var rankBy: BandRankingMetric = .adjusted
+    /// The picked metric (Adjusted until the person picks one, web `BandPage`); read
+    /// through ``rankBy``.
+    @State private var selectedRankBy: BandRankingMetric = .adjusted
+    @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
     @State private var songsById: [String: Song] = [:]
     @State private var quickLinks = QuickLinksController()
     /// History card width, so the chart opens on its final page size.
@@ -70,9 +73,15 @@ struct BandDetailScreen: View {
         bandType != nil && teamKey?.isEmpty == false
     }
 
-    /// Rank By is offered once a resolvable band's detail has loaded.
+    /// The metric in effect: Total Score while Settings › Experimental Ranks is off
+    /// (web `BandPage`: `enableExperimentalRanks ? 'adjusted' : 'totalscore'`; pattern
+    /// `experimental-ranks`).
+    private var rankBy: BandRankingMetric { selectedRankBy.coerced(experimentalRanks: experimentalRanks) }
+
+    /// Rank By is offered once a resolvable band's detail has loaded, and only with
+    /// experimental ranks (Total Score is the only metric otherwise).
     private var showsRankBy: Bool {
-        guard isResolvable, case .loaded = detailState else { return false }
+        guard experimentalRanks, isResolvable, case .loaded = detailState else { return false }
         return true
     }
 
@@ -100,19 +109,19 @@ struct BandDetailScreen: View {
         // pushed it (HIG Toolbars; same as the Player profile, #555).
         .navigationBarTitleDisplayMode(.large)
         #endif
-        // Mac: View › Rank By mirrors the toolbar menu.
-        .macRankByCommands($rankBy)
+        // Mac: View › Rank By mirrors the toolbar menu (nothing while it is hidden).
+        .macRankByCommands($selectedRankBy, isEnabled: showsRankBy)
         .toolbar {
             if pageTools == nil, showsRankBy {
                 ToolbarItem(placement: .festivalPageAction) {
-                    BandRankByMenu(selection: $rankBy)
+                    BandRankByMenu(selection: $selectedRankBy)
                 }
             }
             QuickLinksToolbarItem(quickLinks)
         }
         // iPhone tab-bar accessory (issue #92): Rank By before Quick Links.
         .festivalPageTool(token: rankBy, order: PageToolOrder.primary, isEnabled: showsRankBy) {
-            BandRankByMenu(selection: $rankBy)
+            BandRankByMenu(selection: $selectedRankBy)
         }
         .task(id: teamKey) { await loadDetail() }
         .task { await loadSongLookup() }
@@ -247,7 +256,8 @@ struct BandDetailScreen: View {
             heading("Band Statistics")
             PlayerStatGrid(
                 tiles: Self.statisticsTiles(
-                    detail, bandType: bandType, bestSongId: bestSongId, linkFilter: tileLink
+                    detail, bandType: bandType, bestSongId: bestSongId,
+                    experimentalRanks: experimentalRanks, linkFilter: tileLink
                 ),
                 scope: "statistics", identifierPrefix: Self.statIdentifierPrefix, onSelect: open
             )
@@ -263,26 +273,29 @@ struct BandDetailScreen: View {
         return nil
     }
 
-    /// Web `BandStatisticsSection` tiles, in its order. The web shows the three
-    /// percentile/FC rank tiles only behind its experimental-ranks setting; native shows
-    /// them always, since Rank By offers those metrics here (agent decision, #555).
+    /// Web `BandStatisticsSection` tiles, in its order. The Adjusted, Weighted and FC
+    /// Rate rank tiles appear only with Settings › Experimental Ranks on (web
+    /// `experimentalRanksEnabled`, pattern `experimental-ranks` R1/R4).
     ///
     /// - Parameters:
     ///   - detail: The band's ranking row.
     ///   - bandType: The band's size (rank links need it).
     ///   - bestSongId: Five Best Songs' first song, for the Best Song Rank link.
+    ///   - experimentalRanks: The Settings switch.
     ///   - linkFilter: Drops links that cannot be followed here (no navigator).
     /// - Returns: The statistics tiles.
     static func statisticsTiles(
-        _ detail: BandDetail, bandType: BandType?, bestSongId: String?,
+        _ detail: BandDetail, bandType: BandType?, bestSongId: String?, experimentalRanks: Bool,
         linkFilter: (PlayerStatLink?) -> PlayerStatLink? = { $0 }
     ) -> [StatTile] {
         func rankLink(_ rank: Int, _ metric: BandRankingMetric) -> PlayerStatLink? {
             guard let bandType else { return nil }
-            return linkFilter(PlayerStatLinks.bandRank(rank, metric: metric, bandType: bandType))
+            return linkFilter(PlayerStatLinks.bandRank(
+                rank, metric: metric.coerced(experimentalRanks: experimentalRanks), bandType: bandType
+            ))
         }
         let total = detail.totalChartedSongs
-        return [
+        let experimental = !experimentalRanks ? [] : [
             StatTile(
                 id: "adjusted-rank", label: "Adjusted Percentile Rank",
                 value: BandPageFormatting.rank(detail.adjustedSkillRank),
@@ -298,6 +311,8 @@ struct BandDetailScreen: View {
                 value: BandPageFormatting.rank(detail.fcRateRank),
                 link: rankLink(detail.fcRateRank, .fcrate)
             ),
+        ]
+        return experimental + [
             StatTile(
                 id: "total-score-rank", label: "Total Score Rank",
                 value: BandPageFormatting.rank(detail.totalScoreRank),

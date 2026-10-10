@@ -113,14 +113,18 @@ extension View {
     /// Publish a band rankings page's Rank By to View › Rank By (no Max Score; a no-op
     /// on iPhone).
     ///
-    /// - Parameter selection: The page's band metric.
+    /// - Parameters:
+    ///   - selection: The page's band metric.
+    ///   - isEnabled: Whether the page offers Rank By; while false nothing is published,
+    ///     so View › Rank By reads as on a page without one (Band Detail with
+    ///     Experimental Ranks off, pattern `experimental-ranks` R1).
     /// - Returns: The view.
-    func macRankByCommands(_ selection: Binding<BandRankingMetric>) -> some View {
-        modifier(MacRankByPublisher(commands: MacRankByCommands(
+    func macRankByCommands(_ selection: Binding<BandRankingMetric>, isEnabled: Bool = true) -> some View {
+        modifier(MacRankByPublisher(commands: isEnabled ? MacRankByCommands(
             options: BandRankingMetric.allCases.map { .init(id: $0.rawValue, label: $0.label) },
             selected: selection.wrappedValue.rawValue,
             select: { id in BandRankingMetric(rawValue: id).map { selection.wrappedValue = $0 } }
-        )))
+        ) : nil))
     }
 
     /// Publish a rankings page's instrument switcher to View › Instrument (macOS and
@@ -184,7 +188,8 @@ extension FocusedValues {
 /// Publishes Rank By only from the top page of its column, and not from the list beside
 /// an open trailing pane (Leaderboards beside Full Rankings, issue #352: the detail wins).
 private struct MacRankByPublisher: ViewModifier {
-    let commands: MacRankByCommands
+    /// The page's Rank By, or nil when the page offers none.
+    let commands: MacRankByCommands?
     @Environment(\.macPageIsTop) private var isTop
     @Environment(\.macColumnIsList) private var isList
 

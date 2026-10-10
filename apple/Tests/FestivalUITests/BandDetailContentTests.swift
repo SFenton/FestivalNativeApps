@@ -51,8 +51,24 @@ private func song(year: Int? = 2019) throws -> Song {
 }
 
 @MainActor
+@Test func bandStatisticsTilesHideExperimentalRanksWhileTheSettingIsOff() throws {
+    // Web `BandStatisticsSection`: Total Score Rank is the only rank tile while off
+    // (pattern `experimental-ranks` R1/R4, #555 review).
+    let tiles = BandDetailScreen.statisticsTiles(
+        try detail(), bandType: .duets, bestSongId: "song-1", experimentalRanks: false
+    )
+    #expect(tiles.map(\.id) == [
+        "total-score-rank", "songs-played", "full-combos", "total-score", "fc-rate", "avg-accuracy",
+        "avg-stars", "best-song-rank", "avg-rank",
+    ])
+    #expect(tiles.first?.link == .bandRankings(.duets, rankBy: .totalscore, page: 1))
+}
+
+@MainActor
 @Test func bandStatisticsTilesFollowTheWebOrderValuesAndLinks() throws {
-    let tiles = BandDetailScreen.statisticsTiles(try detail(), bandType: .duets, bestSongId: "song-1")
+    let tiles = BandDetailScreen.statisticsTiles(
+        try detail(), bandType: .duets, bestSongId: "song-1", experimentalRanks: true
+    )
     #expect(tiles.map(\.id) == [
         "adjusted-rank", "weighted-rank", "fc-rate-rank", "total-score-rank", "songs-played",
         "full-combos", "total-score", "fc-rate", "avg-accuracy", "avg-stars", "best-song-rank", "avg-rank",
@@ -76,18 +92,24 @@ private func song(year: Int? = 2019) throws -> Song {
 @MainActor
 @Test func bandStatisticsTilesDropLinksThatCannotBeFollowed() throws {
     let plain = BandDetailScreen.statisticsTiles(
-        try detail(), bandType: .duets, bestSongId: "song-1", linkFilter: { _ in nil }
+        try detail(), bandType: .duets, bestSongId: "song-1", experimentalRanks: true, linkFilter: { _ in nil }
     )
     #expect(plain.allSatisfy { $0.link == nil })
-    let noType = BandDetailScreen.statisticsTiles(try detail(), bandType: nil, bestSongId: nil)
+    let noType = BandDetailScreen.statisticsTiles(
+        try detail(), bandType: nil, bestSongId: nil, experimentalRanks: true
+    )
     #expect(noType.allSatisfy { $0.link == nil })
-    let unranked = BandDetailScreen.statisticsTiles(try detail(bestRank: 0), bandType: .duets, bestSongId: "song-1")
+    let unranked = BandDetailScreen.statisticsTiles(
+        try detail(bestRank: 0), bandType: .duets, bestSongId: "song-1", experimentalRanks: false
+    )
     #expect(unranked.first { $0.id == "best-song-rank" }?.link == nil)
 }
 
 @MainActor
 @Test func bandFullCombosTileTurnsGoldWhenEverySongIsFullCombo() throws {
-    let tiles = BandDetailScreen.statisticsTiles(try detail(fullCombos: 1_640), bandType: .duets, bestSongId: nil)
+    let tiles = BandDetailScreen.statisticsTiles(
+        try detail(fullCombos: 1_640), bandType: .duets, bestSongId: nil, experimentalRanks: false
+    )
     #expect(tiles.first { $0.id == "full-combos" }?.tint != nil)
 }
 

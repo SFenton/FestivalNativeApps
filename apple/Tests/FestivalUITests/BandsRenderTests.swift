@@ -211,6 +211,54 @@ func bandDetailReadsSectionsInWebOrderWithLabelledTargets(typeSize: DynamicTypeS
     #expect(nativeHostedAccessibilityString(pulse, "accessibilityLabel").hasPrefix("Fixture Pulse, Top 10%, rank 1 of 10"))
 }
 
+/// #555 review (pattern `experimental-ranks` R1/R3/R4): with Settings › Experimental
+/// Ranks off Band Statistics has Total Score Rank as its only rank tile; turning the
+/// setting on adds the Adjusted, Weighted and FC Rate rank tiles to the open page, and
+/// turning it off again removes them.
+@MainActor
+@Test func bandDetailExperimentalRankTilesFollowTheSettingLive() async throws {
+    let (session, _, _) = try await bandsFixtureSession()
+    let suite = "fst.tests.bands.experimental.\(UUID().uuidString)"
+    let storage = try #require(UserDefaults(suiteName: suite))
+    defer { storage.removePersistentDomain(forName: suite) }
+    let size = CGSize(width: 402, height: 2400)
+    let host = nativeHostedView(
+        NavigationStack {
+            BandDetailScreen(
+                session: session, bandId: "fixture-band-1", name: "Band 1 Member A + Band 1 Member B",
+                bandType: "Band_Duets", teamKey: "fixture-team-1"
+            )
+        }
+        .defaultAppStorage(storage)
+        .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    _ = try await nativeHostedSettle(host, untilText: ["Band Statistics"])
+
+    let prefix = "\(BandDetailScreen.statIdentifierPrefix).statistics."
+    let experimental = ["adjusted-rank", "weighted-rank", "fc-rate-rank"].map { prefix + $0 }
+    func rankTiles() -> [String] {
+        nativeHostedAccessibility(host).identifiers.filter { $0.hasPrefix(prefix) && $0.hasSuffix("-rank") }
+    }
+    func waitFor(_ expected: [String]) async -> [String] {
+        for _ in 0..<40 {
+            if rankTiles() == expected { break }
+            await settle(host, iterations: 2)
+        }
+        return rankTiles()
+    }
+
+    let off = ["total-score-rank", "best-song-rank", "avg-rank"].map { prefix + $0 }
+    #expect(await waitFor(off) == off, "Experimental rank tiles show while the setting is off")
+    storage.set(true, forKey: ExperimentalRanks.storageKey)
+    let on = experimental + off
+    #expect(await waitFor(on) == on, "Turning the setting on does not add the experimental rank tiles")
+    storage.set(false, forKey: ExperimentalRanks.storageKey)
+    #expect(await waitFor(off) == off, "Turning the setting off does not remove the experimental rank tiles")
+}
+
 // MARK: - PlayerBandsScreen
 
 @MainActor

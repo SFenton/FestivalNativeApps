@@ -183,3 +183,23 @@ private func history(_ history: String) throws -> BandRankHistoryResponse {
     #expect(PlayerStatLinks.bandBestSong(bestRank: 3, songId: nil) == nil)
     #expect(PlayerStatLinks.bandBestSong(bestRank: 3, songId: "") == nil)
 }
+
+// MARK: - Experimental ranks gate
+
+/// Band Detail's metric (web `BandPage` `bandRankingMetric`, `coerceBandRankingMetric`;
+/// pattern `experimental-ranks` R1/R2): Total Score only while the setting is off.
+@Test func bandMetricGateFollowsExperimentalRanks() {
+    #expect(ExperimentalRanks.storageKey == "fst.settings.experimentalRanks")
+    #expect(ExperimentalRanks.defaultValue == false)
+    #expect(BandRankingMetric.enabled(experimentalRanks: false) == [.totalscore])
+    #expect(BandRankingMetric.enabled(experimentalRanks: true) == [.totalscore, .adjusted, .weighted, .fcrate])
+    #expect(BandRankingMetric.bandDetailDefault(experimentalRanks: false) == .totalscore)
+    #expect(BandRankingMetric.bandDetailDefault(experimentalRanks: true) == .adjusted)
+    for metric in BandRankingMetric.allCases {
+        #expect(metric.coerced(experimentalRanks: false) == .totalscore)
+        #expect(metric.coerced(experimentalRanks: true) == metric)
+    }
+    #expect(BandRankingMetric.coerced("maxscore", experimentalRanks: true) == .totalscore)
+    #expect(BandRankingMetric.coerced("weighted", experimentalRanks: false) == .totalscore)
+    #expect(BandRankingMetric.coerced(nil, experimentalRanks: true) == .totalscore)
+}
