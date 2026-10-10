@@ -153,6 +153,39 @@ public class HitTargetMarkupTests
     }
 
     [Fact]
+    public void TitleBar_PassthroughSpansTitleBarHeight()
+    {
+        // Issue #536: centred, the box's and RightHeader's passthrough rects were only the controls' 32 and 40 epx, and
+        // TitleBar truncates them to whole pixels, so at 100% scale the bottom pixel row of the box, Search, the bell and
+        // Profile dragged the window.
+        var doc = Load("MainWindow.xaml");
+        var titleBar = doc.Descendants().Single(e => e.Name.LocalName == "TitleBar" && Attr(e, "Name") == "AppTitleBar");
+        var resources = titleBar.Elements().Single(e => e.Name.LocalName == "TitleBar.Resources").Elements().ToList();
+        foreach (var key in new[] { "TitleBarContentVerticalAlignment", "TitleBarRightHeaderVerticalAlignment" })
+        {
+            var alignment = resources.Single(e => e.Name.LocalName == "VerticalAlignment" && Attr(e, "Key") == key);
+            Assert.Equal("Stretch", alignment.Value.Trim());
+        }
+        // The box: its host is one passthrough rect (the box's width, the title-bar height), collapsed with the box.
+        var host = doc.Descendants().Single(e => e.Name.LocalName == "TitleBar.Content").Elements().Single();
+        Assert.Equal("GlobalSearchBoxHost", Attr(host, "Name"));
+        Assert.Equal("False", Attr(host, "TitleBar.IsDragRegion"));
+        Assert.Equal("Center", Attr(host, "HorizontalAlignment"));
+        var box = host.Elements().Single();
+        Assert.Equal("GlobalSearchBox", Attr(box, "Name"));
+        Assert.Equal("Center", Attr(box, "VerticalAlignment"));
+        var search = File.ReadAllText(Path.Combine(AppRoot, "MainWindow.Search.cs"));
+        Assert.Contains("GlobalSearchBoxHost.Visibility = GlobalSearchBox.Visibility = compact", search, StringComparison.Ordinal);
+        // The buttons:
+        var panel = doc.Descendants().Single(e => e.Name.LocalName == "TitleBar.RightHeader").Elements().Single();
+        Assert.Contains(Attr(panel, "VerticalAlignment"), new[] { null, "Stretch" });
+        // The buttons stay their 40 epx and centred inside the taller passthrough strip.
+        Assert.All(panel.Elements(), child => Assert.Contains(Attr(child, "VerticalAlignment"), new[] { null, "Center" }));
+        Assert.All(new[] { "fst.global-search.open", "fst.shell.profile" }, id =>
+            Assert.Contains(ById(doc, id), b => Attr(b, "MinHeight") == Resource && Attr(b, "Height") is null));
+    }
+
+    [Fact]
     public void QuickLinks_KeepsMinTarget()
     {
         var source = File.ReadAllText(Path.Combine(AppRoot, "Controls", "QuickLinksMenuButton.cs"));

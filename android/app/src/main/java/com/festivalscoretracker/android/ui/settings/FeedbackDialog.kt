@@ -41,13 +41,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -95,7 +93,6 @@ import com.festivalscoretracker.android.BuildConfig
 import com.festivalscoretracker.android.core.feedback.FeedbackAttachment
 import com.festivalscoretracker.android.core.feedback.FeedbackCopy
 import com.festivalscoretracker.android.core.feedback.FeedbackDraft
-import com.festivalscoretracker.android.core.feedback.FeedbackKind
 import com.festivalscoretracker.android.core.feedback.FeedbackLimits
 import com.festivalscoretracker.android.core.nav.AdaptiveLayoutPolicy
 import com.festivalscoretracker.android.data.FestivalApi
@@ -111,7 +108,6 @@ import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalModalBody
 import com.festivalscoretracker.android.ui.common.FestivalModalHeader
 import com.festivalscoretracker.android.ui.common.festivalSheetHingeSide
-import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.design.popupTestTags
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import java.io.FileNotFoundException
@@ -160,6 +156,20 @@ fun rememberFeedbackViewModel(api: FestivalApi): FeedbackViewModel {
 @Composable
 fun FeedbackDialogHost(viewModel: FeedbackViewModel) {
     val state by viewModel.form.collectAsStateWithLifecycle()
+    val sent by viewModel.sent.collectAsStateWithLifecycle()
+    // The result only ever shows after the form has closed (issue #565, modal-shell R7).
+    sent?.let { result ->
+        FestivalAlertDialog(
+            title = result.title,
+            text = result.message,
+            tag = "fst.settings.feedback.sent",
+            textTag = "fst.settings.feedback.sent.message",
+            confirmLabel = "Done",
+            confirmTag = "fst.settings.feedback.done",
+            onConfirm = viewModel::dismissSent,
+            onDismissRequest = viewModel::dismissSent,
+        )
+    }
     val form = state ?: return
     // On a separating fold the form keeps to one side of the hinge, like the shared sheets (M3:
     // "Never place interactive content or critical information across the hinge area"). Read it
@@ -223,13 +233,11 @@ private fun FeedbackForm(form: FeedbackFormState, viewModel: FeedbackViewModel) 
             onClose = viewModel::requestClose,
             titleTag = "fst.settings.feedback.title",
         ) {
-            if (form.phase !is FeedbackPhase.Sent) {
-                TextButton(
-                    onClick = viewModel::submit,
-                    enabled = form.canSubmit,
-                    modifier = Modifier.heightIn(min = 48.dp).testTag("fst.settings.feedback.submit"),
-                ) { Text("Submit", fontWeight = FontWeight.Bold) }
-            }
+            TextButton(
+                onClick = viewModel::submit,
+                enabled = form.canSubmit,
+                modifier = Modifier.heightIn(min = 48.dp).testTag("fst.settings.feedback.submit"),
+            ) { Text("Submit", fontWeight = FontWeight.Bold) }
         }
         FestivalModalBody {
             if (form.busy) {
@@ -256,38 +264,10 @@ private fun FeedbackForm(form: FeedbackFormState, viewModel: FeedbackViewModel) 
                     .padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                when (val phase = form.phase) {
-                    is FeedbackPhase.Sent -> SentContent(kind, phase, viewModel::requestClose)
-                    else -> EditingContent(form, viewModel)
-                }
+                EditingContent(form, viewModel)
             }
         }
     }
-}
-
-@Composable
-private fun SentContent(kind: FeedbackKind, phase: FeedbackPhase.Sent, onDone: () -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 24.dp)
-            .testTag("fst.settings.feedback.sent")
-            .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
-    ) {
-        Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = BrandTokens.statusGreen, modifier = Modifier.size(48.dp))
-        Text(
-            phase.job.message(kind),
-            style = MaterialTheme.typography.titleMedium,
-            color = BrandTokens.textPrimary,
-            modifier = Modifier.padding(top = 12.dp),
-        )
-    }
-    Button(
-        onClick = onDone,
-        colors = festivalFilledButtonColors(),
-        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("fst.settings.feedback.done"),
-    ) { Text("Done") }
 }
 
 @Composable

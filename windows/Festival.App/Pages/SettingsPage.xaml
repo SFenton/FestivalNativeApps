@@ -242,11 +242,10 @@
                                 </Grid.ColumnDefinitions>
                                 <StackPanel VerticalAlignment="Center" Spacing="4">
                                     <TextBlock Text="Enable Experimental Leaderboard Ranks" Style="{StaticResource SettingTitleStyle}" />
-                                    <TextBlock Text="Enable this to see more ranking mechanisms in the Leaderboards page. Not yet available." Style="{StaticResource SettingDescriptionStyle}" />
+                                    <TextBlock Text="Enable this to see more ranking mechanisms in the Leaderboards page." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
-                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind ViewModel.ExperimentalRanks, Mode=OneWay}" IsEnabled="False"
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind ViewModel.ExperimentalRanks, Mode=TwoWay}"
                                               AutomationProperties.Name="Enable Experimental Leaderboard Ranks"
-                                              AutomationProperties.HelpText="Experimental ranks are not yet available."
                                               AutomationProperties.AutomationId="fst.settings.experimental-ranks" />
                             </Grid>
                             <!-- Feedback (issue #78): shown only when /api/features reports feedback; each row opens its form dialog (.agents/controls/feedback-form/windows.md). -->
@@ -549,10 +548,18 @@
                                     <CornerRadius x:Key="ProgressBarTrackCornerRadius">4</CornerRadius>
                                 </StackPanel.Resources>
                                 <TextBlock Text="{x:Bind ViewModel.ServiceInfo.PhaseTitle, Mode=OneWay}" Style="{StaticResource SettingTitleStyle}" />
-                                <!-- Unknown totals show an empty track rather than a looping shimmer (no idle animation). -->
-                                <ProgressBar Height="8" MinHeight="8" CornerRadius="4" Maximum="100" Value="{x:Bind ViewModel.ServiceInfo.BarPercent, Mode=OneWay}"
-                                             Foreground="{ThemeResource FSTProgressFillBrush}" Background="{ThemeResource FSTProgressTrackBrush}"
-                                             Visibility="{x:Bind ViewModel.ServiceInfo.HasBar, Mode=OneWay}" AutomationProperties.AccessibilityView="Raw" />
+                                <!-- Unknown totals run the system indeterminate sweep over the purple track, like the web's
+                                     .progressIndeterminate bar (issue #556). Fluent's indeterminate template hides its own track,
+                                     so the track is the Border behind a transparent bar; under reduced motion or a hidden window
+                                     the bar holds a still, empty track (Apple/Android rule), never a frozen segment. -->
+                                <Border Height="8" CornerRadius="4" Background="{ThemeResource FSTProgressTrackBrush}"
+                                        Visibility="{x:Bind ViewModel.ServiceInfo.HasBar, Mode=OneWay}">
+                                    <ProgressBar Height="8" MinHeight="8" CornerRadius="4" Maximum="100" Value="{x:Bind ViewModel.ServiceInfo.BarPercent, Mode=OneWay}"
+                                                 IsIndeterminate="{x:Bind ViewModel.ServiceInfo.SweepsBar, Mode=OneWay}"
+                                                 Foreground="{ThemeResource FSTProgressFillBrush}" Background="Transparent"
+                                                 AutomationProperties.AccessibilityView="Raw" AutomationProperties.AutomationId="fst.settings.service-info.bar"
+                                                 AutomationProperties.ItemStatus="{x:Bind ViewModel.ServiceInfo.BarStatus, Mode=OneWay}" />
+                                </Border>
                                 <TextBlock x:Name="ServiceAttemptText" Text="{x:Bind ViewModel.ServiceInfo.AttemptText, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}"
                                            Visibility="{x:Bind ViewModel.ServiceInfo.HasAttempt, Mode=OneWay}"
                                            AutomationProperties.AutomationId="fst.settings.service-info.attempt" />

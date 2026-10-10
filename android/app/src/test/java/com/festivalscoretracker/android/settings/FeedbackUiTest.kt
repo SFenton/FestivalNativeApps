@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Looper
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
+import androidx.activity.ComponentDialog
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.result.ActivityResultRegistry
 import androidx.activity.result.ActivityResultRegistryOwner
@@ -58,6 +59,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowDialog
 import org.robolectric.annotation.Config
 
 /** Settings → Report an Issue / Request a Feature (issue #78) on a phone window (Robolectric, fake transport only). */
@@ -146,8 +148,10 @@ class FeedbackUiTest {
         rule.onNodeWithText("[Bug] Songs crash").assertIsDisplayed()
 
         rule.onNodeWithTag("fst.settings.feedback.submit").performClick()
+        // Filed (issue #565): the form closes by itself, then the result alert shows over Settings
+        // with a single Done and none of the form's Close or Submit controls.
         waitFor("fst.settings.feedback.sent")
-        rule.onNodeWithText("Thanks! Your report was filed as issue #42.").assertIsDisplayed()
+        assertResultAlertOnly("Report Sent", "Thanks! Your report was filed as issue #42.")
         assertEquals("GET", transport.sent("/api/feedback/$jobId").first().method)
         val request = transport.sent("/api/feedback").single()
         assertEquals("POST", request.method)
@@ -156,7 +160,39 @@ class FeedbackUiTest {
         assertTrue(body.contains("name=\"platform\"\r\n\r\nandroid"))
 
         rule.onNodeWithTag("fst.settings.feedback.done").performClick()
-        waitGone("fst.settings.feedback.dialog")
+        waitGone("fst.settings.feedback.sent")
+        rule.onNodeWithTag("fst.settings.list").assertIsDisplayed()
+    }
+
+    /** The result alert alone: the form (and its Close and Submit) has already closed. */
+    private fun assertResultAlertOnly(title: String, message: String) {
+        listOf("dialog", "close", "submit", "progress").forEach {
+            assertTrue("$it still shown", rule.onAllNodesWithTag("fst.settings.feedback.$it").fetchSemanticsNodes().isEmpty())
+        }
+        rule.onNodeWithText(title).assertIsDisplayed()
+        rule.onNodeWithTag("fst.settings.feedback.sent.message").assertTextEquals(message)
+        rule.onNodeWithTag("fst.settings.feedback.done").assertIsDisplayed().assertTextEquals("Done")
+        assertEquals(1, rule.onAllNodesWithText("Done").fetchSemanticsNodes().size)
+    }
+
+    /** Back on the result alert closes it like Done; the form does not come back. */
+    @Test
+    fun backClosesTheResultAlert() {
+        transport.on("/api/feedback", status = 202) { """{"id":"$jobId","status":"queued"}""" }
+        transport.on("/api/feedback/$jobId") { """{"id":"$jobId","status":"submitted","issueNumber":5,"attachments":[]}""" }
+        launch()
+        val before = ModalCoverage.shared.openCount.value
+        openForm(FeedbackKind.Bug)
+        type("title", "[Bug] Songs crash")
+        type("description", "Opening Songs crashes.")
+        rule.onNodeWithTag("fst.settings.feedback.submit").performClick()
+        waitFor("fst.settings.feedback.sent")
+        // One modal at a time (modal-shell R7): only the alert covers the page.
+        assertEquals(before + 1, ModalCoverage.shared.openCount.value)
+        rule.runOnUiThread { (ShadowDialog.getLatestDialog() as ComponentDialog).onBackPressedDispatcher.onBackPressed() }
+        waitGone("fst.settings.feedback.sent")
+        assertTrue(rule.onAllNodesWithTag("fst.settings.feedback.dialog").fetchSemanticsNodes().isEmpty())
+        assertEquals(before, ModalCoverage.shared.openCount.value)
     }
 
     /** Issue #186: the form is its own Dialog (modal-shell R6), so it must still hold the backdrop while open. */
@@ -243,14 +279,10 @@ class FeedbackUiTest {
         rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithText("Filing your report on GitHub…").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("fst.settings.feedback.submit").assertIsNotEnabled()
         waitFor("fst.settings.feedback.sent")
-        rule.onNodeWithText("Thanks! Your report was filed as issue #7.").assertIsDisplayed()
-        assertTrue(rule.onAllNodesWithTag("fst.settings.feedback.submit").fetchSemanticsNodes().isEmpty())
-        assertTrue(rule.onAllNodesWithTag("fst.settings.feedback.progress").fetchSemanticsNodes().isEmpty())
+        assertResultAlertOnly("Report Sent", "Thanks! Your report was filed as issue #7.")
         assertEquals(2, polls.get())
-
-        // After success Close needs no confirmation.
-        rule.onNodeWithTag("fst.settings.feedback.close").performClick()
-        waitGone("fst.settings.feedback.dialog")
+        rule.onNodeWithTag("fst.settings.feedback.done").performClick()
+        waitGone("fst.settings.feedback.sent")
     }
 
     @Test
@@ -283,9 +315,9 @@ class FeedbackUiTest {
         type("description", "More themes.")
         rule.onNodeWithTag("fst.settings.feedback.submit").performClick()
         waitFor("fst.settings.feedback.sent")
-        rule.onNodeWithText("Thanks! Your request was received and will be filed on GitHub shortly.").assertIsDisplayed()
+        assertResultAlertOnly("Request Sent", "Thanks! Your request was received and will be filed on GitHub shortly.")
         rule.onNodeWithTag("fst.settings.feedback.done").performClick()
-        waitGone("fst.settings.feedback.dialog")
+        waitGone("fst.settings.feedback.sent")
     }
 
     @Test
