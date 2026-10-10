@@ -9,7 +9,8 @@ This is the one registry of Windows accessibility journeys that gate pull reques
 :data:`RUNS` entry (``only`` limits a run to some of a file's pages). ``tests/test_ui_ci.py`` checks the entries and
 that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
 (issue #416), the Item Shop Filters flyout and its keyboard journey (issue #428), the board load swap (issue #431, also
-with Animation effects off), the first-run song demos (issue #420) and the Songs section push (issue #452) run at default
+with Animation effects off), the first-run song demos (issue #420), the Songs section push (issue #452) and the Paths
+swap (issue #430, also with Animation effects off) run at default
 and 225% text, and that the generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
@@ -174,6 +175,13 @@ RUNS: tuple[Run, ...] = (
     # deep-linked experimental metric leaves no Rank By on Leaderboards, Full Rankings or Band Rankings.
     Run("experimental-ranks", "a11y-experimental-ranks.json", tabs=0),
     Run("experimental-ranks-text-225", "a11y-experimental-ranks.json", sizes="compact", mode="text-225", tabs=0),
+    # Paths swap (issues #70, #430): mid-swap the old chart leaves UIA, "Busy Loading path, ProgressRing" sits between
+    # the selectors and Close, the selectors stay enabled and show the new value, "Loading …" then "… loaded" are
+    # announced; Image <-> Text; keyboard switches (ComboBox, wide RadioButtons) keep focus on the selector; 40 epx zoom,
+    # selectors and Close; mid-swap Axe scans; at 225% text, with in-app Reduce Motion and with Animation effects off.
+    Run("paths-swap", "a11y-paths-swap.json", sizes="compact,medium,wide"),
+    Run("paths-swap-text-225", "a11y-paths-swap.json", sizes="compact,wide", mode="text-225"),
+    Run("paths-swap-no-animations", "a11y-paths-swap.json", sizes="compact", mode="no-animations"),
 )
 
 

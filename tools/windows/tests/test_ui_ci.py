@@ -282,6 +282,27 @@ class UiCiTests(unittest.TestCase):
         self.assertEqual({page["name"] for page in pages}, covered)
         self.assertIn("load-swap-full-rankings-motion-system", covered)
 
+    def test_paths_swap_runs_every_page(self):
+        # Issue #430 (#70): every Paths swap page (normal, 225% text, Reduce Motion, Animation effects off and the wide
+        # RadioButtons keyboard page) runs in windows-ui, Axe-scanned, at a size the page supports.
+        runs = [run for run in ci.RUNS if run.pages == "a11y-paths-swap.json"]
+        self.assertEqual({"normal", "text-225", "no-animations"}, {run.mode for run in runs})
+        self.assertTrue(all(run.scan and not run.only for run in runs))
+        pages = json.loads((ci.JOURNEYS / "a11y-paths-swap.json").read_text(encoding="utf-8"))
+        covered = {(page["name"], run.mode) for run in runs for page in m.mode_pages(pages, run.mode)
+                   if m.page_sizes(page, run.sizes.split(","), run.mode)}
+        self.assertEqual({page["name"] for page in pages}, {name for name, _ in covered})
+        self.assertIn(("paths-swap", "text-225"), covered)
+        self.assertIn(("paths-swap-keyboard-wide", "text-225"), covered)
+        self.assertIn(("paths-swap-motion-system", "no-animations"), covered)
+        swap = next(page for page in pages if page["name"] == "paths-swap")["after_ready"]
+        for check in ("waitgone:id=fst.paths.image@3", "assertannounced:Loading Lead Hard path@5",
+                      "assertread:id=fst.paths.loading|Busy Loading path, ProgressRing",
+                      "assertstate:id=fst.paths.difficulty.compact|enabled=true",
+                      "assertannounced:Lead Hard path image loaded@5", "assertsize:id=fst.paths.zoom-in|40x40",
+                      "assertsize:id=fst.paths.zoom-out|40x40"):
+            self.assertIn(check, swap)
+
     def test_argv(self):
         run = ci.Run("x", "a11y-modals.json", sizes="compact", mode="text-225", tabs=30)
         argv = run.argv(Path("C:/out"), "debug")
