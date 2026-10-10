@@ -317,12 +317,12 @@ class UiCiTests(unittest.TestCase):
     def test_workflow_builds_and_dispatches(self):
         text = _WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("runs-on: windows-latest", text)
-        self.assertIn("pull_request:", text)
-        for path in ("'windows/**'", "'tools/windows/**'", "'.github/workflows/windows-ui.yml'"):
-            self.assertIn(path, text)
+        # Release train: dispatched by the release machine on releases/YYMM.DD only (not on PRs or master).
+        self.assertIn("workflow_dispatch:", text)
+        self.assertNotIn("pull_request:", text.split("permissions:")[0])
         build, display = text.index("tools/windows/build.ps1"), text.index("tools/windows/ci_display.ps1")
         dispatch = text.index("python tools/windows/ui_ci.py --tier")
-        self.assertIn("schedule:", text)  # the nightly full matrix
+        self.assertIn("--tier full", text)
         self.assertLess(display, dispatch)
         self.assertLess(build, dispatch)
         self.assertNotIn("--live", text)  # fixtures only: no service calls from CI

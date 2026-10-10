@@ -167,6 +167,24 @@ class GitFlowTests(unittest.TestCase):
         self.repo.tag("ios/v2610.01.01")
         self.assertEqual(v.plan_bump(self.repo.git, "ios", old, OCT)["reason"], "behind_previous_tag")
 
+    def test_release_branch_cut_from_master_is_versioned_although_it_diverged(self):
+        base = self.repo.git.rev("HEAD")
+        # Last week's release branch: a cherry-picked fix on top of the cut, tagged there.
+        self.repo.git("checkout", "-q", "-b", "releases/2610.05")
+        self.repo.commit("Cherry-picked fix", "apple/Sources/FestivalUI/Fix.swift")
+        self.repo.tag("ios/v2610.08.01")
+        old_release_head = self.repo.git.rev("HEAD")
+        # Master moved on (not containing the cherry-pick copy); this week's branch is cut from it.
+        self.repo.git("checkout", "-q", base)
+        self.repo.commit("Feature", "apple/Sources/FestivalUI/New.swift")
+        head = self.repo.git.rev("HEAD")
+        self.assertEqual(v.plan_bump(self.repo.git, "ios", head, OCT)["reason"], "behind_previous_tag")
+        plan = v.plan_bump(self.repo.git, "ios", head, NOV, release=True)
+        self.assertEqual((plan["bump"], plan["reason"]), (True, "release_branch"))
+        # An older commit of the tagged branch itself is still skipped in release mode.
+        self.assertEqual(v.plan_bump(self.repo.git, "ios", base, NOV, release=True)["reason"], "behind_previous_tag")
+        self.assertNotEqual(old_release_head, head)
+
     def test_failed_dispatch_drops_the_tag(self):
         def broken(_args):
             raise RuntimeError("gh down")

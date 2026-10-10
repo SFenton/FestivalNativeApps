@@ -866,8 +866,13 @@ def enabled_platforms(env: Dict[str, str]) -> List[str]:
             if spec["enabled_var"] is None or env.get(str(spec["enabled_var"])) == "true"]
 
 
-def plan_bump(git: Git, platform: str, head: str, now: _dt.datetime, force: bool = False) -> Dict[str, object]:
+def plan_bump(git: Git, platform: str, head: str, now: _dt.datetime, force: bool = False,
+              release: bool = False) -> Dict[str, object]:
     """Decide whether ``platform`` needs a new version at ``head``.
+
+    ``release`` (the weekly ``releases/YYMM.DD`` branches): a new release branch is cut from master, so it does not
+    descend from last week's branch and its tags; such a diverged ``head`` is versioned (``release_branch``) as long
+    as it isn't an older commit of the previous tag's own history.
 
     Returns:
         ``{platform, bump, reason, version?, tag?, previous?}``; ``bump`` is False when ``head`` already
@@ -879,15 +884,18 @@ def plan_bump(git: Git, platform: str, head: str, now: _dt.datetime, force: bool
     head_sha = git.rev(head)
     if previous and git.rev(previous[1]) == head_sha:
         return dict(result, bump=False, reason="already_tagged")
+    diverged = False
     if previous and not git.is_ancestor(previous[1], head_sha):
-        # A late run for an older push: the newer tag already covers this commit.
-        return dict(result, bump=False, reason="behind_previous_tag")
+        if not release or git.is_ancestor(head_sha, previous[1]):
+            # A late run for an older push: the newer tag already covers this commit.
+            return dict(result, bump=False, reason="behind_previous_tag")
+        diverged = True
     if previous is None:
         if not relevant(platform, git.tree_files(head_sha)):
             return dict(result, bump=False, reason="no_app_files")
         reason = "first_version"
     elif relevant(platform, git.diff_files(previous[1], head_sha)):
-        reason = "app_changed"
+        reason = "release_branch" if diverged else "app_changed"
     elif force:
         reason = "forced"
     else:
@@ -906,7 +914,7 @@ def gh(args: Sequence[str]) -> str:
 
 def bump(git: Git, platforms: Iterable[str], head: str, now: _dt.datetime, force: bool = False,
          push: bool = False, dispatch: bool = False, gh_runner: Callable[[Sequence[str]], str] = gh,
-         ref: str = "master") -> Dict[str, object]:
+         ref: str = "master", release: bool = False) -> Dict[str, object]:
     """Tag every platform that needs a version at ``head``; optionally push and dispatch its build.
 
     Returns:
@@ -914,7 +922,7 @@ def bump(git: Git, platforms: Iterable[str], head: str, now: _dt.datetime, force
     """
     bumped, skipped = [], []
     for platform in platforms:
-        plan = plan_bump(git, platform, head, now, force)
+        plan = plan_bump(git, platform, head, now, force, release)
         if not plan["bump"]:
             skipped.append(plan)
             continue
@@ -972,6 +980,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--push", action="store_true")
     p.add_argument("--dispatch", action="store_true")
     p.add_argument("--ref", default="master")
+    p.add_argument("--release", action="store_true",
+                   help="releases/YYMM.DD branch: version a head that diverged from the previous tag")
     p = sub.add_parser("describe")
     p.add_argument("--tag", required=True)
     p.add_argument("--build", type=int)
@@ -1019,7 +1029,7 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
             else:
                 platforms = enabled_platforms(env)
             doc: object = bump(git, platforms, args.head, now, args.force, args.push, args.dispatch,
-                               gh_runner, args.ref)
+                               gh_runner, args.ref, args.release)
         elif args.command == "describe":
             doc = describe(git, args.tag, args.build, args.rebuild)
         elif args.command == "latest-tag":
