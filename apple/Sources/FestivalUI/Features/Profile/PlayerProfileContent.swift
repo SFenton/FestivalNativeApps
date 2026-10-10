@@ -482,16 +482,10 @@ struct PlayerProfileContent: View {
             navigator.showSongs(preset)
         case let .fullRankings(instrument, rankBy):
             navigator.push(.fullRankings(instrument: instrument, rankBy: rankBy))
-        case let .songDetail(songId, _):
-            // `AppRoute.songDetail` carries a full `Song`; the profile only has its id, so
-            // resolve it from the (cached) catalogue first. A catalogue failure leaves
-            // the page where it is rather than opening an empty detail.
-            Task { @MainActor in
-                guard let payload = try? await session.catalog(),
-                      let song = payload.catalog.songs.first(where: { $0.songId == songId })
-                else { return }
-                navigator.push(.songDetail(song))
-            }
+        case let .songDetail(songId, _), let .bandSongDetail(songId):
+            navigator.pushSongDetail(songId, session: session)
+        case let .bandRankings(bandType, rankBy, page):
+            navigator.push(.bandRankings(bandType: bandType.rawValue, rankBy: rankBy.rawValue, page: page))
         }
     }
 

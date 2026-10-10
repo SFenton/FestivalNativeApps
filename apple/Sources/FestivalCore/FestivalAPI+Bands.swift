@@ -63,7 +63,7 @@ extension FestivalAPI {
             throw FestivalAPIError.invalidBandProfile
         }
         return BandDetailPayload(
-            detail: detail, publicationId: payload.publicationId,
+            detail: detail, totalRankedTeams: envelope.totalTeams, publicationId: payload.publicationId,
             observedPublicationId: payload.observedPublicationId, isStale: payload.isStale
         )
     }

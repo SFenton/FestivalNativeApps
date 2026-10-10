@@ -1,6 +1,7 @@
 [
   {
     "name": "stars-leaderboard-medium",
+    "fixture": ["star_rating_fixture.py"],
     "route": "/songs/fixture-pulse/Solo_Guitar",
     "preset": "medium",
     "extra": {
@@ -8,22 +9,23 @@
     },
     "steps": [
       "waitfor:id=fst.song-leaderboard.row.fixture-player-1@30",
-      "waitfor:name=Rank #1, Fixture Player 1, 99,900 points, 98% accuracy, 5 gold stars@5",
+      "waitfor:name=Rank #1, Fixture Player 1, 99,900 points, 98% accuracy, season 9, 5 gold stars@5",
       "assertstatus:id=fst.star-rating.gold-6|gold-6@5",
-      "waitfor:name=Rank #2, Fixture Player 2, 99,800 points, 98% accuracy, full combo, 5 stars@5",
+      "waitfor:name=Rank #2, Fixture Player 2, 99,800 points, 98% accuracy, full combo, season 9, 5 stars@5",
       "assertstatus:id=fst.star-rating.white-5|white-5@5",
-      "waitfor:name=Rank #3, Fixture Player 3, 99,700 points, 1 star@5",
+      "waitfor:name=Rank #3, Fixture Player 3, 99,700 points, season 9, 1 star@5",
       "assertstatus:id=fst.star-rating.white-1|white-1@5",
-      "waitfor:name=Rank #4, Fixture Player 4, 99,600 points, full combo@5",
-      "waitfor:name=Rank #5, Fixture Player 5, 99,500 points, 98% accuracy, 5 gold stars@5",
-      "waitfor:name=Rank #6, Fixture Player 6, 99,400 points, 98% accuracy, full combo@5",
-      "waitfor:name=Rank #7, Fixture Player 7, 99,300 points, 98% accuracy, 3 stars@5",
+      "waitfor:name=Rank #4, Fixture Player 4, 99,600 points, full combo, accuracy unavailable, season 9@5",
+      "waitfor:name=Rank #5, Fixture Player 5, 99,500 points, 98% accuracy, season 9, 5 gold stars@5",
+      "waitfor:name=Rank #6, Fixture Player 6, 99,400 points, 98% accuracy, full combo, season 9@5",
+      "waitfor:name=Rank #7, Fixture Player 7, 99,300 points, 98% accuracy, season 9, 3 stars@5",
       "assertstatus:id=fst.star-rating.white-3|white-3@5",
       "shot:{shots}\\stars-leaderboard-medium.png"
     ]
   },
   {
     "name": "stars-leaderboard-compact",
+    "fixture": ["star_rating_fixture.py"],
     "route": "/songs/fixture-pulse/Solo_Guitar",
     "preset": "compact",
     "extra": {
@@ -33,12 +35,13 @@
       "waitfor:id=fst.song-leaderboard.row.fixture-player-1@30",
       "waitfor:name=Rank #1, Fixture Player 1, 99,900 points, 98% accuracy, 5 gold stars@5",
       "waitfor:name=Rank #3, Fixture Player 3, 99,700 points, 1 star@5",
-      "waitfor:name=Rank #4, Fixture Player 4, 99,600 points, full combo@5",
+      "waitfor:name=Rank #4, Fixture Player 4, 99,600 points, full combo, accuracy unavailable@5",
       "shot:{shots}\\stars-leaderboard-compact.png"
     ]
   },
   {
     "name": "stars-leaderboard-wide",
+    "fixture": ["star_rating_fixture.py"],
     "route": "/songs/fixture-pulse/Solo_Guitar",
     "preset": "wide",
     "extra": {
@@ -46,16 +49,17 @@
     },
     "steps": [
       "waitfor:id=fst.song-leaderboard.row.fixture-player-1@30",
-      "waitfor:name=Rank #1, Fixture Player 1, 99,900 points, 98% accuracy, 5 gold stars@5",
+      "waitfor:name=Rank #1, Fixture Player 1, 99,900 points, 98% accuracy, season 9, 5 gold stars@5",
       "assertstatus:id=fst.star-rating.gold-6|gold-6@5",
       "assertstatus:id=fst.star-rating.white-5|white-5@5",
       "assertstatus:id=fst.star-rating.white-1|white-1@5",
-      "waitfor:name=Rank #4, Fixture Player 4, 99,600 points, full combo@5",
+      "waitfor:name=Rank #4, Fixture Player 4, 99,600 points, full combo, accuracy unavailable, season 9@5",
       "shot:{shots}\\stars-leaderboard-wide.png"
     ]
   },
   {
     "name": "stars-leaderboard-maximized",
+    "fixture": ["star_rating_fixture.py"],
     "route": "/songs/fixture-pulse/Solo_Guitar",
     "preset": "maximized",
     "extra": {
@@ -71,6 +75,7 @@
   },
   {
     "name": "stars-gold-average",
+    "fixture": ["star_rating_fixture.py"],
     "route": "/player/fixture-player-1",
     "preset": "medium",
     "extra": {
@@ -86,6 +91,7 @@
   },
   {
     "name": "stars-gold-average-compact",
+    "fixture": ["star_rating_fixture.py"],
     "route": "/player/fixture-player-1",
     "preset": "compact",
     "extra": {
