@@ -25,6 +25,9 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     private readonly ScoreHistorySwapper historySwap;
     private Storyboard? historyRelease;
 
+    /// <summary>Whether a Score History swap holds the page scroller's anchoring off.</summary>
+    private bool anchorHeld;
+
     /// <summary>Pinned header's last laid-out height (0 until first shown); it reads 0 while collapsed.</summary>
     private double pinnedHeaderHeight;
 
@@ -48,7 +51,7 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
         };
         historySwap = new ScoreHistorySwapper(
             () => ViewModel?.History.Selected,
-            chart => ViewModel?.History.SelectInstrument(chart),
+            ShowHistoryChart,
             FadeHistoryAsync,
             HoldHistoryCard);
         // The selector shows the new chart at once; the graph fades over to it (issue #61).
@@ -167,12 +170,17 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
         historyRelease = null;
         if (hold)
         {
+            PauseScrollAnchoring();
             HistoryCard.MinHeight = Math.Max(HistoryCard.MinHeight, HistoryCard.ActualHeight);
             return;
         }
         var held = HistoryCard.MinHeight;
         HistoryCard.MinHeight = 0;
-        if (held <= 0 || !Motion.Allowed) return;
+        if (held <= 0 || !Motion.Allowed)
+        {
+            ResumeScrollAnchoring();
+            return;
+        }
         var release = new DoubleAnimation
         {
             From = held,
@@ -183,8 +191,51 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
         };
         Storyboard.SetTarget(release, HistoryCard);
         Storyboard.SetTargetProperty(release, nameof(FrameworkElement.MinHeight));
-        historyRelease = new Storyboard { Children = { release } };
-        historyRelease.Begin();
+        var storyboard = new Storyboard { Children = { release } };
+        storyboard.Completed += (_, _) =>
+        {
+            if (!ReferenceEquals(historyRelease, storyboard)) return;
+            historyRelease = null;
+            ResumeScrollAnchoring();
+        };
+        historyRelease = storyboard;
+        storyboard.Begin();
+    }
+
+    /// <summary>Shows a chart in Score History with the page's scroll anchoring held (see <see cref="PauseScrollAnchoring"/>).</summary>
+    /// <param name="chart">Chart to show.</param>
+    private void ShowHistoryChart(Instrument chart)
+    {
+        PauseScrollAnchoring();
+        ViewModel?.History.SelectInstrument(chart);
+    }
+
+    /// <summary>
+    /// Holds the page scroller's anchoring off for a chart swap (<see cref="CachedPageScroll.HoldAnchoring"/>), so the page
+    /// doesn't scroll and Score History stays where the reader picked the chart (issue #423, load-transition R8). The
+    /// swap replaces the top-five rows below the card (Bass shows 2, Lead 5); WinUI then re-picked an anchor below them (a
+    /// Leaderboards card in a window tall enough to show one) and scrolled the page by the rows' height change.
+    /// </summary>
+    private void PauseScrollAnchoring()
+    {
+        if (anchorHeld) return;
+        anchorHeld = true;
+        CachedPageScroll.HoldAnchoring(Scroller);
+    }
+
+    /// <summary>
+    /// Releases the hold once the swap and its height release have ended and the new rows are laid out (low priority,
+    /// after layout); a newer swap keeps it held until that swap ends.
+    /// </summary>
+    private void ResumeScrollAnchoring()
+    {
+        if (!anchorHeld) return;
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            if (!anchorHeld || historySwap.IsRunning || historyRelease is not null) return;
+            anchorHeld = false;
+            CachedPageScroll.ReleaseAnchoring(Scroller);
+        });
     }
     #endregion
 

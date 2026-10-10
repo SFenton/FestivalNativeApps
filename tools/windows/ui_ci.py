@@ -92,6 +92,9 @@ SHOP_FILTER_KEYBOARD = "kb-shop-filter"
 SONG_BOARD_FOOTER_FADE = ("footer-fade-song-leaderboard-rest,footer-fade-song-leaderboard-mid,footer-fade-song-leaderboard-end,"
                           "footer-fade-song-leaderboard-more-contrast,footer-fade-song-leaderboard-less-transparency")
 
+#: The ``a11y-history-swap.json`` reduced-motion page (#61, #423), run in both motion-off modes it declares.
+HISTORY_SWAP_REDUCED = "history-swap-reduced-access"
+
 #: The canonical ``a11y.json`` header-flyout pages (issue #534: every app flyout is constrained to the window, so none
 #: may open a windowed ``PopupHost``; the file's other pages stay host matrix checks).
 POPUP_PAGES = "leaderboards-rank-by-menu,rank-by-menu,quick-links-menu,profile-flyout,notifications-flyout"
@@ -183,6 +186,11 @@ RUNS: tuple[Run, ...] = (
     # deep-linked experimental metric leaves no Rank By on Leaderboards, Full Rankings or Band Rankings.
     Run("experimental-ranks", "a11y-experimental-ranks.json", tabs=0),
     Run("experimental-ranks-text-225", "a11y-experimental-ranks.json", sizes="compact", mode="text-225", tabs=0),
+    # Score History's instrument switch with motion off (issues #61, #423): the instant swap (new chart named within
+    # 0.1 s, card and page held) by pointer and keys, under in-app Reduce Motion and Windows' Animation effects off,
+    # the two paths that turn the fade off. Its other pages run as the generated a11y-history-swap-normal/-text-225.
+    Run("a11y-history-swap-app-reduced", "a11y-history-swap.json", mode="app-reduced", only=HISTORY_SWAP_REDUCED),
+    Run("a11y-history-swap-no-animations", "a11y-history-swap.json", mode="no-animations", only=HISTORY_SWAP_REDUCED),
 )
 
 
