@@ -5,7 +5,8 @@
 - `ShopResponse.validate` rejects count mismatches, duplicate (case-insensitive) or `/`-containing IDs, empty titles/artists and any URL that isn't `https://www.fortnite.com/item-shop/jam-tracks/<slug>` without credentials, port, query or fragment. Bodies over 4 MB are rejected.
 - `ShopPresentationPolicy.highlight`: Leaving Tomorrow, then New; none when Shop is hidden, highlighting is disabled or there's no offer.
 - `SongRelatedPublicationPolicy.matches(catalogue, shop, current)` gates Songs sort/filter/accents and Song Detail's badge/link: a feed from another observed publication pauses Shop choices with a notice and never decorates older rows.
-- Songs rows: 2 dp red (Leaving) / gold (New) border plus a circular badge (clock / sparkle); the row announcement adds "Item Shop: …". Shop page and Detail use text badges.
+- Songs rows: 2 dp red (Leaving) / gold (New) border plus a circular Shop badge: clock for Leaving Tomorrow, the shopping bag for every other in-shop song (`shopBadgeIcon`). New gets no sparkle (issue #562: web `SongRow` adds an indicator only for Leaving Tomorrow; Apple shows the bag too). The row announcement adds "Item Shop: …".
+- Shop page list rows (`ShopListRow`): Leaving Tomorrow shows its visible red text badge (`fst.shop.badge.leaving.<id>`). New is the gold outline only, with no visible label or `fst.shop.badge.new.*` node (issue #562, web `ShopPage` list). TalkBack still hears it because the row's `stateDescription` is "New" ("Title, Artist · year, New"). A zero-size child's text did not reach the merged node on device, so use the row state, not a hidden child. Grid cards show only the Leaving pill. Detail uses text badges.
 - One process-wide `ShopStore` (AppContainer `shop`) shared by all three surfaces; online-only, in-process.
 
 ## Validation (issue #131, 2026-10-04)
@@ -42,7 +43,7 @@ Emulator API 37, debug build, live public service (keyless; no selected-profile 
 | `failed` | `failureOffersRetryThatRecovers` |
 | `offline` | `offlineIsAnExplicitOfflineState` |
 | `unverified` | `untrustedShopLinkRejectsTheFeed` |
-| `populated`, `new`, `leaving`, `list` | `populatedListIsTitleOrderedWithBadgesAndLargeTargets` |
+| `populated`, `new`, `leaving`, `list` | `populatedListIsTitleOrderedWithBadgesAndLargeTargets`; New has no visible label (#562): `ShopListRowUiTest.newRowShowsNoVisibleBadgeButTalkBackStillHearsNew` |
 | `grid` | `gridCardsAreSquareAndListToggleKeepsTheOffers` |
 | `official-link` | `officialLinkOpensTheFortniteItemShop` |
 | `song-detail` | `songDetailShowsTheShopActionWithItsStatus`, `songDetailShowsAnExplicitShopError` |

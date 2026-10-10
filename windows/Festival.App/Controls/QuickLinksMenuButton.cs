@@ -107,8 +107,8 @@ public sealed partial class QuickLinksMenuButton : DropDownButton
     /// Jumps once per menu opening (a pointer or keyboard pick both checks the item and clicks it). The jump waits until
     /// the menu has closed: closing restores keyboard focus to this button, and a restore that lands after the jump's
     /// scroll brings the button back into view where it scrolls with the page (compact and medium layouts at large
-    /// text), which hands
-    /// Quick Links back to the top section (#548: "current section Global Statistics" after a Drums pick at 225% text).
+    /// text), which hands Quick Links back to the top section (#548: "current section Global Statistics" after a Drums
+    /// pick at 225% text).
     /// </summary>
     /// <param name="id">Section ID.</param>
     private void Choose(string id)
