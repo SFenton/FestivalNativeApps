@@ -50,6 +50,11 @@ enum ArtworkDecoding {
 }
 
 /// One thumbnail backed by ephemeral HTTP and a process-lifetime artwork cache.
+///
+/// Decorative in every state (HIG VoiceOver: "Exclude purely decorative images that
+/// convey no useful or actionable information"): the song's title beside it names the
+/// row, so the tile never reaches VoiceOver, even inside a row that combines its
+/// children (Global Search, Band detail). Issue #403.
 struct ArtworkTile: View {
     let raw: String?
     let session: FestivalSession
@@ -57,7 +62,6 @@ struct ArtworkTile: View {
 
     @State private var image: PlatformImage?
     @State private var failure: String?
-    @State private var fromMemory = false
     /// Path whose decoded art `image` currently shows, so a rebuilt row that drew a
     /// cached cover in its first frame skips the redundant async reload.
     @State private var loadedRaw: String?
@@ -83,7 +87,6 @@ struct ArtworkTile: View {
         _image = State(initialValue: (previewImage ?? cached).map {
             Self.platformImage(from: $0, size: size)
         })
-        _fromMemory = State(initialValue: cached != nil)
         _loadedRaw = State(initialValue: cached != nil ? raw : nil)
     }
 
@@ -129,13 +132,10 @@ struct ArtworkTile: View {
                 platformImage(image)
                     .resizable()
                     .scaledToFill()
-                    .accessibilityLabel(fromMemory ? "Cached album artwork" : "Album artwork")
-            } else if let failure {
+            } else if failure != nil {
                 Image(systemName: "photo.bad")
-                    .accessibilityLabel("Artwork unavailable: \(failure)")
             } else if raw?.isEmpty != false {
                 Image(systemName: "music.note")
-                    .accessibilityLabel("No album artwork")
             } else {
                 FestivalLoadingView(accessibilityLabel: "Loading album artwork")
             }
@@ -143,12 +143,12 @@ struct ArtworkTile: View {
         .frame(width: size, height: size)
         .background(BrandTokens.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 10))
+        .accessibilityHidden(true)
         .task(id: raw) { await load() }
         .onChange(of: raw) { _, next in
             let cached = Self.cachedImage(raw: next, session: session, size: size)
             image = cached.map { Self.platformImage(from: $0, size: size) }
             failure = nil
-            fromMemory = cached != nil
             loadedRaw = cached != nil ? next : nil
         }
     }
@@ -176,7 +176,7 @@ struct ArtworkTile: View {
         try await ArtworkDecoding.prepare(data, maxPixels: maxPixels)
     }
 
-    /// Fetch only visible art; failures keep an explicitly labeled placeholder.
+    /// Fetch only visible art; failures keep a placeholder symbol.
     func load() async {
         guard let raw, !raw.isEmpty else { return }
         if loadedRaw == raw, image != nil { return }
@@ -186,7 +186,6 @@ struct ArtworkTile: View {
             )
             try Task.checkCancellation()
             image = Self.platformImage(from: result.image, size: size)
-            fromMemory = result.fromMemory
             loadedRaw = raw
             failure = nil
         } catch is CancellationError {

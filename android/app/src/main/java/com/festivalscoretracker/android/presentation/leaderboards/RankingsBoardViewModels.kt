@@ -96,14 +96,15 @@ class FullRankingsViewModel(
      */
     val displayed: StateFlow<RankingsPayload?> = displayedFlow.asStateFlow()
 
-    private val pageCountFlow = MutableStateFlow(1)
+    private val pageCountFlow = MutableStateFlow<Int?>(null)
 
     /**
-     * The pager's page count: the last loaded board's, kept through a chart or metric
-     * switch until the new board answers (load-transition R4, web `placeholderData`), so
-     * TalkBack's "Page X of Y" never announces a placeholder "of 1" mid-reload (#431).
+     * The pager's page count: null until the first board loads (no pager yet, #575), then the
+     * last loaded board's, kept through a chart or metric switch until the new board answers
+     * (load-transition R4, web `placeholderData`), so TalkBack's "Page X of Y" never announces
+     * a placeholder "of 1" mid-reload (#431).
      */
-    val pageCount: StateFlow<Int> = pageCountFlow.asStateFlow()
+    val pageCount: StateFlow<Int?> = pageCountFlow.asStateFlow()
 
     /** Selected player's own row (meaningful only while a player is selected). */
     val spotlight: StateFlow<LoadState<PlayerRankingResult>> = spotlightLoader.state
@@ -272,10 +273,10 @@ class BandRankingsViewModel(
     /** The last loaded page for the current size and metric (see [FullRankingsViewModel.displayed]). */
     val displayed: StateFlow<BandRankingsPayload?> = displayedFlow.asStateFlow()
 
-    private val pageCountFlow = MutableStateFlow(1)
+    private val pageCountFlow = MutableStateFlow<Int?>(null)
 
-    /** The pager's page count, kept through a size or metric switch (see [FullRankingsViewModel.pageCount]). */
-    val pageCount: StateFlow<Int> = pageCountFlow.asStateFlow()
+    /** The pager's page count, null until the first board loads, kept through a size or metric switch (see [FullRankingsViewModel.pageCount]). */
+    val pageCount: StateFlow<Int?> = pageCountFlow.asStateFlow()
 
     /** Settings → Experimental Ranks: Rank By is shown only when on (experimental-ranks R1). */
     val experimentalRanks: StateFlow<Boolean> = experimentalFlow.asStateFlow()
