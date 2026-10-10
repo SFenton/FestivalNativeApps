@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 import Testing
 @testable import FestivalUI
 
@@ -189,8 +190,12 @@ private func eventually(_ timeout: Duration = .seconds(2), _ condition: () -> Bo
 
 // MARK: - Debug park request
 
-/// `FST_DEBUG_SONGS_PARK_TOP` takes points and an optional delay.
+/// `FST_DEBUG_SONGS_PARK_TOP` takes points and an optional delay or trigger file.
 @Test func parkRequestParses() {
+    #expect(SongsScrollStress.parseParkRequest("15@/tmp/a@b/park")
+        == .init(points: 15, delay: 0, trigger: "/tmp/a@b/park"))
+    #expect(SongsScrollStress.parseParkRequest("0@/tmp/park") == nil)
+    #expect(SongsScrollStress.parseParkRequest("4@tmp/park") == nil)
     #expect(SongsScrollStress.parseParkRequest("37") == .init(points: 37, delay: 3))
     #expect(SongsScrollStress.parseParkRequest("15@12.5") == .init(points: 15, delay: 12.5))
     #expect(SongsScrollStress.parseParkRequest("0") == nil)
@@ -199,4 +204,21 @@ private func eventually(_ timeout: Duration = .seconds(2), _ condition: () -> Bo
     #expect(SongsScrollStress.parseParkRequest("4@") == nil)
     #expect(SongsScrollStress.parseParkRequest("4@-1") == nil)
     #expect(SongsScrollStress.parseParkRequest("4@1@2") == nil)
+}
+
+/// A trigger-file park waits for the file, however long, and a delay park for its delay.
+@Test func parkWaitsForItsTrigger() async throws {
+    let trigger = FileManager.default.temporaryDirectory
+        .appendingPathComponent("park-\(UUID().uuidString)").path
+    defer { try? FileManager.default.removeItem(atPath: trigger) }
+    let park = try #require(SongsScrollStress.parseParkRequest("15@\(trigger)"))
+    let waiting = Task { await SongsScrollStress.waitForPark(park); return Date() }
+    try await Task.sleep(for: .milliseconds(400))
+    let created = Date()
+    #expect(FileManager.default.createFile(atPath: trigger, contents: nil))
+    let parked = await waiting.value
+    #expect(parked >= created)
+    let start = Date()
+    await SongsScrollStress.waitForPark(.init(points: 15, delay: 0.2))
+    #expect(Date().timeIntervalSince(start) >= 0.19)
 }

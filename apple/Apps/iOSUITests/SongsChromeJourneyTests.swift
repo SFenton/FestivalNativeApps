@@ -1450,9 +1450,10 @@ final class SongsChromeJourneyTests: XCTestCase {
     /// collapse; UIKit snaps the title only when a drag ends. The large title then sat
     /// behind Open Navigation and the "#" title under the Filter field.
     ///
-    /// After one scroll down and back (so the collapse band is known),
-    /// `FST_DEBUG_SONGS_PARK_TOP` moves the List 15 pt up programmatically, the way a
-    /// landing correction does. The List must settle at the nearer end of the collapse:
+    /// After one scroll down and back (so the collapse band is known), the journey
+    /// creates `FST_DEBUG_SONGS_PARK_TOP`'s trigger file and the app moves the List 15 pt
+    /// up programmatically, the way a landing correction does (a trigger, not a timer, so
+    /// a slow CI host cannot park it mid-preparation). The List must settle at the nearer end of the collapse:
     /// back at its top with the title open. Accessibility: the large title never overlaps
     /// the toolbar buttons, Open Navigation and Choose Profile stay hittable with their
     /// 36 pt glass targets, and the first section title is not hidden under the Filter
@@ -1482,23 +1483,30 @@ final class SongsChromeJourneyTests: XCTestCase {
             ?? "http://127.0.0.1:8765"
         let log = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("songs-title-rest-\(UUID().uuidString).json")
-        defer { try? FileManager.default.removeItem(at: log) }
+        let trigger = log.deletingPathExtension().appendingPathExtension("park")
+        defer {
+            try? FileManager.default.removeItem(at: log)
+            try? FileManager.default.removeItem(at: trigger)
+        }
         var environment = [
             "FST_API_BASE_URL": base,
             "FST_UI_TEST_CLEAR_PROFILE": "1",
             "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1",
             "FST_DEBUG_STILL_BACKGROUND": "1",
             "FST_DEBUG_STALL_LOG": log.path,
-            "FST_DEBUG_SONGS_PARK_TOP": "15@45",
+            "FST_DEBUG_SONGS_PARK_TOP": "15@\(trigger.path)",
         ]
         if legacyScrollGeometry { environment["FST_DEBUG_LEGACY_SCROLL_GEOMETRY"] = "1" }
         let app = FestivalApp.makeApp(environment)
         app.launch()
         defer { app.terminate() }
-        XCTAssertTrue(app.buttons["fst.songs.sort"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["fst.songs.sort"].waitForExistence(timeout: FestivalApp.budget(15)))
+        // The Sort button shows before the catalogue loads: wait for a row before judging
+        // the catalogue's length by the A–Z rail.
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-song-1"].waitForExistence(timeout: FestivalApp.budget(15)))
         guard app.descendants(matching: .any)
             .matching(identifier: "fst.songs.section-index").firstMatch
-            .waitForExistence(timeout: 3) else {
+            .waitForExistence(timeout: FestivalApp.budget(3)) else {
             throw XCTSkip("Catalogue too short to scroll; use mock_service.py --large-catalogue.")
         }
 
@@ -1508,9 +1516,9 @@ final class SongsChromeJourneyTests: XCTestCase {
         let first = app.staticTexts["fst.songs.section.0"]
         let drawer = app.buttons["fst.shell.drawer.open"]
         let profile = app.buttons["fst.shell.profile"]
-        XCTAssertTrue(title.waitForExistence(timeout: 5))
-        XCTAssertTrue(first.waitForExistence(timeout: 5))
-        Thread.sleep(forTimeInterval: 1)
+        XCTAssertTrue(title.waitForExistence(timeout: FestivalApp.budget(5)))
+        XCTAssertTrue(first.waitForExistence(timeout: FestivalApp.budget(5)))
+        Thread.sleep(forTimeInterval: FestivalApp.budget(1))
         let restTitle = title.frame
         let restFirst = first.frame
         func atRest() -> Bool {
@@ -1520,7 +1528,7 @@ final class SongsChromeJourneyTests: XCTestCase {
             let met = XCTNSPredicateExpectation(
                 predicate: NSPredicate { _, _ in condition() }, object: nil
             )
-            XCTAssertEqual(XCTWaiter.wait(for: [met], timeout: timeout), .completed, what)
+            XCTAssertEqual(XCTWaiter.wait(for: [met], timeout: FestivalApp.budget(timeout)), .completed, what)
         }
 
         // Collapse the title once, then come back to the open top before the park.
@@ -1532,7 +1540,7 @@ final class SongsChromeJourneyTests: XCTestCase {
                 forDuration: 0.05,
                 thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95))
             )
-            Thread.sleep(forTimeInterval: 1)
+            Thread.sleep(forTimeInterval: FestivalApp.budget(1))
         }
         waitUntil("Songs did not return to its open top before the park", atRest)
 
@@ -1543,7 +1551,8 @@ final class SongsChromeJourneyTests: XCTestCase {
                 .counters["songs.largeTitle.settle"] ?? 0
         }
         XCTAssertEqual(settles(), 0, "A settle ran before the park")
-        waitUntil("The parked List never settled the large title", timeout: 60) { settles() > 0 }
+        XCTAssertTrue(FileManager.default.createFile(atPath: trigger.path, contents: nil))
+        waitUntil("The parked List never settled the large title", timeout: 10) { settles() > 0 }
         waitUntil(
             "Rested part-way: title \(title.frame) vs \(restTitle), # \(first.frame) vs \(restFirst)",
             atRest

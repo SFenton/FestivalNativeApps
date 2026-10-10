@@ -1256,11 +1256,12 @@ struct SongsScreen: View, Equatable {
             }
             .task {
                 #if DEBUG
-                // `FST_DEBUG_SONGS_PARK_TOP=<points>[@<seconds>]`: after a delay (3 s), move
-                // the List up programmatically, as a landing correction does; issue #560
-                // parks it part-way through the large title's collapse.
+                // `FST_DEBUG_SONGS_PARK_TOP=<points>[@<seconds>|@<trigger path>]`: after a
+                // delay (3 s) or once the trigger file exists, move the List up
+                // programmatically, as a landing correction does; issue #560 parks it
+                // part-way through the large title's collapse.
                 if let park = SongsScrollStress.parkRequest {
-                    try? await Task.sleep(for: .seconds(park.delay))
+                    await SongsScrollStress.waitForPark(park)
                     guard !Task.isCancelled else { return }
                     scrollChrome.listNudger.moveContent(by: -park.points)
                 }
