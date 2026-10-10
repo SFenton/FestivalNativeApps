@@ -93,6 +93,87 @@ final class SongsChromeJourneyTests: XCTestCase {
         XCTAssertTrue(orbit.exists)
     }
 
+    /// Issue #544: after Back from Song Detail, the Filter Songs field is ready at once.
+    /// It exists, can be tapped, keeps its "Filter Songs" label and keeps the text typed
+    /// before the song opened, and the list stays where it was (`back-keeps-place`
+    /// R1–R3). The capsule drawn during the pop (``SearchDrawerTransitionFill``) is
+    /// checked in recordings; XCUITest cannot sample a frame mid-transition.
+    ///
+    /// The list is scrolled first when the catalogue is long enough (the CI
+    /// large-catalogue fixture), which is when the field shows glass; the two-song
+    /// fixture checks the same readiness at the top.
+    @MainActor
+    func testFilterFieldReadyAfterBackFromSongDetail() throws {
+        continueAfterFailure = false
+        let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"]
+            ?? "http://127.0.0.1:8765"
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": base,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_STILL_BACKGROUND": "1",
+        ])
+        app.launch()
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row."))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: FestivalApp.budget(15)))
+        let back = app.navigationBars.buttons.matching(
+            NSPredicate(format: "label == %@ OR label == %@", "Songs", "Back")
+        ).firstMatch
+        let detail = app.descendants(matching: .any)["fst.song-detail.hero-title"]
+
+        func hittableRow() -> XCUIElement? {
+            let candidates = rows.allElementsBoundByIndex.prefix(12)
+            return candidates.first { $0.isHittable && $0.frame.midY > app.frame.height * 0.3 }
+        }
+
+        func openAndReturn(_ row: XCUIElement) -> CGRect {
+            let identifier = row.identifier
+            row.tap()
+            XCTAssertTrue(detail.waitForExistence(timeout: FestivalApp.budget(10)), "Song Detail did not open")
+            XCTAssertTrue(back.waitForExistence(timeout: FestivalApp.budget(5)))
+            back.tap()
+            // Ready at once: no settling wait beyond the pop itself.
+            let field = SongsUITestSupport.songsSearchEntry(in: app)
+            XCTAssertTrue(field.waitForExistence(timeout: FestivalApp.budget(2)), "Filter Songs field missing after Back")
+            XCTAssertTrue(field.isHittable, "Filter Songs field not tappable right after Back")
+            XCTAssertEqual(field.placeholderValue, "Filter Songs")
+            XCTAssertEqual(field.elementType, .searchField)
+            XCTAssertGreaterThanOrEqual(field.frame.height, 36, "Filter Songs field below a usable target height")
+            let returned = app.buttons[identifier]
+            XCTAssertTrue(returned.waitForExistence(timeout: FestivalApp.budget(2)))
+            return returned.frame
+        }
+
+        // Scrolled (the glass state) when the catalogue scrolls; Back keeps the place.
+        let rail = app.descendants(matching: .any).matching(identifier: "fst.songs.section-index").firstMatch
+        if rail.waitForExistence(timeout: FestivalApp.budget(3)) {
+            app.swipeUp()
+            RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(1.5)))
+        }
+        let row = try XCTUnwrap(hittableRow(), "No song row on screen")
+        let frameBefore = row.frame
+        let frameAfter = openAndReturn(row)
+        XCTAssertEqual(frameAfter.minY, frameBefore.minY, accuracy: 1, "The list moved on Back")
+        XCTAssertTrue(
+            app.buttons["fst.songs.sort"].isHittable || app.buttons["fst.songs.tools"].isHittable,
+            "Sort did not stay available on Back"
+        )
+
+        // Text typed before a song opens is still in the field after Back.
+        let field = SongsUITestSupport.songsSearchField(in: app)
+        field.tap()
+        let query = rail.exists ? "Signal" : "Pulse"
+        field.typeText(query)
+        var filtered: XCUIElement?
+        for _ in 0..<Int(FestivalApp.budget(50)) {
+            filtered = rows.allElementsBoundByIndex.prefix(6).first { $0.isHittable }
+            if filtered != nil { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        _ = openAndReturn(try XCTUnwrap(filtered, "No filtered row"))
+        let kept = SongsUITestSupport.songsSearchField(in: app)
+        XCTAssertEqual(kept.value as? String, query, "Filter text was lost on Back")
+    }
+
     /// The A–Z rail is centred between the navigation bar and the tab bar, stays put when
     /// the large title collapses, and scrubbing collapses the title like a manual scroll.
     /// The pinned Filter Songs field stays visible and usable.
