@@ -256,8 +256,10 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
             XCTAssertTrue(done.waitForExistence(timeout: 5),
                           "Filter Songs \(frame) ignored a tap at (\(Int(offset.dx)), \(Int(offset.dy))) pt")
             done.tap()
+            // The CI runner's Duo takes several seconds to settle the dismissal.
             let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: done)
-            XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 5), .completed)
+            XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 20), .completed,
+                           "Filter did not close after the near-miss tap at (\(Int(offset.dx)), \(Int(offset.dy))) pt")
             RunLoop.current.run(until: Date().addingTimeInterval(0.6))
         }
     }
@@ -348,19 +350,23 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
     ///   - app: Launched fixture Songs.
     ///   - types: Audit types to run.
     ///   - proof: Returns true for an issue the caller proves afterwards (and records it).
+    /// - Returns: Whether `proof` deferred any issue.
     @MainActor
+    @discardableResult
     private func audit(
         _ app: XCUIApplication, for types: XCUIAccessibilityAuditType,
         deferring proof: ((XCUIAccessibilityAuditIssue) -> Bool)? = nil
-    ) throws {
+    ) throws -> Bool {
         let pad = UIDevice.current.userInterfaceIdiom == .pad
         let form = element("form", in: app)
         let edge = form.exists
             ? (top: form.frame.minY, bottom: min(form.frame.maxY, app.windows.firstMatch.frame.maxY))
             : nil
         var cut: [String] = []
+        var anyDeferred = false
         try app.performAccessibilityAudit(for: types) { issue in
             let deferred = proof?(issue) ?? false
+            anyDeferred = anyDeferred || deferred
             let behindSheet = !deferred && Self.isPadPageBehindSheet(issue, pad: pad)
             var edgeCut = false
             if !deferred, !behindSheet, issue.auditType == .contrast, let edge,
@@ -373,7 +379,7 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
                 string: "\(issue.auditType): \(issue.compactDescription): "
                     + "id=\(issue.element?.identifier ?? "none") label=\(issue.element?.label ?? "none") "
                     + "frame=\(String(describing: issue.element?.frame))"
-                    + (deferred ? " (growth measured at AX5)" : "")
+                    + (deferred ? " (deferred to measured text growth)" : "")
                     + (behindSheet ? " (iPad page behind the sheet: IPadAccessibilityAuditTests filter-sheet)" : "")
                     + (edgeCut ? " (cut by the sheet's edge: re-audited whole)" : "")
             )
@@ -395,6 +401,7 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
                 return false
             }
         }
+        return anyDeferred
     }
 
     /// On iPad the form sheet leaves the dimmed Songs page visible around it, and the audit
@@ -420,8 +427,15 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
     /// - Parameters:
     ///   - app: Launched fixture Songs with the sheet open.
     ///   - types: Audit types to run.
+    ///   - proof: As ``audit(_:for:deferring:)``.
+    ///   - deferredAt: Called at rest at an end whose audit deferred an issue, so the caller
+    ///     can record what was on screen.
     @MainActor
-    private func auditAtEnds(_ app: XCUIApplication, for types: XCUIAccessibilityAuditType) throws {
+    private func auditAtEnds(
+        _ app: XCUIApplication, for types: XCUIAccessibilityAuditType,
+        deferring proof: ((XCUIAccessibilityAuditIssue) -> Bool)? = nil,
+        deferredAt: (() -> Void)? = nil
+    ) throws {
         let general = reveal(element("general", in: app), in: app)
         let form = element("form", in: app)
         // Short held drags down until General stops moving: the Form rests at its very top
@@ -437,7 +451,7 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
             if abs(general.frame.minY - before) < 1 { break }
         }
         XCTAssertTrue(app.navigationBars["Filter Songs"].exists, "Filter sheet dismissed while resting at its top")
-        try audit(app, for: types)
+        if try audit(app, for: types, deferring: proof) { deferredAt?() }
         let reset = app.buttons[Self.prefix + "reset"]
         // Swiping up past the end only bounces; down at the top would dismiss the sheet.
         var swipes = 0
@@ -447,7 +461,7 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         }
         form.swipeUp()
         XCTAssertTrue(reset.isHittable, "Reset Filters not reached at the end of the sheet")
-        try audit(app, for: types)
+        if try audit(app, for: types, deferring: proof) { deferredAt?() }
     }
 
     /// At the largest text size every group's hint wraps onto several lines (at least 1.5x
@@ -487,6 +501,76 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         reveal(decade, in: app)
         let text = decade.staticTexts[label].firstMatch
         return text.exists ? text.frame.height : decade.frame.height
+    }
+
+    /// The texts wholly visible in the sheet's Form now, by label, with their heights: each
+    /// static text, and a switch's own frame when it has no static text of its label (as
+    /// ``decadeTextHeight(_:in:)``). The navigation bar's title is outside the Form (a
+    /// system bar caps its text size: `system-bar-title-size`).
+    ///
+    /// - Parameter app: Launched fixture Songs with the sheet open, at rest.
+    /// - Returns: Height in points by label.
+    @MainActor
+    private func visibleFormTexts(_ app: XCUIApplication) -> [String: CGFloat] {
+        let form = element("form", in: app)
+        let bar = app.navigationBars["Filter Songs"]
+        let top = max(form.frame.minY, bar.exists ? bar.frame.maxY : 0)
+        let bottom = min(SongsUITestSupport.sheetVisibleBottom(in: app), form.frame.maxY)
+        var texts: [String: CGFloat] = [:]
+        func record(_ label: String, _ frame: CGRect) {
+            guard !label.isEmpty, frame.minY >= top - 1, frame.maxY <= bottom + 1 else { return }
+            texts[label] = max(texts[label] ?? 0, frame.height)
+        }
+        func walk(_ node: XCUIElementSnapshot) {
+            if node.elementType == .staticText {
+                record(node.label, node.frame)
+            } else if node.elementType == .switch,
+                      !node.children.contains(where: { $0.elementType == .staticText && $0.label == node.label }) {
+                record(node.label, node.frame)
+            }
+            node.children.forEach(walk)
+        }
+        if let snapshot = try? form.snapshot() {
+            walk(snapshot)
+        }
+        if texts.isEmpty {
+            // A snapshot can stop short of the rows (the iPhone Duo's); query them instead.
+            for text in form.staticTexts.allElementsBoundByIndex where text.exists {
+                record(text.label, text.frame)
+            }
+        }
+        return texts
+    }
+
+    /// The page-level evidence for an element-less Dynamic Type issue in an AX5 audit
+    /// (`unattributed-dynamic-type-page-growth`, `.agents/testing/apple/accessibility.md`):
+    /// with no element to measure, every text the sheet showed at that moment must be at
+    /// least 1.35x taller at AX5 than in a default-size launch of the same sheet.
+    ///
+    /// - Parameters:
+    ///   - texts: ``visibleFormTexts(_:)`` recorded at AX5 where the issue was reported.
+    ///   - showShop: Whether Settings showed the Item Shop in the audited launch.
+    @MainActor
+    private func assertGrowthFromDefault(_ texts: [String: CGFloat], showShop: Bool) {
+        XCTAssertFalse(texts.isEmpty, "No text measured where the element-less Dynamic Type issue was reported")
+        let app = launchSongs(showShop: showShop)
+        openCleanSheet(app)
+        _ = assertYearGroup(app)
+        let form = element("form", in: app)
+        var evidence: [String] = []
+        for (label, large) in texts.sorted(by: { $0.key < $1.key }) {
+            let text = form.staticTexts.matching(NSPredicate(format: "label == %@", label)).firstMatch
+            // A switch recorded by its own frame (no text of its label) is measured the same way.
+            let isSwitch = !text.waitForExistence(timeout: 2) && app.switches[label].exists
+            let regular = reveal(isSwitch ? app.switches[label].firstMatch : text, in: app).frame.height
+            evidence.append("\(label): \(regular) → \(large)")
+            XCTAssertGreaterThanOrEqual(large, regular * 1.35, "\(label) grows at AX5: \(regular) → \(large)")
+        }
+        let attachment = XCTAttachment(string: "unattributed-dynamic-type-page-growth\n" + evidence.joined(separator: "\n"))
+        attachment.name = "songs-filter-audit-evidence"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        app.terminate()
     }
 
     // MARK: - Tests
@@ -593,7 +677,10 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
     /// the Item Shop texts grow at least 1.35x, every hint wraps instead of truncating, Year's
     /// switches and header actions keep 44 pt targets (Hit region audit) and Reset Filters
     /// stays reachable. Dynamic Type is audited with the Shop hidden (the Item Shop texts are
-    /// measured instead). Text clipped is audited at the default size only: at AX5 iOS 26.5
+    /// measured instead); an element-less Dynamic Type issue there (iOS 27) passes only on
+    /// page-level growth: every text on screen at that end is at least 1.35x taller than in a
+    /// default-size launch (``assertGrowthFromDefault(_:showShop:)``). Text clipped is audited
+    /// at the default size only: at AX5 iOS 26.5
     /// intermittently reports an element-less Text clipped issue on a state that passes on
     /// rerun (an open finding, like the Songs and Item Shop lists'), so wrapping is asserted.
     @MainActor
@@ -630,8 +717,18 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
 
         let hidden = launchSongs(contentSize: largest, showShop: false)
         openCleanSheet(hidden)
-        try auditAtEnds(hidden, for: .dynamicType)
+        // iOS 27 reports an element-less "Dynamic Type font sizes are unsupported" here; with
+        // nothing to measure, the texts on screen are measured against a default-size launch.
+        var shown: [String: CGFloat] = [:]
+        let unattributed: (XCUIAccessibilityAuditIssue) -> Bool = {
+            $0.auditType == .dynamicType && $0.element == nil
+        }
+        let recordShown = { shown.merge(self.visibleFormTexts(hidden)) { max($0, $1) } }
+        try auditAtEnds(hidden, for: .dynamicType, deferring: unattributed, deferredAt: recordShown)
         _ = assertYearGroup(hidden)
-        try auditAtEnds(hidden, for: .dynamicType)
+        try auditAtEnds(hidden, for: .dynamicType, deferring: unattributed, deferredAt: recordShown)
+        guard !shown.isEmpty else { return }
+        hidden.terminate()
+        assertGrowthFromDefault(shown, showShop: false)
     }
 }
