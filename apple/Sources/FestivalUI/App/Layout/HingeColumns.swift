@@ -258,14 +258,26 @@ enum HingeColumns {
 // MARK: - Measuring
 
 extension View {
-    /// Report this view's horizontal extent in window coordinates (only when it changes,
-    /// so vertical scrolling costs nothing).
+    /// Report this view's horizontal extent in window coordinates (only when it changes)
+    /// while a fold crosses the window.
     ///
-    /// - Parameter span: Receives the extent.
-    /// - Returns: The view, measured.
-    func measuresHorizontalSpan(_ span: Binding<HorizontalSpan?>) -> some View {
-        onGeometryChange(for: HorizontalSpan.self, of: { HorizontalSpan($0.frame(in: .global)) }) { value in
-            if span.wrappedValue != value { span.wrappedValue = value }
+    /// The span only places columns or titles around an iPhone Duo fold, so without one
+    /// nothing is measured: a window-space geometry reading is re-evaluated on every
+    /// scroll frame, for every grid and title on the page (issue #553). The reader sits
+    /// in a background, so a fold appearing or going never rebuilds the view itself.
+    ///
+    /// - Parameters:
+    ///   - span: Receives the extent.
+    ///   - fold: The window's fold (`DeviceLayout.splitHinge`), or nil for none.
+    /// - Returns: The view, measured while there is a fold.
+    func measuresHorizontalSpan(_ span: Binding<HorizontalSpan?>, fold: CGRect?) -> some View {
+        background {
+            if fold != nil {
+                Color.clear
+                    .onGeometryChange(for: HorizontalSpan.self, of: { HorizontalSpan($0.frame(in: .global)) }) { value in
+                        if span.wrappedValue != value { span.wrappedValue = value }
+                    }
+            }
         }
     }
 
@@ -288,7 +300,7 @@ private struct HingeSideTitle: ViewModifier {
         content
             .frame(maxWidth: HingeColumns.titleWidth(span: span, fold: layout.splitHinge) ?? .infinity, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .measuresHorizontalSpan($span)
+            .measuresHorizontalSpan($span, fold: layout.splitHinge)
     }
 }
 
@@ -350,7 +362,7 @@ struct HingeGrid<Content: View>: View {
             content
         }
         .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .center))
-        .measuresHorizontalSpan($span)
+        .measuresHorizontalSpan($span, fold: layout.splitHinge)
     }
 }
 
@@ -388,7 +400,7 @@ struct HingeEagerGrid<Content: View>: View {
             minimum: minimum, spacing: spacing, rowSpacing: rowSpacing,
             band: HingeColumns.adaptiveBand(span: span, fold: layout.splitHinge, gutter: spacing, minimum: minimum)
         ) { content }
-            .measuresHorizontalSpan($span)
+            .measuresHorizontalSpan($span, fold: layout.splitHinge)
     }
 }
 
@@ -495,7 +507,7 @@ struct HingeRow<Content: View>: View {
         HingeRowLayout(spacing: spacing, band: band, fillsHeight: fillsHeight, matchesHeights: matchesHeights) {
             content
         }
-            .measuresHorizontalSpan($span)
+            .measuresHorizontalSpan($span, fold: layout.splitHinge)
     }
 }
 

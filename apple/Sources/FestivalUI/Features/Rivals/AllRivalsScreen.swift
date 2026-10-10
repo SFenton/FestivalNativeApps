@@ -11,7 +11,9 @@ import FestivalDesign
 /// one typed, `Hashable` `RivalScope` instead (`song`, `leaderboard` or `combo`).
 struct AllRivalsScreen: View {
     let session: FestivalSession
-    let scope: RivalScope
+    /// The scope the route carried (it may name an experimental metric).
+    let routeScope: RivalScope
+    @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
     @State private var state: RivalsLoadState<[AllRivalsRow]> = .loading
     /// Rival shown in the dual-source bottom region (Duo inner display, portrait).
     @State private var dualSelection: AppRoute?
@@ -30,7 +32,13 @@ struct AllRivalsScreen: View {
     ///     pass the same scope they used to load their own preview section).
     init(session: FestivalSession, scope: RivalScope) {
         self.session = session
-        self.scope = scope
+        self.routeScope = scope
+    }
+
+    /// The scope in effect: a leaderboard scope's experimental metric reads Total
+    /// Score while Settings › Experimental Ranks is off (pattern `experimental-ranks`).
+    private var scope: RivalScope {
+        routeScope.coerced(experimentalRanks: experimentalRanks)
     }
 
     // MARK: - Scope

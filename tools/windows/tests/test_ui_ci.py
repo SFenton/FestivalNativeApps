@@ -51,6 +51,16 @@ class UiCiTests(unittest.TestCase):
         self.assertTrue(all(run.scan for run in landing.values()))
         self.assertIn("compact", landing["text-225"].sizes.split(","))
 
+    def test_header_flyouts_gate_without_popup_allowance(self):
+        """#534: the Rank By, Quick Links, profile and Notifications flyouts scan clean at 100% and 225% text."""
+        popups = {run.mode: run for run in ci.RUNS if run.pages == "a11y.json"}
+        self.assertEqual({"normal", "text-225"}, set(popups))
+        self.assertTrue(all(run.scan and run.only == ci.POPUP_PAGES for run in popups.values()))
+        pages = {page["name"]: page for page in json.loads((ci.JOURNEYS / "a11y.json").read_text(encoding="utf-8"))}
+        for name in ci.POPUP_PAGES.split(","):
+            with self.subTest(page=name):
+                self.assertNotIn("axe_allow", pages[name])
+
     def test_song_band_pinned_runs_at_default_and_largest_text(self):
         # Issue #461 (#306): the full band board's pinned "your band" row runs in CI at default and 225% text.
         runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-song-band-pinned.json"}
@@ -307,12 +317,12 @@ class UiCiTests(unittest.TestCase):
     def test_workflow_builds_and_dispatches(self):
         text = _WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("runs-on: windows-latest", text)
-        self.assertIn("pull_request:", text)
-        for path in ("'windows/**'", "'tools/windows/**'", "'.github/workflows/windows-ui.yml'"):
-            self.assertIn(path, text)
+        # Release train: dispatched by the release machine on releases/YYMM.DD only (not on PRs or master).
+        self.assertIn("workflow_dispatch:", text)
+        self.assertNotIn("pull_request:", text.split("permissions:")[0])
         build, display = text.index("tools/windows/build.ps1"), text.index("tools/windows/ci_display.ps1")
         dispatch = text.index("python tools/windows/ui_ci.py --tier")
-        self.assertIn("schedule:", text)  # the nightly full matrix
+        self.assertIn("--tier full", text)
         self.assertLess(display, dispatch)
         self.assertLess(build, dispatch)
         self.assertNotIn("--live", text)  # fixtures only: no service calls from CI

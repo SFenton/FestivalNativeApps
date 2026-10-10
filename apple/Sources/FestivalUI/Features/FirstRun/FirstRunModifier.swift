@@ -16,7 +16,7 @@ struct FirstRunPageModifier: ViewModifier {
 
     @AppStorage("fst.settings.hideShop") private var hideShop = false
     @AppStorage("fst.settings.disableShopHighlighting") private var disableShopHighlighting = false
-    @AppStorage("fst.settings.experimentalRanks") private var experimentalRanks = false
+    @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
     /// The presented carousel, carried as one value so the sheet never renders with a stale,
     /// empty slide list. `.sheet(isPresented:)` plus a separate `@State` array raced when a
     /// non-default tab was the launch tab (the sheet showed "page 1 of 0").

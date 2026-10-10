@@ -693,9 +693,10 @@ private struct MacHeaderSeparator: ViewModifier {
 /// The row reports its global top only while it is near the edge
 /// (``PinnedHeaderEdgeFadeState/rowLimit``, read from a lock box because SwiftUI may keep
 /// an earlier geometry closure), and the cut is computed here from the observed edge and
-/// depth. The mask keeps the same structure in every state (a gradient band under a shape
-/// that covers everything below it, or the whole row when the row is clear of the edge),
-/// so a row crossing the edge never rebuilds.
+/// depth. A row clear of the edge reads neither, so the scroll-driven depth re-renders
+/// only the rows near the header (issue #553). The mask keeps the same structure in every
+/// state (a gradient band under a shape that covers everything below it, or the whole
+/// row when the row is clear of the edge), so a row crossing the edge never rebuilds.
 private struct PinnedHeaderRowMask: ViewModifier {
     let state: PinnedHeaderEdgeFadeState
     /// Whether this view hands the List's platform scroll view to the state on the legacy
@@ -705,10 +706,12 @@ private struct PinnedHeaderRowMask: ViewModifier {
 
     func body(content: Content) -> some View {
         let limit = state.rowLimit
-        let depth = state.depth
-        let cut = rowTop.flatMap {
-            PinnedHeaderEdgeFade.cut(rowTop: $0 - state.origin, edge: state.edge, depth: depth)
+        let mask = rowTop.map { top in
+            let depth = state.depth
+            return (cut: PinnedHeaderEdgeFade.cut(rowTop: top - state.origin, edge: state.edge, depth: depth), depth: depth)
         }
+        let depth = mask?.depth ?? PinnedHeaderEdgeFade.height
+        let cut = mask?.cut
         content
             .onGeometryChange(for: CGFloat?.self) { proxy in
                 let top = proxy.frame(in: .global).minY
@@ -747,16 +750,44 @@ extension View {
     /// - Parameters:
     ///   - edge: The title's bottom edge in global coordinates.
     ///   - active: Rows have scrolled under the title.
-    ///   - depthLimit: The deepest the fade may reach, so it never dims an incoming
-    ///     title or a landed section's first row (R8); nil for the full ramp.
+    ///   - depthLimit: Reads the deepest the fade may reach, so it never dims an incoming
+    ///     title or a landed section's first row (R8); nil for the full ramp. Only rows
+    ///     near the edge call it.
     ///   - rowLimit: Box shared by the List's rows: a row reports its global top only
     ///     above this line (``PinnedHeaderEdgeFade/rowLimit(edge:active:)``), read from a
     ///     lock box because SwiftUI may keep an earlier geometry closure.
     /// - Returns: The masked row.
     func pinnedHeaderEdgeFadeRowMask(
-        edge: CGFloat, active: Bool, depthLimit: CGFloat?, rowLimit: TopInset
+        edge: CGFloat, active: Bool, depthLimit: PinnedHeaderEdgeFade.RowMaskDepth, rowLimit: TopInset
     ) -> some View {
         modifier(PinnedTitleRowMask(edge: edge, active: active, depthLimit: depthLimit, rowLimit: rowLimit))
+    }
+}
+
+extension PinnedHeaderEdgeFade {
+    /// Reads a floating title's fade depth limit for one row mask
+    /// (``SwiftUI/View/pinnedHeaderEdgeFadeRowMask(edge:active:depthLimit:rowLimit:)``).
+    ///
+    /// The mask calls it only while its row is near the title's edge, so only those rows
+    /// observe a limit that moves every frame while a section title passes (issue #553).
+    struct RowMaskDepth {
+        /// The deepest the fade may reach, or nil for its full height.
+        let read: () -> CGFloat?
+    }
+
+    /// The fade depth one row mask under a floating title draws.
+    ///
+    /// A row clear of the edge draws no cut, so its band depth changes nothing on screen;
+    /// it stays at the full `fade` there and never reads the moving `limit`.
+    ///
+    /// - Parameters:
+    ///   - near: The row reports a top near the title's edge.
+    ///   - fade: The full fade height for the current settings.
+    ///   - limit: Reads the depth limit (nil for the full fade); called only when `near`.
+    /// - Returns: The depth in points.
+    static func rowMaskDepth(near: Bool, fade: CGFloat, limit: () -> CGFloat?) -> CGFloat {
+        guard near, let limit = limit() else { return fade }
+        return depth(scrollOffset: limit, fade: fade)
     }
 }
 
@@ -779,22 +810,27 @@ extension PinnedHeaderEdgeFade {
 ///
 /// The row reports its global top only while it is above the shared
 /// ``PinnedHeaderEdgeFade/rowLimit(edge:active:)`` line, so rows clear of the title never
-/// re-render while scrolling. The mask keeps the same structure in every state, so a row
-/// crossing the edge or a settings change never rebuilds it.
+/// re-render while scrolling. Only such a row reads the fade's depth limit, which moves
+/// every frame while a section title passes the bar: read by every row, it re-rendered
+/// and redrew every visible row's mask each of those frames (issue #553). The mask keeps
+/// the same structure in every state, so a row crossing the edge or a settings change
+/// never rebuilds it.
 private struct PinnedTitleRowMask: ViewModifier {
     let edge: CGFloat
     let active: Bool
-    let depthLimit: CGFloat?
+    /// The depth limit (``PinnedHeaderEdgeFade/RowMaskDepth``), read only near the edge.
+    let depthLimit: PinnedHeaderEdgeFade.RowMaskDepth
     let rowLimit: TopInset
     @State private var rowTop: CGFloat?
     @ScrollEdgeHardEdge private var hardEdge
 
     func body(content: Content) -> some View {
         let fade = PinnedHeaderEdgeFade.height(hardEdge: hardEdge)
-        let depth = depthLimit.map { PinnedHeaderEdgeFade.depth(scrollOffset: $0, fade: fade) } ?? fade
-        let cut = active ? rowTop.flatMap {
+        let near = active ? rowTop : nil
+        let depth = PinnedHeaderEdgeFade.rowMaskDepth(near: near != nil, fade: fade, limit: depthLimit.read)
+        let cut = near.flatMap {
             PinnedHeaderEdgeFade.cut(rowTop: $0, edge: edge, depth: depth)
-        } : nil
+        }
         let limit = rowLimit
         let _ = limit.value = PinnedHeaderEdgeFade.rowLimit(edge: edge, active: active)
         content

@@ -75,7 +75,10 @@
       "waitfor:id=fst.quick-links.item.bands@5",
       "key:esc",
       "waitgone:id=fst.quick-links.item.bands@5",
-      "assertfocus:id=fst.quick-links.open@3"
+      "assertfocus:id=fst.quick-links.open@3",
+      "scrollinto:id=fst.player.stat.overview.songs-played@10",
+      "focus:id=fst.player.stat.overview.songs-played",
+      "assertfocus:id=fst.player.stat.overview.songs-played@3"
     ]
   },
   {
