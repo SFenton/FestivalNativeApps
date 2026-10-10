@@ -28,7 +28,9 @@ Live Duos, Trios and Quads (1,816,766 ranked Duos), with SFentonX selected. Capt
 | Robolectric `BandRankingsUiTest` (phone, row layout, large text) | Covers loading → rows, paging and band-size/Rank By switches, initial failure with Retry, inline failure after a page change, empty page, one-line versus stacked rows by pane width, and large text. |
 | Connected `BandRankingsJourneyTest` (ATF) | Passes on FST_Phone and FST_Book_Fold (half) with no ATF errors. It covers reading order (title → population → rows → pager), the band-size and Rank By menus, paging, and opening a band. Coverage gate: logic 98.0%, UI 94.1%. |
 
-**Deliberate deviations from the web or M3:** the pager always shows (web hides it on a single page; the pinned footer keeps page context). Rank By follows Settings → Experimental Ranks like the web. There is no band-combo filter or selected-band footer, because Android has no selected-band identity. Population text uses the primary text role. The empty copy is "No ranked bands yet.". The app is dark-only.
+**Pager (issue #575, [load-transition](../../patterns/load-transition.md) R4):** the shared `RankingsPager` is hidden until a loaded board has given its page count (`pageCount` starts `null`, never a placeholder "1 / 1") and for a one-page board (web `hasPagination = !!data && totalPages > 1`). Page changes and band-size or Rank By reloads keep it in place with the last known count until the new board commits. Test: `BandRankingsUiTest` (no pager on the first load or an empty board).
+
+**Deliberate deviations from the web or M3:** Rank By follows Settings → Experimental Ranks like the web. There is no band-combo filter or selected-band footer, because Android has no selected-band identity. Population text uses the primary text role. The empty copy is "No ranked bands yet.". The app is dark-only.
 
 ## IDs
 
