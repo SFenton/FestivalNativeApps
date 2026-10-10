@@ -129,6 +129,13 @@ PLAYER_BANDS = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/bands$")
 RANKINGS = re.compile(r"^/api/rankings/([A-Za-z_]+)$")
 PLAYER_RANK_HISTORY = re.compile(r"^/api/rankings/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/history$")
 PLAYER_INSTRUMENT_RANKING = re.compile(r"^/api/rankings/([A-Za-z_]+)/(fixture-[a-z0-9-]+)$")
+# `/api/rankings/combo?combo=` and its single-account read (issue #602). Dispatched before
+# `PLAYER_INSTRUMENT_RANKING` / `RANKINGS`, whose instrument segment would match "combo".
+COMBO_RANKINGS = re.compile(r"^/api/rankings/combo$")
+PLAYER_COMBO_RANKING = re.compile(r"^/api/rankings/combo/(fixture-[a-z0-9-]+)$")
+# Within-group combo bitmasks (bit = the instrument's index in the service order): any
+# two or more of Lead/Bass/Drums/Vocals (bits 0-3), or Pro Lead + Pro Bass (bits 4-5).
+COMBO_GROUP_MASKS = (0x0F, 0x30)
 BAND_RANKINGS = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)$")
 BAND_HISTORY = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/history$")
 BAND_SONGS = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/songs$")
@@ -215,6 +222,38 @@ def _ranking_entry(rank: int, account_id: str, display_name: str) -> dict:
         "avgAccuracy": max(500_000, 990_000 - rank * 1_000), "fullComboCount": max(0, 20 - rank),
         "avgStars": 4.9, "bestRank": 1, "avgRank": float(rank),
     }
+
+
+def _combo_ranking_entry(rank: int, account_id: str, display_name: str) -> dict:
+    """One deterministic `/api/rankings/combo` row, in the live wire shape (2026-10-10).
+
+    Args:
+        rank: 1-based rank for the requested metric; also seeds the values.
+        account_id: Fixture player id.
+        display_name: Row's display name.
+
+    Returns:
+        A JSON-ready `ComboRankingEntry` object.
+    """
+    songs = 80 - rank
+    full_combos = max(0, 30 - rank)
+    return {
+        "rank": rank, "accountId": account_id, "displayName": display_name,
+        "adjustedRating": max(0.001, 0.05 - rank * 0.01),
+        "weightedRating": max(0.001, 0.06 - rank * 0.01),
+        "fcRate": full_combos / songs, "totalScore": max(1_000, 180_000_000 - rank * 2_000_000),
+        "maxScorePercent": max(0.5, 0.98 - rank * 0.02), "songsPlayed": songs,
+        "totalChartedSongs": 100, "fullComboCount": full_combos,
+        "computedAt": "2026-10-10T00:00:00Z",
+    }
+
+
+def _valid_combo_id(combo: str) -> bool:
+    """Whether `combo` is a within-group combo's lowercase hex bitmask of two or more bits."""
+    if not re.fullmatch(r"[0-9a-f]{2}", combo):
+        return False
+    mask = int(combo, 16)
+    return bin(mask).count("1") >= 2 and any(mask & group == mask for group in COMBO_GROUP_MASKS)
 
 
 def _band_ranking_entry(rank: int) -> dict:
@@ -1419,6 +1458,60 @@ class FixtureHandler(BaseHTTPRequestHandler):
             self._json(200, {
                 "bandType": band_type, "teamKey": team_key, "limit": limit,
                 "best": best[:limit], "worst": worst[:limit],
+            })
+        elif match := PLAYER_COMBO_RANKING.fullmatch(path):
+            account_id = match.group(1)
+            combo = query.get("combo", [""])[0].lower()
+            rank_by = query.get("rankBy", ["totalscore"])[0]
+            if not _valid_combo_id(combo):
+                self._json(400, {"status": "invalid_combo"})
+                return
+            roster = {
+                "fixture-player-1": (1, "Fixture Player 1"),
+                "fixture-player-2": (2, "Fixture Player 2"),
+                "fixture-rank-3": (3, "Fixture Rank 3"),
+            }
+            if account_id not in roster:
+                self._json(404, {"status": "account_not_ranked"})
+                return
+            rank, display_name = roster[account_id]
+            self._json(200, {
+                **_combo_ranking_entry(rank, account_id, display_name),
+                "comboId": combo, "rankBy": rank_by, "totalAccounts": len(roster),
+            })
+        elif COMBO_RANKINGS.fullmatch(path):
+            combo = query.get("combo", [""])[0].lower()
+            if not _valid_combo_id(combo):
+                self._json(400, {"status": "invalid_combo"})
+                return
+            pin = self.headers.get("X-FST-Publication-Id")
+            if pin is not None and pin != str(self.fixture.publication_id):
+                self._json(409, {"status": "publication_changed"})
+                return
+            rank_by = query.get("rankBy", ["totalscore"])[0]
+            try:
+                page = int(query.get("page", ["1"])[0])
+                page_size = int(query.get("pageSize", ["10"])[0])
+            except ValueError:
+                self._json(400, {"status": "invalid_pagination"})
+                return
+            if page < 1 or not 1 <= page_size <= 200:
+                self._json(400, {"status": "invalid_pagination"})
+                return
+            roster = [
+                ("fixture-player-1", "Fixture Player 1"),
+                ("fixture-player-2", "Fixture Player 2"),
+                ("fixture-rank-3", "Fixture Rank 3"),
+            ]
+            start = (page - 1) * page_size
+            entries = [
+                _combo_ranking_entry(rank, account_id, display_name)
+                for rank, (account_id, display_name)
+                in enumerate(roster[start:start + page_size], start=start + 1)
+            ]
+            self._json(200, {
+                "comboId": combo, "rankBy": rank_by, "page": page, "pageSize": page_size,
+                "totalAccounts": len(roster), "entries": entries,
             })
         elif match := PLAYER_INSTRUMENT_RANKING.fullmatch(path):
             instrument, account_id = match.group(1), match.group(2)
