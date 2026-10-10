@@ -11,7 +11,8 @@ import Testing
 
 @Test func accountMetricsNarrowToTotalScoreWhileOff() {
     #expect(RankingMetric.enabled(experimentalRanks: false) == [.totalscore])
-    #expect(RankingMetric.enabled(experimentalRanks: true) == [.totalscore, .adjusted, .weighted, .fcrate, .maxscore])
+    #expect(RankingMetric.menuOrder == [.totalscore, .adjusted, .weighted, .fcrate, .maxscore])
+    #expect(RankingMetric.enabled(experimentalRanks: true) == RankingMetric.menuOrder)
     #expect(Set(RankingMetric.menuOrder) == Set(RankingMetric.allCases))
     #expect(RankingMetric.allCases.filter(\.isExperimental) == [.adjusted, .weighted, .fcrate, .maxscore])
 }
@@ -44,7 +45,9 @@ import Testing
 
 @Test func rivalMetricsAndLeaderboardScopesNarrowWhileOff() {
     #expect(RivalRankMetric.enabled(experimentalRanks: false) == [.totalscore])
-    #expect(RivalRankMetric.enabled(experimentalRanks: true) == [.totalscore, .adjusted, .weighted, .fcrate, .maxscore])
+    #expect(RivalRankMetric.menuOrder == [.totalscore, .adjusted, .weighted, .fcrate, .maxscore])
+    #expect(RivalRankMetric.enabled(experimentalRanks: true) == RivalRankMetric.menuOrder)
+    #expect(Set(RivalRankMetric.menuOrder) == Set(RivalRankMetric.allCases))
     #expect(RivalRankMetric.weighted.coerced(experimentalRanks: false) == .totalscore)
     #expect(RivalRankMetric.weighted.coerced(experimentalRanks: true) == .weighted)
 

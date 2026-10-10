@@ -50,12 +50,16 @@ public enum RivalRankMetric: String, CaseIterable, Sendable, Identifiable, Equat
     /// Whether this metric is experimental (pattern `experimental-ranks`).
     public var isExperimental: Bool { self != .totalscore }
 
+    /// The Rank By order in web `RANKING_METRICS` order; never the enum's declaration
+    /// order (pattern `experimental-ranks` R1).
+    public static let menuOrder: [RivalRankMetric] = [.totalscore, .adjusted, .weighted, .fcrate, .maxscore]
+
     /// The metrics the Leaderboard Rivals Rank By offers (see ``ExperimentalRanks``).
     ///
     /// - Parameter experimentalRanks: The Settings switch.
-    /// - Returns: Total Score alone while off; every metric while on.
+    /// - Returns: Total Score alone while off; ``menuOrder`` while on.
     public static func enabled(experimentalRanks: Bool) -> [RivalRankMetric] {
-        experimentalRanks ? allCases : [.totalscore]
+        experimentalRanks ? menuOrder : [.totalscore]
     }
 
     /// This metric, or Total Score when it is experimental and the switch is off (web

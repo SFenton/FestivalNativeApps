@@ -53,9 +53,17 @@ struct RivalsScreen: View {
     /// - Parameters:
     ///   - session: Shared app session (API client, selected profile, caches).
     ///   - showsRootTrailingItems: Pass `true` only from the Rivals tab root.
-    init(session: FestivalSession, showsRootTrailingItems: Bool = false) {
+    ///   - tab: The opening tab (web route state `?tab=leaderboard`).
+    ///   - rankBy: The Leaderboard tab's opening metric (web `?rankBy=`); read as Total
+    ///     Score while Settings › Experimental Ranks is off (pattern `experimental-ranks`).
+    init(
+        session: FestivalSession, showsRootTrailingItems: Bool = false,
+        tab: Tab = .song, rankBy: RivalRankMetric = .totalscore
+    ) {
         self.session = session
         self.showsRootTrailingItems = showsRootTrailingItems
+        _tab = State(initialValue: tab)
+        _selectedRankBy = State(initialValue: rankBy)
     }
 
     /// Opens the Find Rival sheet.
