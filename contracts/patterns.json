@@ -584,7 +584,8 @@
         "controls": [
           "quick-links",
           "songs-section-index",
-          "global-search"
+          "global-search",
+          "profile-selection"
         ],
         "pages": [
           "songs"
@@ -601,7 +602,8 @@
         343,
         348,
         557,
-        560
+        560,
+        600
       ]
     },
     {

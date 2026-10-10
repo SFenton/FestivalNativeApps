@@ -160,6 +160,16 @@ public class GlobalSearchResultsTests
     }
 
     [Fact]
+    public void ProfilesAnnouncement_PlayersAndBandsWithoutSongs()
+    {
+        Assert.Equal("No results found.", GlobalSearchResults.ProfilesAnnouncement(0, 0));
+        Assert.Equal("1 player, 2 bands", GlobalSearchResults.ProfilesAnnouncement(1, 2));
+        Assert.Equal("0 players, 1 band", GlobalSearchResults.ProfilesAnnouncement(0, 1));
+        Assert.Equal("player search failed, 0 bands", GlobalSearchResults.ProfilesAnnouncement(null, 0));
+        Assert.Equal("3 players, band search failed", GlobalSearchResults.ProfilesAnnouncement(3, null));
+    }
+
+    [Fact]
     public void Route_SearchPathRoundTrips()
     {
         Assert.Equal("/search", new AppRoute.Search().ToPath());
