@@ -92,6 +92,7 @@ jobs:
             SongsChromeJourneyTests/testFilterFieldReadyAfterBackFromSongDetail
             FirstRunJourneyTests/testSongDemoSlideAccessibleAtLargestText
             FirstRunJourneyTests/testSongDemoRotationKeepsSlideAccessibleAtLargestText
+            RivalsViewAllAccessibilityJourneyTests/testViewAllRivalsIsReadableAtAX5
             SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrder
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrderOnPushedPage
