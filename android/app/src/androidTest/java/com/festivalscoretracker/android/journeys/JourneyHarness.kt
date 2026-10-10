@@ -6,6 +6,10 @@ import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.ViewRootForTest
 import androidx.compose.ui.semantics.Role
@@ -104,14 +108,31 @@ class JourneyHarness(private val rule: JourneyRule) {
     ) {
         val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = preferences)
         rule.setContent {
-            if (fontScale == null) {
-                FestivalApp(container, debug)
-            } else {
-                val scale = fontScale()
-                SideEffect { applyWindowFontScale(scale) }
-                DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(scale)) { FestivalApp(container, debug) }
+            key(generation) {
+                if (fontScale == null) {
+                    FestivalApp(container, debug)
+                } else {
+                    val scale = fontScale()
+                    SideEffect { applyWindowFontScale(scale) }
+                    DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(scale)) { FestivalApp(container, debug) }
+                }
             }
         }
+    }
+
+    /** Bumped by [recreateApp] to dispose and re-create the app's composition. */
+    private var generation by mutableIntStateOf(0)
+
+    /**
+     * Re-create the app as an activity recreation does (a font-size change: font scale is not in
+     * the manifest's `configChanges`): the shell's composition and every scope `FestivalApp`
+     * started (such as the selected player's read) end, and a new composition starts with the
+     * same process `AppContainer` and activity-scoped ViewModels. Saved instance state is not
+     * restored, so the shell starts again at its [DebugLaunch].
+     */
+    fun recreateApp() {
+        rule.runOnUiThread { generation++ }
+        rule.waitForIdle()
     }
 
     /** [readingOrder] walks the tree Compose publishes to TalkBack ([publishTalkBackTree]). */
