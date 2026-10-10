@@ -4,6 +4,7 @@
 
 Status: **current**, 2026-10-07. Provenance: #288, #291, #297, #312, #321, #343, #348, #560.
 Status: **current**, 2026-10-10. Provenance: #288, #291, #297, #312, #321, #343, #348, #452, #557, #600.
+Status: **current**, 2026-10-07. Provenance: #288, #291, #297, #312, #321, #343, #348, #452, #557, #595.
 
 ## Intent
 
@@ -16,6 +17,7 @@ Section titles create stable visual and semantic landmarks. They sit above their
 | `FortniteFestivalWeb/src/components/common/SectionHeader.tsx` (`SectionHeader`) | Renders the shared title and optional description above section content. |
 | `FortniteFestivalWeb/src/pages/settings/SettingsPage.tsx` (`SectionHeader`) | Uses ordered headings as page landmarks and Quick Links targets. |
 | `FortniteFestivalWeb/src/pages/player/components/PlayerBandsSection.tsx` (`buildPlayerBandsItems`) | A section title with a trailing "View All" action (`common.viewAll`; "See all" before #321) that opens the full list. |
+| `FortniteFestivalWeb/src/pages/player/components/TopSongsSection.tsx` (`buildTopSongsItems`) | Each instrument's Top Five and Bottom Five Songs: each list's title and description above its own song list (R2, #595). |
 | `FortniteFestivalWeb/src/components/search/SearchModal.tsx` (`renderResults`) | In the All scope, each rendered category (Songs, Players, Bands) is a `<section>` labelled by an `<h3>` title; a single scope has none (R9). |
 
 The web has no sticky section header. Native sticky behavior is an approved addition in R5.
@@ -23,7 +25,7 @@ The web has no sticky section header. Native sticky behavior is an approved addi
 ## Rules
 
 1. **R1. Use the canonical heading.** A section title is white, bold/headline, Title Case, leading-aligned, and exposed as a level-two heading; callers supply the already-cased localized title. Global Search's All-scope Songs/Players/Bands titles are consumers too (R9, #348).
-2. **R2. Put card headings outside cards.** A titled content card has its title and optional description above, not inside, the row container. HIG Materials: "Don't use Liquid Glass in the content layer." Use the shared material card rather than per-page glass.
+2. **R2. Put card headings outside cards.** A titled content card has its title and optional description above, not inside, the row container. HIG Materials: "Don't use Liquid Glass in the content layer." Use the shared material card rather than per-page glass. Several titled lists in one section are separate cards, each under its own title: Profile Top Five and Bottom Five Songs per instrument (owner #595: "Top five/bottom five should be separate cards; title/subtitle should be outside of those cards as well"; Android `ui/profile/ProfileTopSongs.kt` `TopSongsCard`).
 3. **R3. Preserve readable hierarchy.** Supporting copy is subordinate to the title and wraps rather than truncating the landmark. HIG Typography: "Adjust weight, size and color as needed to emphasize important information and show hierarchy."
 4. **R4. Use native sticky mechanics.** A pinned title stays opaque while rows fade or clip beneath it; an incoming title pushes the pinned title one-for-one and no two titles overlap. The handoff survives leaving the page: Back to a list left mid-push shows the same push, and a title hidden under a moving copy is never left blank (Windows `SongsPage.OnNavigatedFrom`/`OnReturned`, #560; journey `push-band-back`).
 5. **R5. Do not animate the handoff independently.** Geometry follows the scroll gesture in both directions. HIG Accessibility recommends "tracking gestures directly" when Reduce Motion is on.

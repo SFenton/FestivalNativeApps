@@ -228,7 +228,6 @@ fun SongLeaderboardScreen(
         title = if (headerGone) title else "",
         isRoot = false,
         scrolled = headerGone,
-        marqueeTitle = true,
         subtitle = viewModel.instrument.label,
         subtitleIcon = { size -> InstrumentIcon(viewModel.instrument, size = size, decorative = true) },
         modifier = Modifier.semantics { testTagsAsResourceId = true },
