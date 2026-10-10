@@ -518,18 +518,17 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
 }
 
 /// A selected player gives each song the full width for its instrument cards (#340);
-/// no player, or Filter Invalid Scores, keeps the landscape grid.
+/// no player keeps the landscape grid; Filter Invalid Scores no longer does (#613).
 @Test func songsGridColumnsWithSelectedPlayer() {
-    func columns(_ layout: DeviceLayout, player: Bool, invalid: Bool = false) -> Int {
+    func columns(_ layout: DeviceLayout, player: Bool) -> Int {
         SongProfilePanelPolicy.gridColumns(
-            layout: layout, hasSelectedProfile: player, filterInvalidScores: invalid
+            layout: layout, hasSelectedProfile: player
         )
     }
     #expect(columns(SplitLayouts.iPadLandscape, player: false) == 2)
     #expect(columns(SplitLayouts.duoInnerLandscape, player: false) == 2)
     #expect(columns(SplitLayouts.iPadLandscape, player: true) == 1)
     #expect(columns(SplitLayouts.duoInnerLandscape, player: true) == 1)
-    #expect(columns(SplitLayouts.iPadLandscape, player: true, invalid: true) == 2)
     #expect(columns(SplitLayouts.iPadPortrait, player: true) == 1)
     #expect(columns(SplitLayouts.iPhonePortrait, player: false) == 1)
 }

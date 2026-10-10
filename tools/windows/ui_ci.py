@@ -92,6 +92,9 @@ SHOP_FILTER_KEYBOARD = "kb-shop-filter"
 SONG_BOARD_FOOTER_FADE = ("footer-fade-song-leaderboard-rest,footer-fade-song-leaderboard-mid,footer-fade-song-leaderboard-end,"
                           "footer-fade-song-leaderboard-more-contrast,footer-fade-song-leaderboard-less-transparency")
 
+#: The ``a11y-history-swap.json`` reduced-motion page (#61, #423), run in both motion-off modes it declares.
+HISTORY_SWAP_REDUCED = "history-swap-reduced-access"
+
 #: The canonical ``a11y.json`` header-flyout pages (issue #534: every app flyout is constrained to the window, so none
 #: may open a windowed ``PopupHost``; the file's other pages stay host matrix checks).
 POPUP_PAGES = "leaderboards-rank-by-menu,rank-by-menu,quick-links-menu,profile-flyout,notifications-flyout"
@@ -187,11 +190,25 @@ RUNS: tuple[Run, ...] = (
     # touch (0 epx), each stays one 40+ epx Button stop in visual order, rows -> pinned row -> pager, Up/Down and Tab.
     Run("grouped-boards", "a11y-grouped-boards.json", tabs=0),
     Run("grouped-boards-text-225", "a11y-grouped-boards.json", sizes="compact", mode="text-225", tabs=0),
+    # Profile Bands groups as one card each (issue #596): rows touch, 40+ epx stops named without the band size, the
+    # purple View All Bands (N) inside the card, header -> rows -> View All order, Down between rows and Tab to View All.
+    Run("profile-bands", "a11y-profile-bands.json", tabs=0),
+    Run("profile-bands-text-225", "a11y-profile-bands.json", sizes="compact", mode="text-225", tabs=0),
     # Settings' Experimental Ranks toggle (issue #541): enabled, off by default, named and Space-toggled; turning it on
     # shows "Rank by: Total Score, button" (40 epx) on Leaderboards and off hides it again; with it off a saved or
     # deep-linked experimental metric leaves no Rank By on Leaderboards, Full Rankings or Band Rankings.
     Run("experimental-ranks", "a11y-experimental-ranks.json", tabs=0),
     Run("experimental-ranks-text-225", "a11y-experimental-ranks.json", sizes="compact", mode="text-225", tabs=0),
+    # Band Detail during a scrape freeze (issue #554, empty-error-states R9): after a verified read, the revisit's
+    # stamped 503s keep history, Best and Worst rows with no inline status (history -> Five Best -> row -> Five Worst
+    # -> row order, Narrator row names, 40 epx target); a cold frozen /songs shows "Scores are updating" + Retry Now.
+    Run("band-freeze", "a11y-band-freeze.json", tabs=0),
+    Run("band-freeze-text-225", "a11y-band-freeze.json", sizes="compact", mode="text-225", tabs=0),
+    # Score History's instrument switch with motion off (issues #61, #423): the instant swap (new chart named within
+    # 0.1 s, card and page held) by pointer and keys, under in-app Reduce Motion and Windows' Animation effects off,
+    # the two paths that turn the fade off. Its other pages run as the generated a11y-history-swap-normal/-text-225.
+    Run("a11y-history-swap-app-reduced", "a11y-history-swap.json", mode="app-reduced", only=HISTORY_SWAP_REDUCED),
+    Run("a11y-history-swap-no-animations", "a11y-history-swap.json", mode="no-animations", only=HISTORY_SWAP_REDUCED),
     # Paths swap (issues #70, #430): mid-swap the old chart leaves UIA, "Busy Loading path, ProgressRing" sits between
     # the selectors and Close, the selectors stay enabled and show the new value, "Loading …" then "… loaded" are
     # announced; Image <-> Text; keyboard switches (ComboBox, wide RadioButtons) keep focus on the selector; 40 epx zoom,

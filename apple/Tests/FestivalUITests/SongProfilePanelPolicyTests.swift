@@ -35,17 +35,17 @@ private func pulseScores() throws -> [Instrument: PlayerScore] {
     return Dictionary(uniqueKeysWithValues: response.scores.map { ($0.instrument, $0) })
 }
 
-/// Rows split only for a selected player or band with a current score index, no
-/// invalid-score substitution, standard text sizes, a Songs (not Shop) row and at least
-/// 600 pt.
+/// Rows split only for a selected player or band with a current score index, standard
+/// text sizes, a Songs (not Shop) row and at least 600 pt. Filter Invalid Scores no
+/// longer keeps the plain row: the panel shows effective scores (#613).
 @Test func profilePanelGate() {
     func allows(
         allowed: Bool = true, player: Bool = true, current: Bool = true,
-        invalid: Bool = false, ax: Bool = false, shop: Bool = false, width: CGFloat = 800
+        ax: Bool = false, shop: Bool = false, width: CGFloat = 800
     ) -> Bool {
         SongProfilePanelPolicy.allows(
             allowed: allowed, hasSelectedProfile: player, scoresCurrent: current,
-            filterInvalidScores: invalid, accessibilitySize: ax, shopRow: shop, rowWidth: width
+            accessibilitySize: ax, shopRow: shop, rowWidth: width
         )
     }
     #expect(allows())
@@ -57,7 +57,6 @@ private func pulseScores() throws -> [Instrument: PlayerScore] {
     #expect(!allows(player: false))
     // Loading, paused (publication mismatch) or failed index: today's row states.
     #expect(!allows(current: false))
-    #expect(!allows(invalid: true))
     #expect(!allows(ax: true))
     #expect(!allows(shop: true))
 }
