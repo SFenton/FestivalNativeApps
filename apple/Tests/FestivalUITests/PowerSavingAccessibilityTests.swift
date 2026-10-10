@@ -125,8 +125,7 @@ struct PowerSavingAccessibilityTests {
             let host = try Self.suggestionCard(session: session, size: size)
             let window = nativeHostedWindow(host, size: CGSize(width: 320, height: 640))
             defer { window.orderOut(nil) }
-            // The card's own identifier reaches its children in hosting, so find the row by
-            // role and name: the one button that reads the song.
+            // Find the row by role and name: the one button that reads the song.
             func rowElement() -> NSObject? {
                 nativeHostedAccessibilityElement(in: host) {
                     nativeHostedAccessibilityString($0, "accessibilityRole") == "AXButton"
@@ -140,6 +139,8 @@ struct PowerSavingAccessibilityTests {
             #expect(rows.count == 1, "\(size): one row element: \(Self.dump(nodes))")
             let row = try #require(rows.first)
             #expect(row.label.contains(Self.title), "\(size): \(row)")
+            // The card contains its rows, so its identifier no longer replaces theirs (#403).
+            #expect(row.identifier == "fst.suggestions.row.fixture-pulse|\(Instrument.lead.rawValue)", "\(size): \(row)")
             let name = [row.label, row.title, row.value].joined(separator: " ")
             let title = try #require(name.range(of: Self.title), "\(size): title in '\(name)'")
             let artist = try #require(name.range(of: "\(Self.artist) \u{00B7} 2024"), "\(size): subtitle in '\(name)'")
