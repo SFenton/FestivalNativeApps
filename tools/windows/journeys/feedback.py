@@ -70,7 +70,8 @@ class Phase:
         expect: Regular expressions that must each match a line of the UIA tree dumped after the steps.
         forbid: Regular expressions that must not match any line of that tree.
         count: Regular expression → exact number of matching tree lines.
-        posted: Predicates over the fixture's snapshot (``posts``, ``reads``, ``last``) after the steps.
+        posted: Predicates over the fixture's snapshot (``posts``, ``reads``, ``last``) after the steps, re-read for up
+            to :data:`POSTED_SETTLE_SECONDS` (see :func:`settle_posted`).
     """
 
     steps: list[str]
@@ -350,6 +351,36 @@ def check_posted(snapshot: dict[str, Any] | None, phase: Phase) -> list[str]:
     return failures
 
 
+#: Longest the runner re-reads the fixture for a phase's ``posted`` predicates. Requests can trail the UI state that a
+#: phase waits for: the form shows "Filing your report on GitHub…" when the POST is accepted and reads the job's status
+#: only ``FeedbackFormViewModel.PollInterval`` (2 s) later, so a snapshot taken as soon as the label appears can still
+#: count no read (#548). A predicate that holds at once still returns at once, so nothing that passed before waits.
+POSTED_SETTLE_SECONDS = 10.0
+
+
+def settle_posted(snapshot: Callable[[], dict[str, Any] | None], phase: Phase,
+                  timeout: float = POSTED_SETTLE_SECONDS, interval: float = 0.25) -> list[str]:
+    """Failures for one phase's fixture predicates once they hold or ``timeout`` passes.
+
+    Args:
+        snapshot: Reads the fixture's control answer (``None`` when unreadable).
+        phase: Phase with ``posted`` predicates.
+        timeout: Seconds to keep re-reading while a predicate fails.
+        interval: Seconds between reads.
+
+    Returns:
+        Failure messages from the last read (empty once every predicate holds).
+    """
+    if not phase.posted:
+        return []
+    deadline = time.monotonic() + timeout
+    while True:
+        failures = check_posted(snapshot(), phase)
+        if not failures or time.monotonic() >= deadline:
+            return failures
+        time.sleep(interval)
+
+
 def expand(steps: list[str], media: Path) -> list[str]:
     """Substitute ``{media}`` in step strings."""
     return [step.replace("{media}", str(media)) for step in steps]
@@ -403,7 +434,8 @@ def run(journey: Journey, exe: Path, preset: str, shots: Path | None) -> list[st
                 failures.append(f"phase {index}: fixture {json.dumps(control(base, {}))[:400]}")
                 break
             text = tree.read_text(encoding="utf-8", errors="replace") if tree.exists() else ""
-            failures += [f"phase {index}: {f}" for f in check_tree(text, phase) + check_posted(control(base, {}), phase)]
+            posted = settle_posted(lambda: control(base, {}), phase)
+            failures += [f"phase {index}: {f}" for f in check_tree(text, phase) + posted]
     except RuntimeError as error:
         failures.append(str(error))
     finally:

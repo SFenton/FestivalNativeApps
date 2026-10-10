@@ -101,6 +101,35 @@ class FeedbackJourneyTests(unittest.TestCase):
         self.assertEqual(f.check_posted(None, phase), ["fixture snapshot unreadable"])
         self.assertEqual(f.check_posted(None, f.Phase([])), [])
 
+    def test_settle_posted_waits_for_a_trailing_read(self):
+        # #548: "Filing" shows on the accepted POST, the first status read follows PollInterval later.
+        phase = f.Phase([], posted={"status polled": lambda s: s["reads"] >= 1})
+        snapshots = iter([{"posts": 1, "reads": 0}, {"posts": 1, "reads": 0}, {"posts": 1, "reads": 1}])
+        self.assertEqual(f.settle_posted(lambda: next(snapshots), phase, timeout=5, interval=0), [])
+
+    def test_settle_posted_reports_the_last_failure_after_timeout(self):
+        phase = f.Phase([], posted={"status polled": lambda s: s["reads"] >= 1})
+        reads = []
+
+        def snapshot():
+            reads.append(1)
+            return {"posts": 1, "reads": 0}
+
+        failures = f.settle_posted(snapshot, phase, timeout=0.05, interval=0.01)
+        self.assertEqual(len(failures), 1)
+        self.assertIn("status polled", failures[0])
+        self.assertGreater(len(reads), 1)
+        self.assertEqual(f.settle_posted(lambda: None, phase, timeout=0, interval=0), ["fixture snapshot unreadable"])
+
+    def test_settle_posted_without_predicates_reads_nothing(self):
+        self.assertEqual(f.settle_posted(lambda: self.fail("read"), f.Phase([])), [])
+
+    def test_settle_posted_returns_at_once_when_it_holds(self):
+        phase = f.Phase([], posted={"one": lambda s: s["posts"] == 1})
+        reads = []
+        self.assertEqual(f.settle_posted(lambda: reads.append(1) or {"posts": 1}, phase, timeout=5, interval=5), [])
+        self.assertEqual(len(reads), 1)
+
     def test_png_is_valid(self):
         data = f.png(4, 3, (1, 2, 3))
         self.assertTrue(data.startswith(b"\x89PNG\r\n\x1a\n"))
@@ -164,6 +193,27 @@ class FeedbackFixtureTests(unittest.TestCase):
         state.update({"post": ["ok"]})
         waiter.join(5)
         self.assertEqual(released, [True])
+
+    def test_update_holds_status_before_releasing_the_post(self):
+        state = fx.FeedbackState(post="hold", slow_seconds=5)
+        order = []
+
+        class Recording(threading.Event):
+            def __init__(self, name):
+                super().__init__()
+                self.name = name
+
+            def set(self):
+                order.append(("set", self.name))
+                super().set()
+
+            def clear(self):
+                order.append(("clear", self.name))
+                super().clear()
+
+        state.post_released, state.status_released = Recording("post"), Recording("status")
+        state.update({"post": ["ok"], "status": ["hold"]})
+        self.assertEqual(order, [("clear", "status"), ("set", "post")])
 
     def test_parse_options_passes_the_rest_through(self):
         options, rest = fx.parse_options(["--port", "0", "--features", "off", "--status", "hold", "--slow-seconds", "9"])
