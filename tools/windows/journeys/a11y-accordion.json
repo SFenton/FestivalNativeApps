@@ -76,5 +76,44 @@
       "key:esc",
       "wait:0.5"
     ]
+  },
+  {
+    "name": "accordion-settings-switches",
+    "tab": "settings",
+    "tabs": 0,
+    "sizes": ["compact", "medium"],
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.settings.filter-invalid-scores@5",
+      "assertread:id=fst.settings.filter-invalid-scores|Filter Invalid Scores, toggle switch, off",
+      "waitgone:id=fst.settings.leeway@2",
+      "toggle:id=fst.settings.filter-invalid-scores",
+      "wait:0.5",
+      "scrollinto:id=fst.settings.leeway@5",
+      "assertorder:id=fst.settings.filter-invalid-scores|id=fst.settings.leeway",
+      "assertsize:id=fst.settings.filter-invalid-scores|40x40",
+      "scrollinto:id=fst.settings.filter-invalid-scores@5",
+      "toggle:id=fst.settings.filter-invalid-scores",
+      "assertread:id=fst.settings.filter-invalid-scores|Filter Invalid Scores, toggle switch, off",
+      "waitgone:id=fst.settings.leeway@5",
+      "scrollto:id=fst.settings,0",
+      "scrollinto:id=fst.settings.enable-visual-order@5",
+      "toggle:id=fst.settings.enable-visual-order",
+      "wait:0.5",
+      "scrollinto:id=fst.settings.song-row-order@5",
+      "scrollto:id=fst.settings,0",
+      "scrollinto:id=fst.settings.enable-visual-order@5",
+      "toggle:id=fst.settings.enable-visual-order",
+      "toggle:id=fst.settings.enable-visual-order",
+      "wait:0.5",
+      "scrollinto:id=fst.settings.song-row-order@5",
+      "scrollto:id=fst.settings,0",
+      "scrollinto:id=fst.settings.enable-visual-order@5",
+      "toggle:id=fst.settings.enable-visual-order",
+      "waitgone:id=fst.settings.song-row-order@5",
+      "wait:0.5"
+    ]
   }
 ]

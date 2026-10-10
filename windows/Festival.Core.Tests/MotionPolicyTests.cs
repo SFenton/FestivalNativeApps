@@ -112,7 +112,7 @@ public sealed class MotionPolicyTests
         Assert.Equal(new AccordionPhase(TimeSpan.Zero, TimeSpan.FromMilliseconds(150)), plan.Height);
         Assert.Equal(new AccordionPhase(TimeSpan.FromMilliseconds(150), TimeSpan.FromMilliseconds(150)), plan.Fade);
         Assert.Equal(300, plan.Total.TotalMilliseconds);
-        Assert.Equal((0f, 0f, 0f, 1f), AccordionMotion.EnterSpline);
+        Assert.Equal((0.25f, 0.1f, 0.25f, 1f), AccordionMotion.Spline);
     }
 
     [Fact]
@@ -122,7 +122,6 @@ public sealed class MotionPolicyTests
         Assert.Equal(new AccordionPhase(TimeSpan.Zero, TimeSpan.FromMilliseconds(150)), plan.Fade);
         Assert.Equal(new AccordionPhase(TimeSpan.FromMilliseconds(150), TimeSpan.FromMilliseconds(150)), plan.Height);
         Assert.Equal(300, plan.Total.TotalMilliseconds);
-        Assert.Equal((1f, 1f, 0f, 1f), AccordionMotion.ExitSpline);
     }
 
     [Fact]

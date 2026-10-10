@@ -523,11 +523,8 @@ public readonly record struct AccordionMotion(AccordionPhase Height, AccordionPh
     /// <summary>Each phase's full length: the web <c>Accordion</c>'s <c>QUICK_FADE_MS</c>, 300 ms in total like <c>CollapseOnExit</c>.</summary>
     public static readonly TimeSpan PhaseDuration = TimeSpan.FromMilliseconds(150);
 
-    /// <summary>Decelerating curve for growing and fading in (the system Expander's expand spline).</summary>
-    public static readonly (float X1, float Y1, float X2, float Y2) EnterSpline = (0f, 0f, 0f, 1f);
-
-    /// <summary>Accelerating curve for fading out and collapsing (the system Expander's collapse spline).</summary>
-    public static readonly (float X1, float Y1, float X2, float Y2) ExitSpline = (1f, 1f, 0f, 1f);
+    /// <summary>Curve for every step, opening and closing: the web CSS <c>ease</c> (load-transition R3, R10).</summary>
+    public static readonly (float X1, float Y1, float X2, float Y2) Spline = (0.25f, 0.1f, 0.25f, 1f);
 
     /// <summary>When the whole move finishes.</summary>
     public TimeSpan Total => Height.End > Fade.End ? Height.End : Fade.End;

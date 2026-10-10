@@ -14,8 +14,9 @@ namespace Festival.App.Controls;
 /// opening grows the section and then fades its content in; closing fades the content out and then collapses the
 /// section (<see cref="AccordionMotion"/>, 150 ms + 150 ms), instantly while motion is off (<see cref="Motion.Allowed"/>).
 /// The implicit <see cref="Expander"/> style in <c>Themes/Styles.xaml</c> sets <c>Accordion.Sequenced</c> on every
-/// Expander, which replaces the template's slide-in storyboards with this sequence; other disclosure panels
-/// (<see cref="InstrumentSelector"/> details) drive an <see cref="AccordionMover"/> directly. The Expander's own header,
+/// Expander, which replaces the template's slide-in storyboards with this sequence; plain disclosure panels (Settings
+/// options a switch reveals) bind <c>Accordion.Open</c>, and <see cref="InstrumentSelector"/> details drive an
+/// <see cref="AccordionMover"/> directly. The Expander's own header,
 /// keyboard handling and UIA expand/collapse pattern are untouched.
 /// </summary>
 public static class Accordion
@@ -87,6 +88,43 @@ public static class Accordion
         mover.Set(expander.IsExpanded, animate: false);
     }
 
+    #endregion
+
+    #region Open
+    /// <summary>
+    /// Whether a plain disclosure panel is open: a <see cref="Border"/> (declared <c>Visibility="Collapsed"</c>) whose
+    /// child is the revealed content, such as Settings options a switch reveals. Changes after load run the sequenced
+    /// motion; before load, or with motion off, the panel opens and closes at once.
+    /// </summary>
+    public static readonly DependencyProperty OpenProperty = DependencyProperty.RegisterAttached(
+        "Open", typeof(bool), typeof(Accordion), new PropertyMetadata(false, OnOpenChanged));
+
+    /// <summary>Gets <c>Open</c>.</summary>
+    /// <param name="panel">Disclosure panel.</param>
+    /// <returns>Whether open.</returns>
+    public static bool GetOpen(Border panel) => (bool)panel.GetValue(OpenProperty);
+
+    /// <summary>Sets <c>Open</c>.</summary>
+    /// <param name="panel">Disclosure panel.</param>
+    /// <param name="value">Whether open.</param>
+    public static void SetOpen(Border panel, bool value) => panel.SetValue(OpenProperty, value);
+
+    /// <summary>Opens or closes the panel through its (lazily created) mover.</summary>
+    /// <param name="d">Border.</param>
+    /// <param name="e">New value.</param>
+    private static void OnOpenChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is not Border { Child: FrameworkElement content } panel) return;
+        if (panel.GetValue(MoverProperty) is not AccordionMover mover)
+        {
+            mover = new AccordionMover(panel, panel, panel, content, content);
+            panel.SetValue(MoverProperty, mover);
+        }
+        mover.Set(e.NewValue is true, animate: panel.IsLoaded);
+    }
+    #endregion
+
+    #region Template lookup
     /// <summary>Finds a named element in a template's visual tree.</summary>
     /// <param name="parent">Search root.</param>
     /// <param name="name">Element name.</param>
@@ -179,7 +217,7 @@ public sealed class AccordionMover
         clip.Height = height;
         fade.Opacity = opacity;
         var storyboard = new Storyboard();
-        var spline = value ? AccordionMotion.EnterSpline : AccordionMotion.ExitSpline;
+        var spline = AccordionMotion.Spline;
         if (plan.Height.Duration > TimeSpan.Zero)
             storyboard.Children.Add(Animation(clip, "Height", value ? openHeight : 0, plan.Height, spline, dependent: true));
         if (plan.Fade.Duration > TimeSpan.Zero)
