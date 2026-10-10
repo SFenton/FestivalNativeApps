@@ -305,7 +305,7 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         launch("leaderboards", selected)
         waitForTag("fst.leaderboards.rank-history")
         waitForText(LocalDate.now().format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.US)))
-        assertTrue(rule.spinnerShowsDuring("fst.leaderboards.rank-history.loading") { node("fst.leaderboards.rank-history.picker.Solo_Bass").performSemanticsAction(SemanticsActions.OnClick) })
+        assertTrue(rule.spinnerShowsDuring("fst.leaderboards.rank-history.loading") { node("fst.leaderboards.rank-history.picker.next").performSemanticsAction(SemanticsActions.OnClick) })
         waitForText("No rank history for Bass")
         rule.waitUntil(5_000) { settle(100); !exists("fst.leaderboards.rank-history.loading") }
     }
@@ -356,7 +356,8 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         // The chart carries the fixture history forward to today and lists the newest days.
         waitForText(LocalDate.now().format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.US)))
         assertTrue(transport.requests.any { it.url.contains("/api/rankings/Solo_Guitar/${RankingsFixtures.SELECTED}/history?days=30") })
-        click("fst.leaderboards.rank-history.picker.Solo_Bass")
+        // Nine charts don't fit a phone row: the shared selector's compact arrows move to Bass (web GraphCard, #592).
+        click("fst.leaderboards.rank-history.picker.next")
         waitForText("No rank history for Bass")
         // Quick Links float with Rank By on phones and jump to a band card.
         click("fst.quick-links.open")
