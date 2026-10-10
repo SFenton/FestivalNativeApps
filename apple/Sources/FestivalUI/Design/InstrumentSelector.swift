@@ -52,6 +52,7 @@ struct InstrumentSelector<Panel: View>: View {
 
     @State private var measuredWidth: CGFloat = 0
     @State private var previewIndex = 0
+    @State private var panelAccordion: FestivalAccordionState<Instrument>
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
 
@@ -80,10 +81,11 @@ struct InstrumentSelector<Panel: View>: View {
         labels: (previous: String, next: String) = ("Previous Instrument", "Next Instrument"),
         identifier: String, @ViewBuilder panel: @escaping () -> Panel
     ) {
-        selection = InstrumentSelection(
+        let selection = InstrumentSelection(
             instruments: instruments, hidden: hidden, disabled: disabled, muted: muted,
             required: required, deferSelection: deferSelection
         )
+        self.selection = selection
         _selected = selected
         self.compact = compact
         self.look = look
@@ -91,6 +93,11 @@ struct InstrumentSelector<Panel: View>: View {
         self.labels = labels
         self.identifier = identifier
         self.panel = panel
+        _panelAccordion = State(
+            initialValue: FestivalAccordionState(
+                Panel.self == EmptyView.self ? nil : selection.effectiveSelection(selected.wrappedValue)
+            )
+        )
     }
 
     private var reduceMotion: Bool { systemReduceMotion || appReduceMotion }
@@ -121,11 +128,11 @@ struct InstrumentSelector<Panel: View>: View {
                         }
                     }
                 }
-            if effective != nil, Panel.self != EmptyView.self {
-                panel()
-                    .transition(reduceMotion ? .identity : .opacity.combined(with: .move(edge: .top)))
-            }
+            // Shared accordion motion (pattern `accordion`, #561): the panel's space opens,
+            // then it fades in; clearing fades it out, then the space closes.
+            FestivalAccordionContent(panelAccordion) { _ in panel() }
         }
+        .festivalAccordion($panelAccordion, follows: Panel.self == EmptyView.self ? nil : effective)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: effective)
         .onChange(of: selection.available) { _, _ in previewIndex = 0 }
     }

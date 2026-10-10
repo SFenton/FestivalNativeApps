@@ -63,6 +63,10 @@ struct SettingsScreen: View {
     @State private var quickLinks = QuickLinksController()
     /// A reorder row is lifted, so the page must not scroll under the drag.
     @State private var reorderDragging = false
+    /// The Song Row Visual Order block under its switch (pattern `accordion`).
+    @State private var visualOrderAccordion = FestivalAccordionState<Bool>(nil)
+    /// The Maximum Score Leeway block under Filter Invalid Scores (pattern `accordion`).
+    @State private var leewayAccordion = FestivalAccordionState<Bool>(nil)
     /// The page's measured size: its own column decides (the Licenses split, the Mac
     /// Settings window), not the window.
     @State private var pageSize: CGSize = .zero
@@ -81,7 +85,6 @@ struct SettingsScreen: View {
     /// The route open on the right of the list/detail Settings, if any.
     @Environment(\.listDetailSelection) private var listDetailSelection
     @Environment(\.deviceLayout) private var layout
-    @Environment(\.accessibilityReduceMotion) private var reduceMotionEnvironment
 
     /// Keep settings on the same process-scoped API session as the Songs tab.
     ///
@@ -414,7 +417,7 @@ struct SettingsScreen: View {
     }
 
     @ViewBuilder private var visualOrderRows: some View {
-        Toggle(isOn: $enableVisualOrder.animation(reduceMotionAnimation)) {
+        Toggle(isOn: $enableVisualOrder) {
             SettingLabel(
                 "Enable Independent Song Row Visual Order",
                 detail: "When enabled, the metadata display order on song rows is controlled "
@@ -423,7 +426,9 @@ struct SettingsScreen: View {
             )
         }
         .accessibilityIdentifier("fst.settings.enable-visual-order")
-        if enableVisualOrder {
+        // Shared accordion motion (pattern `accordion`, #561): the block opens, then fades in.
+        .festivalAccordion($visualOrderAccordion, follows: enableVisualOrder ? true : nil)
+        FestivalAccordionContent(visualOrderAccordion) {
             if isList {
                 // The draggable list opens on the right (issue #371).
                 cardTopicRow(.songRowOrder)
@@ -473,8 +478,7 @@ struct SettingsScreen: View {
             options: PathDisplayMode.allCases,
             label: \.label,
             selection: $pathDefaultView,
-            identifier: "fst.settings.path-default-view",
-            animation: reduceMotionAnimation
+            identifier: "fst.settings.path-default-view"
         )
         reorderBlock(
             "CHOpt Text Path Column Order",
@@ -489,7 +493,7 @@ struct SettingsScreen: View {
     }
 
     @ViewBuilder private var invalidScoreRows: some View {
-        Toggle(isOn: $filterInvalidScores.animation(reduceMotionAnimation)) {
+        Toggle(isOn: $filterInvalidScores) {
             SettingLabel(
                 "Filter Invalid Scores",
                 detail: "When enabled, the app will attempt to filter out invalid leaderboard "
@@ -497,7 +501,8 @@ struct SettingsScreen: View {
             )
         }
         .accessibilityIdentifier("fst.settings.filter-invalid-scores")
-        if filterInvalidScores {
+        .festivalAccordion($leewayAccordion, follows: filterInvalidScores ? true : nil)
+        FestivalAccordionContent(leewayAccordion) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Maximum Score Leeway: \(ScoreFormatting.leeway(leeway))")
                     .font(.body.weight(.semibold))
@@ -856,11 +861,6 @@ struct SettingsScreen: View {
     /// `visualOrderItems`); hidden fields keep their place after a reorder.
     private var visibleVisualOrder: [MetadataField] {
         songRowVisualOrder.wrappedValue.filter { metadataBinding(for: $0).wrappedValue }
-    }
-
-    /// Enable/disable animation for inline blocks, none under Reduce Motion.
-    private var reduceMotionAnimation: Animation? {
-        reduceMotionEnvironment || reduceMotion ? nil : .easeInOut(duration: 0.2)
     }
 
     /// The highest score Filter Invalid Scores accepts for the web's 100k example path.
