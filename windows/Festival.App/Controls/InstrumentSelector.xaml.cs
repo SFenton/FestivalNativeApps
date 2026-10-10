@@ -43,6 +43,11 @@ public sealed partial class InstrumentSelector : UserControl
     public InstrumentSelector()
     {
         InitializeComponent();
+        // The width breakpoint swaps these rows; a tooltip open in the one it hides would otherwise float on (#574).
+        CollapsedToolTip.Own(PreviousButton);
+        CollapsedToolTip.Own(NextButton);
+        CollapsedToolTip.CloseWithinWhenCollapsed(Row);
+        CollapsedToolTip.CloseWithinWhenCollapsed(CompactRow);
         SizeChanged += (_, e) => UpdateCompact(e.NewSize.Width);
         // Discs are code-built, so a contrast-theme switch must re-resolve their fill (inline brushes do not follow
         // {ThemeResource}).
@@ -222,7 +227,7 @@ public sealed partial class InstrumentSelector : UserControl
         if (instrument is { } named)
         {
             AutomationProperties.SetName(button, named.Label());
-            ToolTipService.SetToolTip(button, named.Label());
+            CollapsedToolTip.Set(button, named.Label());
         }
         return (button, disc, icon);
     }
@@ -245,7 +250,7 @@ public sealed partial class InstrumentSelector : UserControl
             compactIcon.File = key.IconFile(keyboardLead);
             compactIcon.Label = key.Label();
             AutomationProperties.SetName(compactButton, key.Label());
-            ToolTipService.SetToolTip(compactButton, key.Label());
+            CollapsedToolTip.Set(compactButton, key.Label());
             compactButton.IsChecked = selected == key;
             compactButton.IsEnabled = !state.IsDisabled(key);
             Dim(compactButton, state.IsDisabled(key), state.IsCompactMuted());
@@ -323,16 +328,17 @@ public sealed partial class InstrumentSelector : UserControl
     {
         var compact = state.IsCompact(compactMode, width);
         if (compact == isCompact && Row.Visibility != CompactRow.Visibility) return;
-        var focusState = FocusedChild()?.FocusState ?? FocusState.Unfocused;
+        var handOff = FocusedChild() is not null;
         isCompact = compact;
         Row.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         CompactRow.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
-        // Collapsing the focused circle would drop keyboard focus to the window; hand it to the counterpart instead.
-        if (focusState != FocusState.Unfocused)
+        // Collapsing the focused circle would drop keyboard focus to the window; hand it to the counterpart instead,
+        // programmatically: the user resized, so the newcomer opens no keyboard tooltip of its own (#574).
+        if (handOff)
         {
             Control? target = compact ? compactButton
                 : state.FocusTarget() is { } instrument && buttons.TryGetValue(instrument, out var entry) ? entry.Button : null;
-            target?.Focus(focusState);
+            target?.Focus(FocusState.Programmatic);
         }
     }
 
