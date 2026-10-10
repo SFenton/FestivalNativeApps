@@ -384,13 +384,9 @@ class SongsSortUiTest {
         settle()
     }
 
-    /** Open Sort from the toolbar, or from ⋮ when a narrow pane moved the page tools there. */
+    /** Open Sort from the floating toolbar (every window size, #576). */
     private fun openSortFromAnyBar() {
         waitForTag("fst.songs.row.s-alpha")
-        if (!exists("fst.songs.sort.open")) {
-            click("fst.nav.overflow")
-            waitForTag("fst.songs.sort.open")
-        }
         click("fst.songs.sort.open")
         waitForTag("fst.songs.sort.form")
     }
@@ -401,8 +397,12 @@ class SongsSortUiTest {
     fun halfOpenBookFoldKeepsTheSheetOffTheHinge() {
         launch()
         fold(State.HALF_OPENED)
-        openSortFromAnyBar()
         val hinge = rule.activity.window.decorView.width / 2f
+        // The floating page tools keep to one side of the hinge too (#576).
+        waitForTag("fst.nav.floating-toolbar")
+        val toolbar = rule.onNodeWithTag("fst.nav.floating-toolbar").fetchSemanticsNode().boundsInWindow
+        assertTrue("toolbar $toolbar straddles the hinge at $hinge", toolbar.right <= hinge || toolbar.left >= hinge)
+        openSortFromAnyBar()
         listOf("heading", "done", "title", "lastplayed", "ascending", "descending", "reset").forEach { part ->
             val tag = "fst.songs.sort.$part"
             if (exists(tag)) {
