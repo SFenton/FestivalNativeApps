@@ -685,7 +685,6 @@
             "path": "windows/Festival.App/Controls/LeaderboardsPager.xaml.cs",
             "symbol": "LeaderboardsPager"
           },
-
           {
             "path": "windows/Festival.App/Controls/GroupedRows.cs",
             "symbol": "GroupedRows"
@@ -3155,7 +3154,7 @@
       "title": "Songs profile panel",
       "status": "current",
       "doc": ".agents/patterns/songs-profile-panel.md",
-      "summary": "On wide Songs rows (iPad, iPhone Duo inner display, Mac) with a selected player or band whose score index is available and publication-matched, the row splits: song on the left, that profile's compact score cards (per scored instrument, or one band card) on the right. Compact cards keep one line or the row stays plain; loading, paused, failed, Filter Invalid Scores, accessibility sizes and Shop rows keep today's row. Card fields follow the saved Song Row Visual Order only while Independent Visual Order is on, else the web default order (MetadataField.songRowOrder).",
+      "summary": "On wide Songs rows (iPad, iPhone Duo inner display, Mac) with a selected player or band whose score index is available and publication-matched, the row splits: song on the left, that profile's compact score cards (per scored instrument, or one band card) on the right. Compact cards keep one line or the row stays plain; loading, paused, failed, accessibility sizes and Shop rows keep today's row; with Filter Invalid Scores on the cards show effective scores (invalid-scores, #613). Card fields follow the saved Song Row Visual Order only while Independent Visual Order is on, else the web default order (MetadataField.songRowOrder).",
       "keywords": [
         "profile panel",
         "wide row",
@@ -3215,7 +3214,8 @@
         "patterns": [
           "surface-materials",
           "load-transition",
-          "hinge-columns"
+          "hinge-columns",
+          "invalid-scores"
         ],
         "pages": [
           "songs"
@@ -3226,6 +3226,116 @@
         ]
       },
       "guards": []
+    },
+    {
+      "id": "invalid-scores",
+      "title": "Invalid scores (Filter Invalid Scores)",
+      "status": "current",
+      "doc": ".agents/patterns/invalid-scores.md",
+      "summary": "With Settings > Filter Invalid Scores on and a player selected, each chart shows its effective score like the web's effectiveScores: the raw score when valid at the leeway (ml, else the CHOpt ceiling), else the first validScores variant valid at the leeway (rank from rankTiers, population from populationTiers), else the legacy validScore, else none; Over CHOpt Threshold keeps the raw score. Rows, chips, metadata, the profile panel, filters and sorts use effective scores and nothing pauses. Songs rows flag replaced/dropped scores with the red (gold for over-threshold) indicator, its own 44 pt accessible button after the song, opening the Filtered Score alert (OK / Settings). Song Details uses the web's filterPlayerScores rule.",
+      "keywords": [
+        "filter invalid scores",
+        "invalid score",
+        "leeway",
+        "validScores",
+        "minLeeway",
+        "over chopt threshold",
+        "filtered score",
+        "effective score",
+        "populationTiers"
+      ],
+      "web": [
+        {
+          "path": "pages/songs/SongsPage.tsx",
+          "symbol": "effectiveScores"
+        },
+        {
+          "path": "hooks/data/useScoreFilter.ts",
+          "symbol": "filterPlayerScores"
+        },
+        {
+          "path": "pages/songs/components/InvalidScoreIcon.tsx",
+          "symbol": "InvalidScoreIcon"
+        },
+        {
+          "path": "pages/songs/modals/FilterModal.tsx",
+          "symbol": "overThreshold"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalCore/InvalidScorePolicy.swift",
+            "symbol": "InvalidScorePolicy"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/InvalidScorePolicy.swift",
+            "symbol": "InvalidScoreWarning"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/InvalidScorePolicy.swift",
+            "symbol": "SongPopulationTierTable"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/InvalidScoreIndicator.swift",
+            "symbol": "songInvalidScoreIndicator"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/SongPlayerScoreFilter.swift",
+            "symbol": "overThreshold"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/songs/SongInvalidScores.kt",
+            "symbol": "InvalidScorePolicy"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/songs/SongScoreAdapter.kt",
+            "symbol": "InvalidScorePolicy"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongRow.kt",
+            "symbol": "InvalidScoreIcon"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/SongInvalidScores.cs",
+            "symbol": "InvalidScorePolicy"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/SongScoreSource.cs",
+            "symbol": "ForSongs"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "songs-profile-panel",
+          "catalogue-sort"
+        ],
+        "pages": [
+          "songs",
+          "song-detail",
+          "settings"
+        ],
+        "controls": [
+          "songs-filter",
+          "song-score-metadata",
+          "songs-instrument-status-chips"
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-invalid-score-pause",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "not available yet|paused while Filter Invalid Scores",
+          "allow": [],
+          "debt": [],
+          "message": "Filter Invalid Scores substitutes effective scores (invalid-scores R3, #613); never pause rows, panels, filters or sorts. Use InvalidScorePolicy."
+        }
+      ]
     },
     {
       "id": "hinge-columns",
