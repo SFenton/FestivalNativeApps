@@ -63,13 +63,22 @@
     "after_ready": [
       "invoke:id=fst.shell.profile",
       "waitfor:id=fst.profile.search@5",
+      "assertstate:id=fst.profile.scope.all|selected=true",
+      "assertname:id=fst.profile.search|Search players or bands",
       "setvalue:id=fst.profile.search|Fixture",
       "waitfor:id=fst.profile.result.fixture-player-1@10",
       "assertname:id=fst.profile.result.fixture-player-1|Fixture Player 1",
       "assertname:id=fst.profile.result.fixture-player-2|Fixture Player 2",
+      "waitfor:id=fst.profile.result.band@10",
+      "assertorder:id=fst.profile.section.players|id=fst.profile.result.fixture-player-1|id=fst.profile.section.bands|id=fst.profile.result.band",
       "waitgone:id=fst.profile.hint",
       "waitgone:id=fst.profile.retry",
-      "tree:{stem}-tree.json"
+      "shot:{stem}-all.png",
+      "tree:{stem}-tree.json",
+      "select:id=fst.profile.scope.players",
+      "waitgone:id=fst.profile.result.band@5",
+      "waitgone:id=fst.profile.section.players",
+      "waitfor:id=fst.profile.result.fixture-player-1@5"
     ]
   },
   {
@@ -83,10 +92,15 @@
       "invoke:id=fst.shell.profile",
       "waitfor:id=fst.profile.search@5",
       "setvalue:id=fst.profile.search|zzz",
-      "assertname:id=fst.profile.hint@10|No players found.",
+      "assertname:id=fst.profile.hint@10|No results found.",
       "waitfor:id=fst.profile.retry@5",
       "invoke:id=fst.profile.retry",
-      "assertname:id=fst.profile.hint@10|No players found.",
+      "assertname:id=fst.profile.hint@10|No results found.",
+      "waitfor:id=fst.profile.retry@5",
+      "select:id=fst.profile.scope.players",
+      "assertname:id=fst.profile.hint@5|No players found.",
+      "select:id=fst.profile.scope.bands",
+      "assertname:id=fst.profile.hint@5|No bands found.",
       "waitfor:id=fst.profile.retry@5"
     ]
   },
@@ -128,7 +142,9 @@
       "assertname:id=fst.player.name@15|Fixture Player 2",
       "assertname:id=fst.player.select@15|Select Profile",
       "waitgone:id=fst.player.identity-notice",
-      "assertname:id=fst.shell.profile|Select a player profile"
+      "assertname:id=fst.shell.profile|Select a player profile",
+      "focus:id=fst.player.select",
+      "assertfocus:id=fst.player.select@3"
     ]
   },
   {
@@ -251,7 +267,7 @@
     ]
   },
   {
-    "name": "profile-band-blocked",
+    "name": "profile-bands-scope",
     "tab": "songs",
     "tabs": 0,
     "ready": [
@@ -261,10 +277,20 @@
       "invoke:id=fst.shell.profile",
       "waitfor:id=fst.profile.scope.bands@5",
       "select:id=fst.profile.scope.bands",
-      "assertname:id=fst.profile.search|Find Band",
-      "assertname:id=fst.profile.hint|Choosing a band as your profile isn't available in the app yet. To find a band, use Search; you can also open one from a player's Bands list or Band Rankings.",
+      "assertname:id=fst.profile.search|Search players or bands",
+      "setvalue:id=fst.profile.search|Fixture",
+      "waitfor:id=fst.profile.result.band@10",
+      "waitgone:id=fst.profile.result.fixture-player-1",
+      "waitgone:id=fst.profile.section.bands",
+      "waitgone:id=fst.profile.hint",
       "waitgone:id=fst.profile.retry",
-      "tree:{stem}-tree.json"
+      "tree:{stem}-tree.json",
+      "invoke:id=fst.profile.result.band",
+      "waitgone:id=fst.profile.search@5",
+      "waitfor:id=fst.band.title@15",
+        "scrollinto:id=fst.band.stat.rank@5",
+        "focus:id=fst.band.stat.rank",
+        "assertfocus:id=fst.band.stat.rank@3"
     ]
   },
   {

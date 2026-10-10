@@ -9,12 +9,12 @@
 
 ## Validation (issue #111, 2026-10-03)
 
-Live public service (keyless; `/api/player/{id}`, rankings, rank history and player bands reads only), selected player SFentonX via `FST_DEBUG_PROFILE`, debug APK driven with `tools/android/fst_android.py device drive`. Each configuration checked load, Overview, Lead/instrument cards, Quick Links (sheet < 600 dp, top-bar menu otherwise) to Lead, Top Songs, Bands and back to Global, and that no card straddles a separating hinge.
+Live public service (keyless; `/api/player/{id}`, rankings, rank history and player bands reads only), selected player SFentonX via `FST_DEBUG_PROFILE`, debug APK driven with `tools/android/fst_android.py device drive`. Each configuration checked load, Overview, Lead/instrument cards, Quick Links (sheet < 600 dp, menu otherwise; a top-bar action then, the floating toolbar on every window since #576) to Lead, Top Songs, Bands and back to Global, and that no card straddles a separating hinge.
 
 | Configuration | Result |
 |---|---|
 | FST_Phone portrait, 100% / 200% | OK. One column; tiles 2-up at 100%, wrap without clipping at 200%; nav bar icon-only at 200%; sheet jumps land 32 dp below the bar. Found and fixed: first Top Songs/Bands jump landed low (landing hold) and a font-scale change mid-load left the page spinning (`SelectedProfileStore` resume) |
-| FST_Phone landscape (`wm user-rotation lock 1`; the drive's `rotate:` step is a no-op on this AVD), 100% / 200% | OK. 923 dp: Quick Links move to the top-bar menu; Overview 4 tiles across at 100%, 2 at 200% |
+| FST_Phone landscape (`wm user-rotation lock 1`; the drive's `rotate:` step is a no-op on this AVD), 100% / 200% | OK. 923 dp: Quick Links move to the menu (then in the top bar; the floating toolbar since #576); Overview 4 tiles across at 100%, 2 at 200% |
 | FST_Tablet landscape / portrait, 100% / 200% | OK. Drawer and two lanes (landscape), rail and one column (portrait); rail icon-only at 200%; menu items wrap at 200% |
 | FST_Resizable phone / foldable / tablet / desktop | OK. Bar → rail → drawer; 1 → 2 → 3 lanes; 200% checked at foldable and desktop |
 | FST_Book_Fold folded / unfolded / half-open, 100% / 200% | OK after fix. Half-open splits at the hinge (no straddling card). Found and fixed: unfolded → Top Songs → half-open → Global left a lane gap and hid Lead (`rememberProfileGridState`) |
