@@ -6,8 +6,8 @@ namespace Festival.Core.ViewModels;
 #region Player profile bands
 /// <summary>
 /// The profile's inline "{name}'s Bands" section (web <c>PlayerBandsSection.buildPlayerBandsItems</c>, issue #312): a
-/// heading with a View All link, then Duos, Trios and Quads groups, each with up to <see cref="PreviewSize"/> band cards, a
-/// "No Bands Yet" card when empty and "View All Bands (N)" when the group has more. The web fills it from player-stats
+/// heading with a View All link, then Duos, Trios and Quads groups, each one card of up to <see cref="PreviewSize"/> band
+/// rows ending in the purple "View All Bands (N)" when the group has more (issue #596), or "No Bands Yet" when empty. The web fills it from player-stats
 /// (blocked); natives read one keyless <c>GET /api/player/{id}/bands?group=&amp;page=1&amp;pageSize=6</c> per group.
 /// The section loads after the profile and never holds the page spinner; any failed group fails the section with one
 /// Retry that re-reads every group.
@@ -129,8 +129,8 @@ public sealed record PlayerProfileBandGroup(string AccountId, string PlayerName,
     /// <summary>Empty-group subtitle (web <c>player.noBandsYetSubtitle</c>).</summary>
     public const string EmptySubtitle = "Band lineups will appear here once this player posts band scores.";
 
-    /// <summary>Band cards (each opens Band Detail).</summary>
-    public List<PlayerBandCardViewModel> Cards { get; } = [.. Page.Entries.Select(e => new PlayerBandCardViewModel(e))];
+    /// <summary>Band rows of the group's one card (each opens Band Detail); the group names their size (issue #596).</summary>
+    public List<PlayerBandCardViewModel> Cards { get; } = [.. Page.Entries.Select(e => new PlayerBandCardViewModel(e) { IsGroupedRow = true })];
 
     /// <summary><c>Duos</c>, <c>Trios</c> or <c>Quads</c>.</summary>
     public string Title => Group.Label();
