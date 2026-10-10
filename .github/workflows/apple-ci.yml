@@ -73,7 +73,7 @@ jobs:
         # there they end at their 10 s evidence deadline as intermittent known issues; alone they are judged
         # strictly. Reuses the coverage build and leaves its profile alone. Filter: testing/apple/hosted-snapshots.md.
         working-directory: apple
-        run: swift test --skip-build --filter 'selectedRowRevealFadesTheRowItReaches|staggeredListRowsFadeInRatherThanPop|serviceInfoIndeterminateBar'
+        run: swift test --skip-build --filter 'selectedRowRevealFadesTheRowItReaches|staggeredListRowsFadeInRatherThanPop|serviceInfoIndeterminateBar|songDetailCardsScrolledIntoViewAreReadyAtOnce'
       - name: iPhone simulator journeys (serialized, loopback fixture)
         # Evidence only an iOS run gives (real Dynamic Type sizes, performAccessibilityAudit, the production nav bar
         # and tab-bar accessory reading order, page-tools-and-nav-chrome R17). One throwaway runner
