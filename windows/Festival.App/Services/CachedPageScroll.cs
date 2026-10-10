@@ -139,7 +139,8 @@ internal static class CachedPageScroll
 
     /// <summary>The control to return focus to: the one left when it is still shown with the same item, otherwise the
     /// shown control with the same automation ID, preferring one bound to the same item. Songs re-projects its rows on
-    /// return; a list may re-realize the item in a new container and keep the old one collapsed (Suggestions, #276); and
+    /// return when the Shop or scores changed while it was away (an unchanged list keeps its rows, #560); a list may
+    /// re-realize the item in a new container and keep the old one collapsed (Suggestions, #276); and
     /// an automation ID can repeat on a page (a song in two Suggestions cards).</summary>
     /// <param name="page">Page shown again by Back.</param>
     /// <param name="left">Focus recorded when the page was left.</param>
