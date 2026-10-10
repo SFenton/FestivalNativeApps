@@ -18,6 +18,7 @@ public sealed partial class SongsViewModel : ObservableObject
     private readonly FestivalSession session;
     private CancellationTokenSource? searchDebounce;
     private string appliedSearch = "";
+    private (SongSortMode Mode, bool Ascending)? builtSort;
 
     /// <summary>Creates the page model.</summary>
     /// <param name="session">Shared session.</param>
@@ -288,8 +289,14 @@ public sealed partial class SongsViewModel : ObservableObject
         });
 
         var projector = new SongRowProjector(settings, catalog.CurrentSeason, offers, scores);
-        Sections = [.. result.Sections.Select(s => new SongRowSection(s.Label, [.. s.Songs.Select(projector.Project)],
+        IReadOnlyList<SongRowSection> next = [.. result.Sections.Select(s => new SongRowSection(s.Label, [.. s.Songs.Select(projector.Project)],
             SongListPipeline.SectionAutomationId(result.EffectiveSort, s.Label)))];
+        // An unchanged list keeps its objects: Back to Songs re-runs this, and a rebind would replay the entrance fade
+        // and re-estimate the virtualized layout at the old offset, landing sections away (back-keeps-place, issue #560).
+        // A sort change always replaces it, since the page starts a new sort at the top.
+        var sort = (settings.SongSort, settings.SongSortAscending);
+        if (sort != builtSort || !SongRowSection.SameContent(Sections, next)) Sections = next;
+        builtSort = sort;
         // No quick-jump under the Year sort (operator 2026-09-28): decade headers stay, the zoomed-out index does not.
         HasJumpIndex = settings.SongSort != SongSortMode.Year &&
                        (Sections.Count > 1 || (Sections.Count == 1 && Sections[0].Label.Length > 0));
@@ -299,7 +306,7 @@ public sealed partial class SongsViewModel : ObservableObject
         if (result.SortPaused is { } sortPaused) notices.Add(new(SongNotice.SortPausedId, sortPaused));
         if (result.ShopFilterPaused is { } shopPaused) notices.Add(new(SongNotice.ShopFilterPausedId, shopPaused));
         if (result.ScoreFilterPaused is { } scorePaused) notices.Add(new(SongNotice.ScoreFilterPausedId, scorePaused));
-        Notices = notices;
+        if (!Notices.SequenceEqual(notices)) Notices = notices;
         OnPropertyChanged(nameof(HasNotices));
         State = result.Count == 0 ? LoadState.Empty : LoadState.Loaded;
         OnPropertyChanged(nameof(ShowInvalidFilter));

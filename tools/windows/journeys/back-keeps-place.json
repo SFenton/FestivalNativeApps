@@ -179,6 +179,50 @@
     ]
   },
   {
+    "name": "back-songs-jump",
+    "tab": "songs",
+    "fixture": [
+      "--large-catalogue"
+    ],
+    "sizes": [
+      "compact",
+      "medium"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-song-1@40",
+      "assertname:id=fst.songs.section-header|#"
+    ],
+    "after_ready": [
+      "invoke:id=fst.songs.section-index-button",
+      "waitfor:id=fst.songs.section-index@5",
+      "invoke:name=M",
+      "waitgone:id=fst.songs.section-index@5",
+      "wait:1",
+      "assertname:id=fst.songs.section-header|M",
+      "focus:id=fst.songs.row.fixture-song-56",
+      "wait:1",
+      "pin:id=fst.songs.list",
+      "pin:id=fst.songs.row.fixture-song-56",
+      "key:enter",
+      "waitfor:id=fst.song-detail.title@20",
+      "wait:1",
+      "key:alt+left",
+      "waitfor:id=fst.songs.row.fixture-song-56@15",
+      "assertpinned:id=fst.songs.list",
+      "assertpinned:id=fst.songs.row.fixture-song-56",
+      "wait:1.5",
+      "assertpinned:id=fst.songs.list",
+      "assertpinned:id=fst.songs.row.fixture-song-56",
+      "assertfocus:id=fst.songs.row.fixture-song-56@3",
+      "assertname:id=fst.songs.section-header|M",
+      "waitgone:raw=fst.songs.section-header.incoming@3",
+      "assertstatus:id=fst.songs.edge-fade|clear@5",
+      "assertpaint:id=fst.songs.section-header|L0,T0,R0,B0=#FFFFFF~40",
+      "shot:{stem}-back.png"
+    ]
+  },
+  {
     "name": "back-shop-song",
     "route": "/shop",
     "tabs": 0,
