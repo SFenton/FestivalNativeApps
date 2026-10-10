@@ -362,6 +362,95 @@ final class SongsChromeJourneyTests: XCTestCase {
         )
     }
 
+    /// Issue #553 accessibility: the Songs row card's rim (`CardRim`) and the pinned
+    /// section bar's row mask (`pinnedHeaderEdgeFadeRowMask`) are decoration only. One
+    /// row, read clear of the fade, then dragged into the fade band and then across the
+    /// bar's edge so the mask cuts it, keeps the same button, label, frame size and
+    /// descendants; no state exposes any other element inside the row; the row stays
+    /// hittable; the one bar heading stays above it in reading (top-to-bottom) order; and
+    /// the masked state passes the system audit (the scroll-away audit's documented open
+    /// findings excepted).
+    ///
+    /// Needs the large fixture like ``testScrollAwaySectionBarAccessibility``.
+    @MainActor
+    func testRowUnderTheSectionBarFadeKeepsItsAccessibility() throws {
+        continueAfterFailure = false
+        let large = try launchScrollAwayFixture(largeText: true)
+        let largeRail = railLetterHeight(large)
+        large.terminate()
+        let app = try launchScrollAwayFixture(largeText: false)
+        let railGrowth = largeRail / railLetterHeight(app)
+        XCTAssertTrue(scrollAway(app), "Section bar never appeared")
+        waitForListToSettle(app)
+        let bar = app.staticTexts["fst.songs.section-bar"]
+        let list = app.descendants(matching: .any)["fst.songs.list"]
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row."))
+        let titles = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.section."))
+        let edge = bar.frame.maxY
+        let tabs = app.tabBars.firstMatch.frame
+        // A row well below the fade whose previous neighbour is a row, not an in-list
+        // title, so the bar (not a passing title) is what masks it once dragged up.
+        let titleFrames = titles.allElementsBoundByIndex.map(\.frame)
+        let candidate = rows.allElementsBoundByIndex.first { row in
+            let frame = row.frame
+            return frame.minY >= edge + 2 * PinnedRowProbe.fade && frame.maxY <= tabs.minY - 20
+                && !titleFrames.contains { $0.maxY <= frame.minY + 1 && $0.maxY >= frame.minY - 80 }
+        }
+        let identifier = try XCTUnwrap(candidate?.identifier, "No song row clear of the fade")
+        let row = app.buttons[identifier]
+        let clear = try PinnedRowProbe(row: row, in: app)
+        XCTAssertFalse(clear.label.isEmpty, "\(identifier) unnamed")
+        XCTAssertGreaterThanOrEqual(clear.frame.height, 44, "\(identifier) is \(clear.frame.height) pt")
+        XCTAssertTrue(clear.strays.isEmpty, "Clear row exposes \(clear.strays)")
+
+        // Two mask states: the row's top in the fade band below the bar's edge, then
+        // just above the edge, where the mask cuts the row's top off.
+        for (state, offset) in [("in the band", PinnedRowProbe.fade / 4), ("cut", -PinnedRowProbe.fade / 4)] {
+            let target = bar.frame.maxY + offset
+            // A drag first spends the pan's slop, so a short one never moves the list:
+            // back off first, and lengthen each drag by the slop the last one lost.
+            var slop: CGFloat = 0
+            func drag(_ length: CGFloat) {
+                let start = list.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.6))
+                start.press(
+                    forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: length)),
+                    withVelocity: .slow, thenHoldForDuration: 0.3
+                )
+                waitForListToSettle(app)
+            }
+            for _ in 0..<6 where abs(row.frame.minY - target) > 6 {
+                if abs(row.frame.minY - target) < 40 { drag(80) }
+                let before = row.frame.minY
+                let delta = target - before
+                let length = delta + (delta > 0 ? slop : -slop)
+                drag(length)
+                slop = max(0, abs(length) - abs(row.frame.minY - before))
+            }
+            let barFrame = bar.frame
+            let masked = try PinnedRowProbe(row: row, in: app)
+            XCTContext.runActivity(named: "\(state): bar \(barFrame), row \(masked.frame)") { _ in }
+            XCTAssertLessThan(masked.frame.minY, barFrame.maxY + PinnedRowProbe.fade / 2, "\(state): row not under the fade")
+            XCTAssertGreaterThan(masked.frame.maxY, barFrame.maxY + 8, "\(state): row hidden under the bar")
+            XCTAssertEqual(masked.label, clear.label, "\(state): mask changed the row's label")
+            XCTAssertEqual(masked.frame.height, clear.frame.height, accuracy: 0.5, "\(state): mask cut the row's frame")
+            XCTAssertEqual(masked.frame.width, clear.frame.width, accuracy: 0.5, "\(state): mask cut the row's frame")
+            XCTAssertEqual(masked.descendants, clear.descendants, "\(state): mask changed the row's descendants")
+            XCTAssertTrue(masked.strays.isEmpty, "\(state): masked row exposes \(masked.strays)")
+            XCTContext.runActivity(named: "Row containers clear \(clear.containers), \(state) \(masked.containers)") { _ in }
+            XCTAssertEqual(masked.containers, clear.containers, "\(state): mask added containers to the row")
+            XCTAssertTrue(row.isHittable, "\(state): masked row not hittable")
+            // XCUITest lists the List's rows before its overlays, not in VoiceOver order
+            // (songs/ios.md #390; the hosted `SongsSectionBarAccessibilityTests` prove
+            // the tree order), so check the top-to-bottom layout VoiceOver reads by.
+            XCTAssertEqual(app.staticTexts.matching(identifier: "fst.songs.section-bar").count, 1)
+            XCTAssertLessThan(barFrame.minY, masked.frame.minY, "\(state): row starts above the section bar")
+            if offset > 0 {
+                XCTAssertLessThanOrEqual(barFrame.maxY, masked.frame.minY + 1, "\(state): row overlaps the bar")
+            }
+        }
+        try auditScrollAway(app, "row under fade", railGrowth: railGrowth)
+    }
+
     /// Launch Songs on the large fixture with a profile selected, as #5 was reported.
     ///
     /// - Parameter largeText: Launch at the largest accessibility text size (AX5).
@@ -1207,5 +1296,80 @@ private struct ScrollAwayAuditPage {
         rampEnd = (sectionBar.exists
             ? sectionBar.frame.maxY : app.navigationBars.firstMatch.frame.maxY) + 40
         image = try XCTUnwrap(app.screenshot().image.cgImage)
+    }
+}
+
+/// One Songs row's accessibility as XCUITest reads it, for comparing the row clear of
+/// the pinned section bar's fade with the same row under it (issue #553).
+private struct PinnedRowProbe {
+    /// The pinned title's full fade depth (`ScrollEdgeFade.topDistance`).
+    static let fade: CGFloat = 40
+
+    /// The row button's label.
+    let label: String
+    /// The row button's frame.
+    let frame: CGRect
+    /// Each descendant of the row button, as type and label, in tree order.
+    let descendants: [String]
+    /// Labelled, identified or typed elements inside the row's frame that are neither the
+    /// row, its descendants, its containers nor the A–Z rail overlapping its trailing
+    /// edge: what a card rim or mask exposing itself to VoiceOver would add.
+    let strays: [String]
+    /// Unlabelled `.other` containers drawn over most of the row (UIKit-backed
+    /// backgrounds such as the material's effect view), which VoiceOver does not read; a
+    /// mask must not add one.
+    let containers: [String]
+
+    /// Read the row from one snapshot of the app.
+    ///
+    /// - Parameters:
+    ///   - row: The row button.
+    ///   - app: The running app.
+    /// - Throws: A snapshot failure or a row missing from it.
+    @MainActor
+    init(row: XCUIElement, in app: XCUIApplication) throws {
+        let identifier = row.identifier
+        var flat: [XCUIElementSnapshot] = []
+        var ends: [Int] = []
+        func walk(_ node: XCUIElementSnapshot) {
+            let index = flat.count
+            flat.append(node)
+            ends.append(index + 1)
+            node.children.forEach(walk)
+            ends[index] = flat.count
+        }
+        walk(try app.snapshot())
+        let index = try XCTUnwrap(
+            flat.firstIndex { $0.elementType == .button && $0.identifier == identifier },
+            "\(identifier) missing from the snapshot"
+        )
+        let node = flat[index]
+        let own = index..<ends[index]
+        label = node.label
+        frame = node.frame
+        descendants = flat[own].dropFirst().map { "\($0.elementType.rawValue) '\($0.label)'" }
+        let inside = node.frame.insetBy(dx: -1, dy: -1)
+        let rail = flat.firstIndex { $0.identifier == "fst.songs.section-index" }.map { $0..<ends[$0] } ?? 0..<0
+        let overlapping = flat.indices.filter { other in
+            let element = flat[other]
+            let isContainer = other < index && ends[other] > index
+            return !own.contains(other) && !isContainer && !rail.contains(other)
+                && element.elementType != .cell && !element.frame.isEmpty && inside.contains(element.frame)
+        }
+        func describe(_ element: XCUIElementSnapshot) -> String {
+            "\(element.elementType.rawValue) '\(element.identifier)' '\(element.label)' \(element.frame)"
+        }
+        let isStructural = { (element: XCUIElementSnapshot) in
+            element.elementType == .other && element.label.isEmpty && element.identifier.isEmpty
+        }
+        strays = overlapping.map { flat[$0] }.filter { !isStructural($0) }.map(describe)
+        // At least half the row each way: a rim or mask view spans the card, while the
+        // scroll indicator shown after a drag (3 pt wide) only overlaps the row's edge.
+        let isRowSized = { (element: XCUIElementSnapshot) in
+            element.frame.width >= node.frame.width / 2 && element.frame.height >= node.frame.height / 2
+        }
+        containers = overlapping.map { flat[$0] }.filter { isStructural($0) && isRowSized($0) }.map {
+            "\($0.elementType.rawValue) \($0.frame.size)"
+        }
     }
 }
