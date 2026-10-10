@@ -1,6 +1,8 @@
 package com.festivalscoretracker.android.rankings
 
 import com.festivalscoretracker.android.testing.RankingsFixtures
+import com.festivalscoretracker.android.core.compete.ComboRankingEntry
+import com.festivalscoretracker.android.core.compete.ComboRankingsResponse
 import com.festivalscoretracker.android.core.bands.BandRankingMetric
 import com.festivalscoretracker.android.core.bands.BandType
 import com.festivalscoretracker.android.core.model.FestivalApiException
@@ -94,7 +96,23 @@ internal class FakeReads {
                 }
             }
         },
+        comboRankings = { comboId, metric, page, size ->
+            track("combo:$comboId:${metric.wireId}:$page:$size") {
+                val ranks = ((page - 1) * size + 1)..minOf(page * size, accounts)
+                val rows = ranks.map { ComboRankingEntry(rank = it, accountId = if (it == selectedRank) RankingsFixtures.SELECTED else "c%031d".format(it), displayName = "Combo $it") }
+                RankingsPayload(ComboRankingsResponse(comboId, metric.wireId, page, size, accounts, rows).asRankingsResponse(metric), 7)
+            }
+        },
+        playerComboRanking = { comboId, accountId, metric ->
+            track("ownCombo:$comboId:$accountId:${metric.wireId}") {
+                val rank = if (metric == RankingMetric.TotalScore) selectedRank else comboRankByOtherMetric
+                PlayerRankingResult.Ranked(PlayerInstrumentRanking(ComboRankingEntry(rank = rank, accountId = accountId).asAccountEntry(metric), comboId, accounts))
+            }
+        },
     )
+
+    /** The selected player's combo rank under any metric but Total Score. */
+    var comboRankByOtherMetric = 3
 
     val history = RankHistoryResponse(
         "Solo_Guitar",
@@ -406,6 +424,43 @@ class RankingsViewModelTest {
         viewModel.retry()
         advanceUntilIdle()
         assertTrue(viewModel.board.value is LoadState.Failed)
+    }
+
+    @Test
+    fun fullRankingsComboBoardReadsTheComboAndRereadsTheOwnRowPerMetric() = runTest(main.dispatcher) {
+        settings.value = AppSettings(selectedPlayer = selectedPlayer, experimentalRanks = true)
+        val viewModel = FullRankingsViewModel(Instrument.Drums, RankingMetric.TotalScore, fake.reads, settings, ServiceRetryBackoff(), 99, initialCombo = "0F")
+        advanceUntilIdle()
+        // The routed combo wins over the routed chart, normalised to the service's lowercase ID.
+        assertEquals("0f", viewModel.combo?.comboId)
+        assertEquals(listOf(Instrument.Lead, Instrument.Bass, Instrument.Drums, Instrument.Vocals), viewModel.combo?.instruments)
+        assertEquals(Instrument.Lead, viewModel.instrument.value)
+        assertEquals(listOf("combo:0f:totalscore:99:25", "ownCombo:0f:${RankingsFixtures.SELECTED}:totalscore", "combo:0f:totalscore:3:25").sorted(), fake.calls.sorted())
+        assertEquals(3, viewModel.page.value)
+        assertEquals("0f", viewModel.displayed.value?.rankings?.instrument)
+        assertEquals(2, viewModel.selectedPage())
+        // No chart to switch to.
+        viewModel.selectInstrument(Instrument.Bass)
+        advanceUntilIdle()
+        assertEquals(Instrument.Lead, viewModel.instrument.value)
+        assertEquals(0, fake.count("rankings:"))
+        // A combo own row holds one metric's rank, so a metric switch re-reads it.
+        viewModel.selectMetric(RankingMetric.Adjusted)
+        advanceUntilIdle()
+        assertEquals(1, fake.count("ownCombo:0f:${RankingsFixtures.SELECTED}:adjusted"))
+        assertEquals(1, fake.count("combo:0f:adjusted:1:25"))
+        assertEquals(1, viewModel.selectedPage())
+        assertEquals(0, fake.count("own:"))
+    }
+
+    @Test
+    fun fullRankingsIgnoresCombosTheServiceDoesNotRank() {
+        for (token in listOf(null, "", "pro_drums", "31", "zz", "01")) {
+            val viewModel = FullRankingsViewModel(Instrument.Bass, RankingMetric.TotalScore, fake.reads, settings, ServiceRetryBackoff(), initialCombo = token)
+            assertNull(token, viewModel.combo)
+            assertEquals(Instrument.Bass, viewModel.instrument.value)
+        }
+        assertEquals("30", FullRankingsViewModel(Instrument.Bass, RankingMetric.TotalScore, fake.reads, settings, ServiceRetryBackoff(), initialCombo = "30").combo?.comboId)
     }
 
     // endregion

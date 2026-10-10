@@ -40,8 +40,11 @@ import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.CompeteRoute
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.nav.FestivalSection
+import com.festivalscoretracker.android.core.nav.FullRankingsRoute
 import com.festivalscoretracker.android.core.rankings.AccountRankingEntry
+import com.festivalscoretracker.android.core.rankings.PlayerRankingResult
 import com.festivalscoretracker.android.core.rankings.RankingMetric
+import com.festivalscoretracker.android.core.rivals.RivalCombo
 import com.festivalscoretracker.android.core.rivals.RivalScope
 import com.festivalscoretracker.android.core.rivals.RivalSummary
 import com.festivalscoretracker.android.core.rivals.rivalEntries
@@ -52,7 +55,9 @@ import com.festivalscoretracker.android.data.HttpRequest
 import com.festivalscoretracker.android.data.HttpResult
 import com.festivalscoretracker.android.data.HttpTransport
 import com.festivalscoretracker.android.data.compete.comboRankings
+import com.festivalscoretracker.android.data.compete.comboRankingsPage
 import com.festivalscoretracker.android.data.compete.playerComboRanking
+import com.festivalscoretracker.android.data.compete.playerComboRankingResult
 import com.festivalscoretracker.android.data.rivals.RivalsRepository
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.presentation.LoadState
@@ -116,9 +121,9 @@ class CompeteLogicTest {
 
     @Test
     fun scopeHeaderStacksInNarrowLanesAndLargeText() {
-        // Phone card (~379 dp): a combo board without View All keeps its title beside the icons...
+        // Phone card (~379 dp): a combo board without View All (no rankings yet) keeps its title beside the icons...
         assertFalse(CompeteHeaderLayout.stacks(379f, 4, hasSeeAll = false, largeText = false))
-        // ...but beside View All the title would wrap to three lines, so the icons stack.
+        // ...but beside View All (every ranked board, combos included since #602) the title would wrap to three lines, so the icons stack.
         assertTrue(CompeteHeaderLayout.stacks(379f, 4, hasSeeAll = true, largeText = false))
         // Half-open book fold panel (~260 dp): the combo title would get a few dp, so the icons stack above it.
         assertTrue(CompeteHeaderLayout.stacks(260f, 4, hasSeeAll = true, largeText = false))
@@ -179,6 +184,56 @@ class CompeteLogicTest {
         } catch (_: FestivalApiException.InvalidResponse) {
         }
         assertThrows(FestivalApiException.InvalidResponse::class.java) { ComboRankingsResponse("30").validate("03") }
+    }
+
+    /** #602: the combo board and own row in Full Rankings' shapes (web `FullRankingsPage` `?combo=`). */
+    @Test
+    fun comboFullBoardReadsMapToTheSharedRankingShapes() = runTest {
+        val transport = CompeteFixtures.transport()
+        val client = FestivalApi("https://fixture.test", transport)
+        val page = client.comboRankingsPage("03", RankingMetric.Adjusted, 1, 25)
+        assertEquals("03", page.rankings.instrument)
+        assertEquals(3, page.rankings.entries.size)
+        // A combo row's single rank answers every metric's rank column.
+        val first = page.rankings.entries[0]
+        assertEquals(listOf(1, 1, 1, 1, 1), RankingMetric.entries.map(first::rank))
+        assertEquals("combo=03&rankBy=adjusted&page=1&pageSize=25", transport.sent("/api/rankings/combo").last().url.substringAfter('?'))
+        transport.on("/api/rankings/combo/$player", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            """{"comboId":"03","rankBy":"fcrate","rank":4,"accountId":"$player","displayName":"Me","adjustedRating":0.04,"fcRate":0.5,"songsPlayed":10,"totalChartedSongs":40,"fullComboCount":5,"totalAccounts":900}"""
+        }
+        val own = client.playerComboRankingResult(player, "03", RankingMetric.FcRate) as PlayerRankingResult.Ranked
+        assertEquals(900, own.ranking.totalRankedAccounts)
+        assertEquals("03", own.ranking.instrument)
+        assertEquals(4, own.ranking.entry.rank(RankingMetric.FcRate))
+        // Web combo FC Rate: full combos over songs played.
+        assertEquals("5 / 10", own.ranking.entry.songsLabel(RankingMetric.FcRate))
+        assertEquals(0.5, own.ranking.entry.ratingValue(RankingMetric.FcRate), 0.0)
+        assertEquals(0.04, own.ranking.entry.ratingValue(RankingMetric.Adjusted), 0.0)
+        transport.onRaw("/api/rankings/combo/$player") { HttpResult(404, "{}".toByteArray()) }
+        assertEquals(PlayerRankingResult.Unranked, client.playerComboRankingResult(player, "03", RankingMetric.TotalScore))
+        transport.onRaw("/api/rankings/combo") { HttpResult(404, "{}".toByteArray()) }
+        val empty = client.comboRankingsPage("30", RankingMetric.TotalScore, 1, 25)
+        assertTrue(empty.rankings.entries.isEmpty())
+        assertEquals(0, empty.publicationId)
+        try {
+            client.playerComboRankingResult("bad id", "03", RankingMetric.TotalScore)
+            fail("expected InvalidResource")
+        } catch (_: FestivalApiException.InvalidResource) {
+        }
+    }
+
+    @Test
+    fun everyScopeOpensItsFullBoard() {
+        val (combo, lead) = CompeteScopes.resolve(setOf(Instrument.Lead, Instrument.Bass))
+        assertEquals(FullRankingsRoute("Solo_Guitar", "totalscore", 1, combo = "03"), combo.fullRankingsRoute)
+        assertEquals(FullRankingsRoute("Solo_Guitar", "totalscore", 1), lead.fullRankingsRoute)
+        assertEquals(listOf(Instrument.ProLead, Instrument.ProBass), RivalCombo.rankingComboInstruments("30"))
+        assertNull(RivalCombo.rankingComboInstruments(RivalCombo.PRO_DRUMS_TOKEN))
+        assertNull(RivalCombo.rankingComboInstruments("21"))
+        assertEquals(FullRankingsRoute("Solo_Guitar", "totalscore", 2, combo = "0f"), DebugLaunch.parseRoute("fullComboRankings:0F:2"))
+        assertEquals(FullRankingsRoute("Solo_Guitar", "totalscore", 1, combo = "03"), DebugLaunch.parseRoute("fullComboRankings:03"))
+        assertNull(DebugLaunch.parseRoute("fullComboRankings:pro_drums"))
+        assertNull(DebugLaunch.parseRoute("fullComboRankings"))
     }
 
     @Test
@@ -278,7 +333,7 @@ class CompeteLogicTest {
         val bass = CompeteScope.Single(Instrument.Bass)
         val rival = rivalEntries(listOf(RivalSummary(RivalsFixtures.RIVALS[0])), listOf(RivalSummary(RivalsFixtures.RIVALS[1])))
         val sections = listOf(
-            // Combo: 3 rows + the player's row, no View Full Leaderboards; 2 rivals + View All.
+            // Combo: 3 rows + the player's row + View Full Leaderboards (#602); 2 rivals + View All.
             CompeteSection(combo, LoadState.Loaded(CompeteBoard(List(3) { entry("c$it", it + 1) }, entry("me", 9))), LoadState.Loaded(rival)),
             // Lead: 2 rows (player inside) + View Full Leaderboards; no rivals (empty card).
             CompeteSection(lead, LoadState.Loaded(CompeteBoard(List(2) { entry("l$it", it + 1) }, null)), LoadState.Loaded(emptyList())),
@@ -287,11 +342,11 @@ class CompeteLogicTest {
         )
         val plan = CompeteContent(sections, null, null).stagger
         assertEquals(0, plan.leaderboardsHeader)
-        // Combo header 1, body 2..5; Lead header 6, body 7..9; Bass header 10, error 11.
-        assertEquals(listOf(1, 6, 10), plan.boards)
-        assertEquals(12, plan.rivalsHeader)
-        // Combo rivals header 13, rows 14..15 + View All 16; Lead 17 + empty 18; Bass 19 + error 20.
-        assertEquals(listOf(13, 17, 19), plan.rivals)
+        // Combo header 1, body 2..6; Lead header 7, body 8..10; Bass header 11, error 12.
+        assertEquals(listOf(1, 7, 11), plan.boards)
+        assertEquals(13, plan.rivalsHeader)
+        // Combo rivals header 14, rows 15..16 + View All 17; Lead 18 + empty 19; Bass 20 + error 21.
+        assertEquals(listOf(14, 18, 20), plan.rivals)
         // Anonymous: each rivals card is one "track a player" card.
         val anonymous = CompeteContent(listOf(sections[1].copy(rivals = null)), null, null).stagger
         assertEquals(CompeteStaggerPlan(0, listOf(1), 5, listOf(6)), anonymous)
@@ -438,9 +493,9 @@ class CompeteUiTest {
         rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag(own))
         assertEquals("Jump to your position", clickLabel(own))
         assertEquals("Open profile", clickLabel("fst.compete.rank.Solo_Guitar.${RankingsFixtures.accountId(1)}"))
-        // Combo boards have no full board on Android, so their row still opens Statistics.
+        // Combo boards open their own full board too (#602), so their row jumps as well.
         rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag("fst.compete.spotlight.0f"))
-        assertEquals("Open your statistics", clickLabel("fst.compete.spotlight.0f"))
+        assertEquals("Jump to your position", clickLabel("fst.compete.spotlight.0f"))
         rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag(own))
         rule.onNodeWithTag(own).performSemanticsAction(SemanticsActions.OnClick)
         rule.waitUntil(10_000) {
@@ -613,9 +668,9 @@ class CompeteUiTest {
 
     /**
      * Web `CompetePage` has no Leaderboards Overview link (issue #66, revalidated in #174): Quick
-     * Links list only the two groups, no Compete card names an overview, and each
-     * single-instrument board's View Full Leaderboards opens that instrument's Full Rankings.
-     * Combo boards offer no full-board path.
+     * Links list only the two groups, no Compete card names an overview, and every board's
+     * View Full Leaderboards opens its own Full Rankings: a single instrument's, or a combo's
+     * (web `?combo=`, #602) with the combo's icon row and no instrument picker.
      */
     @Test
     fun competeHasNoOverviewButtonAndEachBoardOpensItsFullRankings() {
@@ -644,24 +699,17 @@ class CompeteUiTest {
         CompeteScopes.resolve(Instrument.entries).forEach { scope ->
             val card = "fst.compete.leaderboard-card.${scope.key}"
             val button = hasTestTag("fst.compete.view-full-leaderboards").and(hasAnyAncestor(hasTestTag(card)))
-            val single = (scope as? CompeteScope.Single)?.instrument
-            if (single == null) {
-                // Combo boards stay previews: no native full combo board yet.
-                rule.waitUntil(10_000) {
-                    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
-                    rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag(card))
-                    rule.onAllNodesWithTag("$card.loading").fetchSemanticsNodes().isEmpty()
-                }
-                assertNoOverview(scope.key)
-                assertTrue("${scope.key} offers a full board", rule.onAllNodes(button).fetchSemanticsNodes().isEmpty())
-                assertTrue("${scope.key} offers See All", rule.onAllNodesWithTag("fst.compete.board.see-all.${scope.key}").fetchSemanticsNodes().isEmpty())
-                return@forEach
-            }
+            val boardKey = (scope as? CompeteScope.Single)?.instrument?.wireId ?: scope.key
             awaitInCard(card, button)
             rule.onNodeWithTag("fst.compete.grid").performScrollToNode(button)
             assertNoOverview(scope.key)
+            // The header's View All opens the same board as the button (view-all-cta R4).
+            rule.onNodeWithTag("fst.compete.board.see-all.${scope.key}").assert(hasContentDescription("View All: ${scope.label}"))
             rule.onNode(button).performSemanticsAction(SemanticsActions.OnClick)
-            waitForTag("fst.full-rankings.title-icon.${single.wireId}")
+            waitForTag("fst.full-rankings.title-icon.$boardKey")
+            assertTrue("${scope.key} title", rule.onAllNodesWithText("${scope.label} Leaderboards").fetchSemanticsNodes().isNotEmpty())
+            val pickers = rule.onAllNodesWithTag("fst.full-rankings.instrument-menu").fetchSemanticsNodes().size
+            if (scope is CompeteScope.Combo) assertEquals("${scope.key} offers an instrument picker", 0, pickers)
             rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
             waitForTag("fst.compete.grid")
         }
@@ -713,10 +761,12 @@ class CompeteUiTest {
     }
 
     @Test
-    fun phoneCardsKeepComboTitlesBesideTheirIcons() {
+    fun phoneComboCardsStackIconsAboveTheTitleAndViewAll() {
         launch(DebugLaunch(section = FestivalSection.Compete, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true))
         waitForTag("fst.compete.leaderboard-card.0f")
-        rule.onNode(hasTestTag("fst.compete.scope-header.row").and(hasAnyAncestor(hasTestTag("fst.compete.leaderboard-card.0f")))).assertIsDisplayed()
+        // Beside View All (#602) a four-chart title would wrap to three lines, so the icons stack (#120), like the combo rivals card.
+        rule.onNode(hasTestTag("fst.compete.scope-header.stacked").and(hasAnyAncestor(hasTestTag("fst.compete.leaderboard-card.0f")))).assertIsDisplayed()
+        rule.onNodeWithTag("fst.compete.board.see-all.0f").assertIsDisplayed()
     }
 }
 
