@@ -227,8 +227,9 @@ class SongsAccessibilityJourneyTest {
     }
 
     /**
-     * Issue #169: switching Score History from Lead (two scores) to Bass (one) keeps the card's
+     * Issue #169: switching Score History from Lead (two scores) to Bass (one) keeps the graph's
      * size on the device, selects Bass, drops to one best-score row and stays accessible.
+     * Issue #588: the selector, chart and best scores are one card, read in that order.
      */
     @Test
     fun songDetailScoreHistorySwitchKeepsTheCardAndSelectsTheNewChart() {
@@ -236,14 +237,20 @@ class SongsAccessibilityJourneyTest {
         h.launch(DebugLaunch(profile = player, songQuery = "s-alpha", stillBackground = true), transport)
         h.scrollTo("fst.song-detail.list", "fst.song-detail.history.card")
         h.waitForTag("fst.song-detail.history.top.1")
-        fun card() = rule.onNodeWithTag("fst.song-detail.history.card").fetchSemanticsNode().size
-        val before = card()
-        h.readingOrder("song-detail-history-lead")
+        fun graph() = rule.onNodeWithTag("fst.song-detail.history.graph").fetchSemanticsNode().size
+        fun inCard(tag: String) = rule.onAllNodes(hasTestTag(tag) and hasAnyAncestor(hasTestTag("fst.song-detail.history.card"))).fetchSemanticsNodes().size == 1
+        listOf("fst.song-detail.history.chart", "fst.song-detail.history.top.0", "fst.song-detail.history.top.1").forEach {
+            assertTrue("$it inside the Score History card", inCard(it))
+        }
+        val before = graph()
+        val stops = h.readingStops("song-detail-history-lead").mapNotNull { it.id }
+        val order = listOf("fst.song-detail.history.chart", "fst.song-detail.history.top.0", "fst.song-detail.history.top.1").map { stops.indexOf(it) }
+        assertTrue("chart, then the best scores: $order", order.all { it >= 0 } && order == order.sorted())
         val compact = h.exists("fst.song-detail.history.instrument.compact")
         h.tap(if (compact) "fst.song-detail.history.instrument.next" else "fst.song-detail.history.instrument.Solo_Bass")
         rule.waitUntil(5_000) { !h.exists("fst.song-detail.history.top.1") }
         rule.waitForIdle()
-        assertEquals("Score History card size after the switch", before, card())
+        assertEquals("Score History graph size after the switch", before, graph())
         val bass = if (compact) "fst.song-detail.history.instrument.preview" else "fst.song-detail.history.instrument.Solo_Bass"
         rule.onNodeWithTag(bass).assertIsSelected().assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Bass")))
         h.waitForTag("fst.song-detail.history.top.0")
