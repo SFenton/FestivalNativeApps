@@ -36,6 +36,7 @@ final class SuggestionsAccessibilityJourneyTests: XCTestCase {
     private static let standard = "UICTContentSizeCategoryL"
     private static let largest = "UICTContentSizeCategoryAccessibilityXXXL"
     private static let rowPrefix = "fst.suggestions.row."
+    private static let categoryPrefix = "fst.suggestions.category."
     /// Words that would mean the artwork tile reached VoiceOver in one of its states.
     private static let artworkWords = ["artwork", "album art", "loading", "photo", "music.note"]
 
@@ -96,11 +97,16 @@ final class SuggestionsAccessibilityJourneyTests: XCTestCase {
 
         let list = app.scrollViews.matching(identifier: "fst.suggestions.list").firstMatch
         XCTAssertTrue(list.waitForExistence(timeout: FestivalApp.budget(30)), "No Suggestions list")
-        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", Self.rowPrefix))
-        let first = rows.firstMatch
+        // A song can be suggested in more than one category, so a row ID is unique only
+        // inside its `fst.suggestions.category.<key>` container.
+        let firstCard = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", Self.categoryPrefix)).firstMatch
+        XCTAssertTrue(firstCard.waitForExistence(timeout: FestivalApp.budget(15)), "No category container")
+        let section = app.descendants(matching: .any)[firstCard.identifier]
+        let first = section.buttons
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", Self.rowPrefix)).firstMatch
         XCTAssertTrue(first.waitForExistence(timeout: FestivalApp.budget(15)), "No row with its own identifier")
-        let identifier = first.identifier
-        let row = app.buttons[identifier]
+        let row = section.buttons[first.identifier]
         XCTAssertTrue(waitForCover(of: row, in: app), "\(name): the cover never loaded")
 
         // Scroll until the lazy stack drops the row, then back: the rebuilt row draws the
@@ -156,7 +162,11 @@ final class SuggestionsAccessibilityJourneyTests: XCTestCase {
             node.children.forEach(walk)
         }
         walk(snapshot)
-        let rowIndex = try XCTUnwrap(ordered.firstIndex { $0.identifier == row.identifier && $0.elementType == .button })
+        let rowFrame = row.frame
+        let rowIndex = try XCTUnwrap(ordered.firstIndex {
+            $0.identifier == row.identifier && $0.elementType == .button
+                && abs($0.frame.minY - rowFrame.minY) < 1 && abs($0.frame.minX - rowFrame.minX) < 1
+        })
         let rowNode = ordered[rowIndex]
         var inRow: [XCUIElementSnapshot] = []
         func collect(_ node: XCUIElementSnapshot) { node.children.forEach { inRow.append($0); collect($0) } }
