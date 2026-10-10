@@ -353,6 +353,9 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         )
         assertProfileTarget(in: app, monogram: true)
         SongsUITestSupport.record(app, name: "pushed-profile-song-detail")
+        try assertSelectedProfileHitRegion(
+            in: app, beside: actions, returnsTo: app.descendants(matching: .any)["fst.song-detail.hero-title"]
+        )
 
         let back = app.navigationBars.buttons["BackButton"]
         (back.exists ? back : app.navigationBars.buttons.element(boundBy: 0)).tap()
@@ -363,13 +366,16 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
 
     /// Issue #437 (for #85): pushed pages with their own page actions (Item Shop's Sort,
     /// Filter and List/Grid; the player page's profile action) keep Profile as one
-    /// labelled button and the navigation bar's last, rightmost button, after Back.
+    /// labelled button and the navigation bar's last, rightmost button. On Item Shop,
+    /// whose actions crowd Profile most, the selected monogram also keeps a 44 × 44 pt
+    /// hit region (`assertSelectedProfileHitRegion`). The player page is skipped there:
+    /// Profile would open the page already shown, so a tap that missed it could pass.
     @MainActor
     func testProfileStaysTheLastBarButtonOnPushedPagesWithActions() throws {
         continueAfterFailure = false
-        let pages: [(route: String, ready: String)] = [
-            ("shop", "fst.shop.sort"),
-            ("player:fixture-player-1", "fst.shell.notifications"),
+        let pages: [(route: String, ready: String, actions: [String])] = [
+            ("shop", "fst.shop.sort", ["fst.shop.sort", "fst.shop.filter", "fst.shop.view-toggle", "fst.quick-links.open"]),
+            ("player:fixture-player-1", "fst.shell.notifications", []),
         ]
         for page in pages {
             let app = fixtureApp(profile: true, route: page.route)
@@ -384,6 +390,9 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
             XCTAssertFalse(order.navigationBar.contains("fst.shell.drawer.open"), "\(page.route) shows the drawer \(order)")
             assertProfileTarget(in: app, monogram: true)
             SongsUITestSupport.record(app, name: "pushed-profile-\(page.route.split(separator: ":")[0])")
+            if !page.actions.isEmpty {
+                try assertSelectedProfileHitRegion(in: app, beside: page.actions, returnsTo: app.buttons[page.ready])
+            }
             app.terminate()
         }
     }
@@ -470,6 +479,52 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
                                      "'\(button.identifier)' \(button.frame) is right of Profile \(profile.frame)",
                                      file: file, line: line)
         }
+    }
+
+    /// Require the selected-profile monogram on a pushed page to keep a 44 × 44 pt hit
+    /// region that its page actions do not take over.
+    ///
+    /// The monogram's element is narrower than the circle it draws
+    /// (`MonogramMetrics.overhang`, #311), so its frame cannot prove the width. Instead,
+    /// no shown page action may overlap Profile (`assertProfileTarget` already keeps every
+    /// bar button left of it); a scoped `.hitRegion`
+    /// audit must report nothing on Profile; and taps 20 pt off its centre in every
+    /// direction (15 pt diagonally) must open the selected player's page. That page is
+    /// what only Profile opens here, so a tap that a neighbouring action took fails.
+    ///
+    /// - Parameters:
+    ///   - app: The running app, settled on a pushed page with a profile selected.
+    ///   - actions: Identifiers of the page's own actions, wherever they are placed.
+    ///   - returnsTo: An element of the page under test, awaited after each Back.
+    @MainActor
+    private func assertSelectedProfileHitRegion(
+        in app: XCUIApplication, beside actions: [String], returnsTo page: XCUIElement,
+        file: StaticString = #filePath, line: UInt = #line
+    ) throws {
+        let profile = app.navigationBars.buttons["fst.shell.profile"]
+        XCTAssertEqual(profile.label, "Profile: Fixture Player 1", file: file, line: line)
+        let shown = actions.map { app.buttons.matching(identifier: $0).firstMatch }
+            .filter { $0.exists && $0.frame.width > 0 }
+        XCTAssertFalse(shown.isEmpty, "none of the page actions \(actions) shows", file: file, line: line)
+        for action in shown {
+            XCTAssertFalse(action.frame.intersects(profile.frame),
+                           "'\(action.identifier)' \(action.frame) overlaps Profile \(profile.frame)",
+                           file: file, line: line)
+        }
+        try app.performAccessibilityAudit(for: [.hitRegion, .sufficientElementDescription]) { issue in
+            // Audit only Profile; each page has its own audit journeys.
+            issue.element?.identifier != "fst.shell.profile"
+        }
+        assertNearMissesOpen(
+            app, "fst.shell.profile", opens: SongsUITestSupport.playerPage(in: app),
+            close: {
+                let back = app.navigationBars.buttons["BackButton"]
+                (back.exists ? back : app.navigationBars.buttons.element(boundBy: 0)).tap()
+                XCTAssertTrue(page.waitForExistence(timeout: FestivalApp.budget(10)), "Back did not return",
+                              file: file, line: line)
+            },
+            file: file, line: line
+        )
     }
 
     /// Account buttons as read from the app's accessibility hierarchy.
