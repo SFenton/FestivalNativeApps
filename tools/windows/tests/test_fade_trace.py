@@ -219,6 +219,20 @@ class EntranceRushTests(unittest.TestCase):
                  "fade-arm list=Scroller start=0 at=1100", *EARLY_RUSH[1:]]
         self.assertIn("OverviewGrid did not fade in", f.check_entrance_rush(events(*stale), "Scroller", ["OverviewGrid"])[0])
 
+    def test_a_scroll_before_the_entrance_began_rushes_it_from_its_start(self):
+        # Song Details (#532): the scroll came during the spinner's fade, so the entrance begins rushed and enters at once.
+        rushed = ["fade-arm list=Scroller start=0 at=1000",
+                  "fade-rush list=Scroller start=0 rushed=0 kept=0 since=0 at=1000",
+                  "fade-enter list=Scroller target=TitleRow delay=0 motion=1 at=1001",
+                  "fade-enter list=Scroller target=OverviewGrid delay=0 motion=1 at=1002"]
+        self.assertEqual([], f.check_entrance_rush(events(*rushed), "Scroller", ["TitleRow", "OverviewGrid"]))
+        # Entering after the rush with a delay is still a regression, and so is an element of a later reload.
+        delayed = [*rushed[:3], rushed[3].replace("delay=0", "delay=300")]
+        self.assertIn("['OverviewGrid']", f.check_entrance_rush(events(*delayed), "Scroller", ["OverviewGrid"])[0])
+        reloaded = [*rushed[:3], "fade-arm list=Scroller start=0 at=5000", rushed[3]]
+        self.assertIn("OverviewGrid did not fade in",
+                      f.check_entrance_rush(events(*reloaded), "Scroller", ["OverviewGrid"])[0])
+
     def test_the_scroll_must_rush_not_close(self):
         self.assertIn("fade-rush missing", f.check_entrance_rush(events(*PAGE), "Scroller")[0])
         closed = [*PAGE, "fade-close list=Scroller start=0 since=500 at=1500"]
