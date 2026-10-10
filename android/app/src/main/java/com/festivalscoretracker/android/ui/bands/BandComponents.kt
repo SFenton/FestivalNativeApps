@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -22,6 +23,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -33,13 +35,16 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.onClick as onClickAction
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.bands.BandFormatting
 import com.festivalscoretracker.android.core.bands.BandLayout
 import com.festivalscoretracker.android.core.bands.BandMember
+import com.festivalscoretracker.android.core.bands.BandMemberFit
 import com.festivalscoretracker.android.core.bands.BandType
 import com.festivalscoretracker.android.core.bands.PlayerBandEntry
 import com.festivalscoretracker.android.core.rankings.RankingPaging
@@ -135,33 +140,93 @@ internal fun BandReadableWidth(modifier: Modifier = Modifier, content: @Composab
 // region Members
 
 /**
- * Member names with their observed instrument icons, one entry per distinct member.
+ * A band card's members (web `PlayerBandCard` `BandMemberRow`), one line per distinct member:
+ * the name leading, so every name in the card starts on the same edge whatever its icon count,
+ * then the member's [value] and instrument icons trailing. When any member can't fit inline,
+ * or at large text, every line stacks its icons under its name instead ([BandMemberFit.inline]),
+ * so the names stay aligned (issue #589). Long names scroll, truncate under Reduce Motion or
+ * wrap at large text ([FestivalMarqueeText]) inside the name column.
+ *
+ * The lines are decorative for TalkBack: the card that holds them carries one description.
  *
  * @param members Band members.
- * @param modifier Modifier.
+ * @param modifier Modifier (the members column; it takes the full width it is offered).
  * @param iconSize Icon size.
+ * @param keyboard Keyboard-variant instrument icons.
+ * @param lineGap Space between member lines.
+ * @param value Optional trailing text before a member's icons (a per-song member score).
+ */
+@Composable
+internal fun BandMemberRows(
+    members: List<BandMember>,
+    modifier: Modifier = Modifier,
+    iconSize: Dp = 20.dp,
+    keyboard: Boolean = false,
+    lineGap: Dp = BandMemberFit.LINE_GAP.dp,
+    value: (BandMember) -> String? = { null },
+) {
+    val distinct = BandMember.distinct(members)
+    val values = distinct.map(value)
+    val nameStyle = MaterialTheme.typography.bodyMedium
+    val valueStyle = MaterialTheme.typography.bodySmall
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val largeText = isLargeText()
+    val needs = remember(distinct, values, nameStyle, valueStyle, measurer, density) {
+        fun width(text: String?, style: TextStyle): Float =
+            text?.let { with(density) { measurer.measure(it, style, maxLines = 1, softWrap = false).size.width.toDp().value } } ?: 0f
+        distinct.mapIndexed { index, member ->
+            BandMemberFit.Member(width(member.resolvedName, nameStyle), width(values[index], valueStyle), member.chartedInstruments.size)
+        }
+    }
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val inline = BandMemberFit.inline(maxWidth.value, needs, iconSize.value, largeText)
+        Column(verticalArrangement = Arrangement.spacedBy(lineGap)) {
+            distinct.forEachIndexed { index, member -> BandMemberLine(member, values[index], inline, iconSize, keyboard) }
+        }
+    }
+}
+
+/**
+ * One [BandMemberRows] line. Test tags: `fst.band-member.<accountId>.name` / `.icons`.
+ *
+ * @param member Member.
+ * @param value Trailing text, or null.
+ * @param inline Name beside its icons; otherwise the icons wrap under the name.
+ * @param iconSize Icon size.
+ * @param keyboard Keyboard-variant icons.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun BandMemberChips(members: List<BandMember>, modifier: Modifier = Modifier, iconSize: Dp = 20.dp) {
-    val largeText = isLargeText()
-    FlowRow(modifier, horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        BandMember.distinct(members).forEach { member ->
-            val icons: @Composable () -> Unit = { member.chartedInstruments.forEach { InstrumentIcon(it, size = iconSize, decorative = true) } }
-            val name: @Composable () -> Unit = {
-                FestivalMarqueeText(member.resolvedName, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary)
+private fun BandMemberLine(member: BandMember, value: String?, inline: Boolean, iconSize: Dp, keyboard: Boolean) {
+    val tag = "fst.band-member.${member.accountId.ifEmpty { "unknown" }}"
+    val instruments = member.chartedInstruments
+    val name: @Composable (Modifier) -> Unit = {
+        FestivalMarqueeText(member.resolvedName, it.testTag("$tag.name"), style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary)
+    }
+    val trailing: @Composable () -> Unit = {
+        value?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textPrimary, maxLines = 1, softWrap = false) }
+        instruments.forEach { InstrumentIcon(it, keyboard = keyboard, size = iconSize, decorative = true) }
+    }
+    if (inline) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(BandMemberFit.INLINE_GAP.dp)) {
+            name(Modifier.weight(1f))
+            if (value != null || instruments.isNotEmpty()) {
+                Row(Modifier.testTag("$tag.icons"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(BandMemberFit.ICON_GAP.dp)) {
+                    trailing()
+                }
             }
-            if (largeText) {
-                // 200% text in a narrow card: the name moves under its icons rather than breaking mid-word.
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
-                    icons()
-                    name()
-                }
-            } else {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    icons()
-                    name()
-                }
+        }
+    } else {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            name(Modifier)
+            if (value != null || instruments.isNotEmpty()) {
+                FlowRow(
+                    Modifier.testTag("$tag.icons"),
+                    horizontalArrangement = Arrangement.spacedBy(BandMemberFit.ICON_GAP.dp),
+                    verticalArrangement = Arrangement.spacedBy(BandMemberFit.ICON_GAP.dp),
+                    itemVerticalAlignment = Alignment.CenterVertically,
+                ) { trailing() }
             }
         }
     }
@@ -229,7 +294,7 @@ internal fun PlayerBandCard(
         // The card's description is the announcement; the chips and texts would repeat it.
         Row(Modifier.padding(14.dp).clearAndSetSemantics { }, verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                BandMemberChips(entry.members)
+                BandMemberRows(entry.members)
                 // Large text wraps the appearances under the pill instead of splitting "142 / appearances".
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),

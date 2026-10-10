@@ -200,6 +200,7 @@ class BandsUiTest {
         click("fst.player-bands.page-next")
         waitForTag("fst.player-bands.row.band-25")
         assertTrue(transport.requests.last().url.contains("page=2"))
+        scrollTo("fst.player-bands.list", "fst.player-bands.page-first")
         click("fst.player-bands.page-first")
         click("fst.player-bands.group.duos")
         waitForTag("fst.player-bands.empty")
