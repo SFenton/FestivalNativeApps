@@ -251,11 +251,14 @@ internal fun memberAnnouncement(member: BandMember): String {
  * TalkBack announcement of a player-band card: `Members, Size, N appearances`.
  *
  * @param entry Wire row.
+ * @param includeSize Whether to speak the band size; `false` where a group heading already names it
+ *   and the row shows no size pill (profile groups, #596).
  * @return Announcement.
  */
-internal fun playerBandAnnouncement(entry: PlayerBandEntry): String {
+internal fun playerBandAnnouncement(entry: PlayerBandEntry, includeSize: Boolean = true): String {
     val size = BandType.fromWireId(entry.bandType)?.label ?: "Band"
-    return "${entry.membersLabel}, $size, ${BandFormatting.appearances(entry.appearanceCount)}"
+    val appearances = BandFormatting.appearances(entry.appearanceCount)
+    return if (includeSize) "${entry.membersLabel}, $size, $appearances" else "${entry.membersLabel}, $appearances"
 }
 
 /**
@@ -269,7 +272,6 @@ internal fun playerBandAnnouncement(entry: PlayerBandEntry): String {
  * @param modifier Modifier.
  * @param tag Test tag (player-bands rows by default).
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun PlayerBandCard(
     entry: PlayerBandEntry,
@@ -277,8 +279,6 @@ internal fun PlayerBandCard(
     modifier: Modifier = Modifier,
     tag: String = "fst.player-bands.row.${entry.key}",
 ) {
-    val size = BandType.fromWireId(entry.bandType)?.label ?: "Band"
-    val appearances = BandFormatting.appearances(entry.appearanceCount)
     val announcement = playerBandAnnouncement(entry)
     GlassCard(
         modifier
@@ -291,22 +291,66 @@ internal fun PlayerBandCard(
             },
         onClick = onClick,
     ) {
-        // The card's description is the announcement; the chips and texts would repeat it.
-        Row(Modifier.padding(14.dp).clearAndSetSemantics { }, verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                BandMemberRows(entry.members)
-                // Large text wraps the appearances under the pill instead of splitting "142 / appearances".
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                    itemVerticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Pill(size)
-                    Text(appearances, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
-                }
+        PlayerBandRowContent(entry, showSize = true)
+    }
+}
+
+/**
+ * A player-band row inside a group card (owner #596, profile Duos/Trios/Quads): the same content as
+ * [PlayerBandCard] without its own card (`surface-materials` R6: the group owns the one card) and
+ * without the band-size pill, since the group heading already names the size. The whole row is one
+ * 48 dp "Open band" button.
+ *
+ * @param entry Wire row.
+ * @param onClick Open action.
+ * @param modifier Modifier.
+ * @param tag Test tag (player-bands rows by default).
+ */
+@Composable
+internal fun PlayerBandRow(
+    entry: PlayerBandEntry,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tag: String = "fst.player-bands.row.${entry.key}",
+) {
+    val announcement = playerBandAnnouncement(entry, includeSize = false)
+    Box(
+        modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clickable(role = Role.Button, onClickLabel = "Open band", onClick = onClick)
+            .testTag(tag)
+            .semantics(mergeDescendants = true) { contentDescription = announcement },
+    ) {
+        PlayerBandRowContent(entry, showSize = false)
+    }
+}
+
+/**
+ * Members, the optional size pill, appearances and the trailing chevron, hidden from TalkBack
+ * (the enclosing button's description is the announcement; the chips and texts would repeat it).
+ *
+ * @param entry Wire row.
+ * @param showSize Whether to show the band-size pill.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PlayerBandRowContent(entry: PlayerBandEntry, showSize: Boolean) {
+    val appearances = BandFormatting.appearances(entry.appearanceCount)
+    Row(Modifier.padding(14.dp).clearAndSetSemantics { }, verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            BandMemberRows(entry.members)
+            // Large text wraps the appearances under the pill instead of splitting "142 / appearances".
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                itemVerticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (showSize) Pill(BandType.fromWireId(entry.bandType)?.label ?: "Band")
+                Text(appearances, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
             }
-            RowChevron(Modifier.padding(start = 8.dp))
         }
+        RowChevron(Modifier.padding(start = 8.dp))
     }
 }
 
