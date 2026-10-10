@@ -279,8 +279,9 @@ struct SongBandLeaderboardContent: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Pinned outside the reload gate, as a bottom safe-area inset like the Solo
         // chart's: the footer and pager stay put while another page loads, and the
-        // scroll view keeps its frame while only its content inset changes.
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        // scroll view keeps its frame while only its content inset changes. Read after
+        // the header and rows (#461).
+        .boardBottomChrome {
             bottomChrome
         }
         // The pinned band row's columns. In the trailing pane, when any member name on
@@ -466,10 +467,7 @@ struct SongBandLeaderboardContent: View {
                 .accessibilityIdentifier("fst.song-band-leaderboard.spotlight-jump")
             }
         }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 16)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("fst.song-band-leaderboard.spotlight-footer")
+        .pinnedFooterControl(identifier: "fst.song-band-leaderboard.spotlight-footer")
     }
 
     // MARK: Song header

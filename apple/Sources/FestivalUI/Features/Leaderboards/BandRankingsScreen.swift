@@ -136,7 +136,8 @@ struct BandRankingsScreen: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .wideColumnsCount($columns)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        // Read after the rows (#461).
+        .boardBottomChrome {
             RankingsFloatingBar(
                 pager: board.map { RankingsPagerState(page: page, totalPages: $0.totalPages) },
                 idPrefix: "fst.band-rankings"

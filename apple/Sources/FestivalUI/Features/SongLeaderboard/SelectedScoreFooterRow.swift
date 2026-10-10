@@ -29,6 +29,28 @@ struct SelectedScoreFooterRow: View {
     }
 }
 
+// MARK: - Pinned footer control
+
+extension View {
+    /// The pinned selected-row footer's control on every board (pattern `leaderboard-row`
+    /// R5): apply to the ``SelectedRowAction`` Jump button or Open link around the row.
+    ///
+    /// The whole-row button style (``festivalRowButtonStyle(cornerRadius:)``) gives the
+    /// footer what every list row has on the Mac: the keyboard focus ring in the card's
+    /// shape, Return as well as Space, and the hover tint (issue #461); iPhone and iPad
+    /// keep the plain style. Then the page margins and one container identifier.
+    ///
+    /// - Parameter identifier: The footer container's identifier
+    ///   (`fst.<board>.spotlight-footer`).
+    /// - Returns: The styled footer.
+    func pinnedFooterControl(identifier: String) -> some View {
+        festivalRowButtonStyle()
+            .padding(.horizontal, 16)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier(identifier)
+    }
+}
+
 // MARK: - Row card
 
 /// One song-board row: the ``SongLeaderboardEntryRow`` columns, the in-card disclosure
@@ -80,14 +102,41 @@ struct SongLeaderboardRowCard: View {
 /// The opaque backing of a board's pinned selected row (song boards and Full
 /// Rankings, issue #318). The footer floats over artwork with no band behind it
 /// (issue #93): with Reduce Transparency or Increase Contrast its translucent purple
-/// gets an opaque backing, as the pager's plates already have.
+/// gets an opaque backing, as the pager's plates already have. The system settings and
+/// the app's own toggles both count, as for every other surface (surface-materials
+/// R4 through ``FestivalGlassSurface/resolve(reduceTransparency:systemContrast:lessTransparency:moreContrast:glassAvailable:)``;
+/// issue #461: the app's toggles had left the row translucent over artwork beside an
+/// opaque pager).
 struct PinnedFooterBacking: ViewModifier {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
+    @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
+    @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
+
+    /// Whether the pinned row needs its opaque backing.
+    ///
+    /// - Parameters:
+    ///   - reduceTransparency: System Reduce Transparency.
+    ///   - systemContrast: System Increase Contrast (`colorSchemeContrast`).
+    ///   - lessTransparency: The app's Reduce Transparency toggle.
+    ///   - moreContrast: The app's Increase Contrast toggle.
+    /// - Returns: True whenever the shared surfaces turn opaque.
+    static func isOpaque(
+        reduceTransparency: Bool, systemContrast: ColorSchemeContrast,
+        lessTransparency: Bool, moreContrast: Bool
+    ) -> Bool {
+        FestivalGlassSurface.resolve(
+            reduceTransparency: reduceTransparency, systemContrast: systemContrast,
+            lessTransparency: lessTransparency, moreContrast: moreContrast, glassAvailable: true
+        ) == .opaque
+    }
 
     func body(content: Content) -> some View {
         content.background {
-            if reduceTransparency || contrast == .increased {
+            if Self.isOpaque(
+                reduceTransparency: reduceTransparency, systemContrast: contrast,
+                lessTransparency: lessTransparency, moreContrast: moreContrast
+            ) {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(BrandTokens.appBackground)
             }
