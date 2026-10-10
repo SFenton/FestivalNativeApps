@@ -451,12 +451,15 @@ private struct SweepHarnessView: View {
     try await nativeHostedSettle(host, untilText: ["Poll 1"])
     #expect(runningSweep(in: host) != nil, "sweep missing after returning from another tab")
 
+    // A percent change animates (0.18 s ease-out), so the sweep leaves through its removal
+    // transition: wait for the change itself, not for text that is already on screen. A
+    // sweep that never leaves (or never returns) fails as a readiness timeout.
     harness.percent = 42
-    try await nativeHostedSettle(host, untilText: ["Poll 1"])
+    try await nativeHostedSettle(host) { sweepViews(in: host).isEmpty }
     #expect(sweepViews(in: host).isEmpty, "a determinate bar kept the sweep")
 
     harness.percent = nil
-    try await nativeHostedSettle(host, untilText: ["Poll 1"])
+    try await nativeHostedSettle(host) { runningSweep(in: host) != nil }
     #expect(runningSweep(in: host) != nil, "no sweep after the total became unknown again")
 }
 #endif
