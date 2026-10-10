@@ -1020,7 +1020,8 @@
           "songs",
           "shop",
           "leaderboards",
-          "suggestions"
+          "suggestions",
+          "band-detail"
         ]
       },
       "supersedes": [],
@@ -2424,7 +2425,8 @@
         "pages": [
           "player-profile",
           "leaderboards",
-          "song-detail"
+          "song-detail",
+          "band-detail"
         ]
       },
       "supersedes": [],

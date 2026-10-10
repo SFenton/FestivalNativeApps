@@ -51,8 +51,19 @@ public enum ScoreFormatting {
     /// - Returns: The first source bucket at or above the clamped percentile, or nil for no rank.
     public static func percentileBucket(rank: Int, totalEntries: Int) -> String? {
         guard rank > 0, totalEntries > 0 else { return nil }
-        let percentile = min(max(Double(rank) / Double(totalEntries) * 100, 1), 100)
-        let bucket = percentileBuckets.first { percentile <= Double($0) } ?? 100
+        return percentileBucket(percentile: Double(rank) / Double(totalEntries) * 100)
+    }
+
+    /// Bucket a 0–100 percentile as the web's `formatPercentileBucket` does (band
+    /// Five Best/Worst Songs rows).
+    ///
+    /// - Parameter percentile: Rank as a percent of the chart population (lower is better).
+    /// - Returns: "Top N%" for the first bucket at or above the value clamped to 1–100,
+    ///   or nil for a non-finite input.
+    public static func percentileBucket(percentile: Double) -> String? {
+        guard percentile.isFinite else { return nil }
+        let clamped = min(max(percentile, 1), 100)
+        let bucket = percentileBuckets.first { clamped <= Double($0) } ?? 100
         return "Top \(bucket)%"
     }
 }

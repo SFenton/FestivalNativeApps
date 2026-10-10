@@ -262,12 +262,16 @@ public struct BandDetail: Decodable, Sendable, Equatable, Identifiable {
 /// `selectedBandEntry` field (present when `teamKey` matched a team) is needed here.
 struct BandProfileEnvelope: Decodable {
     let bandType: String
+    /// Ranked teams on the board (web `BandRankingDto.totalRankedTeams`); colours the chart.
+    let totalTeams: Int?
     let selectedBandEntry: BandDetail?
 }
 
 /// A band profile lookup together with its offline freshness.
 public struct BandDetailPayload: Sendable {
     public let detail: BandDetail
+    /// Ranked teams of this size for the board's metric, when the service reported it.
+    public var totalRankedTeams: Int? = nil
     public let publicationId: Int?
     public let observedPublicationId: Int
     public let isStale: Bool
@@ -290,8 +294,26 @@ public struct BandRankHistoryEntry: Decodable, Sendable, Equatable, Identifiable
     public let songsPlayed: Int?
     public let totalChartedSongs: Int?
     public let totalRankedTeams: Int?
+    /// Raw (pre-percentile) adjusted rating the web charts for Adjusted; optional on older services.
+    public let rawSkillRating: Double?
+    /// Raw popularity-weighted rating the web charts for Weighted; optional on older services.
+    public let rawWeightedRating: Double?
 
     public var id: String { snapshotDate }
+
+    /// The value the web's band rank-history chart plots for a metric
+    /// (`rankHistoryChartModel.getValueField`): the raw rating when present.
+    ///
+    /// - Parameter metric: Selected band rank-by metric.
+    /// - Returns: The bar value, or nil when the snapshot has none.
+    public func chartValue(for metric: BandRankingMetric) -> Double? {
+        switch metric {
+        case .adjusted: rawSkillRating ?? adjustedSkillRating
+        case .weighted: rawWeightedRating ?? weightedRating
+        case .fcrate: fcRate
+        case .totalscore: totalScore.map(Double.init)
+        }
+    }
 
     /// Rank column for the currently selected metric, matching `BandDetail.rank(for:)`.
     ///
@@ -315,6 +337,15 @@ public struct BandRankHistoryResponse: Decodable, Sendable, Equatable {
     public let history: [BandRankHistoryEntry]
     public let historyStatus: String?
     public let historyMessage: String?
+
+    /// Snapshots ranked for a metric, oldest first: the chart's series (unranked days
+    /// dropped, like ``PlayerRankHistory/rankedChronological``).
+    ///
+    /// - Parameter metric: Selected band rank-by metric.
+    /// - Returns: Chronological snapshots whose metric rank is positive.
+    public func rankedChronological(for metric: BandRankingMetric) -> [BandRankHistoryEntry] {
+        history.filter { $0.rank(for: metric) > 0 }.sorted { $0.snapshotDate < $1.snapshotDate }
+    }
 }
 
 /// A rank-history read together with its offline freshness.

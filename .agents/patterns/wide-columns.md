@@ -91,7 +91,7 @@ Status per page: **adopts** (follows R1–R5), **exempt** (a layout the rule doe
 | Compete | follow-up | Leaderboards beside Rivals (`HingeRow`) at regular width, including portrait. Should switch to R1. |
 | Settings | Mac adopts (#355); page replaced (#371) | The Mac Settings window panes flow column by column in two balanced columns (R7). The Settings page on iPad and Duo landscape and Android tablets/foldables, and the Windows Settings page at least 1100 epx wide, is a list/detail split instead ([split-panes](split-panes.md) R6). iPhone, Android phones, portrait and narrower Windows pages keep one column. |
 | Full Rankings, Song Leaderboard, Song Band Leaderboard, Band Rankings | adopts (#353) | Two row-major columns when full width (R8); one column as a split's sub-page (beside Leaderboards or Song Detail). |
-| Bands, Player Bands, Band Detail | follow-up | One column (the Mac Band Detail places Summary beside Statistics). |
+| Bands, Player Bands, Band Detail | follow-up | One column. Band Detail stacks Summary above Statistics on every Apple platform like the web (#555 agent decision; the Mac used to place them side by side). |
 | Rivals, All Rivals, Rival Detail, Rivalry, Player History | follow-up | One column of rows. |
 | Licenses | exempt | Legal text in one readable column. |
 | Home redirect | not applicable | No content. |
