@@ -336,7 +336,8 @@ fun FestivalScreen(
  *
  * @param title Title Case title.
  * @param modifier Modifier (the row's weight decides the free width).
- * @param onOverflowChange Told whether the title doesn't fit, so page actions can move to ⋮.
+ * @param onOverflowChange Told whether the title doesn't fit, so page actions of a screen outside
+ *   the shell can move to ⋮ (in the shell they always float, `page-tools-and-nav-chrome` R4, #576).
  */
 @Composable
 internal fun FestivalBarTitle(title: String, modifier: Modifier = Modifier, onOverflowChange: (Boolean) -> Unit) {
