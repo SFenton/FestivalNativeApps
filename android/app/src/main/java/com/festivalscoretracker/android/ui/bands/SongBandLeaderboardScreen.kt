@@ -208,14 +208,15 @@ fun SongBandLeaderboardScreen(
     }
 
     // Like the solo board (pattern `song-leaderboard-header` R3, issue #317): the song header and band size
-    // scroll with the rows and the top bar takes the song title once they have scrolled away.
-    // Across a hinge the header stays in the leading pane, so the bar stays empty.
+    // scroll with the rows and the top bar takes the song title, over the band size (no icon, issue #580),
+    // once they have scrolled away. Across a hinge the header stays in the leading pane, so the bar stays empty.
     val headerGone by remember(listState) { derivedStateOf { !twoPane && listState.firstVisibleItemIndex > 0 } }
     FestivalScreen(
         title = if (headerGone) song?.title.orEmpty() else "",
         isRoot = false,
         scrolled = headerGone,
         marqueeTitle = true,
+        subtitle = type.label,
         modifier = Modifier.testTag("fst.song-band-leaderboard.screen"),
         fadeInWindow = fadeIn,
     ) { padding ->
@@ -273,11 +274,8 @@ fun SongBandLeaderboardScreen(
                         }
                     }
                 },
-                // Hidden for a single page (7.4), as before.
-                pager = {
-                    val pageCount = shown?.pageCount(BandPaging.PAGE_SIZE) ?: 1
-                    if (pageCount > 1) RankingsPager(page, pageCount, "fst.song-band-leaderboard", viewModel::goTo)
-                },
+                // Hidden until the band size's page count loads and for a single page (load-transition R4, #575).
+                pager = { RankingsPager(page, shown?.pageCount(BandPaging.PAGE_SIZE), "fst.song-band-leaderboard", viewModel::goTo) },
             ) {
                 val state = swap.shown
                 if (swap.showsSpinner || state is LoadState.Loading) {

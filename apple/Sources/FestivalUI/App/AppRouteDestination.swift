@@ -148,8 +148,8 @@ struct AppRouteDestination: View {
                 session: session, instrument: instrument, rankBy: rankBy,
                 page: page, focusSelected: focusSelected
             )
-        case let .bandRankings(bandType):
-            BandRankingsScreen(session: session, bandType: bandType)
+        case let .bandRankings(bandType, rankBy, page):
+            BandRankingsScreen(session: session, bandType: bandType, rankBy: rankBy, page: page)
         case .rivals:
             RivalsScreen(session: session)
         case let .allRivals(scope):

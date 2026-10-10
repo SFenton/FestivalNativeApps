@@ -1,14 +1,7 @@
 package com.festivalscoretracker.android.ui.design
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -51,6 +44,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.songs.InstrumentSelection
+import com.festivalscoretracker.android.ui.common.AccordionReveal
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 
@@ -66,8 +60,9 @@ import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
  * Modes: optional selection (tap the selected chart again to clear) or [required];
  * [hidden] charts are not rendered, [disabled] ones render greyed (28%) and can't be
  * chosen, [muted] ones render greyed (42%) but can; [deferSelection] makes compact
- * arrows move a local preview until the centre button commits it. [content] expands
- * below the row while a chart is selected (web collapsible children).
+ * arrows move a local preview until the centre button commits it. [content] reveals
+ * below the row while a chart is selected (web collapsible children) through the shared
+ * [AccordionReveal] (issue #561).
  *
  * Accessibility: one selectable group; each chart is named by its label, reads as a
  * radio button when [required] and as a single-select toggle (checkbox role, like a
@@ -114,7 +109,6 @@ fun InstrumentSelector(
     // Keyed by the rendered count (web resets the preview when Settings change the list) but,
     // unlike a reset effect, restored across rotation and other activity recreation.
     var previewIndex by rememberSaveable(available.size) { mutableIntStateOf(0) }
-    val still = LocalFestivalAccessibility.current.reduceMotion
     Column(modifier.fillMaxWidth().testTag(tag)) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val isCompact = available.isNotEmpty() && (compact ?: InstrumentSelection.needsCompact(maxWidth.value, available.size))
@@ -175,12 +169,7 @@ fun InstrumentSelector(
             }
         }
         if (content != null) {
-            AnimatedVisibility(
-                visible = effective != null,
-                enter = if (still) EnterTransition.None else expandVertically(tween(SELECTOR_ANIMATION_MS)) + fadeIn(tween(SELECTOR_ANIMATION_MS)),
-                exit = if (still) ExitTransition.None else shrinkVertically(tween(SELECTOR_ANIMATION_MS)) + fadeOut(tween(SELECTOR_ANIMATION_MS)),
-                modifier = Modifier.testTag("$tag.detail"),
-            ) { Column { content() } }
+            AccordionReveal(visible = effective != null, modifier = Modifier.testTag("$tag.detail")) { Column { content() } }
         }
     }
 }

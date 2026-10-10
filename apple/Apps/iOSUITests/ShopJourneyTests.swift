@@ -192,7 +192,11 @@ final class ShopJourneyTests: XCTestCase {
     /// PWA parity (gap #17): compact two-line rows with the bag before the chevron,
     /// as sibling actions of one row.
     ///
-    /// - Throws: A tall row, a bag after the chevron slot or a nested action.
+    /// New rows draw no badge (issue #562, like the web), so the Leaving Tomorrow clock is
+    /// the only visible status glyph and must precede its row's bag.
+    ///
+    /// - Throws: A tall row, a bag after the chevron slot, a lost New state or a nested
+    ///   action.
     @MainActor
     func testShopRowsAreCompactWithBagBeforeChevron() throws {
         continueAfterFailure = false
@@ -204,15 +208,22 @@ final class ShopJourneyTests: XCTestCase {
         SongsUITestSupport.openItemShop(in: app)
         let row = app.buttons["fst.shop.song.fixture-pulse"]
         let bag = app.buttons["fst.shop.external.fixture-pulse"]
-        let badge = app.descendants(matching: .any)
+        let fresh = app.descendants(matching: .any)
             .matching(identifier: "fst.shop.badge.new.fixture-pulse").firstMatch
+        let leavingBag = app.buttons["fst.shop.external.fixture-orbit"]
+        let leaving = app.descendants(matching: .any)
+            .matching(identifier: "fst.shop.badge.leaving.fixture-orbit").firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 15))
         XCTAssertTrue(bag.exists && bag.isHittable)
+        XCTAssertTrue(fresh.exists, "The New state must stay available to VoiceOver")
         guard UIDevice.current.userInterfaceIdiom == .phone else { return }
         XCTAssertLessThanOrEqual(row.frame.height, 72, "Shop row is not compact")
         XCTAssertGreaterThanOrEqual(bag.frame.width, 44)
         XCTAssertGreaterThanOrEqual(bag.frame.height, 44)
-        XCTAssertGreaterThan(bag.frame.minX, badge.frame.maxX - 1, "Badge must precede the bag")
+        XCTAssertTrue(leaving.exists && leavingBag.exists)
+        XCTAssertGreaterThan(
+            leavingBag.frame.minX, leaving.frame.maxX - 1, "Leaving clock must precede the bag"
+        )
         XCTAssertGreaterThan(
             row.frame.maxX - bag.frame.maxX, 16,
             "No chevron slot after the bag"

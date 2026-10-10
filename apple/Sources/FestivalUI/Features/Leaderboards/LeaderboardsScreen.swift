@@ -22,6 +22,7 @@ struct LeaderboardsScreen: View {
     @AppStorage("fst.settings.showProCymbals") private var showProCymbals = true
     @AppStorage("fst.settings.showProDrums") private var showProDrums = true
     @AppStorage("fst.leaderboards.rankBy") private var rankByRaw = RankingMetric.totalscore.rawValue
+    @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
     @State private var instrumentStates: [Instrument: RankLoadState<RankingsPayload>] = [:]
     @State private var bandStates: [BandType: RankLoadState<BandRankingsPayload>] = [:]
     /// The selected player's own row on each instrument's board, fetched only when
@@ -51,7 +52,10 @@ struct LeaderboardsScreen: View {
         self.session = session
     }
 
-    private var rankBy: RankingMetric { RankingMetric(rawValue: rankByRaw) ?? .totalscore }
+    /// The metric in effect: the saved choice, or Total Score while Settings ›
+    /// Experimental Ranks is off (pattern `experimental-ranks`, web `coerceRankingMetric`).
+    /// The saved choice is kept, so turning the switch back on restores it, as on the web.
+    private var rankBy: RankingMetric { RankingMetric.coerced(rankByRaw, experimentalRanks: experimentalRanks) }
 
     /// Rank-by selection projected from the stored raw value by key path.
     ///
@@ -77,7 +81,7 @@ struct LeaderboardsScreen: View {
     /// Reload every card whenever the metric, the visible instrument set, or the
     /// selected player changes (the last so a new selection's spotlight loads).
     private var reloadKey: String {
-        "\(rankByRaw)|\(visibleInstruments.map(\.rawValue).joined(separator: ","))|" +
+        "\(rankBy.rawValue)|\(visibleInstruments.map(\.rawValue).joined(separator: ","))|" +
             (session.selectedPlayer?.accountId ?? "")
     }
 
@@ -166,9 +170,10 @@ struct LeaderboardsScreen: View {
         .festivalBackground(.carousel, session: session)
         .festivalNavigationTitle("Leaderboards")
         // Mac: View › Rank By mirrors the toolbar menu.
-        .macRankByCommands(rankByBinding)
+        .macRankByCommands(rankByBinding, experimentalRanks: experimentalRanks)
         .toolbar {
-            if pageTools == nil {
+            // Rank By only with experimental ranks, as on the web (Total Score otherwise).
+            if pageTools == nil && experimentalRanks {
                 ToolbarItem(placement: .festivalPageAction) {
                     RankByMenu(selection: rankByBinding)
                 }
@@ -178,7 +183,7 @@ struct LeaderboardsScreen: View {
         }
         .festivalProvidesRootTrailingItems()
         // iPhone tab-bar accessory (issue #92): Rank By before Quick Links.
-        .festivalPageTool(token: rankByRaw, order: PageToolOrder.primary) {
+        .festivalPageTool(token: rankBy, order: PageToolOrder.primary, isEnabled: experimentalRanks) {
             RankByMenu(selection: rankByBinding)
         }
         .task(id: reloadKey) {
@@ -237,7 +242,7 @@ struct LeaderboardsScreen: View {
             )
             rows.append(MacKeyRow(
                 id: "\(instrument.rawValue)|view-all",
-                action: .route(.fullRankings(instrument: instrument, rankBy: rankByRaw)), container: card
+                action: .route(.fullRankings(instrument: instrument, rankBy: rankBy.rawValue)), container: card
             ))
         }
         for bandType in BandType.allCases {
@@ -297,7 +302,7 @@ struct LeaderboardsScreen: View {
             } action: {
                 if case let .loaded(payload) = state, !payload.rankings.entries.isEmpty {
                     viewAllLink(
-                        AppRoute.fullRankings(instrument: instrument, rankBy: rankByRaw),
+                        AppRoute.fullRankings(instrument: instrument, rankBy: rankBy.rawValue),
                         title: RankingsCountText.viewAllRankings(
                             totalAccounts: payload.rankings.totalAccounts
                         ),
