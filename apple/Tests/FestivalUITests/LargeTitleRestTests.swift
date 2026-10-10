@@ -94,6 +94,99 @@ private func collapsedOnce() -> LargeTitleRest {
     #expect(rest.expandedInset == expanded)
 }
 
+// MARK: - LargeTitleRestWatch (both scroll-reading paths)
+
+/// Records the watch's settles and fakes the scroll view's interaction state.
+@MainActor
+private final class WatchProbe {
+    var settles: [CGFloat] = []
+    var interacting = false
+    lazy var watch = LargeTitleRestWatch(
+        delay: .milliseconds(10),
+        isInteracting: { [unowned self] in self.interacting },
+        settle: { [unowned self] in self.settles.append($0) }
+    )
+
+    /// Teach the watch the 52 pt band: open at the top, part-way, then collapsed.
+    func learnBand() {
+        watch.record(offsetY: -expanded, topInset: expanded, width: 402)
+        watch.record(offsetY: -150, topInset: expanded, width: 402)
+        watch.record(offsetY: 400, topInset: collapsed, width: 402)
+    }
+}
+
+/// Wait up to `timeout` for `condition`.
+@MainActor
+private func eventually(_ timeout: Duration = .seconds(2), _ condition: () -> Bool) async -> Bool {
+    let clock = ContinuousClock()
+    let deadline = clock.now + timeout
+    while clock.now < deadline {
+        if condition() { return true }
+        try? await Task.sleep(for: .milliseconds(5))
+    }
+    return condition()
+}
+
+/// The iOS 17 path (no scroll phase; `PlatformScrollObserver` samples only): a List
+/// parked 15 pt into the band settles once, back at its open top.
+@MainActor
+@Test func legacyWatchSettlesAProgrammaticParkOnce() async {
+    let probe = WatchProbe()
+    probe.learnBand()
+    probe.watch.record(offsetY: -expanded, topInset: expanded, width: 402)
+    probe.watch.record(offsetY: -207, topInset: expanded, width: 402)
+    #expect(await eventually { probe.settles == [-expanded] })
+    // The settle's own animation ends at the open top: nothing more moves.
+    probe.watch.record(offsetY: -expanded, topInset: expanded, width: 402)
+    try? await Task.sleep(for: .milliseconds(100))
+    #expect(probe.settles == [-expanded])
+    #expect(probe.watch.phaseIdle)
+}
+
+/// Without a phase, a finger held still in the band (or a deceleration) is waited out:
+/// the watch settles only once the scroll view stops interacting.
+@MainActor
+@Test func legacyWatchWaitsOutTouchesAndDeceleration() async {
+    let probe = WatchProbe()
+    probe.learnBand()
+    probe.interacting = true
+    probe.watch.record(offsetY: -185, topInset: expanded, width: 402)
+    try? await Task.sleep(for: .milliseconds(100))
+    #expect(probe.settles.isEmpty)
+    probe.interacting = false
+    #expect(await eventually { probe.settles == [-collapsed] })
+}
+
+/// iOS 18 and later: nothing settles while the scroll phase is not idle, and the idle
+/// phase starts the check.
+@MainActor
+@Test func phaseWatchSettlesOnlyWhenIdle() async {
+    let probe = WatchProbe()
+    probe.learnBand()
+    probe.watch.setPhaseIdle(false)
+    probe.watch.record(offsetY: -207, topInset: expanded, width: 402)
+    try? await Task.sleep(for: .milliseconds(100))
+    #expect(probe.settles.isEmpty)
+    probe.watch.setPhaseIdle(true)
+    #expect(await eventually { probe.settles == [-expanded] })
+}
+
+/// Only the resting sample counts: passing through the band and stopping at an end, or
+/// resting part-way before the band is known, never moves the List.
+@MainActor
+@Test func watchIgnoresPassingSamplesAndUnknownBands() async {
+    let probe = WatchProbe()
+    probe.learnBand()
+    probe.watch.record(offsetY: -190, topInset: expanded, width: 402)
+    probe.watch.record(offsetY: 300, topInset: collapsed, width: 402)
+    let fresh = WatchProbe()
+    fresh.watch.record(offsetY: -expanded, topInset: expanded, width: 402)
+    fresh.watch.record(offsetY: -190, topInset: expanded, width: 402)
+    try? await Task.sleep(for: .milliseconds(150))
+    #expect(probe.settles.isEmpty)
+    #expect(fresh.settles.isEmpty)
+}
+
 // MARK: - Debug park request
 
 /// `FST_DEBUG_SONGS_PARK_TOP` takes points and an optional delay.

@@ -1828,48 +1828,50 @@ private extension SongShopSectionKind {
 /// into it (issue #5).
 ///
 /// Also finishes a large title's collapse when the List comes to rest part-way through
-/// it (``LargeTitleRest``, issue #560): UIKit snaps the title only when a drag ends, so a
-/// programmatic scroll could leave it half-way up behind the toolbar.
+/// it (``LargeTitleRestWatch``, issue #560): UIKit snaps the title only when a drag ends,
+/// so a programmatic scroll could leave it half-way up behind the toolbar. The watch
+/// reads `onScrollGeometryChange` and the scroll phase on iOS 18 and later; on iOS 17 (or
+/// with `FST_DEBUG_LEGACY_SCROLL_GEOMETRY=1`) it reads the List's platform scroll view
+/// through an ``EnclosedScrollViewLocator`` and a ``PlatformScrollObserver``, the
+/// scroll-edge fades' legacy path, and waits out touches and deceleration itself.
 private struct ScrolledAwayTracker: ViewModifier {
     /// Moves the List to the nearer end of a part-way large-title collapse.
     let nudger: ListScrollNudger
     /// Receives the List's top content inset and offset on every scroll geometry change.
     let topInsetChanged: (CGFloat, CGFloat) -> Void
     let changed: (Bool) -> Void
+    /// Read the large-title rest from the platform scroll view (iOS 17 path).
+    var legacyRest = ScrollEdgeTracking.usesLegacyPath
     @State private var gate = ScrollAwayGate()
     /// The last value sent to `changed`; nil until the first decision is reported.
     @State private var reported: Bool?
     /// Rest checks; a reference so per-sample bookkeeping never re-renders the List.
-    @State private var rest = RestWatch()
+    @State private var rest = RestFeed()
 
-    /// The List's resting state for the large-title check (issue #560).
+    /// The List's resting state for the large-title check (issue #560), and the legacy
+    /// path's scroll observer.
     @MainActor
-    private final class RestWatch {
-        var decision = LargeTitleRest()
-        var latest: Sample?
-        var idle = true
-        var check: Task<Void, Never>?
+    private final class RestFeed {
+        /// The nudger the watch settles with; set on every render.
+        weak var nudger: ListScrollNudger?
 
-        /// Check the List once it has stopped moving for ``settleDelay``.
-        func schedule(_ nudger: ListScrollNudger) {
-            check?.cancel()
-            guard idle else { return }
-            check = Task { @MainActor [weak self, weak nudger] in
-                try? await Task.sleep(for: Self.settleDelay)
-                guard let self, let nudger, !Task.isCancelled, self.idle,
-                      let sample = self.latest,
-                      let target = self.decision.restingOffset(
-                        offsetY: sample.offsetY, topInset: sample.topInset
-                      ) else { return }
-                if nudger.settleLargeTitle(at: target) {
+        lazy var watch: LargeTitleRestWatch = LargeTitleRestWatch(
+            isInteracting: { [weak self] in self?.nudger?.isInteracting ?? false },
+            settle: { [weak self] target in
+                if self?.nudger?.settleLargeTitle(at: target) == true {
                     MainThreadStallMonitor.count("songs.largeTitle.settle")
                 }
             }
-        }
+        )
 
-        /// How long the List must be still before a rest check: longer than UIKit's
-        /// own snap and the landing corrections' rounds take to start.
-        static let settleDelay: Duration = .milliseconds(400)
+        /// The iOS 17 path's reader of the List's platform scroll view.
+        lazy var observer: PlatformScrollObserver = PlatformScrollObserver { [weak self] reading in
+            guard let self else { return }
+            self.watch.record(
+                offsetY: reading.offset - reading.inset, topInset: reading.inset,
+                width: self.observer.scrollView?.bounds.width ?? 0
+            )
+        }
     }
 
     /// The geometry values the gate needs.
@@ -1880,6 +1882,26 @@ private struct ScrolledAwayTracker: ViewModifier {
     }
 
     func body(content: Content) -> some View {
+        let rest = rest
+        rest.nudger = nudger
+        return observed(content)
+            .background {
+                #if os(iOS)
+                if legacyRest {
+                    EnclosedScrollViewLocator(
+                        current: { rest.observer.scrollView },
+                        found: { rest.observer.attach($0) },
+                        refresh: { rest.observer.report() }
+                    )
+                    .accessibilityHidden(true)
+                }
+                #endif
+            }
+    }
+
+    /// The content with the iOS 18 / macOS 15 geometry and phase observers.
+    @ViewBuilder
+    private func observed(_ content: Content) -> some View {
         if #available(iOS 18.0, macOS 15.0, *) {
             content
             .onScrollGeometryChange(for: Sample.self) { geometry in
@@ -1892,12 +1914,11 @@ private struct ScrolledAwayTracker: ViewModifier {
                 // twice raises this peak above the expanded large title's inset.
                 MainThreadStallMonitor.peak("songs.topInset", Double(sample.topInset))
                 topInsetChanged(sample.topInset, sample.offsetY)
-                rest.decision.update(
-                    offsetY: sample.offsetY, topInset: sample.topInset,
-                    containerWidth: sample.width
-                )
-                rest.latest = sample
-                rest.schedule(nudger)
+                if !legacyRest {
+                    rest.watch.record(
+                        offsetY: sample.offsetY, topInset: sample.topInset, width: sample.width
+                    )
+                }
                 gate.update(
                     offsetY: sample.offsetY, topInset: sample.topInset,
                     containerWidth: sample.width
@@ -1908,8 +1929,8 @@ private struct ScrolledAwayTracker: ViewModifier {
                 changed(gate.isScrolled)
             }
             .onScrollPhaseChange { _, phase in
-                rest.idle = phase == .idle
-                rest.schedule(nudger)
+                guard !legacyRest else { return }
+                rest.watch.setPhaseIdle(phase == .idle)
             }
         } else {
             content

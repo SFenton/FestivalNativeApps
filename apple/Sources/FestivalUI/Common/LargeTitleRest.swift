@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 
 // MARK: - Large-title rest
 
@@ -68,5 +69,91 @@ struct LargeTitleRest: Equatable {
         guard band > Self.tolerance, past > Self.tolerance, past < band - Self.tolerance
         else { return nil }
         return past < band / 2 ? -topInset : -topInset + band
+    }
+}
+
+// MARK: - Rest watch
+
+/// Runs ``LargeTitleRest`` once a List has come to rest, on every supported system
+/// (issue #560, section-jump-landing R9).
+///
+/// Feed it every scroll sample with ``record(offsetY:topInset:width:)``. On iOS 18 /
+/// macOS 15 and later the scroll phase also reports when the List is idle
+/// (``setPhaseIdle(_:)``); on iOS 17, or with `FST_DEBUG_LEGACY_SCROLL_GEOMETRY=1`, there
+/// is no phase, so the samples come from ``PlatformScrollObserver`` and `isInteracting`
+/// (the scroll view's tracking, dragging and deceleration) decides. Either way the check
+/// runs ``settleDelay`` after the last sample, waits while a finger is down or the List
+/// decelerates, and then asks `settle` to move to the nearer end of a part-way collapse.
+@MainActor
+final class LargeTitleRestWatch {
+    /// How long the List must be still before a rest check: longer than UIKit's own snap
+    /// and the landing corrections' rounds take to start.
+    static let settleDelay: Duration = .milliseconds(400)
+
+    /// The collapse band learned so far.
+    private(set) var decision = LargeTitleRest()
+    /// The newest sample's content offset and top inset.
+    private var latest: (offsetY: CGFloat, topInset: CGFloat)?
+    /// Whether the scroll phase is idle; stays `true` where no phase is reported.
+    private(set) var phaseIdle = true
+    private let delay: Duration
+    private let isInteracting: @MainActor () -> Bool
+    private let settle: @MainActor (CGFloat) -> Void
+    private var check: Task<Void, Never>?
+
+    /// A watch with nothing learned yet.
+    ///
+    /// - Parameters:
+    ///   - delay: How long the List must be still before a check.
+    ///   - isInteracting: Whether a finger is on the List or it is still decelerating.
+    ///   - settle: Moves the List to the given content offset.
+    init(
+        delay: Duration = LargeTitleRestWatch.settleDelay,
+        isInteracting: @escaping @MainActor () -> Bool,
+        settle: @escaping @MainActor (CGFloat) -> Void
+    ) {
+        self.delay = delay
+        self.isInteracting = isInteracting
+        self.settle = settle
+    }
+
+    /// Fold one scroll sample in and restart the rest check.
+    ///
+    /// - Parameters:
+    ///   - offsetY: The vertical content offset.
+    ///   - topInset: The top content inset.
+    ///   - width: The scroll view's visible width.
+    func record(offsetY: CGFloat, topInset: CGFloat, width: CGFloat) {
+        decision.update(offsetY: offsetY, topInset: topInset, containerWidth: width)
+        latest = (offsetY, topInset)
+        schedule()
+    }
+
+    /// Note the scroll phase (iOS 18 / macOS 15 and later) and restart the rest check.
+    ///
+    /// - Parameter idle: Whether the List's scroll phase is idle.
+    func setPhaseIdle(_ idle: Bool) {
+        phaseIdle = idle
+        schedule()
+    }
+
+    /// Check the List once it has been still for the delay, waiting out touches and
+    /// deceleration; any new sample or phase restarts the wait.
+    private func schedule() {
+        check?.cancel()
+        guard phaseIdle else { return }
+        let delay = delay
+        check = Task { @MainActor [weak self] in
+            while true {
+                try? await Task.sleep(for: delay)
+                guard let self, !Task.isCancelled, self.phaseIdle else { return }
+                if self.isInteracting() { continue }
+                guard let latest = self.latest, let target = self.decision.restingOffset(
+                    offsetY: latest.offsetY, topInset: latest.topInset
+                ) else { return }
+                self.settle(target)
+                return
+            }
+        }
     }
 }
