@@ -50,6 +50,8 @@ import java.util.concurrent.CopyOnWriteArrayList
  *   at least 48 dp and the pickers speak their new choice; the new rows are read before the pager.
  * - Leaderboards overview Rank By change: the cards that keep loading under the spinner are silent
  *   to TalkBack (R2, #178), the spinner reads "Loading leaderboards" and Rank By its new choice.
+ * - Song leaderboard instrument switch (#575): no pager and no placeholder "Page 1 of 1" is read
+ *   until the new board's page count loads; then the pager reads "Page 1 of 3" at 48 dp.
  *
  * `device.py test com.festivalscoretracker.android.journeys.LoadSwapAccessibilityJourneyTest --avd …`
  */
@@ -332,6 +334,41 @@ class LoadSwapAccessibilityJourneyTest {
         assertEquals("Rank By, FC Rate", spoken("$bands.rank-by-menu"))
         fcRate.complete(Unit)
         assertBandsSettled("band-rankings-fc-rate-2x")
+        h.assertAccessible()
+    }
+
+    /**
+     * Song leaderboard instrument switch (#575): the switch opens the new chart's own board, whose
+     * first load has no page count yet, so TalkBack reads only "Loading leaderboard" (no pager, no
+     * placeholder "Page 1 of 1") until the board commits; then the pager reads the real count with
+     * 48 dp, usable arrows after the rows.
+     */
+    @Test
+    fun songLeaderboardInstrumentSwitchReadsNoPagerUntilTheCountLoads() {
+        val song = "fst.song-leaderboard"
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(route = DebugLaunch.parseRoute("songLeaderboard:s-alpha:Solo_Guitar"), stillBackground = true), transport)
+        h.waitForTag("$song.page-info")
+        h.waitGone("$song.loading")
+        assertTarget("$song.page-next", enabled = true)
+
+        val bass = hold { it.contains("/api/leaderboard/s-alpha/Solo_Bass") }
+        h.tap("$song.instrument")
+        h.tap("$song.instrument.Solo_Bass")
+        val order = assertSpinner("song-leaderboard-switch-loading", "$song.loading", "Loading leaderboard", "$song.row.", "$song.page-info", after = null)
+        assertTrue("a pager is read before the count is known: $order", order.none { it.startsWith("Page ") })
+        assertTrue("pager drawn before the count is known", visibleNodes("$song.page").isEmpty() && visibleNodes("$song.pager").isEmpty())
+        h.assertAccessible()
+
+        bass.complete(Unit)
+        h.waitForTag("$song.page-info")
+        h.waitGone("$song.loading")
+        h.awaitAccessibilityTree(present = "$song.page-info", absent = "$song.loading")
+        val settled = h.readingOrder("song-leaderboard-bass", fresh = true)
+        val pager = settled.indexOfFirst { it.startsWith("Page ") }
+        assertTrue("pager does not read the real count: $settled", pager >= 0 && settled[pager].startsWith("Page 1 of 3"))
+        assertTarget("$song.page-previous")
+        assertTarget("$song.page-next", enabled = true)
         h.assertAccessible()
     }
 

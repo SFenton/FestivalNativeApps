@@ -277,7 +277,8 @@ fun SongLeaderboardScreen(
                     }
                 }
             },
-            pager = { RankingsPager(page, loaded?.pageCount() ?: page, "fst.song-leaderboard", viewModel::goTo) },
+            // No pager until this board's page count has loaded (a switched instrument is a new route), and none for one page (#575).
+            pager = { RankingsPager(page, loaded?.pageCount(), "fst.song-leaderboard", viewModel::goTo) },
             // Rows fade out above the pinned score and pager, as on the web (issue #93).
             fadeAboveFooter = true,
         ) {
