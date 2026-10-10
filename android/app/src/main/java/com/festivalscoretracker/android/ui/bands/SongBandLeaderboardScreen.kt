@@ -208,14 +208,15 @@ fun SongBandLeaderboardScreen(
     }
 
     // Like the solo board (pattern `song-leaderboard-header` R3, issue #317): the song header and band size
-    // scroll with the rows and the top bar takes the song title once they have scrolled away.
-    // Across a hinge the header stays in the leading pane, so the bar stays empty.
+    // scroll with the rows and the top bar takes the song title, over the band size (no icon, issue #580),
+    // once they have scrolled away. Across a hinge the header stays in the leading pane, so the bar stays empty.
     val headerGone by remember(listState) { derivedStateOf { !twoPane && listState.firstVisibleItemIndex > 0 } }
     FestivalScreen(
         title = if (headerGone) song?.title.orEmpty() else "",
         isRoot = false,
         scrolled = headerGone,
         marqueeTitle = true,
+        subtitle = type.label,
         modifier = Modifier.testTag("fst.song-band-leaderboard.screen"),
         fadeInWindow = fadeIn,
     ) { padding ->
