@@ -467,9 +467,13 @@ struct RivalInstrumentSongSection: View {
 /// of rows (or its spinner, empty copy or error), and "View All Rivals" below it.
 ///
 /// Shared by the Rivals hub (``RivalInstrumentSongSection``, which loads it) and Compete
-/// (which passes the page's state and its stagger position).
+/// (which passes the page's state and its stagger position). On Compete a card may also
+/// title a combo's server-computed rivals (web `CompetePage` rivals per ranking scope,
+/// issue #602): its header draws the combo, View All Rivals and a tapped rival open the
+/// combo scope.
 struct RivalInstrumentSongCard: View {
-    let instrument: Instrument
+    /// The card's board: one instrument's shared-song rivals, or a combo's rivals.
+    let scope: RankingScope
     let state: RivalsLoadState<RivalsListResponse>
     /// Scope a tapped rival opens with; nil opens this instrument's comparison
     /// (web `CompetePage`: `combo: scope.queryValue`).
@@ -492,8 +496,85 @@ struct RivalInstrumentSongCard: View {
 
     private let previewCount = 3
 
+    /// Create a card for one instrument's or a combo's rivals.
+    ///
+    /// - Parameters:
+    ///   - scope: The instrument or within-group combo.
+    ///   - state: The rivals read.
+    ///   - detailScope: Scope a tapped rival opens with; nil opens the card's own.
+    ///   - registersQuickLink: Whether the card registers its own Quick Links section.
+    ///   - emptyMessage: Copy for an empty result; nil hides the card.
+    ///   - entranceIndex: The card's place in the page's first-load stagger.
+    ///   - retry: Reads the rivals again after a failure.
+    init(
+        scope: RankingScope, state: RivalsLoadState<RivalsListResponse>, detailScope: RivalScope? = nil,
+        registersQuickLink: Bool = true, emptyMessage: String? = nil, entranceIndex: Int? = nil,
+        retry: @escaping () -> Void
+    ) {
+        self.scope = scope
+        self.state = state
+        self.detailScope = detailScope
+        self.registersQuickLink = registersQuickLink
+        self.emptyMessage = emptyMessage
+        self.entranceIndex = entranceIndex
+        self.retry = retry
+    }
+
+    /// Create a card for one instrument's shared-song rivals.
+    ///
+    /// - Parameters:
+    ///   - instrument: The card's instrument.
+    ///   - state: The rivals read.
+    ///   - detailScope: Scope a tapped rival opens with; nil opens this instrument's.
+    ///   - registersQuickLink: Whether the card registers its own Quick Links section.
+    ///   - emptyMessage: Copy for an empty result; nil hides the card.
+    ///   - entranceIndex: The card's place in the page's first-load stagger.
+    ///   - retry: Reads the rivals again after a failure.
+    init(
+        instrument: Instrument, state: RivalsLoadState<RivalsListResponse>, detailScope: RivalScope? = nil,
+        registersQuickLink: Bool = true, emptyMessage: String? = nil, entranceIndex: Int? = nil,
+        retry: @escaping () -> Void
+    ) {
+        self.init(
+            scope: .instrument(instrument), state: state, detailScope: detailScope,
+            registersQuickLink: registersQuickLink, emptyMessage: emptyMessage,
+            entranceIndex: entranceIndex, retry: retry
+        )
+    }
+
+    /// The rivals scope of this card's own board: the instrument's shared songs, or the
+    /// combo's server-computed list (web `Routes.allRivals(scope.queryValue)`).
+    private var ownScope: RivalScope {
+        switch scope {
+        case let .instrument(instrument): .song(instruments: [instrument.rawValue])
+        case let .combo(combo): .combo(token: combo.comboId, instruments: combo.instruments.map(\.rawValue))
+        }
+    }
+
     private var rowDetailScope: RivalScope {
-        detailScope ?? .song(instruments: [instrument.rawValue])
+        detailScope ?? ownScope
+    }
+
+    /// Identifier stem: `fst.rivals.song.<instrument>`, or `fst.rivals.combo.<comboId>`.
+    private var identifierStem: String {
+        switch scope {
+        case let .instrument(instrument): "fst.rivals.song.\(instrument.rawValue)"
+        case let .combo(combo): "fst.rivals.combo.\(combo.comboId)"
+        }
+    }
+
+    /// The card's title, e.g. "Lead Rivals" or "Lead + Bass Rivals".
+    private var title: String { "\(scope.label) Rivals" }
+
+    /// The Mac keyboard group order of a rivals card: a combo's card sits just before its
+    /// first instrument's, as Compete draws it (instrument order otherwise).
+    ///
+    /// - Parameter scope: The card's board.
+    /// - Returns: The group order.
+    static func keyboardOrder(for scope: RankingScope) -> Int {
+        let first = scope.instruments.first.flatMap { Instrument.allCases.firstIndex(of: $0) } ?? 0
+        if case .combo = scope { return 10 + 2 * first }
+        return 11 + 2 * first
     }
 
     var body: some View {
@@ -501,7 +582,7 @@ struct RivalInstrumentSongCard: View {
         case .loading:
             shell { FestivalLoadingView(accessibilityLabel: "Loading").frame(maxWidth: .infinity).padding(.vertical, 12) }
         case let .failed(issue):
-            entrance(shell { ServiceStatusInline(issue, scope: "rivals.song.\(instrument.rawValue)", retry: retry) })
+            entrance(shell { ServiceStatusInline(issue, scope: "rivals.song.\(scope.id)", retry: retry) })
         case let .loaded(response) where response.isEmpty:
             if let emptyMessage {
                 entrance(shell { FestivalFootnote(emptyMessage) })
@@ -510,9 +591,9 @@ struct RivalInstrumentSongCard: View {
             }
         case let .loaded(response):
             entrance(taggedShell(viewAll: RivalsViewAllButton(
-                route: AppRoute.allRivals(scope: .song(instruments: [instrument.rawValue])),
-                identifier: "fst.rivals.song.\(instrument.rawValue).view-all",
-                card: "\(instrument.label) Rivals"
+                route: AppRoute.allRivals(scope: ownScope),
+                identifier: "\(identifierStem).view-all",
+                card: title
             )) {
                 ForEach(previewRows(response)) { row in
                     ListDetailLink(
@@ -524,12 +605,12 @@ struct RivalInstrumentSongCard: View {
                         RivalRowContent(rival: row.rival, direction: row.direction)
                     }
                     .accessibilityIdentifier("fst.rivals.row.\(row.rival.accountId)")
-                    .macKeyboardRow("song.\(instrument.rawValue)|\(row.rival.accountId)")
+                    .macKeyboardRow("song.\(scope.id)|\(row.rival.accountId)")
                 }
             }
-            .macKeyboardRows(order: 10 + (Instrument.allCases.firstIndex(of: instrument) ?? 0), previewRows(response).map { row in
+            .macKeyboardRows(order: Self.keyboardOrder(for: scope), previewRows(response).map { row in
                 MacKeyRow(
-                    id: "song.\(instrument.rawValue)|\(row.rival.accountId)",
+                    id: "song.\(scope.id)|\(row.rival.accountId)",
                     action: .route(.rivalDetail(
                         rivalId: row.rival.accountId, name: row.rival.displayName,
                         scope: rowDetailScope
@@ -577,9 +658,9 @@ struct RivalInstrumentSongCard: View {
     @ViewBuilder private func shell<Content: View>(
         viewAll: RivalsViewAllButton? = nil, @ViewBuilder _ content: () -> Content
     ) -> some View {
-        // Web `InstrumentHeader` SM above the card, never inside it.
+        // Web `InstrumentHeader` SM (a combo: `CompeteScopeHeader`) above the card, never inside it.
         VStack(alignment: .leading, spacing: 8) {
-            InstrumentSectionHeader(instrument, title: "\(instrument.label) Rivals")
+            InstrumentSectionHeader(scope: scope, title: title)
             FestivalGlassSection { content() } action: { viewAll }
         }
         .padding(.horizontal, 16)
@@ -590,9 +671,9 @@ struct RivalInstrumentSongCard: View {
     @ViewBuilder private func taggedShell<Content: View>(
         viewAll: RivalsViewAllButton? = nil, @ViewBuilder _ content: () -> Content
     ) -> some View {
-        if registersQuickLink {
+        if registersQuickLink, case let .instrument(instrument) = scope {
             shell(viewAll: viewAll, content).quickLinkSection(QuickLinkSection(
-                id: instrument.rawValue, title: "\(instrument.label) Rivals", icon: .instrument(instrument)
+                id: instrument.rawValue, title: title, icon: .instrument(instrument)
             ))
         } else {
             shell(viewAll: viewAll, content)
@@ -644,7 +725,7 @@ struct RivalInstrumentLeaderboardSection: View {
                     .macKeyboardRow("leaderboard.\(instrument.rawValue)|\(row.rival.accountId)")
                 }
             }
-            .macKeyboardRows(order: 10 + (Instrument.allCases.firstIndex(of: instrument) ?? 0), previewRows(response).map { row in
+            .macKeyboardRows(order: RivalInstrumentSongCard.keyboardOrder(for: .instrument(instrument)), previewRows(response).map { row in
                 MacKeyRow(
                     id: "leaderboard.\(instrument.rawValue)|\(row.rival.accountId)",
                     action: .route(.rivalDetail(

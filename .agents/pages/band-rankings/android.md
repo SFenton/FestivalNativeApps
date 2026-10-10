@@ -17,7 +17,7 @@ Live Duos, Trios and Quads (1,816,766 ranked Duos), with SFentonX selected. Capt
 
 | Configuration | Result |
 |---|---|
-| FST_Phone portrait / landscape, font 1.0 / 2.0 | **Bug, fixed:** rows passed visibly between and under the floating pager and stayed in touch and TalkBack. Fixed with the footer fade. Font 2.0 stacks rows (rank, roster, score, songs) without clipping. The title ellipsizes at 2.0 (`Duos Leader…`): this is the standard single-line M3 top app bar, accepted as in #103. Paging 1 → 2 and Rank By (FC Rate) work. |
+| FST_Phone portrait / landscape, font 1.0 / 2.0 | **Bug, fixed:** rows passed visibly between and under the floating pager and stayed in touch and TalkBack. Fixed with the footer fade. Font 2.0 stacks rows (rank, roster, score, songs) without clipping. The title ellipsized at 2.0 (`Duos Leader…`), the standard single-line M3 top app bar accepted in #103; since #597 it scrolls as a one-line marquee instead (page-tools-and-nav-chrome R21). Paging 1 → 2 and Rank By (FC Rate) work. |
 | FST_Tablet landscape / portrait, font 2.0 | OK: drawer in landscape, rail in portrait, full names on one line, pager centered under the fade. At 2.0 the rows stack. |
 | FST_Resizable phone · foldable · tablet · desktop, desktop font 2.0 | OK: bottom bar → rail → drawer, fade at every width. |
 | FST_Book_Fold folded / half / unfolded, half font 2.0 | **Half-open bug, fixed:** in the 261 dp list pane, names disappeared. Rows now stack with full rosters, and the population and pager sit in the trailing pane. Folded and unfolded rows are unchanged. Half-open at font 2.0 stays one column with stacked rows: `rememberHingeSplit` drops the split under large text and TalkBack by design (`rememberSingleColumn`). |

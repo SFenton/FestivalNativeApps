@@ -92,7 +92,7 @@ Live public service, SFentonX selected, dark scheme. Material 3 skill guidance c
 | FST_Resizable phone/foldable/tablet/desktop, fs 1.0/2.0 | — | Pass: 1 / 1 wide (rail) / 2 / 3 columns |
 | FST_Book_Fold unfolded/half/folded, portrait/landscape, fs 1.0/2.0 | — | Pass: one wide column / two columns split at the hinge, nothing across it / phone layout; folded landscape 2 columns |
 | FST_Passport_Fold folded/unfolded, portrait/landscape, fs 1.0/2.0 | — | Pass: phone layout folded; one wide column with the rail unfolded (icon-only at 2.0) |
-| FST_TriFold folded/partial/unfolded, fs 1.0/2.0 | Folded at 2.0 the shared one-line top-bar title truncates ("Sugges…") | Pass (shared top-bar behaviour, as other pages); 1 / 1 / 2 columns |
+| FST_TriFold folded/partial/unfolded, fs 1.0/2.0 | Folded at 2.0 the shared one-line top-bar title truncated ("Sugges…"; a one-line marquee since #597) | Pass (shared top-bar behaviour, as other pages); 1 / 1 / 2 columns |
 | Light theme | App stays dark | Documented dark-only deviation ([design](../../design/android.md)) |
 | Reduced motion (animator scale 0) | — | Cards show at once (no batch fade); marquees truncate |
 | TalkBack (FST_Phone, real) | Search, Notifications (N unread), Profile: <name>, Filter Suggestions, then card heading, description and one Button stop per row ("title, artist · year, metadata") | Coherent order after the fix |

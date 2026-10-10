@@ -53,6 +53,10 @@ enum AppRoute: Hashable {
     /// `focusSelected` is the web's `navToPlayer`: bring the selected player's row on
     /// that page into view, as a Compete preview's "your rank" row asks (issue #370).
     case fullRankings(instrument: Instrument, rankBy: String, page: Int = 1, focusSelected: Bool = false)
+    /// `/leaderboards/all?combo=&rankBy=[&page=&navToPlayer=true]` (web
+    /// `Routes.fullComboRankings`): a within-group combo's full board, opened by a Compete
+    /// combo card's View Full Leaderboard or its "your rank" row (issue #602).
+    case fullComboRankings(combo: RankingCombo, rankBy: String, page: Int = 1, focusSelected: Bool = false)
     /// `/leaderboards/bands/:bandType?rankBy=&page=` (1-based page). Band Detail's rank
     /// tiles open the board at their metric and the band's page (web `Routes.bandRankings`).
     case bandRankings(bandType: String, rankBy: String = "totalscore", page: Int = 1)
