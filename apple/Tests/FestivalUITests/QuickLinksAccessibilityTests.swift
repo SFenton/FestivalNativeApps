@@ -485,5 +485,54 @@ private func quickLinksA11yController(
         try await nativeHostedSettle(host, untilText: ["Page"])
         #expect(nativeHostedAccessibilityElement("fst.quick-links.open", in: host) == nil)
     }
+
+    /// Rival Detail's chooser gives every category row its own SF Symbol (#605; HIG Menus:
+    /// "give every item an icon, or give none of them icons"), each a real system symbol,
+    /// while VoiceOver reads only the category names, in page order, as full-width buttons
+    /// with no image elements (the symbols are decorative).
+    @Test func rivalDetailCategoryRowsHaveDistinctDecorativeIcons() async throws {
+        let json = [1, 2, 3, -1, -2, -30, -40, 5, 10, 20, 40, 60, 80].enumerated().map { index, delta in
+            """
+            {"songId":"s\(index)","title":null,"artist":null,"instrument":"Solo_Guitar",
+             "userInstrument":null,"rivalInstrument":null,"userRank":1,"rivalRank":1,
+             "rankDelta":\(delta),"userScore":100,"rivalScore":90}
+            """
+        }.joined(separator: ",")
+        let songs = try JSONDecoder().decode([RivalSongComparison].self, from: Data("[\(json)]".utf8))
+        let sections = RivalCategorization.categorize(songs).map(\.quickLinkSection)
+        #expect(sections.map(\.id) == RivalCategorization.keys.map { "rival-category:\($0)" })
+        let symbols = sections.compactMap { section -> String? in
+            if case let .system(name) = section.icon { return name }
+            return nil
+        }
+        #expect(symbols.count == sections.count, "every row has an icon")
+        #expect(Set(symbols).count == symbols.count, "each category's icon is distinct: \(symbols)")
+        for symbol in symbols {
+            #expect(NSImage(systemSymbolName: symbol, accessibilityDescription: nil) != nil, "\(symbol) is an SF Symbol")
+        }
+
+        let controller = quickLinksA11yController(sections)
+        let menu = PageToolInlineMenu(title: controller.title, choices: QuickLinksMenu(controller: controller).choices())
+        let size = CGSize(width: 402, height: 700)
+        let host = nativeHostedView(
+            PageToolInlineMenuSheet(menu: menu, registry: PageToolsRegistry()).preferredColorScheme(.dark), size: size
+        )
+        let window = nativeHostedWindow(host, size: size)
+        defer { window.orderOut(nil) }
+        try await nativeHostedSettle(host, until: {
+            sections.allSatisfy { nativeHostedAccessibilityElement(quickLinksItemPrefix + $0.id, in: host) != nil }
+        })
+        let nodes = macAccessibilityTree(host)
+        let rows = nodes.filter { $0.isElement && $0.identifier.hasPrefix(quickLinksItemPrefix) }
+        #expect(rows.map(\.spokenName) == sections.map(\.title), "rows read only the category names, in order")
+        #expect(rows.allSatisfy { $0.role == "AXButton" }, "\(rows)")
+        #expect(!nodes.contains { $0.isElement && $0.role == "AXImage" }, "category icons stay decorative")
+        #expect(macAccessibilityFindings(nodes).isEmpty, "\(macAccessibilityFindings(nodes))")
+        let frames = try sections.map {
+            try #require(nativeHostedAccessibilityFrame(quickLinksItemPrefix + $0.id, in: host))
+        }
+        #expect(zip(frames, frames.dropFirst()).allSatisfy { $0.maxY <= $1.minY + 0.5 }, "\(frames)")
+        #expect(frames.allSatisfy { $0.width >= size.width * 0.85 }, "each row's button spans the row: \(frames)")
+    }
 }
 #endif
