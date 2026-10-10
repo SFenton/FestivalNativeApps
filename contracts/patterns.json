@@ -808,7 +808,8 @@
         "hamburger",
         "page title",
         "navigation title",
-        "search drawer"
+        "search drawer",
+        "marquee"
       ],
       "web": [
         {
@@ -923,6 +924,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
             "symbol": "FestivalScreen"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
+            "symbol": "FestivalBarTitle"
           }
         ],
         "windows": [
@@ -1025,6 +1030,15 @@
             "apple/Sources/FestivalUI/Features/Profile/ProfileSelectionSheet.swift"
           ],
           "message": "A pushing page's search drawer goes through SongsSystemFilterField so SearchDrawerTransitionFill draws its capsule during push and pop (page-tools-and-nav-chrome R19); the Profile sheet never pushes."
+        },
+        {
+          "id": "android-one-top-app-bar",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "\\b(TopAppBar|CenterAlignedTopAppBar|MediumTopAppBar|LargeTopAppBar)\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt"
+          ],
+          "message": "Only FestivalScreen draws the top app bar, so every page title marquees through FestivalBarTitle (page-tools-and-nav-chrome R21, #597)."
         }
       ],
       "related": {
@@ -1064,7 +1078,8 @@
         394,
         534,
         544,
-        557
+        557,
+        597
       ]
     },
     {
@@ -2732,7 +2747,7 @@
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
-            "symbol": "marqueeTitle"
+            "symbol": "FestivalBarTitle"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
@@ -2809,7 +2824,8 @@
         342,
         363,
         542,
-        580
+        580,
+        597
       ]
     },
     {
