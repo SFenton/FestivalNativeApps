@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -71,6 +72,9 @@ import androidx.compose.ui.unit.sp
 import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.profile.ScoreHistoryEntry
+import com.festivalscoretracker.android.core.shell.ChartPage
+import com.festivalscoretracker.android.core.shell.ChartPageMotion
+import com.festivalscoretracker.android.ui.common.rememberChartPageSlide
 import com.festivalscoretracker.android.core.songs.ScoreRowSeasonPolicy
 import com.festivalscoretracker.android.core.songs.SongHistoryChart
 import com.festivalscoretracker.android.core.songs.SongHistoryPaging
@@ -267,6 +271,11 @@ internal fun HistoryChart(
         if (paging.size != points.size || paging.maxBars != maxBars) paging = paging.resized(points.size, maxBars)
         if (selected != null && paging.selected != selected) paging = paging.copy(selected = selected)
         val page = points.subList(paging.pageStart, paging.pageEnd)
+        val slide = rememberChartPageSlide(
+            ChartPage(paging.pageStart, page.size, points.size),
+            niceMax(page.maxOfOrNull { it.score } ?: 0L).toFloat(),
+            key = points,
+        )
         val measurer = rememberTextMeasurer()
         val summary = remember(points, chart) { summary(points, chart) }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -301,28 +310,34 @@ internal fun HistoryChart(
                         drawText(accLabel, topLeft = Offset(axis + plotWidth + 4f, (y - accLabel.size.height / 2).coerceIn(0f, maxOf(0f, plotHeight - accLabel.size.height))))
                     }
                     if (page.isEmpty()) return@Canvas
-                    val slot = plotWidth / page.size
-                    val barWidth = minOf(slot * 0.9f, MAX_BAR.toPx())
+                    val barWidth = minOf(plotWidth / page.size * 0.9f, MAX_BAR.toPx())
                     val radius = CornerRadius(4.dp.toPx())
-                    page.forEachIndexed { i, point ->
-                        val x = axis + slot * i + (slot - barWidth) / 2
-                        val h = (plotHeight * (point.accuracyPercent / 100.0)).toFloat().coerceAtLeast(1f)
-                        val color = if (point.isGold) BrandTokens.gold else accuracyColor(point.accuracyPercent)
-                        drawRoundRect(color, Offset(x, plotHeight - h), Size(barWidth, h), radius)
-                        if (paging.selected == paging.pageStart + i) {
-                            drawRoundRect(BrandTokens.accentPurple, Offset(x, plotHeight - h), Size(barWidth, h), radius, style = Stroke(3.dp.toPx()))
+                    // The window slides on paging (load-transition R11): draw every point in or entering
+                    // the plot at its slot, clipped sideways to the plot; the score line eases to the new top.
+                    val slots = ChartPageMotion.slots(slide.start, page.size, points.size)
+                    val scoreTop = slide.valueTop.toDouble()
+                    fun centre(x: Float) = axis + plotWidth * x
+                    fun scoreY(point: SongHistoryPoint) = plotHeight * (1 - ChartPageMotion.height(point.score.toDouble(), scoreTop))
+                    clipRect(left = axis, top = -plotHeight, right = axis + plotWidth, bottom = plotHeight * 2) {
+                        slots.forEach { slot ->
+                            val point = points[slot.index]
+                            val x = centre(slot.x) - barWidth / 2
+                            val h = (plotHeight * (point.accuracyPercent / 100.0)).toFloat().coerceAtLeast(1f)
+                            val color = if (point.isGold) BrandTokens.gold else accuracyColor(point.accuracyPercent)
+                            drawRoundRect(color, Offset(x, plotHeight - h), Size(barWidth, h), radius)
+                            if (paging.selected == slot.index) {
+                                drawRoundRect(BrandTokens.accentPurple, Offset(x, plotHeight - h), Size(barWidth, h), radius, style = Stroke(3.dp.toPx()))
+                            }
                         }
-                    }
-                    // Score line with dots (web accentBlueBright).
-                    val line = Path()
-                    page.forEachIndexed { i, point ->
-                        val cx = axis + slot * i + slot / 2
-                        val cy = plotHeight * (1 - point.score.toFloat() / topScore)
-                        if (i == 0) line.moveTo(cx, cy) else line.lineTo(cx, cy)
-                    }
-                    drawPath(line, SCORE_BLUE, style = Stroke(2.dp.toPx()))
-                    page.forEachIndexed { i, point ->
-                        drawCircle(SCORE_BLUE, 4.dp.toPx(), Offset(axis + slot * i + slot / 2, plotHeight * (1 - point.score.toFloat() / topScore)))
+                        // Score line with dots (web accentBlueBright).
+                        val line = Path()
+                        slots.forEachIndexed { i, slot ->
+                            val cx = centre(slot.x)
+                            val cy = scoreY(points[slot.index])
+                            if (i == 0) line.moveTo(cx, cy) else line.lineTo(cx, cy)
+                        }
+                        drawPath(line, SCORE_BLUE, style = Stroke(2.dp.toPx()))
+                        slots.forEach { slot -> drawCircle(SCORE_BLUE, 4.dp.toPx(), Offset(centre(slot.x), scoreY(points[slot.index]))) }
                     }
                 }
                 // One date centred under each bar; the bars' dates are in the chart's description, so TalkBack skips them.
@@ -332,6 +347,7 @@ internal fun HistoryChart(
                     style = TICK_STYLE,
                     color = BrandTokens.textMuted,
                     modifier = Modifier.padding(top = 4.dp).testTag("fst.song-detail.history.dates"),
+                    shift = { slide.labelShift },
                 )
             }
             Legend(page)

@@ -171,6 +171,26 @@ data class RankHistoryChart(
         RankHistoryPlot.build(window, totalAccounts, locale, valueScale) { axisText(it, metric, locale) }
 
     /**
+     * The value axis top of a window's bars, in the metric's units.
+     *
+     * @param window Visible window over [snapshots].
+     * @return Top, or 0 when every visible value is zero.
+     */
+    fun valueTop(window: RankHistoryWindow): Double = RankHistoryPlot.valueTop(window, valueScale)
+
+    /**
+     * Bars and rank line for a window whose first band is at [position] (fractional mid-slide,
+     * `load-transition` R11).
+     *
+     * @param window Window being slid to.
+     * @param position Fractional start index.
+     * @param valueTop Value axis top in the metric's units.
+     * @return Marks to draw.
+     */
+    fun marks(window: RankHistoryWindow, position: Float, valueTop: Double): RankHistoryPlot.Marks =
+        RankHistoryPlot.marks(window, totalAccounts, position, valueTop, valueScale)
+
+    /**
      * Value-axis labels for a window: Recharts' nice ticks from zero over the visible
      * values (the same axis [plot] scales the bars to).
      *

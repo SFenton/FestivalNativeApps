@@ -249,6 +249,27 @@ class SongHistoryCardUiTest {
     private val mixed get() = rows("Solo_Guitar", 8) + rows("Solo_Bass", 2) + rows("Solo_Drums", 3, goldLast = true)
 
     @Test
+    fun pagingSlidesTheChartWithoutResizingTheCard() {
+        show(rows("Solo_Guitar", 30, goldLast = true))
+        rule.waitForIdle()
+        draw()
+        val before = cardHeight()
+        val chart = rule.onNodeWithTag("fst.song-detail.history.chart").getBoundsInRoot()
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithContentDescription("Back one page").performClick()
+        rule.mainClock.advanceTimeBy(200)
+        // Mid-slide (load-transition R11): the chart draws both windows' bars, clipped, at the same size.
+        draw()
+        assertEquals(before, cardHeight())
+        assertEquals(chart, rule.onNodeWithTag("fst.song-detail.history.chart").getBoundsInRoot())
+        rule.mainClock.advanceTimeBy(600)
+        draw()
+        assertEquals(before, cardHeight())
+        rule.onNodeWithContentDescription("Forward one page").assertIsEnabled()
+        rule.mainClock.autoAdvance = true
+    }
+
+    @Test
     fun switchingChartFadesOutSwapsAndFadesInWithoutResizingTheCard() {
         show(mixed)
         rule.waitForIdle()
