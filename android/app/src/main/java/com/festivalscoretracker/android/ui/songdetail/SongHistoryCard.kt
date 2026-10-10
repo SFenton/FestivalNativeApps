@@ -82,6 +82,7 @@ import com.festivalscoretracker.android.ui.common.ChartBandLabels
 import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentSelector
+import com.festivalscoretracker.android.ui.design.InstrumentSelectorLook
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.design.ViewFullLeaderboardButton
 import com.festivalscoretracker.android.ui.leaderboards.FrostedPagerButton
@@ -176,6 +177,7 @@ fun SongHistoryCard(
                     onSelect = { next -> if (next != null) chosen = next },
                     required = true,
                     keyboard = keyboard,
+                    look = InstrumentSelectorLook.Graph,
                     tag = "fst.song-detail.history.instrument",
                 )
                 Text(
