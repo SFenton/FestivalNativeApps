@@ -130,10 +130,16 @@ def _submit_enabled(enabled: bool) -> str:
     return f"assertstate:{SUBMIT}|enabled={'true' if enabled else 'false'}@5"
 
 
+PICKER_OPEN_S = 45
+"""Seconds for the system file picker to open. Its first open on a fresh hosted runner is a cold shell start (Pictures
+library, thumbnail view) and outlasted 15 s in master run 37937505898 (``feedback-attachments`` compact, #552); a
+warm open takes about a second."""
+
+
 def _pick(*names: str) -> list[str]:
-    """Steps that pick generated media through the system file picker."""
+    """Steps that pick generated media through the system file picker (:data:`PICKER_OPEN_S` for it to open)."""
     quoted = " ".join(f'"{{media}}\\{name}"' for name in names)
-    return [f"scrollinto:id={ROOT}.attach@5", f"invoke:id={ROOT}.attach", "waitfor:id=1148&class=Edit@15",
+    return [f"scrollinto:id={ROOT}.attach@5", f"invoke:id={ROOT}.attach", f"waitfor:id=1148&class=Edit@{PICKER_OPEN_S}",
             f"setvalue:id=1148&class=Edit|{quoted}",
             "invoke:id=1&class=Button", "waitgone:id=1148&class=Edit@10", "wait:1"]
 

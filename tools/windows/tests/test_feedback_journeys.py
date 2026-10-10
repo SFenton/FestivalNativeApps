@@ -75,6 +75,16 @@ class FeedbackJourneyTests(unittest.TestCase):
         self.assertEqual(setvalue["selector"], {"kind": "id", "value": "1148", "class": "Edit"})
         self.assertEqual(setvalue["text"], f'"{Path("C:/media")}\\a.png" "{Path("C:/media")}\\b.png"')
 
+    def test_picker_open_allows_a_cold_start(self):
+        # #552: the picker's first open on a fresh runner outlasted 15 s; every driver of it waits PICKER_OPEN_S.
+        self.assertGreaterEqual(f.PICKER_OPEN_S, 45)
+        pages = json.loads((f.REPO / "tools" / "windows" / "journeys" / "a11y-feedback.json").read_text(encoding="utf-8"))
+        waits = [s for p in pages for s in p["after_ready"] if s.startswith("waitfor:id=1148&class=Edit")]
+        waits += [s for s in f._pick("a.png") if s.startswith("waitfor:id=1148&class=Edit")]
+        self.assertGreaterEqual(len(waits), 2)
+        for step in waits:
+            self.assertGreaterEqual(u.parse_step(step)["timeout"], f.PICKER_OPEN_S, step)
+
     def test_check_tree_counts(self):
         ok = f.Phase([], expect=[f._named("fst.settings.feedback.validation", "Add a description.")],
                      forbid=[r'"Image, shot-3'], count={f.ATTACHMENT: 2})
