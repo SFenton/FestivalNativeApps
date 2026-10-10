@@ -2,7 +2,7 @@
 
 > **What:** the shared sheet, dialog and alert container with its title, dismissal and standard Close affordance. **Read when:** presenting a scoped task, confirmation or notice.
 
-Status: **current**, 2026-10-05. Provenance: #23, #24, #25, #94, #96, #125, #139, #140, #183, #360, #373, #400.
+Status: **current**, 2026-10-10. Provenance: #23, #24, #25, #94, #96, #125, #139, #140, #183, #360, #373, #400, #586.
 
 ## Intent
 
@@ -34,6 +34,19 @@ A modal identifies one short, scoped task, exposes its platform-standard dismiss
   - macOS: there is no cover, so it is a sheet sized to the presenting window's content area (`MacWindowSizedSheet`: the sheet window is matched to the parent's `contentLayoutRect` once attached, because SwiftUI adds the sheet's bar outside a fitted frame), Close-only (HIG Modality: "macOS/tvOS use a button in the main content view"), with `presentationSizing(.fitted)` instead of `.page`.
   - The coverage is **latched while open** (agent decision, #368): folding or unfolding a Duo, or resizing an iPad window, never swaps cover and sheet or loses the viewer's state (HIG Designing for iPhone Duo: "Preserve functionality, element state, hierarchy, and access across displays/poses" (must)). Its View menu still follows the live layout (Side by Side appears or falls back to the Settings default view).
   - Contrast: What's New covers the iPhone through the same `festivalModalPresentation` but stays a centred sheet on the Duo inner display (`WhatsNewPresentationStyle`: "a cover stretched the iPhone page"; [whats-new](../controls/whats-new/ios.md)); only Paths, which shows two panes, covers it. Do not spread the cover to other modals without an owner ask. Evidence: `SongPathsPolicyTests`, `SongPathsSheetRenderTests` (book pose and wide Side by Side), `DuoPathsSelectorJourneyTests.testUnfoldedOffersSideBySideBookPoseSplitsAtHingeAndFoldingFallsBack`.
+- **R13. Open every sheet at its full height (Android, #586).** `FestivalModalSheet` always opens fully expanded: its content height, up to the window below the status bar and `SHEET_TOP_GAP_DP`, with **no** half-height stop (`rememberModalBottomSheetState(skipPartiallyExpanded = true)`, fixed in the shell; there is no parameter to opt out). Owner (#573, Song Page): "Modals throughout the app don't open to full proper height". Material's `ModalBottomSheet` opens a sheet taller than half the window at its partially expanded stop when that stop exists. Quick Links with more than 8 sections (every Song Details page), Profiles and Find Rival opted into it, so their lower rows (or the Players/Bands content in landscape) sat below the screen until dragged up. Dismissal is unchanged: Close, Back, a scrim tap and a swipe down (straight to dismissed, as every other sheet already did); R8's hinge side still applies. Agent decision below; the owner may override. Evidence: `FestivalModalTest#tallSheetOpensFullyExpanded` (no `Expand` action; the header sits near the window top), with the control `materialHalfHeightStopOffersExpand`; the connected `ModalCloseJourneyTest` asserts no `Expand` action for every sheet and dialog, and `ProfileQuickLinksAccessibilityJourneyTest` / `StatisticsAccessibilityJourneyTest` reach the lower Quick Links rows by scrolling the open list.
+
+## Agent decision (#586, 2026-10-10): sheets open fully expanded, no half-height stop
+
+Question: owner, "Modals throughout the app don't open to full proper height". Three Android sheets used Material's half-height stop; every other sheet already opened fully expanded.
+
+| Option | What you see | Guidance (strength) | Web / pattern precedent | Trade-offs |
+|---|---|---|---|---|
+| **A (chosen)** | Every sheet opens at its content height (up to the full window); swipe down dismisses. | Compose Material3 `rememberModalBottomSheetState`: "skipPartiallyExpanded – Whether the partially expanded state, if the sheet is tall enough, should be skipped. If true, the sheet will always expand to the Expanded state" (API); Material 3 adaptive layout: "Bottom sheet — Compact: Full height" (should). | The shell's own default (9 of 12 sheets). Web source not on this host, so not compared. | Removes the half stop the three sheets had; nothing is hidden on open. |
+| B | Open expanded, but keep a drag-down half stop before dismissal. | Same API; Apple `FestivalSheetSize.compact` opens `.large` and can be dragged to `.medium` (operator, 2026-09-28: "sheets opened only halfway"). | Apple `SheetStyle.swift`. | Material's state goes to the half stop first on a swipe down, so dismissing takes two swipes, unlike the other nine Android sheets ("dismissal unchanged"). Needs a post-open `expand()` call around Material's `show()`. |
+| C | Every compact sheet fills the window regardless of content. | Material 3 adaptive layout (should). | Apple `.large` detent. | Short sheets (Sort, Filter, Profile) become mostly empty card. |
+
+Chose **A**: no platform *must* or owner choice decides between them; A meets the owner's ask with the shell's existing default, keeps dismissal identical across all sheets and adds no mechanism. Owner may override with `/choose B` or `/choose C`.
 
 ## Agent decision (#373, 2026-10-08): inline photo library beside the form, Files presented, drop everywhere
 
@@ -108,4 +121,5 @@ Chose **B**: the Fluent text-scaling *must* rules out C, and A would break this 
 - `modal-shell/apple-manual-modal-close` (precise single-line `ToolbarItem` Close/xmark forms; current-tree scan has no outside-`Design/` match)
 - `modal-shell/android-hinge-side` (a new `…HingeSide/Insets/Area/Padding` function outside `core/nav` and the three adapters)
 - `modal-shell/android-dialog-platform-width` (any `usePlatformDefaultWidth` other than `false`, R9)
+- `modal-shell/android-sheet-half-height` (any `skipPartiallyExpanded` other than `true` in app code, R13)
 - `modal-shell/windows-template-scroller` (a quoted `"ContentScrollViewer"` lookup or `x:Name` in Windows app code: tall bodies own their `ScrollViewer`, R5)
