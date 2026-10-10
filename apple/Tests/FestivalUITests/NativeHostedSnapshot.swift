@@ -1,9 +1,11 @@
 #if os(macOS)
 import AppKit
 import CoreGraphics
+import CoreML
 import Foundation
 import SwiftUI
 import Testing
+import Vision
 import FestivalUI
 
 // MARK: - Hosting
@@ -879,6 +881,132 @@ func nativeHostedContent(_ image: CGImage) -> NativeHostedContent {
             background: background
         )
     }
+}
+
+// MARK: - Rendered text
+
+/// Text recognized in a capture, with a note for every recognition attempt that read nothing.
+struct NativeHostedRecognizedText {
+    /// The drawn lines, top to bottom; empty when every attempt failed.
+    var lines: [String]
+    /// Why earlier attempts were skipped ("accurate: no text", "accurate-cpu: <error>").
+    var attempts: [String]
+}
+
+/// Lines of text recognized (Vision, no language correction, `en-US`) in a capture, top to
+/// bottom. Each entry is one drawn line, so a number broken between digits reads as several
+/// short lines rather than one.
+///
+/// Tries the default accurate recognizer, then pins it to the CPU, then the fast recognizer
+/// on the CPU: the `apple-ci` VM has no Neural Engine and a paravirtual GPU, where the
+/// default compute path read nothing from captures a Mac reads whole (#385).
+///
+/// - Parameter image: A capture, usually one element's rect (``nativeHostedImage(_:in:)``).
+/// - Returns: The first attempt's lines that recognized any text, and the failed attempts.
+func nativeHostedRecognizedText(_ image: CGImage) -> NativeHostedRecognizedText {
+    var attempts: [String] = []
+    for plan in NativeHostedTextRecognitionPlan.allCases {
+        do {
+            let lines = try nativeHostedRecognizeText(image, plan: plan)
+            if !lines.isEmpty { return NativeHostedRecognizedText(lines: lines, attempts: attempts) }
+            attempts.append("\(plan): no text")
+        } catch {
+            attempts.append("\(plan): \(error)")
+        }
+    }
+    return NativeHostedRecognizedText(lines: [], attempts: attempts)
+}
+
+/// One way to run Vision's text recognizer, in the order ``nativeHostedRecognizedText(_:)`` tries them.
+enum NativeHostedTextRecognitionPlan: String, CaseIterable, CustomStringConvertible {
+    /// The accurate recognizer on Vision's default devices.
+    case accurate
+    /// The accurate recognizer with every stage on the CPU.
+    case accurateCPU = "accurate-cpu"
+    /// The fast recognizer with every stage on the CPU.
+    case fastCPU = "fast-cpu"
+
+    var description: String { rawValue }
+}
+
+/// Recognize the lines in `image` one way.
+///
+/// - Parameters:
+///   - image: A capture.
+///   - plan: The recognizer level and devices.
+/// - Returns: The drawn lines, top to bottom.
+/// - Throws: Vision's error.
+func nativeHostedRecognizeText(_ image: CGImage, plan: NativeHostedTextRecognitionPlan) throws -> [String] {
+    let request = VNRecognizeTextRequest()
+    request.recognitionLevel = plan == .fastCPU ? .fast : .accurate
+    request.recognitionLanguages = ["en-US"]
+    request.usesLanguageCorrection = false
+    request.minimumTextHeight = 0
+    if plan != .accurate { try nativeHostedPinToCPU(request) }
+    try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
+    return (request.results ?? [])
+        .sorted { $0.boundingBox.maxY > $1.boundingBox.maxY }
+        .compactMap { $0.topCandidates(1).first?.string }
+}
+
+/// Lines of text recognized in a capture (``nativeHostedRecognizedText(_:)``).
+///
+/// - Parameter image: A capture, usually one element's rect (``nativeHostedImage(_:in:)``).
+/// - Returns: The recognized lines; empty when recognition fails.
+func nativeHostedRecognizedLines(_ image: CGImage) -> [String] {
+    nativeHostedRecognizedText(image).lines
+}
+
+/// Whether Vision reads large, plain hosted text on this host at all, with the failed
+/// attempts when it does not. A capture whose text fails to read on a host that passes this
+/// probe is a real drawing failure; on a host that fails it, recognition is unavailable.
+///
+/// - Returns: Whether "850,000" drawn at 32 pt reads back whole, and the probe's attempts.
+@MainActor
+func nativeHostedTextRecognitionProbe() throws -> (available: Bool, attempts: [String]) {
+    if let cached = nativeHostedTextRecognitionProbeResult { return cached }
+    let recognized = nativeHostedRecognizedText(try nativeHostedTextRecognitionProbeImage())
+    let result = (recognized.lines.contains { nativeHostedDigits($0).contains("850000") }, recognized.attempts)
+    nativeHostedTextRecognitionProbeResult = result
+    return result
+}
+
+/// "850,000" drawn bold at 32 pt, white on black, as the recognition probe reads it.
+///
+/// - Returns: The hosted capture.
+/// - Throws: An unavailable native bitmap.
+@MainActor
+func nativeHostedTextRecognitionProbeImage() throws -> CGImage {
+    let size = CGSize(width: 320, height: 80)
+    let host = nativeHostedView(
+        Text("850,000").font(.system(size: 32, weight: .bold)).foregroundStyle(.white)
+            .frame(width: size.width, height: size.height).background(Color.black),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    return try nativeHostedImage(host)
+}
+
+@MainActor private var nativeHostedTextRecognitionProbeResult: (available: Bool, attempts: [String])?
+
+/// Run every stage of `request` on a CPU device.
+///
+/// - Parameter request: A Vision request not yet performed.
+/// - Throws: Vision's error when the stages or devices are unavailable.
+private func nativeHostedPinToCPU(_ request: VNRequest) throws {
+    for (stage, devices) in try request.supportedComputeStageDevices {
+        guard let cpu = devices.first(where: { if case .cpu = $0 { true } else { false } }) else { continue }
+        try request.setComputeDevice(cpu, for: stage)
+    }
+}
+
+/// The decimal digits of `text`, for comparing a recognized number with its value.
+///
+/// - Parameter text: Drawn or spoken text.
+/// - Returns: Its digits in order.
+func nativeHostedDigits(_ text: String) -> String {
+    String(text.filter(\.isWholeNumber))
 }
 
 // MARK: - Accessibility text

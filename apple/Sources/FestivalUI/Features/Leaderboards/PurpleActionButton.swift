@@ -98,7 +98,7 @@ struct PurpleActionSurface: ViewModifier {
             content
                 .background(Self.tint, in: shape)
                 .background(.ultraThinMaterial, in: shape)
-                .overlay(shape.strokeBorder(RowCardStyle.rim, lineWidth: 1))
+                .overlay { CardRim(shape: shape) }
         } else {
             content.background(BrandTokens.accentPurple, in: shape)
         }

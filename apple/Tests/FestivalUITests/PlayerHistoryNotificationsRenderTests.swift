@@ -302,18 +302,21 @@ func songScoreHistoryRowsShowTheSeasonOnlyOnWidePages(width: Double, shows: Bool
 ///   - instrument: Chart to show.
 ///   - size: Window size.
 ///   - besideList: The list page beside it in a split's trailing pane, or nil.
+///   - dynamicTypeSize: Text size to lay the page out at.
 /// - Returns: The hosting view.
 @MainActor
 private func hostedHistoryPage(
     _ session: FestivalSession, instrument: Instrument = .lead,
     size: CGSize = CGSize(width: 420, height: 900),
-    besideList: OnDemandSplitPolicy.ListPage? = nil
+    besideList: OnDemandSplitPolicy.ListPage? = nil,
+    dynamicTypeSize: DynamicTypeSize = .large
 ) -> NSHostingView<some View> {
     nativeHostedView(
         NavigationStack {
             PlayerHistoryScreen(session: session, song: fixtureSong, instrument: instrument)
                 .splitPaneContext(besideList.map { SplitPaneContext(role: .trailing, besideList: $0) })
         }
+        .environment(\.dynamicTypeSize, dynamicTypeSize)
         .frame(width: size.width, height: size.height)
         .preferredColorScheme(.dark),
         size: size
@@ -363,6 +366,160 @@ private func hostedHistoryPage(
     #expect(!tree.identifiers.contains("fst.history.header"))
     #expect(tree.contains("Lead") && tree.contains("Score History"))
     #expect(!tree.contains("Fixture Anthem") && !tree.contains("The Fixtures"), "texts: \(tree.texts)")
+}
+
+/// The Score History page root (`fst.history`, issue #302) for assistive technology, on
+/// the iPhone page and in a split's trailing pane beside Song Detail (iPad, Duo, Mac),
+/// at standard and AX5 text (issue #385). The root is an unnamed container (an AppKit
+/// group or the list itself here; a non-element container on iOS) holding the heading and
+/// then each score row in score order, so VoiceOver never reads the page as one element;
+/// every row is named, the best one says so, and nothing is left unnamed. Rows keep the
+/// 44 pt minimum and, at AX5, stack, grow taller and stay inside the column: macOS
+/// hosting keeps the font size (13 pt body), so a 160 pt page reproduces an iPhone 17 Pro
+/// at AX5 (53 pt body, 342 pt of row content), as
+/// `rankingsRowsFitANarrowColumnAtAccessibilitySizes` does. The one-line row overflowed it
+/// and broke the score between digits: `scoreHistoryRowDrawsWholeNumbersAtAccessibilitySizes`
+/// reads the drawn text back (macOS List rows do not draw into a hosted capture), and
+/// `ScoreHistoryAccessibilityJourneyTests` proves the iOS and iPadOS AX5 metrics (53 pt
+/// body) on device.
+///
+/// - Parameter besideSongDetail: Host the page in a split's trailing pane.
+@MainActor
+@Test(arguments: [false, true])
+func playerHistoryScreenRootKeepsItsReadingOrder(besideSongDetail: Bool) async throws {
+    let heading = besideSongDetail ? "fst.history.board-title" : "fst.history.header"
+    let scores = ["score 850,000", "score 700,000", "score 600,000"]
+    var rowHeights: [CGFloat] = []
+    for (textSize, width) in [(DynamicTypeSize.large, CGFloat(420)), (.accessibility5, 160)] {
+        let name = "history-\(besideSongDetail ? "split" : "page")-\(textSize)"
+        let size = CGSize(width: width, height: 1400)
+        let host = hostedHistoryPage(
+            hostedHistorySession(transport: HostedHistoryTransport()), size: size,
+            besideList: besideSongDetail ? .songDetail : nil, dynamicTypeSize: textSize
+        )
+        let window = nativeHostedWindow(host, size: size)
+        defer { window.orderOut(nil) }
+        _ = try await nativeHostedSettle(host, untilText: scores, timeout: .seconds(60))
+        let nodes = macAccessibilityTree(host)
+        macAccessibilityDump(nodes, name: name)
+
+        let root = try #require(nodes.firstIndex { $0.identifier == "fst.history" }, "\(name): no page root")
+        #expect(
+            ["AXGroup", "AXOutline"].contains(nodes[root].role) && nodes[root].spokenName.isEmpty,
+            "\(name): the page root is an unnamed container: \(nodes[root])"
+        )
+        #expect(!nodes.contains { $0.identifier == "fst.score-history.page" }, "\(name): unregistered root")
+        let pageEnd = nodes[(root + 1)...].firstIndex { $0.depth <= nodes[root].depth } ?? nodes.endIndex
+
+        let title = try #require(nodes.firstIndex { $0.identifier == heading && $0.isElement }, "\(name): no heading")
+        #expect(nodes[title].role == "AXHeading", "\(name): the title is a heading: \(nodes[title])")
+        #expect(nodes[title].spokenName.contains("Score History"), "\(name): \(nodes[title])")
+        let rows = try scores.indices.map { index in
+            try #require(
+                nodes.firstIndex { $0.identifier == "fst.history.row.\(index)" && $0.isElement },
+                "\(name): row \(index) is not an element"
+            )
+        }
+        #expect(([title] + rows).allSatisfy { $0 > root && $0 < pageEnd }, "\(name): content outside the page root")
+        #expect([title] + rows == ([title] + rows).sorted(), "\(name): heading, then rows: \(title) \(rows)")
+        for (row, score) in zip(rows, scores) {
+            #expect(nodes[row].spokenName.contains(score), "\(name): \(nodes[row])")
+        }
+        #expect(nodes[rows[0]].spokenName.contains("best score"), "\(name): \(nodes[rows[0]])")
+        #expect(macAccessibilityFindings(nodes.filter(\.isElement)) == [], "\(name)")
+
+        let frame = try #require(nativeHostedAccessibilityFrame("fst.history.row.0", in: host))
+        #expect(frame.height >= 44 && frame.minX >= 0 && frame.maxX <= width, "\(name): row frame \(frame)")
+        rowHeights.append(frame.height)
+    }
+    #expect(rowHeights[1] > rowHeights[0], "AX5 rows grow with the text: \(rowHeights)")
+}
+
+/// The digits of the score and accuracy a Score History row's spoken label names
+/// ("…, score 850,000, accuracy 99.1 percent, …" → ["850000", "991"]).
+///
+/// - Parameter label: The row's accessibility label.
+/// - Returns: The score's digits, then the accuracy's when the row has one.
+func scoreHistoryDrawnNumbers(_ label: String) -> [String] {
+    ["score ", "accuracy "].compactMap { key in
+        guard let start = label.range(of: key)?.upperBound else { return nil }
+        let value = label[start...].prefix { $0 != " " }
+        let digits = nativeHostedDigits(String(value))
+        return digits.isEmpty ? nil : digits
+    }
+}
+
+/// The shared Score History row draws its score and accuracy whole, each on one line, at
+/// the standard size and at AX5 in a column as narrow as an iPhone 17 Pro's at AX5 (13 pt
+/// macOS body in 160 pt; issue #385). The one-line row kept its label and frame valid but
+/// broke "850,000" between digits; only the drawn text shows that, so the row is hosted
+/// on its own (a macOS List row does not draw into a hosted capture) and read back with
+/// text recognition (Vision). Standard rows stay one line; AX5 rows stack and grow.
+@MainActor
+@Test func scoreHistoryRowDrawsWholeNumbersAtAccessibilitySizes() async throws {
+    let json = Data("""
+        [{"songId":"fixture-anthem","instrument":"Solo_Guitar","oldScore":700000,"newScore":850000,
+          "oldRank":9,"newRank":4,"accuracy":991200,"isFullCombo":true,"season":40,
+          "scoreAchievedAt":"2026-02-08T00:00:00Z","changedAt":"2026-02-08T00:00:00Z"},
+         {"songId":"fixture-anthem","instrument":"Solo_Guitar","oldScore":null,"newScore":700000,
+          "oldRank":null,"newRank":9,"accuracy":954500,"isFullCombo":false,"season":39,
+          "scoreAchievedAt":"2026-01-08T00:00:00Z","changedAt":"2026-01-08T00:00:00Z"}]
+        """.utf8)
+    let entries = try JSONDecoder().decode([ScoreHistoryEntry].self, from: json)
+    var heights: [CGFloat] = []
+    for (textSize, width) in [(DynamicTypeSize.large, CGFloat(420)), (.accessibility5, 160)] {
+        let name = "history-row-\(textSize)"
+        let size = CGSize(width: width, height: 600)
+        let host = nativeHostedView(
+            VStack(spacing: 8) {
+                ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
+                    ScoreHistoryListRow(entry: entry, isBest: index == 0)
+                        .accessibilityIdentifier("fst.history.row.\(index)")
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            .environment(\.dynamicTypeSize, textSize)
+            .frame(width: size.width, height: size.height)
+            .preferredColorScheme(.dark),
+            size: size
+        )
+        let window = nativeHostedWindow(host, size: size)
+        defer { window.orderOut(nil) }
+        let image = try await nativeHostedSettle(host, untilText: ["score 850,000", "score 700,000"])
+        _ = try nativeHostedPNG(image, filename: "\(name).png", environment: "FST_HISTORY_RENDER_OUT")
+        let tree = macAccessibilityTree(host)
+        for index in entries.indices {
+            let id = "fst.history.row.\(index)"
+            let label = try #require(tree.first { $0.identifier == id && $0.isElement }, "\(name): \(id)").spokenName
+            let frame = try #require(nativeHostedAccessibilityFrame(id, in: host), "\(name): \(id) frame")
+            #expect(frame.height >= 44 && frame.minX >= 0 && frame.maxX <= width, "\(name): \(id) \(frame)")
+            let recognized = nativeHostedRecognizedText(try nativeHostedImage(host, in: frame))
+            let lines = recognized.lines
+            let numbers = scoreHistoryDrawnNumbers(label)
+            #expect(numbers.count == 2, "\(name): score and accuracy in \(label)")
+            if lines.isEmpty, nativeHostedIsVirtualMachine, case let probe = try nativeHostedTextRecognitionProbe(),
+               !probe.available {
+                // Vision reads nothing in this VM (not even the probe's large text), so the drawn
+                // text cannot be judged here; the label and frame checks above still hold, and a
+                // real Mac (or the iOS/iPadOS journeys) judges it strictly.
+                withKnownIssue("Vision reads no text on this host: \(probe.attempts); row: \(recognized.attempts)") {
+                    Issue.record("\(name): \(id) drawn text not recognized")
+                }
+                if index == 0 { heights.append(frame.height) }
+                continue
+            }
+            for digits in numbers {
+                #expect(
+                    lines.contains { nativeHostedDigits($0).contains(digits) },
+                    "\(name): \(id) draws \(digits) whole on one line: \(lines) (\(recognized.attempts))"
+                )
+            }
+            #expect(!lines.contains { $0.contains("\u{2026}") }, "\(name): \(id) is truncated: \(lines)")
+            if index == 0 { heights.append(frame.height) }
+        }
+    }
+    #expect(heights[1] > heights[0], "AX5 rows stack and grow: \(heights)")
 }
 
 /// A chart without scores reads the web's empty copy.
