@@ -273,11 +273,8 @@ fun SongBandLeaderboardScreen(
                         }
                     }
                 },
-                // Hidden for a single page (7.4), as before.
-                pager = {
-                    val pageCount = shown?.pageCount(BandPaging.PAGE_SIZE) ?: 1
-                    if (pageCount > 1) RankingsPager(page, pageCount, "fst.song-band-leaderboard", viewModel::goTo)
-                },
+                // Hidden until the band size's page count loads and for a single page (load-transition R4, #575).
+                pager = { RankingsPager(page, shown?.pageCount(BandPaging.PAGE_SIZE), "fst.song-band-leaderboard", viewModel::goTo) },
             ) {
                 val state = swap.shown
                 if (swap.showsSpinner || state is LoadState.Loading) {

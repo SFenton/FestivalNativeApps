@@ -1,6 +1,5 @@
 package com.festivalscoretracker.android.rankings
 
-import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.performClick
@@ -91,7 +90,8 @@ class BandRankingsUiTest : LeaderboardsHarness() {
         launch("bandRankings:Band_Duets")
         waitForText("No ranked bands yet.")
         waitForText("0 ranked bands")
-        assertTrue(node("fst.band-rankings.page-next").fetchSemanticsNode().config.contains(SemanticsProperties.Disabled))
+        // An empty (one-page) board has no pager, as on the web (`hasPagination`, issue #575).
+        assertFalse(exists("fst.band-rankings.pager"))
         assertEmptyFillsTheBoard()
     }
 
@@ -113,7 +113,8 @@ class BandRankingsUiTest : LeaderboardsHarness() {
             "fst.band-rankings.empty",
             above = rule.boundsOf("fst.band-rankings.population"),
             gapAbove = 12f,
-            belowTop = rule.boundsOf("fst.band-rankings.bottom-bar").top,
+            // Without a pager the footer is empty: its zero-height top is where the rows' region ends.
+            belowTop = node("fst.band-rankings.bottom-bar").fetchSemanticsNode().positionInWindow.y,
             gapBelow = 12f,
             firstText = "No ranked bands yet.",
             lastText = "No ranked bands yet.",
