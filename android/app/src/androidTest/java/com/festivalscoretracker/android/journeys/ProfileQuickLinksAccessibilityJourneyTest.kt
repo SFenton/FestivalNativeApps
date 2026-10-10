@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.journeys
 
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -179,7 +180,8 @@ class ProfileQuickLinksAccessibilityJourneyTest {
         val held = headingTop()
         Log.i(JourneyHarness.READING_ORDER_TAG, "profile-quick-links $config | landed $landed | held $held | line ${landingLine()}")
         val tolerance = with(rule.density) { LANDING_TOLERANCE_DP.dp.toPx() }
-        assertTrue("$config: Top Songs landed at $landed px, not on the landing line ${landingLine()} px", abs(landed - landingLine()) <= tolerance)
+        val lineTolerance = with(rule.density) { QuickLinks.COMPLETE_THRESHOLD_DP.dp.toPx() }
+        assertTrue("$config: Top Songs' title landed at $landed px, not on the landing line ${landingLine()} px", abs(landed - landingLine()) <= lineTolerance)
         assertTrue("$config: Top Songs moved from $landed to $held px as the cards above loaded", abs(held - landed) <= tolerance)
         assertEntry(config, current = "Top Songs")
         rule.onNode(hasText(TOP_SONGS_HEADING) and hasAnyAncestor(hasTestTag(TOP_SONGS)), useUnmergedTree = true)
@@ -276,10 +278,14 @@ class ProfileQuickLinksAccessibilityJourneyTest {
     /** The window's width in dp. */
     private fun windowWidthDp(): Int = with(rule.density) { rule.activity.window.decorView.width.toDp().value.toInt() }
 
-    /** Top of the Top Songs section in window pixels. */
-    private fun headingTop(): Float = rule.onNodeWithTag(TOP_SONGS, useUnmergedTree = true).fetchSemanticsNode().boundsInWindow.top
+    /**
+     * Top of the "Top Songs Per Instrument" title in window pixels: inside its section header's own top
+     * padding, which a jump must not leave as dead space under the top bar (#587).
+     */
+    private fun headingTop(): Float = rule.onNode(hasText(TOP_SONGS_HEADING) and hasAnyAncestor(hasTestTag(TOP_SONGS)), useUnmergedTree = true)
+        .fetchSemanticsNode().layoutInfo.coordinates.positionInWindow().y
 
-    /** Where a Quick Links jump lands a section: 32 dp below the top bar. */
+    /** Where a Quick Links jump lands a section's title: 32 dp below the top bar. */
     private fun landingLine(): Float =
         rule.onNodeWithTag(TOP_BAR, useUnmergedTree = true).fetchSemanticsNode().boundsInWindow.bottom +
             with(rule.density) { QuickLinks.LANDING_OFFSET_DP.dp.toPx() }
@@ -311,7 +317,7 @@ class ProfileQuickLinksAccessibilityJourneyTest {
         /** How long after landing the section must still be on its line (cards above load in this time with fixtures). */
         const val HOLD_CHECK_MS = 1_500L
 
-        /** Landing tolerance: twice the controller's 8 dp completion threshold. */
+        /** Hold tolerance: twice the controller's 8 dp completion threshold. */
         const val LANDING_TOLERANCE_DP = 16
     }
 }

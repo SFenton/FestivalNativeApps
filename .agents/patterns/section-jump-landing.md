@@ -2,7 +2,7 @@
 
 > **What:** where a Quick Links or Songs index jump places a section and how that section becomes current. **Read when:** adding a section jump, changing a scroll anchor, or changing the active-section line.
 
-Status: **current**, 2026-10-08. Provenance: #9, #286, #298, #336, #388, #393, #415.
+Status: **current**, 2026-10-10. Provenance: #9, #286, #298, #336, #388, #393, #415, #587.
 
 ## Intent
 
@@ -20,7 +20,7 @@ The web has no drag section index. Native indexes reuse its section order and ac
 ## Rules
 
 1. **R1. Share the landing policy.** Quick Links, a Songs index, and any programmatic section jump use the platform quick-links/section-header helper, never page-local offset arithmetic.
-2. **R2. Land ordinary sections 32 units below chrome.** The target heading and active line use the same 32 pt/dp/epx offset; clamp near either content end and retain the visible target as current. HIG Layout: "Respect [the safe area] so system UI and hardware do not cover controls/content."
+2. **R2. Land ordinary sections 32 units below chrome.** The target heading and active line use the same 32 pt/dp/epx offset; clamp near either content end and retain the visible target as current. HIG Layout: "Respect [the safe area] so system UI and hardware do not cover controls/content." The line is the section's *title*, not the padded top of the row or card that holds it: a heading's own top padding must not become dead space under chrome. On Android a page passes `headingInset` (the title's offset inside its lazy item or scroll section, e.g. `SECTION_HEADER_TOP_PADDING` 16 dp, Song Detail's instrument `CARD_HEADER_TOP_PADDING` 12 dp, Compete's 8 dp group header) to `rememberQuickLinks`/`rememberScrollQuickLinks`; `QuickLinksController` lands the item at 32 − inset (`QuickLinks.itemLandingPx`) and tracks the active line from the heading (`QuickLinks.headingFrame`). Pinned headers ignore it (R3). Page-local scroll arithmetic is still forbidden (R1) (#587: Song Detail's Bass jump left its header's 12 dp padding above the title; `QuickLinksLandingUiTest`, `SongsAccessibilityJourneyTest#songDetailQuickLinksJump*`).
 3. **R3. Land pinned Songs titles at their pin line.** Apple `landingOffset` is zero; the title coincides with its pinned copy and the first row is unfaded (#298). Do not restore the superseded 30 pt workaround.
 4. **R4. Re-settle lazy targets.** Correct an estimated or newly realized target without changing sort, filters, selected profile, or triggering a read. Re-tapping a current index item still jumps.
 5. **R5. Make target ownership explicit.** Select the target when the jump begins; hand back to natural tracking only after it leaves the landing/reachable band. Near-end targets remain current while visible. The newest jump owns correction and settling: an earlier jump's pending correction stops without scrolling or settling once another jump begins, so a held Next Section shortcut or a quick rotor flick ends on its last target (#393: the stale pass re-landed its old target and Quick Links named a section off screen). On Windows a Quick Links menu pick jumps only after the menu has closed and restored keyboard focus to `QuickLinksMenuButton`: where that button scrolls with the page, a restore that lands after the jump's scroll brings it back into view and hands the target back to the top section (#548: `qlj-profile-menu` at 225% text named Global Statistics after a Drums pick, whose section has no focusable control to take focus).

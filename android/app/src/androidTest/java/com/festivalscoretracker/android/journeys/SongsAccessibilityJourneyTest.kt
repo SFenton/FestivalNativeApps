@@ -4,6 +4,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
@@ -16,12 +17,16 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.dp
 import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.nav.FestivalSection
+import com.festivalscoretracker.android.core.quicklinks.QuickLinks
+import kotlin.math.abs
 import com.festivalscoretracker.android.testing.BandFixtures
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
@@ -225,6 +230,75 @@ class SongsAccessibilityJourneyTest {
         h.readingOrder("song-leaderboard")
         h.assertAccessible()
     }
+
+    /**
+     * Issue #587: a Quick Links jump to Bass on Song Detail lands the Bass header row on the 32 dp line
+     * below the top bar (not its 12 dp top padding, which left dead space), the entry then names Bass,
+     * the header stays one heading, and TalkBack reads it first on the page. 100% text.
+     */
+    @Test
+    @DeviceCi
+    fun songDetailQuickLinksJumpLandsTheHeadingOnTheLine() = songDetailQuickLinksJourney(1f)
+
+    /** The same at 200% text: the chooser row stays a 48 dp target and the grown heading lands on the line. */
+    @Test
+    @DeviceCi
+    fun songDetailQuickLinksJumpAtDoubleTextLandsTheHeading() = songDetailQuickLinksJourney(2f)
+
+    private fun songDetailQuickLinksJourney(scale: Float) {
+        val config = "${scale}x"
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(profile = player, songQuery = "s-alpha", stillBackground = true), transport, fontScale = { scale })
+        h.waitForTag("fst.song-detail.intensity")
+        h.publishTalkBackTree()
+        h.tap("fst.quick-links.open")
+        val sheet = QuickLinks.usesSheet(with(rule.density) { rule.activity.window.decorView.width.toDp().value.toInt() })
+        h.waitForTag(if (sheet) "fst.quick-links.sheet" else "fst.quick-links.menu")
+        val bass = "fst.quick-links.item.instrument-Solo_Bass"
+        if (sheet) {
+            // A long sheet opens partially expanded; its drag handle's Expand action (TalkBack's path) raises it.
+            rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.Expand), useUnmergedTree = true)
+                .fetchSemanticsNodes().firstOrNull()?.let {
+                    rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.Expand), useUnmergedTree = true)[0]
+                        .performSemanticsAction(SemanticsActions.Expand)
+                }
+            rule.waitForIdle()
+            h.scrollTo("fst.quick-links.list", bass)
+        } else {
+            rule.onNodeWithTag(bass).performScrollTo()
+        }
+        rule.waitForIdle()
+        rule.onNodeWithTag(bass).assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Bass Leaderboard")))
+        h.assertTouchTarget("$config chooser", bass)
+        h.readingOrder("song-detail-quick-links-$config")
+        h.tap(bass)
+        h.waitGone(if (sheet) "fst.quick-links.sheet" else "fst.quick-links.menu")
+        rule.waitUntil(10_000) { entryLabel() == "Quick Links, current section Bass" }
+        rule.waitForIdle()
+
+        val heading = "fst.song-detail.heading.Solo_Bass"
+        val top = rule.onNodeWithTag(heading, useUnmergedTree = true).fetchSemanticsNode().layoutInfo.coordinates.positionInWindow().y
+        val line = rule.onNodeWithTag("fst.nav.top-bar", useUnmergedTree = true).fetchSemanticsNode().boundsInWindow.bottom +
+            with(rule.density) { QuickLinks.LANDING_OFFSET_DP.dp.toPx() }
+        val tolerance = with(rule.density) { QuickLinks.COMPLETE_THRESHOLD_DP.dp.toPx() }
+        assertTrue("$config: the Bass heading landed at $top px, not on the landing line $line px", abs(top - line) <= tolerance)
+        rule.onNodeWithTag(heading).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
+        h.assertTouchTarget("$config entry", "fst.quick-links.open")
+
+        val order = h.readingOrder("song-detail-quick-links-jumped-$config", fresh = true)
+        // The entry sits in the top bar or, on phones, the floating toolbar read after the page.
+        assertTrue("$config: the entry does not name Bass: $order", order.any { it.startsWith("Quick Links, current section Bass") })
+        val bassHeading = order.indexOfFirst { it == "Bass" || it.startsWith("Bass,") }
+        assertTrue("$config: the landed Bass heading is not read: $order", bassHeading >= 0)
+        val earlier = listOf("Song Intensity", "Intensity", "Score History", "Lead")
+        assertTrue("$config: a section above Bass is read before the landed heading: $order",
+            order.take(bassHeading).none { stop -> earlier.any { stop == it || stop.startsWith("$it,") } })
+        h.assertAccessible()
+    }
+
+    /** What TalkBack reads for the Quick Links entry. */
+    private fun entryLabel(): String? = rule.onAllNodesWithTag("fst.quick-links.open").fetchSemanticsNodes().firstOrNull()
+        ?.config?.getOrNull(SemanticsProperties.ContentDescription)?.joinToString(" ")
 
     /**
      * Issue #169: switching Score History from Lead (two scores) to Bass (one) keeps the card's
