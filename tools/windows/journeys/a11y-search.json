@@ -36,8 +36,10 @@
     "tabs": 0,
     "sizes": ["medium", "wide", "maximized"],
     "ready": ["waitfor:id=fst.songs.row.fixture-pulse@20"],
-    "after_ready": ["key:ctrl+e", "assertfocus:name=Search songs, players and bands@3", "type:fix",
-                    "waitfor:name=Player, Fixture Player 1@10"],
+    "after_ready": ["key:ctrl+e", "assertfocus:name=Search songs, players and bands@3",
+                    "waitfor:name=Search songs, players and bands (Ctrl+E)@5", "type:fix",
+                    "waitfor:name=Player, Fixture Player 1@10", "wait:1.5",
+                    "waitgone:name=Search songs, players and bands (Ctrl+E)@3"],
     "teardown": ["key:esc", "key:esc", "key:esc"]
   },
   {

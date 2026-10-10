@@ -44,6 +44,12 @@ public sealed partial class MainWindow
         // The width breakpoint swaps these two; a tooltip open on the one it hides would otherwise float on (#571).
         Controls.CollapsedToolTip.CloseWhenCollapsed(GlobalSearchBox);
         Controls.CollapsedToolTip.CloseWhenCollapsed(GlobalSearchButton);
+        // The box's keyboard tooltip opens after a delay and would cover the suggestions the user is reading (#574).
+        if (ToolTipService.GetToolTip(GlobalSearchBox) is ToolTip boxTip)
+            boxTip.Opened += (_, _) =>
+            {
+                if (GlobalSearchBox.IsSuggestionListOpen || GlobalSearchBox.Text.Length > 0) boxTip.IsOpen = false;
+            };
         RootGrid.SizeChanged += (_, e) => ApplySearchWidth(e.NewSize.Width);
         // The window-wide accelerators belong to no visible control; their automatic key tip would float over content.
         RootGrid.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
@@ -92,12 +98,15 @@ public sealed partial class MainWindow
     #endregion
 
     #region Title-bar box
-    /// <summary>Feeds user typing into the model (suggestion browsing does not re-query).</summary>
+    /// <summary>Feeds user typing into the model (suggestion browsing does not re-query) and dismisses the box's
+    /// hint tooltip, which would otherwise cover the suggestion list (#574).</summary>
     /// <param name="sender">Box.</param>
     /// <param name="args">Reason.</param>
     private void OnGlobalSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
-        if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput) TitleBarSearch.Query = sender.Text;
+        if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput) return;
+        Controls.CollapsedToolTip.Close(sender);
+        TitleBarSearch.Query = sender.Text;
     }
 
     /// <summary>Shows the highlighted suggestion's title while arrowing (the box doesn't use <c>ToString</c>, the UIA name).</summary>
