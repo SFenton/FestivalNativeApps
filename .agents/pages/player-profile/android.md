@@ -46,7 +46,7 @@ None of these navigate. Selecting adds the profile tabs in place; deselecting (d
 
 ## Quick Links
 
-Web `PlayerContent` quick links: `global` "Global Statistics" (jumps to Overview), `instrument:<wire>` (instrument label, instrument icon), `top-songs` "Top Songs", `bands` "Bands" (jumps to the Bands section). Shared controller ([quick-links/android.md](../../controls/quick-links/android.md)) over the staggered grid: top-bar action (sheet < 600 dp, menu otherwise); persistent 240 dp pane when the page is ≥ 960 dp **and** no separating hinge exists (with a hinge the two content panels are more useful than a navigation panel).
+Web `PlayerContent` quick links: `global` "Global Statistics" (jumps to Overview), `instrument:<wire>` (instrument label, instrument icon), `top-songs` "Top Songs", `bands` "Bands" (jumps to the Bands section). Shared controller ([quick-links/android.md](../../controls/quick-links/android.md)) over the staggered grid: the shell's floating-toolbar action at every window size (sheet < 600 dp, menu otherwise; R4/#576, never the top app bar). No persistent Quick Links pane (operator 2026-09-28; with a hinge the grid splits at the fold and the menu anchors in the pane that owns the toolbar).
 
 ## Top songs
 
@@ -98,7 +98,7 @@ Each configuration covers the viewed profile, Quick Links jumps to Global Statis
 
 | Configuration | Findings |
 |---|---|
-| FST_Phone portrait / landscape | Jumps to Top Songs and Pro Drums landed half a screen low: the card above composed on the jump and grew (fixed with hold landing, [quick-links/android.md](../../controls/quick-links/android.md)). Landscape uses the top-bar menu. At 2.0 the tiles drop to one column with no clipping. Selected (Statistics) state is correct. Connected `ProfileDeviceJourneyTest` + `PlayerAccessibilityJourneyTest` (ATF) pass. |
+| FST_Phone portrait / landscape | Jumps to Top Songs and Pro Drums landed half a screen low: the card above composed on the jump and grew (fixed with hold landing, [quick-links/android.md](../../controls/quick-links/android.md)). Landscape used the top-bar menu (the floating toolbar since #576). At 2.0 the tiles drop to one column with no clipping. Selected (Statistics) state is correct. Connected `ProfileDeviceJourneyTest` + `PlayerAccessibilityJourneyTest` (ATF) pass. |
 | FST_Tablet landscape (permanent drawer) ↔ portrait (rail) | Two columns in landscape with the menu, and the jumps land. **Rotating reset the page to the top**: the shell re-parented the NavHost at 1200 dp (fixed: one page parent; the drawer stays closed and Back closes an open drawer after a portrait launch or rotation). Lazy grids keep their first visible item, so a two-lane → one-lane reflow shows the neighbouring card (e.g. Karaoke above Pro Drums + Cymbals). |
 | FST_Resizable phone / foldable / tablet / desktop | Position kept near the section across every preset. desktop → phone reopened the modal drawer: Material's nearest-anchor re-targeting after a density change, predating this pass (fixed). The drawer opens from the menu and Back closes it. |
 | FST_Book_Fold unfolded / half / folded | Jumps land; posture changes keep the section in view. Half-open splits at the hinge: masonry lanes can put Pro Drums left of Pro Drums + Cymbals, which is expected for a shortest-lane grid. Folded at 2.0 has no clipping. |

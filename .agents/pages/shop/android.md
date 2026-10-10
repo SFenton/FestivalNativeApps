@@ -53,8 +53,8 @@ Debug APK, `device.py drive --route shop --extra FST_DEBUG_STILL_BACKGROUND=1`, 
 | Configuration | Finding |
 |---|---|
 | FST_Phone portrait / landscape, 1.0×/2.0×, light/dark | M3 `ModalBottomSheet` with drag handle, heading, Close (X) top-end, hint, three 56 dp `Switch` rows (`Role.Switch`, whole row toggles) and Reset. Filter sits in the floating bottom toolbar and turns gold while a filter is on. In landscape (compact height) Reset moves beside Close and the form scrolls; at 2.0× text wraps without clipping. Light and dark look the same (dark-only app). |
-| FST_Tablet landscape / portrait, 1.0×/2.0× | Filter in the top app bar; the sheet is centred at its max width over the drawer (landscape) or rail (portrait). Filtering leaves 4 Leaving Tomorrow cards in the 4- or 3-column grid. |
-| FST_Resizable phone / foldable / tablet / desktop | Compact puts Filter in the toolbar; medium and expanded put it in the top bar. Desktop's filtered grid stays centred within 1040 dp. |
+| FST_Tablet landscape / portrait, 1.0×/2.0× | Filter in the top app bar (until #576; it now floats in the toolbar on every window); the sheet is centred at its max width over the drawer (landscape) or rail (portrait). Filtering leaves 4 Leaving Tomorrow cards in the 4- or 3-column grid. |
+| FST_Resizable phone / foldable / tablet / desktop | Compact put Filter in the toolbar and medium/expanded in the top bar (until #576; every size now uses the toolbar). Desktop's filtered grid stays centred within 1040 dp. |
 | FST_Book_Fold folded / unfolded (1.0×/2.0×) / half-open | Folded behaves like the phone. Half-open: the sheet stays in the start pane, left of the hinge (`FestivalModalSheet`), and the filtered grid keeps tiles off the fold. |
 | FST_Passport_Fold folded / unfolded (1.0×/2.0×) / half-open | Same as Book Fold; in the half-open grid the fold falls in the gutter between tiles 2 and 3. The first run hit emulator "You're offline" and was repeated with the network up. |
 | FST_TriFold folded / partial / unfolded (1.0×/2.0×) | Folded is the list; partial and unfolded show the centred sheet and a 4-column filtered grid. |

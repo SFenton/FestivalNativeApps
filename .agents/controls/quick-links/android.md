@@ -8,7 +8,7 @@
 |---|---|---|
 | Compact window (< 600 dp) | `Toc` action ("Quick Links, current section X") in the shell's **floating toolbar** opens a **modal bottom sheet** of `NavigationDrawerItem`s; the current section is the selected item. On Songs it shares the pinned toolbar with Sort and Filter (issues #52, #309; the list filter is pinned inline above the list); on other pages the toolbar follows M3 "exit always" hide-on-scroll and returns on scroll up | M3: bottom sheets hold supplementary lists on phones, are thumb-reachable, scroll for long lists (Songs buckets) and support predictive back. Replaces the web FAB and modal. The bottom floating toolbar is already the M3 Expressive equivalent of the iOS #42 accessory, so no other page changed for #84 |
 | Medium and wider windows (tablet, unfolded foldables, landscape phones) | The same **floating toolbar** action (since #576; [page-tools-and-nav-chrome](../../patterns/page-tools-and-nav-chrome.md) R4, never the top app bar) opens an anchored **dropdown menu** above the button; the current item is bold with "Current" on its own line under the title (`QuickLinkMenuLabel`), never as a trailing label | M3 menus pick one of a short set of destinations without covering the page. **No side pane** (operator 2026-09-28: the right-side sheet on foldables is dropped) |
-| Separating vertical hinge in the page (book posture, half-open) | The page list stays on the start side of the hinge (`QuickLinks.hingeSplit`, `ui/settings/HingeSplit.kt`); the menu anchors to the button in that pane | No row straddles the fold |
+| Separating vertical hinge in the page (book posture, half-open) | The page list stays on the start side of the hinge (`QuickLinks.hingeSplit`, `ui/settings/HingeSplit.kt`); the floating toolbar stays on one side of the hinge (`FloatingToolbarPlacement`) and the menu anchors to its button there, never in the top app bar | No row or tool straddles the fold |
 
 No setting toggles Quick Links (spec). Needs ≥ 2 sections.
 
@@ -30,14 +30,14 @@ FestivalScreen(title, isRoot, actions = { QuickLinksAction(quickLinks, windowWid
 - One controller per list: `rememberQuickLinks` keys only on the scroller, `pinnedHeaders` and density; `title` and `sections` are snapshot state set each composition. The shell's floating toolbar re-runs a page's `actions` only on state reads, so a controller recreated by a title change (Songs' "<Sort> Quick Links") left a stale entry with no sections and hid `fst.quick-links.open` (Linux CI flake in `SongsParityUiTest`). Covered by `QuickLinksControllerUiTest`.
 - Programmatic jumps do not reach the top bar's nested-scroll state, so pass `FestivalScreen(scrolled = listState.canScrollBackward)` or content shows through the transparent bar.
 - TalkBack: entry label includes the current section; items expose `selected` + "Current section" state; the sheet has a pane title. Test IDs `fst.quick-links.open`, `.sheet`, `.menu`, `.list`, `.item.<id>`.
-- Order (issue #46 cross-check of iOS #6): both the sheet (`LazyColumn`) and the `DropdownMenu` list `controller.sections` in declared order, which is the page order; Compose does not reverse a bottom-anchored menu. Checked on FST_Phone with fixtures: Settings and the player profile, from both the portrait bottom-toolbar sheet and the landscape top-bar menu. Order, jump and `selected`/`checked` were correct, so no change was needed. The order is guarded by `QuickLinksPageOrderUiTest` and `QuickLinksPageSweepUiTest` (see [Page-order guard](#page-order-guard-issues-50-158)).
+- Order (issue #46 cross-check of iOS #6): both the sheet (`LazyColumn`) and the `DropdownMenu` list `controller.sections` in declared order, which is the page order; Compose does not reverse a bottom-anchored menu. Checked on FST_Phone with fixtures: Settings and the player profile, from both the portrait sheet and the landscape menu (then a top-bar action; since #576 both open from the floating toolbar). Order, jump and `selected`/`checked` were correct, so no change was needed. The order is guarded by `QuickLinksPageOrderUiTest` and `QuickLinksPageSweepUiTest` (see [Page-order guard](#page-order-guard-issues-50-158)).
 
 ## Adoption
 
 | Page | Status |
 |---|---|
 | Settings | Done: `app-settings`, `item-shop`, `show-instruments`, `show-metadata`, `accessibility` (native), `version`, `service-info`, `first-run`, `licenses`, `privacy-policy`, `reset` (no `refresh-profile-name`/`export` rows; no `diagnostics`, the section is gone in every build, #374) |
-| Player / Statistics | Done: `global` "Global Statistics", `instrument:<wire>` per visible chart, `top-songs`, `bands` (staggered grid; with a separating hinge the grid splits at the fold and Quick Links stay in the top bar instead of taking a panel) |
+| Player / Statistics | Done: `global` "Global Statistics", `instrument:<wire>` per visible chart, `top-songs`, `bands` (staggered grid; with a separating hinge the grid splits at the fold and Quick Links stay the floating-toolbar menu anchored in the pane that owns the toolbar, never a panel or the top app bar, R4/#576) |
 | Songs | Done: sort buckets (`<webId>:<token>`, e.g. `duration:lt2`, `shop:in-shop`, `hasfc:fc`) for every sort except Title/Artist/Year, which keep the section index (as iPhone) |
 | Song Detail (pushed page only) | Done: `intensity`, `score-history` (only when the page shows the card: one `showHistory` flag feeds `SongDetailLayout.items` and `.quickLinks`), `instrument-<wire>` per visible chart, `band-<wire>` per band size |
 | Compete | Done: `leaderboards`, `rivals` (staggered grid headers; none while a full-page issue shows) |
@@ -65,7 +65,7 @@ Checked on the live public service (Settings page) on every FST AVD, light/dark 
 
 ## Validation (issue #154)
 
-Re-check of the #46 order on the live public service (Settings with 12 sections in debug: `app-settings` … `privacy-policy`, `reset`; player profile `SFentonX`: Global, 9 instruments, Top Songs, Bands). Each case opened Quick Links, jumped (Settings → Service Info, profile → Top Songs; on phone landscape → Show Instrument Metadata / Drums), then reopened it. **The order matches the page everywhere, so no app change was needed.**
+Re-check of the #46 order on the live public service (entry points as they were then; since #576 every "Top-bar menu" below opens from the floating toolbar, [Design decision](#design-decision-m3-first-fluent-second)) (Settings with 12 sections in debug: `app-settings` … `privacy-policy`, `reset`; player profile `SFentonX`: Global, 9 instruments, Top Songs, Bands). Each case opened Quick Links, jumped (Settings → Service Info, profile → Top Songs; on phone landscape → Show Instrument Metadata / Drums), then reopened it. **The order matches the page everywhere, so no app change was needed.**
 
 | Configuration | Entry point | Finding |
 |---|---|---|

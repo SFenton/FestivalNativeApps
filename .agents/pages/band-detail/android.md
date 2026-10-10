@@ -25,7 +25,7 @@
 
 ## Quick Links
 
-Web `BandPage` items (`BandQuickLinks.sections()`): Members, Summary, Statistics, Rank History, Songs (TalkBack: Band Summary / Band Statistics / Band Rank History / Band Songs), in the top bar or phone floating toolbar while the page is one scrolling column. The page is a `verticalScroll` column, so `ui/quicklinks/ScrollQuickLinks.kt` adapts it to the shared controller (sections record content offsets; jumps are one instant `scrollTo`). Two panes show every section side by side, so no Quick Links there.
+Web `BandPage` items (`BandQuickLinks.sections()`): Members, Summary, Statistics, Rank History, Songs (TalkBack: Band Summary / Band Statistics / Band Rank History / Band Songs), in the shell's floating toolbar (every window size, #576) while the page is one scrolling column. The page is a `verticalScroll` column, so `ui/quicklinks/ScrollQuickLinks.kt` adapts it to the shared controller (sections record content offsets; jumps are one instant `scrollTo`). Two panes show every section side by side, so no Quick Links there.
 
 ## IDs
 

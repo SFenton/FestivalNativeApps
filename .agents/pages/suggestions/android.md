@@ -102,6 +102,8 @@ Deliberate deviations kept: dark scheme only; width-capped `ModalBottomSheet` in
 
 ## Validation (issue #160, 2026-10-05: pinned Filter and global search from #52)
 
+> **Since #576** ([page-tools-and-nav-chrome](../../patterns/page-tools-and-nav-chrome.md) R4) the "top bar" Filter placements below are history: Filter floats in the pinned toolbar on every window and posture, and `PinnedPageControlsDeviceTest` asserts that on phone portrait/landscape, FST_Tablet and FST_Book_Fold half-open.
+
 Live public service, SFentonX selected, dark scheme, animator scale 0. Each configuration: three swipes down the feed, UI tree and screenshot, open Filter while scrolled, swipe back up and compare bounds.
 
 | Configuration | Found | Result |
