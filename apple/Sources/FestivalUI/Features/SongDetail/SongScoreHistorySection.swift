@@ -471,10 +471,15 @@ struct ScoreHistoryListRow: View {
     @Environment(\.festivalGroupedRow) private var grouped
 
     var body: some View {
-        // Accessibility sizes stack the season under the date (HIG layout: horizontal
-        // views may stack); standard sizes keep the web's single-line label.
+        // Accessibility sizes stack date, season, score and accuracy in one column, as
+        // the leaderboard row does (leaderboard-row R2): side by side at AX5 they split
+        // "Feb", "Season 40" and "850,000" a letter or two per line (#406). Standard
+        // sizes keep the web's single-line row.
         let stacked = dynamicTypeSize.isAccessibilitySize
-        HStack(spacing: 10) {
+        let layout = stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+            : AnyLayout(HStackLayout(spacing: 10))
+        layout {
             VStack(alignment: .leading, spacing: 4) {
                 Text(dateText)
                     .font(.body.weight(isBest ? .bold : .regular))
@@ -485,7 +490,9 @@ struct ScoreHistoryListRow: View {
                     ScoreSeasonPill(season: season, current: season == currentSeason)
                 }
             }
-            Spacer(minLength: 8)
+            if !stacked {
+                Spacer(minLength: 8)
+            }
             if seasonColumn, !stacked {
                 ScoreSeasonPill(season: season, current: season != nil && season == currentSeason)
             }
@@ -512,7 +519,8 @@ struct ScoreHistoryListRow: View {
             }
         }
         .padding(.horizontal, 14)
-        .frame(maxWidth: .infinity, minHeight: 48)
+        .padding(.vertical, stacked ? 10 : 0)
+        .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
         .background {
             let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
             if grouped {
@@ -526,7 +534,11 @@ struct ScoreHistoryListRow: View {
                 Color.clear.festivalCard(cornerRadius: 12)
             }
         }
+        // Read-only text whose focus frame is the whole row: a grouped row draws no
+        // background, so the element had no role and a frame shrunk to its text (#406).
+        .contentShape(.accessibility, Rectangle())
         .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isStaticText)
         .accessibilityLabel(
             "\(dateText)"
                 + (season.map { ", " + ScoreSeasonPill.spokenLabel(season: $0, current: $0 == currentSeason).lowercased() } ?? "")
