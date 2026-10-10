@@ -2010,22 +2010,27 @@ final class SongsJourneyTests: XCTestCase {
     private func auditSectionTitlePage(_ app: XCUIApplication) throws {
         let window = app.windows.firstMatch.frame
         let chromeTop = app.tabBars.firstMatch.exists ? app.tabBars.firstMatch.frame.minY : window.maxY
-        let titles = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.shop-section.")
-        ).allElementsBoundByIndex.filter { window.intersects($0.frame) && $0.frame.maxY <= chromeTop }
+        // One snapshot for the titles and rows: a bound-by-index walk of the lazy list fails
+        // when it recycles a row mid-walk (#572).
+        let tree = try FestivalApp.snapshotNodes(in: app) {
+            $0.identifier.hasPrefix("fst.songs.shop-section.") || SongsUITestSupport.isSongsRow($0)
+        }
+        let titles = tree.filter {
+            $0.identifier.hasPrefix("fst.songs.shop-section.") && window.intersects($0.frame)
+                && $0.frame.maxY <= chromeTop
+        }
         XCTAssertTrue(
             titles.contains { $0.identifier == "fst.songs.shop-section.in-shop" },
             "In Shop must be audited above the bottom chrome"
         )
         let pinned = try XCTUnwrap(titles.min { $0.frame.minY < $1.frame.minY }, "No section title on screen")
         let fadeEnd = pinned.frame.maxY + 40
-        let rows = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row.")
-        ).allElementsBoundByIndex.map(\.frame).filter(window.intersects)
+        let rows = tree.filter(SongsUITestSupport.isSongsRow).map(\.frame).filter(window.intersects)
         let rowInFade = rows.contains { $0.minY < fadeEnd || $0.maxY > chromeTop }
         // The audit may not attribute a contrast issue; no title it could mean may read below 4.5:1.
-        for title in titles {
-            try SongsUITestSupport.assertHeaderContrast(title, in: app, leadingTextWidth: 260)
+        for title in Set(titles.map(\.identifier)).sorted() {
+            let element = app.descendants(matching: .any).matching(identifier: title).firstMatch
+            try SongsUITestSupport.assertHeaderContrast(element, in: app, leadingTextWidth: 260)
         }
         try app.performAccessibilityAudit(for: .all) { issue in
             let element = issue.element

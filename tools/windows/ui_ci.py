@@ -112,6 +112,15 @@ RUNS: tuple[Run, ...] = (
     # Reset / Select All / Clear All, live Double Bass and Year narrowing, Filters applied, keyboard and Esc.
     Run("songs-filter", "a11y-songs-filter.json"),
     Run("songs-filter-text-225", "a11y-songs-filter.json", sizes="compact", mode="text-225"),
+    # Accordions (issue #561): Songs Filter Expanders, the Suggestions Instrument-Specific panel and the Settings options
+    # a switch reveals (leeway slider, Song Row Visual Order) open (grow, then fade in) and close (fade out, then
+    # collapse) with Narrator's expanded/collapsed or on/off phrase, revealed content read and removed from the order when
+    # closed, and rapid re-toggles settling open; again with the app's Reduce Motion (instant) and at Windows' largest
+    # text size.
+    Run("accordion", "a11y-accordion.json"),
+    Run("accordion-reduced", "a11y-accordion.json", sizes="medium", mode="app-reduced"),
+    Run("accordion-text-225", "a11y-accordion.json", sizes="compact", mode="text-225",
+        only="accordion-songs-filter,accordion-settings-switches"),
     # Songs Jump backward pick after a scroll (issues #48, #415): the pinned title names the picked section, reads
     # "B, text", stays a Level 2 heading, Jump -> title -> list order, Jump's name and 40x40 target, by pointer and keys.
     Run("section-index-backward", "a11y-section-index.json", only=SECTION_INDEX_BACKWARD),
