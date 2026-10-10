@@ -227,8 +227,11 @@ func nativeHostedImage<Content: View>(_ host: NSHostingView<Content>, in rect: C
 }
 
 /// Cache `local` (view coordinates) of a laid-out, displayed host at no less than 2x.
+///
+/// Internal so a test can capture an AppKit view that is not an `NSHostingView` it
+/// owns, such as a presented sheet window's content view.
 @MainActor
-private func nativeHostedCache(_ host: NSView, in local: CGRect) throws -> CGImage {
+func nativeHostedCache(_ host: NSView, in local: CGRect) throws -> CGImage {
     var bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: local))
     if CGFloat(bitmap.pixelsWide) < local.width * 2 {
         let colorSpace = bitmap.colorSpace

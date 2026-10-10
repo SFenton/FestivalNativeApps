@@ -1026,11 +1026,19 @@ struct RankingsFloatingBar<SwitcherMenu: View>: View {
 /// Buttons are SF Symbols with spoken titles ("First Page" …) and keep their
 /// existing `<idPrefix>.page-*` identifiers. The label is one adjustable element
 /// ("Page, 1 of 34,757"): VoiceOver swipes up/down to page.
+///
+/// Sized like ``RankingsPagerView`` (issue #462): fixed 44 pt targets whose SF Symbols
+/// still scale with Dynamic Type, and a badge that shrinks (to 70%) rather than
+/// widening the capsule. Scaling the targets themselves made the capsule about 630 pt
+/// wide at the largest accessibility size, wider than an iPhone, which stretched the
+/// whole page and pushed rows and the First/Last arrows off screen (HIG Typography:
+/// "Adapt layouts for all Dynamic Type sizes").
 struct RankingsGlassPager: View {
     let state: RankingsPagerState
     let idPrefix: String
     let onChange: (Int) -> Void
-    @ScaledMetric(relativeTo: .body) private var buttonSize: CGFloat = 44
+    /// Hit target of each arrow and the badge's minimum size (HIG 44 × 44 pt).
+    static let targetSize: CGFloat = 44
 
     var body: some View {
         HStack(spacing: 0) {
@@ -1041,9 +1049,9 @@ struct RankingsGlassPager: View {
                 .monospacedDigit()
                 .foregroundStyle(FestivalText.primary)
                 .lineLimit(1)
-                .fixedSize()
+                .minimumScaleFactor(0.7)
                 .padding(.horizontal, 6)
-                .frame(minWidth: buttonSize, minHeight: buttonSize)
+                .frame(minWidth: Self.targetSize, minHeight: Self.targetSize)
                 // The shape makes the 44 pt frame the element's frame; without it the
                 // audit measured the bare text (31 × 18 pt, "Hit area is too small").
                 .contentShape(Rectangle())
@@ -1077,14 +1085,14 @@ struct RankingsGlassPager: View {
     /// One symbol button; disabled at the matching edge.
     ///
     /// - Parameter action: Pager step.
-    /// - Returns: A 44 pt (scaled) plain button with a spoken title and stable id.
+    /// - Returns: A 44 pt plain button with a spoken title and stable id.
     private func button(_ action: RankingsPagerAction) -> some View {
         let enabled = state.destination(for: action) != nil
         return Button { go(action) } label: {
             Image(systemName: Self.symbol(action))
                 .font(.body.weight(.semibold))
                 .foregroundStyle(enabled ? FestivalText.primary : FestivalText.disabled)
-                .frame(width: buttonSize, height: buttonSize)
+                .frame(width: Self.targetSize, height: Self.targetSize)
                 .contentShape(Circle())
         }
         .buttonStyle(HighContrastPagerStyle())

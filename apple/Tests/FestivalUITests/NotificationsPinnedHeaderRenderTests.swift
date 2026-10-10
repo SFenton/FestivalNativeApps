@@ -12,7 +12,7 @@ import FestivalDesign
 /// Keyless fixture transport for one scrolling Notifications feed: publication, the
 /// catalogue song its rows name and the account's notifications. Rejects the privileged
 /// key, selected-profile headers, writes and any other route.
-private actor ScrollingNotificationsTransport: HTTPTransport {
+actor ScrollingNotificationsTransport: HTTPTransport {
     private let generation = 7
     let accountId: String
     let notificationsBody: Data
@@ -66,7 +66,7 @@ private actor ScrollingNotificationsTransport: HTTPTransport {
 /// defaults, keeps 200 IDs per account and is filled by every sheet that disappears.
 /// Call ``forgetScrollingAccount(_:)`` when done.
 @MainActor
-private func scrollingNotificationsSession(
+func scrollingNotificationsSession(
     newCount: Int, olderCount: Int
 ) async -> (session: FestivalSession, accountId: String) {
     let accountId = "scroll\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
@@ -103,7 +103,7 @@ private func scrollingNotificationsSession(
 
 /// Drop a scrolling fixture account's seen IDs and selection suite.
 @MainActor
-private func forgetScrollingAccount(_ accountId: String) {
+func forgetScrollingAccount(_ accountId: String) {
     let key = "fst.notifications.seen"
     if var store = UserDefaults.standard.dictionary(forKey: key) {
         store[accountId] = nil

@@ -3,6 +3,7 @@
 A selector that matches nothing makes ``xcodebuild`` run no test, so a renamed journey would silently leave CI.
 The account-button reading-order journeys (``page-tools-and-nav-chrome`` R17, #394), the Songs section-title AX5
 journey (#91, #441), the What's New AX5 journeys (#434: iPhone portrait, iPad portrait and landscape) and the
+scroll-edge fade journeys (#462: sheet header and every R9 board on iPhone and iPad, Duo windows on iPhone) and the
 pinned caption-icon journeys (``song-header`` R4, #542) must stay listed.
 """
 
@@ -104,6 +105,24 @@ class AppleCIJourneysTests(unittest.TestCase):
     def test_section_title_ax5_journey_runs_in_ci(self) -> None:
         # #91/#441: the only iOS Dynamic Type and audit evidence for Songs' grouped-sort section titles.
         self.assertIn("SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5", self.journeys)
+
+    def test_scroll_edge_journeys_run_on_iphone_and_ipad(self) -> None:
+        # #462: the iOS evidence for scroll-edge R1, R7 and R9 (sheet header and every pager board).
+        iphone, ipad = self.blocks
+        cls = "ScrollEdgeFadeAccessibilityJourneyTests"
+        boards = [
+            f"{cls}/test{board}FadeKeepsRowsAndPagerAccessible"
+            for board in ("SongLeaderboard", "FullRankings", "BandRankings", "SongBandLeaderboard", "PlayerBands")
+        ]
+        for journey in boards + [f"{cls}/testNotificationsSheetAtLargestTextWithHardEdge"]:
+            self.assertIn(journey, iphone)
+            self.assertIn(journey, ipad)
+        self.assertIn(f"{cls}/testNotificationsSheetHeaderAndPinnedTitlesAreAccessible", iphone)
+        # The Duo window journeys skip on iPad, which would fail --fail-on-skip.
+        for duo in ("testBoardFadesInDuoWindows", "testNotificationsSheetInDuoWindows"):
+            self.assertIn(f"{cls}/{duo}", iphone)
+            self.assertNotIn(f"{cls}/{duo}", ipad)
+        self.assertIn("mock_service.py --large-rankings --port 8766", self.workflow)
 
     def test_pinned_caption_icon_journeys_run_in_ci(self) -> None:
         for method in (
