@@ -91,8 +91,8 @@ struct RivalRowContent<Rival: RivalRowDisplayable>: View {
                     .foregroundStyle(BrandTokens.textPrimary)
                     .lineLimit(1)
                 HStack(spacing: 6) {
-                    pill(count: rival.behindCount, label: "ahead", tint: BrandTokens.statusGreen)
-                    pill(count: rival.aheadCount, label: "behind", tint: BrandTokens.statusRed)
+                    RivalStatusPill("\(rival.behindCount) ahead", tint: BrandTokens.statusGreen)
+                    RivalStatusPill("\(rival.aheadCount) behind", tint: BrandTokens.statusRed)
                 }
             }
             Spacer(minLength: 8)
@@ -107,16 +107,87 @@ struct RivalRowContent<Rival: RivalRowDisplayable>: View {
         )
         .accessibilityAddTraits(.isButton)
     }
+}
 
-    @ViewBuilder
-    private func pill(count: Int, label: String, tint: Color) -> some View {
-        Text("\(count) \(label)")
+// MARK: - Rival status pill
+
+/// The red/green capsule every Rivals card draws its standing in (pattern `rival-rows` R2):
+/// the hub rows' "N ahead" / "N behind" counts and the song rows' "#rank Name" sides.
+///
+/// The text always carries the meaning, so colour is never the only signal (HIG Color:
+/// "Avoid relying solely on color"); red text uses ``RivalStatusText/readable(_:)``.
+/// Line limits come from the caller's environment.
+struct RivalStatusPill: View {
+    /// Visible label.
+    let text: String
+    /// Status tint: `BrandTokens.statusGreen`, `BrandTokens.statusRed` or a neutral text colour.
+    let tint: Color
+
+    /// Create a pill.
+    ///
+    /// - Parameters:
+    ///   - text: Visible label.
+    ///   - tint: Status tint for the fill, stroke and (readable) text.
+    init(_ text: String, tint: Color) {
+        self.text = text
+        self.tint = tint
+    }
+
+    var body: some View {
+        Text(text)
             .font(.caption2.weight(.semibold))
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .foregroundStyle(RivalStatusText.readable(tint))
             .background(tint.opacity(0.16), in: Capsule())
             .overlay(Capsule().stroke(tint.opacity(0.4), lineWidth: 1))
+    }
+}
+
+// MARK: - Rival song standing
+
+/// Who leads one shared song, from ``RivalSongComparison/rankDelta`` (positive: the player
+/// has the better rank).
+enum RivalSongStanding: Equatable {
+    case playerAhead
+    case rivalAhead
+    case tied
+
+    /// Classify a rank delta.
+    ///
+    /// - Parameter rankDelta: The comparison's `rankDelta`.
+    init(rankDelta: Int) {
+        self = rankDelta > 0 ? .playerAhead : (rankDelta < 0 ? .rivalAhead : .tied)
+    }
+
+    /// Pill tint for the player's side: green when ahead, red when behind, neutral when tied.
+    var playerTint: Color {
+        switch self {
+        case .playerAhead: BrandTokens.statusGreen
+        case .rivalAhead: BrandTokens.statusRed
+        case .tied: FestivalText.primary
+        }
+    }
+
+    /// Pill tint for the rival's side, the mirror of ``playerTint``.
+    var rivalTint: Color {
+        switch self {
+        case .playerAhead: BrandTokens.statusRed
+        case .rivalAhead: BrandTokens.statusGreen
+        case .tied: FestivalText.primary
+        }
+    }
+
+    /// Spoken leader phrase for the row's VoiceOver label.
+    ///
+    /// - Parameter rivalName: Rival display name.
+    /// - Returns: "you lead", "<rival> leads" or "tied".
+    func spokenLeader(rivalName: String) -> String {
+        switch self {
+        case .playerAhead: "you lead"
+        case .rivalAhead: "\(rivalName) leads"
+        case .tied: "tied"
+        }
     }
 }
 
@@ -139,26 +210,47 @@ struct RivalsViewAllButton: View {
 
 // MARK: - Rival song row content
 
-/// Flat row content comparing one shared song between the player and a rival.
+/// Flat row content comparing one shared song between the player and a rival
+/// (pattern `rival-rows`): Rival Detail category cards, Rivalry and the Duo category cards.
+///
+/// The leading column shows the song's album art (the shared ``ArtworkTile``), above the
+/// instrument icon when there is one; the column is vertically centred, so art alone sits
+/// in the middle of the row (owner, #558). The bottom line is the player's and the rival's
+/// "#rank Name" as ``RivalStatusPill``s, green for the side that leads and red for the
+/// side behind (agent decision #558, rival-rows R3).
 struct RivalSongRowContent: View {
+    /// Album art edge, the native song rows' 44 pt (Songs, Suggestions, Search).
+    static let artSize: CGFloat = 44
+
     let song: RivalSongComparison
+    /// Catalogue artwork path for the song, or nil for the placeholder.
+    let albumArt: String?
+    /// Shared session whose bounded artwork caches draw the art.
+    let session: FestivalSession
     let playerName: String
     let rivalName: String
+    /// Decoded art for hosted visual tests; nil loads `albumArt`.
+    var previewArtwork: CGImage? = nil
 
     private var instrument: Instrument? { Instrument(rawValue: song.instrument) }
+    private var standing: RivalSongStanding { RivalSongStanding(rankDelta: song.rankDelta) }
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    /// Rank comparison layout: a row, or a column at accessibility sizes.
-    private var comparisonLayout: AnyLayout {
-        dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2)) : AnyLayout(HStackLayout(spacing: 4))
+    /// The row's single VoiceOver label: song, both ranks and who leads.
+    ///
+    /// - Parameters:
+    ///   - song: The comparison.
+    ///   - rivalName: Rival display name.
+    /// - Returns: For example "Song, you rank 12, Rival ranks 13, you lead".
+    static func accessibilityLabel(for song: RivalSongComparison, rivalName: String) -> String {
+        "\(song.title ?? song.songId), you rank \(song.userRank), "
+            + "\(rivalName) ranks \(song.rivalRank), "
+            + RivalSongStanding(rankDelta: song.rankDelta).spokenLeader(rivalName: rivalName)
     }
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            if let instrument {
-                InstrumentIcon(instrument, size: 22)
-            }
+            leadingColumn
             VStack(alignment: .leading, spacing: 4) {
                 MarqueeText(song.title ?? song.songId)
                     .font(.body.weight(.semibold))
@@ -170,27 +262,47 @@ struct RivalSongRowContent: View {
                         .foregroundStyle(FestivalText.primary)
                         .lineLimit(1)
                 }
-                // One line normally; at accessibility sizes each part gets its own
-                // wrapping line (the AX5 audit read "#12 Fixt… vs #13 u…").
-                comparisonLayout {
-                    Text("#\(song.userRank) \(playerName)")
-                    Text("vs")
-                        .foregroundStyle(FestivalText.primary)
-                    Text("#\(song.rivalRank) \(rivalName)")
-                }
-                .font(.caption2)
-                .foregroundStyle(FestivalText.primary)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                standingPills
             }
             Spacer(minLength: 8)
             deltaBadge
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            "\(song.title ?? song.songId), you rank \(song.userRank), "
-            + "\(rivalName) ranks \(song.rivalRank)"
-        )
+        .accessibilityLabel(Self.accessibilityLabel(for: song, rivalName: rivalName))
+    }
+
+    /// Album art, with the instrument icon under it when the chart is known.
+    private var leadingColumn: some View {
+        VStack(spacing: 6) {
+            ArtworkTile(raw: albumArt, session: session, size: Self.artSize, previewImage: previewArtwork)
+                .id(albumArt)
+                .accessibilityHidden(true)
+            if let instrument {
+                InstrumentIcon(instrument, size: 22)
+            }
+        }
+    }
+
+    /// "#rank Name" pills for both sides. One line when they fit, else one pill per line;
+    /// at accessibility sizes each pill wraps instead of truncating (HIG Typography: "Keep
+    /// text truncation to a minimum as font size increases").
+    @ViewBuilder private var standingPills: some View {
+        let player = RivalStatusPill("#\(song.userRank) \(playerName)", tint: standing.playerTint)
+        let rival = RivalStatusPill("#\(song.rivalRank) \(rivalName)", tint: standing.rivalTint)
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 4) {
+                player.fixedSize(horizontal: false, vertical: true)
+                rival.fixedSize(horizontal: false, vertical: true)
+            }
+            .lineLimit(nil)
+        } else {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 6) { player; rival }
+                VStack(alignment: .leading, spacing: 4) { player; rival }
+            }
+            .lineLimit(1)
+        }
     }
 
     @ViewBuilder private var deltaBadge: some View {

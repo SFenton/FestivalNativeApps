@@ -111,6 +111,16 @@ class RankingsCoreTest {
         assertEquals(5, RankingPaging.pageCount(5, 0))
     }
 
+    /** Issue #575: a pager only for a loaded page count above one (web `hasPagination`). */
+    @Test
+    fun pagerShowsOnlyForAKnownMultiPageCount() {
+        assertFalse(RankingPaging.showsPager(null))
+        assertFalse(RankingPaging.showsPager(0))
+        assertFalse(RankingPaging.showsPager(1))
+        assertTrue(RankingPaging.showsPager(2))
+        assertTrue(RankingPaging.showsPager(34_760))
+    }
+
     @Test
     fun playerRankingAcceptsBlankInstrumentButNotMismatches() {
         val row = entry(RankingsFixtures.SELECTED_RANK)

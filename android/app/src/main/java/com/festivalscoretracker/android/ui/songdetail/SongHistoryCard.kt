@@ -1,16 +1,11 @@
 package com.festivalscoretracker.android.ui.songdetail
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -81,11 +76,13 @@ import com.festivalscoretracker.android.core.songs.SongHistoryChart
 import com.festivalscoretracker.android.core.songs.SongHistoryPaging
 import com.festivalscoretracker.android.core.songs.SongHistoryPoint
 import com.festivalscoretracker.android.core.songs.SongHistorySwap
+import com.festivalscoretracker.android.ui.common.AccordionRevealOf
 import com.festivalscoretracker.android.ui.common.GraphCardList
 import com.festivalscoretracker.android.ui.common.ChartBandLabels
 import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentSelector
+import com.festivalscoretracker.android.ui.design.InstrumentSelectorLook
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.design.ViewFullLeaderboardButton
 import com.festivalscoretracker.android.ui.leaderboards.FrostedPagerButton
@@ -180,6 +177,7 @@ fun SongHistoryCard(
                     onSelect = { next -> if (next != null) chosen = next },
                     required = true,
                     keyboard = keyboard,
+                    look = InstrumentSelectorLook.Graph,
                     tag = "fst.song-detail.history.instrument",
                 )
                 Text(
@@ -337,19 +335,14 @@ internal fun HistoryChart(
                 )
             }
             Legend(page)
-            AnimatedVisibility(
-                visible = showDetail && paging.selected != null,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut(),
-            ) {
-                paging.selected?.let { points.getOrNull(it) }?.let {
-                    HistoryRow(
-                        it,
-                        best = false,
-                        tag = detailTag,
-                        showSeason = ScoreRowSeasonPolicy.showsSeason(ScoreRowSeasonPolicy.Surface.HistoryDetail, Float.NaN, it.season),
-                    )
-                }
+            // The detail row keeps the last bar while it fades out and collapses.
+            AccordionRevealOf(paging.selected?.takeIf { showDetail }?.let { points.getOrNull(it) }) {
+                HistoryRow(
+                    it,
+                    best = false,
+                    tag = detailTag,
+                    showSeason = ScoreRowSeasonPolicy.showsSeason(ScoreRowSeasonPolicy.Surface.HistoryDetail, Float.NaN, it.season),
+                )
             }
             if (paging.needsPaging) {
                 Pager(paging) { paging = it }

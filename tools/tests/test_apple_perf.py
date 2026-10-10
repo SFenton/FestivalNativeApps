@@ -12,6 +12,7 @@ from tools.apple_perf import (
     app_bundle,
     build_argv,
     cpu_percent,
+    fling_frames,
     ipad_product,
     parse_cpu_time,
     parse_launch_pid,
@@ -78,6 +79,16 @@ class StallTests(unittest.TestCase):
         summary = summarize_stalls({"stalls": [{"at": 1.0, "ms": 120}]})
         self.assertEqual(summary["count"], 1)
         self.assertFalse(summary["completed"])
+
+
+class FlingTests(unittest.TestCase):
+    def test_fling_frames_strip_the_prefix(self):
+        report = {"peaks": {"fling.frames": 120, "fling.over8ms": 4, "Songs.rowBuild": 9}}
+        self.assertEqual(fling_frames(report), {"frames": 120, "over8ms": 4})
+
+    def test_no_fling_pass_is_none(self):
+        self.assertIsNone(fling_frames({"peaks": {"Songs.rowBuild": 9}}))
+        self.assertIsNone(fling_frames({}))
 
 
 class LaunchAndBuildTests(unittest.TestCase):
