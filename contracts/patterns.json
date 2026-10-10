@@ -577,7 +577,8 @@
         312,
         321,
         343,
-        348
+        348,
+        557
       ]
     },
     {
@@ -870,6 +871,14 @@
             "symbol": "SidebarMenu"
           },
           {
+            "path": "apple/Sources/FestivalUI/Common/InstrumentPageTitle.swift",
+            "symbol": "InstrumentPageTitle"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/InstrumentPageTitle.swift",
+            "symbol": "InstrumentPageTitleToolbarItem"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Common/Chrome/SearchDrawerTransitionFill.swift",
             "symbol": "SearchDrawerTransitionFill"
           },
@@ -1033,7 +1042,8 @@
         363,
         394,
         534,
-        544
+        544,
+        557
       ]
     },
     {
@@ -3783,6 +3793,100 @@
       "issues": [
         541
       ]
+    },
+    {
+      "id": "rival-rows",
+      "title": "Rival rows",
+      "status": "current",
+      "doc": ".agents/patterns/rival-rows.md",
+      "summary": "Rows inside Rivals cards: the hub's rival rows and the song comparison rows on Rival Detail, Rivalry and the Duo category cards. One row component per kind on every surface, one shared red/green status capsule with text (readable red text), album art leading every song row through the shared ArtworkTile (art vertically centred alone, above the instrument icon when both, owner #558), one spoken element per row that names who leads, and pills that stack and wrap at accessibility sizes. Apple song rows show '#rank Name' pills for both sides, the leader green and the trailer red (agent decision #558, owner may override).",
+      "keywords": [
+        "rival",
+        "rivals",
+        "rival row",
+        "rival song row",
+        "rivalry",
+        "ahead",
+        "behind",
+        "pill",
+        "status pill",
+        "album art"
+      ],
+      "web": [
+        {
+          "path": "pages/rivals/components/RivalRow.tsx",
+          "symbol": "RivalRow"
+        },
+        {
+          "path": "pages/rivals/components/RivalSongRow.tsx",
+          "symbol": "RivalSongRow"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Rivals/RivalsSupport.swift",
+            "symbol": "RivalStatusPill"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Rivals/RivalsSupport.swift",
+            "symbol": "RivalRowContent"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Rivals/RivalsSupport.swift",
+            "symbol": "RivalSongRowContent"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Rivals/RivalsSupport.swift",
+            "symbol": "RivalSongStanding"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Rivals/RivalsSupport.swift",
+            "symbol": "RivalStatusText"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
+            "symbol": "RivalPill"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
+            "symbol": "RivalRow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
+            "symbol": "RivalSongRow"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/RivalsResources.xaml",
+            "symbol": "FSTRivalPillStyle"
+          },
+          {
+            "path": "windows/Festival.App/Controls/RivalRowView.xaml",
+            "symbol": "RivalRowView"
+          },
+          {
+            "path": "windows/Festival.App/Controls/RivalSongRowView.xaml",
+            "symbol": "RivalSongRowView"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "surface-materials",
+          "view-all-cta"
+        ],
+        "pages": [
+          "rivals",
+          "all-rivals",
+          "rival-detail",
+          "rivalry"
+        ]
+      },
+      "guards": []
     }
   ]
 }

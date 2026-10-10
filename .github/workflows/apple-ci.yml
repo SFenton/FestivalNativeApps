@@ -98,8 +98,11 @@ jobs:
             NavButtonHitRegionJourneyTests/testAccountButtonsStaySeparateAndLabelledAtLargestTextSize
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
             CompeteAccessibilityJourneyTests/testCompeteIsReadableAtAX5
+            RivalsJourneyTests/testAllRivalsTitleLeadsTheListAndPinsAfterScroll
+            RivalsJourneyTests/testAllRivalsDuoVerticalBarKeepsSystemTitle
             SongBarCaptionIconJourneyTests/testSongLeaderboardCaptionIconScalesWithText
             SongBarCaptionIconJourneyTests/testPlayerHistoryCaptionIconAtLargestText
+            RivalsJourneyTests/testRivalDetailSongCardsAreAccessibleAtAX5
         run: |
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service.log" 2>&1 &
           mock=$!
