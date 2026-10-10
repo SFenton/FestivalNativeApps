@@ -1,26 +1,15 @@
 name: Android device tests
 
+# Release train: the whole instrumented suite runs only on the weekly releases/YYMM.DD branch, dispatched by the
+# release machine (fst-machine releasetrain); pull requests run android-unit.
 on:
-  push:
-    branches: [master]
-    paths:
-      - 'android/**'
-      - 'contracts/**'
-      - '.github/workflows/android-device.yml'
-  pull_request:
-    paths:
-      - 'android/**'
-      - 'contracts/**'
-      - '.github/workflows/android-device.yml'
   workflow_dispatch:
-
 permissions:
   contents: read
 
 concurrency:
   group: android-device-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  # Only a PR's superseded runs are cancelled: master runs finish, so its checks reflect every merge.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 jobs:
   android-device:

@@ -101,6 +101,14 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
         AutomationProperties.SetAutomationId(args.ItemContainer, row.AutomationId);
         if (row.IsSelected) args.ItemContainer.Foreground = ContrastTheme.Brush("FSTPlayerRowTextBrush");
         else args.ItemContainer.ClearValue(Control.ForegroundProperty);
+        // The row's slice of the board's one grouped card (issue #543); the container's hover and press fill and its
+        // focus ring follow the slice's corners and stay inside the row, which touches its neighbours.
+        var index = args.ItemIndex;
+        var items = sender.Items;
+        var slice = GroupedRows.SliceFor(index, items.Count, row, index > 0 && index - 1 < items.Count ? items[index - 1] : null);
+        if (args.ItemContainer.ContentTemplateRoot is UIElement root) GroupedRows.Apply(root, slice);
+        args.ItemContainer.CornerRadius = GroupedRows.Radius(slice);
+        args.ItemContainer.FocusVisualMargin = new Thickness(0);
     }
 
     /// <summary>Card fill: the purple player row for the selected player's band (web <c>isSelected</c>), else the card surface.</summary>
