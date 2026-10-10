@@ -2173,6 +2173,10 @@
           {
             "path": "windows/Festival.App/Controls/ServiceStatusView.xaml",
             "symbol": "ServiceStatusView"
+          },
+          {
+            "path": "windows/Festival.Core/Data/FestivalApiClient.cs",
+            "symbol": "ReadPinnedResponseAsync"
           }
         ]
       },
