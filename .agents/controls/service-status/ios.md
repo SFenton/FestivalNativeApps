@@ -19,6 +19,7 @@
 2. Render `case let .failed(issue): ServiceStatusView(issue, title: "Rankings unavailable") { Task { await load() } }`.
 3. Previews/tests may keep `.failed("Synthetic outage")`: `ServiceIssue` is `ExpressibleByStringLiteral` (`.other`).
 4. Keep a loaded page's refresh failure as its existing banner; the status view is for "nothing to show".
+5. Screens need no freeze retention of their own: `FestivalAPI.readOnce` answers a score-update freeze 503 with the response it already verified for that URL in the current publication (`scrapeFreezeFallback`, #554, `ScrapeFreezeFallbackTests`), so a section that reloads on reappearance (Band Detail's Best & Worst Songs, history, summary; a viewed player's ranking and rank-history cards) stays filled.
 
 Adopted: Songs, Shop, Paths, Solo/Band song leaderboards, Player History, Notifications, Player/Statistics, Suggestions, Full/Band Rankings, Leaderboards cards (inline), Compete (inline), Rivals hub (inline)/All/Detail/Rivalry, Band Detail (+ inline history/songs), Player Bands.
 

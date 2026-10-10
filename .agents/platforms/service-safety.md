@@ -64,6 +64,8 @@ While the service scrapes and publishes, `PublicReadGateMiddleware` stamps every
 
 Clients must treat a freeze as transient, honour `Retry-After` with capped backoff, and never interpret it as missing data. List endpoints can keep answering 200 during a freeze while detail endpoints 503 on a cache miss. UI: [service-status control](../controls/service-status/spec.md).
 
+**Natives miss the published cache more often than the web (#554).** `PublicationApiResponseCachePolicy.BuildCacheKey` adds the `X-FST-Selected-*` headers to the route-cache key of every read `IsProfileInvariantRequest` rejects: band-scoped `/api/rankings/bands/{type}/{teamKey}[/songs|/history]`, `/song-rows` and account-scoped reads. The web sends those headers; natives must not, so their header-less key is often cold and the read 503s while the web is served. Client rule ([empty-error-states](../patterns/empty-error-states.md) R9): on a score-update freeze 503, the shared client returns the response it already verified for the same URL in the same current publication; personal account reads (profile, history, notifications, bands lists) are never snapshot-cached and stay a freeze, while a viewed player's public rankings-board row and rank history are cached and retained like other board reads. Fixing the cold case (a section never loaded before the scrape) needs the service to treat band-scoped reads as profile-invariant.
+
 ## Live probes
 
 - `bash tools/apple_live_service_smoke.sh --read-public-live` — opt-in, three public GETs (publication, Songs, ten Lead rows) through the real Swift client; prints aggregate counts and provenance only. Never run in automated fixture/coverage suites.
