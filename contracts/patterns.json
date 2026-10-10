@@ -577,7 +577,8 @@
         312,
         321,
         343,
-        348
+        348,
+        557
       ]
     },
     {
@@ -870,6 +871,14 @@
             "symbol": "SidebarMenu"
           },
           {
+            "path": "apple/Sources/FestivalUI/Common/InstrumentPageTitle.swift",
+            "symbol": "InstrumentPageTitle"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/InstrumentPageTitle.swift",
+            "symbol": "InstrumentPageTitleToolbarItem"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Common/Chrome/SearchDrawerTransitionFill.swift",
             "symbol": "SearchDrawerTransitionFill"
           },
@@ -1033,7 +1042,8 @@
         363,
         394,
         534,
-        544
+        544,
+        557
       ]
     },
     {
