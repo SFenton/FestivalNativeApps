@@ -215,6 +215,9 @@ fun SongDetailScreen(
     val headerGone by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
     // The revealed page publishes its items so Quick Links (in the top bar) can find them.
     var plan by remember { mutableStateOf(SongDetailPlan()) }
+    // Page tools wait for the load gate (#585): Paths appears with the revealed page and Quick
+    // Links, and stays while the shown content refreshes (the gate keeps it up).
+    val contentShown = plan.items.isNotEmpty()
     // The page's fade window, here so Quick Links (in the top bar) rush it and the embedded pane has one too.
     val fadeIn = rememberPageFadeInWindow()
     val quickLinks = rememberQuickLinks(listState, "Quick Links", plan.sections, fadeInWindow = fadeIn) { id -> SongDetailLayout.indexOf(plan.items, id) }
@@ -241,7 +244,7 @@ fun SongDetailScreen(
             scrolled = headerGone,
             marqueeTitle = true,
             actions = {
-                if (song != null && extras.pathInstruments.isNotEmpty()) {
+                if (song != null && contentShown && extras.pathInstruments.isNotEmpty()) {
                     IconButton(onClick = { onOpenPaths(song) }, modifier = Modifier.testTag("fst.song-detail.paths.open")) {
                         Icon(Icons.Filled.Route, contentDescription = "View Paths")
                     }
