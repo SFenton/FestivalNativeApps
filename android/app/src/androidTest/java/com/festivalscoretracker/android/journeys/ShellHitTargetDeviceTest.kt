@@ -10,6 +10,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.Density
 import androidx.datastore.preferences.core.mutablePreferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -36,11 +38,11 @@ private const val UNREAD_FEED = """{"sourceRunId":3,"items":[
 
 /**
  * Forgiving, separate hit regions for the shell's navigation-bar and toolbar buttons on a real
- * device (issues #72, #179): Quick Links, Sort, Filter, global Search, the bell, Profile and ⋮
+ * device (issues #72, #179): Quick Links, Sort, Filter, global Search, the bell and Profile
  * each keep a touch target of at least 48 dp that doesn't overlap its neighbour's, and real
- * touches 22 dp off the glyph's centre (outside the 40 dp container) activate them. Follows the
- * window's placement of the page tools: the floating toolbar (compact), the top app bar (medium
- * and wider) or ⋮ on a narrow list pane. ATF runs on every interaction; TalkBack's reading order
+ * touches 22 dp off the glyph's centre (outside the 40 dp container) activate them. The page
+ * tools float in the shell's toolbar at every window size and posture (issue #576), wholly on
+ * screen and never under a hinge. ATF runs on every interaction; TalkBack's reading order
  * and the measured targets go to logcat `FST_A11Y`. Run with
  * `device.py test com.festivalscoretracker.android.journeys.ShellHitTargetDeviceTest --avd … [--posture …]`
  * ([ShellHitTargetRotatedDeviceTest] for the display turned a quarter).
@@ -107,7 +109,7 @@ abstract class ShellHitTargetJourney(private val quarterTurn: Boolean) {
             }
         }
         h.waitForTag("fst.songs.row.s-1")
-        rule.waitUntil(15_000) { h.exists("fst.quick-links.open") || h.exists("fst.nav.overflow") }
+        rule.waitUntil(15_000) { h.exists("fst.quick-links.open") }
         h.waitForTag("fst.shell.notifications")
     }
 
@@ -127,26 +129,24 @@ abstract class ShellHitTargetJourney(private val quarterTurn: Boolean) {
     }
 
     /**
-     * Measures every shell target, touches each present tool off-centre and checks the bell
-     * also activates from its badge; then, when the page tools sit behind ⋮, does the same for
-     * them inside its menu.
+     * Measures every shell target, checks the page tools float on screen (issue #576), touches
+     * each tool off-centre and checks the bell also activates from its badge.
      *
      * @param screen Name for the log.
      */
     private fun assertForgiving(screen: String) {
-        val overflow = h.exists("fst.nav.overflow") && !h.exists("fst.songs.sort.open")
-        val compact = rule.activity.resources.configuration.screenWidthDp < 600
-        if (compact) pageTools.forEach { assertTrue("$it in the floating toolbar", within("fst.nav.floating-toolbar", it)) }
+        assertTrue("no ⋮ in the shell", !h.exists("fst.nav.overflow"))
+        pageTools.forEach { assertTrue("$it in the floating toolbar", within("fst.nav.floating-toolbar", it)) }
+        val root = rule.onRoot().fetchSemanticsNode().boundsInRoot
+        val toolbar = rule.onNodeWithTag("fst.nav.floating-toolbar").fetchSemanticsNode().boundsInRoot
+        assertTrue("toolbar $toolbar is on screen ($root)", toolbar.left >= root.left && toolbar.right <= root.right && toolbar.bottom <= root.bottom)
         val targets = probe.assertTargets(ShellHitTargets.SHELL_TAGS)
         log(screen, targets)
-        h.assertNothingStraddles(*ShellHitTargets.SHELL_TAGS.toTypedArray())
+        h.assertNothingStraddles(*ShellHitTargets.SHELL_TAGS.toTypedArray(), "fst.nav.floating-toolbar")
         h.readingOrder(screen)
 
-        val tools = if (overflow) {
-            listOf(ShellHitTargets.OVERFLOW)
-        } else {
-            listOf(ShellHitTargets.QUICK_LINKS, ShellHitTargets.SORT, ShellHitTargets.FILTER)
-        } + listOf(ShellHitTargets.SEARCH, ShellHitTargets.BELL, ShellHitTargets.PROFILE_OPEN)
+        val tools = listOf(ShellHitTargets.QUICK_LINKS, ShellHitTargets.SORT, ShellHitTargets.FILTER) +
+            listOf(ShellHitTargets.SEARCH, ShellHitTargets.BELL, ShellHitTargets.PROFILE_OPEN)
         tools.forEach { tool: ShellTool ->
             val extra = if (tool == ShellHitTargets.BELL && h.exists("fst.shell.notifications.badge")) {
                 val badge = rule.onAllNodes(hasTestTag("fst.shell.notifications.badge"), useUnmergedTree = true).fetchSemanticsNodes().first().boundsInRoot
@@ -155,28 +155,6 @@ abstract class ShellHitTargetJourney(private val quarterTurn: Boolean) {
                 emptyList()
             }
             probe.assertOffCentreTouchesActivate(tool, extra)
-        }
-
-        if (overflow) {
-            h.tap("fst.nav.overflow")
-            h.waitForTag("fst.nav.overflow-menu")
-            pageTools.forEach { assertTrue("$it in ⋮", within("fst.nav.overflow-menu", it)) }
-            log("$screen-overflow-menu", probe.assertTargets(pageTools))
-            h.readingOrder("$screen-overflow-menu")
-            probe.offCentre().forEach { offset ->
-                probe.touch("fst.songs.sort.open", offset)
-                h.waitForTag("fst.songs.sort.form")
-                h.tap("fst.songs.sort.done")
-                h.waitGone("fst.songs.sort.form")
-                h.waitGone("fst.nav.overflow-menu")
-                h.tap("fst.nav.overflow")
-                h.waitForTag("fst.nav.overflow-menu")
-            }
-            // Close ⋮ through a tool (its menu closes once the tool's sheet closes, issue #160).
-            h.tap("fst.songs.sort.open")
-            h.waitForTag("fst.songs.sort.form")
-            h.tap("fst.songs.sort.done")
-            h.waitGone("fst.nav.overflow-menu")
         }
         h.assertAccessible()
     }

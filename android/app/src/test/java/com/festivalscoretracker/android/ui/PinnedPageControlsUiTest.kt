@@ -65,7 +65,7 @@ private class PinnedHarness(val rule: AndroidComposeTestRule<ActivityScenarioRul
         if (player != null) ProfileFixtures.register(transport)
         launch(DebugLaunch(profile = player, stillBackground = true), transport, InMemoryPreferences(prefs))
         waitForTag("fst.songs.row.s-1")
-        waitOrExplain("Quick Links or ⋮") { exists("fst.quick-links.open") || exists("fst.nav.overflow") }
+        waitOrExplain("Quick Links") { exists("fst.quick-links.open") }
     }
 
     fun launchSuggestions() {
@@ -153,21 +153,6 @@ private class PinnedHarness(val rule: AndroidComposeTestRule<ActivityScenarioRul
         waitGone("fst.quick-links.menu")
         focusTop()
         assertTrue("the jump kept the list scrolled", !exists("fst.songs.row.s-1"))
-    }
-
-    /** Opens ⋮, then [button] inside its menu, waits for [sheet], closes it with [close]; the menu closes too (window focus is moved as on a device). */
-    fun opensFromOverflowWhileScrolled(button: String, sheet: String, close: String, focusTop: () -> Unit) {
-        click("fst.nav.overflow")
-        waitForTag("fst.nav.overflow-menu")
-        focusTop()
-        assertTrue("$button in ⋮", within("fst.nav.overflow-menu", button))
-        click(button)
-        waitForTag(sheet)
-        focusTop()
-        click(close)
-        waitGone(sheet)
-        focusTop()
-        waitGone("fst.nav.overflow-menu")
     }
 
     /** Tag and top edge of the topmost Suggestions card on screen. */
@@ -286,7 +271,7 @@ class ScreenReaderPinnedToolbarUiTest {
 
 // region Medium and expanded
 
-/** Medium window (rail): Songs' pinned search field and top-bar tools stay put while scrolled (issue #160). */
+/** Medium window (rail): Songs' pinned search field and floating page tools stay put while scrolled (issues #160, #576). */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w700dp-h1000dp-xhdpi")
 class MediumPinnedPageControlsUiTest {
@@ -296,13 +281,13 @@ class MediumPinnedPageControlsUiTest {
     private val h by lazy { PinnedHarness(rule) }
 
     @Test
-    fun songsSearchFieldAndTopBarToolsStayPinned() = songsStayPinned(h)
+    fun songsSearchFieldAndFloatingToolsStayPinned() = songsStayPinned(h)
 
     @Test
-    fun suggestionsFilterStaysInTheTopBar() = suggestionsStayPinned(h)
+    fun suggestionsFilterStaysInTheFloatingToolbar() = suggestionsStayPinned(h)
 }
 
-/** Expanded window (list-detail): the same pinning in the Songs list pane and on Suggestions (issue #160). */
+/** Expanded window (list-detail): the same pinning, with Songs' tools over the list pane (issues #160, #576). */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w1280dp-h800dp-land-xhdpi")
 class ExpandedPinnedPageControlsUiTest {
@@ -312,56 +297,53 @@ class ExpandedPinnedPageControlsUiTest {
     private val h by lazy { PinnedHarness(rule) }
 
     @Test
-    fun songsSearchFieldAndTopBarToolsStayPinned() = songsStayPinned(h)
+    fun songsSearchFieldAndFloatingToolsStayPinned() = songsStayPinned(h, split = true)
 
     @Test
-    fun suggestionsFilterStaysInTheTopBar() = suggestionsStayPinned(h)
+    fun suggestionsFilterStaysInTheFloatingToolbar() = suggestionsStayPinned(h)
 }
 
 /**
- * Narrow list pane (phone landscape, list-detail): the page tools sit behind ⋮ (issue #101). ⋮,
- * the pinned search field and global search stay put while scrolled; Sort, Filter and Quick Links
- * open from ⋮ while scrolled and ⋮'s menu closes after each (issue #160). Native graphics, so the
- * title measures real text and the tools really overflow.
+ * Landscape phone (list-detail with a narrow list pane): the page tools float over the list pane
+ * instead of moving to the top app bar or behind ⋮ (owner, #576); the toolbar, the pinned search
+ * field and global search stay put while scrolled and the tools open while scrolled (issue #160).
+ * Native graphics, so the title measures real text.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w923dp-h411dp-land-xxhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-class OverflowPinnedPageControlsUiTest {
+class LandscapePhonePinnedPageControlsUiTest {
     @get:Rule
     val rule = createAndroidComposeRule<ComponentActivity>()
 
     private val h by lazy { PinnedHarness(rule) }
 
     @Test
-    fun songsOverflowSearchAndGlobalSearchStayPinnedAndToolsOpenFromOverflow() {
-        h.launchSongs(player = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"))
-        val present = listOf("fst.nav.overflow", "fst.songs.sort.open", "fst.quick-links.open", "fst.nav.floating-toolbar").filter(h::exists)
-        assertTrue("page tools behind ⋮: present $present, top bar ${h.bounds("fst.nav.top-bar")}", h.exists("fst.nav.overflow") && !h.exists("fst.songs.sort.open"))
-        val atTop = listOf("fst.nav.overflow", "fst.songs.search", "fst.global-search.open").associateWith(h::bounds)
-        h.scroll("fst.songs.list", down = true)
-        assertTrue("scrolled away from the first row", !h.exists("fst.songs.row.s-1"))
-        h.assertSame(atTop, "while scrolled")
-        val focus = { rule.focusTopWindow() }
-        h.opensFromOverflowWhileScrolled("fst.songs.sort.open", "fst.songs.sort.form", "fst.songs.sort.done", focus)
-        h.opensFromOverflowWhileScrolled("fst.songs.filter.open", "fst.songs.filter.form", "fst.songs.filter.done", focus)
-        h.click("fst.nav.overflow")
-        h.waitForTag("fst.nav.overflow-menu")
-        focus()
-        h.jumpsWithQuickLinksMenu(focus)
-        h.waitGone("fst.nav.overflow-menu")
-        h.assertSame(atTop, "after the tools")
-        h.scrollBackTo("fst.songs.list", "fst.songs.row.s-1")
-        h.assertSame(atTop, "back at the top")
-    }
+    fun songsToolsFloatOverTheListPaneAndStayPinned() = songsStayPinned(h, split = true, player = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"))
 }
 
-private fun songsStayPinned(h: PinnedHarness) {
-    h.launchSongs()
-    assertTrue("no floating toolbar on wider windows", !h.exists("fst.nav.floating-toolbar"))
+/** Page tools are in the floating toolbar, never in the top app bar or behind ⋮; global search stays in the top app bar (#576). */
+private fun assertFloatingTools(h: PinnedHarness, tools: List<String>) {
+    assertTrue("no ⋮ overflow", !h.exists("fst.nav.overflow"))
+    tools.forEach {
+        assertTrue("$it in the floating toolbar", h.within("fst.nav.floating-toolbar", it))
+        assertTrue("$it not in the top app bar", !h.within("fst.nav.top-bar", it))
+    }
+    assertTrue("global search in the top app bar", h.within("fst.nav.top-bar", "fst.global-search.open"))
+    assertTrue("Profile in the top app bar", h.within("fst.nav.top-bar", "fst.nav.profile"))
+}
+
+private fun songsStayPinned(h: PinnedHarness, split: Boolean = false, player: SelectedPlayer? = null) {
+    h.launchSongs(player = player)
     val tools = SONG_TOOLS.split('|')
-    tools.forEach { assertTrue("$it in the top app bar", h.within("fst.nav.top-bar", it)) }
-    val atTop = (tools + "fst.songs.search").associateWith(h::bounds)
+    assertFloatingTools(h, tools)
+    val toolbar = h.bounds("fst.nav.floating-toolbar")
+    if (split) {
+        // Songs' tools float over the list they act on, never over (or across) the detail pane.
+        val detail = h.bounds("fst.songs.detail-pane")
+        assertTrue("toolbar $toolbar inside the list pane (detail $detail)", toolbar.right <= detail.left)
+    }
+    val atTop = (tools + "fst.songs.search" + "fst.nav.floating-toolbar").associateWith(h::bounds)
     h.scroll("fst.songs.list", down = true)
     assertTrue("scrolled away from the first row", !h.exists("fst.songs.row.s-1"))
     h.assertSame(atTop, "while scrolled")
@@ -375,8 +357,8 @@ private fun songsStayPinned(h: PinnedHarness) {
 
 private fun suggestionsStayPinned(h: PinnedHarness) {
     h.launchSuggestions()
-    assertTrue("Filter in the top app bar", h.within("fst.nav.top-bar", "fst.suggestions.filter-button"))
-    val atTop = listOf("fst.suggestions.filter-button", "fst.global-search.open").associateWith(h::bounds)
+    assertFloatingTools(h, listOf("fst.suggestions.filter-button"))
+    val atTop = listOf("fst.suggestions.filter-button", "fst.global-search.open", "fst.nav.floating-toolbar").associateWith(h::bounds)
     val firstCard = h.firstCard()
     h.scroll("fst.suggestions.list", down = true)
     assertTrue("the first card scrolled away", h.firstCard() != firstCard)
@@ -386,5 +368,4 @@ private fun suggestionsStayPinned(h: PinnedHarness) {
     h.assertSame(atTop, "back at the top")
     assertEquals(firstCard, h.firstCard())
 }
-
 // endregion

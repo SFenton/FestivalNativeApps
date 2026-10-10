@@ -224,10 +224,10 @@ class BandsUiTest {
         click("fst.player-bands.group.duos")
         waitForTag("fst.player-bands.empty")
         settle()
-        // The grid ends at its own bottom less the shell's bottom padding (the compact floating
-        // toolbar's room) and its 24 dp; the empty pager row adds one 12 dp item gap after the state.
-        val compact = exists("fst.nav.bar")
-        val shellBottom = if (compact) (FLOATING_TOOLBAR_HEIGHT_DP + 2 * FLOATING_TOOLBAR_MARGIN_DP).toFloat() else 0f
+        // The grid ends at its own bottom less the shell's bottom padding (the floating toolbar's
+        // room at every window size, #576) and its 24 dp; the empty pager row adds one 12 dp item
+        // gap after the state.
+        val shellBottom = (FLOATING_TOOLBAR_HEIGHT_DP + 2 * FLOATING_TOOLBAR_MARGIN_DP).toFloat()
         rule.assertFillsAndCentres(
             "fst.player-bands.empty",
             above = rule.boundsOf("fst.player-bands.group-picker"),
