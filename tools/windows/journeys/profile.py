@@ -299,8 +299,9 @@ JOURNEYS = [
         forbid=[["fst.profile.retry"]],
     ),
     # Inline Bands section (issue #312, .agents/pages/player-profile/windows.md): fixture-player-1 has 18 duos,
-    # 8 trios and 4 quads, so Duos and Trios show six cards and View All, Quads shows all four and no View All.
-    # Each phase fails on the old link-only profile (no group headers, cards or View All buttons).
+    # 8 trios and 4 quads, so Duos and Trios show six rows and View All, Quads shows all four and no View All.
+    # Each phase fails on the old link-only profile (no group headers, cards or View All buttons). Owner #596: each
+    # group is one card of separated rows (no gap between them) ending in the purple View All, and rows drop the pill.
     Journey(
         name="bands-section",
         launch=["--route", "/player/fixture-player-1", *ANONYMOUS],
@@ -308,12 +309,15 @@ JOURNEYS = [
         steps=[
             ["waitfor:id=fst.player.overview@15", "reveal:id=fst.player.bands@10",
              "reveal:id=fst.player.bands.header.duos@15", "reveal:id=fst.player-bands.row.fixture-band-1@5",
+             "reveal:id=fst.player-bands.row.fixture-pband-duo-2@5",
+             "assertgap:id=fst.player-bands.row.fixture-band-1|id=fst.player-bands.row.fixture-pband-duo-2|0",
+             "assertread:id=fst.player-bands.row.fixture-band-1|~^View band: (?!.*Duos).*\\. \\d+ appearances?, button",
              "reveal:id=fst.player.bands.view-all.duos@5", "assertname:id=fst.player.bands.view-all.duos|View All Bands (18), Duos",
+             "assertgap:id=fst.player-bands.row.fixture-pband-duo-6|id=fst.player.bands.view-all.duos|4",
              "reveal:id=fst.player.bands.header.trios@5", "reveal:id=fst.player.bands.view-all.trios@5",
              "assertname:id=fst.player.bands.view-all.trios|View All Bands (8), Trios",
-             # Frosted card, not the purple CTA (surface-materials R7): no brand-purple fill, and the white in-card
-             # chevron sits right of the centred label (label ends ~C47, chevron ~C59-64 at default text size).
-             "assertpaint:id=fst.player.bands.view-all.trios|L8,M0!=#7C3AED~48|C53,T10,C76,B10=#FFFFFF~64",
+             # The shared purple CTA inside the card (view-all-cta, owner-approved variant #596), not the frosted card.
+             "assertpaint:id=fst.player.bands.view-all.trios|L8,M0=#7C3AED~40",
              "reveal:id=fst.player.bands.header.quads@5", "reveal:id=fst.player-bands.row.fixture-pband-quad-4@5"],
             ["reveal:id=fst.player.bands.view-all.duos@10", "invoke:id=fst.player.bands.view-all.duos",
              "waitfor:id=fst.player-bands.title@10",

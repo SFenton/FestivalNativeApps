@@ -62,7 +62,7 @@ Web: `song-band-leaderboard-list`, `song-band-leaderboard-entry-{rank}`, `song-b
 | Sub-behavior | Apple | Android | Windows |
 |---|---|---|---|
 | Song header + board line | `SongHeaderRow` + `SongLeaderboardBoardLine` | Song Detail's `SongHeader` + `SongBoardSwitcher` | `BandsSongLeaderboardPage` header (known debt: song-leaderboard-header R1) |
-| Bar title after scroll | `SongBarTitleToolbarItem` (`songHeaderScrollAway`) | `FestivalScreen(scrolled, marqueeTitle = true)` | — (window title) |
+| Bar title after scroll | `SongBarTitleToolbarItem` (`songHeaderScrollAway`) | `FestivalScreen(scrolled)` (`FestivalBarTitle`) | — (window title) |
 | Song backdrop | `festivalBackground(.song(albumArt))` | `SongCoverBackdrop` | `IBackdropPage.BackdropArt` |
 | Reload gate | `FestivalReloadGate` | `rememberLoadSwap` / `LoadSwap` | shared load-swap gate |
 | Selected band footer + pager | `SelectedScoreFooterRow` + `RankingsPagerView` | `SelectedScoreFooterRow` in `RankingsBoardLayout` | floating `LeaderboardEntryRow` (`SongBandSpotlightRow`, pinned on every page) directly above `LeaderboardsPager`; "Your Page" jumps (leaderboard-row Known debt) |
