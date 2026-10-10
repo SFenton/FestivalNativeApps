@@ -63,6 +63,10 @@
           {
             "path": "apple/Sources/FestivalUI/Design/BottomChromeFade.swift",
             "symbol": "bottomChromeFade"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/BottomChromeFade.swift",
+            "symbol": "boardBottomChrome"
           }
         ],
         "android": [
@@ -129,6 +133,16 @@
             "apple/Sources/FestivalUI/Design/ModalTopEdgeFade.swift"
           ],
           "message": "System scroll-edge effects are configured only by TopEdgeScrim and the modal shell (scroll-edge R1, R6)."
+        },
+        {
+          "id": "apple-board-chrome",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\.reportsBottomChromeTop\\(",
+          "allow": [
+            "apple/Sources/FestivalUI/Design/BottomChromeFade.swift",
+            "apple/Sources/FestivalUI/Features/Search/BottomSearchField.swift"
+          ],
+          "message": "A board's pinned footer and pager go through boardBottomChrome, so they read after the rows (scroll-edge R10)."
         },
         {
           "id": "android-dstin",
@@ -422,6 +436,10 @@
           "symbol": "buildPlayerBandsItems"
         },
         {
+          "path": "pages/player/components/TopSongsSection.tsx",
+          "symbol": "buildTopSongsItems"
+        },
+        {
           "path": "components/search/SearchModal.tsx",
           "symbol": "renderResults"
         }
@@ -663,10 +681,7 @@
             "path": "windows/Festival.App/Controls/LeaderboardsPager.xaml.cs",
             "symbol": "LeaderboardsPager"
           },
-          {
-            "path": "windows/Festival.App/Controls/ViewAllCard.cs",
-            "symbol": "ViewAllCard"
-          },
+
           {
             "path": "windows/Festival.App/Controls/GroupedRows.cs",
             "symbol": "GroupedRows"
@@ -734,12 +749,12 @@
           "message": "The board pager draws on the rows' FSTCardSurfaceBrush / FSTCardStrokeBrush, never a pager-only plate (surface-materials R1, #319)."
         },
         {
-          "id": "windows-profile-purple-view-all",
-          "glob": "windows/Festival.App/Controls/PlayerProfileView.xaml",
-          "regex": "FSTViewAllButtonStyle",
+          "id": "windows-profile-band-group-card",
+          "glob": "windows/Festival.App/**/*",
+          "regex": "\\bViewAllCard\\b",
           "allow": [],
           "debt": [],
-          "message": "The profile's View All Bands (N) is the frosted ViewAllCard (web BandViewAllCard), not the purple leaderboard CTA (surface-materials R7, #312)."
+          "message": "Each profile Bands group is one FSTRowsCardStyle card of BandCardView rows ending in the shared purple FSTViewAllButtonStyle CTA (owner-approved variant #596, surface-materials R7); do not bring back a frosted View All tile."
         }
       ],
       "related": {
@@ -789,7 +804,8 @@
         "hamburger",
         "page title",
         "navigation title",
-        "search drawer"
+        "search drawer",
+        "marquee"
       ],
       "web": [
         {
@@ -904,6 +920,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
             "symbol": "FestivalScreen"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
+            "symbol": "FestivalBarTitle"
           }
         ],
         "windows": [
@@ -1006,6 +1026,15 @@
             "apple/Sources/FestivalUI/Features/Profile/ProfileSelectionSheet.swift"
           ],
           "message": "A pushing page's search drawer goes through SongsSystemFilterField so SearchDrawerTransitionFill draws its capsule during push and pop (page-tools-and-nav-chrome R19); the Profile sheet never pushes."
+        },
+        {
+          "id": "android-one-top-app-bar",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "\\b(TopAppBar|CenterAlignedTopAppBar|MediumTopAppBar|LargeTopAppBar)\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt"
+          ],
+          "message": "Only FestivalScreen draws the top app bar, so every page title marquees through FestivalBarTitle (page-tools-and-nav-chrome R21, #597)."
         }
       ],
       "related": {
@@ -1045,7 +1074,8 @@
         394,
         534,
         544,
-        557
+        557,
+        597
       ]
     },
     {
@@ -2713,7 +2743,7 @@
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
-            "symbol": "marqueeTitle"
+            "symbol": "FestivalBarTitle"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
@@ -2790,7 +2820,8 @@
         342,
         363,
         542,
-        580
+        580,
+        597
       ]
     },
     {
@@ -2798,7 +2829,7 @@
       "title": "View all call to action",
       "status": "current",
       "doc": ".agents/patterns/view-all-cta.md",
-      "summary": "A card of preview rows ends with one full-width brand-purple button after the rows (on Apple inside the group card as FestivalGlassSection's action, a flat opaque purple and never Liquid Glass, agent decision #382; on the Android profile each Duos/Trios/Quads group is one card ending in it, owner-approved variant #596) (View Full Leaderboard, View All Rivals, View All on Rival Detail categories, View All Rankings (N), View All Scores) at the platform minimum target, with no per-consumer overrides, a label-first accessible name and readable contrast-mode colours. The preview keeps its capped length: the button navigates to the full list's own page (pushed, or the trailing pane in a split; Song Detail View All Scores opens Player History with its sorts) and never expands the card in place (R8, owner #324); Leaderboards' View All Rankings opens Full Rankings beside the overview (#352).",
+      "summary": "A card of preview rows ends with one full-width brand-purple button after the rows (on Apple inside the group card as FestivalGlassSection's action, a flat opaque purple and never Liquid Glass, agent decision #382; on Android inside the GlassCard of Song Detail's instrument, band and Score History cards, #588; on the Windows and Android profile each Duos/Trios/Quads group is one card ending in it, owner-approved variant #596) (View Full Leaderboard, View All Rivals, View All on Rival Detail categories, View All Rankings (N), View All Scores) at the platform minimum target, with no per-consumer overrides, a label-first accessible name and readable contrast-mode colours. The preview keeps its capped length: the button navigates to the full list's own page (pushed, or the trailing pane in a split; Song Detail View All Scores opens Player History with its sorts) and never expands the card in place (R8, owner #324); Leaderboards' View All Rankings opens Full Rankings beside the overview (#352).",
       "keywords": [
         "view all",
         "view full leaderboard",
@@ -4086,6 +4117,83 @@
         ]
       },
       "guards": []
+    },
+    {
+      "id": "band-member-lines",
+      "title": "Band member lines",
+      "status": "current",
+      "doc": ".agents/patterns/band-member-lines.md",
+      "summary": "A band card lists one line per member with the name leading on one shared edge (row to row and card to card) and the member's value (song score) and instrument icons trailing; the whole card stacks each member's icons under its name when any member can't fit inline (name clamped 96-180 plus gaps) or at large text, long names marquee/truncate/wrap inside their column, and the member lines stay inside the card's one screen-reader stop (#589).",
+      "keywords": [
+        "band card",
+        "band members",
+        "member names",
+        "usernames",
+        "align",
+        "instrument icons",
+        "band search",
+        "player bands",
+        "band results"
+      ],
+      "web": [
+        {
+          "path": "pages/player/components/PlayerBandCard.tsx",
+          "symbol": "BandMemberRow"
+        },
+        {
+          "path": "pages/player/components/PlayerBandCard.tsx",
+          "symbol": "resolveBandCardMemberLayouts"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Profile/PlayerBandsScreen.swift",
+            "symbol": "PlayerBandRow"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongDetail/SongBandPreviewSection.swift",
+            "symbol": "SongBandPreviewRow"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/BandComponents.kt",
+            "symbol": "BandMemberRows"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/bands/BandLayout.kt",
+            "symbol": "BandMemberFit"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/BandCardView.xaml.cs",
+            "symbol": "BandCardView"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "leaderboard-row",
+          "surface-materials"
+        ],
+        "pages": [
+          "player-bands",
+          "song-band-leaderboard",
+          "song-detail",
+          "player-profile"
+        ],
+        "controls": [
+          "global-search"
+        ]
+      },
+      "guards": [],
+      "issues": [
+        589
+      ],
+      "supersedes": [],
+      "supersededBy": null
     }
   ]
 }

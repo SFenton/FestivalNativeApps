@@ -8,6 +8,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionContains
@@ -164,6 +165,58 @@ class ProfileParityUiTest {
         journey.tap("fst.player.top-song.Solo_Guitar.s-beta")
         journey.waitForTag("fst.song-detail.list")
         assertEquals(Fixtures.ACCOUNT_A, runBlocking { journey.container.settings.settings.first() }.selectedPlayer?.accountId)
+    }
+
+    /** Issue #595: Top Five and Bottom Five are two cards, each with its title and description above it. */
+    @Test
+    fun topAndBottomFiveAreSeparateCardsTitledFromAbove() {
+        journey.transport.on("/api/player/${Fixtures.ACCOUNT_A}", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            ProfileFixtures.profile(rows = ProfileFixtures.topAndBottomRows)
+        }
+        journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
+        journey.scrollTo("fst.player.bottom-songs-card.Solo_Guitar")
+        fun bounds(tag: String) = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val heading = bounds("fst.player.top-songs.Solo_Guitar")
+        val topHeader = bounds("fst.player.top-songs-header.Solo_Guitar")
+        val topCard = bounds("fst.player.top-songs-card.Solo_Guitar")
+        val bottomHeader = bounds("fst.player.bottom-songs-header.Solo_Guitar")
+        val bottomCard = bounds("fst.player.bottom-songs-card.Solo_Guitar")
+        assertTrue("Lead $heading above Top Five's title $topHeader", heading.bottom <= topHeader.top + 0.5f)
+        assertTrue("Top Five's title $topHeader above its card $topCard", topHeader.bottom <= topCard.top + 0.5f)
+        assertTrue("Top Five's card $topCard ends before Bottom Five's title $bottomHeader", topCard.bottom <= bottomHeader.top + 0.5f)
+        assertTrue("Bottom Five's title $bottomHeader above its card $bottomCard", bottomHeader.bottom <= bottomCard.top + 0.5f)
+        val inACard = hasAnyAncestor(hasTestTag("fst.player.top-songs-card.Solo_Guitar") or hasTestTag("fst.player.bottom-songs-card.Solo_Guitar"))
+        listOf(
+            "Top Five Songs",
+            "Bottom Five Songs",
+            "Synthetic Player's top ranked competitive songs on Lead, sorted by percentile.",
+            "Synthetic Player's lowest-ranked competitive songs on Lead, sorted by percentile.",
+        ).forEach { text ->
+            assertTrue("\"$text\" is shown", rule.onAllNodes(hasText(text), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+            assertTrue("\"$text\" sits outside the cards", rule.onAllNodes(hasText(text) and inACard, useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        }
+        listOf("top" to "Top Five Songs", "bottom" to "Bottom Five Songs").forEach { (kind, title) ->
+            rule.onNode(hasText(title) and hasAnyAncestor(hasTestTag("fst.player.$kind-songs-header.Solo_Guitar")), useUnmergedTree = true)
+                .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
+            val rows = rule.onAllNodes(
+                tagPrefix("fst.player.$kind-song.Solo_Guitar.") and hasAnyAncestor(hasTestTag("fst.player.$kind-songs-card.Solo_Guitar")),
+                useUnmergedTree = true,
+            ).fetchSemanticsNodes()
+            assertEquals("$title card holds its own five rows", 5, rows.size)
+        }
+        // Bass has one ranked song: only the Top Five list.
+        journey.scrollTo("fst.player.top-songs-card.Solo_Bass")
+        rule.onNodeWithTag("fst.player.top-songs-header.Solo_Bass", useUnmergedTree = true).assertExists()
+        rule.onNodeWithTag("fst.player.bottom-songs-header.Solo_Bass", useUnmergedTree = true).assertDoesNotExist()
+        rule.onNodeWithTag("fst.player.bottom-songs-card.Solo_Bass", useUnmergedTree = true).assertDoesNotExist()
+        // Drums has none: one "No Scores Yet" card and no list titles.
+        journey.scrollTo("fst.player.top-songs-empty.Solo_Drums")
+        rule.onNodeWithTag("fst.player.top-songs-header.Solo_Drums", useUnmergedTree = true).assertDoesNotExist()
+        rule.onNodeWithTag("fst.player.top-songs-card.Solo_Drums", useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    private fun tagPrefix(prefix: String) = SemanticsMatcher("test tag starts with $prefix") {
+        it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith(prefix) == true
     }
 
     @Test

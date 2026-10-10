@@ -38,6 +38,19 @@ public struct PlayerInstrumentRanking: Decodable, Sendable, Equatable {
         totalRankedAccounts = try fields.decode(Int.self, forKey: .totalRankedAccounts)
     }
 
+    /// Build a ranking from an already mapped row (a combo board's own row,
+    /// ``FestivalAPI/playerComboRanking(combo:accountId:rankBy:)``).
+    ///
+    /// - Parameters:
+    ///   - entry: The account's row.
+    ///   - instrument: The board's instrument raw value, or a combo id.
+    ///   - totalRankedAccounts: Accounts ranked on the board.
+    init(entry: AccountRankingEntry, instrument: String, totalRankedAccounts: Int) {
+        self.entry = entry
+        self.instrument = instrument
+        self.totalRankedAccounts = totalRankedAccounts
+    }
+
     /// Reject a response for the wrong account/instrument or an impossible total.
     ///
     /// Live-probed 2026-09-28: unlike the list endpoint's `MapAccountRanking` helper
