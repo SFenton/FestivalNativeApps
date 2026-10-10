@@ -99,6 +99,9 @@ jobs:
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrderOnPushedPage
             NavButtonHitRegionJourneyTests/testChooseProfileReadsAloneInProductionChrome
             NavButtonHitRegionJourneyTests/testAccountButtonsStaySeparateAndLabelledAtLargestTextSize
+            NavButtonHitRegionJourneyTests/testProfileStaysTheLastBarButtonOnSongDetail
+            NavButtonHitRegionJourneyTests/testProfileStaysTheLastBarButtonOnPushedPagesWithActions
+            NavButtonHitRegionJourneyTests/testChooseProfileStaysLastOnSongDetailAtLargestTextSize
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
             RivalsJourneyTests/testAllRivalsTitleLeadsTheListAndPinsAfterScroll
             RivalsJourneyTests/testAllRivalsDuoVerticalBarKeepsSystemTitle
@@ -106,6 +109,9 @@ jobs:
             SongBarCaptionIconJourneyTests/testPlayerHistoryCaptionIconAtLargestText
             SuggestionsAccessibilityJourneyTests/testCachedArtRowIsAccessibleAtDefaultSizeAndAX5
             RivalsJourneyTests/testRivalDetailSongCardsAreAccessibleAtAX5
+            FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert
+            FeedbackSentJourneyTests/testFiledRequestClosesFormThenShowsSentAlert
+            FeedbackSentJourneyTests/testRefusedOrFailedReportKeepsForm
         run: |
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service.log" 2>&1 &
           mock=$!
@@ -155,6 +161,9 @@ jobs:
           JOURNEYS: >-
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Landscape
+            FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert
+            FeedbackSentJourneyTests/testFiledRequestClosesFormThenShowsSentAlert
+            FeedbackSentJourneyTests/testRefusedOrFailedReportKeepsForm
         run: |
           python3 tools/ios_sim.py shutdown --device "$(python3 tools/ios_sim.py ci-device)"
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service_ipad.log" 2>&1 &

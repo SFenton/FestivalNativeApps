@@ -2,9 +2,11 @@ package com.festivalscoretracker.android.journeys
 
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -32,7 +34,8 @@ import org.junit.runner.RunWith
  * Every modal's shared Close on a device (issue #146, validating #23): each sheet and dialog
  * built on `FestivalModalSheet`, `FestivalModalDialog` or the Feedback full-screen dialog
  * opens, shows one Material close icon button (spoken "Close", button role, ≥ 48 dp target)
- * at the top end of its pane and on one side of a separating hinge, passes ATF, logs its
+ * at the top end of its pane and on one side of a separating hinge, opens fully expanded with
+ * no half-height stop (no Expand action, issue #586), passes ATF, logs its
  * TalkBack reading order (`FST_A11Y`) and dismisses on Close. Alerts keep Material's text
  * buttons. Run per AVD and posture:
  * `device.py test com.festivalscoretracker.android.journeys.ModalCloseJourneyTest --avd …`
@@ -71,6 +74,8 @@ class ModalCloseJourneyTest {
     private fun assertCloseAndDismiss(screen: String, close: String, pane: String?, title: String? = null) {
         h.waitForTag(close)
         rule.waitForIdle()
+        // Sheets open fully expanded with no half-height stop to raise (modal-shell R13, #586).
+        rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.Expand), useUnmergedTree = true).assertCountEquals(0)
         val button = rule.onAllNodesWithTag(close)[0]
         button.assert(hasContentDescription(MODAL_CLOSE_LABEL))
         button.assert(hasClickAction())
