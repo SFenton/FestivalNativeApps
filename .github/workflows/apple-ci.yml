@@ -194,7 +194,7 @@ jobs:
             --no-test-diagnostics "${only[@]}"
           # Hardware-keyboard focus on the board (the journey fails when no focus stop exists).
           python3 tools/ios_sim.py uitest --device "$device" --app phone --a11y full-keyboard-access --fail-on-skip \
-            --timeout 900 --no-test-diagnostics --only BoardFooterFadeJourneyTests/testBoardKeyboardFocusClearsFooter
+            --timeout 900 --only BoardFooterFadeJourneyTests/testBoardKeyboardFocusClearsFooter
       - name: Upload simulator journey results
         if: failure() && github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
