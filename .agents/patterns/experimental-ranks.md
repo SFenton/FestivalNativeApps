@@ -60,7 +60,7 @@ Windows tests: Core `ExperimentalRanksTests` (gate, Settings default/persist/Res
 
 | Debt | Breaks | Plan |
 |---|---|---|
-| Apple: the Settings row is disabled ("Not yet available") and Leaderboards, Full Rankings, Band Rankings and Mac menus offer every metric | R1–R5 | #541 Apple session |
+| Apple: the Settings row is disabled ("Not yet available") and Leaderboards, Full Rankings, Band Rankings and Mac menus offer every metric. Band Detail already gates through the canonical `BandRankingMetric.enabled`/`coerced` (`FestivalCore/Rankings.swift`, the #541 API): Rank By, Mac View › Rank By and the three experimental rank tiles hide while off, and band pickers list `BandRankingMetric.menuOrder` (#555) | R1–R5 | #541 Apple session |
 
 ## Guards (`tools/pattern_guard.py`)
 

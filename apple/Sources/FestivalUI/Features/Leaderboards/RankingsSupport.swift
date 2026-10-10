@@ -1204,14 +1204,15 @@ struct RankByMenu: View {
     }
 }
 
-/// Native toolbar menu for the band-safe rank-by metrics (no Max Score).
+/// Native toolbar menu for the band-safe rank-by metrics (no Max Score), in the web's
+/// order, Total Score first (`BandRankingMetric.menuOrder`, pattern `experimental-ranks` R1).
 struct BandRankByMenu: View {
     @Binding var selection: BandRankingMetric
 
     var body: some View {
         PageToolMenu("Rank By", choices: choices) {
             Picker("Rank By", selection: $selection) {
-                ForEach(BandRankingMetric.allCases) { metric in
+                ForEach(BandRankingMetric.menuOrder) { metric in
                     Text(metric.label).tag(metric)
                 }
             }
@@ -1223,7 +1224,7 @@ struct BandRankByMenu: View {
 
     /// The metrics for the inline-accessory sheet (``PageToolMenu``).
     private func choices() -> [PageToolMenuChoice] {
-        BandRankingMetric.allCases.map { metric in
+        BandRankingMetric.menuOrder.map { metric in
             PageToolMenuChoice(
                 id: "fst.band-rankings.rank-by.\(metric.rawValue)", label: AnyView(Text(metric.label)),
                 isSelected: metric == selection, action: { selection = metric }

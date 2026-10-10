@@ -121,7 +121,7 @@ extension View {
     /// - Returns: The view.
     func macRankByCommands(_ selection: Binding<BandRankingMetric>, isEnabled: Bool = true) -> some View {
         modifier(MacRankByPublisher(commands: isEnabled ? MacRankByCommands(
-            options: BandRankingMetric.allCases.map { .init(id: $0.rawValue, label: $0.label) },
+            options: BandRankingMetric.menuOrder.map { .init(id: $0.rawValue, label: $0.label) },
             selected: selection.wrappedValue.rawValue,
             select: { id in BandRankingMetric(rawValue: id).map { selection.wrappedValue = $0 } }
         ) : nil))
