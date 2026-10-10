@@ -19,6 +19,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -61,6 +62,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -293,27 +295,40 @@ class ProfileParityUiTest {
         journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
         journey.scrollTo("fst.player.bands")
         journey.waitForTag("fst.player.bands.header.duos")
-        // Duos: six cards (the service preview size), then "View All Bands (8)".
+        // Duos: one card (owner #596) of six rows (the service preview size), then "View All Bands (8)".
         listOf(BandFixtures.DUO_ID, "band-1", "band-2", "band-3", "band-4", "band-5").forEach {
             journey.scrollTo("fst.player-bands.row.$it")
+            rule.onNodeWithTag("fst.player-bands.row.$it").assert(hasAnyAncestor(hasTestTag("fst.player.bands.card.duos")))
         }
         assertTrue(rule.onAllNodesWithTag("fst.player-bands.row.band-6").fetchSemanticsNodes().isEmpty())
-        journey.scrollTo("fst.player.bands.view-all.duos")
-        rule.onNodeWithText("View All Bands (8)").assertIsDisplayed()
-        // Web `BandViewAllCard`: one 48 dp frosted card button whose label is its name (not the purple CTA).
-        rule.onNodeWithTag("fst.player.bands.view-all.duos")
+        // No Duos/Trios/Quads pill inside a group (the header names the size): the row's spoken name drops it too.
+        val spokenRow = rule.onNodeWithTag("fst.player-bands.row.band-1").fetchSemanticsNode().config[SemanticsProperties.ContentDescription].single()
+        assertFalse(spokenRow, spokenRow.contains("Duos"))
+        rule.onNodeWithTag("fst.player-bands.row.band-1")
             .assertHeightIsAtLeast(48.dp)
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
-            .assert(hasText("View All Bands (8)"))
             .assertHasClickAction()
-        // Trios: "No Bands Yet" and no View all.
+        journey.scrollTo("fst.player.bands.view-all.duos")
+        // The shared purple CTA ends the card (`view-all-cta` R1–R4): label first, then the group.
+        rule.onNodeWithTag("fst.player.bands.view-all.duos")
+            .assert(hasAnyAncestor(hasTestTag("fst.player.bands.card.duos")))
+            .assertHeightIsAtLeast(48.dp)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+            .assert(hasContentDescription("View All Bands (8), Duos"))
+            .assertHasClickAction()
+        // The visible label is cleared from semantics (the description speaks it), so only its presence is checked.
+        rule.onNodeWithTag("fst.player.bands.view-all.duos.label", useUnmergedTree = true).assertExists()
+        // Trios: "No Bands Yet" and no card or View all.
         journey.scrollTo("fst.player.bands.header.trios")
         journey.scrollTo("fst.player.bands.empty.trios")
         rule.onNodeWithText("No Bands Yet").assertIsDisplayed()
-        // Quads: every band fits, so no View all.
+        assertTrue(rule.onAllNodesWithTag("fst.player.bands.view-all.trios").fetchSemanticsNodes().isEmpty())
+        assertTrue(rule.onAllNodesWithTag("fst.player.bands.card.trios").fetchSemanticsNodes().isEmpty())
+        // Quads: every band fits, and the card still ends with View All like every preview card.
         journey.scrollTo("fst.player.bands.header.quads")
         journey.scrollTo("fst.player-bands.row.q-band-1")
-        listOf("trios", "quads").forEach { assertTrue(rule.onAllNodesWithTag("fst.player.bands.view-all.$it").fetchSemanticsNodes().isEmpty()) }
+        journey.scrollTo("fst.player.bands.view-all.quads")
+        rule.onNodeWithTag("fst.player.bands.view-all.quads").assert(hasContentDescription("View All Bands (2), Quads"))
         // One keyless page per group, never the All group, band search or `/api/bands`.
         val sent = journey.transport.sent("/api/player/${Fixtures.ACCOUNT_A}/bands")
         assertEquals(setOf("duos", "trios", "quads"), sent.map { Regex("group=(\\w+)").find(it.url)!!.groupValues[1] }.toSet())
