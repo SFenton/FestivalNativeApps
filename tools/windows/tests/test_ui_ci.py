@@ -312,6 +312,16 @@ class UiCiTests(unittest.TestCase):
                       "assertannounced:Lead Hard path image loaded@5", "assertsize:id=fst.paths.zoom-in|40x40",
                       "assertsize:id=fst.paths.zoom-out|40x40"):
             self.assertIn(check, swap)
+        # Design review: the wide instrument circles and every Difficulty/Display radio are 40 epx targets, mid-swap
+        # and settled (page-tools-and-nav-chrome R10).
+        wide = next(page for page in pages if page["name"] == "paths-swap-keyboard-wide")["after_ready"]
+        loading = wide.index("waitfor:id=fst.paths.loading@3")
+        settled = wide.index("waitfor:name=Lead Hard CHOpt path@15")
+        for choice in ("Hard", "Expert"):
+            self.assertIn(f"assertsize:name={choice}&class=RadioButton|40x40", wide[loading:settled])
+        for choice in ("Easy", "Medium", "Hard", "Expert", "Image", "Text"):
+            self.assertIn(f"assertsize:name={choice}&class=RadioButton|40x40", wide[settled:])
+        self.assertIn("assertsize:id=fst.paths.instrument.Solo_Guitar|40x40", wide[settled:])
 
     def test_argv(self):
         run = ci.Run("x", "a11y-modals.json", sizes="compact", mode="text-225", tabs=30)

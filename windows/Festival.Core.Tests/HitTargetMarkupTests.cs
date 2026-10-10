@@ -228,6 +228,33 @@ public class HitTargetMarkupTests
     }
 
     [Fact]
+    public void RadioButtons_UseMinTarget()
+    {
+        // Issue #430: WinUI draws each RadioButton 32 epx tall (Paths Difficulty/Display, Sort By/Direction, Settings Path
+        // Default View). One implicit style raises every one to FSTMinTargetSize, and the 8 epx row gap moves into the
+        // target (RadioButtonsRowSpacing 0) so one-line lists keep their 40 epx pitch.
+        var styles = Load(Path.Combine("Themes", "Styles.xaml"));
+        var style = styles.Descendants()
+            .Single(e => e.Name.LocalName == "Style" && Attr(e, "TargetType") == "RadioButton" && Attr(e, "Key") is null);
+        Assert.Equal("{StaticResource DefaultRadioButtonStyle}", Attr(style, "BasedOn"));
+        Assert.Equal(Resource, Attr(style.Elements().Single(e => Attr(e, "Property") == "MinHeight"), "Value"));
+        Assert.Equal("8,6,0,6", Attr(style.Elements().Single(e => Attr(e, "Property") == "Padding"), "Value"));
+        Assert.Equal("0", styles.Descendants()
+            .Single(e => e.Name.LocalName == "Double" && Attr(e, "Key") == "RadioButtonsRowSpacing").Value);
+        // No radio or radio group opts out with its own height, padding, style or row spacing.
+        var xaml = Directory.EnumerateFiles(AppRoot, "*.xaml", SearchOption.AllDirectories)
+            .Where(path => Path.GetRelativePath(AppRoot, path).Split(Path.DirectorySeparatorChar)[0] is not ("bin" or "obj"))
+            .Select(XDocument.Load)
+            .ToList();
+        var radios = xaml.SelectMany(doc => doc.Descendants().Where(e => e.Name.LocalName is "RadioButton" or "RadioButtons")).ToList();
+        Assert.NotEmpty(radios);
+        Assert.All(radios, radio => Assert.True(Attr(radio, "MinHeight") is null && Attr(radio, "Height") is null
+            && Attr(radio, "Style") is null && Attr(radio, "Padding") is null,
+            $"{radio.Name.LocalName} {Attr(radio, "Name") ?? Attr(radio, "AutomationProperties.AutomationId")} overrides its size"));
+        Assert.Single(xaml.SelectMany(doc => doc.Descendants().Where(e => Attr(e, "Key") == "RadioButtonsRowSpacing")));
+    }
+
+    [Fact]
     public void QuickLinksPane_RowsUseMinTarget()
     {
         // Issue #230: the wide pane's rows were 36 epx tall; each is a click/touch target like the menu items.
