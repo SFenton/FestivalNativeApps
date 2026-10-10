@@ -243,6 +243,8 @@ private struct BarJourney {
     var samples: [BarSample] = []
     let phase: MacAXNode
     let reachable: [String]
+    /// Whether the render-server sweep was mounted.
+    let sweepMounted: Bool
     /// Why the host was too starved for its frames to show motion, or nil when responsive.
     var starved: String?
 }
@@ -264,6 +266,7 @@ private func indeterminateBarJourney(
     let host = nativeHostedView(
         SettingsServiceInfoSection(session: session, isVisible: false, initialPhase: try serviceInfoIndeterminateSnapshot())
             .environment(\._accessibilityReduceMotion, system)
+            .environment(\.scenePhase, .active)
             .defaultAppStorage(storage)
             .padding(16)
             .frame(width: size.width, height: size.height, alignment: .top)
@@ -277,7 +280,8 @@ private func indeterminateBarJourney(
     let nodes = macAccessibilityTree(host)
     macAccessibilityDump(nodes, name: name)
     var journey = BarJourney(
-        phase: try #require(nodes.first { $0.identifier == phaseID }), reachable: reachableRoles(host)
+        phase: try #require(nodes.first { $0.identifier == phaseID }), reachable: reachableRoles(host),
+        sweepMounted: !sweepViews(in: host).isEmpty
     )
     // The bar is the phase row's last 10 pt (no attempt line in this phase).
     let row = try #require(nativeHostedAccessibilityFrame(phaseID, in: host))
@@ -315,6 +319,7 @@ func serviceInfoIndeterminateBarHoldsStillUnderReduceMotion(setting: (system: Bo
         done: { samples, elapsed in samples.count >= 8 && elapsed >= .milliseconds(1_400) }
     ) else { return }
     let samples = journey.samples
+    #expect(!journey.sweepMounted, "sweep mounted under Reduce Motion")
     #expect(samples.allSatisfy { $0.segment == 0 }, "segment drawn: \(samples.map(\.segment))")
     #expect(samples.allSatisfy { $0.track > 0 }, "track missing: \(samples.map(\.track))")
     #expect(Set(samples.map(\.signature)).count == 1, "bar moved under Reduce Motion")
@@ -324,27 +329,137 @@ func serviceInfoIndeterminateBarHoldsStillUnderReduceMotion(setting: (system: Bo
     #expect(progressRoles.isDisjoint(with: journey.reachable), "\(journey.reachable)")
 }
 
-/// The contrast case: with motion allowed the same bar draws the moving segment, so the
-/// still track above is Reduce Motion's doing and not a bar that never sweeps. Its evidence
-/// is rendered animation frames, so a starved host's frames prove nothing (`apple-ci`
-/// reruns it alone).
+/// Every indeterminate sweep host under `view` (the AppKit side of `ServiceProgressSweep`).
+@MainActor
+private func sweepViews(in view: NSView) -> [ServiceProgressSweepView] {
+    (view as? ServiceProgressSweepView).map { [$0] } ?? view.subviews.flatMap(sweepViews(in:))
+}
+
+/// The one running sweep under `host`, or nil when none is mounted or it isn't animating.
+@MainActor
+private func runningSweep(in host: NSView) -> CAAnimation? {
+    host.layoutSubtreeIfNeeded()
+    let views = sweepViews(in: host)
+    guard views.count == 1, let view = views.first else { return nil }
+    return view.segmentLayer.animation(forKey: ServiceProgressSweepView.animationKey)
+}
+
+/// The contrast case: with motion allowed the same card mounts the render-server sweep and
+/// it is animating, so the still track above is Reduce Motion's doing and not a bar that
+/// never sweeps; VoiceOver still hears the unknown total and never reaches the bar.
 @MainActor
 @Test func serviceInfoIndeterminateBarSweepsWithMotion() async throws {
-    guard let journey = try await indeterminateBarJourney(
-        system: false, app: false, name: "service-info-indeterminate-motion",
-        done: { samples, _ in samples.contains { $0.segment > 0 } && Set(samples.map(\.signature)).count > 1 }
-    ) else { return }
-    #expect(journey.phase.value == ServiceInfoText.progressIndeterminate)
-    func expectSweep() {
-        #expect(journey.samples.contains { $0.segment > 0 }, "segment never drawn")
-        #expect(Set(journey.samples.map(\.signature)).count > 1, "bar never moved")
-    }
-    if let starved = journey.starved {
-        withKnownIssue("Starved host (\(starved)): its frames can't show the sweep", isIntermittent: true) {
-            expectSweep()
+    let session = FestivalSession(factory: { throw FestivalAPIError.invalidResource })
+    let size = CGSize(width: 402, height: 400)
+    let host = nativeHostedView(
+        SettingsServiceInfoSection(session: session, isVisible: false, initialPhase: try serviceInfoIndeterminateSnapshot())
+            .environment(\._accessibilityReduceMotion, false)
+            .environment(\.scenePhase, .active)
+            .padding(16)
+            .frame(width: size.width, height: size.height, alignment: .top)
+            .background(BrandTokens.cardBackground)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    try await nativeHostedSettle(host, untilText: [ServiceInfoText.progressIndeterminate])
+    let animation = try #require(runningSweep(in: host), "no running sweep")
+    #expect((animation as? CAKeyframeAnimation)?.keyPath == "transform.translation.x")
+    #expect(animation.repeatCount == .infinity)
+    let nodes = macAccessibilityTree(host)
+    let phase = try #require(nodes.first { $0.identifier == phaseID })
+    #expect(phase.role == "AXStaticText")
+    #expect(phase.value == ServiceInfoText.progressIndeterminate)
+    #expect(progressRoles.isDisjoint(with: reachableRoles(host)), "\(reachableRoles(host))")
+}
+
+// MARK: - Sweep survives polls, re-hosting, tab switches and determinate phases (issue #556)
+
+/// State the #556 journey drives: the bar's percent, the selected tab and a poll counter
+/// that re-renders the card as each 5 s service-info read does.
+@MainActor
+@Observable
+private final class SweepHarness {
+    var percent: Double?
+    var tab = 0
+    var poll = 0
+}
+
+/// The bar inside a two-tab `TabView`, so switching away and back hides and shows it with
+/// its state kept, like leaving Settings for another tab.
+private struct SweepHarnessView: View {
+    let harness: SweepHarness
+
+    var body: some View {
+        @Bindable var harness = harness
+        TabView(selection: $harness.tab) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Poll \(harness.poll)")
+                ServiceProgressBar(percent: harness.percent, reduceMotion: false)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .tabItem { Text("Settings") }
+            .tag(0)
+            Text("Songs tab")
+                .tabItem { Text("Songs") }
+                .tag(1)
         }
-    } else {
-        expectSweep()
     }
+}
+
+/// With motion allowed, an unknown total keeps its sweep through everything the Settings
+/// card lives through (issue #556: on iPhone the one-shot `repeatForever` sweep was dropped
+/// when the lazily hosted card was realized or re-hosted, and the bar never moved):
+/// - a poll re-renders the card without restarting the sweep;
+/// - leaving the window drops the layer's animation and re-entering re-adds it;
+/// - switching to another tab and back leaves a running sweep;
+/// - a determinate phase shows only the fill (no sweep), and an unknown total again sweeps.
+@MainActor
+@Test func serviceInfoIndeterminateBarKeepsSweepingThroughPollsAndRehosting() async throws {
+    let harness = SweepHarness()
+    let size = CGSize(width: 402, height: 240)
+    let host = nativeHostedView(
+        SweepHarnessView(harness: harness)
+            .environment(\._accessibilityReduceMotion, false)
+            .environment(\.scenePhase, .active)
+            .frame(width: size.width, height: size.height)
+            .background(BrandTokens.cardBackground)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    try await nativeHostedSettle(host, untilText: ["Poll 0"])
+    let first = try #require(runningSweep(in: host), "no sweep on first appearance")
+
+    harness.poll += 1
+    try await nativeHostedSettle(host, untilText: ["Poll 1"])
+    let afterPoll = try #require(runningSweep(in: host), "sweep dropped by a poll")
+    #expect(afterPoll.beginTime == first.beginTime, "a poll restarted the sweep")
+
+    let sweepView = try #require(sweepViews(in: host).first)
+    window.contentView = nil
+    #expect(sweepView.segmentLayer.animation(forKey: ServiceProgressSweepView.animationKey) == nil)
+    window.contentView = host
+    #expect(runningSweep(in: host) != nil, "sweep not re-added after re-hosting")
+
+    harness.tab = 1
+    try await nativeHostedSettle(host, untilText: ["Songs tab"])
+    harness.tab = 0
+    try await nativeHostedSettle(host, untilText: ["Poll 1"])
+    #expect(runningSweep(in: host) != nil, "sweep missing after returning from another tab")
+
+    // A percent change animates (0.18 s ease-out), so the sweep leaves through its removal
+    // transition: wait for the change itself, not for text that is already on screen. A
+    // sweep that never leaves (or never returns) fails as a readiness timeout.
+    harness.percent = 42
+    try await nativeHostedSettle(host) { sweepViews(in: host).isEmpty }
+    #expect(sweepViews(in: host).isEmpty, "a determinate bar kept the sweep")
+
+    harness.percent = nil
+    try await nativeHostedSettle(host) { runningSweep(in: host) != nil }
+    #expect(runningSweep(in: host) != nil, "no sweep after the total became unknown again")
 }
 #endif
