@@ -16,7 +16,7 @@ Run with `tools/windows/a11y_matrix.py --pages tools/windows/journeys/a11y-instr
 
 | Configuration | Result |
 | --- | --- |
-| Compact / medium / wide / maximized / snapped-left | Auto switches to previous/centre/next below the row width and back above it, keeping focus on the equivalent button; `Never` rows in the lab scroll horizontally instead of clipping. Paths shows the full row only when its dialog reaches 900 epx (scale 100/150). |
+| Compact / medium / wide / maximized / snapped-left | Auto switches to previous/centre/next below the row width and back above it, keeping focus on the equivalent button; `Never` rows in the lab scroll horizontally instead of clipping. Paths shows the full row only when its dialog reaches 900 epx (scale 100/150); resizing the window with Paths open swaps it for the instrument box and back, closing the circles' tooltips and handing focus over (`paths-selectors-swap-*`, #571). |
 | Dark (app default) / Light | The app is dark-only (`RequestedTheme="Dark"`), so the light-theme run renders the same; documented app-wide deviation. |
 | High contrast Desert / Night sky | `ButtonText` rings on every circle, `Highlight` disc, `GrayText` disabled ring; muted circles keep the full ring and add ItemStatus. |
 | Text 200% | Labels and the selected-instrument detail wrap; the row keeps fixed 64 epx circles (icon controls, not text). |

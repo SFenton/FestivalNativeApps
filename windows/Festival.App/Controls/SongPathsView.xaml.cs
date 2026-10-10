@@ -132,13 +132,18 @@ public sealed partial class SongPathsView : UserControl
         // Near full-window at compact sizes (the chart fills the sheet); never wider than the window. The content gets
         // the width explicitly: a dialog sizes to its content, and the layout picks its selectors from that width. The
         // content box is the dialog less its padding and border; a view wider than it is clipped on the right (#269).
-        var dialogWidth = Math.Max(320, Math.Min(1200, xamlRoot.Size.Width - 24));
-        var view = new SongPathsView(paths) { Width = dialogWidth - DialogChromeWidth() };
+        // Both follow the window while the dialog is open, so a resize crosses the selector breakpoint (#571).
+        var bounds = DialogBoundsFor(xamlRoot.Size);
+        var view = new SongPathsView(paths) { Width = bounds.MaxWidth - DialogChromeWidth() };
         var dialog = FestivalDialog.Create(xamlRoot, title, view, "fst.paths");
         dialog.FullSizeDesired = true;
-        dialog.Resources["ContentDialogMaxWidth"] = dialogWidth;
-        dialog.Resources["ContentDialogMinWidth"] = Math.Min(548, dialogWidth);
-        dialog.Resources["ContentDialogMaxHeight"] = Math.Max(400, xamlRoot.Size.Height - 48);
+        bounds.ApplyTo(dialog);
+        DialogChrome.FollowWindow(dialog, window =>
+        {
+            var next = DialogBoundsFor(window);
+            view.Width = next.MaxWidth - DialogChromeWidth();
+            return next;
+        });
         view.Attach();
         try
         {
@@ -150,6 +155,16 @@ public sealed partial class SongPathsView : UserControl
             view.Detach();
             paths.Close();
         }
+    }
+
+    /// <summary>The Paths dialog's bounds for a window size: <c>max(320, min(1200, window − 24))</c> wide (at least 548
+    /// where it fits) and at most the window less 48 tall (never under 400).</summary>
+    /// <param name="window">Window (XamlRoot) size in epx.</param>
+    /// <returns>Surface bounds.</returns>
+    private static DialogBounds DialogBoundsFor(Windows.Foundation.Size window)
+    {
+        var width = Math.Max(320, Math.Min(1200, window.Width - 24));
+        return new DialogBounds(width, Math.Min(548, width), Math.Max(400, window.Height - 48));
     }
 
     /// <summary>The ContentDialog's horizontal chrome: its theme padding plus border, both sides (24 + 1 each by default).</summary>

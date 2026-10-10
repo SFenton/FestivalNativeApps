@@ -208,6 +208,9 @@ RUNS: tuple[Run, ...] = (
     # the selectors and Close, the selectors stay enabled and show the new value, "Loading …" then "… loaded" are
     # announced; Image <-> Text; keyboard switches (ComboBox, wide RadioButtons) keep focus on the selector; 40 epx zoom,
     # selectors and Close; mid-swap Axe scans; at 225% text, with in-app Reduce Motion and with Animation effects off.
+    # paths-selectors-swap-* (#571) resize the window across the 900 epx selector swap with the dialog open: the dialog
+    # follows the window, a focused circle's keyboard tooltip and a hovered circle's pointer tooltip close with the
+    # collapsed set, and focus moves to the counterpart (circle <-> instrument box) both ways, with Axe scans.
     Run("paths-swap", "a11y-paths-swap.json", sizes="compact,medium,wide"),
     Run("paths-swap-text-225", "a11y-paths-swap.json", sizes="compact,wide", mode="text-225"),
     Run("paths-swap-no-animations", "a11y-paths-swap.json", sizes="compact", mode="no-animations"),
