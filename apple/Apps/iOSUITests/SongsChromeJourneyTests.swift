@@ -369,6 +369,155 @@ final class SongsChromeJourneyTests: XCTestCase {
         )
     }
 
+    /// Issue #391 (#10's fade): rows fade out under the floating section title on iOS 26.
+    /// At the largest accessibility text size the title grows with Dynamic Type and stays
+    /// the named element over the list, the A–Z rail's labels grow too and its first letter
+    /// stays below the expanded navigation bar and hittable, the rows crossing the fade under it stay named
+    /// buttons, the first row below the fade stays hittable, and Songs passes the system
+    /// accessibility audit while scrolled under the bar. The hosted macOS tests
+    /// (`SongsSectionBarFadeAccessibilityTests`) cover heading order and the hard edge;
+    /// `--a11y increase-contrast` / `reduce-transparency` run this with the hard edge.
+    ///
+    /// Needs the large fixture like the tests above (skips otherwise).
+    @MainActor
+    func testSectionBarFadeAtLargestTextKeepsRowsNamedAndPassesTheAudit() throws {
+        guard #available(iOS 26.0, *) else {
+            throw XCTSkip("The floating section bar and its fade need iOS 26.")
+        }
+        continueAfterFailure = false
+        let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"]
+            ?? "http://127.0.0.1:8765"
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": base,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_STILL_BACKGROUND": "1",
+        ])
+        let sectionBar = app.staticTexts["fst.songs.section-bar"]
+        let list = app.descendants(matching: .any)["fst.songs.list"]
+        func rowSnapshots() -> [XCUIElementSnapshot] {
+            func rows(_ node: XCUIElementSnapshot) -> [XCUIElementSnapshot] {
+                (node.identifier.hasPrefix("fst.songs.row.") ? [node] : [])
+                    + node.children.flatMap(rows)
+            }
+            return ((try? list.snapshot()).map(rows)) ?? []
+        }
+        /// Launch at a text size, jump to C (or the first letter after it that a condensed
+        /// rail shows) and drag rows under the bar.
+        ///
+        /// - Returns: The section title's frame and the rail's "#" label height.
+        func scrolledUnderTheBar(
+            _ size: UIContentSizeCategory
+        ) throws -> (bar: CGRect, railLabelHeight: CGFloat) {
+            app.launchArguments = ["-UIPreferredContentSizeCategoryName", size.rawValue]
+            app.launch()
+            XCTAssertTrue(list.waitForExistence(timeout: 15))
+            let rail = app.descendants(matching: .any)
+                .matching(identifier: "fst.songs.section-index").firstMatch
+            // The rail re-lays out once it has measured its labels and the bar.
+            guard rail.waitForExistence(timeout: 5),
+                  rail.staticTexts.matching(NSPredicate(format: "label == 'Z'")).firstMatch
+                      .waitForExistence(timeout: 5)
+            else {
+                throw XCTSkip("Catalogue lacks the A–Z sections; use mock_service.py --large-catalogue.")
+            }
+            // The rail starts below the expanded navigation bar: at AX3XL on iOS 27 the
+            // bar reached past "#" to "D", which could not be touched (issue #391).
+            let first = rail.staticTexts.matching(NSPredicate(format: "label == '#'")).firstMatch
+            XCTAssertTrue(first.isHittable, "Rail '#' is under the navigation bar at \(size.rawValue)")
+            // At the largest sizes the taller labels condense (section-jump-landing R8).
+            let letter = try XCTUnwrap(
+                rail.staticTexts.allElementsBoundByIndex.map(\.label)
+                    .first { $0.count == 1 && $0 >= "C" && $0 <= "Z" },
+                "The rail shows no letter from C on at \(size.rawValue)"
+            )
+            // As in the rail journey below, the first tap after launch only wakes the rail.
+            for label in ["#", letter] {
+                rail.staticTexts.matching(NSPredicate(format: "label == %@", label)).firstMatch.tap()
+            }
+            let landed = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "exists == true AND label == %@", letter), object: sectionBar
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [landed], timeout: 5), .completed,
+                           "Section title reads '\(sectionBar.label)', not \(letter)")
+            // Slow, held drag: a flick's momentum can carry a short section past the bar.
+            let start = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
+            start.press(
+                forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -60)),
+                withVelocity: .slow, thenHoldForDuration: 0.3
+            )
+            XCTAssertEqual(sectionBar.label, letter)
+            return (sectionBar.frame, first.frame.height)
+        }
+
+        let (standardBar, standardRailLabel) = try scrolledUnderTheBar(.large)
+        app.terminate()
+        let (largeBar, largeRailLabel) = try scrolledUnderTheBar(.accessibilityExtraExtraExtraLarge)
+        XCTAssertGreaterThan(
+            largeBar.height, standardBar.height * 1.5,
+            "Section title did not grow with Dynamic Type: \(standardBar) → \(largeBar)"
+        )
+        // The rail's labels follow Dynamic Type too (a fixed 10 pt never grew, #391).
+        let railLabelsScale = largeRailLabel > standardRailLabel * 1.5
+        XCTAssertTrue(
+            railLabelsScale,
+            "Rail labels did not grow with Dynamic Type: \(standardRailLabel) → \(largeRailLabel)"
+        )
+        let railFrame = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.section-index").firstMatch.frame
+        // The fade runs 40 pt below the title (`PinnedHeaderEdgeFade.height`).
+        let fade = CGRect(x: 0, y: largeBar.maxY, width: app.windows.firstMatch.frame.width, height: 40)
+        let rows = rowSnapshots()
+        let faded = rows.filter { $0.frame.intersects(fade) }
+        XCTAssertFalse(faded.isEmpty, "No row crosses the fade under \(largeBar)")
+        for row in faded {
+            XCTAssertEqual(row.elementType, .button, row.identifier)
+            XCTAssertFalse(row.label.isEmpty, "\(row.identifier) is unnamed")
+        }
+        let below = try XCTUnwrap(
+            rows.filter { $0.frame.minY >= fade.maxY }.min { $0.frame.minY < $1.frame.minY },
+            "No row below the fade"
+        )
+        XCTAssertTrue(app.buttons[below.identifier].isHittable, "\(below.identifier) not reachable")
+        XCTAssertGreaterThanOrEqual(below.frame.height, 44)
+        // iOS 27 flags the rail's caption2 letters on its glass capsule, which render at
+        // 16:1; like Shop's empty state, measure the composited pixels for contrast.
+        // Row text under the system tab bar's scroll-edge effect is dimmed on purpose,
+        // and iOS 27 reports it without an element (Song Detail's solo-page precedent).
+        // Under Reduce Transparency it flags rows scrolled behind the top bar as well.
+        let tabTop = app.tabBars.firstMatch.exists
+            ? app.tabBars.firstMatch.frame.minY : app.windows.firstMatch.frame.maxY
+        let rowUnderTabBar = rowSnapshots().contains { $0.frame.maxY > tabTop }
+        try performAuditRetryingTimeout(app, .all, name: "largest text fade", reset: {}) { issue in
+            let attachment = XCTAttachment(
+                string: "\(issue.auditType): \(issue.detailedDescription); "
+                    + "element=\(issue.element?.identifier ?? "unidentified"), "
+                    + "label=\(issue.element?.label ?? "unidentified"), "
+                    + "frame=\(String(describing: issue.element?.frame)), "
+                    + "tabTop=\(tabTop), rowUnderTabBar=\(rowUnderTabBar)"
+            )
+            attachment.name = "songs-largest-text-audit-issue"
+            attachment.lifetime = .keepAlways
+            self.add(attachment)
+            if SongsUITestSupport.isSystemSearchPlaceholderContrast(issue) { return true }
+            // The rail's caption2 labels stop growing at accessibility2 to stay a narrow
+            // column; their scaling is measured above rather than trusted to the audit.
+            if issue.auditType == .dynamicType, railLabelsScale,
+               let frame = issue.element?.frame, !frame.isEmpty,
+               railFrame.insetBy(dx: -1, dy: -1).contains(frame) {
+                return true
+            }
+            guard issue.auditType == .contrast else { return false }
+            guard let element = issue.element, !element.frame.isEmpty else {
+                return rowUnderTabBar
+            }
+            // Text scrolled under the bars and the title's fade is dimmed on purpose
+            // (Song Detail's band-preview rule); the rows there are checked above.
+            if element.frame.maxY > tabTop || element.frame.minY < largeBar.maxY { return true }
+            try SongsUITestSupport.assertHeaderContrast(element, in: app)
+            return true
+        }
+    }
+
     /// Issue #5 accessibility (#388): the scroll-away decision #5 stabilised is what
     /// VoiceOver perceives as the floating section bar. At the top it is absent and the
     /// list starts with its "#" heading; scrolled away it names the current section once,
@@ -754,10 +903,14 @@ final class SongsChromeJourneyTests: XCTestCase {
         reset: () -> Void,
         _ handler: @escaping (XCUIAccessibilityAuditIssue) throws -> Bool
     ) throws {
+        // A busy host also reports the deadline as an `XCTFuture` timeout (code 1000).
+        func timedOut(_ error: NSError) -> Bool {
+            (error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == -56)
+                || (error.domain == "com.apple.dt.XCTest.XCTFuture" && error.code == 1000)
+        }
         do {
             try app.performAccessibilityAudit(for: types, handler)
-        } catch let error as NSError
-            where error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == -56 {
+        } catch let error as NSError where timedOut(error) {
             XCTContext.runActivity(named: "Audit \(name) did not complete in time; retrying once") { _ in }
             reset()
             try app.performAccessibilityAudit(for: types, handler)
@@ -778,7 +931,13 @@ final class SongsChromeJourneyTests: XCTestCase {
     ) throws -> [String] {
         var weak: [String] = []
         var measured = 0
-        for text in app.staticTexts.allElementsBoundByIndex {
+        // One snapshot: elements bound by index re-resolve one at a time, and the list
+        // can still be re-laying out after the audit's text-size cycle, so a later index
+        // was sometimes gone ("No matches found for Element at index 51", CI #391).
+        func texts(_ node: XCUIElementSnapshot) -> [XCUIElementSnapshot] {
+            (node.elementType == .staticText ? [node] : []) + node.children.flatMap(texts)
+        }
+        for text in texts(try app.snapshot()) {
             let frame = text.frame
             guard !frame.isEmpty, page.window.contains(frame),
                   frame.minY >= page.rampEnd, frame.maxY <= page.chromeTop else { continue }

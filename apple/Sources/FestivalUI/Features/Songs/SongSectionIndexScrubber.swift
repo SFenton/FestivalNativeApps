@@ -141,6 +141,7 @@ struct SongSectionIndexScrubber: View {
             ForEach(Array(entries.enumerated()), id: \.offset) { row, entry in
                 Text(entry.label)
                     .font(.caption2.weight(.semibold))
+                    .fontDesign(.rounded)
                     .frame(maxWidth: .infinity)
                     .foregroundStyle(
                         isActive && entry.sections.contains(activeIndex)
