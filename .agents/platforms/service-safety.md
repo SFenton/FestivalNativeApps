@@ -64,6 +64,8 @@ While the service scrapes and publishes, `PublicReadGateMiddleware` stamps every
 
 Clients must treat a freeze as transient, honour `Retry-After` with capped backoff, and never interpret it as missing data. List endpoints can keep answering 200 during a freeze while detail endpoints 503 on a cache miss. UI: [service-status control](../controls/service-status/spec.md).
 
+Which cold misses 503 (service source `PublicReadGateService.RequiresCachedReads`, `PublicReadFreezeState.RequiresCachedReads`, checked 2026-10-09): a normal `scrape` freeze lets cold reads resolve from the published generation (probed live 2026-10-09 without selected-profile headers: band `/songs`, `/history` and `GET /api/rankings/bands/{type}?teamKey=` all 200 with `X-FST-Public-Read-Mode: published` for teams never requested before). Cold misses 503 only while the publication commit is pending or deferred, during failed-candidate isolation or max-score maintenance, and band `/songs`/`/song-rows` also 503 (no freeze header once unfrozen) until the band-song projection is promoted. The route cache key adds `X-FST-Selected-*` for band-scoped routes, so natives (which never send them) don't share the web's warm entries. Clients keep showing a body they verified in the same observed publication when a score-update freeze 503 arrives ([empty-error-states](../patterns/empty-error-states.md) R9, #554).
+
 ## Live probes
 
 - `bash tools/apple_live_service_smoke.sh --read-public-live` — opt-in, three public GETs (publication, Songs, ten Lead rows) through the real Swift client; prints aggregate counts and provenance only. Never run in automated fixture/coverage suites.
