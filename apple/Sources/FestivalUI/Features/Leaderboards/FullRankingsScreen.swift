@@ -18,7 +18,9 @@ struct FullRankingsScreen: View {
     @AppStorage("fst.settings.showProCymbals") private var showProCymbals = true
     @AppStorage("fst.settings.showProDrums") private var showProDrums = true
     @State private var instrument: Instrument
-    @State private var rankBy: RankingMetric
+    /// The route's or picked metric; read through ``rankBy``.
+    @State private var selectedRankBy: RankingMetric
+    @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
     @State private var page = 1
     @State private var state: RankLoadState<RankingsPayload> = .loading
     @State private var lastRequest: RequestKey?
@@ -115,10 +117,16 @@ struct FullRankingsScreen: View {
     ) {
         self.session = session
         _instrument = State(initialValue: instrument)
-        _rankBy = State(initialValue: RankingMetric(rawValue: rankBy) ?? .totalscore)
+        _selectedRankBy = State(initialValue: RankingMetric(rawValue: rankBy) ?? .totalscore)
         _page = State(initialValue: max(1, page))
         _focusPending = State(initialValue: focusSelected)
     }
+
+    /// The metric in effect: Total Score while Settings › Experimental Ranks is off, so a
+    /// saved or deep-linked experimental metric falls back (pattern `experimental-ranks`,
+    /// web `FullRankingsPage` `coerceRankingMetric`). Turning the switch off while an
+    /// experimental board is open restarts on a Total Score board (`onChange(of: rankBy)`).
+    private var rankBy: RankingMetric { selectedRankBy.coerced(experimentalRanks: experimentalRanks) }
 
     /// Mirror the tab root's Filter menu without depending on its own state; keep
     /// the currently displayed chart selectable even if it was just hidden.
@@ -298,7 +306,7 @@ struct FullRankingsScreen: View {
         .festivalNavigationTitle(Self.title(for: instrument))
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: showsPinnedTitle)
         // Mac: View › Rank By and View › Instrument mirror the toolbar menus.
-        .macRankByCommands($rankBy)
+        .macRankByCommands($selectedRankBy, experimentalRanks: experimentalRanks)
         .macInstrumentCommands(visibleInstruments, selection: $instrument)
         .toolbar {
             #if os(iOS)
@@ -319,7 +327,10 @@ struct FullRankingsScreen: View {
             if layout.sectionChrome.isVerticalBar || pageTools == nil {
                 ToolbarItemGroup(placement: .festivalPageAction) {
                     instrumentPicker
-                    RankByMenu(selection: $rankBy)
+                    // Rank By only with experimental ranks, as on the web.
+                    if experimentalRanks {
+                        RankByMenu(selection: $selectedRankBy)
+                    }
                 }
             }
         }
@@ -333,8 +344,8 @@ struct FullRankingsScreen: View {
         ) {
             instrumentPicker
         }
-        .festivalPageTool(token: rankBy, order: PageToolOrder.secondary) {
-            RankByMenu(selection: $rankBy)
+        .festivalPageTool(token: rankBy, order: PageToolOrder.secondary, isEnabled: experimentalRanks) {
+            RankByMenu(selection: $selectedRankBy)
         }
         .onChange(of: instrument) { _, _ in
             resetBoard()
