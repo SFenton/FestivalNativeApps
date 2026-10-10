@@ -115,7 +115,8 @@ class PagesTests(unittest.TestCase):
 
     def test_every_state_is_covered(self):
         names = {p["name"].removeprefix("profile-") for p in self.pages()}
-        aliases = {"unpinned": "unpinned-profile", "reload": "profile-reload"}
+        # Issue #600: the contract's band-blocked state (the Bands target) now searches bands on Windows.
+        aliases = {"unpinned": "unpinned-profile", "reload": "profile-reload", "bands-scope": "band-blocked"}
         covered = {aliases.get(n, n) for n in names} | {"large-text"}  # large-text: every page with --mode text-200
         self.assertLessEqual(STATES, covered)
         self.assertIn("text-200", m.MODES)

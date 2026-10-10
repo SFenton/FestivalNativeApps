@@ -6,10 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -94,7 +91,10 @@ import com.festivalscoretracker.android.ui.leaderboards.rememberScoreColumns
 import com.festivalscoretracker.android.ui.profile.InstrumentHeading
 import com.festivalscoretracker.android.ui.profile.PercentileTable
 import com.festivalscoretracker.android.ui.profile.ScoreSortControls
+import com.festivalscoretracker.android.ui.common.StatTileGrid
+import com.festivalscoretracker.android.ui.profile.STAT_TILE_INSET
 import com.festivalscoretracker.android.ui.profile.StatTile
+import com.festivalscoretracker.android.ui.profile.statTileTexts
 import com.festivalscoretracker.android.ui.shell.ChromeColors
 import com.festivalscoretracker.android.ui.shell.icon
 import com.festivalscoretracker.android.ui.shop.ShopActionButton
@@ -620,24 +620,30 @@ private fun ChartDemo() {
     }
 }
 
-/** The best-score rows under the chart and a pulsing View All Scores (web `ViewAllScoresDemo`). */
+/**
+ * Score History's best-score rows and a pulsing View All Scores ending their card (web
+ * `ViewAllScoresDemo`), grouped like Song Detail's Score History card (issue #588).
+ */
 @Composable
 private fun ViewAllDemo(id: String, active: Boolean) {
     val points = remember { demoHistoryPoints().sortedByDescending { it.score } }
     val pulse = rememberShopPulse(active)
     DemoFitFirst(remember(points) { FirstRunDemoFit.rowCandidates(points.size) }) { rows ->
-    Column(Modifier.fillMaxWidth()) {
-        points.take(rows).forEachIndexed { index, point ->
-            Box(Modifier.padding(bottom = 4.dp).demoEntrance(FirstRunEntrance.rowDelay(id, index))) {
-                SongHistoryRow(point, best = index == 0, tag = "fst.first-run.demo.history.$index", showSeason = false)
+    GlassCard(Modifier.fillMaxWidth().demoEntrance(0).testTag("fst.first-run.demo.history.card")) {
+        Column(Modifier.padding(top = 4.dp)) {
+            points.take(rows).forEachIndexed { index, point ->
+                Column(Modifier.demoEntrance(FirstRunEntrance.rowDelay(id, index))) {
+                    if (index > 0) SongRowSeparator()
+                    SongHistoryRow(point, best = index == 0, tag = "fst.first-run.demo.history.$index", showSeason = false, grouped = true)
+                }
             }
+            ViewFullLeaderboardButton(
+                onClick = {},
+                label = "View All Scores",
+                testTag = "fst.first-run.demo.view-all",
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).demoEntrance(FirstRunEntrance.rowDelay(id, rows)).pulseOutline(BrandTokens.accentPurple, pulse),
+            )
         }
-        ViewFullLeaderboardButton(
-            onClick = {},
-            label = "View All Scores",
-            testTag = "fst.first-run.demo.view-all",
-            modifier = Modifier.padding(top = 8.dp).demoEntrance(FirstRunEntrance.rowDelay(id, rows)).pulseOutline(BrandTokens.accentPurple, pulse),
-        )
     }
     }
 }
@@ -831,29 +837,24 @@ private fun SelectProfileDemo(active: Boolean) {
 private fun StatTilesDemo(id: String, stats: List<FirstRunDemoStat>, active: Boolean, heading: Instrument? = null) {
     val pulse = rememberShopPulse(active)
     val spacing = StatGridColumns.SPACING_DP
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val columns = StatGridColumns.count(maxWidth.value)
-        val maxRows = (stats.size + columns - 1) / columns
-        val lead = if (heading != null) 1 else 0
-        DemoFitFirst(remember(maxRows) { FirstRunDemoFit.rowCandidates(maxRows) }) { rows ->
+    val lead = if (heading != null) 1 else 0
+    val tiles = remember(stats) { stats.map { PlayerStatTile(id = it.label, label = it.label, value = it.value, tint = if (it.gold) StatTints.GOLD else null) } }
+    val texts = statTileTexts()
+    // The page's shared grid (pattern `stat-tile-grid`): a wide tile spans two slots, so a
+    // demo has at most one row per tile; DemoFitFirst keeps the most rows that fit.
+    DemoFitFirst(remember(stats.size) { FirstRunDemoFit.rowCandidates(stats.size) }) { rows ->
         Column(verticalArrangement = Arrangement.spacedBy(spacing.dp)) {
             heading?.let { Box(Modifier.demoEntrance(0)) { InstrumentHeading(it, "fst.first-run.demo.heading") } }
-            stats.take(columns * rows).chunked(columns).forEachIndexed { row, chunk ->
-                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(spacing.dp)) {
-                    chunk.forEachIndexed { column, stat ->
-                        val tappable = stat.clickable || heading != null
-                        StatTile(
-                            PlayerStatTile(id = stat.label, label = stat.label, value = stat.value, tint = if (stat.gold) StatTints.GOLD else null),
-                            onClick = if (tappable) ({}) else null,
-                            modifier = Modifier.weight(1f).fillMaxHeight()
-                                .demoEntrance(FirstRunEntrance.rowDelay(id, row * columns + column, lead))
-                                .then(if (stat.clickable) Modifier.pulseOutline(BrandTokens.accentPurple, pulse) else Modifier),
-                        )
-                    }
-                    repeat(columns - chunk.size) { Spacer(Modifier.weight(1f)) }
-                }
+            StatTileGrid(tiles, columns = { StatGridColumns.count(it) }, texts = texts, inset = STAT_TILE_INSET, maxRows = rows) { tile, index, tileModifier ->
+                val stat = stats[index]
+                StatTile(
+                    tile,
+                    onClick = if (stat.clickable || heading != null) ({}) else null,
+                    modifier = tileModifier
+                        .demoEntrance(FirstRunEntrance.rowDelay(id, index, lead))
+                        .then(if (stat.clickable) Modifier.pulseOutline(BrandTokens.accentPurple, pulse) else Modifier),
+                )
             }
-        }
         }
     }
 }

@@ -66,7 +66,7 @@ private class HitTargetHarness(val rule: AndroidComposeTestRule<ActivityScenario
         val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = prefs)
         rule.setContent { FestivalApp(container, debug) }
         probe.await("Songs rows") { probe.exists("fst.songs.row.s-1") }
-        probe.await("Quick Links or ⋮") { probe.exists("fst.quick-links.open") || probe.exists("fst.nav.overflow") }
+        probe.await("Quick Links") { probe.exists("fst.quick-links.open") }
         if (player != null) probe.await("the bell") { probe.exists("fst.shell.notifications") }
     }
 
@@ -161,7 +161,7 @@ class LargeTextShellHitTargetUiTest {
 
 // region Medium and expanded
 
-/** Medium window (rail): every tool in the top app bar. */
+/** Medium window (rail): page tools in the floating toolbar, Search, bell and Profile in the top app bar (#576). */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w700dp-h1000dp-xhdpi")
 class MediumShellHitTargetUiTest {
@@ -171,14 +171,14 @@ class MediumShellHitTargetUiTest {
     private val h by lazy { HitTargetHarness(rule) }
 
     @Test
-    fun topBarButtonsHaveForgivingSeparateTargets() {
+    fun barAndToolbarButtonsHaveForgivingSeparateTargets() {
         h.launchSongs()
-        PAGE_TOOLS.forEach { assertTrue("$it in the top app bar", h.within("fst.nav.top-bar", it)) }
+        PAGE_TOOLS.forEach { assertTrue("$it in the floating toolbar", h.within("fst.nav.floating-toolbar", it)) }
         assertEquals(6 * 4 + 1, h.assertForgiving(SELECTED_TOOLS))
     }
 }
 
-/** Expanded window: the top app bar over Songs, which fills the window (no list/detail split, #581). */
+/** Expanded window: the floating toolbar over Songs, which fills the window (no list/detail split, #581; #576). */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w1280dp-h800dp-land-xhdpi")
 class ExpandedShellHitTargetUiTest {
@@ -188,18 +188,17 @@ class ExpandedShellHitTargetUiTest {
     private val h by lazy { HitTargetHarness(rule) }
 
     @Test
-    fun topBarButtonsHaveForgivingSeparateTargets() {
+    fun barAndToolbarButtonsHaveForgivingSeparateTargets() {
         h.launchSongs()
-        PAGE_TOOLS.forEach { assertTrue("$it in the top app bar", h.within("fst.nav.top-bar", it)) }
+        PAGE_TOOLS.forEach { assertTrue("$it in the floating toolbar", h.within("fst.nav.floating-toolbar", it)) }
         assertEquals(6 * 4 + 1, h.assertForgiving(SELECTED_TOOLS))
     }
 }
 
 /**
- * Landscape phone: Songs fills the window in two columns (`wide-columns`, issue #581), so the
- * page tools sit in the top app bar beside Search, the bell and Profile (no narrow list pane
- * pushing them behind ⋮ any more, issue #101), each with a forgiving, separate target. Native
- * graphics, so the title measures real text.
+ * Landscape phone: Songs fills the window in two columns (`wide-columns`, issue #581), and its
+ * page tools float in the shell's toolbar instead of moving behind ⋮ (#576); every bar and toolbar
+ * button keeps a forgiving, separate target. Native graphics, so the title measures real text.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w923dp-h411dp-land-xxhdpi")
@@ -211,12 +210,11 @@ class LandscapePhoneShellHitTargetUiTest {
     private val h by lazy { HitTargetHarness(rule) }
 
     @Test
-    fun topBarButtonsHaveForgivingSeparateTargets() {
+    fun barAndToolbarButtonsHaveForgivingSeparateTargets() {
         h.launchSongs()
-        assertTrue("no ⋮ once Songs fills the window", !h.probe.exists("fst.nav.overflow"))
-        PAGE_TOOLS.forEach { assertTrue("$it in the top app bar", h.within("fst.nav.top-bar", it)) }
+        assertTrue("no ⋮", !h.probe.exists("fst.nav.overflow"))
+        PAGE_TOOLS.forEach { assertTrue("$it in the floating toolbar", h.within("fst.nav.floating-toolbar", it)) }
         assertEquals(6 * 4 + 1, h.assertForgiving(SELECTED_TOOLS))
     }
 }
-
 // endregion

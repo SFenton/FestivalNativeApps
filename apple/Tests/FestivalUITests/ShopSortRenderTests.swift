@@ -24,8 +24,8 @@ private func accentPositions(_ image: CGImage, columns: Bool) -> (gold: CGFloat?
             guard let color = bitmap.colorAt(x: x, y: y) else { continue }
             let (r, g, b) = (color.redComponent, color.greenComponent, color.blueComponent)
             let position = CGFloat(columns ? x : y)
-            if r > 0.7 && g > 0.5 && b < 0.25 { gold.append(position) }
-            if r > 0.5 && g < 0.3 && b < 0.35 { red.append(position) }
+            if shopNewGold(r, g, b) { gold.append(position) }
+            if shopLeavingRed(r, g, b) { red.append(position) }
         }
     }
     func mean(_ rows: [CGFloat]) -> CGFloat? {

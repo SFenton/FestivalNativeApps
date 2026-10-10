@@ -6,8 +6,15 @@ import FestivalDesign
 
 /// `/leaderboards/all` — paginated global rankings for one instrument and metric
 /// (`FortniteFestivalWeb/src/pages/leaderboards/FullRankingsPage.tsx`).
+///
+/// With a combo (`/leaderboards/all?combo=`, issue #602) it ranks a within-group combo
+/// instead, as the web page does: its title draws the combo's instruments, there is no
+/// instrument picker (Rank By stays), and the rows are the combo board's, drawn by the one
+/// ranking row (``AccountRankingEntry/init(combo:metric:)``).
 struct FullRankingsScreen: View {
     let session: FestivalSession
+    /// The combo being ranked; nil ranks ``instrument``.
+    private let combo: RankingCombo?
     @AppStorage("fst.settings.showLead") private var showLead = true
     @AppStorage("fst.settings.showBass") private var showBass = true
     @AppStorage("fst.settings.showDrums") private var showDrums = true
@@ -80,10 +87,25 @@ struct FullRankingsScreen: View {
     private struct SpotlightKey: Equatable {
         let instrument: Instrument
         let accountId: String?
+        /// A combo row carries only its board's metric's rank, so it is read per metric.
+        let comboRankBy: RankingMetric?
     }
 
     private var spotlightKey: SpotlightKey {
-        SpotlightKey(instrument: instrument, accountId: session.selectedPlayer?.accountId)
+        SpotlightKey(
+            instrument: instrument, accountId: session.selectedPlayer?.accountId,
+            comboRankBy: combo == nil ? nil : rankBy
+        )
+    }
+
+    /// The board being ranked: the combo, or the picked instrument.
+    private var scope: RankingScope {
+        combo.map(RankingScope.combo) ?? .instrument(instrument)
+    }
+
+    /// The page title: "Lead Rankings", or "Lead + Bass Rankings" for a combo.
+    private var pageTitle: String {
+        combo.map(Self.title(for:)) ?? Self.title(for: instrument)
     }
 
     /// Count facts that survive a page change.
@@ -116,7 +138,29 @@ struct FullRankingsScreen: View {
         page: Int = 1, focusSelected: Bool = false
     ) {
         self.session = session
+        combo = nil
         _instrument = State(initialValue: instrument)
+        _selectedRankBy = State(initialValue: RankingMetric(rawValue: rankBy) ?? .totalscore)
+        _page = State(initialValue: max(1, page))
+        _focusPending = State(initialValue: focusSelected)
+    }
+
+    /// Create the screen for a combo's board (web `Routes.fullComboRankings`, issue #602).
+    ///
+    /// - Parameters:
+    ///   - session: Shared app session (API client, selected profile, caches).
+    ///   - combo: The within-group combo being ranked.
+    ///   - rankBy: Ranking metric raw value (e.g. `adjusted`, `totalscore`).
+    ///   - page: 1-based page to open on.
+    ///   - focusSelected: Bring the selected player's row on that page into view once
+    ///     it has appeared (a Compete combo card's "your rank" row).
+    init(
+        session: FestivalSession, combo: RankingCombo, rankBy: String,
+        page: Int = 1, focusSelected: Bool = false
+    ) {
+        self.session = session
+        self.combo = combo
+        _instrument = State(initialValue: combo.instruments.first ?? .lead)
         _selectedRankBy = State(initialValue: RankingMetric(rawValue: rankBy) ?? .totalscore)
         _page = State(initialValue: max(1, page))
         _focusPending = State(initialValue: focusSelected)
@@ -148,6 +192,15 @@ struct FullRankingsScreen: View {
     /// - Returns: The localized-format title.
     static func title(for instrument: Instrument) -> String {
         "\(instrument.label) Rankings"
+    }
+
+    /// The page title for a combo, e.g. "Lead + Bass Rankings" (web `FullRankingsPage`
+    /// `comboScopeLabel` + `rankings.title`).
+    ///
+    /// - Parameter combo: Combo being ranked.
+    /// - Returns: The localized-format title.
+    static func title(for combo: RankingCombo) -> String {
+        "\(combo.label) Rankings"
     }
 
     /// Whether the bar shows the pinned icon and title: once the in-list title has
@@ -191,7 +244,7 @@ struct FullRankingsScreen: View {
                         // The title and count fade in at once, like the web page header;
                         // the rows stagger beneath them.
                         InstrumentPageTitle(
-                            instrument: instrument, title: Self.title(for: instrument), style: .header,
+                            instruments: scope.instruments, title: pageTitle, style: .header,
                             identifier: "fst.full-rankings.title"
                         )
                             .padding(.top, 8)
@@ -288,8 +341,9 @@ struct FullRankingsScreen: View {
         .wideColumnsCount($columns)
         // The shared Song Leaderboard pager and the player's footer, pinned outside the
         // reload gate so both stay put while only the rows fade (issue #294; a bottom
-        // safe-area inset for the same tab-bar reason as `SoloLeaderboardScreen`).
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        // safe-area inset for the same tab-bar reason as `SoloLeaderboardScreen`), read
+        // after the rows (#461).
+        .boardBottomChrome {
             bottomChrome
         }
         // `/duo` J2 (operator, 2026-10-02): a narrow board (folded Duo, a split column,
@@ -303,18 +357,21 @@ struct FullRankingsScreen: View {
         )
         .coordinateSpace(.named(Self.pageSpace))
         .festivalBackground(.carousel, session: session)
-        .festivalNavigationTitle(Self.title(for: instrument))
+        .festivalNavigationTitle(pageTitle)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: showsPinnedTitle)
         // Mac: View › Rank By and View › Instrument mirror the toolbar menus.
         .macRankByCommands($selectedRankBy, experimentalRanks: experimentalRanks)
-        .macInstrumentCommands(visibleInstruments, selection: $instrument)
+        // A combo board has no instrument to switch (web hides its instrument picker).
+        .modifier(FullRankingsInstrumentCommands(
+            instruments: combo == nil ? visibleInstruments : nil, selection: $instrument
+        ))
         .toolbar {
             #if os(iOS)
             // The iPhone Duo vertical bar minimizes its top bar on scroll, so a custom
             // title would leave when due; the system title stays there (R14).
-            if !layout.sectionChrome.isVerticalBar {
+            if InstrumentPageTitleToolbarItem.pinsTitle(in: layout.sectionChrome) {
                 InstrumentPageTitleToolbarItem(
-                    instrument: instrument, title: Self.title(for: instrument), isShown: showsPinnedTitle,
+                    instrument: combo == nil ? instrument : nil, title: pageTitle, isShown: showsPinnedTitle,
                     identifier: "fst.full-rankings.pinned-title"
                 )
             }
@@ -326,7 +383,9 @@ struct FullRankingsScreen: View {
             // The iPhone tab-bar accessory takes both instead (issue #92).
             if layout.sectionChrome.isVerticalBar || pageTools == nil {
                 ToolbarItemGroup(placement: .festivalPageAction) {
-                    instrumentPicker
+                    if combo == nil {
+                        instrumentPicker
+                    }
                     // Rank By only with experimental ranks, as on the web.
                     if experimentalRanks {
                         RankByMenu(selection: $selectedRankBy)
@@ -340,7 +399,7 @@ struct FullRankingsScreen: View {
         // iPhone tab-bar accessory (issue #92): Instrument, then Rank By.
         .festivalPageTool(
             token: InstrumentToolToken(selected: instrument, choices: visibleInstruments),
-            order: PageToolOrder.primary
+            order: PageToolOrder.primary, isEnabled: combo == nil
         ) {
             instrumentPicker
         }
@@ -387,7 +446,7 @@ struct FullRankingsScreen: View {
                 }
             }
         }
-        .reportsBottomChromeTop(in: Self.pageSpace) { bottomChromeTop = $0 }
+        .boardBottomChrome(in: Self.pageSpace) { bottomChromeTop = $0 }
     }
 
     /// Padding that rests the last row one row gap above the player's footer, or
@@ -509,7 +568,7 @@ struct FullRankingsScreen: View {
                         .accessibilityIdentifier("fst.full-rankings.spotlight-footer.loading")
                 }
             case .unranked:
-                RankingSpotlightUnrankedRow(message: "You're not yet ranked on \(instrument.label).")
+                RankingSpotlightUnrankedRow(message: "You're not yet ranked on \(scope.label).")
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
                     .festivalCardCapsule()
@@ -559,10 +618,7 @@ struct FullRankingsScreen: View {
                 .accessibilityIdentifier("fst.full-rankings.spotlight-jump")
             }
         }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 16)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("fst.full-rankings.spotlight-footer")
+        .pinnedFooterControl(identifier: "fst.full-rankings.spotlight-footer")
     }
 
     /// Read the selected player's own row on this instrument's board.
@@ -570,8 +626,8 @@ struct FullRankingsScreen: View {
         guard let accountId = session.selectedPlayer?.accountId else { return }
         spotlightState = .loading
         do {
-            let payload = try await session.playerInstrumentRanking(
-                instrument: instrument, accountId: accountId
+            let payload = try await session.playerRanking(
+                scope: scope, accountId: accountId, rankBy: rankBy
             )
             spotlightState = .loaded(payload)
         } catch {
@@ -635,8 +691,8 @@ struct FullRankingsScreen: View {
         state = .loading
         do {
             let payload = try await session.rankings(
-                instrument: requested.instrument, rankBy: requested.rankBy,
-                page: requested.page, pageSize: Self.pageSize
+                scope: combo.map(RankingScope.combo) ?? .instrument(requested.instrument),
+                rankBy: requested.rankBy, page: requested.page, pageSize: Self.pageSize
             )
             try Task.checkCancellation()
             guard requested == requestKey else { return }
@@ -658,6 +714,22 @@ struct FullRankingsScreen: View {
         } catch {
             guard requested == requestKey else { return }
             state = .failed(ServiceIssue(error))
+        }
+    }
+}
+
+/// View › Instrument for an instrument board; none for a combo board, which has no
+/// instrument to switch.
+private struct FullRankingsInstrumentCommands: ViewModifier {
+    /// The selectable charts, or nil for a combo board.
+    let instruments: [Instrument]?
+    let selection: Binding<Instrument>
+
+    func body(content: Content) -> some View {
+        if let instruments {
+            content.macInstrumentCommands(instruments, selection: selection)
+        } else {
+            content
         }
     }
 }
