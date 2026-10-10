@@ -42,6 +42,7 @@ import com.festivalscoretracker.android.core.bands.BandLayout
 import com.festivalscoretracker.android.core.bands.BandMember
 import com.festivalscoretracker.android.core.bands.BandType
 import com.festivalscoretracker.android.core.bands.PlayerBandEntry
+import com.festivalscoretracker.android.core.rankings.RankingPaging
 import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.isLargeText
@@ -315,7 +316,8 @@ internal fun <T> BandSegmentedControl(
 
 /**
  * The shared web pager (frosted « ‹ page / pages › » buttons, [RankingsPager]) centred
- * under a band list, hidden for a single page (7.4: one pager everywhere boards page).
+ * under a band list, hidden for a single page (7.4: one pager everywhere boards page;
+ * [RankingPaging.showsPager], #575).
  *
  * @param page Current page.
  * @param pageCount Pages.
@@ -325,7 +327,7 @@ internal fun <T> BandSegmentedControl(
  */
 @Composable
 internal fun BandPager(page: Int, pageCount: Int, tagPrefix: String, onGo: (Int) -> Unit, modifier: Modifier = Modifier) {
-    if (pageCount <= 1) return
+    if (!RankingPaging.showsPager(pageCount)) return
     Box(modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
         RankingsPager(page, pageCount, tagPrefix, onGo)
     }
