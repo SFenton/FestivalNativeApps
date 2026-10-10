@@ -61,7 +61,7 @@
                         <TextBlock Text="{x:Bind ViewModel.MetricLabel, Mode=OneWay}" />
                     </StackPanel>
                     <DropDownButton.Flyout>
-                        <MenuFlyout x:Name="MetricMenu" Placement="BottomEdgeAlignedRight" Opening="OnMetricMenuOpening" />
+                        <MenuFlyout x:Name="MetricMenu" Placement="BottomEdgeAlignedRight" ShouldConstrainToRootBounds="True" Opening="OnMetricMenuOpening" />
                     </DropDownButton.Flyout>
                 </DropDownButton>
                 <controls:QuickLinksMenuButton x:Name="QuickLinksMenu" />
