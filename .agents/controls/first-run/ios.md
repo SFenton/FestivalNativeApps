@@ -282,6 +282,19 @@ Before #27 iOS showed one static state per demo; now each rotating demo swaps li
 - Hosted tests: `FirstRunDemoRotationUITests` (swap order, ticker policy, cancellation
   completes, web pools/templates; an active bar-select demo advances while an inactive one
   stays still, and system or app Reduce Motion holds an active one still past its interval).
+- Accessibility (#402): `FirstRunDemoRotationAccessibilityTests` hosts all 12 rotating demos
+  active with motion on, samples through a swap and requires the picture to change while nothing
+  becomes reachable (no element, song, placeholder or rival text). System or app Reduce Motion holds
+  every one of them still. The Statistics carousel slide reads the same before and after a swap at
+  Large and AX5: the same name, role, order and frames, and the targets still meet their minimum sizes.
+  On iPhone at AX5, `FirstRunJourneyTests.testSongDemoRotationKeepsSlideAccessibleAtLargestText`
+  (`FST_DEBUG_STILL_BACKGROUND=0`, an `apple-ci` journey) waits past a live swap and runs the AX5
+  checks and `performAccessibilityAudit` again. **Rule:** a swapped-in tile's loading spinner
+  (`ArtworkTile` → `FestivalLoadingView`) stays out of the accessibility children because the
+  demo is `accessibilityHidden`. On macOS, `macAccessibilityTree` still lists the
+  `NSProgressIndicator` behind it, because that walk also descends AppKit subviews, so test what
+  VoiceOver reaches with an `accessibilityChildren` walk (as `ReloadGateAccessibilityTests.reachable`
+  does).
 
 | Slide | Rotation (web source) |
 |---|---|

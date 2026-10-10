@@ -121,8 +121,8 @@ final class SongsChromeJourneyTests: XCTestCase {
         let detail = app.descendants(matching: .any)["fst.song-detail.hero-title"]
 
         func hittableRow() -> XCUIElement? {
-            let candidates = rows.allElementsBoundByIndex.prefix(12)
-            return candidates.first { $0.isHittable && $0.frame.midY > app.frame.height * 0.3 }
+            SongsUITestSupport.songsRows(in: app, limit: 12)
+                .first { $0.isHittable && $0.frame.midY > app.frame.height * 0.3 }
         }
 
         func openAndReturn(_ row: XCUIElement) -> CGRect {
@@ -165,7 +165,7 @@ final class SongsChromeJourneyTests: XCTestCase {
         field.typeText(query)
         var filtered: XCUIElement?
         for _ in 0..<Int(FestivalApp.budget(50)) {
-            filtered = rows.allElementsBoundByIndex.prefix(6).first { $0.isHittable }
+            filtered = SongsUITestSupport.songsRows(in: app, limit: 6).first { $0.isHittable }
             if filtered != nil { break }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
@@ -608,11 +608,13 @@ final class SongsChromeJourneyTests: XCTestCase {
         let navigation = app.navigationBars.firstMatch.frame
         XCTAssertGreaterThanOrEqual(bar.frame.minY, navigation.maxY - 1, "Bar \(bar.frame) under \(navigation)")
         let barHeight = bar.frame.height
-        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row."))
+        let barBottom = bar.frame.maxY
         let tabs = app.tabBars.firstMatch.frame
-        // At AX5 a row can be taller than the band, so count any row showing ≥ 44 pt of it.
-        let visible = rows.allElementsBoundByIndex.filter {
-            $0.isHittable && min($0.frame.maxY, tabs.minY) - max($0.frame.minY, bar.frame.maxY) >= 44
+        let window = app.windows.firstMatch.frame
+        // At AX5 a row can be taller than the band, so count any row showing ≥ 44 pt of it
+        // between the bar and the tab bar. One snapshot: the lazy list recycles rows (#572).
+        let visible = try FestivalApp.snapshotNodes(in: app, where: SongsUITestSupport.isSongsRow).filter {
+            window.intersects($0.frame) && min($0.frame.maxY, tabs.minY) - max($0.frame.minY, barBottom) >= 44
         }
         XCTAssertFalse(visible.isEmpty, "No song rows below the section bar")
         for row in visible {
@@ -671,10 +673,10 @@ final class SongsChromeJourneyTests: XCTestCase {
     /// - Parameter app: Songs right after a swipe.
     @MainActor
     private func waitForListToSettle(_ app: XCUIApplication) {
-        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row."))
         var last: [CGRect] = []
         for _ in 0..<Int(FestivalApp.budget(20)) {
-            let frames = rows.allElementsBoundByIndex.prefix(4).map(\.frame)
+            let rows = (try? FestivalApp.snapshotNodes(in: app, where: SongsUITestSupport.isSongsRow)) ?? []
+            let frames = rows.prefix(4).map(\.frame)
             if !frames.isEmpty, frames == last { return }
             last = frames
             RunLoop.current.run(until: Date().addingTimeInterval(0.4))
@@ -867,7 +869,9 @@ final class SongsChromeJourneyTests: XCTestCase {
     ) throws -> [String] {
         var weak: [String] = []
         var measured = 0
-        for text in app.staticTexts.allElementsBoundByIndex {
+        // One snapshot: after the audit's text-size cycle the lazy list is still recycling
+        // rows, and a bound-by-index walk failed on a vanished last text (#572).
+        for text in try FestivalApp.snapshotNodes(in: app, where: { $0.elementType == .staticText }) {
             let frame = text.frame
             guard !frame.isEmpty, page.window.contains(frame),
                   frame.minY >= page.rampEnd, frame.maxY <= page.chromeTop else { continue }
@@ -1286,8 +1290,10 @@ final class SongsChromeJourneyTests: XCTestCase {
         // Reading order from the layout, top to bottom then leading to trailing (XCUITest
         // lists descendants depth first, not in VoiceOver's order; as `DuoDrawerJourneyTests`):
         // no later section title is above the bar, and the bar is leading of the rail.
-        let titles = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'fst.songs.section.'"))
-            .allElementsBoundByIndex.filter { $0.identifier != "fst.songs.section.0" && window.intersects($0.frame) }
+        let titles = try FestivalApp.snapshotNodes(in: app) {
+            $0.elementType == .staticText && $0.identifier.hasPrefix("fst.songs.section.")
+                && $0.identifier != "fst.songs.section.0" && window.intersects($0.frame)
+        }
         for title in titles {
             XCTAssertGreaterThanOrEqual(title.frame.minY, bar.maxY, "\(title.label) is above the bar: \(title.frame) \(bar)")
         }

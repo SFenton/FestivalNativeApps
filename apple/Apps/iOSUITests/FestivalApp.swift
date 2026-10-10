@@ -89,4 +89,34 @@ enum FestivalApp {
     static func budget(_ seconds: TimeInterval, inVirtualMachine: Bool = inVirtualMachine) -> TimeInterval {
         inVirtualMachine ? seconds * virtualMachineTimeoutScale : seconds
     }
+
+    // MARK: - Accessibility snapshots
+
+    /// The nodes of one accessibility snapshot of `root` that match, in depth-first order
+    /// (the order an element query lists them).
+    ///
+    /// Walk a lazy list's elements with this, never with `query.allElementsBoundByIndex`:
+    /// every bound element re-resolves the query when read, and a `List` that is still
+    /// recycling cells (after a scroll, or after an audit cycles the text sizes) can shrink
+    /// mid-walk, so reading the vanished last index fails the test outright ("No matches
+    /// found for Element at index 51", #572). One snapshot reads every frame and label from
+    /// the same instant. To act on a node, bind a new element to its identifier.
+    ///
+    /// - Parameters:
+    ///   - root: The element to snapshot, usually the app.
+    ///   - matches: Selects the wanted nodes.
+    /// - Returns: Every matching node, `root` included when it matches.
+    /// - Throws: A snapshot XCTest cannot take.
+    @MainActor
+    static func snapshotNodes(
+        in root: XCUIElement, where matches: (XCUIElementSnapshot) -> Bool
+    ) throws -> [XCUIElementSnapshot] {
+        var found: [XCUIElementSnapshot] = []
+        func walk(_ node: XCUIElementSnapshot) {
+            if matches(node) { found.append(node) }
+            node.children.forEach(walk)
+        }
+        walk(try root.snapshot())
+        return found
+    }
 }
