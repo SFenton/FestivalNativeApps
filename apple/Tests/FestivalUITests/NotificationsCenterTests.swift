@@ -13,6 +13,8 @@ private actor GatedNotificationsTransport: HTTPTransport {
     private var waiters: [CheckedContinuation<Void, Never>] = []
     private(set) var notificationRequests = 0
     var notificationsStatus = 200
+    /// Adds an experimental (Weighted) rank-improvement row to the feed.
+    var includesWeightedRank = false
 
     /// Hold subsequent notification reads until `open()`.
     func close() { gated = true }
@@ -28,6 +30,9 @@ private actor GatedNotificationsTransport: HTTPTransport {
     ///
     /// - Parameter status: HTTP status for later `/notifications` reads.
     func setNotificationsStatus(_ status: Int) { notificationsStatus = status }
+
+    /// Serve a Weighted rank-improvement row after the FC row from now on.
+    func includeWeightedRank() { includesWeightedRank = true }
 
     func send(_ request: URLRequest) async throws -> HTTPResult {
         guard let url = request.url, request.httpMethod == "GET",
@@ -67,12 +72,22 @@ private actor GatedNotificationsTransport: HTTPTransport {
                {"eventId":2,"notificationGuid":"guid-2","accountId":"fixture-1",
                 "eventKind":"player_fc_achieved","songId":"fixture-song",
                 "instrument":"Solo_Bass",
-                "detectedAt":"2024-01-04T00:00:00Z","expiresAt":"2024-02-04T00:00:00Z"}
+                "detectedAt":"2024-01-04T00:00:00Z","expiresAt":"2024-02-04T00:00:00Z"}\(weightedRow)
             ]}
             """.utf8), headers: headers)
         default:
             throw FestivalAPIError.httpStatus(404)
         }
+    }
+
+    private var weightedRow: String {
+        guard includesWeightedRank else { return "" }
+        return """
+        ,{"eventId":3,"notificationGuid":"guid-541-weighted","accountId":"fixture-1",
+          "eventKind":"player_weighted_rank_improved","instrument":"Solo_Bass",
+          "oldRank":9,"newRank":4,
+          "detectedAt":"2024-01-04T00:00:00Z","expiresAt":"2024-02-04T00:00:00Z"}
+        """
     }
 }
 
@@ -159,4 +174,29 @@ private func waitForNotificationRequests(
     #expect(center.state == .idle)
     #expect(center.notifications.isEmpty)
     #expect(center.unreadCount == 0)
+}
+
+/// Settings › Experimental Ranks gates rank notifications like the web's
+/// `projectExperimentalRankNotification` (issue #541): off hides the Weighted rank row
+/// and its unread badge; on shows it without another read; off again hides it.
+@MainActor
+@Test func notificationsCenterFollowsExperimentalRanksSwitch() async throws {
+    let transport = GatedNotificationsTransport()
+    await transport.includeWeightedRank()
+    let session = try gatedSession(transport)
+    let center = session.notificationsCenter
+    center.setExperimentalRanks(false)
+
+    await center.refresh(session: session)
+    #expect(center.notifications.map(\.id) == ["guid-2"])
+    #expect(!center.unreadIds.contains("guid-541-weighted"))
+
+    center.setExperimentalRanks(true)
+    #expect(center.notifications.map(\.id) == ["guid-2", "guid-541-weighted"])
+    #expect(center.unreadIds.contains("guid-541-weighted"))
+    #expect(await transport.notificationRequests == 1)
+
+    center.setExperimentalRanks(false)
+    #expect(center.notifications.map(\.id) == ["guid-2"])
+    #expect(!center.unreadIds.contains("guid-541-weighted"))
 }

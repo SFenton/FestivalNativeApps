@@ -13,7 +13,8 @@ Source: `FortniteFestivalWeb/src/pages/shop/ShopPage.tsx:41-178`, `src/pages/sho
 
 | Action / state | Expectation |
 |---|---|
-| Offer | Cover, title/artist/year, New or Leaving badge, official HTTPS Shop link, optional in-app Detail (validated catalogue song only) |
+| Offer | Cover, title/artist/year, New or Leaving state, official HTTPS Shop link, optional in-app Detail (validated catalogue song only) |
+| Shop page badges (issue #562) | Like the web `ShopCard` and Shop list `SongRow`: only **Leaving Tomorrow** gets a visible pill/indicator on Shop grid tiles and list rows; **New** is the gold outline/pulse alone, with no visible New badge or icon. The New state stays in the tile/row's accessible name |
 | Hide / highlight | Hidden: Shop route returns to Songs with a notice, highlight control disabled but retained |
 | Empty / failure | True `count=0` → the platform's shared centred empty state with no card ([empty-error-states](../../patterns/empty-error-states.md) R8; web copy "No songs in the Item Shop"); HTTP 503 → unavailable/Retry, never success-shaped empty |
 | Songs / Detail | Same-generation flags paint Songs red (Leaving) / gold (New) row borders; Detail shows the official action, availability badge and explicit Shop-fetch error; highlights off hides badges but keeps the link |

@@ -72,9 +72,10 @@ internal sealed partial class Driver
 
     /// <summary>
     /// Narrator's scan-mode reading order under <paramref name="root"/>: a pre-order walk of the UIA control view that
-    /// skips off-screen elements and unnamed containers, and stops at a named item that Narrator reads whole
-    /// (<see cref="NarratorLeafTypes"/>). A named group or pane is read on entry, then its content. An open Flyout's
-    /// windowed <c>Popup</c> host (off screen, empty bounds) is walked through, so its content is read (issue #432).
+    /// skips off-screen items and unnamed containers, and stops at a named item that Narrator reads whole
+    /// (<see cref="NarratorLeafTypes"/>). A named group or pane is read on entry, then its content; an off-screen
+    /// container is not read, but its on-screen content is. An open Flyout's windowed <c>Popup</c> host (off screen,
+    /// empty bounds) is walked through the same way, so its content is read (issue #432).
     /// </summary>
     /// <param name="root">Walk root (the window, or a region such as the title bar).</param>
     /// <returns>Elements in reading order.</returns>
@@ -85,11 +86,6 @@ internal sealed partial class Driver
         void Visit(AutomationElement element, int depth)
         {
             var p = element.Properties;
-            // A WinUI windowed popup (a Flyout's host, class Popup) reports IsOffscreen with an empty rectangle while its
-            // content is on screen and read by Narrator, so the host is walked through but never read itself.
-            var popupHost = depth > 0 && p.ClassName.ValueOrDefault == "Popup" && p.BoundingRectangle.ValueOrDefault is { Width: <= 0, Height: <= 0 };
-            if (p.IsOffscreen.ValueOrDefault && !popupHost) return;
-            var named = !popupHost && !string.IsNullOrEmpty(p.Name.ValueOrDefault);
             ControlType type;
             try
             {
@@ -99,6 +95,15 @@ internal sealed partial class Driver
             {
                 type = ControlType.Custom;
             }
+            var offscreen = p.IsOffscreen.ValueOrDefault;
+            if (offscreen && NarratorLeafTypes.Contains(type)) return;
+            // An off-screen container is not read, but its content still is when on screen: WinUI's grouped ListView
+            // reports a group (ListViewHeaderItem) off-screen once its header scrolls away, while the group's rows
+            // stay visible and report on-screen (issue #417, rows fading under the Songs pinned header).
+            // A WinUI windowed popup (a Flyout's host, class Popup) reports IsOffscreen with an empty rectangle while its
+            // content is on screen and read by Narrator, so the host is walked through but never read itself.
+            var popupHost = depth > 0 && p.ClassName.ValueOrDefault == "Popup" && p.BoundingRectangle.ValueOrDefault is { Width: <= 0, Height: <= 0 };
+            var named = !offscreen && !popupHost && !string.IsNullOrEmpty(p.Name.ValueOrDefault);
             if (named && depth > 0) order.Add(element);
             if (named && depth > 0 && NarratorLeafTypes.Contains(type)) return;
             if (depth >= 40) return;

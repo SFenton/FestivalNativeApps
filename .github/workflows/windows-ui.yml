@@ -2,32 +2,14 @@ name: windows-ui
 # Windows accessibility journeys (tools/windows/ui_ci.py RUNS) through a11y_matrix.py on the hosted runner's
 # interactive desktop. The app runs the Debug build against loopback fixtures (no service calls); a run with a
 # system mode (text-225) changes only this runner's desktop and restores it.
+# Release train: the full matrix runs only on the weekly releases/YYMM.DD branch, dispatched by the release machine.
 on:
-  push:
-    branches: [master]
-    paths:
-      - 'windows/**'
-      - 'tools/windows/**'
-      - 'tools/android/hostlock.py'
-      - 'tools/mock_service.py'
-      - '.github/workflows/windows-ui.yml'
-  pull_request:
-    paths:
-      - 'windows/**'
-      - 'tools/windows/**'
-      - 'tools/android/hostlock.py'
-      - 'tools/mock_service.py'
-      - '.github/workflows/windows-ui.yml'
   workflow_dispatch:
-  # Nightly full matrix on master (medium window, 225% text, declared modes); PRs run the bounded gate.
-  schedule:
-    - cron: '30 9 * * *'
 permissions:
   contents: read
 concurrency:
   group: windows-ui-${{ github.event.pull_request.number || github.ref }}
-  # Only a PR's superseded runs are cancelled: master runs finish, so its checks reflect every merge.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 jobs:
   windows-ui-a11y:
     name: windows-ui-a11y (${{ matrix.shard }})
@@ -37,8 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # PRs: the bounded gate in 2 shards; master pushes and the nightly run: the full matrix in 6.
-        shard: ${{ fromJSON(github.event_name == 'pull_request' && '[1, 2]' || '[1, 2, 3, 4, 5, 6]') }}
+        shard: [1, 2, 3, 4, 5, 6]
     env:
       PYTHONUTF8: '1'
       FST_CI: '1'
@@ -63,7 +44,7 @@ jobs:
         shell: pwsh
         run: ./tools/windows/build.ps1
       - name: Accessibility journeys
-        run: python tools/windows/ui_ci.py --tier ${{ github.event_name == 'pull_request' && 'pr' || 'full' }} --shard ${{ matrix.shard }} --shards ${{ github.event_name == 'pull_request' && 2 || 6 }} --out "${{ runner.temp }}/windows-ui"
+        run: python tools/windows/ui_ci.py --tier full --shard ${{ matrix.shard }} --shards 6 --out "${{ runner.temp }}/windows-ui"
       - name: Upload journey results
         if: always()
         uses: actions/upload-artifact@v4

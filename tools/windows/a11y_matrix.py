@@ -27,9 +27,11 @@ fixture-only pages (a ``fixture`` wrapper or a ``fixture-…`` player).
 
 A page with ``"scan": true`` is always scanned and fails on any Axe error, with or without ``--scan``: a regression
 check whose point is the scan (e.g. an unlabeled Songs section header, issue #282). Errors from every scan in the
-drive count, including ``scan:`` steps a page runs mid-journey. A page that opens a flyout may list
-``"axe_allow": ["framework-popup"]`` (``AXE_ALLOW``): WinUI's windowed ``PopupHost`` finding, which can linger after
-the flyout closes (windows-accessibility.md open item 8), then neither counts nor is listed; every other finding does.
+drive count, including ``scan:`` steps a page runs mid-journey. A page may list ``"axe_allow": ["framework-popup"]``
+(``AXE_ALLOW``) to drop WinUI's windowed ``PopupHost`` finding (windows-accessibility.md open item 8), which then
+neither counts nor is listed; every other finding does. Since #534 no gated page needs it: app flyouts and suggestion
+lists open in-window, and a page that leaves keyboard focus on a button with a tooltip (always a windowed popup)
+moves focus off it before the final scan.
 
 Outputs in ``--out``: ``<page>-<size>[-<mode>].png``, ``results.json`` and ``summary.md`` (page × size:
 Axe errors, tab stops, stops outside the app, repeated stops). Exit code 1 when any page failed to load
@@ -57,6 +59,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import journey_exe  # noqa: E402  (sibling module: --exe debug|release|aot)
+import ui_journey  # noqa: E402  (sibling tool; shares the fixture-list contract)
 import uiwin  # noqa: E402  (sibling tool; provides the lock, driver and step parser)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -278,10 +281,7 @@ def page_fixture(page: dict, default: Path = FIXTURE) -> tuple[Path, tuple[str, 
     Returns:
         Script path and flags; pages with equal results share one fixture service.
     """
-    flags = tuple(page.get("fixture", ()))
-    if flags and flags[0].endswith(".py"):
-        return REPO_ROOT / "tools" / "windows" / flags[0], flags[1:]
-    return default, flags
+    return ui_journey.journey_fixture(tuple(page.get("fixture", ())), default)  # type: ignore[return-value]  (default set)
 
 
 def summarize_focus(focus: list[dict]) -> dict:

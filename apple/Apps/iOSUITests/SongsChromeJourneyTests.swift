@@ -93,6 +93,87 @@ final class SongsChromeJourneyTests: XCTestCase {
         XCTAssertTrue(orbit.exists)
     }
 
+    /// Issue #544: after Back from Song Detail, the Filter Songs field is ready at once.
+    /// It exists, can be tapped, keeps its "Filter Songs" label and keeps the text typed
+    /// before the song opened, and the list stays where it was (`back-keeps-place`
+    /// R1–R3). The capsule drawn during the pop (``SearchDrawerTransitionFill``) is
+    /// checked in recordings; XCUITest cannot sample a frame mid-transition.
+    ///
+    /// The list is scrolled first when the catalogue is long enough (the CI
+    /// large-catalogue fixture), which is when the field shows glass; the two-song
+    /// fixture checks the same readiness at the top.
+    @MainActor
+    func testFilterFieldReadyAfterBackFromSongDetail() throws {
+        continueAfterFailure = false
+        let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"]
+            ?? "http://127.0.0.1:8765"
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": base,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_STILL_BACKGROUND": "1",
+        ])
+        app.launch()
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row."))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: FestivalApp.budget(15)))
+        let back = app.navigationBars.buttons.matching(
+            NSPredicate(format: "label == %@ OR label == %@", "Songs", "Back")
+        ).firstMatch
+        let detail = app.descendants(matching: .any)["fst.song-detail.hero-title"]
+
+        func hittableRow() -> XCUIElement? {
+            let candidates = rows.allElementsBoundByIndex.prefix(12)
+            return candidates.first { $0.isHittable && $0.frame.midY > app.frame.height * 0.3 }
+        }
+
+        func openAndReturn(_ row: XCUIElement) -> CGRect {
+            let identifier = row.identifier
+            row.tap()
+            XCTAssertTrue(detail.waitForExistence(timeout: FestivalApp.budget(10)), "Song Detail did not open")
+            XCTAssertTrue(back.waitForExistence(timeout: FestivalApp.budget(5)))
+            back.tap()
+            // Ready at once: no settling wait beyond the pop itself.
+            let field = SongsUITestSupport.songsSearchEntry(in: app)
+            XCTAssertTrue(field.waitForExistence(timeout: FestivalApp.budget(2)), "Filter Songs field missing after Back")
+            XCTAssertTrue(field.isHittable, "Filter Songs field not tappable right after Back")
+            XCTAssertEqual(field.placeholderValue, "Filter Songs")
+            XCTAssertEqual(field.elementType, .searchField)
+            XCTAssertGreaterThanOrEqual(field.frame.height, 36, "Filter Songs field below a usable target height")
+            let returned = app.buttons[identifier]
+            XCTAssertTrue(returned.waitForExistence(timeout: FestivalApp.budget(2)))
+            return returned.frame
+        }
+
+        // Scrolled (the glass state) when the catalogue scrolls; Back keeps the place.
+        let rail = app.descendants(matching: .any).matching(identifier: "fst.songs.section-index").firstMatch
+        if rail.waitForExistence(timeout: FestivalApp.budget(3)) {
+            app.swipeUp()
+            RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(1.5)))
+        }
+        let row = try XCTUnwrap(hittableRow(), "No song row on screen")
+        let frameBefore = row.frame
+        let frameAfter = openAndReturn(row)
+        XCTAssertEqual(frameAfter.minY, frameBefore.minY, accuracy: 1, "The list moved on Back")
+        XCTAssertTrue(
+            app.buttons["fst.songs.sort"].isHittable || app.buttons["fst.songs.tools"].isHittable,
+            "Sort did not stay available on Back"
+        )
+
+        // Text typed before a song opens is still in the field after Back.
+        let field = SongsUITestSupport.songsSearchField(in: app)
+        field.tap()
+        let query = rail.exists ? "Signal" : "Pulse"
+        field.typeText(query)
+        var filtered: XCUIElement?
+        for _ in 0..<Int(FestivalApp.budget(50)) {
+            filtered = rows.allElementsBoundByIndex.prefix(6).first { $0.isHittable }
+            if filtered != nil { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        _ = openAndReturn(try XCTUnwrap(filtered, "No filtered row"))
+        let kept = SongsUITestSupport.songsSearchField(in: app)
+        XCTAssertEqual(kept.value as? String, query, "Filter text was lost on Back")
+    }
+
     /// The A–Z rail is centred between the navigation bar and the tab bar, stays put when
     /// the large title collapses, and scrubbing collapses the title like a manual scroll.
     /// The pinned Filter Songs field stays visible and usable.
@@ -360,6 +441,95 @@ final class SongsChromeJourneyTests: XCTestCase {
             barHeight, defaultHeight * 1.35,
             "Section bar heading did not scale: \(barHeight) pt at AX5, \(defaultHeight) pt default"
         )
+    }
+
+    /// Issue #553 accessibility: the Songs row card's rim (`CardRim`) and the pinned
+    /// section bar's row mask (`pinnedHeaderEdgeFadeRowMask`) are decoration only. One
+    /// row, read clear of the fade, then dragged into the fade band and then across the
+    /// bar's edge so the mask cuts it, keeps the same button, label, frame size and
+    /// descendants; no state exposes any other element inside the row; the row stays
+    /// hittable; the one bar heading stays above it in reading (top-to-bottom) order; and
+    /// the masked state passes the system audit (the scroll-away audit's documented open
+    /// findings excepted).
+    ///
+    /// Needs the large fixture like ``testScrollAwaySectionBarAccessibility``.
+    @MainActor
+    func testRowUnderTheSectionBarFadeKeepsItsAccessibility() throws {
+        continueAfterFailure = false
+        let large = try launchScrollAwayFixture(largeText: true)
+        let largeRail = railLetterHeight(large)
+        large.terminate()
+        let app = try launchScrollAwayFixture(largeText: false)
+        let railGrowth = largeRail / railLetterHeight(app)
+        XCTAssertTrue(scrollAway(app), "Section bar never appeared")
+        waitForListToSettle(app)
+        let bar = app.staticTexts["fst.songs.section-bar"]
+        let list = app.descendants(matching: .any)["fst.songs.list"]
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row."))
+        let titles = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.section."))
+        let edge = bar.frame.maxY
+        let tabs = app.tabBars.firstMatch.frame
+        // A row well below the fade whose previous neighbour is a row, not an in-list
+        // title, so the bar (not a passing title) is what masks it once dragged up.
+        let titleFrames = titles.allElementsBoundByIndex.map(\.frame)
+        let candidate = rows.allElementsBoundByIndex.first { row in
+            let frame = row.frame
+            return frame.minY >= edge + 2 * PinnedRowProbe.fade && frame.maxY <= tabs.minY - 20
+                && !titleFrames.contains { $0.maxY <= frame.minY + 1 && $0.maxY >= frame.minY - 80 }
+        }
+        let identifier = try XCTUnwrap(candidate?.identifier, "No song row clear of the fade")
+        let row = app.buttons[identifier]
+        let clear = try PinnedRowProbe(row: row, in: app)
+        XCTAssertFalse(clear.label.isEmpty, "\(identifier) unnamed")
+        XCTAssertGreaterThanOrEqual(clear.frame.height, 44, "\(identifier) is \(clear.frame.height) pt")
+        XCTAssertTrue(clear.strays.isEmpty, "Clear row exposes \(clear.strays)")
+
+        // Two mask states: the row's top in the fade band below the bar's edge, then
+        // just above the edge, where the mask cuts the row's top off.
+        for (state, offset) in [("in the band", PinnedRowProbe.fade / 4), ("cut", -PinnedRowProbe.fade / 4)] {
+            let target = bar.frame.maxY + offset
+            // A drag first spends the pan's slop, so a short one never moves the list:
+            // back off first, and lengthen each drag by the slop the last one lost.
+            var slop: CGFloat = 0
+            func drag(_ length: CGFloat) {
+                let start = list.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.6))
+                start.press(
+                    forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: length)),
+                    withVelocity: .slow, thenHoldForDuration: 0.3
+                )
+                waitForListToSettle(app)
+            }
+            for _ in 0..<6 where abs(row.frame.minY - target) > 6 {
+                if abs(row.frame.minY - target) < 40 { drag(80) }
+                let before = row.frame.minY
+                let delta = target - before
+                let length = delta + (delta > 0 ? slop : -slop)
+                drag(length)
+                slop = max(0, abs(length) - abs(row.frame.minY - before))
+            }
+            let barFrame = bar.frame
+            let masked = try PinnedRowProbe(row: row, in: app)
+            XCTContext.runActivity(named: "\(state): bar \(barFrame), row \(masked.frame)") { _ in }
+            XCTAssertLessThan(masked.frame.minY, barFrame.maxY + PinnedRowProbe.fade / 2, "\(state): row not under the fade")
+            XCTAssertGreaterThan(masked.frame.maxY, barFrame.maxY + 8, "\(state): row hidden under the bar")
+            XCTAssertEqual(masked.label, clear.label, "\(state): mask changed the row's label")
+            XCTAssertEqual(masked.frame.height, clear.frame.height, accuracy: 0.5, "\(state): mask cut the row's frame")
+            XCTAssertEqual(masked.frame.width, clear.frame.width, accuracy: 0.5, "\(state): mask cut the row's frame")
+            XCTAssertEqual(masked.descendants, clear.descendants, "\(state): mask changed the row's descendants")
+            XCTAssertTrue(masked.strays.isEmpty, "\(state): masked row exposes \(masked.strays)")
+            XCTContext.runActivity(named: "Row containers clear \(clear.containers), \(state) \(masked.containers)") { _ in }
+            XCTAssertEqual(masked.containers, clear.containers, "\(state): mask added containers to the row")
+            XCTAssertTrue(row.isHittable, "\(state): masked row not hittable")
+            // XCUITest lists the List's rows before its overlays, not in VoiceOver order
+            // (songs/ios.md #390; the hosted `SongsSectionBarAccessibilityTests` prove
+            // the tree order), so check the top-to-bottom layout VoiceOver reads by.
+            XCTAssertEqual(app.staticTexts.matching(identifier: "fst.songs.section-bar").count, 1)
+            XCTAssertLessThan(barFrame.minY, masked.frame.minY, "\(state): row starts above the section bar")
+            if offset > 0 {
+                XCTAssertLessThanOrEqual(barFrame.maxY, masked.frame.minY + 1, "\(state): row overlaps the bar")
+            }
+        }
+        try auditScrollAway(app, "row under fade", railGrowth: railGrowth)
     }
 
     /// Launch Songs on the large fixture with a profile selected, as #5 was reported.
@@ -865,6 +1035,109 @@ final class SongsChromeJourneyTests: XCTestCase {
         }
     }
 
+    /// Issue #288 accessibility (#452), at the largest text size: while the next section's
+    /// title pushes the floating one out, there is one floating title naming the current
+    /// section, grown with the text and as tall as its in-list title, the incoming in-list
+    /// title stays a named element, and the audit finds no Dynamic Type, clipping,
+    /// description or trait issue on the section titles. The macOS-hosted counterpart that
+    /// `apple-ci` runs, `SongsSectionPushAccessibilityTests`, covers the hidden moving
+    /// copies and reading order (macOS does not scale fonts with Dynamic Type). Needs the
+    /// large fixture like the tests above (skips otherwise); `apple-ci` runs it as a CI
+    /// journey, so its waits and settle holds use `FestivalApp.budget(_:)`.
+    @MainActor
+    func testSectionPushIsAccessibleAtLargestText() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"]
+            ?? "http://127.0.0.1:8765"
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": base,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_STILL_BACKGROUND": "1",
+        ])
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
+        ]
+        app.launch()
+        // At this size the page tools fold out of the navigation bar, so wait for the rail.
+        let rail = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.section-index").firstMatch
+        guard #available(iOS 26.0, *), rail.waitForExistence(timeout: FestivalApp.budget(20)),
+              rail.staticTexts.matching(NSPredicate(format: "label == 'P'")).firstMatch.exists
+        else {
+            throw XCTSkip("Needs iOS 26's section bar and mock_service.py --large-catalogue.")
+        }
+        let letters = Array("#ABCDEFGHIJKLMNOPQRSTUVWXYZ").map(String.init)
+        let sectionBar = app.staticTexts["fst.songs.section-bar"]
+        func title(_ letter: String) -> XCUIElement {
+            app.staticTexts["fst.songs.section.\(letters.firstIndex(of: letter)!)"]
+        }
+        // A mid-rail letter: at this size the expanded search field's hit area covers the
+        // rail's first letters until the large title collapses, and the rail condenses
+        // (#388), so take the first of M–T it still shows (the guard proved P is shown).
+        func railLetter(_ letter: String) -> XCUIElement {
+            rail.staticTexts.matching(NSPredicate(format: "label == %@", letter)).firstMatch
+        }
+        let from = ["M", "N", "O", "P", "Q", "R", "S", "T"].first { railLetter($0).exists } ?? "P"
+        let to = letters[letters.firstIndex(of: from)! + 1]
+        railLetter(from).tap()
+        let landed = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in sectionBar.exists && sectionBar.label == from }, object: nil
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [landed], timeout: FestivalApp.budget(5)), .completed, "Did not land on \(from)")
+        let pinned = sectionBar.frame
+        // Subheadline at AX XXXL is about 4× its default line (~18 pt): the title grew.
+        XCTAssertGreaterThanOrEqual(pinned.height, 40, "Floating \(from) did not grow: \(pinned)")
+
+        // Drags with a hold (no momentum) until the next section pushes the floating one up
+        // out of its pin: long ones while the incoming in-list title is far below the bar,
+        // short ones once it is close, and a short one back when a drag on a loaded
+        // simulator overshot the push (the bar already names the next section).
+        let list = app.descendants(matching: .any)["fst.songs.list"]
+        let start = list.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.7))
+        var pushed = false
+        for _ in 0..<80 where !pushed {
+            let next = title(to)
+            let gap = next.exists ? next.frame.minY - sectionBar.frame.maxY : .infinity
+            let dy: CGFloat = sectionBar.label == to ? 20 : gap > 200 ? -150 : gap > 60 ? -30 : -15
+            start.press(
+                forDuration: 0.05,
+                thenDragTo: start.withOffset(CGVector(dx: 0, dy: dy)),
+                withVelocity: .slow, thenHoldForDuration: FestivalApp.budget(0.3)
+            )
+            XCTAssertTrue(sectionBar.exists, "The floating title disappeared")
+            pushed = sectionBar.label == from && sectionBar.frame.minY < pinned.minY - 2
+        }
+        XCTAssertTrue(pushed, "Never caught \(to) pushing \(from) out (bar \(sectionBar.label) \(sectionBar.frame))")
+        SongsUITestSupport.record(app, name: "songs-section-push-ax5")
+
+        // One floating title, grown and as tall as its in-list title; the incoming title stays
+        // in the tree under its own identifier. XCUITest also lists SwiftUI views hidden
+        // with `accessibilityHidden` (the bar's moving copies, row artwork), so the
+        // hosted `SongsSectionPushAccessibilityTests` checks that those stay hidden.
+        XCTAssertGreaterThanOrEqual(sectionBar.frame.height, 40, "\(sectionBar.frame)")
+        XCTAssertEqual(app.staticTexts.matching(identifier: "fst.songs.section-bar").count, 1)
+        let incoming = title(to)
+        XCTAssertTrue(incoming.exists, "Incoming \(to) left the accessibility tree mid-push")
+        XCTAssertEqual(incoming.label, to)
+        XCTAssertEqual(incoming.frame.height, sectionBar.frame.height, accuracy: 1,
+                       "\(to) \(incoming.frame) not sized like the floating title \(sectionBar.frame)")
+
+        var issues: [String] = []
+        try performAuditRetryingTimeout(
+            app, [.dynamicType, .textClipped, .sufficientElementDescription, .trait],
+            name: "section push", reset: { issues = [] }
+        ) { issue in
+            let id = issue.element?.identifier ?? ""
+            guard id == "fst.songs.section-bar" || id.hasPrefix("fst.songs.section.") else {
+                return true
+            }
+            issues.append("\(id): \(issue.compactDescription)")
+            return true
+        }
+        XCTAssertEqual(issues, [], "Section title audit issues mid-push at AX XXXL")
+    }
+
     /// Issue #8: scrolling near the top changed scroll-driven state on the Songs screen
     /// (scrolled away, passed section titles, section bar edge and toolbar state), and
     /// every change re-ran the whole screen: re-sort, re-diff every List row, re-render
@@ -1021,8 +1294,9 @@ final class SongsChromeJourneyTests: XCTestCase {
         XCTAssertLessThanOrEqual(bar.maxX, rail.frame.minX, "The bar is not leading of the rail: \(bar) \(rail.frame)")
 
         // The system audit, for the bar only (other regions have their own journeys).
-        try app.performAccessibilityAudit(
-            for: [.dynamicType, .textClipped, .sufficientElementDescription]
+        try performAuditRetryingTimeout(
+            app, [.dynamicType, .textClipped, .sufficientElementDescription],
+            name: "section bar", reset: {}
         ) { issue in
             issue.element?.identifier != "fst.songs.section-bar"
         }
@@ -1207,5 +1481,80 @@ private struct ScrollAwayAuditPage {
         rampEnd = (sectionBar.exists
             ? sectionBar.frame.maxY : app.navigationBars.firstMatch.frame.maxY) + 40
         image = try XCTUnwrap(app.screenshot().image.cgImage)
+    }
+}
+
+/// One Songs row's accessibility as XCUITest reads it, for comparing the row clear of
+/// the pinned section bar's fade with the same row under it (issue #553).
+private struct PinnedRowProbe {
+    /// The pinned title's full fade depth (`ScrollEdgeFade.topDistance`).
+    static let fade: CGFloat = 40
+
+    /// The row button's label.
+    let label: String
+    /// The row button's frame.
+    let frame: CGRect
+    /// Each descendant of the row button, as type and label, in tree order.
+    let descendants: [String]
+    /// Labelled, identified or typed elements inside the row's frame that are neither the
+    /// row, its descendants, its containers nor the A–Z rail overlapping its trailing
+    /// edge: what a card rim or mask exposing itself to VoiceOver would add.
+    let strays: [String]
+    /// Unlabelled `.other` containers drawn over most of the row (UIKit-backed
+    /// backgrounds such as the material's effect view), which VoiceOver does not read; a
+    /// mask must not add one.
+    let containers: [String]
+
+    /// Read the row from one snapshot of the app.
+    ///
+    /// - Parameters:
+    ///   - row: The row button.
+    ///   - app: The running app.
+    /// - Throws: A snapshot failure or a row missing from it.
+    @MainActor
+    init(row: XCUIElement, in app: XCUIApplication) throws {
+        let identifier = row.identifier
+        var flat: [XCUIElementSnapshot] = []
+        var ends: [Int] = []
+        func walk(_ node: XCUIElementSnapshot) {
+            let index = flat.count
+            flat.append(node)
+            ends.append(index + 1)
+            node.children.forEach(walk)
+            ends[index] = flat.count
+        }
+        walk(try app.snapshot())
+        let index = try XCTUnwrap(
+            flat.firstIndex { $0.elementType == .button && $0.identifier == identifier },
+            "\(identifier) missing from the snapshot"
+        )
+        let node = flat[index]
+        let own = index..<ends[index]
+        label = node.label
+        frame = node.frame
+        descendants = flat[own].dropFirst().map { "\($0.elementType.rawValue) '\($0.label)'" }
+        let inside = node.frame.insetBy(dx: -1, dy: -1)
+        let rail = flat.firstIndex { $0.identifier == "fst.songs.section-index" }.map { $0..<ends[$0] } ?? 0..<0
+        let overlapping = flat.indices.filter { other in
+            let element = flat[other]
+            let isContainer = other < index && ends[other] > index
+            return !own.contains(other) && !isContainer && !rail.contains(other)
+                && element.elementType != .cell && !element.frame.isEmpty && inside.contains(element.frame)
+        }
+        func describe(_ element: XCUIElementSnapshot) -> String {
+            "\(element.elementType.rawValue) '\(element.identifier)' '\(element.label)' \(element.frame)"
+        }
+        let isStructural = { (element: XCUIElementSnapshot) in
+            element.elementType == .other && element.label.isEmpty && element.identifier.isEmpty
+        }
+        strays = overlapping.map { flat[$0] }.filter { !isStructural($0) }.map(describe)
+        // At least half the row each way: a rim or mask view spans the card, while the
+        // scroll indicator shown after a drag (3 pt wide) only overlaps the row's edge.
+        let isRowSized = { (element: XCUIElementSnapshot) in
+            element.frame.width >= node.frame.width / 2 && element.frame.height >= node.frame.height / 2
+        }
+        containers = overlapping.map { flat[$0] }.filter { isStructural($0) && isRowSized($0) }.map {
+            "\($0.elementType.rawValue) \($0.frame.size)"
+        }
     }
 }

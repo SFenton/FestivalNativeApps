@@ -29,7 +29,9 @@ struct RivalsScreen: View {
     /// when pushed.
     let showsRootTrailingItems: Bool
     @State private var tab: Tab = .song
-    @State private var rankBy: RivalRankMetric = .totalscore
+    /// The Leaderboard tab's picked metric; read through ``rankBy``.
+    @State private var selectedRankBy: RivalRankMetric = .totalscore
+    @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
     @State private var quickLinks = QuickLinksController()
     @State private var findRivalPresented = false
     /// Rival shown in the dual-source bottom region (Duo inner display, portrait).
@@ -51,9 +53,17 @@ struct RivalsScreen: View {
     /// - Parameters:
     ///   - session: Shared app session (API client, selected profile, caches).
     ///   - showsRootTrailingItems: Pass `true` only from the Rivals tab root.
-    init(session: FestivalSession, showsRootTrailingItems: Bool = false) {
+    ///   - tab: The opening tab (web route state `?tab=leaderboard`).
+    ///   - rankBy: The Leaderboard tab's opening metric (web `?rankBy=`); read as Total
+    ///     Score while Settings › Experimental Ranks is off (pattern `experimental-ranks`).
+    init(
+        session: FestivalSession, showsRootTrailingItems: Bool = false,
+        tab: Tab = .song, rankBy: RivalRankMetric = .totalscore
+    ) {
         self.session = session
         self.showsRootTrailingItems = showsRootTrailingItems
+        _tab = State(initialValue: tab)
+        _selectedRankBy = State(initialValue: rankBy)
     }
 
     /// Opens the Find Rival sheet.
@@ -170,12 +180,26 @@ struct RivalsScreen: View {
         .quickLinks(quickLinks, title: "Quick Links")
     }
 
-    private var rankByPicker: some View {
+    /// The Leaderboard tab's metric in effect: Total Score while Settings ›
+    /// Experimental Ranks is off (pattern `experimental-ranks`, web `RivalsPage`).
+    private var rankBy: RivalRankMetric {
+        selectedRankBy.coerced(experimentalRanks: experimentalRanks)
+    }
+
+    /// The Leaderboard tab's Rank By menu; shown only with experimental ranks, as on the
+    /// web (only Total Score is offered otherwise).
+    @ViewBuilder private var rankByPicker: some View {
+        if experimentalRanks {
+            rankByMenu
+        }
+    }
+
+    private var rankByMenu: some View {
         HStack {
             Spacer()
             Menu {
-                ForEach(RivalRankMetric.allCases) { metric in
-                    Button(metric.label) { rankBy = metric }
+                ForEach(RivalRankMetric.enabled(experimentalRanks: experimentalRanks)) { metric in
+                    Button(metric.label) { selectedRankBy = metric }
                 }
             } label: {
                 // `/duo` R2: stays beside the boards it sorts, with a 44 pt target
