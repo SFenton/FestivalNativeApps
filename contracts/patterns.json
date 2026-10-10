@@ -1853,6 +1853,10 @@
             "symbol": "ShowDetailSlot"
           },
           {
+            "path": "windows/Festival.App/Pages/SongDetailPage.xaml.cs",
+            "symbol": "PauseScrollAnchoring"
+          },
+          {
             "path": "windows/Festival.App/Controls/Accordion.cs",
             "symbol": "Accordion"
           },
