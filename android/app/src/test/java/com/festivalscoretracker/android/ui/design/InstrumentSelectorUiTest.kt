@@ -94,6 +94,7 @@ class InstrumentSelectorUiTest {
         deferSelection: Boolean = false,
         width: Int? = null,
         withDetail: Boolean = false,
+        look: InstrumentSelectorLook = InstrumentSelectorLook.Filter,
     ) {
         var selected by rememberSaveable { mutableStateOf(initial) }
         val modifier = if (width != null) Modifier.width(width.dp) else Modifier
@@ -108,6 +109,7 @@ class InstrumentSelectorUiTest {
                 required = required,
                 compact = compact,
                 deferSelection = deferSelection,
+                look = look,
                 content = if (withDetail) {
                     { Text("Detail", Modifier.height(120.dp).testTag("detail-body")) }
                 } else {
@@ -434,6 +436,60 @@ class InstrumentSelectorUiTest {
         four.forEach { chart(it).assertWidthIsEqualTo(64.dp).assertHeightIsEqualTo(64.dp) }
         assertArrowTouchTargets(rule.onNodeWithTag("c.previous"), rule.onNodeWithTag("c.next"))
         rule.onNodeWithTag("c.preview").assertWidthIsEqualTo(64.dp)
+    }
+
+    // endregion
+
+    // region graph look (web GraphCard selectorStyles, issue #592)
+
+    /** Summed channel distance from the backdrop over a grid inside the 48 dp icon of [instrument]. */
+    private fun iconInk(instrument: Instrument): Long {
+        val backdrop = BrandTokens.cardBackground.toArgb()
+        var ink = 0L
+        for (x in 10..54 step 4) {
+            for (y in 10..54 step 4) {
+                val pixel = pixelIn(chart(instrument), x.toFloat(), y.toFloat())
+                ink += listOf(16, 8, 0).sumOf { shift -> kotlin.math.abs((pixel shr shift and 0xFF) - (backdrop shr shift and 0xFF)) }
+            }
+        }
+        return ink
+    }
+
+    @Test
+    fun graphLookDimsUnselectedChartsAndPutsTheSelectionOnASolidDisc() {
+        var look by mutableStateOf(InstrumentSelectorLook.Filter)
+        show { Host(initial = Instrument.Lead, required = true, look = look) }
+        val full = iconInk(Instrument.Bass)
+        look = InstrumentSelectorLook.Graph
+        rule.waitForIdle()
+        // Unselected charts drop to the web's 50% (Opacity.disabled); the circle edge stays the backdrop.
+        val dimmed = iconInk(Instrument.Bass)
+        assertTrue("dimmed $dimmed vs full $full", dimmed in (full * 0.3).toLong()..(full * 0.7).toLong())
+        assertEquals(BrandTokens.cardBackground.toArgb(), pixelIn(chart(Instrument.Bass), 4f, 32f))
+        // The selection sits on the solid green disc and reads as a radio button, like the filter look.
+        assertEquals(BrandTokens.statusGreen.toArgb(), pixelIn(chart(Instrument.Lead), 4f, 32f))
+        assertEquals(Role.RadioButton, chart(Instrument.Lead).role())
+        chart(Instrument.Bass).performClick()
+        rule.waitForIdle()
+        chart(Instrument.Bass).assertIsSelected()
+        assertEquals(BrandTokens.statusGreen.toArgb(), pixelIn(chart(Instrument.Bass), 4f, 32f))
+        assertEquals(BrandTokens.cardBackground.toArgb(), pixelIn(chart(Instrument.Lead), 4f, 32f))
+    }
+
+    @Test
+    fun graphLookFadesTheDiscInOverOneHundredFiftyMilliseconds() {
+        show { Host(withDetail = true, look = InstrumentSelectorLook.Graph) }
+        val (_, edge) = firstFrameAfterSelecting()
+        assertNotEquals(BrandTokens.statusGreen.toArgb(), edge)
+        rule.mainClock.advanceTimeBy(200)
+        assertEquals(BrandTokens.statusGreen.toArgb(), pixelIn(chart(Instrument.Lead), 4f, 32f))
+    }
+
+    @Test
+    fun graphLookUnderReducedMotionShowsTheDiscAtOnce() {
+        show(reduceMotion = true) { Host(withDetail = true, look = InstrumentSelectorLook.Graph) }
+        val (_, edge) = firstFrameAfterSelecting()
+        assertEquals(BrandTokens.statusGreen.toArgb(), edge)
     }
 
     // endregion
