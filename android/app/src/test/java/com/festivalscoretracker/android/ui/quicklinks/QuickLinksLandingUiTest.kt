@@ -182,8 +182,8 @@ class QuickLinksLandingUiTest {
         val transport = BandFixtures.install(songs(FakeTransport.standard()))
         launch(DebugLaunch(route = DebugLaunch.parseRoute("band:${BandFixtures.DUO_ID}:Band_Duets:${BandFixtures.DUO_KEY}"), stillBackground = true), transport)
         waitForTag("fst.band.members-section")
-        // The heading row keeps its 8 dp inset off the tiles above, inside the landed section.
-        assertLands("statistics", "Statistics", "fst.band.statistics-section", extraDp = 8f)
+        // Experimental Ranks is off, so the heading has no Rank By row and lands like Summary (#541).
+        assertLands("statistics", "Statistics", "fst.band.statistics-section")
         assertLands("summary", "Summary", "fst.band.summary-section")
     }
 

@@ -18,7 +18,9 @@ struct FullRankingsScreen: View {
     @AppStorage("fst.settings.showProCymbals") private var showProCymbals = true
     @AppStorage("fst.settings.showProDrums") private var showProDrums = true
     @State private var instrument: Instrument
-    @State private var rankBy: RankingMetric
+    /// The route's or picked metric; read through ``rankBy``.
+    @State private var selectedRankBy: RankingMetric
+    @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
     @State private var page = 1
     @State private var state: RankLoadState<RankingsPayload> = .loading
     @State private var lastRequest: RequestKey?
@@ -115,10 +117,16 @@ struct FullRankingsScreen: View {
     ) {
         self.session = session
         _instrument = State(initialValue: instrument)
-        _rankBy = State(initialValue: RankingMetric(rawValue: rankBy) ?? .totalscore)
+        _selectedRankBy = State(initialValue: RankingMetric(rawValue: rankBy) ?? .totalscore)
         _page = State(initialValue: max(1, page))
         _focusPending = State(initialValue: focusSelected)
     }
+
+    /// The metric in effect: Total Score while Settings › Experimental Ranks is off, so a
+    /// saved or deep-linked experimental metric falls back (pattern `experimental-ranks`,
+    /// web `FullRankingsPage` `coerceRankingMetric`). Turning the switch off while an
+    /// experimental board is open restarts on a Total Score board (`onChange(of: rankBy)`).
+    private var rankBy: RankingMetric { selectedRankBy.coerced(experimentalRanks: experimentalRanks) }
 
     /// Mirror the tab root's Filter menu without depending on its own state; keep
     /// the currently displayed chart selectable even if it was just hidden.
@@ -176,7 +184,10 @@ struct FullRankingsScreen: View {
             case let .loaded(payload):
                 ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: Self.rowGap) {
+                    // Rows abut as segments of the page's group card (owner #543); the
+                    // items above them keep the row gap below themselves.
+                    let entries = payload.rankings.entries
+                    LazyVStack(spacing: 0) {
                         // The title and count fade in at once, like the web page header;
                         // the rows stagger beneath them.
                         InstrumentPageTitle(
@@ -184,6 +195,7 @@ struct FullRankingsScreen: View {
                             identifier: "fst.full-rankings.title"
                         )
                             .padding(.top, 8)
+                            .padding(.bottom, Self.rowGap)
                             .festivalFadeInOnAppear()
                             .onGeometryChange(for: Bool.self) { proxy in
                                 SongDetailPinnedTitlePolicy.isHeroHidden(
@@ -197,6 +209,7 @@ struct FullRankingsScreen: View {
                                 text: RankingsCountText.rankedPlayers(board.totalAccounts),
                                 id: "fst.full-rankings.ranked-count"
                             )
+                            .padding(.bottom, Self.rowGap)
                             .festivalFadeInOnAppear()
                         }
                         if payload.rankings.entries.isEmpty {
@@ -204,11 +217,13 @@ struct FullRankingsScreen: View {
                                 "No ranked players yet", placement: .inline,
                                 accessibilityIdentifier: "fst.full-rankings.empty"
                             )
+                            .padding(.bottom, Self.rowGap)
                             .festivalFadeInOnAppear()
                         }
-                        // Row-major pairs in wide landscape (wide-columns R2, #353).
-                        ForEach(WideColumns.indexedRows(payload.rankings.entries, columns: columns)) { row in
-                            WideColumnsRow(columns: columns, count: row.items.count) {
+                        // Row-major pairs in wide landscape (wide-columns R2, #353), one
+                        // group card per column (leaderboard-row R10).
+                        ForEach(WideColumns.indexedRows(entries, columns: columns)) { row in
+                            WideColumnsRow(columns: columns, count: row.items.count, matchesHeights: true) {
                                 ForEach(row.indexed, id: \.item.id) { index, entry in
                                     AccountRankingRow(
                                         entry: entry, metric: rankBy,
@@ -219,6 +234,10 @@ struct FullRankingsScreen: View {
                                     // Web `PaginatedLeaderboard` row stagger; the page
                                     // scope decides whether it still fades (R5).
                                     .festivalFadeIn(staggerIndex: index)
+                                    .festivalGroupSegment(
+                                        .position(index: index, count: entries.count, columns: columns),
+                                        separatorInset: RankingRowLayout.horizontalPadding
+                                    )
                                 }
                             }
                         }
@@ -269,8 +288,9 @@ struct FullRankingsScreen: View {
         .wideColumnsCount($columns)
         // The shared Song Leaderboard pager and the player's footer, pinned outside the
         // reload gate so both stay put while only the rows fade (issue #294; a bottom
-        // safe-area inset for the same tab-bar reason as `SoloLeaderboardScreen`).
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        // safe-area inset for the same tab-bar reason as `SoloLeaderboardScreen`), read
+        // after the rows (#461).
+        .boardBottomChrome {
             bottomChrome
         }
         // `/duo` J2 (operator, 2026-10-02): a narrow board (folded Duo, a split column,
@@ -287,13 +307,13 @@ struct FullRankingsScreen: View {
         .festivalNavigationTitle(Self.title(for: instrument))
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: showsPinnedTitle)
         // Mac: View › Rank By and View › Instrument mirror the toolbar menus.
-        .macRankByCommands($rankBy)
+        .macRankByCommands($selectedRankBy, experimentalRanks: experimentalRanks)
         .macInstrumentCommands(visibleInstruments, selection: $instrument)
         .toolbar {
             #if os(iOS)
             // The iPhone Duo vertical bar minimizes its top bar on scroll, so a custom
             // title would leave when due; the system title stays there (R14).
-            if !layout.sectionChrome.isVerticalBar {
+            if InstrumentPageTitleToolbarItem.pinsTitle(in: layout.sectionChrome) {
                 InstrumentPageTitleToolbarItem(
                     instrument: instrument, title: Self.title(for: instrument), isShown: showsPinnedTitle,
                     identifier: "fst.full-rankings.pinned-title"
@@ -308,7 +328,10 @@ struct FullRankingsScreen: View {
             if layout.sectionChrome.isVerticalBar || pageTools == nil {
                 ToolbarItemGroup(placement: .festivalPageAction) {
                     instrumentPicker
-                    RankByMenu(selection: $rankBy)
+                    // Rank By only with experimental ranks, as on the web.
+                    if experimentalRanks {
+                        RankByMenu(selection: $selectedRankBy)
+                    }
                 }
             }
         }
@@ -322,8 +345,8 @@ struct FullRankingsScreen: View {
         ) {
             instrumentPicker
         }
-        .festivalPageTool(token: rankBy, order: PageToolOrder.secondary) {
-            RankByMenu(selection: $rankBy)
+        .festivalPageTool(token: rankBy, order: PageToolOrder.secondary, isEnabled: experimentalRanks) {
+            RankByMenu(selection: $selectedRankBy)
         }
         .onChange(of: instrument) { _, _ in
             resetBoard()
@@ -365,7 +388,7 @@ struct FullRankingsScreen: View {
                 }
             }
         }
-        .reportsBottomChromeTop(in: Self.pageSpace) { bottomChromeTop = $0 }
+        .boardBottomChrome(in: Self.pageSpace) { bottomChromeTop = $0 }
     }
 
     /// Padding that rests the last row one row gap above the player's footer, or
@@ -537,10 +560,7 @@ struct FullRankingsScreen: View {
                 .accessibilityIdentifier("fst.full-rankings.spotlight-jump")
             }
         }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 16)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("fst.full-rankings.spotlight-footer")
+        .pinnedFooterControl(identifier: "fst.full-rankings.spotlight-footer")
     }
 
     /// Read the selected player's own row on this instrument's board.

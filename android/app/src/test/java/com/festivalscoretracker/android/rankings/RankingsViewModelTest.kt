@@ -146,6 +146,7 @@ class RankingsViewModelTest {
 
     @Test
     fun metricChangesReloadOnlyAffectedCards() = runTest(main.dispatcher) {
+        settings.value = settings.value!!.copy(experimentalRanks = true)
         val viewModel = overview()
         advanceUntilIdle()
         fake.calls.clear()
@@ -168,7 +169,7 @@ class RankingsViewModelTest {
     @Test
     fun spotlightLoadsOnlyWhenOutsideTopTenAndSurvivesMetricChanges() = runTest(main.dispatcher) {
         fake.unranked = setOf(Instrument.Bass)
-        settings.value = AppSettings(selectedPlayer = selectedPlayer, visibleInstruments = setOf(Instrument.Lead, Instrument.Bass))
+        settings.value = AppSettings(selectedPlayer = selectedPlayer, visibleInstruments = setOf(Instrument.Lead, Instrument.Bass), experimentalRanks = true)
         val viewModel = overview()
         advanceUntilIdle()
         assertEquals(RankingsFixtures.SELECTED, viewModel.selectedAccountId.value)
@@ -178,6 +179,7 @@ class RankingsViewModelTest {
         assertEquals(2, fake.count("own:"))
         viewModel.selectMetric(RankingMetric.FcRate)
         advanceUntilIdle()
+        assertEquals(RankingMetric.FcRate, viewModel.metric.value)
         assertEquals(2, fake.count("own:"))
         // A new selection reloads the cards and its own rows.
         val other = RankingsFixtures.accountId(55)
@@ -256,7 +258,7 @@ class RankingsViewModelTest {
 
     @Test
     fun rankHistoryLoadsOnDemandOncePerPlayerAndChart() = runTest(main.dispatcher) {
-        settings.value = AppSettings(selectedPlayer = selectedPlayer, visibleInstruments = setOf(Instrument.Lead, Instrument.Bass))
+        settings.value = AppSettings(selectedPlayer = selectedPlayer, visibleInstruments = setOf(Instrument.Lead, Instrument.Bass), experimentalRanks = true)
         val viewModel = LeaderboardsViewModel(fake.historyReads, settings, rankBy, { rankBy.value = it }, ServiceRetryBackoff())
         advanceUntilIdle()
         // The first visible chart is shown; nothing is read until the card asks.
@@ -346,8 +348,10 @@ class RankingsViewModelTest {
 
     @Test
     fun fullRankingsSwitchersResetToFirstPage() = runTest(main.dispatcher) {
-        settings.value = AppSettings(selectedPlayer = selectedPlayer)
+        settings.value = AppSettings(selectedPlayer = selectedPlayer, experimentalRanks = true)
         val viewModel = full(page = 2)
+        // No page count (so no pager) before the first board answers (#575).
+        assertNull(viewModel.pageCount.value)
         advanceUntilIdle()
         assertEquals(1, fake.count("own:Solo_Guitar"))
         viewModel.selectInstrument(Instrument.Lead)
@@ -411,8 +415,10 @@ class RankingsViewModelTest {
     @Test
     fun bandRankingsStartFromTheNarrowedStoredMetric() = runTest(main.dispatcher) {
         rankBy.value = RankingMetric.MaxScore
-        val viewModel = BandRankingsViewModel(BandType.Trios, rankBy, fake.reads, ServiceRetryBackoff())
+        val viewModel = BandRankingsViewModel(BandType.Trios, rankBy, MutableStateFlow(true), fake.reads, ServiceRetryBackoff())
         assertTrue(viewModel.board.value is LoadState.Loading)
+        // No page count (so no pager) before the first board answers (#575).
+        assertNull(viewModel.pageCount.value)
         advanceUntilIdle()
         assertEquals(BandRankingMetric.TotalScore, viewModel.metric.value)
         assertEquals(listOf("bands:Band_Trios:totalscore:1:25"), fake.calls)
@@ -443,10 +449,90 @@ class RankingsViewModelTest {
 
     @Test
     fun bandBoardStartsOnTheRoutedPage() = runTest(main.dispatcher) {
-        val viewModel = BandRankingsViewModel(BandType.Trios, rankBy, fake.reads, ServiceRetryBackoff(), initialPage = 2)
+        val viewModel = BandRankingsViewModel(BandType.Trios, rankBy, MutableStateFlow(false), fake.reads, ServiceRetryBackoff(), initialPage = 2)
         advanceUntilIdle()
         assertEquals(2, viewModel.page.value)
         assertTrue(fake.calls.any { it == "bands:Band_Trios:totalscore:2:25" })
+    }
+
+    // endregion
+
+    // region Experimental Ranks (#541)
+
+    @Test
+    fun experimentalMetricsNeedTheSettingAndTurningItOffReturnsToTotalScore() = runTest(main.dispatcher) {
+        rankBy.value = RankingMetric.Adjusted
+        val viewModel = overview()
+        advanceUntilIdle()
+        // A saved experimental metric reads as Total Score while the setting is off.
+        assertFalse(viewModel.experimentalRanks.value)
+        assertEquals(RankingMetric.TotalScore, viewModel.metric.value)
+        assertTrue(fake.calls.filter { it.startsWith("rankings:") }.all { it.contains(":totalscore:") })
+        // Rank By offers nothing else while off.
+        viewModel.selectMetric(RankingMetric.Weighted)
+        advanceUntilIdle()
+        assertEquals(RankingMetric.Adjusted, rankBy.value)
+        assertEquals(RankingMetric.TotalScore, viewModel.metric.value)
+        // Turning it on restores the saved preference; turning it off goes back to Total Score.
+        settings.value = settings.value!!.copy(experimentalRanks = true)
+        advanceUntilIdle()
+        assertTrue(viewModel.experimentalRanks.value)
+        assertEquals(RankingMetric.Adjusted, viewModel.metric.value)
+        assertTrue(fake.calls.any { it == "rankings:Solo_Guitar:adjusted:1:10" })
+        fake.calls.clear()
+        settings.value = settings.value!!.copy(experimentalRanks = false)
+        advanceUntilIdle()
+        assertEquals(RankingMetric.TotalScore, viewModel.metric.value)
+        assertTrue(fake.calls.filter { it.startsWith("rankings:") }.all { it.contains(":totalscore:") })
+    }
+
+    @Test
+    fun fullRankingsDeepLinkedExperimentalMetricFallsBackToTotalScore() = runTest(main.dispatcher) {
+        val viewModel = FullRankingsViewModel(Instrument.Lead, RankingMetric.FcRate, fake.reads, settings, ServiceRetryBackoff(), 2)
+        advanceUntilIdle()
+        assertEquals(RankingMetric.TotalScore, viewModel.metric.value)
+        assertEquals(listOf("rankings:Solo_Guitar:totalscore:2:25"), fake.calls)
+        viewModel.selectMetric(RankingMetric.Adjusted)
+        advanceUntilIdle()
+        assertEquals(RankingMetric.TotalScore, viewModel.metric.value)
+        assertEquals(1, fake.calls.size)
+    }
+
+    @Test
+    fun fullRankingsReturnToTotalScoreWhenTheSettingTurnsOff() = runTest(main.dispatcher) {
+        settings.value = settings.value!!.copy(experimentalRanks = true)
+        val viewModel = FullRankingsViewModel(Instrument.Lead, RankingMetric.Weighted, fake.reads, settings, ServiceRetryBackoff(), 2)
+        advanceUntilIdle()
+        assertEquals(RankingMetric.Weighted, viewModel.metric.value)
+        assertEquals("weighted", viewModel.displayed.value?.rankings?.rankBy)
+        settings.value = settings.value!!.copy(experimentalRanks = false)
+        advanceUntilIdle()
+        assertFalse(viewModel.experimentalRanks.value)
+        assertEquals(RankingMetric.TotalScore, viewModel.metric.value)
+        assertEquals(1, viewModel.page.value)
+        assertEquals("totalscore", viewModel.displayed.value?.rankings?.rankBy)
+    }
+
+    @Test
+    fun bandRankingsReturnToTotalScoreWhenTheSettingTurnsOff() = runTest(main.dispatcher) {
+        rankBy.value = RankingMetric.FcRate
+        val experimental = MutableStateFlow(false)
+        val viewModel = BandRankingsViewModel(BandType.Trios, rankBy, experimental, fake.reads, ServiceRetryBackoff())
+        advanceUntilIdle()
+        assertEquals(BandRankingMetric.TotalScore, viewModel.metric.value)
+        viewModel.selectMetric(BandRankingMetric.Adjusted)
+        advanceUntilIdle()
+        assertEquals(BandRankingMetric.TotalScore, viewModel.metric.value)
+        assertEquals(listOf("bands:Band_Trios:totalscore:1:25"), fake.calls)
+        experimental.value = true
+        advanceUntilIdle()
+        viewModel.selectMetric(BandRankingMetric.Adjusted)
+        advanceUntilIdle()
+        assertEquals("adjusted", viewModel.displayed.value?.rankings?.rankBy)
+        experimental.value = false
+        advanceUntilIdle()
+        assertEquals(BandRankingMetric.TotalScore, viewModel.metric.value)
+        assertEquals("totalscore", viewModel.displayed.value?.rankings?.rankBy)
     }
 
     // endregion

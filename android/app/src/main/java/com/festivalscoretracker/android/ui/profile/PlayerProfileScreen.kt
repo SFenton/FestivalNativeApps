@@ -414,7 +414,7 @@ private fun InstrumentSection(
         }
         RankHistorySection(instrument, history, onRetryHistory)
         StatGrid(
-            section.stats + RankLoad.tile(rank) + section.trailing,
+            section.stats + RankLoad.tiles(rank, state.experimentalRanks) + section.trailing,
             instrument.wireId,
             state::canRun,
             onAction,

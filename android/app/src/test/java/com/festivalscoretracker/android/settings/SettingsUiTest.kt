@@ -15,6 +15,8 @@ import androidx.compose.ui.test.onChildren
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.hasTestTag
 import com.festivalscoretracker.android.core.settings.SettingsDetailText
 import com.festivalscoretracker.android.core.settings.SettingsDetail
@@ -138,6 +140,10 @@ class SettingsUiTest {
         tap("fst.settings.path-default-view.text")
         moveRow("fst.settings.path-column-order.4", "Move up")
         tap("fst.settings.filter-invalid-scores")
+        // Off by default and enabled (#541): it gates the experimental Rank By metrics app-wide.
+        assertFalse(stored.experimentalRanks)
+        tap("fst.settings.experimental-ranks")
+        rule.onNodeWithTag("fst.settings.experimental-ranks").assertIsEnabled().assertIsOn()
         rule.onNodeWithTag("fst.settings.list").performScrollToNode(hasTestTag("fst.settings.leeway"))
         rule.onNodeWithTag("fst.settings.leeway").performSemanticsAction(SemanticsActions.SetProgress) { it(2.5f) }
         settle()
@@ -159,6 +165,7 @@ class SettingsUiTest {
         assertEquals(PathDisplayMode.Text, s.pathDefaultView)
         assertEquals(PathColumnKey.Score, s.pathColumnOrder[3])
         assertTrue(s.filterInvalidScores)
+        assertTrue(s.experimentalRanks)
         assertEquals(2.5, s.leeway, 0.0)
         assertTrue(s.hideShop)
         assertFalse(s.shopHighlightEnabled)

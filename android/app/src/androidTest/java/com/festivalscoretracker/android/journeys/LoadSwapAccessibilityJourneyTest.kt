@@ -50,6 +50,8 @@ import java.util.concurrent.CopyOnWriteArrayList
  *   at least 48 dp and the pickers speak their new choice; the new rows are read before the pager.
  * - Leaderboards overview Rank By change: the cards that keep loading under the spinner are silent
  *   to TalkBack (R2, #178), the spinner reads "Loading leaderboards" and Rank By its new choice.
+ * - Song leaderboard instrument switch (#575): no pager and no placeholder "Page 1 of 1" is read
+ *   until the new board's page count loads; then the pager reads "Page 1 of 3" at 48 dp.
  *
  * `device.py test com.festivalscoretracker.android.journeys.LoadSwapAccessibilityJourneyTest --avd …`
  */
@@ -234,6 +236,9 @@ class LoadSwapAccessibilityJourneyTest {
         assertTrue("pager count changed: $order", order[pager].startsWith("Page 1 of 2"))
     }
 
+    /** Preferences with Experimental Ranks on, so Rank By offers more than Total Score (#541). */
+    private fun experimentalRanks() = MemoryPreferences(mutablePreferencesOf(booleanPreferencesKey(SettingsRegistry.EXPERIMENTAL_RANKS) to true))
+
     /** The top-bar picker [tag]'s spoken name. */
     private fun spoken(tag: String): String? = visibleNodes(tag).first { it.viewIdResourceName == tag }.contentDescription?.toString()
 
@@ -247,7 +252,7 @@ class LoadSwapAccessibilityJourneyTest {
         shell("settings put global animator_duration_scale 1")
         var scale by mutableFloatStateOf(1f)
         h.enableAccessibilityChecks()
-        h.launch(DebugLaunch(route = DebugLaunch.parseRoute("fullRankings:Solo_Guitar"), profile = player, stillBackground = true), transport, fontScale = { scale })
+        h.launch(DebugLaunch(route = DebugLaunch.parseRoute("fullRankings:Solo_Guitar"), profile = player, stillBackground = true), transport, experimentalRanks(), fontScale = { scale })
         h.waitForTag("$board.spotlight-footer")
         assertBoardSettled("full-rankings", rank = 1)
         val populationAt1 = populationHeight()
@@ -281,7 +286,7 @@ class LoadSwapAccessibilityJourneyTest {
     /** The in-app Reduce Motion setting: the same spinner contract with no fades (load-transition R6). */
     @Test
     fun fullRankingsReloadUnderReduceMotion() {
-        val preferences = MemoryPreferences(mutablePreferencesOf(booleanPreferencesKey(SettingsRegistry.REDUCE_MOTION) to true))
+        val preferences = MemoryPreferences(mutablePreferencesOf(booleanPreferencesKey(SettingsRegistry.REDUCE_MOTION) to true, booleanPreferencesKey(SettingsRegistry.EXPERIMENTAL_RANKS) to true))
         h.enableAccessibilityChecks()
         h.launch(DebugLaunch(route = DebugLaunch.parseRoute("fullRankings:Solo_Guitar"), profile = player, stillBackground = true), transport, preferences)
         h.waitForTag("$board.spotlight-footer")
@@ -304,7 +309,7 @@ class LoadSwapAccessibilityJourneyTest {
         shell("settings put global animator_duration_scale 1")
         var scale by mutableFloatStateOf(1f)
         h.enableAccessibilityChecks()
-        h.launch(DebugLaunch(route = DebugLaunch.parseRoute("bandRankings:Band_Duets"), profile = player, stillBackground = true), transport, fontScale = { scale })
+        h.launch(DebugLaunch(route = DebugLaunch.parseRoute("bandRankings:Band_Duets"), profile = player, stillBackground = true), transport, experimentalRanks(), fontScale = { scale })
         h.waitForTag("$bands.population")
         assertBandsSettled("band-rankings")
         val populationAt1 = populationHeight(bands)
@@ -324,7 +329,7 @@ class LoadSwapAccessibilityJourneyTest {
         assertTrue("2.0× text did not apply", populationHeight(bands) > populationAt1 * 1.5f)
         val fcRate = hold { it.contains("/api/rankings/bands/Band_Trios?") && it.contains("rankBy=fcrate") }
         h.tap("$bands.rank-by-menu")
-        h.tap("$bands.rank-by-menu.2")
+        h.tap("$bands.rank-by-menu.3")
         assertBandSpinner("band-rankings-rank-by-loading-2x")
         assertEquals("Rank By, FC Rate", spoken("$bands.rank-by-menu"))
         fcRate.complete(Unit)
@@ -332,11 +337,46 @@ class LoadSwapAccessibilityJourneyTest {
         h.assertAccessible()
     }
 
+    /**
+     * Song leaderboard instrument switch (#575): the switch opens the new chart's own board, whose
+     * first load has no page count yet, so TalkBack reads only "Loading leaderboard" (no pager, no
+     * placeholder "Page 1 of 1") until the board commits; then the pager reads the real count with
+     * 48 dp, usable arrows after the rows.
+     */
+    @Test
+    fun songLeaderboardInstrumentSwitchReadsNoPagerUntilTheCountLoads() {
+        val song = "fst.song-leaderboard"
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(route = DebugLaunch.parseRoute("songLeaderboard:s-alpha:Solo_Guitar"), stillBackground = true), transport)
+        h.waitForTag("$song.page-info")
+        h.waitGone("$song.loading")
+        assertTarget("$song.page-next", enabled = true)
+
+        val bass = hold { it.contains("/api/leaderboard/s-alpha/Solo_Bass") }
+        h.tap("$song.instrument")
+        h.tap("$song.instrument.Solo_Bass")
+        val order = assertSpinner("song-leaderboard-switch-loading", "$song.loading", "Loading leaderboard", "$song.row.", "$song.page-info", after = null)
+        assertTrue("a pager is read before the count is known: $order", order.none { it.startsWith("Page ") })
+        assertTrue("pager drawn before the count is known", visibleNodes("$song.page").isEmpty() && visibleNodes("$song.pager").isEmpty())
+        h.assertAccessible()
+
+        bass.complete(Unit)
+        h.waitForTag("$song.page-info")
+        h.waitGone("$song.loading")
+        h.awaitAccessibilityTree(present = "$song.page-info", absent = "$song.loading")
+        val settled = h.readingOrder("song-leaderboard-bass", fresh = true)
+        val pager = settled.indexOfFirst { it.startsWith("Page ") }
+        assertTrue("pager does not read the real count: $settled", pager >= 0 && settled[pager].startsWith("Page 1 of 3"))
+        assertTarget("$song.page-previous")
+        assertTarget("$song.page-next", enabled = true)
+        h.assertAccessible()
+    }
+
     /** Leaderboards overview Rank By reload: the cards loading under the spinner stay silent. */
     @Test
     fun leaderboardsRankByReloadHidesTheLoadingCards() {
         h.enableAccessibilityChecks()
-        h.launch(DebugLaunch(route = DebugLaunch.parseRoute("leaderboards"), profile = player, stillBackground = true), transport)
+        h.launch(DebugLaunch(route = DebugLaunch.parseRoute("leaderboards"), profile = player, stillBackground = true), transport, experimentalRanks())
         h.waitForTag("fst.leaderboards.rank-history")
         h.waitGone("fst.leaderboards.loading")
         h.awaitAccessibilityTree(present = "fst.leaderboards.rank-history", absent = "fst.leaderboards.loading")

@@ -152,3 +152,79 @@ class StoreSecretsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _working_keytool():
+    """A keytool that runs (macOS ships a /usr/bin/keytool stub that fails without a JDK)."""
+    for candidate in [shutil.which("keytool"), *map(str, Path.home().glob(".local/opt/jdk-*/bin/keytool"))]:
+        if candidate and subprocess.run([candidate, "-help"], capture_output=True).returncode == 0:
+            return candidate
+    return None
+
+
+KEYTOOL = _working_keytool()
+
+
+class AndroidAndPlayTests(unittest.TestCase):
+    def run_cli(self, argv, gh):
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = ss.main(argv, runner=gh)
+        return code, out.getvalue(), err.getvalue()
+
+    @unittest.skipUnless(KEYTOOL, "no keytool")
+    def test_generate_creates_a_private_keystore_and_uploads_it_without_printing(self):
+        gh = FakeGh()
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp, "android")
+            code, out, err = self.run_cli(["android-upload-key", "--generate", str(target), "--keytool", KEYTOOL], gh)
+            self.assertEqual(code, 0, err)
+            secrets = gh.secrets()
+            self.assertEqual(sorted(secrets), ["ANDROID_UPLOAD_KEYSTORE_BASE64", "ANDROID_UPLOAD_KEYSTORE_PASSWORD",
+                                               "ANDROID_UPLOAD_KEY_ALIAS"])
+            password = (target / "upload.pw").read_text().strip()
+            self.assertEqual(secrets["ANDROID_UPLOAD_KEYSTORE_PASSWORD"], password)
+            self.assertNotIn(password, out + err)
+            self.assertEqual(base64.b64decode(secrets["ANDROID_UPLOAD_KEYSTORE_BASE64"]),
+                             (target / "upload.p12").read_bytes())
+            for name in ("upload.p12", "upload.pw", "upload-certificate.pem"):
+                self.assertEqual((target / name).stat().st_mode & 0o777, 0o600, name)
+            # Never overwritten: a second --generate is refused.
+            code, _out, err = self.run_cli(["android-upload-key", "--generate", str(target), "--keytool", KEYTOOL],
+                                           FakeGh())
+            self.assertEqual(code, 2)
+            self.assertIn("already exists", err)
+            # The existing keystore uploads with --keystore; a wrong alias or password is rejected.
+            code, _o, _e = self.run_cli(["android-upload-key", "--keystore", str(target / "upload.p12"),
+                                         "--password-file", str(target / "upload.pw"), "--keytool", KEYTOOL], FakeGh())
+            self.assertEqual(code, 0)
+            code, _o, err = self.run_cli(["android-upload-key", "--keystore", str(target / "upload.p12"), "--alias",
+                                          "other", "--password-file", str(target / "upload.pw"), "--keytool", KEYTOOL],
+                                         FakeGh())
+            self.assertEqual(code, 2)
+            bad = Path(tmp, "bad.pw")
+            bad.write_text("nope\n")
+            code, _o, err = self.run_cli(["android-upload-key", "--keystore", str(target / "upload.p12"),
+                                          "--password-file", str(bad), "--keytool", KEYTOOL], FakeGh())
+            self.assertEqual(code, 2)
+
+    def test_play_service_account(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            good = Path(tmp, "sa.json")
+            good.write_text(json.dumps({"type": "service_account", "client_email": "ci@p.iam.gserviceaccount.com",
+                                        "private_key": "-----BEGIN PRIVATE KEY-----\nx\n-----END PRIVATE KEY-----\n"}))
+            gh = FakeGh()
+            code, out, _err = self.run_cli(["play", "--service-account-json", str(good)], gh)
+            self.assertEqual(code, 0)
+            self.assertEqual(list(gh.secrets()), ["PLAY_SERVICE_ACCOUNT_JSON"])
+            self.assertNotIn("PRIVATE KEY", out)
+            bad = Path(tmp, "user.json")
+            bad.write_text(json.dumps({"type": "authorized_user"}))
+            code, _o, _e = self.run_cli(["play", "--service-account-json", str(bad)], FakeGh())
+            self.assertEqual(code, 2)
+
+    def test_status_lists_the_android_groups(self):
+        code, out, _ = self.run_cli(["status"], FakeGh(present=["PLAY_SERVICE_ACCOUNT_JSON"]))
+        groups = json.loads(out)["groups"]
+        self.assertTrue(groups["play"]["configured"])
+        self.assertFalse(groups["android_upload_key"]["configured"])

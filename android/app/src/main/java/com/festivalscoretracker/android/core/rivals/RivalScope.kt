@@ -255,6 +255,18 @@ object RivalScopes {
     }
 
     /**
+     * Gate a routed scope on Settings → Experimental Ranks (web `RivalsPage`/`AllRivalsPage`
+     * `coerceRankingMetric`, experimental-ranks R2): a leaderboard scope with an experimental
+     * metric falls back to Total Score while the setting is off; other scopes are unchanged.
+     *
+     * @param scope Route scope.
+     * @param experimentalRanks `AppSettings.experimentalRanks`.
+     * @return The scope to read.
+     */
+    fun gated(scope: RivalScope, experimentalRanks: Boolean): RivalScope =
+        if (scope is RivalScope.Leaderboard) scope.copy(rankBy = scope.rankBy.gated(experimentalRanks)) else scope
+
+    /**
      * Resolve a list scope against Settings (web `AllRivalsPage` category handling).
      *
      * @param scope Route scope.

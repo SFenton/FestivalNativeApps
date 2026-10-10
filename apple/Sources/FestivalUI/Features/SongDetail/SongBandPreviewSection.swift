@@ -172,8 +172,8 @@ struct SongBandPreviewSection: View {
 
 // MARK: - Row
 
-/// One band score row (web `PlayerBandCard` + `SongBandScoreFooter`): its own card on the
-/// full band board, an entry of the group card in Song Detail's preview (#381). Each member's
+/// One band score row (web `PlayerBandCard` + `SongBandScoreFooter`): an entry of the group
+/// card in Song Detail's preview (#381) and of the full band board's page card (#543). Each member's
 /// name and instruments, then rank, team score, stars and accuracy. The whole card is
 /// one drill-down button with a disclosure chevron: to Band Detail, or for the selected
 /// band's appended row to its place in the full board (issue #307). Shared by the Song

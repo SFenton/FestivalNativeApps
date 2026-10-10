@@ -187,6 +187,20 @@ class EntranceRushTests(unittest.TestCase):
                 "fade-rush list=A start=0 rushed=0 kept=0 since=300 at=1300"]
         self.assertIn("1 were still pending", f.check_entrance_rush(events(*rows), "A")[0])
 
+    def test_a_row_played_again_is_one_pending_fade(self):
+        # #552 (master run 37937505898): a re-realized row logs fade-play again; its latest play replaces the first.
+        replayed = ["fade-arm list=A start=0 at=1000", "fade-play list=A index=9 delay=1250 motion=1 at=1000",
+                    "fade-play list=A index=9 delay=1250 motion=1 at=1050",
+                    "fade-rush list=A start=0 rushed=1 kept=0 since=300 at=1300"]
+        self.assertEqual([], f.check_entrance_rush(events(*replayed), "A"))
+        # Two distinct pending rows still need two rushed fades.
+        two = [*replayed[:2], replayed[2].replace("index=9", "index=10"), replayed[3]]
+        self.assertIn("started 1 fade(s) but 2 were still pending", f.check_entrance_rush(events(*two), "A")[0])
+        # A replay that already started by the rush leaves the row not pending.
+        started = [*replayed[:2], "fade-play list=A index=9 delay=0 motion=1 at=1100",
+                   replayed[3].replace("rushed=1", "rushed=0")]
+        self.assertEqual([], f.check_entrance_rush(events(*started), "A"))
+
     def test_a_fade_scheduled_after_the_rush_with_a_delay_fails(self):
         late = [*PAGE, *EARLY_RUSH, "fade-enter list=Scroller target=BandBoards delay=300 motion=1 at=1600",
                 "fade-play list=Scroller index=2 delay=250 motion=1 at=1600"]
@@ -204,6 +218,20 @@ class EntranceRushTests(unittest.TestCase):
         stale = [*PAGE[:1], "fade-enter list=Scroller target=OverviewGrid delay=0 motion=1 at=1000",
                  "fade-arm list=Scroller start=0 at=1100", *EARLY_RUSH[1:]]
         self.assertIn("OverviewGrid did not fade in", f.check_entrance_rush(events(*stale), "Scroller", ["OverviewGrid"])[0])
+
+    def test_a_scroll_before_the_entrance_began_rushes_it_from_its_start(self):
+        # Song Details (#532): the scroll came during the spinner's fade, so the entrance begins rushed and enters at once.
+        rushed = ["fade-arm list=Scroller start=0 at=1000",
+                  "fade-rush list=Scroller start=0 rushed=0 kept=0 since=0 at=1000",
+                  "fade-enter list=Scroller target=TitleRow delay=0 motion=1 at=1001",
+                  "fade-enter list=Scroller target=OverviewGrid delay=0 motion=1 at=1002"]
+        self.assertEqual([], f.check_entrance_rush(events(*rushed), "Scroller", ["TitleRow", "OverviewGrid"]))
+        # Entering after the rush with a delay is still a regression, and so is an element of a later reload.
+        delayed = [*rushed[:3], rushed[3].replace("delay=0", "delay=300")]
+        self.assertIn("['OverviewGrid']", f.check_entrance_rush(events(*delayed), "Scroller", ["OverviewGrid"])[0])
+        reloaded = [*rushed[:3], "fade-arm list=Scroller start=0 at=5000", rushed[3]]
+        self.assertIn("OverviewGrid did not fade in",
+                      f.check_entrance_rush(events(*reloaded), "Scroller", ["OverviewGrid"])[0])
 
     def test_the_scroll_must_rush_not_close(self):
         self.assertIn("fade-rush missing", f.check_entrance_rush(events(*PAGE), "Scroller")[0])

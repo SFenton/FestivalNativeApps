@@ -52,7 +52,7 @@
             </Grid.RowDefinitions>
             <TextBlock Text="Rivals" Style="{StaticResource FSTPageTitleStyle}" VerticalAlignment="Center"
                        AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.rivals.title" />
-            <AutoSuggestBox x:Name="FindRivalBox" Grid.Column="1" Width="280" PlaceholderText="Find Rival" QueryIcon="Find"
+            <AutoSuggestBox x:Name="FindRivalBox" controls:PopupHosting.InWindow="True" Grid.Column="1" Width="280" PlaceholderText="Find Rival" QueryIcon="Find"
                             VerticalAlignment="Center" UpdateTextOnSelect="False"
                             ItemsSource="{x:Bind ViewModel.FindRival.Players, Mode=OneWay}"
                             TextChanged="OnFindTextChanged" QuerySubmitted="OnFindSubmitted"

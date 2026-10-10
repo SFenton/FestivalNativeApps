@@ -46,6 +46,30 @@ public enum RivalRankMetric: String, CaseIterable, Sendable, Identifiable, Equat
         case .maxscore: "Max Score"
         }
     }
+
+    /// Whether this metric is experimental (pattern `experimental-ranks`).
+    public var isExperimental: Bool { self != .totalscore }
+
+    /// The Rank By order in web `RANKING_METRICS` order; never the enum's declaration
+    /// order (pattern `experimental-ranks` R1).
+    public static let menuOrder: [RivalRankMetric] = [.totalscore, .adjusted, .weighted, .fcrate, .maxscore]
+
+    /// The metrics the Leaderboard Rivals Rank By offers (see ``ExperimentalRanks``).
+    ///
+    /// - Parameter experimentalRanks: The Settings switch.
+    /// - Returns: Total Score alone while off; ``menuOrder`` while on.
+    public static func enabled(experimentalRanks: Bool) -> [RivalRankMetric] {
+        experimentalRanks ? menuOrder : [.totalscore]
+    }
+
+    /// This metric, or Total Score when it is experimental and the switch is off (web
+    /// `RivalsPage` / `AllRivalsPage` `coerceRankingMetric`).
+    ///
+    /// - Parameter experimentalRanks: The Settings switch.
+    /// - Returns: The metric in effect.
+    public func coerced(experimentalRanks: Bool) -> RivalRankMetric {
+        experimentalRanks || !isExperimental ? self : .totalscore
+    }
 }
 
 // MARK: - Combo overview (`GET /api/player/:accountId/rivals`)
@@ -385,6 +409,17 @@ extension RivalScope {
     private static let songPrefix = "song:"
     private static let leaderboardPrefix = "leaderboard:"
     private static let comboPrefix = "combo:"
+
+    /// This scope with a leaderboard scope's metric narrowed by the Settings switch
+    /// (web `AllRivalsPage` / `RivalryPage` / `RivalDetailPage` `coerceRankingMetric`):
+    /// a saved or deep-linked experimental metric reads Total Score while it is off.
+    ///
+    /// - Parameter experimentalRanks: The Settings switch.
+    /// - Returns: The scope in effect.
+    public func coerced(experimentalRanks: Bool) -> RivalScope {
+        guard case let .leaderboard(instrument, rankBy) = self else { return self }
+        return .leaderboard(instrument: instrument, rankBy: rankBy.coerced(experimentalRanks: experimentalRanks))
+    }
 
     /// Compact colon-separated token used only by `DebugLaunchRoute`
     /// (`FST_DEBUG_ROUTE`) to open a rival route with a specific scope; `AppRoute`

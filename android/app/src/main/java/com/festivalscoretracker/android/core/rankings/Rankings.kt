@@ -32,6 +32,9 @@ enum class RankingMetric(val wireId: String, val label: String) {
     /** Bands have no Max Score board; narrow like the web's `coerceBandRankingMetric`. */
     val bandMetric: BandRankingMetric get() = BandRankingMetric.fromWireId(wireId) ?: BandRankingMetric.DEFAULT
 
+    /** Whether Settings → Experimental Ranks must be on to rank by this metric (web `EXPERIMENTAL_METRICS`). */
+    val isExperimental: Boolean get() = this != TotalScore
+
     companion object {
         /** The web default (`leaderboardSettings.ts`). */
         val DEFAULT = TotalScore
@@ -43,6 +46,35 @@ enum class RankingMetric(val wireId: String, val label: String) {
          * @return The metric, or null when unknown.
          */
         fun fromWireId(wireId: String?): RankingMetric? = entries.firstOrNull { it.wireId == wireId }
+
+        /**
+         * Metrics Rank By offers (web `getEnabledRankingMetrics`): Total Score alone unless
+         * Settings → Experimental Ranks is on (experimental-ranks R1).
+         *
+         * @param experimentalRanks `AppSettings.experimentalRanks`.
+         * @return Offered metrics in picker order.
+         */
+        fun enabled(experimentalRanks: Boolean): List<RankingMetric> = if (experimentalRanks) entries else listOf(TotalScore)
+
+        /**
+         * Gate a saved, routed or selected metric (web `coerceRankingMetric`): unknown values
+         * and experimental metrics with the setting off fall back to [DEFAULT] (experimental-ranks R2).
+         *
+         * @param metric Candidate metric.
+         * @param experimentalRanks `AppSettings.experimentalRanks`.
+         * @return The metric to load.
+         */
+        fun coerce(metric: RankingMetric?, experimentalRanks: Boolean): RankingMetric =
+            if (metric == null || (metric.isExperimental && !experimentalRanks)) DEFAULT else metric
+
+        /**
+         * Gate a raw `rankBy` value.
+         *
+         * @param wireId Candidate `rankBy` value.
+         * @param experimentalRanks `AppSettings.experimentalRanks`.
+         * @return The metric to load.
+         */
+        fun coerce(wireId: String?, experimentalRanks: Boolean): RankingMetric = coerce(fromWireId(wireId), experimentalRanks)
     }
 }
 
@@ -365,6 +397,16 @@ object RankingPaging {
         val size = maxOf(1, pageSize)
         return if (total <= 0) 1 else (total - 1) / size + 1
     }
+
+    /**
+     * Whether a board draws its pager (web `hasPagination = !!data && totalPages > 1`;
+     * load-transition R4, issue #575): only once a loaded board has told the page count,
+     * and only when there is more than one page.
+     *
+     * @param totalPages The last loaded board's page count, or null before any has loaded.
+     * @return True when the pager shows.
+     */
+    fun showsPager(totalPages: Int?): Boolean = totalPages != null && totalPages > 1
 }
 
 // endregion

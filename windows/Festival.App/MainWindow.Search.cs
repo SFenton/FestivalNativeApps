@@ -54,7 +54,8 @@ public sealed partial class MainWindow
     private void ApplySearchWidth(double width)
     {
         var compact = width < CompactSearchWidth;
-        GlobalSearchBox.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        // The host is the box's passthrough rect (issue #536); collapsed with it so no empty strip stays clickable.
+        GlobalSearchBoxHost.Visibility = GlobalSearchBox.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         GlobalSearchButton.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
         // Responsive box: ~36% of the window, 240 (medium) or 320 (wide) to 580 epx as in the WinUI Gallery.
         var min = width >= WideSearchWidth ? 320 : 240;

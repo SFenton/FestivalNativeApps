@@ -160,6 +160,13 @@ class SettingsViewModel(
     fun setFilterInvalidScores(enabled: Boolean) = update { it.copy(filterInvalidScores = enabled) }
 
     /**
+     * Enable Experimental Leaderboard Ranks (web `enableExperimentalRanks`).
+     *
+     * @param enabled Value.
+     */
+    fun setExperimentalRanks(enabled: Boolean) = update { it.copy(experimentalRanks = enabled) }
+
+    /**
      * Invalid-score leeway (clamped and rounded on save).
      *
      * @param value Percent.

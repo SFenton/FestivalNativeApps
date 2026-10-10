@@ -11,11 +11,18 @@ import FestivalDesign
 /// one typed, `Hashable` `RivalScope` instead (`song`, `leaderboard` or `combo`).
 struct AllRivalsScreen: View {
     let session: FestivalSession
-    let scope: RivalScope
+    /// The scope the route carried (it may name an experimental metric).
+    let routeScope: RivalScope
+    @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
     @State private var state: RivalsLoadState<[AllRivalsRow]> = .loading
     /// Rival shown in the dual-source bottom region (Duo inner display, portrait).
     @State private var dualSelection: AppRoute?
+    /// The in-list title has scrolled under the bar: the bar shows the compact
+    /// instrument icon and title instead (Full Rankings, issues #294, #557).
+    @State private var titleHidden = false
     @Environment(\.openProfile) private var openProfile
+    @Environment(\.deviceLayout) private var layout
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Create the screen.
     ///
@@ -25,14 +32,25 @@ struct AllRivalsScreen: View {
     ///     pass the same scope they used to load their own preview section).
     init(session: FestivalSession, scope: RivalScope) {
         self.session = session
-        self.scope = scope
+        self.routeScope = scope
     }
+
+    /// The scope in effect: a leaderboard scope's experimental metric reads Total
+    /// Score while Settings › Experimental Ranks is off (pattern `experimental-ranks`).
+    private var scope: RivalScope {
+        routeScope.coerced(experimentalRanks: experimentalRanks)
+    }
+
+    // MARK: - Scope
 
     /// The scope's constituent instruments, resolved from their raw values.
     ///
     /// A `.song` scope with 2+ instruments is "Common Rivals" (an intersection,
     /// not a single list); everything else names exactly one queried scope.
-    private var instruments: [Instrument] {
+    ///
+    /// - Parameter scope: The list's scope.
+    /// - Returns: The known instruments, in scope order.
+    nonisolated static func instruments(for scope: RivalScope) -> [Instrument] {
         switch scope {
         case let .song(raw): raw.compactMap(Instrument.init(rawValue:))
         case let .leaderboard(raw, _): Instrument(rawValue: raw).map { [$0] } ?? []
@@ -40,10 +58,64 @@ struct AllRivalsScreen: View {
         }
     }
 
-    private var isCommon: Bool {
+    /// Whether a scope is "Common Rivals": a `.song` scope naming 2+ instruments.
+    ///
+    /// - Parameter scope: The list's scope.
+    /// - Returns: True for the intersection of several per-instrument lists.
+    nonisolated static func isCommon(_ scope: RivalScope) -> Bool {
         if case let .song(raw) = scope { return raw.count > 1 }
         return false
     }
+
+    /// The page title: the navigation title (Back menus, the Mac window, VoiceOver)
+    /// and the text of the in-list and bar titles.
+    ///
+    /// - Parameter scope: The list's scope.
+    /// - Returns: e.g. "Lead Rivals", "Lead Leaderboard Rivals", "Common Rivals".
+    nonisolated static func title(for scope: RivalScope) -> String {
+        let first = instruments(for: scope).first?.label ?? ""
+        switch scope {
+        case .leaderboard:
+            return "\(first) Leaderboard Rivals"
+        case .song where isCommon(scope):
+            return "Common Rivals"
+        case .song:
+            return "\(first) Rivals"
+        case let .combo(token, _):
+            let label = token == RivalCombo.proDrumsToken ? "Pro Drums Family" : "Combo"
+            return "\(label) Rivals"
+        }
+    }
+
+    /// The instrument whose icon leads the title: only a single-instrument list (song
+    /// or leaderboard rivals). Common and Combo lists have no icon, like the web
+    /// `AllRivalsPage` (`InstrumentHeader iconOnly` only when `isInstrument`).
+    ///
+    /// - Parameter scope: The list's scope.
+    /// - Returns: The scope's one instrument, or nil.
+    nonisolated static func titleInstrument(for scope: RivalScope) -> Instrument? {
+        switch scope {
+        case .song where isCommon(scope), .combo:
+            nil
+        case .song, .leaderboard:
+            instruments(for: scope).first
+        }
+    }
+
+    private var instruments: [Instrument] { Self.instruments(for: scope) }
+    private var isCommon: Bool { Self.isCommon(scope) }
+    private var title: String { Self.title(for: scope) }
+
+    /// Whether the bar shows the compact title: once the in-list title has scrolled
+    /// away, and in every state without an in-list title (loading, empty, failure,
+    /// no profile), like Full Rankings.
+    private var showsPinnedTitle: Bool {
+        guard session.selectedPlayer != nil, !instruments.isEmpty,
+              case let .loaded(rows) = state, !rows.isEmpty else { return true }
+        return titleHidden
+    }
+
+    // MARK: - Body
 
     var body: some View {
         Group {
@@ -60,21 +132,23 @@ struct AllRivalsScreen: View {
         }
         .festivalNavigationTitle(title)
         .festivalBackground(.carousel, session: session)
-        .task(id: scope) { await load() }
-    }
-
-    private var title: String {
-        switch scope {
-        case .leaderboard:
-            return "\(instruments.first?.label ?? "") Leaderboard Rivals"
-        case .song where isCommon:
-            return "Common Rivals"
-        case .song:
-            return "\(instruments.first?.label ?? "") Rivals"
-        case let .combo(token, _):
-            let label = token == RivalCombo.proDrumsToken ? "Pro Drums Family" : "Combo"
-            return "\(label) Rivals"
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: showsPinnedTitle)
+        .toolbar {
+            #if os(iOS)
+            // The iPhone Duo vertical bar minimizes its top bar on scroll, so a custom
+            // title would leave when due; the system title stays there (R14).
+            if InstrumentPageTitleToolbarItem.pinsTitle(in: layout.sectionChrome) {
+                InstrumentPageTitleToolbarItem(
+                    instrument: Self.titleInstrument(for: scope), title: title,
+                    isShown: showsPinnedTitle, identifier: "fst.all-rivals.pinned-title"
+                )
+            }
+            #endif
         }
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        .task(id: scope) { await load() }
     }
 
     @ViewBuilder private var content: some View {
@@ -102,8 +176,23 @@ struct AllRivalsScreen: View {
 
     private func list(_ rows: [AllRivalsRow]) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                FestivalGlassSection(title) {
+            VStack(alignment: .leading, spacing: 12) {
+                // The page's own title, icon first, like Full Rankings (#557); the
+                // card below repeats no section title (web `AllRivalsPage`).
+                InstrumentPageTitle(
+                    instrument: Self.titleInstrument(for: scope), title: title, style: .header,
+                    identifier: "fst.all-rivals.title"
+                )
+                .padding(.horizontal, 16)
+                .festivalFadeInOnAppear()
+                .onGeometryChange(for: Bool.self) { proxy in
+                    SongDetailPinnedTitlePolicy.isHeroHidden(
+                        titleMaxY: proxy.frame(in: .scrollView).maxY
+                    )
+                } action: { hidden in
+                    titleHidden = hidden
+                }
+                FestivalGlassSection {
                     ForEach(rows) { row in
                         ListDetailLink(
                             value: AppRoute.rivalDetail(

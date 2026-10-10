@@ -154,8 +154,9 @@ class ProfileViewModelsTest {
         vm.ensureInstrument(Instrument.Drums)
         advanceUntilIdle()
         val rank = vm.ranks.value[Instrument.Lead] as RankLoad.Available
-        assertEquals("#8", rank.tiles.single().value)
-        assertEquals(RankLoad.tile(vm.ranks.value[Instrument.Lead]), rank.tiles.single())
+        assertEquals("#8", RankLoad.tiles(rank, experimentalRanks = false).single().value)
+        assertEquals(RankLoad.tile(vm.ranks.value[Instrument.Lead]), RankLoad.tiles(rank, experimentalRanks = false).single())
+        assertFalse(vm.state.value.experimentalRanks)
         assertNotNull((vm.rankHistories.value[Instrument.Lead] as RankHistoryLoad.Loaded).chart)
         assertNull(vm.ranks.value[Instrument.Drums])
 

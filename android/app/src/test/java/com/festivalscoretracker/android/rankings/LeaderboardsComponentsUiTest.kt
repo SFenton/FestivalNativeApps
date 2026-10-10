@@ -68,7 +68,8 @@ class LeaderboardsComponentsUiTest {
 
     private val fake = FakeReads()
     private val settings = MutableStateFlow<AppSettings?>(
-        AppSettings(selectedPlayer = SelectedPlayer(RankingsFixtures.SELECTED, "Selected Player"), visibleInstruments = setOf(Instrument.Lead)),
+        // Experimental Ranks on: these boards exercise the Weighted metric (#541).
+        AppSettings(selectedPlayer = SelectedPlayer(RankingsFixtures.SELECTED, "Selected Player"), visibleInstruments = setOf(Instrument.Lead), experimentalRanks = true),
     )
     private val rankBy = MutableStateFlow(RankingMetric.Weighted)
 
@@ -83,11 +84,14 @@ class LeaderboardsComponentsUiTest {
 
     private fun text(value: String) = rule.onAllNodesWithText(value, substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
 
-    /** TalkBack reads each Rank History picker tab as its instrument, a tab and its selection. */
+    /**
+     * TalkBack reads each Rank History chart as its instrument, a radio button (the shared
+     * required InstrumentSelector, issue #592) and its selection.
+     */
     private fun assertPickerTab(wireId: String, label: String, selected: Boolean) {
         val config = rule.onNodeWithTag("fst.leaderboards.rank-history.picker.$wireId").fetchSemanticsNode().config
         assertEquals(listOf(label), config[SemanticsProperties.ContentDescription])
-        assertEquals(Role.Tab, config[SemanticsProperties.Role])
+        assertEquals(Role.RadioButton, config[SemanticsProperties.Role])
         assertEquals(selected, config[SemanticsProperties.Selected])
     }
 
@@ -199,6 +203,9 @@ class LeaderboardsComponentsUiTest {
         settle()
         assertPickerTab("Solo_Guitar", "Lead", selected = true)
         assertPickerTab("Solo_Bass", "Bass", selected = false)
+        // The shared selector's 64 dp circles (web Layout.demoInstrumentBtn), not the old 48 dp tab chips.
+        assertEquals(128f, rule.onNodeWithTag("fst.leaderboards.rank-history.picker.Solo_Bass").fetchSemanticsNode().boundsInRoot.width, 1f)
+        assertTrue(exists("fst.leaderboards.rank-history.picker"))
         rule.onNodeWithTag("fst.leaderboards.rank-history.picker.Solo_Bass").performSemanticsAction(SemanticsActions.OnClick)
         rule.waitUntil(5_000) { settle(); fake.count("history:Solo_Bass:") == 1 }
         assertPickerTab("Solo_Guitar", "Lead", selected = false)

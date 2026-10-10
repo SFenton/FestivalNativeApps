@@ -9,8 +9,8 @@ import kotlinx.serialization.Serializable
 
 /**
  * `rankBy` values accepted by the leaderboard-rivals endpoints (web `RankingMetric`).
- * Production sanitizes experimental metrics off, so the hub always uses [TotalScore];
- * routes still carry the metric so a deep link keeps its scope.
+ * Only [TotalScore] is used unless Settings → Experimental Ranks is on ([gated],
+ * experimental-ranks R2); routes still carry the metric so a deep link keeps its scope.
  *
  * @property wireId Query value.
  * @property label User-facing name (web `rankings.metric.*`).
@@ -21,6 +21,14 @@ enum class RivalRankMetric(val wireId: String, val label: String) {
     Weighted("weighted", "Popularity-Weighted Percentile"),
     FcRate("fcrate", "FC Rate"),
     MaxScore("maxscore", "Max Score %");
+
+    /**
+     * Gate this metric on Settings → Experimental Ranks (web `coerceRankingMetric`).
+     *
+     * @param experimentalRanks `AppSettings.experimentalRanks`.
+     * @return This metric, or [TotalScore] when it is experimental and the setting is off.
+     */
+    fun gated(experimentalRanks: Boolean): RivalRankMetric = if (this != TotalScore && !experimentalRanks) TotalScore else this
 
     companion object {
         /**
