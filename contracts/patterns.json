@@ -3224,7 +3224,7 @@
       "title": "Wide columns",
       "status": "current",
       "doc": ".agents/patterns/wide-columns.md",
-      "summary": "Page rows and cards show in two columns only in wide landscape windows (iPad landscape, iPhone Duo unfolded landscape, a wide Mac surface), row-major under full-width headings (pages of unequal section cards such as the Mac Settings window panes flow column by column in balanced columns; the Settings page on iPad, iPhone Duo and Android tablets/foldables is a list/detail split instead, split-panes R6, owner-approved #371), meeting at the Duo hinge in book pose and at the free content area's midpoint when fully unfolded (owner-approved, #361), reflowing without reloading; portrait, compact windows and (for Settings) accessibility text sizes keep one column; the Item Shop list pairs its rows (its card grid keeps its own even-column policy); full-width leaderboards pair rank rows row-major under one full-width pinned row and pager, while split sub-pages stay one column.",
+      "summary": "Page rows and cards show in two columns only in wide landscape windows (iPad landscape, iPhone Duo unfolded landscape, a wide Mac surface), row-major under full-width headings (pages of unequal section cards such as the Mac Settings window panes flow column by column in balanced columns; the Settings page on iPad, iPhone Duo and Android tablets/foldables is a list/detail split instead, split-panes R6, owner-approved #371), meeting at the Duo hinge in book pose and at the free content area's midpoint when fully unfolded (owner-approved, #361), reflowing without reloading; portrait, compact windows and (for Settings) accessibility text sizes keep one column; the Item Shop list pairs its rows (its card grid keeps its own even-column policy); full-width leaderboards pair rank rows row-major under one full-width pinned row and pager, while split sub-pages stay one column. Owner-approved Android variant (#581): Android Songs shows two row-major columns in any landscape window or across a vertical fold with room for two 320 dp columns (no height-class gate), one column in portrait, at large text or under TalkBack, and no longer splits list/detail (a tap pushes Song Detail).",
       "keywords": [
         "two column",
         "two-column",
@@ -3286,7 +3286,28 @@
             "symbol": "ShopScreen"
           }
         ],
-        "android": [],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/layout/WideColumns.kt",
+            "symbol": "WideColumns"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/layout/WideColumns.kt",
+            "symbol": "WideColumnLines"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/WideColumnsLayout.kt",
+            "symbol": "rememberWideColumns"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/WideColumnsLayout.kt",
+            "symbol": "WideColumnsLine"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/WideColumnsLayout.kt",
+            "symbol": "KeepPlaceAcrossColumnChanges"
+          }
+        ],
         "windows": []
       },
       "related": {
@@ -3321,7 +3342,8 @@
         355,
         361,
         371,
-        378
+        378,
+        581
       ]
     },
     {
@@ -3432,9 +3454,7 @@
           "glob": "android/app/src/main/**/*.kt",
           "regex": "\\bVerticalDivider\\s*\\(",
           "allow": [],
-          "debt": [
-            "android/app/src/main/java/com/festivalscoretracker/android/ui/shell/FestivalApp.kt"
-          ],
+          "debt": [],
           "message": "Split panes are separated by space, not a drawn divider; a hairline only under high contrast at a midpoint (split-panes R1, R2)."
         }
       ],

@@ -36,7 +36,8 @@ Late-loading sections (issues #60/#422, 2026-10-08, fixtures): `LoadFadeWindowAc
 | Decorative pieces read as stops | Chart legend/axis dates, avatar initials (top bar, rail, profile sheet) | Hidden (`clearAndSetSemantics {}`) |
 | Rail profile item read "Profile: name, Profile, FP" | Navigation rail | The label carries "Profile: <name>"; the avatar is silent |
 | Songs tab read before the page and the other destinations after it | Rail on passport/tri-fold/tablet | The rail is one traversal group |
-| Every phone Songs row began "Not selected" | Songs | Only the highlighted two-pane row carries selection state |
+| Every phone Songs row began "Not selected" | Songs | Only the highlighted two-pane row carries selection state (since #581 Songs never splits, so no row is selected) |
+| Two-column Songs (#581) could read a line's end song before its start, or cross the fold | Songs in landscape and on foldables | Each line is one traversal group; `SongsWideColumnsAccessibilityJourneyTest` checks row-major reading order, labelled ≥ 48 dp buttons, nothing straddling the fold, and one column at 200 % text |
 | Label read twice (description + visible text) | Quick Links items, Song Detail Item Shop button, Settings "Show" buttons, Compete "View All", Item Shop grid "Leaving Tomorrow", Band Detail tiles/members/history/song rows, Player Bands cards | Visible text hidden where a description replaces it; Compete uses the shared `SeeAllButton` |
 | "…Open notification." appended to every notification and the time ran into the message | Notifications | Click label "Open notification" ("Double-tap to open notification"); "Title. Message. Flag. Time" |
 | Score History top rows clipped the date ("Jul 24,") and wrapped "100 / %" at 200% (issue #102) | Song Detail (phone, tablet) | Rows stack date above a `FlowRow` at large text; one-line, min-width accuracy pill |

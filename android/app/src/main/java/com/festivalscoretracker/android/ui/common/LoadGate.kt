@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -205,7 +206,8 @@ fun LazyListScope.festivalEmptyStateItem(
 @Composable
 private fun EmptyStateItem(title: String, subtitle: String?, tag: String?, icon: (@Composable () -> Unit)?, height: Modifier) {
     Box(Modifier.fillMaxWidth().then(height).then(if (tag != null) Modifier.testTag(tag) else Modifier)) {
-        FestivalEmptyState(title, Modifier.fillMaxSize(), subtitle, icon)
+        // In a list split at a book fold, the message stays in the leading pane (hinge-columns R1).
+        FoldLane(Modifier.fillMaxHeight()) { FestivalEmptyState(title, Modifier.fillMaxSize(), subtitle, icon) }
     }
 }
 

@@ -170,8 +170,8 @@ class SongsAccessibilityJourneyTest {
     /**
      * Instrument status chips (issue #134): ATF over Songs rows with chips (each row one ≥48 dp
      * button whose description speaks every chart's status in service order; the chips are not
-     * separate stops), the chip group never across a separating hinge (`--posture half`), and the
-     * same on the selected row of the two-pane layout when the window shows one.
+     * separate stops) and the chip group never across a separating hinge (`--posture half`).
+     * Songs has no list/detail split (#581), so a tap pushes Song Detail.
      */
     @Test
     fun songsInstrumentStatusChipsReadAsOneRowSummary() {
@@ -187,12 +187,6 @@ class SongsAccessibilityJourneyTest {
         h.assertNothingStraddles("fst.songs.instrument-status.s-alpha", "fst.songs.instrument-status.s-beta", "fst.songs.instrument-status.s-gamma")
         h.tap("fst.songs.row.s-alpha")
         h.waitForTag("fst.song-detail.list")
-        val selected = rule.onAllNodesWithTag("fst.songs.row.s-alpha").fetchSemanticsNodes()
-            .any { it.config.getOrElseNullable(SemanticsProperties.Selected) { null } == true }
-        if (selected) {
-            h.readingOrder("songs-instrument-status-selected")
-            h.assertNothingStraddles("fst.songs.instrument-status.s-alpha")
-        }
         h.assertAccessible()
     }
 

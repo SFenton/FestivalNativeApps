@@ -40,7 +40,7 @@ private const val UNREAD_FEED = """{"sourceRunId":3,"items":[
  * each keep a touch target of at least 48 dp that doesn't overlap its neighbour's, and real
  * touches 22 dp off the glyph's centre (outside the 40 dp container) activate them. Follows the
  * window's placement of the page tools: the floating toolbar (compact), the top app bar (medium
- * and wider) or ⋮ on a narrow list pane. ATF runs on every interaction; TalkBack's reading order
+ * and wider) or ⋮ when the top bar runs out of room. ATF runs on every interaction; TalkBack's reading order
  * and the measured targets go to logcat `FST_A11Y`. Run with
  * `device.py test com.festivalscoretracker.android.journeys.ShellHitTargetDeviceTest --avd … [--posture …]`
  * ([ShellHitTargetRotatedDeviceTest] for the display turned a quarter).

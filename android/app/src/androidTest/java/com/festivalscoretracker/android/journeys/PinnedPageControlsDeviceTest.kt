@@ -61,8 +61,9 @@ import org.junit.runner.RunWith
  * filter grows without clipping its placeholder and every pinned control stays on screen.
  *
  * The journey follows the window's placement of the page tools: the compact floating toolbar
- * (portrait phone), the top app bar (Suggestions on a landscape phone, `FST_Tablet`) or ⋮ on a
- * narrow list pane (Songs on a landscape phone, `FST_Book_Fold --posture half`), whose menu must
+ * (portrait phone), the top app bar (Songs and Suggestions on a landscape phone, `FST_Tablet`,
+ * `FST_Book_Fold`: Songs fills the window since #581) or ⋮ when the top bar runs out of room,
+ * whose menu must
  * close after each tool's sheet or menu closes. The `…InLandscape` variants turn the phone, so the
  * `android-device` CI job (`@DeviceCi`, one portrait phone emulator) covers all three. Reading orders go to logcat
  * `FST_A11Y`. Run with

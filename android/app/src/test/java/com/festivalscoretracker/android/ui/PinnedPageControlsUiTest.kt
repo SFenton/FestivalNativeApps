@@ -302,7 +302,7 @@ class MediumPinnedPageControlsUiTest {
     fun suggestionsFilterStaysInTheTopBar() = suggestionsStayPinned(h)
 }
 
-/** Expanded window (list-detail): the same pinning in the Songs list pane and on Suggestions (issue #160). */
+/** Expanded window: the same pinning over Songs' two columns (no list/detail split, #581) and on Suggestions (issue #160). */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w1280dp-h800dp-land-xhdpi")
 class ExpandedPinnedPageControlsUiTest {
@@ -319,41 +319,22 @@ class ExpandedPinnedPageControlsUiTest {
 }
 
 /**
- * Narrow list pane (phone landscape, list-detail): the page tools sit behind ⋮ (issue #101). ⋮,
- * the pinned search field and global search stay put while scrolled; Sort, Filter and Quick Links
- * open from ⋮ while scrolled and ⋮'s menu closes after each (issue #160). Native graphics, so the
- * title measures real text and the tools really overflow.
+ * Landscape phone: Songs fills the window in two columns (`wide-columns`, issue #581; it no
+ * longer sits in a narrow list pane with its tools behind ⋮, issue #101), so the page tools sit
+ * in the top app bar and the same pinning holds while the two-column list scrolls. ⋮ overflow
+ * itself stays covered by `TopBarActionsUiTest`. Native graphics, so the title measures real text.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w923dp-h411dp-land-xxhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-class OverflowPinnedPageControlsUiTest {
+class LandscapePhonePinnedPageControlsUiTest {
     @get:Rule
     val rule = createAndroidComposeRule<ComponentActivity>()
 
     private val h by lazy { PinnedHarness(rule) }
 
     @Test
-    fun songsOverflowSearchAndGlobalSearchStayPinnedAndToolsOpenFromOverflow() {
-        h.launchSongs(player = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"))
-        val present = listOf("fst.nav.overflow", "fst.songs.sort.open", "fst.quick-links.open", "fst.nav.floating-toolbar").filter(h::exists)
-        assertTrue("page tools behind ⋮: present $present, top bar ${h.bounds("fst.nav.top-bar")}", h.exists("fst.nav.overflow") && !h.exists("fst.songs.sort.open"))
-        val atTop = listOf("fst.nav.overflow", "fst.songs.search", "fst.global-search.open").associateWith(h::bounds)
-        h.scroll("fst.songs.list", down = true)
-        assertTrue("scrolled away from the first row", !h.exists("fst.songs.row.s-1"))
-        h.assertSame(atTop, "while scrolled")
-        val focus = { rule.focusTopWindow() }
-        h.opensFromOverflowWhileScrolled("fst.songs.sort.open", "fst.songs.sort.form", "fst.songs.sort.done", focus)
-        h.opensFromOverflowWhileScrolled("fst.songs.filter.open", "fst.songs.filter.form", "fst.songs.filter.done", focus)
-        h.click("fst.nav.overflow")
-        h.waitForTag("fst.nav.overflow-menu")
-        focus()
-        h.jumpsWithQuickLinksMenu(focus)
-        h.waitGone("fst.nav.overflow-menu")
-        h.assertSame(atTop, "after the tools")
-        h.scrollBackTo("fst.songs.list", "fst.songs.row.s-1")
-        h.assertSame(atTop, "back at the top")
-    }
+    fun songsSearchFieldAndTopBarToolsStayPinnedOverTwoColumns() = songsStayPinned(h)
 }
 
 private fun songsStayPinned(h: PinnedHarness) {

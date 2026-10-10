@@ -611,7 +611,7 @@ class LargeTextRailProfileUiTest {
     }
 }
 
-/** Medium window list pane: the pinned Songs search field stays one line tall (issue #101). */
+/** Medium window: the pinned Songs search field stays one line tall (issue #101). */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w884dp-h1104dp-xhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -620,7 +620,7 @@ class SongsSearchPlaceholderUiTest {
     val rule = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun placeholderStaysOnOneLineInTheListPane() {
+    fun placeholderStaysOnOneLine() {
         val debug = DebugLaunch(stillBackground = true)
         val transport = FakeTransport.standard().apply {
             on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null") }
@@ -629,7 +629,6 @@ class SongsSearchPlaceholderUiTest {
         rule.setContent { FestivalApp(container, debug) }
         fun settle() = repeat(4) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100)); rule.waitForIdle() }
         rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.songs.search").fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithTag("fst.songs.detail-pane").assertExists()
         val field = rule.onNodeWithTag("fst.songs.search").getUnclippedBoundsInRoot()
         assertTrue("search field ${field.right - field.left} wide, ${field.bottom - field.top} tall", (field.bottom - field.top).value <= 64f)
     }

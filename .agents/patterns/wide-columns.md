@@ -2,7 +2,7 @@
 
 > **What:** the app-wide rule for when a page's rows or cards show in two columns: in wide landscape windows (iPad landscape, iPhone Duo unfolded in landscape, a wide Mac surface) and never in portrait. It covers reading order, headings, the Duo hinge and reflow, and lists every page that adopts it. **Read when:** making a page or sheet two-column, changing when Songs, Search or a full leaderboard pair their rows, or adding a page (add it to the audit below).
 
-Status: **current**, 2026-10-08. Provenance: #350 (split from #332), #353 (full-width leaderboards, R8); generalizes the Songs landscape grid (`SongGridPolicy`, #312, #321). Settings adopted it with R7 (#355); owner #371 replaces R7's Settings page with a list/detail split on iPad, the iPhone Duo and Android tablets/foldables ([split-panes](split-panes.md) R6), so R7 now governs only the Mac Settings window panes. The Item Shop list adopts it (#378). Owner #543 draws each board column as one card (R8).
+Status: **current**, 2026-10-09. Provenance: #350 (split from #332), #353 (full-width leaderboards, R8); generalizes the Songs landscape grid (`SongGridPolicy`, #312, #321). Settings adopted it with R7 (#355); owner #371 replaces R7's Settings page with a list/detail split on iPad, the iPhone Duo and Android tablets/foldables ([split-panes](split-panes.md) R6), so R7 now governs only the Mac Settings window panes. The Item Shop list adopts it (#378). Owner #543 draws each board column as one card (R8). Owner #581 ports it to Android Songs (owner-approved Android variant below).
 
 ## Intent
 
@@ -61,14 +61,24 @@ Question: how does a full leaderboard read in two columns? Posted on the issue.
 
 Chose **A**. The owner may override it with `/choose B` or `/choose C`.
 
-## Canonical implementation
+## Owner-approved Android variant (#581, 2026-10-09): Songs in two columns, no list/detail split
+
+Owner (#581, split from #573): "Songs page should be two-col in landscape and unfolded like iPhone Duo." Scoped to **Android Songs**. Other Android pages and the other platforms keep the base rules. Do not revert it to the list/detail split.
+
+- **When (R1, Android form):** two columns when the content holds two 320 dp columns and a 12 dp gutter inside its 16 dp row margins (≥ 652 dp), and either the window is wider than tall or it spans a vertical fold (flat or half-open). A separating vertical hinge with room for a column on each side always splits. There is no height-class gate: the owner asked for landscape phones too, which are compact-height. A Book Fold's inner display (≈ 851 × 882 dp) is not landscape, but it is unfolded. Portrait and compact windows keep one column, and so does every window while TalkBack runs or at large text (`rememberSingleColumn`). In that one-column case the list spans a fold full width, as every Android hinge split does at large text. `WideColumns.count`.
+- **Hinge (R3):** in book posture the columns meet at the fold (`HingeColumns.resolve`, [hinge-columns](hinge-columns.md) R1). Flat, they split at the content midpoint (R7). The search field, notices, sticky section headers and the empty state keep to the leading pane (`FoldLane`, [section-headers](section-headers.md) R9/R10).
+- **Order (R2):** rows chunk row-major within each section: a sort's section header, or a scrubber (A–Z) section. Every section therefore starts a line in the leading column, and Quick Links or the index lands on its first song. The trade-off is a clear cell after an odd section. Each line is one traversal group, so TalkBack reads its start song, then its end song.
+- **Reflow (R4):** rotation and folding regroup the same rows (`WideColumnLines`). A line's key is its first song, and `KeepPlaceAcrossColumnChanges` keeps the reader's first visible song. Nothing reloads.
+- **No list/detail split:** Songs fills the window on every Android width, and a tap pushes Song Detail, as on Apple. This supersedes, for Songs only, the operator rule of 2026-09-28 ("two populated panes whenever the window allows two") and Android `ListDetailPolicy` (removed). Settings and Licenses keep their list/detail split ([split-panes](split-panes.md) R6). Material 3 suggests list/detail for a book posture; the owner's explicit choice wins over that *should*. M3 "Never place interactive content or critical information across the hinge area" is kept.
+
+Options weighed and posted on #581: A, this. B: keep the split on expanded windows and use two columns only elsewhere. C: two columns inside the 320–440 dp list pane, under 160 dp each. The owner may override with `/choose`.
 
 | Sub-behavior | Apple | Android | Windows |
 |---|---|---|---|
-| Policy (when, widths, row chunking, Mac sheet size) | `apple/Sources/FestivalUI/App/Layout/WideColumns.swift` `WideColumns` (`count(layout:size:subPage:)`, `columnPageWidth`, `indexedRows`, `rowStart`) | — (not yet; out of the Apple lane for #350) | — |
-| Two-up row meeting at the hinge | `apple/Sources/FestivalUI/App/Layout/HingeColumns.swift` `HingeRow` (follows `DeviceLayout.splitHinge`) | — | — |
+| Policy (when, widths, row chunking, Mac sheet size) | `apple/Sources/FestivalUI/App/Layout/WideColumns.swift` `WideColumns` (`count(layout:size:subPage:)`, `columnPageWidth`, `indexedRows`, `rowStart`) | `android/app/src/main/java/com/festivalscoretracker/android/core/layout/WideColumns.kt` `WideColumns` (`count`, `spec`), `WideColumnLines` (row-major lines per section, item ↔ row mapping, `reflow`) (#581) | — |
+| Two-up row meeting at the hinge | `apple/Sources/FestivalUI/App/Layout/HingeColumns.swift` `HingeRow` (follows `DeviceLayout.splitHinge`) | `android/app/src/main/java/com/festivalscoretracker/android/ui/common/WideColumnsLayout.kt` `rememberWideColumns` (window, fold via `shellPosture`, `rememberSingleColumn`, RTL), `WideColumnsLine`, `KeepPlaceAcrossColumnChanges` (#581) | — |
 | Board row pairs and count (R8) | `apple/Sources/FestivalUI/App/Layout/WideColumns.swift` `WideColumnsRow` (`matchesHeights`, one card per column, #543), `WideColumnsRowItems`, `View.wideColumnsCount(_:)`; sub-page flag `apple/Sources/FestivalUI/App/Layout/OnDemandSplit.swift` `SplitPaneContext.isSubPage` (`\.splitPaneSubPage`). Consumers: `FullRankingsScreen`, `BandRankingsScreen`, `SoloLeaderboardScreen`, `SongBandLeaderboardScreen`, Item Shop list (`ShopScreen.shopContent`, #378) | — | — |
-| Songs grid | `apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift` `SongGridPolicy` (delegates) | — | — |
+| Songs grid | `apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift` `SongGridPolicy` (delegates) | `android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsScreen.kt` `SongList` (owner variant #581, no list/detail split) | — |
 | Search results | `apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift` `GlobalSearchResults` | — | — |
 | Mac Search sheet size | `apple/Sources/FestivalUI/Mac/MacRootView.swift` `MacRootView` (`searchSheetSize`) | — | — |
 | Column-by-column balanced stack (R7) | `apple/Sources/FestivalUI/App/Layout/WideColumns.swift` `WideColumnStack`, `WideColumnStackLayout`, `WideColumns.balancedSplit`, `WideColumns.readable` | — | — |
@@ -81,7 +91,7 @@ Status per page: **adopts** (follows R1–R5), **exempt** (a layout the rule doe
 | Page / surface | Status | Today (Apple) |
 |---|---|---|
 | Search results (`global-search`) | adopts | Two columns per R1, at the hinge (R3); Mac sheet R6. |
-| Songs | adopts | `SongGridPolicy` → `WideColumns`, `HingeRow`. The Mac keeps one row per song, a sortable table ([songs-section-index](../controls/songs-section-index/spec.md) owns its layout). |
+| Songs | adopts | `SongGridPolicy` → `WideColumns`, `HingeRow`. The Mac keeps one row per song, a sortable table ([songs-section-index](../controls/songs-section-index/spec.md) owns its layout). Android adopts it through the owner-approved variant (#581). |
 | Song Detail | exempt | Content-sized adaptive grids (`HingeGrid`, Intensity, instrument cards and, since #366, the Duos/Trios/Quads previews in `SongDetailCardGrid`) already fill width in any orientation. |
 | Item Shop | adopts (list, #378); grid exempt | List mode pairs its Song rows row-major per R1–R4 through `WideColumnsRow` and `.wideColumnsCount` (one column at accessibility sizes, `WideColumns.readable`); the disclosures span both columns; Mac arrow keys step by row. Switching List and Grid replays the web view transition but never reads the Shop again. The grid is an adaptive even-column card grid (`ShopGridPolicy`, [hinge-columns](hinge-columns.md) R2). |
 | Statistics | exempt | Adaptive stat tile grid (`StatTileGridLayout`). |
@@ -102,7 +112,8 @@ Status per page: **adopts** (follows R1–R5), **exempt** (a layout the rule doe
 | Debt | Breaks | Plan |
 |---|---|---|
 | Leaderboards, Player Profile, Suggestions, Compete use two columns at any regular width | R1 (two columns in iPad and Duo portrait) | Adopt `WideColumns` per page in follow-up issues, as #353 did for the full leaderboards and #355 does for Settings. |
-| Android and Windows have no wide-columns policy | R1–R5 | Port when those lanes pick up #350's split issues. |
+| Android and Windows have no wide-columns policy for pages other than Android Songs | R1–R5 | Android Songs adopted it (#581); Item Shop list, Search results and full leaderboards adopt the same `WideColumns`/`rememberWideColumns` in their own issues. Windows ports when its lane picks up #350's split issues. |
+| Android `SongDetailRouteScreen(embedded = true)` and `SongRow(selected = true)` have no caller since Songs stopped splitting (#581) | — | Remove the embedded detail mode and the selected-row tint once no other split needs them. |
 
 ## Guards (`tools/pattern_guard.py`)
 

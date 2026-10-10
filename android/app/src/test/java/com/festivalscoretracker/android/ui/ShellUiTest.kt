@@ -222,7 +222,7 @@ class ShellUiTest {
     }
 }
 
-/** Expanded window: permanent drawer and Songs list-detail. */
+/** Expanded window: permanent drawer; Songs fills the window (no list/detail split, #581). */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w1280dp-h800dp-land-xhdpi")
 class ExpandedShellUiTest {
@@ -230,7 +230,7 @@ class ExpandedShellUiTest {
     val rule = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun expandedWindowUsesPermanentDrawerAndTwoPanes() {
+    fun expandedWindowUsesPermanentDrawerAndPushesSongDetail() {
         val transport = FakeTransport.standard().apply {
             on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null") }
         }
@@ -240,18 +240,13 @@ class ExpandedShellUiTest {
         fun settle() = repeat(4) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100)); rule.waitForIdle() }
         rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.songs.row.s-gamma").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("fst.nav.drawer-sheet").assertIsDisplayed()
-        // Two populated columns before any pick: the first row fills the detail pane (never
-        // an empty "Select a song" pane).
-        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.song-detail.intensity").fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithTag("fst.songs.detail-pane").assertIsDisplayed()
-        assertTrue(rule.onAllNodesWithTag("fst.songs.detail-placeholder").fetchSemanticsNodes().isEmpty())
+        // Songs never splits list/detail (Apple parity, #581): no detail pane beside the list,
+        // and a tap pushes the song full screen.
+        assertTrue(rule.onAllNodesWithTag("fst.songs.detail-pane").fetchSemanticsNodes().isEmpty())
+        assertTrue(rule.onAllNodesWithTag("fst.song-detail.intensity").fetchSemanticsNodes().isEmpty())
         rule.onNodeWithTag("fst.songs.row.s-gamma").performClick()
-        rule.waitUntil(10_000) {
-            settle()
-            rule.onNodeWithTag("fst.songs.row.s-gamma").fetchSemanticsNode().config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.Selected) == true
-        }
-        rule.onNodeWithTag("fst.songs.detail-pane").assertIsDisplayed()
-        rule.onNodeWithTag("fst.songs.row.s-gamma").assertIsDisplayed()
+        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.song-detail.intensity").fetchSemanticsNodes().isNotEmpty() }
+        assertTrue(rule.onAllNodesWithTag("fst.songs.row.s-gamma").fetchSemanticsNodes().isEmpty())
         rule.onNodeWithTag("fst.nav.tab.settings").performClick()
         rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.settings.list").fetchSemanticsNodes().isNotEmpty() }
     }

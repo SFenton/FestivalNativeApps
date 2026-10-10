@@ -2,17 +2,14 @@ package com.festivalscoretracker.android.ui.songs
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.core.nav.SettingsTab
 import com.festivalscoretracker.android.core.songs.SongSortDraft
 import com.festivalscoretracker.android.core.settings.AppSettings
-import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.ShellViewModel
 import com.festivalscoretracker.android.presentation.SongsViewModel
 import com.festivalscoretracker.android.ui.common.LocalShellActions
@@ -29,10 +26,7 @@ import kotlinx.coroutines.launch
  * @param shellViewModel Shell (effective settings, sort persistence).
  * @param settings Current settings.
  * @param onSongClick Open a song.
- * @param selectedSongId Highlighted song in two-pane layouts.
  * @param modifier Modifier.
- * @param onListHead Reports (loaded, first row ID) so the shell's list-detail layout can
- *   auto-select the first song (two populated columns).
  */
 @Composable
 fun SongsRoute(
@@ -40,9 +34,7 @@ fun SongsRoute(
     shellViewModel: ShellViewModel,
     settings: AppSettings,
     onSongClick: (Song) -> Unit,
-    selectedSongId: String? = null,
     modifier: Modifier = Modifier,
-    onListHead: ((loaded: Boolean, firstId: String?) -> Unit)? = null,
 ) {
     val api = container.api
     val songsViewModel: SongsViewModel = viewModel {
@@ -57,12 +49,6 @@ fun SongsRoute(
         )
     }
     LaunchedEffect(settings.hideShop) { if (!settings.hideShop) container.shop.ensureStarted() }
-    if (onListHead != null) {
-        val state by songsViewModel.uiState.collectAsStateWithLifecycle()
-        val loaded = state.catalog !is LoadState.Loading
-        val first = state.rows.firstOrNull()?.song?.songId
-        LaunchedEffect(loaded, first) { onListHead(loaded, first) }
-    }
     val scope = rememberCoroutineScope()
     val shell = LocalShellActions.current
     SongsScreen(
@@ -80,7 +66,6 @@ fun SongsRoute(
         },
         onClearFilters = { scope.launch { container.songsPreferences.clearFilters() } },
         onSongClick = onSongClick,
-        selectedSongId = selectedSongId,
         visibleInstruments = settings.visibleInstruments,
         onOpenSettings = { shell.navigate(SettingsTab) },
         modifier = modifier,
