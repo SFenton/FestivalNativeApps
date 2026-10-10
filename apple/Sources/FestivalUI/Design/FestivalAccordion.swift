@@ -286,7 +286,7 @@ struct FestivalAccordionContent<Value: Equatable, Content: View>: View {
         if let shown = state.shown {
             content(shown)
                 .opacity(state.showsContent ? 1 : 0)
-                .accessibilityHidden(!state.showsContent)
+                .accessibilityHidden(while: !state.showsContent)
         }
     }
 }
