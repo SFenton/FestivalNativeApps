@@ -642,7 +642,7 @@ final class SongsChromeJourneyTests: XCTestCase {
         var failures: [String] = []
         var unattributedClipped = 0
         var unattributedContrast: [String] = []
-        try performAuditRetryingTimeout(app, .all, name: name, reset: {
+        try SongsUITestSupport.performAuditRetryingTimeout(app, .all, name: name, reset: {
             page = nil
             accepted = []
             failures = []
@@ -725,7 +725,7 @@ final class SongsChromeJourneyTests: XCTestCase {
     @MainActor
     private func ax5Clipping(_ app: XCUIApplication) throws -> [String] {
         var clipped: [String] = []
-        try performAuditRetryingTimeout(app, .textClipped, name: "ax5 clipping", reset: { clipped = [] }) { issue in
+        try SongsUITestSupport.performAuditRetryingTimeout(app, .textClipped, name: "ax5 clipping", reset: { clipped = [] }) { issue in
             if issue.element?.elementType != .searchField {
                 clipped.append(issue.element.map { "\($0.elementType.rawValue) '\($0.label)'" } ?? "no element")
             }
@@ -733,35 +733,6 @@ final class SongsChromeJourneyTests: XCTestCase {
         }
         XCTContext.runActivity(named: "AX5 clipping: \(clipped)") { _ in }
         return clipped
-    }
-
-    /// Run an accessibility audit, once more when it does not complete in time: the CI
-    /// runner's virtual machine sometimes exceeds XCTest's audit deadline on this long
-    /// list (`com.apple.xcode.xctest.accessibilityAudit` -56, #388).
-    ///
-    /// - Parameters:
-    ///   - app: The app to audit.
-    ///   - types: The audit types.
-    ///   - name: Names the retry activity.
-    ///   - reset: Clears what the handler collected before the retry.
-    ///   - handler: The issue handler.
-    /// - Throws: The second timeout or any other audit error.
-    @MainActor
-    private func performAuditRetryingTimeout(
-        _ app: XCUIApplication,
-        _ types: XCUIAccessibilityAuditType,
-        name: String,
-        reset: () -> Void,
-        _ handler: @escaping (XCUIAccessibilityAuditIssue) throws -> Bool
-    ) throws {
-        do {
-            try app.performAccessibilityAudit(for: types, handler)
-        } catch let error as NSError
-            where error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == -56 {
-            XCTContext.runActivity(named: "Audit \(name) did not complete in time; retrying once") { _ in }
-            reset()
-            try app.performAccessibilityAudit(for: types, handler)
-        }
     }
 
     /// The static texts between the top ramp and the bottom chrome that do not render

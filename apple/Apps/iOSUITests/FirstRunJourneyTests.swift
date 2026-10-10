@@ -450,8 +450,9 @@ final class FirstRunJourneyTests: XCTestCase {
         XCTAssertTrue(close.isHittable, "Close is reachable at AX5")
 
         var issues: [String] = []
-        try app.performAccessibilityAudit(
-            for: [.textClipped, .hitRegion, .sufficientElementDescription, .elementDetection]
+        try SongsUITestSupport.performAuditRetryingTimeout(
+            app, [.textClipped, .hitRegion, .sufficientElementDescription, .elementDetection],
+            name: "\(title) guide bar", reset: { issues = [] }
         ) { issue in
             guard let element = issue.element else { return true }
             let frame = element.frame
