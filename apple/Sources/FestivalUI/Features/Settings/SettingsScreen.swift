@@ -10,7 +10,7 @@ struct SettingsScreen: View {
     @AppStorage("fst.settings.pathDefaultView") private var pathDefaultView = PathDisplayMode.image
     @AppStorage("fst.settings.pathUnavailableWarningDismissed")
     private var pathWarningDismissed = false
-    @AppStorage("fst.settings.experimentalRanks") private var experimentalRanks = false
+    @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
     @AppStorage("fst.settings.hideShop") private var hideShop = false
     @AppStorage("fst.settings.disableShopHighlighting") private var disableShopHighlighting = false
 
@@ -523,15 +523,21 @@ struct SettingsScreen: View {
         }
     }
 
+    /// Settings › Experimental Ranks (web `SettingsPage` "Enable Experimental Leaderboard
+    /// Ranks", off by default; pattern `experimental-ranks`). Every Rank By, View › Rank
+    /// By, Band Detail and Notifications read the same stored value.
     private var experimentalRanksRow: some View {
         Toggle(isOn: $experimentalRanks) {
             SettingLabel(
-                "Experimental Ranks",
-                detail: "More ranking mechanisms for Leaderboards. Not yet available."
+                "Enable Experimental Leaderboard Ranks",
+                detail: "Enable this to see more ranking mechanisms in the Leaderboards page."
             )
         }
-        .disabled(true)
-        .accessibilityHint("Experimental ranks are not yet available")
+        .accessibilityHint(
+            "Adds Adjusted, Weighted, FC Rate and Max Score to Rank By on Leaderboards, "
+                + "Rivals and Bands"
+        )
+        .accessibilityIdentifier("fst.settings.experimental-ranks")
     }
 
     /// The Report an Issue and Request a Feature rows (issue #78).
@@ -992,7 +998,7 @@ struct SettingsScreen: View {
         leeway = 1
         pathDefaultView = .image
         pathWarningDismissed = false
-        experimentalRanks = false
+        experimentalRanks = ExperimentalRanks.defaultValue
         hideShop = false
         disableShopHighlighting = false
         showLead = true

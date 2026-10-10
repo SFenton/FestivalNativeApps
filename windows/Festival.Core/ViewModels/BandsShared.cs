@@ -46,6 +46,17 @@ public sealed partial class BandsPagerViewModel : ObservableObject, IBoardPager
     /// <summary>Whether paging is worth showing (more than one page).</summary>
     public bool IsVisible => PageCount > 1;
 
+    /// <summary>
+    /// Returns to page one and forgets the page count when a switch (band size, group) starts loading a different board:
+    /// the pager hides until that board's real count commits, never showing "1 / &lt;old count&gt;" (load-transition R4,
+    /// issue #575). Page-only reloads don't call this.
+    /// </summary>
+    public void Reset()
+    {
+        PageCount = 1;
+        Page = 1;
+    }
+
     /// <summary>Goes to page one.</summary>
     /// <returns>Load task.</returns>
     [RelayCommand(CanExecute = nameof(CanGoBack), AllowConcurrentExecutions = true)]

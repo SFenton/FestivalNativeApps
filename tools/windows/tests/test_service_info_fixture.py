@@ -240,6 +240,13 @@ class PagesTests(unittest.TestCase):
         self.assertIn("waitfor:raw=fst.settings.service-info.spinner", steps[:scan])
         self.assertEqual(steps[scan + 1], "assertname:id=fst.settings.service-info.process@0|Loading",
                          "the scan finished while the card was still Loading")
+        # Issue #552: the Loading scan took 18.2 s at 225% text on a hosted runner, so the hold leaves room for it,
+        # and the Idle wait after the scan covers the rest of the hold.
+        self.assertGreaterEqual(f.LOADING_DELAY_SECONDS, 25.0, "the hold outlasts a slow runner's large-text scan")
+        idle = next(s for s in steps[scan:] if s.startswith("assertname:id=fst.settings.service-info.state@"))
+        wait = float(idle.split("@", 1)[1].split("|", 1)[0])
+        self.assertGreaterEqual(wait, f.LOADING_DELAY_SECONDS, "the Idle wait covers the remaining hold")
+        self.assertLessEqual(timeout_ms, 60000, "the hook accepts at most 60000 ms")
 
     def test_stacked_page_runs_only_at_large_text(self):
         pages = json.loads(PAGES.read_text(encoding="utf-8"))

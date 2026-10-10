@@ -131,6 +131,22 @@ class SongHeaderEdgeFadeTest {
         assertEquals(listOf(header(9, "header:b", 0)), SongHeaderEdgeFade.headersOverEdge(listOf(header(9, "header:b", 0), header(21, "header:c", 40)), 0, 40f, 0f))
     }
 
+    /** Issue #417: rows wholly in the cut leave TalkBack; any row reaching below the cut stays. */
+    @Test
+    fun cutRowsAreTheRowsEndingAtOrAboveTheCut() {
+        val pinned = header(1, "header:a", 0)
+        val gone = row(2, -60)
+        val atCut = row(3, -40)
+        val crossing = row(4, -39)
+        val inRamp = row(5, 45)
+        val items = listOf(pinned, gone, atCut, crossing, inRamp)
+        assertEquals(listOf(gone, atCut), SongHeaderEdgeFade.cutRows(items, 0, 40f))
+        // The viewport start offset shifts every item alike; headers are never cut rows.
+        val shifted = items.map { it.copy(offset = it.offset + 16) }
+        assertEquals(shifted.subList(1, 3), SongHeaderEdgeFade.cutRows(shifted, 16, 40f))
+        assertEquals(emptyList<EdgeFadeItem>(), SongHeaderEdgeFade.cutRows(listOf(header(1, "header:a", -30)), 0, 40f))
+    }
+
     /** R5 (#462): the pinned header is the one TalkBack reads before the rows beneath it. */
     @Test
     fun pinnedHeaderIsTheOneAtTheTopEdge() {
