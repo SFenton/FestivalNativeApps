@@ -27,6 +27,10 @@ SLOW_ACCOUNT_SEARCH_SECONDS = 4
 # see the reload spinner under a kept song header, and the last page fails with 500.
 SONG_LEADERBOARD_PAGING_ENTRIES = 100
 SLOW_SONG_LEADERBOARD_PAGE_SECONDS = 3
+# Longest `/__fixture__/hold-paths` hold (issue #430): a held Paths read is answered when
+# the test releases it or this many seconds after the hold began, so a test that dies
+# mid-hold never leaves the listener stalling path reads.
+PATH_HOLD_LIMIT_SECONDS = 60
 
 
 def load_fixture(name: str) -> tuple[dict, str]:
@@ -744,6 +748,9 @@ class FixtureServer(ThreadingHTTPServer):
             "shop": None, "player": None, "failedSongs": None,
         }
         self._lock = threading.Lock()
+        self._path_hold = threading.Condition(self._lock)
+        self._path_hold_until = 0.0
+        self._path_hold_waiting = 0
         super().__init__(address, handler)
 
     @property
@@ -778,6 +785,46 @@ class FixtureServer(ThreadingHTTPServer):
                 return False
             self._publication_id = 8
             return True
+
+    def hold_paths(self, seconds: int) -> dict:
+        """Hold every Paths artifact read for up to `seconds`, or release them with 0.
+
+        Args:
+            seconds: Hold length, 0 to ``PATH_HOLD_LIMIT_SECONDS``; 0 answers held reads now.
+
+        Returns:
+            The hold's status (see ``path_hold_status``).
+        """
+        with self._path_hold:
+            self._path_hold_until = time.monotonic() + seconds if seconds else 0.0
+            self._path_hold.notify_all()
+            return self._path_hold_status_locked()
+
+    def path_hold_status(self) -> dict:
+        """Return whether Paths reads are held and how many are waiting.
+
+        Returns:
+            ``{"held": bool, "waiting": int}``.
+        """
+        with self._path_hold:
+            return self._path_hold_status_locked()
+
+    def _path_hold_status_locked(self) -> dict:
+        """Status body; the caller holds the lock."""
+        return {
+            "held": time.monotonic() < self._path_hold_until,
+            "waiting": self._path_hold_waiting,
+        }
+
+    def wait_for_path_release(self) -> None:
+        """Block one Paths read while a hold lasts (returns at once without one)."""
+        with self._path_hold:
+            self._path_hold_waiting += 1
+            try:
+                while (remaining := self._path_hold_until - time.monotonic()) > 0:
+                    self._path_hold.wait(timeout=remaining)
+            finally:
+                self._path_hold_waiting -= 1
 
     def record_score_query(self, top: int, offset: int, leeway: float | None) -> None:
         """Retain only validated synthetic query numbers, never account identifiers.
@@ -1093,6 +1140,17 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 self._json(404, {"status": "not_found"})
             else:
                 self._json(200, self.fixture.publication_join_reads())
+        elif path == "/__fixture__/hold-paths":
+            # Holds Paths reads so a UI test can inspect the switch spinner (issue #430).
+            seconds = query.get("seconds", [])
+            if set(query) - {"seconds"} or len(seconds) > 1:
+                self._json(400, {"status": "invalid_fixture_query"})
+            elif not seconds:
+                self._json(200, self.fixture.path_hold_status())
+            elif not seconds[0].isdigit() or int(seconds[0]) > PATH_HOLD_LIMIT_SECONDS:
+                self._json(400, {"status": "invalid_fixture_query"})
+            else:
+                self._json(200, self.fixture.hold_paths(int(seconds[0])))
         elif path == "/__fixture__/last-score-query":
             self._json(200, {"last": self.fixture.last_score_query()})
         elif path == "/__fixture__/last-full-score-query":
@@ -1780,6 +1838,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
             if difficulty not in ("easy", "medium", "hard", "expert"):
                 self._json(400, {"status": "invalid_path_difficulty"})
                 return
+            self.fixture.wait_for_path_release()
             if (song_id != "fixture-pulse"
                     or query.get("generationId", ["fixture-path-generation"])[0]
                         != "fixture-path-generation"
