@@ -305,7 +305,7 @@ private func selectedFixtureSong() throws -> (song: Song, season: Int) {
         let summary = SongProfileSummary(
             player: player, chart: .lead, chartAvailable: true,
             score: state == .available ? score : nil, state: state,
-            visibility: SongMetadataVisibility(), filterInvalidScores: false,
+            visibility: SongMetadataVisibility(),
             songId: "fixture-pulse"
         )
         let rendered = ImageRenderer(content: summary.frame(width: 390, height: 110))

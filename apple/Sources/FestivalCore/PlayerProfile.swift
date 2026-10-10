@@ -109,6 +109,11 @@ public struct PlayerScore: Decodable, Equatable, Sendable {
     public let validScore: Int?
     public let validAccuracy: Double?
     public let validIsFullCombo: Bool?
+    /// Legacy fallback rank, stars and population (web `validRank`, `validStars`,
+    /// `validTotalEntries`), read only where no `minLeeway` was precomputed.
+    public let validRank: Int?
+    public let validStars: Int?
+    public let validTotalEntries: Int?
     public let minLeeway: Double?
     public let validScores: [PlayerValidScoreVariant]?
     public let endTime: String?
@@ -120,6 +125,7 @@ public struct PlayerScore: Decodable, Equatable, Sendable {
         case isFullCombo = "fc", stars = "st", season = "sn", difficulty = "dif"
         case percentile = "pct", rank = "rk", totalEntries = "te"
         case isValid, validScore, validAccuracy, validIsFullCombo
+        case validRank, validStars, validTotalEntries
         case minLeeway = "ml", validScores = "vs", endTime = "et"
         case lastPlayedAt = "lp", validLastPlayedAt = "vlp"
     }
@@ -150,6 +156,9 @@ public struct PlayerScore: Decodable, Equatable, Sendable {
         validAccuracy = try fields.decodeIfPresent(Double.self, forKey: .validAccuracy)
             .map { $0 * 1_000 }
         validIsFullCombo = try fields.decodeIfPresent(Bool.self, forKey: .validIsFullCombo)
+        validRank = try fields.decodeIfPresent(Int.self, forKey: .validRank)
+        validStars = try fields.decodeIfPresent(Int.self, forKey: .validStars)
+        validTotalEntries = try fields.decodeIfPresent(Int.self, forKey: .validTotalEntries)
         minLeeway = try fields.decodeIfPresent(Double.self, forKey: .minLeeway)
         validScores = try fields.decodeIfPresent(
             [PlayerValidScoreVariant].self, forKey: .validScores
@@ -159,6 +168,48 @@ public struct PlayerScore: Decodable, Equatable, Sendable {
         validLastPlayedAt = try fields.decodeIfPresent(
             String.self, forKey: .validLastPlayedAt
         )
+    }
+
+    /// The same score with a valid fallback's values in place of the raw ones (web
+    /// `{ ...s, score, accuracy, isFullCombo, stars, rank, totalEntries }`). Every
+    /// other field (season, difficulty, dates, fallbacks) is kept; the published
+    /// percentile is dropped because it described the raw score.
+    ///
+    /// - Parameters:
+    ///   - base: The raw published score.
+    ///   - score: The fallback score.
+    ///   - accuracy: The fallback accuracy (already scaled), or the raw one.
+    ///   - isFullCombo: The fallback full-combo flag, or the raw one.
+    ///   - stars: The fallback stars, or the raw ones.
+    ///   - rank: The filtered rank.
+    ///   - totalEntries: The filtered population.
+    init(
+        substituting base: PlayerScore, score: Int, accuracy: Double?, isFullCombo: Bool?,
+        stars: Int?, rank: Int?, totalEntries: Int?
+    ) {
+        songId = base.songId
+        instrument = base.instrument
+        self.score = score
+        self.accuracy = accuracy
+        self.isFullCombo = isFullCombo
+        self.stars = stars
+        season = base.season
+        difficulty = base.difficulty
+        percentile = nil
+        self.rank = rank
+        self.totalEntries = totalEntries
+        isValid = base.isValid
+        validScore = base.validScore
+        validAccuracy = base.validAccuracy
+        validIsFullCombo = base.validIsFullCombo
+        validRank = base.validRank
+        validStars = base.validStars
+        validTotalEntries = base.validTotalEntries
+        minLeeway = base.minLeeway
+        validScores = base.validScores
+        endTime = base.endTime
+        lastPlayedAt = base.lastPlayedAt
+        validLastPlayedAt = base.validLastPlayedAt
     }
 
     /// Reject corrupt score data before constructing Songs card indexes.
@@ -173,6 +224,9 @@ public struct PlayerScore: Decodable, Equatable, Sendable {
               stars.map({ (0...6).contains($0) }) ?? true,
               season.map({ $0 >= 0 }) ?? true,
               validScore.map({ $0 >= 0 && $0 <= Int(Int32.max) }) ?? true,
+              validRank.map({ $0 >= 0 }) ?? true,
+              validStars.map({ (0...6).contains($0) }) ?? true,
+              validTotalEntries.map({ $0 >= 0 }) ?? true,
               accuracy.map({ $0.isFinite && (0...1_000_000).contains($0) }) ?? true,
               validAccuracy.map({ $0.isFinite && (0...1_000_000).contains($0) }) ?? true,
               difficulty.map({ $0.isFinite && $0 >= 0 }) ?? true,

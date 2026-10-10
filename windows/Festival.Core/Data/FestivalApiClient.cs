@@ -7,7 +7,8 @@ namespace Festival.Core.Data;
 #region Client
 /// <summary>
 /// Publication-aware, read-only client for the public service. Online-only: the in-process
-/// ETag cache only speeds up conditional GETs within one publication and is cleared when it changes.
+/// ETag cache only speeds up conditional GETs within one publication (and keeps those bodies showing through a
+/// scrape-lifecycle freeze miss, issue #554) and is cleared when it changes.
 /// </summary>
 public sealed partial class FestivalApiClient
 {
@@ -181,7 +182,9 @@ public sealed partial class FestivalApiClient
     #region Pinned read
     /// <summary>
     /// Reads a publication-bound resource: optional pin header, ETag reuse only within the same
-    /// publication, one retry after a <c>publication_changed</c> 409, and response-publication checks.
+    /// publication, one retry after a <c>publication_changed</c> 409, and response-publication checks. A 503 during
+    /// the scrape → publish lifecycle returns this publication's already-verified body when there is one, like the
+    /// service's own published-cache reads; without one it throws so the page shows "Scores are updating".
     /// </summary>
     /// <param name="url">Allowlisted URL.</param>
     /// <param name="maxBytes">Largest accepted body.</param>
@@ -221,6 +224,10 @@ public sealed partial class FestivalApiClient
             response = await SendPinnedAsync(url, publication, null, maxBytes, cancellationToken).ConfigureAwait(false);
             responseId = ParsePublication(response.Header(PublicationHeader));
         }
+
+        if (IsScoreUpdateFreeze(response) && cached is not null && current?.PublicationId == publication.PublicationId
+            && (responseId is null || responseId == publication.PublicationId))
+            return new PinnedRead(cached.Body, 200, publication.PublicationId, publication.PublicationId);
 
         if (RequestGate.MapStatus(response, acceptsSyncing) == GateStatus.Syncing)
             return new PinnedRead(response.Body, 202, responseId, publication.PublicationId);
@@ -283,6 +290,17 @@ public sealed partial class FestivalApiClient
         }
     }
 
+    /// <summary>
+    /// Whether a response is the service's scrape-lifecycle freeze miss (503 stamped with a score-update
+    /// <see cref="ServiceFreezeReason"/>). The service then still serves its last published generation, so a body this
+    /// client verified for the same publication is that data (issue #554); an unstamped 503 or any other freeze reason
+    /// stays an outage.
+    /// </summary>
+    /// <param name="response">Raw response.</param>
+    /// <returns><see langword="true"/> for a 503 during scrape, post-process, publish or publication commit.</returns>
+    private static bool IsScoreUpdateFreeze(GateResponse response) =>
+        response.Status == 503 && ServiceFreezeReason.IsScoreUpdate(response.Header(ServiceFreezeReason.Header));
+
     /// <summary>Parses a positive publication header.</summary>
     /// <param name="value">Header value.</param>
     /// <returns>ID, or <see langword="null"/>.</returns>
@@ -319,7 +337,7 @@ internal sealed record PinnedRead(byte[] Body, int Status, long? PublicationId, 
 #endregion
 
 #region Response cache
-/// <summary>Bounded in-process LRU of publication-scoped response bodies for ETag reuse.</summary>
+/// <summary>Bounded in-process LRU of publication-scoped response bodies for ETag reuse and scrape-freeze misses.</summary>
 /// <param name="maxEntries">Entry limit.</param>
 /// <param name="maxBytes">Total body byte limit.</param>
 public sealed class ResponseCache(int maxEntries = 48, long maxBytes = 64_000_000)

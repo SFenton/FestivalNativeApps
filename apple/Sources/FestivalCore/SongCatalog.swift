@@ -90,6 +90,9 @@ public struct Song: Decodable, Sendable, Identifiable, Equatable, Hashable {
     /// Whether Pro Drums has a double bass chart; nil when the service has not
     /// classified the song (matches neither General Double Bass category).
     public let doubleBassSupported: Bool?
+    /// Per-chart filtered population curves (web `populationTiers`), for a valid
+    /// fallback score's total at the Settings leeway; nil when the service omits it.
+    public var populationTiers: SongPopulationTierTable? = nil
 
     public var id: String { songId }
 
