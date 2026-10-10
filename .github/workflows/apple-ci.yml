@@ -94,6 +94,7 @@ jobs:
             SongBarCaptionIconJourneyTests/testSongLeaderboardCaptionIconScalesWithText
             SongBarCaptionIconJourneyTests/testPlayerHistoryCaptionIconAtLargestText
             FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert
+            FeedbackSentJourneyTests/testFiledRequestClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testRefusedOrFailedReportKeepsForm
         run: |
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service.log" 2>&1 &
@@ -113,6 +114,9 @@ jobs:
           JOURNEYS: >-
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Landscape
+            FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert
+            FeedbackSentJourneyTests/testFiledRequestClosesFormThenShowsSentAlert
+            FeedbackSentJourneyTests/testRefusedOrFailedReportKeepsForm
         run: |
           python3 tools/ios_sim.py shutdown --device "$(python3 tools/ios_sim.py ci-device)"
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service_ipad.log" 2>&1 &
