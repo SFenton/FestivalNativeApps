@@ -107,6 +107,7 @@ jobs:
           only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
           python3 tools/ios_sim.py uitest --device "$device" --fail-on-skip --timeout 1800 "${only[@]}"
       - name: Score History journeys, iPhone and iPad (serialized, plain loopback fixture)
+        if: github.event_name == 'workflow_dispatch'  # full CI: release branches (release machine)
         # #385, the region #302 changed: on device at AX5 the rows draw score and accuracy whole on one line, the
         # glyphs grow, the heading reads first, and in the iPad trailing pane focus moves to its heading
         # (testing/apple/accessibility.md#score-history-at-ax5). iPad UI-test bundle (`--app ipad`) on the iPhone and
