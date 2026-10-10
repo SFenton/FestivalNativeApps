@@ -308,6 +308,78 @@ final class RivalsJourneyTests: XCTestCase {
         return height
     }
 
+    /// Beside the iPhone Duo vertical bar (folded outer display and inner landscape),
+    /// iOS 27 minimizes the top bar on scroll, so All Rivals never pins its custom title
+    /// there: the system title is in the bar at the top, no custom copy appears after the
+    /// in-list title scrolls away, and on a real Duo (whose bar minimizes, title and all)
+    /// the system title returns at the top (page-tools-and-nav-chrome R14, #557). The app simulates each Duo
+    /// window through the Debug `FST_DEBUG_DUO_WINDOW` switch (`DebugDuoWindow`: size
+    /// classes and vertical bar), so this runs on any iPhone simulator, the Duo included.
+    /// At AX5 the fixture's six rivals overflow the screen, so the title can scroll away.
+    @MainActor
+    func testAllRivalsDuoVerticalBarKeepsSystemTitle() throws {
+        continueAfterFailure = false
+        for window in ["folded", "unfolded-landscape"] {
+            let app = fixtureApp()
+            app.launchEnvironment["FST_DEBUG_ROUTE"] = "allRivals:song:Solo_Guitar"
+            app.launchEnvironment["FST_DEBUG_DUO_WINDOW_REMOTE"] = "1"
+            app.launchEnvironment["FST_DEBUG_DUO_WINDOW"] = window
+            app.launchArguments += [
+                "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
+            ]
+            app.launch()
+            defer { app.terminate() }
+            let readout = app.staticTexts["fst.shell.debug.duo-window"]
+            let simulated = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "label BEGINSWITH %@ AND label CONTAINS %@",
+                                       "\(window) ", "chrome=verticalBar"),
+                object: readout
+            )
+            XCTAssertEqual(XCTWaiter().wait(for: [simulated], timeout: FestivalApp.budget(15)), .completed,
+                           "\(window): the app never simulated the vertical bar (\(readout.label))")
+            let title = app.descendants(matching: .any)["fst.all-rivals.title"]
+            XCTAssertTrue(title.waitForExistence(timeout: FestivalApp.budget(15)), "\(window): no in-list title")
+            let pinned = app.descendants(matching: .any)["fst.all-rivals.pinned-title"]
+            let systemTitle = app.navigationBars.staticTexts
+                .matching(NSPredicate(format: "label == %@", "Lead Rivals")).firstMatch
+            XCTAssertTrue(systemTitle.waitForExistence(timeout: FestivalApp.budget(10)),
+                          "\(window): the system title is in the bar at the top")
+            XCTAssertFalse(pinned.exists, "\(window): no custom pinned title at the top")
+
+            let bar = app.navigationBars.firstMatch
+            for _ in 0..<4 where title.exists && title.frame.maxY > bar.frame.maxY {
+                app.swipeUp()
+            }
+            XCTAssertTrue(!title.exists || title.frame.maxY <= bar.frame.maxY + 1,
+                          "\(window): the in-list title never scrolled under the bar (\(title.frame))")
+            // Give the pinned-title animation time to run before asserting it never came.
+            XCTAssertFalse(pinned.waitForExistence(timeout: FestivalApp.budget(2)),
+                           "\(window): the custom pinned title replaced the system title after scrolling")
+            let shot = XCTAttachment(screenshot: app.screenshot())
+            shot.name = "all-rivals-duo-\(window)-scrolled"
+            shot.lifetime = .keepAlways
+            add(shot)
+            if Self.isRealDuoWindow(app.windows.firstMatch.frame.size) {
+                // A real Duo vertical bar minimizes the top bar, system title included,
+                // on scroll; it must come back, still the system title, at the top.
+                for _ in 0..<4 where !systemTitle.exists { app.swipeDown() }
+                XCTAssertTrue(systemTitle.waitForExistence(timeout: FestivalApp.budget(5)),
+                              "\(window): the system title returns at the top")
+                XCTAssertFalse(pinned.exists, "\(window): no custom pinned title back at the top")
+            } else {
+                XCTAssertTrue(systemTitle.exists, "\(window): the system title stays after scrolling")
+            }
+        }
+    }
+
+    /// Whether the real window is one of the iPhone Duo's (outer 466 × 678 or inner
+    /// 951 × 669 pt, either orientation; `DebugDuoWindow.size`), where the system
+    /// vertical bar is real and minimizes the top bar on scroll.
+    private static func isRealDuoWindow(_ size: CGSize) -> Bool {
+        let sides = [min(size.width, size.height).rounded(), max(size.width, size.height).rounded()]
+        return sides == [466, 678] || sides == [669, 951]
+    }
+
     /// Audit the title region this page owns (#557): the in-list title, the pinned bar
     /// title and anything else named by the title. Other regions (rows, chrome) have their
     /// own journeys; their issues are listed as an activity, not failed here. A contrast

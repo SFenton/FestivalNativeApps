@@ -29,3 +29,12 @@ import Testing
         == nil)
     #expect(AllRivalsScreen.titleInstrument(for: .song(instruments: ["Not_A_Real_Instrument"])) == nil)
 }
+
+/// All Rivals and Full Rankings pin their compact title in the bar except beside the
+/// iPhone Duo vertical bar, which keeps the system title (page-tools-and-nav-chrome R14).
+@Test func allRivalsPinnedTitleSkipsTheDuoVerticalBar() {
+    #expect(InstrumentPageTitleToolbarItem.pinsTitle(in: .tabBar))
+    #expect(InstrumentPageTitleToolbarItem.pinsTitle(in: .sidebar))
+    #expect(!InstrumentPageTitleToolbarItem.pinsTitle(in: .verticalBar(.leading)))
+    #expect(!InstrumentPageTitleToolbarItem.pinsTitle(in: .verticalBar(.trailing)))
+}

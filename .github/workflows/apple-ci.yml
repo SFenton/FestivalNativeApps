@@ -93,6 +93,7 @@ jobs:
             NavButtonHitRegionJourneyTests/testAccountButtonsStaySeparateAndLabelledAtLargestTextSize
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
             RivalsJourneyTests/testAllRivalsTitleLeadsTheListAndPinsAfterScroll
+            RivalsJourneyTests/testAllRivalsDuoVerticalBarKeepsSystemTitle
             SongBarCaptionIconJourneyTests/testSongLeaderboardCaptionIconScalesWithText
             SongBarCaptionIconJourneyTests/testPlayerHistoryCaptionIconAtLargestText
         run: |

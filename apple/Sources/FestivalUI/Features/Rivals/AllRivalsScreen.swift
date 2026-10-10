@@ -129,7 +129,7 @@ struct AllRivalsScreen: View {
             #if os(iOS)
             // The iPhone Duo vertical bar minimizes its top bar on scroll, so a custom
             // title would leave when due; the system title stays there (R14).
-            if !layout.sectionChrome.isVerticalBar {
+            if InstrumentPageTitleToolbarItem.pinsTitle(in: layout.sectionChrome) {
                 InstrumentPageTitleToolbarItem(
                     instrument: Self.titleInstrument(for: scope), title: title,
                     isShown: showsPinnedTitle, identifier: "fst.all-rivals.pinned-title"
