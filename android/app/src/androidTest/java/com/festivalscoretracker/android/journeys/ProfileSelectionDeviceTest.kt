@@ -74,7 +74,7 @@ class ProfileSelectionDeviceTest {
         h.readingOrder("player-viewed")
         h.assertNothingStraddles("fst.player.identity")
         h.tap("fst.player.select")
-        h.waitForTag("fst.nav.tab.statistics")
+        h.waitForTag("fst.nav.tab.shop")
 
         // Issue #290: with a profile selected the chip opens it (Statistics), not the sheet.
         h.tap(if (h.exists("fst.nav.profile")) "fst.nav.profile" else "fst.nav.rail.profile")

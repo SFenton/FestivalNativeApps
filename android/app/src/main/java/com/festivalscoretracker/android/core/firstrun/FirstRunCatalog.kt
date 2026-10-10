@@ -10,6 +10,7 @@ import com.festivalscoretracker.android.core.nav.PlayerRoute
 import com.festivalscoretracker.android.core.nav.RivalsRoute
 import com.festivalscoretracker.android.core.nav.RivalsTab
 import com.festivalscoretracker.android.core.nav.ShopRoute
+import com.festivalscoretracker.android.core.nav.ShopTab
 import com.festivalscoretracker.android.core.nav.SongDetailRoute
 import com.festivalscoretracker.android.core.nav.SongsTab
 import com.festivalscoretracker.android.core.nav.StatisticsRoute
@@ -54,7 +55,7 @@ enum class FirstRunPageKey(val key: String, val label: String) {
             LeaderboardsTab, LeaderboardsRoute -> Leaderboards
             CompeteTab, CompeteRoute -> Compete
             RivalsTab, RivalsRoute -> Rivals
-            ShopRoute -> Shop
+            ShopTab, ShopRoute -> Shop
             else -> null
         }
     }

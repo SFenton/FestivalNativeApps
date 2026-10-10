@@ -4,7 +4,7 @@
 
 ## Implemented
 
-- Reached from the drawer (`fst.nav.drawer.shop` → `ShopRoute`, pushed on the current tab).
+- With a profile selected, Item Shop is a tab where Statistics was (owner-approved, #601; [page-tools-and-nav-chrome](../../patterns/page-tools-and-nav-chrome.md) R21): `fst.nav.tab.shop` → `ShopTab`, a root (menu button, no Back). Without a profile it is reached from the drawer (`fst.nav.drawer.shop` → `ShopRoute`, pushed on the current tab; `FST_DEBUG_TAB=shop` follows the same rule). Hide Item Shop removes the tab and the drawer row.
 - `GET /api/shop` through `container.shop` (`ShopStore`): loaded once on first use (Shop page, Songs or Song Detail) and re-read when a newer publication is observed. The catalogue loads best-effort for in-app Details links.
 - Offers in the saved **Sort** order (title ascending by default) with a gold 2 dp border for **New** and a red border plus a **Leaving Tomorrow** (white on red) text badge; no visible New label (issue #562, as the web list and grid); highlighting off removes badges and borders but keeps the links.
 - Grid cards are the web `ShopCard` (6.9): square artwork filling the card, title/artist on a bottom scrim, a **Leaving Tomorrow** pill top-right, red/gold outline pulse. Tap opens the official link (`LocalUriHandler`, validated `https://www.fortnite.com/item-shop/jam-tracks/…` only; the song when there is none); **Song Details** is a long press and a TalkBack custom action. List rows open Details when matched (else the official link) with a trailing cart + chevron.

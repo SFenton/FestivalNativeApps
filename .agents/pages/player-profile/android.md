@@ -27,7 +27,7 @@ Never player-stats: overview/instrument stats and percentile buckets are compute
 
 A failed select (`fst.player.action-error`) also offers Reload, which clears the error and reads again (`PlayerProfileUiState.offersReload`). The page has no pull-to-refresh, so without the button the notice was a dead end.
 
-None of these navigate. Selecting adds the profile tabs in place; deselecting (drawer) on the Statistics tab removes that tab, so the shell falls back to Songs (as on Windows).
+None of these navigate. Selecting adds the profile tabs in place; deselecting (drawer) on Statistics redirects it to Songs (`ProfileRoutePolicy`, as on Windows).
 
 ## Layout
 

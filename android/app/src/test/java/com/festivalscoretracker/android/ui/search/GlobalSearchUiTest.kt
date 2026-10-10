@@ -248,7 +248,9 @@ class GlobalSearchUiTest {
         rule.onNodeWithTag(GlobalSearchTags.RESULT_PLAYER).performClick()
         h.waitForGone(GlobalSearchTags.SURFACE)
         h.waitForTag("fst.statistics")
-        rule.onNodeWithTag("fst.nav.tab.statistics").assertIsSelected()
+        // #601: Statistics is pushed on the current tab (it is no longer a tab).
+        rule.onNodeWithTag("fst.nav.back").assertIsDisplayed()
+        rule.onNodeWithTag("fst.nav.tab.songs").assertIsSelected()
     }
 
     @Test

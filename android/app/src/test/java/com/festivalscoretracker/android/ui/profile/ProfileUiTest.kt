@@ -104,22 +104,22 @@ class ProfileUiTest {
         // Selection state shows only through the header action (no "Public Profile" line, as on the web).
         assertEquals(0, rule.onAllNodesWithText("Public Profile").fetchSemanticsNodes().size)
         rule.onNodeWithTag("fst.player.select").assertIsDisplayed()
-        assertEquals(0, rule.onAllNodesWithTag("fst.nav.tab.statistics").fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag("fst.nav.tab.shop").fetchSemanticsNodes().size)
         rule.onNodeWithTag("fst.player.available").performScrollToNode(hasTestTag("fst.player.tile.Solo_Guitar.global-rank"))
         waitForTag("fst.player.rank-history.Solo_Guitar")
         rule.onNodeWithTag("fst.player.available").performScrollToNode(hasTestTag("fst.player.percentiles.Solo_Guitar"))
         rule.onNodeWithTag("fst.player.available").performScrollToNode(hasTestTag("fst.player.instrument-empty.Solo_Drums"))
 
-        // Select stays on the page and adds the profile tabs.
+        // Select stays on the page and adds the profile tabs (Item Shop among them, #601).
         rule.onNodeWithTag("fst.player.available").performScrollToNode(hasTestTag("fst.player.select"))
         tap("fst.player.select")
         waitGone("fst.player.select")
-        waitForTag("fst.nav.tab.statistics")
+        waitForTag("fst.nav.tab.shop")
         assertEquals(0, rule.onAllNodesWithText("This Is Me").fetchSemanticsNodes().size)
         assertEquals(1, transport.sent("/api/player/${Fixtures.ACCOUNT_A}").size)
 
-        // Statistics shows the same selected profile without another read.
-        tap("fst.nav.tab.statistics")
+        // Statistics (the chip, #601) shows the same selected profile without another read.
+        tap("fst.nav.profile")
         waitForTag("fst.statistics")
         waitForTag("fst.player.overview")
         // Operator 7.12: Deselect lives in the drawer (web sidebar), not on the page.
@@ -134,9 +134,9 @@ class ProfileUiTest {
         assertEquals(0, rule.onAllNodesWithTag("fst.profile.sheet").fetchSemanticsNodes().size)
         assertEquals(1, transport.sent("/api/player/${Fixtures.ACCOUNT_A}").size)
 
-        // Deselecting (from the drawer) removes the Statistics tab.
+        // Deselecting (from the drawer) removes the profile tabs and leaves Statistics for Songs.
         runBlocking { container.settings.setSelectedPlayer(null) }
-        waitGone("fst.nav.tab.statistics")
+        waitGone("fst.nav.tab.shop")
         transport.requests.forEach { request ->
             RequestGate.validateKeyless(request)
             assertTrue(request.headers.keys.none { it.lowercase().startsWith("x-fst-selected") })
@@ -173,7 +173,7 @@ class ProfileUiTest {
         assertEquals(0, transport.requests.count { it.url.contains("/api/bands") })
         tap("fst.profile.deselect")
         tap("fst.profile.deselect-confirm.ok")
-        waitGone("fst.nav.tab.statistics")
+        waitGone("fst.nav.tab.shop")
         // Without a profile the chip opens profile search again.
         tap("fst.profile.close")
         waitGone("fst.profile.sheet")
@@ -186,7 +186,7 @@ class ProfileUiTest {
     fun selectionPersistsAcrossColdStart() {
         launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
         tap("fst.player.select")
-        waitForTag("fst.nav.tab.statistics")
+        waitForTag("fst.nav.tab.shop")
         // A new container over the same preferences is a cold start.
         val container = AppContainer(rule.activity, OkHttpClient(), DebugLaunch(stillBackground = true), transport = transport, settingsStore = store)
         assertEquals(Fixtures.ACCOUNT_A, runBlocking { container.settings.settings.first() }.selectedPlayer?.accountId)
@@ -214,7 +214,7 @@ class ProfileUiTest {
         rule.onNodeWithText("Score history is only available for registered users.").assertIsDisplayed()
         rule.onNodeWithTag("fst.nav.back").performClick()
         settle()
-        tap("fst.nav.tab.statistics")
+        tap("fst.nav.profile")
         waitForTag("fst.player.syncing")
         tap("fst.player.retry")
         waitForTag("fst.player.syncing")
@@ -241,8 +241,8 @@ class ProfileExpandedUiTest {
         rule.setContent { FestivalApp(container, debug) }
         fun settle() = repeat(4) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100)); rule.waitForIdle() }
         fun waitForTag(tag: String) = rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty() }
-        waitForTag("fst.nav.tab.statistics")
-        rule.onNodeWithTag("fst.nav.tab.statistics").performClick()
+        waitForTag("fst.nav.tab.shop")
+        rule.onNodeWithTag("fst.nav.profile").performClick()
         waitForTag("fst.player.overview")
         waitForTag("fst.player.global-rank.Solo_Guitar.error")
         // Unranked keeps the rank tile (an em dash) so the grid keeps its shape.
