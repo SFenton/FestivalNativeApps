@@ -151,6 +151,7 @@ public sealed class StaggerArm
     private int rushLimit;
     private TimeSpan? expectedAt;
     private int expectation;
+    private readonly Dictionary<int, TimeSpan> fadeStarts = new();
 
     /// <summary>Creates a closed arm.</summary>
     /// <param name="window">How long an arm stays open without scrolling (default <see cref="FadeInTiming.ArmWindow"/>;
@@ -182,7 +183,12 @@ public sealed class StaggerArm
     /// <param name="now">Monotonic time.</param>
     public void Arm(int batchStart, TimeSpan now)
     {
-        var open = IsOpen(now);
+        // Only a window still revealing rows takes a new batch in. A load a scroll already rushed has ended even while
+        // its rush runs, so a batch armed then starts at its own first row, not the load's 0 (issue #532).
+        // An open batch takes the next one in only until its first card has faded: after that the next batch is new
+        // content of its own, staggering from its own first row rather than beyond the visible count of the first.
+        var open = armed && !closed && (closesOnScroll ? IsRunning(now) : Within(now) && !FadedFrom(BatchStart));
+        var rushing = IsRushing(now);
         // What a purely time-based window (no scroll close or rush) would stagger from: kept only to trace R5's suppressions.
         timeOnlyStart = armed && Within(now) ? Math.Min(timeOnlyStart, batchStart) : batchStart;
         // Batches appended back to back form one reveal (FadeInTiming.MergeBatchStart within this arm's window).
@@ -199,10 +205,22 @@ public sealed class StaggerArm
             appendedStart = null;
             anchor = null;
             entranceEnd = now;
-            rushUntil = null;
-            rushLimit = 0;
+            if (appended && rushing)
+            {
+                // The rush keeps starting the load's rows the scroll realizes; the batch itself is never rushed.
+                rushLimit = Math.Min(rushLimit, BatchStart);
+            }
+            else
+            {
+                rushUntil = null;
+                rushLimit = 0;
+            }
             expectedAt = null;
-            if (!appended) HasScrolled = false;
+            if (!appended)
+            {
+                HasScrolled = false;
+                fadeStarts.Clear();
+            }
             Generation++;
         }
         armedAt = now;
@@ -359,8 +377,24 @@ public sealed class StaggerArm
     {
         Scrolled(x, y, now);
         var delay = Planned(index, visible, now);
-        if (delay is { } d && closesOnScroll) Note(now + d);
+        if (delay is { } d)
+        {
+            if (closesOnScroll) Note(now + d);
+            fadeStarts[index] = now + d;
+        }
         return delay;
+    }
+
+    /// <summary>Whether a row at or after <paramref name="start"/> has been given a fade since the last load.</summary>
+    /// <param name="start">First row of the batch.</param>
+    /// <returns><see langword="true"/> once the batch has begun to show.</returns>
+    private bool FadedFrom(int start)
+    {
+        foreach (var index in fadeStarts.Keys)
+        {
+            if (index >= start) return true;
+        }
+        return false;
     }
 
     /// <summary>
@@ -396,7 +430,14 @@ public sealed class StaggerArm
     {
         if (IsRushing(now) && index < rushLimit) return TimeSpan.Zero;
         if (!armed || closed) return null;
-        if (!closesOnScroll) return Within(now) ? FadeInTiming.BatchDelay(index, BatchStart, visible) : null;
+        if (!closesOnScroll)
+        {
+            if (!Within(now)) return null;
+            // Replay guard (issue #532): a batch card recycled and realized again inside the window keeps the fade it
+            // was given, or shows in place once that fade has begun; only cards not shown yet fade.
+            if (fadeStarts.TryGetValue(index, out var start)) return start > now ? start - now : null;
+            return FadeInTiming.BatchDelay(index, BatchStart, visible);
+        }
         if (!IsRunning(now) || index < BatchStart) return null;
         var tail = IsTail(index, visible);
         var delay = !Within(now) ? Late(now)

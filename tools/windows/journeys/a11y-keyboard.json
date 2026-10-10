@@ -440,6 +440,7 @@
   {
     "name": "kb-band-detail-stats",
     "route": "/bands/fixture-band-1?bandType=Band_Duets&teamKey=fixture-team-1",
+    "settings": {"experimentalRanks": true},
     "tabs": 0,
     "ready": [
       "waitfor:id=fst.band.title@20"

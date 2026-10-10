@@ -50,6 +50,7 @@
                     </DropDownButton.Flyout>
                 </DropDownButton>
                 <DropDownButton MinHeight="{StaticResource FSTMinTargetSize}" AutomationProperties.Name="{x:Bind ViewModel.MetricButtonName, Mode=OneWay}"
+                                Visibility="{x:Bind ViewModel.ShowRankBy, Mode=OneWay}"
                                 AutomationProperties.AutomationId="fst.band-rankings.rank-by-menu">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xE8CB;" FontSize="18" />
@@ -62,7 +63,8 @@
             </StackPanel>
         </Grid>
 
-        <!-- One frosted row per band, 4 epx apart (web entryRow list, operator batch 7.7), ending at the floating pager
+        <!-- The page's bands as one grouped card (GroupedRows: touching row slices with hairlines; issue #543,
+             owner-approved native variant of the web's separate entryRow cards), ending at the floating pager
              (BoardFooter) through the bottom-chrome ramp (BoardFooterFade, issue #308). The wrapper is the fade source
              because the load swap animates the ScrollViewer's own visual. -->
         <Grid x:Name="BoardFadeSource" Grid.Row="1" Grid.RowSpan="2">
@@ -70,10 +72,10 @@
                           controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                           AutomationProperties.AutomationId="fst.band-rankings.list">
                 <ItemsRepeater x:Name="RowsRepeater" XYFocusKeyboardNavigation="Enabled" Margin="0,4,0,0" VerticalAlignment="Top"
-                               ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52"
-                               ElementPrepared="OnRowPrepared">
+                               ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="48"
+                               controls:GroupedRows.IsEnabled="True" ElementPrepared="OnRowPrepared">
                     <ItemsRepeater.Layout>
-                        <StackLayout Spacing="4" />
+                        <StackLayout Spacing="0" />
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:BandRankingRowViewModel">

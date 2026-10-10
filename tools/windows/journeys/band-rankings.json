@@ -28,6 +28,7 @@
   {
     "name": "band-rankings-menus-keyboard",
     "route": "/leaderboards/bands/Band_Duets",
+    "settings": {"experimentalRanks": true},
     "preset": "medium",
     "steps": [
       "waitfor:id=fst.band-rankings.row.fixture-team-1@20",
@@ -57,6 +58,9 @@
       "invoke:id=fst.band-rankings.rank-by-menu",
       "waitfor:id=fst.band-rankings.rank-by.totalscore@5",
       "wait:0.5",
+      "assertbelow:id=fst.band-rankings.rank-by.adjusted|id=fst.band-rankings.rank-by.totalscore",
+      "assertbelow:id=fst.band-rankings.rank-by.weighted|id=fst.band-rankings.rank-by.adjusted",
+      "assertbelow:id=fst.band-rankings.rank-by.fcrate|id=fst.band-rankings.rank-by.weighted",
       "toggle:id=fst.band-rankings.rank-by.totalscore",
       "waitfor:name=Rank by: Total Score@15",
       "waitfor:id=fst.band-rankings.row.fixture-team-1@15"
