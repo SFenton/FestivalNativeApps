@@ -12,16 +12,15 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
-import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -310,10 +309,9 @@ class StatisticsAccessibilityJourneyTest {
         h.waitForTag(chooser)
         val item = "$ITEM_PREFIX$id"
         if (sheet) {
-            // The > 8-section sheet opens partially expanded; its drag handle's Expand action (TalkBack's path) raises it.
-            val expand = rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.Expand), useUnmergedTree = true)
-            if (expand.fetchSemanticsNodes().isNotEmpty()) expand.onFirst().performSemanticsAction(SemanticsActions.Expand)
-            rule.waitForIdle()
+            // The > 8-section sheet opens fully expanded (modal-shell R13, #586): no half-height stop to raise.
+            rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.Expand), useUnmergedTree = true)
+                .assertCountEquals(0)
             h.scrollTo(LIST, item)
         } else {
             rule.onNodeWithTag(item).performScrollTo()

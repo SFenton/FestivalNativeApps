@@ -1057,7 +1057,7 @@
       "title": "Modal shell",
       "status": "current",
       "doc": ".agents/patterns/modal-shell.md",
-      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420).",
+      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420); on Android every sheet opens fully expanded with no half-height stop (agent decision, #586).",
       "keywords": [
         "modal",
         "sheet",
@@ -1071,7 +1071,9 @@
         "full-screen cover",
         "full window",
         "drag and drop",
-        "photo picker"
+        "photo picker",
+        "half height",
+        "partially expanded"
       ],
       "web": [
         {
@@ -1219,6 +1221,13 @@
           "regex": "usePlatformDefaultWidth\\s*=(?!\\s*false\\b)",
           "allow": [],
           "message": "Centred dialogs take the window width less 16 dp margins, capped at 560 dp, never the platform dialog width (modal-shell R9)."
+        },
+        {
+          "id": "android-sheet-half-height",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "skipPartiallyExpanded\\s*=(?!\\s*true\\b)",
+          "allow": [],
+          "message": "Sheets open fully expanded with no half-height stop; never pass skipPartiallyExpanded other than true (modal-shell R13, #586)."
         },
         {
           "id": "windows-template-scroller",

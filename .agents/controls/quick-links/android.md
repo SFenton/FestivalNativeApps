@@ -53,7 +53,7 @@ Checked on the live public service (Settings page) on every FST AVD, light/dark 
 
 | Configuration | Finding |
 |---|---|
-| FST_Phone portrait | Toolbar sheet; opens partially expanded when > 8 sections (drag up for the rest, M3 default). The selected pill was inset 24 dp start / 12 dp end; **fixed** to 24 dp both sides (`SectionList` `end = 12.dp`) |
+| FST_Phone portrait | Toolbar sheet; opens fully expanded at any section count (`modal-shell` R13, #586: the > 8-section sheet used to open at half height, hiding rows below Pro Lead on Song Details). The selected pill was inset 24 dp start / 12 dp end; **fixed** to 24 dp both sides (`SectionList` `end = 12.dp`) |
 | FST_Phone landscape, FST_Tablet, FST_Resizable medium/expanded, unfolded folds | Anchored menu. At font 2.0 the trailing "Current" label shared M3's 280 dp item cap and broke "Show Instrument Metadata" mid-word; **fixed** by `QuickLinkMenuLabel` (title, then "Current" beneath). Long titles now wrap only between words and the menu scrolls |
 | FST_Book_Fold / FST_Passport_Fold folded, FST_TriFold folded | Compact sheet, as the phone |
 | FST_Book_Fold half-open (vertical hinge) | Page on the start pane, menu anchored to the end-side button; no row straddles the hinge |
