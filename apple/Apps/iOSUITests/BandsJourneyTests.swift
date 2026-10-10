@@ -155,7 +155,9 @@ final class BandsJourneyTests: XCTestCase {
     /// and page-tools text (as on Songs), contrast estimates on labelled text, measured
     /// on the rendered screenshot instead (the audit misjudges the system large title
     /// and white stat captions over the gradient; the pixels are white on near-black),
-    /// and Dynamic Type estimates on texts, which the caller re-measures at AX3.
+    /// Dynamic Type estimates on texts, which the caller re-measures at AX3, and contrast
+    /// issues with no element, accepted only when every text in the content band renders
+    /// ≥ 4.5:1 (`unattributed-contrast-page-floor`).
     ///
     /// - Parameter app: Foreground app on Band Detail.
     /// - Throws: An audit failure or unreadable rendered text.
@@ -165,6 +167,8 @@ final class BandsJourneyTests: XCTestCase {
     private func auditBandDetail(_ app: XCUIApplication) throws -> [String: CGFloat] {
         var contrast: [(label: String, frame: CGRect)] = []
         var dynamicType: [String: CGFloat] = [:]
+        var unattributed: [String] = []
+        var floorFailures: [String] = []
         let window = app.windows.firstMatch.frame
         let tabs = app.tabBars.firstMatch
         let tools = app.descendants(matching: .any).matching(identifier: "fst.page-tools").firstMatch
@@ -175,7 +179,19 @@ final class BandsJourneyTests: XCTestCase {
         let bar = app.navigationBars.firstMatch
         let rampEnd = bar.exists && bar.frame.height <= 80 ? bar.frame.maxY + 40 : -CGFloat.infinity
         try app.performAccessibilityAudit(for: .all) { issue in
-            guard let element = issue.element, !element.frame.isEmpty else { return false }
+            guard let element = issue.element, !element.frame.isEmpty else {
+                // No element to measure (a node the audit cannot resolve, e.g. inside the
+                // rank chart): accepted only when every text in the content band renders
+                // ≥ 4.5:1 now, as the audit reports it (`unattributed-contrast-page-floor`).
+                guard issue.auditType == .contrast else { return false }
+                if unattributed.isEmpty {
+                    floorFailures = try Self.pageContrastFloorFailures(
+                        in: app, top: max(rampEnd, bar.frame.maxY), bottom: chromeTop, window: window
+                    )
+                }
+                unattributed.append(issue.compactDescription)
+                return true
+            }
             let center = CGPoint(x: element.frame.midX, y: element.frame.midY)
             // Content scrolled under the bottom chrome's scroll-edge fade, and page-tools
             // text capped at `PageToolsAccessoryBar.maxTypeSize`, as on Songs
@@ -206,6 +222,13 @@ final class BandsJourneyTests: XCTestCase {
                 return false
             }
         }
+        XCTAssertTrue(
+            floorFailures.isEmpty,
+            "Unattributed \(unattributed) with weak page text \(floorFailures)"
+        )
+        if !unattributed.isEmpty {
+            XCTContext.runActivity(named: "Page floor ≥ 4.5:1 accepted \(unattributed)") { _ in }
+        }
         for label in dynamicType.keys {
             let element = Self.labelled(label, in: app)
             if element.exists { dynamicType[label] = element.frame.height }
@@ -231,6 +254,44 @@ final class BandsJourneyTests: XCTestCase {
             }
         }
         return dynamicType
+    }
+
+    /// Static texts between the top ramp and the bottom chrome that do not render
+    /// ≥ 4.5:1 with ≥ 20 text pixels (`unattributed-contrast-page-floor`, as
+    /// `SongsChromeJourneyTests` measures it).
+    ///
+    /// - Parameters:
+    ///   - app: Band Detail as the audit left it.
+    ///   - top: Where the content band starts (below the bar and its ramp).
+    ///   - bottom: The top of the bottom chrome.
+    ///   - window: The app window's frame.
+    /// - Returns: A description of each weak text, or "no text measured".
+    /// - Throws: A missing screenshot.
+    @MainActor
+    private static func pageContrastFloorFailures(
+        in app: XCUIApplication, top: CGFloat, bottom: CGFloat, window: CGRect
+    ) throws -> [String] {
+        let image = try XCTUnwrap(app.screenshot().image.cgImage)
+        let scaleX = Double(image.width) / window.width
+        let scaleY = Double(image.height) / window.height
+        var weak: [String] = []
+        var measured = 0
+        for text in app.staticTexts.allElementsBoundByIndex {
+            let frame = text.frame
+            guard !frame.isEmpty, window.contains(frame), frame.minY >= top, frame.maxY <= bottom else { continue }
+            let rect = CGRect(
+                x: (frame.minX - window.minX) * scaleX, y: (frame.minY - window.minY) * scaleY,
+                width: frame.width * scaleX, height: frame.height * scaleY
+            ).integral.intersection(CGRect(x: 0, y: 0, width: image.width, height: image.height))
+            measured += 1
+            let reading = try image.cropping(to: rect).map {
+                try SongsUITestSupport.measuredTextContrast(in: SongsUITestSupport.bitmapPixels($0))
+            }
+            if let reading, reading.ratio >= 4.5, reading.brightPixels >= 20 { continue }
+            weak.append("'\(text.label)' \(frame) \(String(describing: reading))")
+        }
+        if measured == 0 { weak.append("no text measured") }
+        return weak
     }
 
     /// `fixture-player-1`'s synthetic 30-entry "All" group needs a second page.
