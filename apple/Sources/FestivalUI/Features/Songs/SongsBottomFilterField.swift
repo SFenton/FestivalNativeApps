@@ -33,10 +33,15 @@ enum SongsFilterFieldPlacement: Equatable {
 
 /// The system `.searchable` Filter Songs field, left off where the page shows its own
 /// bottom field (iPhone Duo, issue #333).
+///
+/// On iOS the drawer field keeps its capsule while Song Detail is pushed or popped
+/// (``SearchDrawerTransitionFill``, issue #544).
 struct SongsSystemFilterField: ViewModifier {
     @Binding var text: String
     /// Whether this window uses the system field (``SongsFilterFieldPlacement/system``).
     let enabled: Bool
+    /// The Songs List's scroll view, used to tell whether rows are under the bar.
+    let listNudger: ListScrollNudger
 
     func body(content: Content) -> some View {
         if enabled {
@@ -44,6 +49,11 @@ struct SongsSystemFilterField: ViewModifier {
                 text: $text, placement: SongsScreen.filterFieldPlacement,
                 prompt: Text("Filter Songs")
             )
+            #if os(iOS)
+            .modifier(SearchDrawerTransitionFill { [listNudger] in
+                SearchDrawerTransitionFill.isContentUnderBar(listNudger.scrollView)
+            })
+            #endif
         } else {
             content
         }
