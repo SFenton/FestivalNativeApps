@@ -3954,6 +3954,83 @@
         ]
       },
       "guards": []
+    },
+    {
+      "id": "band-member-lines",
+      "title": "Band member lines",
+      "status": "current",
+      "doc": ".agents/patterns/band-member-lines.md",
+      "summary": "A band card lists one line per member with the name leading on one shared edge (row to row and card to card) and the member's value (song score) and instrument icons trailing; the whole card stacks each member's icons under its name when any member can't fit inline (name clamped 96-180 plus gaps) or at large text, long names marquee/truncate/wrap inside their column, and the member lines stay inside the card's one screen-reader stop (#589).",
+      "keywords": [
+        "band card",
+        "band members",
+        "member names",
+        "usernames",
+        "align",
+        "instrument icons",
+        "band search",
+        "player bands",
+        "band results"
+      ],
+      "web": [
+        {
+          "path": "pages/player/components/PlayerBandCard.tsx",
+          "symbol": "BandMemberRow"
+        },
+        {
+          "path": "pages/player/components/PlayerBandCard.tsx",
+          "symbol": "resolveBandCardMemberLayouts"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Profile/PlayerBandsScreen.swift",
+            "symbol": "PlayerBandRow"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongDetail/SongBandPreviewSection.swift",
+            "symbol": "SongBandPreviewRow"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/BandComponents.kt",
+            "symbol": "BandMemberRows"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/bands/BandLayout.kt",
+            "symbol": "BandMemberFit"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/BandCardView.xaml.cs",
+            "symbol": "BandCardView"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "leaderboard-row",
+          "surface-materials"
+        ],
+        "pages": [
+          "player-bands",
+          "song-band-leaderboard",
+          "song-detail",
+          "player-profile"
+        ],
+        "controls": [
+          "global-search"
+        ]
+      },
+      "guards": [],
+      "issues": [
+        589
+      ],
+      "supersedes": [],
+      "supersededBy": null
     }
   ]
 }
