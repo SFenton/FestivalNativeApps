@@ -13,11 +13,17 @@ import FestivalDesign
 /// window (``SongPathsPolicy/modes(for:)``). In book pose it is hidden (Side by Side is the
 /// only mode, issue #368), and the instrument and difficulty menus sit one on each side of
 /// the hinge (``HingeRow``, pattern `hinge-columns`).
+///
+/// Where the row is too narrow for icon + name (a sheet no wider than the web's mobile
+/// breakpoint: iPhone in portrait, folded iPhone Duo, a compact iPad window), the
+/// Instrument and View menus show only their icon and
+/// Difficulty fills the rest, like the web's mobile Paths modal (owner, issue #612;
+/// ``SongPathsPolicy/selectorsShowNames(_:stacked:)``).
 struct SongPathsSelectorRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.deviceLayout) private var deviceLayout
-    /// Icon side of the icon-only instrument selector (folded iPhone Duo, issue #360),
-    /// scaled with Dynamic Type because no name carries the size there.
+    /// Icon side of the icon-only instrument selector (issues #360, #612), scaled with
+    /// Dynamic Type because no name carries the size there.
     @ScaledMetric(relativeTo: .body) private var iconOnlySide: CGFloat = InstrumentIcon.menuIconSide
 
     @Binding var instrument: Instrument
@@ -33,6 +39,17 @@ struct SongPathsSelectorRow: View {
         dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
             : AnyLayout(HStackLayout(spacing: 8))
+    }
+
+    /// Whether the Instrument and View menus show their name beside the icon.
+    private var showsNames: Bool {
+        SongPathsPolicy.selectorsShowNames(deviceLayout, stacked: dynamicTypeSize.isAccessibilitySize)
+    }
+
+    /// Whether an icon-only menu hugs its icon so Difficulty takes the rest of the row
+    /// (web mobile: instrument and display `flexShrink: 0`, difficulty `flex: 1`).
+    private var hugsIcon: Bool {
+        !showsNames && !dynamicTypeSize.isAccessibilitySize
     }
 
     var body: some View {
@@ -52,9 +69,9 @@ struct SongPathsSelectorRow: View {
         }
     }
 
-    /// The instrument menu (icon + name; icon alone on folded iPhone Duo).
+    /// The instrument menu (icon + name; icon alone where the row is narrow).
     private var instrumentMenu: some View {
-        selectorMenu("Instrument", selection: $instrument, value: instrument.label) {
+        selectorMenu("Instrument", selection: $instrument, value: instrument.label, fills: !hugsIcon) {
             ForEach(instruments) { choice in
                 Label {
                     Text(choice.label)
@@ -64,10 +81,10 @@ struct SongPathsSelectorRow: View {
                 .tag(choice)
             }
         } current: {
-            // Every option has an icon (menus › "icons for all or none"). Folded iPhone
-            // Duo shows the icon alone and names the instrument in the title instead
-            // (owner, issue #360); VoiceOver still reads "Instrument, <name>".
-            if SongPathsSheet.showsInstrumentName(pose: deviceLayout.pose) {
+            // Every option has an icon (menus › "icons for all or none"). A narrow row
+            // shows the icon alone (owner, issues #360, #612; folded iPhone Duo also names
+            // the instrument in the title); VoiceOver still reads "Instrument, <name>".
+            if showsNames {
                 namedInstrumentLabel
             } else {
                 InstrumentIcon(instrument, keyboard: usesKeyboardIcon(instrument), size: iconOnlySide)
@@ -79,7 +96,7 @@ struct SongPathsSelectorRow: View {
 
     /// The difficulty menu.
     private var difficultyMenu: some View {
-        selectorMenu("Difficulty", selection: $difficulty, value: difficulty.label) {
+        selectorMenu("Difficulty", selection: $difficulty, value: difficulty.label, fills: true) {
             ForEach(PathDifficulty.allCases) { choice in
                 Text(choice.label).tag(choice)
             }
@@ -90,13 +107,24 @@ struct SongPathsSelectorRow: View {
     }
 
     /// The View menu: Image and Text, plus Side by Side where the layout allows it.
+    ///
+    /// Every option carries its symbol (menus › "icons for all or none"), so the icon a
+    /// narrow row shows alone matches an item in the open menu.
     private var viewMenu: some View {
-        selectorMenu("View", selection: $viewMode, value: viewMode.label) {
+        selectorMenu("View", selection: $viewMode, value: viewMode.label, fills: !hugsIcon) {
             ForEach(SongPathsPolicy.modes(for: deviceLayout)) { choice in
-                Text(choice.label).tag(choice)
+                Label(choice.label, systemImage: choice.systemImage).tag(choice)
             }
         } current: {
-            Text(viewMode.label)
+            if showsNames {
+                Label(viewMode.label, systemImage: viewMode.systemImage)
+                    .labelStyle(.titleAndIcon)
+            } else {
+                // Scales with the label's Dynamic Type body font.
+                Image(systemName: viewMode.systemImage)
+                    .imageScale(.large)
+                    .accessibilityHidden(true)
+            }
         }
         .accessibilityIdentifier("fst.paths.display")
     }
@@ -142,12 +170,14 @@ struct SongPathsSelectorRow: View {
     ///   - title: Control name VoiceOver reads before the value.
     ///   - selection: The chosen option.
     ///   - value: Current option's name, read as the accessibility value.
+    ///   - fills: Whether the capsule takes the row's spare width (false: hugs its icon,
+    ///     at least 44 pt wide).
     ///   - options: Tagged option rows.
     ///   - current: The collapsed control's view of the current option (iOS/iPadOS).
     /// - Returns: The menu control.
     @ViewBuilder
     private func selectorMenu<Value: Hashable, Options: View, Current: View>(
-        _ title: String, selection: Binding<Value>, value: String,
+        _ title: String, selection: Binding<Value>, value: String, fills: Bool,
         @ViewBuilder options: () -> Options, @ViewBuilder current: () -> Current
     ) -> some View {
         #if os(macOS)
@@ -173,7 +203,7 @@ struct SongPathsSelectorRow: View {
             .lineLimit(1)
             .foregroundStyle(FestivalText.primary)
             .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity, minHeight: 44)
+            .frame(minWidth: 44, maxWidth: fills ? .infinity : nil, minHeight: 44)
             .contentShape(Capsule())
             .festivalCardCapsule()
         }
