@@ -109,6 +109,8 @@ Measured with [`tools/apple_perf.py`](../../../tools/apple_perf.py) (live SFento
 - **Rows must not lay out twice.** No `@State` written from geometry or preferences for every row: `MarqueeText` measures with `MarqueeFitLayout` and only overflowing text flips one Bool. A platform view per row is expensive in a `List`; create one only where needed (overflowing marquees, animating Shop rows). `ViewThatFits` costs about as much as the old double layout.
 - **Fewer views per row:** status chips are pre-drawn bitmaps (`SongStatusChipImages`); a custom `Layout` with icon-only children returns nil from `explicitAlignment` (the default re-measures every child per parent alignment query).
 - **No formatter construction in bodies:** use `ISO8601Parsing` (cached `ISO8601DateFormatter`s).
+- **No gradient-styled shapes on cards or rows (issue #553).** `shape.fill(LinearGradient…)` / `strokeBorder(gradient)` is rasterized on the CPU (CoreGraphics axial shading over the shape's whole bounding box) each time the layer draws, so a card entering a fast scroll paid for its area. Draw the gradient as a view and cut it with a solid-shape mask (`CardRim`, the material card's rim); tiny legend swatches are exempt.
+- **Scroll-dependent reads only where they draw something (issue #553).** A value that moves every scroll frame is read only by the views that need it then: Songs row masks read the fade depth only near the bar (`PinnedHeaderEdgeFade.RowMaskDepth`), `measuresHorizontalSpan` measures only while a Duo fold exists (its reader sits in a background, so the fold coming or going rebuilds nothing), and `NearViewport` stops observing once latched. Every window-space `onGeometryChange`/`GeometryReader` on an eager page is re-evaluated on every scroll frame.
 
 ### Methodology
 
@@ -117,6 +119,8 @@ Measured with [`tools/apple_perf.py`](../../../tools/apple_perf.py) (live SFento
 | `apple_perf.py build mac\|ipad [--configuration Release] [--probe]` | `--probe` = Release optimization with the `DEBUG` condition (own DerivedData), so the Debug overrides and stall monitor run on optimized code. True Release ignores `FST_DEBUG_*` and opens on the persisted page (the first-run sheet over Songs on this Mac) |
 | `apple_perf.py mac\|ipad --tab songs` | Process CPU (`ps` time delta, one core = 100%) in 2 s windows over 20 s after a 20 s settle; the Mac window must be uncovered (occlusion pauses everything) |
 | `… --stress` | `FST_DEBUG_SONGS_SCROLL_STRESS` (6 rounds of animated section jumps) with `MainThreadStallMonitor`; counts units ≥ 100 ms between the pass's `marks` |
+| `ipad [--device iphone27] --probe --fling --tab …\|--route …` | `FST_DEBUG_FLING_STRESS` (`Common/ScrollFlingStress.swift`): after 14 s, 2 rounds × 8 flings each way at 5000 pt/s with UIKit's normal deceleration, driven on the page's largest scroll view by a display link. Prints `frames` (`FrameBudgetTally`): `late` (interval > 1.5× target), `hitchMsPerS` (Apple's hitch-time ratio), `over8ms`/`over16ms` (frames whose main-thread CPU missed the 120/60 Hz budget; the sim display link runs at 60 Hz, so `over8ms` stands in for ProMotion), `meanWorkMs`, `worstWorkMs` |
+| `… --sample 30` | macOS `sample` of the app for 30 s from the pass's start mark (`<label>-sample.txt` in `apple/DerivedData/perf`); count a symbol's inclusive main-thread samples to compare runs on a loaded host |
 | `mac … --trace 'Time Profiler' --top 30` (or `'SwiftUI'`, `'Animation Hitches'`; xctrace cannot attach to simulator apps here) | `xctrace record --attach` for `--duration`; with `--stress` it covers the pass. `--top` lists leaf and first-app-frame symbols |
 
 ### Last measured (2026-10-02)
@@ -169,5 +173,17 @@ Every card and custom control on the material card (issue #291, 2026-10-04): sam
 | Settings (`--tab settings`) | 3.0, 3.0 s | 2.3, 1.9 s (−32%) | 0 → 0 |
 
 - On iPad, `--tab statistics` leaves Songs on screen; use `--route statistics`. The Mac was not measured: its Debug app shares the bundle ID (and defaults) with a long-running Release instance on the host.
+
+Fast flicks (issue #553, 2026-10-09): iPhone 17 Pro sim (iOS 27), Release probe, `--fling`, before = `40380d7`'s code (the reported build), after = `report/553`. Host load average 18–28 before and 70–300 after, so wall-clock columns favour *before*; compare the main-thread sample counts (`--sample 30`, inclusive samples of 30 s).
+
+| Page | Main-thread samples before → after | Fling frames before → after |
+|---|---|---|
+| Songs | CPU gradient shading (`ripc_DrawShading`) 702 → **0**; `CABackingStoreUpdate_` 781 → 50; `GraphHost.flushTransactions` 1345 → 837 | stalls ≥ 100 ms 4–13 → **0**; worst frame work 177–203 → 55 ms; mean work 6.5–7 → 5 ms; `over16ms` 83–165 → 45 |
+| Song Details | shading 1310 → **0**; `CABackingStoreUpdate_` 1466 → 192 | stalls 4 (worst 118 ms) → 1 (108 ms); `over16ms` 65 → 43 |
+| Statistics | `measuresHorizontalSpan` 47 → **0**, `NearViewport` 21 → 3, shading 28 → 0; `flushTransactions` 6180 → 5030 | `over16ms` 12 → 9 (stalls and mean work not comparable at load 275) |
+
+- Root causes: the material card rim (`strokeBorder(RowCardStyle.rim)`, every content card and the purple action button) was CPU-shaded per card; the Songs row masks all observed `rowFadeLimit`, which moves every frame while a section title passes the bar; hinge grids and titles read their window frame each scroll frame on devices without a fold; the profile chart placeholders kept observing after loading.
+- iPad Songs (iPad Pro 11" sim, after only, load 280): shading 0, rim and mask fixes apply unchanged. macOS shares the code (rim drawn by the same `CardRim`; builds and hosted card tests pass) and was not re-measured: the Mac Debug app shares its defaults with a long-running Release instance on the host.
+- Remaining iOS cost is SwiftUI itself: `UICollectionView` cell creation and self-sizing for Songs rows (~1300 samples, `MarqueeFitLayout` ~90) and, on eager pages (Statistics, Profile), SwiftUI's per-frame graph update for every scroll-dependent observer (Quick Links section frames ~100 samples, chart plot-frame readers ~35, Swift Charts ~650). Quick Links section frames are reported in the scroll view's space; moving them to content space with one offset reading is the next lever. Suggestions' `loadMore` generates a batch on the main thread (~120 samples per pass), and Item Shop's `FestivalRootTrailingProvidedKey` reduce (~110) is SwiftUI preference propagation as grid cells appear.
 
 First-run sheet (Lane IPAD2, 2026-10-03, iPad Debug, sheet open on its first slide): Leaderboards 4.1% → 0.0%, Statistics ("Select This Player" pill glowing) 2.6% → 0.0%. The glow still breathes (`~/FestivalShowcase/native-ipad/2/first-run-glow-{rest,lit}.png`) and rests under Reduce Motion or off screen.

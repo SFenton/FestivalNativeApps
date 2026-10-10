@@ -129,10 +129,24 @@ private func rankingRow(_ accountId: String, rank: Int) throws -> AccountRanking
     #expect(MacQuickLinksCommand.neighbor(of: "a", in: [], offset: 1) == nil)
 }
 
-/// View › Rank By lists every account metric when no rankings page is in front.
+/// View › Rank By lists every account metric when no rankings page is in front and
+/// Experimental Ranks is on, and Total Score alone while it is off (pattern
+/// `experimental-ranks`; HIG The menu bar: the submenu keeps its items).
 @Test func macRankByAccountOptions() {
-    #expect(MacRankByCommands.accountOptions.map(\.id) == RankingMetric.allCases.map(\.rawValue))
-    #expect(MacRankByCommands.accountOptions.first?.label == RankingMetric.adjusted.label)
+    let on = MacRankByCommands.accountOptions(experimentalRanks: true)
+    #expect(on.map(\.id) == ["totalscore", "adjusted", "weighted", "fcrate", "maxscore"])
+    #expect(on.first?.label == RankingMetric.totalscore.label)
+    let off = MacRankByCommands.accountOptions(experimentalRanks: false)
+    #expect(off.map(\.id) == ["totalscore"])
+    #expect(off.map(\.label) == ["Total Score"])
+}
+
+/// View › Rank By's band options never include Max Score and narrow to Total Score
+/// while Experimental Ranks is off.
+@Test func macRankByBandOptions() {
+    #expect(MacRankByCommands.bandOptions(experimentalRanks: true).map(\.id) == ["totalscore", "adjusted", "weighted", "fcrate"])
+    #expect(!MacRankByCommands.bandOptions(experimentalRanks: true).map(\.id).contains("maxscore"))
+    #expect(MacRankByCommands.bandOptions(experimentalRanks: false).map(\.id) == ["totalscore"])
 }
 
 /// View › Instrument lists the page's charts in order, keyed by wire id, and keeps

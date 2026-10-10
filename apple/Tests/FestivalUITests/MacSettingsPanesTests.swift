@@ -29,7 +29,7 @@ import Testing
 private let paneIdentifiers: [SettingsPane: [String]] = [
     .general: [
         "fst.settings.reduce-motion", "fst.settings.more-contrast", "fst.settings.hide-shop",
-        "fst.settings.shop-highlights", "fst.settings.reset",
+        "fst.settings.shop-highlights", "fst.settings.experimental-ranks", "fst.settings.reset",
     ],
     .songs: [
         "fst.settings.show-instrument-icons", "fst.settings.enable-visual-order",
