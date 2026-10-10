@@ -262,11 +262,13 @@ public enum PublicEndpoint: Sendable {
     ///
     /// - Returns: False for account profiles, including HTTP 202 syncing envelopes,
     ///   for a player's own bands list (also account-scoped) and for band previews
-    ///   or band leaderboard pages that carry a selected player's `accountId`.
+    ///   or band leaderboard pages that carry a selected player's `accountId`. True
+    ///   for one account's public rankings-board row and its rank history: they are
+    ///   public leaderboard data for any viewed player, never selected-profile state,
+    ///   and must survive a scrape freeze like other board reads (issue #554).
     var allowsSnapshotCache: Bool {
         switch self {
-        case .player, .playerHistory, .playerNotifications, .playerBands, .playerBandsByType,
-             .playerInstrumentRanking, .playerRankHistory:
+        case .player, .playerHistory, .playerNotifications, .playerBands, .playerBandsByType:
             false
         case let .songBandLeaderboards(_, _, accountId),
              let .songBandLeaderboard(_, _, _, _, _, accountId):

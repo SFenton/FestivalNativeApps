@@ -146,13 +146,48 @@ func bandBestWorstSongsSurviveAScrapeFreezeAfterTheyLoaded(reason: String) async
     }
 }
 
-@Test func accountScopedReadsStayOutOfTheFreezeFallback() async throws {
+@Test func personalAccountReadsStayOutOfTheFreezeFallback() {
+    #expect(!PublicEndpoint.player(accountId: "fixture-player-1").allowsSnapshotCache)
+    #expect(!PublicEndpoint.playerHistory(accountId: "fixture-player-1").allowsSnapshotCache)
+    #expect(!PublicEndpoint.playerBandsByType(
+        accountId: "fixture-player-1", bandType: "Band_Duets", combo: nil
+    ).allowsSnapshotCache)
+}
+
+@Test func playerProfileRankingCardsSurviveAScrapeFreezeAfterTheyLoaded() async throws {
+    let historyWire = """
+    {"instrument":"Solo_Guitar","accountId":"fixture-player-1","history":[
+     {"snapshotDate":"2026-09-27","adjustedSkillRank":3,"weightedRank":4,"fcRateRank":2,
+      "totalScoreRank":6,"maxScorePercentRank":1,"totalScore":89500000,"songsPlayed":39,
+      "fullComboCount":19,"totalChartedSongs":50,"rankedAccountCount":502}]}
+    """
+    let transport = FixtureTransport([
+        HTTPResult(status: 200, data: freezePublicationJSON),
+        ok(rankingWire), frozen("publish", publication: "7"),
+        ok(historyWire), frozen(),
+    ])
+    let client = try FestivalAPI(transport: transport)
+    let ranking = try await client.playerInstrumentRanking(instrument: .lead, accountId: "fixture-player-1")
+    let rankingDuring = try await client.playerInstrumentRanking(
+        instrument: .lead, accountId: "fixture-player-1"
+    )
+    #expect(rankingDuring.state == .available)
+    #expect(rankingDuring.ranking == ranking.ranking)
+    #expect(rankingDuring.ranking?.totalRankedAccounts == 500)
+    #expect(rankingDuring.publicationId == 7)
+    #expect(!rankingDuring.isStale)
+
+    let history = try await client.playerRankHistory(instrument: .lead, accountId: "fixture-player-1")
+    let historyDuring = try await client.playerRankHistory(instrument: .lead, accountId: "fixture-player-1")
+    #expect(historyDuring == history)
+    #expect(await transport.recorded().count == 5)
+}
+
+@Test func aPlayerRankingNeverLoadedStillShowsTheFreeze() async throws {
     let client = try FestivalAPI(transport: FixtureTransport([
         HTTPResult(status: 200, data: freezePublicationJSON),
-        ok(rankingWire),
         frozen(),
     ]))
-    _ = try await client.playerInstrumentRanking(instrument: .lead, accountId: "fixture-player-1")
     await #expect(throws: FestivalAPIError.publicReadFrozen(reason: "scrape", retryAfter: "30")) {
         try await client.playerInstrumentRanking(instrument: .lead, accountId: "fixture-player-1")
     }
