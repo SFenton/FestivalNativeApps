@@ -1114,6 +1114,10 @@
             "symbol": "FeedbackPhotoLibraryPlacement"
           },
           {
+            "path": "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackSentNotice.swift",
+            "symbol": "FeedbackSentPresentation"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackFormPanes.swift",
             "symbol": "FeedbackFormPanes"
           }
