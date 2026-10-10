@@ -224,7 +224,7 @@ class UiCiTests(unittest.TestCase):
         runs = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-songs-section-push.json"}
         self.assertEqual({("normal", True), ("text-225", True)}, runs)
         pages = json.loads((ci.JOURNEYS / "a11y-songs-section-push.json").read_text(encoding="utf-8"))
-        self.assertEqual({"push-band", "push-band-reverse", "push-band-keyboard"}, {page["name"] for page in pages})
+        self.assertEqual({"push-band", "push-band-reverse", "push-band-keyboard", "push-band-back"}, {page["name"] for page in pages})
         for page in pages:
             with self.subTest(page=page["name"]):
                 steps = page["after_ready"]
@@ -240,6 +240,24 @@ class UiCiTests(unittest.TestCase):
             steps = page["after_ready"]
             self.assertIn("waitgone:raw=fst.songs.section-header.incoming@3", steps[steps.index(
                 "scrollinset:name=M&class=TextBlock|id=fst.songs.list|120"):])
+
+    def test_songs_section_push_back_returns_mid_push(self):
+        # Issue #560: Back to a list left inside the push band keeps the row and list in place (back-keeps-place R5)
+        # and redraws the push: the copy is drawn again over the transparent in-list title, which is opaque past it.
+        pages = {page["name"]: page for page in json.loads(
+            (ci.JOURNEYS / "a11y-songs-section-push.json").read_text(encoding="utf-8"))}
+        steps = pages["push-band-back"]["after_ready"]
+        back = steps.index("key:alt+left")
+        settle = steps.index("wait:1.5", back)
+        self.assertLess(steps.index("scrollinset:name=M&class=TextBlock|id=fst.songs.list|16"), back)
+        for pin in ("id=fst.songs.list", "id=fst.songs.row.fixture-song-56"):
+            self.assertLess(steps.index(f"pin:{pin}"), back)
+            self.assertEqual(1, steps[back:settle].count(f"assertpinned:{pin}"))
+            self.assertEqual(1, steps[settle:].count(f"assertpinned:{pin}"))
+        self.assertIn("assertfocus:id=fst.songs.row.fixture-song-56@3", steps[settle:])
+        self.assertLess(back, steps.index("assertname:raw=fst.songs.section-header.incoming|M"))
+        self.assertIn("assertpaint:name=M&class=TextBlock|L0,T0,R0,B0=#FFFFFF~40",
+                      steps[steps.index("scrollinset:name=M&class=TextBlock|id=fst.songs.list|120"):])
 
     def test_songs_section_push_keyboard_keeps_focus_on_real_list_items(self):
         # Issue #452 review: a keyboard pick reaches M, then focus moves by arrow keys through the 16 epx push band; it

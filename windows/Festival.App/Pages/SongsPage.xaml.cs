@@ -130,6 +130,7 @@ public sealed partial class SongsPage : Page, IPageBack
         Zoom.ViewChangeStarted += (_, _) => SizeJumpCells();
         edgeFade = new TopEdgeFade(ListFadeSource, ListFadeHost);
         Loaded += (_, _) => AttachEdgeFadeSettings();
+        Loaded += OnReturned;
         Unloaded += (_, _) => DetachEdgeFadeSettings();
     }
 
@@ -146,6 +147,35 @@ public sealed partial class SongsPage : Page, IPageBack
     {
         base.OnNavigatedTo(e);
         await ViewModel.AppearCommand.ExecuteAsync(null);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// A cached page left mid-push keeps its rows (issue #560), so it ends the push here: the in-list title PushLayer was
+    /// drawing over is shown again and the copy hidden; <see cref="OnReturned"/> reads the pinned header again on Back.
+    /// </remarks>
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        base.OnNavigatedFrom(e);
+        ShowIncoming(null);
+    }
+
+    /// <summary>
+    /// Reads the pinned header again when the cached page is shown again, and once more after its first layout pass:
+    /// the list keeps its place, so no view change would otherwise restore a push that was in flight when it left.
+    /// </summary>
+    /// <param name="sender">Page.</param>
+    /// <param name="e">Unused.</param>
+    private void OnReturned(object sender, RoutedEventArgs e)
+    {
+        if (scroller is null) return;
+        UpdateStickyHeader();
+        void Settled(object? _, object __)
+        {
+            SongList.LayoutUpdated -= Settled;
+            UpdateStickyHeader();
+        }
+        SongList.LayoutUpdated += Settled;
     }
 
     #region List
