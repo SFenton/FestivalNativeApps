@@ -761,6 +761,55 @@ class MockServiceTests(unittest.TestCase):
                 urlopen(self.base + route)
             self.assertEqual(failure.exception.code, expected)
 
+    def test_hold_paths_holds_path_reads_until_released_or_expired(self):
+        """`/__fixture__/hold-paths` holds a Paths read until released (issue #430)."""
+        control = self.base + "/__fixture__/hold-paths"
+        route = self.base + "/api/paths/fixture-pulse/Solo_Guitar/hard/data"
+        with urlopen(control) as response:
+            self.assertEqual(json.load(response), {"held": False, "waiting": 0})
+        with urlopen(control + "?seconds=30") as response:
+            self.assertEqual(json.load(response), {"held": True, "waiting": 0})
+        answered = threading.Event()
+        results: list[int] = []
+
+        def read() -> None:
+            with urlopen(route) as held:
+                results.append(held.status)
+            answered.set()
+
+        reader = threading.Thread(target=read, daemon=True)
+        reader.start()
+        for _ in range(100):
+            with urlopen(control) as response:
+                status = json.load(response)
+            if status["waiting"]:
+                break
+            threading.Event().wait(0.02)
+        self.assertEqual(status, {"held": True, "waiting": 1})
+        self.assertFalse(answered.wait(0.3), "A held path read was answered")
+        # Other reads, and invalid path reads, are not held.
+        with urlopen(self.base + "/api/publication") as response:
+            self.assertEqual(response.status, 200)
+        with self.assertRaises(HTTPError) as invalid:
+            urlopen(self.base + "/api/paths/fixture-pulse/Solo_Guitar/extreme")
+        self.assertEqual(invalid.exception.code, 400)
+        with urlopen(control + "?seconds=0") as response:
+            self.assertFalse(json.load(response)["held"])
+        self.assertTrue(answered.wait(5), "Releasing did not answer the held read")
+        reader.join(timeout=2)
+        self.assertEqual(results, [200])
+        with urlopen(control) as response:
+            self.assertEqual(json.load(response), {"held": False, "waiting": 0})
+        # A hold expires on its own, so a test that dies mid-hold cannot stall the listener.
+        with urlopen(control + "?seconds=1"):
+            pass
+        with urlopen(route, timeout=10) as response:
+            self.assertEqual(response.status, 200)
+        for bad in ("?seconds=61", "?seconds=-1", "?seconds=x", "?seconds=1&seconds=2", "?other=1"):
+            with self.subTest(query=bad), self.assertRaises(HTTPError) as failure:
+                urlopen(control + bad)
+            self.assertEqual(failure.exception.code, 400)
+
     def test_public_shop_feed_is_synthetic_pinned_and_explicit_on_errors(self):
         """Shop badge states and every failure are distinct from an empty feed."""
         with urlopen(self.base + "/api/shop") as response:
