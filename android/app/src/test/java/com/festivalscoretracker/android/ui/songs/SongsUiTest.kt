@@ -293,7 +293,9 @@ class SongsUiTest {
         launch(DebugLaunch(route = ShopRoute, stillBackground = true))
         waitForTag("fst.shop.list")
         waitForTag("fst.shop.song.s-beta")
-        rule.onNodeWithTag("fst.shop.badge.new.s-beta", useUnmergedTree = true).assertExists()
+        // Issue #562: no visible New label; the row speaks it as its state.
+        assertTrue(rule.onAllNodesWithTag("fst.shop.badge.new.s-beta", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        rule.onNodeWithTag("fst.shop.song.s-beta").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "New"))
         click("fst.shop.song.s-alpha")
         waitForTag("fst.song-detail.list")
     }

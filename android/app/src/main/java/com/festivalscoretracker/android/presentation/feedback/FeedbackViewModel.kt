@@ -39,19 +39,29 @@ sealed interface FeedbackPhase {
      */
     data class Filing(val job: FeedbackJob) : FeedbackPhase
 
-    /**
-     * Done: filed, or accepted with an unknown outcome (reported as received, never as an error).
-     *
-     * @property job Final known job.
-     */
-    data class Sent(val job: FeedbackJob) : FeedbackPhase
+}
+
+/**
+ * A filed (or received) form's result, shown as an alert over Settings after the form has
+ * closed (issue #565): the form never stays open behind its own success message.
+ *
+ * @property kind Bug or Feature, for the alert's title and copy.
+ * @property job Final known job: filed, or accepted with an unknown outcome (reported as
+ * received, never as an error).
+ */
+data class FeedbackSent(val kind: FeedbackKind, val job: FeedbackJob) {
+    /** Alert title: "Report Sent" or "Request Sent" (the Apple wording). */
+    val title: String get() = if (kind == FeedbackKind.Bug) "Report Sent" else "Request Sent"
+
+    /** Alert body: the spec's fixed outcome copy. */
+    val message: String get() = job.message(kind)
 }
 
 /**
  * One open feedback form.
  *
  * @property draft Field values and attachments.
- * @property phase Editing, sending or sent.
+ * @property phase Editing, sending or filing.
  * @property error Readable send or filing failure, shown above the fields.
  * @property notice Readable note about skipped attachments.
  * @property confirmingDiscard Whether the discard confirmation is showing.
@@ -91,7 +101,8 @@ data class FeedbackFormState(
 /**
  * Settings → Report an Issue / Request a Feature (issue #78). Holds at most one open form so
  * it survives configuration changes; closing with unsent input asks first. After the service
- * accepts a form it polls the job until it is filed, fails or [POLL_TIMEOUT_MS] passes.
+ * accepts a form it polls the job until it is filed, fails or [POLL_TIMEOUT_MS] passes. A filed
+ * or received form closes and its result moves to [sent] (one presentation at a time, #565).
  *
  * @param send Sends one submission (`FestivalApi.submitFeedback` with the content resolver).
  * @param status Reads an accepted job (`FestivalApi.feedbackStatus`).
@@ -117,6 +128,7 @@ class FeedbackViewModel(
     private val work: CoroutineScope = scope ?: viewModelScope
     private val formFlow = MutableStateFlow<FeedbackFormState?>(null)
     private val availableFlow = MutableStateFlow(false)
+    private val sentFlow = MutableStateFlow<FeedbackSent?>(null)
     private var job: Job? = null
     private var featuresJob: Job? = null
 
@@ -125,6 +137,14 @@ class FeedbackViewModel(
 
     /** Whether the Settings rows show: only after `/api/features` reports `feedback: true`. */
     val available: StateFlow<Boolean> = availableFlow.asStateFlow()
+
+    /** The result alert to show over Settings once a form has closed after filing, or null. */
+    val sent: StateFlow<FeedbackSent?> = sentFlow.asStateFlow()
+
+    /** Done (or Back) on the result alert. */
+    fun dismissSent() {
+        sentFlow.value = null
+    }
 
     /**
      * Read the service flag once per Settings visit until it succeeds; a failure keeps the rows
@@ -149,7 +169,7 @@ class FeedbackViewModel(
      * @param kind Bug or Feature.
      */
     fun open(kind: FeedbackKind) {
-        if (formFlow.value != null) return
+        if (formFlow.value != null || sentFlow.value != null) return
         formFlow.value = FeedbackFormState(FeedbackDraft(kind))
     }
 
@@ -192,7 +212,7 @@ class FeedbackViewModel(
     fun requestClose() {
         val state = formFlow.value ?: return
         // While filing the service already holds the form: stop waiting without asking.
-        if (state.phase is FeedbackPhase.Sent || state.phase is FeedbackPhase.Filing ||
+        if (state.phase is FeedbackPhase.Filing ||
             (state.phase == FeedbackPhase.Editing && !state.draft.isDirty)
         ) {
             close()
@@ -229,13 +249,14 @@ class FeedbackViewModel(
             }
             formFlow.update { it?.copy(phase = FeedbackPhase.Filing(accepted), error = null, confirmingDiscard = false) }
             val final = follow(accepted)
-            formFlow.update { current ->
-                when {
-                    current == null -> null
-                    final.state == FeedbackJobState.Failed ->
-                        current.copy(phase = FeedbackPhase.Editing, error = FeedbackException.filingFailed(current.draft.kind).message)
-                    else -> current.copy(phase = FeedbackPhase.Sent(final), error = null, confirmingDiscard = false)
-                }
+            val current = formFlow.value ?: return@launch
+            if (final.state == FeedbackJobState.Failed) {
+                formFlow.value = current.copy(phase = FeedbackPhase.Editing, error = FeedbackException.filingFailed(current.draft.kind).message)
+            } else {
+                // Close the form first, then show the result over Settings: never both at once (modal-shell R7).
+                formFlow.value = null
+                job = null
+                sentFlow.value = FeedbackSent(current.draft.kind, final)
             }
         }
     }

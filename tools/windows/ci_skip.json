@@ -94,14 +94,6 @@
     }
   },
   "tasks": {
-    "journey:song-header-title": {
-      "reason": "Static pinned artist isn't ellipsized as separate dots (font/ink check) on the hosted runner, even with the right fixture.",
-      "issue": "SFenton/festival-report-tracker#529"
-    },
-    "journey:star-rating": {
-      "reason": "Leaderboard rows aren't named '\u2026 5 gold stars' and gold-6 has no status, even with star_rating_fixture.",
-      "issue": "SFenton/festival-report-tracker#529"
-    },
     "matrix:a11y:5": {
       "reason": "Axe finds two errors in leaderboards rank-by popup.",
       "issue": "SFenton/festival-report-tracker#534"

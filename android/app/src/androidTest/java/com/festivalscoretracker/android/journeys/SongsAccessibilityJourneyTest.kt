@@ -286,8 +286,9 @@ class SongsAccessibilityJourneyTest {
     /**
      * Item Shop list rows are the Songs page's shared `SongRowCard` (issue #18; device backfill
      * #397). At 1.0× and again at 2.0× font scale, with ATF on every step: each row is one
-     * clickable stop that reads its title, artist line and New / Leaving Tomorrow badge and is
-     * never "selected"; its cart link is the next stop, a separate labelled button; rows read in
+     * clickable stop that reads its title, artist line and New / Leaving Tomorrow status and is
+     * never "selected" (New is spoken only; the row draws no New label, issue #562); its cart link
+     * is the next stop, a separate labelled button; rows read in
      * sort order; row and link are at least 48 × 48 dp and the title stays inside its row.
      */
     @Test
@@ -354,6 +355,14 @@ class SongsAccessibilityJourneyTest {
             val title = rule.onAllNodes(hasText(row.title) and hasAnyAncestor(hasTestTag(tag)), useUnmergedTree = true).fetchSemanticsNodes().single().boundsInWindow
             assertTrue("$screen: ${row.id} title $title inside row $box", title.left >= box.left - 1 && title.top >= box.top - 1 && title.bottom <= box.bottom + 1 && title.right <= box.right + 1)
             if (i == 0) firstTitleHeight = title.height
+            // Issue #562: New is spoken as the row's state but never drawn (web: gold outline only); Leaving Tomorrow stays visible.
+            if (row.badge == "New") {
+                assertTrue("$screen: ${row.id} draws no New label", rule.onAllNodesWithTag("fst.shop.badge.new.${row.id}", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+                assertEquals("$screen: ${row.id} state", "New", node.config.getOrNull(SemanticsProperties.StateDescription))
+            } else if (row.badge != null) {
+                val pill = rule.onNodeWithTag("fst.shop.badge.leaving.${row.id}", useUnmergedTree = true).fetchSemanticsNode().size
+                assertTrue("$screen: ${row.id} shows its Leaving Tomorrow label", pill.width > 0 && pill.height > 0)
+            }
         }
         return firstTitleHeight
     }
