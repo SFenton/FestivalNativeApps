@@ -146,7 +146,9 @@
      "assertfocus:id=fst.band-rankings.row.fixture-team-12@3",
      "assertapart:id=fst.band-rankings.row.fixture-team-12|id=fst.band-rankings.page-next",
      "key:tab",
-     "assertfocus:id=fst.band-rankings.page-next@3"
+     "assertfocus:id=fst.band-rankings.page-next@3",
+     "focus:id=fst.band-rankings.row.fixture-team-12",
+     "assertfocus:id=fst.band-rankings.row.fixture-team-12@3"
    ]},
   {"name": "cols-song-band-board-focus-clear", "route": "/songs/fixture-pulse/bands/Band_Duets", "profile": "fixture-player-1:Fixture Player 1", "fixture": ["--large-rankings"], "tabs": 0,
    "sizes": ["compact", "medium"], "skip_modes": ["text-150", "text-200", "text-225"],
@@ -176,7 +178,9 @@
      "assertapart:id=fst.player-bands.row.fixture-pband-duo-9|id=fst.player-bands.page-previous",
      "assertapart:id=fst.player-bands.row.fixture-pband-duo-9|id=fst.player-bands.page-next",
      "key:tab",
-     "assertfocus:id=fst.player-bands.page-next@3"
+     "assertfocus:id=fst.player-bands.page-next@3",
+     "focus:id=fst.player-bands.row.fixture-pband-duo-9",
+     "assertfocus:id=fst.player-bands.row.fixture-pband-duo-9@3"
    ]},
   {"name": "cols-player-bands-focus-clear-grid", "route": "/bands/player/fixture-player-1", "tabs": 0,
    "sizes": ["medium"], "skip_modes": ["text-150", "text-200", "text-225"],
@@ -194,6 +198,8 @@
      "assertapart:id=fst.player-bands.row.fixture-pband-duo-13|id=fst.player-bands.page-previous",
      "assertapart:id=fst.player-bands.row.fixture-pband-duo-13|id=fst.player-bands.page-next",
      "key:tab",
-     "assertfocus:id=fst.player-bands.page-next@3"
+     "assertfocus:id=fst.player-bands.page-next@3",
+     "focus:id=fst.player-bands.row.fixture-pband-duo-13",
+     "assertfocus:id=fst.player-bands.row.fixture-pband-duo-13@3"
    ]}
 ]

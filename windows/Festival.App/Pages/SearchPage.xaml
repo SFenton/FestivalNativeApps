@@ -22,7 +22,7 @@
         <TextBlock Text="Search" Style="{StaticResource FSTPageTitleStyle}" AutomationProperties.HeadingLevel="Level1"
                    AutomationProperties.AutomationId="fst.global-search.title" />
 
-        <AutoSuggestBox x:Name="PageField" Grid.Row="1" HorizontalAlignment="Stretch" QueryIcon="Find"
+        <AutoSuggestBox x:Name="PageField" controls:PopupHosting.InWindow="True" Grid.Row="1" HorizontalAlignment="Stretch" QueryIcon="Find"
                         PlaceholderText="Search songs, players, or bands"
                         Text="{x:Bind ViewModel.Query, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                         QuerySubmitted="OnQuerySubmitted" PreviewKeyDown="OnFieldKeyDown"

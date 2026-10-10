@@ -98,8 +98,13 @@ class QuickLinksJumpJourneyTests(unittest.TestCase):
 
     def test_menu_returns_focus_and_meets_target_size(self):
         steps = _steps(_BY_NAME["qlj-profile-menu"])
-        self.assertEqual(steps[-1], "assertfocus:id=fst.quick-links.open@3")
-        self.assertEqual(steps[-3], "key:esc")
+        self.assertEqual(steps[-4], "assertfocus:id=fst.quick-links.open@3")
+        self.assertEqual(steps[-6], "key:esc")
+        # Focus back on Quick Links opens its tooltip, which WinUI always windows (open item 8, #534), so the page ends
+        # on a tile without one before the final scan.
+        self.assertEqual(steps[-2:], ["focus:id=fst.player.stat.overview.songs-played",
+                                      "assertfocus:id=fst.player.stat.overview.songs-played@3"])
+        self.assertNotIn("axe_allow", _BY_NAME["qlj-profile-menu"])
         self.assertIn("assertsize:id=fst.quick-links.open|40x40", steps)
         # The page is scanned before the menu first opens (WinUI's popup host lingers afterwards, open item 8).
         self.assertLess(steps.index("scan:{stem}-axe/closed"), steps.index("key:enter"))
