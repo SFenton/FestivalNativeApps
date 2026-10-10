@@ -1187,8 +1187,20 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     {
         var (condition, label) = Condition(step);
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
-        while (InView(IsRaw(step), () => window.FindAllDescendants(condition)).Any(e => !e.Properties.IsOffscreen.ValueOrDefault))
+        var retried = false;
+        while (true)
         {
+            try
+            {
+                if (!InView(IsRaw(step), () => window.FindAllDescendants(condition)).Any(e => !e.Properties.IsOffscreen.ValueOrDefault)) return;
+            }
+            // Same transient-error retry as Find (#552, #574).
+            catch (Exception error) when (IsTransientUia(error) && (!retried || DateTime.UtcNow <= until))
+            {
+                retried = true;
+                Thread.Sleep(200);
+                continue;
+            }
             if (DateTime.UtcNow > until) throw new InvalidOperationException($"element {label} is still on screen");
             Thread.Sleep(200);
         }
@@ -1208,16 +1220,27 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         var (condition, label) = Condition(step);
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
         var sweepDown = true;
+        var retried = false;
         while (true)
         {
-            var found = InView(IsRaw(step), () => window.FindFirstDescendant(condition));
-            if (found is not null)
+            try
             {
-                if (!found.Properties.IsOffscreen.ValueOrDefault) return;
-                if (found.Patterns.ScrollItem.IsSupported) found.Patterns.ScrollItem.Pattern.ScrollIntoView();
-                else sweepDown = PageTowards(found, sweepDown);
+                var found = InView(IsRaw(step), () => window.FindFirstDescendant(condition));
+                if (found is not null)
+                {
+                    if (!found.Properties.IsOffscreen.ValueOrDefault) return;
+                    if (found.Patterns.ScrollItem.IsSupported) found.Patterns.ScrollItem.Pattern.ScrollIntoView();
+                    else sweepDown = PageTowards(found, sweepDown);
+                }
+                else PageDown(window);
             }
-            else PageDown(window);
+            // Same transient-error retry as Find (#552): a page restored after Back timed out one UIA call here (#574).
+            catch (Exception error) when (IsTransientUia(error) && (!retried || DateTime.UtcNow <= until))
+            {
+                retried = true;
+                Thread.Sleep(200);
+                continue;
+            }
             if (DateTime.UtcNow > until) throw new InvalidOperationException($"could not scroll {label} on screen");
             Thread.Sleep(200);
         }
