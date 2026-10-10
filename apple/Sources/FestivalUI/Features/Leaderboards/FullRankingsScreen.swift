@@ -39,6 +39,10 @@ struct FullRankingsScreen: View {
     @State private var titleHidden = false
     /// Top edge of the pinned footer and pager in ``pageSpace``; nil without chrome.
     @State private var bottomChromeTop: CGFloat?
+    /// The player's footer row height and the board's, for ``SelectedRowPinning`` (R11).
+    @State private var selectedRowHeight: CGFloat = 0
+    @State private var boardHeight: CGFloat = 0
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Height of the rows' bottom fade: the full 40 pt until the last row arrives
     /// above the chrome, then shrinking to nothing (Song Leaderboard, issue #293).
     @State private var bottomFadeDistance = ScrollEdgeFade.distance
@@ -233,6 +237,11 @@ struct FullRankingsScreen: View {
                                 }
                             }
                         }
+                        // Too tall to pin at this text size: the player's footer
+                        // follows the rows (leaderboard-row R11, #386).
+                        if !pinsFooter, Self.showsFooter(spotlightPlacement(entries: payload.rankings.entries)) {
+                            spotlightFooter(entries: payload.rankings.entries, horizontalPadding: 0)
+                        }
                     }
                     .macKeyboardRows(AccountRankingRow.keyRows(payload.rankings.entries))
                     .padding(.horizontal, 16)
@@ -283,6 +292,9 @@ struct FullRankingsScreen: View {
         // safe-area inset for the same tab-bar reason as `SoloLeaderboardScreen`).
         .safeAreaInset(edge: .bottom, spacing: 0) {
             bottomChrome
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+            boardHeight = height
         }
         // `/duo` J2 (operator, 2026-10-02): a narrow board (folded Duo, a split column,
         // portrait iPhone) drops songs played/total on every row when it would truncate
@@ -362,8 +374,8 @@ struct FullRankingsScreen: View {
     private var bottomChrome: some View {
         let spacing = chromeSpacing
         return VStack(spacing: 0) {
-            if let shownEntries {
-                spotlightFooter(entries: shownEntries)
+            if pinsFooter, let shownEntries {
+                spotlightFooter(entries: shownEntries, horizontalPadding: 16)
                     .padding(.top, spacing.footerTop)
                     .padding(.bottom, spacing.footerBottom)
             }
@@ -385,8 +397,18 @@ struct FullRankingsScreen: View {
     private var chromeSpacing: PinnedChromeSpacing {
         PinnedChromeSpacing.resolve(
             rowGap: Double(Self.rowGap), rowBottomInset: Double(Self.rowGap), edgePadding: 8,
-            hasFooter: shownEntries.map { Self.showsFooter(spotlightPlacement(entries: $0)) } ?? false,
+            hasFooter: pinsFooter && (shownEntries.map { Self.showsFooter(spotlightPlacement(entries: $0)) } ?? false),
             hasPager: board != nil
+        )
+    }
+
+    /// Whether the player's footer is pinned above the pager; at accessibility text sizes
+    /// a footer that would cover more than a third of the board follows the rows
+    /// instead (leaderboard-row R11, #386).
+    private var pinsFooter: Bool {
+        SelectedRowPinning.pins(
+            isAccessibilitySize: dynamicTypeSize.isAccessibilitySize,
+            rowHeight: Double(selectedRowHeight), boardHeight: Double(boardHeight)
         )
     }
 
@@ -475,9 +497,20 @@ struct FullRankingsScreen: View {
     /// ``SelectedRowAction``): off this page it jumps to the player's page and brings
     /// their row into view; on it, it opens Statistics (web `getPlayerProfileRoute`).
     ///
+    /// - Parameters:
+    ///   - entries: Last loaded page's rows.
+    ///   - horizontalPadding: 16 pinned; 0 after the rows, which the page already insets.
+    private func spotlightFooter(entries: [AccountRankingEntry], horizontalPadding: CGFloat) -> some View {
+        spotlightFooterContent(entries: entries)
+            .padding(.horizontal, horizontalPadding)
+            .reportsSelectedRowHeight($selectedRowHeight)
+    }
+
+    /// The spotlight footer's row for the player's placement, without the page inset.
+    ///
     /// - Parameter entries: Last loaded page's rows.
     @ViewBuilder
-    private func spotlightFooter(entries: [AccountRankingEntry]) -> some View {
+    private func spotlightFooterContent(entries: [AccountRankingEntry]) -> some View {
         if let placement = spotlightPlacement(entries: entries) {
             switch placement {
             case .none, .inline:
@@ -489,12 +522,10 @@ struct FullRankingsScreen: View {
                     }
                     .padding(12)
                     .festivalCard(cornerRadius: 12)
-                    .padding(.horizontal, 16)
                 } else {
                     // The footer row's height, so it does not jump when the rank arrives.
                     RankingSpotlightLoadingRow()
                         .frame(maxWidth: .infinity, minHeight: LeaderboardRowMetrics.minHeight)
-                        .padding(.horizontal, 16)
                         .accessibilityIdentifier("fst.full-rankings.spotlight-footer.loading")
                 }
             case .unranked:
@@ -502,7 +533,6 @@ struct FullRankingsScreen: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
                     .festivalCardCapsule()
-                    .padding(.horizontal, 16)
                     .accessibilityIdentifier("fst.full-rankings.spotlight-footer.unranked")
             case let .footer(entry):
                 selectedRowFooter(entry)
@@ -549,7 +579,6 @@ struct FullRankingsScreen: View {
             }
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 16)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.full-rankings.spotlight-footer")
     }

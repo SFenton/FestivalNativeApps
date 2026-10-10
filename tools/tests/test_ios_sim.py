@@ -13,6 +13,7 @@ if _sys.platform == "win32":  # Apple tooling imports the POSIX-only fcntl modul
     raise _unittest.SkipTest("Apple simulator tooling runs only on macOS")
 
 import unittest
+import unittest.mock
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -209,6 +210,32 @@ class FailOnSkipTests(unittest.TestCase):
 
     def test_unreadable_summary_fails(self):
         self.assertIsNotNone(skip_problem(None))
+
+
+class UitestDiagnosticsTests(unittest.TestCase):
+    """``uitest --no-test-diagnostics`` tells xcodebuild not to collect failure diagnostics."""
+
+    def run_batch(self, **kwargs):
+        with TemporaryDirectory() as tmp, \
+                unittest.mock.patch.object(ios_sim, "LOCK_PATH", Path(tmp) / "sim.lock"), \
+                unittest.mock.patch.object(ios_sim, "_run") as run, \
+                unittest.mock.patch.object(ios_sim, "boot_exclusive"), \
+                unittest.mock.patch.object(ios_sim.subprocess, "run") as xcodebuild:
+            run.return_value = ios_sim.subprocess.CompletedProcess([], 0, stdout="", stderr="")
+            xcodebuild.return_value = ios_sim.subprocess.CompletedProcess([], 0)
+            ios_sim._run_uitest_batch(
+                udid="UDID", derived=Path(tmp), selectors=["Journey"], timeout=5, **kwargs
+            )
+        return xcodebuild.call_args.args[0]
+
+    def test_collects_diagnostics_by_default(self):
+        self.assertNotIn("-collect-test-diagnostics", self.run_batch())
+
+    def test_skips_diagnostics_when_asked(self):
+        cmd = self.run_batch(diagnostics=False)
+        index = cmd.index("-collect-test-diagnostics")
+        self.assertEqual(cmd[index + 1], "never")
+        self.assertLess(index, cmd.index("test-without-building"))
 
 
 class SourceHashTests(unittest.TestCase):

@@ -62,3 +62,27 @@ import Testing
     let anonymous = SongBandRowFocus(bandId: "", bandType: "Band_Duets", teamKey: "")
     #expect(!anonymous.matches(try entry(bandId: "", teamKey: "")))
 }
+
+// MARK: - Pinned placement (R11, issue #386)
+
+/// The selected row stays pinned at every standard text size, however tall it is.
+@Test func selectedRowStaysPinnedAtStandardSizes() {
+    #expect(SelectedRowPinning.pins(isAccessibilitySize: false, rowHeight: 545, boardHeight: 690))
+    #expect(SelectedRowPinning.pins(isAccessibilitySize: false, rowHeight: 110, boardHeight: 300))
+}
+
+/// At accessibility sizes a row covering more than a third of the board scrolls with the
+/// rows instead (the iPhone band row measured 545 of 690 pt at the largest size).
+@Test func selectedRowScrollsWhenItWouldCoverTheBoardAtAccessibilitySizes() {
+    #expect(!SelectedRowPinning.pins(isAccessibilitySize: true, rowHeight: 545, boardHeight: 690))
+    #expect(!SelectedRowPinning.pins(isAccessibilitySize: true, rowHeight: 231, boardHeight: 690))
+    #expect(SelectedRowPinning.pins(isAccessibilitySize: true, rowHeight: 230, boardHeight: 690))
+    #expect(SelectedRowPinning.pins(isAccessibilitySize: true, rowHeight: 164, boardHeight: 900))
+}
+
+/// Before either height is measured the row keeps its pinned place, so a board never
+/// starts with its row in the list and then moves it.
+@Test func selectedRowPinsUntilMeasured() {
+    #expect(SelectedRowPinning.pins(isAccessibilitySize: true, rowHeight: 0, boardHeight: 690))
+    #expect(SelectedRowPinning.pins(isAccessibilitySize: true, rowHeight: 545, boardHeight: 0))
+}
