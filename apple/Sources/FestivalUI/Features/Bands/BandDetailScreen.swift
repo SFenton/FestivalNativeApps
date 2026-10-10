@@ -109,8 +109,9 @@ struct BandDetailScreen: View {
         // pushed it (HIG Toolbars; same as the Player profile, #555).
         .navigationBarTitleDisplayMode(.large)
         #endif
-        // Mac: View › Rank By mirrors the toolbar menu (nothing while it is hidden).
-        .macRankByCommands($selectedRankBy, isEnabled: showsRankBy)
+        // Mac: View › Rank By mirrors the toolbar menu (Total Score only while
+        // Experimental Ranks is off; the menu bar keeps its submenu, pattern R1).
+        .macRankByCommands($selectedRankBy, experimentalRanks: experimentalRanks)
         .toolbar {
             if pageTools == nil, showsRankBy {
                 ToolbarItem(placement: .festivalPageAction) {

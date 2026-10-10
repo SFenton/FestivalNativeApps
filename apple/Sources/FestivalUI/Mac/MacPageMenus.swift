@@ -27,10 +27,26 @@ struct MacRankByCommands: Equatable {
         lhs.options == rhs.options && lhs.selected == rhs.selected
     }
 
-    /// The account metrics (Leaderboards, Full Rankings), shown disabled when no
-    /// rankings page is in front so the submenu keeps its items (HIG Menus: "Make sure
-    /// a submenu remains available even when its items are unavailable").
-    static let accountOptions = RankingMetric.allCases.map { Option(id: $0.rawValue, label: $0.label) }
+    /// The account metrics (Leaderboards, Full Rankings) Settings › Experimental Ranks
+    /// enables (Total Score alone while off; pattern `experimental-ranks`), shown
+    /// disabled when no rankings page is in front so the submenu keeps its items (HIG
+    /// Menus: "Make sure a submenu remains available even when its items are
+    /// unavailable").
+    ///
+    /// - Parameter experimentalRanks: The Settings switch.
+    /// - Returns: One option per enabled metric, in menu order.
+    static func accountOptions(experimentalRanks: Bool) -> [Option] {
+        RankingMetric.enabled(experimentalRanks: experimentalRanks).map { Option(id: $0.rawValue, label: $0.label) }
+    }
+
+    /// The band metrics (Band Rankings, Band Detail) Settings › Experimental Ranks
+    /// enables (no Max Score; Total Score alone while off).
+    ///
+    /// - Parameter experimentalRanks: The Settings switch.
+    /// - Returns: One option per enabled band metric, in menu order.
+    static func bandOptions(experimentalRanks: Bool) -> [Option] {
+        BandRankingMetric.enabled(experimentalRanks: experimentalRanks).map { Option(id: $0.rawValue, label: $0.label) }
+    }
 }
 
 // MARK: - Instrument
@@ -101,11 +117,15 @@ extension View {
     /// Publish an account rankings page's Rank By to View › Rank By (macOS and the
     /// iPadOS menu bar; a no-op on iPhone).
     ///
-    /// - Parameter selection: The page's metric.
+    /// - Parameters:
+    ///   - selection: The page's metric.
+    ///   - experimentalRanks: Settings › Experimental Ranks; while off only Total Score
+    ///     is listed (pattern `experimental-ranks`).
     /// - Returns: The view.
-    func macRankByCommands(_ selection: Binding<RankingMetric>) -> some View {
+    func macRankByCommands(_ selection: Binding<RankingMetric>, experimentalRanks: Bool) -> some View {
         modifier(MacRankByPublisher(commands: MacRankByCommands(
-            options: MacRankByCommands.accountOptions, selected: selection.wrappedValue.rawValue,
+            options: MacRankByCommands.accountOptions(experimentalRanks: experimentalRanks),
+            selected: selection.wrappedValue.coerced(experimentalRanks: experimentalRanks).rawValue,
             select: { id in RankingMetric(rawValue: id).map { selection.wrappedValue = $0 } }
         )))
     }
@@ -115,16 +135,15 @@ extension View {
     ///
     /// - Parameters:
     ///   - selection: The page's band metric.
-    ///   - isEnabled: Whether the page offers Rank By; while false nothing is published,
-    ///     so View › Rank By reads as on a page without one (Band Detail with
-    ///     Experimental Ranks off, pattern `experimental-ranks` R1).
+    ///   - experimentalRanks: Settings › Experimental Ranks; while off only Total Score
+    ///     is listed (pattern `experimental-ranks`).
     /// - Returns: The view.
-    func macRankByCommands(_ selection: Binding<BandRankingMetric>, isEnabled: Bool = true) -> some View {
-        modifier(MacRankByPublisher(commands: isEnabled ? MacRankByCommands(
-            options: BandRankingMetric.menuOrder.map { .init(id: $0.rawValue, label: $0.label) },
-            selected: selection.wrappedValue.rawValue,
+    func macRankByCommands(_ selection: Binding<BandRankingMetric>, experimentalRanks: Bool) -> some View {
+        modifier(MacRankByPublisher(commands: MacRankByCommands(
+            options: MacRankByCommands.bandOptions(experimentalRanks: experimentalRanks),
+            selected: selection.wrappedValue.coerced(experimentalRanks: experimentalRanks).rawValue,
             select: { id in BandRankingMetric(rawValue: id).map { selection.wrappedValue = $0 } }
-        ) : nil))
+        )))
     }
 
     /// Publish a rankings page's instrument switcher to View › Instrument (macOS and
@@ -188,8 +207,7 @@ extension FocusedValues {
 /// Publishes Rank By only from the top page of its column, and not from the list beside
 /// an open trailing pane (Leaderboards beside Full Rankings, issue #352: the detail wins).
 private struct MacRankByPublisher: ViewModifier {
-    /// The page's Rank By, or nil when the page offers none.
-    let commands: MacRankByCommands?
+    let commands: MacRankByCommands
     @Environment(\.macPageIsTop) private var isTop
     @Environment(\.macColumnIsList) private var isList
 

@@ -1177,13 +1177,19 @@ struct RankingsCountHeader: View {
 // MARK: - Metric picker
 
 /// Native toolbar menu for the shared account rank-by metrics.
+///
+/// Offers only the metrics Settings › Experimental Ranks enables (pattern
+/// `experimental-ranks`); pages show it only while the switch is on, as on the web.
 struct RankByMenu: View {
     @Binding var selection: RankingMetric
+    @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
+
+    private var metrics: [RankingMetric] { RankingMetric.enabled(experimentalRanks: experimentalRanks) }
 
     var body: some View {
         PageToolMenu("Rank By", choices: choices) {
             Picker("Rank By", selection: $selection) {
-                ForEach(RankingMetric.allCases) { metric in
+                ForEach(metrics) { metric in
                     Text(metric.label).tag(metric)
                 }
             }
@@ -1195,7 +1201,7 @@ struct RankByMenu: View {
 
     /// The metrics for the inline-accessory sheet (``PageToolMenu``).
     private func choices() -> [PageToolMenuChoice] {
-        RankingMetric.allCases.map { metric in
+        metrics.map { metric in
             PageToolMenuChoice(
                 id: "fst.rankings.rank-by.\(metric.rawValue)", label: AnyView(Text(metric.label)),
                 isSelected: metric == selection, action: { selection = metric }
@@ -1206,13 +1212,19 @@ struct RankByMenu: View {
 
 /// Native toolbar menu for the band-safe rank-by metrics (no Max Score), in the web's
 /// order, Total Score first (`BandRankingMetric.menuOrder`, pattern `experimental-ranks` R1).
+///
+/// Offers only the metrics Settings › Experimental Ranks enables (pattern
+/// `experimental-ranks`); pages show it only while the switch is on, as on the web.
 struct BandRankByMenu: View {
     @Binding var selection: BandRankingMetric
+    @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
+
+    private var metrics: [BandRankingMetric] { BandRankingMetric.enabled(experimentalRanks: experimentalRanks) }
 
     var body: some View {
         PageToolMenu("Rank By", choices: choices) {
             Picker("Rank By", selection: $selection) {
-                ForEach(BandRankingMetric.menuOrder) { metric in
+                ForEach(metrics) { metric in
                     Text(metric.label).tag(metric)
                 }
             }
@@ -1224,7 +1236,7 @@ struct BandRankByMenu: View {
 
     /// The metrics for the inline-accessory sheet (``PageToolMenu``).
     private func choices() -> [PageToolMenuChoice] {
-        BandRankingMetric.menuOrder.map { metric in
+        metrics.map { metric in
             PageToolMenuChoice(
                 id: "fst.band-rankings.rank-by.\(metric.rawValue)", label: AnyView(Text(metric.label)),
                 isSelected: metric == selection, action: { selection = metric }
