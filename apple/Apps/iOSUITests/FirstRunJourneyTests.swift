@@ -390,6 +390,65 @@ final class FirstRunJourneyTests: XCTestCase {
         XCTAssertEqual(slide.label, "\(title). \(description)", "The slide reads its title and description only")
         SongsUITestSupport.record(app, name: "first-run-song-demo-ax5")
 
+        try assertSongDemoSlideAccessible(app, slide: slide)
+    }
+
+    // MARK: - Demo data swaps (issue #27, accessibility backfill #402)
+
+    /// Issue #27: with motion on, the Songs list demo swaps in different catalogue songs every
+    /// 5 s with a 400 ms fade. At AX5 a swap must not change what VoiceOver reads: the slide
+    /// stays one element named by its title and description, no swapped-in song, placeholder
+    /// or loading indicator becomes reachable, the reading order and 44 pt targets hold, and
+    /// the system audit stays clean. The demo picture itself must change (rotation is live:
+    /// `FST_DEBUG_STILL_BACKGROUND=0`, which otherwise freezes it for XCUITest).
+    /// HIG Accessibility: "When Reduce Motion is on, reduce automatic and repetitive
+    /// animation"; VoiceOver: "Exclude purely decorative images". Hosted counterpart:
+    /// `FirstRunDemoRotationAccessibilityTests` (all 12 rotating demos, Reduce Motion).
+    @MainActor
+    func testSongDemoRotationKeepsSlideAccessibleAtLargestText() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": ProcessInfo.processInfo.environment["FST_FIRST_RUN_FIXTURE_URL"]
+                ?? "http://127.0.0.1:8765",
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_FIRST_RUN": "force",
+            "FST_DEBUG_STILL_BACKGROUND": "0",
+        ])
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        app.launch()
+        let title = "Song List"
+        let description = "Browse and search the entire Festival library. Tap a song to see leaderboards and more details."
+        let slide = slide(app, titled: title)
+        XCTAssertTrue(slide.waitForExistence(timeout: FestivalApp.budget(20)), "Song List slide")
+        let songRow = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'fst.songs.row.'")).firstMatch
+        _ = songRow.waitForExistence(timeout: FestivalApp.budget(5))
+        Thread.sleep(forTimeInterval: FestivalApp.budget(1))
+        XCTAssertEqual(slide.label, "\(title). \(description)", "The slide reads its title and description only")
+        let before = slide.screenshot().pngRepresentation
+
+        // Past at least one 5 s swap and its 400 ms fade out and in (longer in a VM).
+        Thread.sleep(forTimeInterval: FestivalApp.budget(6.5))
+        XCTAssertNotEqual(slide.screenshot().pngRepresentation, before, "The demo swapped its songs (rotation live)")
+        XCTAssertEqual(slide.label, "\(title). \(description)", "A swap leaves the slide's name unchanged")
+        let busy = app.activityIndicators.allElementsBoundByIndex.filter { $0.exists && slide.frame.intersects($0.frame) }
+        XCTAssertEqual(busy.map(\.label), [], "No loading indicator from the swapped-in artwork is reachable")
+        SongsUITestSupport.record(app, name: "first-run-song-demo-rotation-ax5")
+        try assertSongDemoSlideAccessible(app, slide: slide)
+    }
+
+    /// The guide's AX5 checks for the Songs list demo slide: no demo song or placeholder is
+    /// reachable, the slide reads above the page dots, Next and Skip, both actions keep 44 pt
+    /// on-screen targets, and the scoped system audit finds nothing.
+    ///
+    /// - Parameters:
+    ///   - app: The running app, showing the Song List slide.
+    ///   - slide: The slide element.
+    @MainActor
+    private func assertSongDemoSlideAccessible(_ app: XCUIApplication, slide: XCUIElement) throws {
         // Nothing the guide exposes is a demo song or a placeholder.
         let window = app.windows.firstMatch.frame
         var reachable: [XCUIElementSnapshot] = []
