@@ -84,10 +84,6 @@
       "reason": "Two Axe.Windows errors",
       "issue": "SFenton/festival-report-tracker#534"
     },
-    "qlj-profile-menu": {
-      "reason": "Flaky at 225% text: Quick Links current section read before the jump settles",
-      "issue": "SFenton/festival-report-tracker#548"
-    },
     "search-suggestions": {
       "reason": "Two Axe.Windows errors (popup/flyout or board), timing-dependent",
       "issue": "SFenton/festival-report-tracker#534"
@@ -101,10 +97,6 @@
     "matrix:a11y:12": {
       "reason": "Axe finds two errors in Quick Links popup.",
       "issue": "SFenton/festival-report-tracker#534"
-    },
-    "runner:feedback": {
-      "reason": "Flaky: submit phase fails intermittently on the runner",
-      "issue": "SFenton/festival-report-tracker#548"
     }
   }
 }
