@@ -26,7 +26,7 @@ Status of record: [contracts/parity-backlog.json](../../contracts/parity-backlog
 | band-rankings | `/leaderboards/bands/:bandType` | none | absent | [spec (stub)](band-rankings/spec.md) | [android](band-rankings/android.md) · [windows](band-rankings/windows.md) |
 | player-bands | `/bands/player/:accountId` | none | absent | [spec (stub)](player-bands/spec.md) | [ios](player-bands/ios.md) · [android](player-bands/android.md) · [windows](player-bands/windows.md) |
 | bands | `/bands` | none | absent | [spec (stub)](bands/spec.md) | [ios](bands/ios.md) · [android](bands/android.md) · [windows](bands/windows.md) |
-| band-detail | `/bands/:bandId` | none | absent | [spec (stub)](band-detail/spec.md) | [ios](band-detail/ios.md) · [android](band-detail/android.md) · [windows](band-detail/windows.md) |
+| band-detail | `/bands/:bandId` | none | absent | [spec](band-detail/spec.md) | [ios](band-detail/ios.md) · [android](band-detail/android.md) · [windows](band-detail/windows.md) |
 | compete | `/compete` | player | absent | [spec (stub)](compete/spec.md) | [ios](compete/ios.md) · [android](compete/android.md) · [windows](compete/windows.md) |
 | settings | `/settings` | none | partial | [spec](settings/spec.md) | [ios](settings/ios.md) · [android](settings/android.md) · [windows](settings/windows.md) |
 | licenses | `/settings/licenses` | none | absent | [spec](licenses/spec.md) | [ios](licenses/ios.md) · [android](licenses/android.md) · [windows](licenses/windows.md) |

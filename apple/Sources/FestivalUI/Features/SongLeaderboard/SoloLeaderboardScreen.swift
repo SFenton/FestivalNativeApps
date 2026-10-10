@@ -292,8 +292,9 @@ struct SoloLeaderboardScreen: View {
         // its LoadGate, issue #93). A bottom safe-area inset, not a VStack sibling: the
         // tab bar minimizes on scroll down, and a sibling made the List's own frame grow
         // and shrink at the end of the page, which read as a bounce. As an inset the
-        // List keeps its frame and only its content inset changes.
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        // List keeps its frame and only its content inset changes. Read after the
+        // header and rows (#461).
+        .boardBottomChrome {
             bottomChrome
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
@@ -444,7 +445,7 @@ struct SoloLeaderboardScreen: View {
                 }
             }
         }
-        .reportsBottomChromeTop(in: Self.pageSpace) { bottomChromeTop = $0 }
+        .boardBottomChrome(in: Self.pageSpace) { bottomChromeTop = $0 }
     }
 
     /// Padding that rests the last row one row gap above the footer, or above the
@@ -513,11 +514,10 @@ struct SoloLeaderboardScreen: View {
                     .accessibilityIdentifier("fst.song-leaderboard.spotlight-jump")
                 }
             }
-            .buttonStyle(.plain)
             .reportsSelectedRowHeight($selectedRowHeight)
-            .padding(.horizontal, horizontalPadding)
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("fst.song-leaderboard.spotlight-footer")
+            .pinnedFooterControl(
+                identifier: "fst.song-leaderboard.spotlight-footer", horizontalPadding: horizontalPadding
+            )
         }
     }
 

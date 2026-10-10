@@ -2,5 +2,15 @@
   {"name": "edge-system-hard", "modes": ["hc-desert", "no-transparency"], "tab": "songs", "fixture": ["--large-catalogue"],
    "ready": ["waitfor:id=fst.songs.section-header@20"],
    "after_ready": ["assertstatus:id=fst.songs.edge-fade|hard-edge@5", "scrollto:id=fst.songs.list,30", "wait:1",
-                   "assertstatus:id=fst.songs.edge-fade|hard-edge@5", "waitfor:id=fst.songs.section-header@5"], "tabs": 8}
+                   "assertstatus:id=fst.songs.edge-fade|hard-edge@5", "waitfor:id=fst.songs.section-header@5"], "tabs": 8},
+  {"name": "edge-hard-row-access", "modes": ["hc-desert", "no-transparency"], "tab": "songs", "fixture": ["--large-catalogue"], "scan": true,
+   "ready": ["waitfor:id=fst.songs.section-header@20"],
+   "after_ready": ["reveal:id=fst.songs.row.fixture-song-7", "scrollinset:id=fst.songs.row.fixture-song-7|id=fst.songs.list|12",
+                   "wait:1", "assertstatus:id=fst.songs.edge-fade|hard-edge@5",
+                   "assertread:id=fst.songs.section-header|A, text",
+                   "assertread:id=fst.songs.row.fixture-song-7|~^Anthem Signal, .+, list item",
+                   "assertorder:id=fst.songs.section-header|id=fst.songs.row.fixture-song-7|id=fst.songs.row.fixture-song-5",
+                   "assertstate:id=fst.songs.row.fixture-song-7|invoke=true", "waitgone:id=fst.songs.edge-fade@1",
+                   "assertsize:id=fst.songs.row.fixture-song-7|40x40",
+                   "assertat:id=fst.songs.row.fixture-song-7|0,-24"], "tabs": 0}
 ]

@@ -1,5 +1,4 @@
 import UIKit
-import Vision
 import XCTest
 
 // MARK: - What's New at AX5 (issue #80, backfilled by #434)
@@ -71,9 +70,6 @@ final class WhatsNewAccessibilityJourneyTests: XCTestCase {
         Note(text: "Fixture note from a document without groups.", heading: false),
     ]
 
-    /// Minimum growth of a line's glyphs from the default size to AX5 (project rule).
-    private static let minimumGrowth: CGFloat = 1.35
-
     override func tearDown() {
         XCUIDevice.shared.orientation = .portrait
         super.tearDown()
@@ -115,8 +111,8 @@ final class WhatsNewAccessibilityJourneyTests: XCTestCase {
         for index in Self.readingOrder.indices {
             let note = Self.readingOrder[index]
             let (element, frame) = reveal(index, in: standard, region: standardRegion)
-            let reading = Self.recognize(element, label: note.text, frame: frame)
-            XCTAssertTrue(Self.showsWhole(note.text, in: reading.text),
+            let reading = RecognizedText.recognize(element, label: note.text, frame: frame)
+            XCTAssertTrue(RecognizedText.showsWhole(note.text, in: reading.text),
                           "'\(note.text)' reads back whole at the default size: '\(reading.text ?? "nil")'")
             let height = try XCTUnwrap(reading.lineHeight, "'\(note.text)' recognized at the default size")
             XCTAssertGreaterThan(height, 4, "'\(note.text)' has a measurable line height")
@@ -137,13 +133,13 @@ final class WhatsNewAccessibilityJourneyTests: XCTestCase {
             XCTAssertLessThanOrEqual(frame.maxY, region.maxY + 0.5, "'\(note.text)' under the Dismiss bar: \(frame) vs \(region)")
             XCTAssertGreaterThanOrEqual(frame.minX, window.minX - 0.5, "'\(note.text)' cut off at the leading edge: \(frame)")
             XCTAssertLessThanOrEqual(frame.maxX, window.maxX + 0.5, "'\(note.text)' cut off at the trailing edge: \(frame)")
-            let reading = Self.recognize(element, label: note.text, frame: frame)
-            XCTAssertTrue(Self.showsWhole(note.text, in: reading.text),
+            let reading = RecognizedText.recognize(element, label: note.text, frame: frame)
+            XCTAssertTrue(RecognizedText.showsWhole(note.text, in: reading.text),
                           "'\(note.text)' reads back whole at AX5: '\(reading.text ?? "nil")'")
             let height = try XCTUnwrap(reading.lineHeight, "'\(note.text)' recognized at AX5")
             let ratio = height / baseline[index]
             growth.append(String(format: "%@ %.2f", note.text, ratio))
-            XCTAssertGreaterThan(ratio, Self.minimumGrowth,
+            XCTAssertGreaterThan(ratio, RecognizedText.minimumGrowth,
                                  "'\(note.text)' glyphs grow at AX5: \(height) vs \(baseline[index]) pt")
         }
         attach("whats-new-ax5-\(name)-growth", growth.joined(separator: "\n"))
@@ -296,86 +292,6 @@ final class WhatsNewAccessibilityJourneyTests: XCTestCase {
     @MainActor
     private static func isHeader(_ snapshot: XCUIElementSnapshot) -> Bool {
         (traits(snapshot) ?? 0) & UIAccessibilityTraits.header.rawValue != 0
-    }
-
-    // MARK: - Recognition
-
-    /// Text recognized from the element's own capture and its median line height in points.
-    private struct Reading {
-        let text: String?
-        let lineHeight: CGFloat?
-    }
-
-    /// Recognize the element's text (upright, or turned when the capture arrives in the
-    /// framebuffer's orientation) and measure its recognized line heights.
-    ///
-    /// - Parameters:
-    ///   - element: A static text on screen.
-    ///   - label: Its label (the expected text).
-    ///   - frame: Its frame, in points, at the capture.
-    /// - Returns: The best reading (the one that shows the label whole, else the longest);
-    ///   a capture taken while the last drag settled is retried.
-    @MainActor
-    private static func recognize(_ element: XCUIElement, label: String, frame: CGRect) -> Reading {
-        var reading = recognizeOnce(element, label: label, frame: frame)
-        for _ in 0..<2 where !showsWhole(label, in: reading.text) || (reading.lineHeight ?? 0) <= 4 {
-            RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(0.5)))
-            reading = recognizeOnce(element, label: label, frame: frame)
-        }
-        return reading
-    }
-
-    @MainActor
-    private static func recognizeOnce(_ element: XCUIElement, label: String, frame: CGRect) -> Reading {
-        guard let image = element.screenshot().image.cgImage else { return Reading(text: nil, lineHeight: nil) }
-        var best = Reading(text: nil, lineHeight: nil)
-        // A capture in the framebuffer's orientation (iPad landscape) is turned: try that first.
-        let turned = (image.width > image.height) != (frame.width > frame.height)
-        let orientations: [CGImagePropertyOrientation] = turned ? [.right, .left, .up] : [.up, .right, .left]
-        for orientation in orientations {
-            let request = VNRecognizeTextRequest()
-            request.recognitionLevel = .accurate
-            request.usesLanguageCorrection = false
-            request.minimumTextHeight = 0
-            guard (try? VNImageRequestHandler(cgImage: image, orientation: orientation, options: [:]).perform([request])) != nil
-            else { continue }
-            let lines = (request.results ?? []).sorted { $0.boundingBox.maxY > $1.boundingBox.maxY }
-            guard !lines.isEmpty else { continue }
-            let text = lines.compactMap { $0.topCandidates(1).first?.string }.joined(separator: " ")
-            let heights = lines.map { $0.boundingBox.height * frame.height }.sorted()
-            let reading = Reading(text: text, lineHeight: heights[heights.count / 2])
-            if showsWhole(label, in: text) { return reading }
-            if (best.text?.count ?? -1) < text.count { best = reading }
-        }
-        return best
-    }
-
-    /// True when the recognized text shows the whole label without an ellipsis (letters and
-    /// digits, one recognition error per ten characters tolerated; same rule as the iPad
-    /// audit's `IPadAuditTextEvidence.showsWhole`).
-    private static func showsWhole(_ label: String, in recognized: String?) -> Bool {
-        guard let recognized, !recognized.contains("…"), !recognized.hasSuffix("...") else { return false }
-        let wanted = normalized(label), seen = normalized(recognized)
-        guard !wanted.isEmpty else { return false }
-        return distance(wanted, in: seen) <= max(1, wanted.count / 10)
-    }
-
-    private static func normalized(_ text: String) -> [Character] {
-        Array(text.lowercased().filter { $0.isLetter || $0.isNumber })
-    }
-
-    /// Smallest edit distance between `pattern` and any substring of `text`.
-    private static func distance(_ pattern: [Character], in text: [Character]) -> Int {
-        var previous = Array(repeating: 0, count: text.count + 1)
-        for (row, character) in pattern.enumerated() {
-            var current = [row + 1] + Array(repeating: 0, count: text.count)
-            for column in stride(from: 1, through: text.count, by: 1) {
-                let cost = text[column - 1] == character ? 0 : 1
-                current[column] = min(previous[column - 1] + cost, previous[column] + 1, current[column - 1] + 1)
-            }
-            previous = current
-        }
-        return previous.min() ?? pattern.count
     }
 
     // MARK: - Evidence

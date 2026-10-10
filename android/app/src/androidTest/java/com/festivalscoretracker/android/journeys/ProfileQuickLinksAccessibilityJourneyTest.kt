@@ -8,15 +8,14 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
-import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.model.SelectedPlayer
@@ -47,8 +46,8 @@ import org.junit.runner.RunWith
  * - the chooser (sheet on compact windows, menu on wider ones) reads its rows in page order
  *   (Global Statistics, the instruments, Top Songs, Bands), each named by its spoken title, the
  *   current row selected with "Current section", every whole row at least 48 dp (`quick-links` R6);
- *   the > 8-section sheet opens partially expanded, and its lower rows come up through the drag
- *   handle's Expand action, the path TalkBack offers;
+ *   the > 8-section sheet opens fully expanded with no half-height stop (no Expand action;
+ *   `modal-shell` R13, #586), and its lower rows scroll into view in the list;
  * - after a jump to Top Songs the entry names Top Songs, and the "Top Songs Per Instrument"
  *   heading stays a heading on the 32 dp landing line, unclipped, after the cards above have
  *   loaded (`section-jump-landing` R2, R6);
@@ -154,11 +153,9 @@ class ProfileQuickLinksAccessibilityJourneyTest {
         assertChooser(config, current = "global")
 
         if (sheet) {
-            // The > 8-section sheet opens partially expanded (M3 default): its lower rows sit below the
-            // screen until the drag handle's Expand action, the path TalkBack offers, raises it.
+            // The > 8-section sheet opens fully expanded (modal-shell R13, #586): no half-height stop to raise.
             rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.Expand), useUnmergedTree = true)
-                .onFirst().performSemanticsAction(SemanticsActions.Expand)
-            rule.waitForIdle()
+                .assertCountEquals(0)
             h.scrollTo(LIST, TOP_SONGS_ITEM)
         } else {
             rule.onNodeWithTag(TOP_SONGS_ITEM).performScrollTo()

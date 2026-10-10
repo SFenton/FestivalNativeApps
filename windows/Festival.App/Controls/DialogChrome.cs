@@ -93,9 +93,7 @@ public static class DialogChrome
     /// <param name="dialog">Dialog, before it is shown.</param>
     public static void CommandTargets(ContentDialog dialog)
     {
-        var size = Application.Current?.Resources.TryGetValue("FSTMinTargetSize", out var value) == true && value is double d
-            ? d
-            : MinTargetSize;
+        var size = TargetSize;
         void Apply()
         {
             foreach (var name in CommandButtons)
@@ -107,6 +105,13 @@ public static class DialogChrome
 
     /// <summary>Fallback for <c>FSTMinTargetSize</c> (Styles.xaml) when the app resources are not loaded.</summary>
     internal const double MinTargetSize = 40;
+
+    /// <summary>
+    /// Fluent's minimum touch target in epx (<c>FSTMinTargetSize</c>, else <see cref="MinTargetSize"/>), for buttons a modal
+    /// builds in code inside its content (e.g. the feedback form's discard confirmation, issue #433).
+    /// </summary>
+    internal static double TargetSize =>
+        Application.Current?.Resources.TryGetValue("FSTMinTargetSize", out var value) == true && value is double d ? d : MinTargetSize;
 
     /// <summary>Template part names of the dialog's command buttons.</summary>
     internal static readonly string[] CommandButtons = ["PrimaryButton", "SecondaryButton", "CloseButton"];

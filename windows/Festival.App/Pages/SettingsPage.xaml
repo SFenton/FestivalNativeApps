@@ -169,19 +169,24 @@
                                  column); their *Body elements move into the detail card while selected (code-behind). -->
                             <controls:SettingsDetailRow x:Name="SongRowOrderRow" Tag="SongRowOrder" Click="OnDetailRowClick" Visibility="{x:Bind SplitVisibility(ViewModel.HasSongRowOrderRow, IsSplit), Mode=OneWay}"
                                                         AutomationProperties.AutomationId="fst.settings.detail-row.song-row-order" />
-                            <!-- Web: the order list appears directly under the switch while it is on (no expander). -->
-                            <StackPanel x:Name="SongRowOrderInline" Visibility="{x:Bind InlineVisibility(ViewModel.EnableVisualOrder, IsSplit), Mode=OneWay}" Padding="0,0,0,8" Spacing="4">
-                                <TextBlock Text="Song Row Visual Order" Style="{StaticResource SubsettingTitleStyle}" AutomationProperties.HeadingLevel="Level3" />
-                                <TextBlock Text="When filtering to a single instrument in the song list, extra metadata is displayed. Choose the order it appears in on the bottom row."
-                                           Style="{StaticResource SettingDescriptionStyle}" />
-                                <StackPanel x:Name="SongRowOrderBody" Spacing="4">
-                                    <TextBlock Text="{x:Bind ViewModel.VisualOrderSummary, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}"
-                                               Visibility="{x:Bind ViewModel.HasVisibleMetadata, Mode=OneWay, Converter={StaticResource FSTInverseVisibility}}" />
-                                    <ListView Style="{StaticResource ReorderListStyle}" ItemsSource="{x:Bind ViewModel.SongRowOrder, Mode=OneWay}"
-                                              Visibility="{x:Bind ViewModel.HasVisibleMetadata, Mode=OneWay}" DragItemsCompleted="OnReorderCompleted"
-                                              AutomationProperties.Name="Song Row Visual Order"
-                                              AutomationProperties.AutomationId="fst.settings.song-row-order" />
-                                </StackPanel>
+                            <!-- Web: the order list appears directly under the switch while it is on (no expander); it opens and
+                                 closes with the app's accordion motion (Accordion.Open, load-transition R10, #561). -->
+                            <StackPanel x:Name="SongRowOrderInline" Visibility="{x:Bind InlineVisibility(x:True, IsSplit), Mode=OneWay}">
+                                <Border Visibility="Collapsed" controls:Accordion.Open="{x:Bind ViewModel.EnableVisualOrder, Mode=OneWay}">
+                                    <StackPanel Padding="0,0,0,8" Spacing="4">
+                                        <TextBlock Text="Song Row Visual Order" Style="{StaticResource SubsettingTitleStyle}" AutomationProperties.HeadingLevel="Level3" />
+                                        <TextBlock Text="When filtering to a single instrument in the song list, extra metadata is displayed. Choose the order it appears in on the bottom row."
+                                                   Style="{StaticResource SettingDescriptionStyle}" />
+                                        <StackPanel x:Name="SongRowOrderBody" Spacing="4">
+                                            <TextBlock Text="{x:Bind ViewModel.VisualOrderSummary, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}"
+                                                       Visibility="{x:Bind ViewModel.HasVisibleMetadata, Mode=OneWay, Converter={StaticResource FSTInverseVisibility}}" />
+                                            <ListView Style="{StaticResource ReorderListStyle}" ItemsSource="{x:Bind ViewModel.SongRowOrder, Mode=OneWay}"
+                                                      Visibility="{x:Bind ViewModel.HasVisibleMetadata, Mode=OneWay}" DragItemsCompleted="OnReorderCompleted"
+                                                      AutomationProperties.Name="Song Row Visual Order"
+                                                      AutomationProperties.AutomationId="fst.settings.song-row-order" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                             <controls:SettingsDetailRow x:Name="PathDefaultViewRow" Tag="PathDefaultView" Click="OnDetailRowClick" Visibility="{x:Bind SplitVisibility(x:True, IsSplit), Mode=OneWay}"
                                                         Value="{x:Bind ViewModel.PathDefaultViewValue, Mode=OneWay}"
@@ -224,16 +229,21 @@
                             <controls:SettingsDetailRow x:Name="LeewayRow" Tag="Leeway" Click="OnDetailRowClick" Visibility="{x:Bind SplitVisibility(ViewModel.HasLeewayRow, IsSplit), Mode=OneWay}"
                                                         Value="{x:Bind ViewModel.LeewayValue, Mode=OneWay}"
                                                         AutomationProperties.AutomationId="fst.settings.detail-row.leeway" />
-                            <StackPanel x:Name="LeewayInline" Visibility="{x:Bind InlineVisibility(ViewModel.FilterInvalidScores, IsSplit), Mode=OneWay}">
-                                <StackPanel x:Name="LeewayBody" Padding="0,0,0,8">
-                                    <Slider Header="{x:Bind ViewModel.LeewayText, Mode=OneWay}" Minimum="-5" Maximum="5" StepFrequency="0.1"
-                                            SmallChange="0.1" LargeChange="1" TickFrequency="1" TickPlacement="Outside"
-                                            Value="{x:Bind ViewModel.Leeway, Mode=TwoWay}" ThumbToolTipValueConverter="{StaticResource FSTLeeway}"
-                                            AutomationProperties.Name="Maximum Score Leeway"
-                                            AutomationProperties.ItemStatus="{x:Bind ViewModel.LeewayValue, Mode=OneWay}"
-                                            AutomationProperties.AutomationId="fst.settings.leeway" />
-                                    <TextBlock Text="{x:Bind ViewModel.LeewayDescription, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}" />
-                                </StackPanel>
+                            <!-- The leeway slider opens under its switch with the app's accordion motion (Accordion.Open, #561). -->
+                            <StackPanel x:Name="LeewayInline" Visibility="{x:Bind InlineVisibility(x:True, IsSplit), Mode=OneWay}">
+                                <Border Visibility="Collapsed" controls:Accordion.Open="{x:Bind ViewModel.FilterInvalidScores, Mode=OneWay}">
+                                    <StackPanel>
+                                        <StackPanel x:Name="LeewayBody" Padding="0,0,0,8">
+                                            <Slider Header="{x:Bind ViewModel.LeewayText, Mode=OneWay}" Minimum="-5" Maximum="5" StepFrequency="0.1"
+                                                    SmallChange="0.1" LargeChange="1" TickFrequency="1" TickPlacement="Outside"
+                                                    Value="{x:Bind ViewModel.Leeway, Mode=TwoWay}" ThumbToolTipValueConverter="{StaticResource FSTLeeway}"
+                                                    AutomationProperties.Name="Maximum Score Leeway"
+                                                    AutomationProperties.ItemStatus="{x:Bind ViewModel.LeewayValue, Mode=OneWay}"
+                                                    AutomationProperties.AutomationId="fst.settings.leeway" />
+                                            <TextBlock Text="{x:Bind ViewModel.LeewayDescription, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                             <Grid ColumnSpacing="12" MinHeight="56">
                                 <Grid.ColumnDefinitions>

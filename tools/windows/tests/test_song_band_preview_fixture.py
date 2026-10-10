@@ -61,6 +61,49 @@ class PayloadTests(unittest.TestCase):
         self.assertEqual(modes, set(f.MODES))
         self.assertTrue(any("fixture" not in p and not str(p.get("profile", "")).startswith("fixture-") for p in pages))
 
+    def test_surface_pages_pin_the_opaque_bordered_fallback(self):
+        # surface-materials R4 (issue #426, for #64): transparency off, in-app Less Transparency or Increase Contrast make
+        # every plain band row's FSTCardSurfaceBrush opaque #121826 with a visible rim; with transparency on the fill stays
+        # translucent at the same probe point, so the opaque probe is not vacuous.
+        from tools.windows import a11y_matrix as m
+        from tools.windows import uiwin as u
+        pages = {p["name"]: p for p in json.loads(JOURNEY.read_text(encoding="utf-8"))}
+        opaque = "fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0"
+        visible = "bg:L-6,M0|L0,M0!=@fill~6|C0,T0!=@fill~6|C0,B1!=@fill~6|L0,M0!=@bg~6|C0,T0!=@bg~6|C0,B1!=@bg~6"
+        strong = "L0,M0=#84828A~40|C0,T0=#84828A~40|C0,B1=#84828A~40"
+        rows = ("Band_Duets.0", "Band_Duets.1")
+        cases = {
+            "bp-a11y-surface-no-transparency": ("no-transparency", {}, visible),
+            "bp-a11y-surface-less-transparency": ("normal", {"lessTransparency": True}, visible),
+            "bp-a11y-surface-more-contrast": ("normal", {"moreContrast": True}, strong),
+            "bp-a11y-surface-app-contrast": ("app-contrast", {}, strong),
+        }
+        for name, (mode, settings, edge) in cases.items():
+            with self.subTest(page=name):
+                page = pages[name]
+                self.assertEqual(page["modes"], [mode])
+                self.assertEqual(m.mode_pages([page], mode), [page])
+                self.assertEqual(page["settings"] if settings else page.get("settings", {}), settings)
+                # Anonymous: no selected band, so every probed row is the plain card surface, not the player purple.
+                self.assertNotIn("profile", page)
+                steps = [*page["ready"], *page["after_ready"]]
+                for step in steps:
+                    u.parse_step(step.replace("{stem}", "x"))
+                for row in rows:
+                    self.assertIn(f"assertpaint:id=fst.song-detail.band-row.{row}|{opaque}|{edge}", steps)
+        translucent = pages["bp-a11y-surface-translucent"]
+        self.assertEqual(translucent["modes"], ["normal"])
+        self.assertNotIn("settings", translucent)
+        for row in rows:
+            self.assertIn(f"assertpaint:id=fst.song-detail.band-row.{row}|L6,M0!=#121826~1|C0,B4!=#121826~1",
+                          translucent["after_ready"])
+        # windows-ui's generated runs pick every surface page up in its declared mode.
+        from tools.windows import ui_ci
+        runs = {(r.mode, page) for r in ui_ci.RUNS if r.pages == JOURNEY.name for page in (r.only or "").split(",")}
+        for name, (mode, _, _) in cases.items():
+            self.assertIn((mode, name), runs)
+        self.assertIn(("normal", "bp-a11y-surface-translucent"), runs)
+
 
 class FixtureServerTests(unittest.TestCase):
     """The patched handler over a real loopback socket."""

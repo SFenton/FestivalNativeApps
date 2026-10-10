@@ -266,6 +266,7 @@ public struct FestivalRootView: View {
                     pop: { _ = paths[selected]?.popLast() },
                     select: { select($0) }
                 ))
+                ScrollFlingStressRunner.startIfRequested()
             }
             #endif
         }
@@ -1027,6 +1028,7 @@ private struct ShellCommandsPublisher: ViewModifier {
 /// Parses `FST_DEBUG_TAB` / `FST_DEBUG_ROUTE` so `tools/ios_sim.py` can open any page directly.
 ///
 /// Route syntax: `player:<accountId>`, `leaderboards`, `fullRankings:<Instrument rawValue>`,
+/// `fullComboRankings:<Instrument rawValue>+<Instrument rawValue>[+…]`,
 /// `shop`, `rivals`, `statistics`, `suggestions`, `compete`, `bands`, `licenses`,
 /// `settingsTopic:<SettingsTopic rawValue>` (with `FST_DEBUG_TAB=settings`),
 /// `allRivals:<scope>`, `rivalDetail:<rivalId>[:<scope>]`, `rivalry:<rivalId>:<mode>[:<scope>]`.
@@ -1094,6 +1096,11 @@ struct DebugLaunchRoute {
                 instrument: arg.flatMap(Instrument.init(rawValue:)) ?? .lead, rankBy: "totalscore"
             )
         case "bandRankings": route = .bandRankings(bandType: arg ?? "Band_Duets")
+        case "fullComboRankings":
+            // `fullComboRankings:Solo_Guitar+Solo_Bass` (issue #602).
+            let instruments = (arg ?? "").split(separator: "+").compactMap { Instrument(rawValue: String($0)) }
+            route = RankingCombo(instruments: instruments.isEmpty ? [.lead, .bass] : instruments)
+                .map { .fullComboRankings(combo: $0, rankBy: "totalscore") }
         case "shop": route = .shop
         case "rivals": route = .rivals
         case "allRivals":

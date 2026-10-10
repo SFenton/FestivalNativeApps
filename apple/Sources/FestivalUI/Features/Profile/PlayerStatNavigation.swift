@@ -17,6 +17,23 @@ struct PlayerStatNavigator: Equatable {
     let showSongs: @MainActor (SongsFilterPreset) -> Void
 
     static func == (lhs: Self, rhs: Self) -> Bool { true }
+
+    /// Push Song Detail for a song id. `AppRoute.songDetail` carries a full `Song`, so
+    /// resolve it from the (cached) catalogue first; a catalogue failure leaves the page
+    /// where it is rather than opening an empty detail.
+    ///
+    /// - Parameters:
+    ///   - songId: The song to open.
+    ///   - session: Session whose catalogue resolves the id.
+    @MainActor
+    func pushSongDetail(_ songId: String, session: FestivalSession) {
+        Task { @MainActor in
+            guard let payload = try? await session.catalog(),
+                  let song = payload.catalog.songs.first(where: { $0.songId == songId })
+            else { return }
+            push(.songDetail(song))
+        }
+    }
 }
 
 extension EnvironmentValues {

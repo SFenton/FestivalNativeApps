@@ -576,25 +576,51 @@ def screenshot_display(args: argparse.Namespace, udid: str) -> str | None:
     return None
 
 
+def _accessibility_preference(key: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """One boolean ``com.apple.Accessibility`` preference as an (enable, restore) step.
+
+    Args:
+        key: Preference key (from the runtime's ``libAccessibility``).
+
+    Returns:
+        ``simctl`` argv tails that write it true, then delete it.
+    """
+    return (("spawn", "{udid}", "defaults", "write", "com.apple.Accessibility", key, "-bool", "true"),
+            ("spawn", "{udid}", "defaults", "delete", "com.apple.Accessibility", key))
+
+
+def _notification(name: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """A Darwin notification posted after both enabling and restoring a setting.
+
+    Args:
+        name: Notification the setting's daemon observes.
+
+    Returns:
+        The same ``simctl spawn … notifyutil -p`` argv tail twice.
+    """
+    post = ("spawn", "{udid}", "notifyutil", "-p", name)
+    return post, post
+
+
 #: Simulator accessibility settings ``shot --a11y`` / ``uitest --a11y`` can switch on for
-#: one capture or test batch. Each maps to (enable argv tail, restore argv tail) after
-#: ``xcrun simctl``. ``increase-contrast`` uses ``simctl ui``; ``reduce-transparency`` and
-#: ``bold-text`` write the Accessibility preferences the system reads at app launch (no
-#: ``simctl ui`` option; keys from the runtime's ``libAccessibility``).
-A11Y_SETTINGS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
-    "increase-contrast": (("ui", "{udid}", "increase_contrast", "enabled"),
-                          ("ui", "{udid}", "increase_contrast", "disabled")),
-    "reduce-transparency": (
-        ("spawn", "{udid}", "defaults", "write", "com.apple.Accessibility",
-         "EnhancedBackgroundContrastEnabled", "-bool", "true"),
-        ("spawn", "{udid}", "defaults", "delete", "com.apple.Accessibility",
-         "EnhancedBackgroundContrastEnabled"),
-    ),
-    "bold-text": (
-        ("spawn", "{udid}", "defaults", "write", "com.apple.Accessibility",
-         "EnhancedTextLegibilityEnabled", "-bool", "true"),
-        ("spawn", "{udid}", "defaults", "delete", "com.apple.Accessibility",
-         "EnhancedTextLegibilityEnabled"),
+#: one capture or test batch. Each maps to ordered (enable argv tail, restore argv tail)
+#: steps after ``xcrun simctl``; restore runs the steps in reverse, notifications last. ``increase-contrast``
+#: uses ``simctl ui``; the others write the Accessibility preferences the system reads at
+#: app launch (no ``simctl ui`` option; keys from the runtime's ``libAccessibility``).
+#: ``full-keyboard-access`` also lets the simulated (XCUITest) keyboard count as a hardware
+#: keyboard and posts FKA's status notification so running processes re-read it: UIKit's
+#: focus system then gives hardware-keyboard focus. It does not start the FKA agent (only
+#: a private setter does), and XCUITest's keys never reach FKA's event tap, so FKA's own
+#: traversal stays an operator check (.agents/design/apple/ipados.md).
+A11Y_SETTINGS: dict[str, tuple[tuple[tuple[str, ...], tuple[str, ...]], ...]] = {
+    "increase-contrast": ((("ui", "{udid}", "increase_contrast", "enabled"),
+                           ("ui", "{udid}", "increase_contrast", "disabled")),),
+    "reduce-transparency": (_accessibility_preference("EnhancedBackgroundContrastEnabled"),),
+    "bold-text": (_accessibility_preference("EnhancedTextLegibilityEnabled"),),
+    "full-keyboard-access": (
+        _accessibility_preference("FullKeyboardAccessUsesSimulatedKeyboardForAutomation"),
+        _accessibility_preference("FullKeyboardAccessEnabled"),
+        _notification("com.apple.accessibility.fullkeyboardaccess.status"),
     ),
 }
 
@@ -617,9 +643,13 @@ def a11y_commands(udid: str, settings: list[str] | None) -> tuple[list[list[str]
     for name in settings or []:
         if name not in A11Y_SETTINGS:
             raise ValueError(f"unknown --a11y setting {name!r}; choose from {sorted(A11Y_SETTINGS)}")
-        on, off = A11Y_SETTINGS[name]
-        enable.append(["xcrun", "simctl", *(part.format(udid=udid) for part in on)])
-        restore.insert(0, ["xcrun", "simctl", *(part.format(udid=udid) for part in off)])
+        undo: list[list[str]] = []
+        for on, off in A11Y_SETTINGS[name]:
+            enable.append(["xcrun", "simctl", *(part.format(udid=udid) for part in on)])
+            undo.insert(0, ["xcrun", "simctl", *(part.format(udid=udid) for part in off)])
+        # A notification announces the restored preferences, so it follows them.
+        undo.sort(key=lambda cmd: "notifyutil" in cmd)
+        restore[0:0] = undo
     return enable, restore
 
 

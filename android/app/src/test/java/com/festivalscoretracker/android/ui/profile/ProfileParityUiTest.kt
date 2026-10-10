@@ -8,6 +8,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionContains
@@ -19,6 +20,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -61,6 +63,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -162,6 +165,58 @@ class ProfileParityUiTest {
         journey.tap("fst.player.top-song.Solo_Guitar.s-beta")
         journey.waitForTag("fst.song-detail.list")
         assertEquals(Fixtures.ACCOUNT_A, runBlocking { journey.container.settings.settings.first() }.selectedPlayer?.accountId)
+    }
+
+    /** Issue #595: Top Five and Bottom Five are two cards, each with its title and description above it. */
+    @Test
+    fun topAndBottomFiveAreSeparateCardsTitledFromAbove() {
+        journey.transport.on("/api/player/${Fixtures.ACCOUNT_A}", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            ProfileFixtures.profile(rows = ProfileFixtures.topAndBottomRows)
+        }
+        journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
+        journey.scrollTo("fst.player.bottom-songs-card.Solo_Guitar")
+        fun bounds(tag: String) = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val heading = bounds("fst.player.top-songs.Solo_Guitar")
+        val topHeader = bounds("fst.player.top-songs-header.Solo_Guitar")
+        val topCard = bounds("fst.player.top-songs-card.Solo_Guitar")
+        val bottomHeader = bounds("fst.player.bottom-songs-header.Solo_Guitar")
+        val bottomCard = bounds("fst.player.bottom-songs-card.Solo_Guitar")
+        assertTrue("Lead $heading above Top Five's title $topHeader", heading.bottom <= topHeader.top + 0.5f)
+        assertTrue("Top Five's title $topHeader above its card $topCard", topHeader.bottom <= topCard.top + 0.5f)
+        assertTrue("Top Five's card $topCard ends before Bottom Five's title $bottomHeader", topCard.bottom <= bottomHeader.top + 0.5f)
+        assertTrue("Bottom Five's title $bottomHeader above its card $bottomCard", bottomHeader.bottom <= bottomCard.top + 0.5f)
+        val inACard = hasAnyAncestor(hasTestTag("fst.player.top-songs-card.Solo_Guitar") or hasTestTag("fst.player.bottom-songs-card.Solo_Guitar"))
+        listOf(
+            "Top Five Songs",
+            "Bottom Five Songs",
+            "Synthetic Player's top ranked competitive songs on Lead, sorted by percentile.",
+            "Synthetic Player's lowest-ranked competitive songs on Lead, sorted by percentile.",
+        ).forEach { text ->
+            assertTrue("\"$text\" is shown", rule.onAllNodes(hasText(text), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+            assertTrue("\"$text\" sits outside the cards", rule.onAllNodes(hasText(text) and inACard, useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        }
+        listOf("top" to "Top Five Songs", "bottom" to "Bottom Five Songs").forEach { (kind, title) ->
+            rule.onNode(hasText(title) and hasAnyAncestor(hasTestTag("fst.player.$kind-songs-header.Solo_Guitar")), useUnmergedTree = true)
+                .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
+            val rows = rule.onAllNodes(
+                tagPrefix("fst.player.$kind-song.Solo_Guitar.") and hasAnyAncestor(hasTestTag("fst.player.$kind-songs-card.Solo_Guitar")),
+                useUnmergedTree = true,
+            ).fetchSemanticsNodes()
+            assertEquals("$title card holds its own five rows", 5, rows.size)
+        }
+        // Bass has one ranked song: only the Top Five list.
+        journey.scrollTo("fst.player.top-songs-card.Solo_Bass")
+        rule.onNodeWithTag("fst.player.top-songs-header.Solo_Bass", useUnmergedTree = true).assertExists()
+        rule.onNodeWithTag("fst.player.bottom-songs-header.Solo_Bass", useUnmergedTree = true).assertDoesNotExist()
+        rule.onNodeWithTag("fst.player.bottom-songs-card.Solo_Bass", useUnmergedTree = true).assertDoesNotExist()
+        // Drums has none: one "No Scores Yet" card and no list titles.
+        journey.scrollTo("fst.player.top-songs-empty.Solo_Drums")
+        rule.onNodeWithTag("fst.player.top-songs-header.Solo_Drums", useUnmergedTree = true).assertDoesNotExist()
+        rule.onNodeWithTag("fst.player.top-songs-card.Solo_Drums", useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    private fun tagPrefix(prefix: String) = SemanticsMatcher("test tag starts with $prefix") {
+        it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith(prefix) == true
     }
 
     @Test
@@ -293,27 +348,40 @@ class ProfileParityUiTest {
         journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
         journey.scrollTo("fst.player.bands")
         journey.waitForTag("fst.player.bands.header.duos")
-        // Duos: six cards (the service preview size), then "View All Bands (8)".
+        // Duos: one card (owner #596) of six rows (the service preview size), then "View All Bands (8)".
         listOf(BandFixtures.DUO_ID, "band-1", "band-2", "band-3", "band-4", "band-5").forEach {
             journey.scrollTo("fst.player-bands.row.$it")
+            rule.onNodeWithTag("fst.player-bands.row.$it").assert(hasAnyAncestor(hasTestTag("fst.player.bands.card.duos")))
         }
         assertTrue(rule.onAllNodesWithTag("fst.player-bands.row.band-6").fetchSemanticsNodes().isEmpty())
-        journey.scrollTo("fst.player.bands.view-all.duos")
-        rule.onNodeWithText("View All Bands (8)").assertIsDisplayed()
-        // Web `BandViewAllCard`: one 48 dp frosted card button whose label is its name (not the purple CTA).
-        rule.onNodeWithTag("fst.player.bands.view-all.duos")
+        // No Duos/Trios/Quads pill inside a group (the header names the size): the row's spoken name drops it too.
+        val spokenRow = rule.onNodeWithTag("fst.player-bands.row.band-1").fetchSemanticsNode().config[SemanticsProperties.ContentDescription].single()
+        assertFalse(spokenRow, spokenRow.contains("Duos"))
+        rule.onNodeWithTag("fst.player-bands.row.band-1")
             .assertHeightIsAtLeast(48.dp)
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
-            .assert(hasText("View All Bands (8)"))
             .assertHasClickAction()
-        // Trios: "No Bands Yet" and no View all.
+        journey.scrollTo("fst.player.bands.view-all.duos")
+        // The shared purple CTA ends the card (`view-all-cta` R1–R4): label first, then the group.
+        rule.onNodeWithTag("fst.player.bands.view-all.duos")
+            .assert(hasAnyAncestor(hasTestTag("fst.player.bands.card.duos")))
+            .assertHeightIsAtLeast(48.dp)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+            .assert(hasContentDescription("View All Bands (8), Duos"))
+            .assertHasClickAction()
+        // The visible label is cleared from semantics (the description speaks it), so only its presence is checked.
+        rule.onNodeWithTag("fst.player.bands.view-all.duos.label", useUnmergedTree = true).assertExists()
+        // Trios: "No Bands Yet" and no card or View all.
         journey.scrollTo("fst.player.bands.header.trios")
         journey.scrollTo("fst.player.bands.empty.trios")
         rule.onNodeWithText("No Bands Yet").assertIsDisplayed()
-        // Quads: every band fits, so no View all.
+        assertTrue(rule.onAllNodesWithTag("fst.player.bands.view-all.trios").fetchSemanticsNodes().isEmpty())
+        assertTrue(rule.onAllNodesWithTag("fst.player.bands.card.trios").fetchSemanticsNodes().isEmpty())
+        // Quads: every band fits, and the card still ends with View All like every preview card.
         journey.scrollTo("fst.player.bands.header.quads")
         journey.scrollTo("fst.player-bands.row.q-band-1")
-        listOf("trios", "quads").forEach { assertTrue(rule.onAllNodesWithTag("fst.player.bands.view-all.$it").fetchSemanticsNodes().isEmpty()) }
+        journey.scrollTo("fst.player.bands.view-all.quads")
+        rule.onNodeWithTag("fst.player.bands.view-all.quads").assert(hasContentDescription("View All Bands (2), Quads"))
         // One keyless page per group, never the All group, band search or `/api/bands`.
         val sent = journey.transport.sent("/api/player/${Fixtures.ACCOUNT_A}/bands")
         assertEquals(setOf("duos", "trios", "quads"), sent.map { Regex("group=(\\w+)").find(it.url)!!.groupValues[1] }.toSet())

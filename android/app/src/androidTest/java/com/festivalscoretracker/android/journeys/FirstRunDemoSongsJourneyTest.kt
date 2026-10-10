@@ -18,8 +18,12 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.firstrun.FirstRunSlide
+import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
+import com.festivalscoretracker.android.core.nav.FestivalSection
 import com.festivalscoretracker.android.testing.FakeTransport
+import com.festivalscoretracker.android.testing.Fixtures
+import com.festivalscoretracker.android.testing.ProfileFixtures
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
@@ -35,6 +39,9 @@ import org.junit.runner.RunWith
  * its heading then its description, never a song title or artist, ATF finds nothing, the first
  * hardware Tab from touch mode lands on a dialog control, Tab and Shift+Tab never stop inside a
  * demo, and at 200% text the footer stays inside the dialog.
+ * Issue #505 (accessibility for #165's re-check of #57) adds the Statistics tour, whose highest/lowest
+ * rank demo #165 cited, through the real host's catalogue wiring: with catalogue songs and after a
+ * failed `/api/songs` read (placeholders), each slide reads the same, Tab skips the demo and ATF passes.
  * `@DeviceCi`: the `android-device` CI job runs it; locally,
  * `device.py test com.festivalscoretracker.android.journeys.FirstRunDemoSongsJourneyTest --avd …`.
  * The Robolectric `FirstRunDemoSongsAccessibilityUiTest` covers every song demo of every tour.
@@ -67,13 +74,30 @@ class FirstRunDemoSongsJourneyTest {
         on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { songsJson(withArt) }
     }
 
+    /**
+     * The Statistics tour's transport: a selected player's profile, and `/api/songs` with
+     * [songs] or, when [catalogueFails], a 503 like the airplane-mode run of #165 (the host keeps
+     * placeholders).
+     */
+    private fun statisticsTransport(catalogueFails: Boolean) = transport(withArt = true).apply {
+        ProfileFixtures.register(this)
+        if (catalogueFails) on("/api/songs", status = 503) { """{"error":"unavailable"}""" }
+    }
+
     private val fontScale = mutableFloatStateOf(1f)
 
     private lateinit var container: AppContainer
 
-    private fun launch(withArt: Boolean) {
-        val debug = DebugLaunch(firstRun = "on", stillBackground = true)
-        container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport(withArt), settingsStore = MemoryPreferences())
+    private fun launch(withArt: Boolean) = launch(DebugLaunch(firstRun = "on", stillBackground = true), transport(withArt))
+
+    /** Opens Statistics for a selected player, whose first visit shows the Statistics tour. */
+    private fun launchStatistics(catalogueFails: Boolean) = launch(
+        DebugLaunch(section = FestivalSection.Statistics, profile = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"), firstRun = "on", stillBackground = true),
+        statisticsTransport(catalogueFails),
+    )
+
+    private fun launch(debug: DebugLaunch, transport: FakeTransport) {
+        container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = MemoryPreferences())
         rule.setContent {
             DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(fontScale.floatValue)) { FestivalApp(container, debug) }
         }
@@ -99,7 +123,7 @@ class FirstRunDemoSongsJourneyTest {
      *
      * @return Slide id → song texts its demo draws.
      */
-    private fun walk(state: String, keyboard: Boolean): Map<String, List<String>> {
+    private fun walk(state: String, keyboard: Boolean, onSlide: (FirstRunSlide) -> Unit = {}): Map<String, List<String>> {
         val slides = container.firstRun.active.value!!.slides
         val drawn = linkedMapOf<String, List<String>>()
         slides.forEachIndexed { index, slide ->
@@ -115,6 +139,7 @@ class FirstRunDemoSongsJourneyTest {
             val inDialog = rule.onAllNodes(hasAnyAncestor(hasTestTag("fst.first-run.dialog"))).fetchSemanticsNodes().map { it.label() }
             assertTrue("${slide.id} ($state): no song text in the dialog's merged tree", inDialog.none { label -> songTexts.any { it in label } })
             drawn[slide.id] = drawnSongs(slide)
+            onSlide(slide)
             if (keyboard) assertTabSkipsTheDemo(slide, last = index == slides.lastIndex)
             val dialog = rule.onNodeWithTag("fst.first-run.dialog").fetchSemanticsNode().boundsInRoot
             val action = if (index == slides.lastIndex) "fst.first-run.done" else "fst.first-run.next"
@@ -186,6 +211,43 @@ class FirstRunDemoSongsJourneyTest {
         fontScale.floatValue = 2f
         launch(withArt = true)
         walk("200pct", keyboard = false)
+        h.assertAccessible()
+    }
+
+    /**
+     * #165's example, the Statistics tour's highest/lowest rank demo, fed through the real host
+     * (`rememberFirstRunDemoCatalog`): it draws catalogue songs yet TalkBack reads only the
+     * slides, Tab skips the demo and ATF finds nothing.
+     */
+    @Test
+    fun statisticsTopSongsDemoIsSilentWithCatalogueSongs() {
+        h.enableAccessibilityChecks()
+        launchStatistics(catalogueFails = false)
+        val drawn = walk("statistics-songs", keyboard = true)
+        assertTrue("Statistics tour includes the top songs demo: ${drawn.keys}", "statistics-top-songs" in drawn)
+        assertTrue("the highest/lowest rank demo draws catalogue songs: $drawn", drawn["statistics-top-songs"].orEmpty().isNotEmpty())
+        h.assertAccessible()
+    }
+
+    /**
+     * A failed `/api/songs` read (#165's airplane-mode check) leaves the Statistics tour on
+     * placeholders that read exactly like the loaded tour and stay out of Tab.
+     */
+    @Test
+    fun failedCatalogueReadKeepsStatisticsPlaceholdersSilent() {
+        h.enableAccessibilityChecks()
+        launchStatistics(catalogueFails = true)
+        val drawn = walk("statistics-failed", keyboard = true) { slide ->
+            if (slide.id == "statistics-top-songs") {
+                val placeholders = rule.onAllNodes(
+                    hasTestTag("fst.first-run.demo.placeholder") and hasAnyAncestor(hasTestTag("fst.first-run.slide.${slide.id}")),
+                    useUnmergedTree = true,
+                ).fetchSemanticsNodes()
+                assertTrue("the top songs demo shows placeholders after a failed read", placeholders.isNotEmpty())
+            }
+        }
+        assertTrue("Statistics tour includes the top songs demo: ${drawn.keys}", "statistics-top-songs" in drawn)
+        assertTrue("a failed read invents no song: $drawn", drawn.values.all { it.isEmpty() })
         h.assertAccessible()
     }
 }

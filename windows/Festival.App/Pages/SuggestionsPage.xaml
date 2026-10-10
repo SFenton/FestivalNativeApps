@@ -46,7 +46,7 @@
                     <TextBlock Text="Filter" />
                 </StackPanel>
                 <DropDownButton.Flyout>
-                    <Flyout x:Name="FilterFlyout" Placement="BottomEdgeAlignedRight" Opening="OnFilterOpening">
+                    <Flyout x:Name="FilterFlyout" Placement="BottomEdgeAlignedRight" ShouldConstrainToRootBounds="True" Opening="OnFilterOpening">
                         <Flyout.FlyoutPresenterStyle>
                             <Style TargetType="FlyoutPresenter">
                                 <Setter Property="MaxWidth" Value="480" />
