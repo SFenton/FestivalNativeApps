@@ -119,6 +119,9 @@ targets:
       - path: Apps/iOSUITests/ProfileAvatarPixels.swift
       # Issue #373 inline photo library and cross-app drop journeys.
       - path: Apps/iOSUITests/FeedbackMediaJourneyTests.swift
+      - path: Apps/iOSUITests/FeedbackUITestSupport.swift
+      # Issue #565: a filed report closes its form, then the sent alert shows.
+      - path: Apps/iOSUITests/FeedbackSentJourneyTests.swift
       # Issue #434 What's New at AX5, portrait and landscape, run on iPad too.
       - path: Apps/iOSUITests/WhatsNewAccessibilityJourneyTests.swift
     dependencies:
