@@ -620,24 +620,30 @@ private fun ChartDemo() {
     }
 }
 
-/** The best-score rows under the chart and a pulsing View All Scores (web `ViewAllScoresDemo`). */
+/**
+ * Score History's best-score rows and a pulsing View All Scores ending their card (web
+ * `ViewAllScoresDemo`), grouped like Song Detail's Score History card (issue #588).
+ */
 @Composable
 private fun ViewAllDemo(id: String, active: Boolean) {
     val points = remember { demoHistoryPoints().sortedByDescending { it.score } }
     val pulse = rememberShopPulse(active)
     DemoFitFirst(remember(points) { FirstRunDemoFit.rowCandidates(points.size) }) { rows ->
-    Column(Modifier.fillMaxWidth()) {
-        points.take(rows).forEachIndexed { index, point ->
-            Box(Modifier.padding(bottom = 4.dp).demoEntrance(FirstRunEntrance.rowDelay(id, index))) {
-                SongHistoryRow(point, best = index == 0, tag = "fst.first-run.demo.history.$index", showSeason = false)
+    GlassCard(Modifier.fillMaxWidth().demoEntrance(0).testTag("fst.first-run.demo.history.card")) {
+        Column(Modifier.padding(top = 4.dp)) {
+            points.take(rows).forEachIndexed { index, point ->
+                Column(Modifier.demoEntrance(FirstRunEntrance.rowDelay(id, index))) {
+                    if (index > 0) SongRowSeparator()
+                    SongHistoryRow(point, best = index == 0, tag = "fst.first-run.demo.history.$index", showSeason = false, grouped = true)
+                }
             }
+            ViewFullLeaderboardButton(
+                onClick = {},
+                label = "View All Scores",
+                testTag = "fst.first-run.demo.view-all",
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).demoEntrance(FirstRunEntrance.rowDelay(id, rows)).pulseOutline(BrandTokens.accentPurple, pulse),
+            )
         }
-        ViewFullLeaderboardButton(
-            onClick = {},
-            label = "View All Scores",
-            testTag = "fst.first-run.demo.view-all",
-            modifier = Modifier.padding(top = 8.dp).demoEntrance(FirstRunEntrance.rowDelay(id, rows)).pulseOutline(BrandTokens.accentPurple, pulse),
-        )
     }
     }
 }

@@ -171,6 +171,15 @@ public sealed record PlayerBandCardViewModel
     /// <summary><c>Duos</c>, <c>Trios</c> or <c>Quads</c>.</summary>
     public string BandTypeLabel { get; }
 
+    /// <summary>
+    /// Whether the card is a row inside a band-size group card that already names its size (the profile's Duos, Trios
+    /// and Quads cards, issue #596): it draws no card of its own and drops the band-size pill, on screen and in its name.
+    /// </summary>
+    public bool IsGroupedRow { get; init; }
+
+    /// <summary>Whether the band-size pill shows (standalone cards only).</summary>
+    public bool ShowsBandType => !IsGroupedRow;
+
     /// <summary><c>42 appearances</c>.</summary>
     public string AppearancesText =>
         $"{BandFormatting.Count(Entry.AppearanceCount)} {(Entry.AppearanceCount == 1 ? "appearance" : "appearances")}";
@@ -181,9 +190,13 @@ public sealed record PlayerBandCardViewModel
     /// <summary>Automation ID (<c>fst.player-bands.row.&lt;key&gt;</c> unless the list shares one row ID).</summary>
     public string AutomationId { get; }
 
-    /// <summary>Screen-reader summary: the whole card is one Narrator stop, so it names each member's instruments.</summary>
+    /// <summary>
+    /// Screen-reader summary: the whole card is one Narrator stop, so it names each member's instruments. A grouped row
+    /// leaves the band size to its named group, as it leaves the pill off screen.
+    /// </summary>
     public string Announcement =>
-        $"View band: {(Members.Count > 0 ? string.Join("; ", Members.Select(m => m.Announcement)) : Title)}. {BandTypeLabel}, {AppearancesText}";
+        $"View band: {(Members.Count > 0 ? string.Join("; ", Members.Select(m => m.Announcement)) : Title)}. " +
+        (ShowsBandType ? $"{BandTypeLabel}, {AppearancesText}" : AppearancesText);
 }
 
 /// <summary>A labelled statistic card, optionally navigable.</summary>

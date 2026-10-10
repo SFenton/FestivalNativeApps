@@ -127,7 +127,9 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
  * toolbar on compact windows), global search, the notifications slot and the profile avatar
  * as the rightmost action.
  *
- * @param title Title Case title.
+ * @param title Title Case title, drawn by [FestivalBarTitle]: one line that scrolls when it
+ *   overflows the bar (`page-tools-and-nav-chrome` R21, issue #597; a pinned song title,
+ *   `song-header` R4, issue #315) and truncates under Remove animations.
  * @param isRoot Whether this is a tab root.
  * @param modifier Modifier.
  * @param actions Screen actions, placed before search and the avatar.
@@ -142,9 +144,6 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
  * @param titleIcon Decorative icon drawn before the title (Instrument Leaderboards, issue #294),
  *   given the title's line height so it scales with the font size. It must not add its own
  *   accessibility label: the title already names what it shows.
- * @param marqueeTitle The title is a song title pinned once the page's song header scrolls away:
- *   it scrolls through the bar's available width when it overflows ([FestivalMarqueeText], one
- *   line at every text size) instead of tail-truncating (`song-header` R3, issue #315).
  * @param subtitle The pinned title's second line (a song board's instrument or band size,
  *   `song-header` R4, issue #580), in Material 3's small-bar subtitle style (Label Medium under
  *   the Title Large title; TalkBack reads both as one stop). It shows
@@ -171,7 +170,6 @@ fun FestivalScreen(
     actionsReadFirst: Boolean = false,
     scrolled: Boolean = false,
     titleIcon: (@Composable (size: Dp) -> Unit)? = null,
-    marqueeTitle: Boolean = false,
     subtitle: String? = null,
     subtitleIcon: (@Composable (size: Dp) -> Unit)? = null,
     fadeInWindow: FadeInWindow? = null,
@@ -226,25 +224,7 @@ fun FestivalScreen(
                         val iconSize = with(LocalDensity.current) { LocalTextStyle.current.lineHeight.toDp() }
                         Box(Modifier.padding(end = 12.dp).testTag("fst.nav.title-icon")) { titleIcon(iconSize) }
                     }
-                    if (marqueeTitle) {
-                        // `song-header` R3: the pinned song title scrolls in the bar's full width.
-                        FestivalMarqueeText(
-                            title,
-                            Modifier.weight(1f, fill = false).testTag("fst.nav.title"),
-                            fontWeight = FontWeight.Bold,
-                            wrapAtLargeText = false,
-                            onOverflowChange = { titleTruncated = it },
-                        )
-                    } else {
-                        Text(
-                            title,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            onTextLayout = { titleTruncated = it.hasVisualOverflow || (it.lineCount > 0 && it.isLineEllipsized(0)) },
-                            modifier = Modifier.weight(1f, fill = false).testTag("fst.nav.title"),
-                        )
-                    }
+                    FestivalBarTitle(title, Modifier.weight(1f, fill = false), onOverflowChange = { titleTruncated = it })
                 }
             }
             // `song-header` R4 (issue #580): with a subtitle the pinned title stacks over it as in
@@ -339,6 +319,28 @@ fun FestivalScreen(
             }
         }
     }
+}
+
+/**
+ * The top app bar's page title: one bold line in the bar's Title Large style that scrolls like
+ * the web's `MarqueeText` when it is wider than the bar's free width, stays still when it fits,
+ * and tail-truncates under Remove animations / Reduce Motion. It never wraps, even at large text
+ * (a 64 dp Material 3 small bar holds one title line). Every page title uses it, not only a
+ * pinned song title (`page-tools-and-nav-chrome` R21, issue #597; `song-header` R4, issue #315).
+ *
+ * @param title Title Case title.
+ * @param modifier Modifier (the row's weight decides the free width).
+ * @param onOverflowChange Told whether the title doesn't fit, so page actions can move to ⋮.
+ */
+@Composable
+internal fun FestivalBarTitle(title: String, modifier: Modifier = Modifier, onOverflowChange: (Boolean) -> Unit) {
+    FestivalMarqueeText(
+        title,
+        modifier.testTag("fst.nav.title"),
+        fontWeight = FontWeight.Bold,
+        wrapAtLargeText = false,
+        onOverflowChange = onOverflowChange,
+    )
 }
 
 /**
