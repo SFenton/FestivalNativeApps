@@ -265,6 +265,41 @@ class ProfileParityCoreTest {
     }
 
     @Test
+    fun quickLinksNestRankHistoryAndPercentilesUnderTheirChartLikeIos() {
+        // Issue #590: each chart's Rank History and Percentiles follow it at depth 1, in page order.
+        val visible = listOf(Instrument.Lead, Instrument.Drums)
+        val links = ProfileSections.quickLinks(
+            visible,
+            "Synthetic Player",
+            rankHistory = setOf(Instrument.Lead),
+            percentiles = setOf(Instrument.Lead, Instrument.Drums),
+        )
+        assertEquals(
+            listOf(
+                "global",
+                "instrument:Solo_Guitar", "rank-history:Solo_Guitar", "percentiles:Solo_Guitar",
+                "instrument:Solo_Drums", "percentiles:Solo_Drums",
+                "top-songs", "bands",
+            ),
+            links.map { it.id },
+        )
+        assertEquals(listOf(0, 0, 1, 1, 0, 1, 0, 0), links.map { it.depth })
+        assertEquals(listOf("Rank History", "Percentiles"), links.subList(2, 4).map { it.title })
+        assertEquals("Lead Rank History", links[2].accessibleTitle)
+        assertEquals("Drums Percentiles", links[5].accessibleTitle)
+        assertEquals("trend", links[2].icon)
+        assertEquals("percentiles", links[3].icon)
+        // Nested links land inside their chart's row.
+        assertEquals("instrument:Solo_Guitar", ProfileSections.rowKey("rank-history:Solo_Guitar"))
+        assertEquals("instrument:Solo_Drums", ProfileSections.rowKey("percentiles:Solo_Drums"))
+        assertEquals("overview", ProfileSections.rowKey("global"))
+        assertTrue(ProfileSections.isNested("rank-history:Solo_Guitar"))
+        assertTrue(ProfileSections.isNested("percentiles:Solo_Guitar"))
+        assertFalse(ProfileSections.isNested("instrument:Solo_Guitar"))
+        assertFalse(ProfileSections.isNested("top-songs"))
+    }
+
+    @Test
     fun bandRowsFollowTheWebDuosTriosQuadsPreview() {
         fun entry(id: String) = PlayerBandEntry(bandId = id, teamKey = "a:$id")
         fun page(total: Int, vararg ids: String) = PlayerBandListResponse(accountId = "a", totalCount = total, entries = ids.map(::entry))

@@ -318,6 +318,20 @@ sealed interface RankHistoryLoad {
      * @property issue Classified failure.
      */
     data class Failed(val issue: ServiceIssue) : RankHistoryLoad
+
+    companion object {
+        /**
+         * Whether a chart shows its Rank History card (and its Quick Link, #590): a played chart
+         * shows it while loading, loaded with ranked snapshots or failed (inline retry); not once
+         * loaded without snapshots (web: no ranking row, no chart).
+         *
+         * @param section The chart's section.
+         * @param load The chart's rank-history state, or null before it starts.
+         * @return True when the card is (or will be) on the page.
+         */
+        fun showsCard(section: PlayerInstrumentSection, load: RankHistoryLoad?): Boolean =
+            section.hasScores && !(load is Loaded && load.chart == null)
+    }
 }
 
 /**
@@ -356,8 +370,18 @@ data class PlayerProfileUiState(
     fun canRun(action: PlayerTileAction): Boolean =
         isSelected || identity == PlayerIdentityAction.Select || identity == PlayerIdentityAction.Switch || !action.requiresSelection
 
-    /** Select button label. */
+    /** Select action's full label (TalkBack, and the top bar outside the shell). */
     val selectLabel: String get() = if (identity == PlayerIdentityAction.Switch) "Switch to This Profile" else "Select Profile"
+
+    /** Select action's short visible text in the floating toolbar row (iOS `shortTitle`, #590). */
+    val selectShortLabel: String get() = if (identity == PlayerIdentityAction.Switch) "Switch" else "Select"
+
+    /**
+     * Whether the page offers Select/Switch, as its own pill beside Quick Links (#590). Deselect
+     * stays in the drawer, never on the page (operator batch 7.10, same as iOS).
+     */
+    val offersSelect: Boolean
+        get() = phase == ProfilePhase.Loaded && (identity == PlayerIdentityAction.Select || identity == PlayerIdentityAction.Switch)
 
     /** Why selection is paused, or null. */
     val identityNotice: String?
@@ -374,10 +398,12 @@ data class PlayerProfileUiState(
     val offersReload: Boolean
         get() = !isSelected && (identity == PlayerIdentityAction.Changed || actionError != null)
 
-    /** Whether the page needs its identity row: a Select/Switch button, a paused-selection notice or an action error. */
+    /**
+     * Whether the page needs its identity row: a paused-selection notice or an action error.
+     * Select/Switch is not in it: it sits beside Quick Links in the floating toolbar row (#590).
+     */
     val showsIdentityRow: Boolean
-        get() = identity == PlayerIdentityAction.Select || identity == PlayerIdentityAction.Switch ||
-            identityNotice != null || actionError != null
+        get() = identityNotice != null || actionError != null
 }
 
 // endregion

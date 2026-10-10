@@ -12,10 +12,12 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -35,15 +37,18 @@ import org.junit.runner.RunWith
 
 /**
  * Issue #97 accessibility (backfill #446): the player page has no avatar/name card; the top
- * bar names the player and the page starts at Overview. When there is something to act on,
- * a plain identity row (`fst.player.identity`) sits between them.
+ * bar names the player and the page starts at Overview. When there is something to say (a
+ * paused selection or a failed Select), a plain identity row (`fst.player.identity`) sits
+ * between them.
  *
  * TalkBack must read the player's name once (the title, never a repeated card heading or
- * initials), then the identity row's stops (Select or Switch, a labelled 48 dp `Button`; the
- * paused-selection notice as text with a silent icon), then the Overview heading with nothing
- * else between them. A selected player's own page and Statistics have no identity row, so
- * Overview is the first page stop after the top bar. At 100% and 200% text the button and
- * notice grow without clipping and keep that order. ATF runs on every step. Fixtures only;
+ * initials), then the identity row's stops (the paused-selection notice as text with a
+ * silent icon), then the Overview heading with nothing else between them. Since #590 Select
+ * and Switch are not in the page: they are their own pill beside Quick Links in the floating
+ * toolbar row, a `Button` named "Select Profile" / "Switch to This Profile" (visible "Select" /
+ * "Switch"), read immediately before Quick Links, with a 48 dp target that never overlaps
+ * Quick Links'. At 100% and 200% text the pill and notice grow without clipping and keep that
+ * order. ATF runs on every step. Fixtures only;
  * `@DeviceCi` puts it in the `android-device` job. Run with `device.py test
  * com.festivalscoretracker.android.journeys.ProfileIdentityAccessibilityJourneyTest --avd
  * FST_Phone`; reading orders go to logcat `FST_A11Y`.
@@ -75,37 +80,42 @@ class ProfileIdentityAccessibilityJourneyTest {
 
     // region Tests
 
-    /** A viewed (unselected) player: title → Select Profile → Overview, at every text size. */
+    /**
+     * A viewed (unselected) player: title → Overview with no identity row, and Select Profile
+     * as its own pill read just before Quick Links, at every text size (#590).
+     */
     @Test
-    fun viewedPlayerReadsTitleThenSelectThenOverviewAtEveryTextSize() {
+    fun viewedPlayerReadsSelectPillBeforeQuickLinksAtEveryTextSize() {
         var scale by mutableFloatStateOf(1f)
         h.enableAccessibilityChecks()
         h.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_B, "Other"), stillBackground = true), transport(), fontScale = { scale })
-                h.waitForTag(OVERVIEW)
-                h.publishTalkBackTree()
-                val heights = SCALES.map { s ->
+        h.waitForTag(OVERVIEW)
+        h.publishTalkBackTree()
+        val heights = SCALES.map { s ->
             scale = s
             rule.waitForIdle()
             h.waitForTag(SELECT)
             h.waitForTag(OVERVIEW)
-            val order = h.readingOrder("profile-viewed-${s}x", fresh = true)
-            assertIdentityRow(order, title(), listOf(SELECT_LABEL), "viewed ${s}x")
+            assertFalse("Select brought back the in-page identity row", h.exists(IDENTITY))
+            assertIdentityRow(h.readingOrder("profile-viewed-${s}x", fresh = true), title(), emptyList(), "viewed ${s}x")
+            assertPillBesideQuickLinks("profile-viewed-${s}x", SELECT_LABEL)
             assertButton(SELECT, SELECT_LABEL, "viewed ${s}x")
         }
-        assertTrue("200% text did not grow Select Profile ($heights px)", heights[1] > heights[0])
+        assertTrue("200% text did not grow the Select pill ($heights px)", heights[1] > heights[0])
         h.assertAccessible()
     }
 
-    /** Viewing another player while one is selected: title → Switch to This Profile → Overview. */
+    /** Viewing another player while one is selected: the pill reads "Switch to This Profile", before Quick Links. */
     @Test
-    fun otherPlayerReadsSwitchBeforeOverview() {
+    fun otherPlayerReadsSwitchPillBeforeQuickLinks() {
         h.enableAccessibilityChecks()
         h.launch(DebugLaunch(profile = PLAYER, route = PlayerRoute(Fixtures.ACCOUNT_B, "Other"), stillBackground = true), transport())
         h.waitForTag(SELECT)
         h.waitForTag(OVERVIEW)
         h.publishTalkBackTree()
-        val order = h.readingOrder("profile-switch", fresh = true)
-        assertIdentityRow(order, title(), listOf(SWITCH_LABEL), "switch")
+        assertFalse("Switch brought back the in-page identity row", h.exists(IDENTITY))
+        assertIdentityRow(h.readingOrder("profile-switch", fresh = true), title(), emptyList(), "switch")
+        assertPillBesideQuickLinks("profile-switch", SWITCH_LABEL)
         assertButton(SELECT, SWITCH_LABEL, "switch")
         h.assertAccessible()
     }
@@ -219,18 +229,43 @@ class ProfileIdentityAccessibilityJourneyTest {
     }
 
     /**
-     * [tag] is one `Button` named [label], at least 48 dp, with its label unclipped.
+     * The identity pill and Quick Links are separate TalkBack stops, the pill (named [label])
+     * read immediately before Quick Links; both have 48 dp targets that do not overlap, in one row.
+     */
+    private fun assertPillBesideQuickLinks(screen: String, label: String) {
+        val stops = h.readingStops(screen)
+        val pill = stops.indexOfFirst { it.id == SELECT }
+        val links = stops.indexOfFirst { it.id == QUICK_LINKS }
+        assertTrue("$screen: TalkBack never reaches the identity pill: ${stops.map { it.label }}", pill >= 0)
+        assertEquals("$screen: the pill is not read just before Quick Links: ${stops.map { it.label }}", pill + 1, links)
+        assertEquals("$screen: pill label", label, stops[pill].label)
+        h.assertTouchTarget(screen, SELECT)
+        h.assertTouchTarget(screen, QUICK_LINKS)
+        val a = stops[pill].bounds
+        val b = stops[links].bounds
+        assertFalse("$screen: the pill ($a) overlaps Quick Links ($b)", android.graphics.Rect.intersects(a, b))
+        assertTrue("$screen: the pill ($a) is not before Quick Links ($b) in one row", a.right <= b.left && a.centerY() in b.top..b.bottom)
+        assertFalse("$screen: the pill is inside the Quick Links pill", rule.onAllNodes(hasTestTag(SELECT).and(hasAnyAncestor(hasTestTag(TOOLBAR)))).fetchSemanticsNodes().isNotEmpty())
+    }
+
+    /**
+     * [tag] is one `Button` named [label] (its short visible text is silent, so TalkBack reads
+     * the name once), at least 48 dp and wholly on screen. The visible text has no line limit
+     * and the pill wraps it, so it grows with the text size instead of clipping.
      *
      * @return The button's height in pixels.
      */
     private fun assertButton(tag: String, label: String, config: String): Int {
         val node = rule.onNodeWithTag(tag)
         node.assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
-            .assert(hasText(label))
+            .assert(hasContentDescription(label))
+        assertTrue("$config: $tag also reads its short text", node.fetchSemanticsNode().config.getOrNull(SemanticsProperties.Text).isNullOrEmpty())
         val size = node.fetchSemanticsNode().size
         val min = with(rule.density) { 48.dp.toPx() } - 1
         assertTrue("$config: $tag is $size px, under 48 dp", size.width >= min && size.height >= min)
-        assertUnclipped(tag, label, config)
+        val box = node.fetchSemanticsNode().boundsInRoot
+        val root = rule.onRoot().fetchSemanticsNode().boundsInRoot
+        assertTrue("$config: $tag ($box) is not wholly on screen ($root)", box.left >= root.left && box.right <= root.right && box.bottom <= root.bottom)
         return size.height
     }
 
@@ -270,6 +305,8 @@ class ProfileIdentityAccessibilityJourneyTest {
         const val OVERVIEW_LABEL = "Overview"
         const val SELECT_LABEL = "Select Profile"
         const val SWITCH_LABEL = "Switch to This Profile"
+        const val QUICK_LINKS = "fst.quick-links.open"
+        const val TOOLBAR = "fst.nav.floating-toolbar"
         const val UNPINNED_NOTICE = "These scores have no verified publication. Selection is paused."
     }
 }

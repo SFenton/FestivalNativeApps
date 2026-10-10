@@ -109,17 +109,41 @@ class ProfileViewModelsTest {
     // region Player profile
 
     @Test
-    fun identityRowShowsOnlyForSelectSwitchNoticeOrError() {
-        // Issue #97: the name card is gone; the row appears only when it has something to act on or say.
+    fun identityRowShowsOnlyForPausedNoticeOrError() {
+        // Issue #97: the name card is gone; the row appears only when it has something to say.
+        // Issue #590: Select/Switch moved to the floating toolbar row, so they no longer add a row.
         PlayerIdentityAction.entries.forEach { action ->
-            val expected = action in setOf(
-                PlayerIdentityAction.Select, PlayerIdentityAction.Switch,
-                PlayerIdentityAction.Unverified, PlayerIdentityAction.Changed,
-            )
+            val expected = action in setOf(PlayerIdentityAction.Unverified, PlayerIdentityAction.Changed)
             assertEquals(action.name, expected, PlayerProfileUiState(identity = action).showsIdentityRow)
         }
         assertTrue(PlayerProfileUiState(identity = PlayerIdentityAction.Deselect, actionError = "failed").showsIdentityRow)
+        assertTrue(PlayerProfileUiState(identity = PlayerIdentityAction.Select, actionError = "failed").showsIdentityRow)
         assertFalse(PlayerProfileUiState(identity = PlayerIdentityAction.None, actionError = null).showsIdentityRow)
+    }
+
+    @Test
+    fun selectPillOffersOnlySelectOrSwitchOnALoadedPage() {
+        // Issue #590: Select/Switch is the page's own pill beside Quick Links; Deselect stays in the drawer.
+        PlayerIdentityAction.entries.forEach { action ->
+            val expected = action == PlayerIdentityAction.Select || action == PlayerIdentityAction.Switch
+            assertEquals(action.name, expected, PlayerProfileUiState(phase = ProfilePhase.Loaded, identity = action).offersSelect)
+        }
+        assertFalse(PlayerProfileUiState(phase = ProfilePhase.Loading, identity = PlayerIdentityAction.Select).offersSelect)
+        assertEquals("Select", PlayerProfileUiState(identity = PlayerIdentityAction.Select).selectShortLabel)
+        assertEquals("Select Profile", PlayerProfileUiState(identity = PlayerIdentityAction.Select).selectLabel)
+        assertEquals("Switch", PlayerProfileUiState(identity = PlayerIdentityAction.Switch).selectShortLabel)
+        assertEquals("Switch to This Profile", PlayerProfileUiState(identity = PlayerIdentityAction.Switch).selectLabel)
+    }
+
+    @Test
+    fun rankHistoryCardAndQuickLinkShowUnlessLoadedWithoutSnapshots() {
+        // Issue #590: the Rank History Quick Link follows the card.
+        val played = PlayerInstrumentSection(Instrument.Lead, hasScores = true, stats = emptyList(), percentiles = emptyList())
+        assertTrue(RankHistoryLoad.showsCard(played, null))
+        assertTrue(RankHistoryLoad.showsCard(played, RankHistoryLoad.Loading))
+        assertTrue(RankHistoryLoad.showsCard(played, RankHistoryLoad.Failed(ServiceIssue.Offline)))
+        assertFalse(RankHistoryLoad.showsCard(played, RankHistoryLoad.Loaded(null)))
+        assertFalse(RankHistoryLoad.showsCard(played.copy(hasScores = false), RankHistoryLoad.Loading))
     }
 
     @Test

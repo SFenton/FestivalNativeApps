@@ -135,6 +135,9 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
  * @param isRoot Whether this is a tab root.
  * @param modifier Modifier.
  * @param actions Screen actions, placed before search and the avatar.
+ * @param primaryAction The page's primary action as its own pill beside the floating toolbar, in
+ *   the same row (owner-approved `page-tools-and-nav-chrome` R6 variant, #590: only the player page
+ *   and Statistics, for Select/Switch); outside the shell it leads the top-bar page actions.
  * @param pinActions Keep the floating toolbar holding [actions] on screen while the page scrolls
  *   instead of hiding it (Songs, Suggestions: issue #52).
  * @param actionsReadFirst TalkBack and keyboard focus reach the floating toolbar
@@ -168,6 +171,7 @@ fun FestivalScreen(
     isRoot: Boolean,
     modifier: Modifier = Modifier,
     actions: @Composable RowScope.() -> Unit = {},
+    primaryAction: FloatingToolbarAction? = null,
     pinActions: Boolean = false,
     actionsReadFirst: Boolean = false,
     scrolled: Boolean = false,
@@ -199,7 +203,7 @@ fun FestivalScreen(
     val pane = remember { mutableStateOf<PxSpan?>(null) }
     val toolbarReadsFirst = shell.floatingToolbar != null && actionsReadFirst
     if (shell.floatingToolbar != null) {
-        FloatingToolbarContent(pinned = pinActions, readFirst = actionsReadFirst, pane = pane) { actions() }
+        FloatingToolbarContent(pinned = pinActions, readFirst = actionsReadFirst, pane = pane, companion = primaryAction) { actions() }
     }
     Scaffold(
         modifier = modifier
@@ -266,7 +270,11 @@ fun FestivalScreen(
                 }
                 // Outside the shell (previews, isolated tests) there is no toolbar to float in.
                 if (shell.floatingToolbar == null) {
-                    AdaptiveTopBarActions(inlineActions, onPageWidth = { pageActionsWidth = it }, page = actions, global = global)
+                    val page: @Composable RowScope.() -> Unit = {
+                        primaryAction?.let { FloatingToolbarActionButton(it) }
+                        actions()
+                    }
+                    AdaptiveTopBarActions(inlineActions, onPageWidth = { pageActionsWidth = it }, page = page, global = global)
                 } else {
                     global()
                 }

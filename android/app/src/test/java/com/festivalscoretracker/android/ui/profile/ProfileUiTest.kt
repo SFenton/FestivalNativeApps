@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -110,8 +112,7 @@ class ProfileUiTest {
         rule.onNodeWithTag("fst.player.available").performScrollToNode(hasTestTag("fst.player.percentiles.Solo_Guitar"))
         rule.onNodeWithTag("fst.player.available").performScrollToNode(hasTestTag("fst.player.instrument-empty.Solo_Drums"))
 
-        // Select stays on the page and adds the profile tabs.
-        rule.onNodeWithTag("fst.player.available").performScrollToNode(hasTestTag("fst.player.select"))
+        // Select stays in reach beside Quick Links (#590) and adds the profile tabs.
         tap("fst.player.select")
         waitGone("fst.player.select")
         waitForTag("fst.nav.tab.statistics")
@@ -147,7 +148,7 @@ class ProfileUiTest {
     fun switchIsConfirmedAndBandsScopeExplains() {
         launch(DebugLaunch(profile = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"), route = PlayerRoute(Fixtures.ACCOUNT_B, "Other"), stillBackground = true))
         waitForTag("fst.player.select")
-        rule.onNodeWithText("Switch to This Profile").assertIsDisplayed()
+        rule.onNodeWithTag("fst.player.select").assert(hasContentDescription("Switch to This Profile")).assertIsDisplayed()
         tap("fst.player.select")
         waitForTag("fst.player.switch-confirm")
         tap("fst.player.switch-confirm.cancel")

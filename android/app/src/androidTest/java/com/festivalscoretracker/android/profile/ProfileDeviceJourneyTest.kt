@@ -3,6 +3,7 @@ package com.festivalscoretracker.android.profile
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -110,7 +111,7 @@ class ProfileDeviceJourneyTest {
         tap("fst.player.select")
         waitForTag("fst.nav.tab.statistics")
         waitForTag("fst.player.overview")
-        assertNothingStraddles("fst.player.identity", "fst.player.overview", "fst.player.instrument.Solo_Guitar", "fst.player.instrument.Solo_Bass")
+        assertNothingStraddles("fst.player.overview", "fst.player.instrument.Solo_Guitar", "fst.player.instrument.Solo_Bass")
         // Operator 7.12: no page-header Deselect (the drawer owns it, like the web sidebar).
         waitForTag("fst.player")
     }
@@ -119,7 +120,9 @@ class ProfileDeviceJourneyTest {
     fun switchIsConfirmedAndStaysOnThePage() {
         launch(DebugLaunch(profile = SelectedPlayer(Fixtures.ACCOUNT_B, "Other"), route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
         waitForTag("fst.player.select")
-        rule.onNodeWithText("Switch to This Profile").assertIsDisplayed()
+        // Issue #590: the Switch pill sits beside Quick Links in the floating toolbar row.
+        assertNothingStraddles("fst.nav.floating-toolbar.companion", "fst.nav.floating-toolbar")
+        rule.onNodeWithTag("fst.player.select").assertContentDescriptionEquals("Switch to This Profile").assertIsDisplayed()
         tap("fst.player.select")
         tap("fst.player.switch-confirm.ok")
         waitForTag("fst.nav.tab.statistics")

@@ -138,6 +138,7 @@ class ProfileParityUiTest {
         journey.tap("fst.quick-links.open")
         journey.waitForTag("fst.quick-links.sheet")
         listOf("global", "instrument:Solo_Guitar", "instrument:Solo_Bass", "top-songs", "bands").forEach {
+            rule.onNodeWithTag("fst.quick-links.list").performScrollToNode(hasTestTag("fst.quick-links.item.$it"))
             journey.waitForTag("fst.quick-links.item.$it")
         }
         journey.tap("fst.quick-links.item.top-songs")
@@ -146,11 +147,35 @@ class ProfileParityUiTest {
         rule.onNodeWithText("Top Songs Per Instrument").assertIsDisplayed()
         journey.waitForTag("fst.player.top-songs.Solo_Guitar")
         journey.tap("fst.quick-links.open")
+        journey.waitForTag("fst.quick-links.list")
+        rule.onNodeWithTag("fst.quick-links.list").performScrollToNode(hasTestTag("fst.quick-links.item.bands"))
         journey.tap("fst.quick-links.item.bands")
         journey.waitForTag("fst.player.bands-link")
         rule.onNodeWithTag("fst.player.bands-link").assertIsDisplayed()
         // Issue #321: the title-row link reads "View All", label first.
         rule.onNodeWithTag("fst.player.bands-link").assert(hasContentDescription("View All: ", substring = true))
+    }
+
+    @Test
+    fun nestedQuickLinksLandOnRankHistoryAndPercentiles() {
+        // Issue #590: like iOS, each played chart lists Rank History and Percentiles under it.
+        journey.launch(DebugLaunch(profile = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"), route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
+        journey.waitForTag("fst.player.overview")
+        journey.tap("fst.quick-links.open")
+        journey.waitForTag("fst.quick-links.sheet")
+        val ids = rule.onAllNodes(SemanticsMatcher("Quick Link row") { it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("fst.quick-links.item.") == true })
+            .fetchSemanticsNodes()
+            .map { it.config[SemanticsProperties.TestTag].removePrefix("fst.quick-links.item.") }
+        val guitar = ids.indexOf("instrument:Solo_Guitar")
+        assertEquals(listOf("instrument:Solo_Guitar", "rank-history:Solo_Guitar", "percentiles:Solo_Guitar"), ids.subList(guitar, guitar + 3))
+        rule.onNodeWithTag("fst.quick-links.item.percentiles:Solo_Guitar").assert(hasContentDescription("Lead Percentiles", substring = true))
+        journey.tap("fst.quick-links.item.percentiles:Solo_Guitar")
+        journey.waitGone("fst.quick-links.sheet")
+        journey.settle(1_000)
+        // Landed on the table itself, not the top of the chart's row.
+        val table = rule.onNodeWithTag("fst.player.percentiles.Solo_Guitar").fetchSemanticsNode().boundsInRoot
+        val page = rule.onNodeWithTag("fst.player.available").fetchSemanticsNode().boundsInRoot
+        assertTrue("Percentiles table lands near the top (${table.top} vs ${page.top})", table.top >= page.top && table.top - page.top < 600f)
     }
 
     @Test
@@ -272,7 +297,7 @@ class ProfileParityUiTest {
         journey.tap("fst.player.action-switch-confirm.cancel")
         journey.waitGone("fst.player.action-switch-confirm")
         // Cancel keeps the other player selected and stays here.
-        rule.onNodeWithText("Switch to This Profile").assertIsDisplayed()
+        rule.onNodeWithTag("fst.player.select").assert(hasContentDescription("Switch to This Profile")).assertIsDisplayed()
         journey.tap("fst.player.tile.overview.best-rank")
         journey.tap("fst.player.action-switch-confirm.ok")
         journey.waitForTag("fst.song-detail.list")
@@ -481,12 +506,18 @@ class ProfileParityUiTest {
         journey.waitForTag("fst.player.overview")
         assertEquals(0, rule.onAllNodesWithTag("fst.player.name").fetchSemanticsNodes().size)
         assertEquals(0, rule.onAllNodesWithTag("fst.player.header").fetchSemanticsNodes().size)
-        // Select stays visible, above Overview.
-        journey.waitForTag("fst.player.identity")
-        rule.onNodeWithTag("fst.player.select").assertIsDisplayed()
-        val select = rule.onNodeWithTag("fst.player.select").fetchSemanticsNode().boundsInRoot
-        val overview = rule.onNodeWithTag("fst.player.overview").fetchSemanticsNode().boundsInRoot
-        assertTrue(select.bottom <= overview.top)
+        // Issue #590: Select sits in its own pill beside Quick Links in the floating toolbar row,
+        // not in the page content, so no identity row pushes Overview down.
+        journey.waitForTag("fst.player.select")
+        assertEquals(0, rule.onAllNodesWithTag("fst.player.identity").fetchSemanticsNodes().size)
+        rule.onNodeWithTag("fst.player.select")
+            .assert(hasAnyAncestor(hasTestTag("fst.nav.floating-toolbar.companion")))
+            .assert(hasContentDescription("Select Profile"))
+        assertEquals(0, rule.onAllNodes(hasTestTag("fst.player.select").and(hasAnyAncestor(hasTestTag("fst.player.available")))).fetchSemanticsNodes().size)
+        val select = rule.onNodeWithTag("fst.nav.floating-toolbar.companion").fetchSemanticsNode().boundsInRoot
+        val links = rule.onNodeWithTag("fst.nav.floating-toolbar").fetchSemanticsNode().boundsInRoot
+        assertTrue("Select pill sits before Quick Links, without overlapping", select.right <= links.left)
+        assertEquals("Same toolbar row", select.center.y, links.center.y, 1f)
     }
 
     @Test
@@ -512,16 +543,16 @@ class ProfileParityUiTest {
             identity = PlayerIdentityAction.Select,
             actionError = "This profile could not be selected. Reload the page and try again.",
         )
-        rule.setContent { FestivalTheme { IdentityActions(state, onSelect = {}, onReload = { reloads++ }) } }
+        rule.setContent { FestivalTheme { IdentityActions(state, onReload = { reloads++ }) } }
         rule.onNodeWithTag("fst.player.action-error").assertIsDisplayed()
             .assert(hasText("Reload the page and try again.", substring = true))
-        rule.onNodeWithTag("fst.player.select").assertIsDisplayed()
+        // Issue #590: Select lives in the floating toolbar, not in this row.
+        assertEquals(0, rule.onAllNodesWithTag("fst.player.select").fetchSemanticsNodes().size)
         assertEquals(0, rule.onAllNodesWithTag("fst.player.name").fetchSemanticsNodes().size)
         assertEquals(0, rule.onAllNodesWithTag("fst.player.identity-notice").fetchSemanticsNodes().size)
-        val select = rule.onNodeWithTag("fst.player.select").fetchSemanticsNode().boundsInRoot
         val error = rule.onNodeWithTag("fst.player.action-error").fetchSemanticsNode().boundsInRoot
         val reload = rule.onNodeWithTag("fst.player.reload").fetchSemanticsNode().boundsInRoot
-        assertTrue("Select, then the error, then Reload", select.bottom <= error.top && error.bottom <= reload.top)
+        assertTrue("The error, then Reload", error.bottom <= reload.top)
         assertTrue(rule.onNodeWithTag("fst.player.reload").getUnclippedBoundsInRoot().height >= 48.dp)
         rule.onNodeWithTag("fst.player.reload").performSemanticsAction(SemanticsActions.OnClick)
         assertEquals(1, reloads)

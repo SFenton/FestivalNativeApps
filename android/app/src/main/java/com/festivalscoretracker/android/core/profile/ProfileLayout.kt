@@ -268,26 +268,64 @@ object ProfileSections {
     val BAND_GROUPS: List<PlayerBandGroup> = listOf(PlayerBandGroup.Duos, PlayerBandGroup.Trios, PlayerBandGroup.Quads)
 
     /**
-     * Quick Links, in web order: Global Statistics, one per visible chart, Top Songs, Bands.
-     * IDs are the web's (`global`, `instrument:<wire>`, `top-songs`, `bands`) and equal the row keys they jump to.
+     * Quick Links, in page order and matching iOS (#590): Global Statistics; per visible chart its
+     * entry, then nested (depth 1) "Rank History" and "Percentiles" when that chart shows them
+     * (spoken "<Chart> Rank History", "<Chart> Percentiles"); Top Songs; Bands.
+     * IDs are the web's and iOS's (`global`, `instrument:<wire>`, `rank-history:<wire>`,
+     * `percentiles:<wire>`, `top-songs`, `bands`); [rowKey] maps each to the row it lands in.
      *
      * @param visible Settings-visible charts in service order.
      * @param displayName Player name (Bands landmark label).
+     * @param rankHistory Charts whose Rank History card is on the page.
+     * @param percentiles Charts whose percentile table is on the page.
      * @return Sections.
      */
-    fun quickLinks(visible: List<Instrument>, displayName: String): List<QuickLinkSection> =
+    fun quickLinks(
+        visible: List<Instrument>,
+        displayName: String,
+        rankHistory: Set<Instrument> = emptySet(),
+        percentiles: Set<Instrument> = emptySet(),
+    ): List<QuickLinkSection> =
         listOf(QuickLinkSection("global", "Global Statistics", icon = "chart")) +
-            visible.map { QuickLinkSection("instrument:${it.wireId}", it.label, instrument = it, spokenTitle = "${it.label} statistics") } +
+            visible.flatMap { instrument ->
+                listOfNotNull(
+                    QuickLinkSection("instrument:${instrument.wireId}", instrument.label, instrument = instrument, spokenTitle = "${instrument.label} statistics"),
+                    QuickLinkSection("$RANK_HISTORY_PREFIX${instrument.wireId}", "Rank History", icon = "trend", depth = 1, spokenTitle = "${instrument.label} Rank History")
+                        .takeIf { instrument in rankHistory },
+                    QuickLinkSection("$PERCENTILES_PREFIX${instrument.wireId}", "Percentiles", icon = "percentiles", depth = 1, spokenTitle = "${instrument.label} Percentiles")
+                        .takeIf { instrument in percentiles },
+                )
+            } +
             QuickLinkSection("top-songs", "Top Songs", icon = "music", spokenTitle = "Top Songs Per Instrument") +
             QuickLinkSection("bands", "Bands", icon = "people", spokenTitle = "$displayName's Bands")
 
     /**
-     * The row a Quick Link jumps to.
+     * The row a Quick Link jumps to: nested Rank History and Percentiles links land inside their
+     * chart's row, at the card's offset.
      *
      * @param id Section ID.
      * @return Row key.
      */
-    fun rowKey(id: String): String = if (id == "global") ProfileRow.Overview.key else id
+    fun rowKey(id: String): String = when {
+        id == "global" -> ProfileRow.Overview.key
+        id.startsWith(RANK_HISTORY_PREFIX) -> "instrument:" + id.removePrefix(RANK_HISTORY_PREFIX)
+        id.startsWith(PERCENTILES_PREFIX) -> "instrument:" + id.removePrefix(PERCENTILES_PREFIX)
+        else -> id
+    }
+
+    /**
+     * Whether a Quick Link is a card inside its chart's row (Rank History, Percentiles) rather than a whole row.
+     *
+     * @param id Section ID.
+     * @return True for nested links.
+     */
+    fun isNested(id: String): Boolean = id.startsWith(RANK_HISTORY_PREFIX) || id.startsWith(PERCENTILES_PREFIX)
+
+    /** Nested Rank History Quick Link ID prefix (iOS `rank-history:<wire>`). */
+    const val RANK_HISTORY_PREFIX = "rank-history:"
+
+    /** Nested Percentiles Quick Link ID prefix (iOS `percentiles:<wire>`). */
+    const val PERCENTILES_PREFIX = "percentiles:"
 }
 
 // endregion

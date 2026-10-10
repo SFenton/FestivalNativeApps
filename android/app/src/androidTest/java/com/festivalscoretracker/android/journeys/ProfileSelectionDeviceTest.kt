@@ -72,7 +72,7 @@ class ProfileSelectionDeviceTest {
         h.tap("fst.profile.result.${Fixtures.ACCOUNT_A}")
         h.waitForTag("fst.player.select")
         h.readingOrder("player-viewed")
-        h.assertNothingStraddles("fst.player.identity")
+        h.assertNothingStraddles("fst.nav.floating-toolbar.companion", "fst.nav.floating-toolbar")
         h.tap("fst.player.select")
         h.waitForTag("fst.nav.tab.statistics")
 

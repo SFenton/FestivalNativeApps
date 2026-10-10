@@ -44,7 +44,8 @@ import org.junit.runner.RunWith
  * text, this journey checks what TalkBack gets:
  * - the entry is one 48 dp `Button` named "Quick Links, current section …";
  * - the chooser (sheet on compact windows, menu on wider ones) reads its rows in page order
- *   (Global Statistics, the instruments, Top Songs, Bands), each named by its spoken title, the
+ *   (Global Statistics, the instruments, each with its nested Rank History and Percentiles rows as on
+ *   iOS (#590), Top Songs, Bands), each named by its spoken title, the
  *   current row selected with "Current section", every whole row at least 48 dp (`quick-links` R6);
  *   the > 8-section sheet opens fully expanded with no half-height stop (no Expand action;
  *   `modal-shell` R13, #586), and its lower rows scroll into view in the list;
@@ -221,6 +222,14 @@ class ProfileQuickLinksAccessibilityJourneyTest {
         val ids = items.map { it.first }
         assertEquals("$config: the chooser starts at Global Statistics: $ids", "global", ids.first())
         assertEquals("$config: chooser rows out of page order: $ids", ids.sortedBy(::sectionRank), ids)
+        ids.forEachIndexed { i, id ->
+            val chart = id.substringAfter(':')
+            if (id.startsWith("rank-history:") || id.startsWith("percentiles:")) {
+                val parent = ids.subList(0, i).lastOrNull { it.startsWith("instrument:") }
+                assertEquals("$config: nested Quick Link $id is not under its chart: $ids", "instrument:$chart", parent)
+            }
+        }
+        assertTrue("$config: no nested Rank History or Percentiles link (#590): $ids", ids.any { it.startsWith("percentiles:") })
         items.forEach { (id, node) ->
             val name = node.config.getOrNull(SemanticsProperties.ContentDescription)?.joinToString(" ").orEmpty()
             assertTrue("$config: Quick Link $id has no name", name.isNotBlank())
@@ -260,7 +269,8 @@ class ProfileQuickLinksAccessibilityJourneyTest {
      */
     private fun sectionRank(id: String): Int = when {
         id == "global" -> 0
-        id.startsWith("instrument:") -> 1
+        // #590: like iOS, each chart's Rank History and Percentiles follow it (checked in assertChooser).
+        id.startsWith("instrument:") || id.startsWith("rank-history:") || id.startsWith("percentiles:") -> 1
         id == "top-songs" -> 2
         id == "bands" -> 3
         else -> throw AssertionError("unexpected profile Quick Link $id")

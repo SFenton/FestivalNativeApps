@@ -92,8 +92,11 @@ import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.design.StarRating
+import com.festivalscoretracker.android.ui.quicklinks.QuickLinkAnchors
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
+import com.festivalscoretracker.android.ui.quicklinks.quickLinkAnchor
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
+import com.festivalscoretracker.android.ui.common.FloatingToolbarAction
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlinx.coroutines.launch
 import com.festivalscoretracker.android.ui.common.FestivalAlertDialog
@@ -123,8 +126,8 @@ fun StatisticsScreen(viewModel: PlayerProfileViewModel, isRoot: Boolean = true) 
 }
 
 /**
- * Top bar, Quick Links (top-bar entry: menu on medium+ windows, sheet on compact; formerly a trailing pane on wide pages without a
- * fold) and the profile body.
+ * Top bar, Quick Links (in the floating toolbar: menu on medium+ windows, sheet on compact) with
+ * Select/Switch as its own pill beside it (#590), and the profile body.
  */
 @Composable
 private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, isRoot: Boolean, tag: String) {
@@ -135,27 +138,60 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
     val visible = state.instruments.map { it.instrument }
     val showIdentity = state.showsIdentityRow
     val bandsLoad by viewModel.bands.collectAsStateWithLifecycle()
+    val histories by viewModel.rankHistories.collectAsStateWithLifecycle()
     val bandGroups = (bandsLoad as? BandsLoad.Loaded)?.groups.orEmpty()
     val rows = remember(visible, loaded, showIdentity, bandGroups) { if (loaded) ProfileSections.rows(visible, showIdentity, bandGroups) else emptyList() }
-    val sections = remember(visible, loaded, state.displayName) { if (loaded) ProfileSections.quickLinks(visible, state.displayName) else emptyList() }
+    // Nested Rank History / Percentiles links for the cards each chart shows, like iOS (#590).
+    val rankHistory = state.instruments.filter { RankHistoryLoad.showsCard(it, histories[it.instrument]) }.map { it.instrument }.toSet()
+    val percentiles = state.instruments.filter { it.hasScores && it.percentiles.isNotEmpty() }.map { it.instrument }.toSet()
+    val sections = remember(visible, loaded, state.displayName, rankHistory, percentiles) {
+        if (loaded) ProfileSections.quickLinks(visible, state.displayName, rankHistory, percentiles) else emptyList()
+    }
+    val anchors = remember(state.accountId) { QuickLinkAnchors() }
     // The grid's fade window, here so Quick Links jumps rush it (load-transition R5).
     val fadeWindow = rememberFadeInWindow(gridState, reset = state.accountId)
-    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections, fadeInWindow = fadeWindow) { id ->
+    val quickLinks = rememberQuickLinks(
+        gridState, "Quick Links", sections, fadeInWindow = fadeWindow,
+        offsetOf = { id -> if (ProfileSections.isNested(id)) anchors.offsetOf(id) else 0 },
+    ) { id ->
         rows.indexOfFirst { it.key == ProfileSections.rowKey(id) }.takeIf { it >= 0 }
     }
     val density = LocalDensity.current
     val windowWidthDp = with(density) { currentWindowSize().width.toDp().value.toInt() }
     val scrolled by remember(gridState) { derivedStateOf { gridState.canScrollBackward } }
+    var confirm by rememberSaveable { mutableStateOf<PlayerIdentityAction?>(null) }
+    // Select/Switch: its own pill in the floating toolbar row, beside Quick Links (owner #590;
+    // iOS `ProfileIdentityToolbarItem`). Switch asks first; Deselect stays in the drawer.
+    val identityAction = if (state.offersSelect) {
+        FloatingToolbarAction(text = state.selectShortLabel, label = state.selectLabel, testTag = "fst.player.select") {
+            if (state.identity == PlayerIdentityAction.Switch) confirm = PlayerIdentityAction.Switch else viewModel.select()
+        }
+    } else {
+        null
+    }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         FestivalScreen(
             title = title,
             isRoot = isRoot,
             scrolled = scrolled,
             actions = { QuickLinksAction(quickLinks, windowWidthDp) },
+            primaryAction = identityAction,
             modifier = Modifier.semantics { testTagsAsResourceId = true }.testTag(tag),
         ) { padding ->
-            Box(Modifier.fillMaxSize()) { PlayerProfileContent(viewModel, padding, gridState, rows, onSplitChange = { splitAtFold = it }, fadeWindow = fadeWindow) }
+            Box(Modifier.fillMaxSize()) {
+                PlayerProfileContent(viewModel, padding, gridState, rows, onSplitChange = { splitAtFold = it }, fadeWindow = fadeWindow, anchors = anchors)
+            }
         }
+    }
+    if (confirm == PlayerIdentityAction.Switch) {
+        ConfirmDialog(
+            title = "Switch Profile?",
+            text = "Scores and profile-dependent pages will update to ${state.displayName}.",
+            confirmLabel = "Switch",
+            tag = "fst.player.switch-confirm",
+            onConfirm = { confirm = null; viewModel.select() },
+            onDismiss = { confirm = null },
+        )
     }
 }
 
@@ -164,8 +200,9 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
 // region Content
 
 /**
- * The shared player-profile body: identity actions (Select/Switch and paused-selection
- * notices, only when they apply; no avatar or name, the top bar names the page),
+ * The shared player-profile body: the paused-selection notice or Select error (only when one
+ * applies; Select/Switch itself is a pill beside Quick Links, #590; no avatar or name, the top bar
+ * names the page),
  * Overview, one card
  * per Settings-visible chart (stats, global rank, rank history, percentiles), top and
  * bottom five songs per chart and the player's bands (Duos, Trios, Quads previews). Select/Switch never
@@ -177,6 +214,7 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
  * @param rows Rows in page order.
  * @param onSplitChange Receives the grid's fold split (see [rememberProfileGridState]).
  * @param fadeWindow The grid's fade window when the caller also scrolls it (Quick Links); by default the content creates it.
+ * @param anchors Where nested Quick Links (each chart's Rank History and Percentiles cards) report their tops, or null.
  */
 @Composable
 fun PlayerProfileContent(
@@ -186,6 +224,7 @@ fun PlayerProfileContent(
     rows: List<ProfileRow>,
     onSplitChange: (Boolean) -> Unit = {},
     fadeWindow: FadeInWindow? = null,
+    anchors: QuickLinkAnchors? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     // Rows fade in (staggered) on the frame after the profile finishes loading.
@@ -212,7 +251,7 @@ fun PlayerProfileContent(
             onRetry = viewModel::retry,
         )
         is ProfilePhase.Failed -> ServiceStatusView(phase.issue, "Profile unavailable", phase.countdown, viewModel::retry, contentPadding = padding)
-        ProfilePhase.Loaded -> LoadedProfile(viewModel, state, padding, gridState, rows, revealed, onSplitChange)
+        ProfilePhase.Loaded -> LoadedProfile(viewModel, state, padding, gridState, rows, revealed, onSplitChange, anchors)
     }
     }
 }
@@ -226,6 +265,7 @@ private fun LoadedProfile(
     rows: List<ProfileRow>,
     revealed: Boolean,
     onSplitChange: (Boolean) -> Unit,
+    anchors: QuickLinkAnchors?,
 ) {
     val shell = LocalShellActions.current
     val ranks by viewModel.ranks.collectAsStateWithLifecycle()
@@ -233,7 +273,6 @@ private fun LoadedProfile(
     val bands by viewModel.bands.collectAsStateWithLifecycle()
     // Band rows join the grid when the preview loads; they fade in (staggered per group) like the web's cards.
     val bandsRevealed = rememberRevealed(bands is BandsLoad.Loaded)
-    var confirm by rememberSaveable { mutableStateOf<PlayerIdentityAction?>(null) }
     var pendingAction by remember { mutableStateOf<PlayerTileAction?>(null) }
     val scope = rememberCoroutineScope()
     val runAction: (PlayerTileAction, Boolean) -> Unit = { action, confirmed ->
@@ -258,9 +297,7 @@ private fun LoadedProfile(
             item(key = row.key, span = span) {
                 Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index)).readingGroup()) {
                 when (row) {
-                    ProfileRow.Identity -> IdentityActions(state, onSelect = {
-                        if (state.identity == PlayerIdentityAction.Switch) confirm = PlayerIdentityAction.Switch else viewModel.select()
-                    }, onReload = viewModel::retry)
+                    ProfileRow.Identity -> IdentityActions(state, onReload = viewModel::retry)
                     ProfileRow.Overview -> Column(Modifier.testTag("fst.player.overview")) {
                         SectionHeader("Overview")
                         StatGrid(state.overview, "overview", state::canRun, onAction)
@@ -275,6 +312,7 @@ private fun LoadedProfile(
                             onAction = onAction,
                             onRetryRank = { viewModel.retryRank(section.instrument) },
                             onRetryHistory = { viewModel.retryRankHistory(section.instrument) },
+                            anchors = anchors,
                         )
                     }
                     ProfileRow.TopSongsHeading -> TopSongsHeading(state.displayName)
@@ -292,17 +330,6 @@ private fun LoadedProfile(
                 }
             }
         }
-    }
-    when (confirm) {
-        PlayerIdentityAction.Switch -> ConfirmDialog(
-            title = "Switch Profile?",
-            text = "Scores and profile-dependent pages will update to ${state.displayName}.",
-            confirmLabel = "Switch",
-            tag = "fst.player.switch-confirm",
-            onConfirm = { confirm = null; viewModel.select() },
-            onDismiss = { confirm = null },
-        )
-        else -> Unit
     }
     pendingAction?.let { action ->
         // Web `ConfirmAlert` "Switch to {name}": a tile needs this player selected first.
@@ -322,26 +349,18 @@ private fun LoadedProfile(
 // region Identity actions
 
 /**
- * Select/Switch, the paused-selection notice and the last action error, straight on the
- * page background. Issue #97: no avatar/name card; the top bar already names the player.
+ * The paused-selection notice and the last action error, straight on the page background.
+ * Issue #97: no avatar/name card; the top bar already names the player. Select/Switch is not
+ * here: it is its own pill beside Quick Links in the floating toolbar row (#590).
  * When the notice or error asks for a reload, a 48 dp Reload text button re-reads the
  * profile under the current publication (issue #133; the page has no pull-to-refresh).
  *
  * @param state Page state.
- * @param onSelect Select, or ask to confirm a switch.
  * @param onReload Re-read the viewed profile.
  */
 @Composable
-internal fun IdentityActions(state: PlayerProfileUiState, onSelect: () -> Unit, onReload: () -> Unit) {
+internal fun IdentityActions(state: PlayerProfileUiState, onReload: () -> Unit) {
     Column(Modifier.fillMaxWidth().testTag("fst.player.identity"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        when (state.identity) {
-            PlayerIdentityAction.Select, PlayerIdentityAction.Switch -> Button(
-                onClick = onSelect,
-                colors = festivalFilledButtonColors(),
-                modifier = Modifier.heightIn(min = 48.dp).testTag("fst.player.select"),
-            ) { Text(state.selectLabel) }
-            else -> Unit
-        }
         state.identityNotice?.let { notice ->
             Row(Modifier.testTag("fst.player.identity-notice"), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Info, contentDescription = null, tint = BrandTokens.textPrimary, modifier = Modifier.size(18.dp))
@@ -391,8 +410,12 @@ private fun InstrumentSection(
     onAction: (PlayerTileAction) -> Unit,
     onRetryRank: () -> Unit,
     onRetryHistory: () -> Unit,
+    anchors: QuickLinkAnchors? = null,
 ) {
     val instrument = section.instrument
+    // The column sits at its grid item's top, so its children's positions are the nested Quick
+    // Links' offsets in the item (#590).
+    fun anchor(prefix: String) = anchors?.let { Modifier.quickLinkAnchor(it, prefix + instrument.wireId) } ?: Modifier
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Web: the instrument header sits above its cards, never inside them.
         InstrumentHeading(instrument, "fst.player.instrument.${instrument.wireId}")
@@ -407,7 +430,7 @@ private fun InstrumentSection(
             }
             return@Column
         }
-        RankHistorySection(instrument, history, onRetryHistory)
+        RankHistorySection(instrument, history, onRetryHistory, anchor(ProfileSections.RANK_HISTORY_PREFIX))
         StatGrid(
             section.stats + RankLoad.tiles(rank, state.experimentalRanks) + section.trailing,
             instrument.wireId,
@@ -421,7 +444,10 @@ private fun InstrumentSection(
             }
         }
         if (section.percentiles.isNotEmpty()) {
-            PercentileTable(section.percentiles, state::canRun, onAction, Modifier.testTag("fst.player.percentiles.${instrument.wireId}"))
+            PercentileTable(
+                section.percentiles, state::canRun, onAction,
+                anchor(ProfileSections.PERCENTILES_PREFIX).testTag("fst.player.percentiles.${instrument.wireId}"),
+            )
         }
     }
 }
@@ -430,12 +456,14 @@ private fun InstrumentSection(
  * The web's Rank History graph card: title and hint inside the card, the chart, and a
  * placeholder of the chart's height while it loads, so nothing below it moves when it
  * arrives. No card for a chart without ranked snapshots (web: no ranking row, no chart).
+ *
+ * @param modifier The card's modifier (its nested Quick Link anchor).
  */
 @Composable
-private fun RankHistorySection(instrument: Instrument, history: RankHistoryLoad?, onRetry: () -> Unit) {
+private fun RankHistorySection(instrument: Instrument, history: RankHistoryLoad?, onRetry: () -> Unit, modifier: Modifier = Modifier) {
     val tag = "fst.player.rank-history.${instrument.wireId}"
     if (history is RankHistoryLoad.Loaded && history.chart == null) return
-    GlassCard(Modifier.fillMaxWidth()) {
+    GlassCard(modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 "Rank History",

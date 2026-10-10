@@ -19,8 +19,10 @@ import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.automirrored.outlined.Toc
+import androidx.compose.material.icons.automirrored.outlined.TrendingUp
 import androidx.compose.material.icons.outlined.Accessibility
 import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.material.icons.outlined.StackedBarChart
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Dns
@@ -46,6 +48,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -53,6 +56,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -227,6 +232,12 @@ class QuickLinksController internal constructor(
     /** Section ID → item index. */
     internal var indexOf: (String) -> Int? = { null }
 
+    /**
+     * Section ID → the section's top below its item's top in pixels (0 for a section that is a whole
+     * item; null while a nested section's anchor has not been measured). Reads snapshot state.
+     */
+    internal var offsetOf: (String) -> Int? = { 0 }
+
     /** Whether jumps animate (off under reduce motion). */
     internal var animate: Boolean = true
 
@@ -261,7 +272,9 @@ class QuickLinksController internal constructor(
         landing?.cancel()
         landing = scope.launch {
             val px = landingPx.roundToInt()
-            scroller.scrollTo(index, animate, px)
+            // A nested section (a card inside its item) lands at its own top once measured; until
+            // then the item's top lands and the hold below moves on as soon as the anchor reports.
+            scroller.scrollTo(index, animate, px - (offsetOf(id) ?: 0))
             settle()
             if (holdLanding) keepLanded(id, index, px)
         }
@@ -286,18 +299,19 @@ class QuickLinksController internal constructor(
         // The position the hold last saw; null right after its own landing, which moves it.
         var expected: Long? = null
         withTimeoutOrNull(QuickLinks.LANDING_HOLD_MS) {
-            snapshotFlow { scroller.layout() to scroller.position }
-                .takeWhile { (_, position) ->
+            snapshotFlow { Triple(scroller.layout(), scroller.position, offsetOf(id)) }
+                .takeWhile { (_, position, _) ->
                     val unmoved = expected == null || expected == position
                     expected = position
                     unmoved && !scroller.isScrollInProgress && corrections < QuickLinks.MAX_LANDING_CORRECTIONS
                 }
-                .collect { (layout, _) ->
-                    val top = layout.items.firstOrNull { it.index == index }?.top
+                .collect { (layout, _, offset) ->
+                    val inset = offset ?: 0
+                    val top = layout.items.firstOrNull { it.index == index }?.top?.plus(inset)
                     val below = if (top == null) (layout.items.maxOfOrNull { it.index } ?: -1) < index else null
                     if (QuickLinks.needsReland(top, px, completeThreshold, scroller.canScrollForward, scroller.canScrollBackward, below)) {
                         corrections++
-                        scroller.scrollTo(index, animate = false, landingPx = px)
+                        scroller.scrollTo(index, animate = false, landingPx = px - inset)
                         expected = null
                         tracker.beginJump(id)
                         settle()
@@ -311,7 +325,10 @@ class QuickLinksController internal constructor(
         if (activeId != tracker.activeId) activeId = tracker.activeId
     }
 
-    /** Frames: visible items from layout; items above the first visible one are "far above"; below is unknown. */
+    /**
+     * Frames: visible items from layout (a nested section from its anchor's offset down to the item's
+     * bottom, skipped while unmeasured); items above the first visible one are "far above"; below is unknown.
+     */
     private fun frames(layout: QuickLinkLayout): Map<String, QuickLinkFrame> {
         val first = layout.items.minOfOrNull { it.index } ?: return emptyMap()
         val result = HashMap<String, QuickLinkFrame>()
@@ -319,13 +336,50 @@ class QuickLinksController internal constructor(
             val index = indexOf(section.id) ?: return@forEach
             val item = layout.items.firstOrNull { it.index == index }
             when {
-                item != null -> result[section.id] = QuickLinkFrame(item.top.toFloat(), item.bottom.toFloat())
+                item != null -> offsetOf(section.id)?.let { offset ->
+                    val top = item.top + offset
+                    result[section.id] = QuickLinkFrame(top.toFloat(), maxOf(top, item.bottom).toFloat())
+                }
                 index < first -> result[section.id] = QuickLinkFrame(-1_000_000f, -999_999f)
             }
         }
         return result
     }
 }
+
+/**
+ * Measured tops of nested Quick Link sections: cards inside one lazy item (the player page's
+ * per-chart Rank History and Percentiles, #590), so the page's Quick Links list them like iOS.
+ * Mark each card with [quickLinkAnchor]; pass [offsetOf] to [rememberQuickLinks].
+ */
+@Stable
+class QuickLinkAnchors {
+    private val offsets = mutableStateMapOf<String, Int>()
+
+    /**
+     * A nested section's top below its item's top, or null until measured (snapshot state).
+     *
+     * @param id Section ID.
+     * @return Offset in pixels.
+     */
+    fun offsetOf(id: String): Int? = offsets[id]
+
+    internal fun report(id: String, offset: Int) {
+        if (offsets[id] != offset) offsets[id] = offset
+    }
+}
+
+/**
+ * Report this element's top as nested section [id]'s offset in its lazy item. The element must be
+ * a direct child of a layout placed at the item's top (the player page's chart `Column`), and this
+ * must be its first modifier so the offset is its placement in that parent.
+ *
+ * @param anchors Page anchors.
+ * @param id Section ID.
+ * @return Modifier.
+ */
+fun Modifier.quickLinkAnchor(anchors: QuickLinkAnchors, id: String): Modifier =
+    onPlaced { anchors.report(id, it.positionInParent().y.roundToInt()) }
 
 /**
  * Remember a page's Quick Links controller and keep its sections current.
@@ -347,7 +401,7 @@ fun rememberQuickLinks(
     fadeInWindow: FadeInWindow? = LocalFadeInWindow.current,
     indexOf: (String) -> Int?,
 ): QuickLinksController =
-    rememberQuickLinks(remember(listState) { ListScroller(listState) }, title, sections, pinnedHeaders, fadeInWindow, indexOf)
+    rememberQuickLinks(remember(listState) { ListScroller(listState) }, title, sections, pinnedHeaders, fadeInWindow, indexOf = indexOf)
 
 /**
  * Remember a Quick Links controller for a page laid out as a staggered grid.
@@ -356,6 +410,8 @@ fun rememberQuickLinks(
  * @param title Quick Links title.
  * @param sections Sections in order (duplicates are dropped).
  * @param fadeInWindow The page's fade window, which jumps rush (defaults to the enclosing one).
+ * @param offsetOf Section ID → the section's top below its item's top in pixels, or null while
+ *   unmeasured ([QuickLinkAnchors.offsetOf] for nested sections); 0 for whole-item sections.
  * @param indexOf Section ID → grid item index.
  * @return Controller.
  */
@@ -365,9 +421,10 @@ fun rememberQuickLinks(
     title: String,
     sections: List<QuickLinkSection>,
     fadeInWindow: FadeInWindow? = LocalFadeInWindow.current,
+    offsetOf: (String) -> Int? = { 0 },
     indexOf: (String) -> Int?,
 ): QuickLinksController =
-    rememberQuickLinks(remember(gridState) { StaggeredScroller(gridState) }, title, sections, pinnedHeaders = false, fadeInWindow = fadeInWindow, indexOf = indexOf)
+    rememberQuickLinks(remember(gridState) { StaggeredScroller(gridState) }, title, sections, pinnedHeaders = false, fadeInWindow = fadeInWindow, offsetOf = offsetOf, indexOf = indexOf)
 
 /**
  * Remember a controller over any [QuickLinkScroller].
@@ -383,6 +440,7 @@ internal fun rememberQuickLinks(
     sections: List<QuickLinkSection>,
     pinnedHeaders: Boolean = false,
     fadeInWindow: FadeInWindow? = LocalFadeInWindow.current,
+    offsetOf: (String) -> Int? = { 0 },
     indexOf: (String) -> Int?,
 ): QuickLinksController {
     val scope = rememberCoroutineScope()
@@ -403,12 +461,14 @@ internal fun rememberQuickLinks(
     controller.title = title
     controller.sections = QuickLinks.ordered(sections)
     controller.indexOf = indexOf
+    controller.offsetOf = offsetOf
     // Quick Links teleport to the section like the web (operator batch 7.15), never an animated scroll.
     controller.animate = false
     controller.holdLanding = !pinnedHeaders
     controller.fadeInWindow = fadeInWindow
     LaunchedEffect(controller) {
-        snapshotFlow { scroller.layout() }.collect(controller::onLayout)
+        // Nested anchors report after their item's layout, so their offsets are followed too.
+        snapshotFlow { scroller.layout() to controller.sections.map { controller.offsetOf(it.id) } }.collect { controller.onLayout(it.first) }
     }
     return controller
 }
@@ -439,6 +499,8 @@ fun quickLinkIcon(token: String?): ImageVector = when (token) {
     "people" -> Icons.Outlined.People
     "chart" -> Icons.Outlined.BarChart
     "timer" -> Icons.Outlined.Timer
+    "trend" -> Icons.AutoMirrored.Outlined.TrendingUp
+    "percentiles" -> Icons.Outlined.StackedBarChart
     else -> Icons.AutoMirrored.Outlined.Toc
 }
 
@@ -519,6 +581,8 @@ fun QuickLinksAction(controller: QuickLinksController, windowWidthDp: Int) {
                             open = false
                             controller.jump(section.id)
                         },
+                        // Nested sections indent 16 dp per level, like the sheet's list (#590).
+                        contentPadding = PaddingValues(start = (12 + 16 * section.depth).dp, end = 12.dp),
                         modifier = Modifier.testTag(section.testTag).currentSection(section, current),
                     )
                 }
