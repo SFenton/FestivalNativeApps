@@ -2,9 +2,7 @@
 
 > **What:** section-title hierarchy, card placement, accessibility semantics, and pinned-header handoff. **Read when:** adding a titled group, a grouped list, or a sticky section header.
 
-Status: **current**, 2026-10-07. Provenance: #288, #291, #297, #312, #321, #343, #348, #560.
-Status: **current**, 2026-10-10. Provenance: #288, #291, #297, #312, #321, #343, #348, #452, #557, #600.
-Status: **current**, 2026-10-07. Provenance: #288, #291, #297, #312, #321, #343, #348, #452, #557, #595.
+Status: **current**, 2026-10-10. Provenance: #288, #291, #297, #312, #321, #343, #348, #452, #557, #560, #595, #600.
 
 ## Intent
 
