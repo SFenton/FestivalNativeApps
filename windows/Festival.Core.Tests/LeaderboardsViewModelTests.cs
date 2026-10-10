@@ -734,6 +734,56 @@ public sealed class FullRankingsViewModelTests
     }
 
     [Fact]
+    public async Task BoardSwitchesHideThePagerUntilTheNewBoardsCountLoads()
+    {
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        var fake = new RankingsFake { TotalAccounts = 60 };
+        var gate = new TaskCompletionSource();
+        var respond = fake.Service.Handler.Responder;
+        fake.Service.Handler.Responder = async (request, token) =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path == "/api/rankings/Solo_Bass" || request.RequestUri.Query.Contains("rankBy=fcrate", StringComparison.Ordinal)) await gate.Task;
+            return await respond(request, token);
+        };
+        var vm = new FullRankingsViewModel(fake.Session(settings: new AppSettings { ExperimentalRanks = true }), new AppRoute.FullRankings(Instrument.Lead, "totalscore"));
+        await vm.LoadAsync();
+        await vm.Pager.NextCommand.ExecuteAsync(null);
+        Assert.Equal("2 / 3", vm.Pager.InfoText);
+
+        // Issue #575 (load-transition R4): an instrument switch never shows the old board's "2 / 3" or a "1 / 1"
+        // placeholder; the pager stays hidden until the new board's real page count commits.
+        var paged = new List<(bool Paged, string Info)>();
+        vm.Pager.PropertyChanged += (_, _) => paged.Add((vm.Pager.IsPaged, vm.Pager.InfoText));
+        var switching = vm.SelectInstrumentAsync(Instrument.Bass);
+        await Async.Until(() => vm.IsLoading);
+        Assert.False(vm.Pager.IsPaged);
+        Assert.False(vm.Pager.NextCommand.CanExecute(null));
+        Assert.DoesNotContain(paged, p => p.Paged);
+        gate.SetResult();
+        await switching;
+        Assert.True(vm.Pager.IsPaged);
+        Assert.Equal("1 / 3", vm.Pager.InfoText);
+        Assert.DoesNotContain(paged, p => p.Paged && p.Info != "1 / 3");
+
+        // Rank By changes the board too.
+        await vm.Pager.LastCommand.ExecuteAsync(null);
+        gate = new TaskCompletionSource();
+        var metric = vm.SelectMetricAsync(RankingMetric.FcRate);
+        await Async.Until(() => vm.IsLoading);
+        Assert.False(vm.Pager.IsPaged);
+        gate.SetResult();
+        await metric;
+        Assert.Equal("1 / 3", vm.Pager.InfoText);
+
+        // A page-only reload keeps the pager and its known count in place.
+        paged.Clear();
+        await vm.Pager.NextCommand.ExecuteAsync(null);
+        Assert.DoesNotContain(paged, p => !p.Paged);
+        Assert.Equal("2 / 3", vm.Pager.InfoText);
+    }
+
+    [Fact]
     public async Task FailedInstrumentSwitchDropsTheOldBoardsPinnedRow()
     {
         var fake = new RankingsFake { TotalAccounts = 60 };
@@ -946,6 +996,36 @@ public sealed class BandRankingsViewModelTests
         Assert.True(vm.ShowRows);
         Assert.True(vm.ShowContent);
         Assert.Equal(2, vm.Pager.Page);
+    }
+
+    [Fact]
+    public async Task BandSizeSwitchHidesThePagerUntilTheNewBoardsCountLoads()
+    {
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        var fake = new RankingsFake { TotalTeams = 60 };
+        var gate = new TaskCompletionSource();
+        var respond = fake.Service.Handler.Responder;
+        fake.Service.Handler.Responder = async (request, token) =>
+        {
+            if (request.RequestUri!.AbsolutePath == "/api/rankings/bands/Band_Trios") await gate.Task;
+            return await respond(request, token);
+        };
+        var vm = new BandRankingsViewModel(fake.Session(), new AppRoute.BandRankings("Band_Duets"));
+        await vm.LoadAsync();
+        await vm.Pager.NextCommand.ExecuteAsync(null);
+        Assert.Equal("2 / 3", vm.Pager.InfoText);
+
+        // Issue #575: no "2 / 3" from Duos and no "1 / 1" placeholder while Trios loads.
+        var paged = new List<bool>();
+        vm.Pager.PropertyChanged += (_, _) => paged.Add(vm.Pager.IsPaged);
+        var switching = vm.SelectBandTypeAsync(BandType.Trios);
+        await Async.Until(() => vm.IsLoading);
+        Assert.False(vm.Pager.IsPaged);
+        Assert.DoesNotContain(true, paged);
+        gate.SetResult();
+        await switching;
+        Assert.True(vm.Pager.IsPaged);
+        Assert.Equal("1 / 3", vm.Pager.InfoText);
     }
 
     [Fact]

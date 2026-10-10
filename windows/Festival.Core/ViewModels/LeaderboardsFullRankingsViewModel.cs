@@ -145,7 +145,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
     /// </summary>
     public bool ShowContent => State is LoadState.Loaded or LoadState.Empty;
 
-    /// <summary>Switches instrument (resets to page 1; the spotlight is rebuilt when the new board commits).</summary>
+    /// <summary>Switches instrument (resets to page 1 and hides the pager until the new board's count commits, #575; the spotlight is rebuilt when the new board commits).</summary>
     /// <param name="value">Instrument.</param>
     /// <returns>Load task.</returns>
     [RelayCommand]
@@ -154,6 +154,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
         if (value == Instrument) return Task.CompletedTask;
         Instrument = value;
         Page = 1;
+        Pager.Reset();
         return LoadAsync();
     }
 
@@ -168,6 +169,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
         requestedMetric = value;
         Metric = value;
         Page = 1;
+        Pager.Reset();
         return LoadAsync();
     }
 
@@ -184,6 +186,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
         if (allowed == Metric) return null;
         Metric = allowed;
         Page = 1;
+        Pager.Reset();
         return LoadAsync();
     }
 
@@ -427,6 +430,7 @@ public sealed partial class BandRankingsViewModel : ObservableObject
         if (value == BandType) return Task.CompletedTask;
         BandType = value;
         Page = 1;
+        Pager.Reset();
         return LoadAsync();
     }
 
@@ -441,6 +445,7 @@ public sealed partial class BandRankingsViewModel : ObservableObject
         requestedMetric = value;
         Metric = value;
         Page = 1;
+        Pager.Reset();
         return LoadAsync();
     }
 
@@ -457,6 +462,7 @@ public sealed partial class BandRankingsViewModel : ObservableObject
         if (allowed == Metric) return null;
         Metric = allowed;
         Page = 1;
+        Pager.Reset();
         return LoadAsync();
     }
 

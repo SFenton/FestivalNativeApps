@@ -47,6 +47,23 @@ public class BandsPagerTests
         Assert.False(pager.NextCommand.CanExecute(null));
         Assert.True(pager.FirstCommand.CanExecute(null));
     }
+
+    [Fact]
+    public void Pager_ResetHidesItUntilANewCountArrives()
+    {
+        var bands = new BandsPagerViewModel(_ => Task.CompletedTask) { PageCount = 4, Page = 3 };
+        bands.Reset();
+        Assert.Equal(1, bands.Page);
+        Assert.False(bands.IsPaged);
+        Assert.False(bands.NextCommand.CanExecute(null) || bands.PreviousCommand.CanExecute(null));
+
+        var rankings = new RankingsPagerViewModel("fst.test", _ => Task.CompletedTask);
+        rankings.Update(3, 4);
+        rankings.Reset();
+        Assert.Equal(1, rankings.Page);
+        Assert.False(rankings.IsPaged);
+        Assert.False(rankings.LastCommand.CanExecute(null) || rankings.FirstCommand.CanExecute(null));
+    }
 }
 
 public class PlayerBandsViewModelTests
@@ -186,6 +203,38 @@ public class PlayerBandsViewModelTests
         gate2.SetResult();
         await Async.Settle();
         Assert.True(vm.ShowRows);
+    }
+
+    [Fact]
+    public async Task GroupSwitchHidesThePagerUntilTheNewGroupsCountLoads()
+    {
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        var bands = new BandService();
+        var gate = new TaskCompletionSource();
+        bands.Service.Handler.Responder = async (request, token) =>
+        {
+            if (request.RequestUri!.Query.Contains("group=trios", StringComparison.Ordinal))
+            {
+                await gate.Task;
+                return BandService.Ok(BandWire.PlayerBands("acc", 60, 25));
+            }
+            return bands.Service.Override!(request) ?? Wire.Ok(Wire.Publication());
+        };
+        var vm = new PlayerBandsViewModel(bands.Service.Session(), new AppRoute.PlayerBands("acc"));
+        await vm.LoadAsync();
+        await vm.Pager.NextCommand.ExecuteAsync(null);
+        Assert.Equal("2 / 2", vm.Pager.PageText);
+
+        // Issue #575: never "1 / 2" from All Bands while Trios loads; the pager waits for Trios' own count.
+        var paged = new List<bool>();
+        vm.Pager.PropertyChanged += (_, _) => paged.Add(vm.Pager.IsPaged);
+        vm.Group = PlayerBandGroup.Trios;
+        await Async.Until(() => vm.IsLoading);
+        Assert.False(vm.Pager.IsPaged);
+        Assert.DoesNotContain(true, paged);
+        gate.SetResult();
+        await Async.Until(() => vm.ShowRows);
+        Assert.Equal("1 / 3", vm.Pager.PageText);
     }
 }
 
@@ -896,5 +945,46 @@ public class SongBandLeaderboardViewModelTests
         Assert.Equal("", vm.TotalText);
         Assert.Equal("Quads", vm.BoardLabel);
         Assert.Equal("Pulse", vm.Title);
+    }
+
+    [Fact]
+    public async Task SizeSwitchHidesThePagerUntilTheNewSizesCountLoads()
+    {
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        var bands = new BandService();
+        var trios = new TaskCompletionSource();
+        var route = bands.Service.Handler.Responder;
+        bands.Service.Handler.Responder = async (request, token) =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path.StartsWith("/api/leaderboard/", StringComparison.Ordinal) && path.Contains("/bands/", StringComparison.Ordinal))
+            {
+                var type = path.Split('/')[5];
+                if (type == "Band_Trios") await trios.Task;
+                return BandService.Ok(BandWire.SongBands("fixture-pulse", type, 2, type == "Band_Trios" ? 120 : 60, showTotals: true));
+            }
+            return await route(request, token);
+        };
+        var vm = new SongBandLeaderboardViewModel(bands.Service.Session(), new AppRoute.SongBandLeaderboard("fixture-pulse", "Band_Duets"));
+        await vm.LoadAsync();
+        await vm.Pager.NextCommand.ExecuteAsync(null);
+        Assert.Equal("2 / 3", vm.Pager.PageText);
+
+        // Issue #575: no "1 / 3" from Duos while Trios loads; the pager returns with Trios' own count.
+        var paged = new List<bool>();
+        vm.Pager.PropertyChanged += (_, _) => paged.Add(vm.Pager.IsPaged);
+        vm.BandType = BandType.Trios;
+        Assert.False(vm.Pager.IsPaged);
+        await Async.Settle();
+        Assert.DoesNotContain(true, paged);
+        trios.SetResult();
+        await Async.Until(() => vm.ShowRows && vm.Pager.IsPaged);
+        Assert.Equal("1 / 5", vm.Pager.PageText);
+
+        // A page-only reload keeps the pager and its count.
+        paged.Clear();
+        await vm.Pager.NextCommand.ExecuteAsync(null);
+        Assert.DoesNotContain(false, paged);
+        Assert.Equal("2 / 5", vm.Pager.PageText);
     }
 }

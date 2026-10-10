@@ -187,14 +187,15 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
     private string? SelectedAccount => session.SelectedPlayer?.AccountId is { } id && ProfileText.IsValidAccountId(id) ? id : null;
 
     /// <summary>
-    /// Switching size returns to page one and drops the old size's entry total at once: the board line names the new size
-    /// immediately, and its total appears only when that size's response commits (song-leaderboard-header R5).
+    /// Switching size returns to page one and drops the old size's entry total and page count at once: the board line
+    /// names the new size immediately, and its total and pager appear only when that size's response commits
+    /// (song-leaderboard-header R5, load-transition R4, issue #575).
     /// </summary>
     /// <param name="value">New size.</param>
     partial void OnBandTypeChanged(BandType value)
     {
         TotalText = "";
-        Pager.Page = 1;
+        Pager.Reset();
         RevealSelected = false;
         _ = LoadAsync();
     }
