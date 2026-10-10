@@ -25,6 +25,14 @@ final class NotificationsCenter {
     private(set) var state: NotificationsLoadState = .idle
     private(set) var unreadIds: Set<String> = []
     private var accountId: String?
+    /// The last loaded feed, kept so a Settings › Experimental Ranks change re-projects
+    /// it without another read.
+    private var loadedItems: [ImprovementNotificationDto] = []
+    private var loadedSongs: [String: NotificationSongInfo] = [:]
+    private var loadedPlayerName: String?
+    /// Settings › Experimental Ranks; while off, experimental rank events are not
+    /// surfaced (``NotificationExperimentalRanks``, pattern `experimental-ranks`).
+    private(set) var experimentalRanks = UserDefaults.standard.bool(forKey: ExperimentalRanks.storageKey)
 
     /// Unread rows, newest first, for the badge count and "New" section.
     var unreadCount: Int { unreadIds.count }
@@ -40,6 +48,7 @@ final class NotificationsCenter {
     func refresh(session: FestivalSession) async {
         guard let identity = session.selectedPlayer else {
             accountId = nil
+            loadedItems = []
             notifications = []
             unreadIds = []
             state = .idle
@@ -48,6 +57,7 @@ final class NotificationsCenter {
         let revalidating = accountId == identity.accountId && state == .loaded
         accountId = identity.accountId
         if !revalidating {
+            loadedItems = []
             notifications = []
             unreadIds = []
             state = .loading
@@ -64,20 +74,41 @@ final class NotificationsCenter {
                 },
                 uniquingKeysWith: { a, _ in a }
             )
-            notifications = payload.envelope.items.map {
-                NotificationText.format(
-                    $0, song: $0.songId.flatMap { songs[$0] }, playerName: identity.displayName
-                )
-            }
+            loadedItems = payload.envelope.items
+            loadedSongs = songs
+            loadedPlayerName = identity.displayName
+            rebuild()
             isGenerated = payload.envelope.isGenerated
-            unreadIds = NotificationSeenStore.unreadIds(
-                current: notifications.map(\.id), accountId: identity.accountId
-            )
             state = .loaded
         } catch is CancellationError {
         } catch {
             state = .failed(ServiceIssue(error))
         }
+    }
+
+    /// Apply Settings › Experimental Ranks to the loaded feed (rows and unread badge),
+    /// as the web's `filterSurfaceNotifications` does on every settings change.
+    ///
+    /// - Parameter enabled: The Settings switch.
+    func setExperimentalRanks(_ enabled: Bool) {
+        guard enabled != experimentalRanks else { return }
+        experimentalRanks = enabled
+        rebuild()
+    }
+
+    /// Format the loaded feed under the current switch; unread counts only surfaced rows
+    /// (web `MobileNotificationsModal` / `App` unread count over the surfaced list).
+    private func rebuild() {
+        notifications = loadedItems
+            .compactMap { NotificationExperimentalRanks.project($0, experimentalRanks: experimentalRanks) }
+            .map {
+                NotificationText.format(
+                    $0, song: $0.songId.flatMap { loadedSongs[$0] }, playerName: loadedPlayerName
+                )
+            }
+        unreadIds = accountId.map {
+            NotificationSeenStore.unreadIds(current: notifications.map(\.id), accountId: $0)
+        } ?? []
     }
 
     /// Persist rows as seen and drop them from the unread badge.

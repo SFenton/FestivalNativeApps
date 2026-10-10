@@ -721,6 +721,14 @@
           "message": "An opaque cardBackground plate is FestivalCardModifier's accessibility fallback, not a feature surface; draw cards, rows and custom floating controls with festivalCard / festivalCardCapsule (surface-materials R1, #319)."
         },
         {
+          "id": "apple-gradient-card-rim",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "strokeBorder\\(\\s*(RowCardStyle\\.rim|rim\\b|style\\b)",
+          "allow": [],
+          "debt": [],
+          "message": "A gradient-stroked shape is shaded on the CPU each draw; draw the card rim with CardRim (a gradient view under a solid stroke mask) (surface-materials R9, #553)."
+        },
+        {
           "id": "windows-pager-only-plate",
           "glob": "windows/Festival.App/**/*.xaml",
           "regex": "FSTPager(?:Button|Badge)Brush",
@@ -920,6 +928,10 @@
           {
             "path": "windows/Festival.App/Controls/WrapPanel.cs",
             "symbol": "WrapPanel"
+          },
+          {
+            "path": "windows/Festival.App/Controls/PopupHosting.cs",
+            "symbol": "PopupHosting"
           }
         ]
       },
@@ -1020,6 +1032,7 @@
         351,
         363,
         394,
+        534,
         544
       ]
     },
@@ -3595,19 +3608,28 @@
       "title": "Experimental ranks",
       "status": "current",
       "doc": ".agents/patterns/experimental-ranks.md",
-      "summary": "Settings → Enable Experimental Leaderboard Ranks (off by default, reset by Reset) gates the experimental ranking metrics app-wide like the web: Rank By offers Total Score only (and is hidden) while off; saved, routed and selected metrics are coerced to Total Score; turning it off returns open pages to Total Score; Rivals Rank By, profile rank tiles, rank notifications and the first-run slide follow it.",
+      "summary": "Settings → Enable Experimental Leaderboard Ranks (off by default, reset by Reset) is the one gate for the experimental ranking metrics app-wide like the web: while off, Rank By offers Total Score only and is hidden in-page (the Mac View › Rank By submenu lists only Total Score); saved, routed and selected metrics are coerced to Total Score at read time, never rewritten; turning it off returns open pages to Total Score; on offers Adjusted, Weighted, FC Rate and Max Score (bands without Max Score); Rivals Rank By, profile rank tiles, rank notifications (web projection) and the first-run slide follow it (#541).",
       "keywords": [
         "experimental ranks",
+        "experimental leaderboard ranks",
         "rank by",
+        "rankBy",
         "ranking metric",
         "adjusted",
         "weighted",
         "fc rate",
         "max score",
-        "coerce",
-        "enableExperimentalRanks"
+        "total score",
+        "coerceRankingMetric",
+        "enableExperimentalRanks",
+        "rank notification",
+        "coerce"
       ],
       "web": [
+        {
+          "path": "contexts/SettingsContext.tsx",
+          "symbol": "enableExperimentalRanks"
+        },
         {
           "path": "pages/leaderboards/helpers/rankingHelpers.ts",
           "symbol": "getEnabledRankingMetrics"
@@ -3621,12 +3643,45 @@
           "symbol": "coerceBandRankingMetric"
         },
         {
+          "path": "pages/leaderboards/modals/RankByModal.tsx",
+          "symbol": "RankByModal"
+        },
+        {
           "path": "components/notifications/notificationSurface.ts",
           "symbol": "projectExperimentalRankNotification"
         }
       ],
       "canonical": {
-        "apple": [],
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalCore/Rankings.swift",
+            "symbol": "ExperimentalRanks"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/Rivals.swift",
+            "symbol": "RivalRankMetric"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/PlayerNotification.swift",
+            "symbol": "NotificationExperimentalRanks"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Leaderboards/RankingsSupport.swift",
+            "symbol": "RankByMenu"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Leaderboards/RankingsSupport.swift",
+            "symbol": "BandRankByMenu"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Mac/MacPageMenus.swift",
+            "symbol": "bandOptions"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/SettingsScreen.swift",
+            "symbol": "experimentalRanksRow"
+          }
+        ],
         "android": [
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/Rankings.kt",
@@ -3680,7 +3735,13 @@
         "pages": [
           "settings",
           "leaderboards",
+          "full-rankings",
+          "band-rankings",
+          "band-detail",
           "rivals",
+          "all-rivals",
+          "rival-detail",
+          "rivalry",
           "player-profile"
         ]
       },
@@ -3696,6 +3757,14 @@
           "message": "Rank By menus and metric lists offer RankingMetric.enabled / BandRankingMetric.enabled (or a view model's gated options), never every metric, so Settings → Experimental Ranks gates them (experimental-ranks R1)."
         },
         {
+          "id": "apple-ungated-metric-list",
+          "glob": "apple/Sources/FestivalUI/**/*.swift",
+          "regex": "\\b(?:RankingMetric|BandRankingMetric|RivalRankMetric)\\.allCases\\b",
+          "allow": [],
+          "debt": [],
+          "message": "Rank By choices come from the experimental-ranks gate (RankingMetric.enabled(experimentalRanks:), BandRankingMetric.enabled, RivalRankMetric.enabled); never list allCases in UI (experimental-ranks R1)."
+        },
+        {
           "id": "windows-metric-menus",
           "glob": "windows/**/*.cs",
           "regex": "(RankingMetricInfo|BandRankingMetricInfo)\\.All\\b",
@@ -3709,7 +3778,105 @@
           "debt": [],
           "message": "Rank By menus offer RankingMetricInfo.Enabled / BandRankingMetricInfo.Enabled (a view model's gated MetricOptions), never every metric, so Settings → Experimental Ranks gates them (experimental-ranks R1). Band Detail and the Rivals hub list every metric only behind ShowRankBy / ShowMetricPicker."
         }
+      ],
+      "supersedes": [],
+      "issues": [
+        541
       ]
+    },
+    {
+      "id": "rival-rows",
+      "title": "Rival rows",
+      "status": "current",
+      "doc": ".agents/patterns/rival-rows.md",
+      "summary": "Rows inside Rivals cards: the hub's rival rows and the song comparison rows on Rival Detail, Rivalry and the Duo category cards. One row component per kind on every surface, one shared red/green status capsule with text (readable red text), album art leading every song row through the shared ArtworkTile (art vertically centred alone, above the instrument icon when both, owner #558), one spoken element per row that names who leads, and pills that stack and wrap at accessibility sizes. Apple song rows show '#rank Name' pills for both sides, the leader green and the trailer red (agent decision #558, owner may override).",
+      "keywords": [
+        "rival",
+        "rivals",
+        "rival row",
+        "rival song row",
+        "rivalry",
+        "ahead",
+        "behind",
+        "pill",
+        "status pill",
+        "album art"
+      ],
+      "web": [
+        {
+          "path": "pages/rivals/components/RivalRow.tsx",
+          "symbol": "RivalRow"
+        },
+        {
+          "path": "pages/rivals/components/RivalSongRow.tsx",
+          "symbol": "RivalSongRow"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Rivals/RivalsSupport.swift",
+            "symbol": "RivalStatusPill"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Rivals/RivalsSupport.swift",
+            "symbol": "RivalRowContent"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Rivals/RivalsSupport.swift",
+            "symbol": "RivalSongRowContent"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Rivals/RivalsSupport.swift",
+            "symbol": "RivalSongStanding"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Rivals/RivalsSupport.swift",
+            "symbol": "RivalStatusText"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
+            "symbol": "RivalPill"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
+            "symbol": "RivalRow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
+            "symbol": "RivalSongRow"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/RivalsResources.xaml",
+            "symbol": "FSTRivalPillStyle"
+          },
+          {
+            "path": "windows/Festival.App/Controls/RivalRowView.xaml",
+            "symbol": "RivalRowView"
+          },
+          {
+            "path": "windows/Festival.App/Controls/RivalSongRowView.xaml",
+            "symbol": "RivalSongRowView"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "surface-materials",
+          "view-all-cta"
+        ],
+        "pages": [
+          "rivals",
+          "all-rivals",
+          "rival-detail",
+          "rivalry"
+        ]
+      },
+      "guards": []
     }
   ]
 }

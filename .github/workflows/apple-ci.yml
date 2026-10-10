@@ -75,7 +75,7 @@ jobs:
         # there they end at their 10 s evidence deadline as intermittent known issues; alone they are judged
         # strictly. Reuses the coverage build and leaves its profile alone. Filter: testing/apple/hosted-snapshots.md.
         working-directory: apple
-        run: swift test --skip-build --filter 'selectedRowRevealFadesTheRowItReaches|staggeredListRowsFadeInRatherThanPop|serviceInfoIndeterminateBar'
+        run: swift test --skip-build --filter 'selectedRowRevealFadesTheRowItReaches|staggeredListRowsFadeInRatherThanPop|serviceInfoIndeterminateBar|songDetailCardsScrolledIntoViewAreReadyAtOnce'
       - name: iPhone simulator journeys (serialized, loopback fixture)
         if: github.event_name == 'workflow_dispatch'  # full CI: release branches (release machine)
         # Evidence only an iOS run gives (real Dynamic Type sizes, performAccessibilityAudit, the production nav bar
@@ -87,6 +87,8 @@ jobs:
             SongsChromeJourneyTests/testScrollAwaySectionBarAccessibility
             SongsChromeJourneyTests/testScrollAwaySectionBarAccessibilityAtAX5
             SongsChromeJourneyTests/testSectionBarHeadingAtLargestText
+            SongsChromeJourneyTests/testRowUnderTheSectionBarFadeKeepsItsAccessibility
+            SongsChromeJourneyTests/testSectionPushIsAccessibleAtLargestText
             SongsChromeJourneyTests/testFilterFieldReadyAfterBackFromSongDetail
             FirstRunJourneyTests/testSongDemoSlideAccessibleAtLargestText
             SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5
@@ -97,6 +99,7 @@ jobs:
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
             SongBarCaptionIconJourneyTests/testSongLeaderboardCaptionIconScalesWithText
             SongBarCaptionIconJourneyTests/testPlayerHistoryCaptionIconAtLargestText
+            RivalsJourneyTests/testRivalDetailSongCardsAreAccessibleAtAX5
         run: |
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service.log" 2>&1 &
           mock=$!
