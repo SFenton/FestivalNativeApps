@@ -53,8 +53,9 @@ enum AppRoute: Hashable {
     /// `focusSelected` is the web's `navToPlayer`: bring the selected player's row on
     /// that page into view, as a Compete preview's "your rank" row asks (issue #370).
     case fullRankings(instrument: Instrument, rankBy: String, page: Int = 1, focusSelected: Bool = false)
-    /// `/leaderboards/bands/:bandType`
-    case bandRankings(bandType: String)
+    /// `/leaderboards/bands/:bandType?rankBy=&page=` (1-based page). Band Detail's rank
+    /// tiles open the board at their metric and the band's page (web `Routes.bandRankings`).
+    case bandRankings(bandType: String, rankBy: String = "totalscore", page: Int = 1)
     /// `/rivals`
     case rivals
     /// `/rivals/all?category=&mode=&rankBy=`. `scope` carries the same

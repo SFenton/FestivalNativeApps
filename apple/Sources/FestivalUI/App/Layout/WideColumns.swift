@@ -337,7 +337,7 @@ struct WideColumnStack<Content: View>: View {
             }
         }
         .accessibilityElement(children: .contain)
-        .measuresHorizontalSpan($span)
+        .measuresHorizontalSpan($span, fold: layout.splitHinge)
     }
 }
 

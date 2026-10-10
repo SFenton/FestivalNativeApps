@@ -61,7 +61,7 @@
                     <TextBlock x:Name="SortLabel" Text="{x:Bind ViewModel.SortSummary, Mode=OneWay}" />
                 </StackPanel>
                 <DropDownButton.Flyout>
-                    <Flyout x:Name="SortFlyout" Placement="BottomEdgeAlignedRight" Opening="OnSortOpening">
+                    <Flyout x:Name="SortFlyout" Placement="BottomEdgeAlignedRight" ShouldConstrainToRootBounds="True" Opening="OnSortOpening">
                         <controls:SongSortForm Draft="{x:Bind ViewModel.SortDraft}" Title="Sort Item Shop" IdPrefix="fst.shop.sort" />
                     </Flyout>
                 </DropDownButton.Flyout>
@@ -77,7 +77,7 @@
                     <TextBlock Text="Filter" />
                 </StackPanel>
                 <DropDownButton.Flyout>
-                    <Flyout x:Name="FilterFlyout" Placement="BottomEdgeAlignedRight" Opening="OnFilterOpening">
+                    <Flyout x:Name="FilterFlyout" Placement="BottomEdgeAlignedRight" ShouldConstrainToRootBounds="True" Opening="OnFilterOpening">
                         <Flyout.FlyoutPresenterStyle>
                             <Style TargetType="FlyoutPresenter">
                                 <Setter Property="MaxWidth" Value="520" />
@@ -169,7 +169,7 @@
                                         HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Click="OnTileClick" Tag="{x:Bind}"
                                         AutomationProperties.Name="{x:Bind TileName}" AutomationProperties.AutomationId="{x:Bind TileAutomationId}">
                                     <Button.ContextFlyout>
-                                        <MenuFlyout>
+                                        <MenuFlyout ShouldConstrainToRootBounds="True">
                                             <MenuFlyoutItem Text="Open in Item Shop" Click="OnExternalClick" Tag="{x:Bind}"
                                                             AutomationProperties.Name="{x:Bind ExternalName}"
                                                             AutomationProperties.AutomationId="{x:Bind ExternalAutomationId}">
@@ -203,7 +203,7 @@
                                 </Button>
                                 <!-- Wraps rather than clipping at large text sizes (a compact tile at 200% text cut it to "Leaving Tomorro"). -->
                                 <Border x:Name="BadgePill" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="16" Padding="8,3"
-                                        CornerRadius="10" Visibility="{x:Bind IsLeaving}" IsHitTestVisible="False">
+                                        CornerRadius="10" Visibility="{x:Bind ShowsPill}" IsHitTestVisible="False">
                                     <TextBlock x:Name="BadgeLabel" Text="{x:Bind BadgeText}" FontSize="12" FontWeight="Bold"
                                                TextWrapping="WrapWholeWords" TextAlignment="Center" />
                                 </Border>
@@ -215,7 +215,8 @@
             </ScrollViewer>
 
             <!-- List: the shared Songs row (SongRowCard) for the List preference on wider windows; ShopPage adds the
-                 New / Leaving Tomorrow badge and the official Item Shop cart button to its trailing slot. -->
+                 Leaving Tomorrow pill (New is the gold pulse alone, like the web, #562) and the official Item Shop cart
+                 button to its trailing slot. -->
             <ListView x:Name="OfferList" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="68" ItemsSource="{x:Bind ViewModel.Offers, Mode=OneWay}" Visibility="{x:Bind ViewModel.ShowList, Mode=OneWay}"
                       SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnListClick" Padding="0,0,12,24"
                       ContainerContentChanging="OnListContainerChanging"

@@ -266,6 +266,7 @@ public struct FestivalRootView: View {
                     pop: { _ = paths[selected]?.popLast() },
                     select: { select($0) }
                 ))
+                ScrollFlingStressRunner.startIfRequested()
             }
             #endif
         }

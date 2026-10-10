@@ -64,6 +64,8 @@ While the service scrapes and publishes, `PublicReadGateMiddleware` stamps every
 
 Clients must treat a freeze as transient, honour `Retry-After` with capped backoff, and never interpret it as missing data. List endpoints can keep answering 200 during a freeze while detail endpoints 503 on a cache miss. UI: [service-status control](../controls/service-status/spec.md).
 
+Band-scoped reads (`/api/rankings/bands/{type}/{teamKey}/songs`, `/song-rows`, `/history`) are **not** profile-invariant in `PublicationApiResponseCachePolicy.IsProfileInvariantRequest`: their route-cache key includes the selected-profile headers, which natives never send. During a scrape a headerless read therefore misses the entries the web warmed and reaches the endpoint, which 503s while the band-song projection is unpromoted, so a native band page loses Best/Worst Songs that the web still shows (#554; checked against service source 2026-10-09). The full fix is service-side. Clients may serve a body they already read in the **same, still-current** publication on a score-update freeze 503 (Android `FestivalApi`, see [android.md](android.md#service-access)); they never send the headers to hit the web's key.
+
 ## Live probes
 
 - `bash tools/apple_live_service_smoke.sh --read-public-live` — opt-in, three public GETs (publication, Songs, ten Lead rows) through the real Swift client; prints aggregate counts and provenance only. Never run in automated fixture/coverage suites.

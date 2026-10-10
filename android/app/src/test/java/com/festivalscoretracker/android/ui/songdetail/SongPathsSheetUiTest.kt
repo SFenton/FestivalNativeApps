@@ -4,8 +4,10 @@ import android.graphics.Bitmap
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
@@ -107,6 +109,12 @@ class SongPathsSheetUiTest {
 
     private fun state(tag: String) = rule.onNodeWithTag(tag).fetchSemanticsNode().config.getOrNull(SemanticsProperties.StateDescription)
 
+    /** What TalkBack meets at the status stop: its merged progress semantics (#506). */
+    private fun statusProgress() = rule.onNodeWithTag("fst.paths.status").fetchSemanticsNode().config.getOrNull(SemanticsProperties.ProgressBarRangeInfo)
+
+    /** Merged nodes that are a progress indicator: the status stop while loading, nothing else. */
+    private fun progressStops() = rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo)).fetchSemanticsNodes().size
+
     private fun description(tag: String) = rule.onNodeWithTag(tag).fetchSemanticsNode().config.getOrNull(SemanticsProperties.ContentDescription)?.joinToString().orEmpty()
 
     private fun heightDp(tag: String): Float = with(rule.density) { rule.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot.height.toDp().value }
@@ -204,9 +212,14 @@ class SongPathsSheetUiTest {
         show(viewModel(display = PathDisplayMode.Text, loadText = { _, _ -> gate.await(); text() }))
         assertEquals(1, count("fst.paths.loading", unmerged = true))
         assertEquals(0, count("fst.paths.table"))
+        // load-transition R2 (#506): one stop, named for what is loading, is the indeterminate busy indicator.
+        assertEquals(ProgressBarRangeInfo.Indeterminate, statusProgress())
+        assertEquals(1, progressStops())
         gate.complete(Unit)
         waitForStatus("Lead Expert path loaded, 3 activations")
         waitForTag("fst.paths.row.3")
+        assertEquals(null, statusProgress())
+        assertEquals(0, progressStops())
         assertTrue(description("fst.paths.row.1").startsWith("Activation 1: frets "))
         assertTrue(description("fst.paths.row.1").contains("Activate after the chord"))
         // Compact sheet: mobile cards, no desktop header.

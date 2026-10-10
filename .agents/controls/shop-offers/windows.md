@@ -5,7 +5,8 @@
 - `ShopResponse.Validate` rejects count mismatches, duplicate (case-insensitive) or unsafe IDs, empty titles/artists and any link other than `https://www.fortnite.com/item-shop/jam-tracks/<slug>` (no port, credentials, query or fragment). Links open with `Launcher.LaunchUriAsync` only after that check.
 - `FestivalSession` keeps one process-only feed with the publication it was observed under; `ShopOffersForCatalog` is non-null only when catalogue, Shop and client publications are equal (`SongRelatedPublicationPolicy`). Songs uses that for borders, filter and sort; mismatch pauses them with a notice.
 - `ShopPresentationPolicy.Highlight`: Leaving Tomorrow wins over New; Hide Item Shop or Disable Shop Highlighting suppresses both (preferences kept).
-- Colors: New = gold text/border (`FSTShopNewBrush`) on `FSTShopNewBadgeSurfaceBrush`, Leaving Tomorrow = white on `FSTShopLeavingBrush`; contrast themes use Highlight/HighlightText (`Themes/Styles.xaml`).
+- Colors: New = gold border/pulse (`FSTShopNewBrush`), Leaving Tomorrow = white on `FSTShopLeavingBrush`; contrast themes use Highlight/HighlightText (`Themes/Styles.xaml`).
+- Item Shop pills (grid and list): only Leaving Tomorrow gets one (`ShopOfferItem.ShowsPill`, `fst.shop.badge.leaving.<id>`); New has no pill, only the gold pulse, and keeps "New" in the tile/row UIA name (issue #562, web `ShopCard` and `SongRow` leaving indicator).
 
 ## Validation (issue #224, 2026-10-04)
 
@@ -17,7 +18,7 @@ Every reachable contract state runs in `python tools/windows/shop_journey.py [--
 | loading | one ring, `fst.shop.loading` (UIA name "Busy Loading Item Shop" while active); the reveal ring is collapsed while idle so UIA never reports an inactive ring. The journey starts the load from Retry inside the asserting drive, because a read held from launch can outlast the 30 s request timeout ("You're offline") while the drive waits for the shared desktop lock. |
 | empty / failed | centred shared `EmptyStateView` (no card, #377) or service status + Retry; no Filter, no List/Grid toggle (fixed: the toggle used to show) |
 | populated / new / leaving / grid | tiles named "Title, Artist · Year, New/Leaving Tomorrow"; Leaving pill `fst.shop.badge.leaving.<id>`; gold/red pulse |
-| list | `fst.shop.list` rows with badges and the cart button; toggle back to grid |
+| list | `fst.shop.list` rows with the Leaving pill (none for New, #562) and the cart button; toggle back to grid |
 | offline | closed loopback port → "You're offline" + Retry (online-only: no offline cache UX) |
 | unverified | catalogue read fails → offers kept under "Song details unavailable"; every tile names and opens the official link |
 | official-link | context menu by Shift+F10 (`fst.shop.external.<id>`, never invoked in tests) and the list cart button |
@@ -25,7 +26,7 @@ Every reachable contract state runs in `python tools/windows/shop_journey.py [--
 | highlight-disabled | no badges or pulse; links kept |
 | filtered / filter-no-match | Leaving only → "1 of 2 songs"; Available only → "No Item Shop songs match your filters" + flyout Reset → "2 songs" |
 
-Contrast: tile captions use `FSTShopTileTextBrush` on `FSTShopTileCaptionBrush` (white on the art scrim by default; WindowText on a Window plate under a contrast theme), and the New pill uses `FSTShopNewBadgeSurfaceBrush`, with no inline colours. Under a contrast theme, badge text sets `HighContrastAdjustment=None`: it is already HighlightText on Highlight, and WinUI's automatic adjustment would otherwise paint a Window backplate inside the pill.
+Contrast: tile captions use `FSTShopTileTextBrush` on `FSTShopTileCaptionBrush` (white on the art scrim by default; WindowText on a Window plate under a contrast theme), with no inline colours. Under a contrast theme, the Leaving pill's text sets `HighContrastAdjustment=None`: it is already HighlightText on Highlight, and WinUI's automatic adjustment would otherwise paint a Window backplate inside the pill.
 
 Per configuration (fixture runs: `shop_journey` and `a11y_matrix`; live runs: the anonymous public service):
 

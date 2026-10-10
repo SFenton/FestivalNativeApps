@@ -503,6 +503,82 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         assertTrue(exists("fst.song-leaderboard.pager"))
     }
 
+    // region Pager waits for the page count (issue #575)
+
+    /** No pager (and no "1 / 1" placeholder) is drawn or announced on the board. */
+    private fun assertNoPager(prefix: String) {
+        assertFalse("no pager before the page count is known", exists("$prefix.pager"))
+        assertFalse(exists("$prefix.page-info"))
+        assertTrue(rule.onAllNodesWithContentDescription("Page 1 of 1", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun songLeaderboardInstrumentSwitchShowsNoPagerUntilTheNewBoardLoads() {
+        launch("songLeaderboard:s-alpha:Solo_Guitar")
+        waitForDescription("Page 1 of 3")
+        val bass = CompletableDeferred<Unit>()
+        hold = { request -> bass.takeIf { request.url.contains("/api/leaderboard/s-alpha/Solo_Bass") } }
+        click("fst.song-leaderboard.instrument")
+        click("fst.song-leaderboard.instrument.Solo_Bass")
+        // The switch opens the Bass board's own route: its first load has no page count yet.
+        waitForTag("fst.song-leaderboard.loading")
+        settle(1_000)
+        assertTrue(exists("fst.song-leaderboard.loading"))
+        assertNoPager("fst.song-leaderboard")
+        bass.complete(Unit)
+        waitForDescription("Page 1 of 3")
+        assertTrue(isEnabled("fst.song-leaderboard.page-next"))
+    }
+
+    @Test
+    fun songLeaderboardFirstLoadShowsNoPager() {
+        val first = CompletableDeferred<Unit>()
+        hold = { request -> first.takeIf { request.url.contains("/api/leaderboard/s-alpha/Solo_Guitar") } }
+        launch("songLeaderboard:s-alpha:Solo_Guitar")
+        waitForTag("fst.song-leaderboard.loading")
+        settle(1_000)
+        assertNoPager("fst.song-leaderboard")
+        first.complete(Unit)
+        waitForDescription("Page 1 of 3")
+    }
+
+    @Test
+    fun songLeaderboardHidesThePagerForASinglePage() {
+        transport.on("/api/leaderboard/s-alpha/Solo_Guitar", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            Fixtures.leaderboard("s-alpha", rows = 10, total = 10)
+        }
+        launch("songLeaderboard:s-alpha:Solo_Guitar")
+        waitForTag("fst.song-leaderboard.row.${Fixtures.ACCOUNT_A.dropLast(2)}10")
+        rule.waitUntil(5_000) { settle(100); !exists("fst.song-leaderboard.loading") }
+        assertNoPager("fst.song-leaderboard")
+    }
+
+    @Test
+    fun fullRankingsFirstLoadShowsNoPager() {
+        val first = CompletableDeferred<Unit>()
+        hold = { request -> first.takeIf { request.url.contains("/api/rankings/Solo_Guitar?") } }
+        launch("fullRankings:Solo_Guitar")
+        waitForTag("fst.full-rankings.loading")
+        settle(1_000)
+        assertNoPager("fst.full-rankings")
+        first.complete(Unit)
+        waitForDescription("Page 1 of 3")
+    }
+
+    @Test
+    fun bandRankingsFirstLoadShowsNoPager() {
+        val first = CompletableDeferred<Unit>()
+        hold = { request -> first.takeIf { request.url.contains("/api/rankings/bands/Band_Trios?") } }
+        launch("bandRankings:Band_Trios")
+        waitForTag("fst.band-rankings.loading")
+        settle(1_000)
+        assertNoPager("fst.band-rankings")
+        first.complete(Unit)
+        waitForDescription("Page 1 of 2")
+    }
+
+    // endregion
+
     // region Pinned score reveal (issue #295)
 
     private val footerTag = "fst.song-leaderboard.spotlight-footer"
@@ -792,7 +868,8 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         launch("songLeaderboard:s-alpha:Solo_Guitar")
         waitForText("No scores yet")
         assertFalse(exists("fst.song-leaderboard.loading"))
-        assertFalse(isEnabled("fst.song-leaderboard.page-next"))
+        // A one-page (here empty) board has no pager, as on the web (issue #575).
+        assertFalse(exists("fst.song-leaderboard.pager"))
     }
 
     @Test

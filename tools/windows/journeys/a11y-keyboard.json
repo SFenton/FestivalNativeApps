@@ -44,7 +44,9 @@
       "key:down",
       "assertfocus:id=fst.songs.row.fixture-pulse",
       "key:shift+tab",
-      "assertfocus:id=fst.songs.section-index-button"
+      "assertfocus:id=fst.songs.section-index-button",
+      "focus:id=fst.songs.row.fixture-pulse",
+      "assertfocus:id=fst.songs.row.fixture-pulse"
     ]
   },
   {
@@ -87,10 +89,13 @@
       "key:enter",
       "waitfor:id=fst.songs.sort.mode@5",
       "assertfocus:name=Title@3",
+      "assertsize:name=Title&class=RadioButton|40x40",
       "key:tab",
       "assertfocus:id=fst.songs.sort.direction.ascending@3",
+      "assertsize:id=fst.songs.sort.direction.ascending|40x40",
       "key:down",
       "assertfocus:id=fst.songs.sort.direction.descending@3",
+      "assertsize:id=fst.songs.sort.direction.descending|40x40",
       "waitfor:name=Title ↓@5",
       "key:tab",
       "assertfocus:id=fst.songs.sort.reset@3",
@@ -574,7 +579,9 @@
       "key:down",
       "key:esc",
       "wait:0.5",
-      "assertfocus:id=fst.shell.notifications@3"
+      "assertfocus:id=fst.shell.notifications@3",
+      "focus:id=fst.songs.row.fixture-pulse",
+      "assertfocus:id=fst.songs.row.fixture-pulse"
     ]
   },
   {
@@ -628,10 +635,13 @@
       "key:enter",
       "waitfor:id=fst.shop.sort.reset@5",
       "assertfocus:name=Title@3",
+      "assertsize:name=Title&class=RadioButton|40x40",
       "key:tab",
       "assertfocus:id=fst.shop.sort.direction.ascending@3",
+      "assertsize:id=fst.shop.sort.direction.ascending|40x40",
       "key:down",
       "assertfocus:id=fst.shop.sort.direction.descending@3",
+      "assertsize:id=fst.shop.sort.direction.descending|40x40",
       "waitfor:name=Title ↓@5",
       "key:tab",
       "assertfocus:id=fst.shop.sort.reset@3",
