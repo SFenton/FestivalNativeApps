@@ -170,9 +170,10 @@ public sealed class StaggerArmTests
         Assert.Equal(125, arm.Delay(10, 4, Ms(3100), 0, 4000)!.Value.TotalMilliseconds);
         Assert.Equal(250, arm.Delay(11, 4, Ms(3200), 0, 4400)!.Value.TotalMilliseconds);
         Assert.False(arm.SuppressedByScroll(Ms(3200), 3, 4));
-        // Back-to-back batches merge into one reveal from the earliest new row.
+        // Once the batch has begun to show, the next batch is new content and staggers from its own first row (#532).
         arm.Arm(20, Ms(3300));
-        Assert.Equal(10, arm.BatchStart);
+        Assert.Equal(20, arm.BatchStart);
+        Assert.Equal(125, arm.Delay(20, 4, Ms(3300), 0, 6000)!.Value.TotalMilliseconds);
         // A batch after the window starts its own.
         arm.Arm(30, Ms(9000));
         Assert.Equal(30, arm.BatchStart);
@@ -196,6 +197,73 @@ public sealed class StaggerArmTests
         Assert.Equal(ArmScroll.None, arm.Scrolled(0, 1800, Ms(1400)));
         Assert.True(arm.IsOpen(Ms(1400)));
         Assert.Null(arm.Delay(3, 4, Ms(1800), 0, 1800));
+    }
+
+    [Fact]
+    public void BatchAppendedWhileTheRushRuns_StartsAtItsOwnRowAndKeepsTheLoadRush()
+    {
+        // Suggestions (issue #532): the reader's scroll rushes the load, and the batch it generates lands before the
+        // rush's fades are done. The load has ended, so the batch must not merge into it from row 0.
+        var arm = Loaded();
+        Assert.Equal(ArmScroll.Rushed, arm.Scrolled(0, 900, Ms(1300)));
+        var generation = arm.Generation;
+        arm.Arm(10, Ms(1400));
+        Assert.Equal(10, arm.BatchStart);
+        Assert.NotEqual(generation, arm.Generation);
+        // Old rows the scroll realizes while the rush runs still fade at once; the batch is a plain stagger, never rushed.
+        Assert.True(arm.IsRushing(Ms(1450)));
+        Assert.Equal(10, arm.RushLimit);
+        Assert.Equal(TimeSpan.Zero, arm.Delay(2, 4, Ms(1450), 0, 900));
+        Assert.Equal(125, arm.Delay(10, 4, Ms(1450), 0, 900)!.Value.TotalMilliseconds);
+        Assert.False(arm.RushReaches(10));
+        // After the rush, rows already shown never fade again. Card 10 has begun to fade, so the next batch inside the
+        // window is new content and staggers from its own first row.
+        Assert.Null(arm.Delay(1, 4, Ms(1800), 0, 0));
+        arm.Arm(20, Ms(2000));
+        Assert.Equal(20, arm.BatchStart);
+        Assert.Null(arm.Delay(2, 4, Ms(2100), 0, 0));
+        Assert.Equal(125, arm.Delay(20, 4, Ms(2100), 0, 0)!.Value.TotalMilliseconds);
+    }
+
+    [Fact]
+    public void BatchesAppendedBeforeAnyCardFades_FormOneReveal()
+    {
+        var arm = Loaded();
+        arm.Scrolled(0, 900, Ms(3000));
+        arm.Arm(10, Ms(3100));
+        arm.Arm(13, Ms(3200));
+        Assert.Equal(10, arm.BatchStart);
+        Assert.Equal(125, arm.Delay(10, 4, Ms(3300), 0, 900)!.Value.TotalMilliseconds);
+    }
+
+    [Fact]
+    public void BatchCardRealizedAgainInsideItsWindow_NeverReplays()
+    {
+        // Suggestions (issue #532): a card the batch faded, recycled and realized again while the window is open.
+        var arm = Loaded();
+        arm.Scrolled(0, 900, Ms(3000));
+        arm.Arm(10, Ms(3100));
+        Assert.Equal(250, arm.Delay(11, 4, Ms(3100), 0, 900)!.Value.TotalMilliseconds);
+        // Before its fade began it keeps the same start; after, it shows in place.
+        Assert.Equal(150, arm.Delay(11, 4, Ms(3200), 0, 900)!.Value.TotalMilliseconds);
+        Assert.Null(arm.Delay(11, 4, Ms(3400), 0, 0));
+        // A card of the batch not shown yet still fades.
+        Assert.NotNull(arm.Delay(12, 4, Ms(3400), 0, 0));
+        // A new load forgets what faded: its rows stagger again.
+        arm.Arm(0, Ms(5000));
+        arm.Settle(0, 0);
+        Assert.Equal(125, arm.Delay(0, 4, Ms(5000), 0, 0)!.Value.TotalMilliseconds);
+    }
+
+    [Fact]
+    public void LoadArmDuringARush_EndsTheRush()
+    {
+        var arm = Loaded();
+        arm.Scrolled(0, 900, Ms(1300));
+        arm.Arm(0, Ms(1400));
+        Assert.Equal(0, arm.BatchStart);
+        Assert.False(arm.IsRushing(Ms(1400)));
+        Assert.Equal(0, arm.RushLimit);
     }
 
     [Fact]
