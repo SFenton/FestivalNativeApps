@@ -173,18 +173,15 @@ enum SongProfilePanelPolicy {
     ///   - hasSelectedProfile: A player or band is selected.
     ///   - scoresCurrent: That profile's score index is available and matches the
     ///     displayed Songs publication (never a paused, loading or failed index).
-    ///   - filterInvalidScores: The unsupported invalid-score substitution is requested
-    ///     for a player (band scores have no substitution; callers pass false).
     ///   - accessibilitySize: Accessibility Dynamic Type sizes keep the stacked row.
     ///   - shopRow: The row is an Item Shop offer.
     ///   - rowWidth: The row card's outer width in points (0 before layout).
     /// - Returns: True when the split layout may replace the plain row.
     static func allows(
         allowed: Bool, hasSelectedProfile: Bool, scoresCurrent: Bool,
-        filterInvalidScores: Bool, accessibilitySize: Bool, shopRow: Bool,
-        rowWidth: CGFloat
+        accessibilitySize: Bool, shopRow: Bool, rowWidth: CGFloat
     ) -> Bool {
-        allowed && hasSelectedProfile && scoresCurrent && !filterInvalidScores
+        allowed && hasSelectedProfile && scoresCurrent
             && !accessibilitySize && !shopRow && rowWidth >= minimumRowWidth
     }
 
@@ -276,12 +273,9 @@ enum SongProfilePanelPolicy {
     /// - Parameters:
     ///   - layout: The page's device layout.
     ///   - hasSelectedProfile: A player or band is selected.
-    ///   - filterInvalidScores: A player's panels never show while this is requested.
     /// - Returns: 1 or 2.
-    static func gridColumns(
-        layout: DeviceLayout, hasSelectedProfile: Bool, filterInvalidScores: Bool
-    ) -> Int {
-        hasSelectedProfile && !filterInvalidScores ? 1 : SongGridPolicy.columns(layout: layout)
+    static func gridColumns(layout: DeviceLayout, hasSelectedProfile: Bool) -> Int {
+        hasSelectedProfile ? 1 : SongGridPolicy.columns(layout: layout)
     }
 }
 

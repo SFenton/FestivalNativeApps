@@ -252,5 +252,51 @@
       "waitfor:id=fst.leaderboards@10",
       "waitgone:id=fst.bands.not-found@5"
     ]
+  },
+  {
+    "name": "band-detail-scrape-freeze-keeps-sections",
+    "route": "/bands/fixture-band-1?bandType=Band_Duets&teamKey=fixture-team-1",
+    "preset": "medium",
+    "fixture": ["band_freeze_fixture.py"],
+    "steps": [
+      "waitfor:id=fst.band.title@20",
+      "waitfor:id=fst.band.stat.rank@10",
+      "scrollinto:id=fst.band.song-row.fixture-ghost-song@15",
+      "scrollinto:id=fst.band.song-row.fixture-pulse@5",
+      "invoke:id=fst.band.song-row.fixture-pulse",
+      "waitfor:id=fst.song-detail.title@10",
+      "key:alt+left",
+      "scrollinto:id=fst.band.song-row.fixture-ghost-song@15",
+      "waitgone:id=fst.band.error@3",
+      "scrollinto:id=fst.band.history-row.2024-01-03@10",
+      "waitfor:id=fst.band.history-chart@5",
+      "scrollinto:id=fst.band.song-row.fixture-ghost-song@10",
+      "scrollinto:id=fst.band.song-row.fixture-pulse@5",
+      "waitgone:id=fst.service-status.inline@3",
+      "waitgone:name=Scores are updating@1",
+      "waitgone:id=fst.band.best-empty@1",
+      "waitgone:id=fst.band.worst-empty@1",
+      "assertname:id=fst.band.song-row.fixture-pulse|Fixture Pulse, Top *, rank #1 of 10",
+      "assertname:id=fst.band.song-row.fixture-ghost-song|*, rank #8 of 10",
+      "assertorder:id=fst.band.history-row.2024-01-03|name=Five Best Songs|id=fst.band.song-row.fixture-pulse|name=Five Worst Songs|id=fst.band.song-row.fixture-ghost-song",
+      "shot:{shots}\\band-detail-scrape-freeze-revisit.png"
+    ]
+  },
+  {
+    "name": "band-detail-scrape-freeze-cold-songs",
+    "route": "/bands/fixture-band-2?bandType=Band_Duets&teamKey=fixture-team-2",
+    "preset": "medium",
+    "fixture": ["band_freeze_fixture.py"],
+    "steps": [
+      "waitfor:id=fst.band.title@20",
+      "waitfor:id=fst.band.stat.rank@10",
+      "scrollinto:id=fst.service-status.inline.retry@15",
+      "assertstate:id=fst.service-status.inline.title|name=Scores are updating",
+      "assertstate:id=fst.service-status.inline.retry|name=Retry Now",
+      "waitgone:id=fst.band.best-empty@1",
+      "waitgone:id=fst.band.worst-empty@1",
+      "assertorder:name=Five Best Songs|id=fst.service-status.inline.title|id=fst.service-status.inline.retry",
+      "shot:{shots}\\band-detail-scrape-freeze-cold.png"
+    ]
   }
 ]

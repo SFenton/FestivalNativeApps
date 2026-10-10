@@ -116,7 +116,12 @@ struct SongRowView: View {
     let profileChart: Instrument?
     let catalogueObservation: Int?
     let metadata: SongMetadataVisibility
-    let filterInvalidScores: Bool
+    /// Settings leeway while **Filter Invalid Scores** is on, else nil: the row shows
+    /// the player's effective scores (``InvalidScorePolicy``) and the invalid-score
+    /// indicator.
+    let invalidScoreLeeway: Double?
+    /// Charts whose Songs **Over CHOpt Threshold** filter keeps an invalid score raw.
+    let overThresholdCharts: Set<Instrument>
     let showInstrumentIcons: Bool
     let visibleInstruments: Set<Instrument>
     let currentSeason: Int?
@@ -149,7 +154,8 @@ struct SongRowView: View {
     ///   - profileChart: First visible chart or explicit Songs chart filter.
     ///   - catalogueObservation: Observed generation for this validated Songs row.
     ///   - metadata: Persisted score-field visibility switches.
-    ///   - filterInvalidScores: Hide unsupported filtered-score details explicitly.
+    ///   - invalidScoreLeeway: Settings leeway while Filter Invalid Scores is on.
+    ///   - overThresholdCharts: Charts whose Over CHOpt Threshold filter is on.
     ///   - showInstrumentIcons: Saved status-chip setting.
     ///   - visibleInstruments: Enabled charts independent of chart availability.
     ///   - currentSeason: Current catalogue season for the inverted season badge.
@@ -161,7 +167,8 @@ struct SongRowView: View {
         profileChart: Instrument? = nil,
         catalogueObservation: Int? = nil,
         metadata: SongMetadataVisibility = SongMetadataVisibility(),
-        filterInvalidScores: Bool = false,
+        invalidScoreLeeway: Double? = nil,
+        overThresholdCharts: Set<Instrument> = [],
         showInstrumentIcons: Bool = true,
         visibleInstruments: Set<Instrument> = Set(Instrument.allCases),
         currentSeason: Int? = nil,
@@ -176,7 +183,8 @@ struct SongRowView: View {
         self.profileChart = profileChart
         self.catalogueObservation = catalogueObservation
         self.metadata = metadata
-        self.filterInvalidScores = filterInvalidScores
+        self.invalidScoreLeeway = invalidScoreLeeway
+        self.overThresholdCharts = overThresholdCharts
         self.showInstrumentIcons = showInstrumentIcons
         self.visibleInstruments = visibleInstruments
         self.currentSeason = currentSeason
@@ -251,16 +259,44 @@ struct SongRowView: View {
             scoresAvailable: scoreDataCurrent,
             iconsEnabled: showInstrumentIcons,
             instrumentFilter: instrument,
-            filterInvalidScores: filterInvalidScores,
             visibleInstruments: visibleInstruments
         )
     }
 
+    /// The selected player's scores for this song as the row shows them: raw, or with
+    /// Filter Invalid Scores applied (web `SongsPage.effectiveScores`).
+    private var playerScores: SongEffectiveScores {
+        let raw = session.selectedPlayerScores[song.songId] ?? [:]
+        guard let invalidScoreLeeway, !raw.isEmpty else { return SongEffectiveScores(scores: raw) }
+        return InvalidScorePolicy.resolve(
+            raw, song: song, leeway: invalidScoreLeeway, overThreshold: overThresholdCharts
+        )
+    }
+
+    /// The invalid-score indicator's tone and alert (web `SongRow` `hasInvalid`), only
+    /// for a selected player's current scores on a Songs row.
+    private var invalidScoreWarning: InvalidScoreWarning? {
+        guard invalidScoreLeeway != nil, shopOffer == nil, session.selectedPlayer != nil,
+              session.selectedBand == nil, scoreDataCurrent else { return nil }
+        return InvalidScoreWarning.make(
+            songTitle: song.title, reasons: playerScores.reasons,
+            instrumentFilter: instrument, visibleInstruments: visibleInstruments
+        )
+    }
+
+    /// The indicator's glyph; ``SwiftUI/View/songInvalidScoreIndicator(songId:)`` puts
+    /// its button over it, outside the row's link.
+    @ViewBuilder private var invalidScoreGlyph: some View {
+        if let invalidScoreWarning {
+            InvalidScoreGlyph(warning: invalidScoreWarning)
+        }
+    }
+
     private var structuredScore: (chart: Instrument, score: PlayerScore)? {
-        guard !usesInstrumentChips, !filterInvalidScores,
+        guard !usesInstrumentChips,
               scoreDataCurrent,
               let chart = profileChart, song.supports(chart),
-              let score = session.selectedPlayerScores[song.songId]?[chart],
+              let score = playerScores.scores[chart],
               score.score > 0 else {
             return nil
         }
@@ -353,7 +389,7 @@ struct SongRowView: View {
                     songId: song.songId,
                     badges: SongInstrumentStatusPolicy.badges(
                         for: song, visibleInstruments: visibleInstruments,
-                        scores: session.selectedPlayerScores[song.songId] ?? [:]
+                        scores: playerScores.scores
                     ),
                     keyboard: song.usesKeyboardIcon
                 )
@@ -362,10 +398,10 @@ struct SongRowView: View {
                     player: selected, chart: profileChart,
                     chartAvailable: profileChart.map(song.supports) ?? false,
                     score: scoreDataCurrent ? profileChart.flatMap {
-                        session.selectedPlayerScores[song.songId]?[$0]
+                        playerScores.scores[$0]
                     } : nil,
                     state: session.playerLoadState, visibility: metadata,
-                    filterInvalidScores: filterInvalidScores, songId: song.songId
+                    songId: song.songId
                 )
             }
         } else if let band = session.selectedBand {
@@ -456,6 +492,7 @@ struct SongRowView: View {
                let difficulty = song.difficulty?.chartedValue(for: instrument) {
                 DifficultyMeter(level: difficulty, raw: true)
             }
+            invalidScoreGlyph
             shopIcons
         }
     }
@@ -478,6 +515,7 @@ struct SongRowView: View {
                                 .fixedSize()
                                 .layoutPriority(1)
                         }
+                        invalidScoreGlyph
                     }
                 } else {
                     VStack(alignment: .leading, spacing: 6) {
@@ -486,6 +524,7 @@ struct SongRowView: View {
                             HStack {
                                 Spacer(minLength: 0)
                                 SongMetadataFieldView(field: primary, songId: song.songId)
+                                invalidScoreGlyph
                             }
                         }
                     }
@@ -515,7 +554,6 @@ struct SongRowView: View {
             allowed: allowsProfilePanel,
             hasSelectedProfile: band != nil || session.selectedPlayer != nil,
             scoresCurrent: band != nil ? bandScoreDataCurrent : scoreDataCurrent,
-            filterInvalidScores: band == nil && filterInvalidScores,
             accessibilitySize: dynamicTypeSize.isAccessibilitySize, shopRow: shopOffer != nil,
             rowWidth: rowWidth + 24
         ) else { return nil }
@@ -528,7 +566,7 @@ struct SongRowView: View {
             )
         } else {
             tiles = try? SongProfilePanelPolicy.tiles(
-                song: song, scores: session.selectedPlayerScores[song.songId] ?? [:],
+                song: song, scores: playerScores.scores,
                 instrumentFilter: instrument, visibleInstruments: visibleInstruments,
                 currentSeason: currentSeason, visibility: metadata, order: order
             )
@@ -571,6 +609,7 @@ struct SongRowView: View {
                     }
                 }
                 Spacer(minLength: 4)
+                invalidScoreGlyph
                 shopIcons
             }
             .frame(maxWidth: .infinity, alignment: .leading)
