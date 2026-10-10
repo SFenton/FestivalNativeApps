@@ -4166,6 +4166,98 @@
       ],
       "supersedes": [],
       "supersededBy": null
+    },
+    {
+      "id": "search-scopes",
+      "title": "Search scopes",
+      "status": "current",
+      "doc": ".agents/patterns/search-scopes.md",
+      "summary": "Unified search surfaces (global search: songs, players, bands; profile search: players, bands) share one engine per platform and a native scope bar that lists All first and starts on All; switching scope only filters, copy names the surface's targets, and results open the same destinations. Find Rival stays players-only (#600).",
+      "keywords": [
+        "search scope",
+        "scope bar",
+        "All Players Bands",
+        "profile search",
+        "select profile",
+        "global search",
+        "band search",
+        "player search",
+        "segmented control",
+        "targets"
+      ],
+      "web": [
+        {
+          "path": "App.tsx",
+          "symbol": "PROFILE_SEARCH_CONFIG"
+        },
+        {
+          "path": "components/search/SearchModal.tsx",
+          "symbol": "resolveSearchTargets"
+        },
+        {
+          "path": "hooks/data/useUnifiedSearch.ts",
+          "symbol": "useUnifiedSearch"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalCore/GlobalSearch.swift",
+            "symbol": "GlobalSearchTargets"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchModel.swift",
+            "symbol": "GlobalSearchModel"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift",
+            "symbol": "GlobalSearchResults"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift",
+            "symbol": "GlobalSearchIdentifiers"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/search/GlobalSearch.kt",
+            "symbol": "SearchScope"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/search/GlobalSearchViewModel.kt",
+            "symbol": "GlobalSearchViewModel"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/GlobalSearchResults.cs",
+            "symbol": "SearchScopes"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/GlobalSearchViewModel.cs",
+            "symbol": "GlobalSearchViewModel"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "section-headers",
+          "empty-error-states",
+          "modal-shell",
+          "band-member-lines"
+        ],
+        "pages": [],
+        "controls": [
+          "global-search",
+          "profile-selection"
+        ]
+      },
+      "guards": [],
+      "issues": [
+        600
+      ],
+      "supersedes": [],
+      "supersededBy": null
     }
   ]
 }
