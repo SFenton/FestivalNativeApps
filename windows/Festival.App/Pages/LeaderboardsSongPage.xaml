@@ -34,12 +34,14 @@
                                                     TitleAutomationId="fst.song-leaderboard.title" ArtistAutomationId="fst.song-leaderboard.artist"
                                                     BoardAutomationId="fst.song-leaderboard.instrument" TotalAutomationId="fst.song-leaderboard.total"
                                                     SongAutomationId="fst.song-leaderboard.song" TitleInvoked="OnSongTitle" />
-                    <!-- One frosted row per entry, 4 epx apart (web entryRow list, operator batch 7.7). -->
-                    <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="RowsRepeater" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52"
+                    <!-- The page's entries as one grouped card (GroupedRows: touching row slices with hairlines; issue #543,
+                         owner-approved native variant of the web's separate entryRow cards). -->
+                    <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="RowsRepeater" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="48"
+                                   controls:GroupedRows.IsEnabled="True"
                                    controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                                    ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}">
                         <ItemsRepeater.Layout>
-                            <StackLayout Spacing="4" />
+                            <StackLayout Spacing="0" />
                         </ItemsRepeater.Layout>
                         <ItemsRepeater.ItemTemplate>
                             <DataTemplate x:DataType="vm:SongLeaderboardRowViewModel">

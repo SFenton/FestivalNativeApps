@@ -61,6 +61,23 @@ class JourneyFixtureTests(unittest.TestCase):
         self.assertEqual(ui_journey.journey_fixture(("--x",), override), (override, ("--x",)))
         self.assertEqual(ui_journey.journey_fixture(()), (None, ()))
 
+    def test_a11y_matrix_pages_share_the_convention(self):
+        import sys
+        sys.path.insert(0, str(WINDOWS))
+        import a11y_matrix
+        import ui_journey
+        for page in ({"name": "shop"}, {"fixture": ["--band-rankings", "empty"]},
+                     {"fixture": ["shop_fixture.py", "--shop", "empty"]}):
+            self.assertEqual(a11y_matrix.page_fixture(page),
+                             ui_journey.journey_fixture(tuple(page.get("fixture", ())), a11y_matrix.FIXTURE), page)
+
+    def test_wrapper_journeys_name_their_wrapper(self):
+        """CI runs each journey file without ``--fixture``: these serve baseline data unless they name it (#529)."""
+        for source, wrapper in (("song-header-title.json", "song_header_fixture.py"),
+                                ("star-rating.json", "star_rating_fixture.py")):
+            for entry in json.loads((JOURNEYS / source).read_text(encoding="utf-8")):
+                self.assertEqual((entry.get("fixture") or [""])[0], wrapper, f"{source} {entry.get('name')}")
+
 
 if __name__ == "__main__":
     unittest.main()
