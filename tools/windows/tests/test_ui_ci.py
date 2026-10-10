@@ -4,8 +4,10 @@ Run: ``python -m unittest discover -s tools/windows/tests`` from the repo root.
 """
 
 import json
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from tools.windows import a11y_matrix as m
 from tools.windows import ui_ci as ci
@@ -137,10 +139,12 @@ class UiCiTests(unittest.TestCase):
     def test_settings_pages_wait_for_feedback_rows_before_scrolling(self):
         """#535: the Feedback rows appear above every later Settings section once ``/api/features`` answers, so a target
         scrolled into view before then can be pushed back off screen (``no on-screen element
-        id=fst.settings.whats-new`` at 225% text). A CI page that scrolls to Settings content brings those rows in first
-        (scrolling back to page chrome such as the Quick Links entry is not a Settings target). ``reveal`` scrolls too:
-        #539's ``settings-service-info-unavailable`` revealed the Service Info state row and lost it the same way. A page
-        that opens Settings from another tab (Ctrl+comma) is exposed just the same."""
+        id=fst.settings.whats-new`` at 225% text). A CI page that scrolls (``scrollinto:``) or reveals (``reveal:``)
+        Settings content brings those rows in first
+        (scrolling back to page chrome such as the Quick Links entry is not a Settings target). #539's
+        ``settings-service-info-unavailable`` revealed the Service Info state row and lost it the same way. A page
+        that opens Settings from another tab (Ctrl+comma) is exposed just the same. A page whose fixture reports
+        ``feedback: false`` (``feedback_fixture.py --features off``) never gets the rows, so it has no wait."""
         wait = "scrollinto:id=fst.settings.feedback.feature"
         checked = 0
         for run in ci.RUNS:
@@ -343,6 +347,24 @@ class UiCiTests(unittest.TestCase):
                 name = page["name"]
                 if "live" not in name.lower() and not page.get("live_only") and name not in skips:
                     self.assertIn((source.name, name), covered)
+
+    def test_generated_runs_follow_page_sizes(self):
+        """A page limited to medium (the Shop row pages) still runs at 225% text: its run adds the first size the page
+        allows instead of leaving it with an empty compact pass, while pages without ``sizes`` keep compact."""
+        pages = [{"name": "free"}, {"name": "medium-only", "sizes": ["medium", "wide"]},
+                 {"name": "wide-only", "sizes": ["wide"]}]
+        with tempfile.TemporaryDirectory() as tmp:
+            journeys = Path(tmp) / "journeys"
+            journeys.mkdir()
+            (journeys / "a11y-probe.json").write_text(json.dumps(pages), encoding="utf-8")
+            with mock.patch.object(ci, "JOURNEYS", journeys):
+                runs = {run.name: run for run in ci.generated_runs(())}
+        self.assertEqual((runs["a11y-probe-text-225"].sizes, runs["a11y-probe-text-225"].only),
+                         ("compact,medium,wide", "free,medium-only,wide-only"))
+        self.assertEqual((runs["a11y-probe-normal"].sizes, runs["a11y-probe-normal"].only),
+                         ("compact,medium,wide", "free,medium-only,wide-only"))
+        for page in pages:
+            self.assertTrue(m.page_sizes(page, runs["a11y-probe-text-225"].sizes.split(","), "text-225"))
 
 
     def test_pr_tier_is_normal_mode_at_compact_and_full_is_everything(self):
