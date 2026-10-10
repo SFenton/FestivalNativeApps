@@ -195,6 +195,10 @@ RUNS: tuple[Run, ...] = (
     # pinned combo rank) and Back restores focus; rows stay 40+ epx stops with Down between them.
     Run("combo-boards", "a11y-combo-boards.json", tabs=0),
     Run("combo-boards-text-225", "a11y-combo-boards.json", sizes="compact", mode="text-225", tabs=0),
+    # Profile Bands groups as one card each (issue #596): rows touch, 40+ epx stops named without the band size, the
+    # purple View All Bands (N) inside the card, header -> rows -> View All order, Down between rows and Tab to View All.
+    Run("profile-bands", "a11y-profile-bands.json", tabs=0),
+    Run("profile-bands-text-225", "a11y-profile-bands.json", sizes="compact", mode="text-225", tabs=0),
     # Settings' Experimental Ranks toggle (issue #541): enabled, off by default, named and Space-toggled; turning it on
     # shows "Rank by: Total Score, button" (40 epx) on Leaderboards and off hides it again; with it off a saved or
     # deep-linked experimental metric leaves no Rank By on Leaderboards, Full Rankings or Band Rankings.

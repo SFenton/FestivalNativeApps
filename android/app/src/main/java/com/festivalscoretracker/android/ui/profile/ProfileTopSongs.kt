@@ -28,6 +28,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.festivalscoretracker.android.ui.design.RowChevron
+import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.profile.PlayerSongPlacement
 import com.festivalscoretracker.android.core.profile.PlayerTileAction
 import com.festivalscoretracker.android.core.profile.PlayerTopSongs
@@ -78,6 +79,9 @@ internal fun ProfileEmptyMessage(title: String, body: String, modifier: Modifier
  * One chart's top five (and, with more than five ranked songs, bottom five) songs
  * (web `buildTopSongsItems`); rows open Song Detail.
  *
+ * Each list is its own card with its title and description above it, never inside
+ * (`section-headers` R2, issue #595); a chart with no ranked score shows one "No Scores Yet" card.
+ *
  * @param top Placements.
  * @param displayName Player name.
  * @param state Page state (decides whether rows are interactive).
@@ -88,40 +92,45 @@ internal fun TopSongsCard(top: PlayerTopSongs, displayName: String, state: Playe
     val instrument = top.instrument
     Column(Modifier.fillMaxWidth()) {
         InstrumentHeading(instrument, "fst.player.top-songs.${instrument.wireId}")
-        GlassCard(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
-                if (top.isEmpty) {
-                    ProfileEmptyMessage(
-                        "No Scores Yet",
-                        "Play some songs on ${instrument.label} to see your stats appear here.",
-                        titleModifier = Modifier.testTag("fst.player.top-songs-empty.${instrument.wireId}"),
-                    )
-                    return@Column
-                }
-                SongList("Top Five Songs", "$displayName's top ranked competitive songs on ${instrument.label}, sorted by percentile.", top.top, "top", state, onAction)
-                if (top.bottom.isNotEmpty()) {
-                    SongList("Bottom Five Songs", "$displayName's lowest-ranked competitive songs on ${instrument.label}, sorted by percentile.", top.bottom, "bottom", state, onAction)
-                }
+        if (top.isEmpty) {
+            GlassCard(Modifier.fillMaxWidth()) {
+                ProfileEmptyMessage(
+                    "No Scores Yet",
+                    "Play some songs on ${instrument.label} to see your stats appear here.",
+                    modifier = Modifier.padding(16.dp),
+                    titleModifier = Modifier.testTag("fst.player.top-songs-empty.${instrument.wireId}"),
+                )
             }
+            return@Column
+        }
+        SongList("Top Five Songs", "$displayName's top ranked competitive songs on ${instrument.label}, sorted by percentile.", instrument, top.top, "top", state, onAction)
+        if (top.bottom.isNotEmpty()) {
+            SongList("Bottom Five Songs", "$displayName's lowest-ranked competitive songs on ${instrument.label}, sorted by percentile.", instrument, top.bottom, "bottom", state, onAction)
         }
     }
 }
 
+/** One titled list: its heading and description above its own card (web `PlayerSectionHeading` + song list). */
 @Composable
 private fun SongList(
     title: String,
     description: String,
+    instrument: Instrument,
     rows: List<PlayerSongPlacement>,
     kind: String,
     state: PlayerProfileUiState,
     onAction: (PlayerTileAction) -> Unit,
 ) {
-    SubHeader(title, first = kind == "top")
-    Text(description, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary, modifier = Modifier.padding(bottom = 8.dp))
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        rows.forEach { row ->
-            val action = PlayerTileAction.OpenSong(row.songId, row.instrument).takeIf(state::canRun)
-            SongRow(row, action?.let { { onAction(it) } }, Modifier.testTag("fst.player.$kind-song.${row.instrument.wireId}.${row.songId}"))
+    Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp).testTag("fst.player.$kind-songs-header.${instrument.wireId}")) {
+        SubHeader(title, first = kind == "top")
+        Text(description, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary, modifier = Modifier.padding(bottom = 8.dp))
+    }
+    GlassCard(Modifier.fillMaxWidth().testTag("fst.player.$kind-songs-card.${instrument.wireId}")) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            rows.forEach { row ->
+                val action = PlayerTileAction.OpenSong(row.songId, row.instrument).takeIf(state::canRun)
+                SongRow(row, action?.let { { onAction(it) } }, Modifier.testTag("fst.player.$kind-song.${row.instrument.wireId}.${row.songId}"))
+            }
         }
     }
 }

@@ -48,7 +48,7 @@ Filter sheet (operator 2026-09-28): **applies live** — every switch, cascade a
 - A filter that disables every type skips generation (nothing could show).
 - **Rival name badge, native deviation (2026-10-02, issue #59 check of #29):** single-rival cards (`song_rival_spotlight_`/`gap_`/`protect_`/`slipping_`/`dominate_`) name the rival in their title, so rows drop the web's per-row name badge and show only the signed delta + icon (`SuggestionRowPresentation.showsRivalName`, as Apple). Mixed-rival cards (`song_rival_battleground` and the cross-pollination families) keep the badge. TalkBack still names the rival on badge-less rows: the row label ends "2 ranks behind Rival B1" (`rivalDeltaAccessibilityLabel`); mixed rows keep "rival X, ahead by 1 rank" (singular "rank" fixed at the same time). Verified on `FST_Phone` (fixture mode, seed 1) via the UI tree's `content-desc`; revalidated on the live service on every AVD in issue #167 (below).
 - **Rival row text contrast (issue #167):** the web's `statusRed` #C62828 "behind" delta measured 3.0:1 on device (12 sp bold, fails WCAG AA 4.5:1) and the blue song-rival badge text (#4285F4 on its own 20% tint) 3.6–4.0:1. The delta now uses the Rivals page's readable red #FF8A80 (`SuggestionTokens.rivalBehindText`, as `RivalColors.loseText`; Apple uses `RivalStatusText.red`) and the badge text a same-hue #A8C7FA (`songRivalText`), keeping the tint, sizes and layout. Measured on device after the change: behind 6.8–8.2:1, badge 7.9–11.5:1; green ahead was already 7.8–8.8:1.
-- Filter stays reachable while the cards scroll (issue #52): `FestivalScreen(pinActions = true)` pins the compact floating toolbar instead of hiding it on scroll; global search is already in the pinned top app bar.
+- Filter stays reachable while the cards scroll (issue #52): `FestivalScreen(pinActions = true)` pins the floating toolbar (every window size since #576) instead of hiding it on scroll; global search is already in the pinned top app bar.
 - Filter reads before the feed (issue #112): the shell reads the floating toolbar after page content (traversal index 1), but this feed loads cards as TalkBack scrolls, so linear navigation never reached Filter. `FestivalScreen(actionsReadFirst = true)` makes the top app bar a traversal group at −2 and the toolbar −1: top bar → Filter → cards. Songs reads its toolbar first too (issue #160); other pages keep the default.
 - Button copy follows the web strings (`FortniteFestivalWeb/src/i18n/en.json` `suggestions.*`) in the repo's Title Case for buttons ([design](../../design/README.md)): `Start a New Mix` (web "Start a new mix"), `Reset Filters` (filter sheet only).
 
@@ -92,15 +92,17 @@ Live public service, SFentonX selected, dark scheme. Material 3 skill guidance c
 | FST_Resizable phone/foldable/tablet/desktop, fs 1.0/2.0 | — | Pass: 1 / 1 wide (rail) / 2 / 3 columns |
 | FST_Book_Fold unfolded/half/folded, portrait/landscape, fs 1.0/2.0 | — | Pass: one wide column / two columns split at the hinge, nothing across it / phone layout; folded landscape 2 columns |
 | FST_Passport_Fold folded/unfolded, portrait/landscape, fs 1.0/2.0 | — | Pass: phone layout folded; one wide column with the rail unfolded (icon-only at 2.0) |
-| FST_TriFold folded/partial/unfolded, fs 1.0/2.0 | Folded at 2.0 the shared one-line top-bar title truncates ("Sugges…") | Pass (shared top-bar behaviour, as other pages); 1 / 1 / 2 columns |
+| FST_TriFold folded/partial/unfolded, fs 1.0/2.0 | Folded at 2.0 the shared one-line top-bar title truncated ("Sugges…"; a one-line marquee since #597) | Pass (shared top-bar behaviour, as other pages); 1 / 1 / 2 columns |
 | Light theme | App stays dark | Documented dark-only deviation ([design](../../design/android.md)) |
 | Reduced motion (animator scale 0) | — | Cards show at once (no batch fade); marquees truncate |
 | TalkBack (FST_Phone, real) | Search, Notifications (N unread), Profile: <name>, Filter Suggestions, then card heading, description and one Button stop per row ("title, artist · year, metadata") | Coherent order after the fix |
 | Connected ATF journey | `SuggestionsAccessibilityJourneyTest` on FST_Phone and FST_Book_Fold half-open | 0 errors; no card straddles the hinge |
 
-Deliberate deviations kept: dark scheme only; width-capped `ModalBottomSheet` instead of an M3 side sheet on expanded windows (as Songs #101); 16 dp margins app-wide (M3 suggests 24 dp at medium+); pinned (always-visible) floating toolbar on compact windows (issue #52).
+Deliberate deviations kept: dark scheme only; width-capped `ModalBottomSheet` instead of an M3 side sheet on expanded windows (as Songs #101); 16 dp margins app-wide (M3 suggests 24 dp at medium+); pinned (always-visible) floating toolbar at every window size (issues #52, #576).
 
 ## Validation (issue #160, 2026-10-05: pinned Filter and global search from #52)
+
+> **Since #576** ([page-tools-and-nav-chrome](../../patterns/page-tools-and-nav-chrome.md) R4) the "top bar" Filter placements below are history: Filter floats in the pinned toolbar on every window and posture, and `PinnedPageControlsDeviceTest` asserts that on phone portrait/landscape, FST_Tablet and FST_Book_Fold half-open.
 
 Live public service, SFentonX selected, dark scheme, animator scale 0. Each configuration: three swipes down the feed, UI tree and screenshot, open Filter while scrolled, swipe back up and compare bounds.
 

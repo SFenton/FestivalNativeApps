@@ -7,10 +7,11 @@ import FestivalDesign
 /// Compete on the iPhone Duo inner display in portrait: two swipeable sources stacked
 /// around the fold (`.agents/design/apple/duo.md`, "Dual-source half-fold layouts").
 ///
-/// - Top: one Top-5 leaderboard card per Settings-visible instrument. Like the web's
-///   `CompetePage`, no link to the Leaderboards overview (no card, no header View All;
-///   #36): each card's View Full Leaderboard opens that instrument's board.
-/// - Bottom: one rivals card per Settings-visible instrument.
+/// - Top: one Top-5 leaderboard card per ranking scope (each family's within-group combo,
+///   then each Settings-visible instrument; #602). Like the web's `CompetePage`, no link
+///   to the Leaderboards overview (no card, no header View All; #36): each card's View
+///   Full Leaderboard opens that scope's board.
+/// - Bottom: one rivals card per ranking scope.
 ///
 /// Both reuse the phone hub's own cards (`CompeteInstrumentLeaderboardSection`,
 /// `RivalInstrumentSongCard`) with the page's reads (``CompeteHubModel``), so the cards
@@ -19,7 +20,8 @@ import FestivalDesign
 /// (``CompeteDualSourceEntrance``), and a swipe rushes the rest (load-transition R5).
 struct CompeteLeaderboardsCarousel: View {
     let session: FestivalSession
-    let instruments: [Instrument]
+    /// The page's leaderboards (``CompetePageLoadKey/scopes``).
+    let scopes: [RankingScope]
     let model: CompeteHubModel
     /// Reads again whatever failed.
     let retry: () -> Void
@@ -29,7 +31,7 @@ struct CompeteLeaderboardsCarousel: View {
             "Leaderboards", systemImage: "trophy.fill", identifier: "compete.leaderboards",
             entranceIndex: CompeteDualSourceEntrance.leaderboardsHeader
         ) {
-            if instruments.isEmpty {
+            if scopes.isEmpty {
                 FestivalEmptyState(
                     "No Instruments", systemImage: "slider.horizontal.3",
                     subtitle: "Enable at least one instrument in Settings to see leaderboards."
@@ -37,15 +39,15 @@ struct CompeteLeaderboardsCarousel: View {
                 .festivalFadeIn(staggerIndex: CompeteDualSourceEntrance.firstLeaderboardCard)
             } else {
                 HorizontalCarousel(
-                    "Leaderboards", items: instruments, minimumCardWidth: CompeteDualSourceEntrance.minimumCardWidth,
+                    "Leaderboards", items: scopes, minimumCardWidth: CompeteDualSourceEntrance.minimumCardWidth,
                     entranceIndex: CompeteDualSourceEntrance.firstLeaderboardCard
-                ) { instrument in
+                ) { scope in
                     // The section pads itself 16 pt on each side for the stacked
                     // page; the carousel already insets its cards.
                     CompeteInstrumentLeaderboardSection(
-                        session: session, instrument: instrument,
-                        state: model.boards[instrument] ?? .loading,
-                        spotlight: model.spotlights[instrument], retry: retry
+                        session: session, scope: scope,
+                        state: model.boards[scope] ?? .loading,
+                        spotlight: model.spotlights[scope], retry: retry
                     )
                     .padding(.horizontal, -16)
                 }
@@ -54,9 +56,10 @@ struct CompeteLeaderboardsCarousel: View {
     }
 }
 
-/// Compete's bottom region: one rivals card per Settings-visible instrument.
+/// Compete's bottom region: one rivals card per ranking scope.
 struct CompeteRivalsCarousel: View {
-    let instruments: [Instrument]
+    /// The page's leaderboards (``CompetePageLoadKey/scopes``).
+    let scopes: [RankingScope]
     let model: CompeteHubModel
     /// Reads again whatever failed.
     let retry: () -> Void
@@ -67,14 +70,14 @@ struct CompeteRivalsCarousel: View {
 
     var body: some View {
         let header = CompeteDualSourceEntrance.rivalsHeader(
-            instrumentCount: instruments.count,
+            cardCount: scopes.count,
             leaderboardColumns: CompeteDualSourceEntrance.leaderboardColumns(regionWidth: regionWidth)
         )
         DualSourcePane(
             "Rivals", systemImage: "person.2.fill", seeAll: .rivals, identifier: "compete.rivals",
             entranceIndex: header
         ) {
-            if instruments.isEmpty {
+            if scopes.isEmpty {
                 FestivalEmptyState(
                     "No Instruments", systemImage: "slider.horizontal.3",
                     subtitle: "Enable at least one instrument in Settings to see rivals."
@@ -82,13 +85,13 @@ struct CompeteRivalsCarousel: View {
                 .festivalFadeIn(staggerIndex: header + 1)
             } else {
                 HorizontalCarousel(
-                    "Rivals", items: instruments, minimumCardWidth: CompeteDualSourceEntrance.minimumCardWidth,
+                    "Rivals", items: scopes, minimumCardWidth: CompeteDualSourceEntrance.minimumCardWidth,
                     entranceIndex: header + 1
-                ) { instrument in
+                ) { scope in
                     RivalInstrumentSongCard(
-                        instrument: instrument, state: model.rivals[instrument] ?? .loading,
+                        scope: scope, state: model.rivals[scope] ?? .loading,
                         registersQuickLink: false,
-                        emptyMessage: "No rivals found for \(instrument.label) yet.", retry: retry
+                        emptyMessage: "No rivals found for \(scope.label) yet.", retry: retry
                     )
                     .padding(.horizontal, -16)
                 }
@@ -115,13 +118,13 @@ enum CompeteDualSourceEntrance {
     /// The Rivals pane header's stagger position.
     ///
     /// - Parameters:
-    ///   - instrumentCount: Settings-visible instruments (one card per instrument).
+    ///   - cardCount: Leaderboard cards (one per ranking scope).
     ///   - leaderboardColumns: Cards the Leaderboards carousel shows side by side
     ///     (``CarouselPaging/columns(width:minimumCardWidth:)``).
     /// - Returns: The position after the leaderboard cards on screen (or the pane's
     ///   message when there are no instruments).
-    static func rivalsHeader(instrumentCount: Int, leaderboardColumns: Int) -> Int {
-        firstLeaderboardCard + max(1, min(instrumentCount, leaderboardColumns))
+    static func rivalsHeader(cardCount: Int, leaderboardColumns: Int) -> Int {
+        firstLeaderboardCard + max(1, min(cardCount, leaderboardColumns))
     }
 
     /// Leaderboard cards the top carousel shows side by side: both carousels span the

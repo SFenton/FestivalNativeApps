@@ -420,9 +420,11 @@ class ExpandedGlobalSearchUiTest {
         val h = SearchHarness(rule)
         h.launch(DebugLaunch(section = com.festivalscoretracker.android.core.nav.FestivalSection.Settings, stillBackground = true))
         h.waitForTag("fst.settings.list")
-        // An icon action at every width (no persistent search field), in the top app bar here.
+        // An icon action at every width (no persistent search field), in the top app bar, never
+        // the floating toolbar that holds page tools at every width (#576).
         rule.onNodeWithTag(GlobalSearchTags.OPEN).assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Search")))
-        assertEquals(0, rule.onAllNodesWithTag("fst.nav.floating-toolbar").fetchSemanticsNodes().size)
+        rule.onNode(hasTestTag(GlobalSearchTags.OPEN) and hasAnyAncestor(hasTestTag("fst.nav.top-bar"))).assertIsDisplayed()
+        assertEquals(0, rule.onAllNodes(hasTestTag(GlobalSearchTags.OPEN) and hasAnyAncestor(hasTestTag("fst.nav.floating-toolbar"))).fetchSemanticsNodes().size)
         rule.onNodeWithTag(GlobalSearchTags.OPEN).performClick()
         h.waitForTag(GlobalSearchTags.FIELD)
         h.settle(800)
@@ -469,7 +471,9 @@ class MediumGlobalSearchUiTest {
         val bar = rule.onNodeWithTag("fst.nav.top-bar").fetchSemanticsNode().boundsInRoot
         assertEquals(rail.center.x, menu.center.x, 1.5f)
         assertEquals(bar.center.y, menu.center.y, 1.5f)
-        assertEquals(0, rule.onAllNodesWithTag("fst.nav.floating-toolbar").fetchSemanticsNodes().size)
+        // Page tools float in the toolbar beside the rail too (#576); search stays in the top app bar.
+        rule.onNode(hasTestTag("fst.songs.sort.open") and hasAnyAncestor(hasTestTag("fst.nav.floating-toolbar"))).assertIsDisplayed()
+        rule.onNode(hasTestTag(GlobalSearchTags.OPEN) and hasAnyAncestor(hasTestTag("fst.nav.top-bar"))).assertIsDisplayed()
         rule.onNodeWithTag(GlobalSearchTags.OPEN).assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Search")))
         rule.onNodeWithTag(GlobalSearchTags.OPEN).performClick()
         h.waitForTag(GlobalSearchTags.FIELD)
