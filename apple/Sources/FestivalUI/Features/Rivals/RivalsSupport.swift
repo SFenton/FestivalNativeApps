@@ -73,11 +73,23 @@ struct RivalsChooseProfileState: View {
 /// pill shows `aheadCount` (both counts are from the rival's own perspective in
 /// the wire payload). Unlike the web, it omits the trailing "N shared" count,
 /// which is always ahead + behind (issue #40).
+///
+/// At accessibility text sizes the pills stack and wrapped text stays leading-aligned
+/// (#411: side by side at AX5 they split "ahead" as "ahea/d", and the link's label
+/// centred the wrapped name).
 struct RivalRowContent<Rival: RivalRowDisplayable>: View {
     let rival: Rival
     let direction: RivalDirection
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var name: String { rival.displayName ?? "Unknown Player" }
+
+    /// Ahead/behind pill layout: a row, or a column at accessibility sizes (as
+    /// ``RivalSongRowContent``'s rank comparison).
+    private var pillLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6)) : AnyLayout(HStackLayout(spacing: 6))
+    }
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -90,7 +102,7 @@ struct RivalRowContent<Rival: RivalRowDisplayable>: View {
                     .font(.body.weight(.semibold))
                     .foregroundStyle(BrandTokens.textPrimary)
                     .lineLimit(1)
-                HStack(spacing: 6) {
+                pillLayout {
                     pill(count: rival.behindCount, label: "ahead", tint: BrandTokens.statusGreen)
                     pill(count: rival.aheadCount, label: "behind", tint: BrandTokens.statusRed)
                 }
@@ -100,6 +112,8 @@ struct RivalRowContent<Rival: RivalRowDisplayable>: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(FestivalText.deemphasized)
         }
+        // The row link's label centres wrapped text by default.
+        .multilineTextAlignment(.leading)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
@@ -185,6 +199,8 @@ struct RivalSongRowContent: View {
             Spacer(minLength: 8)
             deltaBadge
         }
+        // The row link's label centres wrapped text by default (#411).
+        .multilineTextAlignment(.leading)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
