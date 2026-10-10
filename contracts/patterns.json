@@ -669,6 +669,10 @@
           {
             "path": "windows/Festival.App/Controls/ViewAllCard.cs",
             "symbol": "ViewAllCard"
+          },
+          {
+            "path": "windows/Festival.App/Controls/GroupedRows.cs",
+            "symbol": "GroupedRows"
           }
         ]
       },
@@ -778,7 +782,8 @@
         "drawer",
         "hamburger",
         "page title",
-        "navigation title"
+        "navigation title",
+        "search drawer"
       ],
       "web": [
         {
@@ -855,6 +860,14 @@
           {
             "path": "apple/Sources/FestivalUI/App/Shell/SidebarMenu.swift",
             "symbol": "SidebarMenu"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/Chrome/SearchDrawerTransitionFill.swift",
+            "symbol": "SearchDrawerTransitionFill"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongsBottomFilterField.swift",
+            "symbol": "SongsSystemFilterField"
           }
         ],
         "android": [
@@ -873,6 +886,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
             "symbol": "ProfileAvatarButton"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
+            "symbol": "FestivalScreen"
           }
         ],
         "windows": [
@@ -957,6 +974,16 @@
           "regex": "\\.accessibilitySortPriority\\(",
           "allow": [],
           "message": "Shell chrome reads in hierarchy order; the order journeys cannot see a sort priority (page-tools-and-nav-chrome R17, #394)."
+        },
+        {
+          "id": "apple-search-drawer-fill",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\.navigationBarDrawer\\(",
+          "allow": [
+            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
+            "apple/Sources/FestivalUI/Features/Profile/ProfileSelectionSheet.swift"
+          ],
+          "message": "A pushing page's search drawer goes through SongsSystemFilterField so SearchDrawerTransitionFill draws its capsule during push and pop (page-tools-and-nav-chrome R19); the Profile sheet never pushes."
         }
       ],
       "related": {
@@ -992,7 +1019,8 @@
         341,
         351,
         363,
-        394
+        394,
+        544
       ]
     },
     {
@@ -1000,7 +1028,7 @@
       "title": "Modal shell",
       "status": "current",
       "doc": ".agents/patterns/modal-shell.md",
-      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit; on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420).",
+      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420).",
       "keywords": [
         "modal",
         "sheet",
@@ -1233,6 +1261,7 @@
         "multi-row card",
         "trailing pane",
         "accessibility text size",
+        "grouped card",
         "one card",
         "grouped rows"
       ],
@@ -1447,6 +1476,14 @@
           {
             "path": "windows/Festival.Core/Domain/RankingSpotlight.cs",
             "symbol": "RankingSpotlight"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/GroupedRowSlice.cs",
+            "symbol": "GroupedRowSlice"
+          },
+          {
+            "path": "windows/Festival.App/Controls/GroupedRows.cs",
+            "symbol": "GroupedRows"
           }
         ]
       },
@@ -2186,7 +2223,8 @@
           "songs-section-index"
         ],
         "pages": [
-          "songs"
+          "songs",
+          "rivalry"
         ]
       },
       "supersedes": [],
@@ -2344,7 +2382,8 @@
         316,
         317,
         324,
-        342
+        342,
+        542
       ],
       "web": [
         {
@@ -2369,6 +2408,10 @@
           {
             "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
             "symbol": "SongBarTitleToolbarItem"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
+            "symbol": "SongBoardLine"
           },
           {
             "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardHeader.swift",
@@ -2618,7 +2661,8 @@
         315,
         317,
         342,
-        363
+        363,
+        542
       ]
     },
     {
@@ -3584,7 +3628,24 @@
             "symbol": "projectExperimentalRanks"
           }
         ],
-        "windows": []
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/RankingMetrics.cs",
+            "symbol": "RankingMetricInfo"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/BandTypes.cs",
+            "symbol": "BandRankingMetricInfo"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/FestivalSession.Rivals.cs",
+            "symbol": "ResolveRivalScope"
+          },
+          {
+            "path": "windows/Festival.Core/Data/NotificationModels.cs",
+            "symbol": "ProjectExperimentalRanks"
+          }
+        ]
       },
       "related": {
         "patterns": [
@@ -3608,6 +3669,20 @@
           ],
           "debt": [],
           "message": "Rank By menus and metric lists offer RankingMetric.enabled / BandRankingMetric.enabled (or a view model's gated options), never every metric, so Settings → Experimental Ranks gates them (experimental-ranks R1)."
+        },
+        {
+          "id": "windows-metric-menus",
+          "glob": "windows/**/*.cs",
+          "regex": "(RankingMetricInfo|BandRankingMetricInfo)\\.All\\b",
+          "allow": [
+            "windows/Festival.Core.Tests/**",
+            "windows/Festival.Core/Domain/RankingMetrics.cs",
+            "windows/Festival.Core/Domain/BandTypes.cs",
+            "windows/Festival.Core/ViewModels/BandsDetailViewModel.cs",
+            "windows/Festival.Core/ViewModels/RivalsViewModels.cs"
+          ],
+          "debt": [],
+          "message": "Rank By menus offer RankingMetricInfo.Enabled / BandRankingMetricInfo.Enabled (a view model's gated MetricOptions), never every metric, so Settings → Experimental Ranks gates them (experimental-ranks R1). Band Detail and the Rivals hub list every metric only behind ShowRankBy / ShowMetricPicker."
         }
       ]
     }
