@@ -10,7 +10,7 @@
       "focus:id=fst.shell.profile",
       "key:enter",
       "waitfor:id=fst.profile.search@5",
-      "assertfocus:name=Find Player@3",
+      "assertfocus:name=Search players or bands@3",
       "type:Fixture",
       "waitfor:id=fst.profile.result.fixture-player-1@10",
       "key:enter",
@@ -29,7 +29,7 @@
     "after_ready": [
       "focus:id=fst.shell.profile",
       "key:enter",
-      "assertfocus:name=Find Player@5",
+      "assertfocus:name=Search players or bands@5",
       "type:Fixture",
       "waitfor:id=fst.profile.result.fixture-player-2@10",
       "key:tab",
@@ -43,7 +43,7 @@
     ]
   },
   {
-    "name": "kb-profile-bands-target",
+    "name": "kb-profile-scopes",
     "tab": "songs",
     "tabs": 0,
     "ready": [
@@ -52,16 +52,26 @@
     "after_ready": [
       "focus:id=fst.shell.profile",
       "key:enter",
-      "assertfocus:name=Find Player@5",
+      "assertfocus:name=Search players or bands@5",
       "key:shift+tab",
+      "assertfocus:id=fst.profile.scope.all@3",
+      "key:right",
       "assertfocus:id=fst.profile.scope.players@3",
       "key:right",
       "assertfocus:id=fst.profile.scope.bands@3",
       "key:space",
-      "assertname:id=fst.profile.search@3|Find Band",
+      "assertstate:id=fst.profile.scope.bands|selected=true@3",
+      "key:tab",
+      "assertfocus:name=Search players or bands@3",
+      "type:Fixture",
+      "waitfor:id=fst.profile.result.band@10",
+      "waitgone:id=fst.profile.result.fixture-player-1",
       "shot:{stem}-bands.png",
-      "key:esc",
-      "assertfocus:id=fst.shell.profile@3"
+      "key:tab",
+      "assertfocus:id=fst.profile.result.band@3",
+      "key:enter",
+      "waitgone:id=fst.profile.search@5",
+      "waitfor:id=fst.band.title@15"
     ]
   },
   {
@@ -102,7 +112,7 @@
       "focus:id=fst.profile.deselect",
       "assertfocus:id=fst.profile.deselect@3",
       "key:tab",
-      "assertfocus:id=fst.profile.scope.players@3",
+      "assertfocus:id=fst.profile.scope.all@3",
       "key:shift+tab",
       "assertfocus:id=fst.profile.deselect@3",
       "key:shift+tab",
@@ -129,7 +139,7 @@
       "waitgone:id=fst.profile.search",
       "key:ctrl+shift+p",
       "waitfor:id=fst.profile.search@5",
-      "assertfocus:name=Find Player@3",
+      "assertfocus:name=Search players or bands@3",
       "key:esc",
       "waitgone:id=fst.profile.search@5"
     ]

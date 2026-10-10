@@ -58,6 +58,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.text.TextLayoutResult
+import com.festivalscoretracker.android.ui.common.FestivalMarquee
 
 /** Shared harness for the Leaderboards journeys on Robolectric against synthetic rankings. */
 abstract class LeaderboardsHarness {
@@ -1005,6 +1009,83 @@ class FullRankingsTitleIconUiTest : LeaderboardsHarness() {
     }
 }
 
+/**
+ * Issue #597 (`page-tools-and-nav-chrome` R21): every Android bar title, not only a pinned song
+ * title, scrolls on one line when it overflows the bar ("Lead Leaderboards" at 200% text), stays
+ * still when it fits, tail-truncates under Reduce Motion, keeps the instrument icon before it and
+ * is read once.
+ */
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(qualifiers = "w411dp-h891dp-xxhdpi")
+class FullRankingsTitleMarqueeUiTest : LeaderboardsHarness() {
+    private val title = "Lead Leaderboards"
+    private val icon = "fst.full-rankings.title-icon.Solo_Guitar"
+
+    private fun bounds(tag: String) = node(tag).fetchSemanticsNode().boundsInRoot
+
+    private fun barTitle() = rule.onNode(hasTestTag("fst.nav.title") and hasText(title), useUnmergedTree = true).fetchSemanticsNode()
+
+    private fun mode() = barTitle().config.getOrNull(FestivalMarquee.ModeKey)
+
+    private fun layout(): TextLayoutResult {
+        val layouts = mutableListOf<TextLayoutResult>()
+        barTitle().config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
+        return layouts.single()
+    }
+
+    private fun openLead() {
+        launch("fullRankings:Solo_Guitar")
+        waitForText(title)
+        settle(2_000)
+    }
+
+    /** The icon leads the title inside the bar, and TalkBack meets the title once, with no icon label. */
+    private fun assertIconLeadsAndTitleReadsOnce() {
+        val tolerance = with(rule.density) { 1.dp.toPx() }
+        assertTrue("icon ${bounds(icon)} before title ${bounds("fst.nav.title")}", bounds(icon).right <= bounds("fst.nav.title").left + tolerance)
+        assertEquals(null, description(icon))
+        val stops = rule.onAllNodes(hasAnyAncestor(hasTestTag("fst.nav.top-bar")) and hasText(title, substring = true)).fetchSemanticsNodes()
+        assertEquals("one stop names the title", 1, stops.size)
+        assertEquals("read once", 1, stops.single().config[SemanticsProperties.Text].count { it.text == title })
+    }
+
+    @Test
+    @Config(fontScale = 2f)
+    fun longTitleScrollsInTheBarAtLargeText() {
+        openLead()
+        assertEquals(FestivalMarquee.Mode.Scrolling, mode())
+        assertEquals("one line", 1, layout().lineCount)
+        assertTrue("the full title is wider than its box", layout().size.width > bounds("fst.nav.title").width)
+        val bar = bounds("fst.nav.top-bar")
+        val box = bounds("fst.nav.title")
+        assertTrue("title $box inside the bar $bar", box.top >= bar.top && box.bottom <= bar.bottom + 1f)
+        assertIconLeadsAndTitleReadsOnce()
+    }
+
+    @Test
+    fun fittingTitleStaysStill() {
+        launch("leaderboards")
+        rule.waitUntil(10_000) {
+            settle(100)
+            rule.onAllNodes(hasTestTag("fst.nav.title") and hasText("Leaderboards"), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        val node = rule.onNode(hasTestTag("fst.nav.title") and hasText("Leaderboards"), useUnmergedTree = true).fetchSemanticsNode()
+        assertEquals(FestivalMarquee.Mode.Static, node.config.getOrNull(FestivalMarquee.ModeKey))
+    }
+
+    @Test
+    @Config(fontScale = 2f)
+    fun reduceMotionTruncatesTheLongTitle() {
+        runBlocking { store.updateData { it.toMutablePreferences().apply { this[booleanPreferencesKey(SettingsRegistry.REDUCE_MOTION)] = true } } }
+        openLead()
+        assertEquals(FestivalMarquee.Mode.Truncated, mode())
+        assertEquals(1, layout().lineCount)
+        assertTrue("ends in an ellipsis", layout().isLineEllipsized(0))
+        assertIconLeadsAndTitleReadsOnce()
+    }
+}
+
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w790dp-h840dp-xhdpi")
 class LeaderboardsBookFoldUiTest : LeaderboardsHarness() {
@@ -1062,14 +1143,19 @@ class LeaderboardsExpandedUiTest : LeaderboardsHarness() {
     }
 
     @Test
-    fun expandedBoardsKeepThePagerAnchoredAndPickersInTheTopBar() {
+    fun expandedBoardsKeepThePagerAnchoredAndPickersInTheFloatingToolbar() {
         launch("fullRankings:Solo_Drums")
         waitForDescription("Page 1 of 3")
         assertTrue(exists("fst.full-rankings.bottom-bar"))
         assertFalse(exists("fst.full-rankings.supporting-pane"))
+        // Issue #576: page tools float at every window size; the top app bar keeps only global actions.
+        val inToolbar = rule.onAllNodes(
+            hasTestTag("fst.full-rankings.instrument-menu") and hasAnyAncestor(hasTestTag("fst.nav.floating-toolbar")),
+        ).fetchSemanticsNodes()
+        assertTrue("the instrument picker is in the floating toolbar", inToolbar.isNotEmpty())
         val bar = node("fst.nav.top-bar").fetchSemanticsNode().boundsInRoot
         val picker = node("fst.full-rankings.instrument-menu").fetchSemanticsNode().boundsInRoot
-        assertTrue(picker.top >= bar.top && picker.bottom <= bar.bottom)
+        assertTrue("the picker $picker is below the top bar $bar", picker.top >= bar.bottom)
     }
 
     @Test

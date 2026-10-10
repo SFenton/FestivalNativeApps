@@ -5,6 +5,7 @@
     xmlns:controls="using:Festival.App.Controls"
     xmlns:data="using:Festival.Core.Data"
     xmlns:domain="using:Festival.Core.Domain"
+    xmlns:vm="using:Festival.Core.ViewModels"
     Title="Festival Score Tracker">
 
     <Grid x:Name="RootGrid">
@@ -90,7 +91,7 @@
                     <FlyoutBase.AttachedFlyout>
                         <Flyout x:Name="ProfileFlyout" Placement="BottomEdgeAlignedRight" ShouldConstrainToRootBounds="True" Opened="OnProfileFlyoutOpened"
                                 Closed="OnProfileFlyoutClosed">
-                            <!-- Profile selection (fst.profile.*): selected summary, Players/Bands target, search, results. -->
+                            <!-- Profile selection (fst.profile.*): selected summary, All/Players/Bands scope, search, results. -->
                             <StackPanel Width="340" Spacing="12" AutomationProperties.AutomationId="fst.profile.sheet">
                                 <StackPanel Spacing="8" Visibility="{x:Bind Shell.HasPlayer, Mode=OneWay}"
                                             AutomationProperties.AutomationId="fst.profile.selected">
@@ -118,39 +119,75 @@
                                 </StackPanel>
                                 <TextBlock Text="Find a Profile" Style="{StaticResource BodyStrongTextBlockStyle}"
                                            AutomationProperties.HeadingLevel="Level2" />
+                                <!-- Issue #600: All · Players · Bands like global search, starting on All (web SearchModal with
+                                     targets players|bands). Both kinds are searched together; the scope only filters. -->
                                 <SelectorBar x:Name="ProfileScope" SelectionChanged="OnProfileScopeChanged"
+                                             AutomationProperties.Name="Profile search scope"
                                              AutomationProperties.AutomationId="fst.profile.scope">
-                                    <SelectorBarItem Text="Players" IsSelected="True" AutomationProperties.AutomationId="fst.profile.scope.players" />
+                                    <SelectorBarItem Text="All" IsSelected="True" AutomationProperties.AutomationId="fst.profile.scope.all" />
+                                    <SelectorBarItem Text="Players" AutomationProperties.AutomationId="fst.profile.scope.players" />
                                     <SelectorBarItem Text="Bands" AutomationProperties.AutomationId="fst.profile.scope.bands" />
                                 </SelectorBar>
-                                <!-- Native AutoSuggestBox search field (no custom fill); results list below it. -->
-                                <AutoSuggestBox x:Name="ProfileSearchBox" controls:PopupHosting.InWindow="True" PlaceholderText="{x:Bind Shell.SearchPlaceholder, Mode=OneWay}"
+                                <!-- Native AutoSuggestBox search field (no custom fill); results below it. -->
+                                <AutoSuggestBox x:Name="ProfileSearchBox" controls:PopupHosting.InWindow="True" PlaceholderText="{x:Bind Shell.SearchPlaceholder}"
                                                 QueryIcon="Find" UpdateTextOnSelect="False"
                                                 Text="{x:Bind Shell.ProfileQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                IsEnabled="{x:Bind Shell.IsPlayerScope, Mode=OneWay}" QuerySubmitted="OnProfileSearchSubmitted"
+                                                QuerySubmitted="OnProfileSearchSubmitted"
                                                 PreviewKeyDown="OnProfileSearchKeyDown"
-                                                AutomationProperties.Name="{x:Bind Shell.SearchPlaceholder, Mode=OneWay}"
+                                                AutomationProperties.Name="{x:Bind Shell.SearchPlaceholder}"
                                                 AutomationProperties.AutomationId="fst.profile.search" />
-                                <ListView ItemsSource="{x:Bind Shell.ProfileResults, Mode=OneWay}" MaxHeight="320"
-                                          SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnProfileResultClick"
-                                          ContainerContentChanging="OnProfileResultContainer"
-                                          AutomationProperties.Name="Players"
-                                          AutomationProperties.AutomationId="fst.profile.results">
-                                    <ListView.ItemTemplate>
-                                        <DataTemplate x:DataType="domain:GlobalPlayerResult">
-                                            <Grid ColumnSpacing="12" Padding="0,6" AutomationProperties.Name="{x:Bind AccessibleName}">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <PersonPicture Width="28" Height="28" DisplayName="{x:Bind DisplayName}"
-                                                               AutomationProperties.AccessibilityView="Raw" />
-                                                <TextBlock Grid.Column="1" Text="{x:Bind DisplayName}" VerticalAlignment="Center"
-                                                           TextTrimming="CharacterEllipsis" />
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListView.ItemTemplate>
-                                </ListView>
+                                <!-- Players → Bands, one scroll region (the lists don't scroll themselves). In All each shown
+                                     kind has its Level 3 title, like global search's sections; a single scope has none. -->
+                                <ScrollViewer MaxHeight="360" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
+                                              Visibility="{x:Bind Shell.HasAnyProfileResult, Mode=OneWay}"
+                                              AutomationProperties.Name="Profile search results"
+                                              AutomationProperties.AutomationId="fst.profile.results-scroll">
+                                    <StackPanel Spacing="8" Padding="0,0,12,0">
+                                        <TextBlock Text="Players" Style="{StaticResource BodyStrongTextBlockStyle}"
+                                                   Visibility="{x:Bind Shell.ShowPlayersTitle, Mode=OneWay}" AutomationProperties.HeadingLevel="Level3"
+                                                   AutomationProperties.AutomationId="fst.profile.section.players" />
+                                        <ListView ItemsSource="{x:Bind Shell.ProfileResults, Mode=OneWay}"
+                                                  Visibility="{x:Bind Shell.HasProfileResults, Mode=OneWay}"
+                                                  SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnProfileResultClick"
+                                                  ContainerContentChanging="OnProfileResultContainer"
+                                                  ScrollViewer.VerticalScrollMode="Disabled"
+                                                  AutomationProperties.Name="Players"
+                                                  AutomationProperties.AutomationId="fst.profile.results">
+                                            <ListView.ItemTemplate>
+                                                <DataTemplate x:DataType="domain:GlobalPlayerResult">
+                                                    <Grid ColumnSpacing="12" Padding="0,6" AutomationProperties.Name="{x:Bind AccessibleName}">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <PersonPicture Width="28" Height="28" DisplayName="{x:Bind DisplayName}"
+                                                                       AutomationProperties.AccessibilityView="Raw" />
+                                                        <TextBlock Grid.Column="1" Text="{x:Bind DisplayName}" VerticalAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListView.ItemTemplate>
+                                        </ListView>
+                                        <TextBlock Text="Bands" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,4,0,0"
+                                                   Visibility="{x:Bind Shell.ShowBandsTitle, Mode=OneWay}" AutomationProperties.HeadingLevel="Level3"
+                                                   AutomationProperties.AutomationId="fst.profile.section.bands" />
+                                        <!-- The canonical band card (global search, player Bands), one Narrator stop each; it opens
+                                             the band page (Windows can't select a band as the profile yet). -->
+                                        <ItemsRepeater x:Name="ProfileBandsList" XYFocusKeyboardNavigation="Enabled"
+                                                       ItemsSource="{x:Bind Shell.ProfileBands, Mode=OneWay}"
+                                                       Visibility="{x:Bind Shell.HasProfileBands, Mode=OneWay}"
+                                                       AutomationProperties.Name="Bands" AutomationProperties.AutomationId="fst.profile.bands">
+                                            <ItemsRepeater.Layout>
+                                                <StackLayout Spacing="8" />
+                                            </ItemsRepeater.Layout>
+                                            <ItemsRepeater.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:PlayerBandCardViewModel">
+                                                    <controls:BandCardView Card="{x:Bind}" RouteRequested="OnProfileBandRouteRequested" />
+                                                </DataTemplate>
+                                            </ItemsRepeater.ItemTemplate>
+                                        </ItemsRepeater>
+                                    </StackPanel>
+                                </ScrollViewer>
                                 <!-- Plain centred hint ("Enter at least 2 characters", "Searching…"): no container. -->
                                 <TextBlock Text="{x:Bind Shell.ProfileHint, Mode=OneWay}" HorizontalAlignment="Center"
                                            TextAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource FSTSecondaryTextBrush}"

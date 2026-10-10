@@ -24,12 +24,6 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Profile search debounce (web <c>useUnifiedSearch</c>: 250 ms; the global-search engine's).</summary>
     public static readonly TimeSpan SearchDebounce = GlobalSearchViewModel.Debounce;
 
-    /// <summary>Profile flyout Bands target: a band can't be the selected profile yet, so it points to global search,
-    /// which finds and opens bands (issue #320; same copy as Android).</summary>
-    public const string BandSearchExplanation =
-        "Choosing a band as your profile isn't available in the app yet. " +
-        "To find a band, use Search; you can also open one from a player's Bands list or Band Rankings.";
-
     private readonly FestivalSession session;
     private string? selectedAccount;
 
@@ -38,7 +32,7 @@ public sealed partial class ShellViewModel : ObservableObject
     public ShellViewModel(FestivalSession session)
     {
         this.session = session;
-        ProfileSearch = GlobalSearchViewModel.ForPlayers(session);
+        ProfileSearch = GlobalSearchViewModel.ForProfiles(session);
         ProfileSearch.PropertyChanged += OnProfileSearchChanged;
         foreach (var section in AppSections.Visible(session.HasPlayer, session.Settings.HideShop)) Sections.Add(section);
         selectedAccount = session.SelectedPlayer?.AccountId;
@@ -84,7 +78,7 @@ public sealed partial class ShellViewModel : ObservableObject
         ? "Opens your statistics. Press Control+Shift+P or open the context menu to switch profile."
         : "Opens profile selection.";
 
-    /// <summary>The flyout's player search: the global-search engine limited to players.</summary>
+    /// <summary>The flyout's profile search: the global-search engine over players and bands, without songs (issue #600).</summary>
     public GlobalSearchViewModel ProfileSearch { get; }
 
     /// <summary>Profile search text (forwards to <see cref="ProfileSearch"/>).</summary>
@@ -94,28 +88,60 @@ public sealed partial class ShellViewModel : ObservableObject
         set => ProfileSearch.Query = value;
     }
 
-    /// <summary>Whether the Bands target is chosen (choosing a band as the profile isn't built; no band request here).</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ProfileHint), nameof(SearchPlaceholder), nameof(IsPlayerScope), nameof(CanRetrySearch), nameof(ProfileResults))]
-    private bool isBandScope;
+    /// <summary>
+    /// The flyout's All · Players · Bands scope (forwards to <see cref="ProfileSearch"/>; starts on All). Songs is not a
+    /// profile scope and maps to All.
+    /// </summary>
+    public SearchScope ProfileScope
+    {
+        get => ProfileSearch.Scope;
+        set => ProfileSearch.Scope = value == SearchScope.Songs ? SearchScope.All : value;
+    }
 
-    /// <summary>Player rows (none on the Bands target).</summary>
-    public List<GlobalPlayerResult> ProfileResults => IsBandScope ? [] : ProfileSearch.Players;
+    /// <summary>Player rows shown for the scope (All and Players; none on Bands).</summary>
+    public List<GlobalPlayerResult> ProfileResults => ProfileScope == SearchScope.Bands ? [] : ProfileSearch.Players;
 
-    /// <summary>Whether the Players target is chosen.</summary>
-    public bool IsPlayerScope => !IsBandScope;
+    /// <summary>Band cards shown for the scope (All and Bands; none on Players).</summary>
+    public List<PlayerBandCardViewModel> ProfileBands => ProfileScope == SearchScope.Players ? [] : ProfileSearch.Bands;
 
-    /// <summary>Search box placeholder.</summary>
-    public string SearchPlaceholder => IsBandScope ? "Find Band" : "Find Player";
+    /// <summary>Whether player rows are shown.</summary>
+    public bool HasProfileResults => ProfileResults.Count > 0;
 
-    /// <summary>Centered hint under the search box.</summary>
-    public string ProfileHint => IsBandScope ? BandSearchExplanation : ProfileSearch.PlayersHint;
+    /// <summary>Whether band cards are shown.</summary>
+    public bool HasProfileBands => ProfileBands.Count > 0;
+
+    /// <summary>Whether any result is shown (the results region collapses otherwise).</summary>
+    public bool HasAnyProfileResult => HasProfileResults || HasProfileBands;
+
+    /// <summary>Whether the Players section title shows (All only, like global search's sections; issue #348).</summary>
+    public bool ShowPlayersTitle => ProfileScope == SearchScope.All && HasProfileResults;
+
+    /// <summary>Whether the Bands section title shows (All only).</summary>
+    public bool ShowBandsTitle => ProfileScope == SearchScope.All && HasProfileBands;
+
+    /// <summary>Search box placeholder and accessible name (one for every scope, like global search and the web).</summary>
+    public string SearchPlaceholder => GlobalSearchResults.ProfilePlaceholder;
+
+    /// <summary>Centered hint under the results.</summary>
+    public string ProfileHint => ProfileSearch.PickerHint;
 
     /// <summary>Whether Retry is offered (after an error or an empty envelope, which is never proof of no match).</summary>
-    public bool CanRetrySearch => IsPlayerScope && ProfileSearch.CanRetryPlayers;
+    public bool CanRetrySearch => ProfileSearch.CanRetryPicker;
 
     /// <summary>Runs the current query again immediately.</summary>
     public IAsyncRelayCommand RetrySearchCommand => ProfileSearch.RetryCommand;
+
+    /// <summary>
+    /// Opens the result Enter submits: the first row shown, players before bands (their order in All).
+    /// </summary>
+    /// <returns>Whether a result was opened.</returns>
+    public bool OpenFirstResult()
+    {
+        if (ProfileResults.FirstOrDefault() is { } player && ProfileText.IsValidAccountId(player.AccountId)) OpenResult(PlayerRoute(player));
+        else if (ProfileBands.FirstOrDefault() is { } band) OpenResult(band.Route);
+        else return false;
+        return true;
+    }
 
     /// <summary>Opens a search result's player page (viewing; selecting is a separate action there).</summary>
     /// <param name="result">Chosen account.</param>
@@ -123,9 +149,31 @@ public sealed partial class ShellViewModel : ObservableObject
     private void ViewProfile(GlobalPlayerResult? result)
     {
         if (result is null || !ProfileText.IsValidAccountId(result.AccountId)) return;
-        ProfileSearch.Reset();
-        RouteRequested?.Invoke(this, new AppRoute.Player(result.AccountId, result.DisplayName));
+        OpenResult(PlayerRoute(result));
     }
+
+    /// <summary>
+    /// Opens a band result's page (the band card's route). Windows can't select a band as the profile yet, so viewing is
+    /// the supported action, like global search (issue #600).
+    /// </summary>
+    /// <param name="route">Band route.</param>
+    public void ViewBand(AppRoute route)
+    {
+        if (route is AppRoute.Band) OpenResult(route);
+    }
+
+    /// <summary>Clears the search and raises the result's route.</summary>
+    /// <param name="route">Destination.</param>
+    private void OpenResult(AppRoute route)
+    {
+        ProfileSearch.Reset();
+        RouteRequested?.Invoke(this, route);
+    }
+
+    /// <summary>A player result's page (viewing, never Statistics: the flyout lists the selected player like anyone).</summary>
+    /// <param name="result">Account.</param>
+    /// <returns>Player route.</returns>
+    private static AppRoute PlayerRoute(GlobalPlayerResult result) => new AppRoute.Player(result.AccountId, result.DisplayName);
 
     /// <summary>Opens the selected player's page.</summary>
     [RelayCommand]
@@ -138,14 +186,6 @@ public sealed partial class ShellViewModel : ObservableObject
     [RelayCommand]
     private void DeselectProfile() => session.DeselectPlayer();
 
-    /// <summary>Stops player search on the (disabled) Bands target; returning to Players searches the text again.</summary>
-    /// <param name="value">Band scope.</param>
-    partial void OnIsBandScopeChanged(bool value)
-    {
-        if (value) ProfileSearch.Deactivate();
-        else if (ProfileSearch.RetryCommand.CanExecute(null)) ProfileSearch.RetryCommand.Execute(null);
-    }
-
     /// <summary>Forwards search changes to the flyout bindings.</summary>
     /// <param name="sender">Search model.</param>
     /// <param name="e">Changed property.</param>
@@ -156,16 +196,33 @@ public sealed partial class ShellViewModel : ObservableObject
             case nameof(GlobalSearchViewModel.Query):
                 OnPropertyChanged(nameof(ProfileQuery));
                 break;
-            case nameof(GlobalSearchViewModel.Players):
-                OnPropertyChanged(nameof(ProfileResults));
+            case nameof(GlobalSearchViewModel.Scope):
+                OnPropertyChanged(nameof(ProfileScope));
+                OnResultsChanged();
                 break;
-            case nameof(GlobalSearchViewModel.PlayersHint):
+            case nameof(GlobalSearchViewModel.Players):
+            case nameof(GlobalSearchViewModel.Bands):
+                OnResultsChanged();
+                break;
+            case nameof(GlobalSearchViewModel.PickerHint):
                 OnPropertyChanged(nameof(ProfileHint));
                 break;
-            case nameof(GlobalSearchViewModel.CanRetryPlayers):
+            case nameof(GlobalSearchViewModel.CanRetryPicker):
                 OnPropertyChanged(nameof(CanRetrySearch));
                 break;
         }
+    }
+
+    /// <summary>Raises the scope-filtered result properties.</summary>
+    private void OnResultsChanged()
+    {
+        OnPropertyChanged(nameof(ProfileResults));
+        OnPropertyChanged(nameof(ProfileBands));
+        OnPropertyChanged(nameof(HasProfileResults));
+        OnPropertyChanged(nameof(HasProfileBands));
+        OnPropertyChanged(nameof(HasAnyProfileResult));
+        OnPropertyChanged(nameof(ShowPlayersTitle));
+        OnPropertyChanged(nameof(ShowBandsTitle));
     }
 
     /// <summary>Tracks player selection for sections and the avatar.</summary>

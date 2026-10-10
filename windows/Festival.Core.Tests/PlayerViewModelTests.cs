@@ -150,6 +150,12 @@ public class PlayerProfileViewModelTests
         Assert.Equal("fst.player.bands.header.duos", duos.HeaderAutomationId);
         Assert.Equal("fst.player.bands.view-all.duos", duos.ViewAllAutomationId);
         Assert.IsType<AppRoute.Band>(duos.Cards[0].Route);
+        // Owner #596: rows of the group's one card leave the band size to the group header, on screen and in their name.
+        Assert.All(duos.Cards, c => Assert.True(c.IsGroupedRow));
+        Assert.All(duos.Cards, c => Assert.False(c.ShowsBandType));
+        Assert.All(duos.Cards, c => Assert.DoesNotContain("Duos", c.Announcement, StringComparison.Ordinal));
+        Assert.StartsWith("View band: ", duos.Cards[0].Announcement, StringComparison.Ordinal);
+        Assert.EndsWith(". " + duos.Cards[0].AppearancesText, duos.Cards[0].Announcement, StringComparison.Ordinal);
 
         var trios = bands.Groups[1];
         Assert.Equal(2, trios.Cards.Count);
@@ -682,34 +688,159 @@ public class PlayerChartTests
 
 public class ShellProfileFlyoutTests
 {
-    [Fact]
-    public async Task BandScope_DisablesSearchAndExplains()
+    private static (FakeService Service, FakeTimeProvider Time, ShellViewModel Shell) Flyout(
+        Func<HttpResponseMessage>? players = null, Func<HttpResponseMessage>? bands = null)
     {
         var service = new FakeService();
+        service.Override = r => r.RequestUri!.AbsolutePath switch
+        {
+            "/api/account/search" => players?.Invoke() ?? Wire.Ok("""{"results":[{"accountId":"acc1","displayName":"Abba Fan"}]}"""),
+            GlobalSearchBand.Path => bands?.Invoke() ?? Wire.Ok(GlobalSearchBand.Page(
+                GlobalSearchBand.Row("b1", "Band_Duets", "Abba", "Mate"), GlobalSearchBand.Row("b2", "Band_Trios", "Abbey", "Road"))),
+            _ => null,
+        };
         var time = new FakeTimeProvider();
-        var shell = new ShellViewModel(service.Session(time));
-        Assert.True(shell.IsPlayerScope);
-        Assert.Equal("Find Player", shell.SearchPlaceholder);
-        shell.ProfileQuery = "abc";
-        shell.IsBandScope = true;
-        Assert.Equal("Find Band", shell.SearchPlaceholder);
-        Assert.Equal(ShellViewModel.BandSearchExplanation, shell.ProfileHint);
-        Assert.False(shell.CanRetrySearch);
-        time.Advance(ShellViewModel.SearchDebounce);
-        await Async.Settle();
-        Assert.Empty(service.Handler.To("/api/account/search"));
-        shell.IsBandScope = false;
-        Assert.True(shell.IsPlayerScope);
-        // Back on Players, the kept text searches again at once.
-        await Async.Until(() => service.Handler.To("/api/account/search").Any());
+        return (service, time, new ShellViewModel(service.Session(time)));
     }
 
+    private static async Task Type(ShellViewModel shell, FakeTimeProvider time, string text)
+    {
+        shell.ProfileQuery = text;
+        await Async.Settle();
+        time.Advance(ShellViewModel.SearchDebounce);
+        await Async.Until(() => shell.ProfileSearch.IsSettled);
+    }
+
+    [Fact]
+    public async Task Scopes_StartOnAllAndSearchPlayersAndBandsTogether()
+    {
+        var (service, time, shell) = Flyout();
+        Assert.Equal(SearchScope.All, shell.ProfileScope);
+        Assert.True(shell.ProfileSearch.SearchesBands);
+        Assert.Equal("Search players or bands", shell.SearchPlaceholder);
+        Assert.False(shell.HasAnyProfileResult);
+        await Type(shell, time, "abb");
+        Assert.Single(service.Handler.To("/api/account/search"));
+        Assert.Single(service.Handler.To(GlobalSearchBand.Path));
+        Assert.Empty(shell.ProfileSearch.Songs);
+        Assert.Empty(shell.ProfileSearch.Suggestions);
+        // All: players then bands, each under its title.
+        Assert.Equal(["acc1"], shell.ProfileResults.Select(p => p.AccountId));
+        Assert.Equal(["b1", "b2"], shell.ProfileBands.Select(b => b.Entry.BandId));
+        Assert.All(shell.ProfileBands, b => Assert.Equal(GlobalSearchResults.ProfileBandResultId, b.AutomationId));
+        Assert.True(shell.ShowPlayersTitle && shell.ShowBandsTitle && shell.HasAnyProfileResult);
+        Assert.Equal("", shell.ProfileHint);
+        Assert.False(shell.CanRetrySearch);
+        Assert.Equal("1 player, 2 bands", shell.ProfileSearch.LastAnnouncement);
+        // Players and Bands narrow to one kind without searching again; a single kind has no title.
+        var changed = new List<string?>();
+        shell.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        shell.ProfileScope = SearchScope.Players;
+        Assert.Contains(nameof(ShellViewModel.ProfileScope), changed);
+        Assert.Contains(nameof(ShellViewModel.ProfileBands), changed);
+        Assert.Contains(nameof(ShellViewModel.ShowPlayersTitle), changed);
+        Assert.Single(shell.ProfileResults);
+        Assert.Empty(shell.ProfileBands);
+        Assert.False(shell.ShowPlayersTitle || shell.ShowBandsTitle);
+        shell.ProfileScope = SearchScope.Bands;
+        Assert.Empty(shell.ProfileResults);
+        Assert.Equal(2, shell.ProfileBands.Count);
+        Assert.True(shell.HasAnyProfileResult);
+        Assert.False(shell.ShowBandsTitle);
+        Assert.Single(service.Handler.To(GlobalSearchBand.Path));
+        // Songs is not a profile scope.
+        shell.ProfileScope = SearchScope.Songs;
+        Assert.Equal(SearchScope.All, shell.ProfileScope);
+    }
+
+    [Fact]
+    public async Task Hints_NameTheScopeAndTheFailedKind()
+    {
+        var bandsFail = true;
+        var (_, time, shell) = Flyout(
+            players: () => Wire.Ok("""{"results":[]}"""),
+            bands: () => bandsFail ? Wire.Response(HttpStatusCode.ServiceUnavailable) : Wire.Ok(GlobalSearchBand.Empty));
+        await Type(shell, time, "zzz");
+        Assert.Equal("Bands: The service is temporarily unavailable. Try again.", shell.ProfileHint);
+        Assert.True(shell.CanRetrySearch);
+        Assert.Equal("0 players, band search failed", shell.ProfileSearch.LastAnnouncement);
+        shell.ProfileScope = SearchScope.Bands;
+        Assert.Equal("The service is temporarily unavailable. Try again.", shell.ProfileHint);
+        shell.ProfileScope = SearchScope.Players;
+        Assert.Equal("No players found.", shell.ProfileHint);
+        Assert.True(shell.CanRetrySearch);
+        bandsFail = false;
+        shell.ProfileScope = SearchScope.Bands;
+        await shell.RetrySearchCommand.ExecuteAsync(null);
+        await Async.Until(() => shell.ProfileSearch.IsSettled);
+        Assert.Equal("No bands found.", shell.ProfileHint);
+        shell.ProfileScope = SearchScope.All;
+        Assert.Equal("No results found.", shell.ProfileHint);
+    }
+
+    [Fact]
+    public async Task Hints_BothFailedShowOneMessage()
+    {
+        var (_, time, shell) = Flyout(
+            players: () => Wire.Response(HttpStatusCode.ServiceUnavailable),
+            bands: () => Wire.Response(HttpStatusCode.ServiceUnavailable));
+        await Type(shell, time, "busy");
+        Assert.Equal("The service is temporarily unavailable. Try again.", shell.ProfileHint);
+        Assert.True(shell.CanRetrySearch);
+        Assert.Equal("player search failed, band search failed", shell.ProfileSearch.LastAnnouncement);
+    }
+
+    [Fact]
+    public async Task Results_KeepRowsWhileOneKindFails()
+    {
+        var (_, time, shell) = Flyout(bands: () => Wire.Response(HttpStatusCode.ServiceUnavailable));
+        await Type(shell, time, "abb");
+        Assert.Single(shell.ProfileResults);
+        Assert.False(shell.ShowBandsTitle);
+        Assert.Equal("Bands: The service is temporarily unavailable. Try again.", shell.ProfileHint);
+        shell.ProfileScope = SearchScope.Players;
+        Assert.Equal("", shell.ProfileHint);
+        Assert.False(shell.CanRetrySearch);
+    }
+
+    [Fact]
+    public async Task OpenResults_PlayerOrBandRouteAndResetToAll()
+    {
+        var (_, time, shell) = Flyout();
+        var routes = new List<AppRoute>();
+        shell.RouteRequested += (_, route) => routes.Add(route);
+        Assert.False(shell.OpenFirstResult());
+        await Type(shell, time, "abb");
+        Assert.True(shell.OpenFirstResult());
+        Assert.Equal(new AppRoute.Player("acc1", "Abba Fan"), routes[^1]);
+        Assert.Equal("", shell.ProfileQuery);
+        await Type(shell, time, "abb");
+        shell.ProfileScope = SearchScope.Bands;
+        // Enter opens the first band when only bands are shown; opening resets the flyout to All.
+        Assert.True(shell.OpenFirstResult());
+        Assert.Equal(new AppRoute.Band("b1", "Band_Duets", "acc_a:b1mate"), routes[^1]);
+        Assert.Equal(SearchScope.All, shell.ProfileScope);
+        Assert.Equal("", shell.ProfileQuery);
+        await Type(shell, time, "abb");
+        shell.ViewBand(shell.ProfileBands[1].Route);
+        Assert.Equal(new AppRoute.Band("b2", "Band_Trios", "acc_a:b2mate"), routes[^1]);
+        Assert.False(shell.HasAnyProfileResult);
+        // Only band routes open through ViewBand.
+        var count = routes.Count;
+        shell.ViewBand(new AppRoute.Statistics());
+        Assert.Equal(count, routes.Count);
+    }
     [Fact]
     public async Task Retry_SearchesImmediatelyAfterEmptyOrError()
     {
         var service = new FakeService();
         var results = "[]";
-        service.Override = r => r.RequestUri!.AbsolutePath == "/api/account/search" ? Wire.Ok($$"""{"results":{{results}}}""") : null;
+        service.Override = r => r.RequestUri!.AbsolutePath switch
+        {
+            "/api/account/search" => Wire.Ok($$"""{"results":{{results}}}"""),
+            GlobalSearchBand.Path => Wire.Ok(GlobalSearchBand.Empty),
+            _ => null,
+        };
         var time = new FakeTimeProvider();
         var shell = new ShellViewModel(service.Session(time));
         shell.ProfileQuery = "abc";
