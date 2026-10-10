@@ -2934,7 +2934,7 @@
         },
         {
           "path": "pages/player/sections/OverallSummarySection.tsx",
-          "symbol": "OverallSummarySection"
+          "symbol": "buildOverallSummaryItems"
         },
         {
           "path": "pages/band/BandPage.tsx",

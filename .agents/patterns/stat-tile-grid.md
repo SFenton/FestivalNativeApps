@@ -13,7 +13,7 @@ Every tile in a stat grid is the same height, and a tile's text doesn't wrap jus
 | Web | Behavior |
 |---|---|
 | `FortniteFestivalWeb/src/components/player/StatBox.tsx` (`StatBox`) | One tile: value (`Font.xl`, bold, `wordBreak: break-word`) over an uppercase, wide-tracked label (`Font.xs`); a chevron when it links. |
-| `FortniteFestivalWeb/src/pages/player/sections/OverallSummarySection.tsx` | Profile overview tiles in web order (Songs Played, Full Combos, Gold Stars, Avg Accuracy, Best Song Rank), in the `autoFitDetailCards` grid. |
+| `FortniteFestivalWeb/src/pages/player/sections/OverallSummarySection.tsx` (`buildOverallSummaryItems`) | Profile overview tiles in web order (Songs Played, Full Combos, Gold Stars, Avg Accuracy, Best Song Rank), in the `autoFitDetailCards` grid. |
 | `FortniteFestivalWeb/src/pages/band/BandPage.tsx` (`BandPage`) | Band Summary and Statistics tiles, the same `StatBox` in the same grid. |
 
 The web's grid (`GridTemplate.autoFitDetailCards`) keeps one tile per cell and lets the text wrap, so a wrapped tile makes its row taller. The two-slot span is the owner's native variant (#591); the web keeps wrapping.
