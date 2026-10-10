@@ -86,6 +86,8 @@
       "waitfor:id=fst.settings.show-instrument-icons@20"
     ],
     "after_ready": [
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollto:id=fst.settings,0",
       "scrollinto:id=fst.settings.filter-invalid-scores@5",
       "assertread:id=fst.settings.filter-invalid-scores|Filter Invalid Scores, toggle switch, off",
       "waitgone:id=fst.settings.leeway@2",
