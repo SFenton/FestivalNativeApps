@@ -377,6 +377,7 @@ public struct FestivalRootView: View {
         }
         .environment(\.openProfile, OpenProfileAction { rootProfilePresented = true })
         .environment(\.openNotifications, OpenNotificationsAction { notificationsPresented = true })
+        .environment(\.openAppSettings, OpenAppSettingsAction { select(.settings) })
         .environment(\.profileButtonAction, profileButtonHandler(visibleSections))
         .environment(\.festivalSession, session)
         .environment(\.openDrawer, usesDrawer ? OpenDrawerAction { openDrawer() } : nil)
