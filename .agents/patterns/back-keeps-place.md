@@ -46,7 +46,7 @@ Grounds, by strength: `winui-design` (**must** for custom navigation): "Build cu
 |---|---|---|---|
 | Keyed reload gate (R1) | `apple/Sources/FestivalCore/ReappearanceLoadGate.swift` `ReappearanceLoadGate` | `android/app/src/main/java/com/festivalscoretracker/android/presentation/compete/CompeteViewModel.kt` `CompeteViewModel` | Each page model's key gate (`LeaderboardsViewModel`, `RivalsHubViewModel`, `SuggestionsViewModel.LoadAsync`) |
 | Split Back closes the pane first (R6) | `apple/Sources/FestivalUI/App/Layout/OnDemandSplitPolicy.swift` `OnDemandSplitPolicy.pathAfterListBack`, `OnDemandSplit.swift` `SplitListBackButton` (iOS leading pane and Mac `MacListDetailStack` toolbar) | Not applicable (no on-demand split) | Not applicable (no on-demand split) |
-| No movement, focus return (R3, R4) | `NavigationStack` (system) | Navigation back stack (system) | `windows/Festival.App/Services/CachedPageScroll.cs` `CachedPageScroll`, attached to every section `Frame` in `MainWindow` |
+| No movement, focus return (R3, R4) | `NavigationStack` (system) | Navigation back stack (system) | `windows/Festival.App/Services/CachedPageScroll.cs` `CachedPageScroll`, attached to every section `Frame` in `MainWindow`; its `HoldAnchoring`/`ReleaseAnchoring` also serve in-page content swaps (Score History, load-transition R8, #423), so every anchoring pause stays in one place |
 
 ### Windows consumers (#276 sweep)
 

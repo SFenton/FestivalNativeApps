@@ -1799,6 +1799,10 @@
           {
             "path": "windows/Festival.Core/ViewModels/SongScoreHistoryViewModel.cs",
             "symbol": "ShowDetailSlot"
+          },
+          {
+            "path": "windows/Festival.App/Pages/SongDetailPage.xaml.cs",
+            "symbol": "PauseScrollAnchoring"
           }
         ]
       },

@@ -2,8 +2,9 @@
 
 Issue #61 made the Score History graph fade out and back in on an instrument switch, keep the card's size, and switch
 instantly with reduced motion. These checks keep the a11y_matrix pages honest: Axe scans, Narrator phrases and toggle
-state, reading order through the swap, 40x40 targets, keyboard picks and Tab order, the instant swap, and the
-``windows-ui`` generated runs (normal, text 225% and in-app Reduce Motion).
+state, reading order through the swap, 40x40 targets, keyboard picks and Tab order, the instant swap, the page held
+still across a swap (#423's scroll-anchoring fix), and the ``windows-ui`` runs (generated normal and text 225%; explicit
+in-app Reduce Motion and Animation effects off).
 
 Run: ``python -m unittest discover -s tools/windows/tests`` from the repo root.
 """
@@ -20,6 +21,7 @@ _FILE = "a11y-history-swap.json"
 _PAGES = json.loads((Path(__file__).resolve().parents[1] / "journeys" / _FILE).read_text(encoding="utf-8"))
 _BY_NAME = {p["name"]: p for p in _PAGES}
 _SPAN = "id=fst.history.subtitle|raw=fst.history.rows|card"
+_PAGE = "id=fst.song-detail|id=fst.history|page"
 _INSTRUMENT = "id=fst.history.instrument."
 
 
@@ -76,16 +78,31 @@ class HistorySwapA11yJourneyTests(unittest.TestCase):
 
     def test_reduced_page_is_instant(self):
         page = _BY_NAME["history-swap-reduced-access"]
-        self.assertEqual(page["modes"][0], "app-reduced")
+        self.assertEqual(page["modes"], ["app-reduced", "no-animations"])
         steps = _steps(page)
         self.assertTrue(any(s.startswith("assertname:id=fst.history.chart@0.1|") for s in steps))
         self.assertNotIn(f"assertspan:{_SPAN}~12", steps)
         self.assertNotIn("wait:0.8", steps)
+        self.assertIn(f"assertspan:{_PAGE}", steps)
+
+    def test_swaps_do_not_scroll_the_page(self):
+        # #423: on a window tall enough to show a Leaderboards card, WinUI's scroll anchoring scrolled the page by the
+        # top-five rows' height change (Bass 2 rows, Lead 5), pushing Score History off the top.
+        for name in ("history-swap-access", "history-swap-reduced-access"):
+            steps = _steps(_BY_NAME[name])
+            with self.subTest(page=name):
+                marks = [i for i, s in enumerate(steps) if s == f"markspan:{_PAGE}"]
+                self.assertTrue(marks)
+                for mark in marks:
+                    pick = next(i for i in range(mark, len(steps)) if steps[i].startswith(f"toggle:{_INSTRUMENT}"))
+                    self.assertIn(f"assertspan:{_PAGE}", steps[pick:], "every marked swap checks the page held")
+        access = _steps(_BY_NAME["history-swap-access"])
+        self.assertEqual(access.count(f"markspan:{_PAGE}"), 2, "Lead -> Bass and Bass -> Lead")
 
     def test_windows_ui_runs_every_page(self):
         runs = {run.name: run for run in ui_ci.RUNS if run.pages == _FILE}
         self.assertEqual(set(runs), {"a11y-history-swap-normal", "a11y-history-swap-text-225",
-                                     "a11y-history-swap-app-reduced"})
+                                     "a11y-history-swap-app-reduced", "a11y-history-swap-no-animations"})
         ran = set()
         for run in runs.values():
             for page in ui_ci.run_pages(run):
@@ -93,6 +110,17 @@ class HistorySwapA11yJourneyTests(unittest.TestCase):
                     ran.add(page["name"])
         self.assertEqual(ran, set(_BY_NAME))
         self.assertTrue(ui_ci.tier_runs([runs["a11y-history-swap-normal"]], "pr"))
+
+    def test_reduced_page_runs_in_every_motion_off_mode(self):
+        # The review of #585: the generated runs schedule only a page's first mode, so Windows' Animation effects off
+        # (the other path that makes the swap instant) needs its own run.
+        page = _BY_NAME["history-swap-reduced-access"]
+        for mode in page["modes"]:
+            runs = [run for run in ui_ci.RUNS if run.pages == _FILE and run.mode == mode]
+            with self.subTest(mode=mode):
+                self.assertEqual(len(runs), 1)
+                self.assertEqual([p["name"] for p in ui_ci.run_pages(runs[0])], [page["name"]])
+                self.assertTrue(m.page_sizes(page, runs[0].sizes.split(","), mode))
 
 
 if __name__ == "__main__":

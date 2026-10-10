@@ -19,7 +19,9 @@ namespace Festival.App.Services;
 /// (<see cref="ScrollViewer.VerticalAnchorRatio"/> NaN, issue #276): when the page re-entered the window, its re-laid
 /// rows moved by sub-pixel steps at large text and the anchor followed them, so the page crept up 2 epx. Back also
 /// returns keyboard focus to the control that opened the pushed page (issue #276: it fell to the pane toggle, so
-/// keyboard and Narrator users lost their place), the way flyouts and dialogs return focus to their invoker.
+/// keyboard and Narrator users lost their place), the way flyouts and dialogs return focus to their invoker. A page that
+/// swaps content in place holds its scroller's anchoring off through the same service (<see cref="HoldAnchoring"/>,
+/// issue #423), so the two pauses restore the right ratio whichever ends first.
 /// </summary>
 internal static class CachedPageScroll
 {
@@ -28,6 +30,43 @@ internal static class CachedPageScroll
 
     /// <summary>The control that had focus when each cached page was left.</summary>
     private static readonly ConditionalWeakTable<Page, LeftFocus> Focused = new();
+
+    /// <summary>Scrollers whose anchoring an in-page content swap holds off, with the anchor ratio to restore.</summary>
+    private static readonly ConditionalWeakTable<ScrollViewer, AnchorHold> Holds = new();
+
+    /// <summary>
+    /// Holds a page scroller's anchoring off while the page swaps content in place, so the page doesn't scroll (issue
+    /// #423, load-transition R8). Score History's swap replaces the rows below its card; WinUI then re-picked an anchor
+    /// below them and scrolled the page by their height change to keep that anchor still, pushing the card off the top.
+    /// A second hold before the release is a no-op; a hold during a cached page's pause restores with it.
+    /// </summary>
+    /// <param name="scroller">Page scroller.</param>
+    public static void HoldAnchoring(ScrollViewer scroller)
+    {
+        if (Holds.TryGetValue(scroller, out _)) return;
+        Holds.Add(scroller, new AnchorHold(scroller.VerticalAnchorRatio));
+        scroller.VerticalAnchorRatio = double.NaN;
+    }
+
+    /// <summary>
+    /// Ends <see cref="HoldAnchoring"/>: lays out the swapped content first (so anchoring doesn't compensate for it),
+    /// then restores the anchor ratio unless the page is paused off screen (its return restores it).
+    /// </summary>
+    /// <param name="scroller">Page scroller.</param>
+    public static void ReleaseAnchoring(ScrollViewer scroller)
+    {
+        if (!Holds.TryGetValue(scroller, out var hold)) return;
+        Holds.Remove(scroller);
+        if (IsPaused(scroller)) return;
+        scroller.UpdateLayout();
+        scroller.VerticalAnchorRatio = hold.Ratio;
+    }
+
+    /// <summary>Whether a scroller belongs to a cached page paused off screen.</summary>
+    /// <param name="scroller">Scroller.</param>
+    /// <returns><see langword="true"/> while <see cref="Pause"/> holds it.</returns>
+    private static bool IsPaused(ScrollViewer scroller) =>
+        Paused.Any(page => page.Value.Exists(entry => ReferenceEquals(entry.Scroller, scroller)));
 
     /// <summary>Follows a section frame's navigations.</summary>
     /// <param name="frame">Section frame.</param>
@@ -65,7 +104,7 @@ internal static class CachedPageScroll
         var paused = new List<(ScrollViewer Scroller, double AnchorRatio)>();
         foreach (var scroller in scrollers)
         {
-            paused.Add((scroller, scroller.VerticalAnchorRatio));
+            paused.Add((scroller, Holds.TryGetValue(scroller, out var hold) ? hold.Ratio : scroller.VerticalAnchorRatio));
             scroller.BringIntoViewOnFocusChange = false;
             scroller.VerticalAnchorRatio = double.NaN;
         }
@@ -216,7 +255,7 @@ internal static class CachedPageScroll
         foreach (var (scroller, anchorRatio) in scrollers)
         {
             scroller.BringIntoViewOnFocusChange = true;
-            scroller.VerticalAnchorRatio = anchorRatio;
+            scroller.VerticalAnchorRatio = Holds.TryGetValue(scroller, out _) ? double.NaN : anchorRatio;
         }
     }
 
@@ -236,5 +275,9 @@ internal static class CachedPageScroll
     /// <param name="DataContext">The item it showed, to skip a recycled container.</param>
     /// <param name="AutomationId">Its automation ID, to find the row showing the same item after a rebind.</param>
     private sealed record LeftFocus(WeakReference<Control> Control, FocusState State, object? DataContext, string AutomationId);
+
+    /// <summary>A scroller's anchor ratio before <see cref="HoldAnchoring"/>.</summary>
+    /// <param name="Ratio">Ratio to restore.</param>
+    private sealed record AnchorHold(double Ratio);
 }
 #endregion
