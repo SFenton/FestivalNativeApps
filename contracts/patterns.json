@@ -669,6 +669,10 @@
           {
             "path": "windows/Festival.App/Controls/ViewAllCard.cs",
             "symbol": "ViewAllCard"
+          },
+          {
+            "path": "windows/Festival.App/Controls/GroupedRows.cs",
+            "symbol": "GroupedRows"
           }
         ]
       },
@@ -1236,6 +1240,7 @@
         "season column",
         "multi-row card",
         "trailing pane",
+        "grouped card",
         "one card",
         "grouped rows"
       ],
@@ -1446,6 +1451,14 @@
           {
             "path": "windows/Festival.Core/Domain/RankingSpotlight.cs",
             "symbol": "RankingSpotlight"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/GroupedRowSlice.cs",
+            "symbol": "GroupedRowSlice"
+          },
+          {
+            "path": "windows/Festival.App/Controls/GroupedRows.cs",
+            "symbol": "GroupedRows"
           }
         ]
       },
