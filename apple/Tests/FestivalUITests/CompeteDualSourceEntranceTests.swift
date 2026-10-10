@@ -10,12 +10,12 @@ import Testing
     #expect(CompeteDualSourceEntrance.leaderboardsHeader == 0)
     #expect(CompeteDualSourceEntrance.firstLeaderboardCard == 1)
     // Two cards side by side on the inner display: header 0, cards 1–2, Rivals 3.
-    #expect(CompeteDualSourceEntrance.rivalsHeader(instrumentCount: 6, leaderboardColumns: 2) == 3)
+    #expect(CompeteDualSourceEntrance.rivalsHeader(cardCount: 6, leaderboardColumns: 2) == 3)
     // Fewer instruments than columns: only the cards that exist precede it.
-    #expect(CompeteDualSourceEntrance.rivalsHeader(instrumentCount: 1, leaderboardColumns: 2) == 2)
+    #expect(CompeteDualSourceEntrance.rivalsHeader(cardCount: 1, leaderboardColumns: 2) == 2)
     // No instruments: the pane's message takes the cards' place.
-    #expect(CompeteDualSourceEntrance.rivalsHeader(instrumentCount: 0, leaderboardColumns: 2) == 2)
-    #expect(CompeteDualSourceEntrance.rivalsHeader(instrumentCount: 4, leaderboardColumns: 1) == 2)
+    #expect(CompeteDualSourceEntrance.rivalsHeader(cardCount: 0, leaderboardColumns: 2) == 2)
+    #expect(CompeteDualSourceEntrance.rivalsHeader(cardCount: 4, leaderboardColumns: 1) == 2)
 }
 
 /// The page measures the carousel's columns with the carousel's own spacing and margins.
@@ -41,7 +41,7 @@ import Testing
     #expect(CompeteDualSourceEntrance.leaderboardColumns(regionWidth: 466) == 1)
     #expect(CompeteDualSourceEntrance.leaderboardColumns(regionWidth: nil) == CarouselPaging.maximumColumns)
     let header = CompeteDualSourceEntrance.rivalsHeader(
-        instrumentCount: 2, leaderboardColumns: CompeteDualSourceEntrance.leaderboardColumns(regionWidth: 669)
+        cardCount: 2, leaderboardColumns: CompeteDualSourceEntrance.leaderboardColumns(regionWidth: 669)
     )
     #expect(header == 3)
 }

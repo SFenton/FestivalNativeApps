@@ -174,7 +174,7 @@
       "focus:id=fst.shell.profile",
       "key:enter",
       "waitfor:id=fst.profile.search@5",
-      "assertfocus:name=Find Player@3",
+      "assertfocus:name=Search players or bands@3",
       "key:esc",
       "assertfocus:id=fst.shell.profile@3"
     ]

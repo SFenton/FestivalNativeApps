@@ -8,6 +8,9 @@ import FestivalCore
 /// (``ReappearanceLoadGate``, #39).
 struct CompetePageLoadKey: Hashable, Sendable {
     let instruments: [Instrument]
+    /// The page's leaderboards, in page order: per family, a within-group combo first,
+    /// then each instrument (``RankingScope/supported(visible:)``, issue #602).
+    let scopes: [RankingScope]
     let accountId: String?
     let publicationRevision: Int
 
@@ -19,6 +22,7 @@ struct CompetePageLoadKey: Hashable, Sendable {
     @MainActor
     init(instruments: [Instrument], session: FestivalSession) {
         self.instruments = instruments
+        scopes = RankingScope.supported(visible: instruments)
         accountId = session.selectedPlayer?.accountId
         publicationRevision = session.publicationRevision
     }
@@ -27,7 +31,8 @@ struct CompetePageLoadKey: Hashable, Sendable {
 // MARK: - CompeteHubModel
 
 /// Every read on Compete: one Top-5 leaderboard preview (with the selected player's own
-/// rank when the top five lack it) and one rivals list per visible instrument, held for
+/// rank when the top five lack it) and one rivals list per leaderboard scope (each visible
+/// instrument and each family's within-group combo, web `resolveSupportedRankingScopes`), held for
 /// the whole page so it loads behind one spinner (load-transition R1,
 /// #354) like the web's `CompetePage`, instead of each card showing its own spinner under
 /// its header.
@@ -40,14 +45,14 @@ struct CompetePageLoadKey: Hashable, Sendable {
 final class CompeteHubModel {
     /// The key the states below belong to.
     private(set) var key: CompetePageLoadKey?
-    /// Leaderboard preview per instrument; missing means pending.
-    private(set) var boards: [Instrument: RankLoadState<RankingsPayload>] = [:]
-    /// The selected player's own row per instrument, read with its preview when the top
+    /// Leaderboard preview per scope; missing means pending.
+    private(set) var boards: [RankingScope: RankLoadState<RankingsPayload>] = [:]
+    /// The selected player's own row per scope, read with its preview when the top
     /// five lack it (web `CompetePage` `playerEntry`). Missing when they are in the top
     /// five, unranked, or their rank could not be read: the web shows no row then.
-    private(set) var spotlights: [Instrument: AccountRankingEntry] = [:]
-    /// Rivals list per instrument; missing means pending.
-    private(set) var rivals: [Instrument: RivalsLoadState<RivalsListResponse>] = [:]
+    private(set) var spotlights: [RankingScope: AccountRankingEntry] = [:]
+    /// Rivals list per scope; missing means pending.
+    private(set) var rivals: [RankingScope: RivalsLoadState<RivalsListResponse>] = [:]
     @ObservationIgnored private var gate = ReappearanceLoadGate<CompetePageLoadKey>()
     /// Reads in flight, so a Retry while another read runs does not repeat it.
     @ObservationIgnored private var inFlight: Set<ReadID> = []
@@ -56,13 +61,13 @@ final class CompeteHubModel {
     static let previewCount = 5
 
     private enum ReadID: Hashable {
-        case board(Instrument)
-        case rivals(Instrument)
+        case board(RankingScope)
+        case rivals(RankingScope)
     }
 
     private enum Read: Sendable {
-        case board(Instrument, Result<RankingsPayload, any Error>, AccountRankingEntry?)
-        case rivals(Instrument, Result<RivalsListResponse, any Error>)
+        case board(RankingScope, Result<RankingsPayload, any Error>, AccountRankingEntry?)
+        case rivals(RankingScope, Result<RivalsListResponse, any Error>)
     }
 
     /// Where every read for `key` stands, in page order.
@@ -72,12 +77,12 @@ final class CompeteHubModel {
     func progress(for key: CompetePageLoadKey) -> CompeteLoadProgress {
         guard self.key == key else {
             return CompeteLoadProgress(
-                boards: key.instruments.map { _ in .pending }, rivals: key.instruments.map { _ in .pending }
+                boards: key.scopes.map { _ in .pending }, rivals: key.scopes.map { _ in .pending }
             )
         }
         return CompeteLoadProgress(
-            boards: key.instruments.map { Self.readState(boards[$0]) },
-            rivals: key.instruments.map { Self.readState(rivals[$0]) }
+            boards: key.scopes.map { Self.readState(boards[$0]) },
+            rivals: key.scopes.map { Self.readState(rivals[$0]) }
         )
     }
 
@@ -95,8 +100,8 @@ final class CompeteHubModel {
     /// - Returns: The first leaderboard's issue, or nil when any leaderboard loaded.
     func fullPageIssue(for key: CompetePageLoadKey) -> ServiceIssue? {
         guard progress(for: key).everyBoardFailed else { return nil }
-        for instrument in key.instruments {
-            if case let .failed(issue) = boards[instrument] { return issue }
+        for scope in key.scopes {
+            if case let .failed(issue) = boards[scope] { return issue }
         }
         return nil
     }
@@ -117,25 +122,25 @@ final class CompeteHubModel {
             inFlight = []
         }
         var reads: [ReadID] = []
-        for instrument in key.instruments {
-            if !Self.isLoaded(boards[instrument]) { reads.append(.board(instrument)) }
-            if !Self.isLoaded(rivals[instrument]) { reads.append(.rivals(instrument)) }
+        for scope in key.scopes {
+            if !Self.isLoaded(boards[scope]) { reads.append(.board(scope)) }
+            if !Self.isLoaded(rivals[scope]) { reads.append(.rivals(scope)) }
         }
         reads.removeAll { inFlight.contains($0) }
         guard !reads.isEmpty else { return }
         for read in reads {
             inFlight.insert(read)
             switch read {
-            case let .board(instrument): boards[instrument] = .loading
-            case let .rivals(instrument): rivals[instrument] = .loading
+            case let .board(scope): boards[scope] = .loading
+            case let .rivals(scope): rivals[scope] = .loading
             }
         }
         await withTaskGroup(of: Read.self) { group in
             for read in reads {
                 switch read {
-                case let .board(instrument):
-                    group.addTask { await Self.readBoard(session, instrument, accountId: key.accountId) }
-                case let .rivals(instrument): group.addTask { await Self.readRivals(session, instrument) }
+                case let .board(scope):
+                    group.addTask { await Self.readBoard(session, scope, accountId: key.accountId) }
+                case let .rivals(scope): group.addTask { await Self.readRivals(session, scope) }
                 }
             }
             for await read in group where self.key == key {
@@ -150,71 +155,76 @@ final class CompeteHubModel {
 
     private func apply(_ read: Read) {
         switch read {
-        case let .board(instrument, result, spotlight):
-            inFlight.remove(.board(instrument))
+        case let .board(scope, result, spotlight):
+            inFlight.remove(.board(scope))
             switch result {
             case let .success(payload):
-                spotlights[instrument] = spotlight
-                boards[instrument] = .loaded(payload)
-            case let .failure(error) where Self.isCancellation(error): boards[instrument] = nil
-            case let .failure(error): boards[instrument] = .failed(ServiceIssue(error))
+                spotlights[scope] = spotlight
+                boards[scope] = .loaded(payload)
+            case let .failure(error) where Self.isCancellation(error): boards[scope] = nil
+            case let .failure(error): boards[scope] = .failed(ServiceIssue(error))
             }
-        case let .rivals(instrument, result):
-            inFlight.remove(.rivals(instrument))
+        case let .rivals(scope, result):
+            inFlight.remove(.rivals(scope))
             switch result {
-            case let .success(response): rivals[instrument] = .loaded(response)
-            case let .failure(error) where Self.isCancellation(error): rivals[instrument] = nil
-            case let .failure(error): rivals[instrument] = .failed(ServiceIssue(error))
+            case let .success(response): rivals[scope] = .loaded(response)
+            case let .failure(error) where Self.isCancellation(error): rivals[scope] = nil
+            case let .failure(error): rivals[scope] = .failed(ServiceIssue(error))
             }
         }
     }
 
-    /// Read one instrument's Top 5, then the selected player's own row when the top five
+    /// Read one scope's Top 5, then the selected player's own row when the top five
     /// lack it, so the card reveals with it rather than growing afterwards.
     ///
     /// - Parameters:
     ///   - session: Shared app session.
-    ///   - instrument: The preview's instrument.
+    ///   - scope: The preview's instrument or combo.
     ///   - accountId: The selected player, if any.
     /// - Returns: The preview, with the player's row when it is shown apart.
     private static func readBoard(
-        _ session: FestivalSession, _ instrument: Instrument, accountId: String?
+        _ session: FestivalSession, _ scope: RankingScope, accountId: String?
     ) async -> Read {
+        let metric = CompetePreviewSpotlight.metric
         let payload: RankingsPayload
         do {
-            payload = try await session.rankings(
-                instrument: instrument, rankBy: .totalscore, page: 1, pageSize: previewCount
-            )
+            payload = try await session.rankings(scope: scope, rankBy: metric, page: 1, pageSize: previewCount)
         } catch {
-            return .board(instrument, .failure(error), nil)
+            return .board(scope, .failure(error), nil)
         }
         guard let accountId, !payload.rankings.entries.contains(where: {
             $0.accountId.caseInsensitiveCompare(accountId) == .orderedSame
         }) else {
-            return .board(instrument, .success(payload), nil)
+            return .board(scope, .success(payload), nil)
         }
         do {
-            let ranking = try await session.playerInstrumentRanking(instrument: instrument, accountId: accountId)
+            let ranking = try await session.playerRanking(scope: scope, accountId: accountId, rankBy: metric)
             let spotlight = RankingSpotlight.placement(
                 selectedAccountId: accountId, visibleEntries: payload.rankings.entries,
                 source: ranking.ranking.map { .available($0.entry) } ?? .unranked
             )
-            guard case let .footer(entry) = spotlight else { return .board(instrument, .success(payload), nil) }
-            return .board(instrument, .success(payload), entry)
+            guard case let .footer(entry) = spotlight else { return .board(scope, .success(payload), nil) }
+            return .board(scope, .success(payload), entry)
         } catch let error where isCancellation(error) {
             // Left mid-read: stay pending, so the return reads the card again.
-            return .board(instrument, .failure(error), nil)
+            return .board(scope, .failure(error), nil)
         } catch {
             // Web `CompetePage` shows no row when the player's own rank fails.
-            return .board(instrument, .success(payload), nil)
+            return .board(scope, .success(payload), nil)
         }
     }
 
-    private static func readRivals(_ session: FestivalSession, _ instrument: Instrument) async -> Read {
+    /// Read one scope's rivals: an instrument's shared-song list, or a combo's
+    /// server-computed list (web `getRivalsList(accountId, scope.queryValue)`).
+    private static func readRivals(_ session: FestivalSession, _ scope: RankingScope) async -> Read {
         do {
-            return .rivals(instrument, .success(try await session.rivalsList(instrument: instrument)))
+            let response = switch scope {
+            case let .instrument(instrument): try await session.rivalsList(instrument: instrument)
+            case let .combo(combo): try await session.rivalsComboList(token: combo.comboId)
+            }
+            return .rivals(scope, .success(response))
         } catch {
-            return .rivals(instrument, .failure(error))
+            return .rivals(scope, .failure(error))
         }
     }
 
