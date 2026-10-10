@@ -353,6 +353,124 @@ final class FirstRunJourneyTests: XCTestCase {
         relaunched.buttons["fst.first-run.close"].tap()
     }
 
+    // MARK: - Guide title (issue #24, accessibility backfill #429)
+
+    /// Issue #24 gave each guide an inline navigation title naming its page, and left
+    /// VoiceOver's first focus to the system so that title is read first. At the largest
+    /// accessibility text size (AX5), on the launch Songs guide and the Leaderboards guide
+    /// (the longest tab-root title): the title is a heading named exactly by its page, it sits
+    /// wholly on screen in the guide's own navigation bar between the leading edge and Close,
+    /// it reads before Close and before the slide (visual and element order), Close keeps its
+    /// name, button role and a hittable target, and the audit finds no clipped text,
+    /// small hit region or unnamed element in that bar. The title is navigation-bar chrome a
+    /// macOS-hosted view cannot reproduce, so this journey is the evidence (`FirstRunGuideTitleTests`
+    /// unit-tests every page's title; `FirstRunDemoSongsAccessibilityTests` the content order).
+    /// HIG VoiceOver: "Use titles and headings to convey hierarchy"; HIG Accessibility: 44×44 pt
+    /// default control size.
+    @MainActor
+    func testGuideTitleIsReadFirstAtLargestText() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        for (tab, title, firstSlide) in [
+            ("songs", "Songs", "Song List"), ("leaderboards", "Leaderboards", "Global Rankings"),
+        ] {
+            let app = FestivalApp.makeApp([
+                "FST_API_BASE_URL": ProcessInfo.processInfo.environment["FST_FIRST_RUN_FIXTURE_URL"]
+                    ?? "http://127.0.0.1:8765",
+                "FST_UI_TEST_CLEAR_PROFILE": "1",
+                "FST_DEBUG_FIRST_RUN": "force",
+                "FST_DEBUG_TAB": tab,
+            ])
+            app.launchArguments += [
+                "-UIPreferredContentSizeCategoryName",
+                UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+            ]
+            app.launch()
+            try assertGuideTitle(app, title: title, firstSlide: firstSlide)
+            app.terminate()
+        }
+    }
+
+    /// The AX5 title rules of ``testGuideTitleIsReadFirstAtLargestText()`` on one open guide.
+    ///
+    /// - Parameters:
+    ///   - app: The launched app showing a guide.
+    ///   - title: The page title the guide must carry.
+    ///   - firstSlide: Title of the guide's first slide.
+    /// - Throws: An unreadable snapshot or a failed audit run.
+    @MainActor
+    private func assertGuideTitle(_ app: XCUIApplication, title: String, firstSlide: String) throws {
+        let close = app.navigationBars.buttons["fst.first-run.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: FestivalApp.budget(20)), "\(title) guide opens")
+        // Next, or Done for a one-slide guide (Leaderboards without a player).
+        let next = app.buttons.matching(
+            NSPredicate(format: "identifier IN %@", ["fst.first-run.next", "fst.first-run.done"])
+        ).firstMatch
+        XCTAssertTrue(next.waitForExistence(timeout: FestivalApp.budget(10)), "\(title) guide shows Next or Done")
+        let bar = app.navigationBars.containing(.button, identifier: "fst.first-run.close").firstMatch
+        let heading = bar.staticTexts[title]
+        XCTAssertTrue(heading.waitForExistence(timeout: FestivalApp.budget(5)), "\(title) guide is titled \(title)")
+        let slide = slide(app, titled: firstSlide)
+        XCTAssertTrue(slide.waitForExistence(timeout: FestivalApp.budget(10)), "\(firstSlide) slide")
+        Thread.sleep(forTimeInterval: FestivalApp.budget(1))
+        SongsUITestSupport.record(app, name: "first-run-title-\(title.lowercased())-ax5")
+
+        // Name and role: the bar's only text is the page name, read as a heading.
+        let snapshot = try bar.snapshot()
+        var nodes: [XCUIElementSnapshot] = []
+        func collect(_ node: XCUIElementSnapshot) {
+            nodes.append(node)
+            node.children.forEach(collect)
+        }
+        collect(snapshot)
+        let texts = nodes.filter { $0.elementType == .staticText }
+        XCTAssertEqual(texts.map(\.label), [title], "the guide's bar reads only its title")
+        if let text = texts.first, let traits = Self.traits(text) {
+            XCTAssertNotEqual(traits & UIAccessibilityTraits.header.rawValue, 0, "'\(title)' is a heading")
+        }
+
+        // Reading order: the title, then Close, then the slide below the bar.
+        let readable = nodes.filter { $0.elementType == .staticText || $0.elementType == .button }
+            .map { $0.identifier.isEmpty ? $0.label : $0.identifier }
+        XCTAssertEqual(readable, [title, "fst.first-run.close"], "bar reads title then Close")
+        let window = app.windows.firstMatch.frame
+        XCTAssertTrue(window.contains(heading.frame), "'\(title)' wholly on screen: \(heading.frame)")
+        XCTAssertLessThanOrEqual(heading.frame.maxX, close.frame.minX, "'\(title)' ends before Close")
+        XCTAssertFalse(heading.frame.intersects(close.frame), "'\(title)' does not overlap Close")
+        XCTAssertLessThanOrEqual(heading.frame.maxY, slide.frame.minY + 0.5,
+                                 "'\(title)' \(heading.frame) above the slide \(slide.frame)")
+        XCTAssertLessThan(heading.frame.maxY, next.frame.minY, "'\(title)' above \(next.label)")
+
+        // Close: a named, hittable button beside the enlarged title. Its frame reads about
+        // 35 pt but the system expands its hit region (near-miss taps:
+        // `testControlsAcceptNearMissesAndReadAsButtons`); the audit's hit-region check
+        // below covers it at AX5.
+        XCTAssertEqual(close.label, "Close")
+        XCTAssertEqual(close.elementType, .button)
+        XCTAssertTrue(close.isHittable, "Close is reachable at AX5")
+
+        var issues: [String] = []
+        try app.performAccessibilityAudit(
+            for: [.textClipped, .hitRegion, .sufficientElementDescription, .elementDetection]
+        ) { issue in
+            guard let element = issue.element else { return true }
+            let frame = element.frame
+            guard element.identifier == "fst.first-run.close" || element.label == title
+                || frame.intersects(bar.frame) else { return true }
+            issues.append("\(issue.compactDescription): #\(element.identifier) '\(element.label)' \(frame)")
+            return true
+        }
+        XCTAssertEqual(issues, [], "Open audit issues in the \(title) guide's bar")
+    }
+
+    /// The snapshot's accessibility traits, when readable (as `WhatsNewAccessibilityJourneyTests`).
+    @MainActor
+    private static func traits(_ snapshot: XCUIElementSnapshot) -> UInt64? {
+        let object = snapshot as AnyObject
+        guard object.responds(to: NSSelectorFromString("traits")) else { return nil }
+        return (object.value(forKey: "traits") as? NSNumber)?.uint64Value
+    }
+
     // MARK: - Song demos (issue #26, accessibility backfill #401)
 
     /// Issue #26: the Songs list demo shows real catalogue songs (redacted placeholders while
