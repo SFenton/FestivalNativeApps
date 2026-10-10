@@ -237,7 +237,7 @@ fun SongDetailScreen(
             }
         }
     } else {
-        // Paths lives in the dock (floating toolbar on phones, top bar elsewhere), like the web.
+        // Paths lives in the dock (the shell's floating toolbar at every size, #576), like the web.
         FestivalScreen(
             title = if (headerGone && song != null) song.title else "",
             isRoot = false,

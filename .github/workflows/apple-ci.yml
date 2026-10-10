@@ -104,6 +104,7 @@ jobs:
             NavButtonHitRegionJourneyTests/testProfileStaysTheLastBarButtonOnPushedPagesWithActions
             NavButtonHitRegionJourneyTests/testChooseProfileStaysLastOnSongDetailAtLargestTextSize
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
+            CompeteAccessibilityJourneyTests/testCompeteIsReadableAtAX5
             RivalsJourneyTests/testAllRivalsTitleLeadsTheListAndPinsAfterScroll
             RivalsJourneyTests/testAllRivalsDuoVerticalBarKeepsSystemTitle
             SongBarCaptionIconJourneyTests/testSongLeaderboardCaptionIconScalesWithText
