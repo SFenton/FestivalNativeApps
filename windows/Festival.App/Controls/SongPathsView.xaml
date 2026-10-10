@@ -96,14 +96,15 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
+                    <!-- Zoom out/in keep Fluent's 40 epx minimum touch target (FSTMinTargetSize, issue #430). -->
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Click="OnZoomOut" IsEnabled="{x:Bind ViewModel.CanZoomOut, Mode=OneWay}" AutomationProperties.Name="Zoom out"
+                        <Button Click="OnZoomOut" MinWidth="{StaticResource FSTMinTargetSize}" MinHeight="{StaticResource FSTMinTargetSize}" IsEnabled="{x:Bind ViewModel.CanZoomOut, Mode=OneWay}" AutomationProperties.Name="Zoom out"
                                 AutomationProperties.AutomationId="fst.paths.zoom-out">
                             <FontIcon Glyph="&#xE71F;" FontSize="14" />
                         </Button>
                         <TextBlock Text="{x:Bind ViewModel.ZoomText, Mode=OneWay}" VerticalAlignment="Center" MinWidth="48" TextAlignment="Center"
                                    AutomationProperties.LiveSetting="Polite" />
-                        <Button Click="OnZoomIn" IsEnabled="{x:Bind ViewModel.CanZoomIn, Mode=OneWay}" AutomationProperties.Name="Zoom in"
+                        <Button Click="OnZoomIn" MinWidth="{StaticResource FSTMinTargetSize}" MinHeight="{StaticResource FSTMinTargetSize}" IsEnabled="{x:Bind ViewModel.CanZoomIn, Mode=OneWay}" AutomationProperties.Name="Zoom in"
                                 AutomationProperties.AutomationId="fst.paths.zoom-in">
                             <FontIcon Glyph="&#xE8A3;" FontSize="14" />
                         </Button>
