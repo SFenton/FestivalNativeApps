@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 
 /// Rivals/Compete navigation journeys, fixture-backed against
@@ -219,6 +220,42 @@ final class RivalsJourneyTests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["fst.rival-detail.view-profile"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.staticTexts["Closest Battles"].waitForExistence(timeout: 10))
+    }
+
+    // MARK: - Song comparison cards (#558, pattern rival-rows)
+
+    /// At the largest accessibility size each Rival Detail song card is still one element
+    /// reading the song, both ranks and who leads (colour is never the only signal), keeps a
+    /// 44 pt target, and the audit finds no clipped text or small hit region in the cards
+    /// now that their "#rank Name" pills wrap and the art column joins them.
+    @MainActor
+    func testRivalDetailSongCardsAreAccessibleAtAX5() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = fixtureApp()
+        app.launchEnvironment["FST_DEBUG_ROUTE"] =
+            "rivalDetail:f1c749eb07c32578cfa3e59ec38c03a8:song:Solo_Guitar"
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        app.launch()
+        let card = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS %@", ", you rank ")).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: FestivalApp.budget(20)))
+        XCTAssertTrue(
+            card.label.hasSuffix(" leads") || card.label.hasSuffix("you lead") || card.label.hasSuffix(", tied"),
+            "Card label must name who leads: \(card.label)"
+        )
+        XCTAssertTrue(card.label.contains(" ranks "), "Card label must read the rival's rank: \(card.label)")
+        XCTAssertGreaterThanOrEqual(card.frame.height, 44)
+
+        var open: [String] = []
+        try app.performAccessibilityAudit(for: [.textClipped, .hitRegion]) { issue in
+            guard let element = issue.element, element.label.contains(", you rank ") else { return true }
+            open.append("\(issue.compactDescription): '\(element.label)' \(element.frame)")
+            return true
+        }
+        XCTAssertEqual(open, [], "Rival song cards must not clip or shrink at AX5")
     }
 
     /// A `leaderboard:<instrument>:<rankBy>` scope also resolves directly.
