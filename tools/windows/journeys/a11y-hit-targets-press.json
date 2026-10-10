@@ -86,31 +86,43 @@
       "focus:id=fst.shell.profile",
       "assertfocus:id=fst.shell.profile@2",
       "tapat:id=fst.global-search.open|0,0",
-      "assertfocus:name=Search songs and players@3",
+      "assertfocus:name=Search songs, players and bands@3",
       "focus:id=fst.shell.profile",
       "assertfocus:id=fst.shell.profile@2",
       "tapat:id=fst.global-search.open|-100,0",
-      "assertfocus:name=Search songs and players@3",
+      "assertfocus:name=Search songs, players and bands@3",
       "focus:id=fst.shell.profile",
       "assertfocus:id=fst.shell.profile@2",
       "tapat:id=fst.global-search.open|100,0",
-      "assertfocus:name=Search songs and players@3",
+      "assertfocus:name=Search songs, players and bands@3",
       "focus:id=fst.shell.profile",
       "assertfocus:id=fst.shell.profile@2",
       "tapat:id=fst.global-search.open|0,-12",
-      "assertfocus:name=Search songs and players@3",
+      "assertfocus:name=Search songs, players and bands@3",
       "focus:id=fst.shell.profile",
       "assertfocus:id=fst.shell.profile@2",
       "tapat:id=fst.global-search.open|0,12",
-      "assertfocus:name=Search songs and players@3",
+      "assertfocus:name=Search songs, players and bands@3",
+      "focus:id=fst.shell.profile",
+      "assertfocus:id=fst.shell.profile@2",
+      "tapat:id=fst.global-search.open|0,-14.5",
+      "assertfocus:name=Search songs, players and bands@3",
+      "focus:id=fst.shell.profile",
+      "assertfocus:id=fst.shell.profile@2",
+      "tapat:id=fst.global-search.open|0,14.5",
+      "assertfocus:name=Search songs, players and bands@3",
+      "focus:id=fst.shell.profile",
+      "assertfocus:id=fst.shell.profile@2",
+      "tapat:id=fst.global-search.open|-100,14.5",
+      "assertfocus:name=Search songs, players and bands@3",
       "focus:id=fst.shell.profile",
       "assertfocus:id=fst.shell.profile@2",
       "clickat:id=fst.global-search.open|0,-12",
-      "assertfocus:name=Search songs and players@3",
+      "assertfocus:name=Search songs, players and bands@3",
       "focus:id=fst.shell.profile",
       "assertfocus:id=fst.shell.profile@2",
       "clickat:id=fst.global-search.open|0,12",
-      "assertfocus:name=Search songs and players@3",
+      "assertfocus:name=Search songs, players and bands@3",
       "tapat:id=fst.shell.profile|0,-18.5",
       "waitfor:id=fst.profile.search@5",
       "key:escape",
@@ -139,6 +151,9 @@
   },
   {
     "name": "press-titlebar-transitions",
+    "axe_allow": [
+      "framework-popup"
+    ],
     "tab": "songs",
     "tabs": 0,
     "sizes": [
@@ -154,25 +169,25 @@
       "focus:id=fst.shell.profile",
       "assertfocus:id=fst.shell.profile@2",
       "tapat:id=fst.global-search.open|0,0",
-      "assertfocus:name=Search songs and players@3",
+      "assertfocus:name=Search songs, players and bands@3",
       "focus:id=fst.shell.profile",
       "assertfocus:id=fst.shell.profile@2",
       "tapat:id=fst.global-search.open|-100,0",
-      "assertfocus:name=Search songs and players@3",
+      "assertfocus:name=Search songs, players and bands@3",
       "focus:id=fst.shell.profile",
       "assertfocus:id=fst.shell.profile@2",
       "tapat:id=fst.global-search.open|0,12",
-      "assertfocus:name=Search songs and players@3",
+      "assertfocus:name=Search songs, players and bands@3",
       "resize:wide",
       "wait:1",
       "focus:id=fst.shell.profile",
       "assertfocus:id=fst.shell.profile@2",
       "tapat:id=fst.global-search.open|0,0",
-      "assertfocus:name=Search songs and players@3",
+      "assertfocus:name=Search songs, players and bands@3",
       "focus:id=fst.shell.profile",
       "assertfocus:id=fst.shell.profile@2",
       "tapat:id=fst.global-search.open|100,-12",
-      "assertfocus:name=Search songs and players@3",
+      "assertfocus:name=Search songs, players and bands@3",
       "resize:compact",
       "wait:1",
       "tapat:id=fst.global-search.open|0,-18.5",
@@ -330,11 +345,11 @@
       "focus:id=fst.shell.profile",
       "assertfocus:id=fst.shell.profile@2",
       "tapat:id=fst.global-search.open|0,0",
-      "assertfocus:name=Search songs and players@3",
+      "assertfocus:name=Search songs, players and bands@3",
       "focus:id=fst.shell.profile",
       "assertfocus:id=fst.shell.profile@2",
       "tapat:id=fst.global-search.open|0,12",
-      "assertfocus:name=Search songs and players@3",
+      "assertfocus:name=Search songs, players and bands@3",
       "tapat:id=fst.shell.notifications|0,-18.5",
       "waitfor:id=fst.notifications.sheet@5",
       "key:escape",
@@ -440,7 +455,9 @@
       "tapat:id=fst.songs.section-index-button|18.5,0",
       "waitfor:id=fst.songs.section-index@5",
       "key:escape",
-      "waitgone:id=fst.songs.section-index@5"
+      "waitgone:id=fst.songs.section-index@5",
+      "focus:id=fst.songs.row.fixture-pulse",
+      "assertfocus:id=fst.songs.row.fixture-pulse@3"
     ]
   },
   {
@@ -711,7 +728,9 @@
       "tapat:id=fst.quick-links.open|0,18.5",
       "waitfor:id=fst.quick-links.item.instrument:Solo_Guitar@5",
       "key:escape",
-      "waitgone:id=fst.quick-links.item.instrument:Solo_Guitar@5"
+      "waitgone:id=fst.quick-links.item.instrument:Solo_Guitar@5",
+      "focus:id=fst.rankings.row.fixture-player-1",
+      "assertfocus:id=fst.rankings.row.fixture-player-1@3"
     ]
   },
   {
@@ -734,7 +753,10 @@
       "tapat:id=fst.quick-links.open|0,18.5",
       "waitfor:id=fst.quick-links.item.intensity@5",
       "key:escape",
-      "waitgone:id=fst.quick-links.item.intensity@5"
+      "waitgone:id=fst.quick-links.item.intensity@5",
+      "scrollinto:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-1@10",
+      "focus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-1",
+      "assertfocus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-1@3"
     ]
   },
   {
@@ -757,7 +779,10 @@
       "tapat:id=fst.quick-links.open|0,18.5",
       "waitfor:id=fst.quick-links.item.common@5",
       "key:escape",
-      "waitgone:id=fst.quick-links.item.common@5"
+      "waitgone:id=fst.quick-links.item.common@5",
+      "scrollinto:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8@10",
+      "focus:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8",
+      "assertfocus:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8@3"
     ]
   },
   {
@@ -780,7 +805,10 @@
       "tapat:id=fst.quick-links.open|0,18.5",
       "waitfor:id=fst.quick-links.item.rival-category:closest_battles@5",
       "key:escape",
-      "waitgone:id=fst.quick-links.item.rival-category:closest_battles@5"
+      "waitgone:id=fst.quick-links.item.rival-category:closest_battles@5",
+      "scrollinto:id=fst.rivalry.song.fixture-drift.Solo_Guitar@10",
+      "focus:id=fst.rivalry.song.fixture-drift.Solo_Guitar",
+      "assertfocus:id=fst.rivalry.song.fixture-drift.Solo_Guitar@3"
     ]
   },
   {
@@ -803,7 +831,10 @@
       "tapat:id=fst.quick-links.open|0,18.5",
       "waitfor:id=fst.quick-links.item.global@5",
       "key:escape",
-      "waitgone:id=fst.quick-links.item.global@5"
+      "waitgone:id=fst.quick-links.item.global@5",
+      "scrollinto:id=fst.player.stat.overview.songs-played@10",
+      "focus:id=fst.player.stat.overview.songs-played",
+      "assertfocus:id=fst.player.stat.overview.songs-played@3"
     ]
   },
   {
@@ -826,7 +857,9 @@
       "tapat:id=fst.quick-links.open|0,18.5",
       "waitfor:id=fst.quick-links.item.app-settings@5",
       "key:escape",
-      "waitgone:id=fst.quick-links.item.app-settings@5"
+      "waitgone:id=fst.quick-links.item.app-settings@5",
+      "focus:id=fst.settings.show-instrument-icons",
+      "assertfocus:id=fst.settings.show-instrument-icons@3"
     ]
   },
   {
@@ -848,7 +881,10 @@
       "tapat:id=fst.quick-links.open|0,18.5",
       "waitfor:id=fst.quick-links.item.members@5",
       "key:escape",
-      "waitgone:id=fst.quick-links.item.members@5"
+      "waitgone:id=fst.quick-links.item.members@5",
+      "scrollinto:id=fst.band.member.fixture-band-1-a@10",
+      "focus:id=fst.band.member.fixture-band-1-a",
+      "assertfocus:id=fst.band.member.fixture-band-1-a@3"
     ]
   },
   {
@@ -890,15 +926,15 @@
       "focus:id=fst.shell.profile",
       "assertfocus:id=fst.shell.profile@2",
       "tapat:id=fst.global-search.open|0,0",
-      "assertfocus:name=Search songs and players@3",
+      "assertfocus:name=Search songs, players and bands@3",
       "focus:id=fst.shell.profile",
       "assertfocus:id=fst.shell.profile@2",
       "tapat:id=fst.global-search.open|0,12",
-      "assertfocus:name=Search songs and players@3",
+      "assertfocus:name=Search songs, players and bands@3",
       "focus:id=fst.shell.profile",
       "assertfocus:id=fst.shell.profile@2",
       "tapat:id=fst.global-search.open|0,-12",
-      "assertfocus:name=Search songs and players@3",
+      "assertfocus:name=Search songs, players and bands@3",
       "resize:compact",
       "wait:1",
       "tapat:id=fst.global-search.open|0,-18.5",

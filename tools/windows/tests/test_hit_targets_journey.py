@@ -31,7 +31,7 @@ _LIVE_PRESSED = {"fst.global-search.open"}
 # The distinct result each press must assert next (first steps after the press), so a press that lands on the
 # window or the title-bar drag region instead of the control fails.
 _OUTCOMES = {
-    "fst.global-search.open": ("waitfor:id=fst.global-search.field@", "assertfocus:name=Search songs and players@"),
+    "fst.global-search.open": ("waitfor:id=fst.global-search.field@", "assertfocus:name=Search songs, players and bands@"),
     "fst.shell.profile": ("waitfor:id=fst.profile.search@", "waitfor:id=fst.player.name@"),
     "fst.shell.notifications": ("waitfor:id=fst.notifications.sheet@",),
     "fst.songs.sort": ("waitfor:id=fst.songs.sort.mode@",),
@@ -51,6 +51,9 @@ _OUTCOMES = {
     "fst.quick-links.open": ("waitfor:id=fst.quick-links.item.",),
 }
 _PRESSES = ("tapat", "clickat")
+# Page tools with a ToolTip: Esc returns keyboard focus to them, which opens the tip, and WinUI always windows tooltips
+# (open item 8 in windows-accessibility.md), so a press page whose last press is one of these ends focused elsewhere.
+_TOOLTIP_TOOLS = {"fst.songs.section-index-button", "fst.quick-links.open"}
 
 
 def _steps(page: dict) -> list[str]:
@@ -174,6 +177,22 @@ class HitTargetPressJourneyTests(unittest.TestCase):
                     else:
                         self.assertTrue(any(s.startswith(("key:escape", "key:alt+left", "select:id=fst.nav.")) for s in between), between)
                         self.assertTrue(any(s.startswith(("waitgone:", "waitfor:")) for s in between[1:]), between)
+
+    def test_pages_ending_on_a_tooltip_tool_move_focus_off_it_before_the_scan(self):
+        ended = set()
+        for page in _PRESS:
+            steps = _steps(page)
+            pressed = [_id(u.parse_step(s)) for s in steps if s.split(":", 1)[0] in _PRESSES]
+            if not pressed or pressed[-1] not in _TOOLTIP_TOOLS:
+                continue
+            ended.add(page["name"])
+            focus, check = u.parse_step(steps[-2]), u.parse_step(steps[-1])
+            with self.subTest(page=page["name"]):
+                self.assertEqual(focus["verb"], "focus")
+                self.assertEqual(check["verb"], "assertfocus")
+                self.assertEqual(_id(focus), _id(check))
+                self.assertNotIn(_id(focus), _TOOLTIP_TOOLS | _TOOLS)
+        self.assertLessEqual({"press-songs", "press-quick-links-leaderboards", "press-quick-links-statistics"}, ended)
 
     def test_titlebar_presses_cover_touch_and_mouse(self):
         for name in ("press-titlebar-button", "press-titlebar-box", "press-titlebar-transitions"):

@@ -127,6 +127,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 "close" => Close(request),
                 "sysset" => SysSet(request),
                 "scan" => Scan(FindWindow(request), (string)request["out"]!, (string?)request["scanid"] ?? "scan"),
+                "ellipsis" => Ellipsis((string)request["image"]!, request["rect"]?.AsArray()),
                 _ => throw new ArgumentException($"unknown command {command}"),
             };
         }
@@ -164,6 +165,27 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         foreach (var blocker in blockers) covered.Add(JsonValue.Create($"{blocker.Title} (pid {blocker.Pid})"));
         return new JsonObject { ["foreground"] = foreground, ["covered_by"] = covered };
     }
+
+    /// <summary>
+    /// Raises the target above overlapping windows before a motion assertion. The app pauses looping motion (marquees,
+    /// shimmers) while its window is covered (<c>OcclusionTracker</c>), so on a shared desktop another lane's window
+    /// would otherwise turn a moving check into a false "did not scroll" failure. Waits briefly after raising so the
+    /// app's occlusion poll resumes motion; throws (via <see cref="EnsureForeground"/>) when it stays covered.
+    /// </summary>
+    /// <param name="window">Target.</param>
+    private void UncoverForMotion(Window window)
+    {
+        if (postKeys) return; // a locked console cannot activate windows; nothing covers it there either
+        var hwnd = window.Properties.NativeWindowHandle.Value;
+        var above = Native.WindowsAbove(hwnd, window.Properties.ProcessId.Value);
+        if (above.Count == 0) return;
+        Log("motion check: window covered by " + string.Join(", ", above.Select(b => $"\"{b.Title}\"")) + "; raising it");
+        EnsureForeground(window);
+        Thread.Sleep(MotionResumeDelay);
+    }
+
+    /// <summary>Time for the app's occlusion poll to notice it is uncovered and resume motion.</summary>
+    private static readonly TimeSpan MotionResumeDelay = TimeSpan.FromMilliseconds(800);
 
     /// <summary>Minimizes visible, overlapping top-level windows of other processes with the target's name.</summary>
     /// <param name="hwnd">Target window.</param>
@@ -788,12 +810,15 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 Pin(window, step, verb == "pin");
                 break;
             case "assertmarquee":
+                UncoverForMotion(window);
                 AssertMarquee(window, step);
                 break;
             case "assertmarqueesync":
+                UncoverForMotion(window);
                 AssertMarqueeSync(window, step);
                 break;
             case "assertmotion":
+                UncoverForMotion(window);
                 AssertMotion(window, step);
                 break;
             case "listen":
@@ -1297,14 +1322,33 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         var (condition, label) = Condition(step, key);
         var raw = IsRaw(step, key);
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        var retried = false;
         while (true)
         {
-            var found = InView(raw, () => window.FindFirstDescendant(condition));
-            if (found is not null && (!onScreen || !found.Properties.IsOffscreen.ValueOrDefault)) return found;
+            try
+            {
+                var found = InView(raw, () => window.FindFirstDescendant(condition));
+                if (found is not null && (!onScreen || !found.Properties.IsOffscreen.ValueOrDefault)) return found;
+            }
+            // A busy app (e.g. restoring a page after Back on a slow runner) can time out one UIA call or drop an
+            // element mid-search; search again within the step's timeout, at least once (#552), and still fail if
+            // it persists.
+            catch (Exception error) when (IsTransientUia(error) && (!retried || DateTime.UtcNow <= until))
+            {
+                retried = true;
+                Thread.Sleep(200);
+                continue;
+            }
             if (DateTime.UtcNow > until) throw new InvalidOperationException($"no on-screen element {label}");
             Thread.Sleep(200);
         }
     }
+
+    /// <summary>Whether a UI Automation error is a passing provider state worth searching again for.</summary>
+    /// <param name="error">The error a UIA call threw.</param>
+    /// <returns>True for a UIA call timeout (<c>UIA_E_TIMEOUT</c>, 0x80131505) or an element that went away.</returns>
+    internal static bool IsTransientUia(Exception error) =>
+        error is TimeoutException or FlaUI.Core.Exceptions.ElementNotAvailableException;
 
     /// <summary>
     /// Waits until the step's element is on screen with exactly the step's UIA Name; each <c>*</c> in the text matches
@@ -1829,10 +1873,30 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     }
 
     /// <summary>
+    /// Offline <see cref="EndsInEllipsis"/> check of a saved capture (no window): lets tool tests replay a failing
+    /// <c>assertmarquee</c> line from a CI screenshot.
+    /// </summary>
+    /// <param name="image">PNG path.</param>
+    /// <param name="rect">Optional <c>[x, y, width, height]</c> crop in image pixels (the element's bounds).</param>
+    /// <returns><c>ellipsis</c> and, when false, <c>detail</c>.</returns>
+    private static JsonNode Ellipsis(string image, JsonArray? rect)
+    {
+        using var source = new Bitmap(image);
+        var bounds = rect is null
+            ? new Rectangle(0, 0, source.Width, source.Height)
+            : new Rectangle((int)rect[0]!, (int)rect[1]!, (int)rect[2]!, (int)rect[3]!);
+        using var line = source.Clone(bounds, PixelFormat.Format32bppArgb);
+        var ellipsis = EndsInEllipsis(line, out var detail);
+        return new JsonObject { ["ellipsis"] = ellipsis, ["detail"] = detail };
+    }
+
+    /// <summary>
     /// Whether one rendered text line ends in "…": ink is any pixel whose luminance differs from the line's most common
     /// (background) luminance by more than 40. In the last third of a line height before the rightmost ink column, an
     /// ellipsis leaves only a short band of ink (at most a quarter of the line height: dots on the baseline) split into at
-    /// least two separate dots; the last glyph of clipped text is taller or one connected stroke.
+    /// least two separate dots; the last glyph of clipped text is taller or one connected stroke. A dot is a run of columns
+    /// at least half as dark as the band's darkest column: at 100% scale a small line's dots are one pixel apart, and
+    /// anti-aliasing leaves faint ink between them (issue #529, the pinned artist on the hosted runner).
     /// </summary>
     /// <param name="line">Capture of the text line.</param>
     /// <param name="detail">Why it is not an ellipsis.</param>
@@ -1863,18 +1927,24 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             return false;
         }
         var span = Math.Max(3, (int)Math.Round(height / 3.0));
+        var left = Math.Max(0, right - span + 1);
+        var contrast = new int[right - left + 1];
         int top = height, bottom = -1, runs = 0;
-        var inRun = false;
-        for (var x = Math.Max(0, right - span + 1); x <= right; x++)
+        for (var x = left; x <= right; x++)
         {
-            var inked = false;
             for (var y = 0; y < height; y++)
             {
                 if (!Ink(x, y)) continue;
-                inked = true;
+                contrast[x - left] = Math.Max(contrast[x - left], Math.Abs(lum[x, y] - background));
                 top = Math.Min(top, y);
                 bottom = Math.Max(bottom, y);
             }
+        }
+        var dot = contrast.Max() / 2.0;
+        var inRun = false;
+        foreach (var column in contrast)
+        {
+            var inked = column > 0 && column >= dot;
             if (inked && !inRun) runs++;
             inRun = inked;
         }

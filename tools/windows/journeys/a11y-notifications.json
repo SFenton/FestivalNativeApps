@@ -42,5 +42,6 @@
    "ready": ["waitfor:id=fst.songs.row.fixture-pulse@30"],
    "after_ready": ["focus:id=fst.shell.notifications", "key:enter", "waitfor:id=fst.notifications.list@15", "key:down",
                    "key:esc", "wait:0.5", "assertfocus:id=fst.shell.notifications@3",
-                   "assertstate:id=fst.shell.notifications|name=Notifications@3"]}
+                   "assertstate:id=fst.shell.notifications|name=Notifications@3",
+                   "focus:id=fst.songs.row.fixture-pulse", "assertfocus:id=fst.songs.row.fixture-pulse"]}
 ]

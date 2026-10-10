@@ -125,8 +125,14 @@ class QuickLinksLandingA11yJourneyTests(unittest.TestCase):
                 self.assertIn("assertsize:id=fst.quick-links.open|40x40", steps)
                 # Scanned before the menu first opens (WinUI's popup host lingers afterwards, open item 8).
                 self.assertLess(steps.index("scan:{stem}-axe/closed"), steps.index("key:enter"))
-                self.assertEqual(steps[-3], "key:esc")
-                self.assertEqual(steps[-1], "assertfocus:id=fst.quick-links.open@3")
+                self.assertEqual(steps[-5], "key:esc")
+                self.assertEqual(steps[-3], "assertfocus:id=fst.quick-links.open@3")
+                # Then focus leaves the button: its keyboard tooltip is always a windowed popup that Axe flags (open
+                # item 8). The menu itself opens in-window since #534, so no Axe allowance is needed.
+                target = steps[-2].removeprefix("focus:")
+                self.assertTrue(steps[-2].startswith("focus:id=") and target != "id=fst.quick-links.open", steps[-2])
+                self.assertEqual(steps[-1], f"assertfocus:{target}@3")
+                self.assertNotIn("axe_allow", _BY_NAME[name])
 
     def test_every_keyboard_walked_menu_item_is_a_40_epx_target(self):
         # Quick Links R6 / page-tools R10 (#416 review): every item the keyboard walks over or picks is measured at
