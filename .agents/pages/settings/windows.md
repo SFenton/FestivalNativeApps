@@ -159,8 +159,8 @@ Narrator: the "Service Info" heading, then the state label and description (a po
 - A failed poll after a success shows "Failed to load data" (Android rule; the web keeps the old data).
 - The `ProgressRing` reports as a "Busy" progress bar even with `AccessibilityView="Raw"`, which Axe accepts.
 - Loading lasts at most the 3 s request timeout. Opening Settings, revealing the card, the checks, a screenshot and an Axe scan take about 4 s together, so no run without a hook fits inside it. The `settings-service-info-loading` page (design review of #327) therefore follows the `FST_DEBUG_FADE_WINDOW_MS` precedent ([load-transition](../../patterns/load-transition.md)):
-  - It launches with the Debug/automation-only `FST_DEBUG_SERVICE_INFO_TIMEOUT_MS=15000` (whole ms, 1–60000, `SettingsServiceInfoViewModel.ParseTimeoutOverride`).
-  - The fixture's `loading` state holds the first read for 8 s.
+  - It launches with the Debug/automation-only `FST_DEBUG_SERVICE_INFO_TIMEOUT_MS=40000` (whole ms, 1–60000, `SettingsServiceInfoViewModel.ParseTimeoutOverride`).
+  - The fixture's `loading` state holds the first read for 30 s: the Axe scan of the Loading card took 18.2 s at 225% text on a hosted runner, past the earlier 8 s hold (#552).
   - The page starts on Songs and opens Settings with Ctrl+Comma, because Loading only happens before a page's first read and the Settings frame is cached.
   - It asserts state and process "Loading", the visible spinner (`fst.settings.service-info.spinner`, a Raw-view `ProgressRing`) and no phase or publication rows, takes a screenshot and runs an Axe scan, then checks that it is still Loading.
   - It then waits for Idle and checks that the spinner is gone.
