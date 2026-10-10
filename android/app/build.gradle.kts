@@ -32,6 +32,17 @@ android {
         buildConfigField("String", "GIT_SHA", "\"$gitSha\"")
     }
 
+    signingConfigs {
+        val uploadStore = System.getenv("FST_UPLOAD_STORE_FILE")
+        if (!uploadStore.isNullOrBlank()) {
+            create("upload") {
+                storeFile = file(uploadStore)
+                storePassword = System.getenv("FST_UPLOAD_STORE_PASSWORD")
+                keyAlias = System.getenv("FST_UPLOAD_KEY_ALIAS")
+                keyPassword = System.getenv("FST_UPLOAD_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         getByName("debug") {
             enableUnitTestCoverage = true
@@ -39,6 +50,9 @@ android {
         }
         getByName("release") {
             isMinifyEnabled = false
+            // Play upload key from the release workflow (android-release.yml writes the keystore from the
+            // store-release environment); local release builds stay debug-signed and are never distributed.
+            signingConfig = signingConfigs.findByName("upload") ?: signingConfigs.getByName("debug")
             buildConfigField("boolean", "DEBUG_LAUNCH", "false")
         }
         // Frame-timing builds (tools/android/frame_stats.py): not debuggable, so ART and Compose

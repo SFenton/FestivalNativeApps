@@ -44,5 +44,5 @@ The service transcodes oversized media, labels the issue with the plain platform
 | discard-confirm | Discard / Keep Editing; Discard cancels an upload in flight |
 | sending | Progress row; inputs and Submit disabled |
 | filing | Accepted; the progress row says it is being filed on GitHub; closing needs no confirmation |
-| sent | The form closes itself; the success text with the issue number (or the "received" text) then shows over Settings with a single Done action, and no form control (Cancel/Close, Submit) remains (#565) |
+| sent | The form closes itself; an alert over Settings titled *Report Sent* / *Request Sent* then shows the success text with the issue number (or the "received" text) and a single Done action. No form control (Cancel, Close, Submit) remains after a successful filing ([modal-shell](../../patterns/modal-shell.md) R7, owner #565) |
 | error | Form kept with a fixed error message; Submit enabled again |
